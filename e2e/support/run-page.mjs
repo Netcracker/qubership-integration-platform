@@ -273,7 +273,7 @@ function slowestSection(report) {
  * @returns {string}
  */
 export function runPageHtml({ report, lastRun, stack, coverage, history = [], env = {} }) {
-  const run = runOf({ report, lastRun, stack, history, env });
+  const run = runOf({ report, lastRun, stack, coverage, history, env });
   const budget = { left: IMAGE_BYTES };
   const title = [run.title, run.branch && run.commit ? `${run.branch} @ ${run.commit.text}` : undefined].filter(Boolean).join(", ");
   const absent = run.absent.length > 0 ? `<h2>Left out on this target</h2>${table(["Project", "Reason"], run.absent.map((each) => [`<code>${escapeHtml(each.name)}</code>`, escapeHtml(each.reason)]))}` : "";

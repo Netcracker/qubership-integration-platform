@@ -271,6 +271,20 @@ test.describe("run email", () => {
     expect([passed.tone, passed.title, passed.verdict]).toEqual(["passed", "E2E nightly passed", "All 1 test passed."]);
   });
 
+  // The run page and the step summary run without FAILED_STEP, so the coverage file alone decides.
+  test("fails a passed run when reconciliation found a problem", () => {
+    const green = reportOf({ api: [] }, [file("api/a.spec.ts", [passing("api")])]);
+    const coverage = { target: "k8s", elements: { covered: 204, inScope: 300, outOfScope: 136, shared: 3 }, operations: { total: 303, reached: 301, covered: 301 }, problems: 2 };
+    for (const env of [ENV, { ...ENV, FAILED_STEP: "Reconcile the coverage registry" }]) {
+      const run = emailOf({ report: green, lastRun: { status: "passed" }, coverage, env });
+      expect([run.tone, run.title]).toEqual(["failed", "E2E nightly failed"]);
+      expect(run.verdict).toBe("Coverage reconciliation found 2 problems; the reconcile step lists them.");
+      expect(emailSubject(run)).toBe("E2E nightly failed: 2 coverage problems (main @ 7a393a8)");
+      expect(run.points.at(-1)).toMatchObject({ status: "failed", failed: 0 });
+    }
+    expect(emailOf({ report: green, lastRun: { status: "passed" }, coverage: { ...coverage, problems: 0 }, env: ENV }).tone).toBe("passed");
+  });
+
   test("builds every link from the workflow variables, or none", () => {
     const report = reportOf({ api: [] }, [file("api/a.spec.ts", [failing("api", "case", "Error: no", 42)])]);
     const email = emailOf({ report, env: ENV });

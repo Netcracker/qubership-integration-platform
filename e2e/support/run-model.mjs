@@ -1,8 +1,9 @@
 /**
- * What a run found, read once from its `report.json`, `.last-run.json`, and `stack.json`, the
- * earlier runs under `E2E_HISTORY_DIR`, and the variables GitHub Actions sets. The step summary
- * (`run-summary.mjs`), the email (`run-email.mjs`), and the run page (`run-page.mjs`) render this
- * one model, so the three say the same thing.
+ * What a run found, read once from its `report.json`, `.last-run.json`, `stack.json`, and the
+ * `coverage.json` that `npm run reconcile` writes, the earlier runs under `E2E_HISTORY_DIR`, and
+ * the variables GitHub Actions sets. The step summary (`run-summary.mjs`), the email
+ * (`run-email.mjs`), and the run page (`run-page.mjs`) render this one model, so the three say the
+ * same thing.
  *
  * The links come from `GITHUB_SERVER_URL`, `GITHUB_REPOSITORY`, `GITHUB_SHA`, `GITHUB_REF_NAME`,
  * `GITHUB_RUN_ID`, and `GITHUB_EVENT_NAME`, and from the artifact links the workflow passes:
@@ -42,6 +43,7 @@ export const TREND_RUNS = 10;
  * @typedef {import("./run-history.mjs").Outcomes} Outcomes
  * @typedef {import("./run-history.mjs").History} History
  * @typedef {{ status: string }} LastRun
+ * @typedef {import("./run-summary.mjs").Coverage} Coverage
  * @typedef {{ startedAt?: string, target?: string, commit?: { sha?: string, branch?: string }, absent?: { name: string, reason: string }[] }} Stack
  * @typedef {Record<string, string | undefined>} Env
  *
@@ -62,17 +64,17 @@ export const TREND_RUNS = 10;
  *   trigger: string, started?: string, duration?: string, durationMs?: number, target: string,
  *   counts?: Counts, groups?: Record<Group, Counts>, infra?: Infra,
  *   runUrl?: string, artifactsUrl?: string, reportZipUrl?: string, reportHtmlUrl?: string, runPageUrl?: string, clusterUrl?: string, readmeUrl?: string,
- *   failed: FailedCase[], pins: FixedPin[], fixed: FixedTest[], failedProjects: string[], errors: Excerpt[], failedStep?: string,
+ *   failed: FailedCase[], pins: FixedPin[], fixed: FixedTest[], failedProjects: string[], errors: Excerpt[], failedStep?: string, coverageProblems: number,
  *   notRun: NotRun[], dependenciesKnown: boolean, absent: { name: string, reason: string }[], projects: ProjectRow[],
  *   previous?: Outcomes, points: TrendPoint[]
  * }} Run
  */
 
 /**
- * @param {{ report?: Report, lastRun?: LastRun, stack?: Stack, history?: Outcomes[], env?: Env }} run
+ * @param {{ report?: Report, lastRun?: LastRun, stack?: Stack, coverage?: Coverage, history?: Outcomes[], env?: Env }} run
  * @returns {Run}
  */
-export function runOf({ report, lastRun, stack, history = [], env = {} }) {
+export function runOf({ report, lastRun, stack, coverage, history = [], env = {} }) {
   const server = env.GITHUB_SERVER_URL ?? "https://github.com";
   const repo = env.GITHUB_REPOSITORY;
   const sha = env.GITHUB_SHA ?? stack?.commit?.sha;
@@ -131,6 +133,8 @@ export function runOf({ report, lastRun, stack, history = [], env = {} }) {
   const stats = report?.stats;
   const groups = report && groupCounts(report);
   const counts = groups?.product;
+  // `npm run reconcile` writes the count before it fails the step, so a run whose tests passed still fails on it.
+  const coverageProblems = coverage?.problems ?? 0;
   const failedStep = failed.length === 0 && pins.length === 0 && errors.length === 0 ? env.FAILED_STEP || undefined : undefined;
   const notRun = report ? notRunOf(report, projects) : [];
   const setupFailed = projects.filter((each) => each.group === "setup" && each.failed > 0).map((each) => each.name);
@@ -149,7 +153,7 @@ export function runOf({ report, lastRun, stack, history = [], env = {} }) {
       ? ["failed", "failed"]
       : lastRun?.status === "timedout"
         ? ["warning", "timed out"]
-        : errors.length > 0 || failedStep || !report
+        : errors.length > 0 || coverageProblems > 0 || failedStep || !report
           ? ["failed", "failed"]
           : pins.length > 0
             ? ["warning", "found fixed defects"]
@@ -193,12 +197,13 @@ export function runOf({ report, lastRun, stack, history = [], env = {} }) {
     failedProjects,
     errors,
     failedStep,
+    coverageProblems,
     notRun,
     dependenciesKnown: (report?.config.projects ?? []).some((each) => each.metadata?.dependencies),
     absent: stack?.absent ?? [],
     projects,
     previous,
-    points: report ? trendPoints(outcomesOf(report, env, lastRun), history) : [],
+    points: report ? trendPoints(outcomesOf(report, env, lastRun, coverage), history) : [],
   };
   run.verdict = verdictOf(run, lastRun?.status === "timedout", Boolean(report));
   // After the trend, whose "It" names the failed test.
@@ -241,8 +246,8 @@ const noLongerReproduce = (pins) => `${plural(pins, "pinned defect")} no longer 
 
 /**
  * The run's outcome as one sentence or two, the way the tone was chosen: a failed setup project
- * first, then failed tests, a timeout, an error outside any test, a failed step, pins to remove,
- * and a pass.
+ * first, then failed tests, a timeout, an error outside any test, failed coverage reconciliation,
+ * a failed step, pins to remove, and a pass.
  *
  * @param {Run} run
  * @param {boolean} timedOut
@@ -260,6 +265,7 @@ function verdictOf(run, timedOut, reported) {
     const line = error.replace(/^Error: /, "");
     return ran === 0 ? `The run stopped before its tests finished: ${line}` : `An error outside any test failed the run: ${line}`;
   }
+  if (run.coverageProblems > 0) return `Coverage reconciliation found ${plural(run.coverageProblems, "problem")}; the reconcile step lists them.`;
   if (run.failedStep) {
     // The workflow's fallback, "a step after the suite", reads as prose; a step's own name is quoted.
     return /^[a-z]/.test(run.failedStep) ? `The run failed at ${run.failedStep}.` : `The run failed at the step "${run.failedStep}".`;

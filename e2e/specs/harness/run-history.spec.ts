@@ -42,18 +42,19 @@ test.describe("run history", () => {
     expect(historyOf(key, [run("0", "skipped")])).toBeUndefined();
   });
 
+  // A test pinned with test.fail() after it failed still fails, and Playwright reports it as expected.
   test("lists as fixed the tests the previous run failed", () => {
-    const spec = (title: string, status: string) => ({ title, file: "a.spec.ts", line: 1, tests: [{ projectName: "api", status, results: [] }] });
+    const spec = (title: string, status: string, expectedStatus = "passed") => ({ title, file: "a.spec.ts", line: 1, tests: [{ projectName: "api", status, expectedStatus, results: [] }] });
     const report = {
       config: { rootDir: "/e2e/specs" },
-      suites: [{ title: "a.spec.ts", specs: [spec("passed", "expected"), spec("flaky", "flaky"), spec("failed", "unexpected"), spec("skipped", "skipped")] }],
+      suites: [{ title: "a.spec.ts", specs: [spec("passed", "expected"), spec("flaky", "flaky"), spec("failed", "unexpected"), spec("skipped", "skipped"), spec("pinned", "expected", "failed")] }],
       errors: [],
-      stats: { expected: 1, unexpected: 1, flaky: 1, skipped: 1 },
+      stats: { expected: 2, unexpected: 1, flaky: 1, skipped: 1 },
     };
     const previous = {
       runId: "1",
       startedAt: "2026-10-15T02:00:00Z",
-      failed: ["passed", "flaky", "failed", "skipped", "gone"].map((title) => testKey("api", "a.spec.ts", title)),
+      failed: ["passed", "flaky", "failed", "skipped", "pinned", "gone"].map((title) => testKey("api", "a.spec.ts", title)),
       skipped: [],
     };
 
@@ -85,6 +86,9 @@ test.describe("run history", () => {
     // Without .last-run.json, a failed test decides the status.
     expect(outcomesOf(report, { GITHUB_SHA: "0123456" }).status).toBe("failed");
     expect(outcomesOf(report, { GITHUB_SHA: "0123456" }).sha).toBe("0123456");
+    // Reconciliation fails a run whose tests passed.
+    expect(outcomesOf(report, {}, { status: "passed" }, { problems: 1 }).status).toBe("failed");
+    expect(outcomesOf(report, {}, { status: "passed" }, { problems: 0 }).status).toBe("passed");
   });
 
   test("a trend leaves out a run written before the counts", () => {

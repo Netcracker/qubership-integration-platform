@@ -18,6 +18,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { GROUPS, GROUP_TITLES, clock, escapeHtml, joined, plural, readIfPresent, shortDate, shortList, totalOf, duration } from "./run-report.mjs";
 import { readHistory } from "./run-history.mjs";
+import { COVERAGE_FILE } from "./run-summary.mjs";
 import { countsClause, historyParts, pointLabel, runOf } from "./run-model.mjs";
 
 export const HTML_FILE = "email.html";
@@ -77,6 +78,8 @@ export function emailSubject(run) {
   } else if (run.errors[0]) {
     const line = run.errors[0].lines[0] ?? "";
     detail = `: ${line.length > 100 ? `${line.slice(0, 99)}…` : line}`;
+  } else if (run.coverageProblems > 0) {
+    detail = `: ${plural(run.coverageProblems, "coverage problem")}`;
   } else if (run.failedStep) {
     detail = ` at ${run.failedStep}`;
   }
@@ -659,7 +662,8 @@ export function writeRunEmail(dir, env) {
   const report = readIfPresent(path.join(dir, "report.json"));
   const lastRun = readIfPresent(path.join(dir, ".last-run.json"));
   const stack = readIfPresent(path.join(dir, "stack.json"));
-  const run = runOf({ report, lastRun, stack, history: readHistory(env.E2E_HISTORY_DIR), env });
+  const coverage = readIfPresent(path.join(dir, COVERAGE_FILE));
+  const run = runOf({ report, lastRun, stack, coverage, history: readHistory(env.E2E_HISTORY_DIR), env });
   // A run that failed before the suite started has no directory yet.
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, HTML_FILE), emailHtml(run));

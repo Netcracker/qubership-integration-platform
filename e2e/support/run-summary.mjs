@@ -310,7 +310,7 @@ function slowestSection(report) {
  * @returns {string}
  */
 export function summaryMarkdown({ report, lastRun, stack, coverage, history = [], env = {} }, limit = SUMMARY_BYTES) {
-  const run = runOf({ report, lastRun, stack, history, env });
+  const run = runOf({ report, lastRun, stack, coverage, history, env });
   /** @param {{ slowest: boolean, projects: boolean, bodies: boolean }} keep */
   const render = (keep) => {
     /** @type {(string | undefined)[]} */
@@ -360,7 +360,7 @@ export function writeRunSummary(dir, env = {}) {
   const stack = readIfPresent(path.join(dir, "stack.json"));
   const coverage = readIfPresent(path.join(dir, COVERAGE_FILE));
   const history = readHistory(env.E2E_HISTORY_DIR);
-  if (report) writeOutcomes(dir, report, env, lastRun);
+  if (report) writeOutcomes(dir, report, env, lastRun, coverage);
   fs.writeFileSync(path.join(dir, SUMMARY_FILE), summaryMarkdown({ report, lastRun, stack, coverage, history, env }));
 }
 

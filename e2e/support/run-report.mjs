@@ -9,7 +9,7 @@ import fs from "node:fs";
  * @typedef {{ name: string, contentType?: string, body?: string, path?: string }} Attachment
  * @typedef {{ status?: string, startTime?: string, duration?: number, errors?: ReportError[], attachments?: Attachment[] }} TestResult
  * @typedef {{ type: string, description?: string }} Annotation
- * @typedef {{ projectName: string, status: string, annotations?: Annotation[], results: TestResult[] }} ReportTest
+ * @typedef {{ projectName: string, status: string, expectedStatus?: string, annotations?: Annotation[], results: TestResult[] }} ReportTest
  * @typedef {{ title: string, file: string, line: number, tests: ReportTest[] }} ReportSpec
  * @typedef {{ title: string, specs?: ReportSpec[], suites?: ReportSuite[] }} ReportSuite
  * @typedef {"product" | "setup" | "suite"} Group

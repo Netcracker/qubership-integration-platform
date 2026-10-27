@@ -14,7 +14,8 @@ export const OUTCOMES_FILE = "outcomes.json";
  * A run lists only its failed and skipped tests. A test it lists in neither passed, or did not exist
  * yet, and both read the same way here: a failure after it is new.
  *
- * `status` is the one `.last-run.json` records, `counts` are the product cases, and the run took
+ * `status` is the one `.last-run.json` records, or `failed` when coverage reconciliation found a
+ * problem in a run whose tests passed. `counts` are the product cases, and the run took
  * `durationMs` to `finishedAt`. A file written before these fields existed leaves them out, and the
  * readers treat each one as unknown.
  *
@@ -44,9 +45,10 @@ export const testKey = (project, file, title) => `${project} › ${file} › ${t
  * @param {Report} report
  * @param {Env} env
  * @param {{ status: string }} [lastRun]
+ * @param {{ problems: number }} [coverage]
  * @returns {Outcomes}
  */
-export function outcomesOf(report, env, lastRun) {
+export function outcomesOf(report, env, lastRun, coverage) {
   /** @type {Outcomes} */
   const outcomes = { failed: [], skipped: [] };
   const repoUrl = env.GITHUB_REPOSITORY && `${env.GITHUB_SERVER_URL ?? "https://github.com"}/${env.GITHUB_REPOSITORY}`;
@@ -61,6 +63,7 @@ export function outcomesOf(report, env, lastRun) {
   if (duration !== undefined) outcomes.durationMs = Math.round(duration);
   if (startTime && duration !== undefined) outcomes.finishedAt = new Date(Math.round(Date.parse(startTime) + duration)).toISOString();
   outcomes.status = lastRun?.status ?? (report.stats.unexpected > 0 || report.errors.length > 0 ? "failed" : "passed");
+  if (outcomes.status === "passed" && (coverage?.problems ?? 0) > 0) outcomes.status = "failed";
   outcomes.counts = groupCounts(report).product;
   eachTest(report, (spec, test, title) => {
     if (test.status === "unexpected") outcomes.failed.push(testKey(test.projectName, spec.file, title));
@@ -111,7 +114,8 @@ export function historyOf(key, history) {
 }
 
 /**
- * The tests the latest earlier run failed that passed in this one.
+ * The tests the latest earlier run failed that passed in this one. A `test.fail()` case, or one
+ * `strikesAsKnown` struck, reports `expected` while it still fails, so it is not counted.
  *
  * @param {Report} report
  * @param {Outcomes | undefined} previous
@@ -122,7 +126,7 @@ export function fixedSince(report, previous) {
   /** @type {Set<string>} */
   const passed = new Set();
   eachTest(report, (spec, test, title) => {
-    if (test.status === "expected" || test.status === "flaky") passed.add(testKey(test.projectName, spec.file, title));
+    if (test.expectedStatus !== "failed" && (test.status === "expected" || test.status === "flaky")) passed.add(testKey(test.projectName, spec.file, title));
   });
   return previous.failed.filter((key) => passed.has(key));
 }
@@ -134,9 +138,10 @@ export function fixedSince(report, previous) {
  * @param {Report} report
  * @param {Env} env
  * @param {{ status: string }} [lastRun]
+ * @param {{ problems: number }} [coverage]
  */
-export function writeOutcomes(dir, report, env, lastRun) {
-  const outcomes = outcomesOf(report, env, lastRun);
+export function writeOutcomes(dir, report, env, lastRun, coverage) {
+  const outcomes = outcomesOf(report, env, lastRun, coverage);
   fs.writeFileSync(path.join(dir, OUTCOMES_FILE), JSON.stringify(outcomes, null, 2) + "\n");
   return outcomes;
 }
