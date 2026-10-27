@@ -849,13 +849,10 @@ public final class RequirementCaptureEditor {
       var intent = fact.elementIntent();
       String path = "/draft/facts/" + fact.sourceFactId() + "/elementIntent";
       checkId(issues, intent.elementRef(), path + "/elementRef");
-      if (intent.placement() == null || intent.requestedProperties() == null || intent.exactValues() == null
-          || intent.elementType() != null && intent.elementType().isBlank()) {
+      if (intent.placement() == null || intent.elementType() == null || intent.elementType().isBlank()
+          || intent.requestedProperties() == null || intent.exactValues() == null) {
         add(issues, "INVALID_ELEMENT_INTENT", path, fact.sourceFactId(),
             "Provide elementType, placement, requestedProperties, and exactValues; use empty lists when unspecified.");
-        continue;
-      }
-      if (intent.elementType() == null) {
         continue;
       }
       boolean chain = intent.placement() == RequirementElementIntent.Placement.CHAIN;
