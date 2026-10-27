@@ -12,6 +12,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -1092,6 +1093,52 @@ class RequirementDiscoveryCapabilityTest {
     assertTrue(again.message().contains("__GATE:target-folder-choice__"), again.message());
     assertTrue(capability.targetFolderChoices.selection("Nope").isEmpty(), "selection(Nope)");
     assertTrue(capability.targetFolderChoices.selection("Salesforce").isEmpty(), "selection(Salesforce)");
+  }
+
+  @Test
+  void unknownFolderAnswerRepeatsTheAdmittedQuestionWithoutAuthoringItAgain() {
+    var folders = mock(org.qubership.integration.platform.ai.chain.folder.CatalogFolders.class);
+    when(folders.tree()).thenReturn(List.of(
+        new org.qubership.integration.platform.ai.chain.folder.CatalogFolders.Folder("f1", "A", null, "A"),
+        new org.qubership.integration.platform.ai.chain.folder.CatalogFolders.Folder("f2", "Salesforce", "f1",
+            "A/Salesforce"),
+        new org.qubership.integration.platform.ai.chain.folder.CatalogFolders.Folder("f3", "Salesforce", null,
+            "Salesforce")));
+    var h = captureHarness(folders);
+    var input = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput(
+        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FlowInput(List.of(), List.of()),
+        List.of(new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput("goal", List.of(),
+            org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactKind.GOAL,
+            org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polarity.POSITIVE, "Create one task.")),
+        List.of(), List.of(),
+        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftSettings(false, null, "Salesforce"));
+    var capability = new RequirementDiscoveryCapability(null, h.store(), (chat, text) -> {
+      h.tools().captureRequirementDraft(input);
+      h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY);
+      return Multi.createFrom().empty();
+    });
+    var narrative = mock(FailureNarrative.class);
+    when(narrative.askClarification(any(), any(), any(), any(), any()))
+        .thenReturn(Optional.of("Which folder?"));
+    capability.captureFeedback = h.feedback();
+    capability.failureNarrative = narrative;
+    capability.targetFolderChoices = new org.qubership.integration.platform.ai.plan.TargetFolderChoiceResolver(
+        folders, h.tools());
+    String question = discoveryOutcome(capability).message();
+    assertTrue(question.contains("__GATE:target-folder-choice__"), question);
+    var context = new org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext(
+        "run-rejected", "conv-rejected", "requirement-discovery", "exec-rejected", "attempt-rejected", null, null,
+        List.of(), Map.of("userText", "Nope",
+            org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport.ADMITTED_INPUT_GATE_ATTR,
+            PipelineGates.TARGET_FOLDER_CHOICE,
+            "admittedClarificationPrompt", question));
+    var again = capability.execute(context).collect().asList().await().indefinitely().stream()
+        .filter(org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal.Completed.class::isInstance)
+        .map(org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal.Completed.class::cast)
+        .findFirst().orElseThrow().outcome();
+    assertEquals(StageOutcomeClass.NEEDS_INPUT, again.outcomeClass(), again.toString());
+    assertEquals(question, again.message());
+    verify(narrative, times(1)).askClarification(any(), any(), any(), any(), any());
   }
 
   @Test
