@@ -51,6 +51,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.facade.Creat
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainExecutionSnapshot;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationArchive;
+import org.qubership.integration.platform.ai.chat.service.ChatDecisionService;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.StartCreateChainCommand;
 
 /**
@@ -73,6 +74,7 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
   private final A2aDispatchCrashGate crashGate;
   private final DispatchLeaseHeartbeat leaseHeartbeat;
   private final ConversationArchive archive;
+  private final ChatDecisionService decisionService;
   private final AtomicInteger facadeInvocations = new AtomicInteger();
   private final java.util.concurrent.ConcurrentHashMap<java.util.UUID, ActiveExecution>
       activeExecutions = new java.util.concurrent.ConcurrentHashMap<>();
@@ -160,6 +162,30 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
       A2aDispatchCrashGate crashGate,
       DispatchLeaseHeartbeat leaseHeartbeat,
       ConversationArchive archive) {
+    this(
+        facade,
+        persister,
+        receiptRepository,
+        callerContextProvider,
+        accessPolicy,
+        featureGate,
+        crashGate,
+        leaseHeartbeat,
+        archive,
+        null);
+  }
+
+  public CreateChainA2aAgentExecutor(
+      CreateChainApplicationFacade facade,
+      A2aTaskSnapshotPersister persister,
+      A2aMessageReceiptRepository receiptRepository,
+      CallerContextProvider callerContextProvider,
+      TaskAccessPolicy accessPolicy,
+      A2aFeatureGate featureGate,
+      A2aDispatchCrashGate crashGate,
+      DispatchLeaseHeartbeat leaseHeartbeat,
+      ConversationArchive archive,
+      ChatDecisionService decisionService) {
     this.facade = Objects.requireNonNull(facade, "facade");
     this.persister = Objects.requireNonNull(persister, "persister");
     this.receiptRepository = Objects.requireNonNull(receiptRepository, "receiptRepository");
@@ -169,6 +195,7 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
     this.crashGate = crashGate;
     this.leaseHeartbeat = leaseHeartbeat;
     this.archive = archive;
+    this.decisionService = decisionService;
   }
 
   /** Test seam: counts facade command invocations after idempotent receipt acceptance. */
@@ -275,6 +302,13 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
       command = resolveTextApproval(command, priorSnapshot);
     }
     command = bindClarificationOffer(command, message, savedReceipt, isNew, taskId);
+    if (!isNew
+        && command instanceof InboundCommand.ClarifyText clarify
+        && clarify.clarificationOfferId().isBlank()
+        && withholdsRequirementOffer(taskId)) {
+      emitDurableSnapshot(taskId, contextId, emitter, isNew);
+      return;
+    }
     if (command instanceof InboundCommand.Approve && operation != TaskOperation.APPROVE && !isNew) {
       try {
         accessPolicy.check(caller, TaskOperation.APPROVE, new TaskIdentity(taskId, contextId));
@@ -1066,7 +1100,8 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
     if (!restored
         && clarify.clarificationOfferId().isBlank()
         && stableMessageId(message)
-        && savedReceipt.isEmpty()) {
+        && savedReceipt.isEmpty()
+        && !withholdsRequirementOffer(taskId)) {
       String durable = facade.activeClarificationOffer(taskId)
           .map(ClarificationTransition.Offer::offerId)
           .orElse("");
@@ -1084,6 +1119,10 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
 
   private static boolean stableMessageId(Message message) {
     return message.messageId() != null && !message.messageId().isBlank();
+  }
+
+  private boolean withholdsRequirementOffer(String taskId) {
+    return decisionService != null && decisionService.withholdsRequirementOffer(taskId);
   }
 
   private void archiveClarificationAnswer(String taskId, InboundCommand command) {

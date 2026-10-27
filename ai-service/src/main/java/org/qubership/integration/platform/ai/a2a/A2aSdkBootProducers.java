@@ -20,6 +20,7 @@ import org.qubership.integration.platform.ai.a2a.transport.CreateChainA2aAgentEx
 import org.qubership.integration.platform.ai.a2a.transport.CipA2aAgentExecutor;
 import org.qubership.integration.platform.ai.a2a.transport.CipAssistA2aAgentExecutor;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
+import org.qubership.integration.platform.ai.chat.service.ChatDecisionService;
 import org.qubership.integration.platform.ai.configuration.AppConfig;
 import org.qubership.integration.platform.ai.llm.routing.ScenarioRouter;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
@@ -47,6 +48,7 @@ public class A2aSdkBootProducers {
   @Inject AppConfig appConfig;
   @Inject ScenarioRouter scenarioRouter;
   @Inject ConversationService conversationService;
+  @Inject ChatDecisionService chatDecisionService;
 
   @ConfigProperty(name = "quarkus.http.port", defaultValue = "3001")
   int httpPort;
@@ -77,7 +79,8 @@ public class A2aSdkBootProducers {
             featureGate,
             crashGate,
             leaseHeartbeat,
-            conversationService.archive()),
+            conversationService.archive(),
+            chatDecisionService),
         new CipAssistA2aAgentExecutor(
             scenarioRouter,
             conversationService,

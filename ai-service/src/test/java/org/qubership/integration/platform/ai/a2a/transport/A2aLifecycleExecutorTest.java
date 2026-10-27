@@ -42,6 +42,7 @@ import org.qubership.integration.platform.ai.a2a.transport.A2aCommandId;
 import org.qubership.integration.platform.ai.a2a.transport.A2aInboundMessageParser.InboundCommand;
 import org.qubership.integration.platform.ai.a2a.transport.CreateChainA2aStateMapper.ProjectedTask;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationArchive;
+import org.qubership.integration.platform.ai.chat.service.ChatDecisionService;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition;
@@ -309,6 +310,50 @@ class A2aLifecycleExecutorTest {
   }
 
   @Test
+  void specializedCardWithholdsBlankOfferBeforeContinue() throws Exception {
+    ConversationArchive archive = newArchive();
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    A2aMessageReceiptRepository receipts = mock(A2aMessageReceiptRepository.class);
+    ChatDecisionService decisions = mock(ChatDecisionService.class);
+    when(decisions.withholdsRequirementOffer("task-1")).thenReturn(true);
+    A2aTaskSnapshotPersister persister = mock(A2aTaskSnapshotPersister.class);
+    CreateChainA2aAgentExecutor executor =
+        continuationExecutor(facade, receipts, archive, persister, decisions);
+    when(facade.activeClarificationOffer("task-1")).thenReturn(Optional.of(offer("offer-requirement")));
+    when(persister.loadSdkTask("task-1")).thenReturn(Optional.of(waitingTask()));
+    Message message = textMessage("msg-policy", "Use HTTPS");
+
+    AgentEmitter emitter = mock(AgentEmitter.class);
+    executor.execute(continuation(message), emitter);
+
+    verify(receipts, never()).claimContinuation(any(), any(), any(), any(), any(), any(), any(), any());
+    verify(facade, never()).continueWithInput(any());
+    assertTrue(archive.read("task-1").turns().isEmpty());
+    verify(emitter).requiresInput(any(), eq(true));
+  }
+
+  @Test
+  void missingOfferStillPinsWhenSpecializedCardDoesNotWithhold() throws Exception {
+    ConversationArchive archive = newArchive();
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    A2aMessageReceiptRepository receipts = mock(A2aMessageReceiptRepository.class);
+    ChatDecisionService decisions = mock(ChatDecisionService.class);
+    when(decisions.withholdsRequirementOffer("task-1")).thenReturn(false);
+    CreateChainA2aAgentExecutor executor = continuationExecutor(facade, receipts, archive, null, decisions);
+    when(facade.activeClarificationOffer("task-1")).thenReturn(Optional.of(offer("offer-current")));
+    when(receipts.claimContinuation(any(), any(), any(), any(), any(), any(), any(), any()))
+        .thenReturn(new A2aCallerMessageClaimResult.Claimed("task-1"));
+    Message message = textMessage("msg-stable", "Use HTTPS");
+
+    executor.execute(continuation(message), mock(AgentEmitter.class));
+
+    ArgumentCaptor<ContinueCreateChainCommand> continued =
+        ArgumentCaptor.forClass(ContinueCreateChainCommand.class);
+    verify(facade).continueWithInput(continued.capture());
+    assertEquals("offer-current", continued.getValue().clarificationOfferId());
+  }
+
+  @Test
   void missingOfferAndStableMessageIdPinsTheCurrentOffer() throws Exception {
     ConversationArchive archive = newArchive();
     CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
@@ -328,7 +373,7 @@ class A2aLifecycleExecutorTest {
         any(), payload.capture());
     assertTrue(payload.getValue() != null && payload.getValue().contains("offer-current"), payload.getValue());
     assertEquals(
-        A2aCommandFingerprint.compute(message, new InboundCommand.ClarifyText("Use HTTPS")),
+        A2aCommandFingerprint.compute(message, new InboundCommand.ClarifyText("Use HTTPS", "offer-current")),
         fingerprint.getValue());
     ArgumentCaptor<ContinueCreateChainCommand> continued =
         ArgumentCaptor.forClass(ContinueCreateChainCommand.class);
@@ -571,14 +616,33 @@ class A2aLifecycleExecutorTest {
         null,
         null,
         null,
-        archive);
+        archive,
+        null);
+  }
+
+  private static Task waitingTask() {
+    return Task.builder()
+        .id("task-1")
+        .contextId("ctx-1")
+        .status(new TaskStatus(TaskState.TASK_STATE_INPUT_REQUIRED, null, null))
+        .build();
   }
 
   private static CreateChainA2aAgentExecutor continuationExecutor(
       CreateChainApplicationFacade facade,
       A2aMessageReceiptRepository receipts,
       ConversationArchive archive) {
-    A2aTaskSnapshotPersister persister = mock(A2aTaskSnapshotPersister.class);
+    return continuationExecutor(facade, receipts, archive, null, null);
+  }
+
+  private static CreateChainA2aAgentExecutor continuationExecutor(
+      CreateChainApplicationFacade facade,
+      A2aMessageReceiptRepository receipts,
+      ConversationArchive archive,
+      A2aTaskSnapshotPersister persister,
+      ChatDecisionService decisions) {
+    A2aTaskSnapshotPersister snapshotPersister =
+        persister == null ? mock(A2aTaskSnapshotPersister.class) : persister;
     when(receipts.findCallerReceipt(any(), any(), any())).thenReturn(Optional.empty());
     when(receipts.acquireDispatch(any(), any(), any())).thenReturn(
         org.qubership.integration.platform.ai.a2a.persistence.A2aDispatchAcquisition.acquired(
@@ -589,7 +653,7 @@ class A2aLifecycleExecutorTest {
         new CreateChainPendingAction.Clarify("Which protocol?", List.of()), "")));
     when(facade.continueWithInput(any())).thenReturn(Multi.createFrom().item(
         new CreateChainEvent.Waiting(new CreateChainPendingAction.Clarify("next", List.of()))));
-    when(persister.persistAndBuildSdkTask(any(), any(), any(), any(), any())).thenAnswer(invocation -> {
+    when(snapshotPersister.persistAndBuildSdkTask(any(), any(), any(), any(), any())).thenAnswer(invocation -> {
       ProjectedTask projected = invocation.getArgument(3);
       Task task = Task.builder()
           .id("task-1")
@@ -600,13 +664,14 @@ class A2aLifecycleExecutorTest {
     });
     return new CreateChainA2aAgentExecutor(
         facade,
-        persister,
+        snapshotPersister,
         receipts,
         () -> new CallerContext("local", "local-user"),
         new LocalPermitAllTaskAccessPolicy(),
         null,
         null,
         null,
-        archive);
+        archive,
+        decisions);
   }
 }

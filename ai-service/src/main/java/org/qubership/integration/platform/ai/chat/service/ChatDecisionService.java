@@ -276,7 +276,7 @@ public class ChatDecisionService {
    * True when this answer belongs to a specialized card and must not be archived as the generic
    * requirement offer, even if the client still sends that offer id.
    */
-  boolean withholdsRequirementOffer(String conversationId) {
+  public boolean withholdsRequirementOffer(String conversationId) {
     var current = facade.snapshot(conversationId).orElse(null);
     if (current == null || !(current.pendingAction() instanceof PendingAction.Clarify clarify)) {
       return false;
