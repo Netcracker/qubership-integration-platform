@@ -171,6 +171,7 @@ export const FilterItem = (props: FilterItemProps) => {
       <Col span={8}>
         <Form.Item style={itemStyle}>
           <Select
+            aria-label="Column"
             placeholder="Column"
             options={columnOptions()}
             onChange={changeColumn}
@@ -181,6 +182,7 @@ export const FilterItem = (props: FilterItemProps) => {
       <Col span={6}>
         <Form.Item style={itemStyle}>
           <Select
+            aria-label="Condition"
             disabled={!columnData.column}
             placeholder="Condition"
             options={columnData.conditionOptions}

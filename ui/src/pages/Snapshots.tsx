@@ -372,6 +372,7 @@ export const Snapshots: React.FC = () => {
               size="small"
               type="text"
               icon={<OverridableIcon name="more" />}
+              data-testid="snapshots-row-actions"
             />
           </ProtectedDropdown>
         </>
@@ -432,6 +433,7 @@ export const Snapshots: React.FC = () => {
                 iconName: "compare",
                 onClick: onCompareBtnClick,
                 disabled: selectedRowKeys.length !== 2,
+                "data-testid": "snapshots-compare",
               }}
             />
             <ProtectedButton
