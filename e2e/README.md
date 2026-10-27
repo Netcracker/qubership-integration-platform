@@ -775,7 +775,7 @@ one batch, and waits until the routes answer. What it deployed lands in
 
 ## Coverage registries
 
-Two registries under `registry/` hold what the suite claims to cover, and `npm run reconcile` checks
+Three registries under `registry/` hold what the suite claims to cover, and `npm run reconcile` checks
 them against the run rather than believing them:
 
 - `registry/elements.ts` has one row per element family and per axis value the schemas declare,
@@ -791,6 +791,11 @@ them against the run rather than believing them:
   when a call to it was recorded, `covered` when a named assertion about it passed, and
   `not-reached` otherwise, with a reason. The two numbers are reported side by side and never
   summed.
+- `registry/vscode-messages.ts` has one row per message type of the VS Code webview bridge. A row is
+  `covered` when a passing `vscode` case recorded the type answered without an error, `not-covered`
+  otherwise, with a reason, and `unhandled` for a type the UI sends and the extension has no handler
+  for (#1214). `specs/harness/vscode-messages.spec.ts` reads the rows against the extension and UI
+  sources.
 
 Run reconcile after the suite, never instead of it:
 
@@ -801,7 +806,8 @@ npm test; npm run reconcile
 It reads a whole run or none. A run narrowed by `--project` or `--grep` is refused, and a run given
 `--reporter=line` writes no `test-results/report.json` for it to read. A row only one target can
 prove carries that target, so covering the whole registry takes a reconcile after a full run on
-each target.
+each target. `npm run reconcile -- --only=vscode-messages` checks the message registry alone, after a
+run of exactly `--project=vscode`, and writes neither `cases.md` nor `coverage.json`.
 
 `npm run refresh-operations` rewrites `registry/operations.cache.json` from a running stack, and it
 is the only thing that writes it. Point it elsewhere with `CIP_CATALOG_URL`, `CIP_ENGINE_URL`,

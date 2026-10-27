@@ -1098,7 +1098,7 @@ export interface Declaration {
  * today, and a `covers()` or a transport call inside one would earn a registry row on an assertion
  * nobody made. `expectedStatus` is what tells the two apart.
  */
-function proves(test: JsonTest): boolean {
+export function proves(test: JsonTest): boolean {
   return test.status === "expected" && test.expectedStatus !== "failed";
 }
 
@@ -1156,6 +1156,28 @@ function countTests(report: JsonReport): number {
   let total = 0;
   for (const spec of eachSpec(report)) total += (spec.tests ?? []).length;
   return total;
+}
+
+/** What `npm run reconcile` reads one registry alone for: `--only=<name>`. */
+export const RECONCILE_ONLY = ["vscode-messages"] as const;
+
+/**
+ * The arguments of `reconcile.mjs`: the report path, and the options apart from it, so an option is
+ * never read as a path.
+ */
+export function reconcileArgs(argv: readonly string[]): { report?: string; only?: (typeof RECONCILE_ONLY)[number]; error?: string } {
+  const result: { report?: string; only?: (typeof RECONCILE_ONLY)[number]; error?: string } = {};
+  for (const argument of argv) {
+    if (!argument.startsWith("-")) {
+      result.report ??= argument;
+      continue;
+    }
+    const value = /^--only=(.*)$/.exec(argument)?.[1];
+    const known = RECONCILE_ONLY.find((name) => name === value);
+    if (known === undefined) return { error: `unknown option ${argument}; the one option is --only=${RECONCILE_ONLY.join("|")}` };
+    result.only = known;
+  }
+  return result;
 }
 
 /**
