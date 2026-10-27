@@ -685,7 +685,9 @@ class RequirementCaptureToolsTest {
           RequirementCaptureResult.class).accepted());
       assertTrue(mapper.readValue(h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY),
           RequirementCaptureResult.class).accepted());
-      String reply = ambiguous ? "I have not chosen the URI yet." : "Use https://example.com/tasks";
+      String reply = ambiguous
+          ? "I have not chosen the URI yet. https://example.com/tasks or https://example.com/other."
+          : "Use https://example.com/tasks";
       var answer = pinAnswer(blobs, mapper, archive, h, chat, reply);
       assertEquals("UNAPPLIED_AUTHOR_ANSWER", h.store().validateAuthorQuestions(chat).getFirst().code());
       var restored = persistentHarness(blobs, mapper, conversations, chat);
@@ -695,6 +697,21 @@ class RequirementCaptureToolsTest {
       assertEquals("UNAPPLIED_AUTHOR_ANSWER", restored.store().validateAuthorQuestions(chat).getFirst().code());
       RequirementCaptureResult result;
       if (ambiguous) {
+        restored.tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+            .createForUnitTests(mapper);
+        var disposition = new RequirementCaptureInput.ClarificationDispositionInput(captured.question().questionId(),
+            org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Disposition.AMBIGUOUS,
+            answer.turnId(), "I have not chosen the URI yet.",
+            List.of("https://example.com/tasks", "https://example.com/other"));
+        var unauthorized = questionUpdate(List.of(), List.of(), List.of(), disposition);
+        var firstRejection = mapper.readValue(restored.tools().updateRequirementDraft(unauthorized),
+            RequirementCaptureResult.class);
+        var repeated = mapper.readValue(restored.tools().updateRequirementDraft(unauthorized),
+            RequirementCaptureResult.class);
+        assertFalse(firstRejection.accepted() || repeated.accepted(), firstRejection + " then " + repeated);
+        var opened = mapper.readValue(restored.tools().updateRequirementDraft(
+            questionUpdate(List.of(), List.of(), List.of(), null)), RequirementCaptureResult.class);
+        assertFalse(opened.accepted(), opened.toString());
         var reviewed = new RequirementCaptureInput.QuestionInput(captured.question().questionId(),
             captured.question().interactionIds(), "Which exact target URI should be used?",
             new org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence(
@@ -704,14 +721,8 @@ class RequirementCaptureToolsTest {
                 new org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.AmbiguityEvidence(
                     answer.turnId(), "I have not chosen the URI yet.",
                     List.of("https://example.com/tasks", "https://example.com/other"))));
-        var update = questionUpdate(List.of(), List.of(reviewed), List.of(),
-            new RequirementCaptureInput.ClarificationDispositionInput(captured.question().questionId(),
-                org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Disposition.AMBIGUOUS,
-                answer.turnId(), "I have not chosen the URI yet.",
-                List.of("https://example.com/tasks", "https://example.com/other")));
-        assertFalse(mapper.readValue(restored.tools().updateRequirementDraft(update),
-            RequirementCaptureResult.class).accepted());
-        result = mapper.readValue(restored.tools().updateRequirementDraft(update), RequirementCaptureResult.class);
+        result = mapper.readValue(restored.tools().updateRequirementDraft(
+            questionUpdate(List.of(), List.of(reviewed), List.of(), disposition)), RequirementCaptureResult.class);
       } else {
         result = mapper.readValue(restored.tools().updateRequirementDraft(questionUpdate(
             List.of(captured.answeredCapability()), List.of(), List.of(captured.question().questionId()), null)),
@@ -733,6 +744,11 @@ class RequirementCaptureToolsTest {
   void oneValidCandidateIsAnAnswerRatherThanAmbiguous() throws Exception {
     var setup = pinnedUriQuestion("one-candidate", "Use https://example.com/tasks");
     try (var ignored = ToolSession.open(setup.chat())) {
+      setup.harness().tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+          .createForUnitTests(setup.mapper());
+      var opened = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(
+          questionUpdate(List.of(), List.of(), List.of(), null)), RequirementCaptureResult.class);
+      assertFalse(opened.accepted(), opened.toString());
       var reviewed = new RequirementCaptureInput.QuestionInput(setup.captured().question().questionId(),
           setup.captured().question().interactionIds(), "Which exact target URI should be used?",
           new org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence(
@@ -744,8 +760,6 @@ class RequirementCaptureToolsTest {
               org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Disposition.AMBIGUOUS,
               setup.answer().turnId(), "Use https://example.com/tasks",
               List.of("https://example.com/tasks")));
-      assertFalse(setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(ambiguous),
-          RequirementCaptureResult.class).accepted());
       var focused = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(ambiguous),
           RequirementCaptureResult.class);
       assertFalse(focused.accepted(), focused.toString());
@@ -870,8 +884,9 @@ class RequirementCaptureToolsTest {
           new RequirementCaptureInput.ClarificationDispositionInput(setup.captured().question().questionId(),
               org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Disposition.NON_ANSWER,
               setup.answer().turnId(), "Leave the URI open.", List.of()));
-      assertFalse(setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(update),
-          RequirementCaptureResult.class).accepted());
+      var opened = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(
+          questionUpdate(List.of(), List.of(), List.of(), null)), RequirementCaptureResult.class);
+      assertFalse(opened.accepted(), opened.toString());
       var admitted = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(update),
           RequirementCaptureResult.class);
       assertTrue(admitted.accepted(), admitted.toString());
@@ -901,7 +916,8 @@ class RequirementCaptureToolsTest {
                   org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Disposition.NON_ANSWER,
                   setup.answer().turnId(), "What does this URI field mean?", List.of()));
           try {
-            setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(update), RequirementCaptureResult.class);
+            setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(
+                questionUpdate(List.of(), List.of(), List.of(), null)), RequirementCaptureResult.class);
             setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(update), RequirementCaptureResult.class);
             setup.mapper().readValue(setup.harness().tools().finishRequirementDiscoveryTurn(
                 RequirementDiscoveryDirective.DISCUSS), RequirementCaptureResult.class);

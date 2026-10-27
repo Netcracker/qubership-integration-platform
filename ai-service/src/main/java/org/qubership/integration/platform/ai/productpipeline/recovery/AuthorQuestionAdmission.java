@@ -115,8 +115,8 @@ public final class AuthorQuestionAdmission {
   }
 
   /**
-   * Findings for a typed AMBIGUOUS disposition. An empty list means the quote, turn, and two
-   * distinct valid candidates all check out.
+   * Findings for a typed AMBIGUOUS disposition. Empty when the pinned turn, quote, schema
+   * predicate, and two distinct candidates in the pinned answer all check out.
    */
   public static List<String> ambiguityFindings(ClarificationDispositionInput input, String answerTurnId,
       String answerText, Predicate<String> validCandidate) {
@@ -131,7 +131,12 @@ public final class AuthorQuestionAdmission {
         || answerText == null || !answerText.contains(input.exactQuote())) {
       findings.add("AMBIGUOUS requires an exact quote from the pinned answer turn.");
     }
-    var valid = validCandidates(input.candidateValues(), validCandidate);
+    if (validCandidate == null) {
+      findings.add("The pinned target schema was not checked.");
+    } else if (acceptedCandidateOmitsAnswer(input.candidateValues(), validCandidate, answerText)) {
+      findings.add("Candidates must appear in the pinned answer.");
+    }
+    var valid = validCandidates(input.candidateValues(), validCandidate, answerText);
     if (valid.size() == 1) {
       findings.add("One valid candidate is an answer. Apply it to the pinned target.");
     } else if (valid.size() < 2) {
@@ -140,20 +145,40 @@ public final class AuthorQuestionAdmission {
     return findings;
   }
 
-  public static List<String> validCandidates(List<String> candidates, Predicate<String> validCandidate) {
-    if (candidates == null) {
+  /**
+   * Schema-valid candidates that also appear in the pinned answer. A null predicate accepts nothing.
+   */
+  public static List<String> validCandidates(List<String> candidates, Predicate<String> validCandidate,
+      String answerText) {
+    if (candidates == null || validCandidate == null) {
       return List.of();
     }
     var valid = new LinkedHashSet<String>();
     for (String candidate : candidates) {
-      if (candidate == null || candidate.isBlank()) {
+      if (candidate == null || candidate.isBlank() || answerText == null || !answerText.contains(candidate)) {
         continue;
       }
-      if (validCandidate == null || validCandidate.test(candidate)) {
+      if (validCandidate.test(candidate)) {
         valid.add(candidate);
       }
     }
     return List.copyOf(valid);
+  }
+
+  private static boolean acceptedCandidateOmitsAnswer(List<String> candidates, Predicate<String> validCandidate,
+      String answerText) {
+    if (candidates == null) {
+      return false;
+    }
+    for (String candidate : candidates) {
+      if (candidate == null || candidate.isBlank() || !validCandidate.test(candidate)) {
+        continue;
+      }
+      if (answerText == null || !answerText.contains(candidate)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   public static Set<String> suppliedValues(RequirementFact fact, String key) {

@@ -43,20 +43,26 @@ class AuthorQuestionAdmissionTest {
 
   @Test
   void ambiguityRequiresThePinnedTurnQuoteAndTwoDistinctCandidates() {
+    String answer = "Use either https://one.example or https://two.example";
     var input = new ClarificationDispositionInput("target-uri", ClarificationTransition.Disposition.AMBIGUOUS,
-        "answer-turn", "Use either host", List.of("https://one.example", "https://two.example"));
-    assertTrue(AuthorQuestionAdmission.ambiguityFindings(input, "answer-turn", "Use either host", null).isEmpty());
+        "answer-turn", "Use either", List.of("https://one.example", "https://two.example"));
+    assertTrue(AuthorQuestionAdmission.ambiguityFindings(input, "answer-turn", answer, value -> true).isEmpty());
+    assertTrue(AuthorQuestionAdmission.ambiguityFindings(input, "answer-turn", answer, null).stream()
+        .anyMatch(finding -> finding.contains("pinned target schema was not checked")));
+    assertTrue(AuthorQuestionAdmission.ambiguityFindings(input, "answer-turn", "Use either host", value -> true)
+        .stream().anyMatch(finding -> finding.contains("must appear in the pinned answer")));
     assertTrue(AuthorQuestionAdmission.ambiguityFindings(
         new ClarificationDispositionInput("target-uri", ClarificationTransition.Disposition.AMBIGUOUS,
-            "other-turn", "Use either host", List.of("https://one.example", "https://two.example")),
-        "answer-turn", "Use either host", null).stream().anyMatch(finding -> finding.contains("pinned answer turn")));
+            "other-turn", "Use either", List.of("https://one.example", "https://two.example")),
+        "answer-turn", answer, null).stream().anyMatch(finding -> finding.contains("pinned answer turn")));
     assertTrue(AuthorQuestionAdmission.ambiguityFindings(
         new ClarificationDispositionInput("target-uri", ClarificationTransition.Disposition.AMBIGUOUS,
             "answer-turn", "not in the turn", List.of("https://one.example", "https://two.example")),
-        "answer-turn", "Use either host", null).stream().anyMatch(finding -> finding.contains("exact quote")));
+        "answer-turn", answer, null).stream().anyMatch(finding -> finding.contains("exact quote")));
     assertTrue(AuthorQuestionAdmission.ambiguityFindings(
         new ClarificationDispositionInput("target-uri", ClarificationTransition.Disposition.AMBIGUOUS,
-            "answer-turn", "Use either host", List.of("https://one.example")),
-        "answer-turn", "Use either host", null).stream().anyMatch(finding -> finding.contains("One valid candidate")));
+            "answer-turn", "Use https://one.example", List.of("https://one.example")),
+        "answer-turn", "Use https://one.example", value -> true).stream()
+        .anyMatch(finding -> finding.contains("One valid candidate")));
   }
 }
