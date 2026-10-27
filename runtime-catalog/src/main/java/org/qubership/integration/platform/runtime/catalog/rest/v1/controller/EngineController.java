@@ -21,6 +21,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.configuration.DomainProperties;
+import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainService;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DomainTypeDisabledException;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.engine.EngineDeploymentsDTO;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.update.DeploymentsUpdate;
@@ -54,6 +55,7 @@ public class EngineController {
     private final DeploymentService deploymentService;
     private final RuntimeDeploymentService runtimeDeploymentService;
     private final DomainProperties domainProperties;
+    private final MicroDomainService microDomainService;
 
     @Autowired
     EngineController(
@@ -62,7 +64,8 @@ public class EngineController {
             DeploymentMapper deploymentMapper,
             DeploymentService deploymentService,
             RuntimeDeploymentService runtimeDeploymentService,
-            DomainProperties domainProperties
+            DomainProperties domainProperties,
+            MicroDomainService microDomainService
     ) {
         this.engineService = engineService;
         this.engineMapper = engineMapper;
@@ -70,6 +73,7 @@ public class EngineController {
         this.deploymentService = deploymentService;
         this.runtimeDeploymentService = runtimeDeploymentService;
         this.domainProperties = domainProperties;
+        this.microDomainService = microDomainService;
     }
 
     @GetMapping
@@ -106,6 +110,17 @@ public class EngineController {
         }
         return ResponseEntity.ok(deploymentMapper.asEngineDeployments(
                 runtimeDeploymentService.findRuntimeDeployments(engineHost)));
+    }
+
+    @DeleteMapping("/{domainName}")
+    @Operation(description = "Delete Camel-K Integration resource of the domain")
+    ResponseEntity<Void> deleteDomain(@PathVariable @Parameter(description = "Engine domain name") String domainName) {
+        log.info("Request to delete engine domain {}", domainName);
+        if (!domainProperties.getMicro().isEnabled()) {
+            throw new DomainTypeDisabledException(DomainType.MICRO);
+        }
+        microDomainService.delete(domainName);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/{domainName}/deployments/count")

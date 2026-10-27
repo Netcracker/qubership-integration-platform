@@ -87,7 +87,7 @@ jest.mock(
 
 jest.mock("../../../../src/api/api.ts", () => ({
   api: {
-    deleteMicroDomain: jest.fn().mockResolvedValue(undefined),
+    deleteDomain: jest.fn().mockResolvedValue(undefined),
   },
 }));
 

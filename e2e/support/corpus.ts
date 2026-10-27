@@ -867,7 +867,8 @@ export function readMicroCorpusState(file: string = MICRO_CORPUS_STATE_FILE): Mi
  * keeps the value it resolved, and the second delete of a name is a no-op.
  *
  * A chain whose logging properties survived is kept, for the reason `teardownCorpus` keeps one. The
- * domain goes last, with `DELETE /v1/cr/{name}`, and the state file only once nothing failed.
+ * domain goes last, with `DELETE /v1/catalog/domains/{domainName}`, and the state file only once
+ * nothing failed.
  */
 export async function teardownMicroCorpus(catalog: Catalog, corpus: MicroCorpus): Promise<void> {
   if (keepEntities()) {

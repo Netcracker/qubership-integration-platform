@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.runtime.catalog.cr;
 
+import jakarta.persistence.EntityExistsException;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.configuration.DomainProperties;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.DeployMode;
@@ -15,6 +16,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Deployment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ChainRepository;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentRequest;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentResponse;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentSnapshotAction;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentStatus;
@@ -73,8 +75,48 @@ public class BulkDeploymentService {
             Collection<Snapshot> snapshots = getSnapshots(request.getChainIds(), request.getSnapshotAction(), resultConsumer);
             List<Deployment> replacedDeployments = findReplacedDeployments(classicDomainNames.stream()
                 .collect(Collectors.toMap(Function.identity(), domain -> snapshots, (first, second) -> first)));
+            List<BulkDeploymentResponse> deployResponses = new ArrayList<>();
             deploySnapshots(snapshots, classicDomainNames, microDomainNames, request.getMode(),
-                replacedDeployments, resultConsumer);
+                replacedDeployments, deployResponses::add);
+            recheckCreatedDeployments(snapshots, replacedDeployments, deployResponses);
+            deployResponses.forEach(resultConsumer);
+        });
+    }
+
+    @Transactional
+    public void deployChains(BulkDeploymentRequest request, Consumer<BulkDeploymentResponse> resultConsumer) {
+        Collection<String> chainIds = request.getChainIds() == null || request.getChainIds().isEmpty()
+            ? chainRepository.findAll().stream().map(Chain::getId).toList()
+            : request.getChainIds();
+        List<String> declaredMicro = nonNull(request.getMicroDomains()) ? request.getMicroDomains() : List.of();
+        Map<String, DomainType> discovered = discoveredDomainTypes();
+        List<String> contradicted = request.getDomains().stream()
+            .filter(name -> declaredMicro.contains(name) && discovered.containsKey(name)
+                && discovered.get(name) != DomainType.MICRO)
+            .toList();
+        Map<DomainType, List<String>> domainByType = request.getDomains().stream()
+            .filter(name -> !contradicted.contains(name))
+            .collect(Collectors.groupingBy(name -> declaredMicro.contains(name)
+                || discovered.get(name) == DomainType.MICRO
+                ? DomainType.MICRO
+                : DomainType.CLASSIC));
+        runForClassicAndMicro(domainByType, (classicDomainNames, microDomainNames) -> {
+            Collection<Snapshot> snapshots = getSnapshots(chainIds, request.getSnapshotAction(), resultConsumer);
+            contradicted.forEach(name -> buildResponseForSnapshots(
+                    snapshots,
+                    name,
+                    discovered.get(name),
+                    BulkDeploymentStatus.FAILED_DEPLOY,
+                    String.format("Domain %s is discovered as %s, the request declares %s",
+                        name, discovered.get(name), DomainType.MICRO))
+                .forEach(resultConsumer));
+            List<Deployment> replacedDeployments = findReplacedDeployments(classicDomainNames.stream()
+                .collect(Collectors.toMap(Function.identity(), domain -> snapshots, (first, second) -> first)));
+            List<BulkDeploymentResponse> deployResponses = new ArrayList<>();
+            deploySnapshots(snapshots, classicDomainNames, microDomainNames, request.getMode(),
+                replacedDeployments, deployResponses::add);
+            recheckCreatedDeployments(snapshots, replacedDeployments, deployResponses);
+            deployResponses.forEach(resultConsumer);
         });
     }
 
@@ -97,6 +139,47 @@ public class BulkDeploymentService {
             .flatMap(entry -> deploymentService.findAllByChainId(entry.getKey()).stream()
                 .filter(deployment -> entry.getValue().contains(deployment.getDomain())))
             .toList();
+    }
+
+    private void recheckCreatedDeployments(
+        Collection<Snapshot> snapshots,
+        List<Deployment> replacedDeployments,
+        List<BulkDeploymentResponse> responses
+    ) {
+        List<BulkDeploymentResponse> createdClassic = responses.stream()
+            .filter(response -> response.getStatus() == BulkDeploymentStatus.CREATED
+                && response.getDomain().getType() == DomainType.CLASSIC)
+            .toList();
+        if (createdClassic.isEmpty()) {
+            return;
+        }
+        Map<String, Snapshot> snapshotsByChainId = snapshots.stream()
+            .collect(Collectors.toMap(snapshot -> snapshot.getChain().getId(),
+                Function.identity(), (first, second) -> first));
+        Set<ChainDomain> replacedPairs = createdClassic.stream()
+            .map(response -> new ChainDomain(response.getChainId(), response.getDomain().getName()))
+            .collect(Collectors.toSet());
+        List<Deployment> effectiveExclusions = replacedDeployments.stream()
+            .filter(deployment -> replacedPairs.contains(
+                new ChainDomain(deployment.getChain().getId(), deployment.getDomain())))
+            .toList();
+        createdClassic.forEach(response -> {
+            Snapshot snapshot = snapshotsByChainId.get(response.getChainId());
+            try {
+                deploymentService.checkTriggers(response.getDomain().getName(), snapshot.getId(),
+                    response.getChainId(), effectiveExclusions);
+            } catch (EntityExistsException conflict) {
+                deploymentService.findAllByChainId(response.getChainId()).stream()
+                    .filter(deployment -> deployment.getDomain().equals(response.getDomain().getName())
+                        && deployment.getSnapshot().getId().equals(snapshot.getId()))
+                    .forEach(deployment -> deploymentService.deleteById(deployment.getId()));
+                response.setStatus(BulkDeploymentStatus.FAILED_DEPLOY);
+                response.setErrorMessage(conflict.getMessage());
+            }
+        });
+    }
+
+    private record ChainDomain(String chainId, String domainName) {
     }
 
     private Collection<Snapshot> getSnapshots(
@@ -216,24 +299,57 @@ public class BulkDeploymentService {
         }
     }
 
-    public Map<DomainType, List<String>> groupDomainsByType(Collection<String> domainNames) {
-        Map<String, DomainType> domainTypeMap = engineService.getDomains().stream()
+    private Map<String, DomainType> discoveredDomainTypes() {
+        return engineService.getDomains().stream()
             .collect(Collectors.toMap(
                 EngineDomain::getName,
-                EngineDomain::getType
+                EngineDomain::getType,
+                (first, second) -> first
             ));
+    }
+
+    public Map<DomainType, List<String>> groupDomainsByType(Collection<String> domainNames) {
+        Map<String, DomainType> domainTypeMap = discoveredDomainTypes();
         return domainNames
             .stream()
             .collect(Collectors.groupingBy(
                 name -> domainTypeMap.getOrDefault(name, DomainType.MICRO)));
     }
 
+    public Optional<DomainType> discoverDomainType(String domainName) {
+        return engineService.getDomains().stream()
+            .filter(domain -> domain.getName().equals(domainName))
+            .map(EngineDomain::getType)
+            .findFirst();
+    }
+
+    public void deleteChainSnapshot(String domainName, String snapshotId) {
+        for (int attempt = 1; ; attempt++) {
+            try {
+                microDomainService.deleteChainSnapshot(domainName, snapshotId);
+                return;
+            } catch (KubeApiConflictException conflict) {
+                if (attempt == MAX_CONFLICT_ATTEMPTS) {
+                    throw conflict;
+                }
+                log.warn("Removal of snapshot '{}' from micro-domain '{}' lost a concurrency race on "
+                                + "attempt {}/{}; re-reading current cluster state and retrying",
+                    snapshotId, domainName, attempt, MAX_CONFLICT_ATTEMPTS);
+            }
+        }
+    }
+
     public void forClassicAndMicroDomains(
         Collection<String> domainNames,
         BiConsumer<Collection<String>, Collection<String>> consumer
     ) {
-        Map<DomainType, List<String>> domainByType = groupDomainsByType(domainNames);
+        runForClassicAndMicro(groupDomainsByType(domainNames), consumer);
+    }
 
+    private void runForClassicAndMicro(
+        Map<DomainType, List<String>> domainByType,
+        BiConsumer<Collection<String>, Collection<String>> consumer
+    ) {
         Collection<String> classicDomainNames = domainByType.getOrDefault(DomainType.CLASSIC, Collections.emptyList());
         if (!domainProperties.getClassic().isEnabled() && !classicDomainNames.isEmpty()) {
             throw new DomainTypeDisabledException(DomainType.CLASSIC);

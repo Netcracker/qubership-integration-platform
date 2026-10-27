@@ -18,10 +18,13 @@ package org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deploymen
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Pattern;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
+import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.DeployMode;
+import org.qubership.integration.platform.runtime.catalog.model.domains.DomainType;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.BaseRequest;
 
 @Getter
@@ -33,9 +36,15 @@ public class DeploymentRequest extends BaseRequest {
     @Schema(description = "Domain which was used to deploy to, usually \"default\"")
     @Pattern(regexp = "^[-._a-zA-Z0-9]+$", message = "Invalid domain format")
     private String domain;
+    @Schema(description = "Type of the domain the caller intends. Absent means CLASSIC. "
+            + "MICRO on a domain the catalog has not discovered creates that micro domain")
+    private DomainType domainType;
     @Schema(description = "Snapshot id")
     @Pattern(regexp = "^[-._a-zA-Z0-9]+$", message = "Invalid snapshotId format")
     private String snapshotId;
+    @Builder.Default
+    @Schema(description = "Deploy mode")
+    private DeployMode mode = DeployMode.REWRITE;
     @Deprecated
     @Schema(description = "Not used")
     private Boolean suspended;

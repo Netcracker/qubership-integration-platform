@@ -1,11 +1,13 @@
 /**
- * The `/v1/cr` surface: a micro domain built, deployed, trimmed to one chain, and deleted.
+ * The micro-domain flow: a domain built through `/v1/cr`, then deployed, trimmed to one chain, and
+ * deleted through the catalog controllers.
  *
- * `seed-micro` reaches `POST /v1/cr/deploy-chains` only. This case drives the other four
- * operations and reads their effect off the cluster: the YAML the build answers, the Integration
- * and the ConfigMaps a deploy writes, and what a delete leaves behind. The two chains are built in
- * the worker folder; the micro domain is named with the run token, so the sweep finds one this case
- * failed to delete.
+ * `seed-micro` reaches `POST /v1/catalog/chains/deployments/bulk` only. This case drives the build,
+ * the bulk deploy that creates the domain, the single deployment that re-adds a chain, the snapshot
+ * removal, and the domain delete, and reads their effect off the cluster: the YAML the build answers,
+ * the Integration and the ConfigMaps a deploy writes, and what a delete leaves behind. The two
+ * chains are built in the worker folder; the micro domain is named with the run token, so the sweep
+ * finds one this case failed to delete.
  */
 import type { APIRequestContext } from "@playwright/test";
 import yaml from "js-yaml";
