@@ -35,7 +35,7 @@
 
     <properties>
         <revision>1.5.2</revision>
-        <changelist>-dbaas-try-2-SNAPSHOT</changelist>
+        <changelist>-SNAPSHOT</changelist>
 
         <compiler-plugin.version>3.15.0</compiler-plugin.version>
         <maven.compiler.release>21</maven.compiler.release>
