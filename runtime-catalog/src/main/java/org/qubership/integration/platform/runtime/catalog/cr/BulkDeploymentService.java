@@ -84,8 +84,28 @@ public class BulkDeploymentService {
         Collection<String> chainIds = request.getChainIds() == null || request.getChainIds().isEmpty()
             ? chainRepository.findAll().stream().map(Chain::getId).toList()
             : request.getChainIds();
-        forClassicAndMicroDomains(request.getDomains(), (classicDomainNames, microDomainNames) -> {
+        List<String> declaredMicro = nonNull(request.getMicroDomains()) ? request.getMicroDomains() : List.of();
+        Map<String, DomainType> discovered = discoveredDomainTypes();
+        List<String> contradicted = request.getDomains().stream()
+            .filter(name -> declaredMicro.contains(name) && discovered.containsKey(name)
+                && discovered.get(name) != DomainType.MICRO)
+            .toList();
+        Map<DomainType, List<String>> domainByType = request.getDomains().stream()
+            .filter(name -> !contradicted.contains(name))
+            .collect(Collectors.groupingBy(name -> declaredMicro.contains(name)
+                || discovered.get(name) == DomainType.MICRO
+                ? DomainType.MICRO
+                : DomainType.CLASSIC));
+        runForClassicAndMicro(domainByType, (classicDomainNames, microDomainNames) -> {
             Collection<Snapshot> snapshots = getSnapshots(chainIds, request.getSnapshotAction(), resultConsumer);
+            contradicted.forEach(name -> buildResponseForSnapshots(
+                    snapshots,
+                    name,
+                    discovered.get(name),
+                    BulkDeploymentStatus.FAILED_DEPLOY,
+                    String.format("Domain %s is discovered as %s, the request declares %s",
+                        name, discovered.get(name), DomainType.MICRO))
+                .forEach(resultConsumer));
             deploySnapshots(snapshots, classicDomainNames, microDomainNames, request.getMode(),
                 List.of(), resultConsumer);
         });
@@ -229,13 +249,17 @@ public class BulkDeploymentService {
         }
     }
 
-    public Map<DomainType, List<String>> groupDomainsByType(Collection<String> domainNames) {
-        Map<String, DomainType> domainTypeMap = engineService.getDomains().stream()
+    private Map<String, DomainType> discoveredDomainTypes() {
+        return engineService.getDomains().stream()
             .collect(Collectors.toMap(
                 EngineDomain::getName,
                 EngineDomain::getType,
                 (first, second) -> first
             ));
+    }
+
+    public Map<DomainType, List<String>> groupDomainsByType(Collection<String> domainNames) {
+        Map<String, DomainType> domainTypeMap = discoveredDomainTypes();
         return domainNames
             .stream()
             .collect(Collectors.groupingBy(
@@ -269,8 +293,13 @@ public class BulkDeploymentService {
         Collection<String> domainNames,
         BiConsumer<Collection<String>, Collection<String>> consumer
     ) {
-        Map<DomainType, List<String>> domainByType = groupDomainsByType(domainNames);
+        runForClassicAndMicro(groupDomainsByType(domainNames), consumer);
+    }
 
+    private void runForClassicAndMicro(
+        Map<DomainType, List<String>> domainByType,
+        BiConsumer<Collection<String>, Collection<String>> consumer
+    ) {
         Collection<String> classicDomainNames = domainByType.getOrDefault(DomainType.CLASSIC, Collections.emptyList());
         if (!domainProperties.getClassic().isEnabled() && !classicDomainNames.isEmpty()) {
             throw new DomainTypeDisabledException(DomainType.CLASSIC);
