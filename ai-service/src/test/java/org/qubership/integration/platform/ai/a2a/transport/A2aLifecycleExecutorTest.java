@@ -41,8 +41,14 @@ import org.qubership.integration.platform.ai.a2a.protocol.A2aTaskState;
 import org.qubership.integration.platform.ai.a2a.transport.A2aCommandId;
 import org.qubership.integration.platform.ai.a2a.transport.A2aInboundMessageParser.InboundCommand;
 import org.qubership.integration.platform.ai.a2a.transport.CreateChainA2aStateMapper.ProjectedTask;
+import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationArchive;
+import org.qubership.integration.platform.ai.chat.decision.CatalogVersionSelection;
+import org.qubership.integration.platform.ai.chat.decision.PolicyChoiceSelection;
 import org.qubership.integration.platform.ai.chat.service.ChatDecisionService;
+import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
+import org.qubership.integration.platform.ai.productpipeline.facade.ApprovalQuestionStore;
+import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition;
@@ -316,6 +322,10 @@ class A2aLifecycleExecutorTest {
     A2aMessageReceiptRepository receipts = mock(A2aMessageReceiptRepository.class);
     ChatDecisionService decisions = mock(ChatDecisionService.class);
     when(decisions.withholdsRequirementOffer("task-1")).thenReturn(true);
+    when(decisions.openDecision("task-1")).thenReturn(Optional.of(new ChatEvent.Decision(
+        "policy-1", "clarify", "Which access control should this chain use?",
+        PolicyChoiceSelection.ARTIFACT_TYPE, "hash", 3L, "policy", List.of(),
+        List.of("keep-requested"), null, List.of(), List.of(), Map.of())));
     A2aTaskSnapshotPersister persister = mock(A2aTaskSnapshotPersister.class);
     CreateChainA2aAgentExecutor executor =
         continuationExecutor(facade, receipts, archive, persister, decisions);
@@ -330,6 +340,78 @@ class A2aLifecycleExecutorTest {
     verify(facade, never()).continueWithInput(any());
     assertTrue(archive.read("task-1").turns().isEmpty());
     verify(emitter).requiresInput(any(), eq(true));
+  }
+
+  @Test
+  void folderChoiceTextReachesTheFacadeWithoutARequirementOffer() throws Exception {
+    assertSpecializedGateContinues(PipelineGates.TARGET_FOLDER_CHOICE, "Integrations/Salesforce");
+  }
+
+  @Test
+  void recoveryClarificationTextReachesTheFacadeWithoutARequirementOffer() throws Exception {
+    assertSpecializedGateContinues(
+        PipelineGates.REQUIREMENT_RECOVERY_CLARIFICATION,
+        "The order id is the Salesforce Order.Id field.");
+  }
+
+  @Test
+  void idsPathChoiceTextReachesTheFacadeWithoutARequirementOffer() throws Exception {
+    assertSpecializedGateContinues(PipelineGates.IDS_PATH_CHOICE, "yes");
+  }
+
+  @Test
+  void catalogVersionTextReachesTheFacadeWithoutARequirementOffer() throws Exception {
+    ChatDecisionService decisions = mock(ChatDecisionService.class);
+    when(decisions.withholdsRequirementOffer("task-1")).thenReturn(true);
+    when(decisions.openDecision("task-1")).thenReturn(Optional.of(new ChatEvent.Decision(
+        "version-1", "clarify", "Which catalog version should this call use?",
+        CatalogVersionSelection.ARTIFACT_TYPE, "hash", 3L, "version", List.of(),
+        List.of(), null, List.of(), List.of(), Map.of())));
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    assertBlankOfferContinues(decisions, "catalog-version", "2024.1", facade);
+  }
+
+  private void assertSpecializedGateContinues(String gate, String text) throws Exception {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    ChatDecisionService decisions = decisionsWaitingOn(facade, gate);
+    assertBlankOfferContinues(decisions, gate, text, facade);
+  }
+
+  private void assertBlankOfferContinues(
+      ChatDecisionService decisions, String label, String text, CreateChainApplicationFacade facade)
+      throws Exception {
+    ConversationArchive archive = newArchive();
+    A2aMessageReceiptRepository receipts = mock(A2aMessageReceiptRepository.class);
+    CreateChainA2aAgentExecutor executor =
+        continuationExecutor(facade, receipts, archive, null, decisions);
+    stubWaitingSnapshot(facade, label);
+    when(facade.activeClarificationOffer(any())).thenReturn(Optional.of(offer("offer-requirement")));
+    when(receipts.claimContinuation(any(), any(), any(), any(), any(), any(), any(), any()))
+        .thenReturn(new A2aCallerMessageClaimResult.Claimed("task-1"));
+    Message message = textMessage("msg-" + label, text);
+
+    executor.execute(continuation(message), mock(AgentEmitter.class));
+
+    ArgumentCaptor<ContinueCreateChainCommand> continued =
+        ArgumentCaptor.forClass(ContinueCreateChainCommand.class);
+    verify(facade).continueWithInput(continued.capture());
+    assertEquals("", continued.getValue().clarificationOfferId(), label);
+    assertEquals(text, continued.getValue().clarificationText(), label);
+    assertTrue(archive.read("task-1").turns().isEmpty(), label);
+  }
+
+  private static ChatDecisionService decisionsWaitingOn(
+      CreateChainApplicationFacade facade, String gate) {
+    stubWaitingSnapshot(facade, gate);
+    when(facade.activeClarificationOffer(any())).thenReturn(Optional.of(offer("offer-requirement")));
+    return new ChatDecisionService(
+        facade, new ApprovalQuestionStore(new InMemoryArtifactBlobStore()), new RequirementDraftStore());
+  }
+
+  private static void stubWaitingSnapshot(CreateChainApplicationFacade facade, String gate) {
+    when(facade.snapshot(any())).thenReturn(Optional.of(new CreateChainExecutionSnapshot(
+        "task-1", "run-1", CreateChainExecutionStatus.INPUT_REQUIRED, 3L,
+        new CreateChainPendingAction.Clarify("Choose one.", List.of(), gate), "")));
   }
 
   @Test

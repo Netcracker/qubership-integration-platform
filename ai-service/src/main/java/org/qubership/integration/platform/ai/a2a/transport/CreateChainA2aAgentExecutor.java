@@ -51,6 +51,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.facade.Creat
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainExecutionSnapshot;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationArchive;
+import org.qubership.integration.platform.ai.chat.decision.PolicyChoiceSelection;
 import org.qubership.integration.platform.ai.chat.service.ChatDecisionService;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.StartCreateChainCommand;
 
@@ -305,7 +306,8 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
     if (!isNew
         && command instanceof InboundCommand.ClarifyText clarify
         && clarify.clarificationOfferId().isBlank()
-        && withholdsRequirementOffer(taskId)) {
+        && withholdsRequirementOffer(taskId)
+        && policyCardOpen(taskId)) {
       emitDurableSnapshot(taskId, contextId, emitter, isNew);
       return;
     }
@@ -1123,6 +1125,14 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
 
   private boolean withholdsRequirementOffer(String taskId) {
     return decisionService != null && decisionService.withholdsRequirementOffer(taskId);
+  }
+
+  /** True when the visible card is the policy choice, which free text cannot answer. */
+  private boolean policyCardOpen(String taskId) {
+    return decisionService != null
+        && decisionService.openDecision(taskId)
+            .filter(decision -> PolicyChoiceSelection.ARTIFACT_TYPE.equals(decision.artifactType()))
+            .isPresent();
   }
 
   private void archiveClarificationAnswer(String taskId, InboundCommand command) {
