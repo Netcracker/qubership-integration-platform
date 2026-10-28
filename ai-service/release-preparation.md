@@ -4,6 +4,10 @@ This checklist tracks the remaining work before delivery and integration into `m
 The starting revision is `c211950ab`. Each change requires scoped checks, an independent review, and a local commit.
 Subagents own separate files; the coordinating chat owns commits and the shared runtime.
 
+The current follow-up below supersedes the historical checkpoints. Both approved fixes are complete.
+Java acceptance passed 6,607 tests with zero failures or errors; the final Greetings smoke halted before
+materialization. The new requirement-capture finding awaits review and a separate fix selection.
+
 ## Delivery contract
 
 - Supply the project and runtime packages through the existing unified build procedure.
@@ -13,7 +17,7 @@ Subagents own separate files; the coordinating chat owns commits and the shared 
 - Partial or invalid runtime packages fail the build without falling back to the base service.
 - Keep the optional testing archive separate from runtime packages. Image variant tags are acceptance artifacts.
 
-## Remaining steps
+## Historical checkpoint through the first integrated candidate
 
 1. **UI checks — complete.** Commit `94d60447e` removed the two unnecessary assertions and the unused hook
    dependency. Scoped lint, 13 tests, types, formatting, and independent review passed.
@@ -67,7 +71,7 @@ Subagents own separate files; the coordinating chat owns commits and the shared 
    correction and the full-suite waiter correction. Requirement revision still lacks a genuine changed-requirement
    input. Update this checklist after the selected work and run the required final review before committing.
 
-## Open gate and exclusions
+## Historical gates and exclusions
 
 The recovery schema correction from `cb89c3a08` is integrated in `9212f452` after independent review.
 The strict response requires `authorQuestionEvidence.ambiguity` and accepts null or typed evidence.
@@ -90,6 +94,46 @@ content checks passed. The full-section answer includes eight codes and ten of e
 This is API chat evidence only; UI, deployment, and chain runtime acceptance were not run.
    The 14-exchange documentation capture came from the base image and remains preserved; full-image readiness
    verification did not run another model case.
+
+## Current follow-up — validation pending
+
+The user approved both remaining fixes. The documentation correction is reviewed: eight of eight error codes and
+11 of 11 normalized endpoint pairs are present, with all three once-only cases, four complete source reads, and
+14 paired `gpt-6-luna` exchanges. Literal fidelity remains 11 of 12 entries because the slash-variant duplicate
+is not reproduced as a second literal entry; do not report an unqualified pass. The 14-exchange evidence and
+earlier partial result remain preserved.
+
+The recovery correction is reviewed: two flow-executor context files preserve the shared CCL submission bridge
+and managed-executor lifecycle. The established root cause is Delayer reusing stale prior-Quarkus-profile CCL
+tenant configuration; CDI failure was swallowed, leaving the wait unresolved. The boundary regression produced
+three expected red cases and one green case, then all 28 integration cases passed. No CDI or internal halt was
+observed; ordinary sidecar recovery remains intact. A separate tenant-only experiment was reverted and is not
+evidence of a tenant-lookup fix.
+
+Commit `d50e6e4f663293cf507dfae4f85e074e19bdbe2b` is the current candidate. Full, base, and sidecar images built
+successfully at AI-service version `1.6.1`; private package fingerprints match the source inputs. The full
+candidate is ready, serves the documentation manifest with 93 entries out of 864, and reports certified
+`CIP@1.0.0`. Shared containers remain unchanged. The full Java acceptance run passed 6,607 tests in 626 fresh
+reports, with zero failures, zero errors, and 11 skips; the run exited successfully. Six incidental A2A-named
+cases ran, but the A2A package set did not. The final two-case native smoke failed on Greetings before chain
+materialization: the draft added a Groovy author fact absent from the source, and it omitted brief-facts
+recovery-halt clarification card 51. The actual smoke sent 24 paired
+`gpt-6-luna` exchanges. The initial sandbox attempt was not sent and made zero calls. OpenAPI was not run because
+the smoke hit the stop contract; native validation, catalog, runtime, UI, and evaluator did not pass or run.
+The user must select whether to capture a third fix for the two identified requirements. Final base-image
+verification passed at `http://127.0.0.1:55536`: AI and sidecar report UP, the package is certified, the
+knowledge mount is read-only, shared container state is unchanged, and no model calls were made. The base image
+ID begins `ecddac498`; the sidecar ID begins `5dc2df`. The full image was restored and passed readiness at
+`http://127.0.0.1:55587`: AI and sidecar report UP, package certification passes, the knowledge mount is
+read-only, the manifest serves 93 of 864 entries, shared container state is unchanged, and no model calls were
+made. Its image ID begins `774559`; the sidecar ID begins `5dc2df`. A final scan checked 4,805 files for the
+OpenAI key pattern and found no matches; the key value was not printed. The 139-file testing archive retains its
+prior SHA-256. Restart integration testing remains deferred by user priority and is required before push.
+
+The documentation correction and recovery waiter correction are resolved as approved. Documentation coverage
+is 11 of 11 normalized endpoint pairs, while literal fidelity remains 11 of 12 because the duplicate slash
+variant is not repeated; do not report an unqualified documentation pass. The tenant-only experiment remains
+reverted and is not evidence of a tenant-lookup fix.
 
 ## Evidence
 
