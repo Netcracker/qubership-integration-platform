@@ -31,6 +31,7 @@ public final class RecoveryDecisionSchemas {
         .addProperty("evidenceRefs", evidenceReferences(context))
         .addProperty("question", nullable(root.properties().get("question")))
         .addProperty("authorQuestionEvidence", nullable(questionEvidence.toBuilder()
+            .addProperty("ambiguity", nullable(questionEvidence.properties().get("ambiguity")))
             .required(questionEvidence.properties().keySet().stream().toList()).build()))
         .required(root.properties().keySet().stream().toList())
         .additionalProperties(false)

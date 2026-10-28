@@ -1,11 +1,13 @@
 package org.qubership.integration.platform.ai.productpipeline.recovery;
 
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.networknt.schema.JsonSchemaFactory;
 import com.networknt.schema.SpecVersion;
 import dev.langchain4j.internal.JsonSchemaElementUtils;
@@ -136,13 +138,55 @@ class RecoveryDecisionSchemasTest {
         new AuthorQuestionEvidence("entry", "httpMethod", AuthorQuestionEvidence.Kind.CONFLICTING_VALUES,
             List.of("author-input")));
 
-    assertAccepts(schema(context), JSON.valueToTree(decision));
-    assertTrue(RecoveryDecisionValidator.validate(decision, context).accepted());
+    ObjectNode response = JSON.valueToTree(decision);
+    assertRejects(schema(context), response);
+    ((ObjectNode) response.path("authorQuestionEvidence")).putNull("ambiguity");
+    assertAccepts(schema(context), response);
+    var parsed = JSON.convertValue(response, RecoveryDecision.class);
+    var result = RecoveryDecisionValidator.validate(parsed, context);
+    assertAll(
+        () -> assertEquals(decision, parsed),
+        () -> assertTrue(result.accepted(), () -> result.findings().toString()));
     var noQuestionEvidence = new RecoveryDecision(decision.causeClass(), decision.faultArtifactRef(),
         decision.evidenceRefs(), decision.action(), List.of(), decision.question(), decision.userSummary());
     assertAccepts(schema(context), JSON.valueToTree(noQuestionEvidence));
     assertFalse(RecoveryDecisionValidator.validate(noQuestionEvidence, context).accepted(),
         "Action-specific authority still belongs to native validation.");
+  }
+
+  @Test
+  void ambiguityObjectsRetainTheirTypedStructure() {
+    var context = context("current-failure", new Reference(Kind.REQUIREMENT_BRIEF, "brief", "brief-hash"));
+    var questionSchema = fields(context).path("authorQuestionEvidence");
+    ObjectNode question = JSON.valueToTree(new AuthorQuestionEvidence("entry", "httpMethod",
+        AuthorQuestionEvidence.Kind.AMBIGUOUS_ANSWER, List.of("author-input"),
+        new AuthorQuestionEvidence.AmbiguityEvidence("author-input", "POST or GET", List.of("POST", "GET"))));
+    var wrongType = question.deepCopy();
+    wrongType.put("ambiguity", "POST or GET");
+    var missingQuote = question.deepCopy();
+    ((ObjectNode) missingQuote.path("ambiguity")).remove("exactQuote");
+    var extraProperty = question.deepCopy();
+    ((ObjectNode) extraProperty.path("ambiguity")).put("invented", true);
+
+    assertAll(
+        () -> assertAccepts(questionSchema, question),
+        () -> assertRejects(questionSchema, wrongType),
+        () -> assertRejects(questionSchema, missingQuote),
+        () -> assertRejects(questionSchema, extraProperty));
+  }
+
+  @Test
+  void nativeQuestionEvidenceWithoutAmbiguityStillReads() throws Exception {
+    var legacy = JSON.readTree("""
+        {"interactionId":"entry","propertyKey":"httpMethod","kind":"CONFLICTING_VALUES",
+         "reviewedInputIds":["author-input"]}
+        """);
+    var parsed = JSON.treeToValue(legacy, AuthorQuestionEvidence.class);
+
+    assertAll(
+        () -> assertEquals(new AuthorQuestionEvidence("entry", "httpMethod",
+            AuthorQuestionEvidence.Kind.CONFLICTING_VALUES, List.of("author-input")), parsed),
+        () -> assertEquals(legacy, JSON.valueToTree(parsed)));
   }
 
   @Test
