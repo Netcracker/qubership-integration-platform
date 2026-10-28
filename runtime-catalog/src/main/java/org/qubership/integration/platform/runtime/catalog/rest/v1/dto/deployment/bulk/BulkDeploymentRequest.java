@@ -34,6 +34,10 @@ import java.util.List;
 public class BulkDeploymentRequest {
     @Schema(description = "List of domains to deploy to (usually \"default\")")
     private List<@NotBlank @Pattern(regexp = "^[-._a-zA-Z0-9]+$") String> domains;
+    @Schema(description = "Names to create as micro domains. An undiscovered name absent from this "
+            + "list is deployed as a classic domain; a listed name the catalog discovers as CLASSIC "
+            + "is reported as a failed deployment")
+    private List<@NotBlank @Pattern(regexp = "^[-._a-zA-Z0-9]+$") String> microDomains;
     @Builder.Default
     @Schema(description = "Which snapshot should be taken during bulk deploy")
     private BulkDeploymentSnapshotAction snapshotAction = BulkDeploymentSnapshotAction.CREATE_NEW;

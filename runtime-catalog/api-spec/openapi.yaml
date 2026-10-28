@@ -6317,6 +6317,15 @@ components:
             type: string
             minLength: 1
             pattern: "^[-._a-zA-Z0-9]+$"
+        microDomains:
+          type: array
+          description: Names to create as micro domains. An undiscovered name absent
+            from this list is deployed as a classic domain; a listed name the catalog
+            discovers as CLASSIC is reported as a failed deployment
+          items:
+            type: string
+            minLength: 1
+            pattern: "^[-._a-zA-Z0-9]+$"
         mode:
           type: string
           description: Deploy mode
