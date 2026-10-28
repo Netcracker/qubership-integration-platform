@@ -754,7 +754,6 @@ export const AiAssistant: React.FC = () => {
       sessionStore,
       activityStore,
       refreshSessions,
-      scrollToBottom,
       handleResponseComplete,
       refreshAfterInterruption,
     ],
