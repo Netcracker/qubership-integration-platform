@@ -88,7 +88,6 @@ test.describe("chain editor", () => {
     await expect(vscode.webview.getByTitle("Script (Script)")).toBeVisible();
     await expect.poll(() => messages.answered()).toContain("getElements");
 
-    // The trigger's form holds no script editor, whose Monaco workers fail to load in the webview (#1223).
     const form = await graph.openElement(HTTP_TRIGGER);
     // The element's name, then its type's title from the library element; without one the badge shows `http-trigger`.
     await expect(form.getByRole("button", { name: "Edit name" })).toHaveText(/^HTTP Trigger\s*HTTP Trigger$/);

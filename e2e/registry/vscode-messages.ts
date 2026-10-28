@@ -24,8 +24,6 @@ export interface MessageEntry {
 /** The reason every handler with no sender in `ui/src` carries; the harness reads its prefix. */
 export const NO_UI_SENDER = "no UI sender";
 
-const R_1214 = "#1214: the extension has no handler, so the UI receives an answer with no payload";
-
 const covered = (message: string): MessageEntry => ({ message, status: "covered" });
 const notCovered = (reason: string, ...messages: string[]): MessageEntry[] =>
   messages.map((message) => ({ message, status: "not-covered", reason }));
@@ -78,6 +76,7 @@ export const messageRegistry: MessageEntry[] = [
   covered("getOperationInfo"),
   covered("getContextServices"),
   covered("getMcpServices"),
+  covered("getSpecificationModelSource"),
 
   // specs/vscode/chain-diff.spec.ts; `navigateComparedDocumentInNewTab` counts only through `sentMessage`.
   covered("comparedDocumentsRequest"),
@@ -89,6 +88,9 @@ export const messageRegistry: MessageEntry[] = [
   covered("exportImagesComplete"),
   covered("exportImagesItemFailed"),
   covered("exportImagesItemWarning"),
+  // The extension answers both with nothing: they are for the extensions built on this one.
+  covered("exportImagesStarted"),
+  covered("exportImagesItemDone"),
 
   // specs/vscode/service-editor.spec.ts
   covered("updateService"),
@@ -125,7 +127,7 @@ export const messageRegistry: MessageEntry[] = [
   ...notCovered(`${NO_UI_SENDER}: the UI reports the end of an export with exportImagesComplete, which shares the handler`, "exportImagesDone"),
   ...notCovered(`${NO_UI_SENDER}: the extension calls it itself when an export starts (extension.ts)`, "listChainExportTargets"),
 
-  ...unhandled(R_1214, "importSystems", "createContextService", "getSpecificationModelSource", "exportImagesStarted", "exportImagesItemDone"),
+  ...unhandled("no case in apiRouter.ts, since an answer with no payload would report the import or the create as a success; no screen the extension renders calls it", "importSystems", "createContextService"),
 ];
 
 /** Rows that repeat a type or lack a required reason. */

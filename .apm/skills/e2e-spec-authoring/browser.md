@@ -131,8 +131,7 @@ that meets a product error declares it with `expectConsoleError`, naming the iss
 - `withAnyStack(message)` builds the pattern of a message followed by its stack, whose line numbers
   in `extension.js` change with every build of the extension;
 - a declaration that never matches fails the case, so declare an error only where it arrives every
-  time. An error that arrives only sometimes, such as Monaco's `Event` (#1223), is kept out of the
-  case where the case can avoid it: the chain editor case opens a form with no script editor;
+  time. An error that arrives only sometimes is kept out of the case where the case can avoid it;
 - `allowConsoleError` lets an error through without requiring it. A pinned case uses it for an
   error its fix may stop raising, since a declared error that stops arriving fails the case for
   real, and for an error it cannot avoid that arrives only sometimes.

@@ -185,7 +185,7 @@ test.describe("vscode messages", () => {
 
     test("the extension parser reads two handlers", () => {
       const handled = handledTypes(apiRouter, chainDiffEditor);
-      expect(handled).toHaveLength(67);
+      expect(handled).toHaveLength(70);
       expect(handled).toEqual(expect.arrayContaining(["startup", "listChainExportTargets", "comparedDocumentsRequest", "navigateComparedDocumentInNewTab"]));
       // The second `switch` in apiRouter.ts switches on a file type, after getApiResponse ends.
       const router = `export async function getApiResponse(m) {\n  switch (m.type) {\n    case "getChain":\n      return 1;\n  }\n}\nfunction other(t) {\n  switch (t) {\n    case "boolean":\n  }\n}\n`;
@@ -213,7 +213,7 @@ test.describe("vscode messages", () => {
       expect(types).toEqual(expect.arrayContaining(["startup", "navigate", "comparedDocumentsRequest", "exportImagesItemWarning", "getSpecificationModelSource"]));
       expect(sourceDrift(messageRegistry, handledTypes(apiRouter, chainDiffEditor), types)).toEqual([]);
       expect(messageRegistry.filter((entry) => entry.status === "unhandled").map((entry) => entry.message).sort()).toEqual(
-        ["createContextService", "exportImagesItemDone", "exportImagesStarted", "getSpecificationModelSource", "importSystems"],
+        ["createContextService", "importSystems"],
       );
     });
 

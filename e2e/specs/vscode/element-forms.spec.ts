@@ -2,14 +2,9 @@
  * Element forms in the VS Code chain editor: what a saved form writes to the chain file and its
  * resources, and what the service fields list from the workspace.
  *
- * A Monaco editor in the webview asks for its worker at the workbench origin, which answers 404,
- * and the frame then raises an uncaught `Event` (#1223); the cases that open one declare it. The
- * pinned case ends soon after its editors mount, before the error arrives on some runs, so it
- * allows the error instead.
- *
- * The mapper's schema load for a GraphQL service call is pinned on #1214: the extension has no
- * handler for `getSpecificationModelSource`, answers it with no payload, and the dialog's schema
- * stays empty.
+ * The cases that open a Monaco editor declare no console error: the webview used to request the
+ * editor's worker at the workbench origin, which answered 404, and the frame then raised an
+ * uncaught `Event` (#1223).
  *
  * Shown failing, each by an edit in `vscode-extension/src/web/response/` run alone:
  * - `updateElement` skipping `writeMainChain`: the property, mapper, and checkpoint cases timed out
@@ -26,14 +21,13 @@
  * - `getLatestApiSpecification` throwing: the specification stayed empty after the service changed;
  * - `getEnvironment` answering `{}`: the base path lost the address;
  * - `getContextServices` and `getMcpServices` each answering `[]`: the form showed no service name;
- * - a `getSpecificationModelSource` handler returning the schema, the fix: the pinned case met
- *   `notTheKnownDefect`.
+ * - `getSpecificationModelSource` answering nothing, as before the #1214 fix: the mapper's schema
+ *   stayed empty.
  */
 import { test, expect } from "../../support/vscode-guard.js";
 import { ChainGraphPage } from "../../pages/ChainGraphPage.js";
 import { pickOption } from "../../support/pick-option.js";
 import { normalizeIds, readGolden } from "../../support/vscode-golden.js";
-import { notTheKnownDefect, outsideTheDefect } from "../../support/known-defect.js";
 import {
   chainFile,
   CHECKPOINT,
@@ -52,9 +46,6 @@ import {
   SERVICE_CALL,
   SERVICES_CHAIN_ID,
 } from "../../support/vscode-workspace.js";
-
-/** The uncaught error Monaco's failed worker request raises in the webview, #1223. */
-const MONACO_WORKER_ERROR = "Event";
 
 const CHAIN = chainFile(MOCHA_CHAIN_ID);
 const SCRIPT_RESOURCE = resourceFile(MOCHA_CHAIN_ID, SCRIPT, "script.cip.groovy");
@@ -91,8 +82,7 @@ test.describe("element forms", () => {
     expect(messages.answered()).toContain("updateElement");
   });
 
-  test("a script edited in Monaco is written to its resource file", async ({ vscode, expectConsoleError }) => {
-    expectConsoleError(MONACO_WORKER_ERROR);
+  test("a script edited in Monaco is written to its resource file", async ({ vscode }) => {
     await vscode.open();
     await vscode.openFile(CHAIN);
     const graph = new ChainGraphPage(vscode.webview);
@@ -112,8 +102,7 @@ test.describe("element forms", () => {
     expect(script.split("\n").filter(Boolean)).toEqual(['exchange.getMessage().setBody("fixture")', "// e2e-edited"]);
   });
 
-  test("a mapping typed in the mapper's text view is written", async ({ vscode, expectConsoleError }) => {
-    expectConsoleError(MONACO_WORKER_ERROR);
+  test("a mapping typed in the mapper's text view is written", async ({ vscode }) => {
     await vscode.open();
     await vscode.openFile(GRAPHQL_CHAIN);
     const graph = new ChainGraphPage(vscode.webview);
@@ -218,33 +207,24 @@ test.describe("element forms", () => {
     expect(messages.answered()).toContain("getMcpServices");
   });
 
-  test("the mapper loads the GraphQL schema of the call before it", async ({ vscode, messages, allowConsoleError }) => {
-    test.fail(true, "#1214: the extension has no handler for getSpecificationModelSource, so the schema arrives empty");
-    allowConsoleError(MONACO_WORKER_ERROR);
-    const dialog = await outsideTheDefect("opening the mapper's Load source dialog on the GraphQL call", async () => {
-      await vscode.open();
-      await vscode.openFile(GRAPHQL_CHAIN);
-      const graph = new ChainGraphPage(vscode.webview);
-      const form = await graph.openElement(MAPPER);
-      await form.getByRole("tab", { name: "Table", exact: true }).click();
-      // The radio input is hidden behind its label.
-      await form.getByText("Source", { exact: true }).click();
-      // The row's actions button sits in its last cell, hidden until the row is hovered.
-      const body = form.getByRole("row", { name: "body" });
-      await body.hover();
-      await expect(body.getByRole("button")).toHaveCount(2);
-      await body.getByRole("button").last().click();
-      await vscode.webview.getByRole("menuitem", { name: "Load" }).click();
-      const loaded = vscode.webview.getByRole("dialog", { name: "Load source" });
-      // The dialog fills the query and the schema together, once the schema's answer is in.
-      await expect(vscode.monaco(loaded, "load-schema-graphql-query-editor")).toContainText("query Widget");
-      return loaded;
-    });
-
-    const schema = (await vscode.lines(vscode.monaco(dialog, "load-schema-graphql-schema-editor")).innerText()).trim();
-    if (!messages.answeredWithoutPayload("getSpecificationModelSource") || schema !== "") {
-      notTheKnownDefect(`#1214 answers getSpecificationModelSource with no payload, so the schema stays empty, but the schema read ${JSON.stringify(schema)}`);
-    }
-    expect(schema).toContain("type Widget");
+  test("the mapper loads the GraphQL schema of the call before it", async ({ vscode, messages }) => {
+    await vscode.open();
+    await vscode.openFile(GRAPHQL_CHAIN);
+    const graph = new ChainGraphPage(vscode.webview);
+    const form = await graph.openElement(MAPPER);
+    await form.getByRole("tab", { name: "Table", exact: true }).click();
+    // The radio input is hidden behind its label.
+    await form.getByText("Source", { exact: true }).click();
+    // The row's actions button sits in its last cell, hidden until the row is hovered.
+    const body = form.getByRole("row", { name: "body" });
+    await body.hover();
+    await expect(body.getByRole("button")).toHaveCount(2);
+    await body.getByRole("button").last().click();
+    await vscode.webview.getByRole("menuitem", { name: "Load" }).click();
+    const dialog = vscode.webview.getByRole("dialog", { name: "Load source" });
+    // The dialog fills the query and the schema together, once the schema's answer is in.
+    await expect(vscode.monaco(dialog, "load-schema-graphql-query-editor")).toContainText("query Widget");
+    await expect(vscode.monaco(dialog, "load-schema-graphql-schema-editor")).toContainText("type Widget");
+    expect(messages.answered()).toContain("getSpecificationModelSource");
   });
 });

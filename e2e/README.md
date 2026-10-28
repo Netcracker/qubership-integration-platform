@@ -603,18 +603,13 @@ issue:
 
 | Issue | Defect | In the suite |
 | --- | --- | --- |
-| #1214 | Five message types the UI sends have no handler in the extension, which answers them with no payload. | `unhandled` rows in `registry/vscode-messages.ts`, and a pin on the mapper's GraphQL schema load in `element-forms.spec.ts` |
-| #1222 | `deleteMaskedFields` skips the field at index 0. | a pin in `chain-properties.spec.ts` |
-| #1223 | The webview's request for a Monaco worker answers 404, and the frame raises an uncaught `Event`. | `expectConsoleError` in the Monaco cases of `element-forms.spec.ts`, `allowConsoleError` in its #1214 pin; `chain-editor.spec.ts` opens a form with no script editor |
-| #1224 | A chain file that does not parse opens on "Not implemented yet", with no error. | a pin in `context-mcp-editors.spec.ts` |
-| #1225 | A context service's labels are not saved. | a pin in `context-mcp-editors.spec.ts` |
 | #1226 | The inline labels editor resets on a redraw, the MCP form keeps Save enabled after a save, and the environment dialog's Name field has no accessible name. | waits in `service-editor.spec.ts` and `context-mcp-editors.spec.ts`, and the environment case of `service-editor.spec.ts` keeps the dialog's default name |
 | #1236 | The element form moves focus to its root after its open animation, which closes a select the user already opened. | `ChainGraphPage.openElement` waits for that move |
 
 A fix removes its pin or its declaration, since the case that then passes is the regression case.
-A fix for a #1214 type also changes its `unhandled` row, and `specs/harness/vscode-messages.spec.ts`
-fails until the row matches the code: a handled row when the extension answers the type, and no row
-when the UI stops sending it.
+A handler added for an `unhandled` type also changes its row, and
+`specs/harness/vscode-messages.spec.ts` fails until the row matches the code: a handled row when
+the extension answers the type, and no row when the UI stops sending it.
 
 A defect only one engine meets, or a race, is pinned with `strikesAsKnown` and a `ConditionalDefect`
 instead, defined in `specs/<project>/<component>-defects.ts`; `grep -rn strikesAsKnown specs/` lists
@@ -926,7 +921,7 @@ them against the run rather than believing them:
   that starts `no UI sender`. Reconcile ignores what a case recorded for an `unhandled` row, since
   the extension answers it with no error and no payload. The run summary counts the covered rows
   out of the handled types, with the `unhandled` rows beside them:
-  `VS Code messages: 61 of 67 handled message types covered, 5 unhandled.`
+  `VS Code messages: 64 of 70 handled message types covered, 2 unhandled.`
 
 Run reconcile after the suite, never instead of it:
 

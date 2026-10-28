@@ -5,28 +5,26 @@
  * In VS Code the Properties tab carries a Group field, which Apply saves through `moveChain` as the
  * chain's `metaInfo.group` before `updateChain` writes the rest.
  *
- * Deleting the first masked field leaves it in the file: `deleteMaskedFields` in `chainApiModify.ts`
- * tests the found index with `if (index)`, which is false for index 0. The UI drops the row anyway,
- * so the field comes back when the chain is opened again (#1222). The pinned case carries it, and the
- * other case deletes the second of two fields.
+ * Deleting the first masked field used to leave it in the file, because `deleteMaskedFields` in
+ * `chainApiModify.ts` tested the found index with `if (index)`, which is false for index 0 (#1222).
+ * One case deletes the only field, at index 0, and the other deletes the second of two fields.
  *
  * Shown failing, each by an edit in `vscode-extension/src/web/response/` run alone:
  * - `updateChain` skipping `writeMainChain`: the file read timed out on the old name;
  * - `changeFolder` skipping `writeMainChain`: the group was missing from the written file;
  * - `updateMaskedField` skipping `writeMainChain`: the file held a field with an empty name;
  * - `getMaskedFields` answering no fields: the reopened Masking tab listed none;
- * - `createMaskedField` skipping `writeMainChain`: both masked-field cases lost the row, the pin
- *   through `outsideTheDefect`, and the guard caught `Masked Field not found`;
+ * - `createMaskedField` skipping `writeMainChain`: both masked-field cases lost the row, and the
+ *   guard caught `Masked Field not found`;
  * - `deleteMaskedFields` skipping `writeMainChain`: the file read timed out on two fields;
- * - an undeclared `console.error` in the pinned case: the guard turned it red, and with the guard
- *   no longer clearing `expectedStatus` the same error passed as the expected failure;
- * - `if (index >= 0)` in `deleteMaskedFields`, the fix: the pinned case passed, so `test.fail()`
- *   turned it red.
+ * - an undeclared `console.error` in the first-field case while it carried `test.fail()`: the guard
+ *   turned it red, and with the guard no longer clearing `expectedStatus` the same error passed as
+ *   the expected failure;
+ * - `deleteMaskedFields` before the #1222 fix: the first-field case found `e2eOnly` in the file.
  */
 import type { FrameLocator } from "@playwright/test";
 import { test, expect } from "../../support/vscode-guard.js";
 import { TableView } from "../../pages/TableView.js";
-import { notTheKnownDefect, outsideTheDefect } from "../../support/known-defect.js";
 import { addTag } from "../../support/pick-option.js";
 import { chainFile, MOCHA_CHAIN_ID, parseChain } from "../../support/vscode-workspace.js";
 
@@ -90,27 +88,19 @@ test.describe("chain properties", () => {
   });
 
   test("a deleted first masked field leaves the chain file", async ({ vscode, messages }) => {
-    test.fail(true, "#1222: deleteMaskedFields tests the found index with `if (index)`, which skips index 0");
-    const text = await outsideTheDefect("adding a masked field, deleting it, and reading the chain file", async () => {
-      await vscode.open();
-      await vscode.openFile(CHAIN);
-      const { webview } = vscode;
-      const table = new TableView(webview);
-      await webview.getByRole("tab", { name: "Masking", exact: true }).click();
-      await expect(webview.getByText("No masked fields")).toBeVisible();
-      await addMaskedField(webview, table, "e2eOnly");
-      await table.row("e2eOnly").getByRole("checkbox").check();
-      await webview.getByTestId("masking-delete").click();
-      await expect(webview.getByText("No masked fields")).toBeVisible();
-      await expect.poll(() => messages.answered()).toContain("deleteMaskedFields");
-      // Every write is in before the text editor opens, so it reads the file the delete left.
-      return await vscode.readAsText((each) => parseChain(each).id === MOCHA_CHAIN_ID);
-    });
-    const names = maskedNames(text);
-    if (names.length > 0 && JSON.stringify(names) !== JSON.stringify(["e2eOnly"])) {
-      notTheKnownDefect(`the defect leaves the deleted field e2eOnly in the file, but the file holds ${JSON.stringify(names)}`);
-    }
-    expect(names).toEqual([]);
+    await vscode.open();
+    await vscode.openFile(CHAIN);
+    const { webview } = vscode;
+    const table = new TableView(webview);
+    await webview.getByRole("tab", { name: "Masking", exact: true }).click();
+    await expect(webview.getByText("No masked fields")).toBeVisible();
+    await addMaskedField(webview, table, "e2eOnly");
+    await table.row("e2eOnly").getByRole("checkbox").check();
+    await webview.getByTestId("masking-delete").click();
+    await expect(webview.getByText("No masked fields")).toBeVisible();
+    await expect.poll(() => messages.answered()).toContain("deleteMaskedFields");
+    // Every write is in before the text editor opens, so it reads the file the delete left.
+    expect(maskedNames(await vscode.readAsText((each) => parseChain(each).id === MOCHA_CHAIN_ID))).toEqual([]);
   });
 });
 
