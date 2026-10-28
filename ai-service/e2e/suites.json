@@ -49,8 +49,8 @@
       "command": [
         "mvn",
         "-B",
-        "-pl",
-        "ai-service",
+        "-f",
+        "ai-service/pom.xml",
         "-Dtest=CatalogSpecificationImporterTest,ApiHubSpecificationImportServiceTest,UploadedSpecAutoImporterTest,ApiHubExistingCatalogBinderTest,ApiHubMcpToolsTest,SpecificationImportPipelineTest,SpecificationImportCapabilityTest,AutoUploadedSpecImportCapabilityTest,RequirementDraftImportIntentTest,ImportSpecificationScenarioTest,ImportSpecificationRoutingPolicyTest,SpecificationImportBoundaryTest",
         "test"
       ],
@@ -70,8 +70,8 @@
       "command": [
         "mvn",
         "-B",
-        "-pl",
-        "ai-service",
+        "-f",
+        "ai-service/pom.xml",
         "-Dtest=ConversationEvidenceResourceTest,ConversationTurnResourceTest,ProductPipelineRunResourceTest,ConversationServiceTruncateTest,ChatExecutionServiceTest,ChainCatalogViewServiceTest,ChainCatalogFactsServiceTest,PlanPresentationFactsServiceTest",
         "test"
       ],
@@ -108,8 +108,8 @@
       "command": [
         "mvn",
         "-B",
-        "-pl",
-        "ai-service",
+        "-f",
+        "ai-service/pom.xml",
         "test"
       ],
       "reports": "{service_root}/ai-service/target/surefire-reports/TEST-*.xml",

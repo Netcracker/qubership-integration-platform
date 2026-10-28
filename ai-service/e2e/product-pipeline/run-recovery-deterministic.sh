@@ -58,7 +58,7 @@ RECOVERY_TESTS+=",SerializedClarificationFlowTest"
 
 python3 -m unittest discover -s ai-service/e2e/product-pipeline -p 'test_recovery_*.py'
 
-mvn -pl ai-service \
+mvn -f ai-service/pom.xml \
     -Dtest="${RECOVERY_TESTS}" \
     test
 

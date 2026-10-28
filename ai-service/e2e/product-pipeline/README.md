@@ -176,7 +176,7 @@ additional facts, a repair hint, Retry, rebuild, or extra credit.
 Build the candidate image and the local read-only evidence exporter from the repository root:
 
 ```bash
-mvn -pl ai-service -Dgpg.skip=true -Dtest=HttpTriggerCaptureToolTest,HttpTriggerCaptureAdapterTest,E2eRecoveryTestControlTest,RecoveryEvidenceProbeTest,MaterializationCapabilityTest,ProductPipelineRunResourceTest package dependency:build-classpath -Dmdep.outputFile=target/recovery-probe-classpath.txt
+mvn -f ai-service/pom.xml -Dgpg.skip=true -Dtest=HttpTriggerCaptureToolTest,HttpTriggerCaptureAdapterTest,E2eRecoveryTestControlTest,RecoveryEvidenceProbeTest,MaterializationCapabilityTest,ProductPipelineRunResourceTest package dependency:build-classpath -Dmdep.outputFile=target/recovery-probe-classpath.txt
 docker build -t qip-ai-recovery:pilot ai-service
 python3 ai-service/e2e/product-pipeline/recovery_campaign.py lifecycle-check --image qip-ai-recovery:pilot --out /tmp/recovery-lifecycle
 python3 ai-service/e2e/product-pipeline/recovery_campaign.py pilot --image qip-ai-recovery:pilot --out /tmp/recovery-pilot
