@@ -45,6 +45,31 @@ class DocumentationToolsTest {
   }
 
   @Test
+  void modelInstructionsPreserveDocumentationUrlsAndExactSourceLiterals() throws Exception {
+    documentation();
+    var searchTool = DocumentationTools.class
+        .getMethod("searchDocumentation", String.class, String.class)
+        .getAnnotation(dev.langchain4j.agent.tool.Tool.class);
+    var readTool = DocumentationTools.class
+        .getMethod("readDocumentation", String.class, String.class, String.class)
+        .getAnnotation(dev.langchain4j.agent.tool.Tool.class);
+    String context = tools().context("conversation", "REST API errors", List.of());
+
+    String searchInstructions = String.join(" ", searchTool.value());
+    String readInstructions = String.join(" ", readTool.value());
+    assertTrue(searchInstructions.contains("Copy each returned documentation `url` verbatim"), searchInstructions);
+    assertTrue(searchInstructions.contains("do not add a scheme or host"), searchInstructions);
+    assertTrue(readInstructions.contains("Copy each returned documentation `url` verbatim"), readInstructions);
+    assertTrue(readInstructions.contains("do not add a scheme or host"), readInstructions);
+    assertTrue(readInstructions.contains("do not normalize, merge, or deduplicate entries"), readInstructions);
+    assertTrue(readInstructions.contains("including paths that differ only by a leading `/`"), readInstructions);
+    assertTrue(context.contains("Copy each returned documentation `url` verbatim"), context);
+    assertTrue(context.contains("do not add a scheme or host"), context);
+    assertTrue(context.contains("do not normalize, merge, or deduplicate entries"), context);
+    assertTrue(context.contains("including paths that differ only by a leading `/`"), context);
+  }
+
+  @Test
   void compilerContextAndToolReadsUseTheSamePersistedPinAndRecordSourceText() throws Exception {
     documentation();
     String context = tools().context("conversation", "service-call response", List.of("service-call"));
