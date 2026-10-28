@@ -233,16 +233,14 @@ export const ActionsLog: React.FC = () => {
     }
 
     const link = (
-      <Flex vertical={true} gap={4} style={{ width: "fit-content" }}>
-        <a
-          onClick={(event) => {
-            event.stopPropagation();
-            window.open(getEntityLink(type, id, parentId, name), "_blank");
-          }}
-        >
-          {displayedName}
-        </a>
-      </Flex>
+      <a
+        onClick={(event) => {
+          event.stopPropagation();
+          window.open(getEntityLink(type, id, parentId, name), "_blank");
+        }}
+      >
+        {displayedName}
+      </a>
     );
 
     return displayedName ? link : "—";
@@ -543,8 +541,7 @@ export const ActionsLog: React.FC = () => {
               onChange={handleConfiguredTableChange}
               onRow={(row) => {
                 return {
-                  onClick: (event) => {
-                    event.stopPropagation();
+                  onClick: () => {
                     showDrawer(row);
                   },
                 };
