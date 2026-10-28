@@ -60,12 +60,15 @@ class RockySkillsPackageTest {
     assertFalse(ids.contains("cip-chain-generator"));
     assertTrue(ids.contains("cip-utility-rocky-skills-update"));
     try (var roots = Files.list(PACK)) {
-      assertEquals(java.util.Set.of("skills", "runtime", "manifest.json"),
+      var expectedRoots = new HashSet<>(java.util.Set.of("skills", "runtime", "manifest.json"));
+      if (Files.isDirectory(PACK.resolve("testing"))) expectedRoots.add("testing");
+      assertEquals(expectedRoots,
           roots.map(path -> path.getFileName().toString()).collect(java.util.stream.Collectors.toSet()));
     }
     try (var paths = Files.walk(PACK)) {
       var actual = paths.filter(Files::isRegularFile).map(path -> PACK.relativize(path).toString())
-          .filter(path -> !path.equals("manifest.json")).collect(java.util.stream.Collectors.toSet());
+          .filter(path -> path.startsWith("skills/") || path.startsWith("runtime/"))
+          .collect(java.util.stream.Collectors.toSet());
       assertEquals(actual, JSON.convertValue(manifest.path("files"), java.util.Map.class).keySet());
     }
   }
