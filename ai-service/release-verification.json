@@ -171,7 +171,37 @@
       },
       {
         "id": "product-create-chain-multi-turn-revision",
-        "status": "PENDING"
+        "status": "PASS_SCOPED_WITH_REVISION_COVERAGE_GAP",
+        "conversationId": "15fd3ead-6b7d-4ee1-b1bc-a10fb031fd99",
+        "chainId": "621f2fca-9af3-4050-acd6-5b09059969e2",
+        "chainName": "AiCreateRevise.20261028T132752.r1",
+        "nativeValidation": "PASS",
+        "reconcile": true,
+        "materialization": "PASS",
+        "requirements": "PASS_NATIVE_ROUTE_AND_DRAFT_REFERENCE",
+        "scriptChecks": "PASS_STATIC_REVIEW_ONLY",
+        "unsavedChanges": true,
+        "deployment": "NOT_RUN",
+        "providerCapture": {
+          "requestedModel": "gpt-6-luna",
+          "returnedModel": "gpt-6-luna",
+          "endpoint": "https://api.openai.com/v1",
+          "phaseRequests": 22,
+          "phaseResponses": 22,
+          "conversationTaggedRequests": 15,
+          "requestsWithoutConversationTagInExclusivePhase": 7,
+          "attribution": "Exchange-ID difference from the preceding complete 73-exchange union; all prior IDs occur in the current 95-pair union.",
+          "rawEvidence": "Ignored case candidate-captures directory, capture summary, and checksum manifest."
+        },
+        "independentReview": "PASS_SCOPED_WITH_COVERAGE_GAPS",
+        "evidence": "Ignored local evidence: live-luna/cases/product-create-chain-multi-turn-revision/product-attempt-1/",
+        "coverage": {
+          "multiTurnApproval": "PASS",
+          "approvedDraftReference": "PRESENT",
+          "requirementRevision": "NOT_EXERCISED",
+          "reason": "Observed user turns selected and approved existing drafts; all three requirement drafts retained identical assembled text and facts.",
+          "responseContent": "NOT_EXERCISED: saved native turns do not contain the corpus discovery answer; the materialized script returns Hello, greetings!"
+        }
       },
       {
         "id": "product-create-chain-recovery-revise-plan",
