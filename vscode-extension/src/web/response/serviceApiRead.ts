@@ -91,6 +91,7 @@ export async function getContextService(
     name: service.name,
     description: service.content?.description || "",
     type: IntegrationSystemType.CONTEXT,
+    labels: LabelUtils.toEntityLabels(service.content?.labels || []),
   };
 }
 
