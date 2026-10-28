@@ -70,6 +70,7 @@ export const McpServiceParametersPage: React.FC = () => {
         setIsSaving(true);
         const result = await api.updateMcpSystem(id, changes);
         setSystem(result);
+        setHasChanges(false);
         setErrorText(null);
       } catch (e) {
         notificationService.requestFailed("Failed to update MCP service", e);
@@ -118,7 +119,7 @@ export const McpServiceParametersPage: React.FC = () => {
           form={form}
           disabled={isLoading || isSaving}
           layout="vertical"
-          onChange={() => setHasChanges(true)}
+          onValuesChange={() => setHasChanges(true)}
           onFinish={(values) => void updateSystem(system!.id, values)}
           initialValues={system ?? undefined}
         >

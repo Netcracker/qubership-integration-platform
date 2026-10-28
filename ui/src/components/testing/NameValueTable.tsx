@@ -12,6 +12,20 @@ import { TextValueEdit } from "../table/TextValueEdit.tsx";
 
 type KeyedParameter = TestingNamedParameter & { key: number };
 
+// Pairs carry no id, so each row object gets one and an edited copy inherits it.
+// An index key would move an open editor to another pair when a row above is deleted.
+const rowIds = new WeakMap<TestingNamedParameter, number>();
+let nextRowId = 0;
+
+function idOf(row: TestingNamedParameter): number {
+  let id = rowIds.get(row);
+  if (id === undefined) {
+    id = nextRowId++;
+    rowIds.set(row, id);
+  }
+  return id;
+}
+
 /** Returns a message when the text is not accepted, and undefined when it is. */
 export type ValueValidator = (text: string) => string | undefined;
 
@@ -54,16 +68,21 @@ export const NameValueTable: React.FC<NameValueTableProps> = ({
   "data-testid": dataTestId,
 }) => {
   const rows = useMemo(() => values ?? [], [values]);
-  // Pairs carry no id, so the row key comes from a keyed copy rather than from
-  // the row index, which antd deprecated on `rowKey`.
   const keyedRows = useMemo<KeyedParameter[]>(
-    () => rows.map((row, index) => ({ ...row, key: index })),
+    () => rows.map((row) => ({ ...row, key: idOf(row) })),
     [rows],
   );
 
   const replaceRow = (index: number, changes: Partial<TestingNamedParameter>) =>
     onChange(
-      rows.map((row, i) => (i === index ? { ...row, ...changes } : row)),
+      rows.map((row, i) => {
+        if (i !== index) {
+          return row;
+        }
+        const changed = { ...row, ...changes };
+        rowIds.set(changed, idOf(row));
+        return changed;
+      }),
     );
 
   const removeRow = (index: number) =>
