@@ -241,7 +241,10 @@ public class CipKnowledgePackIngestionService {
   private static Path repositoryRoot(Path packRoot) {
     Path parent = packRoot.toAbsolutePath().normalize().getParent();
     if (parent == null) return packRoot;
-    return ".private".equals(parent.getFileName().toString()) ? parent.getParent() : parent;
+    String parentName = parent.getFileName().toString();
+    return ".private".equals(parentName) || "integration-platform-skills".equals(parentName)
+        ? parent.getParent()
+        : parent;
   }
 
   private void writeProductPipelineIndexes(

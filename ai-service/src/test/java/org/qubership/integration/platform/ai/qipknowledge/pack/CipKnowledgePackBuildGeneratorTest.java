@@ -20,6 +20,38 @@ import org.qubership.integration.platform.ai.qipknowledge.support.ElementSupport
 class CipKnowledgePackBuildGeneratorTest {
 
   @Test
+  void generateResolvesRepositoryRootForCustomerLayout(@TempDir Path repositoryRoot)
+      throws Exception {
+    Path fixtureRoot = repositoryRoot.resolve("fixture-pack");
+    PublicCipKnowledgePackFixture.create(fixtureRoot);
+    Path capability = fixtureRoot.resolve("product-pipelines/capabilities/planning.yaml");
+    Files.writeString(
+        capability,
+        Files.readString(capability)
+            .replace("skills:\n  required: [cip-auth-generator]", "skills:\n  required: [plan-validator]"));
+    Path rolePrompt =
+        repositoryRoot.resolve("ai-service/src/main/resources/prompts/roles/plan-validator.md");
+    Files.createDirectories(rolePrompt.getParent());
+    Files.writeString(rolePrompt, "# Plan validator fixture\n");
+    Path packRoot = repositoryRoot.resolve("integration-platform-skills/rocky-skills");
+    Files.createDirectories(packRoot.getParent());
+    Files.move(fixtureRoot, packRoot);
+    Path outputDir = repositoryRoot.resolve("output");
+
+    CipKnowledgePackBuildGenerator.generate(packRoot, outputDir, packRoot.resolve("addons"));
+
+    Path versionDir = outputDir.resolve(CipKnowledgePackVersion.fromPath(packRoot).normalized());
+    var index = new CipKnowledgePackIndexLoader().loadProductPipelinePackageIndex(versionDir);
+    assertEquals(
+        "ai-service/src/main/resources/prompts/roles/plan-validator.md",
+        index.dependencyPins().stream()
+            .filter(pin -> "plan-validator".equals(pin.dependencyId()))
+            .findFirst()
+            .orElseThrow()
+            .path());
+  }
+
+  @Test
   void generateWritesVersionedIndexes(@TempDir Path outputDir) throws Exception {
     CipKnowledgePackTestSupport.configureAddonPackRoot();
     Path packRoot = CipKnowledgePackFixturePaths.packRoot();

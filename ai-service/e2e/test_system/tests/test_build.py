@@ -18,6 +18,7 @@ class BuildEntryTest(unittest.TestCase):
         self.pom.parent.mkdir(parents=True, exist_ok=True)
         self.pom.touch()
         self.packages = self.root / ".private"
+        self.customer_packages = self.root / "integration-platform-skills"
         self.bin = self.root / "bin"
         self.bin.mkdir()
         self.arguments = self.root / "maven-arguments.txt"
@@ -109,6 +110,109 @@ class BuildEntryTest(unittest.TestCase):
 
         self.assertEqual(37, result.returncode)
         self.assertIn("-Pwith-rocky-skills", self.arguments.read_text().splitlines())
+
+    def test_customer_layout_passes_the_outer_package_roots(self):
+        (self.customer_packages / "rocky-skills").mkdir(parents=True)
+        (self.customer_packages / "rocky-knowledge").mkdir()
+
+        result = self.build()
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        arguments = self.arguments.read_text().splitlines()
+        self.assertIn(
+            f"-Dqip.ai.qipknowledge.pack-root={self.customer_packages / 'rocky-skills'}",
+            arguments,
+        )
+        self.assertIn(
+            f"-Dqip.knowledge.export={self.customer_packages / 'rocky-knowledge'}",
+            arguments,
+        )
+        self.assertIn("-Pwith-rocky-skills", arguments)
+
+    def test_partial_customer_layout_takes_precedence_without_mixing_private_packages(self):
+        (self.customer_packages / "rocky-skills").mkdir(parents=True)
+        (self.packages / "rocky-skills").mkdir(parents=True)
+        (self.packages / "rocky-knowledge").mkdir()
+
+        result = self.build(exit_code=37)
+
+        self.assertEqual(37, result.returncode)
+        arguments = self.arguments.read_text().splitlines()
+        self.assertIn(
+            f"-Dqip.ai.qipknowledge.pack-root={self.customer_packages / 'rocky-skills'}",
+            arguments,
+        )
+        self.assertIn(
+            f"-Dqip.knowledge.export={self.customer_packages / 'rocky-knowledge'}",
+            arguments,
+        )
+        self.assertNotIn(
+            f"-Dqip.knowledge.export={self.packages / 'rocky-knowledge'}",
+            arguments,
+        )
+
+    def test_invalid_customer_package_entry_still_selects_customer_layout(self):
+        (self.customer_packages / "rocky-knowledge").mkdir(parents=True)
+        (self.customer_packages / "rocky-skills").write_text("invalid package")
+        (self.packages / "rocky-skills").mkdir(parents=True)
+        (self.packages / "rocky-knowledge").mkdir()
+
+        result = self.build(exit_code=37)
+
+        self.assertEqual(37, result.returncode)
+        arguments = self.arguments.read_text().splitlines()
+        self.assertIn(
+            f"-Dqip.ai.qipknowledge.pack-root={self.customer_packages / 'rocky-skills'}",
+            arguments,
+        )
+        self.assertNotIn(
+            f"-Dqip.ai.qipknowledge.pack-root={self.packages / 'rocky-skills'}",
+            arguments,
+        )
+
+    def test_dangling_customer_package_symlink_still_selects_customer_layout(self):
+        self.customer_packages.mkdir()
+        (self.customer_packages / "rocky-knowledge").symlink_to(self.root / "missing-package")
+        (self.packages / "rocky-skills").mkdir(parents=True)
+        (self.packages / "rocky-knowledge").mkdir()
+
+        result = self.build(exit_code=37)
+
+        self.assertEqual(37, result.returncode)
+        arguments = self.arguments.read_text().splitlines()
+        self.assertIn(
+            f"-Dqip.knowledge.export={self.customer_packages / 'rocky-knowledge'}",
+            arguments,
+        )
+        self.assertNotIn(
+            f"-Dqip.knowledge.export={self.packages / 'rocky-knowledge'}",
+            arguments,
+        )
+
+    def test_empty_customer_layout_without_private_packages_fails_explicitly(self):
+        self.customer_packages.mkdir()
+
+        result = self.build()
+
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("integration-platform-skills", result.stderr)
+        self.assertFalse(self.arguments.exists())
+
+    def test_old_apm_source_layout_keeps_private_runtime_package_compatibility(self):
+        (self.customer_packages / ".apm").mkdir(parents=True)
+        (self.customer_packages / "skills").mkdir()
+        (self.packages / "rocky-skills").mkdir(parents=True)
+        (self.packages / "rocky-knowledge").mkdir()
+
+        result = self.build()
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        arguments = self.arguments.read_text().splitlines()
+        self.assertIn("-Pwith-rocky-skills", arguments)
+        self.assertFalse(
+            any(argument.startswith("-Dqip.") for argument in arguments),
+            f"The private layout must use Maven's default package roots: {arguments}",
+        )
 
 
 if __name__ == "__main__":
