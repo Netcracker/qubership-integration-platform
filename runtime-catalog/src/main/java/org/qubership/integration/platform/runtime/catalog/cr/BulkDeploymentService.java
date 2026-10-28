@@ -86,10 +86,8 @@ public class BulkDeploymentService {
             : request.getChainIds();
         forClassicAndMicroDomains(request.getDomains(), (classicDomainNames, microDomainNames) -> {
             Collection<Snapshot> snapshots = getSnapshots(chainIds, request.getSnapshotAction(), resultConsumer);
-            List<Deployment> replacedDeployments = findReplacedDeployments(classicDomainNames.stream()
-                .collect(Collectors.toMap(Function.identity(), domain -> snapshots, (first, second) -> first)));
             deploySnapshots(snapshots, classicDomainNames, microDomainNames, request.getMode(),
-                replacedDeployments, resultConsumer);
+                List.of(), resultConsumer);
         });
     }
 
