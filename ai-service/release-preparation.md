@@ -30,9 +30,11 @@ Subagents own separate files; the coordinating chat owns commits and the shared 
    For each remaining case, retain the frozen source revision and local image ID, and record the returned model.
    The summary records supplied package fingerprints and the QA knowledge archive checksum; registry digests
    are unavailable because these images were not published. Run the remaining CREATE/EDIT selection with
-   uploaded OpenAPI mapping, an incremental edit, and recovery. Read the generated result back from the catalog
-   and check each case's assertions. Chain execution, if performed, also requires runtime session evidence and
-   logging restoration.
+   incremental edits and recovery. The uploaded OpenAPI mapping attempt failed before specification import: an
+   extra outbound response interaction targeted Caller and remained unresolved. The uploaded orders operation
+   itself was resolved. A source correction awaits user selection; preserve this failed attempt.
+   For materialized cases, read the generated result back from the catalog and check the case assertions.
+   Chain execution, if performed, also requires runtime session evidence and logging restoration.
 5. **Merge readiness — pending.** Review the final diff and evidence, record unresolved findings and exclusions,
    and prepare the delivery summary. Recheck affected gates after any correction.
 

@@ -141,7 +141,33 @@
       },
       {
         "id": "product-create-chain-uploaded-openapi-mapping",
-        "status": "PENDING"
+        "status": "FAIL_REQUIREMENT_DISCOVERY",
+        "conversationId": "91ee7f94-919a-4307-9831-edfbecd533ab",
+        "nativeExitCode": 1,
+        "nativeFailure": "Uploaded specification import decision card not found",
+        "materialization": "NOT_REACHED",
+        "deployment": "NOT_RUN",
+        "diagnosis": {
+          "acceptedDraft": "The uploaded orders operation was resolved. A separate outbound response interaction targeted Caller.",
+          "pendingIssue": "OPERATION_LOOKUP_REQUIRED for the response interaction",
+          "contract": "Requirement capture guidance forbids representing an HTTP response as a separate outbound interaction.",
+          "observedRecovery": "Subsequent edits and continuation did not remove the unresolved interaction.",
+          "ownership": "Requirement capture production and model adherence; uploaded-spec identity matching did not cause this halt.",
+          "productionFix": "AWAITING_USER_SELECTION"
+        },
+        "providerCapture": {
+          "requestedModel": "gpt-6-luna",
+          "returnedModel": "gpt-6-luna",
+          "endpoint": "https://api.openai.com/v1",
+          "phaseRequests": 31,
+          "phaseResponses": 31,
+          "conversationTaggedRequests": 7,
+          "requestsWithoutConversationTagInExclusivePhase": 24,
+          "attribution": "Exchange-ID difference from the preceding capture, using the active and rotated logs together; the complete union contains 73 paired exchanges.",
+          "rawEvidence": "Ignored case candidate-captures directory, rotated-log union summaries, and checksum manifest."
+        },
+        "independentReview": "PASS_FAILURE_RECORD",
+        "evidence": "Ignored local evidence: live-luna/cases/product-create-chain-uploaded-openapi-mapping/product-attempt-1/"
       },
       {
         "id": "product-create-chain-multi-turn-revision",
@@ -162,7 +188,8 @@
     ]
   },
   "blockers": [
-    "Deferred recovery response-schema ambiguity mismatch prevents green Java acceptance and unconditional merge."
+    "Deferred recovery response-schema ambiguity mismatch prevents green Java acceptance and unconditional merge.",
+    "Uploaded OpenAPI mapping acceptance stopped in requirement discovery before specification import or chain materialization."
   ],
   "evidencePolicy": "Raw prompts, responses, private packages and captures remain in ignored local evidence; this file is a sanitized summary.",
   "suppliedPackageFingerprints": [
