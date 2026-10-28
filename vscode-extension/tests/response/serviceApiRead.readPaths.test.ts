@@ -138,6 +138,7 @@ describe("the service read paths over the workspace fixtures", () => {
         name: "vsc-fixture-context",
         description: "Context service for the extension integration tests",
         type: "CONTEXT",
+        labels: [],
       },
     ]);
   });
