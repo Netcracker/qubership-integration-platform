@@ -4,9 +4,10 @@ This checklist tracks the remaining work before delivery and integration into `m
 The starting revision is `c211950ab`. Each change requires scoped checks, an independent review, and a local commit.
 Subagents own separate files; the coordinating chat owns commits and the shared runtime.
 
-The current follow-up below supersedes the historical checkpoints. Both approved fixes are complete.
-Java acceptance passed 6,607 tests with zero failures or errors; the final Greetings smoke halted before
-materialization. The new requirement-capture finding awaits review and a separate fix selection.
+The checkpoint at the end of this file is the current release state; earlier checkpoints remain historical.
+The approved documentation and recovery fixes are complete. A source-reconciliation change is implemented and
+reviewed, but its Greetings repeat failed before analysis or materialization. Release remains blocked pending
+source-evidence recovery selection.
 
 ## Delivery contract
 
@@ -95,9 +96,10 @@ This is API chat evidence only; UI, deployment, and chain runtime acceptance wer
    The 14-exchange documentation capture came from the base image and remains preserved; full-image readiness
    verification did not run another model case.
 
-## Current follow-up — validation pending
+## Prior follow-up — approved fixes and final smoke halt (superseded)
 
-The user approved both remaining fixes. The documentation correction is reviewed: eight of eight error codes and
+At this prior checkpoint, the user had approved both remaining fixes. The documentation correction was reviewed:
+eight of eight error codes and
 11 of 11 normalized endpoint pairs are present, with all three once-only cases, four complete source reads, and
 14 paired `gpt-6-luna` exchanges. Literal fidelity remains 11 of 12 entries because the slash-variant duplicate
 is not reproduced as a second literal entry; do not report an unqualified pass. The 14-exchange evidence and
@@ -135,8 +137,76 @@ is 11 of 11 normalized endpoint pairs, while literal fidelity remains 11 of 12 b
 variant is not repeated; do not report an unqualified documentation pass. The tenant-only experiment remains
 reverted and is not evidence of a tenant-lookup fix.
 
+
+## Current checkpoint — source reconciliation blocked
+
+Source reconciliation and its regressions are implemented on `1b9bf03f56f3ba602bc8b16522e0b1e97c035200`.
+The 17-file change passed independent review and 446 scoped tests. It adds typed source-fact references and
+source pins that reopen the existing owner stage; exact-quote restoration proposals for reported fields; and
+approval/control pins on the winning source turn. Replay remains null-safe and synchronous, with preflight before
+compare-and-set. No synthetic `USER_INPUT` is created. Connected stage controls avoid repeated or wrapper loops,
+preserve A when B follows sequentially, and do not grant an ineligible continuation. No new process or budget was
+introduced.
+
+The built full, base, and sidecar candidate images are ready from this source revision. The full image is ready;
+package certification passes, private package fingerprints match, the knowledge mount is read-only, the
+documentation manifest reports 93 documents and 864 sections, and shared container state is unchanged. Image ID prefixes are
+`75c888` (full), `67a9a25` (base), and `b2d927` (sidecar). Candidate setup made zero model requests before
+the live repeat.
+
+The single frozen Greetings repeat **failed before analysis or materialization**. Its draft cited a nonexistent
+source-turn UUID (`…8b205` rather than the actual `…9b205`), so every fact returned `SOURCE_EVIDENCE_REQUIRED`.
+The correct ID was present in the complete pending-source fragment and model request context. The tool error said
+“Correct the call and try once more” but supplied no replacement ID. A second capture repeated the rejected draft. Both captures also added Groovy without the prompt specifying a
+language. The run settled at `clarify:6` in `WAITING_FOR_INPUT`, revision 6, with only `RUN_MANIFEST` committed. Source review,
+owner reopen, reconciled candidate, review, approval, brief, plan, and materialization were not reached. New source
+linkage was therefore **not exercised**. The original prompt, native input, retry limits, and budgets were
+unchanged; no hints, retries, or weakened checks were added. The source-turn mismatch explains this attempt’s
+discovery halt, but does not establish live behavior of the newly implemented source-reconciliation flow. The draft’s
+unsupported Groovy choice and the earlier missing brief-facts clarification remain proven requirement failures;
+this repeat did not reach analysis to test their recovery. This does not show that source guidance or context was
+absent, and it does not establish a source-reconciliation code defect. Independent capture review passed with the stated evidence limits. The preparation contract changed after GO metadata was added.
+Reversing the six documented execution-metadata changes reconstructed bytes matching the original preparation
+SHA-256 (`76b9505466019b82394495daee8f5dfb6c58c49da01f479c057bfd7de8a3e58e`). This is a reconstruction, not an
+original pre-run backup. The original preparation manifest remains unchanged, and the independent closure review
+passed across 38 hashed evidence files. The proof confirms frozen inputs and the request-integrity hash, but does
+not prove exact full model-request replay. No model calls were made for this proof correction. OpenAPI, UI,
+catalog, runtime, and semantic judge were not run. The request logger contains previews, not full exact-message
+replay; the complete pending-source fragment matches the submitted prompt, but no raw durable source-store export
+is available. See
+`reconciled-greetings-repeat/report.md` and its result, decision, captures, and evidence manifest.
+
+The registered-provider regression failed before the behavior fix, after its transport-shape addition:
+expected native fact owner `script_behavior`, but `originRecordId` was empty. The one-case red run is retained in
+`source-reconciliation/provider-red.log`; the affected suites later passed 446 cases without failures or skips.
+
+The fresh full-module run on this source revision passed: 6,675 tests in 626 fresh reports, zero failures, zero
+errors, and 11 skips; Maven exited 0 after 315.421 seconds. The dedicated `.ai.a2a` test suites were excluded.
+Six A2A-named cases in other suites executed:
+`browserCreateChainWorksWhenA2aDisabled`, `aiA2aDataSource_usesLogicalDbNameAndTenantClassifier`,
+`productionBrowserAndA2aShareTheFacadeSeam`, `browserAndA2aShareTheS3BackedFacade`,
+`a2aRetryStaysPinnedToTheOriginalOffer`, and
+`browserAndA2aAdaptersInvokeSameFacadeWithDifferentSerialization`. Local Temurin 21.0.6 was the
+C1 workaround. The C2 SIGSEGV artifact is preserved with the run evidence. The report archive SHA-256 is
+`8c9bf9d7673d30b77a94f563090f197e5a1d23ae597660afc46bd31059805f6a`; independent XML and archive verification
+confirmed the totals. Base image `67a9a25bad7a` passed health at `http://127.0.0.1:58182`, then the full image
+`75c888e2bd77` was restored and passed health at `http://127.0.0.1:58211`. Sidecar `b2d9271ca7e9` is healthy with
+certified, read-only knowledge and a manifest of 93 documents and 864 sections. Shared containers are unchanged,
+and these lifecycle checks made no model requests. The nine-pair capture is preserved under
+`candidate-luna/build/archive-revision-1b9bf03f-before-lifecycle/collected-full-candidate-captures/`; its capture
+SHA-256 is `805328c4c5ee4f47fad3f29fb1da97dc5de2de80d7e4c558e19df49ab0913ab1`. The earlier 6,607-test
+green run remains historical. The release status is **BLOCKED_PENDING_SOURCE_ID_HINT_SELECTION**. No
+additional source or model changes are authorized pending the user’s selection on a minimal hint containing the
+already available source ID. Strict source-evidence checks remain unchanged; `CURRENT_SOURCE_ID` is a proposed
+feedback label, not the observed tool error. Restart integration testing remains
+deferred, the testing archive is unchanged, and no push was performed. Preserve the previous failures, image
+provenance, and accepted fix evidence as historical records.
+
 ## Evidence
 
-Keep raw logs, model exchanges, and private package data outside the committed delivery files. The coordinating
+The fresh exact OpenAI-key-pattern scan examined 4,903 UTF-8 evidence and helper files and found zero matches;
+the value was not printed. The scan excluded frozen source, generated knowledge, large files, and binary files, so
+it is not a general guarantee that every secret is absent. Keep raw logs, model exchanges, and private package data
+outside the committed delivery files. The coordinating
 checkout retains local evidence under `.dev/release-preparation-20261028/`. The final delivery summary must name
 each accepted source revision and outcome, including failures and checks that did not run.
