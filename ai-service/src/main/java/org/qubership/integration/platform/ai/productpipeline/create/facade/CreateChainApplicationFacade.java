@@ -350,6 +350,10 @@ public class CreateChainApplicationFacade {
     // Durable evidence first: a retry after a crash carries the caller's original revision, which
     // is now stale, but the command already applied and must not be re-validated.
     if (approveAlreadyApplied(doc, command)) {
+      List<CreateChainEvent> events = sourceRestorationAlreadyApplied(doc, command)
+          ? collect(replayApproval(doc, command)) : List.of();
+      doc = runStore.loadByConversation(taskId).orElseThrow();
+      status = doc.run().status();
       if (status == RunStatus.WAITING_FOR_IMPLEMENT) {
         ApproveCreateChainOutcome gate =
             autoImplement(taskId, doc, new ArrayList<>(), command.commandId());
@@ -358,7 +362,7 @@ public class CreateChainApplicationFacade {
         }
         doc = runStore.loadByConversation(taskId).orElseThrow();
       }
-      return new ApproveCreateChainOutcome.Accepted(List.of(), snapshotOf(taskId, doc));
+      return new ApproveCreateChainOutcome.Accepted(events, snapshotOf(taskId, doc));
     }
     if (status == RunStatus.WAITING_FOR_IMPLEMENT) {
       return recoverImplementation(taskId, doc, command);
@@ -1238,9 +1242,20 @@ public class CreateChainApplicationFacade {
    * <p>Checked before staleness validation: after a crash the run revision has moved on, so
    * re-validating a retry against the newer revision would reject a command that already applied.
    */
-  private static boolean approveAlreadyApplied(
+  private boolean approveAlreadyApplied(
       ProductPipelineRunDocument doc, ApproveCreateChainArtifactCommand command) {
-    return doc.appliedCommand(approveStepId(command), approvePayloadHash(command)).isPresent();
+    if (doc.appliedCommand(approveStepId(command), approvePayloadHash(command)).isPresent()) return true;
+    return (command.commandId() == null || command.commandId().isBlank()) && sourceRestorationAlreadyApplied(doc, command);
+  }
+
+  private boolean sourceRestorationAlreadyApplied(
+      ProductPipelineRunDocument doc, ApproveCreateChainArtifactCommand command) {
+    if (CreateChainPublicArtifactTypes.toKind(command.artifactType()).orElse(null) != Kind.REQUIREMENT_BRIEF) return false;
+    return doc.run().stages().stream().flatMap(stage -> stage.candidateReferences().stream())
+        .filter(ref -> ref.kind() == Kind.REQUIREMENT_BRIEF && ref.contentHash().equals(command.artifactHash()))
+        .anyMatch(ref -> draftStore.hasSourceRestorationCandidate(command.taskId(), ref)
+            && org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport
+                .committedBriefApproval(doc, ref, command.revision(), artifactStore).isPresent());
   }
 
   private Multi<CreateChainEvent> replayApproval(

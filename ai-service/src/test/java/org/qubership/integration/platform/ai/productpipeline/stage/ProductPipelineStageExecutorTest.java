@@ -5473,6 +5473,372 @@ class ProductPipelineStageExecutorTest {
   }
 
   @ParameterizedTest
+  @org.junit.jupiter.params.provider.CsvSource({"next-stage,false", "terminal,false", "implementation-gate,false",
+      "next-stage,true", "terminal,true", "implementation-gate,true"})
+  void sourceRestorationIsPromotedOnlyAfterTheBriefApprovalCommits(String boundary, boolean interrupted) {
+    var briefType = new ArtifactTypeRef("requirement-brief", 1);
+    var planType = new ArtifactTypeRef("implementation-plan", 1);
+    var analysis = new ProfileStage("requirement-analysis", "analysis-cap",
+        List.of(new ArtifactTypeRef("user-input", 1)), List.of(briefType),
+        new ApprovalPolicy(briefType), null, new RetryPolicy(0, 1L));
+    var planning = new ProfileStage("design-planning", "planning-cap", List.of(briefType), List.of(planType),
+        new ApprovalPolicy(planType), null, new RetryPolicy(0, 1L));
+    var profile = new ProductPipelineProfile(1, "source-approval", "2", analysis.consumes(),
+        "terminal".equals(boundary) ? List.of(analysis) : List.of(analysis, planning),
+        new TerminalPolicy("terminal".equals(boundary) ? analysis.stageId() : planning.stageId(), "PLAN_APPROVED"),
+        List.of("analysis-cap", "planning-cap"), null,
+        "implementation-gate".equals(boundary)
+            ? new org.qubership.integration.platform.ai.productpipeline.profile.ImplementationGatePolicy(
+                analysis.stageId(), briefType, "WAITING_FOR_IMPLEMENT") : null);
+    var runtime = newRuntime(profile, analysisWithBrief(
+        new RequirementBrief("Use a QIP script.", List.of(), List.of(), List.of(), List.of(), "")),
+        planningAlwaysCandidate());
+    var drafts = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.plan.RequirementDraftStore.class);
+    runtime.support().withNativeRequirementCapture(drafts, null);
+    var promotions = new AtomicInteger();
+    org.mockito.Mockito.doAnswer(call -> {
+      assertEquals(StageStatus.SUCCEEDED, snapshot(requireRun(), analysis.stageId()).status());
+      assertEquals(call.getArgument(1, Reference.class).artifactId(),
+          snapshot(requireRun(), analysis.stageId()).approvedArtifactId());
+      if (promotions.incrementAndGet() == 1 && interrupted) throw new IllegalStateException("Interrupted promotion");
+      return null;
+    }).when(drafts).promoteSourceRestoration(org.mockito.ArgumentMatchers.eq(CONVERSATION),
+        org.mockito.ArgumentMatchers.any(Reference.class));
+    startAndRecordInput(runtime, profile);
+    var waiting = assertInstanceOf(StageDecision.WaitForApproval.class,
+        execute(runtime, analysis.stageId()).decision());
+    assertEquals(0, promotions.get());
+    long revision = requireRun().run().runRevision();
+    assertThrows(StaleApprovalException.class, () -> runtime.recordApprove(new ApproveCommand(
+        RUN_ID, waiting.candidate(), revision - 1)).collect().asList().await().indefinitely());
+    assertThrows(StaleApprovalException.class, () -> runtime.recordApprove(new ApproveCommand(
+        RUN_ID, new Reference(Kind.REQUIREMENT_BRIEF, "foreign", "foreign"), revision))
+        .collect().asList().await().indefinitely());
+    assertEquals(0, promotions.get());
+
+    var approval = new ApproveCommand(RUN_ID, waiting.candidate(), revision, "approve-source", "approve-source-hash");
+    if (interrupted) {
+      assertThrows(IllegalStateException.class,
+          () -> runtime.recordApprove(approval).collect().asList().await().indefinitely());
+    } else {
+      runtime.recordApprove(approval).collect().asList().await().indefinitely();
+    }
+    assertEquals(1, promotions.get());
+    runtime.recordApprove(approval).collect().asList().await().indefinitely();
+    assertEquals(2, promotions.get(), "A replay must finish a promotion interrupted after the approval commit.");
+    if ("next-stage".equals(boundary)) {
+      assertEquals(planning.stageId(), requireRun().run().currentStageId());
+      approveStage(runtime, planning.stageId());
+      assertEquals(2, promotions.get(), "An implementation plan approval cannot promote source wording.");
+    }
+  }
+
+  @Test
+  void rejectedSourceApprovalPreflightLeavesTheReviewAndStoreUncommitted() {
+    var profile = analysisThenPlanningThenExecutionProfile();
+    var runtime = newRuntime(profile, analysisWithBrief(
+        new RequirementBrief("Use a QIP script.", List.of(), List.of(), List.of(), List.of(), "")),
+        planningAlwaysCandidate());
+    var drafts = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.plan.RequirementDraftStore.class);
+    runtime.support().withNativeRequirementCapture(drafts, null);
+    startAndRecordInput(runtime, profile);
+    var waiting = assertInstanceOf(StageDecision.WaitForApproval.class, execute(runtime, "requirement-analysis").decision());
+    long revision = requireRun().run().runRevision();
+    org.mockito.Mockito.doAnswer(call -> {
+      assertEquals(RunStatus.WAITING_FOR_APPROVAL, requireRun().run().status());
+      assertEquals(revision, requireRun().run().runRevision());
+      throw new IllegalStateException("Source correction has a newer author input");
+    }).when(drafts).validateSourceRestorationApproval(org.mockito.ArgumentMatchers.eq(CONVERSATION),
+        org.mockito.ArgumentMatchers.eq(waiting.candidate()), org.mockito.ArgumentMatchers.isNull());
+
+    assertThrows(IllegalStateException.class, () -> runtime.recordApprove(new ApproveCommand(
+        RUN_ID, waiting.candidate(), revision)).collect().asList().await().indefinitely());
+
+    assertEquals(revision, requireRun().run().runRevision());
+    assertEquals(RunStatus.WAITING_FOR_APPROVAL, requireRun().run().status());
+    assertEquals(StageStatus.WAITING_FOR_APPROVAL, snapshot(requireRun(), "requirement-analysis").status());
+    assertEquals(List.of(), artifactStore.history(RUN_ID, Kind.APPROVAL_RECORD));
+    org.mockito.Mockito.verify(drafts, org.mockito.Mockito.never()).promoteSourceRestoration(
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(Reference.class));
+  }
+
+  @Test
+  void briefReviewShowsTheExactSourceWordingCorrectionBeforeApproval() {
+    var evidence = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.ClaimEvidenceInput(
+        "source-turn", "Use a QIP script.");
+    var original = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput(
+        "script", List.of(), org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactKind.BEHAVIOR,
+        org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polarity.POSITIVE,
+        "Use a Groovy QIP script.", null, null, null, evidence);
+    var corrected = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput(
+        original.sourceFactId(), original.interactionIds(), original.kind(), original.polarity(), evidence.quote(),
+        original.fieldMapping(), original.policyConflict(), original.elementIntent(), evidence);
+    var input = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput(
+        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FlowInput(List.of(), List.of()),
+        List.of(original), List.of(), List.of(),
+        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftSettings(false, null));
+    var accepted = org.qubership.integration.platform.ai.plan.RequirementCaptureProjection.toDraft(
+        input, null, List.of(), "1", "hash");
+    var replacement = org.qubership.integration.platform.ai.plan.RequirementCaptureProjection.toDraft(
+        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput(input.flow(), List.of(corrected),
+            input.capabilities(), input.openQuestions(), input.settings()), accepted, List.of(), "1", "hash");
+    var draftRevision = artifactStore.append(new CompilationArtifacts.AppendCommand(RUN_ID, Kind.REQUIREMENT_DRAFT,
+        "1", "requirement-discovery", "1", replacement, List.of(), null,
+        new org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactProvenance(
+            RUN_ID, "requirement-discovery", "source-review", "2", "profile-hash", "requirement-discovery", "1", "closure")));
+    var brief = new RequirementBrief("Use a QIP script.", List.of(), List.of(), List.of(), List.of(), "",
+        draftRevision.artifactId(), replacement.planningText(), replacement.facts());
+    var profile = analysisThenPlanningThenExecutionProfile();
+    var runtime = newRuntime(profile, analysisWithBrief(brief), planningAlwaysCandidate(),
+        capability("execution-cap", context -> Multi.createFrom().item(
+            new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.SUCCEEDED, "ready")))));
+    var drafts = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.plan.RequirementDraftStore.class);
+    org.mockito.Mockito.when(drafts.get(CONVERSATION)).thenReturn(java.util.Optional.of(accepted));
+    runtime.support().withNativeRequirementCapture(drafts, null);
+    startAndRecordInput(runtime, profile);
+    var result = execute(runtime, "requirement-analysis");
+    var messages = runtime.support().applyStageLifecycle(RUN_ID, result).collect().asList().await().indefinitely();
+    String review = messages.stream().filter(PipelineSignal.Message.class::isInstance)
+        .map(PipelineSignal.Message.class::cast).map(PipelineSignal.Message::text)
+        .collect(Collectors.joining("\n"));
+    assertTrue(review.contains("**Previous wording:**\n> Use a Groovy QIP script."), review);
+    assertTrue(review.contains("**Proposed source wording:**\n> Use a QIP script."), review);
+    org.mockito.Mockito.verify(drafts, org.mockito.Mockito.never()).promoteSourceRestoration(
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(Reference.class));
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void sourceRestorationRequiresTheFirstUpcomingApprovalToReviewTheBrief(boolean interveningApproval) {
+    var draftType = new ArtifactTypeRef("requirement-draft", 1);
+    var briefType = new ArtifactTypeRef("requirement-brief", 1);
+    var reviewType = new ArtifactTypeRef("implementation-plan", 1);
+    var base = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput(
+        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FlowInput(List.of(), List.of()),
+        List.of(new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput("script", List.of(),
+            org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactKind.BEHAVIOR,
+            org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polarity.POSITIVE,
+            "Use a Groovy QIP script.")), List.of(), List.of(),
+        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftSettings(false, null));
+    var draft = org.qubership.integration.platform.ai.plan.RequirementCaptureProjection.toDraft(
+        base, null, List.of(), "1", "hash");
+    var review = new org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool.SourceReview(
+        "generation", "source-hash", org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(draft),
+        List.of(new org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceOmission(
+            "source-turn", "Use a QIP script.", "Groovy is an unsupported addition.",
+            org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceDiscrepancyKind.UNSUPPORTED_ADDITION,
+            "script")));
+    var stages = new ArrayList<ProfileStage>();
+    stages.add(new ProfileStage("requirement-discovery", "requirement-discovery",
+        List.of(new ArtifactTypeRef("user-input", 1)), List.of(draftType), null, null, new RetryPolicy(0, 1L)));
+    if (interveningApproval) stages.add(new ProfileStage("intervening-review", "review-cap", List.of(draftType),
+        List.of(reviewType), new ApprovalPolicy(reviewType), null, new RetryPolicy(0, 1L)));
+    stages.add(new ProfileStage("requirement-analysis", "analysis-cap", List.of(draftType), List.of(briefType),
+        new ApprovalPolicy(briefType), null, new RetryPolicy(0, 1L)));
+    var profile = new ProductPipelineProfile(1, "source-first-approval", "2", stages.getFirst().consumes(), stages,
+        new TerminalPolicy("requirement-analysis", "PLAN_APPROVED"),
+        List.of("requirement-discovery", "review-cap", "analysis-cap"));
+    var discoveryCalls = new AtomicInteger();
+    var granted = new AtomicReference<Boolean>();
+    var discovery = capability("requirement-discovery", context -> {
+      if (context.attributeAsString("userText") == null && !StageRepairEvidence.isRepairTurn(context)) {
+        return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "Requirements needed.")));
+      }
+      if (discoveryCalls.incrementAndGet() > 1) {
+        granted.set(context.attributes().get("sourceRestorationReview") == review
+            || review.equals(context.attributes().get("sourceRestorationReview")));
+      }
+      return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(StageOutcomeClass.SUCCEEDED,
+          List.of(new ArtifactCandidate(Kind.REQUIREMENT_DRAFT, draft, List.of())), "ready", null)));
+    });
+    var analysis = capability("analysis-cap", context -> Multi.createFrom().item(new CapabilitySignal.Completed(
+        StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE, "Reconcile source wording.", new RecoveryCause(
+            RecoveryCauseCode.MISSING_BRIEF_FACTS, List.of(new PlanValidationFinding("SOURCE_UNSUPPORTED_ADDITION",
+                "Reconcile source wording.", true, MappingValidationDetails.empty(), "script", "/facts/script/text")),
+            "", false, null, review)))));
+    var intermediate = capability("review-cap", context -> Multi.createFrom().item(new CapabilitySignal.Completed(
+        new StageOutcome(StageOutcomeClass.CANDIDATE, List.of(new ArtifactCandidate(Kind.IMPLEMENTATION_PLAN,
+            Map.of("plan", "review"), List.of())), "review", null))));
+    var runtime = newRuntime(profile, discovery, intermediate, analysis);
+    var drafts = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.plan.RequirementDraftStore.class);
+    runtime.support().withNativeRequirementCapture(drafts, null);
+    startAndRecordInput(runtime, profile);
+    applyLifecycle(runtime, execute(runtime, "requirement-discovery"));
+    if (interveningApproval) approveStage(runtime, "intervening-review");
+    var repair = execute(runtime, "requirement-analysis");
+    if (interveningApproval) {
+      assertInstanceOf(StageDecision.WaitForInput.class, repair.decision());
+      assertEquals(1, discoveryCalls.get());
+      return;
+    }
+    assertEquals("requirement-discovery",
+        assertInstanceOf(StageDecision.ReopenProducer.class, repair.decision()).producerStageId());
+    applyLifecycle(runtime, repair);
+
+    execute(runtime, "requirement-discovery");
+
+    assertEquals(!interveningApproval, granted.get());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"approve", "repeat", "wrapper", "sequential"})
+  void sourceReconciliationPreservesPublishedRequirementsThroughTheExistingLifecycle(String scenario) {
+    var original = sourceWordingDraft(false, false);
+    var corrected = sourceWordingDraft(true, !"sequential".equals(scenario));
+    var draftType = new ArtifactTypeRef("requirement-draft", 1);
+    var briefType = new ArtifactTypeRef("requirement-brief", 1);
+    var profile = discoveryAndAnalysisThenPlanningProfile(draftType, briefType,
+        new ArtifactTypeRef("plan-validation-result", 1));
+    var stages = new ArrayList<>(profile.stages());
+    var previousOwner = stages.getFirst();
+    var owner = new ProfileStage(previousOwner.stageId(), "requirement-discovery", previousOwner.consumes(),
+        previousOwner.produces(), null, previousOwner.bypass(), previousOwner.retry(), previousOwner.skip());
+    stages.set(0, owner);
+    profile = new ProductPipelineProfile(profile.schemaVersion(), profile.profileId(), profile.profileVersion(),
+        profile.runInputs(), stages, profile.terminal(), List.of("requirement-discovery", "analysis-cap", "planning-cap"));
+    var stored = new AtomicReference<>(original);
+    var discoveryCalls = new AtomicInteger();
+    var analysisCalls = new AtomicInteger();
+    var supplied = new AtomicReference<>(original);
+    var initialReview = sourceWordingReview(original, "generation", "Initial source comparison.",
+        "sequential".equals(scenario) ? List.of("script") : List.of("script", "ids"));
+    var discovery = capability(owner.capabilityId(), context -> {
+      if (context.attributeAsString("userText") == null && !StageRepairEvidence.isRepairTurn(context)) {
+        return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "Requirements needed.")));
+      }
+      if (discoveryCalls.incrementAndGet() > 1) {
+        assertEquals(StageStatus.RUNNING, snapshot(requireRun(), owner.stageId()).status());
+        assertEquals(owner.stageId(), context.attributes().get(ProductPipelineRunSupport.RECOVERY_PREPARING_OWNER_ATTR));
+        assertEquals(initialReview, context.attributes().get("sourceRestorationReview"));
+        assertEquals(original, stored.get());
+        supplied.set("repeat".equals(scenario) ? original
+            : "wrapper".equals(scenario) ? original.withImportIntent(true) : corrected);
+      }
+      return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(StageOutcomeClass.SUCCEEDED,
+          List.of(new ArtifactCandidate(Kind.REQUIREMENT_DRAFT, supplied.get(), List.of())), "ready", null)));
+    });
+    var analysis = capability("analysis-cap", context -> {
+      if (analysisCalls.incrementAndGet() == 1) return sourceWordingFailure(initialReview);
+      if (!"approve".equals(scenario)) {
+        var repeated = sourceWordingReview(supplied.get(), "different-generation", "Different explanation and attempt.",
+            "sequential".equals(scenario) ? List.of("ids") : List.of("script", "ids"));
+        return sourceWordingFailure(repeated);
+      }
+      Reference pinned = context.inputRefs().stream().filter(ref -> ref.kind() == Kind.REQUIREMENT_DRAFT)
+          .findFirst().orElseThrow();
+      var brief = new RequirementBrief("Use a QIP script.", List.of(), List.of(), List.of(), List.of(), "",
+          pinned.artifactId(), corrected.planningText(), corrected.facts());
+      return analysisWithBrief(brief).execute(context);
+    });
+    var runtime = newRuntime(profile, discovery, analysis, planningAlwaysCandidate());
+    var drafts = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.plan.RequirementDraftStore.class);
+    org.mockito.Mockito.when(drafts.get(CONVERSATION)).thenAnswer(ignored -> java.util.Optional.of(stored.get()));
+    org.mockito.Mockito.when(drafts.hasSourceRestorationCandidate(org.mockito.ArgumentMatchers.eq(CONVERSATION),
+        org.mockito.ArgumentMatchers.any(Reference.class))).thenReturn(true);
+    org.mockito.Mockito.when(drafts.sourceRestorationApprovalSource(org.mockito.ArgumentMatchers.eq(CONVERSATION),
+        org.mockito.ArgumentMatchers.any(Reference.class), org.mockito.ArgumentMatchers.anyLong())).thenReturn("approval-control");
+    var promotions = new AtomicInteger();
+    org.mockito.Mockito.doAnswer(call -> {
+      assertEquals(StageStatus.WAITING_FOR_APPROVAL, snapshot(requireRun(), "requirement-analysis").status());
+      assertEquals(original, stored.get());
+      assertEquals("approval-control", call.getArgument(2));
+      return null;
+    }).when(drafts).validateSourceRestorationApproval(org.mockito.ArgumentMatchers.eq(CONVERSATION),
+        org.mockito.ArgumentMatchers.any(Reference.class), org.mockito.ArgumentMatchers.anyString());
+    org.mockito.Mockito.doAnswer(call -> {
+      assertEquals(StageStatus.SUCCEEDED, snapshot(requireRun(), "requirement-analysis").status());
+      if (promotions.incrementAndGet() == 1) throw new IllegalStateException("Interrupted source promotion");
+      stored.set(corrected);
+      return null;
+    }).when(drafts).promoteSourceRestoration(org.mockito.ArgumentMatchers.eq(CONVERSATION),
+        org.mockito.ArgumentMatchers.any(Reference.class));
+    runtime.support().withNativeRequirementCapture(drafts, null);
+    startAndRecordInput(runtime, profile);
+    int inputs = artifactStore.history(RUN_ID, Kind.USER_INPUT).size();
+    applyLifecycle(runtime, execute(runtime, owner.stageId()));
+    var acceptedRefs = snapshot(requireRun(), owner.stageId()).outputRefs();
+    var failure = execute(runtime, "requirement-analysis");
+    assertEquals(owner.stageId(), assertInstanceOf(StageDecision.ReopenProducer.class, failure.decision()).producerStageId());
+    applyLifecycle(runtime, failure);
+    applyLifecycle(runtime, execute(runtime, owner.stageId()));
+    var candidateRefs = snapshot(requireRun(), owner.stageId()).candidateReferences();
+    assertEquals(acceptedRefs, snapshot(requireRun(), owner.stageId()).outputRefs());
+    assertEquals(original, stored.get());
+    var result = execute(runtime, "requirement-analysis");
+    if (!"approve".equals(scenario)) {
+      assertInstanceOf(StageDecision.WaitForInput.class, result.decision());
+      assertEquals(2, discoveryCalls.get());
+      assertEquals(candidateRefs, snapshot(requireRun(), owner.stageId()).candidateReferences());
+      assertEquals(acceptedRefs, snapshot(requireRun(), owner.stageId()).outputRefs());
+      assertEquals(original, stored.get());
+    } else {
+      var waiting = assertInstanceOf(StageDecision.WaitForApproval.class, result.decision());
+      var reviewSignals = runtime.support().applyStageLifecycle(RUN_ID, result).collect().asList().await().indefinitely();
+      String review = reviewSignals.stream().filter(PipelineSignal.Message.class::isInstance)
+          .map(PipelineSignal.Message.class::cast).map(PipelineSignal.Message::text).collect(Collectors.joining("\n"));
+      assertTrue(review.contains("**Previous wording:**\n> Use a Groovy QIP script."), review);
+      assertTrue(review.contains("**Proposed source wording:**\n> Use a QIP script."), review);
+      assertTrue(review.contains("**Previous wording:**\n> Do not generate IDS. Keep a manual document."), review);
+      assertTrue(review.contains("**Proposed source wording:**\n> Keep a manual document."), review);
+      var approval = new ApproveCommand(RUN_ID, waiting.candidate(), requireRun().run().runRevision());
+      assertThrows(IllegalStateException.class,
+          () -> runtime.recordApprove(approval).collect().asList().await().indefinitely());
+      assertEquals(original, stored.get());
+      runtime.recordApprove(approval).collect().asList().await().indefinitely();
+      assertEquals(corrected, stored.get());
+      assertEquals(candidateRefs, snapshot(requireRun(), owner.stageId()).outputRefs());
+      assertEquals("planning", requireRun().run().currentStageId());
+      assertThrows(IllegalStateException.class, () -> runtime.recordApprove(new ApproveCommand(
+          RUN_ID, waiting.candidate(), approval.expectedRunRevision() - 1)).collect().asList().await().indefinitely());
+      assertEquals(2, promotions.get());
+      var approved = snapshot(requireRun(), "requirement-analysis").outputRefs().stream()
+          .filter(ref -> ref.kind() == Kind.APPROVAL_RECORD).findFirst().orElseThrow();
+      assertEquals("approval-control", artifactStore.payload(artifactStore.get(RUN_ID, approved).orElseThrow(),
+          com.fasterxml.jackson.databind.JsonNode.class).path("sourceTurnId").asText());
+    }
+    assertEquals(inputs, artifactStore.history(RUN_ID, Kind.USER_INPUT).size());
+  }
+
+  private static RequirementDraft sourceWordingDraft(boolean scriptRestored, boolean idsRestored) {
+    var input = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput(
+        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FlowInput(List.of(), List.of()),
+        List.of(sourceWordingFact("script", scriptRestored ? "Use a QIP script." : "Use a Groovy QIP script.",
+                "Use a QIP script."),
+            sourceWordingFact("ids", idsRestored ? "Keep a manual document." : "Do not generate IDS. Keep a manual document.",
+                "Keep a manual document.")), List.of(), List.of(),
+        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftSettings(true, null));
+    return org.qubership.integration.platform.ai.plan.RequirementCaptureProjection.toDraft(input, null, List.of(), "1", "hash");
+  }
+
+  private static org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput sourceWordingFact(
+      String id, String text, String quote) {
+    return new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput(id, List.of(),
+        org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactKind.BEHAVIOR,
+        org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polarity.POSITIVE, text, null, null, null,
+        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.ClaimEvidenceInput("source-turn", quote));
+  }
+
+  private static org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool.SourceReview sourceWordingReview(
+      RequirementDraft draft, String generation, String explanation, List<String> facts) {
+    return new org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool.SourceReview(generation, "source-hash",
+        org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(draft), facts.stream().map(id -> {
+          var fact = draft.authoredDraft().facts().stream().filter(value -> value.sourceFactId().equals(id)).findFirst().orElseThrow();
+          return new org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceOmission(
+              fact.evidence().sourceTurnId(), fact.evidence().quote(), explanation,
+              org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceDiscrepancyKind.UNSUPPORTED_ADDITION, id);
+        }).toList());
+  }
+
+  private static Multi<CapabilitySignal> sourceWordingFailure(
+      org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool.SourceReview review) {
+    return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
+        "Reconcile source wording.", new RecoveryCause(RecoveryCauseCode.MISSING_BRIEF_FACTS,
+            review.omissions().stream().map(report -> new PlanValidationFinding("SOURCE_UNSUPPORTED_ADDITION",
+                report.explanation(), true, MappingValidationDetails.empty(), report.sourceFactId(),
+                "/facts/" + report.sourceFactId() + "/text")).toList(), "", false, null, review))));
+  }
+
+  @ParameterizedTest
   @ValueSource(strings = {"REGENERATE_ARTIFACT", "PARK", "MISSING", "INVALID_REFERENCE"})
   void executionFailureBeforeCaptureDoesNotLabelTheApprovedPlanAsRejectedOutput(String diagnosis) {
     var observed = new AtomicReference<RecoveryContext>();

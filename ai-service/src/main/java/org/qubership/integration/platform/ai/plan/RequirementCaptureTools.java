@@ -436,7 +436,8 @@ public class RequirementCaptureTools {
     issues.addAll(validatePolicyApplicability(input, issues));
     var repair = ProductCapabilityCaptureContext.binding(conversationId)
         .filter(binding -> binding.mode() == ProductCapabilityCaptureContext.Mode.DISCOVERY
-            && binding.approvedDraft() != null && store.activeRequirementRepairPaths(conversationId).isEmpty());
+            && binding.approvedDraft() != null && binding.sourceRestoration() == null
+            && store.activeRequirementRepairPaths(conversationId).isEmpty());
     var scopeIssues = repair.map(binding -> org.qubership.integration.platform.ai.productpipeline.create.RequirementDiscoveryCapability
         .mappingRepairIssues(binding.mappingRepairPaths(), binding.missingMappingTargets(),
             binding.approvedDraft().authoredDraft(), input)).orElse(List.of());
@@ -498,6 +499,9 @@ public class RequirementCaptureTools {
     feedbackStore.clearRequirement(conversationId);
     store.markCaptured(conversationId);
     ProductCapabilityCaptureContext.offerDraft(draft);
+    if (admission.awaitingSourceApproval()) {
+      return view(draft, true, true, List.of()).withNextAction(RequirementCaptureResult.NextAction.AWAIT_APPROVAL);
+    }
     return view(draft, true, !Objects.equals(expectedBase,
         store.latestRevision(conversationId).map(value -> value.reference()).orElse(null)), List.of());
   }

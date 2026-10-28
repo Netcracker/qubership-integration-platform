@@ -198,8 +198,8 @@ class CreateChainApplicationFacadeTest {
   }
 
   @ParameterizedTest
-  @ValueSource(booleans = {false, true})
-  void committedApprovalRetryReachesTheOrchestrator(boolean compound) {
+  @ValueSource(strings = {"compound", "only", "synchronous", "synchronous-invalidated"})
+  void streamingRetriesReplayWhileSynchronousRetriesKeepCommittedApproval(String surface) {
     String taskId = "task-approval-replay";
     Reference target = new Reference(Kind.REQUIREMENT_BRIEF, "brief-1", "brief-hash");
     List<StageSnapshot> stages = List.of(new StageSnapshot("requirement-analysis",
@@ -226,15 +226,67 @@ class CreateChainApplicationFacadeTest {
     var command = new ApproveCreateChainArtifactCommand(taskId,
         CreateChainPublicArtifactTypes.REQUIREMENT_BRIEF, target.contentHash(), 4L, "message-1");
 
-    if (compound) {
+    if ("compound".equals(surface)) {
       facade.streamApprove(command).collect().asList().await().indefinitely();
       facade.streamApprove(command).collect().asList().await().indefinitely();
+    } else if ("only".equals(surface)) {
+      facade.streamApproveOnly(command).collect().asList().await().indefinitely();
+      facade.streamApproveOnly(command).collect().asList().await().indefinitely();
     } else {
-      facade.streamApproveOnly(command).collect().asList().await().indefinitely();
-      facade.streamApproveOnly(command).collect().asList().await().indefinitely();
+      facade.approve(command);
+      if ("synchronous-invalidated".equals(surface)) {
+        var committed = current.get();
+        current.set(new ProductPipelineRunDocument(
+            new RunSnapshot("run-1", taskId, 5L, RunStatus.RUNNING, "design-input",
+                List.of(new StageSnapshot("requirement-analysis", StageStatus.PENDING, List.of(), null)), null, "flow-1"),
+            committed.attempts(), committed.transitions(), "v3"));
+      }
+      facade.approve(command);
     }
 
-    verify(orchestrator, times(2)).approve(any());
+    verify(orchestrator, times(surface.startsWith("synchronous") ? 1 : 2)).approve(any());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"winner", "orphan", "foreign-target", "wrong-revision", "unrelated-brief"})
+  void browserApprovalReplaysOnlyTheSelectedSourceCorrection(String scenario) {
+    String taskId = "task-browser-approval-replay";
+    var target = new Reference(Kind.REQUIREMENT_BRIEF, "brief", "brief-hash");
+    var approval = new Reference(Kind.APPROVAL_RECORD, "approval", "approval-hash");
+    var selected = "orphan".equals(scenario) ? List.of(target) : List.of(target, approval);
+    var stages = List.of(new StageSnapshot("requirement-analysis", StageStatus.SUCCEEDED,
+        selected, target.artifactId(), List.of(target), target, 1));
+    var document = new ProductPipelineRunDocument(new RunSnapshot("run-1", taskId, 5L, RunStatus.RUNNING,
+        "requirement-analysis", stages, null, "flow-1"), List.of(
+            new org.qubership.integration.platform.ai.productpipeline.store.StageAttempt("candidate", "requirement-analysis",
+                4L, StageStatus.WAITING_FOR_APPROVAL, Instant.EPOCH, Instant.EPOCH, List.of(target), null),
+            new org.qubership.integration.platform.ai.productpipeline.store.StageAttempt("approved", "requirement-analysis",
+                5L, StageStatus.SUCCEEDED, Instant.EPOCH, Instant.EPOCH, selected, null)), List.of(
+            new RunTransition(3L, 4L, RunStatus.RUNNING, RunStatus.WAITING_FOR_APPROVAL, "requirement-analysis", Instant.EPOCH, "candidate"),
+            new RunTransition(4L, 5L, RunStatus.WAITING_FOR_APPROVAL, RunStatus.RUNNING, "requirement-analysis", Instant.EPOCH, "approved")), "v2");
+    var store = mock(ProductPipelineRunStore.class);
+    when(store.loadByConversation(taskId)).thenReturn(Optional.of(document));
+    var artifacts = mock(ProductPipelineArtifactStore.class);
+    var revision = mock(CompilationArtifacts.Revision.class);
+    when(artifacts.get("run-1", approval)).thenReturn(Optional.of(revision));
+    var record = new ObjectMapper().findAndRegisterModules().valueToTree(new org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecord(
+        "foreign-target".equals(scenario) ? new Reference(Kind.REQUIREMENT_BRIEF, "foreign", "foreign-hash") : target,
+        target.contentHash(), "user", null, Instant.EPOCH));
+    when(artifacts.payload(revision, com.fasterxml.jackson.databind.JsonNode.class)).thenReturn(record);
+    var drafts = mock(RequirementDraftStore.class);
+    when(drafts.hasSourceRestorationCandidate(taskId, target)).thenReturn(!"unrelated-brief".equals(scenario));
+    var orchestrator = mock(CreateChainOrchestrator.class);
+    when(orchestrator.approve(any())).thenReturn(Multi.createFrom().empty());
+    var facade = new CreateChainApplicationFacade(mock(CreateRunSelectionService.class), mock(CreateRunBindingStore.class),
+        orchestrator, store, fixture.catalog(), artifacts, drafts);
+    var command = new ApproveCreateChainArtifactCommand(taskId, CreateChainPublicArtifactTypes.REQUIREMENT_BRIEF,
+        target.contentHash(), "wrong-revision".equals(scenario) ? 3L : 4L, null);
+
+    var result = facade.approve(command);
+
+    if ("winner".equals(scenario)) assertInstanceOf(ApproveCreateChainOutcome.Accepted.class, result);
+    else assertInstanceOf(ApproveCreateChainOutcome.DuplicateApproval.class, result);
+    verify(orchestrator, times("winner".equals(scenario) ? 1 : 0)).approve(any());
   }
 
   @Test

@@ -16,7 +16,14 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValida
  */
 public record RecoveryCause(
     RecoveryCauseCode causeCode, List<PlanValidationFinding> findings, String requestedFact,
-    boolean noProgress, CaptureFailureEvidence captureFailure) {
+    boolean noProgress, CaptureFailureEvidence captureFailure,
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool.SourceReview sourceReview) {
+
+  public RecoveryCause(RecoveryCauseCode causeCode, List<PlanValidationFinding> findings, String requestedFact,
+      boolean noProgress, CaptureFailureEvidence captureFailure) {
+    this(causeCode, findings, requestedFact, noProgress, captureFailure, null);
+  }
 
   public RecoveryCause(RecoveryCauseCode causeCode, List<PlanValidationFinding> findings, String requestedFact, boolean noProgress) {
     this(causeCode, findings, requestedFact, noProgress, null);

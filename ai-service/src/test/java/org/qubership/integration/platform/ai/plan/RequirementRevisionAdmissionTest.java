@@ -33,6 +33,378 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 class RequirementRevisionAdmissionTest {
 
   @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void sourceWordingCorrectionStaysAProposalUntilBriefApproval(boolean explicitChoiceOutsideQuote) throws Exception {
+    var h = new Harness();
+    try (var ignored = ToolSession.open(h.chat)) {
+      String quote = "Use a QIP script element.";
+      var input = h.begin("Receive POST /tasks. " + quote
+          + (explicitChoiceOutsideQuote ? " The script must use Groovy." : "") + " Proceed without IDS.");
+      var original = httpDraft(List.of(fact("script", "Use a QIP script element with Groovy.", input.turnId(), quote),
+          fact("keep", "Receive POST /tasks.", input.turnId(), "Receive POST /tasks.")));
+      var captured = h.capture(original);
+      assertTrue(captured.accepted(), captured.toString());
+      var accepted = h.store.get(h.chat).orElseThrow();
+      var acceptedRef = h.store.latestRevision(h.chat).orElseThrow().reference();
+      var baseline = h.store.semanticBaseline(h.chat).orElseThrow();
+      var source = AuthorSourceEvidence.packet(h.archive.read(h.chat));
+      var review = sourceReview(source, accepted, input.turnId(), quote, "script");
+      h.store.beginTurn(h.chat, "Internal source repair.");
+      var offered = new java.util.concurrent.atomic.AtomicReference<RequirementDraft>();
+      org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext.bindDiscovery(
+          "source-run", h.chat, accepted, java.util.Map.of(), java.util.Set.of(), List.of(), review,
+          value -> offered.set((RequirementDraft) value));
+      try {
+        var proposed = new DraftInput(original.flow(), List.of(fact("script", quote, input.turnId(), quote),
+            original.facts().getLast()), original.capabilities(), original.openQuestions(), original.settings());
+        var result = h.update(new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+            List.of(proposed.facts().getFirst()), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null, List.of()));
+        assertTrue(result.accepted(), result.toString());
+        assertEquals(RequirementCaptureResult.NextAction.AWAIT_APPROVAL, result.nextAction());
+        assertEquals(proposed, offered.get().authoredDraft());
+        assertEquals(accepted, h.store.get(h.chat).orElseThrow());
+        assertEquals(acceptedRef, h.store.latestRevision(h.chat).orElseThrow().reference());
+        assertEquals(baseline, h.store.semanticBaseline(h.chat).orElseThrow());
+        var attempt = h.artifacts.payload(h.artifacts.latest(h.sessions.active(h.chat),
+            CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_ATTEMPT).orElseThrow(),
+            RequirementDraftStore.RequirementCaptureAttempt.class);
+        assertEquals(review, attempt.sourceRestoration());
+        assertEquals(proposed, attempt.resolvedCandidate());
+        assertEquals(acceptedRef, attempt.acceptedDraftReference());
+      } finally {
+        org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext.unbind(h.chat);
+      }
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void sourceCorrectionPromotionRequiresTheCommittedApprovalWinner(boolean committed) throws Exception {
+    var fixture = sourceCorrectionFixture(committed);
+    fixture.h().store.promoteSourceRestoration(fixture.h().chat, fixture.brief());
+    assertEquals(committed ? fixture.candidate() : fixture.accepted(),
+        fixture.h().store.get(fixture.h().chat).orElseThrow());
+    assertEquals(committed ? "Use a QIP script element." : "Use a QIP script element with Groovy.",
+        fixture.h().store.semanticBaseline(fixture.h().chat).orElseThrow().claims().getFirst().text());
+    var reference = fixture.h().store.latestRevision(fixture.h().chat).orElseThrow().reference();
+    if (committed) fixture.h().begin("A later author turn after the correction approval.");
+    fixture.h().store.promoteSourceRestoration(fixture.h().chat, fixture.brief());
+    assertEquals(reference, fixture.h().store.latestRevision(fixture.h().chat).orElseThrow().reference());
+  }
+
+  @Test
+  void changedAuthorSourceRejectsAnAlreadyCommittedSourceCorrection() throws Exception {
+    var fixture = sourceCorrectionFixture(true);
+    fixture.h().begin("Keep Groovy and also preserve the new instruction.");
+    assertThrows(IllegalStateException.class,
+        () -> fixture.h().store.promoteSourceRestoration(fixture.h().chat, fixture.brief()));
+    assertEquals(fixture.accepted(), fixture.h().store.get(fixture.h().chat).orElseThrow());
+    assertEquals("Use a QIP script element with Groovy.",
+        fixture.h().store.semanticBaseline(fixture.h().chat).orElseThrow().claims().getFirst().text());
+  }
+
+  @Test
+  void sourceCorrectionReplayCompletesTheInterruptedDraftAndBaselinePair() throws Exception {
+    var fixture = sourceCorrectionFixture(true);
+    var nativeArtifacts = spy(fixture.h().artifacts);
+    var failed = new java.util.concurrent.atomic.AtomicBoolean();
+    doAnswer(call -> {
+      CompilationArtifacts.AppendCommand command = call.getArgument(0);
+      if (command.kind() == CompilationArtifacts.Kind.REQUIREMENT_SEMANTIC_BASELINE
+          && !failed.getAndSet(true)) throw new IllegalStateException("Injected baseline write failure.");
+      return call.callRealMethod();
+    }).when(nativeArtifacts).append(any(CompilationArtifacts.AppendCommand.class));
+    var restarted = new RequirementDraftStore(nativeArtifacts, fixture.h().sessions, fixture.h().conversations);
+    restarted.useRunJournal(fixture.runs());
+    assertThrows(IllegalStateException.class,
+        () -> restarted.promoteSourceRestoration(fixture.h().chat, fixture.brief()));
+    assertEquals(fixture.candidate(), restarted.get(fixture.h().chat).orElseThrow());
+    assertEquals("Use a QIP script element with Groovy.",
+        restarted.semanticBaseline(fixture.h().chat).orElseThrow().claims().getFirst().text());
+    restarted.promoteSourceRestoration(fixture.h().chat, fixture.brief());
+    assertEquals("Use a QIP script element.",
+        restarted.semanticBaseline(fixture.h().chat).orElseThrow().claims().getFirst().text());
+    assertEquals(fixture.candidate(), restarted.get(fixture.h().chat).orElseThrow());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"arbitrary-text", "polarity", "delete", "other-fact", "foreign-turn", "stale-draft", "brief-history", "draft-approval", "quote-less", "changed-source", "stale-generation", "foreign-fact", "empty-quote", "amended-claim", "duplicate-report"})
+  void sourceReviewDoesNotAuthorizeAnUnboundRequirementRewrite(String defect) throws Exception {
+    var h = new Harness();
+    try (var ignored = ToolSession.open(h.chat)) {
+      String quote = "Use a QIP script element.";
+      var input = h.begin("Receive POST /tasks. " + quote + " Proceed without IDS.");
+      var original = httpDraft(List.of("quote-less".equals(defect)
+          ? fact("script", "Use a QIP script element with Groovy.")
+          : fact("script", "Use a QIP script element with Groovy.", input.turnId(), quote),
+          fact("keep", "Receive POST /tasks.", input.turnId(), "Receive POST /tasks.")));
+      if ("quote-less".equals(defect)) {
+        h.store.put(h.chat, RequirementCaptureProjection.toDraft(original, null, List.of(), "1", "test"));
+      } else {
+        var captured = h.capture(original);
+        assertTrue(captured.accepted(), captured.toString());
+      }
+      var accepted = h.store.get(h.chat).orElseThrow();
+      var baseline = h.store.semanticBaseline(h.chat);
+      var review = sourceReview(AuthorSourceEvidence.packet(h.archive.read(h.chat)), accepted,
+          "foreign-turn".equals(defect) ? "foreign" : input.turnId(), quote, "script");
+      if ("stale-draft".equals(defect)) review = new ProductRequirementBriefTool.SourceReview(
+          review.generation(), review.sourceHash(), "stale", review.omissions());
+      if ("duplicate-report".equals(defect)) review = new ProductRequirementBriefTool.SourceReview(
+          review.generation(), review.sourceHash(), review.draftHash(),
+          List.of(review.omissions().getFirst(), review.omissions().getFirst()));
+      if ("stale-generation".equals(defect)) review = new ProductRequirementBriefTool.SourceReview(
+          "stale", review.sourceHash(), review.draftHash(), review.omissions());
+      if ("foreign-fact".equals(defect) || "empty-quote".equals(defect)) review = sourceReview(
+          AuthorSourceEvidence.packet(h.archive.read(h.chat)), accepted, input.turnId(),
+          "empty-quote".equals(defect) ? "" : quote, "foreign-fact".equals(defect) ? "foreign" : "script");
+      if ("changed-source".equals(defect)) h.begin("Keep this real newer requirement.");
+      if ("amended-claim".equals(defect)) {
+        var previous = new RequirementSemanticBaseline(baseline.orElseThrow().sourceGeneration(),
+            baseline.orElseThrow().authorEvidenceHash(), List.of(new RequirementSemanticClaim("script",
+                "A different earlier claim.", Polarity.POSITIVE, original.facts().getFirst().evidence())));
+        h.artifacts.append(new CompilationArtifacts.AppendCommand(h.sessions.active(h.chat),
+            CompilationArtifacts.Kind.REQUIREMENT_SEMANTIC_BASELINE, "1", "test", "1", previous, List.of(), null));
+        h.artifacts.append(new CompilationArtifacts.AppendCommand(h.sessions.active(h.chat),
+            CompilationArtifacts.Kind.REQUIREMENT_SEMANTIC_BASELINE, "1", "test", "1", baseline.orElseThrow(), List.of(), null));
+      }
+      if ("brief-history".equals(defect)) h.artifacts.append(new CompilationArtifacts.AppendCommand("source-run",
+          CompilationArtifacts.Kind.REQUIREMENT_BRIEF, "1", "test", "1", java.util.Map.of(), List.of(), null));
+      if ("draft-approval".equals(defect)) h.artifacts.append(new CompilationArtifacts.AppendCommand("source-run",
+          CompilationArtifacts.Kind.APPROVAL_RECORD, "1", "test", "1", java.util.Map.of("target",
+              new CompilationArtifacts.Reference(CompilationArtifacts.Kind.REQUIREMENT_DRAFT, "draft", "hash")), List.of(), null));
+      h.store.beginTurn(h.chat, "Internal source repair.");
+      org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext.bindDiscovery(
+          "source-run", h.chat, accepted, java.util.Map.of(), java.util.Set.of(), List.of(), review, value -> {});
+      try {
+        var corrected = new FactInput("script", List.of(), FactKind.GOAL,
+            "polarity".equals(defect) ? Polarity.NEGATIVE : Polarity.POSITIVE,
+            "arbitrary-text".equals(defect) ? "Run arbitrary replacement." : quote, null, null, null,
+            new ClaimEvidenceInput(input.turnId(), quote));
+        var facts = "delete".equals(defect) ? List.of(original.facts().getLast())
+            : List.of(corrected, "other-fact".equals(defect) ? fact("keep", "Drop the endpoint.", input.turnId(),
+                "Receive POST /tasks.") : original.facts().getLast());
+        var proposed = new DraftInput(original.flow(), facts, original.capabilities(), List.of(), original.settings());
+        var candidate = RequirementCaptureProjection.toDraft(proposed, accepted, accepted.catalogBindings(),
+            accepted.sourceSkillVersion(), accepted.sourceSkillHash());
+        var decision = h.store.admitCaptureDecision(h.chat, h.store.latestRevision(h.chat).orElseThrow().reference(),
+            candidate, null, java.util.Map.of());
+        assertFalse(decision.issues().isEmpty(), defect + ": " + decision);
+        assertFalse(decision.awaitingSourceApproval(), defect);
+        assertEquals(accepted, h.store.get(h.chat).orElseThrow(), defect);
+        assertEquals(baseline, h.store.semanticBaseline(h.chat), defect);
+      } finally {
+        org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext.unbind(h.chat);
+      }
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"winner", "plain-agree", "foreign-target", "stale-revision", "foreign-source", "legacy-record", "extra-author", "ambiguous", "foreign-action", "comment"})
+  void onlyThePinnedWinningTypedApprovalIsExcludedFromSourceEvidence(String approval) throws Exception {
+    var fixture = sourceCorrectionFixture(true, approval);
+    if ("winner".equals(approval)) {
+      fixture.h().store.promoteSourceRestoration(fixture.h().chat, fixture.brief());
+      assertEquals(fixture.candidate(), fixture.h().store.get(fixture.h().chat).orElseThrow());
+    } else {
+      assertThrows(IllegalStateException.class,
+          () -> fixture.h().store.promoteSourceRestoration(fixture.h().chat, fixture.brief()), approval);
+      assertEquals(fixture.accepted(), fixture.h().store.get(fixture.h().chat).orElseThrow(), approval);
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"winner", "plain-agree", "foreign-target", "stale-revision", "foreign-source", "legacy-record", "extra-author", "ambiguous", "foreign-action", "comment"})
+  void sourceCorrectionPreflightKeepsTheWaitingRunUnchangedWhenSourceIsDenied(String approval) throws Exception {
+    var fixture = sourceCorrectionFixture(false, approval);
+    var h = fixture.h();
+    var before = fixture.runs().loadByConversation(h.chat).orElseThrow();
+    var record = h.artifacts.payload(h.artifacts.history("source-run", CompilationArtifacts.Kind.APPROVAL_RECORD)
+        .getLast(), com.fasterxml.jackson.databind.JsonNode.class);
+    String sourceTurnId = record.path("sourceTurnId").asText(null);
+    if ("winner".equals(approval)) {
+      assertDoesNotThrow(() -> h.store.validateSourceRestorationApproval(h.chat, fixture.brief(), sourceTurnId));
+    } else {
+      assertThrows(IllegalStateException.class,
+          () -> h.store.validateSourceRestorationApproval(h.chat, fixture.brief(), sourceTurnId), approval);
+    }
+    assertEquals(before, fixture.runs().loadByConversation(h.chat).orElseThrow(), approval);
+    assertEquals(org.qubership.integration.platform.ai.productpipeline.store.StageStatus.WAITING_FOR_APPROVAL,
+        before.run().stages().getLast().status(), approval);
+    assertEquals(fixture.accepted(), h.store.get(h.chat).orElseThrow(), approval);
+    assertEquals("Use a QIP script element with Groovy.",
+        h.store.semanticBaseline(h.chat).orElseThrow().claims().getFirst().text(), approval);
+  }
+
+  @Test
+  void oneSourceCorrectionCanRestoreEveryReportedFactAtomically() throws Exception {
+    var fixture = sourceCorrectionFixture(true, "winner", true);
+    var h = fixture.h();
+    var inputs = h.artifacts.history(h.sessions.active(h.chat), CompilationArtifacts.Kind.USER_INPUT);
+    assertEquals(fixture.accepted(), h.store.get(h.chat).orElseThrow());
+    h.store.promoteSourceRestoration(h.chat, fixture.brief());
+    assertEquals(fixture.candidate(), h.store.get(h.chat).orElseThrow());
+    assertEquals(List.of("Use a QIP script element.", "Do not use APIHub.", "Receive POST /tasks."),
+        h.store.get(h.chat).orElseThrow().authoredDraft().facts().stream().map(FactInput::text).toList());
+    assertEquals(fixture.accepted().authoredDraft().settings(), fixture.candidate().authoredDraft().settings());
+    assertEquals(Boolean.TRUE, fixture.candidate().idsRequested());
+    assertEquals(inputs, h.artifacts.history(h.sessions.active(h.chat), CompilationArtifacts.Kind.USER_INPUT));
+  }
+
+  @Test
+  void aBatchSourceReportCannotChangeAnUnreportedThirdFact() throws Exception {
+    var fixture = sourceCorrectionFixture(false, null, true);
+    var h = fixture.h();
+    var current = h.store.get(h.chat).orElseThrow();
+    var source = AuthorSourceEvidence.packet(h.archive.read(h.chat));
+    var attempt = h.artifacts.payload(h.artifacts.latest(h.sessions.active(h.chat),
+        CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_ATTEMPT).orElseThrow(), RequirementDraftStore.RequirementCaptureAttempt.class);
+    org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext.bindDiscovery(
+        "fresh-run", h.chat, current, java.util.Map.of(), java.util.Set.of(), List.of(), attempt.sourceRestoration(), value -> {});
+    try {
+      var proposed = fixture.candidate().authoredDraft();
+      var facts = new ArrayList<>(proposed.facts());
+      facts.set(2, fact("keep", "Drop the endpoint.", source.inputs().getFirst().sourceTurnId(), "Receive POST /tasks."));
+      var candidate = RequirementCaptureProjection.toDraft(new DraftInput(proposed.flow(), facts,
+          proposed.capabilities(), proposed.openQuestions(), proposed.settings()), current, current.catalogBindings(),
+          current.sourceSkillVersion(), current.sourceSkillHash());
+      var result = h.store.admitCaptureDecision(h.chat, h.store.latestRevision(h.chat).orElseThrow().reference(),
+          candidate, null, java.util.Map.of());
+      assertFalse(result.issues().isEmpty(), result.toString());
+      assertFalse(result.awaitingSourceApproval(), result.toString());
+      assertEquals(current, h.store.get(h.chat).orElseThrow());
+    } finally {
+      org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext.unbind(h.chat);
+    }
+  }
+
+  private static SourceCorrectionFixture sourceCorrectionFixture(boolean committed) throws Exception {
+    return sourceCorrectionFixture(committed, null);
+  }
+
+  private static SourceCorrectionFixture sourceCorrectionFixture(boolean committed, String approvalInput) throws Exception {
+    return sourceCorrectionFixture(committed, approvalInput, false);
+  }
+
+  private static SourceCorrectionFixture sourceCorrectionFixture(boolean committed, String approvalInput, boolean batch) throws Exception {
+    var h = new Harness();
+    RequirementDraft accepted;
+    RequirementDraft candidate;
+    String runId = "source-run";
+    try (var ignored = ToolSession.open(h.chat)) {
+      String quote = "Use a QIP script element.";
+      var input = h.begin("Receive POST /tasks. " + quote
+          + (batch ? " Do not use APIHub. Use IDS." : " Proceed without IDS."));
+      var facts = new ArrayList<FactInput>();
+      facts.add(fact("script", "Use a QIP script element with Groovy.", input.turnId(), quote));
+      if (batch) {
+        facts.add(new FactInput("external-discovery", List.of(), FactKind.CONSTRAINT, Polarity.NEGATIVE,
+            "Do not use APIHub or IDS.", null, null, null, new ClaimEvidenceInput(input.turnId(), "Do not use APIHub.")));
+        facts.add(fact("keep", "Receive POST /tasks.", input.turnId(), "Receive POST /tasks."));
+      }
+      var original = httpDraft(facts);
+      if (batch) original = new DraftInput(original.flow(), original.facts(), original.capabilities(),
+          original.openQuestions(), new DraftSettings(true, null));
+      var captured = h.capture(original);
+      assertTrue(captured.accepted(), captured.toString());
+      accepted = h.store.get(h.chat).orElseThrow();
+      var review = sourceReview(AuthorSourceEvidence.packet(h.archive.read(h.chat)), accepted, input.turnId(), quote, "script");
+      if (batch) review = new ProductRequirementBriefTool.SourceReview(review.generation(), review.sourceHash(), review.draftHash(),
+          List.of(review.omissions().getFirst(), new RequirementAnalysisCapture.SourceOmission(input.turnId(), "Do not use APIHub.",
+              "The selected fact adds another discovery source.", RequirementAnalysisCapture.SourceDiscrepancyKind.UNSUPPORTED_ADDITION,
+              "external-discovery")));
+      h.store.beginTurn(h.chat, "Internal source repair.");
+      var offered = new java.util.concurrent.atomic.AtomicReference<RequirementDraft>();
+      org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext.bindDiscovery(
+          runId, h.chat, accepted, java.util.Map.of(), java.util.Set.of(), List.of(), review,
+          value -> offered.set((RequirementDraft) value));
+      try {
+        var proposed = new ArrayList<FactInput>();
+        proposed.add(fact("script", quote, input.turnId(), quote));
+        if (batch) proposed.add(new FactInput("external-discovery", List.of(), FactKind.CONSTRAINT, Polarity.NEGATIVE,
+            "Do not use APIHub.", null, null, null, new ClaimEvidenceInput(input.turnId(), "Do not use APIHub.")));
+        var result = h.update(new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+            proposed, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null, List.of()));
+        assertTrue(result.accepted(), result.toString());
+        candidate = offered.get();
+      } finally {
+        org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext.unbind(h.chat);
+      }
+    }
+    var draft = h.artifacts.append(new CompilationArtifacts.AppendCommand(runId,
+        CompilationArtifacts.Kind.REQUIREMENT_DRAFT, "1", "test", "1", candidate, List.of(), null)).reference();
+    var briefPayload = new org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief("Script", List.of(),
+        List.of(), List.of(), List.of(), "Source correction", draft.artifactId(), "", candidate.facts());
+    var brief = h.artifacts.append(new CompilationArtifacts.AppendCommand(runId,
+        CompilationArtifacts.Kind.REQUIREMENT_BRIEF, "1", "test", "1", briefPayload, List.of(draft), null)).reference();
+    var approvalPayload = h.mapper.<com.fasterxml.jackson.databind.node.ObjectNode>valueToTree(
+        new org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecord(brief, brief.contentHash(),
+            "user", null, java.time.Instant.now()));
+    if (approvalInput != null) {
+      if ("plain-agree".equals(approvalInput)) {
+        var turn = h.archive.beginInput(h.chat, "Agree", null);
+        h.archive.resolveInput(h.chat, turn, "Agree");
+      } else {
+        var decision = new ChatDecisionCommand();
+        decision.setAction("foreign-action".equals(approvalInput)
+            ? ChatEvent.REQUEST_CHANGES_ACTION : ChatEvent.APPROVE_ACTION);
+        if ("comment".equals(approvalInput)) decision.setComment("Also change the requirement.");
+        decision.setArtifactType("requirement-brief");
+        decision.setArtifactHash("foreign-target".equals(approvalInput) ? "foreign" : brief.contentHash());
+        decision.setRevision("stale-revision".equals(approvalInput) ? 6 : 7);
+        String marker = ChatDecisionService.transcriptMarker(decision);
+        var turn = h.archive.beginInput(h.chat, marker, h.mapper.valueToTree(decision));
+        h.archive.resolveInput(h.chat, turn, marker, h.mapper.valueToTree(decision));
+        if ("ambiguous".equals(approvalInput)) {
+          var duplicate = h.archive.beginInput(h.chat, marker, h.mapper.valueToTree(decision));
+          h.archive.resolveInput(h.chat, duplicate, marker, h.mapper.valueToTree(decision));
+        }
+      }
+      String sourceTurnId = h.store.sourceRestorationApprovalSource(h.chat, brief, 7);
+      if ("winner".equals(approvalInput) || "extra-author".equals(approvalInput)
+          || "foreign-source".equals(approvalInput) || "legacy-record".equals(approvalInput)) {
+        assertNotNull(sourceTurnId, approvalInput);
+      } else {
+        assertNull(sourceTurnId, approvalInput);
+      }
+      if (!"legacy-record".equals(approvalInput)) approvalPayload.put("sourceTurnId",
+          "foreign-source".equals(approvalInput) ? "foreign" : sourceTurnId);
+      if ("extra-author".equals(approvalInput)) h.begin("Preserve this real later author instruction.");
+    }
+    var approval = h.artifacts.append(new CompilationArtifacts.AppendCommand(runId,
+        CompilationArtifacts.Kind.APPROVAL_RECORD, "1", "test", "1",
+        approvalPayload, List.of(brief), null)).reference();
+    var discovery = new org.qubership.integration.platform.ai.productpipeline.store.StageSnapshot("discovery",
+        org.qubership.integration.platform.ai.productpipeline.store.StageStatus.SUCCEEDED, List.of(draft), null);
+    var analysis = new org.qubership.integration.platform.ai.productpipeline.store.StageSnapshot("analysis",
+        committed ? org.qubership.integration.platform.ai.productpipeline.store.StageStatus.SUCCEEDED
+            : org.qubership.integration.platform.ai.productpipeline.store.StageStatus.WAITING_FOR_APPROVAL,
+        committed ? List.of(brief, approval) : List.of(), committed ? brief.artifactId() : null,
+        List.of(brief), brief, 1);
+    var runs = new org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore(
+        h.blobs, h.mapper, Clock.systemUTC());
+    runs.create(new org.qubership.integration.platform.ai.productpipeline.store.RunSnapshot(runId, h.chat, 1L,
+        committed ? org.qubership.integration.platform.ai.productpipeline.store.RunStatus.RUNNING
+            : org.qubership.integration.platform.ai.productpipeline.store.RunStatus.WAITING_FOR_APPROVAL, "analysis",
+        List.of(discovery, analysis), null));
+    h.store.useRunJournal(runs);
+    return new SourceCorrectionFixture(h, accepted, candidate, brief, runs);
+  }
+
+  private record SourceCorrectionFixture(Harness h, RequirementDraft accepted, RequirementDraft candidate,
+      CompilationArtifacts.Reference brief,
+      org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore runs) {}
+
+  private static ProductRequirementBriefTool.SourceReview sourceReview(AuthorSourceEvidence.Packet source,
+      RequirementDraft draft, String turnId, String quote, String factId) {
+    return new ProductRequirementBriefTool.SourceReview(source.generation(),
+        org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(source),
+        org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(draft),
+        List.of(new RequirementAnalysisCapture.SourceOmission(turnId, quote, "Unsupported addition.",
+            RequirementAnalysisCapture.SourceDiscrepancyKind.UNSUPPORTED_ADDITION, factId)));
+  }
+
+  @ParameterizedTest
   @org.junit.jupiter.params.provider.CsvSource({"async-api-trigger, false", "async-api-trigger, true",
       "unsupported-native, false", "unsupported-native, true"})
   void rejectedTypeDoesNotMakeItsUncheckedValuesImmutable(String invalidType, boolean reload) throws Exception {

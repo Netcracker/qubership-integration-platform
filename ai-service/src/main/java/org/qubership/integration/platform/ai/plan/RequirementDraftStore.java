@@ -110,11 +110,15 @@ public class RequirementDraftStore {
         org.qubership.integration.platform.ai.chat.conversation.ConversationArchive.latestInputId(current), serialized);
   }
 
-  /** Admission issues, the repair strategy that produced them, and an optional stalled-target key. */
+  /** Admission result, including whether the candidate still needs source correction approval. */
   record CaptureAdmission(List<RequirementCaptureEditor.Issue> issues, RequirementRepairPolicy.Strategy strategy,
-      CaptureAttemptFeedbackStore.ClarificationFailureKey clarificationFailure) {
+      CaptureAttemptFeedbackStore.ClarificationFailureKey clarificationFailure, boolean awaitingSourceApproval) {
     CaptureAdmission(List<RequirementCaptureEditor.Issue> issues, RequirementRepairPolicy.Strategy strategy) {
-      this(issues, strategy, null);
+      this(issues, strategy, null, false);
+    }
+    CaptureAdmission(List<RequirementCaptureEditor.Issue> issues, RequirementRepairPolicy.Strategy strategy,
+        CaptureAttemptFeedbackStore.ClarificationFailureKey clarificationFailure) {
+      this(issues, strategy, clarificationFailure, false);
     }
   }
 
@@ -205,6 +209,15 @@ public class RequirementDraftStore {
     var repairPaths = activeRepairPaths(conversationId, base, draft);
     var baseline = semanticBaseline(conversationId).orElse(null);
     var packet = sourcePacket(conversationId);
+    var restored = sourceRestorationBaseline(conversationId, base, draft, baseline, packet);
+    if (restored.isPresent()) {
+      baseline = restored.get();
+      var paths = new java.util.LinkedHashSet<>(repairPaths);
+      var review = org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext
+          .binding(conversationId).orElseThrow().sourceRestoration();
+      review.omissions().forEach(report -> paths.add("/facts/" + report.sourceFactId() + "/text"));
+      repairPaths = java.util.Set.copyOf(paths);
+    }
     issues.addAll(RequirementFailureConsistency.unauthorizedModeChanges(base, draft.authoredDraft(),
         current.map(revision -> artifacts.payload(revision, RequirementDraft.class).catalogBindings()).orElse(List.of()),
         authorPaths, repairPaths));
@@ -221,7 +234,7 @@ public class RequirementDraftStore {
         ? List.<RequirementCaptureInput.FactInput>of() : draft.authoredDraft().facts();
     var amendments = changes == null || changes.amendments() == null
         ? List.<RequirementCaptureInput.AmendmentInput>of() : changes.amendments();
-    // Claim text and polarity stay protected. Representation fields are not part of the claim.
+    // Accepted claim text and polarity stay protected. A source correction remains an unapproved proposal.
     // Initial capture has no saved draft. Treat the candidate as that draft so a quote-less fact stays unclaimed.
     var accepted = base == null ? facts : base.facts();
     issues.addAll(RequirementClaimEvidenceValidator.validate(baseline, accepted, facts, packet, amendments));
@@ -251,12 +264,249 @@ public class RequirementDraftStore {
     } else {
       pendingClarificationAnswers.remove(conversationId);
     }
+    if (restored.isPresent()) {
+      clearRejectedCaptureFacts(conversationId);
+      return new CaptureAdmission(List.of(), strategy, null, true);
+    }
     if (current.isEmpty() || !draft.equals(artifacts.payload(current.orElseThrow(), RequirementDraft.class))) {
       appendDraft(conversationId, draft, true);
       recordSemanticBaseline(conversationId, baseline, facts, packet, amendments);
     }
     clearRejectedCaptureFacts(conversationId);
     return new CaptureAdmission(List.of(), strategy);
+  }
+
+  /** Blocks provisional source restoration after any brief or explicit draft approval was recorded. */
+  public boolean sourceRestorationBlocked(String runId) {
+    if (runId == null || runId.isBlank() || !artifacts.history(runId, Kind.REQUIREMENT_BRIEF).isEmpty()) return true;
+    for (var revision : artifacts.history(runId, Kind.APPROVAL_RECORD)) {
+      var approval = artifacts.payload(revision, com.fasterxml.jackson.databind.JsonNode.class);
+      if (!approval.path("target").hasNonNull("kind")
+          || Kind.REQUIREMENT_DRAFT.name().equals(approval.path("target").path("kind").asText())
+          || java.util.stream.StreamSupport.stream(approval.path("approvedCandidates").spliterator(), false)
+              .anyMatch(candidate -> Kind.REQUIREMENT_DRAFT.name().equals(candidate.path("kind").asText()))) return true;
+    }
+    return false;
+  }
+
+  /** Returns the unique current typed brief approval input, or null when it cannot be bound. */
+  public String sourceRestorationApprovalSource(String conversationId, Reference target, long expectedRunRevision) {
+    if (conversations == null || target == null || target.kind() != Kind.REQUIREMENT_BRIEF) return null;
+    var inputs = conversations.archive().read(conversationId).activeTurns().stream()
+        .filter(turn -> turn.message().role()
+            == org.qubership.integration.platform.ai.chat.conversation.ConversationMessage.Role.USER).toList();
+    if (inputs.isEmpty()) return null;
+    var latest = inputs.getLast();
+    var matching = inputs.stream().filter(turn -> typedBriefApproval(turn, target)
+        && turn.metadata().path("resolvedDecision").path("revision").asLong(-1) == expectedRunRevision).toList();
+    return matching.size() == 1 && matching.getFirst().equals(latest) ? latest.id() : null;
+  }
+
+  private static boolean typedBriefApproval(
+      org.qubership.integration.platform.ai.chat.conversation.ConversationArchive.Turn turn, Reference target) {
+    if (!"READY".equals(turn.status()) || turn.metadata() == null) return false;
+    var decision = turn.metadata().path("resolvedDecision");
+    return org.qubership.integration.platform.ai.chat.ChatEvent.APPROVE_ACTION.equals(decision.path("action").asText())
+        && "requirement-brief".equals(decision.path("artifactType").asText())
+        && Objects.equals(target.contentHash(), decision.path("artifactHash").asText())
+        && decision.path("comment").asText("").isBlank();
+  }
+
+  /** Identifies a brief that references a persisted provisional source correction. */
+  public boolean hasSourceRestorationCandidate(String conversationId, Reference brief) {
+    if (runJournal == null || brief == null || brief.kind() != Kind.REQUIREMENT_BRIEF) return false;
+    var document = runJournal.loadByConversation(conversationId).orElse(null);
+    if (document == null || document.run() == null) return false;
+    var candidate = sourceCorrectionCandidate(document.run(), brief, true);
+    return candidate != null && captureAttemptsNewestFirst(conversationId).stream().anyMatch(attempt ->
+        attempt.accepted() && attempt.sourceRestoration() != null
+            && Objects.equals(attempt.resolvedCandidate(), candidate.authoredDraft()));
+  }
+
+  /**
+   * Checks a staged source correction without changing its draft or run. Unrelated briefs are unchanged.
+   *
+   * @throws IllegalStateException when a staged correction has stale source, base, or candidate pins
+   */
+  public void validateSourceRestorationApproval(String conversationId, Reference brief, String sourceTurnId) {
+    if (runJournal == null || brief == null || brief.kind() != Kind.REQUIREMENT_BRIEF) return;
+    withWriteAuthority(conversationId, () -> {
+      var document = runJournal.loadByConversation(conversationId).orElse(null);
+      if (document == null || document.run() == null) return null;
+      var run = document.run();
+      if (run.status() != org.qubership.integration.platform.ai.productpipeline.store.RunStatus.WAITING_FOR_APPROVAL
+          || run.stages().stream().noneMatch(stage -> Objects.equals(stage.stageId(), run.currentStageId())
+              && stage.status() == org.qubership.integration.platform.ai.productpipeline.store.StageStatus.WAITING_FOR_APPROVAL
+              && brief.equals(stage.approvableReference()) && stage.candidateReferences().contains(brief))) return null;
+      var candidate = sourceCorrectionCandidate(run, brief, true);
+      if (candidate == null) return null;
+      for (var attempt : captureAttemptsNewestFirst(conversationId)) {
+        if (!attempt.accepted() || attempt.sourceRestoration() == null
+            || !Objects.equals(attempt.resolvedCandidate(), candidate.authoredDraft())) continue;
+        var current = get(conversationId).orElse(null);
+        var baseline = semanticBaseline(conversationId).orElse(null);
+        if (!Objects.equals(attempt.acceptedDraftReference(), latestRevision(conversationId).map(Revision::reference).orElse(null))
+            || !Objects.equals(attempt.semanticBaselineReference(), baselineReference(conversationId))
+            || sourceRestorationBaseline(current, candidate, baseline,
+                sourceRestorationPacket(conversationId, brief, sourceTurnId), attempt.sourceRestoration()).isEmpty()) {
+          throw new IllegalStateException("Source correction approval has obsolete source, base, or candidate pins.");
+        }
+        break;
+      }
+      return null;
+    });
+  }
+
+  private RequirementDraft sourceCorrectionCandidate(
+      org.qubership.integration.platform.ai.productpipeline.store.RunSnapshot run, Reference briefReference, boolean includeCandidates) {
+    var briefRevision = artifacts.get(run.runId(), briefReference).orElse(null);
+    if (briefRevision == null) return null;
+    var brief = artifacts.payload(briefRevision,
+        org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief.class);
+    return run.stages().stream().flatMap(stage -> java.util.stream.Stream.concat(
+        stage.outputRefs().stream(), includeCandidates ? stage.candidateReferences().stream() : java.util.stream.Stream.empty()))
+        .filter(ref -> ref.kind() == Kind.REQUIREMENT_DRAFT
+            && Objects.equals(ref.artifactId(), brief.approvedDraftReference()))
+        .map(ref -> artifacts.get(run.runId(), ref).orElse(null)).filter(Objects::nonNull)
+        .map(revision -> artifacts.payload(revision, RequirementDraft.class)).findFirst().orElse(null);
+  }
+
+  private AuthorSourceEvidence.Packet sourceRestorationPacket(String conversationId, Reference brief, String sourceTurnId) {
+    var packet = sourcePacket(conversationId);
+    if (conversations == null || sourceTurnId == null || sourceTurnId.isBlank()) return packet;
+    boolean pinnedControl = conversations.archive().read(conversationId).activeTurns().stream()
+        .anyMatch(turn -> Objects.equals(turn.id(), sourceTurnId) && typedBriefApproval(turn, brief));
+    return !pinnedControl ? packet : new AuthorSourceEvidence.Packet(packet.generation(), packet.inputs().stream()
+        .filter(input -> !Objects.equals(input.sourceTurnId(), sourceTurnId)).toList());
+  }
+
+  /**
+   * Promotes a staged source correction after its exact brief approval commits. Unrelated briefs are unchanged;
+   * replay completes an interrupted draft and baseline pair without repeating an applied promotion.
+   *
+   * @throws IllegalStateException when a pending correction no longer matches its pinned source, draft, or baseline
+   */
+  public void promoteSourceRestoration(String conversationId, Reference approvedBrief) {
+    if (runJournal == null || approvedBrief == null || approvedBrief.kind() != Kind.REQUIREMENT_BRIEF) return;
+    withWriteAuthority(conversationId, () -> {
+      var document = runJournal.loadByConversation(conversationId).orElse(null);
+      if (document == null || document.run() == null) return null;
+      var run = document.run();
+      var committedApproval = run.stages().stream().filter(stage ->
+          stage.status() == org.qubership.integration.platform.ai.productpipeline.store.StageStatus.SUCCEEDED
+              && Objects.equals(stage.approvedArtifactId(), approvedBrief.artifactId())
+              && stage.outputRefs().contains(approvedBrief))
+              .flatMap(stage -> stage.outputRefs().stream()).filter(ref -> ref.kind() == Kind.APPROVAL_RECORD)
+                  .map(ref -> artifacts.get(run.runId(), ref).orElse(null)).filter(Objects::nonNull)
+                  .map(revision -> artifacts.payload(revision, com.fasterxml.jackson.databind.JsonNode.class))
+                  .filter(record -> record.path("target").equals(new ObjectMapper().valueToTree(approvedBrief))
+                      && Objects.equals(record.path("targetContentHash").asText(), approvedBrief.contentHash()))
+                  .findFirst().orElse(null);
+      if (committedApproval == null) return null;
+      var candidate = sourceCorrectionCandidate(run, approvedBrief, false);
+      if (candidate == null) return null;
+      var current = get(conversationId).orElse(null);
+      if (current == null) return null;
+      var currentBaseline = semanticBaseline(conversationId).orElse(null);
+      var packet = sourceRestorationPacket(conversationId, approvedBrief, committedApproval.path("sourceTurnId").asText(""));
+      for (var attempt : captureAttemptsNewestFirst(conversationId)) {
+        if (!attempt.accepted() || attempt.sourceRestoration() == null
+            || !Objects.equals(attempt.resolvedCandidate(), candidate.authoredDraft())) continue;
+        String compilationId = sessions.current(conversationId).orElseThrow().compilationId();
+        var baseRevision = artifacts.get(compilationId, attempt.acceptedDraftReference()).orElseThrow(
+            () -> new IllegalStateException("Source correction base is unavailable."));
+        var baselineRevision = artifacts.get(compilationId, attempt.semanticBaselineReference()).orElseThrow(
+            () -> new IllegalStateException("Source correction baseline is unavailable."));
+        var base = artifacts.payload(baseRevision, RequirementDraft.class);
+        var baseline = artifacts.payload(baselineRevision, RequirementSemanticBaseline.class);
+        if (!attempt.sourceRestoration().omissions().isEmpty() && Objects.equals(current, candidate)
+            && Objects.equals(currentBaseline, restoredBaseline(baseline, attempt.sourceRestoration().omissions()))) {
+          return null;
+        }
+        var restored = sourceRestorationBaseline(base, candidate, baseline, packet, attempt.sourceRestoration())
+            .orElseThrow(() -> new IllegalStateException("Source correction approval has obsolete source or candidate pins."));
+        if ((!Objects.equals(current, base) && !Objects.equals(current, candidate))
+            || (!Objects.equals(currentBaseline, baseline) && !Objects.equals(currentBaseline, restored))) {
+          throw new IllegalStateException("Source correction approval no longer matches the admitted draft and baseline.");
+        }
+        if (!Objects.equals(current, candidate)) appendDraft(conversationId, candidate, false);
+        if (!Objects.equals(currentBaseline, restored)) appendSemanticBaseline(conversationId, restored);
+        break;
+      }
+      return null;
+    });
+  }
+
+  private Optional<RequirementSemanticBaseline> sourceRestorationBaseline(String conversationId,
+      RequirementCaptureInput.DraftInput base, RequirementDraft candidate, RequirementSemanticBaseline baseline,
+      AuthorSourceEvidence.Packet packet) {
+    var binding = org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext
+        .binding(conversationId).filter(value -> value.mode()
+            == org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext.Mode.DISCOVERY)
+        .orElse(null);
+    var review = binding == null ? null : binding.sourceRestoration();
+    var current = get(conversationId).orElse(null);
+    if (review == null || sourceRestorationBlocked(binding.runId())
+        || binding.approvedDraft() == null || !Objects.equals(current, binding.approvedDraft())
+        || !currentSource(conversationId) || !Objects.equals(packet, currentBodySource(conversationId))) {
+      return Optional.empty();
+    }
+    if (baseline != null) for (var report : review.omissions()) {
+      String factId = report.sourceFactId();
+      var claim = baseline.claims().stream().filter(value -> Objects.equals(value.sourceFactId(), factId))
+          .findFirst().orElse(null);
+      if (sessions.current(conversationId).stream().flatMap(link ->
+          artifacts.history(link.compilationId(), Kind.REQUIREMENT_SEMANTIC_BASELINE).stream())
+          .flatMap(revision -> artifacts.payload(revision, RequirementSemanticBaseline.class).claims().stream())
+          .filter(value -> Objects.equals(value.sourceFactId(), factId))
+          .anyMatch(value -> !value.equals(claim))) return Optional.empty();
+    }
+    return sourceRestorationBaseline(current, candidate, baseline, packet, review);
+  }
+
+  private Optional<RequirementSemanticBaseline> sourceRestorationBaseline(RequirementDraft current,
+      RequirementDraft candidate, RequirementSemanticBaseline baseline,
+      AuthorSourceEvidence.Packet packet, ProductRequirementBriefTool.SourceReview review) {
+    var base = current == null ? null : current.authoredDraft();
+    if (review == null
+        || baseline == null || base == null || current == null || candidate == null
+        || review.omissions().isEmpty() || packet == null
+        || !Objects.equals(review.generation(), packet.generation())
+        || !Objects.equals(review.sourceHash(), org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(packet))
+        || !Objects.equals(review.draftHash(), org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(current))
+        || !Objects.equals(current.catalogBindings(), candidate.catalogBindings())) return Optional.empty();
+    var replacements = new java.util.LinkedHashMap<String, RequirementCaptureInput.FactInput>();
+    for (var report : review.omissions()) {
+      if (report.kind() != RequirementAnalysisCapture.SourceDiscrepancyKind.UNSUPPORTED_ADDITION
+          || replacements.containsKey(report.sourceFactId())) return Optional.empty();
+      var fact = base.facts().stream().filter(value -> Objects.equals(value.sourceFactId(), report.sourceFactId()))
+          .findFirst().orElse(null);
+      var claim = baseline.claims().stream().filter(value -> Objects.equals(value.sourceFactId(), report.sourceFactId()))
+          .findFirst().orElse(null);
+      if (fact == null || claim == null || fact.evidence() == null || fact.policyConflict() != null
+          || !Objects.equals(fact.evidence(), claim.evidence()) || !Objects.equals(fact.text(), claim.text())
+          || fact.polarity() != claim.polarity() || Objects.equals(fact.text(), report.quote())
+          || !Objects.equals(fact.evidence().sourceTurnId(), report.sourceTurnId())
+          || !Objects.equals(fact.evidence().quote(), report.quote())
+          || packet.inputs().stream().noneMatch(input -> Objects.equals(input.sourceTurnId(), report.sourceTurnId())
+              && report.quote() != null && !report.quote().isBlank() && input.text().contains(report.quote()))) return Optional.empty();
+      replacements.put(fact.sourceFactId(), new RequirementCaptureInput.FactInput(fact.sourceFactId(), fact.interactionIds(), fact.kind(),
+          fact.polarity(), report.quote(), fact.fieldMapping(), fact.policyConflict(), fact.elementIntent(), fact.evidence()));
+    }
+    var expected = new RequirementCaptureInput.DraftInput(base.flow(), base.facts().stream()
+        .map(value -> replacements.getOrDefault(value.sourceFactId(), value)).toList(),
+        base.capabilities(), base.openQuestions(), base.settings());
+    if (!expected.equals(candidate.authoredDraft())) return Optional.empty();
+    return Optional.of(restoredBaseline(baseline, review.omissions()));
+  }
+
+  private static RequirementSemanticBaseline restoredBaseline(RequirementSemanticBaseline baseline,
+      List<RequirementAnalysisCapture.SourceOmission> reports) {
+    return new RequirementSemanticBaseline(baseline.sourceGeneration(), baseline.authorEvidenceHash(),
+        baseline.claims().stream().map(value -> reports.stream()
+            .filter(report -> Objects.equals(value.sourceFactId(), report.sourceFactId())).findFirst()
+            .map(report -> new RequirementSemanticClaim(value.sourceFactId(), report.quote(), value.polarity(), value.evidence()))
+            .orElse(value)).toList());
   }
 
   private static CaptureAdmission focused(List<RequirementCaptureEditor.Issue> issues) {
@@ -1461,8 +1711,13 @@ public class RequirementDraftStore {
     saveCaptureAttempt(conversationId, new RequirementCaptureAttempt(source.sourceGeneration(), source.sourceTurnId(),
         source.authorText(), captureMutationScope(conversationId), toolName,
         arguments, result.accepted(), result.issues(), result.revision(), repairAuthority(conversationId),
-        RequirementCaptureToolProvider.argumentBinding(), authorEvidenceHash(conversationId), resolvedCandidate,
-        baselineRef, strategy, answer), selectedAttempt);
+        RequirementCaptureToolProvider.argumentBinding(), authorEvidenceHash(conversationId),
+        result.accepted() && result.nextAction() == RequirementCaptureResult.NextAction.AWAIT_APPROVAL
+            ? result.draft() : resolvedCandidate,
+        baselineRef, strategy, answer,
+        result.accepted() && result.nextAction() == RequirementCaptureResult.NextAction.AWAIT_APPROVAL
+            ? org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext
+                .binding(conversationId).map(value -> value.sourceRestoration()).orElse(null) : null), selectedAttempt);
   }
 
   private String authorEvidenceHash(String conversationId) {
@@ -1868,7 +2123,20 @@ public class RequirementDraftStore {
       @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
       @com.fasterxml.jackson.annotation.JsonProperty(required = false)
       org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Answer
-          clarificationAnswer) {
+          clarificationAnswer,
+      @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+      ProductRequirementBriefTool.SourceReview sourceRestoration) {
+    public RequirementCaptureAttempt(String sourceGeneration, String sourceTurnId, String authorText,
+        String mutationScope, String toolName, Object arguments, boolean accepted,
+        List<RequirementCaptureResult.CaptureIssue> issues, Reference acceptedDraftReference, String repairAuthority,
+        RequirementCaptureToolProvider.ArgumentBinding argumentBinding, String authorEvidenceHash,
+        RequirementCaptureInput.DraftInput resolvedCandidate, Reference semanticBaselineReference,
+        RequirementRepairPolicy.Strategy recoveryStrategy,
+        org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Answer clarificationAnswer) {
+      this(sourceGeneration, sourceTurnId, authorText, mutationScope, toolName, arguments, accepted,
+          issues, acceptedDraftReference, repairAuthority, argumentBinding, authorEvidenceHash, resolvedCandidate,
+          semanticBaselineReference, recoveryStrategy, clarificationAnswer, null);
+    }
     public RequirementCaptureAttempt(String sourceGeneration, String sourceTurnId, String authorText,
         String mutationScope, String toolName, Object arguments, boolean accepted,
         List<RequirementCaptureResult.CaptureIssue> issues, Reference acceptedDraftReference, String repairAuthority,

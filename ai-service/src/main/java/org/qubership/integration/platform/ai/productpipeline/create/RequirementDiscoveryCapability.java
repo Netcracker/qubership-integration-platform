@@ -311,6 +311,17 @@ public class RequirementDiscoveryCapability implements StageCapability {
                   mappingRepairDraft.authoredDraft()));
     }
     var repair = StageRepairEvidence.from(context);
+    if (context.attributes().get("sourceRestorationReview")
+        instanceof org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool.SourceReview review) {
+      userMessage = """
+          Restore every named provisional fact to its own exact saved author quote. Read readRequirementSource and the
+          current draft. Call updateRequirementDraft to change only those facts' text to their own quotes, preserving each ID,
+          evidence, polarity, kind, settings, flow, other facts, and confirmed choices. Do not ask the author to select
+          an implementation default introduced by the model. This produces a candidate for renewed brief approval.
+          After saving, finish with CONTINUE. Native source review:
+          %s
+          """.formatted(review);
+    }
     if (repair != null && ChatEvent.CONTINUE_TO_PLANNING_ACTION.equals(userMessage.strip())) {
       userMessage = "";
     }
@@ -402,12 +413,15 @@ public class RequirementDiscoveryCapability implements StageCapability {
     String gatherMessage = userMessage;
     RequirementDraft repairBase = draftStore.get(conversationId).orElse(mappingRepairDraft);
     var nativeRepairPaths = requirementRepairPaths(context, repairBase);
+    var sourceRestoration = context.attributes().get("sourceRestorationReview")
+        instanceof org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool.SourceReview review ? review : null;
     ToolSession.bind(conversationId);
     Context toolSessionContext = ToolSession.attachedContext();
     java.util.function.Supplier<Context> startCapture = () -> {
       Context installed = ProductCapabilityCaptureContext.bindDiscovery(
-        context.runId(), conversationId, mappingRepairDraft == null && nativeRepairPaths.isEmpty() ? null : repairBase,
-        mappingRepairPaths(context), nativeRepairPaths, missingMappingTargets(context), payload -> {
+        context.runId(), conversationId, mappingRepairDraft == null && nativeRepairPaths.isEmpty() && sourceRestoration == null
+            ? null : repairBase,
+        mappingRepairPaths(context), nativeRepairPaths, missingMappingTargets(context), sourceRestoration, payload -> {
           if (payload instanceof RequirementDraft draft) {
             captured.set(draft);
           }
@@ -499,7 +513,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
           .readValue(repair.typedCauseJson(), RecoveryCause.class);
       var paths = new java.util.LinkedHashSet<String>();
       for (var finding : cause.findings()) {
-        if ("REPAIR_FACT_LOSS".equals(finding.code())) continue;
+        if ("REPAIR_FACT_LOSS".equals(finding.code()) || "SOURCE_UNSUPPORTED_ADDITION".equals(finding.code())) continue;
         String path = RequirementDraftStore.requirementRepairPath(draft, finding);
         if (path != null) paths.add(path);
       }
@@ -724,7 +738,9 @@ public class RequirementDiscoveryCapability implements StageCapability {
       AtomicReference<RequirementDraft> captured) {
     String conversationId = context.conversationId();
     RequirementDiscoveryDirective directive = draftStore.turnDirective(conversationId);
-    RequirementDraft draft = draftStore.get(conversationId).orElse(captured.get());
+    RequirementDraft draft = context.attributes().get("sourceRestorationReview")
+        instanceof org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool.SourceReview && captured.get() != null
+        ? captured.get() : draftStore.get(conversationId).orElse(captured.get());
     var preservation = directive == RequirementDiscoveryDirective.DISCUSS
         ? draftStore.validateCurrent(conversationId) : draftStore.validateForContinuation(conversationId);
     Optional<RequirementRejection> rejection = captureFeedback == null ? Optional.empty()

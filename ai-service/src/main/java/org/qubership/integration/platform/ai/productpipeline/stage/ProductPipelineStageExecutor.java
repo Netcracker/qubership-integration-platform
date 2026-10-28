@@ -1065,6 +1065,13 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     }
     Optional<ReportedDraftDefect> reportedDraftOwner = producerRepairAllowed
         ? reportedDraftOwner(doc, stage, refs, cause) : Optional.empty();
+    if (cause.sourceReview() != null && cause.sourceReview().omissions().stream().anyMatch(report -> report.kind()
+        == org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceDiscrepancyKind.UNSUPPORTED_ADDITION)
+        && provisionalSourceRestoration(doc.run().runId()) == null) {
+      return waitContextualRecovery(doc, stage, refs, PipelineGates.RECOVERY_REPEATED,
+          "The source correction does not match the preserved draft and review boundary. Progress is saved.",
+          evidence, null, emitted);
+    }
     if (reportedDraftOwner.isEmpty() && usesStructuredContractRecovery(stage, outcomeClass, cause)) {
       putRunAttribute(
           doc.run().runId(), ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR, "");
@@ -1115,7 +1122,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       recovery = new ProducerOwnedRecovery.Route(
           catalogHasBeenWritten(doc.run().runId()) ? ProducerOwnedRecovery.Action.PARK
               : ProducerOwnedRecovery.Action.REOPEN_UPSTREAM, defect.owner());
-      RecoveryCause draftCause = new RecoveryCause(cause.causeCode(), defect.findings(), cause.requestedFact(), cause.noProgress(), cause.captureFailure());
+      RecoveryCause draftCause = new RecoveryCause(cause.causeCode(), defect.findings(), cause.requestedFact(), cause.noProgress(), cause.captureFailure(), cause.sourceReview());
       putRunAttribute(doc.run().runId(), ProductPipelineRunSupport.STAGE_ERROR_CAUSE_JSON_ATTR,
           ProductPipelineRunSupport.recoveryCauseJson(draftCause));
       putRunAttribute(doc.run().runId(), ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR,
@@ -3203,6 +3210,9 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             artifactStore.payload(revision.get(), ChainSemanticRevision.class));
       }
     }
+    attributes.remove("sourceRestorationReview");
+    var sourceReview = provisionalSourceRestoration(runId);
+    if (sourceReview != null) attributes.put("sourceRestorationReview", sourceReview);
     putLatestRequirementBrief(runId, attributes);
     attributesByRun.put(runId, attributes);
     attributes.remove("mappingRepairFindings");
@@ -3257,6 +3267,53 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       });
     }
     return attributes;
+  }
+
+  private org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool.SourceReview provisionalSourceRestoration(
+      String runId) {
+    Object encoded = attributesByRun.getOrDefault(runId, Map.of())
+        .get(ProductPipelineRunSupport.STAGE_ERROR_CAUSE_JSON_ATTR);
+    if (!(encoded instanceof String text) || text.isBlank()) return null;
+    RecoveryCause cause;
+    try { cause = objectMapper.readValue(text, RecoveryCause.class); }
+    catch (com.fasterxml.jackson.core.JsonProcessingException invalidEvidence) { return null; }
+    var review = cause.sourceReview();
+    var profile = profilesByRun.get(runId);
+    if (review == null || profile == null || review.omissions().isEmpty()
+        || review.omissions().stream().anyMatch(report -> report.kind()
+            != org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceDiscrepancyKind.UNSUPPORTED_ADDITION)
+        || review.omissions().stream().map(report -> report.sourceFactId()).distinct().count() != review.omissions().size()
+        || !artifactStore.history(runId, Kind.REQUIREMENT_BRIEF).isEmpty()) return null;
+    if (requirementDrafts == null || requirementDrafts.sourceRestorationBlocked(runId)) return null;
+    var document = requireRun(runId);
+    var selected = document.run().stages().stream().filter(snapshot -> profile.stages().stream()
+        .anyMatch(stage -> stage.stageId().equals(snapshot.stageId())
+            && "requirement-discovery".equals(stage.capabilityId())))
+        .flatMap(snapshot -> snapshot.outputRefs().stream()).filter(ref -> ref.kind() == Kind.REQUIREMENT_DRAFT)
+        .map(ref -> artifactStore.get(runId, ref).orElse(null)).filter(Objects::nonNull)
+        .filter(revision -> org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(
+            artifactStore.payload(revision, RequirementDraft.class)).equals(review.draftHash()))
+        .findFirst().orElse(null);
+    if (selected == null || !org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(
+        artifactStore.payload(selected, RequirementDraft.class)).equals(review.draftHash())) return null;
+    if (document.run().stages().stream().filter(snapshot -> profile.stages().stream()
+        .anyMatch(stage -> stage.stageId().equals(snapshot.stageId())
+            && "requirement-discovery".equals(stage.capabilityId())))
+        .flatMap(snapshot -> snapshot.candidateReferences().stream()).filter(ref -> ref.kind() == Kind.REQUIREMENT_DRAFT)
+        .map(ref -> artifactStore.get(runId, ref).orElse(null)).filter(Objects::nonNull)
+        .anyMatch(revision -> !org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(
+            artifactStore.payload(revision, RequirementDraft.class)).equals(review.draftHash()))) return null;
+    String owner = requirementDraftOwner(runId, profile, selected).orElse("");
+    boolean afterOwner = false;
+    for (var stage : profile.stages()) {
+      if (owner.equals(stage.stageId())) {
+        afterOwner = true;
+      } else if (afterOwner && stage.approval() != null) {
+        return stage.approval().artifact().matches(Kind.REQUIREMENT_BRIEF)
+            && stage.produces().stream().anyMatch(type -> type.matches(Kind.REQUIREMENT_BRIEF)) ? review : null;
+      }
+    }
+    return null;
   }
 
   private RequirementBrief committedBrief(ProductPipelineRunDocument doc) {

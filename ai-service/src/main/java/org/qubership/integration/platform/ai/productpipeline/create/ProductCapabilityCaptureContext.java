@@ -51,6 +51,7 @@ public final class ProductCapabilityCaptureContext {
       RequirementDraft approvedDraft,
       Map<String, Set<String>> mappingRepairPaths,
       Set<String> requirementRepairPaths,
+      org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool.SourceReview sourceRestoration,
       List<org.qubership.integration.platform.ai.productpipeline.artifact.MappingValidationDetails> missingMappingTargets,
       String approvedDraftReference,
       RequirementBrief approvedBrief,
@@ -81,6 +82,15 @@ public final class ProductCapabilityCaptureContext {
       Map<String, Set<String>> mappingRepairPaths, Set<String> requirementRepairPaths,
       List<org.qubership.integration.platform.ai.productpipeline.artifact.MappingValidationDetails> missingMappingTargets,
       Consumer<Object> onCandidate) {
+    return bindDiscovery(runId, conversationId, selectedDraft, mappingRepairPaths, requirementRepairPaths,
+        missingMappingTargets, null, onCandidate);
+  }
+
+  public static Context bindDiscovery(String runId, String conversationId, RequirementDraft selectedDraft,
+      Map<String, Set<String>> mappingRepairPaths, Set<String> requirementRepairPaths,
+      List<org.qubership.integration.platform.ai.productpipeline.artifact.MappingValidationDetails> missingMappingTargets,
+      org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool.SourceReview sourceRestoration,
+      Consumer<Object> onCandidate) {
     Binding binding =
         new Binding(
             Mode.DISCOVERY,
@@ -94,6 +104,7 @@ public final class ProductCapabilityCaptureContext {
                 .collect(java.util.stream.Collectors.toUnmodifiableMap(Map.Entry::getKey,
                     entry -> Set.copyOf(entry.getValue()))),
             Set.copyOf(requirementRepairPaths),
+            sourceRestoration,
             List.copyOf(missingMappingTargets),
             null,
             null,
@@ -148,6 +159,7 @@ public final class ProductCapabilityCaptureContext {
             approvedDraft,
             Map.of(),
             Set.of(),
+            null,
             List.of(),
             approvedDraftReference,
             null,
@@ -178,6 +190,7 @@ public final class ProductCapabilityCaptureContext {
             null,
             Map.of(),
             Set.of(),
+            null,
             List.of(),
             null,
             approvedBrief,

@@ -52,6 +52,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.OwnerCandida
 import org.qubership.integration.platform.ai.productpipeline.create.PauseQuestionResult;
 import org.qubership.integration.platform.ai.plan.RequirementClarificationCoordinator;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
+import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition;
 import org.qubership.integration.platform.ai.productpipeline.create.RequirementDiscoveryCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerRunPinResolver;
@@ -3331,7 +3332,7 @@ public final class ProductPipelineRunSupport {
     return Optional.empty();
   }
 
-  /** Records approval without selecting or running the next stage. */
+  /** Records approval and promotes its source correction before advancing. */
   public Multi<PipelineSignal> recordApprove(ApproveCommand command) {
     Objects.requireNonNull(command, "command");
     return Multi.createFrom()
@@ -3339,8 +3340,36 @@ public final class ProductPipelineRunSupport {
             () -> {
               ProductPipelineRunDocument doc = requireRun(command.runId());
               ensureDurablePinsLoaded(command.runId());
-              if (doc.appliedCommand(command.commandId(), command.commandPayloadHash())
-                  .isPresent()) {
+              var applied = doc.appliedCommand(command.commandId(), command.commandPayloadHash());
+              var sourceReplay = requirementDrafts != null
+                  && (command.commandId() == null || command.commandId().isBlank())
+                  && requirementDrafts.hasSourceRestorationCandidate(doc.run().conversationId(), command.target())
+                      ? committedBriefApproval(doc, command.target(), command.expectedRunRevision(), artifactStore)
+                      : Optional.<StageSnapshot>empty();
+              if (applied.isPresent() || sourceReplay.isPresent()) {
+                promoteSourceRestoration(doc, command.target());
+                if (command.target() != null && command.target().kind() == Kind.REQUIREMENT_BRIEF) {
+                  StageSnapshot approved = sourceReplay.orElseGet(() -> doc.run().stages().stream()
+                      .filter(snapshot -> snapshot.stageId().equals(applied.orElseThrow().stageId()))
+                      .findFirst().orElseThrow());
+                  if (approved.status() == StageStatus.SUCCEEDED
+                      && command.target().artifactId().equals(approved.approvedArtifactId())
+                      && approved.outputRefs().contains(command.target())) {
+                    var attributes = attributesByRun.get(command.runId());
+                    var profile = profilesByRun.get(command.runId());
+                    if (approved.stageId().equals(replacementApprovalStage(profile, attributes))) {
+                      attributes.remove(RECOVERY_PREPARING_OWNER_ATTR);
+                    }
+                    if ("requirement-analysis".equals(approved.stageId())) {
+                      attributes.remove(ACCEPTED_SOURCE_BRIEF_REF_ATTR);
+                    }
+                    if (doc.run().status() == RunStatus.RUNNING
+                        && approved.stageId().equals(doc.run().currentStageId())) {
+                      String next = nextStageId(profile, approved.stageId());
+                      commitMove(doc, next, markStageRunning(doc, next), "advance after approval");
+                    }
+                  }
+                }
                 return Multi.createFrom().empty();
               }
               if (isTerminalRunStatus(doc.run().status())) {
@@ -3383,6 +3412,12 @@ public final class ProductPipelineRunSupport {
                         new StaleApprovalException(
                             "approval target is not the current approvable candidate"));
               }
+              String approvalSourceTurnId = requirementDrafts == null ? null
+                  : requirementDrafts.sourceRestorationApprovalSource(doc.run().conversationId(), target,
+                      command.expectedRunRevision());
+              if (requirementDrafts != null) {
+                requirementDrafts.validateSourceRestorationApproval(doc.run().conversationId(), target, approvalSourceTurnId);
+              }
               boolean holdUnchangedBrief =
                   shouldHoldUnchangedExhaustedBrief(doc, stage, target);
               if (!holdUnchangedBrief) {
@@ -3401,7 +3436,7 @@ public final class ProductPipelineRunSupport {
                         command.runId(),
                         target,
                         approvedCandidates,
-                        approvalPolicy);
+                        approvalPolicy, approvalSourceTurnId);
                 approvalRevision =
                     artifactStore.append(
                         new AppendCommand(
@@ -3427,7 +3462,7 @@ public final class ProductPipelineRunSupport {
                             "product-pipeline-runtime",
                             "1",
                             new ApprovalRecord(
-                                target, target.contentHash(), "user", null, clock.instant()),
+                                target, target.contentHash(), "user", null, clock.instant(), approvalSourceTurnId),
                             List.of(target),
                             null,
                             provenance(
@@ -3483,6 +3518,7 @@ public final class ProductPipelineRunSupport {
                     promotionEvidence,
                     command.commandId(),
                     command.commandPayloadHash());
+                promoteSourceRestoration(doc, target);
                 if (promotesReplacement) { attributesByRun.get(command.runId()).remove(RECOVERY_PREPARING_OWNER_ATTR); }
               if (promotesSource) { attributesByRun.get(command.runId()).remove(ACCEPTED_SOURCE_BRIEF_REF_ATTR); }
                 return Multi.createFrom()
@@ -3502,6 +3538,7 @@ public final class ProductPipelineRunSupport {
                     promotionEvidence,
                     command.commandId(),
                     command.commandPayloadHash());
+                promoteSourceRestoration(doc, target);
                 if (promotesReplacement) { attributesByRun.get(command.runId()).remove(RECOVERY_PREPARING_OWNER_ATTR); }
               if (promotesSource) { attributesByRun.get(command.runId()).remove(ACCEPTED_SOURCE_BRIEF_REF_ATTR); }
                 return Multi.createFrom().item(new PipelineSignal.Completed(terminalStatus));
@@ -3520,12 +3557,39 @@ public final class ProductPipelineRunSupport {
                   promotionEvidence,
                   command.commandId(),
                   command.commandPayloadHash());
+              promoteSourceRestoration(doc, target);
               if (promotesReplacement) { attributesByRun.get(command.runId()).remove(RECOVERY_PREPARING_OWNER_ATTR); }
               if (promotesSource) { attributesByRun.get(command.runId()).remove(ACCEPTED_SOURCE_BRIEF_REF_ATTR); }
               ProductPipelineRunDocument after = requireRun(command.runId());
               commitMove(after, nextStageId, markStageRunning(after, nextStageId), "advance after approval");
               return Multi.createFrom().empty();
             });
+  }
+
+  private void promoteSourceRestoration(ProductPipelineRunDocument doc, Reference target) {
+    if (requirementDrafts != null && target != null && target.kind() == Kind.REQUIREMENT_BRIEF) {
+      requirementDrafts.promoteSourceRestoration(doc.run().conversationId(), target);
+    }
+  }
+
+  /** Finds the journal-selected brief approval committed from the caller's original revision. */
+  public static Optional<StageSnapshot> committedBriefApproval(ProductPipelineRunDocument doc, Reference target,
+      long expectedRunRevision, ProductPipelineArtifactStore artifacts) {
+    if (target == null || target.kind() != Kind.REQUIREMENT_BRIEF) return Optional.empty();
+    return doc.run().stages().stream().filter(stage -> stage.status() == StageStatus.SUCCEEDED
+        && target.artifactId().equals(stage.approvedArtifactId()) && stage.outputRefs().contains(target)
+        && stage.candidateReferences().contains(target)
+        && doc.attempts().stream().anyMatch(attempt -> attempt.runRevision() == expectedRunRevision + 1
+            && attempt.stageId().equals(stage.stageId()) && attempt.outcome() == StageStatus.SUCCEEDED
+            && attempt.outputs().contains(target))
+        && doc.transitions().stream().anyMatch(transition -> transition.fromRevision() == expectedRunRevision
+            && transition.toRevision() == expectedRunRevision + 1 && transition.stageId().equals(stage.stageId())))
+        .filter(stage -> stage.outputRefs().stream().filter(ref -> ref.kind() == Kind.APPROVAL_RECORD)
+            .map(ref -> artifacts.get(doc.run().runId(), ref).orElse(null)).filter(Objects::nonNull)
+            .map(revision -> artifacts.payload(revision, com.fasterxml.jackson.databind.JsonNode.class))
+            .anyMatch(record -> record.path("target").equals(HALT_EVIDENCE_JSON.valueToTree(target))
+                && target.contentHash().equals(record.path("targetContentHash").asText())))
+        .findFirst();
   }
 
   /**
@@ -4364,6 +4428,7 @@ public final class ProductPipelineRunSupport {
           "causeCode", cause.causeCode(), "findings", cause.findings(), "requestedFact", cause.requestedFact(),
           "noProgress", cause.noProgress()));
       value.put("captureFailure", cause.captureFailure());
+      if (cause.sourceReview() != null) value.put("sourceReview", cause.sourceReview());
       return HALT_EVIDENCE_JSON.writeValueAsString(value);
     } catch (Exception e) {
       throw new IllegalStateException("Cannot persist the recovery cause", e);
@@ -4417,7 +4482,7 @@ public final class ProductPipelineRunSupport {
       String runId,
       Reference target,
       List<Reference> approvedCandidates,
-      ApprovalPolicy approvalPolicy) {
+      ApprovalPolicy approvalPolicy, String sourceTurnId) {
     String subjectKind = null;
     String subjectSchemaVersion = null;
     String subjectRevisionId = null;
@@ -4459,7 +4524,7 @@ public final class ProductPipelineRunSupport {
         subjectRevisionId,
         subjectSha256,
         compilerContractVersion,
-        compilerContractSha256);
+        compilerContractSha256, List.of(), Map.of(), sourceTurnId);
   }
 
   /**
@@ -4880,6 +4945,8 @@ public final class ProductPipelineRunSupport {
     try {
       RequirementBrief brief = artifactStore.payload(revision.get(), RequirementBrief.class);
       String body = requirementBriefChatReview(brief);
+      String correction = sourceRestorationChatReview(runId, brief);
+      if (!correction.isBlank()) body = correction + "\n\n" + body;
       if (body.isBlank()) {
         return;
       }
@@ -4887,6 +4954,40 @@ public final class ProductPipelineRunSupport {
     } catch (RuntimeException ex) {
       LOG.warnf(ex, "Failed to surface REQUIREMENT_BRIEF for approval review (runId=%s)", runId);
     }
+  }
+
+  private String sourceRestorationChatReview(String runId, RequirementBrief brief) {
+    if (requirementDrafts == null || brief.approvedDraftReference() == null) return "";
+    RequirementDraft accepted = requirementDrafts.get(requireRun(runId).run().conversationId()).orElse(null);
+    RequirementDraft candidate = artifactStore.history(runId, Kind.REQUIREMENT_DRAFT).stream()
+        .filter(revision -> brief.approvedDraftReference().equals(revision.artifactId()))
+        .findFirst().map(revision -> artifactStore.payload(revision, RequirementDraft.class)).orElse(null);
+    if (accepted == null || candidate == null || accepted.authoredDraft() == null || candidate.authoredDraft() == null
+        || !accepted.catalogBindings().equals(candidate.catalogBindings())) return "";
+    var before = accepted.authoredDraft();
+    var after = candidate.authoredDraft();
+    var restoredFacts = new ArrayList<org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput>();
+    var corrections = new ArrayList<String>();
+    for (var original : before.facts()) {
+      var proposed = after.facts().stream().filter(fact -> original.sourceFactId().equals(fact.sourceFactId()))
+          .findFirst().orElse(null);
+      if (proposed == null) return "";
+      if (Objects.equals(original.text(), proposed.text())) {
+        restoredFacts.add(original);
+        continue;
+      }
+      if (original.evidence() == null || !Objects.equals(original.evidence().quote(), proposed.text())) return "";
+      var restored = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput(
+          original.sourceFactId(), original.interactionIds(), original.kind(), original.polarity(), proposed.text(),
+          original.fieldMapping(), original.policyConflict(), original.elementIntent(), original.evidence());
+      restoredFacts.add(restored);
+      corrections.add("**Previous wording:**\n> " + original.text().replace("\n", "\n> ")
+          + "\n\n**Proposed source wording:**\n> " + proposed.text().replace("\n", "\n> "));
+    }
+    var expected = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput(
+        before.flow(), restoredFacts, before.capabilities(), before.openQuestions(), before.settings());
+    return !corrections.isEmpty() && expected.equals(after)
+        ? "**Source wording corrections awaiting approval**\n\n" + String.join("\n\n", corrections) : "";
   }
 
   /** Compact markdown for the approval card's preceding narrative. */
