@@ -297,6 +297,8 @@ test.describe("vscode messages", () => {
       }
       // A non-selecting option leaves the run at --project=vscode.
       expect(reconcileMessages(run(["--project=vscode", "--workers=1"], [{ recorded: ["getChain"] }]), rows, { only: true })).toEqual([]);
+      // The PR workflow's vscode job runs it so.
+      expect(reconcileMessages(run(["--project=vscode", "--max-failures=1"], [{ recorded: ["getChain"] }]), rows, { only: true })).toEqual([]);
     });
 
     test("a narrowed run without the option is refused", () => {

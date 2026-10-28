@@ -325,8 +325,9 @@ holds a micro domain's pod only because a failed micro case keeps the run's micr
 [Reading a failure](#reading-a-failure)).
 
 `.github/workflows/e2e-pr.yaml` runs the stack-free checks on every pull request and annotates each
-failed case at its line; the rest of the suite runs only in `e2e-k8s.yaml`. Run the checks before
-pushing, as `AGENTS.md` describes.
+failed case at its line. Its `vscode` job runs the `vscode` project and the message reconcile when
+the pull request changes a path that `support/pr-changes.mjs` lists. The rest of the suite runs only
+in `e2e-k8s.yaml`. Run the checks before pushing, as `AGENTS.md` describes.
 
 **Selecting cases.** Each spec file holds one top-level `test.describe` named after its subject, and
 every tag comes from a closed list:
@@ -807,7 +808,8 @@ It reads a whole run or none. A run narrowed by `--project` or `--grep` is refus
 `--reporter=line` writes no `test-results/report.json` for it to read. A row only one target can
 prove carries that target, so covering the whole registry takes a reconcile after a full run on
 each target. `npm run reconcile -- --only=vscode-messages` checks the message registry alone, after a
-run of exactly `--project=vscode`, and writes neither `cases.md` nor `coverage.json`.
+run of exactly `--project=vscode`, and writes neither `cases.md` nor `coverage.json`. Execution
+options such as `--workers` and `--max-failures` select no case, so the check accepts them too.
 
 `npm run refresh-operations` rewrites `registry/operations.cache.json` from a running stack, and it
 is the only thing that writes it. Point it elsewhere with `CIP_CATALOG_URL`, `CIP_ENGINE_URL`,

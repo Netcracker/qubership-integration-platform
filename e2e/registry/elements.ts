@@ -957,6 +957,9 @@ const NON_SELECTING_OPTIONS = new Map<string, "flag" | "value">([
   ["--retries", "value"],
   ["--timeout", "value"],
   ["--global-timeout", "value"],
+  // Stops the run once it has failed, as `--global-timeout` stops it once it is over time.
+  ["--max-failures", "value"],
+  ["-x", "flag"],
   ["--trace", "value"],
   ["--repeat-each", "value"],
   ["--headed", "flag"],

@@ -151,6 +151,7 @@ test.describe("reconcile per target", () => {
       // Options that change how a run executes without changing which tests it selects.
       expect(runFilters(invokedAs("test", "--workers=4", "--headed", "--reporter", "list"))).toEqual([]);
       expect(runFilters(invokedAs("test", "--trace", "on", "--repeat-each", "2"))).toEqual([]);
+      expect(runFilters(invokedAs("test", "--max-failures=1", "--max-failures", "2", "-x"))).toEqual([]);
       // `npx playwright show-report` and anything else that is not a run.
       expect(runFilters(invokedAs("show-report"))).toEqual([]);
     });
