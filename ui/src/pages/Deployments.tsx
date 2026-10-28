@@ -161,7 +161,9 @@ export const Deployments: React.FC = () => {
                   showModal({
                     component: (
                       <DeleteDeploymentWarningModal
-                        onDelete={() => void deleteDeploymentFromChain(deployment)}
+                        onDelete={() =>
+                          void deleteDeploymentFromChain(deployment)
+                        }
                       />
                     ),
                   })
@@ -201,7 +203,15 @@ export const Deployments: React.FC = () => {
 
   const onDeploymentCreated = useCallback(
     (deployment: Deployment) => {
-      setDeployments((prev) => [...(prev ?? []), deployment]);
+      setDeployments((prev) => {
+        const list = prev ?? [];
+        // Redeploying an existing snapshot to its current micro domain returns the
+        // same `<domain>-<snapshotId>` id with an empty runtime, and the engine
+        // sends no event for an unchanged deployment, so keep the listed row.
+        return list.some((row) => row.id === deployment.id)
+          ? list
+          : [...list, deployment];
+      });
     },
     [setDeployments],
   );
