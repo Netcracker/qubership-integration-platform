@@ -83,8 +83,7 @@ public class HttpSenderDependencyBinder extends ElementProcessingAction {
     ) {
         HttpClientConfigurer httpClientConfigurer = clientBuilder -> {
             if (isKubernetesM2MEnabled(elementProperties)) {
-                clientBuilder.addExecInterceptorBefore(
-                        ChainElement.REDIRECT.name(), "m2m-fallback-interceptor", new M2MFallbackHandler(m2mUrlCache));
+                clientBuilder.addExecInterceptorFirst("m2m-fallback-interceptor", new M2MFallbackHandler(m2mUrlCache));
             }
 
             if (metricsStore.isMetricsEnabled()) {
