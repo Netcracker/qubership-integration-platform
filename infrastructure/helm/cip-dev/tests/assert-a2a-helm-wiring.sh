@@ -70,6 +70,7 @@ assert_absent() {
 
 assert_contains 'CREATE DATABASE ai_a2a;' 'fresh-volume init SQL for ai_a2a'
 assert_contains 'jdbc:postgresql://qip-dev-postgres:5432/ai_a2a' 'ConfigMap JDBC URL'
+assert_contains 'CATALOG_URL: "http://qip-dev-runtime-catalog-v1:8080"' 'catalog URL of the rendered catalog Service'
 assert_contains 'QUARKUS_DATASOURCE_JDBC_URL' 'datasource JDBC env'
 assert_contains 'QUARKUS_DATASOURCE_USERNAME' 'datasource username env'
 assert_contains 'QUARKUS_DATASOURCE_PASSWORD' 'datasource password env'
