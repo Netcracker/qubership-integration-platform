@@ -13,9 +13,17 @@ dependencies:
     version: 0.0.1
   - name: general
     version: 0.0.1
+  - name: kafka
+    version: 0.0.1
   - name: opensearch
     version: 0.0.1
   - name: postgres
+    version: 0.0.1
+  - name: pubsub
+    version: 0.0.1
+  - name: rabbitmq
+    version: 0.0.1
+  - name: sftp
     version: 0.0.1
   - name: cip-ai-service
     version: 0.0.1
