@@ -24,8 +24,6 @@ export interface MessageEntry {
 /** The reason every handler with no sender in `ui/src` carries; the harness reads its prefix. */
 export const NO_UI_SENDER = "no UI sender";
 
-const R_DIFF = "no case opens the chain diff yet";
-const R_EXPORT = "no case exports images yet";
 const R_SERVICE = "no case opens the service editor yet";
 const R_CONTEXT_MCP = "no case opens the context service or MCP service editor yet";
 const R_1214 = "#1214: the extension has no handler, so the UI receives an answer with no payload";
@@ -83,15 +81,18 @@ export const messageRegistry: MessageEntry[] = [
   covered("getOperationInfo"),
   covered("getContextServices"),
   covered("getMcpServices"),
-  ...notCovered(R_DIFF, "comparedDocumentsRequest", "navigateComparedDocumentInNewTab"),
-  ...notCovered(
-    R_EXPORT,
-    "saveExportedImage",
-    "exportImagesProgress",
-    "exportImagesComplete",
-    "exportImagesItemFailed",
-    "exportImagesItemWarning",
-  ),
+
+  // specs/vscode/chain-diff.spec.ts; `navigateComparedDocumentInNewTab` counts only through `sentMessage`.
+  covered("comparedDocumentsRequest"),
+  covered("navigateComparedDocumentInNewTab"),
+
+  // specs/vscode/export-images.spec.ts
+  covered("saveExportedImage"),
+  covered("exportImagesProgress"),
+  covered("exportImagesComplete"),
+  covered("exportImagesItemFailed"),
+  covered("exportImagesItemWarning"),
+
   ...notCovered(
     R_SERVICE,
     "updateService",

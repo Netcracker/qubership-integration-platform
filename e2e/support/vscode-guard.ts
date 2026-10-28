@@ -53,6 +53,9 @@ export function guardFailures(problems: readonly VsCodeProblem[], expected: read
   return [...unexpected, ...missing];
 }
 
+/** The experiment service the workbench of the pinned build asks for its assignments. */
+export const EXPERIMENT_SERVICE = "https://default.exp-tas.com/**";
+
 interface VsCodeFixtures {
   vscode: VsCodePage;
   /** Declares an error the case meets, by its exact message, so that the guard lets it through. */
@@ -62,9 +65,22 @@ interface VsCodeFixtures {
   sentMessage: (type: string) => Promise<void>;
   expectedErrors: string[];
   vscodeGuard: void;
+  experimentService: void;
 }
 
 export const test = base.extend<VsCodeFixtures>({
+  // The workbench asks the experiment service on the internet for its assignments some time after
+  // the load. Once its preflight answer carried no CORS header, and the page logged two
+  // console.error lines (2026-10-28). An empty answer keeps every case off the network.
+  experimentService: [
+    async ({ context }, use) => {
+      await context.route(EXPERIMENT_SERVICE, (route) =>
+        route.fulfill({ json: { Configs: [], AssignmentContext: "" }, headers: { "access-control-allow-origin": "*" } }),
+      );
+      await use();
+    },
+    { auto: true },
+  ],
   // The trap reaches every document loaded after it, and a case loads the workbench in its body.
   messages: [
     async ({ context }, use, testInfo) => {
