@@ -21,11 +21,12 @@ import {
   ColumnsTypeWithSettings,
   useColumnSettingsBasedOnColumnsType,
 } from "../table/useColumnSettingsButton";
-import { useTableConfiguration } from "../table/useTableConfiguration.tsx";
+import {
+  EXPAND_COLUMN_WIDTH,
+  SELECTION_COLUMN_WIDTH,
+  useTableConfiguration,
+} from "../table/useTableConfiguration.tsx";
 import commonStyles from "../admin_tools/CommonStyle.module.css";
-
-const DIAGNOSTIC_EXPAND_COLUMN_WIDTH = 48;
-const DIAGNOSTIC_SELECTION_COLUMN_WIDTH = 48;
 
 export const VALIDATION_STATE_TO_LABEL: { [key: string]: string } = {
   [ValidationState.OK]: "Finished",
@@ -227,8 +228,8 @@ export const Diagnostic: React.FC = () => {
       startTime: 180,
     },
     {
-      expandColumnWidth: DIAGNOSTIC_EXPAND_COLUMN_WIDTH,
-      selectionColumnWidth: DIAGNOSTIC_SELECTION_COLUMN_WIDTH,
+      expandColumnWidth: EXPAND_COLUMN_WIDTH,
+      selectionColumnWidth: SELECTION_COLUMN_WIDTH,
     },
     "diagnosticTable",
   );

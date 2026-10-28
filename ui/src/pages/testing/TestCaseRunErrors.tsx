@@ -16,11 +16,13 @@ import {
   ColumnsTypeWithSettings,
   useColumnSettingsBasedOnColumnsType,
 } from "../../components/table/useColumnSettingsButton.tsx";
-import { useTableConfiguration } from "../../components/table/useTableConfiguration.tsx";
+import {
+  SELECTION_COLUMN_WIDTH,
+  useTableConfiguration,
+} from "../../components/table/useTableConfiguration.tsx";
 import { getTestingPermissions } from "../../components/testing/testingPermissions.ts";
 import { RunStatusTag } from "../../components/testing/TestingTags.tsx";
 import { useTestingBulkActions } from "../../hooks/testing/useTestingBulkActions.ts";
-import { TESTING_SELECTION_COLUMN_WIDTH } from "../../hooks/testing/useTestingEntityList.ts";
 import { useNotificationService } from "../../hooks/useNotificationService.tsx";
 import { downloadFile } from "../../misc/download-utils.ts";
 import { formatOptional, formatTimestamp } from "../../misc/format-utils.ts";
@@ -240,7 +242,7 @@ export const TestCaseRunErrors: React.FC = () => {
     orderedColumns,
     COLUMN_WIDTHS,
     {
-      selectionColumnWidth: TESTING_SELECTION_COLUMN_WIDTH,
+      selectionColumnWidth: SELECTION_COLUMN_WIDTH,
     },
     "testCaseRunErrorsTable",
   );

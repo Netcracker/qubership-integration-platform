@@ -15,14 +15,15 @@ import {
   ColumnsTypeWithSettings,
   useColumnSettingsBasedOnColumnsType,
 } from "../../table/useColumnSettingsButton";
-import { useTableConfiguration } from "../../table/useTableConfiguration.tsx";
+import {
+  SELECTION_COLUMN_WIDTH,
+  useTableConfiguration,
+} from "../../table/useTableConfiguration.tsx";
 import { tableScroll } from "../../table/tableScroll.ts";
 import { AdminToolsHeader } from "../AdminToolsHeader.tsx";
 import { TableToolbar } from "../../table/TableToolbar.tsx";
 import { matchesByFields } from "../../table/tableSearch.ts";
 import { useDesignTemplatesFilter } from "../../../hooks/filter/useDesignTemplatesFilter.ts";
-
-const DESIGN_TEMPLATES_SELECTION_COLUMN_WIDTH = 48;
 
 function designTemplateMatchesSearch(
   template: DetailedDesignTemplate,
@@ -85,7 +86,7 @@ export const DesignTemplates: React.FC = () => {
       sorter: (a, b) => {
         if (a.builtIn === b.builtIn) {
           return 0;
-        } else if (a.builtIn === false && b.builtIn === true) {
+        } else if (!a.builtIn && b.builtIn) {
           return -1;
         } else {
           return 1;
@@ -120,7 +121,7 @@ export const DesignTemplates: React.FC = () => {
       type: 160,
       createdWhen: 180,
     },
-    { selectionColumnWidth: DESIGN_TEMPLATES_SELECTION_COLUMN_WIDTH },
+    { selectionColumnWidth: SELECTION_COLUMN_WIDTH },
     "designTemplatesTable",
   );
 
@@ -248,6 +249,18 @@ export const DesignTemplates: React.FC = () => {
             actions={
               <>
                 <ProtectedButton
+                  require={{ designTemplate: ["export"] }}
+                  tooltipProps={{
+                    title: "Export selected template",
+                    placement: "bottom",
+                  }}
+                  buttonProps={{
+                    disabled: selectedRowKeys.length !== 1,
+                    iconName: "cloudDownload",
+                    onClick: () => void handleExport(),
+                  }}
+                />
+                <ProtectedButton
                   require={{ designTemplate: ["delete"] }}
                   tooltipProps={{
                     title: "Delete selected templates",
@@ -267,27 +280,12 @@ export const DesignTemplates: React.FC = () => {
                   }}
                 />
                 <ProtectedButton
-                  require={{ designTemplate: ["export"] }}
-                  tooltipProps={{
-                    title: "Export selected template",
-                    placement: "bottom",
-                  }}
-                  buttonProps={{
-                    disabled: selectedRowKeys.length !== 1,
-                    iconName: "cloudDownload",
-                    onClick: () => void handleExport(),
-                  }}
-                />
-                <ProtectedButton
                   require={{ designTemplate: ["create"] }}
-                  tooltipProps={{
-                    title: "Create template",
-                    placement: "bottom",
-                  }}
+                  tooltipProps={{}}
                   buttonProps={{
                     "data-testid": "design-templates-create",
                     type: "primary",
-                    iconName: "plus",
+                    children: "Create Template",
                     onClick: handleCreate,
                   }}
                 />
