@@ -60,7 +60,7 @@ export const CreateDesignTemplateModal: React.FC<
           label="Name"
           rules={[{ required: true, message: "Name is required" }]}
         >
-          <Input />
+          <Input placeholder="Enter template name" />
         </Form.Item>
 
         <Form.Item
@@ -97,7 +97,7 @@ export const CreateDesignTemplateModal: React.FC<
             <p className="ant-upload-drag-icon">
               <OverridableIcon name="inbox" />
             </p>
-            <p className="ant-upload-text">Drop .ftl file here to attach</p>
+            <p className="ant-upload-text">Drag .ftl file here to attach</p>
           </Dragger>
         </Form.Item>
 

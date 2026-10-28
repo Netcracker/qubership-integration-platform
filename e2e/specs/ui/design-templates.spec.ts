@@ -28,7 +28,7 @@ test.describe("design templates", () => {
       await page.getByTestId("design-templates-create").click();
       const dialog = page.getByRole("dialog", { name: "Create Template" });
       const chooser = page.waitForEvent("filechooser");
-      await dialog.getByText("Drop .ftl file here to attach").click();
+      await dialog.getByText("Drag .ftl file here to attach").click();
       await (await chooser).setFiles(file);
       // An empty Name takes the file's name without the extension.
       await expect(dialog.getByRole("textbox", { name: "Name" })).toHaveValue(name);
