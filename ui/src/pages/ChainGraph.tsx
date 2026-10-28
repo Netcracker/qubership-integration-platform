@@ -296,6 +296,7 @@ const ChainGraphInner: React.FC = () => {
           buttonProps={{
             iconName: "diagram",
             onClick: openSequenceDiagram,
+            "data-testid": "chain-sequence-diagram",
           }}
         />
         {!isVsCode && (

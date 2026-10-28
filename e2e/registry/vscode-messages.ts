@@ -24,9 +24,6 @@ export interface MessageEntry {
 /** The reason every handler with no sender in `ui/src` carries; the harness reads its prefix. */
 export const NO_UI_SENDER = "no UI sender";
 
-const R_PROPERTIES = "no case edits chain or element properties yet";
-const R_FORMS = "no case opens an element form that lists services yet";
-const R_NAVIGATION = "no case navigates between chains yet";
 const R_DIFF = "no case opens the chain diff yet";
 const R_EXPORT = "no case exports images yet";
 const R_SERVICE = "no case opens the service editor yet";
@@ -60,19 +57,32 @@ export const messageRegistry: MessageEntry[] = [
     status: "not-covered",
     reason: "no screen calls api.getConnections: the chain editor reads the dependencies from getChain",
   },
-  ...notCovered(
-    R_PROPERTIES,
-    "updateElement",
-    "updateChain",
-    "getMaskedFields",
-    "createMaskedField",
-    "updateMaskedField",
-    "deleteMaskedFields",
-    "getElementsByType",
-  ),
-  ...notCovered(R_FORMS, "getServices", "getEnvironment", "getLatestApiSpecification", "getContextServices", "getMcpServices"),
   // `openChainInNewTab` and `navigateInNewTab` count only through `sentMessage`: the extension posts no answer.
-  ...notCovered(R_NAVIGATION, "findChainByElementId", "openChainInNewTab", "navigateInNewTab", "moveChain"),
+  covered("findChainByElementId"),
+  covered("getElementsByType"),
+  covered("openChainInNewTab"),
+  covered("navigateInNewTab"),
+
+  // specs/vscode/chain-properties.spec.ts
+  covered("updateChain"),
+  covered("moveChain"),
+  covered("getMaskedFields"),
+  covered("createMaskedField"),
+  covered("updateMaskedField"),
+  covered("deleteMaskedFields"),
+
+  // specs/vscode/element-forms.spec.ts
+  covered("updateElement"),
+  covered("getServices"),
+  covered("getService"),
+  covered("getEnvironments"),
+  covered("getEnvironment"),
+  covered("getApiSpecifications"),
+  covered("getLatestApiSpecification"),
+  covered("getOperations"),
+  covered("getOperationInfo"),
+  covered("getContextServices"),
+  covered("getMcpServices"),
   ...notCovered(R_DIFF, "comparedDocumentsRequest", "navigateComparedDocumentInNewTab"),
   ...notCovered(
     R_EXPORT,
@@ -84,16 +94,11 @@ export const messageRegistry: MessageEntry[] = [
   ),
   ...notCovered(
     R_SERVICE,
-    "getService",
     "updateService",
     "createService",
-    "getEnvironments",
     "createEnvironment",
     "updateEnvironment",
     "deleteEnvironment",
-    "getApiSpecifications",
-    "getOperations",
-    "getOperationInfo",
     "getSpecificationModel",
     "updateApiSpecificationGroup",
     "updateSpecificationModel",

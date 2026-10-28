@@ -1,0 +1,19 @@
+---
+id: "e2e20008-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "vsc-fixture-chain-checkpoint"
+content:
+  description: "A checkpoint with the retry path the extension gives a new one"
+  labels: []
+  elements:
+  - id: "e2e20008-0000-4000-8000-000000000002"
+    name: "Checkpoint"
+    type: "checkpoint"
+    properties:
+      checkpointElementId: "e2e20008-0000-4000-8000-000000000002"
+      contextPath: "/chains/e2e20008-0000-4000-8000-000000000001/sessions/{checkpointSessionId}/checkpoint-elements/e2e20008-0000-4000-8000-000000000002/retry"
+      externalRoute: false
+      httpMethodRestrict: "POST"
+  dependencies: []
+  deployAction: "SNAPSHOT"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

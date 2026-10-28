@@ -1,6 +1,6 @@
 import type { FrameLocator, Locator, Page } from "@playwright/test";
 
-/** The deadline of `readAsText`, the expect timeout the suite sets. */
+/** The deadline of `readText`, the expect timeout the suite sets. */
 const TEXT_DEADLINE_MS = 30_000;
 
 /** Escapes `text` for use inside a regular expression. */
@@ -21,12 +21,15 @@ export class VsCodePage {
   readonly webview: FrameLocator;
   /** The text editor of the active editor group, once its model is attached. */
   readonly textEditor: Locator;
+  /** The tab of the active editor, named by the file it shows. */
+  readonly activeTab: Locator;
 
   constructor(page: Page) {
     this.page = page;
     this.quickInput = page.locator(".quick-input-widget");
     this.webview = page.frameLocator("iframe.webview.ready:visible").frameLocator("#active-frame");
     this.textEditor = page.locator(".editor-group-container.active .monaco-editor[data-uri]");
+    this.activeTab = page.locator(".editor-group-container.active .tab.active");
   }
 
   async open(): Promise<void> {
@@ -50,14 +53,19 @@ export class VsCodePage {
     await this.pick("F1", `>${title}`, new RegExp(`^${literal(title)}(,|$)`));
   }
 
-  /**
-   * Reopens the active custom editor as text and returns its text, copied through the clipboard with
-   * the line breaks turned back into `\n` (the Windows user agent copies `\r\n`). The extension
-   * writes a change to the in-memory file system, whose change event fires after a debounce, so with
-   * `until` the copy repeats until `until` returns true for the text.
-   */
+  /** Reopens the active custom editor as text and returns its text, as `readText` reads it. */
   async readAsText(until?: (text: string) => boolean): Promise<string> {
     await this.runCommand("View: Reopen Editor with Text Editor");
+    return await this.readText(until);
+  }
+
+  /**
+   * Returns the text of the active text editor, copied through the clipboard with the line breaks
+   * turned back into `\n` (the Windows user agent copies `\r\n`). The extension writes a change to
+   * the in-memory file system, whose change event fires after a debounce, so with `until` the copy
+   * repeats until `until` returns true for the text.
+   */
+  async readText(until?: (text: string) => boolean): Promise<string> {
     const deadline = Date.now() + TEXT_DEADLINE_MS;
     for (;;) {
       await this.textEditor.locator(".view-lines").click();

@@ -78,17 +78,19 @@ test.describe("vscode messages", () => {
       const { reported, receive } = frameWithTrap();
       receive({ requestId: "r1", type: "getChain", payload: {} });
       receive({ requestId: "r2", type: "getLibrary", error: { message: "boom", name: "Error" } });
+      receive({ requestId: "r3", type: "getSpecificationModelSource", payload: undefined });
       receive({ type: "theme-update", payload: {} });
       expect(reported).toEqual([
-        { direction: "received", type: "getChain", requestId: "r1", error: false },
-        { direction: "received", type: "getLibrary", requestId: "r2", error: true },
+        { direction: "received", type: "getChain", requestId: "r1", error: false, payload: true },
+        { direction: "received", type: "getLibrary", requestId: "r2", error: true, payload: false },
+        { direction: "received", type: "getSpecificationModelSource", requestId: "r3", error: false, payload: false },
       ]);
     });
   });
 
   test.describe("pairing", () => {
     const sent = (type: string, requestId: string): BridgeMessage => ({ direction: "sent", type, requestId });
-    const answer = (type: string, requestId: string, error = false): BridgeMessage => ({ direction: "received", type, requestId, error });
+    const answer = (type: string, requestId: string, error = false, payload = true): BridgeMessage => ({ direction: "received", type, requestId, error, payload });
 
     test("an answer without an error marks its request's type", () => {
       const recorder = new MessageRecorder();
@@ -100,6 +102,20 @@ test.describe("vscode messages", () => {
       expect(recorder.answered()).toEqual(["getChain"]);
       expect(recorder.sent("getLibrary")).toBe(true);
       expect(recorder.sent("getElements")).toBe(false);
+    });
+
+    test("an answer with no payload is told apart", () => {
+      const recorder = new MessageRecorder();
+      recorder.record(sent("getSpecificationModelSource", "r1"));
+      recorder.record(sent("getChain", "r2"));
+      recorder.record(sent("getLibrary", "r3"));
+      recorder.record(answer("getSpecificationModelSource", "r1", false, false));
+      recorder.record(answer("getChain", "r2"));
+      recorder.record(answer("getLibrary", "r3", true, false));
+      expect(recorder.answeredWithoutPayload("getSpecificationModelSource")).toBe(true);
+      expect(recorder.answeredWithoutPayload("getChain")).toBe(false);
+      // An error is an answer of its own kind.
+      expect(recorder.answeredWithoutPayload("getLibrary")).toBe(false);
     });
 
     test("comparedDocumentsResponse answers comparedDocumentsRequest", () => {
@@ -122,7 +138,7 @@ test.describe("vscode messages", () => {
       const recorder = new MessageRecorder();
       for (const [index, type] of ["getChain", ...EFFECT_ONLY_TYPES].entries()) {
         recorder.record({ direction: "sent", type, requestId: `r${index}` });
-        recorder.record({ direction: "received", type, requestId: `r${index}`, error: false });
+        recorder.record({ direction: "received", type, requestId: `r${index}`, error: false, payload: true });
       }
       expect(recorder.covered()).toEqual(["getChain"]);
     });

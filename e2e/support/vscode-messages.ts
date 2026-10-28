@@ -25,13 +25,14 @@ export const EFFECT_ONLY_TYPES: readonly string[] = ["openChainInNewTab", "navig
 /** One message the init script saw, in either direction. */
 export type BridgeMessage =
   | { direction: "sent"; type: string; requestId: string }
-  | { direction: "received"; type: string; requestId: string; error: boolean };
+  | { direction: "received"; type: string; requestId: string; error: boolean; payload: boolean };
 
 /** Pairs what the webviews sent with what the extension answered. */
 export class MessageRecorder {
   /** The type of every request sent, by its `requestId`. */
   private readonly requests = new Map<string, string>();
   private readonly answeredTypes = new Set<string>();
+  private readonly emptyAnswers = new Set<string>();
 
   record(message: BridgeMessage): void {
     if (message.direction === "sent") {
@@ -41,12 +42,19 @@ export class MessageRecorder {
     // An answer marks the type of its request: `comparedDocumentsResponse` counts for `comparedDocumentsRequest`.
     // An unknown `requestId` is a message the extension started, such as its own `navigate`.
     const type = this.requests.get(message.requestId);
-    if (type !== undefined && !message.error) this.answeredTypes.add(type);
+    if (type === undefined || message.error) return;
+    this.answeredTypes.add(type);
+    if (!message.payload) this.emptyAnswers.add(type);
   }
 
   /** Whether any webview sent a request of `type`. */
   sent(type: string): boolean {
     return [...this.requests.values()].includes(type);
+  }
+
+  /** Whether a request of `type` was answered with neither an error nor a payload. */
+  answeredWithoutPayload(type: string): boolean {
+    return this.emptyAnswers.has(type);
   }
 
   /** The types answered without an error, in the order of their first answer. */
@@ -93,10 +101,10 @@ export function trapAcquireVsCodeApi(binding: string): void {
           setState: (state: unknown) => api.setState(state),
         });
       };
-      window.addEventListener("message", (event: MessageEvent<{ type?: unknown; requestId?: unknown; error?: unknown }>) => {
-        const { type, requestId, error } = event.data ?? {};
+      window.addEventListener("message", (event: MessageEvent<{ type?: unknown; requestId?: unknown; error?: unknown; payload?: unknown }>) => {
+        const { type, requestId, error, payload } = event.data ?? {};
         if (typeof type === "string" && typeof requestId === "string") {
-          report({ direction: "received", type, requestId, error: error !== undefined });
+          report({ direction: "received", type, requestId, error: error !== undefined, payload: payload !== undefined });
         }
       });
     },
