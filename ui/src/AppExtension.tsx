@@ -18,8 +18,10 @@ import { BatchExportRunner } from "./batch/export/BatchExportRunner.tsx";
 import { NotImplemented } from "./pages/NotImplemented.tsx";
 import { Masking } from "./pages/Masking.tsx";
 import {
+  NAVIGATE_EVENT,
   STARTUP_EVENT,
   VSCodeExtensionApi,
+  VSCodeResponse,
 } from "./api/rest/vscodeExtensionApi.ts";
 import { api } from "./api/api.ts";
 
@@ -107,6 +109,21 @@ const AppExtension = () => {
         "theme-variables-updated",
         handleThemeVariablesUpdated,
       );
+    };
+  }, []);
+
+  // The extension sends a path both on startup and when a "Go to" link activates an open tab.
+  useEffect(() => {
+    const onMessage = (event: MessageEvent<VSCodeResponse<unknown>>) => {
+      const { type, payload } = event.data;
+      if (type === NAVIGATE_EVENT && typeof payload === "string") {
+        void router.navigate(payload);
+      }
+    };
+
+    window.addEventListener("message", onMessage);
+    return () => {
+      window.removeEventListener("message", onMessage);
     };
   }, []);
 
