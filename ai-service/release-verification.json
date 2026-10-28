@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-28",
-  "status": "BLOCKED_PENDING_REQUIREMENT_CAPTURE_SELECTION",
-  "applicationSourceRevision": "d50e6e4f663293cf507dfae4f85e074e19bdbe2b",
+  "status": "BLOCKED_PENDING_SOURCE_ID_HINT_SELECTION",
+  "applicationSourceRevision": "1b9bf03f56f3ba602bc8b16522e0b1e97c035200",
   "localImages": {
     "qip-ai-service:qa-20261028-28d88a78-with-skills": {
       "id": "sha256:738061295fde7b788f9d468674596e090dbfae003e6107032139897b52b82509",
@@ -776,7 +776,7 @@
     },
     "captureProvenance": "PASS: all citations occur in captured documentation read results."
   },
-  "currentFollowUp": {
+  "previousFollowUp": {
     "status": "BLOCKED_PENDING_REQUIREMENT_CAPTURE_SELECTION",
     "userApprovedBothRemainingFixes": true,
     "sourceRevision": "d50e6e4f663293cf507dfae4f85e074e19bdbe2b",
@@ -922,6 +922,183 @@
       "secretValuePrinted": false,
       "pattern": "OpenAI API key pattern",
       "evidence": "Ignored local evidence: secret-evidence-scan-final.json"
+    }
+  },
+  "currentFollowUp": {
+    "status": "BLOCKED_PENDING_SOURCE_ID_HINT_SELECTION",
+    "sourceRevision": "1b9bf03f56f3ba602bc8b16522e0b1e97c035200",
+    "implementedChange": {
+      "independentReview": "PASS",
+      "changedFiles": 17,
+      "scopedTests": {
+        "tests": 446,
+        "failures": 0,
+        "errors": 0,
+        "status": "PASS",
+        "skipped": 0
+      },
+      "scope": "Typed source-fact references and source pins reopen the existing owner stage; exact-quote restoration proposals cover reported fields; source-turn approval/control pins are preflighted before compare-and-set; replay is null-safe and synchronous; connected-stage controls avoid repeated/wrapper loops and preserve sequential ownership without granting ineligible continuation.",
+      "newProcessOrBudget": false,
+      "regressionRed": {
+        "test": "RequirementSourceReviewProviderTest.unsupportedDraftAdditionRetainsItsNativeOwnerAndPinnedSourceEvidence",
+        "stage": "Before the behavior fix, after adding the transport shape needed by the test",
+        "tests": 1,
+        "failures": 1,
+        "observed": "Expected native fact owner script_behavior; actual originRecordId was empty.",
+        "evidence": "Ignored local evidence: source-reconciliation/provider-red.log"
+      }
+    },
+    "candidateBuild": {
+      "sourceRevision": "1b9bf03f56f3ba602bc8b16522e0b1e97c035200",
+      "full": "PASS_READY",
+      "base": "PASS_BUILT",
+      "sidecar": "PASS_BUILT",
+      "fullImageIdPrefix": "75c888",
+      "baseImageIdPrefix": "67a9a25",
+      "sidecarImageIdPrefix": "b2d927",
+      "privatePackageFingerprints": "MATCH_SOURCE_INPUTS",
+      "packageCertification": "CERTIFIED_READ_ONLY",
+      "documentationManifest": {
+        "entriesServed": 93,
+        "entriesTotal": 864
+      },
+      "sharedContainerChanges": {},
+      "sourceOperationsModelRequestsBeforeLiveRepeat": 0
+    },
+    "greetingsRepeat": {
+      "status": "FAIL_EARLIER_DISCOVERY_HALT",
+      "evidenceStatus": "SOURCE_EVIDENCE_REQUIRED",
+      "conversationId": "da0549ee-321d-428c-b284-da632474522d",
+      "runRevision": 6,
+      "halt": "clarify:6",
+      "currentState": "WAITING_FOR_INPUT",
+      "failedSourceTurnId": "af665054-a1e3-46c4-9241-b3228088b205",
+      "actualSourceTurnId": "af665054-a1e3-46c4-9241-b3228089b205",
+      "repeatCapture": "UNCHANGED_PROPOSAL",
+      "unsupportedLanguageAddition": "Groovy was added although the prompt did not specify a script language.",
+      "committedArtifacts": [
+        "RUN_MANIFEST"
+      ],
+      "sourceReviewOrReconciliation": "NOT_REACHED",
+      "analysis": "NOT_REACHED",
+      "materialization": "NOT_REACHED",
+      "openApi": "NOT_RUN",
+      "ui": "NOT_RUN",
+      "catalog": "NOT_RUN",
+      "runtime": "NOT_RUN",
+      "semanticJudge": "NOT_RUN",
+      "inputOrBudgetChanged": false,
+      "loggerLimitation": "Request messages are logger previews, not exact full-message replay; raw durable source-store export is unavailable.",
+      "evidence": "Ignored local evidence: reconciled-greetings-repeat/report.md, result.json, decision-card.json, captured-tool-calls.json, captures, and evidence-manifest.json.",
+      "assessment": "The draft cited a mismatched source-turn UUID even though the correct ID was present in the complete pending-source fragment and model request context. The tool error supplied no replacement ID. This does not show that guidance or context was absent, and does not establish a source-reconciliation code defect. The run halted before analysis, so the new linkage was not exercised.",
+      "independentCaptureReview": "PASS_CLOSURE",
+      "correctSourceIdPresentInPendingFragmentAndModelRequestContext": true,
+      "sourceToolFeedback": "The complete 111-character error says: \u201cCorrect the call and try once more.\u201d It supplies no replacement source ID.",
+      "evidenceManifest": {
+        "filesHashed": 38,
+        "sha256": "60bc6a58ca93be2f73ecc7ec3bf6df6e3df4bc5dddba677bc9600bc04159cbb9"
+      }
+    },
+    "fullModuleAcceptance": {
+      "status": "PASS",
+      "tests": 6675,
+      "freshReports": 626,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 11,
+      "exitCode": 0,
+      "durationSeconds": 315.421,
+      "selection": "*Test,*IT,!**/a2a/**",
+      "a2aPackageTestSetExecuted": false,
+      "c1LocalJdkWorkaround": "Temurin 21.0.6",
+      "c2SigsegvArtifact": "PRESERVED",
+      "reportArchive": "Ignored local evidence: source-reconciliation/full-module/fresh-surefire-reports.zip",
+      "reportArchiveSha256": "8c9bf9d7673d30b77a94f563090f197e5a1d23ae597660afc46bd31059805f6a",
+      "evidence": "Ignored local evidence: source-reconciliation/full-module/summary.json and maven.log.",
+      "dedicatedA2aSuitesExecuted": 0,
+      "incidentalA2aNamedCasesExecuted": [
+        "browserCreateChainWorksWhenA2aDisabled",
+        "aiA2aDataSource_usesLogicalDbNameAndTenantClassifier",
+        "productionBrowserAndA2aShareTheFacadeSeam",
+        "browserAndA2aShareTheS3BackedFacade",
+        "a2aRetryStaysPinnedToTheOriginalOffer",
+        "browserAndA2aAdaptersInvokeSameFacadeWithDifferentSerialization"
+      ],
+      "independentXmlAndArchiveVerification": "PASS"
+    },
+    "previousGreenRun": {
+      "tests": 6607,
+      "failures": 0,
+      "errors": 0,
+      "status": "HISTORICAL_DOES_NOT_COVER_CURRENT_SOURCE_REVISION"
+    },
+    "restartIntegrationTest": "DEFERRED_USER_PRIORITY_REQUIRED_BEFORE_PUSH",
+    "testingArchive": {
+      "files": 139,
+      "sha256": "UNCHANGED_FROM_PRIOR_VERIFIED_BASELINE"
+    },
+    "pushPerformed": false,
+    "sourceChangesAuthorized": false,
+    "userDecision": {
+      "status": "PENDING_MINIMAL_AVAILABLE_SOURCE_ID_HINT_SELECTION",
+      "question": "Should the next native feedback provide only a minimal hint containing the already available source ID, while strict source-evidence checks remain unchanged?",
+      "proposedFeedbackLabel": "CURRENT_SOURCE_ID",
+      "labelIsObservedErrorCode": false
+    },
+    "preparationEvidenceReview": {
+      "status": "PASS_INDEPENDENT_CLOSURE",
+      "originalPreparedSha256": "76b9505466019b82394495daee8f5dfb6c58c49da01f479c057bfd7de8a3e58e",
+      "settledContractSha256": "3e2bbfade36802bf5ec4a21daf14e994cb68603a05b8b27f29027045c2a87ae8",
+      "reconstruction": "prepared-contract-reconstructed.json reverses six documented execution-metadata changes and reproduces the preparation hash exactly; this is reconstructed data, not an original pre-run backup.",
+      "preparationManifest": "UNCHANGED",
+      "frozenInputsAndRequestIntegrity": "PROOF_MATCH",
+      "exactFullModelRequestReplay": "NOT_PROVEN",
+      "modelCallsForProofCorrection": 0,
+      "independentClosureReview": "PASS",
+      "evidence": "Ignored local evidence: reconciled-greetings-repeat/contract-history-proof.json and evidence-manifest.json.",
+      "independentlyReviewedHashedFiles": 38,
+      "claimLimits": [
+        "Reconstructed prepared bytes match the original preparation SHA-256.",
+        "The reconstructed file is not an original pre-run backup.",
+        "Exact full model-request replay is not proven."
+      ]
+    },
+    "finalImageOperations": {
+      "baseHealthVerification": "PASS",
+      "baseEndpoint": "http://127.0.0.1:58182",
+      "baseImageId": "sha256:67a9a25bad7a7e10d8444cb7efb34f68859b90898ac78ca8f9393b95fbe2db62",
+      "restoreFullImage": "PASS",
+      "fullEndpoint": "http://127.0.0.1:58211",
+      "fullImageId": "sha256:75c888e2bd77fb0384cddc67e08b6389cdba2cbe7472f10bbd169110a3f24395",
+      "sidecarImageId": "sha256:b2d9271ca7e961de6599d33a93f4cac043ea04bf70dc50176b4a0730c8037682",
+      "sourceRevision": "1b9bf03f56f3ba602bc8b16522e0b1e97c035200",
+      "aiAndSidecarHealth": "UP",
+      "packageCertification": "CERTIFIED",
+      "knowledgeMountReadOnly": true,
+      "documentationManifest": {
+        "entriesServed": 93,
+        "entriesTotal": 864
+      },
+      "sharedContainerChanges": {},
+      "modelRequests": 0,
+      "evidence": "Ignored local evidence: candidate-luna/evidence/base-readiness.json and final-full-readiness.json."
+    },
+    "captureArchive": {
+      "sourceRevision": "1b9bf03f56f3ba602bc8b16522e0b1e97c035200",
+      "requestResponsePairs": 9,
+      "rawCaptureSha256": "805328c4c5ee4f47fad3f29fb1da97dc5de2de80d7e4c558e19df49ab0913ab1",
+      "path": "Ignored local evidence: candidate-luna/build/archive-revision-1b9bf03f-before-lifecycle/collected-full-candidate-captures/"
+    },
+    "finalSecretPatternScan": {
+      "status": "PASS_SCOPED",
+      "filesExamined": 4903,
+      "matchingFiles": 0,
+      "pattern": "Exact current OpenAI API key pattern",
+      "valuePrinted": false,
+      "scope": "UTF-8 evidence and helper files; frozen source, generated knowledge, large files, and binary files excluded.",
+      "doesNotGuarantee": "This scoped scan is not a general guarantee that every secret is absent.",
+      "evidence": "Ignored local evidence: source-reconciliation/secret-evidence-scan.json",
+      "evidenceSha256": "1359416a370e3859a1be4958ba32dc33d42112827047943e87e050870349c133"
     }
   }
 }
