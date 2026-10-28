@@ -191,6 +191,30 @@ describe("McpServiceParametersPage", () => {
     expect(screen.getByRole("button", { name: /save/i })).not.toBeDisabled();
   });
 
+  // Save used to stay enabled after a successful save, as if changes were still unsaved (#1226).
+  it("should disable the Save button after a successful save until the next change", async () => {
+    renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Name")).toBeInTheDocument(),
+    );
+
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "Changed Name" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /save/i }));
+
+    await waitFor(() => expect(mockUpdateMcpSystem).toHaveBeenCalled());
+    // The form is disabled while the save runs, so an enabled field marks its end.
+    await waitFor(() => expect(screen.getByLabelText("Name")).toBeEnabled());
+    expect(screen.getByRole("button", { name: /save/i })).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "Changed again" },
+    });
+    expect(screen.getByRole("button", { name: /save/i })).not.toBeDisabled();
+  });
+
   // --- Save pipeline -------------------------------------------------------
 
   it("should call api.updateMcpSystem with the correct systemId and system values when the form is submitted", async () => {

@@ -48,8 +48,9 @@ export function buildTypeOptions(
     ...baseTypes,
     ...arrayTypes,
     ...referenceTypes,
-  ].map((t) => ({
-    value: MappingUtil.generateUUID(),
+  ].map((t, index) => ({
+    // Stable across rebuilds, so a value held by an open editor still matches an option.
+    value: String(index),
     label: DataTypes.buildTypeName(t, typeDefinitions),
     type: t,
   }));

@@ -70,6 +70,7 @@ export const McpServiceParametersPage: React.FC = () => {
         setIsSaving(true);
         const result = await api.updateMcpSystem(id, changes);
         setSystem(result);
+        setHasChanges(false);
         setErrorText(null);
       } catch (e) {
         notificationService.requestFailed("Failed to update MCP service", e);

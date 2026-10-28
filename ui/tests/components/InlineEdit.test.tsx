@@ -45,6 +45,17 @@ function renderCell(
   );
 }
 
+function cell(name: string, initialActive?: boolean) {
+  return (
+    <InlineEdit<{ name: string }>
+      values={{ name }}
+      editor={<TextValueEdit name="name" />}
+      viewer={<span>{name}</span>}
+      initialActive={initialActive}
+    />
+  );
+}
+
 describe("InlineEdit", () => {
   // A submit used to flip the editor twice and land back open, which reads as a
   // field that refused to save.
@@ -96,6 +107,28 @@ describe("InlineEdit", () => {
     // the handler was reached at all above.
     fireEvent.focusOut(input, { relatedTarget: document.body });
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+  });
+
+  // Every redraw of the caller passes a new values object. Each one used to put the
+  // stored value back into the open editor and drop what the user had typed (#1226).
+  it("should keep what the user typed when the caller redraws", () => {
+    const { rerender } = render(cell("before", true));
+
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "typed" },
+    });
+    rerender(cell("before", true));
+
+    expect(screen.getByRole("textbox")).toHaveValue("typed");
+  });
+
+  it("should show the current value when the editor opens", () => {
+    const { rerender } = render(cell("before"));
+
+    rerender(cell("after"));
+    fireEvent.click(screen.getByRole("button"));
+
+    expect(screen.getByRole("textbox")).toHaveValue("after");
   });
 
   // A rejected save keeps the editor open so the value can be retyped.

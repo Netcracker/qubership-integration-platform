@@ -100,7 +100,8 @@ export function InlineEditWithButtons<Values>(
       form.setFieldsValue(props.values);
       setHasChanges(false);
     }
-  }, [props.values, active, form]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- read values on open only; callers pass a new object on every render
+  }, [active, form]);
 
   const toggle = useCallback(() => {
     setActive((prev) => {
