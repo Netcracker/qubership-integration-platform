@@ -1,0 +1,158 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-28",
+  "status": "IN_PROGRESS",
+  "applicationSourceRevision": "28d88a78ccdd345a70a13a762ccb7c142580f2b1",
+  "localImages": {
+    "qip-ai-service:qa-20261028-28d88a78-with-skills": {
+      "id": "sha256:738061295fde7b788f9d468674596e090dbfae003e6107032139897b52b82509",
+      "repoDigests": [],
+      "revision": "28d88a78ccdd345a70a13a762ccb7c142580f2b1"
+    },
+    "qip-ai-service:qa-20261028-28d88a78-base": {
+      "id": "sha256:eff2f73ee0a12f60560d04e83289648721978a6a195ebb43470b51a11738075a",
+      "repoDigests": [],
+      "revision": "28d88a78ccdd345a70a13a762ccb7c142580f2b1"
+    },
+    "qip-knowledge-sidecar:qa-20261028-28d88a78": {
+      "id": "sha256:7fc6081f8cf0e1d7c699cebb84c38f90f9ecbe36bf55bfbd9f7ee7210ff187fc",
+      "repoDigests": [],
+      "revision": "28d88a78ccdd345a70a13a762ccb7c142580f2b1"
+    }
+  },
+  "checks": {
+    "ui": {
+      "commit": "94d60447e",
+      "eslint": "PASS",
+      "jestTests": 13,
+      "types": "PASS",
+      "format": "PASS",
+      "independentReview": "PASS"
+    },
+    "packageInventory": {
+      "commit": "0e676db9a",
+      "certifiedTests": 4,
+      "independentReview": "PASS"
+    },
+    "documentationInstructions": {
+      "commit": "28d88a78ccdd345a70a13a762ccb7c142580f2b1",
+      "tests": 5,
+      "independentReview": "PASS",
+      "liveRecheck": "PENDING"
+    },
+    "javaBaseline": {
+      "commit": "c211950ab",
+      "tests": 6578,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 11,
+      "remainingFailure": "RecoveryDecisionSchemasTest.aQuestionAboutConflictingAuthorValuesRemainsRepresentableAndNativeValidated",
+      "productionFix": "DEFERRED_BY_USER"
+    },
+    "candidateBuild": {
+      "full": "PASS",
+      "base": "PASS",
+      "mavenTests": "SKIPPED_FOR_PACKAGING",
+      "privateResourcesOnlyInFull": true,
+      "testingBundleIncluded": false,
+      "sharedContainersChanged": false,
+      "independentReview": "PASS"
+    }
+  },
+  "liveAcceptance": {
+    "configuredProvider": "OpenAI direct",
+    "requestedModel": "gpt-6-luna",
+    "nativeCaseBudget": "Existing case budget; no additional recovery credit",
+    "semanticJudge": "NOT_RUN",
+    "ui": "NOT_RUN",
+    "runtime": "NOT_RUN",
+    "cases": [
+      {
+        "id": "product-create-chain-greetings",
+        "status": "PASS_SCOPED_AFTER_SETUP_CORRECTIONS",
+        "conversationId": "b3141bb6-15c2-4331-94da-dfdda4d64d0e",
+        "chainId": "8f8555fe-adb5-40db-9e06-62f1e3c3ac4d",
+        "chainName": "AiCreateSmoke.20261028T115702.r1",
+        "nativeValidation": "PASS",
+        "reconcile": true,
+        "materialization": "PASS",
+        "requirements": "PASS_NATIVE_AND_INDEPENDENT_CATALOG_REVIEW",
+        "scriptChecks": "PASS_STATIC_REVIEW_ONLY",
+        "unsavedChanges": true,
+        "deployment": "NOT_RUN",
+        "providerCapture": {
+          "requestedModel": "gpt-6-luna",
+          "returnedModel": "gpt-6-luna",
+          "endpoint": "https://api.openai.com/v1",
+          "successfulConversation": {
+            "requests": 24,
+            "responses": 24,
+            "initialSeedRequests": 9,
+            "continuationRequests": 15
+          },
+          "earlierSetupFailure": {
+            "requests": 2,
+            "responses": 2
+          },
+          "pilotTotalRequests": 26,
+          "pilotTotalResponses": 26,
+          "rawEvidence": "Ignored per-phase candidate-captures directories; each has a checksum manifest."
+        },
+        "independentReview": "PASS_SCOPED",
+        "setupObservations": [
+          "Initial sandbox transport failure sent no request.",
+          "The first product request stopped because the unused dynamic control directory lacked plan.json; evidence is retained.",
+          "The next conversation reached IDS review; readback was disabled until the local evidence flag was enabled.",
+          "The same conversation continued without resending its original prompt or resetting its run."
+        ],
+        "continuationChanges": [
+          "Use the original native helper directory.",
+          "Keep the original unique-name timestamp.",
+          "Skip the initial prompt already submitted to the same conversation; retain the original SSE."
+        ],
+        "evidence": "Ignored local evidence: live-luna/cases/product-create-chain-greetings/product-attempt-2/continuation-1/"
+      },
+      {
+        "id": "product-create-chain-petstore-service-call",
+        "status": "PENDING"
+      },
+      {
+        "id": "product-create-chain-uploaded-openapi-mapping",
+        "status": "PENDING"
+      },
+      {
+        "id": "product-create-chain-multi-turn-revision",
+        "status": "PENDING"
+      },
+      {
+        "id": "product-create-chain-recovery-revise-plan",
+        "status": "PENDING"
+      },
+      {
+        "id": "product-patch-chain-edit-script",
+        "status": "PENDING"
+      },
+      {
+        "id": "product-patch-chain-multi-turn",
+        "status": "PENDING"
+      }
+    ]
+  },
+  "blockers": [
+    "Deferred recovery response-schema ambiguity mismatch prevents green Java acceptance and unconditional merge."
+  ],
+  "evidencePolicy": "Raw prompts, responses, private packages and captures remain in ignored local evidence; this file is a sanitized summary.",
+  "suppliedPackageFingerprints": [
+    {
+      "developerPath": ".private/rocky-skills",
+      "files": 259,
+      "sha256": "0a51af5947b234369588ca64a90981d8ad4085863fc5fbcd29c64e7c42d3c190"
+    },
+    {
+      "developerPath": ".private/rocky-knowledge",
+      "files": 7,
+      "sha256": "8c07f382368f30027cbe44786538089deaf4d01052a4ef3fa7c093b00aaf478f"
+    }
+  ],
+  "qaKnowledgeArchiveSha256": "98db2e3033b0ba0e41a2509c4805efb5e9025c94d9fa0947061ba8590180d959"
+}
