@@ -41,6 +41,7 @@ import {
   getService,
   getServices,
   getSpecificationModel,
+  getSpecificationModelSource,
 } from "./serviceApiRead";
 import {
   createEnvironment,
@@ -329,6 +330,8 @@ export async function getApiResponse(
         message.payload.serviceId,
         message.payload.groupId,
       );
+    case "getSpecificationModelSource":
+      return await getSpecificationModelSource(message.payload);
     case "getOperations":
       return await getOperations(fileUri, message.payload);
     case "getOperationInfo":
@@ -437,6 +440,11 @@ export async function getApiResponse(
       }
       return undefined;
     }
+
+    // Part of the export protocol for extensions built on this one. This extension reads neither.
+    case "exportImagesStarted":
+    case "exportImagesItemDone":
+      return undefined;
 
     case "exportImagesComplete":
     case "exportImagesDone": {
