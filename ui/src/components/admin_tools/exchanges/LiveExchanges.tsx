@@ -28,13 +28,13 @@ import { TablePageLayout } from "../../TablePageLayout.tsx";
 import { TableToolbar } from "../../table/TableToolbar.tsx";
 import { tableScroll } from "../../table/tableScroll.ts";
 import { createActionsColumnBase } from "../../table/actionsColumn.ts";
-import { useTableConfiguration } from "../../table/useTableConfiguration.tsx";
+import {
+  EXPAND_COLUMN_WIDTH,
+  useTableConfiguration,
+} from "../../table/useTableConfiguration.tsx";
 import { tableEmpty } from "../../table/tableEmpty.tsx";
 
 import { AdminToolsHeader } from "../AdminToolsHeader.tsx";
-
-/** rc-table expand column when rows have nested `exchanges` (same as Sessions). */
-const LIVE_EXCHANGES_EXPAND_COLUMN_WIDTH = 48;
 
 type LiveExchangeGroup = Omit<
   LiveExchange,
@@ -269,7 +269,7 @@ export const LiveExchanges: React.FC = () => {
       main: 100,
       podIp: 100,
     },
-    { expandColumnWidth: LIVE_EXCHANGES_EXPAND_COLUMN_WIDTH },
+    { expandColumnWidth: EXPAND_COLUMN_WIDTH },
     "liveExchangesTable",
   );
 
