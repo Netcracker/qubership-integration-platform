@@ -35,6 +35,8 @@ Subagents own separate files; the coordinating chat owns commits and the shared 
    itself was resolved. A source correction awaits user selection; preserve this failed attempt.
    For materialized cases, read the generated result back from the catalog and check the case assertions.
    Chain execution, if performed, also requires runtime session evidence and logging restoration.
+   Multi-turn approval and materialization passed. The selected revision scenario did not change the draft,
+   so incorporation of revised requirements remains unverified.
 5. **Merge readiness — pending.** Review the final diff and evidence, record unresolved findings and exclusions,
    and prepare the delivery summary. Recheck affected gates after any correction.
 
