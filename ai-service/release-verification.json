@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-28",
-  "status": "BLOCKED_PENDING_USER_SELECTION",
-  "applicationSourceRevision": "223f6de9526fb210020f7da321a60b4d56a711b6",
+  "status": "BLOCKED_PENDING_REQUIREMENT_CAPTURE_SELECTION",
+  "applicationSourceRevision": "d50e6e4f663293cf507dfae4f85e074e19bdbe2b",
   "localImages": {
     "qip-ai-service:qa-20261028-28d88a78-with-skills": {
       "id": "sha256:738061295fde7b788f9d468674596e090dbfae003e6107032139897b52b82509",
@@ -775,5 +775,153 @@
       "captureEvidence": "Ignored local evidence: candidate-luna/evidence/revision-223f6de9-base-before-full/."
     },
     "captureProvenance": "PASS: all citations occur in captured documentation read results."
+  },
+  "currentFollowUp": {
+    "status": "BLOCKED_PENDING_REQUIREMENT_CAPTURE_SELECTION",
+    "userApprovedBothRemainingFixes": true,
+    "sourceRevision": "d50e6e4f663293cf507dfae4f85e074e19bdbe2b",
+    "documentationRepeat": {
+      "independentReview": "PASS",
+      "restErrorCodes": {
+        "expected": 8,
+        "present": 8
+      },
+      "normalizedMethodPathPairs": {
+        "expected": 11,
+        "present": 11
+      },
+      "literalMethodPathEntries": {
+        "expected": 12,
+        "present": 11
+      },
+      "literalFidelity": "GAP_SLASH_VARIANT_DUPLICATE_NOT_REPEATED",
+      "onceOnlyCases": 3,
+      "completeSourceReads": 4,
+      "sourceProvenance": "PASS",
+      "provider": "OpenAI direct",
+      "requestedModel": "gpt-6-luna",
+      "returnedModel": "gpt-6-luna",
+      "pairedExchanges": 14,
+      "verdict": "CONTENT_AND_NORMALIZED_COVERAGE_PASS_LITERAL_FIDELITY_GAP",
+      "status": "RESOLVED_APPROVED_FIX"
+    },
+    "recoveryCorrection": {
+      "independentReview": "PASS",
+      "changedFiles": 2,
+      "scope": "Flow executor context files; shared CCL submission bridge and managed-executor lifecycle preserved.",
+      "rootCause": "Delayer reused stale prior-Quarkus-profile CCL tenant configuration; swallowed CDI failure left the wait unresolved.",
+      "boundaryRegression": {
+        "redCases": 3,
+        "greenCases": 1,
+        "result": "PASS"
+      },
+      "integrationCases": {
+        "tests": 28,
+        "status": "PASS"
+      },
+      "cdiOrInternalHaltObserved": false,
+      "ordinarySidecarRecovery": "PASS",
+      "tenantOnlyExperiment": "REVERTED_NOT_EVIDENCE_OF_FINAL_TENANT_LOOKUP_FIX",
+      "status": "RESOLVED_APPROVED_FIX"
+    },
+    "candidateBuild": {
+      "sourceRevision": "d50e6e4f663293cf507dfae4f85e074e19bdbe2b",
+      "aiServiceVersion": "1.6.1",
+      "full": "PASS",
+      "base": "PASS",
+      "sidecar": "PASS",
+      "privatePackageFingerprints": "MATCH_SOURCE_INPUTS",
+      "fullReadiness": "READY",
+      "documentationManifest": {
+        "entriesServed": 93,
+        "entriesTotal": 864
+      },
+      "packageCertification": "CERTIFIED_CIP@1.0.0",
+      "sharedContainersChanged": false
+    },
+    "fullJavaAcceptance": {
+      "status": "PASS",
+      "tests": 6607,
+      "reports": 626,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 11,
+      "exitCode": 0,
+      "durationSeconds": 272.255,
+      "incidentalA2ANamedCases": 6,
+      "a2aPackageTestSetExecuted": false,
+      "evidence": "Ignored local evidence: main-integration/full-recovery-fixed-20261028T192044Z."
+    },
+    "nativeFinalChainSmoke": {
+      "attempt": "final-chain-smoke",
+      "cases": 2,
+      "status": "FAIL_BEFORE_CHAIN_MATERIALIZATION",
+      "firstCase": "Greetings",
+      "failure": "Draft added a Groovy author fact absent from source.",
+      "recoveryClarification": "Brief-facts recovery-halt clarification card 51 was missing.",
+      "provider": "OpenAI direct",
+      "requestedModel": "gpt-6-luna",
+      "returnedModel": "gpt-6-luna",
+      "pairedExchanges": 24,
+      "initialSandboxAttempt": "NOT_SENT_ZERO_CALLS",
+      "openApiCase": "NOT_RUN_STOP_CONTRACT",
+      "nativeValidation": "NOT_RUN",
+      "catalog": "NOT_RUN",
+      "runtime": "NOT_RUN",
+      "ui": "NOT_RUN",
+      "evaluator": "NOT_RUN",
+      "evidence": "Ignored local evidence: final-chain-smoke report, result, decision, captured calls, and 28-hash manifest."
+    },
+    "initialSandboxSmoke": "NOT_SENT_SETUP_FAILURE",
+    "restartIntegrationTest": "DEFERRED_USER_PRIORITY_REQUIRED_BEFORE_PUSH",
+    "testingArchive": {
+      "files": 139,
+      "sha256": "UNCHANGED_FROM_PRIOR_VERIFIED_BASELINE"
+    },
+    "notRun": [
+      "UI",
+      "runtime",
+      "evaluator"
+    ],
+    "pushPerformed": false,
+    "userDecision": {
+      "status": "PENDING",
+      "question": "Select whether to capture a third fix for the Groovy author-fact and brief-facts recovery-halt requirements."
+    },
+    "finalImageOperations": {
+      "baseHealthVerification": "PASS",
+      "restoreFullImage": "PASS",
+      "modelCalls": 0,
+      "baseSourceRevision": "d50e6e4f663293cf507dfae4f85e074e19bdbe2b",
+      "endpoint": "http://127.0.0.1:55536",
+      "aiHealth": "UP",
+      "sidecarHealth": "UP",
+      "packageCertification": "CERTIFIED",
+      "knowledgeMountReadOnly": true,
+      "sharedContainerChanges": {},
+      "baseImageIdPrefix": "ecddac498",
+      "sidecarImageIdPrefix": "5dc2df",
+      "fullEndpoint": "http://127.0.0.1:55587",
+      "fullSourceRevision": "d50e6e4f663293cf507dfae4f85e074e19bdbe2b",
+      "fullImageIdPrefix": "774559",
+      "fullAiHealth": "UP",
+      "fullSidecarHealth": "UP",
+      "fullPackageCertification": "CERTIFIED",
+      "fullKnowledgeMountReadOnly": true,
+      "fullDocumentationManifest": {
+        "entriesServed": 93,
+        "entriesTotal": 864
+      },
+      "fullSharedContainerChanges": {},
+      "fullModelCalls": 0,
+      "evidence": "Ignored local evidence: full-readiness.json; base-readiness.json; archived under build/archive-revision-d50.../candidate-evidence-before-base."
+    },
+    "finalSecretPatternScan": {
+      "filesScanned": 4805,
+      "matches": 0,
+      "secretValuePrinted": false,
+      "pattern": "OpenAI API key pattern",
+      "evidence": "Ignored local evidence: secret-evidence-scan-final.json"
+    }
   }
 }
