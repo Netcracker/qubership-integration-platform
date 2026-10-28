@@ -51,7 +51,7 @@ public class M2MFallbackHandler implements ExecChainHandler {
 
             ClassicHttpResponse response = chain.proceed(alteredRequest, scope);
             if (response.getCode() == 401) {
-                log.info("Failed to establish m2m connection to {} with kubernetes token. Cause: 401 Unauthorized",
+                log.debug("Failed to establish m2m connection to {} with kubernetes token. Cause: 401 Unauthorized",
                         requestUri);
                 response.close();
 
