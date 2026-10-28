@@ -42,7 +42,8 @@ public class DocumentationTools {
   @Tool("Search QIP product documentation before making platform behavior claims. Use English technical terms "
       + "for English manuals, retaining exact property names and error codes. Results are excerpts, not complete "
       + "sections. Read relevant sections with readDocumentation and cite their url. Missing results do not prove "
-      + "that the platform lacks a capability.")
+      + "that the platform lacks a capability. Copy each returned documentation `url` verbatim; do not add a "
+      + "scheme or host.")
   public String searchDocumentation(@ToolMemoryId String memoryId, String query) {
     return invoke("searchDocumentation", memoryId, () -> {
       String conversation = conversation(memoryId);
@@ -53,7 +54,9 @@ public class DocumentationTools {
   @Tool("Read a section id returned by searchDocumentation or the supplied documentation context. Pass an empty cursor "
       + "for the first page, then nextCursor until complete when the answer depends on remaining text. Each page "
       + "contains exact source text and a separate display context. complete means this section is complete, not "
-      + "that every document relevant to the question was read. Cite the returned url. Documentation does not "
+      + "that every document relevant to the question was read. Copy each returned documentation `url` verbatim; "
+      + "do not add a scheme or host. For exact lists, copy every method/path pair literally; do not normalize, "
+      + "merge, or deduplicate entries, including paths that differ only by a leading `/`. Documentation does not "
       + "override approved author requirements, schemas, or live catalog evidence.")
   public String readDocumentation(@ToolMemoryId String memoryId, String id, String cursor) {
     return invoke("readDocumentation", memoryId, () -> read(conversation(memoryId), id, cursor, CONTEXT_BYTES));
@@ -73,7 +76,9 @@ public class DocumentationTools {
     }
     if (found.results().isEmpty()) body.append("No matching documentation sections were found.\n");
     body.append("Search excerpts and incomplete pages are not complete evidence. Read the indicated continuation "
-        + "when needed. Cite the source url; keep private knowledge citations separate. Manuals describe expected "
+        + "when needed. Copy each returned documentation `url` verbatim; do not add a scheme or host. For exact "
+        + "lists, copy every method/path pair literally; do not normalize, merge, or deduplicate entries, including "
+        + "paths that differ only by a leading `/`. Keep private knowledge citations separate. Manuals describe expected "
         + "behavior, not this environment's state, and do not authorize changing approved requirements.\n");
     return body.toString();
   }
