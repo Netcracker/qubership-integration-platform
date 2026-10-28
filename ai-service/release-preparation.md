@@ -50,17 +50,21 @@ Subagents own separate files; the coordinating chat owns commits and the shared 
 5. **Merge readiness — blocked pending fix selection.** The selected campaign and archive inventory are recorded.
    The approved OpenAPI correction passed its native repeat and independent review. Select a correction for
    the off-task documentation answer before another candidate.
-   The recovery schema fix remains deferred. Requirement revision needs a genuine revision input if that coverage
+   The recovery schema fix is integrated in `9212f452`. Requirement revision needs a genuine revision input if that coverage
    is required. After approved corrections, rerun affected gates, review the final diff, and refresh main integration.
 
 ## Open gate and exclusions
 
-The recovery response schema requires `authorQuestionEvidence.ambiguity` even for an ordinary conflicting-values
-question. The existing `RecoveryDecisionSchemasTest` exposes this mismatch. The user deferred the production fix;
-keep this test enabled and report the failure. A green Java acceptance claim and an unconditional merge remain blocked.
-
-The latest full Java run before these steps recorded 6,578 tests, one failure, zero errors, and 11 skips.
-The sole failure was the deferred schema case. Test fixtures were corrected in `c211950ab`.
+The recovery schema correction from `cb89c3a08` is integrated in `9212f452` after independent review.
+The strict response requires `authorQuestionEvidence.ambiguity` and accepts null or typed evidence.
+Native serialization and business validation are unchanged. All 77 focused tests pass.
+The full Java acceptance rerun passed: 6,583 tests, zero failures, zero errors, and 11 skips; A2A was excluded.
+The earlier run recorded 6,578 tests, one failure, and 11 skips.
+The initial focused attempt could not access Docker from the sandbox; its escalated retry passed.
+An overly broad full-run selector reached a manual restart probe and failed during discovery.
+The corrected selector uses the normal `*Test` and `*IT` classes and excludes A2A.
+That historical failure was the schema case. The documentation answer remains a release blocker.
+Existing candidate images do not contain the recovery correction; rebuild them before delivery.
 
 A2A testing is excluded by user decision. Restart acceptance remains deferred. Do not expand model or recovery
 budgets to make acceptance pass. New production findings require the user's selection under the repository rules.

@@ -301,7 +301,6 @@
     ]
   },
   "blockers": [
-    "Deferred recovery response-schema ambiguity mismatch prevents green Java acceptance and unconditional merge.",
     "Base documentation consultation failed to answer the self-contained full-section inventory request."
   ],
   "evidencePolicy": "Raw prompts, responses, private packages and captures remain in ignored local evidence; this file is a sanitized summary.",
@@ -384,7 +383,6 @@
   },
   "remainingActions": [
     "Select a correction for the off-task documentation answer, then rerun the affected consultation.",
-    "Keep the recovery response-schema defect deferred until explicitly approved; it still blocks green Java acceptance.",
     "Add a genuine requirement-revision input and stronger exact-content/preservation assertions if that acceptance coverage is required.",
     "After selected corrections, freeze a new candidate, review the final diff, refresh main integration, and prepare the merge."
   ],
@@ -524,5 +522,41 @@
     },
     "otherSelectedCasesOnCorrectionRevision": "NOT_RERUN",
     "baseDocumentationOnCorrectionRevision": "NOT_RERUN"
+  },
+  "recoverySchemaIntegration": {
+    "sourceCommit": "cb89c3a0804de3ce53a2a5b8e550ea4a73434dbc",
+    "integrationCommit": "9212f452bbd4ba413921a214f3f38ad6588d43d3",
+    "status": "PASS_FULL_JAVA_ACCEPTANCE",
+    "contract": "Strict response requires ambiguity and accepts null or typed evidence; native serialization and business validation unchanged.",
+    "focusedTests": {
+      "tests": 77,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "independentReview": "PASS",
+    "fullJavaAcceptance": {
+      "tests": 6583,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 11,
+      "reports": 620,
+      "a2aExecuted": false,
+      "selection": "*Test,*IT,!**/a2a/**"
+    },
+    "candidateImagesContainFix": false,
+    "liveProvider": "NOT_RUN",
+    "evidence": "Ignored local evidence: ambiguity-integration/",
+    "setupAttempts": [
+      {
+        "status": "NOT_RUN_SANDBOX_DOCKER_ACCESS",
+        "scope": "Initial focused run failed during Quarkus startup; escalated retry passed."
+      },
+      {
+        "status": "FAILED_TEST_DISCOVERY",
+        "scope": "Wildcard * selected manual CreateChainServerRestartProbe without required configuration; no test assertion verdict.",
+        "correctedSelection": "*Test,*IT,!**/a2a/**"
+      }
+    ]
   }
 }
