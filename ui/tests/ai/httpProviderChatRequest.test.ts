@@ -24,10 +24,7 @@ jest.mock("axios", () => ({
 }));
 
 import { HttpAiModelProvider } from "../../src/ai/modelProviders/httpProvider.ts";
-import type {
-  ChatMessage,
-  ChatRequest,
-} from "../../src/ai/modelProviders/types.ts";
+import type { ChatMessage } from "../../src/ai/modelProviders/types.ts";
 
 function buildMessages(): ChatMessage[] {
   return [{ role: "user", content: "hello" }];
@@ -104,7 +101,7 @@ describe("HttpAiModelProvider chat() request body", () => {
     await provider.chat({
       messages: buildMessages(),
       clarificationOfferId: "offer-42",
-    } as ChatRequest);
+    });
 
     const [, body] = mockPost.mock.calls[0] as [
       string,
@@ -315,7 +312,7 @@ describe("HttpAiModelProvider streamChat() request body", () => {
       {
         messages: buildMessages(),
         clarificationOfferId: "offer-42",
-      } as ChatRequest,
+      },
       () => {},
     );
 
