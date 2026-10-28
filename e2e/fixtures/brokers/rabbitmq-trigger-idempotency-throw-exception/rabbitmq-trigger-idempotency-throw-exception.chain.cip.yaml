@@ -1,0 +1,39 @@
+---
+id: "e2e10008-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-rabbitmq-trigger-idempotency-throw-exception"
+description: "The RabbitMQ trigger with idempotency/actionOnDuplicate=throw-exception. It keys on the e2e-idempotency-key AMQP header."
+content:
+  labels: []
+  elements:
+  - id: "e2e10008-0000-4000-8000-000000000002"
+    name: "idempotency/actionOnDuplicate=throw-exception"
+    type: "rabbitmq-trigger-2"
+    properties:
+      connectionSourceType: "manual"
+      addresses: "rabbitmq:5672"
+      username: "guest"
+      password: "guest"
+      exchange: "e2e-{{RUN}}-rabbitmq-trigger-idempotency-throw-exception"
+      routingKey: "e2e-{{RUN}}-rabbitmq-trigger-idempotency-throw-exception"
+      queues: "e2e-{{RUN}}-rabbitmq-trigger-idempotency-throw-exception"
+      exchangeType: "direct"
+      acknowledgeMode: "AUTO"
+      idempotency:
+        enabled: true
+        contextExpression: "e2e"
+        keyExpiry: 600
+        keyExpression: "${header.e2e-idempotency-key}"
+        actionOnDuplicate: "throw-exception"
+  - id: "e2e10008-0000-4000-8000-000000000003"
+    name: "Header Modification"
+    type: "header-modification"
+    properties:
+      headerModificationToAdd:
+        e2e-fixture: "{{RUN}}"
+      headerModificationToRemove: []
+  dependencies:
+  - from: "e2e10008-0000-4000-8000-000000000002"
+    to: "e2e10008-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

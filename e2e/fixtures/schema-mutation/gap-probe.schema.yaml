@@ -1,7 +1,7 @@
 ---
 # Not a platform element. It exists so the coverage gap detector can be shown going red:
 #
-#     E2E_ELEMENT_SCHEMA_DIR=fixtures/schema-mutation npx playwright test --project=schema
+#     E2E_ELEMENT_SCHEMA_DIR=fixtures/schema-mutation npx playwright test --project=harness
 #
 # The extractor then reads this directory instead of the schemas tree and reports a family and an
 # axis the registry has never heard of, which is exactly the condition the detector exists to

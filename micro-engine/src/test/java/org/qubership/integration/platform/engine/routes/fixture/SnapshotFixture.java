@@ -27,6 +27,10 @@ public interface SnapshotFixture extends AutoCloseable {
     default void verifyInvocation(SnapshotScenarioInvocation invocation) throws Exception {
     }
 
+    default String timeoutDiagnostics() {
+        return "";
+    }
+
     default void releasePendingWork() throws Exception {
     }
 

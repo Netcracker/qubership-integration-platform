@@ -1,0 +1,15 @@
+---
+id: "e2e00030-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/service"
+name: "e2e-{{RUN}}-service-call-orders-external"
+content:
+  activeEnvironmentId: "e2e00030-0000-4000-8000-000000000002"
+  integrationSystemType: "EXTERNAL"
+  protocol: "HTTP"
+  environments:
+  - id: "e2e00030-0000-4000-8000-000000000002"
+    name: "orders-external"
+    address: "http://e2e-service-call.invalid:8080"
+    sourceType: "MANUAL"
+    labels: []
+  migrations: "[100, 101, 102]"

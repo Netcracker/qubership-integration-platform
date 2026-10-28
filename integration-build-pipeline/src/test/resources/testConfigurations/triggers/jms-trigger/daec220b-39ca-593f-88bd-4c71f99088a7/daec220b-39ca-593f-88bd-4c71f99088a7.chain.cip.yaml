@@ -1,0 +1,61 @@
+---
+id: daec220b-39ca-593f-88bd-4c71f99088a7
+$schema: http://qubership.org/schemas/product/qip/chain
+name: jms-trigger-acknowledgment
+content:
+  labels: []
+  elements:
+  - id: 9826988b-5ba2-5ea9-b121-63529c0f2cf4
+    name: JMS Trigger auto
+    type: jms-trigger
+    properties:
+      acknowledgmentMode: AUTO_ACKNOWLEDGE
+      initialContextFactory: org.qubership.integration.platform.engine.routes.fixture.SnapshotJmsInitialContextFactory
+      providerUrl: snapshot:jms-trigger
+      connectionFactoryName: jms/BulkQuotationRequest/connectionfactory
+      destinationName: jms/snapshot/ack/auto
+      destinationType: queue
+      username: snapshot
+      password: snapshot
+  - id: bacb1f4e-33ca-518e-a5aa-b604caa60375
+    name: JMS Trigger client
+    type: jms-trigger
+    properties:
+      acknowledgmentMode: CLIENT_ACKNOWLEDGE
+      initialContextFactory: org.qubership.integration.platform.engine.routes.fixture.SnapshotJmsInitialContextFactory
+      providerUrl: snapshot:jms-trigger
+      connectionFactoryName: jms/BulkQuotationRequest/connectionfactory
+      destinationName: jms/snapshot/ack/client
+      destinationType: queue
+      username: snapshot
+      password: snapshot
+  - id: c8c06889-2e29-5f64-87eb-f6c2c78310a1
+    name: JMS Trigger dups
+    type: jms-trigger
+    properties:
+      acknowledgmentMode: DUPS_OK_ACKNOWLEDGE
+      initialContextFactory: org.qubership.integration.platform.engine.routes.fixture.SnapshotJmsInitialContextFactory
+      providerUrl: snapshot:jms-trigger
+      connectionFactoryName: jms/BulkQuotationRequest/connectionfactory
+      destinationName: jms/snapshot/ack/dups
+      destinationType: queue
+      username: snapshot
+      password: snapshot
+  - id: e4497ad9-2e21-53c3-bdd8-8cc1032d064f
+    name: Process JMS message
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: e4497ad9-2e21-53c3-bdd8-8cc1032d064f.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: 9826988b-5ba2-5ea9-b121-63529c0f2cf4
+    to: e4497ad9-2e21-53c3-bdd8-8cc1032d064f
+  - from: bacb1f4e-33ca-518e-a5aa-b604caa60375
+    to: e4497ad9-2e21-53c3-bdd8-8cc1032d064f
+  - from: c8c06889-2e29-5f64-87eb-f6c2c78310a1
+    to: e4497ad9-2e21-53c3-bdd8-8cc1032d064f
+  deployments:
+  - domain: default
+  deployAction: DEPLOY
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

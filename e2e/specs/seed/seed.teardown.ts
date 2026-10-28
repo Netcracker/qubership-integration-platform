@@ -10,7 +10,7 @@ import { test } from "../../support/fixtures.js";
 import { CORPUS_STATE_FILE, readCorpusState, teardownCorpus } from "../../support/corpus.js";
 import fs from "node:fs";
 
-test("the fixture corpus is removed", { tag: ["@catalog", "@tier1"] }, async ({ catalog }) => {
+test("the fixture corpus is removed", { tag: ["@catalog"] }, async ({ catalog }) => {
   if (!fs.existsSync(CORPUS_STATE_FILE)) {
     console.log("[seed] no corpus state to tear down");
     return;

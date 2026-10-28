@@ -1,0 +1,50 @@
+{{- if .Values.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: rabbitmq
+  name: rabbitmq
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rabbitmq
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+      labels:
+        app: rabbitmq
+    spec:
+      containers:
+        - name: rabbitmq
+          image: rabbitmq:4.3.6-management-alpine
+          env:
+            - name: RABBITMQ_DEFAULT_USER
+              value: guest
+            - name: RABBITMQ_DEFAULT_PASS
+              value: guest
+          ports:
+            - containerPort: 5672
+            - containerPort: 15672
+          # An exec probe through rabbitmq-diagnostics starts an Erlang VM each time, about 100m CPU on the CI runner.
+          readinessProbe:
+            tcpSocket:
+              port: 5672
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+          volumeMounts:
+            - mountPath: /var/lib/rabbitmq
+              name: data
+      volumes:
+        - name: data
+          emptyDir: {}
+{{- end }}

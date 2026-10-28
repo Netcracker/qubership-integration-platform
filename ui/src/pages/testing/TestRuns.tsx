@@ -302,7 +302,6 @@ export const TestRuns: React.FC = () => {
       <Flex vertical className={commonStyles.container}>
         <AdminToolsHeader
           title="Test Runs"
-          iconName="carryOut"
           toolbar={toolbar}
         />
         <TablePageLayout>

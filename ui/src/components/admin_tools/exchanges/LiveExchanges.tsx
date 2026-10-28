@@ -297,14 +297,13 @@ export const LiveExchanges: React.FC = () => {
     <Flex vertical className={commonStyles["container"]}>
       <AdminToolsHeader
         title="Live Exchanges"
-        iconName="liveExchanges"
         toolbar={
           <TableToolbar
             refresh={{ onRefresh: refresh, loading: isLoading }}
             variant="admin"
             leading={
               <Flex align="center" gap={8} wrap="wrap">
-                <Space direction="horizontal">
+                <Space orientation="horizontal">
                   <span>Exchanges per engine:</span>
                   <InputNumber
                     min={1}
@@ -314,9 +313,9 @@ export const LiveExchanges: React.FC = () => {
                     }}
                   />
                 </Space>
-                {filterButton}
               </Flex>
             }
+            filterButton={filterButton}
             columnSettingsButton={columnSettingsButton}
           />
         }

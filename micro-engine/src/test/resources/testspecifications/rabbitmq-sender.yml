@@ -90,12 +90,12 @@ scenarios:
           expectedSendCount: 0
   - id: unicode
     endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
-    body: "Order received \u2014 caf\u00e9 \u2615"
+    body: "Order received - caf\u00e9"
     headers:
       Authorization: Bearer snapshot-unicode
       X-Request-Id: incoming-unicode
       X-Snapshot-Header: unicode
-    expectedBody: "Order received \u2014 caf\u00e9 \u2615"
+    expectedBody: "Order received - caf\u00e9"
     expectedAbsentHeaders:
     - Authorization
     - X-Request-Id
@@ -107,7 +107,7 @@ scenarios:
       expectedRequest:
         count: 1
         destination: test
-        body: "Order received \u2014 caf\u00e9 \u2615"
+        body: "Order received - caf\u00e9"
         headers:
           Authorization: null
           X-Snapshot-Header: unicode
@@ -277,12 +277,12 @@ scenarios:
           expectedSendCount: 0
   - id: second
     endpointUri: cip-chain:1e126088-9c32-448c-b16d-7cb04cd8dde4
-    body: "Order received \u2014 caf\u00e9 \u2615"
+    body: "Order received - caf\u00e9"
     headers:
       Authorization: Bearer snapshot-second
       X-Request-Id: incoming-second
       X-Snapshot-Header: second
-    expectedBody: "Order received \u2014 caf\u00e9 \u2615"
+    expectedBody: "Order received - caf\u00e9"
     expectedHeaders:
       X-Snapshot-Header: second
     expectedAbsentHeaders:
@@ -296,7 +296,7 @@ scenarios:
       expectedRequest:
         count: 1
         destination: test
-        body: "Order received \u2014 caf\u00e9 \u2615"
+        body: "Order received - caf\u00e9"
         headers:
           Authorization: null
           X-Request-Id: null
@@ -1821,10 +1821,10 @@ scenarios:
           expectedSendCount: 0
   - id: utf16
     endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
-    body: "Order \u2615"
+    body: "Order caf\u00e9"
     headers:
       CamelSpringRabbitmqContentEncoding: UTF-16LE
-    expectedBody: "Order \u2615"
+    expectedBody: "Order caf\u00e9"
     expectedAbsentHeaders:
     - Authorization
     - X-Request-Id
@@ -1836,13 +1836,13 @@ scenarios:
       expectedRequest:
         count: 1
         destination: test
-        body: "Order \u2615"
+        body: "Order caf\u00e9"
         headers:
           Authorization: null
       response:
         properties:
-          expectedBodyBase64: TwByAGQAZQByACAAFSY=
-          expectedBodyLength: 14
+          expectedBodyBase64: TwByAGQAZQByACAAYwBhAGYA6QA=
+          expectedBodyLength: 20
           expectedMessageProperties:
             contentEncoding: UTF-16LE
             contentType: text/plain

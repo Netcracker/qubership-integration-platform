@@ -96,7 +96,10 @@ export const CreateServiceModal: React.FC<CreateServiceModalProps> = ({
           </Form.Item>
         ) : null}
         <Form.Item label="Description" name="description">
-          <Input.TextArea maxLength={512} />
+          <Input.TextArea
+            className="fixed-textarea"
+            maxLength={512}
+          />
         </Form.Item>
         {errorText && <Alert title={errorText} type="error" showIcon />}
       </Form>

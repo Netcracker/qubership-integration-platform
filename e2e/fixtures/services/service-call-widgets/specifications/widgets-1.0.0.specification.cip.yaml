@@ -1,0 +1,33 @@
+---
+id: "e2e00032-0000-4000-8000-000000000001-widgets-1.0.0"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/specification"
+name: "1.0.0"
+content:
+  deprecated: false
+  version: "1.0.0"
+  source: "MANUAL"
+  operations:
+  - id: "e2e00032-0000-4000-8000-000000000001-widgets-1.0.0-createWidget"
+    name: "createWidget"
+    method: "mutation"
+    path: "createWidget(name: String!, color: String): Widget!"
+    specification:
+      operation: "createWidget(name: String!, color: String): Widget!"
+  - id: "e2e00032-0000-4000-8000-000000000001-widgets-1.0.0-widget"
+    name: "widget"
+    method: "query"
+    path: "widget(id: ID!): Widget"
+    specification:
+      operation: "widget(id: ID!): Widget"
+  - id: "e2e00032-0000-4000-8000-000000000001-widgets-1.0.0-widgets"
+    name: "widgets"
+    method: "query"
+    path: "widgets: [Widget!]!"
+    specification:
+      operation: "widgets: [Widget!]!"
+  specificationSources:
+  - id: "e2e00032-0000-4000-8000-000000000003"
+    name: "widgets.graphql"
+    fileName: "source-e2e00032-0000-4000-8000-000000000001-widgets-1.0.0/widgets.graphql"
+    mainSource: true
+  parentId: "e2e00032-0000-4000-8000-000000000001-widgets"

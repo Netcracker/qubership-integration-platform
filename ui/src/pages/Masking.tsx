@@ -286,6 +286,7 @@ export const Masking: React.FC = () => {
                 type: "primary",
                 iconName: "plus",
                 onClick: () => void onCreateBtnClick(),
+                "data-testid": "masking-create",
               }}
             />
           </>

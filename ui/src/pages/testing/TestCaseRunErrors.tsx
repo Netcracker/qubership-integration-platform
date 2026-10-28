@@ -361,7 +361,6 @@ export const TestCaseRunErrors: React.FC = () => {
     <Flex vertical className={commonStyles.container}>
       <AdminToolsHeader
         title="Validation Errors"
-        iconName="carryOut"
         toolbar={toolbar}
       />
       {breadcrumb}

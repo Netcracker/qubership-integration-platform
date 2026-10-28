@@ -23,19 +23,22 @@
  * `script-failures.spec.ts`'s unresolved-class case already pins for a different cause. Nothing here
  * reads the engine log: what a caller can see is the deployment's status, and for the one fixture
  * that carries an HTTP trigger, whether its route answers at all.
+ *
+ * Every case is `@classic-only`. Since #1086 the micro engine runs the same checks when its pod
+ * starts, before any route does, and a failed check stops the pod: a missing target keeps the whole
+ * micro domain from starting instead of parking one deployment. A micro case would need a domain of
+ * its own and an assertion on a pod that never becomes ready, and `Env` has no member for that.
  */
 import { test, expect } from "../../support/fixtures.js";
 import { BROKERS_FIXTURE_DIR } from "../../support/brokers.js";
 import { DEPLOY_TIMEOUT, ENGINE_CASE_TIMEOUT } from "../../support/corpus.js";
 import { deploymentRows, routeStatus, withOwnFixture } from "../../support/spec-owned.js";
 
-test(
-  "a kafka-trigger-2 chain pointed at a topic nobody declared never reaches DEPLOYED",
-  { tag: ["@engine", "@catalog", "@tier1"] },
-  async ({ catalog, run }) => {
+test.describe("missing broker target", { tag: ["@engine", "@catalog", "@classic-only"], annotation: { type: "classic-only", description: "the micro engine checks the target when its pod starts, so a micro domain holding this chain never starts" } }, () => {
+  test("kafka-trigger-2 on an undeclared topic stays PROCESSING", { tag: ["@kafka"] }, async ({ catalog, run }) => {
     test.setTimeout(ENGINE_CASE_TIMEOUT);
 
-    await withOwnFixture(catalog, run, "missing-kafka-topic.yaml", BROKERS_FIXTURE_DIR, async (chain) => {
+    await withOwnFixture(catalog, run, "missing-kafka-topic.yaml", { dir: BROKERS_FIXTURE_DIR }, async (chain) => {
       await expect
         .poll(async () => await deploymentRows(catalog, chain.id), {
           timeout: DEPLOY_TIMEOUT,
@@ -43,16 +46,12 @@ test(
         })
         .toEqual([expect.stringContaining("PROCESSING: Kafka topics (")]);
     });
-  },
-);
+  });
 
-test(
-  "a rabbitmq-trigger-2 chain pointed at a queue nobody declared never reaches DEPLOYED",
-  { tag: ["@engine", "@catalog", "@tier1"] },
-  async ({ catalog, run }) => {
+  test("rabbitmq-trigger-2 on an undeclared queue stays PROCESSING", { tag: ["@rabbitmq"] }, async ({ catalog, run }) => {
     test.setTimeout(ENGINE_CASE_TIMEOUT);
 
-    await withOwnFixture(catalog, run, "missing-rabbitmq-queue.yaml", BROKERS_FIXTURE_DIR, async (chain) => {
+    await withOwnFixture(catalog, run, "missing-rabbitmq-queue.yaml", { dir: BROKERS_FIXTURE_DIR }, async (chain) => {
       await expect
         .poll(async () => await deploymentRows(catalog, chain.id), {
           timeout: DEPLOY_TIMEOUT,
@@ -60,16 +59,12 @@ test(
         })
         .toEqual([expect.stringContaining("PROCESSING: AMQP queue")]);
     });
-  },
-);
+  });
 
-test(
-  "a rabbitmq-sender-2 chain pointed at an exchange nobody declared never reaches DEPLOYED",
-  { tag: ["@engine", "@catalog", "@tier1"] },
-  async ({ env, catalog, run }) => {
+  test("rabbitmq-sender-2 on an undeclared exchange stays PROCESSING", { tag: ["@rabbitmq"] }, async ({ env, catalog, run }) => {
     test.setTimeout(ENGINE_CASE_TIMEOUT);
 
-    await withOwnFixture(catalog, run, "missing-rabbitmq-exchange.yaml", BROKERS_FIXTURE_DIR, async (chain) => {
+    await withOwnFixture(catalog, run, "missing-rabbitmq-exchange.yaml", { dir: BROKERS_FIXTURE_DIR }, async (chain) => {
       await expect
         .poll(async () => await deploymentRows(catalog, chain.id), {
           timeout: DEPLOY_TIMEOUT,
@@ -77,10 +72,10 @@ test(
         })
         .toEqual([expect.stringContaining("PROCESSING: AMQP exchange")]);
 
-      // The other half of "never reaches DEPLOYED": nothing is serving. A 200 or 405 here would be a
+      // The other half of the refusal: nothing is serving. A 200 or 405 here would be a
       // chain that went live against an exchange nothing declared, answering the caller normally
       // while the message it sent was silently dropped — exactly the symptom PR #781 closed.
       expect(await routeStatus(env, chain), "a refused deployment is serving").toBe(404);
     });
-  },
-);
+  });
+});

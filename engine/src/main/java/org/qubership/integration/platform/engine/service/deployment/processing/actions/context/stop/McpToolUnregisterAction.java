@@ -7,6 +7,7 @@ import org.apache.camel.spring.SpringCamelContext;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentConfiguration;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
 import org.qubership.integration.platform.engine.service.deployment.processing.DeploymentProcessingAction;
+import org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create.McpToolTargets;
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnStopDeploymentContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -20,12 +21,15 @@ import static org.qubership.integration.platform.engine.service.deployment.proce
 @OnStopDeploymentContext
 public class McpToolUnregisterAction implements DeploymentProcessingAction {
     private final McpSyncServer mcpSyncServer;
+    private final McpToolTargets toolTargets;
 
     @Autowired
     public McpToolUnregisterAction(
-            McpSyncServer mcpSyncServer
+            McpSyncServer mcpSyncServer,
+            McpToolTargets toolTargets
     ) {
         this.mcpSyncServer = mcpSyncServer;
+        this.toolTargets = toolTargets;
     }
 
     @Override
@@ -40,5 +44,6 @@ public class McpToolUnregisterAction implements DeploymentProcessingAction {
                         .equals(tool.meta().get(DEPLOYMENT_ID)))
                 .toList();
         toolsToRemove.forEach(tool -> mcpSyncServer.removeTool(tool.name()));
+        toolTargets.withdraw(context);
     }
 }

@@ -26,21 +26,23 @@ import { OPERATION_SERVICE_TAG } from "./constants.js";
 
 const cache = loadCachedOperations();
 
-for (const service of operationServices()) {
-  test(`${service.service} serves exactly the operations the cache records`, { tag: [OPERATION_SERVICE_TAG[service.service], "@tier1"] }, async ({ request }) => {
-    const response = await request.get(`${service.baseUrl}${service.docPath}`);
-    expect(
-      response.status(),
-      `${service.baseUrl}${service.docPath} — is the stack up?`,
-    ).toBe(200);
+test.describe("live API documents", () => {
+  for (const service of operationServices()) {
+    test(`${service.service} serves exactly the operations the cache records`, { tag: [OPERATION_SERVICE_TAG[service.service]] }, async ({ request }) => {
+      const response = await request.get(`${service.baseUrl}${service.docPath}`);
+      expect(
+        response.status(),
+        `${service.baseUrl}${service.docPath} — is the stack up?`,
+      ).toBe(200);
 
-    const live = operationsFromOpenApi(await response.json());
-    expect(live.length, "the document served no operations at all").toBeGreaterThan(0);
+      const live = operationsFromOpenApi(await response.json());
+      expect(live.length, "the document served no operations at all").toBeGreaterThan(0);
 
-    const diff = diffOperations(cache.services[service.service] ?? [], live);
-    expect(
-      diff,
-      `${service.service} drifted from registry/operations.cache.json — run npm run refresh-operations, then add or remove the registry rows`,
-    ).toEqual({ missing: [], unexpected: [] });
-  });
-}
+      const diff = diffOperations(cache.services[service.service] ?? [], live);
+      expect(
+        diff,
+        `${service.service} drifted from registry/operations.cache.json — run npm run refresh-operations, then add or remove the registry rows`,
+      ).toEqual({ missing: [], unexpected: [] });
+    });
+  }
+});

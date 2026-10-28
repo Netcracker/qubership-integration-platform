@@ -7,6 +7,11 @@ export const URL_OVERRIDES: readonly string[] = [
   "CIP_SESSIONS_URL",
   "CIP_TESTING_SERVICE_URL",
   "CIP_PROXY_URL",
+  "CIP_KAFKA_URL",
+  "CIP_RABBITMQ_URL",
+  "CIP_PUBSUB_URL",
+  "CIP_SFTP_HOST",
+  "CIP_SFTP_PORT",
 ];
 
 /** Runs `body` with the given variables set, or unset where the value is `undefined`. */

@@ -1,0 +1,37 @@
+---
+id: d93926b3-3e4d-561a-9857-9fdfff59c8e0
+$schema: http://qubership.org/schemas/product/qip/chain
+name: kafka-trigger-slow
+content:
+  labels: []
+  elements:
+  - id: fd7a887f-84cf-55a4-8925-981006aedb22
+    name: Kafka Trigger 1
+    type: kafka-trigger-2
+    properties:
+      autoOffsetReset: earliest
+      brokers: localhost:9092
+      connectionSourceType: manual
+      consumersCount: 1
+      groupId: snapshot-kafka-trigger-slow
+      keyDeserializer: org.apache.kafka.common.serialization.StringDeserializer
+      maxPollIntervalMs: 3000
+      maxPollRecords: 10
+      reconnectBackoffMaxMs: 1000
+      saslMechanism: GSSAPI
+      securityProtocol: PLAINTEXT
+      sslProtocol: TLS
+      topics: snapshot.kafka.trigger.slow
+      valueDeserializer: org.apache.kafka.common.serialization.StringDeserializer
+  - id: b2c3fbeb-4b7e-550a-b061-f523d79bb5ec
+    name: Script 1
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: b2c3fbeb-4b7e-550a-b061-f523d79bb5ec.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: fd7a887f-84cf-55a4-8925-981006aedb22
+    to: b2c3fbeb-4b7e-550a-b061-f523d79bb5ec
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

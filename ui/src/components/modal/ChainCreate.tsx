@@ -158,9 +158,7 @@ export const ChainCreate: React.FC<ChainCreateProps> = (props) => {
           id={formId}
           form={form}
           disabled={confirmLoading}
-          labelCol={{ flex: "150px" }}
-          wrapperCol={{ flex: "auto" }}
-          labelWrap
+          layout="vertical"
           initialValues={
             isEdit ? undefined : { openChain: true, newTab: false }
           }

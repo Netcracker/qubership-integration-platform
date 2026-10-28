@@ -13,7 +13,7 @@ Set `SNAPSHOT_BUNDLE_DIRECTORY` to use another output directory outside
 `micro-engine/target`, which the consumer build cleans. Additional arguments
 are passed to each Maven invocation, for example `-s /path/to/settings.xml`.
 
-The `snapshotTests` and `snapshotTestsShort` profiles run micro-engine scenarios in six separate JVMs by default.
+The `snapshotTests` and `snapshotTestsShort` profiles run micro-engine scenarios in four separate JVMs by default.
 This also applies to an ordinary build from the repository root:
 
 ```bash
@@ -34,9 +34,9 @@ when used in a sequential reactor build. With an existing bundle, run either pro
 Every scenario must declare `scope: Short` or `scope: Long`. Use `Short` for scenarios that
 normally take at most one second, or that cover an element's basic behavior. Use `Long` for
 the remaining scenarios. Classification is explicit in YAML; a run's timing does not change it.
-The short suite includes scenarios from all 24 manifests, including broker-backed senders
-whose fixture startup takes longer than one second. It contains 83 scenarios;
-the remaining 42 are `Long`.
+The short suite includes scenarios from all 27 manifests, including broker-backed senders
+whose fixture startup takes longer than one second. It contains 107 scenarios;
+the remaining 76 are `Long`.
 
 ```yaml
 scenarios:
@@ -57,6 +57,27 @@ applying the scope, target, and scenario filters; every selected scenario belong
 Set `-Dsnapshot.workers=1` for sequential execution, or choose another positive count.
 The bundle producer and other Maven modules keep their existing execution settings.
 
+A local comparison ran the same 183 scenarios with one catalog bundle on a Docker
+VM with four CPUs and 7.75 GiB of memory:
+
+| Workers | Slowest Surefire worker (s) | Maven wall time (s) | Scenario results |
+| --- | ---: | ---: | --- |
+| 4 | 719.412 | 782.463 | 182 passed, 1 failed |
+| 6 | 751.982 | 831.242 | 182 passed, 1 failed |
+| 8 | 812.382 | 901.078 | 181 passed, 2 failed |
+
+All three runs reproduced the known Pub/Sub connection leak. The eight-worker run
+also exceeded Kafka's 25-second broker restart readiness timeout. That readiness
+budget was increased to 45 seconds after the comparison, within the invocation's
+60-second limit. A subsequent eight-worker run passed all 30 Kafka trigger
+scenarios, including broker restart. Four workers gave the shortest test and Maven times in these
+trials. More workers increased Docker VM CPU pressure and broker startup times;
+GC pauses, memory pressure, and IO pressure remained small. Set `snapshot.workers`
+explicitly when comparing a different Docker or CI environment.
+
+Compatible JMS cases share broker startup while retaining all 118 trigger
+invocations and 55 sender calls.
+
 To execute Kafka scenarios from an existing bundle with two workers:
 
 ```bash
@@ -74,7 +95,7 @@ The launcher prefers the repository's Maven Wrapper (`mvnw` or `mvnw.cmd`).
 If the wrapper file is absent, it runs `mvn` from `PATH`.
 Pass Maven options after `--`, including `-s`, `-nsu`, and `-Dsnapshot.bundle.directory`.
 The launcher starts one Maven process, which manages compilation and the worker JVMs.
-The fresh-bundle script `scripts/test-micro-engine-snapshots.sh` also uses six workers by default;
+The fresh-bundle script `scripts/test-micro-engine-snapshots.sh` also uses four workers by default;
 set `SNAPSHOT_WORKERS` to change its count.
 
 Surefire writes one XML report per generated test class under
@@ -97,7 +118,7 @@ include the producer in a micro-engine build.
 ## What the flow executes
 
 `SnapshotBundleProducerIntegrationTest` generates the bundle. With the default worker count,
-Maven generates `MicroEngineSnapshotShard0Test` through `MicroEngineSnapshotShard5Test`.
+Maven generates `MicroEngineSnapshotShard0Test` through `MicroEngineSnapshotShard7Test`.
 The `snapshot.workers` property controls how many classes it generates. They inherit the scenario runner from
 `MicroEngineSnapshotRouteExecutionTest` and divide the selected manifest scenarios between them.
 The other snapshot classes provide shared execution support.
@@ -164,12 +185,153 @@ The JMS fixture selects the connection factory before each deployment's XML is l
 the production destination resolver uses controlled JNDI bindings or creates destinations
 through that factory's session.
 
+The `jms-trigger.yml` manifest uses `artemis-jms-trigger` with the `jms-trigger`
+driver. Fourteen scenarios contain 118 invocations across seven exports: the original
+queue, three acknowledgment modes, two topic subscribers, three idempotency actions,
+a separate transacted queue, and two exports combining redelivery with idempotency
+or topic subscriptions. Ten scenarios are Short; broker restart and the three
+transacted scenarios are Long. Each scenario shares one Artemis broker across its
+invocations and generated consumers. Idempotency scenarios also share one PostgreSQL
+store across their trigger branches.
+
+`consumes-message-types-and-resumes-backlog-after-restart` checks message types and
+headers before exercising restart and expiration on the same broker.
+`recovers-after-script-failure-with-each-acknowledgment-mode` runs the AUTO, CLIENT,
+and DUPS cases against their separate queues in one scenario. Each invocation
+selects its generated trigger and checks zero deliveries to the other queues.
+
+Artemis containers use `--no-autotune --no-web` when creating the broker instance.
+This skips journal timing calibration and the unused web console on every startup.
+Each scenario still starts a fresh broker with persistence enabled. Management
+observations use the AMQP connection and `activemq.management` address.
+
+The fixture registers `snapshot:jms-trigger` before XML loading, so the production
+`JmsComponentBuilder` resolves its connection factory and destination through test
+JNDI. Consumer URIs, acknowledgment settings, and `disableReplyTo=true` remain as
+generated. Each trigger has its own observation binding. Inactive queues must receive
+zero messages; both topic consumers must register before publication. Uncached
+topic listeners use the actual subscriber count reported by Artemis management.
+This observes broker state without changing generated consumer or transaction
+settings. Completion checks match broker-assigned message IDs for every subscriber.
+
+The driver selects the trigger through `sourceElementId`. Its `messageType` parameter
+accepts `Text` (default), `Bytes`, `Map`, `Object`, `Stream`, or `Message`. `body`
+supplies the payload. Bytes accepts UTF-8 text or integers from 0 to 255; Stream
+also accepts a list of byte chunks. Stream observations read a copy of the broker
+message so the route retains its original input stream. `headers` supplies raw JMS
+application properties. Optional `jmsHeaders` sets `correlationId`, `type`,
+`priority` (0 to 9), `deliveryMode` (`PERSISTENT` or `NON_PERSISTENT`), `replyTo`
+(a queue name), and `timeToLiveMillis`. These are producer inputs, not trigger settings.
+External producers cannot supply Camel exchange properties.
+
+Declare the default publication parameters in the scenario's `driver`. An invocation's
+own `driver` replaces those parameters for that invocation. Later invocations without
+a `driver` use the scenario's settings, including `messageType`, `jmsHeaders`, and
+`messages`. The two inheritance regressions begin with a scalar Bytes or batch override,
+then check a scalar Text publication with the scenario's metadata and payload.
+
+For a burst, set `driver.parameters.messages` to a list of objects with `body`,
+`headers`, `messageType`, and `jmsHeaders`. The driver publishes all messages before
+waiting for completion. The returned body contains the completed bodies in order;
+the manifest checks every result. Fixture `expectedExchanges` checks the ordered
+incoming bodies, headers, and properties individually. Equal priority and a single
+producer/consumer make message order part of these scenarios.
+
+Each trigger interaction sets `expectedRequest.count` to the total received messages,
+including all `repeat` executions. Its `body`, `headers`, and `properties` inspect
+the consumed exchange before the Script replaces the body with `Triggered`.
+`destination` checks the generated queue or topic name.
+`response.properties.expectedBodyType` checks the mapped Java type;
+`expectedBodyBytes` compares exact bytes, and `expectedAbsentHeaders` checks header
+filtering and isolation between messages. Camel filters application properties that
+start with `Camel` or `camel`; encoded `org_DOT_apache_DOT_camel` names are decoded
+and retained. Scalar invocation assertions inspect the exchange recorded by the
+completion processor. Each completion must carry the sent message's `JMSMessageID`,
+including when the consumer finishes before `send` returns.
+
+Set `response.properties.consumerAction` for lifecycle scenarios:
+
+| Value | Behavior |
+| --- | --- |
+| `stop-until-published` | Stops the generated route before publication, verifies that the queued messages have not reached it, then starts it and awaits the backlog. |
+| `expire-before-start` | Stops the consumer, publishes messages with TTL and a fresh sentinel, waits for the assigned `JMSExpiration`, then starts the consumer. Only the fresh sentinel may execute. |
+| `restart-broker` | Stops Artemis, observes the listener entering recovery, restarts Artemis, and waits for subscription registration. The generated consumer and listener container must retain their identities. Only the test publisher reconnects explicitly. |
+
+Expired message IDs remain forbidden for the rest of the scenario. The basic queue,
+backlog, and broker-restart checks publish 64 messages and require 63 receipts/completions,
+excluding the deliberately expired message. The fixture verifies `InOnly` and bounded
+completion, then stops the consumers and checks input and reply queues for residual
+messages. Broker restart has a local 180-second deadline for shutdown and recovery.
+
+`expectedAcknowledgmentMode` and `expectedTransacted` inspect the actual JMS session.
+`expectedListenerTransacted` checks the generated listener before publication.
+The acknowledgment export uses a Script that fails on the first delivery when
+`snapshotFail=true` and succeeds on redelivery. AUTO_ACKNOWLEDGE and
+DUPS_OK_ACKNOWLEDGE scenarios expect that failure followed by a fresh successful
+message. CLIENT_ACKNOWLEDGE expects the same broker message ID twice, with
+`JMSRedelivered=false` and then `true`. The isolated SESSION_TRANSACTED scenario
+checks a transacted listener/session, successful commit, rollback with redelivery,
+and successful processing after rollback. The template adds `transacted=true` for
+this acknowledgment mode. The fixture accepts active queue polling when Spring
+creates consumers per receive attempt without caching; topic publication waits
+for the broker to report both subscribers. See the
+[transactional queue regression](src/test/resources/testspecifications/jms-trigger.yml).
+
+`expectedRedeliveryCount` specifies additional deliveries for each published message.
+It requires `expectedCompletions`: an ordered list of body, header, property, and
+exception assertions, including the first failed attempt. The driver returns the
+last delivery. Topic scenarios use `expectedCompletions` to check each subscriber
+independently; input assertions remain in `expectedExchanges`. The fixture also
+supports `expectedCompletionBody`, `expectedCompletionHeaders`, and
+`expectedCompletionProperties` when the same expectation applies to every completion.
+
+The idempotency/redelivery export combines CLIENT_ACKNOWLEDGE and
+SESSION_TRANSACTED with each duplicate action. A failed first attempt retains its
+PostgreSQL key. Broker redelivery must skip the main Script and either complete
+through `ignore`, run the duplicate subchain, or raise `DuplicateException`. For
+`throw-exception`, `response.properties.maxDeliveryAttempts: 3` sets the external
+Artemis address policy and the Qpid connection factory redelivery policy before
+route startup. CLIENT_ACKNOWLEDGE recovery redelivers locally in Qpid; its limit
+is two redeliveries with a REJECTED outcome so Artemis can move the message to
+DLQ. These are external fixture policies. `expectedDeadLetterCount: 1` requires
+the original JMS message ID, body, and application headers in the actual DLQ after
+the third failed attempt. Each action is bracketed by fresh successful messages.
+The tests check every completion, exact Script invocation counts, insertion attempts,
+and persisted keys; they do not simulate redelivery by republishing a message.
+
+The topic/redelivery export contains one pair of subscribers for each of those
+two acknowledgment modes. Five sequential publications per mode exercise both
+subscribers successfully, fail each subscriber in turn, require redelivery only
+for the failed subscriber, and verify subsequent successful delivery to both.
+For SESSION_TRANSACTED topics, the template adds `cacheLevelName=CACHE_CONSUMER`
+to retain the non-durable subscription across local transactions. The scenario
+checks rollback and redelivery of each subscriber, followed by successful
+publications to both. See the
+[transactional topic regression](src/test/resources/testspecifications/jms-trigger.yml).
+
+The idempotency export has ignore, throw-exception, and execute-subchain branches.
+All use header expressions for the business key and context, with a 600-second TTL.
+The real PostgreSQL repository records insertion attempts and stored records;
+separate Script counters prove that duplicates skip the main branch and execute the
+configured duplicate handler. Cases check context isolation, shared keys between
+branches, numeric/string keys, absent/empty keys, expiry/reacquisition, recovery after
+rejection, and key retention after Script failure. Expiry changes one database record
+through the fixture; the production repository performs reacquisition.
+
+In-flight durability during broker failure, durable topic subscriptions, TLS,
+JNDI authentication, and debugger/session context propagation remain outside this
+coverage. Raw JMS header mapping does not establish debugger/session propagation.
+The broker authenticates the connection factory; test JNDI does not authenticate
+the exported username/password.
+
 The `jms-sender.yml` manifest groups independent sender routes in one exported chain.
-Its four scenarios contain 55 calls: nine Short calls and 46 Long calls.
+Its three scenarios contain 55 calls: nine Short calls and 46 Long calls.
 Each scenario shares an Artemis broker and the generated components across its
 invocations. The functional routes cover Bytes, Text, Map, Object, and Stream messages,
-context settings, and a topic with two subscribers. Broker faults and JNDI lookup cases
-have separate scenarios so they start with fresh connections and destination caches.
+context settings, and a topic with two subscribers.
+`recovers-from-conversion-and-broker-failures` checks conversion failures before
+exercising authentication, permission, and connection failures on the same broker.
+The JNDI lookup scenario starts with fresh connections and destination caches.
 Every invocation checks inactive senders with zero send and delivery counts.
 
 JMS fixtures use `expectedRequest.count` for the number of messages received by each
@@ -201,12 +363,16 @@ The generated sender disables reply-to; the scenarios assert its absence on the 
 
 Broker authentication faults change credentials on the connection factory returned
 by test JNDI. Permission faults use an Artemis user without publication rights.
+The fixture creates that user through the existing broker management connection,
+with a five-second reply timeout.
 An independent observer connection retains working credentials to check delivery.
 Connection refusal stops and restarts the same container with a fixed host port; observers
 reconnect before verifying that the failed call delivered no messages. This tests broker
 unavailability and recovery through the same generated components, not interruption of
 an in-flight publication. The fixture bounds connection, request, and send waits at five
 seconds; these are test connection-factory settings, not exported element options.
+The `rejects-connection-refused` invocation sets `timeoutSeconds: 120` to allow time
+for Docker shutdown, broker startup, and observer reconnection within the same call.
 Artemis and controlled JNDI do not establish WebLogic authentication, transaction,
 or acknowledgment behavior.
 
@@ -227,6 +393,20 @@ a container concurrently with its startup.
 Progress logs identify the target, scenario, selected deployments, fixture startup,
 each invocation, verification, and completion time.
 
+Each invocation has a shared deadline for its setup, all `repeat` executions, and
+fixture verification. The default is 30 seconds, configured by
+`route.contract.invocation.timeout.seconds`. An invocation may set `timeoutSeconds`
+to a positive integer to override that limit for the whole invocation. Omitted or null
+values use the configured default. The override does not affect later invocations,
+final fixture verification, fixture startup, or the clients' request timeouts.
+
+Invocation and final fixture verification timeouts include suppressed diagnostics in
+the Surefire failure report. The runner captures the worker thread's state and stack
+before interruption and cleanup. Pub/Sub trigger fixtures also record route and
+Subscriber states, broker stream and connection counts, published and acknowledged
+message IDs, and the current delivery phase. Capturing this state does not run GC or
+make broker calls.
+
 Async fixtures release their gates together, await all
 branches, and then check the shared session counter. This also supports an async branch
 that calls another chain with its own async branch. Fixture verification uses the runner's
@@ -238,21 +418,42 @@ HTTP Service Call fixtures accept `response.delayMillis` to delay a response thr
 WireMock. The value is a nonnegative integer in milliseconds; omitting it adds no delay.
 Keep delays below the HTTP and invocation timeouts when testing slow successful calls.
 
-The `http-sender.yml` manifest runs 16 generated sender chains through the
-`http-sender-http` fixture. Its 16 Short scenarios and one Long scenario contain
-76 invocations. They cover GET, POST, PUT, PATCH, DELETE, HEAD, dynamic URIs,
+The `http-sender.yml` manifest runs 20 sender variants in four generated chains through the
+`http-sender-http` fixture. Its 18 Short scenarios and one Long scenario contain
+111 invocations. They cover GET, POST, PUT, PATCH, DELETE, HEAD, dynamic URIs,
 context overrides, correlation IDs, generated external addresses, connection reuse,
 and redirects. Failure and recovery invocations share a client, including HTTP
 400/401/403/404/500 responses, transport faults, and a response timeout. The timeout
 scenario delays a response beyond the exported timeout; it does not simulate a
-connection establishment timeout. The incoming GET/POST sequence belongs to
-`http-trigger.yml`.
+connection establishment timeout. Incoming GET requests belong to
+`http-trigger.yml`; its basic deployment permits GET, and its idempotency deployment permits POST.
 
-The POST scenario `sends-post-requests-and-recovers-from-failures` groups 23 invocations:
-six transport failure and recovery calls, 13 body and HTTP error calls, and four
-redirect calls. Connection refusal runs first, before the client has an established
+Each chain groups related sender configurations under independent entrypoints:
+
+| Chain | Sender variants |
+| --- | --- |
+| `http-sender-methods` | GET, POST, PUT, PATCH, DELETE, HEAD |
+| `http-sender-addressing` | Dynamic URI, explicit external call, default external call |
+| `http-sender-context` | Disabled propagation, literal and dynamic overrides, header and body correlation, sequential senders, HTTP error fallback |
+| `http-sender-client` | Response timeout, connection reuse disabled |
+
+Scenarios select a chain through `deployment` and a branch through `endpointUri`.
+Every invocation includes zero-count interactions for unused senders in that chain.
+The HTTP fixture starts a server only for a sender with a positive expected send count
+in at least one invocation of the scenario. The count comes from `expectedSendCount`,
+or from `expectedRequest.count` when the send count is omitted. A send attempt to an
+unused branch is recorded and rejected before HTTP; its zero-count assertion also fails.
+This keeps HTTP server startup scoped to the exercised branches while loading all
+generated routes and client configurers for the selected chain.
+
+The POST scenario `sends-post-requests-and-recovers-from-failures` groups 38 invocations:
+six transport failure and recovery calls, 17 body and HTTP error calls, seven
+redirect and recovery calls, and eight charset calls. Connection refusal runs first, before the client has an established
 connection. Each HTTP error remains paired with its recovery call. Connection reuse
 has a separate scenario so its client and cumulative connection count start fresh.
+It also checks reconnection after the server returns `Connection: close`, then reuse
+of the new connection. Dynamic URI cases check encoded slashes and percent signs,
+literal plus signs, repeated query keys, and empty query values.
 
 HTTP sender fixtures retain the generated client configurer and production sender,
 charset, context, and exception processors. Before the HTTP call, the fixture records
@@ -277,6 +478,17 @@ HTTP sender fixtures accept these response settings:
 | `response.properties.expectedConnectionCount` | Checks the cumulative number of TCP connections accepted by the server during the scenario. |
 | `response.properties.redirects` | Lists redirect responses as `status` and `location` pairs. Locations must be paths on the same local server, optionally with a query. |
 | `response.properties.expectedRequests` | Checks the ordered request sequence, including the initial request and every redirect. Each entry requires `method`, `path`, and `body`; `query` and `headers` are optional. Its length must equal `expectedRequest.count`. |
+| `response.properties.expectedRequestBodyHex` | Compares the raw bytes of every received request with the hexadecimal string. Each byte needs two hex digits; an empty string requires an empty body. |
+| `response.properties.bodyCharset` | Encodes a string response body using the named charset. Set the response `Content-Type` separately. Omitted values use UTF-8; object bodies remain JSON. |
+
+Charset cases check exact UTF-16LE request bytes when the encoding comes from
+`Content-Type`, a `CamelCharsetName` property, or a `CamelCharsetName` header.
+They also check a UTF-16LE response after a UTF-8 request, rejection of an unknown
+Content-Type charset before HTTP, and a successful UTF-8 request after that failure.
+Text and empty HTTP error bodies retain their status and response headers.
+An HTTP 500 response with a UTF-16LE body checks error-body decoding and recovery
+with UTF-8. Body correlation also retains the outgoing ID for an empty request and
+HTTP 204 response, with an exact zero-byte request assertion.
 
 Run connection refusal before the first successful request when asserting
 `HttpHostConnectException`: stopping a server with an established pooled connection
@@ -287,8 +499,9 @@ request. `expectedSendCount` counts entries into the generated sender step, whil
 `expectedRequest.count` includes every HTTP request in the redirect sequence.
 The scenarios check two redirects for each of 301, 302, 307, and 308, including
 method, body, and headers at every hop. The current HTTP client turns POST into
-GET for 301/302 and discards its body and custom headers. For 307/308 it retains
-the method, body, and custom headers.
+GET for 301/302/303 and discards its body and custom headers. For 307/308 it retains
+the method, body, and custom headers. The added 303 cases cover a successful response
+and a redirect sequence ending in HTTP 500, followed by recovery.
 
 HTTP sender, GraphQL, and JMS fixtures share request-context initialization and production
 context processors. `response.properties.expectedRestoredContext` checks context
@@ -298,6 +511,19 @@ registers a scoped test context provider backed by the production
 and incoming-header priority to run through the real context processors. It does
 not validate tokens or exercise M2M. Fixture cleanup restores the previous context
 and provider registrations.
+Response-header collision cases check the returned exchange separately from the
+restored context: the exchange retains the response Authorization value and removes
+X-Request-Id, while the context restores the original incoming values.
+
+HTTP fixtures initialize request context on the generated `cip-chain` entry routes.
+Sender and Catch routes retain that snapshot, including when the entry route itself
+contains no sender. JMS and GraphQL fixtures keep their existing route initialization.
+The sequential HTTP scenario checks five invocations: success, first-sender failure
+with no second send, second-sender failure, and recovery after each failure. The
+fallback scenario checks six invocations: primary success, caught HTTP error, fallback
+HTTP error, uncaught transport error, and recovery after the two propagated errors.
+Assertions include per-sender restoration, response-to-request body flow, correlation
+IDs, captured HTTP error details, completion markers, and one Finally execution.
 
 External-address scenarios assert the generated gateway prefix, path, and query
 before redirecting the request to the local server. Live gateway routing, TLS, and
@@ -375,7 +601,171 @@ generated-chain support for those settings. Run them separately from snapshot ta
 ./mvnw -pl micro-engine -Dtest=GraphqlCustomEndpointHttpTest -Dgpg.skip=true test
 ```
 
-Kafka fixtures publish through the generated sender and its production client factory to
+The `kafka-trigger.yml` manifest declares 30 scenarios (five Short and 25 Long),
+100 invocations, and fourteen exported chains. Run them with
+`-Dsnapshot.target=kafka-trigger`. The basic chain uses two topics, one consumer,
+String deserializers, PLAINTEXT, and `autoOffsetReset=latest`. The offsets export
+contains independent `earliest` and `none` consumers with distinct topics and groups.
+Other deployments configure competing consumers, a short poll interval, lifecycle
+checks, binary and numeric deserializers, SASL, TLS, and three idempotency actions.
+Scenarios select the required deployment. The basic Script throws
+`IllegalStateException("Kafka snapshot failure")` when the incoming `snapshotFail`
+header is the string `true`; otherwise, it returns `Triggered`. These counts describe
+the manifest; execution results are recorded under `target/surefire-reports/snapshot-shards/`.
+The complete Kafka trigger target passed all 30 scenarios locally with a regenerated
+bundle on 2026-10-12; no scenarios were skipped or aborted.
+
+The `kafka-trigger` fixture retains the generated client factory and the production
+Kafka consumer, record processor, trigger processor, and header deserializer. It supplies
+an ACTIVE BlueGreen state without a sibling through the runner's existing dependency.
+The fixture replaces the external broker address with a real `apache/kafka:3.8.0`
+container. Each topic has three partitions. The consumer connects through a TCP proxy;
+the test producer and Admin client use a separate PLAINTEXT listener that remains
+available during a consumer outage. Security settings come from the generated endpoint.
+For SASL_SSL, the fixture supplies the existing test CA's truststore without changing
+JVM trust settings. Secured brokers use Kafka's StandardAuthorizer and the reader principal.
+
+After creating topics, the fixture reads their initial offsets. It retries
+`UnknownTopicOrPartitionException` while metadata propagates, within one ten-second
+deadline. Other failures propagate immediately.
+
+The driver selects the trigger by `sourceElementId`. Its parameters accept `topic`,
+`partition`, `timestamp`, `key`, `keyEncoding`, and `valueEncoding`. Both encodings
+default to `string`, which accepts strings or null and writes UTF-8. `bytes` accepts a
+list of integers from 0 through 255, including an empty list; `integer` and `long`
+encode exact signed 32-bit and 64-bit values in Kafka's binary representation. Null
+keys and values remain null for every encoding. Invocation headers become UTF-8 Kafka
+headers and still accept only strings or null. The ordered `recordHeaders` list accepts
+`{key, value}` entries, including duplicate names and null values, and appends them after
+invocation headers. The `messages` parameter accepts records with per-record options;
+`messageCount` repeats a scalar record or a list entry. Exchange properties cannot be
+sent over this driver.
+
+The fixture records inputs after the trigger processor and before downstream processing.
+For an idempotent trigger, it observes the input before deduplication. It compares the
+exact Java body and key types and their encoded bytes with the published record, then
+checks raw headers, timestamp, topic, partition, and offset against the producer's input
+and acknowledgment. Input and completion counts must match publications, with offsets
+ordered within each partition. It checks for extra deliveries after stopping every route
+in the group. These assertions permit interleaving across partitions. Redelivery remains
+an error unless the invocation explicitly sets `allowRedelivery: true`.
+
+The type and successful authentication scenarios wait for commits in their final
+invocation. That assertion includes the offsets of records from every invocation.
+Failure, restart, and idempotency scenarios retain commit checks at their state
+transitions.
+
+One fixture can observe peer trigger routes in the same deployment and group. Their
+generated endpoints and client factories remain in use, and their inputs and completions
+share one runtime. The group export has two consumers on the primary route and one on
+its peer. The scenario checks all three assigned partitions with three members, stops
+the peer and checks reassignment to the two remaining members, then starts the peer
+again. It checks delivery, per-partition order, and broker-stored commits through both
+changes.
+
+Kafka trigger `response.properties` supports these controls:
+
+- `startupRecords` publishes records before the first consumer assignment without
+  expecting their delivery. Readiness requires the full partition assignment and initial
+  offsets committed by the BG consumer. With `latest`, seeded records remain unconsumed.
+- `expectedStartupRecords` publishes backlog before route startup and includes it in
+  input, completion, metadata, and commit assertions. A driver with `consumeStartup: true`
+  collects these records without publishing another message and returns a list of results.
+  Observations made before the first invocation are retained.
+- `committedOffsets` accepts `{topic, partition, offset}` entries. Kafka Admin commits them
+  before the consumer starts. The `none` case checks that existing commits select the
+  unread suffix of each partition. An inactive `none` consumer receives zero offsets for
+  all its partitions while testing `earliest`.
+- `expectedConsumerFailure` uses the standard exception expectation. An observer scoped
+  to each route records Kafka poll errors from Camel's error-handler bridge. With
+  `awaitConsumerFailure: true`, the driver returns that error without publishing a record.
+  Failure scenarios require zero downstream inputs and unchanged initial group offsets.
+  For failures that persist through shutdown, the fixture checks those offsets again.
+  `resetConsumerFailure: true` clears the observed failure after publishing ignored records,
+  so a later invocation must observe another poll error rather than reuse the first one.
+- `ignoredRecords` publishes records that the invocation expects to leave unconsumed.
+  This includes unrelated topics and malformed records followed by valid records.
+- `awaitCommit: true` waits for broker-stored group offsets to equal published offsets
+  plus one. Route completion alone does not establish a committed offset.
+- `expectedMembers` checks the member count and complete assignment of the subscribed
+  partitions. `consumerAction: stop-peer-until-published` waits for prior commits and
+  stops the peer before publication; `start-peer` starts it and waits for reassignment.
+- `consumerAction: stop-until-published` waits for prior commits, stops the route,
+  publishes the invocation, checks zero deliveries, and restarts the same route and group.
+- `consumerAction: disconnect-until-published` closes established consumer connections,
+  publishes through the direct listener, checks zero deliveries, and restores the proxy.
+  Recovery must retain the same Camel consumer.
+- `startupUnavailable: true` blocks the proxy before consumer startup. The fixture waits
+  for a rejected consumer connection, checks zero delivery and unchanged stored offsets,
+  then restores connectivity before collecting the startup backlog. The broker and its
+  administration listener remain available during this simulated startup outage.
+- `consumerAction: restart-broker` waits for prior commits and restarts the Kafka process
+  inside the same Docker container. It preserves broker storage and listener ports,
+  checks unchanged stored offsets, and retains the existing Camel consumer before
+  publishing the next record. Docker container restart reallocates the fixture's random
+  host ports, so the fixture supervisor restarts only the broker process.
+  Broker readiness after restart allows 45 seconds. The restart invocation allows
+  60 seconds for setup, delivery, and verification; its internal completion wait
+  remains limited to 30 seconds.
+- `consumerAction: exceed-poll-interval` blocks a record at a processing gate, waits until
+  Admin observes zero group members, and releases the record. The scenario then requires
+  processing, committed offsets, rejoined membership, and a later valid record. Its
+  `allowRedelivery: true` permits repeats only for records published by that invocation;
+  assertions still require each unique record, encoded bytes, and per-partition order.
+- `consumerAction: stop-during-processing` blocks a record and starts graceful route
+  shutdown. It checks that shutdown waits and offsets remain unchanged while processing
+  is blocked. After release, it waits for shutdown and the completed record's commit,
+  then restarts the route. Pending gates are released during cleanup as well.
+- `initialConsumerAccess` sets `allow`, `topic-denied`, or `group-denied` before consumer
+  startup. `consumerAccess` applies the same ACL change before an invocation. The reader
+  retains Describe permission while Read permission is granted or removed. Recovery
+  restores Read access on the running consumer, then checks the protected backlog and a
+  new record. Invalid credentials use a separate generated chain.
+- `minSuccessfulAuthentications`, `minFailedAuthentications`, and
+  `minSuccessfulTlsHandshakes` require minimum cumulative counts observed by the proxy.
+  The secured cases check SASL_PLAINTEXT and SASL_SSL delivery, rejected credentials,
+  topic Read denial, group Read denial, unchanged offsets during denial, and recovery.
+- `expectedAbsentHeaders` checks input header absence. `expectedCompletionBody`,
+  `expectedCompletionHeaders`, and `expectedCompletionProperties` apply to every completed
+  record. `expectedCompletions` defines individual results, including explicit failures.
+
+The bulk invocation publishes 600 records while the consumer is stopped, then checks
+every input and completion after restart. It uses `expectedCompletionBody: Triggered`
+instead of listing 600 identical outer results. The Script failure scenario checks a
+failed completion, subsequent successful processing, committed offsets, and no replay
+after restart. A separate scenario queues valid, failing, and valid records in one
+partition before restarting its consumer and checks every completion. These assertions
+describe the default consumer error policy and delivery order; they do not measure each
+poll's result size. The malformed Integer value and Long key scenarios expect a
+`RecordDeserializationException`, zero downstream deliveries, unchanged offsets, and
+later valid records blocked behind the same malformed record.
+
+The idempotency exports cover `ignore`, `throw-exception`, and `execute-subchain`.
+They derive a business key and context from Kafka headers and check duplicate handling
+when payload, transport key, or partition changes. The Kafka fixture observes every
+input and commit; `idempotency-postgres` independently counts main Script and duplicate
+handler executions and checks stored keys, insertion attempts, record data, and TTL.
+Each scenario uses PostgreSQL 17.2 and the production idempotency repository and service
+SQL through a test transaction adapter. An unexpired duplicate must leave stored data
+and expiry unchanged. The store fixture's `response.properties.expireKey` expires an
+existing key, and the next record must reacquire it with the exported 600-second TTL.
+Invocations also check distinct keys and contexts, repeated duplicates, and duplicate
+handling after a consumer restart. This covers stored state across route
+restarts within the scenario; it does not establish recovery after a process restart or
+Quarkus transaction interceptor behavior.
+
+For plain groups, `autoOffsetReset=none` uses native Kafka offset resolution. The
+regressions cover fresh groups, partially committed partitions, and a stored offset beyond
+the log end. Each failure must preserve stored offsets and consume no records. The
+valid-offset scenario checks processing and restart. See the
+[offset reset regressions](src/test/resources/testspecifications/kafka-trigger.yml).
+
+MaaS and versioned Blue/Green transitions remain deferred. SSL without SASL, mutual TLS,
+other SASL mechanisms, offsets removed by retention, partition expansion, and independent
+consumer groups subscribing to the same topics remain outside these scenarios. The graceful shutdown gate does not
+cover forced shutdown or broker loss while a record is being processed.
+
+Kafka sender fixtures publish through the generated sender and its production client factory to
 a real Kafka container using the JVM image `apache/kafka:3.8.0`. The native image crashed
 during GraalVM startup with `SIGSEGV` and exit code 99.
 The shared `kafka-sender.yml` specification contains all seven
@@ -394,11 +784,8 @@ runs retention cleanup during a long scenario. Explicit topic deletion still wor
 The fixture uploads the broker startup script to a temporary path and publishes it with an
 atomic rename after the upload completes. This prevents `Text file busy` errors when the
 container shell tries to execute a script that Docker is still writing. The plaintext and TLS
-fixtures use the same publication step. A test with a paused upload checks this ordering:
-
-```bash
-./mvnw -pl micro-engine -Dtest=KafkaSnapshotContainerIT -Dgpg.skip=true test
-```
+fixtures use the same publication step. The component scenarios exercise this step
+when starting their Kafka brokers.
 
 The main chain uses StringSerializer, PLAINTEXT, a dynamic key,
 and a request ID override. Invocations in a scenario share the Camel context and broker.
@@ -507,6 +894,12 @@ Kafka `response.properties` also accepts these controls:
 - `tlsCertificate` selects `valid`, `rotated`, `untrusted`, `expired`, or `wrong-hostname`
   for the client-facing listener. Each change installs a fresh SSL context and resets
   existing connections, so the client must validate the presented certificate again.
+- `tlsCertificateOnNextProduce` selects the same certificates but waits for the next
+  Produce request before changing the certificate and resetting connections. The proxy
+  drops that request before forwarding it to the broker. This places the TLS failure
+  after the producer has queued the record, so a delivery-timeout assertion does not
+  depend on whether metadata was already available. Verification fails if no Produce
+  request consumes the planned change.
 - `minSuccessfulTlsHandshakes` and `minFailedTlsHandshakes` check client handshake counts.
   Every successful TLS publication must also use a SASL-authenticated TLS connection.
 - `aclAction: deny` revokes Write permission; `aclAction: allow` grants it. Both retain
@@ -532,6 +925,10 @@ The warm-connection scenario checks that timeout, the rejected handshake, and th
 of the rejected record. After certificate restoration, the SDK can surface a saved TLS
 error before recovering; its timing depends on background metadata updates. Recovery
 assertions use separate scenarios that start with an invalid certificate.
+After restoring a certificate, the fixture retries cached TLS errors and metadata
+timeouts on the same producer within its 15-second recovery deadline. Other
+authentication errors propagate immediately. The producer's four-second metadata
+timeout remains in place for the negative checks.
 
 The test-only `repeatedBody` driver accepts `endpointUri` and a positive integer `repeat`.
 It repeats the invocation's string body before sending it through the original chain.
@@ -779,6 +1176,30 @@ recreation, the failed ordering key remains paused and produces no Publish RPC; 
 different key succeeds through the same publisher. The fixture does not call
 `resumePublish` or recreate the publisher to hide this behavior.
 
+The `pubsub-trigger.yml` manifest defines 13 scenarios and 50 invocations across five
+generated exports. Two scenarios are Short; the remaining 11 are Long.
+Each trigger interaction uses `expectedRequest.count` for the total received deliveries
+across the invocation's repeats, including redelivery. Each driver call publishes fresh
+message IDs and waits for the completions of that publication.
+
+For `repeat: 1`, the driver waits for `expectedRequest.count` completions, including
+expected failed deliveries. For repeated publications that complete once per message,
+the total must equal the number of messages per publication multiplied by `repeat`.
+The driver then waits for one completion per published message in each repetition.
+
+For repeated publications with additional deliveries, set
+`response.properties.expectedCompletionCounts` to one positive integer per repetition.
+The list must sum to `expectedRequest.count`. For example, `[2, 2]` expects a failed
+delivery and redelivery in each repetition. `[2, 1]` handles an idempotency Ignore case:
+the first publication fails and is redelivered as a duplicate; the next publication
+is immediately handled as a duplicate. The list starts at its first entry for each
+invocation. `expectedCompletions` checks the ordered results across all repetitions,
+including exact failures. Ack and nack counts also cover the whole invocation.
+
+The repeat scenarios check normal AUTO acknowledgments, failure and redelivery for
+each publication, and unequal delivery counts with PostgreSQL idempotency records.
+Subsequent invocations check that completion counts reset while stored keys persist.
+
 Circuit breaker fixtures accept `awaitState` to wait up to 10 seconds before sending
 an invocation. The fixture polls the state every 25 milliseconds in the invocation
 thread and propagates interruption. It observes state without changing it; use it to
@@ -841,9 +1262,77 @@ omission of checkpoints during chain calls.
 For HTTP drivers, `expectedHeaders` and `expectedAbsentHeaders` describe the response
 received by the HTTP client. `CamelHttpResponseCode` contains the response status.
 Use `expectedExchangeHeaders` and `expectedAbsentExchangeHeaders` to inspect the internal
-Camel exchange. `expectedProperties` also describes that internal exchange. Each
+Camel exchange. `expectedProperties` also describes that internal exchange,
+including Camel properties such as `CamelDuplicateMessage`. Each
 invocation can set its own HTTP method and path; the driver installs each route's bridge
 once. The component bridge sends the response body, status, and Content-Type.
+
+The `http-trigger` manifest selects separate basic and idempotency deployments.
+The basic deployment uses chain `67d67e35-e881-477b-8203-f893f6958b0b`
+at `/routes/trigger-test`. Its seven Short scenarios contain 32 invocations and
+33 requests, including one repeated invocation. Empty GET bodies return
+`Triggered`. Nonempty text, whitespace, JSON objects and arrays, scalar JSON,
+and malformed JSON return HTTP 400 with `Validation Failure` from the exported
+validation script. The response retains `application/json` from the standard
+error handler even though the script replaces the body with plain text.
+The scenarios check failure markers, request header removal, and subsequent recovery.
+
+Other assertions cover unrestricted content types, custom headers and raw query
+values, disabled response filtering and correlation receipt, testing session IDs,
+Authorization removal, and repeated requests with idempotency disabled.
+`expectedAbsentExchangeHeaders` checks headers removed by the generated route or
+production processor; it does not establish servlet response header filtering.
+
+The idempotency deployment uses chain `98ee44b6-8bba-43d0-8a7b-67370e11f530`
+at POST `/routes/test-w-body`. Four Short scenarios contain 35 invocations and
+36 requests. The generated JSONPath expression reads `body.id` and prefixes the
+stored key with `POST /qip-routes/test-w-body:`. New keys execute the exported
+Script and return HTTP 200; duplicates return HTTP 202 with the duplicate request
+body and skip the Script. Changed payload fields, formatting, headers, query
+parameters, and content types do not change the body-derived key.
+
+The cases check string conversion of numeric and boolean IDs, explicit null and
+empty IDs, whitespace, case, and punctuation. Missing IDs and unsupported bodies
+fail before storage and are followed by valid requests. An expired key is acquired
+again while an unexpired key remains reserved. Every invocation checks database
+keys and insertion attempts independently of the downstream Script count.
+
+The `idempotency-postgres` fixture targets that Script's `sourceElementId` and
+observes it without replacing it. Each scenario starts PostgreSQL 17.2, creates
+the table from the production migration, and runs the production
+`PostgresIdempotentRepository`, `IdempotencyRecordService`, and
+`IdempotencyRecordRepository` SQL. A test adapter supplies Hibernate entity
+managers and resource-local transactions. This does not verify Quarkus transaction
+interceptors. Fixture state and connections are closed after the scenario.
+
+For this fixture, `expectedRequest.count` is the number of downstream Script
+executions. `expectedRequest.properties` supports `insertionAttempts`, `key`,
+`keyExpiry`, `storedKeys`, `updatedKeys`, and `records`. Attempts reset for each
+invocation; stored records persist within the scenario. Keys are sorted in byte
+order. Each record exposes its key, data, TTL in seconds, and active flag. Stored
+data must equal `{"status":"RECEIVED"}`. `updatedKeys: []` checks that a duplicate
+does not modify the record or extend its TTL.
+
+`response.properties.expireKey` moves one existing record's expiry into the past
+before a request. The following production insert must renew it with the exported
+600-second TTL; the test does not wait ten minutes. These sequential scenarios do
+not cover concurrent acquisition, cleanup scheduling, process restarts, or duplicate
+actions other than `ignore`.
+
+This driver replaces the servlet consumer with a direct route behind a local HTTP
+bridge. It runs the production trigger, validation, exception, and interrupt
+processors, but supplies HTTP metadata itself and records calls to the completion
+processors. It validates the configured binding name without executing
+`HandlingHttpBinding`. Servlet method/path rejection (including HTTP 404/405),
+OPTIONS/HEAD behavior, query-to-header parsing, response header filtering, and
+chunking require servlet-level tests. The bridge accepts scalar request headers
+and uses UTF-8 for bodies; it does not test repeated header values or other encodings.
+
+Other trigger settings require additional exports: methods beyond GET and POST,
+parameterized paths, content-type allowlists, JSON schemas, enabled response
+filtering or correlation receipt, other validation handlers and duplicate actions,
+timeout termination, and access policies. Downstream failures also need a chain
+that can fail after validation. M2M is outside this suite.
 
 Map-value assertions, including `expectedHeaders`, accept `{ $match: non-empty }`.
 This matcher requires a nonblank string or a collection containing at least one

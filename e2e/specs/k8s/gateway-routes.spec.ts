@@ -34,43 +34,45 @@ async function rulesFor(chainId: string, path: string): Promise<string[]> {
     });
 }
 
-test("a chain with an external trigger answers through the public gateway until it is undeployed", { tag: ["@engine", "@infra", "@tier2"] }, async ({ catalog, folder, run, request }) => {
-  test.setTimeout(ENGINE_CASE_TIMEOUT);
-  const chain = await tokenizedChain(catalog, run, {
-    prefix: "gateway",
-    what: "external",
-    parentId: folder.id,
-    externalRoute: true,
+test.describe("public gateway", { tag: ["@engine", "@infra"] }, () => {
+  test("routes a chain with an external trigger until its undeploy", async ({ catalog, folder, run, request }) => {
+    test.setTimeout(ENGINE_CASE_TIMEOUT);
+    const chain = await tokenizedChain(catalog, run, {
+      prefix: "gateway",
+      what: "external",
+      parentId: folder.id,
+      externalRoute: true,
+    });
+    const path = `${GATEWAY_ROUTE_PREFIX}/${chain.contextPath}`;
+    const snapshot = await catalog.createSnapshot(chain.id);
+
+    try {
+      const deployment = await catalog.deploy(chain.id, snapshot.id);
+      await waitForDeployed(catalog, [chain]);
+
+      expect(await rulesFor(chain.id, path)).toEqual([`PathPrefix ${path} -> ${CLASSIC_ENGINE_SERVICE}:8080`]);
+      const route = await httpRoute(classicPublicRoutes(chain.id));
+      expect(route?.spec.parentRefs.map((each) => each.name)).toEqual(["public-gateway"]);
+
+      await expect
+        .poll(async () => (await request.post(gatewayUrl(path), { data: { gateway: run } })).status(), {
+          timeout: GATEWAY_TIMEOUT,
+          message: `the public gateway never routed ${path} to the chain`,
+        })
+        .toBe(200);
+      const answer = await request.post(gatewayUrl(path), { data: { gateway: run } });
+      expect(answer.headers()[MARKER_HEADER]).toBe("external");
+
+      await catalog.undeploy(chain.id, deployment.id);
+      await expect.poll(() => httpRoute(classicPublicRoutes(chain.id)), { timeout: GATEWAY_TIMEOUT }).toBeNull();
+      await expect
+        .poll(async () => (await request.post(gatewayUrl(path), { data: { gateway: run } })).status(), {
+          timeout: GATEWAY_TIMEOUT,
+          message: `the public gateway kept routing ${path} after the undeploy`,
+        })
+        .toBe(404);
+    } finally {
+      await catalog.undeployAll(chain.id).catch(leftBehind(chain.name, "undeployed"));
+    }
   });
-  const path = `${GATEWAY_ROUTE_PREFIX}/${chain.contextPath}`;
-  const snapshot = await catalog.createSnapshot(chain.id);
-
-  try {
-    const deployment = await catalog.deploy(chain.id, snapshot.id);
-    await waitForDeployed(catalog, [chain]);
-
-    expect(await rulesFor(chain.id, path)).toEqual([`PathPrefix ${path} -> ${CLASSIC_ENGINE_SERVICE}:8080`]);
-    const route = await httpRoute(classicPublicRoutes(chain.id));
-    expect(route?.spec.parentRefs.map((each) => each.name)).toEqual(["public-gateway"]);
-
-    await expect
-      .poll(async () => (await request.post(gatewayUrl(path), { data: { gateway: run } })).status(), {
-        timeout: GATEWAY_TIMEOUT,
-        message: `the public gateway never routed ${path} to the chain`,
-      })
-      .toBe(200);
-    const answer = await request.post(gatewayUrl(path), { data: { gateway: run } });
-    expect(answer.headers()[MARKER_HEADER]).toBe("external");
-
-    await catalog.undeploy(chain.id, deployment.id);
-    await expect.poll(() => httpRoute(classicPublicRoutes(chain.id)), { timeout: GATEWAY_TIMEOUT }).toBeNull();
-    await expect
-      .poll(async () => (await request.post(gatewayUrl(path), { data: { gateway: run } })).status(), {
-        timeout: GATEWAY_TIMEOUT,
-        message: `the public gateway kept routing ${path} after the undeploy`,
-      })
-      .toBe(404);
-  } finally {
-    await catalog.undeployAll(chain.id).catch(leftBehind(chain.name, "undeployed"));
-  }
 });
