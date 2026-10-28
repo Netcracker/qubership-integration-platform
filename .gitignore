@@ -39,6 +39,11 @@ integration-platform-skills/
 # Local design notes, plans, and specs
 docs/
 
+# Local A2A experiments
+/tools/a2a-lab/
+/scripts/a2a-lab.sh
+/infrastructure/docker/docker-compose.a2a-lab.yml
+
 # Local agent skill mirrors
 .cursor/skills/ai-service-e2e/
 .cursor/skills/compiler-skill-addon-maintainer/
