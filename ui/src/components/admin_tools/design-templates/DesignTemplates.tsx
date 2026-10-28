@@ -15,14 +15,15 @@ import {
   ColumnsTypeWithSettings,
   useColumnSettingsBasedOnColumnsType,
 } from "../../table/useColumnSettingsButton";
-import { useTableConfiguration } from "../../table/useTableConfiguration.tsx";
+import {
+  SELECTION_COLUMN_WIDTH,
+  useTableConfiguration,
+} from "../../table/useTableConfiguration.tsx";
 import { tableScroll } from "../../table/tableScroll.ts";
 import { AdminToolsHeader } from "../AdminToolsHeader.tsx";
 import { TableToolbar } from "../../table/TableToolbar.tsx";
 import { matchesByFields } from "../../table/tableSearch.ts";
 import { useDesignTemplatesFilter } from "../../../hooks/filter/useDesignTemplatesFilter.ts";
-
-const DESIGN_TEMPLATES_SELECTION_COLUMN_WIDTH = 48;
 
 function designTemplateMatchesSearch(
   template: DetailedDesignTemplate,
@@ -120,7 +121,7 @@ export const DesignTemplates: React.FC = () => {
       type: 160,
       createdWhen: 180,
     },
-    { selectionColumnWidth: DESIGN_TEMPLATES_SELECTION_COLUMN_WIDTH },
+    { selectionColumnWidth: SELECTION_COLUMN_WIDTH },
     "designTemplatesTable",
   );
 

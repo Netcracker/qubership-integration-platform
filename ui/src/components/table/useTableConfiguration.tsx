@@ -15,6 +15,12 @@ import type {
 } from "antd/es/table/interface";
 import { useTableSetting } from "./useTableSetting";
 
+/** Injected by rc-table; must match expandable.columnWidth and scroll.x. */
+export const EXPAND_COLUMN_WIDTH = 48;
+
+/** Explicit width so scroll.x includes the selection column. */
+export const SELECTION_COLUMN_WIDTH = 32;
+
 type PersistedTableSort = {
   key: string;
   order: SortOrder;

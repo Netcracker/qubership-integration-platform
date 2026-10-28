@@ -27,7 +27,10 @@ import {
   ColumnsTypeWithSettings,
   useColumnSettingsBasedOnColumnsType,
 } from "../../components/table/useColumnSettingsButton.tsx";
-import { useTableConfiguration } from "../../components/table/useTableConfiguration.tsx";
+import {
+  SELECTION_COLUMN_WIDTH,
+  useTableConfiguration,
+} from "../../components/table/useTableConfiguration.tsx";
 import { TestCaseRunDrawer } from "../../components/testing/TestCaseRunDrawer.tsx";
 import { getTestingPermissions } from "../../components/testing/testingPermissions.ts";
 import { isTestCaseRunCancellable } from "../../components/testing/runStatus.ts";
@@ -37,7 +40,6 @@ import {
   useTestingFilter,
 } from "../../hooks/filter/useTestingFilter.ts";
 import {
-  TESTING_SELECTION_COLUMN_WIDTH,
   testCaseRunsListSource,
   useTestingEntityList,
 } from "../../hooks/testing/useTestingEntityList.ts";
@@ -371,7 +373,7 @@ export const TestCaseRuns: React.FC<TestCaseRunsProps> = ({
     orderedColumns,
     COLUMN_WIDTHS,
     {
-      selectionColumnWidth: TESTING_SELECTION_COLUMN_WIDTH,
+      selectionColumnWidth: SELECTION_COLUMN_WIDTH,
       controlledSort: tableSort,
       onChange: handleServerTableChange,
     },

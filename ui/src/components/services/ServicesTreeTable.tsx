@@ -47,12 +47,12 @@ import { ProtectedDropdown } from "../../permissions/ProtectedDropdown.tsx";
 import { ColumnSettingsButton } from "../table/ColumnSettingsButton.tsx";
 import type { ActionConfig } from "./serviceRowActions";
 import type { ColumnsType } from "antd/lib/table";
-import { useTableConfiguration } from "../table/useTableConfiguration.tsx";
+import {
+  EXPAND_COLUMN_WIDTH,
+  SELECTION_COLUMN_WIDTH,
+  useTableConfiguration,
+} from "../table/useTableConfiguration.tsx";
 import { DEFAULT_ACTIONS_COLUMN_WIDTH } from "../table/actionsColumn.ts";
-
-/** rc-table expand icon column; not in `columns` but affects horizontal layout. */
-const SERVICES_TREE_EXPAND_COLUMN_WIDTH = 48;
-const SERVICES_TREE_SELECTION_COLUMN_WIDTH = 48;
 
 export type ServiceEntity =
   | IntegrationSystem
@@ -640,10 +640,10 @@ export function useServicesTreeTable<T extends ServiceEntity = ServiceEntity>({
     serviceTreeResizeWidths,
     {
       selectionColumnWidth: enableSelection
-        ? SERVICES_TREE_SELECTION_COLUMN_WIDTH
+        ? SELECTION_COLUMN_WIDTH
         : undefined,
       expandColumnWidth: expandable
-        ? SERVICES_TREE_EXPAND_COLUMN_WIDTH
+        ? EXPAND_COLUMN_WIDTH
         : undefined,
       applyDisableResizeBeforeActions: false,
     },

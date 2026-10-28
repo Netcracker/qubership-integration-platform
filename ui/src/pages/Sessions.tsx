@@ -41,7 +41,11 @@ import {
   useColumnSettingsBasedOnColumnsType,
 } from "../components/table/useColumnSettingsButton.tsx";
 import { tableScroll } from "../components/table/tableScroll.ts";
-import { useTableConfiguration } from "../components/table/useTableConfiguration.tsx";
+import {
+  EXPAND_COLUMN_WIDTH,
+  SELECTION_COLUMN_WIDTH,
+  useTableConfiguration,
+} from "../components/table/useTableConfiguration.tsx";
 import { tableEmpty } from "../components/table/tableEmpty.tsx";
 import commonStyles from "../components/admin_tools/CommonStyle.module.css";
 import { TableToolbar } from "../components/table/TableToolbar.tsx";
@@ -79,10 +83,6 @@ function groupBy<T, K>(array: T[], getKey: (item: T) => K): Map<K, T[]> {
     return accumulator;
   }, new Map<K, T[]>());
 }
-
-/** rc-table expand column when rows have nested `children`. */
-const SESSIONS_EXPAND_COLUMN_WIDTH = 48;
-const SESSIONS_SELECTION_COLUMN_WIDTH = 48;
 
 const INITIAL_PAGE_COUNT = 2;
 
@@ -425,8 +425,8 @@ export const Sessions: React.FC<SessionsProps> = ({
       engineAddress: 150,
     },
     {
-      expandColumnWidth: SESSIONS_EXPAND_COLUMN_WIDTH,
-      selectionColumnWidth: SESSIONS_SELECTION_COLUMN_WIDTH,
+      expandColumnWidth: EXPAND_COLUMN_WIDTH,
+      selectionColumnWidth: SELECTION_COLUMN_WIDTH,
     },
     sessionsColumnSettingsKey,
   );

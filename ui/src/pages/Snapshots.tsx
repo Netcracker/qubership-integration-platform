@@ -34,7 +34,10 @@ import { confirmAndRun } from "../misc/confirm-utils.ts";
 import { ProtectedDropdown } from "../permissions/ProtectedDropdown.tsx";
 import { Require } from "../permissions/Require.tsx";
 import { useColumnSettingsBasedOnColumnsType } from "../components/table/useColumnSettingsButton.tsx";
-import { useTableConfiguration } from "../components/table/useTableConfiguration.tsx";
+import {
+  SELECTION_COLUMN_WIDTH,
+  useTableConfiguration,
+} from "../components/table/useTableConfiguration.tsx";
 import { tableEmpty } from "../components/table/tableEmpty.tsx";
 import { createActionsColumnBase } from "../components/table/actionsColumn.ts";
 import { matchesByFields } from "../components/table/tableSearch.ts";
@@ -43,8 +46,6 @@ import { TableToolbar } from "../components/table/TableToolbar.tsx";
 import { ChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
 import { ChainContext } from "./ChainPage.tsx";
 import { ChainDiffPopup } from "../components/chains/diff/ChainDiffPopup.tsx";
-
-const SNAPSHOTS_SELECTION_COLUMN_WIDTH = 48;
 
 function snapshotMatchesSearch(snapshot: Snapshot, term: string): boolean {
   const labelNames = snapshot.labels?.map((l) => l.name) ?? [];
@@ -398,7 +399,7 @@ export const Snapshots: React.FC = () => {
       modifiedBy: 120,
       modifiedWhen: 168,
     },
-    { selectionColumnWidth: SNAPSHOTS_SELECTION_COLUMN_WIDTH },
+    { selectionColumnWidth: SELECTION_COLUMN_WIDTH },
     "snapshotsTable",
   );
 

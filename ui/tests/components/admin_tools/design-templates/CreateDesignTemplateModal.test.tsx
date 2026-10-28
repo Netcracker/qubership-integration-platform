@@ -107,7 +107,7 @@ describe("CreateDesignTemplateModal", () => {
   it("disables Save until a file is attached", () => {
     render(<CreateDesignTemplateModal onTemplateCreated={jest.fn()} />);
 
-    expect(screen.getByRole("button", { name: /^save$/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^create$/i })).toBeDisabled();
   });
 
   it("enables Save after file is selected and calls API on submit", async () => {
@@ -119,7 +119,7 @@ describe("CreateDesignTemplateModal", () => {
     });
     fireEvent.click(screen.getByTestId("mock-dragger-add"));
 
-    const save = screen.getByRole("button", { name: /^save$/i });
+    const save = screen.getByRole("button", { name: /^create$/i });
     expect(save).not.toBeDisabled();
 
     fireEvent.click(save);
@@ -190,7 +190,7 @@ describe("CreateDesignTemplateModal", () => {
       target: { value: "T" },
     });
     fireEvent.click(screen.getByTestId("mock-dragger-add"));
-    fireEvent.click(screen.getByRole("button", { name: /^save$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^create$/i }));
 
     await waitFor(() => {
       expect(mockRequestFailed).toHaveBeenCalled();

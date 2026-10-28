@@ -73,7 +73,11 @@ import {
 } from "../components/table/useColumnSettingsButton.tsx";
 import { useTableDragDrop } from "../hooks/useTableDragDrop.ts";
 import { treeExpandIcon } from "../components/table/TreeExpandIcon.tsx";
-import { useTableConfiguration } from "../components/table/useTableConfiguration.tsx";
+import {
+  EXPAND_COLUMN_WIDTH,
+  SELECTION_COLUMN_WIDTH,
+  useTableConfiguration,
+} from "../components/table/useTableConfiguration.tsx";
 import { tableEmpty } from "../components/table/tableEmpty.tsx";
 import { TableToolbar } from "../components/table/TableToolbar.tsx";
 import commonStyles from "../components/admin_tools/CommonStyle.module.css";
@@ -83,8 +87,6 @@ import { useGenerateDds } from "../hooks/useGenerateDds.tsx";
 import { useCatalogRefresh } from "../hooks/useCatalogRefresh.ts";
 import { isVsCode } from "../api/rest/vscodeExtensionApi.ts";
 
-const CHAINS_EXPAND_COLUMN_WIDTH = 48;
-const CHAINS_SELECTION_COLUMN_WIDTH = 48;
 import { Domain } from "../components/SelectDomains.tsx";
 import { ChainDiffPopup } from "../components/chains/diff/ChainDiffPopup.tsx";
 import { useTableRowExpandCollapse } from "../components/table/useTableRowExpandCollapse.ts";
@@ -1295,8 +1297,8 @@ const Chains = () => {
       modifiedWhen: 168,
     },
     {
-      expandColumnWidth: CHAINS_EXPAND_COLUMN_WIDTH,
-      selectionColumnWidth: CHAINS_SELECTION_COLUMN_WIDTH,
+      expandColumnWidth: EXPAND_COLUMN_WIDTH,
+      selectionColumnWidth: SELECTION_COLUMN_WIDTH,
     },
     "chainsTable",
   );
