@@ -94,14 +94,16 @@ export function InlineEditWithButtons<Values>(
   const [active, setActive] = useState(props.initialActive ?? false);
   const [hasChanges, setHasChanges] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  // Callers pass a new values object on every render, so compare it by content.
+  const valuesKey = JSON.stringify(props.values);
 
   useEffect(() => {
     if (active) {
       form.setFieldsValue(props.values);
       setHasChanges(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- read values on open only; callers pass a new object on every render
-  }, [active, form]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- valuesKey stands for props.values
+  }, [valuesKey, active, form]);
 
   const toggle = useCallback(() => {
     setActive((prev) => {

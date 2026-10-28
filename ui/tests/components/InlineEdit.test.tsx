@@ -122,6 +122,19 @@ describe("InlineEdit", () => {
     expect(screen.getByRole("textbox")).toHaveValue("typed");
   });
 
+  // A table keyed by row index moves another record under an open editor when a row
+  // above it is deleted, and the editor then submits to that record.
+  it("should show the new value when the caller passes a different one", () => {
+    const { rerender } = render(cell("before", true));
+
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "typed" },
+    });
+    rerender(cell("another record", true));
+
+    expect(screen.getByRole("textbox")).toHaveValue("another record");
+  });
+
   it("should show the current value when the editor opens", () => {
     const { rerender } = render(cell("before"));
 

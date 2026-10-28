@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useCallback, useMemo, useRef } from "react";
 import { Button, Table, Tooltip, Typography } from "antd";
 import type { Rule } from "antd/lib/form/index";
 import type { TableProps } from "antd/lib/table";
@@ -54,16 +54,33 @@ export const NameValueTable: React.FC<NameValueTableProps> = ({
   "data-testid": dataTestId,
 }) => {
   const rows = useMemo(() => values ?? [], [values]);
-  // Pairs carry no id, so the row key comes from a keyed copy rather than from
-  // the row index, which antd deprecated on `rowKey`.
+  // Pairs carry no id, so each row object gets one and an edited copy inherits it.
+  // An index key would move an open editor to another pair when a row above is deleted.
+  const rowIds = useRef(new WeakMap<TestingNamedParameter, number>());
+  const nextRowId = useRef(0);
+  const idOf = useCallback((row: TestingNamedParameter): number => {
+    let id = rowIds.current.get(row);
+    if (id === undefined) {
+      id = nextRowId.current++;
+      rowIds.current.set(row, id);
+    }
+    return id;
+  }, []);
   const keyedRows = useMemo<KeyedParameter[]>(
-    () => rows.map((row, index) => ({ ...row, key: index })),
-    [rows],
+    () => rows.map((row) => ({ ...row, key: idOf(row) })),
+    [rows, idOf],
   );
 
   const replaceRow = (index: number, changes: Partial<TestingNamedParameter>) =>
     onChange(
-      rows.map((row, i) => (i === index ? { ...row, ...changes } : row)),
+      rows.map((row, i) => {
+        if (i !== index) {
+          return row;
+        }
+        const changed = { ...row, ...changes };
+        rowIds.current.set(changed, idOf(row));
+        return changed;
+      }),
     );
 
   const removeRow = (index: number) =>
