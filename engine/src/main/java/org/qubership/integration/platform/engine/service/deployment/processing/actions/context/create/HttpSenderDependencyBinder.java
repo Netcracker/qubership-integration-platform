@@ -21,6 +21,7 @@ import io.micrometer.core.instrument.binder.httpcomponents.hc5.MicrometerHttpCli
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.component.http.HttpClientConfigurer;
 import org.apache.camel.spring.SpringCamelContext;
+import org.apache.hc.client5.http.impl.ChainElement;
 import org.apache.hc.core5.http.HttpRequest;
 import org.apache.hc.core5.http.HttpRequestInterceptor;
 import org.apache.hc.core5.http.HttpResponse;
@@ -82,7 +83,10 @@ public class HttpSenderDependencyBinder extends ElementProcessingAction {
     ) {
         HttpClientConfigurer httpClientConfigurer = clientBuilder -> {
             if (isKubernetesM2MEnabled(elementProperties)) {
-                clientBuilder.addExecInterceptorFirst("m2m-fallback-interceptor", new M2MFallbackHandler(m2mUrlCache));
+                log.info("Adding fallback interceptor");
+                clientBuilder.addExecInterceptorBefore(
+                        ChainElement.REDIRECT.name(), "m2m-fallback-interceptor", new M2MFallbackHandler(m2mUrlCache));
+                log.info("Interceptor added");
             }
 
             if (metricsStore.isMetricsEnabled()) {
