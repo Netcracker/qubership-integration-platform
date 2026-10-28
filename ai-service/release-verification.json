@@ -314,5 +314,18 @@
       "sha256": "8c07f382368f30027cbe44786538089deaf4d01052a4ef3fa7c093b00aaf478f"
     }
   ],
-  "qaKnowledgeArchiveSha256": "98db2e3033b0ba0e41a2509c4805efb5e9025c94d9fa0947061ba8590180d959"
+  "qaKnowledgeArchiveSha256": "98db2e3033b0ba0e41a2509c4805efb5e9025c94d9fa0947061ba8590180d959",
+  "testingArchive": {
+    "status": "PASS_INVENTORY_AND_READBACK",
+    "localArtifact": "Ignored local delivery/testing.zip",
+    "entryRoot": "testing/",
+    "files": 139,
+    "excludedGeneratedBytecodeFiles": 20,
+    "sha256": "23f1e01defbf73c15907ef8f276344f031018eac776f0a4b486078f6f8282052",
+    "sourceManifestSha256": "183817219cd4df5d69102a2b7a8d6ac04436eac5dba197f3aaddca5369a4ccf8",
+    "credentialPatternMatches": 0,
+    "contentsVerification": "Every archived entry matched the supplied source bytes and hash; source layout placeholders are included.",
+    "independentReview": "PASS",
+    "publication": "NOT_PUBLISHED"
+  }
 }
