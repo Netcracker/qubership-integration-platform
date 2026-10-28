@@ -36,6 +36,7 @@ Please find the description for all available tools below:
 - ![insert-row-right](img/insert-row-right.svg) - expand/hide right panel. The panel is indented to edit chain graph by its text representation.
 - ![insert-row-left](img/insert-row-left.svg) - expand/hide left panel.
 - ![fullscreen](img/fullscreen.svg) ![Exit full screen icon](img/fullscreen-exit.svg) - switch between full screen and collapsed process view. **`⛔ Not available via the VS Code extension`**
+- ![compass](img/compass.svg) - hides or shows the minimap in the upper-right corner of the graph.
 
 ### General Actions
 The next actions are available upper right corner:

@@ -139,6 +139,9 @@ To add new information, click on the button ![setting](img/setting.svg) located 
 - ![down](img/down.svg) / ![up](img/up.svg) - expands the specification and shows all operations under it or collapses the specification and hides operations under it.
 - ![stop](img/stop.svg) - deprecates the specification, that makes it unavailable for newly added chain elements.
 - ![delete](img/delete.svg) - deletes the specification and its imported API definition files.
+
+  > ℹ️ The **"Delete"** action is available only for deprecated specifications.
+
 - ![cloud-download](img/cloud-download.svg) - exports the specification.
 
 **Control panel**

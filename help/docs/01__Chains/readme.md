@@ -288,6 +288,7 @@ You can view the comparison in three modes, switchable at any time:
   - ![plus](img/plus.svg) ![minus](img/minus.svg) - zoom in/out the graph.
   - ![expand](img/expand.svg) - fit view.
   - ![rotate-right](img/rotate-right.svg) - toggles the graph orientation between vertical and horizontal.
+  - ![compass](img/compass.svg) - hides or shows the minimap (visible by default) in that comparison area.
 
   Elements are color-coded by their comparison state:
   - **Identical (grey)** - no differences found in the element or its connections.
