@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-28",
-  "status": "IN_PROGRESS",
+  "status": "BLOCKED_PENDING_FIX_SELECTION",
   "applicationSourceRevision": "28d88a78ccdd345a70a13a762ccb7c142580f2b1",
   "localImages": {
     "qip-ai-service:qa-20261028-28d88a78-with-skills": {
@@ -38,7 +38,7 @@
       "commit": "28d88a78ccdd345a70a13a762ccb7c142580f2b1",
       "tests": 5,
       "independentReview": "PASS",
-      "liveRecheck": "PENDING"
+      "liveRecheck": "FAIL_FULL_SECTION_TASK_CONTENT_PASS_TWO_CASES_PROVENANCE_UNVERIFIED"
     },
     "javaBaseline": {
       "commit": "c211950ab",
@@ -299,7 +299,8 @@
   },
   "blockers": [
     "Deferred recovery response-schema ambiguity mismatch prevents green Java acceptance and unconditional merge.",
-    "Uploaded OpenAPI mapping acceptance stopped in requirement discovery before specification import or chain materialization."
+    "Uploaded OpenAPI mapping acceptance stopped in requirement discovery before specification import or chain materialization.",
+    "Base documentation consultation failed to answer the self-contained full-section inventory request."
   ],
   "evidencePolicy": "Raw prompts, responses, private packages and captures remain in ignored local evidence; this file is a sanitized summary.",
   "suppliedPackageFingerprints": [
@@ -327,5 +328,68 @@
     "contentsVerification": "Every archived entry matched the supplied source bytes and hash; source layout placeholders are included.",
     "independentReview": "PASS",
     "publication": "NOT_PUBLISHED"
+  },
+  "baseDocumentationAcceptance": {
+    "status": "PARTIAL_WITH_CONFIRMED_FAILURE",
+    "applicationSourceRevision": "28d88a78ccdd345a70a13a762ccb7c142580f2b1",
+    "baseReadiness": "UP",
+    "privateKnowledgeRequired": false,
+    "sharedContainersChanged": false,
+    "requestIntegrity": "All three original messages and scenario hints retained; only conversation IDs changed.",
+    "cases": [
+      {
+        "id": "http-trigger-explanation",
+        "status": "PASS_CONTENT_ONLY",
+        "scope": "Explanation covers gateway visibility, in-cluster URL, and path-parameter exchange property; relative documentation paths used.",
+        "sourceProvenance": "UNVERIFIED_TOOL_RESULTS_TRUNCATED_PREVIEWS"
+      },
+      {
+        "id": "full-rest-api-errors-section",
+        "status": "FAIL_OFF_TASK_ANSWER",
+        "scope": "Self-contained request asks for the complete section inventory; final answer discusses CIP-4100 instead.",
+        "targetSectionReads": 4,
+        "cursorReadCalls": 3,
+        "paginationCompletion": "UNVERIFIED",
+        "exactCodeAndPathCoverage": "NOT_ESTABLISHED",
+        "oracleLimitation": "Historical expected fixture and current documentation differ; exact source counts are not claimed."
+      },
+      {
+        "id": "unknown-parameter",
+        "status": "PASS_CONTENT_ONLY",
+        "scope": "Unknown parameter remains unconfirmed with no invented default; a relative documentation path is cited.",
+        "sourceProvenance": "UNVERIFIED_TOOL_RESULTS_TRUNCATED_PREVIEWS"
+      }
+    ],
+    "semanticJudge": "NOT_RUN",
+    "ui": "NOT_RUN",
+    "independentReview": "PASS_SCOPED_WITH_LIMITATIONS",
+    "evidence": "Ignored local evidence: live-documentation-openai-base/",
+    "providerCapture": {
+      "requestedModel": "gpt-6-luna",
+      "returnedModel": "gpt-6-luna",
+      "endpoint": "https://api.openai.com/v1",
+      "requests": 16,
+      "responses": 16,
+      "pairedExchanges": 16,
+      "conversationTaggedRequests": 0,
+      "attribution": "Aggregate exclusive base-documentation phase only; SDK records lack conversation IDs, so no per-case exchange counts are claimed.",
+      "toolCalls": {
+        "searchDocumentation": 6,
+        "readDocumentation": 10
+      },
+      "rawEvidence": "Ignored local candidate-captures bundle; all 20 manifest-listed files passed hashes and permissions checks."
+    }
+  },
+  "remainingActions": [
+    "Select whether to correct the uploaded-OpenAPI requirement-capture failure and the off-task documentation answer, then rerun the affected cases.",
+    "Keep the recovery response-schema defect deferred until explicitly approved; it still blocks green Java acceptance.",
+    "Add a genuine requirement-revision input and stronger exact-content/preservation assertions if that acceptance coverage is required.",
+    "After selected corrections, freeze a new candidate, review the final diff, refresh main integration, and prepare the merge."
+  ],
+  "secretEvidenceScan": {
+    "filesExamined": 4428,
+    "matchingFiles": 0,
+    "scope": "UTF-8 evidence and helpers, excluding frozen source archives and binary files",
+    "valuePrinted": false
   }
 }
