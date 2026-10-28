@@ -717,9 +717,10 @@ export class Catalog {
    * Snapshots the chains and deploys them to every listed domain as one camel-k Integration per
    * micro domain.
    *
-   * A domain name the catalog does not list is taken as a new micro domain. A micro deployment
-   * writes no row to `catalog.deployments`, so the answer is the only record of it, and an unknown
-   * chain id is dropped from it with no error: a caller compares the rows with the ids it sent.
+   * Every listed name is declared as a micro domain, so a name the catalog does not list is created
+   * as one. A micro deployment writes no row to `catalog.deployments`, so the answer is the only
+   * record of it, and an unknown chain id is dropped from it with no error: a caller compares the
+   * rows with the ids it sent.
    */
   deployChains(
     chainIds: string[],
@@ -729,6 +730,7 @@ export class Catalog {
     return this.call("post", "/v1/catalog/chains/deployments/bulk", {
       chainIds,
       domains,
+      microDomains: domains,
       mode: "REWRITE",
       snapshotAction,
     });
