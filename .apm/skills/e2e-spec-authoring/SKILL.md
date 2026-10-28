@@ -7,7 +7,7 @@ description: Write or change a spec, a fixture, a registry row, or the support c
 
 The `e2e` instruction covers the suite's layout, commands, provisioning, and data isolation, and is
 loaded whenever you work under `e2e/`. This skill holds the rules for changing the suite. The rules
-for `specs/ui/` are in `browser.md` beside this file.
+for `specs/ui/` and `specs/vscode/` are in `browser.md` beside this file.
 
 ## Projects and dependencies
 
@@ -44,11 +44,20 @@ and satisfies its dependents.
 `schema` reads the product's tracked files: the schemas, `routes.conf`, the Compose files, and the
 migrations. `harness` tests the suite's own code: the report readers, the registries, the target
 adapters, and the lint cases over the spec sources. Both also declare `group: "suite"`, and a seed,
-a teardown, `ui-server`, and `tooling` declare `group: "setup"`; a new project of either kind
+a teardown, `schemas-build`, `ui-server`, `vscode-server`, and `tooling` declare `group: "setup"`; a
+new project of either kind
 declares its group the same way. The run summary, the email, and the run page count each group apart
 from the product cases, a failed setup project reads there as an infrastructure failure, and a
 failed case of any group still fails the run. A change to `support/`, `registry/`, or `env/` changes its `harness` cases in the same
 commit.
+
+**`schemas-build`, `vscode-server`, and `vscode` need no stack either.** All three declare
+`stack: false`, so `--project=vscode` provisions nothing. `vscode` depends on `vscode-server`, and
+`vscode-server` on `schemas-build`; the two setups rebuild what is stale and start VS Code for the
+web on 3917, so `vscode` runs with its dependencies and never with `--no-deps`, which would find no
+server. `vscode` is the first product project with no stack, so code that tells product projects
+apart reads the group, never `stack: false`: `fixedPinIn` in `support/run-report.mjs` finds a
+removable pin by the group, and `rerunCommand` leaves `--no-deps` off for a project with no stack.
 
 **Run the smallest selection that shows the change.** While you iterate, run the changed spec
 against a kept corpus, red first and then green, and run `schema` and `harness` beside it. Each
@@ -56,6 +65,7 @@ takes seconds:
 
 ```bash
 E2E_SWEEP=never npm test -- --project=<project> --no-deps specs/<dir>/<file>.spec.ts
+npm test -- --project=vscode specs/vscode/<file>.spec.ts   # with its dependencies, no stack
 npm test -- --project=schema --project=harness
 ```
 
@@ -70,10 +80,10 @@ environment. Queue no second dispatch while one runs. The workflow's `concurrenc
 
 ## Coverage registries
 
-Two registries under `registry/` hold what the suite claims to cover, and both are checked against
-the run rather than believed. A spec that covers something new is not finished until its row says
-so, and the row moves in the same commit as the spec. `e2e/README.md` describes how reconcile is run
-and what it refuses.
+Three registries under `registry/` hold what the suite claims to cover, and all three are checked
+against the run rather than believed. A spec that covers something new is not finished until its
+row says so, and the row moves in the same commit as the spec. `e2e/README.md` describes how
+reconcile is run and what it refuses.
 
 **`registry/elements.ts`: one row per element family and per axis value.** Every row starts
 `not-covered` with a required reason. A row moves to `covered` only together with a spec that
@@ -198,6 +208,28 @@ where `test.info()` throws.
 no stack, and `specs/api/api-docs-live.spec.ts` diffs that cache against what the services serve
 right now, so a controller added to a service fails a run.
 
+**`registry/vscode-messages.ts`: one row per message type of the webview bridge, and three
+states.** `covered` means a passing `vscode` case recorded the type answered without an error,
+`not-covered` carries a required reason, and `unhandled` marks a type the UI sends and the extension
+has no handler for (#1214). The recorder in `support/vscode-messages.ts`, an `auto` fixture of
+`support/vscode-guard.ts`, records the types, never the spec: it annotates the case once per type
+answered. The extension never answers `openChainInNewTab` and `navigateInNewTab`, and answers
+`navigateComparedDocumentInNewTab` whatever its handler did, so these three `EFFECT_ONLY_TYPES`
+count only through `await sentMessage(type)`, called after the case asserts the tab the message
+opens.
+
+`specs/harness/vscode-messages.spec.ts` reads the rows against the sources with no stack: the
+`case` labels of `getApiResponse` in the extension and the types `ui/src` passes to
+`sendMessageToExtension` and `reportExportImagesProgress`. A handled type with no row fails it, and
+so do a type the UI sends that neither a handler nor an `unhandled` row takes, a row neither side
+knows, and an `unhandled` row the extension now handles. A handled type with no sender in `ui/src`
+stays `not-covered` with a reason that starts `no UI sender`. Reconcile is two-sided, as for the
+operations: a `covered` row no passing case recorded fails, and so does a `not-covered` row one
+did. A type recorded for an `unhandled` row is ignored, since an answer with no payload and no
+error proves nothing. `npm run reconcile -- --only=vscode-messages` reads a run of exactly
+`--project=vscode`, plus execution options such as `--max-failures`, and checks this registry
+alone.
+
 ## Rules for a spec
 
 1. **Assert over your own entities, never over a global list.** "The table holds three rows" breaks
@@ -266,19 +298,21 @@ right now, so a controller added to a service fails a run.
     | API version | `@v1`, `@v2`, `@v3` |
 
     `@infra` is for the stack's own infrastructure: the nginx proxy, Kubernetes resources,
-    restarts, metrics, and the UI server. The `ui`, `schema`, and `harness` projects are
-    components of their own, `PROJECT_COMPONENTS` in `registry/elements.ts`, so their cases carry
-    no component tag, which would only repeat the project name in the HTML report. Only the
+    restarts, metrics, and the setups that build and serve what the browser projects use, which
+    are `schemas-build`, `ui-server`, and `vscode-server`. The `ui`, `vscode`, `schema`, and
+    `harness` projects are components of their own, `PROJECT_COMPONENTS` in
+    `registry/elements.ts`, so their cases carry no component tag, which would only repeat the
+    project name in the HTML report. Only the
     components are read: `--grep @engine` or `--project=ui` selects one, and the case catalog
     groups by them. The other kinds are informational.
 
     Playwright copies a describe's tags into every case under it, so tags go on the top-level
     describe, and a nested describe or a case adds only the tags that differ. Every case inherits at
     least one component tag through its describe chain, unless its project is a component; a case
-    that has neither fails `npm run reconcile`. A case in the `ui` project never carries a backend
-    tag, so a backend grep with `--no-deps` selects no case that needs Chromium. A computed tag such as
-    `COMPONENT_TAG[role]` is allowed: the title lint skips it, and reconcile fails a tag in the
-    report that is not on the list.
+    that has neither fails `npm run reconcile`. A case in the `ui` or `vscode` project never
+    carries a backend tag, so a backend grep with `--no-deps` selects no case that needs Chromium.
+    A computed tag such as `COMPONENT_TAG[role]` is allowed: the title lint skips it, and reconcile
+    fails a tag in the report that is not on the list.
 
     Where one file covers several components, the component goes in a nested describe and the
     cases are declared once in a function, so each title stays a literal:
@@ -338,11 +372,12 @@ right now, so a controller added to a service fails a run.
     `@playwright/test`, never from `support/fixtures.js`.** That module installs `auto: true`
     fixtures which create a folder over HTTP and shell out to `docker logs`, so one wrong import
     turns a stack-free project into one that needs a stack, and CI has no Docker.
-    `specs/harness/schema-imports.spec.ts` holds every file in both directories to it. Importing a
-    *helper* from `support/` is fine: it is `test` and `expect` that carry the fixtures. A case about
-    a product file (`routes.conf`, a Compose file, a migration, a schema) goes in `specs/schema/`; a
-    case that tests the suite's own code goes in `specs/harness/`, whose counts the run summary
-    keeps apart from the product's.
+    `specs/harness/schema-imports.spec.ts` holds every file in both directories to it, and every
+    `specs/vscode/` spec to `support/vscode-guard.js`, which builds on `@playwright/test`. Importing
+    a *helper* from `support/` is fine: it is `test` and `expect` that carry the fixtures. A case
+    about a product file (`routes.conf`, a Compose file, a migration, a schema) goes in
+    `specs/schema/`; a case that tests the suite's own code goes in `specs/harness/`, whose counts
+    the run summary keeps apart from the product's.
 15. **Move the registry row in the same commit as the spec.** A covered element row needs a
     `covers(family, axis, value)` declaration, or `coversBehavior(family, label)` for a behavior
     row, in a passing test, or `npm run reconcile` fails naming the row; an operation row moves to
@@ -355,7 +390,9 @@ right now, so a controller added to a service fails a run.
     parameter, a header, or a body field is a failure no spec-side edit can reach, so some mutations
     belong in `support/`. Record each mutation in the spec header, on a line that starts
     `Shown failing:` and names the edit and the assertion it turned red, or say there why the case
-    is a guard that no mutation reaches.
+    is a guard that no mutation reaches. A `vscode` case is broken in the extension's answer to the
+    message it sends, under `vscode-extension/src/web/response/`; `browser.md` gives the rebuild
+    path.
 18. **An assertion on a log is two-sided, and scoped to a window the spec opened.** `env.logs` takes
     a `since` for that reason: an unscoped read is satisfied by an unrelated earlier line, and an
     absence-only assertion is equally green when the mechanism never ran. Assert the line that

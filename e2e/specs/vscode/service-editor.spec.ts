@@ -241,8 +241,8 @@ test.describe("service editor", () => {
 
 /**
  * Adds `label` in a row's inline labels editor, which Enter saves, and waits for the row to show it.
- * The open editor takes its values again from the table on every redraw, and an answer from the
- * extension redraws the page, so the editor opens only once every request has its answer.
+ * The open editor takes its values again from the table on every redraw (#1226), and an answer
+ * from the extension redraws the page, so the editor opens only once every request has its answer.
  *
  * Enter adds the typed label through the select's option list, which mounts in a hidden popup some
  * time after the first key. An Enter before that saves the labels without the new one (2 of 12

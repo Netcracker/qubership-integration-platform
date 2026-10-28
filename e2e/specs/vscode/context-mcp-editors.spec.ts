@@ -5,13 +5,13 @@
  *
  * A label saved on a context service never reaches its file: `updateContextService` in
  * `serviceApiModify.ts` writes the name and the description only, and `getContextService` returns
- * no labels, though the context service schema has them and the form sends them. Issue to be filed;
- * the pinned case carries it.
+ * no labels, though the context service schema has them and the form sends them (#1225). The
+ * pinned case carries it.
  *
  * A chain file that does not parse opens on `Not implemented yet`, with no error in the editor:
  * `getNavigateUri` in `apiRouter.ts` catches the parse error and answers `/services`, a route the
- * extension's UI does not have. Only the extension host's log names the file. Issue to be filed;
- * the pinned case breaks a chain itself, through the text editor, since a broken fixture would stop
+ * extension's UI does not have. Only the extension host's log names the file (#1224). The pinned
+ * case breaks a chain itself, through the text editor, since a broken fixture would stop
  * every image export, and expects the editor to show the parser's message.
  *
  * Shown failing, each by an edit in `vscode-extension/src/web/response/`:
@@ -67,7 +67,8 @@ async function addLabel(webview: FrameLocator, label: string): Promise<void> {
 
 /**
  * Saves the form, waits for the answer to `update`, and reads the service file once `until` holds
- * for it. The MCP form keeps Save enabled after a save, so the answer marks the end of the save.
+ * for it. The MCP form keeps Save enabled after a save (#1226), so the answer marks the end of the
+ * save.
  */
 async function saveAndRead(vscode: VsCodePage, messages: MessageRecorder, update: string, until: (service: ServiceFile) => boolean): Promise<ServiceFile> {
   await vscode.webview.getByRole("button", { name: "Save" }).click();
@@ -91,7 +92,7 @@ test.describe("context and MCP service editors", () => {
   });
 
   test("a label saved on the context service is written", async ({ vscode, messages }) => {
-    test.fail(true, "updateContextService writes no labels; issue to be filed");
+    test.fail(true, "#1225: updateContextService writes no labels");
     const service = await outsideTheDefect("saving a label and a description and reading the context service file", async () => {
       await vscode.open();
       await vscode.openFile(CONTEXT);
@@ -134,7 +135,7 @@ test.describe("context and MCP service editors", () => {
   });
 
   test("a chain file that does not parse opens with an error", async ({ vscode, page, expectConsoleError }) => {
-    test.fail(true, "the editor opens a chain file that does not parse on Not implemented yet, with no error; issue to be filed");
+    test.fail(true, "#1224: the editor opens a chain file that does not parse on Not implemented yet, with no error");
     for (const error of PARSE_ERRORS) expectConsoleError(withAnyStack(error));
     const notImplemented = vscode.webview.getByText("Not implemented yet", { exact: true });
     const parseError = vscode.webview.getByText(/not valid JSON or YAML/);

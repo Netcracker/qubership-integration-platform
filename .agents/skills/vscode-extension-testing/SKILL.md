@@ -26,10 +26,12 @@ reproduces what the real code does. This skill covers what a case at each level 
 - The test bundle carries its own copy of the extension's modules. Call `useExtensionModules()` before calling one,
   such as `getApiResponse`. The `vscode` API object is shared, so a stub on `vscode.window` supplies a prompt's answer.
 - A spec sends `getApiResponse` the message the webview would send. The webview-to-router wiring in `enrichWebview`
-  and the webview DOM stay untested.
-- The host is the current insiders build (`--quality insiders`), because `customEditorDiffs` is a proposed API. When
-  the gate fails on the host download, a host measurement, or a chromium launch, follow the comment above the
-  `Run integration tests` step in `.github/workflows/vscode-extension-build.yaml`.
+  and the webview DOM are covered by the end-to-end suite's `vscode` project (`e2e/specs/vscode/`), which drives the
+  editors in VS Code for the web; load the `e2e-spec-authoring` skill before writing a case there.
+- The host is the current insiders build (`--quality insiders`), because `customEditorDiffs` is a proposed API. The
+  `vscode` project pins one insiders build in `e2e/support/vscode-server.ts` instead. When the gate fails on the host
+  download, a host measurement, or a chromium launch, follow the comment above the `Run integration tests` step in
+  `.github/workflows/vscode-extension-build.yaml`.
 
 ## Golden files
 

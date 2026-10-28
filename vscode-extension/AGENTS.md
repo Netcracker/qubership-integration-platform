@@ -48,8 +48,12 @@ Domain types (`Chain`, `Element`, `LibraryData`, message envelopes) come from `@
 
 - Four test levels: **1** Jest over the `tests/fake-vscode/` fake, no host; **2** mocha in `@vscode/test-web` over the
   real `workspace.fs` (`src/web/test/suite/`); **3** the catalog importing a golden
-  (`e2e/specs/api/extension-output.spec.ts`); **4** the webview DOM, out of scope. A behavior the host cannot produce,
-  a symbolic link for one, can only be pinned at level 1.
+  (`e2e/specs/api/extension-output.spec.ts`); **4** the editors' webviews in VS Code for the web, the `vscode` project
+  of the end-to-end suite (`e2e/specs/vscode/`). A behavior the host cannot produce, a symbolic link for one, can only
+  be pinned at level 1.
+- `e2e/registry/vscode-messages.ts` holds one row per message type of the webview bridge. A message type added to or
+  removed from `getApiResponse`, or from what `ui/src` sends, changes its row in the same commit, or
+  `e2e/specs/harness/vscode-messages.spec.ts` fails.
 - Jest cases live under `tests/` and beside their sources in `src/web/api-services/` and `src/web/services/`. Level-2
   specs live in `src/web/test/suite/`, which Jest ignores.
 - Jest maps `vscode` to the fake in `tests/fake-vscode/`, an in-memory filesystem. Seed it with `seedWorkspace`,

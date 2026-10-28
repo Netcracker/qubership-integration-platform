@@ -20,6 +20,8 @@ Write an end-to-end case when no test inside one module can see the defect or th
   or in how it reads the real response, which a Jest test with a mocked response cannot show.
 - It is UI behavior only a browser shows: a screen that throws, focus, a missing redraw, a control
   that another element covers.
+- It is an editor of the VS Code extension: what its webview shows, and what the webview sends the
+  extension and gets back. The `vscode` project drives the editors in VS Code for the web.
 
 The change needs no end-to-end case when:
 
@@ -29,9 +31,9 @@ The change needs no end-to-end case when:
   evidence.
 - It changes logs, metrics, the build, CI, documentation, or a dependency version, or it refactors
   without changing behavior.
-- It stays inside the VS Code extension. Its integration suite under
-  `vscode-extension/src/web/test/suite/` covers it; `specs/api/extension-output.spec.ts` covers only
-  the files the extension writes for import.
+- It stays inside the VS Code extension host: a command, or a read or write through
+  `workspace.fs`. Its integration suite under `vscode-extension/src/web/test/suite/` covers it;
+  `specs/api/extension-output.spec.ts` covers only the files the extension writes for import.
 
 A fix for a defect the suite already pins removes the pin, and the case that then passes is the
 regression case. `grep -rn "#<N>\b" e2e/specs e2e/support` finds the `test.fail()` case that
