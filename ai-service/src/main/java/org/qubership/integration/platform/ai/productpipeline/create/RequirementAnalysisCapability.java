@@ -81,6 +81,9 @@ public class RequirementAnalysisCapability implements StageCapability {
   public static final String CAPABILITY_ID = "requirement-analysis";
   public static final String SKILL_ID = "cip-requirement-analyzer";
 
+  @jakarta.inject.Inject
+  org.qubership.integration.platform.ai.productpipeline.knowledge.DocumentationTools documentation;
+
   private final KnowledgeClient knowledgeClient;
   private final KnowledgeContextProvider knowledgeContextProvider;
   private final RequirementBriefCoverageValidator coverageValidator;
@@ -671,7 +674,9 @@ public class RequirementAnalysisCapability implements StageCapability {
             + "\n\n" + AuthorSourceEvidence.render(source)
             + "\n\nSelected artifact references: " + context.inputRefs()
             + "\nStage: " + context.stageId() + "\nAttempt: " + context.attemptId()
-            + "\n\n" + contextPackage.renderMarkdown();
+            + "\n\n" + contextPackage.renderMarkdown()
+            + (documentation == null ? "" : documentation.context(context.conversationId(),
+                approved.planningText(), List.of()));
     if (evidenceEmitter != null) {
       evidenceEmitter.knowledge(
           context.conversationId(),

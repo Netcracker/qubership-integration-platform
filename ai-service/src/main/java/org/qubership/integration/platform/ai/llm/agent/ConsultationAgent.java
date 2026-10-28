@@ -9,7 +9,8 @@ import jakarta.enterprise.context.ApplicationScoped;
 import org.qubership.integration.platform.ai.integration.catalog.tool.ElementSchemaTools;
 
 /** Read-only platform assistance independent of the private creation package. */
-@RegisterAiService(tools = ElementSchemaTools.class,
+@RegisterAiService(tools = {ElementSchemaTools.class,
+    org.qubership.integration.platform.ai.productpipeline.knowledge.DocumentationTools.class},
     maxSequentialToolInvocations = 6)
 @ApplicationScoped
 public interface ConsultationAgent {

@@ -8,7 +8,7 @@ import org.eclipse.microprofile.health.HealthCheckResponse;
 import org.eclipse.microprofile.health.Readiness;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 
-/** Fails readiness until the sidecar reports ready and a CERTIFIED active package. */
+/** Requires public documentation and, when skills are installed, certified private knowledge. */
 @Readiness
 @ApplicationScoped
 public class KnowledgeSidecarReadinessCheck implements HealthCheck {
@@ -25,11 +25,13 @@ public class KnowledgeSidecarReadinessCheck implements HealthCheck {
 
   @Override
   public HealthCheckResponse call() {
-    if (!rockySkills.available()) {
-      return HealthCheckResponse.named("knowledge-sidecar").up()
-          .withData("required", false).build();
-    }
     try {
+      var documentation = new SidecarKnowledgeClient(api).documentationManifest();
+      if (!rockySkills.available()) {
+        return HealthCheckResponse.named("knowledge-sidecar").up()
+            .withData("documentationChecksum", documentation.checksum())
+            .withData("privateKnowledgeRequired", false).build();
+      }
       KnowledgeSidecarApi.HealthDto ready = api.ready();
       if (ready == null || !"ok".equalsIgnoreCase(ready.status())) {
         return HealthCheckResponse.named("knowledge-sidecar")

@@ -43,6 +43,26 @@ class ToolReadProgressTest {
   }
 
   @Test
+  void documentationContinuationMakesProgressButRepeatingTheSamePageStops() {
+    begin();
+    var guard = guard();
+    for (int page = 0; page < 4; page++) {
+      var call = ToolExecutionRequest.builder().id("page-" + page).name("readDocumentation")
+          .arguments("{\"id\":\"guide.md#0\",\"cursor\":\"page-" + page + "\"}").build();
+      check(guard, ChatRequest.builder().messages(UserMessage.from("Read the remaining guide"),
+          AiMessage.from(call), ToolExecutionResultMessage.from(call, "{\"text\":\"page-" + page + "\"}")).build());
+    }
+    for (int repeat = 0; repeat < 3; repeat++) {
+      var call = ToolExecutionRequest.builder().id("repeat-" + repeat).name("readDocumentation")
+          .arguments("{\"id\":\"guide.md#0\",\"cursor\":\"same-page\"}").build();
+      var request = ChatRequest.builder().messages(UserMessage.from("Read the guide"),
+          AiMessage.from(call), ToolExecutionResultMessage.from(call, "{\"text\":\"same\"}")).build();
+      if (repeat < 2) check(guard, request);
+      else assertThrows(ReadNoProgressException.class, () -> check(guard, request));
+    }
+  }
+
+  @Test
   void persistedReadsStopAcrossHistoryTruncationAndRewordedInstructionsWithoutCaptureCredits() {
     begin();
     check(guard(), read("one", ARGS, "{\"ok\":true,\"data\":{\"enum\":[\"a\",\"b\"]}}"));

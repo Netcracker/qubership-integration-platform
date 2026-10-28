@@ -85,12 +85,15 @@ class RockySkillsTest {
   }
 
   @Test
-  void publicReadinessDoesNotCallThePrivateSidecar() throws Exception {
+  void publicReadinessRequiresDocumentationWithoutCallingPrivateKnowledge() throws Exception {
     var api = mock(KnowledgeSidecarApi.class);
+    when(api.documentationManifest()).thenReturn(
+        new KnowledgeSidecarApi.DocumentationManifestDto(1, "sha256:" + "a".repeat(64), 1, 1));
     var health = new KnowledgeSidecarReadinessCheck(api);
     deny(health);
     assertEquals(org.eclipse.microprofile.health.HealthCheckResponse.Status.UP, health.call().getStatus());
-    verifyNoInteractions(api);
+    verify(api).documentationManifest();
+    verifyNoMoreInteractions(api);
   }
 
   private void assertDenied(org.junit.jupiter.api.function.Executable action) {

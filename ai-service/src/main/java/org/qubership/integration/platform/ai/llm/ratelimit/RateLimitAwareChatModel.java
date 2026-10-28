@@ -108,6 +108,9 @@ public final class RateLimitAwareChatModel implements ChatModel {
               return completed;
             });
         if (requestBudget != null) requestBudget.recordProviderOutcome(evidenceId, "response", ProviderBoundaryEvidence.response(response));
+        if (response != null && response.finishReason() == dev.langchain4j.model.output.FinishReason.LENGTH) {
+          throw new IllegalStateException("LLM_OUTPUT_INCOMPLETE: model output limit reached");
+        }
         return response;
       } catch (RuntimeException error) {
         if (requestBudget != null) requestBudget.recordProviderOutcome(evidenceId, "error",

@@ -74,6 +74,21 @@ class CompilerSkillContextBuilderKnowledgeEvidenceTest {
   }
 
   @Test
+  void publicDocumentationReachesGeneratorMessageAlongsidePrivateKnowledge() {
+    var documentation = Mockito.mock(
+        org.qubership.integration.platform.ai.productpipeline.knowledge.DocumentationTools.class);
+    builder.documentation = documentation;
+    when(documentation.context("documentation-conversation", "Explain retry", List.of("service-call")))
+        .thenReturn("Documentation: /doc/service-call\nExact public source text");
+    String message = builder.buildUserMessage("documentation-conversation", documentWithMarkdown("generator-id: GEN-04\n"),
+        snapshot("Explain retry", graphWithTypes("service-call")), null, CaptureTool.CAPTURE_GRAPH_PATCH);
+    org.junit.jupiter.api.Assertions.assertAll(
+        () -> assertTrue(message.contains("Exact public source text"), message),
+        () -> assertTrue(message.contains("/doc/service-call"), message),
+        () -> assertTrue(message.contains("Runtime Context Package"), message));
+  }
+
+  @Test
   void buildUserMessage_appendsOneRuntimeContextPackageAndRecordsEvidence() {
     CompilerSkillDocument document =
         documentWithMarkdown("generator-id: GEN-04\n");

@@ -28,6 +28,19 @@ import org.qubership.integration.platform.ai.chat.activity.LlmRateLimitBackoffSi
 
 class RateLimitSinkSupportTest {
   @Test
+  void outputLimitIsReportedAsAnErrorInsteadOfSuccessfulCompletion() {
+    var handler = org.mockito.Mockito.mock(StreamingChatResponseHandler.class);
+    var sink = RateLimitSinkSupport.completionAwareHandler(handler, new AtomicBoolean());
+    sink.onCompleteResponse(ChatResponse.builder().aiMessage(AiMessage.from("Partial answer"))
+        .finishReason(dev.langchain4j.model.output.FinishReason.LENGTH).build());
+    var failure = org.mockito.ArgumentCaptor.forClass(Throwable.class);
+    verify(handler).onError(failure.capture());
+    org.junit.jupiter.api.Assertions.assertEquals("LLM_OUTPUT_INCOMPLETE: model output limit reached",
+        failure.getValue().getMessage());
+    verify(handler, never()).onCompleteResponse(any());
+  }
+
+  @Test
   void requiredCompletionPreservesEveryStreamingCallbackAndCompletesBackoffBeforeRefusingText() {
     var handler = mock(StreamingChatResponseHandler.class);
     var sink = RateLimitSinkSupport.completionAwareHandler(handler, new AtomicBoolean(true), true);
