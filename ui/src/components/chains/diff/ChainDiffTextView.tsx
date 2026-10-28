@@ -95,10 +95,37 @@ export const ChainDiffTextView = forwardRef<
   const monacoTheme = useMonacoTheme();
   const editorRef = useRef<editor.IStandaloneDiffEditor | null>(null);
 
+  useEffect(() => {
+    return () => {
+      editorRef.current = null;
+    };
+  }, []);
+
   useImperativeHandle(
     ref,
     () => ({
-      goToDiff: (direction) => editorRef.current?.goToDiff(direction),
+      goToDiff: (direction) => {
+        const diffEditor = editorRef.current;
+        if (!diffEditor) {
+          return;
+        }
+        const lineChanges = diffEditor.getLineChanges() ?? [];
+        if (lineChanges.length === 0) {
+          return;
+        }
+        const modifiedEditor = diffEditor.getModifiedEditor();
+        const currentLine = modifiedEditor.getPosition()?.lineNumber ?? 0;
+        const lines = lineChanges.map((c) =>
+          Math.max(1, c.modifiedStartLineNumber),
+        );
+        const target =
+          direction === "next"
+            ? (lines.find((l) => l > currentLine) ?? lines[0])
+            : ([...lines].reverse().find((l) => l < currentLine) ??
+              lines[lines.length - 1]);
+        modifiedEditor.setPosition({ lineNumber: target, column: 1 });
+        modifiedEditor.revealLineInCenter(target);
+      },
     }),
     [],
   );
