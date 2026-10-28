@@ -7,22 +7,30 @@ Subagents own separate files; the coordinating chat owns commits and the shared 
 ## Delivery contract
 
 - Supply the project and runtime packages through the existing unified build procedure.
-- Consumers place runtime packages in `integration-platform-skills/rocky-skills` and `rocky-knowledge`.
+- Consumers place runtime packages in `integration-platform-skills/rocky-skills` and
+  `integration-platform-skills/rocky-knowledge`.
 - Without runtime packages, the service supports public documentation and disables CREATE and EDIT.
 - Partial or invalid runtime packages fail the build without falling back to the base service.
 - Keep the optional testing archive separate from runtime packages. Image variant tags are acceptance artifacts.
 
 ## Remaining steps
 
-1. **UI checks — pending.** Remove the two reported unnecessary type assertions and resolve the hook dependency
-   warning after checking its cause. Run the affected UI tests, lint, types, and formatting checks.
-2. **Package inventory — pending.** Allow the optional source `testing/` directory while retaining strict runtime
-   file inventory checks. Reproduce the existing certified-package failure and rerun the affected test.
-3. **Documentation answers — pending.** Preserve source URLs without inventing a domain and preserve literal
-   method/path variants when the user requests an exact listing. Check the affected prompts and repeat the
-   relevant existing documentation cases. Record model identity and tool-read evidence.
-4. **Candidate and live acceptance — pending.** Record the source revision, package checksums, image digests, and
-   actual served model. Run the existing small CREATE/EDIT selection, including service calls, uploaded OpenAPI
+1. **UI checks — complete.** Commit `94d60447e` removed the two unnecessary assertions and the unused hook
+   dependency. Scoped lint, 13 tests, types, formatting, and independent review passed.
+2. **Package inventory — complete.** Commit `0e676db9a` allows optional source `testing/` while retaining strict
+   runtime checks. The failure reproduced, then four certified-package tests and independent review passed.
+3. **Documentation answers — live recheck pending.** Commit `28d88a78` adds literal URL and method/path guidance.
+   The regression reproduced before the change; five tests and independent review passed. Repeat the existing
+   live cases and record model identity and tool-read evidence.
+4. **Candidate and live acceptance — in progress.** Full/base AI images and a documentation sidecar were built
+   from `28d88a78`. Private resources occur only in the full image. Greetings passed materialization, native
+   assertions, catalog review, and static script review after test-setup corrections. The earlier failures remain
+   recorded; the successful continuation used the same conversation without resending the initial prompt.
+   See the [verification summary](release-verification.json) for source revision, image IDs, and case outcomes.
+   For each remaining case, retain the frozen source revision and local image ID, and record the returned model.
+   The summary records supplied package fingerprints and the QA knowledge archive checksum; registry digests
+   are unavailable because these images were not published. Run the remaining CREATE/EDIT selection with
+   service calls, uploaded OpenAPI
    mapping, an incremental edit, and recovery. Read the generated result back from the catalog and check each
    case's assertions. Chain execution, if performed, also requires runtime session evidence and logging restoration.
 5. **Merge readiness — pending.** Review the final diff and evidence, record unresolved findings and exclusions,
