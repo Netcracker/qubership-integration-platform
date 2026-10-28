@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.qipknowledge.pack;
 
+import java.io.InputStream;
 import java.util.List;
 import org.qubership.integration.platform.ai.compiler.catalog.CompilerSkillCatalog;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineIndex;
@@ -41,4 +42,18 @@ public interface CipKnowledgePackRepository {
   List<String> loadRuntimePromotedSkillIds();
 
   ProductPipelinePackageIndex loadProductPipelinePackageIndex();
+
+  /**
+   * Relative paths under {@code product-pipelines/} for profile YAML files copied at pack build time
+   * (for example {@code profiles/create-chain-v3.yaml}).
+   */
+  List<String> loadProductPipelineProfileResources();
+
+  /**
+   * Opens a resource under {@code product-pipelines/}, or returns {@code null} when absent.
+   *
+   * @param relativePath path relative to {@code product-pipelines/}, such as
+   *     {@code artifact-schemas.yaml} or {@code rules/create-exclusions-v1.yaml}
+   */
+  InputStream openProductPipelineResource(String relativePath);
 }

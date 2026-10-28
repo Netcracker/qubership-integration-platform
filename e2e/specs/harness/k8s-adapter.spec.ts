@@ -199,21 +199,21 @@ test.describe("k8s adapter", () => {
         tags,
       });
       expect(desktop.slice(0, 7)).toEqual([
-        "upgrade", "--install", "qip", "/repo/infrastructure/helm/qip-dev", "-n", "qip-e2e", "-f",
+        "upgrade", "--install", "cip", "/repo/infrastructure/helm/cip-dev", "-n", "cip-e2e", "-f",
       ]);
       expect(desktop).toContain("/repo/e2e/k8s/values.e2e.yaml");
-      expect(desktop).toContain("qip-engine.image.tag=e2e-bbbbbbbbbbbb");
-      expect(desktop).toContain("qip-testing-service.image.tag=e2e-dddddddddddd");
+      expect(desktop).toContain("cip-engine.image.tag=e2e-bbbbbbbbbbbb");
+      expect(desktop).toContain("cip-testing-service.image.tag=e2e-dddddddddddd");
       expect(desktop).toContain(
         "global.qip.deploy.micro.image=ghcr.io/netcracker/qubership-integration-micro-engine:e2e-eeeeeeeeeeee",
       );
-      expect(desktop).toContain("qip-runtime-catalog.podAnnotations.e2e-micro-engine-tag=e2e-eeeeeeeeeeee");
+      expect(desktop).toContain("cip-runtime-catalog.podAnnotations.e2e-micro-engine-tag=e2e-eeeeeeeeeeee");
       expect(desktop).toContain("global.qip.ui.resolver=10.96.0.10");
       expect(desktop).toContain("global.qip.ui.devServer.host=host.docker.internal");
-      expect(desktop).toContain("qip-runtime-catalog.loadBalancerPort=30091");
+      expect(desktop).toContain("cip-runtime-catalog.loadBalancerPort=30091");
       expect(desktop).toContain("global.qip.ui.loadBalancerPort=30080");
       // The node ports are the host ports the suite's URLs name, on every cluster kind.
-      expect(desktop).toContain("qip-sessions-management.nodePort=30093");
+      expect(desktop).toContain("cip-sessions-management.nodePort=30093");
 
       const k3d = helmArguments({
         root: "/repo",
@@ -223,11 +223,11 @@ test.describe("k8s adapter", () => {
       });
       expect(k3d).toContain("global.qip.ui.resolver=10.43.0.10");
       expect(k3d.filter((each) => each.includes("loadBalancerPort"))).toEqual([]);
-      expect(k3d.filter((each) => /^qip-.*nodePort=|ui\.port=/.test(each))).toEqual([
-        "qip-runtime-catalog.nodePort=30091",
-        "qip-engine.nodePort=30092",
-        "qip-sessions-management.nodePort=30093",
-        "qip-testing-service.nodePort=30095",
+      expect(k3d.filter((each) => /^cip-.*nodePort=|ui\.port=/.test(each))).toEqual([
+        "cip-runtime-catalog.nodePort=30091",
+        "cip-engine.nodePort=30092",
+        "cip-sessions-management.nodePort=30093",
+        "cip-testing-service.nodePort=30095",
         "global.qip.ui.port=30080",
       ]);
     });
@@ -258,11 +258,11 @@ test.describe("k8s adapter", () => {
         "kafka.tls.serverKey=/repo/infrastructure/docker/kafka-ssl/server/kafka.key",
       ]);
       // Helm reads `\.` as a dot inside the key, so the Secret holds `ca.crt`.
-      expect(on).toContain("qip-engine.trustedCerts.ca\\.crt=/repo/infrastructure/docker/kafka-ssl/client/ca.crt");
+      expect(on).toContain("cip-engine.trustedCerts.ca\\.crt=/repo/infrastructure/docker/kafka-ssl/client/ca.crt");
       expect(on).toContain(
-        "qip-runtime-catalog.microDomainResources={secret:qip-engine-certs@/app/cert/defaultsslcertificate}",
+        "cip-runtime-catalog.microDomainResources={secret:cip-engine-certs@/app/cert/defaultsslcertificate}",
       );
-      expect(on).toContain("qip-runtime-catalog.microDomainEmptyDirs={truststore:/app/truststore}");
+      expect(on).toContain("cip-runtime-catalog.microDomainEmptyDirs={truststore:/app/truststore}");
       // Each value file follows its flag: --set-file reads the path, --set would install the path itself.
       for (const file of on.filter((each) => each.includes("/repo/infrastructure/docker/kafka-ssl/"))) {
         expect(on[on.indexOf(file) - 1], file).toBe("--set-file");
@@ -456,7 +456,7 @@ test.describe("k8s adapter", () => {
       const { probed, overlayReady } = recordingProbe(calls);
       const env = new K8sEnv({ engineKind: "classic", kubectl: run, overlayReady });
       await env.ensureOverlay("pubsub");
-      expect(calls).toEqual([`rollout status deploy/pubsub -n qip-e2e --timeout=${OVERLAY_READY_TIMEOUT / 1000}s`]);
+      expect(calls).toEqual([`rollout status deploy/pubsub -n cip-e2e --timeout=${OVERLAY_READY_TIMEOUT / 1000}s`]);
       expect(probed).toEqual(["pubsub after 1 kubectl calls"]);
     });
 
@@ -471,10 +471,10 @@ test.describe("k8s adapter", () => {
       const env = new K8sEnv({ engineKind: "classic", kubectl: run, overlayReady });
       await env.restartOverlay("kafka");
       expect(calls).toEqual([
-        "get pods -n qip-e2e -l app=kafka -o json",
-        "exec deploy/kafka -n qip-e2e -c kafka -- sh -c kill 1",
-        "get pods -n qip-e2e -l app=kafka -o json",
-        "get pods -n qip-e2e -l app=kafka -o json",
+        "get pods -n cip-e2e -l app=kafka -o json",
+        "exec deploy/kafka -n cip-e2e -c kafka -- sh -c kill 1",
+        "get pods -n cip-e2e -l app=kafka -o json",
+        "get pods -n cip-e2e -l app=kafka -o json",
       ]);
       expect(probed).toEqual(["kafka after 4 kubectl calls"]);
     });
@@ -514,7 +514,7 @@ test.describe("k8s adapter", () => {
       const { calls, run } = recordingKubectl([microPods(["old", true, false], ["live", false, true])]);
       const env = new K8sEnv({ engineKind: "micro", microDomain: () => "e2e-run1-micro", kubectl: run });
       expect(await env.address("engine")).toBe("ip-of-live");
-      expect(calls).toEqual([`get pods -n qip-e2e -l ${MICRO_SELECTOR} -o json`]);
+      expect(calls).toEqual([`get pods -n cip-e2e -l ${MICRO_SELECTOR} -o json`]);
     });
 
     test("a restart waits for a Ready replacement to answer", async () => {
@@ -539,12 +539,12 @@ test.describe("k8s adapter", () => {
       });
       await env.restart("engine");
       expect(calls).toEqual([
-        `get pods -n qip-e2e -l ${MICRO_SELECTOR} -o json`,
-        "delete pod old -n qip-e2e --wait=false",
-        `get pods -n qip-e2e -l ${MICRO_SELECTOR} -o json`,
-        `get pods -n qip-e2e -l ${MICRO_SELECTOR} -o json`,
-        `get pods -n qip-e2e -l ${MICRO_SELECTOR} -o json`,
-        `get pods -n qip-e2e -l ${MICRO_SELECTOR} -o json`,
+        `get pods -n cip-e2e -l ${MICRO_SELECTOR} -o json`,
+        "delete pod old -n cip-e2e --wait=false",
+        `get pods -n cip-e2e -l ${MICRO_SELECTOR} -o json`,
+        `get pods -n cip-e2e -l ${MICRO_SELECTOR} -o json`,
+        `get pods -n cip-e2e -l ${MICRO_SELECTOR} -o json`,
+        `get pods -n cip-e2e -l ${MICRO_SELECTOR} -o json`,
       ]);
       // Probed only once the replacement's engine container is Ready, and until it answers 200.
       expect(probed).toHaveLength(2);
@@ -573,9 +573,9 @@ test.describe("k8s adapter", () => {
 
     test("evidence holds the log, the pod, and the Integration", async () => {
       const run = stubKubectl({
-        [`${MICRO_LOG} --limit-bytes=${MICRO_LOG_HEAD_BYTES} -n qip-e2e`]: "\u001b[38;5;231m[INFO ] the engine started",
-        [`describe pods -l ${MICRO_SELECTOR} -n qip-e2e`]: "Events: Started",
-        "get integrations.camel.apache.org cip-engine-e2e-run1-micro-v1 -o yaml -n qip-e2e": "phase: Running",
+        [`${MICRO_LOG} --limit-bytes=${MICRO_LOG_HEAD_BYTES} -n cip-e2e`]: "\u001b[38;5;231m[INFO ] the engine started",
+        [`describe pods -l ${MICRO_SELECTOR} -n cip-e2e`]: "Events: Started",
+        "get integrations.camel.apache.org cip-engine-e2e-run1-micro-v1 -o yaml -n cip-e2e": "phase: Running",
       });
       const env = new K8sEnv({ engineKind: "micro", microDomain: () => "e2e-run1-micro", kubectl: run });
       // The stub refuses `--previous`, as kubectl does for a container that never restarted.
@@ -589,9 +589,9 @@ test.describe("k8s adapter", () => {
     test("evidence holds a long log's ends and the previous log", async () => {
       const head = "s".repeat(MICRO_LOG_HEAD_BYTES);
       const run = stubKubectl({
-        [`${MICRO_LOG} --limit-bytes=${MICRO_LOG_HEAD_BYTES} -n qip-e2e`]: head,
-        [`${MICRO_LOG} --tail=1500 -n qip-e2e`]: "the last request failed",
-        [`${MICRO_LOG} --previous --tail=1500 -n qip-e2e`]: "the container was killed",
+        [`${MICRO_LOG} --limit-bytes=${MICRO_LOG_HEAD_BYTES} -n cip-e2e`]: head,
+        [`${MICRO_LOG} --tail=1500 -n cip-e2e`]: "the last request failed",
+        [`${MICRO_LOG} --previous --tail=1500 -n cip-e2e`]: "the container was killed",
       });
       const env = new K8sEnv({ engineKind: "micro", microDomain: () => "e2e-run1-micro", kubectl: run });
       const evidence = Object.fromEntries((await env.engineEvidence()).map((each) => [each.name, each.body]));
@@ -604,10 +604,10 @@ test.describe("k8s adapter", () => {
 
   test("kubectl top counts the service container, not the sidecar", () => {
     const reading = readingOfTop([
-      "qip-engine-v1-7d9c9b7f5-abcde   qip-engine    250m   812Mi",
-      "qip-engine-v1-7d9c9b7f5-abcde   istio-proxy   40m    60Mi",
-      "qip-runtime-catalog-v1-5f7-xyz   qip-runtime-catalog   1   1Gi",
-      "qip-postgres-6b8d-qwert   postgres   5m   40Mi",
+      "cip-engine-v1-7d9c9b7f5-abcde   cip-engine    250m   812Mi",
+      "cip-engine-v1-7d9c9b7f5-abcde   istio-proxy   40m    60Mi",
+      "cip-runtime-catalog-v1-5f7-xyz   cip-runtime-catalog   1   1Gi",
+      "cip-postgres-6b8d-qwert   postgres   5m   40Mi",
       "",
     ]);
     expect(reading).toEqual([
@@ -653,8 +653,8 @@ test.describe("k8s adapter", () => {
   test.describe("env patches", () => {
     /** The engine container's `env` as the chart renders it: a ConfigMap reference and a plain value. */
     const ENGINE_ENV: EnvVar[] = [
-      { name: "CONSUL_URL", valueFrom: { configMapKeyRef: { name: "qip-env", key: "CONSUL_URL" } } },
-      { name: "TRACING_ENABLED", valueFrom: { configMapKeyRef: { name: "qip-env", key: "TRACING_ENABLED" } } },
+      { name: "CONSUL_URL", valueFrom: { configMapKeyRef: { name: "cip-env", key: "CONSUL_URL" } } },
+      { name: "TRACING_ENABLED", valueFrom: { configMapKeyRef: { name: "cip-env", key: "TRACING_ENABLED" } } },
       { name: "MONITORING_ENABLED", value: "true" },
     ];
 

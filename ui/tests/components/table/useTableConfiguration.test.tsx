@@ -9,12 +9,14 @@ import {
   within,
 } from "@testing-library/react";
 import { Table } from "antd";
+import type { ResizeCallbackData } from "react-resizable";
 import {
   type ControlledTableSort,
   useTableConfiguration,
 } from "../../../src/components/table/useTableConfiguration";
 import { resetTableSettings } from "../../../src/components/table/useTableSetting";
 import { useTableColumnResize } from "../../../src/components/table/useTableColumnResize";
+import { ACTIONS_COLUMN_KEY } from "../../../src/components/table/actionsColumn";
 import { useFilter } from "../../../src/components/table/filter/useFilter";
 import {
   FilterCondition,
@@ -128,6 +130,59 @@ it("should use controlled sorting without storing a second copy", () => {
 
   expect(firstRow()).toBe("newer");
   expect(localStorage.getItem("testing_sort")).toBeNull();
+});
+
+it("should leave only the first resizable column without a width when the table is wider than its columns", () => {
+  const { result } = renderHook(() =>
+    useTableConfiguration(
+      [...columns, { key: ACTIONS_COLUMN_KEY, title: "", width: 40 }],
+      { id: 200, createdWhen: 200 },
+      { selectionColumnWidth: 48 },
+    ),
+  );
+  expect(result.current.columnsWithResize.map((c) => c.width)).toEqual([
+    undefined,
+    200,
+    40,
+  ]);
+  expect(result.current.scrollX).toBe(488);
+});
+
+it("should resize the stretched column from its drawn width when a drag starts", () => {
+  const { result } = renderHook(() =>
+    useTableConfiguration(
+      [...columns, { key: ACTIONS_COLUMN_KEY, title: "", width: 40 }],
+      { id: 280, createdWhen: 160 },
+    ),
+  );
+  const resize = (
+    handler: "onResizeStart" | "onResize",
+    width: number,
+  ): void => {
+    const name = result.current.columnsWithResize[0];
+    const headerCell = name.onHeaderCell!({}) as Record<
+      string,
+      (event: React.SyntheticEvent, data: ResizeCallbackData) => void
+    >;
+    act(() =>
+      headerCell[handler]({} as React.SyntheticEvent, {
+        node: document.createElement("div"),
+        size: { width, height: 0 },
+        handle: "e",
+      }),
+    );
+  };
+
+  resize("onResizeStart", 808);
+  expect(result.current.columnResize.columnWidths).toEqual({
+    id: 808,
+    createdWhen: 160,
+  });
+  resize("onResize", 108);
+  expect(result.current.columnResize.columnWidths).toEqual({
+    id: 108,
+    createdWhen: 860,
+  });
 });
 
 it("should restore resized widths and reset them to defaults", () => {

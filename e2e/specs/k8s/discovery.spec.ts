@@ -6,7 +6,7 @@
  * cannot find it; this case deletes what it discovered in its `finally`. It also deletes what an
  * earlier run discovered before it starts, because discovery skips a Service that already has a
  * catalog service. The catalog leaves out every Service whose name ends in `-v<n>`
- * (`KubeOperator.REGEX_FOR_SEARCH_BLUEGREEN_SERVICE_NAME`), so the chart's `qip-<role>-v1` Services
+ * (`KubeOperator.REGEX_FOR_SEARCH_BLUEGREEN_SERVICE_NAME`), so the chart's `cip-<role>-v1` Services
  * are never discovered; the `qip-runtime-catalog` alias the e2e values add always is.
  *
  * Until #1139 the catalog reported progress 100 before it stored the result, and a read in between

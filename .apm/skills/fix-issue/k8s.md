@@ -14,11 +14,11 @@ cluster. Turning on Docker Desktop's Kubernetes restarts Docker and stops the Co
 
 | What | Where |
 |---|---|
-| Namespace | `qip-e2e`, owned by the end-to-end suite; context `docker-desktop` |
+| Namespace | `cip-e2e`, owned by the end-to-end suite; context `docker-desktop` |
 | Catalog, classic engine, proxy | NodePorts 30091, 30092, 30080 |
 | A route on a micro domain | `http://localhost:30080/e2e/svc/cip-engine-<domain>-v1/routes/<contextPath>` |
 | The compiled Camel XML of a micro domain | ConfigMaps labeled `cip-domain=<domain>`, field `.data.content`; there is no `deployments/update` for micro |
-| The Integration a domain runs | `kubectl get integration -n qip-e2e cip-engine-<domain>-v1` |
+| The Integration a domain runs | `kubectl get integration -n cip-e2e cip-engine-<domain>-v1` |
 
 ## Reproduce in a domain of your own
 
@@ -37,7 +37,7 @@ says why) and point only your domain's Integration at it:
 ```bash
 mvn -B -f "$WT/pom.xml" -pl micro-engine -am package -DskipTests -Dgpg.skip=true -Dquarkus.profile=development,no-m2m
 docker build -t ghcr.io/netcracker/qubership-integration-micro-engine:r<N> "$WT/micro-engine"
-kubectl patch integration -n qip-e2e cip-engine-r<N>-v1 --type merge \
+kubectl patch integration -n cip-e2e cip-engine-r<N>-v1 --type merge \
   -p '{"spec":{"traits":{"container":{"image":"ghcr.io/netcracker/qubership-integration-micro-engine:r<N>"}}}}'
 ```
 

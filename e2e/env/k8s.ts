@@ -1,8 +1,8 @@
 /**
- * The Kubernetes adapter: the suite's install of `infrastructure/helm/qip-dev` in namespace `qip-e2e`.
+ * The Kubernetes adapter: the suite's install of `infrastructure/helm/cip-dev` in namespace `cip-e2e`.
  *
  * Every host-side address is a fixed port from `env/containers.ts`. The chart names each platform
- * Deployment `qip-<role>-v1` and its container `qip-<role>`, and `kubectl` reaches both through the
+ * Deployment `cip-<role>-v1` and its container `cip-<role>`, and `kubectl` reaches both through the
  * current kube-context.
  */
 import path from "node:path";
@@ -37,8 +37,8 @@ import { readStateFile } from "../support/state-file.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
-export const NAMESPACE = "qip-e2e";
-export const RELEASE = "qip";
+export const NAMESPACE = "cip-e2e";
+export const RELEASE = "cip";
 
 /** The chart's `blueGreenVersion`, the suffix of every platform Deployment and Service. */
 const VERSION = "v1";

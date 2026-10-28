@@ -35,9 +35,12 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CanonicalPayloadHash;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeQueryContext;
+import org.qubership.integration.platform.ai.productpipeline.create.design.planning.DesignPlanningCapability;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.CompilerPipelinePolicy;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
+import org.qubership.integration.platform.ai.productpipeline.profile.ProfileStage;
+import org.qubership.integration.platform.ai.productpipeline.profile.RetryPolicy;
 import org.qubership.integration.platform.ai.productpipeline.profile.TerminalPolicy;
 import org.qubership.integration.platform.ai.qipknowledge.CipKnowledgePackFixturePaths;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
@@ -71,6 +74,41 @@ class CompilerRunPinResolverTest {
                 "CERTIFIED",
                 "sha256:certificate"));
     resolver = resolverFor(activeIndex);
+  }
+
+  @Test
+  void resolveFailsWhenRequiredTerminalHasNoProducerInAllowedPhases() {
+    CompilerPipelineNode assembler =
+        node(
+            "cip-chain-assembler",
+            "Assembly",
+            "",
+            List.of("CHAIN_STRUCTURE"),
+            List.of("GRAPH_ASSEMBLY_RESULT"),
+            List.of(),
+            null,
+            true,
+            List.of(),
+            "skill-sha-assembler",
+            "addon-sha-assembler",
+            0,
+            0,
+            CompilerNodeExecutionMode.JAVA_ADAPTER,
+            "graph-assembly");
+    CompilerPipelineIndex assemblerOnly =
+        new CompilerPipelineIndex(
+            CompilerPipelineIndexBuilder.SCHEMA_VERSION,
+            new CipKnowledgePackVersion("v1_0_0", "v1_0_0"),
+            new CompilerPipelineIndexSource("catalog", "policy"),
+            List.of(),
+            new CompilerPackageIdentity("compiler-v2", "1.0.0", "digest-assembler-only"),
+            Map.of(),
+            List.of(assembler),
+            List.of());
+
+    assertThrows(
+        IllegalStateException.class,
+        () -> resolverFor(assemblerOnly).resolve(createChainProfile, fullKnowledgeContext));
   }
 
   @Test
@@ -717,7 +755,16 @@ class CompilerRunPinResolverTest {
         "create-chain",
         "2",
         List.of(new ArtifactTypeRef("user-input", 1)),
-        List.of(),
+        List.of(
+            new ProfileStage(
+                "design-planning",
+                DesignPlanningCapability.CAPABILITY_ID,
+                List.of(),
+                List.of(),
+                null,
+                null,
+                new RetryPolicy(0, 0L),
+                null)),
         new TerminalPolicy("planning", "PLAN_APPROVED"),
         List.of(),
         new CompilerPipelinePolicy(

@@ -1,0 +1,4 @@
+name: cip-testing-service
+description: cip-testing-service subchart
+version: 0.0.1
+apiVersion: v1

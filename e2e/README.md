@@ -103,7 +103,7 @@ fails the run at config load, and the message names both.
 
 ```bash
 npm run test:compose   # the Docker Compose stack from infrastructure/docker/docker-compose.yml
-npm run test:k8s       # a local Kubernetes cluster, namespace qip-e2e
+npm run test:k8s       # a local Kubernetes cluster, namespace cip-e2e
 ```
 
 `npm test` runs the Compose target when `CIP_TARGET` is unset. Every command below takes the variable
@@ -135,15 +135,15 @@ the target leaves out, with the reason. It does not list the cases a micro proje
 "The classic-only cases" below.
 
 **The Kubernetes target.** You install the cluster and what runs cluster-wide once, as
-[the Kubernetes target page](k8s/README.md) describes, and the suite owns namespace `qip-e2e`. It
-builds the images from the checkout, installs `infrastructure/helm/qip-dev` with
+[the Kubernetes target page](k8s/README.md) describes, and the suite owns namespace `cip-e2e`. It
+builds the images from the checkout, installs `infrastructure/helm/cip-dev` with
 `e2e/k8s/values.e2e.yaml`, and waits until every service answers. Each service answers on a fixed
 host port: 30080 for the proxy, 30091 for runtime-catalog, 30092 for the classic engine, 30093 for
 sessions-management, and 30095 for the testing service. The brokers answer on 30992 (Kafka), 30672
 (RabbitMQ), 30085 (pub/sub), and 30022 (SFTP).
 
 Run one target at a time: both stacks together do not fit in 15.6 GiB. Stop the Compose stack and
-its broker overlays before a Kubernetes run, and run `helm uninstall qip -n qip-e2e --wait` before a
+its broker overlays before a Kubernetes run, and run `helm uninstall cip -n cip-e2e --wait` before a
 Compose run. Each target keeps its own state files. The Kubernetes ones start with `.e2e-k8s-`
 (`.e2e-k8s-corpus.json`, `.e2e-k8s-brokers-corpus.json`, `.e2e-k8s-runs.json`,
 `.e2e-k8s-overrides.json`, `.e2e-k8s-micro-corpus.json`, `.e2e-k8s-micro-redeploy.json`,
@@ -317,7 +317,7 @@ A run whose only failures are pins to remove is titled "found fixed defects". Th
 the projects a failed project kept from running and the errors raised outside any test. When every
 failed test also failed the previous run, the subject reads "still failing" instead of "failed".
 A failed or cancelled run also uploads `e2e-cluster`: the workloads and events
-of every namespace, a description of each pod in `qip-e2e`, the camel-k Integrations, and the logs
+of every namespace, a description of each pod in `cip-e2e`, the camel-k Integrations, and the logs
 of those pods' containers, istiod, and the camel-k operator. The dump runs after the suite, so it
 holds a micro domain's pod only because a failed micro case keeps the run's micro domains (see
 [Reading a failure](#reading-a-failure)).
@@ -398,7 +398,7 @@ E2E_SWEEP=never npm test -- --project=ui --no-deps -g "part of the title"
 - Set `E2E_KEEP=1` to skip teardown and pick a failure apart on the stack. Whatever the run created
   stays behind, named with the run token the failing spec prints.
 - On `k8s`, a failed micro case does the same on its own: its run keeps the micro domains and every
-  other entity, so `kubectl logs -n qip-e2e deploy/cip-engine-<domain>-v1 -c integration` still
+  other entity, so `kubectl logs -n cip-e2e deploy/cip-engine-<domain>-v1 -c integration` still
   reads the pod. The next run's sweep removes them.
 
 ## Flags
@@ -448,7 +448,7 @@ illustrative header of a Kubernetes run:
 - Commit: `3f1c2a9b7d10` on `main`
 - Started: 2026-09-24T09:12:40.118Z
 - Workers: 8
-- Helm release: qip in qip-e2e, revision 4, deployed, chart qip-dev-…, kube-context docker-desktop
+- Helm release: cip in cip-e2e, revision 4, deployed, chart cip-k8s-dev-…, kube-context docker-desktop
 - Provisioning: mode=auto, 81.2 s, rebuilt qip-engine
 
 | Service | Version | Built | Image | Image created |
@@ -556,7 +556,7 @@ re-running.
 ## Provisioning
 
 This section describes the Compose target. On `k8s`, provisioning builds the images and runs
-`helm upgrade --install` instead, and the "What a run does in `qip-e2e`" section of
+`helm upgrade --install` instead, and the "What a run does in `cip-e2e`" section of
 [the Kubernetes target page](k8s/README.md) lists its steps.
 
 Before any project starts, the run brings the stack to this checkout and prints what it did:
@@ -619,7 +619,7 @@ queues, exchanges, and subscriptions end in `-micro` and whose SFTP tree is `/up
 so the two copies never consume each other's messages. A name a broker spec mints itself, such as
 a verification consumer group, is built from the chain's own address.
 
-On `k8s` the brokers are subcharts of `infrastructure/helm/qip-dev`, and provisioning installs them with
+On `k8s` the brokers are subcharts of `infrastructure/helm/cip-dev`, and provisioning installs them with
 the release unless `E2E_BROKERS=0`. `brokers-seed` then only waits for each broker's rollout and
 host port, and teardown leaves the brokers running, because they belong to the release. The broker
 pods keep their data in an `emptyDir`, so a new pod starts empty. `brokers-restart` restarts the

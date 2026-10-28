@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -103,6 +104,9 @@ public final class ProductPipelineDependencyResolver {
     }
   }
 
+  private static final String PLAN_VALIDATOR_CLASSPATH = "classpath:prompts/roles/plan-validator.md";
+  private static final String PLAN_VALIDATOR_RESOURCE = "prompts/roles/plan-validator.md";
+
   private DependencyPin pinSkill(Path repoRoot, Path packRoot, String skillId) {
     Path path = packRoot.resolve("skills/" + skillId + "/SKILL.md");
     if (!Files.isRegularFile(path)) {
@@ -123,14 +127,12 @@ public final class ProductPipelineDependencyResolver {
           ReferenceDisposition.TARGET_ONLY, "Java stage definition");
     }
     if ("plan-validator".equals(skillId)) {
-      Path prompt =
-          repoRoot.resolve("ai-service/src/main/resources/prompts/roles/plan-validator.md");
-      requireFile(prompt, "skill", skillId);
+      byte[] prompt = readClasspathResource(PLAN_VALIDATOR_RESOURCE);
       return new DependencyPin(
           skillId,
           "skill",
-          relativize(repoRoot, prompt),
-          sha256(prompt),
+          PLAN_VALIDATOR_CLASSPATH,
+          sha256Bytes(prompt),
           ReferenceDisposition.TARGET_ONLY,
           "ai-service plan-validator role prompt");
     }
@@ -177,9 +179,25 @@ public final class ProductPipelineDependencyResolver {
           "generated pack index / schema contract");
     }
     Path path = packRoot.resolve("instructions/" + ruleId + ".md");
+    if (!Files.isRegularFile(path)) {
+      path = packRoot.resolve(".apm/instructions/" + ruleId + ".md");
+    }
     requireFile(path, "rule", ruleId);
     return new DependencyPin(
         ruleId, "rule", relativize(repoRoot, path), sha256(path), ReferenceDisposition.ADOPTED, null);
+  }
+
+  private static byte[] readClasspathResource(String resourcePath) {
+    String normalized = resourcePath.startsWith("/") ? resourcePath.substring(1) : resourcePath;
+    try (InputStream in =
+        ProductPipelineDependencyResolver.class.getClassLoader().getResourceAsStream(normalized)) {
+      if (in == null) {
+        throw new IllegalStateException("missing classpath resource: " + resourcePath);
+      }
+      return in.readAllBytes();
+    } catch (IOException e) {
+      throw new IllegalStateException("cannot read classpath resource: " + resourcePath, e);
+    }
   }
 
   private static void requireFile(Path path, String kind, String id) {

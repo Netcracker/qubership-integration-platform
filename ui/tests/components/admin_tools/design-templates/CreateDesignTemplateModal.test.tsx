@@ -4,7 +4,6 @@
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
-import { message } from "antd";
 import { CreateDesignTemplateModal } from "../../../../src/components/admin_tools/design-templates/CreateDesignTemplateModal";
 
 Object.defineProperty(globalThis, "matchMedia", {
@@ -104,13 +103,19 @@ describe("CreateDesignTemplateModal", () => {
     mockCreateOrUpdate.mockResolvedValue({ id: "t1", name: "tpl" });
   });
 
-  it("disables Save until a file is attached", () => {
+  it("reports a missing file as a validation error", async () => {
     render(<CreateDesignTemplateModal onTemplateCreated={jest.fn()} />);
 
-    expect(screen.getByRole("button", { name: /^save$/i })).toBeDisabled();
+    fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
+      target: { value: "OnlyName" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^create$/i }));
+
+    expect(await screen.findByText("Attach a .ftl file")).toBeInTheDocument();
+    expect(mockCreateOrUpdate).not.toHaveBeenCalled();
   });
 
-  it("enables Save after file is selected and calls API on submit", async () => {
+  it("creates the template from the attached file", async () => {
     const onTemplateCreated = jest.fn();
     render(<CreateDesignTemplateModal onTemplateCreated={onTemplateCreated} />);
 
@@ -118,39 +123,13 @@ describe("CreateDesignTemplateModal", () => {
       target: { value: "  My Template  " },
     });
     fireEvent.click(screen.getByTestId("mock-dragger-add"));
-
-    const save = screen.getByRole("button", { name: /^save$/i });
-    expect(save).not.toBeDisabled();
-
-    fireEvent.click(save);
+    fireEvent.click(screen.getByRole("button", { name: /^create$/i }));
 
     await waitFor(() => {
       expect(mockCreateOrUpdate).toHaveBeenCalledWith("My Template", "{% x %}");
     });
     expect(mockCloseContainingModal).toHaveBeenCalled();
     expect(onTemplateCreated).toHaveBeenCalled();
-  });
-
-  it("onFinish without file shows warning and does not call API", async () => {
-    const warnSpy = jest
-      .spyOn(message, "warning")
-      .mockImplementation((() => {}) as never);
-
-    render(<CreateDesignTemplateModal onTemplateCreated={jest.fn()} />);
-
-    fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
-      target: { value: "OnlyName" },
-    });
-    const form = document.getElementById("designTemplateForm");
-    expect(form).toBeTruthy();
-    fireEvent.submit(form!);
-
-    await waitFor(() => {
-      expect(warnSpy).toHaveBeenCalledWith("Attach a .ftl file");
-    });
-    expect(mockCreateOrUpdate).not.toHaveBeenCalled();
-
-    warnSpy.mockRestore();
   });
 
   it("Cancel closes the modal without calling the API", () => {
@@ -190,7 +169,7 @@ describe("CreateDesignTemplateModal", () => {
       target: { value: "T" },
     });
     fireEvent.click(screen.getByTestId("mock-dragger-add"));
-    fireEvent.click(screen.getByRole("button", { name: /^save$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^create$/i }));
 
     await waitFor(() => {
       expect(mockRequestFailed).toHaveBeenCalled();

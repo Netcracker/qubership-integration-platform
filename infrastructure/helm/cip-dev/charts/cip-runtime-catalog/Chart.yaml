@@ -1,0 +1,4 @@
+name: cip-runtime-catalog
+description: cip-runtime-catalog subchart
+version: 0.0.1
+apiVersion: v1

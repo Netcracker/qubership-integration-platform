@@ -23,14 +23,15 @@ import { TablePageLayout } from "../components/TablePageLayout.tsx";
 import { filterOutByIds, toStringIds } from "../misc/selection-utils.ts";
 import { Require } from "../permissions/Require.tsx";
 import { useColumnSettingsBasedOnColumnsType } from "../components/table/useColumnSettingsButton.tsx";
-import { useTableConfiguration } from "../components/table/useTableConfiguration.tsx";
+import {
+  SELECTION_COLUMN_WIDTH,
+  useTableConfiguration,
+} from "../components/table/useTableConfiguration.tsx";
 import { tableEmpty } from "../components/table/tableEmpty.tsx";
 import { matchesByFields } from "../components/table/tableSearch.ts";
 import { ProtectedButton } from "../permissions/ProtectedButton.tsx";
 import { ChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
 import { TableToolbar } from "../components/table/TableToolbar.tsx";
-
-const MASKING_SELECTION_COLUMN_WIDTH = 48;
 
 function maskedFieldMatchesSearch(field: MaskedField, term: string): boolean {
   const createdStr = field.createdWhen
@@ -234,7 +235,7 @@ export const Masking: React.FC = () => {
       modifiedBy: 120,
       modifiedWhen: 168,
     },
-    { selectionColumnWidth: MASKING_SELECTION_COLUMN_WIDTH },
+    { selectionColumnWidth: SELECTION_COLUMN_WIDTH },
     "maskingTable",
   );
 

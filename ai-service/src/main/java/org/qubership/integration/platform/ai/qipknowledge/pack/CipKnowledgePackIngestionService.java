@@ -9,9 +9,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.stream.Stream;
 import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillCatalogAddonOverlay;
 import org.qubership.integration.platform.ai.compiler.catalog.CompilerSkillCatalog;
 import org.qubership.integration.platform.ai.compiler.catalog.CompilerSkillCatalogLoader;
@@ -23,6 +25,8 @@ import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineC
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineIndex;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineIndexBuilder;
 import org.qubership.integration.platform.ai.compiler.pipeline.PipelineCompatibilityReport;
+import org.qubership.integration.platform.ai.compiler.pipeline.PipelineCompatibilityReportAugmenter;
+import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileKeys;
 import org.qubership.integration.platform.ai.compiler.policy.CompilerGeneratorPolicy;
 import org.qubership.integration.platform.ai.compiler.policy.CompilerGeneratorPolicyBuilder;
 import org.qubership.integration.platform.ai.compiler.policy.CompilerGeneratorSpecIndex;
@@ -223,9 +227,17 @@ public class CipKnowledgePackIngestionService {
     writeJson(
         versionDir.resolve(CipKnowledgePackIndexLoader.ELEMENT_SUPPORT_MATRIX_FILE),
         supportMatrix);
+    Path profilesDir =
+        ProductPipelinePackageIndexBuilder.productPipelinesRoot(packRoot).resolve("profiles");
     PipelineCompatibilityReport compatibilityReport =
         new CompilerPipelineCompatibilityAnalyzer()
             .compare(loadPreviousCertifiedPipelineIndex(), pipelineIndex);
+    compatibilityReport =
+        PipelineCompatibilityReportAugmenter.augmentWithPackShippedProfiles(
+            compatibilityReport,
+            ProductPipelineProfileKeys.readFromProfilesDirectory(profilesDir),
+            ProductPipelineProfileKeys.loadFromProfilesDirectory(profilesDir),
+            pipelineIndex);
     writeJson(
         versionDir.resolve(CipKnowledgePackIndexLoader.PIPELINE_COMPATIBILITY_REPORT_FILE),
         compatibilityReport);
@@ -253,6 +265,7 @@ public class CipKnowledgePackIngestionService {
     if (!Files.isDirectory(productPipelines)) {
       return;
     }
+    copyProductPipelineResources(productPipelines, versionDir);
     Path repoRoot = repositoryRoot(packRoot);
     List<String> dynamicSkills =
         policy == null || policy.generators() == null
@@ -270,6 +283,66 @@ public class CipKnowledgePackIngestionService {
     writeJson(
         versionDir.resolve(CipKnowledgePackIndexLoader.PRODUCT_PIPELINE_PACKAGE_INDEX_FILE),
         index);
+  }
+
+  private static void copyProductPipelineResources(Path productPipelines, Path versionDir)
+      throws IOException {
+    Path targetRoot = versionDir.resolve("product-pipelines");
+    Path schemas = productPipelines.resolve("artifact-schemas.yaml");
+    if (Files.isRegularFile(schemas)) {
+      Path targetSchemas = targetRoot.resolve("artifact-schemas.yaml");
+      Files.createDirectories(targetSchemas.getParent());
+      Files.copy(schemas, targetSchemas, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+    }
+    List<String> profileFiles = new ArrayList<>();
+    Path profilesDir = productPipelines.resolve("profiles");
+    if (Files.isDirectory(profilesDir)) {
+      Path targetProfiles = targetRoot.resolve("profiles");
+      Files.createDirectories(targetProfiles);
+      try (Stream<Path> files = Files.list(profilesDir)) {
+        files
+            .filter(path -> path.getFileName().toString().endsWith(".yaml"))
+            .sorted()
+            .forEach(
+                source -> {
+                  try {
+                    String name = source.getFileName().toString();
+                    Files.copy(
+                        source,
+                        targetProfiles.resolve(name),
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    profileFiles.add("profiles/" + name);
+                  } catch (IOException e) {
+                    throw new IllegalStateException("cannot copy profile " + source, e);
+                  }
+                });
+      }
+    }
+    profileFiles.sort(Comparator.naturalOrder());
+    writeJson(
+        versionDir.resolve(CipKnowledgePackIndexLoader.PRODUCT_PIPELINE_PROFILES_INDEX_FILE),
+        profileFiles);
+    Path rulesDir = productPipelines.resolve("rules");
+    if (Files.isDirectory(rulesDir)) {
+      Path targetRules = targetRoot.resolve("rules");
+      Files.createDirectories(targetRules);
+      try (Stream<Path> files = Files.list(rulesDir)) {
+        files
+            .filter(path -> path.getFileName().toString().endsWith(".yaml"))
+            .sorted()
+            .forEach(
+                source -> {
+                  try {
+                    Files.copy(
+                        source,
+                        targetRules.resolve(source.getFileName()),
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                  } catch (IOException e) {
+                    throw new IllegalStateException("cannot copy rule " + source, e);
+                  }
+                });
+      }
+    }
   }
 
   private static CapabilityDescriptor applyCatalogExclusion(

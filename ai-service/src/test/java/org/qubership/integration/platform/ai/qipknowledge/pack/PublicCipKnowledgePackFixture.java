@@ -172,7 +172,14 @@ public final class PublicCipKnowledgePackFixture {
     put(root, "knowledge/runtime-substrate/runtime-dependency-model.yaml", yaml.writeValueAsString(Map.of("model", Map.of("package", "public-test-fixture", "version", "1.0.0"), "skill-dependencies", dependencies)));
     put(root, "knowledge/runtime-substrate/generator-packages.yaml", yaml.writeValueAsString(Map.of("baseline-generators", packages,
         "ownership-envelopes", List.of("cip-mcp-trigger-generator", "cip-routing-generator").stream().map(id -> Map.of("skill", id, "mayAddNodes", false, "mayAddEdges", false, "nodeTypes", List.of(), "properties", Map.of("mcp-trigger", List.of("name", "description", "inputSchema"), "service-call", List.of("propagateContext")))).toList())));
-    put(root, "product-pipelines/artifact-schemas.yaml", "artifacts: []\n");
+    try (var in =
+        PublicCipKnowledgePackFixture.class.getResourceAsStream(
+            "/product-pipelines/artifact-schemas.yaml")) {
+      if (in == null) {
+        throw new IllegalStateException("bundled artifact-schemas.yaml is missing");
+      }
+      put(root, "product-pipelines/artifact-schemas.yaml", new String(in.readAllBytes()));
+    }
   }
 
   private static void skill(Path root, String skill, String id, boolean runtime) throws IOException {

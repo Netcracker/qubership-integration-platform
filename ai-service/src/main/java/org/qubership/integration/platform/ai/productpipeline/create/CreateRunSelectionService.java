@@ -44,6 +44,8 @@ public class CreateRunSelectionService {
   public CreateRunSelectionService(
       @ConfigProperty(name = "qip.ai.create.language-version", defaultValue = "2026.1")
           String languageVersion,
+      @ConfigProperty(name = "qip.ai.create.profile-version", defaultValue = "2")
+          String createProfileVersion,
       KnowledgeContextProvider knowledgeContextProvider,
       CreateRunBindingStore bindingStore,
       ProductPipelineProfileCatalog profileCatalog,
@@ -56,7 +58,7 @@ public class CreateRunSelectionService {
         profileCatalog,
         compilerRunPinResolver,
         Clock.systemUTC(),
-        CREATE_PROFILE_VERSION,
+        createProfileVersion,
         responseLocaleResolver);
   }
 
@@ -127,6 +129,10 @@ public class CreateRunSelectionService {
         Objects.requireNonNull(createProfileVersion, "createProfileVersion");
     this.responseLocaleResolver =
         Objects.requireNonNull(responseLocaleResolver, "responseLocaleResolver");
+  }
+
+  public String createProfileVersion() {
+    return createProfileVersion;
   }
 
   public Optional<CreateRunSelection> existing(String conversationId) {

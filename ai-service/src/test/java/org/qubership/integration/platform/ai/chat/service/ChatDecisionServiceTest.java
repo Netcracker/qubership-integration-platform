@@ -424,7 +424,7 @@ class ChatDecisionServiceTest {
         .thenReturn(Optional.of("chain-1"));
     DeployChainScenario scenario = new DeployChainScenario(
         context, catalog, pending, new MaasTopicsCreatedStore(), new KnownFailureMapper(),
-        new PinnedFailureStore(), Optional.empty(), Optional.empty());
+        new PinnedFailureStore(), Optional.empty());
     ChatDecisionService decisions = new ChatDecisionService(
         mock(CreateChainApplicationFacade.class), questionStore(), new RequirementDraftStore());
     decisions.pendingRedeployStore = pending;

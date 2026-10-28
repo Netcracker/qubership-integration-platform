@@ -13,16 +13,16 @@ import {
   ColumnsTypeWithSettings,
   useColumnSettingsBasedOnColumnsType,
 } from "../../table/useColumnSettingsButton.tsx";
-import { useTableConfiguration } from "../../table/useTableConfiguration.tsx";
+import {
+  EXPAND_COLUMN_WIDTH,
+  useTableConfiguration,
+} from "../../table/useTableConfiguration.tsx";
 import { tableScroll } from "../../table/tableScroll.ts";
 import { TableToolbar } from "../../table/TableToolbar.tsx";
 import { matchesByFields } from "../../table/tableSearch.ts";
 import { AdminToolsHeader } from "../AdminToolsHeader.tsx";
 import { TablePageLayout } from "../../TablePageLayout.tsx";
 import layoutStyles from "./DomainsTablesLayout.module.css";
-
-/** rc-table expand icon column; not in `columns` but affects horizontal layout. */
-const DOMAINS_EXPAND_COLUMN_WIDTH = 48;
 
 interface Props {
   onRefresh?: () => Promise<void>;
@@ -180,7 +180,7 @@ const DomainsTable: React.FC<Props> = ({
       namespace: 220,
     },
     {
-      expandColumnWidth: DOMAINS_EXPAND_COLUMN_WIDTH,
+      expandColumnWidth: EXPAND_COLUMN_WIDTH,
     },
     "domainsAdminTable",
   );

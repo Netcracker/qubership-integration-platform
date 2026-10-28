@@ -11,11 +11,6 @@ on:
         required: false
         type: string
         default: "patch"
-      profile:
-        description: "Maven profile to use"
-        type: string
-        required: false
-        default: "central"
       build-docker:
         description: "Build Docker image"
         required: false
@@ -48,14 +43,6 @@ on:
           - "major"
         required: false
         default: "patch"
-      profile:
-        description: "Maven profile to use"
-        type: choice
-        options:
-          - "github"
-          - "central"
-        required: false
-        default: "central"
       build-docker:
         description: "Build Docker image"
         required: false
@@ -78,7 +65,7 @@ jobs:
     with:
       module: ai-service
       release-type: ${{ inputs.release-type }}
-      profile: ${{ inputs.profile }}
+      profile: github
       build-docker: ${{ inputs.build-docker }}
       mvn-args: ${{ inputs.mvn-args }}
     secrets:

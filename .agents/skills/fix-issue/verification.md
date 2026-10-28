@@ -277,7 +277,7 @@ form.
 - **Helm.** Render before and after and diff the render:
 
   ```bash
-  helm template qip "$WT/infrastructure/helm/qip-dev" > "$TMP/after.yaml"
+  helm template cip "$WT/infrastructure/helm/cip-dev" > "$TMP/after.yaml"
   diff "$TMP/before.yaml" "$TMP/after.yaml"
   ```
 

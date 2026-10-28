@@ -79,7 +79,7 @@ test.describe("chain metrics", { tag: ["@engine", "@infra"] }, () => {
       exposition,
       `the engine publishes no chain meters, or ${url} did not answer: ` +
         "cip.metrics.enabled reads MONITORING_ENABLED, and infrastructure/docker/engine-dev.env is where " +
-        "Compose sets it; a micro domain gets it from the chart value qip-runtime-catalog.microDomainMetrics",
+        "Compose sets it; a micro domain gets it from the chart value cip-runtime-catalog.microDomainMetrics",
     ).toContain("cip_engine_sessions_counter_total");
 
     const before = sumForChain(exposition, "cip_engine_sessions_counter_total", chain.id);
