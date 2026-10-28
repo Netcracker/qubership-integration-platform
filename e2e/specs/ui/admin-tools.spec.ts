@@ -1,5 +1,6 @@
 /**
- * Admin tools: variables typed into the UI, and a live exchange terminated from it.
+ * Admin tools: variables typed into the UI, a live exchange terminated from it, and where a click
+ * lands in the audit table.
  *
  * The two cases that create a variable have the creation flow as their subject. Each
  * asserts what only the browser decides: the keys that submit or break a line, how the list draws a
@@ -19,6 +20,10 @@
  * the run token. Listing the domains: the catalog's domains endpoint reports the same rows. Listing
  * and killing live exchanges: `specs/global/live-exchanges.spec.ts` covers both. What remains of
  * live exchanges is the confirmation dialog in front of the kill.
+ *
+ * In the audit table, the entity name opens the entity in a new tab, and a click anywhere else in
+ * the row opens Action Details. Only the anchor's drawn width separates the two, and jsdom draws
+ * nothing, so the audit case runs in the browser. The anchor once filled its whole cell (#1187).
  */
 import type { Locator, Page } from "@playwright/test";
 import { test, expect } from "../../support/page-guard.js";
@@ -122,6 +127,43 @@ test.describe("admin tools", () => {
     } finally {
       await catalog.deleteSecuredVariablesFromSecret(SECRET_FIXTURE_NAME, [key]).catch(leftBehind(`secured variable ${key}`));
     }
+  });
+
+  test("an audit name opens its entity, and its cell the drawer", async ({ page, catalog, folder, run }) => {
+    const name = tokenized(run, callToken("ui-audit"));
+    const chain = await catalog.createChain(name, folder.id);
+    // The catalog writes the row from a background queue, so the screen opens once the row is stored.
+    await expect
+      .poll(async () => (await catalog.recentActions([{ column: "ENTITY_NAME", condition: "IS", value: name }])).actionLogs.length, { message: `waiting for the audit row naming ${name}` })
+      .toBe(1);
+    const popups: Page[] = [];
+    page.on("popup", (popup) => popups.push(popup));
+
+    await page.goto("/admintools/audit");
+    await page.getByRole("textbox", { name: "Search audit log..." }).fill(name);
+    const table = new TableView(page);
+    await expect(table.rows).toHaveCount(1);
+    const cell = await table.cell(table.rows, "Entity Name");
+    const drawer = page.getByRole("dialog", { name: "Action Details" });
+
+    await test.step("the name opens the entity in a new tab", async () => {
+      const opened = page.waitForEvent("popup");
+      // The anchor has no href, and so no link role.
+      await cell.locator("a").click();
+      const popup = await opened;
+      await expect(popup).toHaveURL(new RegExp(`/chains/${chain.id}`));
+      await popup.close();
+      await expect(drawer).toHaveCount(0);
+    });
+
+    await test.step("the cell beside the name opens Action Details", async () => {
+      const box = await cell.boundingBox();
+      if (!box) throw new Error("the Entity Name cell has no box");
+      // 12 px from the right edge is past the cell's padding, inside the area the anchor once filled.
+      await cell.click({ position: { x: box.width - 12, y: box.height / 2 } });
+      await expect(drawer).toBeVisible();
+      expect(popups, "the click beside the name opens no tab").toHaveLength(1);
+    });
   });
 
   test("a live exchange is terminated only after the confirmation", { tag: ["@slow"] }, async ({ page, request, env, catalog }) => {
