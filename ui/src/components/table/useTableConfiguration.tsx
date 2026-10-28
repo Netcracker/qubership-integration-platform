@@ -105,6 +105,7 @@ export const useTableConfiguration = <T extends object>(
     const columns = applyDisableResizeBeforeActions
       ? disableResizeBeforeActions(resized)
       : resized;
+    const createResizeHandlers = columnResize.createResizeHandlers;
     // With table-layout: fixed, a table wider than scroll.x spreads the extra
     // width over every column that has a width, the selection and expand
     // columns included. The first resizable column is left without a width, so
@@ -118,7 +119,21 @@ export const useTableConfiguration = <T extends object>(
       const key = String(c.key);
       return {
         ...c,
-        ...(index === fillIndex ? { width: undefined } : {}),
+        ...(index === fillIndex
+          ? {
+              width: undefined,
+              // The column is drawn wider than its stored width. Storing the
+              // drawn width when a drag starts makes the drag and the
+              // neighbor's compensation start from what the user sees.
+              onHeaderCell: (
+                ...args: Parameters<NonNullable<ColumnType<T>["onHeaderCell"]>>
+              ) => ({
+                ...c.onHeaderCell?.(...args),
+                onResizeStart: createResizeHandlers(key, undefined, minWidth)
+                  .onResize,
+              }),
+            }
+          : {}),
         ...(c.sorter && c.sortOrder === undefined
           ? {
               sortOrder:
