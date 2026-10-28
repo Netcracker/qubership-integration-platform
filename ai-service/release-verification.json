@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-28",
-  "status": "BLOCKED_PENDING_FIX_SELECTION",
-  "applicationSourceRevision": "28d88a78ccdd345a70a13a762ccb7c142580f2b1",
+  "status": "BLOCKED_PENDING_USER_SELECTION",
+  "applicationSourceRevision": "223f6de9526fb210020f7da321a60b4d56a711b6",
   "localImages": {
     "qip-ai-service:qa-20261028-28d88a78-with-skills": {
       "id": "sha256:738061295fde7b788f9d468674596e090dbfae003e6107032139897b52b82509",
@@ -301,7 +301,9 @@
     ]
   },
   "blockers": [
-    "Base documentation consultation failed to answer the self-contained full-section inventory request."
+    "Final documentation acceptance is partial: the answer omits the PATCH endpoint after complete source reads and valid citations.",
+    "The full Java acceptance retry completed with two socket-timeout errors in SerializedClarificationFlowTest.",
+    "User selection is pending for the documentation-completeness correction and the full-suite waiter correction."
   ],
   "evidencePolicy": "Raw prompts, responses, private packages and captures remain in ignored local evidence; this file is a sanitized summary.",
   "suppliedPackageFingerprints": [
@@ -379,12 +381,24 @@
         "readDocumentation": 10
       },
       "rawEvidence": "Ignored local candidate-captures bundle; all 20 manifest-listed files passed hashes and permissions checks."
+    },
+    "latestStatus": "PARTIAL_ONE_SUBSTANTIVE_ENDPOINT_MISSING_SOURCE_AND_CITATION_PROVENANCE_PASS",
+    "latestApplicationSourceRevision": "223f6de9526fb210020f7da321a60b4d56a711b6",
+    "latestEvidence": "Ignored local evidence: final-docs-live/.",
+    "latestCaptureAnalysis": "Four continuation tool results match the complete served section byte-for-byte; user request retained; citations verified.",
+    "latestModelExchanges": {
+      "requests": 14,
+      "responses": 14,
+      "allPaired": true,
+      "requestedModel": "gpt-6-luna",
+      "returnedModel": "gpt-6-luna"
     }
   },
   "remainingActions": [
-    "Select a correction for the off-task documentation answer, then rerun the affected consultation.",
-    "Add a genuine requirement-revision input and stronger exact-content/preservation assertions if that acceptance coverage is required.",
-    "After selected corrections, freeze a new candidate, review the final diff, refresh main integration, and prepare the merge."
+    "Wait for the user to select whether to correct the documentation answer and the full-suite waiter behavior.",
+    "If selected, make only the approved corrections and rerun their focused checks plus the affected acceptance gates.",
+    "Retain the original incomplete full run, completed retry errors, and successful isolated retry in the evidence record.",
+    "After selected work and final reports settle, update this summary, run the required fresh final review, and commit the release records."
   ],
   "secretEvidenceScan": {
     "filesExamined": 4516,
@@ -558,5 +572,208 @@
         "correctedSelection": "*Test,*IT,!**/a2a/**"
       }
     ]
+  },
+  "latestCandidateBuild": {
+    "sourceRevision": "223f6de9526fb210020f7da321a60b4d56a711b6",
+    "integratedMainCommit": "74517a81a",
+    "aiServiceRevision": "1.6.1",
+    "fullImage": {
+      "tag": "qip-ai-service:qa-20261028-223f6de9-with-skills",
+      "id": "sha256:2d045262a4ab1c15848b98325b4823c5b424f315c3d9400a1865d6d57be070c3",
+      "repoDigests": []
+    },
+    "baseImage": {
+      "tag": "qip-ai-service:qa-20261028-223f6de9-base",
+      "id": "sha256:60ac38b1ba98f3610b5c1be9c147577a1be60f73d0e06e6202e75c0df1f0aee2",
+      "repoDigests": []
+    },
+    "sidecarImage": {
+      "tag": "qip-knowledge-sidecar:qa-20261028-223f6de9",
+      "id": "sha256:4643f0116652259577a4e26ddd54b56ec252bca1c19cb576f8e911d58b133b3b",
+      "repoDigests": []
+    },
+    "privateResourceInventory": {
+      "fullKnowledge": true,
+      "fullSkills": true,
+      "baseKnowledge": false,
+      "baseSkills": false,
+      "testingArchiveBundled": false
+    },
+    "privatePackageInputsChanged": false,
+    "baseCandidate": {
+      "endpoint": "http://127.0.0.1:52316",
+      "health": "UP",
+      "sidecarHealth": "UP",
+      "sharedContainersChanged": false,
+      "tenantDefaultId": "default",
+      "tenantDefaultIndependentReview": "PASS"
+    },
+    "mavenTests": "SKIPPED_FOR_PACKAGING",
+    "evidence": "Ignored local evidence: candidate-luna/build/evidence and candidate-luna/evidence.",
+    "fullReadiness": {
+      "endpoint": "http://127.0.0.1:53742",
+      "aiImageId": "sha256:2d045262a4ab1c15848b98325b4823c5b424f315c3d9400a1865d6d57be070c3",
+      "sidecarImageId": "sha256:4643f0116652259577a4e26ddd54b56ec252bca1c19cb576f8e911d58b133b3b",
+      "aiHealth": 200,
+      "sidecarHealth": "UP",
+      "packageEndpoint": 200,
+      "packageCertification": "CERTIFIED",
+      "packageKey": "CIP@1.0.0",
+      "documentationManifestEndpoint": 200,
+      "knowledgeMountReadOnly": true,
+      "sharedContainersChanged": false,
+      "modelRequestsDuringReadinessVerification": 0,
+      "evidence": "Ignored local evidence: candidate-luna/evidence/full-readiness.json and candidate-with-skills.json."
+    },
+    "baseDocumentationCapture": {
+      "image": "qip-ai-service:qa-20261028-223f6de9-base",
+      "imageId": "sha256:60ac38b1ba98f3610b5c1be9c147577a1be60f73d0e06e6202e75c0df1f0aee2",
+      "requests": 14,
+      "responses": 14,
+      "allPaired": true,
+      "preservedBeforeFullCandidateStartup": true,
+      "evidence": "Ignored local evidence: candidate-luna/evidence/revision-223f6de9-base-before-full/."
+    }
+  },
+  "mainIntegration": {
+    "integrationCommit": "74517a81a",
+    "sourceCommit": "223f6de9526fb210020f7da321a60b4d56a711b6",
+    "aiServiceRevision": "1.6.1",
+    "focusedTests": {
+      "tests": 16,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "PASS"
+    },
+    "documentationTests": {
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "PASS"
+    },
+    "fullAcceptance": {
+      "status": "COMPLETED_WITH_TEST_ERRORS",
+      "tests": 6604,
+      "reports": 625,
+      "assertionFailures": 0,
+      "errors": 2,
+      "skipped": 11,
+      "errorDetails": [
+        {
+          "test": "SerializedClarificationFlowTest.runIdIsStableIntoTheNextStage",
+          "type": "SocketTimeoutException",
+          "message": "Read timed out"
+        },
+        {
+          "test": "SerializedClarificationFlowTest.oneAnswerResolvesBothClearValues",
+          "type": "SocketTimeoutException",
+          "message": "Read timed out"
+        }
+      ],
+      "a2aPackageReports": 0,
+      "incidentalA2aNamedMixedCases": 6,
+      "selection": "*Test,*IT,!**/a2a/**",
+      "retry": "COMPLETE_WITH_ERRORS",
+      "evidence": "Ignored local evidence: main-integration/full-merged-retry-summary.json."
+    },
+    "isolatedRetry": {
+      "tests": 49,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "status": "PASS_SCOPED",
+      "scope": "SerializedClarificationFlowTest and CompilerSkillRuntimeTest; 49 tests passed."
+    },
+    "evidence": "Ignored local evidence: main-integration.",
+    "a2aPackageTestSetExecuted": false
+  },
+  "finalDocumentationAcceptance": {
+    "status": "PARTIAL_MISSING_PATCH_ENDPOINT",
+    "applicationSourceRevision": "223f6de9526fb210020f7da321a60b4d56a711b6",
+    "image": "qip-ai-service:qa-20261028-223f6de9-base",
+    "imageId": "sha256:60ac38b1ba98f3610b5c1be9c147577a1be60f73d0e06e6202e75c0df1f0aee2",
+    "endpoint": "http://127.0.0.1:52316",
+    "provider": "OpenAI direct",
+    "requestedModel": "gpt-6-luna",
+    "returnedModel": "gpt-6-luna",
+    "scope": "API chat SSE consultations only; no UI, deployment, or chain runtime claim.",
+    "cases": [
+      {
+        "id": "http-trigger-explanation",
+        "transport": "HTTP 200 and SSE done",
+        "content": "PASS",
+        "citationProvenance": "PASS"
+      },
+      {
+        "id": "rest-api-errors-continuation",
+        "transport": "HTTP 200 and SSE done",
+        "content": "FAIL_ONE_SUBSTANTIVE_ENDPOINT_OMITTED",
+        "sourceRead": "COMPLETE_BYTE_IDENTICAL_TO_SERVED_SECTION",
+        "citationProvenance": "PASS"
+      },
+      {
+        "id": "unknown-parameter",
+        "transport": "HTTP 200 and SSE done",
+        "content": "PASS",
+        "citationProvenance": "PASS"
+      }
+    ],
+    "fullSectionOracle": {
+      "status": "PARTIAL_ONE_SUBSTANTIVE_ENDPOINT_MISSING",
+      "expectedSectionBytes": 36450,
+      "expectedErrorCodes": 8,
+      "reportedErrorCodes": 8,
+      "expectedDistinctMethodPathPairs": 12,
+      "missingPairs": [
+        "PATCH /cip/catalog/chains/{chainId}/elements/{elementId}"
+      ],
+      "captureAnalysis": "VERIFIED: all four continuation read results parse and their combined bytes match the complete served section.",
+      "sourceReads": {
+        "status": "CONTIGUOUS_COMPLETE_BYTE_IDENTICAL",
+        "byteRanges": [
+          30857,
+          42367,
+          53547,
+          64727,
+          67307
+        ],
+        "pageCompleteFlags": [
+          false,
+          false,
+          false,
+          true
+        ],
+        "allSectionReadVerified": true,
+        "fullUserRequestRetainedInEveryModelRequest": true,
+        "continuationReadToolResponses": 4,
+        "parseableToolResponses": 4,
+        "allToolResultsMatchDeclaredCaptureLengths": true
+      },
+      "normalizationNote": "One slash variant is a duplicate endpoint, leaving one substantive missing endpoint after normalization.",
+      "expectedLiteralMethodPathEntries": 12,
+      "literalEntriesPresent": 10,
+      "normalizedExpectedEndpoints": 11,
+      "normalizedEndpointsPresent": 10,
+      "literalPairNote": "The oracle contains POST cip/catalog/folders/filter and POST /cip/catalog/folders/filter; the answer includes the slash form."
+    },
+    "requestIntegrity": "PASS_ALL_THREE_REQUESTS_EXACT_EXCEPT_CONVERSATION_ID; ORIGINAL_USER_PRESENT_IN_EVERY_MODEL_REQUEST",
+    "rawEvidence": "Ignored local evidence: final-docs-live/.",
+    "nativeCapture": {
+      "requests": 14,
+      "responses": 14,
+      "allExchangeIdsPaired": true,
+      "requestedModel": "gpt-6-luna",
+      "returnedModel": "gpt-6-luna",
+      "userRequestPresentInEveryModelRequest": true,
+      "allFourContinuationToolResultsParseAndMatchCaptureLengths": true,
+      "citationsFromCapturedReadResults": true,
+      "evidence": "Ignored local evidence: final-docs-live/capture-summary.json.",
+      "sourceImageVariant": "base",
+      "fullImageReadinessMadeModelRequests": 0,
+      "captureEvidence": "Ignored local evidence: candidate-luna/evidence/revision-223f6de9-base-before-full/."
+    },
+    "captureProvenance": "PASS: all citations occur in captured documentation read results."
   }
 }
