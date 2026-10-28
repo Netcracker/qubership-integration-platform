@@ -1,7 +1,6 @@
 import { Button, Form, Input, Modal, UploadFile } from "antd";
 import Dragger from "antd/es/upload/Dragger";
-import { message } from "../../../misc/antd-app.ts";
-import React, { useState } from "react";
+import React from "react";
 import { useModalContext } from "../../../ModalContextProvider";
 import { OverridableIcon } from "../../../icons/IconProvider";
 import { api } from "../../../api/api";
@@ -16,6 +15,7 @@ type CreateDesignTemplateModalProps = {
 
 type DesignTemplateFormValues = {
   name: string;
+  fileList: UploadFile[];
 };
 
 export const CreateDesignTemplateModal: React.FC<
@@ -24,18 +24,12 @@ export const CreateDesignTemplateModal: React.FC<
   const notificationService = useNotificationService();
   const { closeContainingModal } = useModalContext();
   const [form] = Form.useForm<DesignTemplateFormValues>();
-  const [fileList, setFileList] = useState<UploadFile[]>([]);
 
   const handleSave = async (values: DesignTemplateFormValues) => {
-    const file = fileList[0]?.originFileObj;
-    if (!file) {
-      void message.warning("Attach a .ftl file");
-      return;
-    }
     try {
       const template = await api.createOrUpdateDetailedDesignTemplate(
         values.name.trim(),
-        await file.text(),
+        await values.fileList[0].originFileObj!.text(),
       );
       closeContainingModal();
       onTemplateCreated(template);
@@ -69,54 +63,55 @@ export const CreateDesignTemplateModal: React.FC<
           <Input />
         </Form.Item>
 
-        <Dragger
-          key={1}
-          rootClassName="flex-dragger"
-          multiple={false}
-          maxCount={1}
-          accept=".ftl"
-          beforeUpload={() => false}
-          fileList={fileList}
-          onChange={(info) => {
-            const { status, name } = info.file;
-            const nameWithoutExtension = removeExtension(name);
-            const currentName = form.getFieldValue("name") as
-              | string
-              | undefined;
-            if (status === "removed") {
-              if (nameWithoutExtension === currentName?.trim()) {
-                form.setFieldValue("name", "");
-              }
-            } else if (status === undefined && !currentName?.trim()) {
-              form.setFieldValue("name", nameWithoutExtension);
-            }
-
-            setFileList(info.fileList);
-          }}
+        <Form.Item
+          name="fileList"
+          valuePropName="fileList"
+          getValueFromEvent={(info: { fileList: UploadFile[] }) =>
+            info.fileList
+          }
+          rules={[
+            { required: true, type: "array", message: "Attach a .ftl file" },
+          ]}
         >
-          <p className="ant-upload-drag-icon">
-            <OverridableIcon name="inbox" />
-          </p>
-          <p className="ant-upload-text">Drop .ftl file here to attach</p>
-        </Dragger>
+          <Dragger
+            rootClassName="flex-dragger"
+            multiple={false}
+            maxCount={1}
+            accept=".ftl"
+            beforeUpload={() => false}
+            onChange={(info) => {
+              const { status, name } = info.file;
+              const nameWithoutExtension = removeExtension(name);
+              const currentName = form.getFieldValue("name") as
+                | string
+                | undefined;
+              if (status === "removed") {
+                if (nameWithoutExtension === currentName?.trim()) {
+                  form.setFieldValue("name", "");
+                }
+              } else if (status === undefined && !currentName?.trim()) {
+                form.setFieldValue("name", nameWithoutExtension);
+              }
+            }}
+          >
+            <p className="ant-upload-drag-icon">
+              <OverridableIcon name="inbox" />
+            </p>
+            <p className="ant-upload-text">Drop .ftl file here to attach</p>
+          </Dragger>
+        </Form.Item>
 
         <div
           style={{
             display: "flex",
             justifyContent: "flex-end",
             gap: 8,
-            marginTop: 16,
           }}
         >
           <Button size="middle" onClick={closeContainingModal}>
             Cancel
           </Button>
-          <Button
-            type="primary"
-            size="middle"
-            htmlType="submit"
-            disabled={fileList.length === 0}
-          >
+          <Button type="primary" size="middle" htmlType="submit">
             Create
           </Button>
         </div>
