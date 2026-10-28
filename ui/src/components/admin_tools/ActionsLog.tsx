@@ -233,9 +233,10 @@ export const ActionsLog: React.FC = () => {
     }
 
     const link = (
-      <Flex vertical={true} gap={4}>
+      <Flex vertical={true} gap={4} style={{ width: "fit-content" }}>
         <a
-          onClick={() => {
+          onClick={(event) => {
+            event.stopPropagation();
             window.open(getEntityLink(type, id, parentId, name), "_blank");
           }}
         >
@@ -542,7 +543,8 @@ export const ActionsLog: React.FC = () => {
               onChange={handleConfiguredTableChange}
               onRow={(row) => {
                 return {
-                  onClick: () => {
+                  onClick: (event) => {
+                    event.stopPropagation();
                     showDrawer(row);
                   },
                 };
