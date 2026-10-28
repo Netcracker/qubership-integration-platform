@@ -10,7 +10,7 @@ const lookup: PageProblem = { route: "/admintools/sessions", message: "GET /api/
 const consoleError: PageProblem = { route: "/admintools/sessions", message: "console.error: Failed to load resource: the server responded with a status of 502 (Bad Gateway)", url: LOOKUP };
 const other: PageProblem = { route: "/chains", message: "uncaught TypeError: x is undefined" };
 
-const catalogListing = (...names: string[]) => ({ listDomains: async () => names.map((name) => ({ id: name, name, replicas: 1, namespace: "qip-e2e", type: "MICRO" })) });
+const catalogListing = (...names: string[]) => ({ listDomains: async () => names.map((name) => ({ id: name, name, replicas: 1, namespace: "cip-e2e", type: "MICRO" })) });
 
 test.describe("page problems", () => {
   test("drops a deleted micro domain's lookup and its console error", async () => {

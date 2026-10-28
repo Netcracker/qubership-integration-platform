@@ -267,13 +267,13 @@ jobs:
           mkdir -p "$DUMP_DIR"
           cd "$DUMP_DIR"
           kubectl get all,events -A -o wide > get-all-events.txt 2>&1
-          kubectl describe pods -n qip-e2e > describe-pods-qip-e2e.txt 2>&1
-          kubectl get integrations.camel.apache.org -n qip-e2e -o yaml > integrations-qip-e2e.yaml 2>&1
-          for pod in $(kubectl get pods -n qip-e2e -o name); do
+          kubectl describe pods -n cip-e2e > describe-pods-cip-e2e.txt 2>&1
+          kubectl get integrations.camel.apache.org -n cip-e2e -o yaml > integrations-cip-e2e.yaml 2>&1
+          for pod in $(kubectl get pods -n cip-e2e -o name); do
             name="${pod#pod/}"
-            for container in $(kubectl get -n qip-e2e "$pod" -o jsonpath='{.spec.initContainers[*].name} {.spec.containers[*].name}'); do
-              kubectl logs -n qip-e2e "$pod" -c "$container" > "$name.$container.log" 2>&1
-              kubectl logs -n qip-e2e "$pod" -c "$container" --previous > "$name.$container.previous.log" 2> /dev/null ||
+            for container in $(kubectl get -n cip-e2e "$pod" -o jsonpath='{.spec.initContainers[*].name} {.spec.containers[*].name}'); do
+              kubectl logs -n cip-e2e "$pod" -c "$container" > "$name.$container.log" 2>&1
+              kubectl logs -n cip-e2e "$pod" -c "$container" --previous > "$name.$container.previous.log" 2> /dev/null ||
                 rm -f "$name.$container.previous.log"
             done
           done

@@ -56,7 +56,7 @@ class InfrastructureLayoutTest {
 
   @Test
   void umbrellaChartContainsEveryDeclaredDependency() throws Exception {
-    Path chart = INFRASTRUCTURE.resolve("helm/qip-dev");
+    Path chart = INFRASTRUCTURE.resolve("helm/cip-dev");
     JsonNode dependencies = YAML.readTree(chart.resolve("Chart.yaml").toFile()).path("dependencies");
     assertTrue(dependencies.size() > 0);
     for (JsonNode dependency : dependencies) {

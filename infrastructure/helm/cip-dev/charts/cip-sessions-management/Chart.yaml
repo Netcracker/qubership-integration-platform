@@ -1,0 +1,4 @@
+name: cip-sessions-management
+description: cip-sessions-management subchart
+version: 0.0.1
+apiVersion: v1

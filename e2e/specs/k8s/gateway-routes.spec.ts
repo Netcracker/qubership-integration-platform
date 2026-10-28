@@ -4,7 +4,7 @@
  *
  * Every corpus chain has an internal trigger, which the gateway does not route. This case deploys
  * one chain with `externalRoute: true` to the classic engine, which writes a rule for it into the
- * chain's own HTTPRoute `qip-engine-v1-<chain id>-chain-public-routes`, and reads that rule off the
+ * chain's own HTTPRoute `cip-engine-v1-<chain id>-chain-public-routes`, and reads that rule off the
  * cluster.
  */
 import { test, expect } from "../../support/fixtures.js";

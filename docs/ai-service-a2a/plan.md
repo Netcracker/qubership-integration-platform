@@ -255,7 +255,7 @@ cannot start.
 ### Database wiring crosses application and deployment ownership
 
 Prompt 02 owns JDBC, Flyway, datasource configuration names, migrations, and PostgreSQL test infrastructure. Prompt 07
-owns `infrastructure/helm/qip-dev` database creation, ConfigMap and Secret references, deployment environment variables, and
+owns `infrastructure/helm/cip-dev` database creation, ConfigMap and Secret references, deployment environment variables, and
 the A2A feature flag. Prompt 07 must consume the property names from prompt 02 without renaming them. Prompt 08 verifies
 the assembled topology and does not introduce missing wiring.
 

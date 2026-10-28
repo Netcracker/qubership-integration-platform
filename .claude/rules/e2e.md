@@ -7,7 +7,7 @@ paths:
 
 `e2e/` holds the end-to-end suite. It runs against one of two local targets, which `CIP_TARGET`
 picks: `compose`, the default, is the stack from `infrastructure/docker/docker-compose.yml`, and `k8s` is
-a local cluster where the suite installs `infrastructure/helm/qip-dev` into namespace `qip-e2e`. It
+a local cluster where the suite installs `infrastructure/helm/cip-dev` into namespace `cip-e2e`. It
 answers one question before a release: does the platform still work. It produces a report; a person
 reads the report and decides what to fix.
 
@@ -102,19 +102,19 @@ debugging on the same stack.
 
 On `k8s` the suite provisions the namespace, never the cluster; `e2e/k8s/bootstrap-cluster.sh`
 prepares the cluster. The cluster versions are pinned in the script and in `e2e/k8s/README.md`.
-`infrastructure/helm/qip-dev/README.md` also pins Gateway API and Istio, and
+`infrastructure/helm/cip-dev/README.md` also pins Gateway API and Istio, and
 `.github/workflows/e2e-k8s.yaml` pins kind and istioctl. Bump them in all four places together.
 `env/provision/k8s.ts` checks the kube-context, the Gateway API CRDs, Istio, the camel-k operator,
 and metrics-server in that order, and fails on the first one missing, naming the section of
 `e2e/k8s/README.md` that installs it. It then builds the images, each tagged with a hash over its
 own sources, and runs
-`helm upgrade --install qip infrastructure/helm/qip-dev -n qip-e2e -f e2e/k8s/values.e2e.yaml`. A chart
+`helm upgrade --install cip infrastructure/helm/cip-dev -n cip-e2e -f e2e/k8s/values.e2e.yaml`. A chart
 change the suite needs goes in the chart as an optional value with a default that renders what it
 rendered before, and `e2e/k8s/values.e2e.yaml` sets it.
 
 **On Compose, provisioning does not start the broker overlays.** `Env.ensureOverlay(overlay)` brings
 one up, composed with the base file under the same project name, when the `brokers-seed` project
-needs it, and leaves a healthy overlay alone. On `k8s` the release installs the brokers as `qip-dev`
+needs it, and leaves a healthy overlay alone. On `k8s` the release installs the brokers as `cip-dev`
 subcharts unless `E2E_BROKERS=0`, `ensureOverlay` waits for their rollout and host port when
 `brokers-seed` or `brokers-micro-seed` calls it, and `removeOverlay` does nothing.
 `Env.restartOverlay(overlay)` restarts the overlay's own broker container without recreating it, and
@@ -131,7 +131,7 @@ e2e/
                          compose.ts and k8s.ts (the two Envs), provision.ts (the globalSetup),
                          containers.ts (host ports per target, the broker ones included),
                          overlays.ts (the broker readiness probes both Envs share)
-  k8s/                   the chart values for qip-e2e, the cluster bootstrap script, and the page
+  k8s/                   the chart values for cip-e2e, the cluster bootstrap script, and the page
                          that installs a cluster
   registry/              what the suite claims to cover, read off the tracked schemas
   specs/schema/          no stack needed: the product's routes, Compose files, migrations, schemas

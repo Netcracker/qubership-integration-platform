@@ -3,7 +3,7 @@
  *
  * The developer installs the cluster and what runs cluster-wide: Istio with the Gateway API CRDs,
  * the camel-k operator, and metrics-server (`e2e/k8s/README.md`). This module checks for them, then
- * owns everything in namespace `qip-e2e`: it builds the images from the checkout, installs the chart
+ * owns everything in namespace `cip-e2e`: it builds the images from the checkout, installs the chart
  * with `helm upgrade --install`, and waits until every role answers on its host port.
  *
  * Each image is tagged with a hash over its own inputs, so an image whose tag already exists is not
@@ -300,7 +300,7 @@ export function helmArguments(options: {
 }): string[] {
   const { root, choice, devServerHost, tags } = options;
   const args = [
-    "upgrade", "--install", RELEASE, path.join(root, "infrastructure/helm/qip-dev"),
+    "upgrade", "--install", RELEASE, path.join(root, "infrastructure/helm/cip-dev"),
     "-n", NAMESPACE,
     "-f", path.join(root, "e2e/k8s/values.e2e.yaml"),
     "--set-string", `global.qip.ui.resolver=${choice.resolver}`,
@@ -308,14 +308,14 @@ export function helmArguments(options: {
     "--set-string", `global.qip.deploy.micro.image=${REPOSITORY}-micro-engine:${tags["micro-engine"]}`,
     // The catalog reads the micro image from a ConfigMap once, at startup. The annotation changes its
     // pod template with the tag, so Helm restarts it.
-    "--set-string", `qip-runtime-catalog.podAnnotations.e2e-micro-engine-tag=${tags["micro-engine"]}`,
+    "--set-string", `cip-runtime-catalog.podAnnotations.e2e-micro-engine-tag=${tags["micro-engine"]}`,
   ];
-  for (const role of ROLES) args.push("--set-string", `qip-${role}.image.tag=${tags[role]}`);
+  for (const role of ROLES) args.push("--set-string", `cip-${role}.image.tag=${tags[role]}`);
   // The host ports the suite addresses, from the table its URLs are built from.
-  for (const role of ROLES) args.push("--set", `qip-${role}.nodePort=${hostPort(role, "k8s")}`);
+  for (const role of ROLES) args.push("--set", `cip-${role}.nodePort=${hostPort(role, "k8s")}`);
   args.push("--set", `global.qip.ui.port=${proxyPort("k8s")}`);
   if (choice.hostPorts === "LoadBalancer Services") {
-    for (const role of ROLES) args.push("--set", `qip-${role}.loadBalancerPort=${hostPort(role, "k8s")}`);
+    for (const role of ROLES) args.push("--set", `cip-${role}.loadBalancerPort=${hostPort(role, "k8s")}`);
     args.push("--set", `global.qip.ui.loadBalancerPort=${proxyPort("k8s")}`);
   }
   // Only `enabled` follows E2E_BROKERS, so a run without the brokers leaves the engine and the catalog alone.
@@ -329,10 +329,10 @@ export function helmArguments(options: {
     "--set-file", `kafka.tls.serverCert=${path.join(certs, "server/kafka.crt")}`,
     "--set-file", `kafka.tls.serverKey=${path.join(certs, "server/kafka.key")}`,
     // Both engines trust the Kafka CA; a micro domain mounts the classic engine's Secret.
-    "--set-file", `qip-engine.trustedCerts.ca\\.crt=${path.join(certs, "client/ca.crt")}`,
-    "--set", `qip-runtime-catalog.microDomainResources={secret:${RELEASE}-engine-certs@/app/cert/defaultsslcertificate}`,
+    "--set-file", `cip-engine.trustedCerts.ca\\.crt=${path.join(certs, "client/ca.crt")}`,
+    "--set", `cip-runtime-catalog.microDomainResources={secret:${RELEASE}-engine-certs@/app/cert/defaultsslcertificate}`,
     // A micro domain's root file system is read-only, and it writes its truststore here.
-    "--set", "qip-runtime-catalog.microDomainEmptyDirs={truststore:/app/truststore}",
+    "--set", "cip-runtime-catalog.microDomainEmptyDirs={truststore:/app/truststore}",
   );
   return args;
 }
