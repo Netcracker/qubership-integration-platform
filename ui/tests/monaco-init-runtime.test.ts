@@ -84,12 +84,8 @@ describe("monaco-init-runtime", () => {
         },
         configurable: true,
       });
-      Object.defineProperty(global, "document", {
-        value: {},
-        configurable: true,
-      });
 
-      initBundledMonaco();
+      initBundledMonaco("https://host/app/dist-lib/index.bundled.es.js");
 
       expect(mockedConfigureMonacoLoader).toHaveBeenCalledTimes(1);
       expect(workerConfig.setMonacoWorkerBasePath).toHaveBeenCalledWith(
@@ -97,23 +93,14 @@ describe("monaco-init-runtime", () => {
       );
     });
 
-    it("derives worker base path from current script URL", () => {
+    it("derives worker base path from the bundle URL", () => {
       (workerConfig.getMonacoWorkerBasePath as jest.Mock).mockReturnValue(null);
 
       Object.defineProperty(global, "window", {
         value: { location: {} },
         configurable: true,
       });
-      Object.defineProperty(global, "document", {
-        value: {
-          currentScript: {
-            src: "https://host/app/dist-lib/index.bundled.es.js",
-          },
-        },
-        configurable: true,
-      });
-
-      initBundledMonaco();
+      initBundledMonaco("https://host/app/dist-lib/index.bundled.es.js");
 
       expect(workerConfig.setMonacoWorkerBasePath).toHaveBeenCalledWith(
         "https://host/app/dist-lib/assets/monaco-work",
