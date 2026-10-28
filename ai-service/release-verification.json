@@ -269,7 +269,31 @@
       },
       {
         "id": "product-patch-chain-multi-turn",
-        "status": "PENDING"
+        "status": "PASS_SCOPED",
+        "conversationId": "24126af2-5efa-461f-a61f-7498a299ad1d",
+        "chainId": "5687ae37-4b92-40af-85b8-3a95031619a1",
+        "chainName": "AiPatchMultiTurn.20261028T135002.r1",
+        "terminalState": "CHAIN_PATCHED",
+        "materialization": "PASS_PATCH_CATALOG_READBACK",
+        "requirements": "PASS_NATIVE_PREDICATES_AND_INDEPENDENT_EXACT_CATALOG_REVIEW",
+        "preservation": "Seed trigger and greeting script IDs and body retained; added scripts form the ordered path greeting to patched-ok to patched-two.",
+        "assertionCoverage": "assert-patch-run.sh checks terminal state, prompt count, and retention; assert-catalog.sh checks types, absence of service-call, and at least three scripts. Exact added bodies, ordered graph, and seed preservation were checked independently against catalog evidence.",
+        "unsavedChanges": true,
+        "deployment": "NOT_RUN",
+        "independentReview": "PASS_SCOPED",
+        "evidence": "Ignored local evidence: live-luna/cases/product-patch-chain-multi-turn/product-attempt-1/",
+        "providerCapture": {
+          "requestedModel": "gpt-6-luna",
+          "returnedModel": "gpt-6-luna",
+          "endpoint": "https://api.openai.com/v1",
+          "phaseRequests": 10,
+          "phaseResponses": 10,
+          "conversationTaggedRequests": 10,
+          "requestsWithoutConversationTagInExclusivePhase": 0,
+          "attribution": "Exchange-ID difference from the preceding complete 119-exchange union; all prior IDs occur in the final full-image 129-pair union.",
+          "rawEvidence": "Ignored case candidate-captures directory, capture summary, and checksum manifest."
+        },
+        "scriptChecks": "PASS_STATIC_REVIEW_ONLY"
       }
     ]
   },
