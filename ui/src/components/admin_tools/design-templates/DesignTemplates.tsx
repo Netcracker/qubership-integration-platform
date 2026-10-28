@@ -85,7 +85,7 @@ export const DesignTemplates: React.FC = () => {
       sorter: (a, b) => {
         if (a.builtIn === b.builtIn) {
           return 0;
-        } else if (a.builtIn === false && b.builtIn === true) {
+        } else if (!a.builtIn && b.builtIn) {
           return -1;
         } else {
           return 1;
@@ -248,6 +248,18 @@ export const DesignTemplates: React.FC = () => {
             actions={
               <>
                 <ProtectedButton
+                  require={{ designTemplate: ["export"] }}
+                  tooltipProps={{
+                    title: "Export selected template",
+                    placement: "bottom",
+                  }}
+                  buttonProps={{
+                    disabled: selectedRowKeys.length !== 1,
+                    iconName: "cloudDownload",
+                    onClick: () => void handleExport(),
+                  }}
+                />
+                <ProtectedButton
                   require={{ designTemplate: ["delete"] }}
                   tooltipProps={{
                     title: "Delete selected templates",
@@ -267,18 +279,6 @@ export const DesignTemplates: React.FC = () => {
                   }}
                 />
                 <ProtectedButton
-                  require={{ designTemplate: ["export"] }}
-                  tooltipProps={{
-                    title: "Export selected template",
-                    placement: "bottom",
-                  }}
-                  buttonProps={{
-                    disabled: selectedRowKeys.length !== 1,
-                    iconName: "cloudDownload",
-                    onClick: () => void handleExport(),
-                  }}
-                />
-                <ProtectedButton
                   require={{ designTemplate: ["create"] }}
                   tooltipProps={{
                     title: "Create template",
@@ -287,7 +287,7 @@ export const DesignTemplates: React.FC = () => {
                   buttonProps={{
                     "data-testid": "design-templates-create",
                     type: "primary",
-                    iconName: "plus",
+                    children: "Create Template",
                     onClick: handleCreate,
                   }}
                 />

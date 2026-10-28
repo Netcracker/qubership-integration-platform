@@ -49,11 +49,10 @@ export const CreateDesignTemplateModal: React.FC<
 
   return (
     <Modal
-      title="Import Template"
+      title="Create Template"
       centered
       open={true}
       onCancel={closeContainingModal}
-      width={"60vw"}
       footer={null}
     >
       <Form<DesignTemplateFormValues>
@@ -118,7 +117,7 @@ export const CreateDesignTemplateModal: React.FC<
             htmlType="submit"
             disabled={fileList.length === 0}
           >
-            Save
+            Create
           </Button>
         </div>
       </Form>
