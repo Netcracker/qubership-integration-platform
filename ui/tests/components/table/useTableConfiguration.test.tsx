@@ -15,6 +15,7 @@ import {
 } from "../../../src/components/table/useTableConfiguration";
 import { resetTableSettings } from "../../../src/components/table/useTableSetting";
 import { useTableColumnResize } from "../../../src/components/table/useTableColumnResize";
+import { ACTIONS_COLUMN_KEY } from "../../../src/components/table/actionsColumn";
 import { useFilter } from "../../../src/components/table/filter/useFilter";
 import {
   FilterCondition,
@@ -128,6 +129,22 @@ it("should use controlled sorting without storing a second copy", () => {
 
   expect(firstRow()).toBe("newer");
   expect(localStorage.getItem("testing_sort")).toBeNull();
+});
+
+it("should leave only the last resizable column without a width when the table is wider than its columns", () => {
+  const { result } = renderHook(() =>
+    useTableConfiguration(
+      [...columns, { key: ACTIONS_COLUMN_KEY, title: "", width: 40 }],
+      { id: 200, createdWhen: 200 },
+      { selectionColumnWidth: 48 },
+    ),
+  );
+  expect(result.current.columnsWithResize.map((c) => c.width)).toEqual([
+    200,
+    undefined,
+    40,
+  ]);
+  expect(result.current.scrollX).toBe(488);
 });
 
 it("should restore resized widths and reset them to defaults", () => {

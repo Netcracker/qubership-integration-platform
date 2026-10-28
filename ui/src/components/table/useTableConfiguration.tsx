@@ -99,11 +99,25 @@ export const useTableConfiguration = <T extends object>(
     const columns = applyDisableResizeBeforeActions
       ? disableResizeBeforeActions(resized)
       : resized;
-    return columns.map((column) => {
+    // With table-layout: fixed, a table wider than scroll.x spreads the extra
+    // width over every column that has a width, the selection and expand
+    // columns included. The last resizable column is left without a width, so
+    // it takes all of the extra width. scrollX still counts its stored width.
+    let fillIndex = -1;
+    columns.forEach((column, index) => {
+      if (
+        column.key != null &&
+        String(column.key) in columnResize.columnWidths
+      ) {
+        fillIndex = index;
+      }
+    });
+    return columns.map((column, index) => {
       const c = column as ColumnType<T>;
       const key = String(c.key);
       return {
         ...c,
+        ...(index === fillIndex ? { width: undefined } : {}),
         ...(c.sorter && c.sortOrder === undefined
           ? {
               sortOrder:
