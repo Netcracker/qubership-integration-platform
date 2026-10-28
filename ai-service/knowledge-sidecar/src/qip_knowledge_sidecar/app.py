@@ -6,11 +6,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import AsyncIterator
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from knowledge_sdk import KnowledgeSDK
 from qip_knowledge_sidecar.models import (
     ContextQueryRequest,
+    DocumentationReadRequest,
+    DocumentationSearchRequest,
     ContextQueryResponse,
     ExactQueryRequest,
     ExactQueryResponse,
@@ -21,6 +24,7 @@ from qip_knowledge_sidecar.models import (
     RelationsQueryResponse,
     SearchQueryResponse,
 )
+from qip_knowledge_sidecar.documentation import DocumentationStore
 from qip_knowledge_sidecar.package import (
     PackageEligibilityError,
     PackageRef,
@@ -36,6 +40,8 @@ class AppState:
     adapter: RuntimeAdapter | None = None
     startup_error: PackageEligibilityError | None = None
     sdk: KnowledgeSDK | None = None
+    documentation: DocumentationStore | None = None
+    documentation_error: RuntimeErrorResponse | None = None
 
 
 def _close_quietly(sdk: KnowledgeSDK | None) -> None:
@@ -89,14 +95,24 @@ def _ref(value: PackageRef) -> PackageRefModel:
     )
 
 
-def create_app(package_path: Path | None = None) -> FastAPI:
+def create_app(
+    package_path: Path | None = None,
+    documentation_path: Path | None = None,
+) -> FastAPI:
     resolved_package = package_path or Path(
         os.getenv("QIP_KNOWLEDGE_PATH", "/knowledge")
+    )
+    resolved_documentation = documentation_path or Path(
+        os.getenv("QIP_DOCUMENTATION_PATH", "/documentation")
     )
     state = AppState()
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        try:
+            state.documentation = DocumentationStore(resolved_documentation)
+        except RuntimeErrorResponse as error:
+            state.documentation_error = error
         try:
             package, sdk = _load_runtime(resolved_package)
             state.package = package
@@ -123,6 +139,22 @@ def create_app(package_path: Path | None = None) -> FastAPI:
                 "code": error.code,
                 "message": error.message,
                 "retryable": error.retryable,
+            },
+        )
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_error_handler(
+        request: Request,
+        error: RequestValidationError,
+    ) -> JSONResponse:
+        if not request.url.path.startswith("/v1/documentation/"):
+            return JSONResponse(status_code=422, content={"detail": error.errors()})
+        return JSONResponse(
+            status_code=422,
+            content={
+                "code": "DOCUMENTATION_INVALID_REQUEST",
+                "message": "Request does not match the endpoint contract",
+                "retryable": False,
             },
         )
 
@@ -155,6 +187,34 @@ def create_app(package_path: Path | None = None) -> FastAPI:
                 retryable=False,
             )
         return package, adapter
+
+    def require_documentation() -> DocumentationStore:
+        if state.documentation_error is not None:
+            raise state.documentation_error
+        if state.documentation is None:
+            raise RuntimeErrorResponse(
+                code="DOCUMENTATION_UNAVAILABLE",
+                message="Documentation runtime startup has not completed",
+                status=503,
+                retryable=True,
+            )
+        return state.documentation
+
+    @app.get("/v1/documentation/manifest")
+    def documentation_manifest() -> dict[str, object]:
+        return require_documentation().manifest()
+
+    @app.post("/v1/documentation/search")
+    def documentation_search(request: DocumentationSearchRequest) -> dict[str, object]:
+        return require_documentation().search(
+            request.expectedChecksum, request.query, request.elementTypes, request.limit
+        )
+
+    @app.post("/v1/documentation/read")
+    def documentation_read(request: DocumentationReadRequest) -> dict[str, object]:
+        return require_documentation().read(
+            request.expectedChecksum, request.id, request.cursor, request.maxBytes
+        )
 
     @app.get("/v1/health/live")
     def live() -> dict[str, str]:

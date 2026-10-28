@@ -157,8 +157,8 @@ services:
 
   qip-knowledge-sidecar:
     build:
-      context: ../../ai-service/knowledge-sidecar
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: ai-service/knowledge-sidecar/Dockerfile
     container_name: qip-knowledge-sidecar
     profiles: [ai]
     read_only: true
@@ -170,7 +170,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8095/v1/health/live')\"",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8095/v1/documentation/manifest')\"",
         ]
       interval: 10s
       timeout: 5s

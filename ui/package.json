@@ -27,6 +27,8 @@
     "dist-lib",
     "scripts/fetch-documentation.mjs",
     "scripts/build-doc-index.mjs",
+    "scripts/element-documentation-mapping.mjs",
+    "scripts/element-documentation-mapping.d.mts",
     ".documentation-config.json.example"
   ],
   "scripts": {
@@ -46,7 +48,7 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,css,scss,json,md}\"",
     "preview": "vite preview",
     "test": "jest",
-    "test:scripts": "node --test scripts/fetch-documentation.test.mjs",
+    "test:scripts": "node --test scripts/*.test.mjs",
     "prepublishOnly": "rimraf dist-lib && npm run build:lib:all",
     "postpublish": "rimraf dist-lib"
   },

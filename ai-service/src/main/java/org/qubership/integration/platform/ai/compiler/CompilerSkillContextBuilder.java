@@ -66,6 +66,7 @@ public class CompilerSkillContextBuilder {
   private final EvidenceEmitter evidenceEmitter;
 
   @Inject ConversationService conversations;
+  @Inject org.qubership.integration.platform.ai.productpipeline.knowledge.DocumentationTools documentation;
 
   @Inject
   public CompilerSkillContextBuilder(
@@ -791,6 +792,10 @@ public class CompilerSkillContextBuilder {
                 20_000));
     KnowledgePackageRef ref = contextPackage.identity().packageRef();
     body.append("\n\n").append(contextPackage.renderMarkdown());
+    if (documentation != null) {
+      body.append(documentation.context(conversationId, snapshot.rawUserRequest(),
+          activeElementTypes(snapshot.chainPlanGraph())));
+    }
 
     if (evidenceEmitter != null && conversationId != null) {
       evidenceEmitter.knowledge(

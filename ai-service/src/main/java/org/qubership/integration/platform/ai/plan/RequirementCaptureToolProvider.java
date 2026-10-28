@@ -102,7 +102,8 @@ public class RequirementCaptureToolProvider {
           org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemTools.class,
           org.qubership.integration.platform.ai.integration.catalog.tool.ElementSchemaTools.class,
           CatalogFirstApiHubDiscoveryTool.class,
-          org.qubership.integration.platform.ai.productpipeline.knowledge.RequirementDiscoveryKnowledgeTool.class)) {
+          org.qubership.integration.platform.ai.productpipeline.knowledge.RequirementDiscoveryKnowledgeTool.class,
+          org.qubership.integration.platform.ai.productpipeline.knowledge.DocumentationTools.class)) {
         for (var method : io.quarkiverse.langchain4j.runtime.ToolsRecorder.getMetadata().get(type.getName())) {
           var executor = factory.create(new io.quarkiverse.langchain4j.runtime.tool.QuarkusToolExecutor.Context(
               Arc.container().instance(type).get(), method.invokerClassName(), method.methodName(),

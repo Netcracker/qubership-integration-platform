@@ -39,6 +39,20 @@ class RateLimitAwareChatModelTest {
   }
 
   @Test
+  void outputLimitRejectsIncompleteSynchronousResponseWithoutRetry() {
+    ChatModel delegate = mock(ChatModel.class);
+    when(delegate.chat(any(ChatRequest.class))).thenReturn(ChatResponse.builder()
+        .aiMessage(AiMessage.from("Partial answer"))
+        .finishReason(dev.langchain4j.model.output.FinishReason.LENGTH).build());
+    var sleeper = new RecordingSleeper();
+    ChatModel model = new RateLimitAwareChatModel(delegate, classifier, policy, sleeper, true, 3, events::add);
+    var failure = assertThrows(IllegalStateException.class, () -> model.chat(request));
+    assertEquals("LLM_OUTPUT_INCOMPLETE: model output limit reached", failure.getMessage());
+    org.mockito.Mockito.verify(delegate, org.mockito.Mockito.times(1)).chat(request);
+    assertEquals(List.of(), sleeper.sleptSeconds);
+  }
+
+  @Test
   void retriesOnceThenSucceeds() {
     ChatModel delegate = mock(ChatModel.class);
     when(delegate.chat(any(ChatRequest.class)))

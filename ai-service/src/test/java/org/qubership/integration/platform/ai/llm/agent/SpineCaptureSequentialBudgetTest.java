@@ -16,9 +16,9 @@ class SpineCaptureSequentialBudgetTest {
   }
 
   @Test
-  void compilerSkillAgentSequentialIsThree() {
+  void compilerSkillAgentAllowsDocumentationReadsAndCapture() {
     RegisterAiService annotation = CompilerSkillAgent.class.getAnnotation(RegisterAiService.class);
-    assertEquals(3, annotation.maxSequentialToolInvocations());
+    assertEquals(6, annotation.maxSequentialToolInvocations());
   }
 
   /**

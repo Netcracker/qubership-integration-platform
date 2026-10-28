@@ -79,6 +79,11 @@ final class RateLimitSinkSupport {
       @Override
       public void onCompleteResponse(ChatResponse completeResponse) {
         completeIfBackoffOccurred(backoffInCall);
+        if (completeResponse != null
+            && completeResponse.finishReason() == dev.langchain4j.model.output.FinishReason.LENGTH) {
+          handler.onError(new IllegalStateException("LLM_OUTPUT_INCOMPLETE: model output limit reached"));
+          return;
+        }
         if (requireTool && (completeResponse == null || completeResponse.aiMessage() == null
             || !completeResponse.aiMessage().hasToolExecutionRequests())) {
           handler.onError(new IllegalStateException(

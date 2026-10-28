@@ -114,6 +114,6 @@ jobs:
           ref: ${{ github.ref }}
           custom-image-name: qubership-integration-knowledge-sidecar
           tags: ${{ steps.tags.outputs.list }}
-          component: '[{"name": "knowledge-sidecar", "dockerfile": "./ai-service/knowledge-sidecar/Dockerfile", "build_context": "./ai-service/knowledge-sidecar"}]'
+          component: '[{"name": "knowledge-sidecar", "dockerfile": "./ai-service/knowledge-sidecar/Dockerfile", "build_context": "."}]'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

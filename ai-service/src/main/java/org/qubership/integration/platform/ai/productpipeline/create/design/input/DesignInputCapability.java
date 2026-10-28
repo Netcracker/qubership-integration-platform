@@ -67,6 +67,9 @@ public class DesignInputCapability implements StageCapability {
 
   private static final String IDS_FLOW_MARKER = "Integration flow for CIP Chain";
 
+  @jakarta.inject.Inject
+  org.qubership.integration.platform.ai.productpipeline.knowledge.DocumentationTools documentation;
+
   private final ChainSemanticDesignAgent designAgent;
   private final ChainSemanticIdsRenderer idsRenderer;
   private final CompilerContractRepository contractRepository;
@@ -236,7 +239,9 @@ public class DesignInputCapability implements StageCapability {
     try {
       agentText =
           runDesignAgent(captureConversationId, authoringPrompt(brief, contract, context)
-              + org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.block(history));
+              + org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.block(history)
+              + (documentation == null ? "" : documentation.context(context.conversationId(),
+                  brief.goal() + " " + brief.summary() + " " + brief.approvedDraftText(), List.of())));
       ProductCapabilityCaptureContext.designBinding(captureConversationId).ifPresent(binding -> {
         rejection.set(binding.captureRejection().get());
         terminalRejection.set(binding.captureTerminal().get());
