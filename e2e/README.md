@@ -259,8 +259,9 @@ Start with the job's step summary, which `support/run-summary.mjs` writes. From 
 A full name is the describe path and the case title joined with ` › `, such as
 `actuator health › engine › names no component as down`. The coverage line divides the covered
 element rows by the rows in scope and counts the out-of-scope and shared rows beside them (see
-[Coverage registries](#coverage-registries)), then gives the API operations covered and reached. A
-pin to remove is a `test.fail()` case that passed: the defect it pins no longer reproduces, so
+[Coverage registries](#coverage-registries)), then gives the API operations covered and reached and
+the VS Code message types covered out of those the extension handles. A pin to remove is a
+`test.fail()` case that passed in a product project: the defect it pins no longer reproduces, so
 remove the annotation and close the defect's issue. A summary that would pass 900 KiB drops the
 slowest tests first, then the project tables, then the bodies of the failures.
 
@@ -287,8 +288,8 @@ needs unpacking:
 - the `e2e-playwright-report` ZIP archive: the same report with its traces and attachments, at the
   archive's root, so `npx playwright show-report e2e-playwright-report.zip` opens the downloaded
   file as it is;
-- the `e2e-report` ZIP archive: `test-results/`, the `.e2e-k8s-` state files, and
-  `.e2e-ui-server.log`.
+- the `e2e-report` ZIP archive: `test-results/`, the `.e2e-k8s-` state files,
+  `.e2e-ui-server.log`, and `.e2e-vscode-server.log`.
 
 An unzipped artifact takes its name from the file, and a second upload under one name fails, so the
 run number and the attempt are part of each file name.
@@ -313,7 +314,8 @@ npm run test:k8s -- --project=runtime --no-deps specs/runtime/http-echo.spec.ts:
 
 The `file:line` alone is not enough, because the cases a loop or a function declares share one
 line, and the title alone can repeat under another describe. Run the command against a kept corpus,
-as [Reproducing one case](#reproducing-one-case) describes.
+as [Reproducing one case](#reproducing-one-case) describes. A case of a project that needs no stack,
+such as `vscode`, reruns without `--no-deps`, so its setup builds and starts the VS Code server.
 
 A run whose only failures are pins to remove is titled "found fixed defects". The email also lists
 the projects a failed project kept from running and the errors raised outside any test. When every

@@ -74,7 +74,7 @@ test.describe("run page", () => {
     const report = redWith();
     report.config.projects = [{ name: "ui", metadata: {} }, { name: "runtime", metadata: {} }, { name: "seed", metadata: { group: "setup" } }];
     const counted = { runId: "8", url: `${RUNS}/8`, startedAt: "2026-10-12T02:00:00Z", failed: [], skipped: [], status: "passed", durationMs: 1_200_000, counts: { passed: 900, failed: 0, pins: 0, flaky: 0, skipped: 0 } };
-    const coverage = { target: "k8s", elements: { covered: 204, inScope: 300, outOfScope: 136, shared: 3 }, operations: { total: 303, reached: 301, covered: 301 }, problems: 0 };
+    const coverage = { target: "k8s", elements: { covered: 204, inScope: 300, outOfScope: 136, shared: 3 }, operations: { total: 303, reached: 301, covered: 301 }, messages: { covered: 61, handled: 67, unhandled: 5 }, problems: 0 };
     const html = runPageHtml({ report, lastRun: read(".last-run.json"), coverage, history: [counted], env: ENV });
 
     expect(html).toContain("<h2>The last 2 runs</h2>");
@@ -84,6 +84,8 @@ test.describe("run page", () => {
     expect(html).not.toContain("<h3>Setup and teardown</h3>");
     expect(html).toContain("<b>Product projects</b>944 cases: 895 passed, 1 failed, 48 did not run");
     expect(html).toContain("<td>API operations covered</td><td class=\"num\">301 of 303</td>");
+    expect(html).toContain("<td>VS Code message types covered</td><td class=\"num\">61 of 67 handled</td>");
+    expect(html).toContain("<td>VS Code message types unhandled</td><td class=\"num\">5</td>");
     expect(html).toContain("<h2>Slowest");
   });
 });

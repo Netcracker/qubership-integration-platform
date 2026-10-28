@@ -225,6 +225,7 @@ jobs:
             e2e/test-results/
             e2e/.e2e-k8s-*
             e2e/.e2e-ui-server.log
+            e2e/.e2e-vscode-server.log
           # The run state files start with a dot, and the action drops dotfiles by default.
           include-hidden-files: true
           retention-days: 14

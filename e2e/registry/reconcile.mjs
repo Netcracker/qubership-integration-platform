@@ -82,6 +82,7 @@ fs.writeFileSync(
     target,
     elements: { covered, inScope, outOfScope, shared },
     operations: summarizeOperations(operationRegistry.filter((entry) => runsOn(entry.target, target))),
+    messages: summarizeMessages(messageRegistry),
     problems: problems.length,
   }, null, 2) + "\n",
 );
