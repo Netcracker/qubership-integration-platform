@@ -21,7 +21,6 @@ import io.micrometer.core.instrument.binder.httpcomponents.hc5.MicrometerHttpCli
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.component.http.HttpClientConfigurer;
 import org.apache.camel.spring.SpringCamelContext;
-import org.apache.hc.client5.http.impl.ChainElement;
 import org.apache.hc.core5.http.HttpRequest;
 import org.apache.hc.core5.http.HttpRequestInterceptor;
 import org.apache.hc.core5.http.HttpResponse;
