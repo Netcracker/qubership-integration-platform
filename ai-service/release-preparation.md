@@ -19,18 +19,21 @@ Subagents own separate files; the coordinating chat owns commits and the shared 
    dependency. Scoped lint, 13 tests, types, formatting, and independent review passed.
 2. **Package inventory — complete.** Commit `0e676db9a` allows optional source `testing/` while retaining strict
    runtime checks. The failure reproduced, then four certified-package tests and independent review passed.
-3. **Documentation answers — live recheck pending.** Commit `28d88a78` adds literal URL and method/path guidance.
-   The regression reproduced before the change; five tests and independent review passed. Repeat the existing
-   live cases and record model identity and tool-read evidence.
-4. **Candidate and live acceptance — in progress.** Full/base AI images and a documentation sidecar were built
-   from `28d88a78`. Private resources occur only in the full image. Greetings and Petstore service-call passed
+3. **Documentation answers — live recheck found a failure.** Commit `28d88a78` adds literal URL and
+   method/path guidance.
+   The regression reproduced before the change; five tests and independent review passed. Three base-image
+   consultations completed. HTTP Trigger and unknown-parameter answers passed content checks; the full-section
+   request received an off-task CIP-4100 answer. Source provenance and pagination completion remain unverified.
+4. **Candidate and live acceptance — selected cases completed with findings.** Full/base AI images and a
+   documentation sidecar were built from `28d88a78`. Private resources occur only in the full image.
+   Greetings and Petstore service-call passed
    materialization, native assertions, catalog review, and static script review. The earlier Greetings setup
    failures remain recorded; its successful continuation did not resend the initial prompt.
    See the [verification summary](release-verification.json) for source revision, image IDs, and case outcomes.
    For each remaining case, retain the frozen source revision and local image ID, and record the returned model.
    The summary records supplied package fingerprints and the QA knowledge archive checksum; registry digests
-   are unavailable because these images were not published. Run the remaining CREATE/EDIT selection with
-   incremental edits and recovery. The uploaded OpenAPI mapping attempt failed before specification import: an
+   are unavailable because these images were not published. All seven selected CREATE/EDIT cases completed.
+   The uploaded OpenAPI mapping attempt failed before specification import: an
    extra outbound response interaction targeted Caller and remained unresolved. The uploaded orders operation
    itself was resolved. A source correction awaits user selection; preserve this failed attempt.
    For materialized cases, read the generated result back from the catalog and check the case assertions.
@@ -41,8 +44,10 @@ Subagents own separate files; the coordinating chat owns commits and the shared 
    materialization. This result covers the configured contract-shape fault; it does not cover provider outages.
    Both EDIT cases passed native checks and catalog readback. Exact script content, graph order, and preservation
    of seeded elements are checked from catalog evidence separately from the native assertion predicates.
-5. **Merge readiness — pending.** Review the final diff and evidence, record unresolved findings and exclusions,
-   and prepare the delivery summary. Recheck affected gates after any correction.
+5. **Merge readiness — blocked pending fix selection.** The selected campaign and archive inventory are recorded.
+   Select corrections for the uploaded-OpenAPI failure and off-task documentation answer before another candidate.
+   The recovery schema fix remains deferred. Requirement revision needs a genuine revision input if that coverage
+   is required. After approved corrections, rerun affected gates, review the final diff, and refresh main integration.
 
 ## Open gate and exclusions
 
