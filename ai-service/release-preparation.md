@@ -37,6 +37,8 @@ Subagents own separate files; the coordinating chat owns commits and the shared 
    Chain execution, if performed, also requires runtime session evidence and logging restoration.
    Multi-turn approval and materialization passed. The selected revision scenario did not change the draft,
    so incorporation of revised requirements remains unverified.
+   The static plan-fault case passed native checks for automatic owner-stage reopening, plan rebuilding, and
+   materialization. This result covers the configured contract-shape fault; it does not cover provider outages.
 5. **Merge readiness — pending.** Review the final diff and evidence, record unresolved findings and exclusions,
    and prepare the delivery summary. Recheck affected gates after any correction.
 

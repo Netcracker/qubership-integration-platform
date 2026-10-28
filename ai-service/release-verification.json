@@ -205,7 +205,39 @@
       },
       {
         "id": "product-create-chain-recovery-revise-plan",
-        "status": "PENDING"
+        "status": "PASS_SCOPED",
+        "conversationId": "b9377efe-54e1-4771-aadb-4452f7eccfb9",
+        "chainId": "c3dd8a5e-5595-46c5-87cb-721cd634bc71",
+        "chainName": "AiRecoveryRevise.20261028T133715.r1",
+        "nativeValidation": "PASS",
+        "reconcile": true,
+        "materialization": "PASS",
+        "requirements": "PASS_NATIVE_ROUTE_AND_ELEMENT_PREDICATES",
+        "unsavedChanges": true,
+        "deployment": "NOT_RUN",
+        "recovery": {
+          "automaticOnly": true,
+          "faultStage": "design-execution",
+          "ownerStage": "design-planning",
+          "causalReopenCount": 1,
+          "rebuildPlanConfirmed": true,
+          "planContentHashCount": 2,
+          "scope": "Configured static contract-shape fault; dynamic per-conversation control and provider-boundary campaign not exercised."
+        },
+        "independentReview": "PASS_SCOPED",
+        "evidence": "Ignored local evidence: live-luna/cases/product-create-chain-recovery-revise-plan/product-attempt-1/",
+        "providerCapture": {
+          "requestedModel": "gpt-6-luna",
+          "returnedModel": "gpt-6-luna",
+          "endpoint": "https://api.openai.com/v1",
+          "phaseRequests": 21,
+          "phaseResponses": 21,
+          "conversationTaggedRequests": 12,
+          "requestsWithoutConversationTagInExclusivePhase": 9,
+          "attribution": "Exchange-ID difference from the preceding complete 95-exchange union; all prior IDs occur in the current 116-pair union.",
+          "rawEvidence": "Ignored case candidate-captures directory, capture summary, and checksum manifest."
+        },
+        "scriptChecks": "PASS_STATIC_REVIEW_ONLY"
       },
       {
         "id": "product-patch-chain-edit-script",
