@@ -281,10 +281,7 @@ export const DesignTemplates: React.FC = () => {
                 />
                 <ProtectedButton
                   require={{ designTemplate: ["create"] }}
-                  tooltipProps={{
-                    title: "Create template",
-                    placement: "bottom",
-                  }}
+                  tooltipProps={{}}
                   buttonProps={{
                     "data-testid": "design-templates-create",
                     type: "primary",
