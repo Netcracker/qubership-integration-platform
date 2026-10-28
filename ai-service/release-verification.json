@@ -241,7 +241,31 @@
       },
       {
         "id": "product-patch-chain-edit-script",
-        "status": "PENDING"
+        "status": "PASS_SCOPED",
+        "conversationId": "73310043-5c66-4a1f-8581-b08c60c1208f",
+        "chainId": "f8ab0613-8fc1-4376-9894-3dfb680c8d47",
+        "chainName": "AiPatchEditScript.20261028T134552.r1",
+        "terminalState": "CHAIN_PATCHED",
+        "materialization": "PASS_PATCH_CATALOG_READBACK",
+        "requirements": "PASS_NATIVE_PREDICATES_AND_INDEPENDENT_EXACT_CATALOG_REVIEW",
+        "preservation": "Original trigger and script IDs, their dependency, and trigger properties retained; only the script body changed.",
+        "unsavedChanges": true,
+        "deployment": "NOT_RUN",
+        "independentReview": "PASS_SCOPED",
+        "evidence": "Ignored local evidence: live-luna/cases/product-patch-chain-edit-script/product-attempt-1/",
+        "assertionCoverage": "Native assertions cover terminal state, prompt count, retention, types, script count, and return property. Exact hello patched text and seed preservation were checked independently against catalog evidence.",
+        "providerCapture": {
+          "requestedModel": "gpt-6-luna",
+          "returnedModel": "gpt-6-luna",
+          "endpoint": "https://api.openai.com/v1",
+          "phaseRequests": 3,
+          "phaseResponses": 3,
+          "conversationTaggedRequests": 3,
+          "requestsWithoutConversationTagInExclusivePhase": 0,
+          "attribution": "Exchange-ID difference from the preceding complete 116-exchange union; all prior IDs occur in the current 119-pair union.",
+          "rawEvidence": "Ignored case candidate-captures directory, capture summary, and checksum manifest."
+        },
+        "scriptChecks": "PASS_STATIC_REVIEW_ONLY"
       },
       {
         "id": "product-patch-chain-multi-turn",
