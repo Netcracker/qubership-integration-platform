@@ -17,6 +17,15 @@
         </license>
     </licenses>
 
+    <developers>
+        <developer>
+            <name>Netcracker</name>
+            <email>opensourcegroup@netcracker.com</email>
+            <organization>Netcracker Technology</organization>
+            <organizationUrl>https://www.netcracker.com</organizationUrl>
+        </developer>
+    </developers>
+
     <scm>
         <connection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</connection>
         <developerConnection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</developerConnection>
@@ -25,7 +34,7 @@
     </scm>
 
     <properties>
-        <revision>1.5.1</revision>
+        <revision>1.6.0</revision>
         <changelist>-SNAPSHOT</changelist>
 
         <compiler-plugin.version>3.15.0</compiler-plugin.version>
@@ -55,11 +64,13 @@
         <qip.ai.qipknowledge.build.skip>true</qip.ai.qipknowledge.build.skip>
         <qip.ai.qipknowledge.pack-root></qip.ai.qipknowledge.pack-root>
         <qip.ai.qipknowledge.addon-pack-root></qip.ai.qipknowledge.addon-pack-root>
-        <qip.ai.qipknowledge.knowledge-overlay></qip.ai.qipknowledge.knowledge-overlay>
+        <qip.ai.qipknowledge.export-dir></qip.ai.qipknowledge.export-dir>
         <qip.ai.qipknowledge.output-root>${project.build.outputDirectory}/qipknowledge</qip.ai.qipknowledge.output-root>
         <qip.test.pack-root>${project.build.directory}/public-pack-fixture/integration-platform-skills</qip.test.pack-root>
         <qip.test.excluded-groups>certified-pack</qip.test.excluded-groups>
         <qip.test.groups></qip.test.groups>
+        <cloud-core.version>10.1.4</cloud-core.version>
+        <qip.ai.dbaas.agent.enabled>false</qip.ai.dbaas.agent.enabled>
     </properties>
 
     <repositories>
@@ -104,6 +115,13 @@
                 <groupId>org.a2aproject.sdk</groupId>
                 <artifactId>a2a-java-sdk-bom</artifactId>
                 <version>${a2a.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.netcracker.cloud.quarkus</groupId>
+                <artifactId>cloud-core-quarkus-bom-publish</artifactId>
+                <version>${cloud-core.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -265,6 +283,28 @@
             <artifactId>quarkus-agroal</artifactId>
         </dependency>
 
+        <!-- Cloud Core: DBaaS, Consul config, tenant context -->
+        <dependency>
+            <groupId>com.netcracker.cloud.quarkus</groupId>
+            <artifactId>dbaas-common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.netcracker.cloud.quarkus</groupId>
+            <artifactId>dbaas-datasource-postgresql</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.netcracker.cloud.quarkus</groupId>
+            <artifactId>consul-config-source</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.netcracker.cloud.quarkus</groupId>
+            <artifactId>framework-contexts</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.netcracker.cloud.quarkus</groupId>
+            <artifactId>context-propagation</artifactId>
+        </dependency>
+
         <!-- Testing -->
         <dependency>
             <groupId>io.quarkus</groupId>
@@ -332,6 +372,11 @@
                         </goals>
                     </execution>
                 </executions>
+                <configuration>
+                    <systemProperties>
+                        <qip.ai.dbaas.agent.enabled>${qip.ai.dbaas.agent.enabled}</qip.ai.dbaas.agent.enabled>
+                    </systemProperties>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>io.smallrye</groupId>
@@ -414,10 +459,6 @@
                                     <key>qip.ai.qipknowledge.addon-pack-root</key>
                                     <value>${qip.ai.qipknowledge.addon-pack-root}</value>
                                 </systemProperty>
-                                <systemProperty>
-                                    <key>qip.ai.qipknowledge.knowledge-overlay</key>
-                                    <value>${qip.ai.qipknowledge.knowledge-overlay}</value>
-                                </systemProperty>
                             </systemProperties>
                         </configuration>
                     </execution>
@@ -439,7 +480,7 @@
                             <outputDirectory>${project.build.directory}/knowledge-runtime</outputDirectory>
                             <resources>
                                 <resource>
-                                    <directory>${project.basedir}/../integration-platform-skills/.apm/skills/cip-runtime-context-loader/assets/knowledge-export</directory>
+                                    <directory>${qip.ai.qipknowledge.export-dir}</directory>
                                 </resource>
                             </resources>
                             <overwrite>true</overwrite>
@@ -509,6 +550,7 @@
                         <qip.test.pack-root>${qip.test.pack-root}</qip.test.pack-root>
                         <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
                         <maven.home>${maven.home}</maven.home>
+                        <tenant.default.id>default</tenant.default.id>
                     </systemPropertyVariables>
                 </configuration>
             </plugin>
@@ -631,6 +673,7 @@
                 <qip.ai.qipknowledge.build.skip>false</qip.ai.qipknowledge.build.skip>
                 <qip.ai.qipknowledge.pack-root>${project.basedir}/../integration-platform-skills</qip.ai.qipknowledge.pack-root>
                 <qip.ai.qipknowledge.addon-pack-root>${project.basedir}/../integration-platform-skills/addons</qip.ai.qipknowledge.addon-pack-root>
+                <qip.ai.qipknowledge.export-dir>${project.basedir}/../integration-platform-skills/.apm/skills/cip-runtime-context-loader/assets/knowledge-export</qip.ai.qipknowledge.export-dir>
             </properties>
         </profile>
         <profile>
@@ -650,14 +693,14 @@
         <profile>
             <id>central</id>
             <activation>
-                <activeByDefault>true</activeByDefault>
+                <activeByDefault>false</activeByDefault>
             </activation>
             <build>
                 <plugins>
                     <plugin>
                         <groupId>org.sonatype.central</groupId>
                         <artifactId>central-publishing-maven-plugin</artifactId>
-                        <version>0.7.0</version>
+                        <version>0.12.0</version>
                         <extensions>true</extensions>
                         <configuration>
                             <publishingServerId>central</publishingServerId>
@@ -681,7 +724,7 @@
         <profile>
             <id>github</id>
             <activation>
-                <activeByDefault>false</activeByDefault>
+                <activeByDefault>true</activeByDefault>
             </activation>
             <distributionManagement>
                 <repository>

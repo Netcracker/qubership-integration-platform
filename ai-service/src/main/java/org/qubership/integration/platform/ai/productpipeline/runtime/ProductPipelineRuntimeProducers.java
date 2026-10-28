@@ -11,8 +11,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
@@ -29,6 +28,7 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineCompatibilityAnalyzer;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineIndex;
 import org.qubership.integration.platform.ai.compiler.pipeline.PipelineCompatibilityReport;
+import org.qubership.integration.platform.ai.compiler.pipeline.PipelineCompatibilityReportAugmenter;
 import org.qubership.integration.platform.ai.configuration.AppConfig;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageCapability;
@@ -59,6 +59,7 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipe
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileCatalog;
 import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryOutcomeTelemetry;
+import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileKeys;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileParser;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileValidator;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
@@ -118,14 +119,34 @@ public class ProductPipelineRuntimeProducers {
   @Produces
   @ApplicationScoped
   ProductPipelineProfileCatalog profileCatalog(CipKnowledgePackRepository packRepository) {
-    ArtifactSchemaRegistry schemas = loadArtifactSchemas();
-    ProductPipelineProfile createChainV1 = loadProfile("create-chain-v1.yaml");
-    ProductPipelineProfile createChainV2 = loadProfile("create-chain-v2.yaml");
-    ProductPipelineProfileValidator.validate(createChainV1, schemas, KNOWN_CAPABILITIES);
-    ProductPipelineProfileValidator.validate(createChainV2, schemas, KNOWN_CAPABILITIES);
-    verifyPipelineCompatibility(createChainV1, packRepository);
-    verifyPipelineCompatibility(createChainV2, packRepository);
-    return new ProductPipelineProfileCatalog(List.of(createChainV1, createChainV2));
+    ArtifactSchemaRegistry schemas = loadArtifactSchemas(packRepository);
+    Map<String, ProductPipelineProfile> merged = new LinkedHashMap<>();
+    for (String fileName : List.of("create-chain-v1.yaml", "create-chain-v2.yaml")) {
+      ProductPipelineProfile bundled = loadBundledProfile(fileName);
+      merged.put(profileKey(bundled), bundled);
+    }
+    for (String relativePath : packRepository.loadProductPipelineProfileResources()) {
+      ProductPipelineProfile packProfile = loadPackProfile(packRepository, relativePath);
+      merged.put(profileKey(packProfile), packProfile);
+    }
+    CompilerPipelineIndex activeIndex = packRepository.loadCompilerPipelineIndex();
+    PipelineCompatibilityReport compatibilityReport =
+        resolveCompatibilityReport(packRepository);
+    compatibilityReport =
+        PipelineCompatibilityReportAugmenter.augmentWithPackShippedProfiles(
+            compatibilityReport,
+            ProductPipelineProfileKeys.readFromPackRepository(packRepository),
+            merged,
+            activeIndex);
+    ProductPipelineCompatibilityVerifier compatibilityVerifier =
+        new ProductPipelineCompatibilityVerifier();
+    List<ProductPipelineProfile> profiles = new ArrayList<>();
+    for (ProductPipelineProfile profile : merged.values()) {
+      ProductPipelineProfileValidator.validate(profile, schemas, KNOWN_CAPABILITIES);
+      compatibilityVerifier.verify(profile, activeIndex, compatibilityReport);
+      profiles.add(profile);
+    }
+    return new ProductPipelineProfileCatalog(profiles);
   }
 
   @Produces
@@ -157,16 +178,14 @@ public class ProductPipelineRuntimeProducers {
     }
   }
 
-  private static void verifyPipelineCompatibility(
-      ProductPipelineProfile profile, CipKnowledgePackRepository packRepository) {
-    CompilerPipelineIndex activeIndex = packRepository.loadCompilerPipelineIndex();
-    PipelineCompatibilityReport report;
+  private static PipelineCompatibilityReport resolveCompatibilityReport(
+      CipKnowledgePackRepository packRepository) {
     try {
-      report = packRepository.loadPipelineCompatibilityReport();
+      return packRepository.loadPipelineCompatibilityReport();
     } catch (RuntimeException missingReport) {
-      report = new CompilerPipelineCompatibilityAnalyzer().compare(null, activeIndex);
+      return new CompilerPipelineCompatibilityAnalyzer()
+          .compare(null, packRepository.loadCompilerPipelineIndex());
     }
-    new ProductPipelineCompatibilityVerifier().verify(profile, activeIndex, report);
   }
 
   @Produces
@@ -235,22 +254,19 @@ public class ProductPipelineRuntimeProducers {
     return new ProvidedIdsFlowOrchestrator(runSupport, runs, flow, flowTasks, application);
   }
 
-  private static ArtifactSchemaRegistry loadArtifactSchemas() {
-    Path[] candidates =
-        new Path[] {
-          Path.of("integration-platform-skills/product-pipelines/artifact-schemas.yaml"),
-          Path.of("../integration-platform-skills/product-pipelines/artifact-schemas.yaml"),
-          Path.of(
-              "ai-service/../integration-platform-skills/product-pipelines/artifact-schemas.yaml")
-        };
-    for (Path candidate : candidates) {
-      if (Files.isRegularFile(candidate)) {
-        try (InputStream in = Files.newInputStream(candidate)) {
-          return parseArtifactSchemas(in);
-        } catch (IOException e) {
-          throw new UncheckedIOException("cannot read artifact schemas: " + candidate, e);
+  private static ArtifactSchemaRegistry loadArtifactSchemas(
+      CipKnowledgePackRepository packRepository) {
+    try (InputStream packStream =
+        packRepository.openProductPipelineResource("artifact-schemas.yaml")) {
+      if (packStream != null) {
+        try {
+          return parseArtifactSchemas(packStream);
+        } catch (IllegalStateException invalidPackSchemas) {
+          // Test fixtures or partial packs may ship a placeholder; fall back to bundled schemas.
         }
       }
+    } catch (IOException e) {
+      throw new UncheckedIOException("cannot read pack artifact schemas", e);
     }
     InputStream classpath =
         ProductPipelineRuntimeProducers.class.getResourceAsStream(
@@ -263,7 +279,7 @@ public class ProductPipelineRuntimeProducers {
       }
     }
     throw new IllegalStateException(
-        "artifact-schemas.yaml is missing from filesystem and classpath");
+        "artifact-schemas.yaml is missing from knowledge pack and classpath");
   }
 
   @SuppressWarnings("unchecked")
@@ -291,34 +307,34 @@ public class ProductPipelineRuntimeProducers {
     return new ArtifactSchemaRegistry(new LinkedHashSet<>(refs));
   }
 
-  private static ProductPipelineProfile loadProfile(String fileName) {
-    Path[] candidates =
-        new Path[] {
-          Path.of("integration-platform-skills/product-pipelines/profiles/" + fileName),
-          Path.of("../integration-platform-skills/product-pipelines/profiles/" + fileName),
-          Path.of(
-              "ai-service/../integration-platform-skills/product-pipelines/profiles/" + fileName)
-        };
-    for (Path candidate : candidates) {
-      if (Files.isRegularFile(candidate)) {
-        try (InputStream in = Files.newInputStream(candidate)) {
-          return ProductPipelineProfileParser.parse(in);
-        } catch (IOException e) {
-          throw new UncheckedIOException("cannot read profile: " + candidate, e);
-        }
-      }
-    }
+  private static ProductPipelineProfile loadBundledProfile(String fileName) {
     InputStream classpath =
         ProductPipelineRuntimeProducers.class.getResourceAsStream(
             "/product-pipelines/profiles/" + fileName);
-    if (classpath != null) {
-      try (classpath) {
-        return ProductPipelineProfileParser.parse(classpath);
-      } catch (IOException e) {
-        throw new UncheckedIOException("cannot read classpath profile " + fileName, e);
-      }
+    if (classpath == null) {
+      throw new IllegalStateException("bundled profile resource is missing: " + fileName);
     }
-    throw new IllegalStateException(
-        fileName + " profile resource is missing from filesystem and classpath");
+    try (classpath) {
+      return ProductPipelineProfileParser.parse(classpath);
+    } catch (IOException e) {
+      throw new UncheckedIOException("cannot read bundled profile " + fileName, e);
+    }
+  }
+
+  private static ProductPipelineProfile loadPackProfile(
+      CipKnowledgePackRepository packRepository, String relativePath) {
+    try (InputStream in = packRepository.openProductPipelineResource(relativePath)) {
+      if (in == null) {
+        throw new IllegalStateException(
+            "pack profile resource is missing from knowledge index: " + relativePath);
+      }
+      return ProductPipelineProfileParser.parse(in);
+    } catch (IOException e) {
+      throw new UncheckedIOException("cannot read pack profile " + relativePath, e);
+    }
+  }
+
+  private static String profileKey(ProductPipelineProfile profile) {
+    return profile.profileId() + "@" + profile.profileVersion();
   }
 }

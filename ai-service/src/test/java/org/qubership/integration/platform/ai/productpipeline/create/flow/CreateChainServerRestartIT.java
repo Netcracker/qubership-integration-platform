@@ -113,6 +113,7 @@ class CreateChainServerRestartIT {
     return new ProcessBuilder(
         Path.of(System.getProperty("java.home"), "bin", "java").toString(),
         "-Djava.util.logging.manager=org.jboss.logmanager.LogManager",
+        "-Dtenant.default.id=default",
         "-Drecovery.probe.mode=" + mode,
         "-Drecovery.probe.directory=" + directory,
         "-Drecovery.probe.jdbc=" + jdbc,

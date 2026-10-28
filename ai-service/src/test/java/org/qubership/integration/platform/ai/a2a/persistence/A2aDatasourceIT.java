@@ -44,8 +44,9 @@ class A2aDatasourceIT {
     assertTrue(properties.contains("QUARKUS_DATASOURCE_JDBC_URL"));
     assertTrue(properties.contains("QUARKUS_DATASOURCE_USERNAME"));
     assertTrue(properties.contains("QUARKUS_DATASOURCE_PASSWORD"));
-    assertTrue(properties.contains("QUARKUS_FLYWAY_MIGRATE_AT_START"));
+    assertTrue(properties.contains("quarkus.dbaas.flyway.location=db/migration"));
     assertTrue(properties.contains("quarkus.datasource.db-kind=postgresql"));
+    assertTrue(properties.contains("quarkus.flyway.active=false"));
     assertTrue(properties.contains("%prod.quarkus.datasource.devservices.enabled=false"));
     assertTrue(properties.contains("ai_a2a"));
   }

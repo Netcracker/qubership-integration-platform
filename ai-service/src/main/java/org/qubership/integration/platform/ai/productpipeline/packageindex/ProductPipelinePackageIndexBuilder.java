@@ -26,7 +26,7 @@ public final class ProductPipelinePackageIndexBuilder {
     List<CapabilityManifest> capabilities =
         resolver.loadCapabilities(productPipelines);
     List<DependencyPin> pins =
-        resolver.resolveClosure(repoRoot, capabilities, dynamicSkills);
+        resolver.resolveClosure(packRoot, capabilities, dynamicSkills);
     String closureDigest = resolver.closureDigest(pins);
     String baselineDigest = digestBaseline(baseline, pins);
     ProductPipelinePackageIndex index =
