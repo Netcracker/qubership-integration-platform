@@ -57,7 +57,7 @@ FOCUSED_TESTS="ProductPipelineDerivedRunTest,ProductPipelineRunStoreTest,"
 FOCUSED_TESTS+="ProvidedIdsFlowOrchestratorTest,LatestIterationJpaInstanceOperationsTest,"
 FOCUSED_TESTS+="CreateChainApplicationFacadeTest,ChatDecisionServiceTest,ChatExecutionServiceTest"
 
-mvn -pl ai-service \
+mvn -f ai-service/pom.xml \
     -Dqip.ai.qipknowledge.build.skip=true \
     -Dtest="${FOCUSED_TESTS}" \
     test 2>&1 | tee "${REPORT_DIR}/focused-backend.log"
@@ -96,7 +96,7 @@ if [[ "${LEVEL}" == "deterministic" || "${LEVEL}" == "full" ]]; then
     EXPANDED_TESTS+="ScriptMappingCompileTest,SecureGroovyMappingCompilerTest,MappingBoundarySchemaResolverTest,"
     EXPANDED_TESTS+="RequirementBriefCoverageValidatorTest,ExecutorEvalFixtureTest"
 
-    mvn -pl ai-service \
+    mvn -f ai-service/pom.xml \
         -Dqip.ai.qipknowledge.build.skip=true \
         -Dtest="${EXPANDED_TESTS}" \
         test 2>&1 | tee "${REPORT_DIR}/binding-mapping-expanded.log"
@@ -116,7 +116,7 @@ if [[ "${LEVEL}" == "full" ]]; then
     PERSISTENCE_TESTS+="DurableFlowSuspendRestartIT#"
     PERSISTENCE_TESTS+="suspendsPersistsRestoresAndResumesOnlyTheCorrelatedInstance"
 
-    mvn -pl ai-service \
+    mvn -f ai-service/pom.xml \
         -DskipITs=false \
         -Dqip.ai.qipknowledge.build.skip=true \
         -Dtest="${PERSISTENCE_TESTS}" \
