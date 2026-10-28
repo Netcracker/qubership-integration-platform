@@ -531,28 +531,24 @@ function getExtensionConfiguration(
 }
 
 export async function getNavigateUri(fileUri: vscode.Uri): Promise<string> {
-  try {
-    if (fileUri.path === CHAIN_DIFF_PATH) {
-      return CHAIN_DIFF_PATH;
-    }
+  if (fileUri.path === CHAIN_DIFF_PATH) {
+    return CHAIN_DIFF_PATH;
+  }
 
-    const fileType = await fileApi.getFileType(fileUri);
+  const fileType = await fileApi.getFileType(fileUri);
 
-    switch (fileType) {
-      case CipFileType.CONTEXT_SERVICE:
-        return await getContextServiceUri(fileUri);
-      case CipFileType.MCP_SERVICE:
-        return await getMcpServiceUri(fileUri);
-      case CipFileType.SERVICE:
-        return await getServiceUri(fileUri);
-      case CipFileType.CHAIN:
-        return await getChainUri(fileUri);
-      case CipFileType.UNKNOWN:
-      default:
-        return "/services";
-    }
-  } catch (e) {
-    return "/services";
+  switch (fileType) {
+    case CipFileType.CONTEXT_SERVICE:
+      return await getContextServiceUri(fileUri);
+    case CipFileType.MCP_SERVICE:
+      return await getMcpServiceUri(fileUri);
+    case CipFileType.SERVICE:
+      return await getServiceUri(fileUri);
+    case CipFileType.CHAIN:
+      return await getChainUri(fileUri);
+    case CipFileType.UNKNOWN:
+    default:
+      return "/services";
   }
 }
 
