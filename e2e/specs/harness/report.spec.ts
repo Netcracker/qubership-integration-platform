@@ -159,11 +159,11 @@ test.describe("reporting layer", () => {
         absent: [],
         release: {
           context: "docker-desktop",
-          namespace: "qip-e2e",
-          name: "qip",
+          namespace: "cip-e2e",
+          name: "cip",
           revision: 7,
           status: "deployed",
-          chart: "qip-0.0.1",
+          chart: "cip-k8s-dev-0.0.1",
         },
         services: [
           {
@@ -175,7 +175,7 @@ test.describe("reporting layer", () => {
       };
       const catalog = renderCatalog(k8sReport, header, COMPONENT_TAGS);
       expect(catalog).toContain(
-        "- Helm release: qip in qip-e2e, revision 7, deployed, chart qip-0.0.1, kube-context docker-desktop",
+        "- Helm release: cip in cip-e2e, revision 7, deployed, chart cip-k8s-dev-0.0.1, kube-context docker-desktop",
       );
       expect(catalog).toContain("| qubership-integration-engine:e2e-0123456789ab |");
       // Compose has no release, and its line is left out rather than printed empty.

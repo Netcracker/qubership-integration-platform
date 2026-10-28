@@ -1,0 +1,4 @@
+name: cip-ai-service
+description: cip-ai-service subchart
+version: 0.0.1
+apiVersion: v1

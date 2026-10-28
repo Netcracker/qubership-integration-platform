@@ -1,7 +1,7 @@
 # The Kubernetes target
 
-`CIP_TARGET=k8s` runs the suite against a local cluster. The suite owns namespace `qip-e2e`: it
-builds the images from the checkout, installs `infrastructure/helm/qip-dev` there with
+`CIP_TARGET=k8s` runs the suite against a local cluster. The suite owns namespace `cip-e2e`: it
+builds the images from the checkout, installs `infrastructure/helm/cip-dev` there with
 `e2e/k8s/values.e2e.yaml`, and waits until every service answers. You prepare the cluster and what
 runs cluster-wide once, with the bootstrap script or by hand, as this page describes. A run checks
 for each piece in the order below and fails on the first one missing, naming the section here that
@@ -99,7 +99,7 @@ kubectl apply --server-side --force-conflicts -f https://github.com/kubernetes-s
 From the repository root:
 
 ```bash
-istioctl install -f infrastructure/helm/qip-dev/istio.yaml
+istioctl install -f infrastructure/helm/cip-dev/istio.yaml
 ```
 
 The file takes the `minimal` profile and lowers the requests to 10m CPU and 100Mi for istiod and to
@@ -109,7 +109,7 @@ the `demo` profile, the same command replaces it and removes the `istio-ingressg
 `istio-egressgateway` that `demo` installs and nothing in the chart uses.
 
 The chart's egress routes use `backendRefs` with `kind: Hostname`, which istiod 1.31.1 programs
-with no feature flag set; this page is verified on Istio 1.31 only. The suite labels `qip-e2e` with
+with no feature flag set; this page is verified on Istio 1.31 only. The suite labels `cip-e2e` with
 `istio-injection=enabled` before it installs the chart, so every pod starts with a sidecar.
 
 ## camel-k
@@ -149,7 +149,7 @@ The kubelets of Docker Desktop and kind serve self-signed certificates. Without
 `components.yaml` again removes the flag, so the bootstrap script applies it only when metrics-server
 is missing or runs another version.
 
-## What a run does in `qip-e2e`
+## What a run does in `cip-e2e`
 
 1. Builds the four platform images and the micro-engine image, each tagged `e2e-` and a hash over
    its sources: the module's `src/`, `pom.xml`, and `Dockerfile`, and `parent/pom.xml` for the
@@ -159,18 +159,18 @@ is missing or runs another version.
    modules whose image is missing. The micro engine is built with
    `-Dquarkus.profile=development,no-m2m`, the profiles `micro-engine/README.md` gives for a local
    stack, and the tag covers them too: Quarkus fixes part of its configuration at build time, and a
-   `prod` build stops at startup with `auth method "qip-e2e" not found`, because it logs in to
+   `prod` build stops at startup with `auth method "cip-e2e" not found`, because it logs in to
    Consul through M2M and expects a DBaaS agent.
 2. Loads the images into the node on kind and k3d.
 3. Creates the namespace and labels it for sidecar injection.
-4. Runs `helm upgrade --install qip infrastructure/helm/qip-dev -n qip-e2e -f e2e/k8s/values.e2e.yaml`
+4. Runs `helm upgrade --install cip infrastructure/helm/cip-dev -n cip-e2e -f e2e/k8s/values.e2e.yaml`
    with the tags, the micro image, the host ports, and the cluster's values. Helm leaves a Deployment whose tag did
    not change alone. The catalog reads the micro image once, at startup, so its pod carries the
    micro tag as an annotation and restarts when that tag changes. The same command installs the
    brokers: `<broker>.enabled` for each of the four, their host ports, the Kafka TLS files from
    `infrastructure/docker/kafka-ssl/server/` through `--set-file`, the CA from
-   `infrastructure/docker/kafka-ssl/client/ca.crt` as `qip-engine.trustedCerts`, and the
-   `qip-runtime-catalog.microDomainResources` and `microDomainEmptyDirs` values that mount it into
+   `infrastructure/docker/kafka-ssl/client/ca.crt` as `cip-engine.trustedCerts`, and the
+   `cip-runtime-catalog.microDomainResources` and `microDomainEmptyDirs` values that mount it into
    a micro domain. Only the `enabled` switches follow `E2E_BROKERS`, so changing it between runs
    restarts no engine, catalog, or micro domain.
 5. Waits for each rollout, then for `/actuator/health` of each JVM service, `/health` of the testing
@@ -178,23 +178,23 @@ is missing or runs another version.
 
 `E2E_PROVISION=never` skips all of that and only checks that everything answers.
 
-**A `qip-e2e` installed without `values.e2e.yaml` has to be deleted first.** Those values run every
+**A `cip-e2e` installed without `values.e2e.yaml` has to be deleted first.** Those values run every
 platform Deployment with `strategy: Recreate`, and Helm cannot switch a rolling-update Deployment
 to `Recreate`: the API server refuses the leftover `rollingUpdate` field. Delete the namespace and
 let the next run install it again:
 
 ```bash
-kubectl delete namespace qip-e2e
+kubectl delete namespace cip-e2e
 ```
 
-**A `qip-e2e` installed from a chart whose Postgres rolls has to lose that Deployment first.** The
+**A `cip-e2e` installed from a chart whose Postgres rolls has to lose that Deployment first.** The
 chart now runs Postgres with `strategy: Recreate`, because a rolling update starts a second server on
 the same data directory and corrupts its WAL. Helm refuses the switch for the same reason as above.
 Delete the Deployment alone, which keeps the database on its PersistentVolumeClaim, and let the next
 run create it again:
 
 ```bash
-kubectl delete deployment qip-postgres -n qip-e2e
+kubectl delete deployment cip-postgres -n cip-e2e
 ```
 
 ## A failed micro case
@@ -206,8 +206,8 @@ log, its description with the events, and the Integration with its status, as
 which the CI cluster dump reads after the suite, and which you read the same way:
 
 ```bash
-kubectl logs -n qip-e2e deploy/cip-engine-<domain>-v1 -c integration
-kubectl get integrations.camel.apache.org -n qip-e2e -o yaml
+kubectl logs -n cip-e2e deploy/cip-engine-<domain>-v1 -c integration
+kubectl get integrations.camel.apache.org -n cip-e2e -o yaml
 ```
 
 The next run's sweep deletes them.

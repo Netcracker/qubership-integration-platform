@@ -1,5 +1,5 @@
-# Values for the e2e suite's install of infrastructure/helm/qip-dev into namespace
-# qip-e2e. The provisioner adds the image tags, the micro-engine image, the host
+# Values for the e2e suite's install of infrastructure/helm/cip-dev into namespace
+# cip-e2e. The provisioner adds the image tags, the micro-engine image, the host
 # ports, the cluster-specific resolver and dev-server host, the broker switches,
 # and the Kafka TLS files and CA on the command line.
 
@@ -26,7 +26,7 @@ global:
 # while the new one starts, and a restart spec would see no downtime.
 # The environment and the catalog's JVM sizes match infrastructure/docker/docker-compose.yml.
 # The engine runs with more heap and Metaspace than that file gives it.
-qip-engine:
+cip-engine:
   strategy:
     type: Recreate
   jvm:
@@ -44,7 +44,7 @@ qip-engine:
     - name: CAMEL_PUBSUB_PREDEPLOY_CHECK_ENABLED
       value: "false"
 
-qip-runtime-catalog:
+cip-runtime-catalog:
   # The metrics cases read a micro domain's /metrics, as they read the engine's with MONITORING_ENABLED.
   microDomainMetrics: true
   # The http-out fixture calls the catalog by its Compose name.
@@ -67,14 +67,14 @@ qip-runtime-catalog:
     - name: MICRO_DOMAIN_CONTAINER_LIMIT_CPU
       value: "4"
 
-qip-sessions-management:
+cip-sessions-management:
   strategy:
     type: Recreate
   extraEnv:
     - name: MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS
       value: always
 
-qip-testing-service:
+cip-testing-service:
   strategy:
     type: Recreate
   # No sidecar: an inbound one answers a request with an unknown method itself, with 400
