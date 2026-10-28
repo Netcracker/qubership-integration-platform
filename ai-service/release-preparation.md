@@ -23,16 +23,16 @@ Subagents own separate files; the coordinating chat owns commits and the shared 
    The regression reproduced before the change; five tests and independent review passed. Repeat the existing
    live cases and record model identity and tool-read evidence.
 4. **Candidate and live acceptance — in progress.** Full/base AI images and a documentation sidecar were built
-   from `28d88a78`. Private resources occur only in the full image. Greetings passed materialization, native
-   assertions, catalog review, and static script review after test-setup corrections. The earlier failures remain
-   recorded; the successful continuation used the same conversation without resending the initial prompt.
+   from `28d88a78`. Private resources occur only in the full image. Greetings and Petstore service-call passed
+   materialization, native assertions, catalog review, and static script review. The earlier Greetings setup
+   failures remain recorded; its successful continuation did not resend the initial prompt.
    See the [verification summary](release-verification.json) for source revision, image IDs, and case outcomes.
    For each remaining case, retain the frozen source revision and local image ID, and record the returned model.
    The summary records supplied package fingerprints and the QA knowledge archive checksum; registry digests
    are unavailable because these images were not published. Run the remaining CREATE/EDIT selection with
-   service calls, uploaded OpenAPI
-   mapping, an incremental edit, and recovery. Read the generated result back from the catalog and check each
-   case's assertions. Chain execution, if performed, also requires runtime session evidence and logging restoration.
+   uploaded OpenAPI mapping, an incremental edit, and recovery. Read the generated result back from the catalog
+   and check each case's assertions. Chain execution, if performed, also requires runtime session evidence and
+   logging restoration.
 5. **Merge readiness — pending.** Review the final diff and evidence, record unresolved findings and exclusions,
    and prepare the delivery summary. Recheck affected gates after any correction.
 
