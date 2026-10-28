@@ -9,6 +9,7 @@ import { MCPSystem } from "../../../../src/api/apiTypes";
 // ---------------------------------------------------------------------------
 import { McpServiceParametersPage } from "../../../../src/components/services/mcp/McpServiceParametersPage";
 import { useNotificationService } from "../../../../src/hooks/useNotificationService";
+import { useBlocker } from "react-router-dom";
 
 // ---------------------------------------------------------------------------
 // Browser API stubs required by Ant Design
@@ -35,6 +36,7 @@ const mockGetMcpSystem = jest.fn();
 const mockUpdateMcpSystem = jest.fn();
 const mockRequestFailed = jest.fn();
 const mockNavigate = jest.fn();
+const mockShowModal = jest.fn();
 let isVsCodeFlag = false;
 
 jest.mock("../../../../src/api/api", () => ({
@@ -62,6 +64,11 @@ jest.mock("react-router", () => ({
 // ServiceBreadcrumb imports useNavigate from "react-router-dom"
 jest.mock("react-router-dom", () => ({
   useNavigate: () => mockNavigate,
+  useBlocker: jest.fn(),
+}));
+
+jest.mock("../../../../src/Modals.tsx", () => ({
+  useModalsContext: () => ({ showModal: mockShowModal }),
 }));
 
 // ---------------------------------------------------------------------------
@@ -105,6 +112,12 @@ describe("McpServiceParametersPage", () => {
       warning: jest.fn(),
       errorWithDetails: jest.fn(),
     });
+    jest.mocked(useBlocker).mockReturnValue({
+      state: "unblocked",
+      proceed: jest.fn(),
+      reset: jest.fn(),
+      location: undefined,
+    } as unknown as ReturnType<typeof useBlocker>);
   });
 
   // --- Loading & initial render --------------------------------------------
@@ -194,10 +207,8 @@ describe("McpServiceParametersPage", () => {
   // --- Save pipeline -------------------------------------------------------
 
   it("should call api.updateMcpSystem with the correct systemId and system values when the form is submitted", async () => {
-    // Note: fireEvent.change triggers the form's onChange (enabling Save via hasChanges)
-    // but does not overwrite the Ant Design form store. The store retains the values
-    // set by form.setFieldsValue(system). This test verifies the full save pipeline:
-    // correct systemId from useParams and correct field values from the loaded system.
+    // Verifies the full save pipeline: the systemId from useParams and the fields
+    // of the loaded system.
     mockGetMcpSystem.mockResolvedValue(
       makeMcpSystem({ identifier: "unique-system-id" }),
     );
@@ -207,7 +218,7 @@ describe("McpServiceParametersPage", () => {
       expect(screen.getByLabelText("Name")).toBeInTheDocument(),
     );
 
-    // Trigger hasChanges to enable Save; store value is unchanged
+    // Enable Save
     fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "any" },
     });
@@ -288,10 +299,8 @@ describe("McpServiceParametersPage", () => {
   // --- Form validation -----------------------------------------------------
 
   it("should show a validation error when Name is empty on submit", async () => {
-    // Pre-load a system with name: "" so the Ant Design form store initialises
-    // with an empty name field. A fireEvent.change on a different field (Description)
-    // flips hasChanges without touching the store, enabling the Save button.
-    // Submitting then triggers required-field validation on the empty name.
+    // Pre-load a system with name: "" so the form starts with an empty name. A change
+    // to Description enables Save, and submitting validates the empty name.
     mockGetMcpSystem.mockResolvedValue(makeMcpSystem({ name: "" }));
     renderPage();
 
@@ -299,7 +308,7 @@ describe("McpServiceParametersPage", () => {
       expect(screen.getByLabelText("Identifier")).toBeInTheDocument(),
     );
 
-    // Enable Save by triggering onChange via the Description field
+    // Enable Save through the Description field
     fireEvent.change(screen.getByLabelText("Description"), {
       target: { value: "trigger" },
     });
@@ -321,7 +330,7 @@ describe("McpServiceParametersPage", () => {
       expect(screen.getByLabelText("Name")).toBeInTheDocument(),
     );
 
-    // Enable Save by triggering onChange via the Name field
+    // Enable Save through the Name field
     fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "trigger" },
     });
@@ -392,5 +401,85 @@ describe("McpServiceParametersPage", () => {
 
     expect(screen.queryByText("Created")).not.toBeInTheDocument();
     expect(screen.queryByText("Modified")).not.toBeInTheDocument();
+  });
+
+  // --- Unsaved changes -----------------------------------------------------
+
+  it("should block navigation after a field is changed", async () => {
+    renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Name")).toBeInTheDocument(),
+    );
+    expect(useBlocker).toHaveBeenLastCalledWith(false);
+
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Changed" },
+    });
+
+    expect(useBlocker).toHaveBeenLastCalledWith(true);
+  });
+
+  it("should block navigation after a label is removed", async () => {
+    mockGetMcpSystem.mockResolvedValue(
+      makeMcpSystem({ labels: [{ name: "lbl", technical: false }] }),
+    );
+    renderPage();
+
+    await waitFor(() => expect(screen.getByText("lbl")).toBeInTheDocument());
+
+    const remove = screen
+      .getByText("lbl")
+      .parentElement!.querySelector(".ant-select-selection-item-remove");
+    fireEvent.click(remove!);
+
+    await waitFor(() => expect(useBlocker).toHaveBeenLastCalledWith(true));
+  });
+
+  it("should stop blocking navigation after a successful save", async () => {
+    renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Name")).toBeInTheDocument(),
+    );
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Changed" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /save/i }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /save/i })).toBeDisabled(),
+    );
+    expect(mockUpdateMcpSystem).toHaveBeenCalled();
+    expect(useBlocker).toHaveBeenLastCalledWith(false);
+  });
+
+  it("should not block navigation when the system fails to load", async () => {
+    mockGetMcpSystem.mockRejectedValue(new Error("Not found"));
+    renderPage();
+
+    await waitFor(() => expect(mockRequestFailed).toHaveBeenCalled());
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Changed" },
+    });
+
+    expect(useBlocker).toHaveBeenLastCalledWith(false);
+  });
+
+  it("should keep blocking navigation after a failed save", async () => {
+    mockUpdateMcpSystem.mockRejectedValue(new Error("Save failed"));
+    renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Name")).toBeInTheDocument(),
+    );
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Changed" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /save/i }));
+
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: /save/i })).toBeEnabled();
+    expect(useBlocker).toHaveBeenLastCalledWith(true);
   });
 });
