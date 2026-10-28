@@ -1,9 +1,9 @@
 /**
  * What the `vscode` guard lets through: the measured allowlist, and the errors a case declares with
- * `expectConsoleError`.
+ * `expectConsoleError`. Also which hosts the page reaches rather than an empty answer.
  */
 import { test, expect } from "@playwright/test";
-import { ALLOWED, guardFailures, withAnyStack, type VsCodeProblem } from "../../support/vscode-guard.js";
+import { ALLOWED, guardFailures, isLocal, withAnyStack, type VsCodeProblem } from "../../support/vscode-guard.js";
 
 const [nls] = ALLOWED;
 const allowed: VsCodeProblem = { source: "console", message: nls.message, url: nls.url };
@@ -61,5 +61,15 @@ test.describe("vscode guard", () => {
     expect(guardFailures(problems, ["Event"])).toEqual([
       "console.error at http://localhost:3917/x.js: [Extension Host] Failed to fetch data for CIP Extension API",
     ]);
+  });
+
+  test("only localhost and its subdomains are local", () => {
+    expect(isLocal(new URL("http://localhost:3917/static/mount/"))).toBe(true);
+    expect(isLocal(new URL("http://v--05k9getbcvv9njg3fp3fdo23nf18c4fhjtoa0e2i0tvkuur2fn8g.localhost:3917/index.html"))).toBe(true);
+    expect(isLocal(new URL("https://main.vscode-cdn.net/extensions/chat.json"))).toBe(false);
+    expect(isLocal(new URL("https://default.exp-tas.com/vscode/ab"))).toBe(false);
+    // A host that only ends in the same letters is elsewhere.
+    expect(isLocal(new URL("https://notlocalhost/"))).toBe(false);
+    expect(isLocal(new URL("https://localhost.example.com/"))).toBe(false);
   });
 });

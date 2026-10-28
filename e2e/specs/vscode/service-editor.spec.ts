@@ -200,6 +200,9 @@ test.describe("service editor", () => {
     await addLabel(vscode, messages, await table.cell(table.row("orders"), LABELS), "e2e-group");
     await table.row("orders").getByText("orders", { exact: true }).click();
     const spec = table.row("1.0.0");
+    // The group table has Labels one column further left, so the cell is looked up only once the
+    // specification table shows.
+    await expect(spec).toBeVisible();
     await addLabel(vscode, messages, await table.cell(spec, LABELS), "e2e-spec");
     await expect(await table.cell(spec, STATUS)).toHaveText("In use");
     await runRowAction(vscode, spec, "Deprecate", "Deprecate this specification?");

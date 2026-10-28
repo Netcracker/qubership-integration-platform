@@ -175,6 +175,8 @@ test.describe("element forms", () => {
     await pickOption(vscode.webview, "Implemented Service");
     const service = form.getByRole("combobox", { name: "*Service" });
     await service.fill("vsc-fixture-implemented");
+    // The services arrive in an answer of their own, and Enter picks nothing while the list is empty.
+    await expect(vscode.webview.getByRole("listbox").locator("..").getByText("vsc-fixture-implemented", { exact: true })).toBeVisible();
     await service.press("Enter");
     // The base path joins the route prefix and the address of the service's active environment.
     await expect(form.getByText("Base path", { exact: true })).toBeVisible();

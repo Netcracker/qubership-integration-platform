@@ -81,6 +81,10 @@ test.describe("export images", () => {
 
     await expect(vscode.webview.getByText("7 of 8 image file(s) exported. 1 empty chain(s) skipped.", { exact: true })).toBeVisible();
     await expect(vscode.notifications.getByText(`Chain "${EMPTY_CHAIN}" is empty. No image file was created.`, { exact: true })).toBeVisible();
+    // The explorer can list the last PNGs after the export reports its end. A row added under the
+    // pointer, which rests on the PNG just clicked, brings up that PNG's hover over the next one, so
+    // the clicks wait until every PNG is listed.
+    await expect(vscode.page.getByRole("treeitem", { name: /\.png$/ })).toHaveCount(DRAWN_CHAINS.length);
     for (const chainId of DRAWN_CHAINS) await expectImage(vscode, "/", chainId);
     expect(messages.answered()).toEqual(
       expect.arrayContaining(["saveExportedImage", "exportImagesProgress", "exportImagesItemWarning", "exportImagesComplete"]),

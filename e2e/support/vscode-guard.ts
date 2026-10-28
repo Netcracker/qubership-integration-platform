@@ -65,8 +65,8 @@ export function guardFailures(problems: readonly VsCodeProblem[], expected: read
   return [...unexpected, ...missing];
 }
 
-/** The experiment service the workbench of the pinned build asks for its assignments. */
-export const EXPERIMENT_SERVICE = "https://default.exp-tas.com/**";
+/** Whether `url` is on this machine: the workbench on `localhost` and each webview on a `*.localhost` origin of its own. */
+export const isLocal = (url: URL) => url.hostname === "localhost" || url.hostname.endsWith(".localhost");
 
 interface VsCodeFixtures {
   vscode: VsCodePage;
@@ -77,18 +77,17 @@ interface VsCodeFixtures {
   sentMessage: (type: string) => Promise<void>;
   expectedErrors: ExpectedError[];
   vscodeGuard: void;
-  experimentService: void;
+  offsiteAnswers: void;
 }
 
 export const test = base.extend<VsCodeFixtures>({
-  // The workbench asks the experiment service on the internet for its assignments some time after
-  // the load. Once its preflight answer carried no CORS header, and the page logged two
-  // console.error lines (2026-10-28). An empty answer keeps every case off the network.
-  experimentService: [
+  // The workbench asks services on the internet for its experiment assignments and for the chat and
+  // Marketplace manifests. A request that fails logs a console.error (on 2026-10-28
+  // main.vscode-cdn.net closed the connection), so every request to another host gets an empty
+  // answer, which the workbench reports with a warning at most.
+  offsiteAnswers: [
     async ({ context }, use) => {
-      await context.route(EXPERIMENT_SERVICE, (route) =>
-        route.fulfill({ json: { Configs: [], AssignmentContext: "" }, headers: { "access-control-allow-origin": "*" } }),
-      );
+      await context.route((url) => !isLocal(url), (route) => route.fulfill({ body: "", headers: { "access-control-allow-origin": "*" } }));
       await use();
     },
     { auto: true },

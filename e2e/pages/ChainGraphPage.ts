@@ -73,9 +73,37 @@ export class ChainGraphPage {
     await mouse.up();
   }
 
-  /** Opens an element's form, which is what a double click on its node does. */
+  /**
+   * Opens an element's form, which is what a double click on its node does.
+   *
+   * When its open animation ends, the form moves focus to its body, even from a field inside it, so
+   * a select opened before that closes again (#1236). This returns once the form has moved focus:
+   * the page notes the end of the dialog's animation and the first `focus()` call inside the dialog
+   * after it.
+   */
   async openElement(elementId: string): Promise<Locator> {
+    const body = this.page.locator("body");
+    await body.evaluate(() => {
+      const page = window as unknown as { e2eFormFocused?: Promise<void> };
+      page.e2eFormFocused = new Promise<void>((resolve) => {
+        const focus = HTMLElement.prototype.focus;
+        let opened = false;
+        const onAnimationEnd = (event: AnimationEvent) => {
+          if ((event.target as Element).getAttribute("role") === "dialog") opened = true;
+        };
+        window.addEventListener("animationend", onAnimationEnd, true);
+        HTMLElement.prototype.focus = function (this: HTMLElement, options?: FocusOptions) {
+          if (opened && this.closest('[role="dialog"]')) {
+            HTMLElement.prototype.focus = focus;
+            window.removeEventListener("animationend", onAnimationEnd, true);
+            resolve();
+          }
+          focus.call(this, options);
+        };
+      });
+    });
     await this.node(elementId).dblclick();
+    await body.evaluate(() => (window as unknown as { e2eFormFocused?: Promise<void> }).e2eFormFocused);
     return this.elementForm;
   }
 
@@ -83,13 +111,31 @@ export class ChainGraphPage {
    * Drops a library element on an empty spot of the canvas. A drop onto a node would create the
    * element inside it, so the target is the canvas's lower left corner, clear of the view the graph
    * fits and of the controls.
+   *
+   * The search opens the element's folder with a height transition that clips the list. A drag
+   * that starts during it scrolls the clipped list to reach the element, and the list scrolls back
+   * to the top as it grows. The element then moves out from under the press, and Chromium starts no
+   * drag. So the drag waits until the element is fully visible.
    */
   async dropFromLibrary(title: string): Promise<void> {
     await this.library.getByRole("textbox").fill(title);
+    const item = this.library.getByRole("menuitem", { name: title, exact: true });
+    await item.evaluate(
+      (element) =>
+        new Promise<void>((resolve) => {
+          const observer = new IntersectionObserver(
+            ([entry]) => {
+              if (entry.intersectionRatio < 1) return;
+              observer.disconnect();
+              resolve();
+            },
+            { threshold: 1 },
+          );
+          observer.observe(element);
+        }),
+    );
     const box = await this.canvas.boundingBox();
     if (!box) throw new Error("the chain canvas is not on the page");
-    await this.library
-      .getByRole("menuitem", { name: title, exact: true })
-      .dragTo(this.canvas, { targetPosition: { x: 60, y: box.height - 60 } });
+    await item.dragTo(this.canvas, { targetPosition: { x: 60, y: box.height - 60 } });
   }
 }
