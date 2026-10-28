@@ -77,7 +77,11 @@ public class ProductRequirementBriefTool {
       boolean accepted, boolean changed, String nextAction, List<Issue> issues, String message) {}
 
   /** A verified source quotation is evidence for diagnosis, never permission to amend requirements. */
-  public record SourceReview(String generation, List<RequirementAnalysisCapture.SourceOmission> omissions) {
+  public record SourceReview(String generation, String sourceHash, String draftHash,
+      List<RequirementAnalysisCapture.SourceOmission> omissions) {
+    public SourceReview(String generation, List<RequirementAnalysisCapture.SourceOmission> omissions) {
+      this(generation, "", "", omissions);
+    }
     public SourceReview {
       omissions = List.copyOf(omissions);
     }
@@ -134,9 +138,12 @@ public class ProductRequirementBriefTool {
       authored mapping facts, use approved interaction ids as mapping endpoints. Omit rows for
       pass-through. The server assigns mapping ids and ports. After acceptance, finish this turn.
       Review the saved author evidence against the selected draft. Supply sourceOmissions=[] only
-      when nothing was omitted. Otherwise report each omission with sourceTurnId, exact quote, and
-      explanation. Account for later amendments and choices. A report stops brief creation for
-      guarded source reconciliation and does not authorize changing the approved requirements.
+      when no source discrepancy remains. Otherwise report all discrepancies together, each with sourceTurnId, exact quote, and
+      explanation. For an extra claim introduced by the model, use kind=UNSUPPORTED_ADDITION,
+      sourceFactId of that selected fact, and its saved evidence quote; do not call an available
+      platform default a missing author value. Otherwise use kind=OMITTED_REQUIREMENT.
+      Account for later amendments and choices. A report stops brief creation for guarded source
+      reconciliation and does not authorize changing approved requirements.
       """)
   public String captureRequirementBrief(
       RequirementAnalysisCapture capture, @ToolMemoryId String conversationId,
@@ -320,18 +327,34 @@ public class ProductRequirementBriefTool {
         return repair(binding, capture, "SOURCE_QUOTE_MISMATCH", path + "/quote",
             "Quote the exact source text without rewriting or shortening it.");
       }
+      if (omission.kind() == RequirementAnalysisCapture.SourceDiscrepancyKind.UNSUPPORTED_ADDITION) {
+        var draft = binding.approvedDraft().authoredDraft();
+        var fact = draft == null ? null : draft.facts().stream()
+            .filter(value -> java.util.Objects.equals(value.sourceFactId(), omission.sourceFactId()))
+            .findFirst().orElse(null);
+        if (fact == null || fact.evidence() == null || fact.policyConflict() != null
+            || !java.util.Objects.equals(fact.evidence().sourceTurnId(), omission.sourceTurnId())
+            || !java.util.Objects.equals(fact.evidence().quote(), omission.quote())
+            || java.util.Objects.equals(fact.text(), omission.quote())) {
+          return repair(binding, capture, "SOURCE_ADDITION_TARGET_MISMATCH", path + "/sourceFactId",
+              "Name one selected fact and its own saved source quote; confirmed policy choices are not repair targets.");
+        }
+      }
       if (blank(omission.explanation())) {
         return repair(binding, capture, "SOURCE_OMISSION_EXPLANATION_REQUIRED", path + "/explanation",
-            "Explain the omission after accounting for later amendments and confirmed choices.");
+            "Explain the discrepancy after accounting for later amendments and confirmed choices.");
       }
     }
-    SourceReview review = new SourceReview(source.generation(), capture.sourceOmissions());
+    SourceReview review = new SourceReview(source.generation(),
+        org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(source),
+        org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(binding.approvedDraft()),
+        capture.sourceOmissions());
     binding.captureTerminal().set(true);
     if (binding.onCandidate() != null) {
       binding.onCandidate().accept(review);
     }
     return new Result(false, false, "REPAIR_SOURCE", List.of(),
-        "Source omissions reported. Finish this turn; guarded reconciliation must preserve approved requirements.");
+        "Source discrepancies reported. Finish this turn; guarded reconciliation must preserve approved requirements.");
   }
 
   private static String targetFolderPath(RequirementDraft approved) {

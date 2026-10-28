@@ -538,10 +538,18 @@ public class RequirementAnalysisCapability implements StageCapability {
       StageExecutionContext context, RequirementDraft approved, SkillWorkspace workspace,
       RequirementBrief brief, SourceReview sourceReview) {
     if (sourceReview != null) {
-      var cause = RecoveryCause.missingBriefFacts(sourceReview.omissions().stream().map(omission ->
-          "Source review in generation " + sourceReview.generation() + "; sourceTurnId=" + omission.sourceTurnId()
-              + "; exact quote:\n" + omission.quote() + "\nReported omission:\n" + omission.explanation()
-              + "\nThis report is diagnostic evidence, not permission to change approved requirements.").toList());
+      var findings = sourceReview.omissions().stream().map(omission -> {
+        boolean addition = omission.kind()
+            == org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceDiscrepancyKind.UNSUPPORTED_ADDITION;
+        return new org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding(
+            addition ? "SOURCE_UNSUPPORTED_ADDITION" : RecoveryCauseCode.MISSING_BRIEF_FACTS.name(),
+            "Source review in generation " + sourceReview.generation() + "; sourceTurnId=" + omission.sourceTurnId()
+                + "; exact quote:\n" + omission.quote() + "\nReported discrepancy:\n" + omission.explanation()
+                + "\nThis report is diagnostic evidence, not permission to change approved requirements.",
+            true, null, addition ? omission.sourceFactId() : "",
+            addition ? "/facts/" + omission.sourceFactId() + "/text" : "");
+      }).toList();
+      var cause = new RecoveryCause(RecoveryCauseCode.MISSING_BRIEF_FACTS, findings, "", false, null, sourceReview);
       return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
           "Source requirements need guarded reconciliation before brief creation.\n" + cause.formattedFindings(), cause));
     }

@@ -94,14 +94,20 @@ class RequirementSourceReviewProviderTest {
         outcome.candidates().getFirst().payload()).facts());
   }
 
-  @Test
-  void quotedOmissionStopsBriefCreationWithoutGrantingSourceRepairAuthority() throws Exception {
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void quotedOmissionStopsBriefCreationWithoutGrantingSourceRepairAuthority(boolean legacyWire) throws Exception {
     String chat = "analysis-source-omission-" + UUID.randomUUID();
     var first = append(chat, ALGORITHM);
     append(chat, "Use internal access with RBAC. Keep this later choice.");
     var before = json.valueToTree(conversations.archive().read(chat));
     var report = new RequirementAnalysisCapture.SourceOmission(first.turnId(), ALGORITHM,
         "The draft describes greetings and omits the grouping algorithm.");
+    var wire = json.readTree(arguments(List.of(report)));
+    if (legacyWire) {
+      var omission = (com.fasterxml.jackson.databind.node.ObjectNode) wire.path("capture").path("sourceOmissions").get(0);
+      omission.remove(List.of("kind", "sourceFactId"));
+    }
     var script = new ScriptedStreamingChatModel(Turn.tool("report-omission", request -> {
       String text = userText(request);
       assertTrue(text.contains(ALGORITHM), text);
@@ -110,7 +116,7 @@ class RequirementSourceReviewProviderTest {
           .toolSpecifications().stream().filter(tool -> "captureRequirementBrief".equals(tool.name()))
           .findFirst().orElseThrow().parameters().properties().get("capture");
       assertTrue(capture.required().contains("sourceOmissions"), capture.toString());
-    }, "captureRequirementBrief", arguments(List.of(report))));
+    }, "captureRequirementBrief", json.writeValueAsString(wire)));
 
     StageOutcome outcome = execute(chat, script);
 
@@ -129,6 +135,62 @@ class RequirementSourceReviewProviderTest {
     assertTrue(finding.originRecordId().isEmpty());
     assertEquals(before, json.valueToTree(conversations.archive().read(chat)));
     assertEquals(1, script.requests().size(), "Reporting an omission must not add a model call.");
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"valid", "unknown-fact", "other-fact-quote"})
+  void unsupportedDraftAdditionRetainsItsNativeOwnerAndPinnedSourceEvidence(String fault) throws Exception {
+    String chat = "analysis-source-addition-" + UUID.randomUUID();
+    String quote = "Return plain text from a QIP script element.";
+    var source = append(chat, ALGORITHM + " " + quote);
+    var input = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput(
+        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FlowInput(List.of(
+            new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.InteractionInput(
+                "greetings", RequirementFlow.Direction.INBOUND, "Caller", "GET /greetings", "Greeting", null, null)), List.of()),
+        List.of(new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput(
+            "script_behavior", List.of("greetings"),
+            org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactKind.BEHAVIOR,
+            org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polarity.POSITIVE,
+            "Return plain text from a QIP script element using default Groovy.", null, null, null,
+            new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.ClaimEvidenceInput(source.turnId(), quote))),
+        List.of(new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.CapabilityInput(
+            "greetings", "http-trigger",
+            org.qubership.integration.platform.ai.plan.RequirementCaptureInput.HttpMode.CUSTOM,
+            org.qubership.integration.platform.ai.plan.RequirementCaptureInput.HttpMethod.GET,
+            "/greetings", null, null, null)), List.of(),
+        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftSettings(true, null, null));
+    var selected = org.qubership.integration.platform.ai.plan.RequirementCaptureProjection.toDraft(
+        input, null, List.of(), "1", "test");
+    var report = new RequirementAnalysisCapture.SourceOmission(source.turnId(), quote,
+        "The selected fact adds a language the author did not specify.",
+        RequirementAnalysisCapture.SourceDiscrepancyKind.UNSUPPORTED_ADDITION, "script_behavior");
+    var reports = new java.util.ArrayList<Turn>();
+    if (!"valid".equals(fault)) {
+      reports.add(Turn.tool("invalid-addition-target", request -> {}, "captureRequirementBrief",
+          arguments(List.of(new RequirementAnalysisCapture.SourceOmission(source.turnId(),
+              "other-fact-quote".equals(fault) ? ALGORITHM : quote, report.explanation(), report.kind(),
+              "unknown-fact".equals(fault) ? "foreign-fact" : report.sourceFactId())))));
+    }
+    reports.add(Turn.tool("report-unsupported-addition", request -> {
+      if (!"valid".equals(fault)) {
+        String text = userText(request);
+        assertTrue(text.contains("SOURCE_ADDITION_TARGET_MISMATCH"), text);
+      }
+    }, "captureRequirementBrief", arguments(List.of(report))));
+    var script = new ScriptedStreamingChatModel(reports.toArray(Turn[]::new));
+
+    StageOutcome outcome = execute(chat, script, selected);
+
+    var finding = outcome.recoveryCause().findings().getFirst();
+    assertEquals("script_behavior", finding.originRecordId());
+    assertEquals("/facts/script_behavior/text", finding.fieldPointer());
+    assertEquals("SOURCE_UNSUPPORTED_ADDITION", finding.code());
+    assertEquals(org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(selected),
+        outcome.recoveryCause().sourceReview().draftHash());
+    assertEquals(org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(
+        org.qubership.integration.platform.ai.plan.AuthorSourceEvidence.packet(conversations.archive().read(chat))),
+        outcome.recoveryCause().sourceReview().sourceHash());
+    assertTrue(outcome.candidates().isEmpty(), "Source review must not be accepted as a requirement brief.");
   }
 
   @ParameterizedTest
