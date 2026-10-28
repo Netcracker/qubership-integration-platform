@@ -26,7 +26,6 @@ public class M2MFallbackHandler implements ExecChainHandler {
     @Override
     public ClassicHttpResponse execute(ClassicHttpRequest request, ExecChain.Scope scope, ExecChain chain)
             throws IOException, HttpException {
-        log.info("Executing fallback interceptor");
         URI requestUri;
         String cacheKey;
         try {
@@ -42,7 +41,7 @@ public class M2MFallbackHandler implements ExecChainHandler {
             ClassicHttpRequest alteredRequest;
             try {
                 alteredRequest = buildRequest(request, SecurityConfiguration.getDefaultM2MToken());
-                log.info("Sending request to {} with kubernetes token", requestUri);
+                log.debug("Sending request to {} with kubernetes token", requestUri);
             } catch (IllegalStateException | IllegalArgumentException e) {
                 log.warn("Error acquiring kubernetes token for m2m communication", e);
 
