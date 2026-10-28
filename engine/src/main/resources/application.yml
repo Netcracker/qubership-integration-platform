@@ -369,7 +369,7 @@ cip:
     http-client:
       m2m:
         fallback-interceptor:
-          enabled: ${HTTP_CLIENT_KUBERNETES_TOKEN_ENABLED:false}
+          enabled: ${M2M_FALLBACK_INTERCEPTOR_ENABLED:false}
           url-cache:
             size: 500
             ttl-hours: 5
