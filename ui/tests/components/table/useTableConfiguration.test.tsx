@@ -131,7 +131,7 @@ it("should use controlled sorting without storing a second copy", () => {
   expect(localStorage.getItem("testing_sort")).toBeNull();
 });
 
-it("should leave only the last resizable column without a width when the table is wider than its columns", () => {
+it("should leave only the first resizable column without a width when the table is wider than its columns", () => {
   const { result } = renderHook(() =>
     useTableConfiguration(
       [...columns, { key: ACTIONS_COLUMN_KEY, title: "", width: 40 }],
@@ -140,8 +140,8 @@ it("should leave only the last resizable column without a width when the table i
     ),
   );
   expect(result.current.columnsWithResize.map((c) => c.width)).toEqual([
-    200,
     undefined,
+    200,
     40,
   ]);
   expect(result.current.scrollX).toBe(488);
