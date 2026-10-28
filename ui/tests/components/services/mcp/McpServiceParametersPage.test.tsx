@@ -215,13 +215,29 @@ describe("McpServiceParametersPage", () => {
     expect(screen.getByRole("button", { name: /save/i })).not.toBeDisabled();
   });
 
+  // Removing a tag changes the form without a native change event, so the page
+  // missed it and Save stayed disabled (#1226 review).
+  it("should enable the Save button when a label is removed", async () => {
+    mockGetMcpSystem.mockResolvedValue(
+      makeMcpSystem({ labels: [{ name: "alpha", technical: false }] }),
+    );
+    renderPage();
+
+    await waitFor(() => expect(screen.getByText("alpha")).toBeInTheDocument());
+    const remove = screen
+      .getByText("alpha")
+      .parentElement!.querySelector(".ant-select-selection-item-remove");
+    fireEvent.click(remove!);
+
+    await waitFor(() => expect(screen.queryByText("alpha")).toBeNull());
+    expect(screen.getByRole("button", { name: /save/i })).not.toBeDisabled();
+  });
+
   // --- Save pipeline -------------------------------------------------------
 
   it("should call api.updateMcpSystem with the correct systemId and system values when the form is submitted", async () => {
-    // Note: fireEvent.change triggers the form's onChange (enabling Save via hasChanges)
-    // but does not overwrite the Ant Design form store. The store retains the values
-    // set by form.setFieldsValue(system). This test verifies the full save pipeline:
-    // correct systemId from useParams and correct field values from the loaded system.
+    // Verifies the full save pipeline: the systemId from useParams and the fields
+    // of the loaded system.
     mockGetMcpSystem.mockResolvedValue(
       makeMcpSystem({ identifier: "unique-system-id" }),
     );
@@ -231,7 +247,7 @@ describe("McpServiceParametersPage", () => {
       expect(screen.getByLabelText("Name")).toBeInTheDocument(),
     );
 
-    // Trigger hasChanges to enable Save; store value is unchanged
+    // Enable Save
     fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "any" },
     });
@@ -312,10 +328,8 @@ describe("McpServiceParametersPage", () => {
   // --- Form validation -----------------------------------------------------
 
   it("should show a validation error when Name is empty on submit", async () => {
-    // Pre-load a system with name: "" so the Ant Design form store initialises
-    // with an empty name field. A fireEvent.change on a different field (Description)
-    // flips hasChanges without touching the store, enabling the Save button.
-    // Submitting then triggers required-field validation on the empty name.
+    // Pre-load a system with name: "" so the form starts with an empty name. A change
+    // to Description enables Save, and submitting validates the empty name.
     mockGetMcpSystem.mockResolvedValue(makeMcpSystem({ name: "" }));
     renderPage();
 
@@ -323,7 +337,7 @@ describe("McpServiceParametersPage", () => {
       expect(screen.getByLabelText("Identifier")).toBeInTheDocument(),
     );
 
-    // Enable Save by triggering onChange via the Description field
+    // Enable Save through the Description field
     fireEvent.change(screen.getByLabelText("Description"), {
       target: { value: "trigger" },
     });
@@ -345,7 +359,7 @@ describe("McpServiceParametersPage", () => {
       expect(screen.getByLabelText("Name")).toBeInTheDocument(),
     );
 
-    // Enable Save by triggering onChange via the Name field
+    // Enable Save through the Name field
     fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "trigger" },
     });

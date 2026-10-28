@@ -119,7 +119,7 @@ export const McpServiceParametersPage: React.FC = () => {
           form={form}
           disabled={isLoading || isSaving}
           layout="vertical"
-          onChange={() => setHasChanges(true)}
+          onValuesChange={() => setHasChanges(true)}
           onFinish={(values) => void updateSystem(system!.id, values)}
           initialValues={system ?? undefined}
         >
