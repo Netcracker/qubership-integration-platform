@@ -441,6 +441,11 @@ export async function getApiResponse(
       return undefined;
     }
 
+    // Part of the export protocol for extensions built on this one. This extension reads neither.
+    case "exportImagesStarted":
+    case "exportImagesItemDone":
+      return undefined;
+
     case "exportImagesComplete":
     case "exportImagesDone": {
       const state = panel ? exportProgressByPanel.get(panel) : undefined;

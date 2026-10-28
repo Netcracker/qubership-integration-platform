@@ -44,6 +44,14 @@ export const BatchExportRunner: React.FC = () => {
   const [succeeded, setSucceeded] = useState(0);
   const [done, setDone] = useState(false);
 
+  useEffect(() => {
+    if (!request) return;
+    void reportExportImagesProgress("exportImagesStarted", {
+      total: targets.length,
+      outputDir: request.exportConfig.outputDir,
+    });
+  }, [request, targets.length]);
+
   const finishBatch = useCallback((summary: BatchExportSummary) => {
     setDone(true);
     void reportExportImagesProgress("exportImagesComplete", summary);
@@ -85,6 +93,10 @@ export const BatchExportRunner: React.FC = () => {
         });
         await saveExportedImageToVsCode(request.exportConfig.outputDir, result);
         setSucceeded((value) => value + 1);
+        await reportExportImagesProgress("exportImagesItemDone", {
+          target: result.target,
+          fileName: result.fileName,
+        });
         advance();
       };
 

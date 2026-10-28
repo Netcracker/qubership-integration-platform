@@ -132,7 +132,7 @@ describe("BatchExportRunner", () => {
     expect(screen.getByText("No export targets provided")).toBeInTheDocument();
   });
 
-  test("completes a successful export", async () => {
+  test("reports startup and completes a successful export", async () => {
     render(
       <MemoryRouter
         initialEntries={[{ pathname: "/batch-export", state: request }]}
@@ -143,11 +143,12 @@ describe("BatchExportRunner", () => {
       </MemoryRouter>,
     );
 
+    expect(reportExportImagesProgress).toHaveBeenCalledWith(
+      "exportImagesStarted",
+      expect.objectContaining({ total: 1, outputDir: "/tmp/export" }),
+    );
+
     await screen.findByText("Export completed");
-    // Only the types the extension's apiRouter.ts has a case for.
-    expect(
-      jest.mocked(reportExportImagesProgress).mock.calls.map(([type]) => type),
-    ).toEqual(["exportImagesProgress", "exportImagesComplete"]);
     expect(screen.getByText(/1 of 1 image file\(s\) exported/)).toBeInTheDocument();
     expect(saveExportedImageToVsCode).toHaveBeenCalledWith("/tmp/export", {
       target: { chainId: "chain-1", outputName: "chain-1" },
