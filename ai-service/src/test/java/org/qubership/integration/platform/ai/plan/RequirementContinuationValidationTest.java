@@ -68,7 +68,8 @@ class RequirementContinuationValidationTest {
       var intent = new RequirementElementIntent("entry", "http-trigger", RequirementElementIntent.Placement.ANCHOR,
           "entry", null, null, name.isEmpty() ? null : name, List.of(), List.of());
       var naming = new FactInput("entry-metadata", List.of("entry"), FactKind.PARAMETER, Polarity.POSITIVE,
-          name.isEmpty() ? "Use the selected HTTP trigger." : "HTTP trigger named " + name + ".", null, null, intent);
+          name.isEmpty() ? "Use the selected HTTP trigger." : "HTTP trigger named " + name + ".", null, null, intent, new RequirementCaptureInput.ClaimEvidenceInput(
+              "current", name.isEmpty() ? "using an HTTP trigger." : "Name the trigger " + name + "."));
       var changes = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(),
           List.of(naming), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null);
       var corrected = mapper.readValue(tools.updateRequirementDraft(changes), RequirementCaptureResult.class);

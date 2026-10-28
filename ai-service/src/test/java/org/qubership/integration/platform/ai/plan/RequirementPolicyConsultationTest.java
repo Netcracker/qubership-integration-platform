@@ -123,10 +123,12 @@ class RequirementPolicyConsultationTest {
       assertFalse(mapper.readValue(tools.updateRequirementDraft(resolve(Decision.KEEP_REQUESTED)),
           RequirementCaptureResult.class).accepted());
 
-      begin(conversations, store, conversationId, "Keep NONE despite the RBAC recommendation.");
+      begin(conversations, store, conversationId, "Keep NONE despite the RBAC recommendation. Keep the endpoint unchanged.");
       var extra = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(),
           List.of(new FactInput("detail", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
-              "Keep the endpoint unchanged.")), List.of(), List.of(), List.of(), List.of(),
+              "Keep the endpoint unchanged.", null, null, null,
+              new RequirementCaptureInput.ClaimEvidenceInput(store.writeAuthority(conversationId).sourceTurnId(),
+                  "Keep the endpoint unchanged."))), List.of(), List.of(), List.of(), List.of(),
           List.of(), List.of(), List.of(), null);
       assertTrue(mapper.readValue(tools.updateRequirementDraft(extra), RequirementCaptureResult.class).accepted());
       var offered = choices.pending(conversationId, 7).orElseThrow();

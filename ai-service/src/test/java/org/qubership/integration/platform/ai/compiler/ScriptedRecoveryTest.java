@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
@@ -54,6 +55,7 @@ import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 import org.qubership.integration.platform.ai.qipknowledge.CipKnowledgePackFixturePaths;
+import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeSidecarApi;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.DefaultKnowledgeContextProvider;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.FakeKnowledgeClient;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.SidecarKnowledgeClient;
@@ -98,6 +100,10 @@ class ScriptedRecoveryTest {
     var fixture = FakeKnowledgeClient.defaultFixture();
     when(knowledgeContext.forConversation(anyString())).thenReturn(fixture.context());
     when(knowledge.context(any(), any())).thenAnswer(call -> fixture.context(call.getArgument(0), call.getArgument(1)));
+    when(knowledge.documentationManifest()).thenReturn(
+        new KnowledgeSidecarApi.DocumentationManifestDto(1, "sha256:" + "d".repeat(64), 1, 1));
+    when(knowledge.searchDocumentation(any(), any(), any(), anyInt())).thenReturn(
+        new KnowledgeSidecarApi.DocumentationSearchDto("sha256:" + "d".repeat(64), List.of()));
     var approved = HttpTriggerCaptureAdapterTest.binding();
     HttpTriggerCaptureSession.unbind("http-capture-test");
     workspace = new InMemorySkillWorkspace(conversation);

@@ -64,7 +64,7 @@ class NativeDiscoveryBeforeDiagnosisTest {
   private static final String SOURCE = "Create a private POST /native-first-correction endpoint. "
       + "After entry run exactly this script: `" + SCRIPT + "`. Proceed without IDS.";
 
-  enum Exclusion { MISSING_STORES, MISSING_EVIDENCE, OUTER_FALSE, NO_PROGRESS, SPENT, FOREIGN, STALE, CHANGED_BASE,
+  enum Exclusion { MISSING_STORES, MISSING_EVIDENCE, OUTER_FALSE, PROJECTION_REBUILD, SPENT, FOREIGN, STALE, CHANGED_BASE,
     UPSTREAM_INPUT, DIAGNOSIS_DISPATCHED, LEGACY_DIAGNOSIS_DISPATCHED, MALFORMED_DIAGNOSIS, RESOURCE, CATALOG_WRITTEN }
 
   @Inject ObjectMapper json;
@@ -148,22 +148,29 @@ class NativeDiscoveryBeforeDiagnosisTest {
 
   @ParameterizedTest
   @EnumSource(Exclusion.class)
-  void unavailableOrSpentNativePermissionNeverSkipsTheExistingGuardedPath(Exclusion exclusion) throws Exception {
+  void nativeCorrectionPermissionPreservesGuardedFallbackAndProjectionRebuild(Exclusion exclusion) throws Exception {
     Fixture fixture = fixture(exclusion);
     var sourceBefore = json.valueToTree(conversations.archive().read(fixture.chat));
-    var script = initialFailure(fixture, exclusion == Exclusion.NO_PROGRESS);
+    var script = initialFailure(fixture, exclusion == Exclusion.PROJECTION_REBUILD);
     install(fixture, script);
     if (exclusion == Exclusion.MALFORMED_DIAGNOSIS) {
       assertThrows(RuntimeException.class, () -> fixture.support.stageExecutor().execute(fixture.run, STAGE)
           .await().atMost(Duration.ofSeconds(30)));
     } else {
       var result = fixture.support.stageExecutor().execute(fixture.run, STAGE).await().atMost(Duration.ofSeconds(30));
-      assertFalse(result.decision() instanceof StageDecision.Retry, result.toString());
+      if (exclusion == Exclusion.PROJECTION_REBUILD) {
+        var retry = assertInstanceOf(StageDecision.Retry.class, result.decision());
+        assertEquals(STAGE, retry.stageId());
+        assertFalse(retry.technicalRetry(), retry.toString());
+      } else {
+        assertFalse(result.decision() instanceof StageDecision.Retry, result.toString());
+      }
     }
     script.assertComplete();
-    assertEquals(exclusion == Exclusion.SPENT ? 1 : 0, repairIntents(fixture.runs.load(fixture.run).orElseThrow()));
+    assertEquals(exclusion == Exclusion.SPENT || exclusion == Exclusion.PROJECTION_REBUILD ? 1 : 0,
+        repairIntents(fixture.runs.load(fixture.run).orElseThrow()));
     int diagnoses = switch (exclusion) {
-      case DIAGNOSIS_DISPATCHED, LEGACY_DIAGNOSIS_DISPATCHED, MALFORMED_DIAGNOSIS, RESOURCE, CATALOG_WRITTEN -> 0;
+      case DIAGNOSIS_DISPATCHED, LEGACY_DIAGNOSIS_DISPATCHED, MALFORMED_DIAGNOSIS, RESOURCE, CATALOG_WRITTEN, PROJECTION_REBUILD -> 0;
       default -> 1;
     };
     verify(fixture.narrative, times(diagnoses)).diagnoseRecovery(anyString(), any());
@@ -177,15 +184,16 @@ class NativeDiscoveryBeforeDiagnosisTest {
     if (exclusion != Exclusion.STALE && exclusion != Exclusion.CHANGED_BASE) {
       assertEquals(sourceBefore, json.valueToTree(conversations.archive().read(fixture.chat)));
     }
-    if (exclusion == Exclusion.NO_PROGRESS) {
-      var savedCause = json.readTree(String.valueOf(fixture.support.runAttributes(fixture.run)
-          .get(ProductPipelineRunSupport.STAGE_ERROR_CAUSE_JSON_ATTR)));
-      assertTrue(savedCause.path("noProgress").asBoolean());
-      assertEquals(json.valueToTree(feedback.lastRequirementRejection(fixture.chat).orElseThrow().feedback()),
-          savedCause.path("captureFailure").path("feedback"));
+    if (exclusion == Exclusion.PROJECTION_REBUILD) {
+      var savedFeedback = feedback.lastRequirementRejection(fixture.chat).orElseThrow().feedback();
+      assertFalse(savedFeedback.noProgress(), savedFeedback.toString());
+      assertEquals(org.qubership.integration.platform.ai.productpipeline.recovery.RequirementRecoveryLadder.Stage
+          .PROJECTION_REBUILD, savedFeedback.ladderStage());
+      assertTrue(drafts.rejectedCaptureRevision(fixture.chat).isEmpty(),
+          "The rebuild must discard the rejected projection without accepting it.");
     }
     assertEquals(0, fixture.budget.state(fixture.run).grants());
-    assertEquals(2, fixture.budget.state(fixture.run).requests());
+    assertEquals(exclusion == Exclusion.PROJECTION_REBUILD ? 4 : 2, fixture.budget.state(fixture.run).requests());
     assertTrue(fixture.budget.state(fixture.run).active().isEmpty());
     if (exclusion == Exclusion.LEGACY_DIAGNOSIS_DISPATCHED) {
       var reloaded = new ProductPipelineRunStore(fixture.blobs, json, Clock.systemUTC()).load(fixture.run).orElseThrow();
@@ -234,7 +242,17 @@ class NativeDiscoveryBeforeDiagnosisTest {
       return new ScriptedStreamingChatModel(first, Turn.tool("identical-native-proposal", request -> {
         var refused = lastTool(request);
         assertFalse(refused.path("accepted").asBoolean());
-      }, "captureRequirementDraft", arguments));
+      }, "captureRequirementDraft", arguments),
+          Turn.tool("request-projection-rebuild", request -> {
+            var refused = lastTool(request);
+            assertFalse(refused.path("accepted").asBoolean(), refused.toString());
+            assertEquals("REPAIR_CAPTURE", refused.path("nextAction").asText());
+          }, "captureRequirementDraft", arguments),
+          Turn.text("retain-projection-rebuild", request -> {
+            var refused = lastTool(request);
+            assertFalse(refused.path("accepted").asBoolean(), refused.toString());
+            assertEquals("PROJECTION_REBUILD", refused.path("nextAction").asText());
+          }, "The requirements must be rebuilt from the author evidence."));
     }
     return new ScriptedStreamingChatModel(first, Turn.text("original-native-refusal", request -> {
       var refused = lastTool(request);

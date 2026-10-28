@@ -95,7 +95,8 @@ class RequirementBodyCaptureProviderTest {
       var rejected = fixture.capture(input("return 'author 😀'\n", forged));
       assertFalse(rejected.path("accepted").asBoolean(), rejected.toString());
       assertTrue(rejected.path("issues").toString().contains("BODY_SOURCE_MISMATCH")
-          || rejected.path("issues").toString().contains("INVALID_TYPE"), rejected.toString());
+          || rejected.path("issues").toString().contains("INVALID_TYPE")
+          || forged.bodyKind() == null && rejected.path("issues").toString().contains("INVALID_ENUM"), rejected.toString());
     }
     assertTrue(fixture.capture(input("return 'author 😀'\n", expected)).path("accepted").asBoolean());
   }

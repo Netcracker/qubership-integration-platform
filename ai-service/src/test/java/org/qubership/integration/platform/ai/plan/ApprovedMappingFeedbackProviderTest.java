@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
@@ -37,6 +38,7 @@ import org.qubership.integration.platform.ai.productpipeline.capability.Capabili
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.create.RequirementAnalysisCapability;
+import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeSidecarApi;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.DefaultKnowledgeContextProvider;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.FakeKnowledgeClient;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.SidecarKnowledgeClient;
@@ -73,6 +75,10 @@ class ApprovedMappingFeedbackProviderTest {
     var fixture = FakeKnowledgeClient.defaultFixture();
     when(knowledgeContext.forConversation(anyString())).thenReturn(fixture.context());
     when(knowledge.context(any(), any())).thenAnswer(call -> fixture.context(call.getArgument(0), call.getArgument(1)));
+    when(knowledge.documentationManifest()).thenReturn(
+        new KnowledgeSidecarApi.DocumentationManifestDto(1, "sha256:" + "d".repeat(64), 1, 1));
+    when(knowledge.searchDocumentation(any(), any(), any(), anyInt())).thenReturn(
+        new KnowledgeSidecarApi.DocumentationSearchDto("sha256:" + "d".repeat(64), List.of()));
     var originalSource = json.valueToTree(conversations.archive().read(chat));
     var limits = Map.of("requests", config.llm().maxRequestsPerRun(), "tokens", config.llm().maxTokensPerRun(),
         "time", config.llm().maxActiveTimePerRun());
