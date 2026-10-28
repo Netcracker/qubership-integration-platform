@@ -35,7 +35,10 @@ Subagents own separate files; the coordinating chat owns commits and the shared 
    are unavailable because these images were not published. All seven selected CREATE/EDIT cases completed.
    The uploaded OpenAPI mapping attempt failed before specification import: an
    extra outbound response interaction targeted Caller and remained unresolved. The uploaded orders operation
-   itself was resolved. A source correction awaits user selection; preserve this failed attempt.
+   itself was resolved. Commit `ace7916cf` adds a positive capture example and regression: the original annotation
+   failed the mapping-fact test; 103 corrected tests passed. The native repeat passed import, materialization,
+   exact mapping and catalog review with two interactions and no extra outbound Caller. Preserve the first
+   failure. Other live scenarios and base documentation were not repeated on this correction revision.
    For materialized cases, read the generated result back from the catalog and check the case assertions.
    Chain execution, if performed, also requires runtime session evidence and logging restoration.
    Multi-turn approval and materialization passed. The selected revision scenario did not change the draft,
@@ -45,7 +48,8 @@ Subagents own separate files; the coordinating chat owns commits and the shared 
    Both EDIT cases passed native checks and catalog readback. Exact script content, graph order, and preservation
    of seeded elements are checked from catalog evidence separately from the native assertion predicates.
 5. **Merge readiness — blocked pending fix selection.** The selected campaign and archive inventory are recorded.
-   Select corrections for the uploaded-OpenAPI failure and off-task documentation answer before another candidate.
+   The approved OpenAPI correction passed its native repeat and independent review. Select a correction for
+   the off-task documentation answer before another candidate.
    The recovery schema fix remains deferred. Requirement revision needs a genuine revision input if that coverage
    is required. After approved corrections, rerun affected gates, review the final diff, and refresh main integration.
 
