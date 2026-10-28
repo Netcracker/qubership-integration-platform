@@ -19,7 +19,8 @@
             "timeout": 30,
             "statusMessage": "Recording agent telemetry"
           }
-        ]
+        ],
+        "_apm_source": "ai-agent-telemetry"
       }
     ],
     "PostToolUse": [
@@ -43,7 +44,8 @@
             "timeout": 30,
             "statusMessage": "Recording agent telemetry"
           }
-        ]
+        ],
+        "_apm_source": "ai-agent-telemetry"
       }
     ]
   }

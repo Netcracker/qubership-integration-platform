@@ -1,0 +1,47 @@
+---
+id: "67d67e35-e881-477b-8203-f893f6958b0b"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "http-trigger"
+content:
+  labels: []
+  elements:
+  - id: "4f326226-abf6-4aa1-a42c-9fec59398299"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      accessControlType: "NONE"
+      allowedContentTypes: []
+      chunked: true
+      connectTimeout: 120000
+      contextPath: "trigger-test"
+      externalRoute: false
+      handleChainFailureAction: "default"
+      handleValidationAction: "script"
+      handlerContainer:
+        script: "exchange.getMessage().setBody('Validation Failure')"
+        exportFileExtension: "groovy"
+        propertiesToExportInSeparateFile: "script"
+      httpBinding: "handlingHttpBinding"
+      httpMethodRestrict: "GET"
+      idempotency:
+        enabled: false
+        keyExpiry: 600
+        actionOnDuplicate: "ignore"
+      killSessionOnTimeout: false
+      privateRoute: false
+      receiveCorrelationId: false
+      rejectRequestIfNonNullBodyGetDelete: true
+  - id: "ffe780ff-f837-4149-b0be-4b988be289d3"
+    name: "Script"
+    type: "script"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesFilename: "ffe780ff-f837-4149-b0be-4b988be289d3.element.script.cip.groovy"
+      propertiesToExportInSeparateFile: "script"
+  dependencies:
+  - from: "4f326226-abf6-4aa1-a42c-9fec59398299"
+    to: "ffe780ff-f837-4149-b0be-4b988be289d3"
+  deployments:
+  - domain: "default"
+  deployAction: "DEPLOY"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

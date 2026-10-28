@@ -50,7 +50,10 @@ const mockApi: Record<string, jest.Mock> = jest.requireMock(
 ).api;
 
 // A stable reference keeps getDomains, which depends on the service, from re-running its effect.
-const mockNotificationService = { requestFailed: jest.fn() };
+const mockNotificationService = {
+  requestFailed: jest.fn(),
+  error: jest.fn(),
+};
 
 jest.mock("../../../src/hooks/useNotificationService", () => ({
   useNotificationService: () => mockNotificationService,
@@ -163,6 +166,55 @@ describe("ImportChains", () => {
         ],
       },
     ]);
+  });
+
+  it("should stay on the upload step when the archive has nothing to import", async () => {
+    mockApi.getImportPreview.mockResolvedValue({ ...preview, chains: [] });
+
+    render(<ImportChains />);
+    fireEvent.click(screen.getByTestId("dragger"));
+    fireEvent.click(screen.getByText("Next"));
+
+    await waitFor(() =>
+      expect(mockNotificationService.error).toHaveBeenCalledWith(
+        "Import failed",
+        expect.stringContaining("Nothing to import"),
+      ),
+    );
+    expect(mockApi.getDomains).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("button", { name: "Import" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("should mark a chain that failed to parse, hide its domain, and leave it out of the import", async () => {
+    const brokenChain = {
+      id: "chain-2",
+      name: "Broken chain",
+      usedSystems: [],
+      deployAction: ChainCommitRequestAction.DEPLOY,
+      deployments: [{ domain: "default" }],
+      exists: false,
+      errorMessage: "Failed to parse YAML",
+    };
+    mockApi.getImportPreview.mockResolvedValue({
+      ...preview,
+      chains: [...preview.chains, brokenChain],
+    });
+
+    await openPreview();
+
+    expect(await screen.findByText("Broken chain")).toBeInTheDocument();
+    expect(screen.getByText("Error")).toBeInTheDocument();
+    expect(screen.getAllByText("Default")).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Import" }));
+
+    await waitFor(() => expect(mockApi.commitImport).toHaveBeenCalled());
+    const [, request] = mockApi.commitImport.mock.calls[0];
+    expect(
+      request.chainCommitRequests.map((item: { id: string }) => item.id),
+    ).toEqual(["chain-1"]);
   });
 
   it("should report the failure when the domains fail to load", async () => {

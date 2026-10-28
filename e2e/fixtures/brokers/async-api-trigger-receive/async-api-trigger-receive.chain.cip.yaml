@@ -1,0 +1,37 @@
+---
+id: "e2e1001c-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-async-api-trigger-receive"
+description: "async-api-trigger on the receive operation of the AsyncAPI 3.0 async-api-v3-amqp service fixture, consuming the queue the brokers seed binds to the operation's fanout exchange."
+content:
+  labels: []
+  elements:
+  - id: "e2e1001c-0000-4000-8000-000000000002"
+    name: "AsyncAPI Trigger"
+    type: "async-api-trigger"
+    properties:
+      systemType: "EXTERNAL"
+      integrationSystemId: "e2e0e005-0000-4000-8000-000000000001"
+      integrationSpecificationGroupId: "e2e0e005-0000-4000-8000-000000000001-async-api-v3-amqp"
+      integrationSpecificationId: "e2e0e005-0000-4000-8000-000000000001-async-api-v3-amqp-1.0.0"
+      integrationOperationId: "e2e0e005-0000-4000-8000-000000000001-async-api-v3-amqp-1.0.0-e2e-{{RUN}}-async-api-v3-receive"
+      integrationOperationPath: "e2e-{{RUN}}-async-api-v3-receive"
+      integrationOperationMethod: "receive"
+      integrationOperationProtocolType: "amqp"
+      integrationOperationAsyncProperties:
+        acknowledgeMode: "AUTO"
+        queues: "e2e-{{RUN}}-async-api-v3-receive-queue"
+      idempotency:
+        enabled: false
+  - id: "e2e1001c-0000-4000-8000-000000000003"
+    name: "Header Modification"
+    type: "header-modification"
+    properties:
+      headerModificationToAdd:
+        e2e-fixture: "{{RUN}}"
+      headerModificationToRemove: []
+  dependencies:
+  - from: "e2e1001c-0000-4000-8000-000000000002"
+    to: "e2e1001c-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

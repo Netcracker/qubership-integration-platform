@@ -403,7 +403,6 @@ export const AccessControl: React.FC = () => {
         value: searchTerm,
         onChange: setSearchTerm,
         placeholder: "Search access control...",
-        allowClear: true,
       }}
       filterButton={filterButton}
       columnSettingsButton={columnSettingsButton}
@@ -420,6 +419,7 @@ export const AccessControl: React.FC = () => {
             require={{ deployment: ["create"] }}
             tooltipProps={{ title: "Redeploy", placement: "bottom" }}
             buttonProps={{
+              "data-testid": "access-control-redeploy",
               iconName: "send",
               disabled: redeployButtonDisabled(),
               onClick: () => {
@@ -457,6 +457,7 @@ export const AccessControl: React.FC = () => {
             require={{ chain: ["update"] }}
             tooltipProps={{ title: "Add Roles", placement: "bottom" }}
             buttonProps={{
+              "data-testid": "access-control-add-roles",
               iconName: "plus",
               onClick: () => {
                 if (selectedRowKeys.length === 0) {
@@ -561,7 +562,6 @@ export const AccessControl: React.FC = () => {
     <Flex vertical className={commonStyles["container"]}>
       <AdminToolsHeader
         title="Access Control"
-        iconName="accessControl"
         toolbar={accessControlToolbar}
       />
       <Flex

@@ -1,0 +1,37 @@
+id: "e2e50022-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-script-large-body"
+description: "The Script element handed a large body. One script reads the whole request as bytes\
+  \ and answers with its length and SHA-256 digest, so the caller can tell whether the script saw\
+  \ every byte it sent. The seed deploys it with session logging OFF, because a session at DEBUG\
+  \ records the body of every step."
+content:
+  labels: []
+  elements:
+  - id: "e2e50022-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-script-large-body"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e50022-0000-4000-8000-000000000003"
+    name: "Digest Body"
+    type: "script"
+    properties:
+      script: |-
+        // script-large-body/digest-body
+        byte[] bytes = exchange.getIn().getBody(byte[].class)
+        def digest = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance('SHA-256').digest(bytes))
+        exchange.getIn().setBody('{"length":' + bytes.length + ',"sha256":"' + digest + '"}')
+  dependencies:
+  - from: "e2e50022-0000-4000-8000-000000000002"
+    to: "e2e50022-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

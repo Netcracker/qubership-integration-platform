@@ -156,7 +156,7 @@ export interface RecordedSession {
  * `SessionSearchResponse`: one page of light sessions, and the marker for the next request.
  *
  * `offset` is **not** an echo of the offset that was asked for and it is not a total either — it is
- * `offset + rows` (`SessionService.java:220`), the value to send next. So a full page and a last
+ * `offset + rows` (`SessionService.java:225`), the value to send next. So a full page and a last
  * page look alike on the wire and an empty page is the only ending; `sessionsOfRun` in
  * `support/fixtures.ts` loops on exactly that.
  */
@@ -261,6 +261,25 @@ export function failedElements(session: RecordedSession): TracedElement[] {
   return trace(session).filter((each) => each.executionStatus !== "COMPLETED_NORMALLY");
 }
 
+/** The names of the steps that still read `IN_PROGRESS`, for a failure that says which ones. */
+export function stepsInProgress(session: RecordedSession): string[] {
+  return trace(session)
+    .filter((each) => each.executionStatus === "IN_PROGRESS")
+    .map((each) => each.elementName);
+}
+
+/**
+ * Whether the session and every step of its trace have left `IN_PROGRESS`.
+ *
+ * The session and each of its steps are separate OpenSearch documents, written with no refresh. So
+ * for about one refresh interval a read can return the session completed beside a step still at its
+ * first version: `IN_PROGRESS`, with null `bodyAfter`, `headersAfter`, `propertiesAfter`,
+ * `exceptionInfo`, and `finished`. A step can also settle before its session.
+ */
+export function isSettled(session: RecordedSession): boolean {
+  return session.executionStatus !== "IN_PROGRESS" && stepsInProgress(session).length === 0;
+}
+
 // ---------------------------------------------------------------------------
 // Calling a chain so the trace can be found again
 // ---------------------------------------------------------------------------
@@ -321,8 +340,8 @@ export interface LookupOptions {
    * first two, because the elements are written independently and arrive out of order. A spec that
    * knows the shape it expects says how many steps that is, and the poll waits for them.
    *
-   * Any value above zero also waits for the session's own `executionStatus` to leave
-   * `IN_PROGRESS`, which settles later than the steps do.
+   * Any value above zero also waits until `isSettled` holds: neither the session nor any step reads
+   * `IN_PROGRESS`. Each is indexed on its own, so either can settle first.
    *
    * `0` waits for the session and nothing else, which is the only thing that works at the `ERROR`
    * level: a call that did not fail is recorded as a session whose `sessionElements` stays null.
@@ -381,6 +400,7 @@ export class Sessions {
     const wanted = options.elements ?? 1;
     let last: LookupAttempt = { status: 0, session: null };
     let seen = 0;
+    let inProgress: string[] = [];
     let found: RecordedSession | undefined;
 
     // The reading is reported after the wait rather than through the poll's own `message`.
@@ -397,12 +417,8 @@ export class Sessions {
             if (wanted > 0) {
               if (!hasTrace(session)) return false;
               seen = trace(session).length;
-              if (seen < wanted) return false;
-              // The session's own status settles independently of its elements, and it settles
-              // later: measured under load, a nine-step trace came back complete while the session
-              // still read `IN_PROGRESS`. Waiting for the steps is therefore not enough for a spec
-              // that asserts on the status.
-              if (session.executionStatus === "IN_PROGRESS") return false;
+              inProgress = stepsInProgress(session);
+              if (seen < wanted || !isSettled(session)) return false;
             }
             found = session;
             return true;
@@ -415,7 +431,8 @@ export class Sessions {
         `no settled session carrying ${CORRELATION_HEADER}=${JSON.stringify(token)} arrived ` +
           `within ${timeout} ms with at least ${wanted} step(s). The last read answered ` +
           `HTTP ${last.status} and saw ${seen} step(s) at status ` +
-          `${last.session?.executionStatus ?? "none"}. An unused token and a session still being ` +
+          `${last.session?.executionStatus ?? "none"}, with ${inProgress.length ? inProgress.join(", ") : "no step"} ` +
+          `still IN_PROGRESS. An unused token and a session still being ` +
           `indexed both answer 404, so check that the call actually sent this header before ` +
           `assuming the engine recorded nothing.`,
         { cause },
@@ -575,7 +592,7 @@ export class Sessions {
   // -------------------------------------------------------------------------
   //
   // Four of the five deletes are `refresh=true` and are visible on the very next read.
-  // `deleteBySessionId` is the exception — `SessionService.java:151` passes `false` — so a spec
+  // `deleteBySessionId` is the exception — `SessionService.java:153` passes `false` — so a spec
   // that deletes one session by id has to poll for the index to catch up, and one that deletes by
   // chain, by id list, or wholesale does not.
 
@@ -643,24 +660,54 @@ export class Sessions {
    * For a session no correlation header finds: a call the testing service would mock, a checkpoint
    * retry, or an MCP tool call. The filter is what keeps an earlier session of the chain out.
    */
-  async onlyOf(
+  onlyOf(
     chainId: string,
     elements: number,
     filter: (session: RecordedSession) => boolean,
   ): Promise<RecordedSession> {
+    return this.settledOf(chainId, elements, filter, (kept) => {
+      expect(kept, `sessions of ${chainId}`).toHaveLength(1);
+      return kept[0];
+    });
+  }
+
+  /**
+   * The earliest settled session of `chainId` that `filter` keeps, with its trace, for a message the
+   * broker can deliver more than once.
+   */
+  earliestOf(
+    chainId: string,
+    elements: number,
+    filter: (session: RecordedSession) => boolean,
+  ): Promise<RecordedSession> {
+    return this.settledOf(chainId, elements, filter, (kept) => {
+      expect(kept.length, `sessions of ${chainId}`).toBeGreaterThan(0);
+      return kept.reduce((one, other) => (one.started <= other.started ? one : other));
+    });
+  }
+
+  /** The session `pick` chooses among those of `chainId` that `filter` keeps, read until it settles with its trace. */
+  private async settledOf(
+    chainId: string,
+    elements: number,
+    filter: (session: RecordedSession) => boolean,
+    pick: (kept: RecordedSession[]) => RecordedSession,
+  ): Promise<RecordedSession> {
     let found: RecordedSession | undefined;
     await expect(async () => {
-      const kept = (await this.search({}, { chainId })).sessions.filter(filter);
-      expect(kept, `sessions of ${chainId}`).toHaveLength(1);
-      found = await this.session(kept[0].id);
+      found = await this.session(pick((await this.search({}, { chainId })).sessions.filter(filter)).id);
       expect(hasTrace(found) ? trace(found).length : 0).toBeGreaterThanOrEqual(elements);
       expect(found.executionStatus).not.toBe("IN_PROGRESS");
+      expect(stepsInProgress(found), "the steps still IN_PROGRESS").toEqual([]);
     }).toPass({ timeout: SESSION_TIMEOUT });
     return found as RecordedSession;
   }
 
-  /** The ids of the chain's latest sessions, read before a call so its session can be told apart. */
-  async idsOf(chainId: string): Promise<Set<string>> {
-    return new Set((await this.search({}, { chainId })).sessions.map((each) => each.id));
+  /**
+   * The ids of the chain's latest sessions, read before a call so its session can be told apart.
+   * `count` caps how many are read; without it the search returns its default page.
+   */
+  async idsOf(chainId: string, count?: number): Promise<Set<string>> {
+    return new Set((await this.search({}, { chainId, count })).sessions.map((each) => each.id));
   }
 }

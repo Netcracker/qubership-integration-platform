@@ -3,9 +3,9 @@
  *
  * `env/target.ts` names the target and imports nothing; this module imports both adapters and
  * answers `targetSetup()`: the environment a worker gets, the provisioner `globalSetup` calls, the
- * observer that records the stack, and the projects only one target declares.
- * `playwright.config.ts` builds its project list from the common projects passed through
- * `decorate`, plus `projects`.
+ * observer that records the stack, and the projects the target adds: its own, and the broker
+ * projects unless `E2E_BROKERS=0`. `playwright.config.ts` builds its project list from the common
+ * projects plus `projects`.
  */
 import type {
   PlaywrightTestOptions,
@@ -15,17 +15,18 @@ import type {
 import { ComposeEnv } from "./compose.js";
 import type { EngineKind, Env, ProcessEnvelope } from "./index.js";
 import type { ProvisionMode, ProvisionReport } from "./provision.js";
-import { K8sEnv } from "./k8s.js";
+import { BROKERS_MICRO_CORPUS_STATE_FILE, K8sEnv, MICRO_REDEPLOY_STATE_FILE, recordedMicroDomain } from "./k8s.js";
 import { collectK8sHeader, k8sBaseline, topSample } from "./k8s-observer.js";
 import { provisionCompose } from "./provision/compose.js";
 import { provisionK8s } from "./provision/k8s.js";
 import { composeBaseline, startResourceSampler } from "./resources.js";
-import { target, type Target } from "./target.js";
+import { brokersEnabled, target, type Target } from "./target.js";
 import { collectStackHeader, type Absence, type StackFacts } from "../support/report.js";
 
 /** The worker-scoped options a project can set, which `support/fixtures.ts` declares. */
 export interface SuiteWorkerOptions {
   engineKind: EngineKind;
+  microDomainState: string;
 }
 
 /** A project of the suite. Named, unlike Playwright's own type, because every dependency names one. */
@@ -45,30 +46,18 @@ export interface StackObserver {
 
 export interface TargetSetup {
   name: Target;
-  createEnv(engineKind: EngineKind): Env;
+  /** A project's environment; a micro one addresses the domain `microDomainState` records. */
+  createEnv(engineKind: EngineKind, microDomainState?: string): Env;
   provision(mode: ProvisionMode): Promise<ProvisionReport>;
   observer: StackObserver;
-  /** Projects declared only on this target. */
+  /** Projects this target adds to the common ones. */
   projects: SuiteProject[];
-  /** The target-specific edges on a common project, such as `global`'s `teardown` on Compose. */
-  decorate(project: SuiteProject): SuiteProject;
-  /** Projects and spec files left out on this target, printed in the report header. */
+  /** Projects left out on this target, printed in the report header. */
   absent: Absence[];
 }
 
-/**
- * Whether the `brokers` project runs, `E2E_BROKERS=0` being the one way to say no.
- *
- * On by default: Kafka and RabbitMQ carry more production traffic than any other transport, so a
- * release run without them does not answer the release question. The flag is for a faster local
- * run without the broker overlays. Playwright 1.62 has no per-project `default: false`, so leaving a
- * project out of a run means leaving it out of the project list, which is what `composeSetup` does.
- */
-function brokersEnabled(): boolean {
-  return process.env.E2E_BROKERS !== "0";
-}
-
-function brokerProjects(): SuiteProject[] {
+/** The broker projects of both targets; `brokers-restart` runs after `restartAfter` and `global`. */
+function brokerProjects(restartAfter: string[] = ["brokers"]): SuiteProject[] {
   return [
     {
       // Imports and deploys `fixtures/brokers/`. A project of its own rather than a step hung
@@ -77,32 +66,19 @@ function brokerProjects(): SuiteProject[] {
       // directory the `seed` project imports wholesale. `testMatch` is not optional, for the
       // reason `seed`'s is not: Playwright's default collects `*.setup.ts` not at all, and a
       // setup project that runs zero tests reports success and satisfies its dependents.
+      // `suite-teardown` runs `brokers.teardown.ts` after `global` as well as after the broker
+      // projects; `playwright.config.ts` says why.
+      //
+      // After `seed`, because both deploy to the classic engine, and the engine reports the state of
+      // a batch of deployments only once the whole batch has loaded. Run beside `seed`, the broker
+      // chains waited for the corpus batch and ran out of their deploy budget. The edge also gates,
+      // so a red `seed` skips every broker project.
       name: "brokers-seed",
+      metadata: { group: "setup" },
       testDir: "./specs/brokers-seed",
       testMatch: /.*\.setup\.ts$/,
-      teardown: "brokers-seed-teardown",
-    },
-    {
-      // A project of its own, named by `brokers-seed`'s `teardown` property — the same split
-      // `seed` and `seed-teardown` use, for the same reason: both setup and teardown behind one
-      // `testMatch` would make the teardown an ordinary test of the setup project, running
-      // before a single broker spec had used the corpus.
-      //
-      // `global` also names this project as its own `teardown` target, through `decorate` — a second use of
-      // the same mechanism, for a problem `brokers`/`brokers-restart`'s `dependencies` on
-      // `brokers-seed` cannot reach. Measured with `DEBUG=pw:test:task`: before that second
-      // edge, this project's own phase held nothing back from `env`'s, so `teardownBrokers` —
-      // `deleteLoggingProperties`, `undeployAll`, chain deletes, then a 15 s Kafka
-      // delete-and-confirm loop that assumes the engine's consumers are stopping — ran
-      // concurrently with `restart-resilience.spec.ts` and `service-type-roundtrip.spec.ts`
-      // force-recreating the engine and the catalog in `env`. A recreated engine re-attaches its
-      // consumers and re-creates the very topics that loop is deleting, and a catalog down for
-      // 30 s pushes onto `teardownBrokers`'s own failure list. `global` picking up this project's
-      // `teardown` closes that gap without either project naming the other in `dependencies` —
-      // see `global`'s own comment for the mechanism and the trade-off it carries instead.
-      name: "brokers-seed-teardown",
-      testDir: "./specs/brokers-seed",
-      testMatch: /.*\.teardown\.ts$/,
+      dependencies: ["seed"],
+      teardown: "suite-teardown",
     },
     {
       // Kafka and RabbitMQ carry more production traffic than any other transport, so this runs
@@ -125,12 +101,21 @@ function brokerProjects(): SuiteProject[] {
       // other broker spec — the same scheduling need `env` exists for, applied to a broker
       // rather than a platform service. `workers: 1` rather than `fullyParallel: false`, for the
       // measured reason `env`'s own comment gives: the latter only serializes within one file and
-      // says nothing about files run alongside it.
+      // says nothing about files run alongside it. On `k8s` it also runs after `brokers-micro`, so a
+      // red micro parity case there skips the classic restart cases.
+      //
+      // After `global` as well, so it never overlaps the restarts in `env`: in CI run 38651497943 the
+      // two ran side by side, the engine restart replaced the consumer of `kafka-trigger-basic`, and
+      // the restart case gave up 13 s before the new engine consumed its message. It waits for
+      // `global` rather than `env`, because after `env` alone it would run beside the session wipe in
+      // `global`. The edge points this way because `env` and `global` must not wait for a broker
+      // project: one red broker case would skip both. The cost is the reverse, so a red `global`
+      // case skips the restart cases. On `k8s`, `env-micro` waits for this project too.
       name: "brokers-restart",
       testDir: "./specs/brokers",
       testMatch: /broker-restart\.spec\.ts$/,
       workers: 1,
-      dependencies: ["brokers"],
+      dependencies: [...restartAfter, "global"],
     },
   ];
 }
@@ -157,55 +142,45 @@ function composeSetup(): TargetSetup {
       header: collectStackHeader,
     },
     projects: brokers ? brokerProjects() : [],
-    decorate(project) {
-      // Declaring `brokers-seed-teardown` as `global`'s own `teardown` target orders that teardown
-      // after `global` without gating either one on the other's success. More than one project may
-      // name the same `teardown` target — Playwright collects every project that does and holds the
-      // teardown back until all of them, and everything that depends on any of them, have run — so
-      // `brokers-seed` and `global` can both point at `brokers-seed-teardown` at once. (A
-      // *teardown* project cannot declare `dependencies` of its own — `common/index.js:716`,
-      // checked against this config directly — but that restriction falls on `brokers-seed-
-      // teardown`, not on the projects naming it.) `global`'s own `deps` array is untouched by
-      // this: the phase-ordering check that decides whether `brokers-seed-teardown` may start reads
-      // which projects have already *run*, and the pass/fail gate that decides whether `global`
-      // itself runs reads only `global`'s own `dependencies` — two different reads over two
-      // different fields, both confirmed directly in `node_modules/playwright/lib/runner/index.js`.
-      // So a failing broker case still cannot skip `global`, the property this suite chose over
-      // naming `brokers`/`brokers-restart` in `global`'s `dependencies`, and `teardownBrokers` now
-      // waits for `global` to finish the way it used to before that edge was removed, closing the
-      // race `brokers-seed-teardown`'s own comment describes. Restricted to a run with brokers:
-      // `brokers-seed-teardown` does not exist as a project when brokers are dropped, and naming an
-      // unknown `teardown` project fails the config outright.
-      return brokers && project.name === "global"
-        ? { ...project, teardown: "brokers-seed-teardown" }
-        : project;
-    },
-    absent: brokers ? [] : brokerProjects().map(({ name }) => ({ name, reason: "E2E_BROKERS=0" })),
+    absent: brokers ? [] : brokersAbsent(),
   };
 }
 
-/**
- * The `specs/runtime/` files `runtime-micro` leaves out. Each deploys chains of its own through the
- * classic deployment API, calls the classic engine directly, or starts chains through the testing
- * service, whose engine address is the classic engine's.
- */
-export const CLASSIC_ONLY_RUNTIME_FILES: readonly string[] = [
-  "checkpoint-retry.spec.ts",
-  "http-trigger-system-type.spec.ts",
-  "logging-level.spec.ts",
-  "mcp-tool-lifecycle.spec.ts",
-  "metrics.spec.ts",
-  "misc-elements.spec.ts",
-  "placeholder.spec.ts",
-  "script-external-library.spec.ts",
-  "script-failures.spec.ts",
-  "service-call-axes.spec.ts",
-  "service-call-sync.spec.ts",
-  "testing-service-cases.spec.ts",
-  "testing-service-runs.spec.ts",
-];
+function brokersAbsent(projects: readonly SuiteProject[] = brokerProjects()): Absence[] {
+  return projects.map(({ name }) => ({ name, reason: "E2E_BROKERS=0" }));
+}
 
-function k8sProjects(): SuiteProject[] {
+/** The broker projects only the Kubernetes target declares, since the micro engine runs only there. */
+function microBrokerProjects(): SuiteProject[] {
+  return [
+    {
+      // The micro copy of `fixtures/brokers/`, on a micro domain of its own, declared the way
+      // `seed-micro` is. It needs no edge to `seed-micro`, because each domain runs its own pod.
+      // Its teardown reads the catalog and the state file only, since `suite-teardown` runs with a
+      // classic `env`.
+      name: "brokers-micro-seed",
+      metadata: { group: "setup" },
+      testDir: "./specs/brokers-micro-seed",
+      testMatch: /.*\.setup\.ts$/,
+      teardown: "suite-teardown",
+      use: { engineKind: "micro", microDomainState: BROKERS_MICRO_CORPUS_STATE_FILE },
+    },
+    {
+      // `specs/brokers/` against the micro copy, which `brokerChain` returns on a micro project. The
+      // specs read the classic corpus state first, so the project waits for both seeds.
+      // `broker-restart.spec.ts` runs in `brokers-restart`, after this project.
+      name: "brokers-micro",
+      testDir: "./specs/brokers",
+      testIgnore: [/broker-restart\.spec\.ts$/],
+      grepInvert: /@classic-only/,
+      fullyParallel: true,
+      dependencies: ["brokers-seed", "brokers-micro-seed"],
+      use: { engineKind: "micro", microDomainState: BROKERS_MICRO_CORPUS_STATE_FILE },
+    },
+  ];
+}
+
+function k8sProjects(brokers: boolean): SuiteProject[] {
   return [
     {
       // What exists only on a cluster: the custom resources, the gateway routes, discovery, and
@@ -221,15 +196,11 @@ function k8sProjects(): SuiteProject[] {
       // declared the way `brokers-seed` is: one micro chain that fails to load takes the whole pod
       // down, and here that fails `runtime-micro` alone.
       name: "seed-micro",
+      metadata: { group: "setup" },
       testDir: "./specs/seed-micro",
       testMatch: /.*\.setup\.ts$/,
-      teardown: "seed-micro-teardown",
+      teardown: "suite-teardown",
       use: { engineKind: "micro" },
-    },
-    {
-      name: "seed-micro-teardown",
-      testDir: "./specs/seed-micro",
-      testMatch: /.*\.teardown\.ts$/,
     },
     {
       // `specs/runtime/` again, against the micro engine. Not named in the dependencies of `env`
@@ -240,18 +211,62 @@ function k8sProjects(): SuiteProject[] {
       // micro domain or reading its session.
       name: "runtime-micro",
       testDir: "./specs/runtime",
-      testIgnore: CLASSIC_ONLY_RUNTIME_FILES.map((file) => `**/${file}`),
+      // A case that cannot apply to the micro engine carries `@classic-only` and says why.
+      grepInvert: /@classic-only/,
       fullyParallel: true,
       dependencies: ["seed-micro", "tooling"],
+      use: { engineKind: "micro" },
+    },
+    {
+      // Micro cases that deploy and redeploy chains of their own. Each file deploys to a micro
+      // domain of its own and deletes it afterwards, and every deploy rolls that domain's pod, so
+      // `workers: 1` keeps one such domain alive at a time. After `seed-micro`, so its first JVM
+      // start never overlaps the shared domain's. The domain a file deployed is recorded in its own
+      // state file, which the `env` fixture reads, so a failed case attaches that pod's log.
+      name: "runtime-micro-redeploy",
+      testDir: "./specs/runtime-micro-redeploy",
+      grepInvert: /@classic-only/,
+      workers: 1,
+      dependencies: ["seed-micro"],
+      use: { engineKind: "micro", microDomainState: MICRO_REDEPLOY_STATE_FILE },
+    },
+    {
+      // The two `specs/global/` files that read the engine, against the shared micro domain. After
+      // `global`, because `global` deletes every session in OpenSearch and the kill cases here read
+      // the sessions they caused. The cost is the trade `env` makes with `ui`: a red `global` case
+      // skips this project.
+      name: "global-micro",
+      testDir: "./specs/global",
+      testMatch: /\/(live-exchanges|runtime-deployments)\.spec\.ts$/,
+      grepInvert: /@classic-only/,
+      workers: 1,
+      dependencies: ["global", "seed-micro"],
+      use: { engineKind: "micro" },
+    },
+    {
+      // The engine and catalog restarts of `specs/env/`, against the shared micro domain, whose pod
+      // the engine restart deletes. After `global-micro`, which runs after `global` and so after
+      // `env`, so no micro JVM start overlaps the classic restarts, and after `runtime-micro`, whose
+      // cases call the pod this project deletes. With the brokers on, after `brokers-restart` too,
+      // which would otherwise run beside this project's catalog restart. The cost: a red `global`,
+      // `runtime-micro`, or broker case skips this project.
+      name: "env-micro",
+      testDir: "./specs/env",
+      testMatch: /restart-resilience\.spec\.ts$/,
+      grepInvert: /@classic-only/,
+      workers: 1,
+      dependencies: ["global-micro", "runtime-micro", ...(brokers ? ["brokers-restart"] : [])],
       use: { engineKind: "micro" },
     },
   ];
 }
 
 function k8sSetup(): TargetSetup {
+  const brokers = brokersEnabled();
   return {
     name: "k8s",
-    createEnv: (engineKind) => new K8sEnv({ engineKind }),
+    createEnv: (engineKind, microDomainState) =>
+      new K8sEnv({ engineKind, microDomain: () => recordedMicroDomain(microDomainState) }),
     provision: provisionK8s,
     observer: {
       baseline: k8sBaseline,
@@ -260,32 +275,13 @@ function k8sSetup(): TargetSetup {
       },
       header: collectK8sHeader,
     },
-    projects: k8sProjects(),
-    decorate(project) {
-      if (project.name === "env") {
-        const previous = project.testIgnore;
-        return { ...project, testIgnore: [
-          ...(Array.isArray(previous) ? previous : previous ? [previous] : []),
-          "**/ai-recovery-lifecycle.spec.ts",
-        ] };
-      }
-      // The micro teardown deletes the micro copy's chains through the catalog, and `env`
-      // restarts the catalog. Measured: with nothing ordering the two, the teardown ran during
-      // that restart and three chain deletes failed with `socket hang up`. `global` runs after
-      // `env`, and naming the teardown here holds it back without gating either project, as
-      // `brokers-seed-teardown` is held back on Compose.
-      return project.name === "global" ? { ...project, teardown: "seed-micro-teardown" } : project;
-    },
+    projects: [
+      ...k8sProjects(brokers),
+      ...(brokers ? [...brokerProjects(["brokers", "brokers-micro"]), ...microBrokerProjects()] : []),
+    ],
     absent: [
       { name: "env: specs/env/ai-recovery-lifecycle.spec.ts", reason: "owned Compose AI-service lifecycle" },
-      ...brokerProjects().map(({ name }) => ({
-        name,
-        reason: "the brokers have no chart on the k8s target",
-      })),
-      ...CLASSIC_ONLY_RUNTIME_FILES.map((file) => ({
-        name: `runtime-micro: specs/runtime/${file}`,
-        reason: "classic-only: it deploys its own chains, calls the classic engine, or uses the testing service",
-      })),
+      ...(brokers ? [] : brokersAbsent([...brokerProjects(), ...microBrokerProjects()])),
     ],
   };
 }

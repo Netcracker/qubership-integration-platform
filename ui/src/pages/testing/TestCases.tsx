@@ -404,7 +404,6 @@ export const TestCases: React.FC<TestCasesProps> = ({
         <Flex vertical className={commonStyles.container}>
           <AdminToolsHeader
             title="Test Cases"
-            iconName="checkSquare"
             toolbar={toolbar}
           />
           {table}

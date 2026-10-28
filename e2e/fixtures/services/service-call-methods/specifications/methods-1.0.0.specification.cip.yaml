@@ -1,0 +1,99 @@
+---
+id: "e2e00031-0000-4000-8000-000000000001-methods-1.0.0"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/specification"
+name: "1.0.0"
+content:
+  deprecated: false
+  version: "1.0.0"
+  source: "MANUAL"
+  operations:
+  - id: "e2e00031-0000-4000-8000-000000000001-methods-1.0.0-echoDELETE"
+    name: "echoDELETE"
+    method: "DELETE"
+    path: "/e2e-{{RUN}}-method-echo"
+    specification:
+      responses:
+        "201":
+          description: "created"
+      operationId: "echoDELETE"
+    requestSchema: {}
+    responseSchemas:
+      "201": {}
+  - id: "e2e00031-0000-4000-8000-000000000001-methods-1.0.0-echoGET"
+    name: "echoGET"
+    method: "GET"
+    path: "/e2e-{{RUN}}-method-echo"
+    specification:
+      responses:
+        "201":
+          description: "created"
+      operationId: "echoGET"
+    requestSchema: {}
+    responseSchemas:
+      "201": {}
+  - id: "e2e00031-0000-4000-8000-000000000001-methods-1.0.0-echoHEAD"
+    name: "echoHEAD"
+    method: "HEAD"
+    path: "/e2e-{{RUN}}-method-echo"
+    specification:
+      responses:
+        "201":
+          description: "created"
+      operationId: "echoHEAD"
+    requestSchema: {}
+    responseSchemas:
+      "201": {}
+  - id: "e2e00031-0000-4000-8000-000000000001-methods-1.0.0-echoOPTIONS"
+    name: "echoOPTIONS"
+    method: "OPTIONS"
+    path: "/e2e-{{RUN}}-method-echo"
+    specification:
+      responses:
+        "201":
+          description: "created"
+      operationId: "echoOPTIONS"
+    requestSchema: {}
+    responseSchemas:
+      "201": {}
+  - id: "e2e00031-0000-4000-8000-000000000001-methods-1.0.0-echoPATCH"
+    name: "echoPATCH"
+    method: "PATCH"
+    path: "/e2e-{{RUN}}-method-echo"
+    specification:
+      responses:
+        "201":
+          description: "created"
+      operationId: "echoPATCH"
+    requestSchema: {}
+    responseSchemas:
+      "201": {}
+  - id: "e2e00031-0000-4000-8000-000000000001-methods-1.0.0-echoPOST"
+    name: "echoPOST"
+    method: "POST"
+    path: "/e2e-{{RUN}}-method-echo"
+    specification:
+      responses:
+        "201":
+          description: "created"
+      operationId: "echoPOST"
+    requestSchema: {}
+    responseSchemas:
+      "201": {}
+  - id: "e2e00031-0000-4000-8000-000000000001-methods-1.0.0-echoPUT"
+    name: "echoPUT"
+    method: "PUT"
+    path: "/e2e-{{RUN}}-method-echo"
+    specification:
+      responses:
+        "201":
+          description: "created"
+      operationId: "echoPUT"
+    requestSchema: {}
+    responseSchemas:
+      "201": {}
+  specificationSources:
+  - id: "e2e00031-0000-4000-8000-000000000003"
+    name: "methods.openapi.yaml"
+    fileName: "source-e2e00031-0000-4000-8000-000000000001-methods-1.0.0/methods.openapi.yaml"
+    mainSource: true
+  parentId: "e2e00031-0000-4000-8000-000000000001-methods"

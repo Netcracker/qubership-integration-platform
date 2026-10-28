@@ -1,5 +1,10 @@
-# TLS keys used by local snapshot test fixtures.
+# Test keys used by local snapshot fixtures.
 # Super-linter reports absolute paths inside the GitHub Actions container.
+/github/workspace/integration-build-pipeline/src/test/resources/testConfigurations/triggers/pubsub-trigger/0b4a144a-4a5f-5c15-bb65-0187e16f2cab/0b4a144a-4a5f-5c15-bb65-0187e16f2cab.chain.cip.yaml:private-key:14
+/github/workspace/integration-build-pipeline/src/test/resources/testConfigurations/triggers/pubsub-trigger/1e6b15e5-57d6-4f25-a0a3-39f9259b6269/1e6b15e5-57d6-4f25-a0a3-39f9259b6269.chain.cip.yaml:private-key:14
+/github/workspace/integration-build-pipeline/src/test/resources/testConfigurations/triggers/pubsub-trigger/4bc029a1-d707-5b01-b7f8-fcce7b8092f3/4bc029a1-d707-5b01-b7f8-fcce7b8092f3.chain.cip.yaml:private-key:14
+/github/workspace/integration-build-pipeline/src/test/resources/testConfigurations/triggers/pubsub-trigger/ea9c3a34-55f6-5925-bc0b-33715dd0898c/ea9c3a34-55f6-5925-bc0b-33715dd0898c.chain.cip.yaml:private-key:14
+/github/workspace/integration-build-pipeline/src/test/resources/testConfigurations/triggers/pubsub-trigger/eb4e108f-ebf7-533a-90e1-f966a7fa3030/eb4e108f-ebf7-533a-90e1-f966a7fa3030.chain.cip.yaml:private-key:14
 /github/workspace/micro-engine/src/test/resources/snapshot-fixtures/kafka/expired-key.pem:private-key:1
 /github/workspace/micro-engine/src/test/resources/snapshot-fixtures/kafka/rotated-key.pem:private-key:1
 /github/workspace/micro-engine/src/test/resources/snapshot-fixtures/kafka/untrusted-key.pem:private-key:1
@@ -8,6 +13,11 @@
 /github/workspace/micro-engine/src/test/resources/snapshot-fixtures/pubsub/localhost-key.pem:private-key:1
 
 # Repository-relative fingerprints for local Gitleaks scans.
+integration-build-pipeline/src/test/resources/testConfigurations/triggers/pubsub-trigger/0b4a144a-4a5f-5c15-bb65-0187e16f2cab/0b4a144a-4a5f-5c15-bb65-0187e16f2cab.chain.cip.yaml:private-key:14
+integration-build-pipeline/src/test/resources/testConfigurations/triggers/pubsub-trigger/1e6b15e5-57d6-4f25-a0a3-39f9259b6269/1e6b15e5-57d6-4f25-a0a3-39f9259b6269.chain.cip.yaml:private-key:14
+integration-build-pipeline/src/test/resources/testConfigurations/triggers/pubsub-trigger/4bc029a1-d707-5b01-b7f8-fcce7b8092f3/4bc029a1-d707-5b01-b7f8-fcce7b8092f3.chain.cip.yaml:private-key:14
+integration-build-pipeline/src/test/resources/testConfigurations/triggers/pubsub-trigger/ea9c3a34-55f6-5925-bc0b-33715dd0898c/ea9c3a34-55f6-5925-bc0b-33715dd0898c.chain.cip.yaml:private-key:14
+integration-build-pipeline/src/test/resources/testConfigurations/triggers/pubsub-trigger/eb4e108f-ebf7-533a-90e1-f966a7fa3030/eb4e108f-ebf7-533a-90e1-f966a7fa3030.chain.cip.yaml:private-key:14
 micro-engine/src/test/resources/snapshot-fixtures/kafka/expired-key.pem:private-key:1
 micro-engine/src/test/resources/snapshot-fixtures/kafka/rotated-key.pem:private-key:1
 micro-engine/src/test/resources/snapshot-fixtures/kafka/untrusted-key.pem:private-key:1

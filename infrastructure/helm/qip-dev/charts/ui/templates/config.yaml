@@ -46,6 +46,9 @@ data:
   routes.conf: |-
     server {
       listen 8080;
+      # The Service publishes 8080 on another port, so a redirect nginx sends itself
+      # stays relative and keeps the port the browser used.
+      absolute_redirect off;
 
       error_page 502 503 504 @error;
 
@@ -195,7 +198,7 @@ data:
 
       location ~ ^/api/(v\d+)/.*/engine/(?P<engine_domain>[^/]+)/(sessions|chains|live-exchanges) {
         rewrite ^/api/(v\d+)/.*/engine/[^/]+/(.*)$  /$1/engine/$2 break;
-        proxy_pass  http://qip-engine-${engine_domain}-{{ .Values.global.blueGreenVersion }}.{{ .Release.Namespace }}.svc.cluster.local:8080;
+        proxy_pass  http://cip-engine-${engine_domain}-{{ .Values.global.blueGreenVersion }}.{{ .Release.Namespace }}.svc.cluster.local:8080;
         proxy_redirect     off;
         proxy_set_header   Host $host;
         proxy_intercept_errors on;
@@ -236,6 +239,8 @@ data:
         proxy_set_header        Host $host;
         proxy_intercept_errors  on;
       }
+
+      {{- if .Values.global.qip.ai.enabled }}
 
       location = /q/health {
         proxy_pass  http://{{ .Release.Name }}-ai-service:8080;
@@ -280,6 +285,7 @@ data:
         proxy_set_header   Host $host;
         proxy_intercept_errors on;
       }
+      {{- end }}
 
       # Anything under /api/ that no rule above claims belongs to no service. Without
       # this it falls through to the SPA below and answers 200 text/html, so a caller

@@ -40,9 +40,12 @@ public class QuartzSchedulerService {
     @Getter
     private final SchedulerProxy schedulerProxy;
 
+    // Camel starts the scheduler before BlueGreenSchedulerControllerService gets the initial state,
+    // so a pod that starts outside ACTIVE creates its scheduler suspended
     @Inject
-    public QuartzSchedulerService(Scheduler scheduler) {
-        this.schedulerProxy = new SchedulerProxy(scheduler);
+    public QuartzSchedulerService(Scheduler scheduler, BlueGreenStateService blueGreenStateService) {
+        boolean suspended = !BlueGreenStateService.isActive(blueGreenStateService.getBlueGreenState());
+        this.schedulerProxy = new SchedulerProxy(scheduler, suspended);
     }
 
     /**

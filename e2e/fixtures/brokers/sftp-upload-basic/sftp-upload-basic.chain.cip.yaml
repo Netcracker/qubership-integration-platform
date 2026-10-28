@@ -1,5 +1,5 @@
 ---
-id: "e2e0h004-0000-4000-8000-000000000001"
+id: "e2e0b004-0000-4000-8000-000000000001"
 $schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 name: "e2e-{{RUN}}-sftp-upload-basic"
 description: "sftp-upload at its schema defaults. An HTTP call drives it; a spec reads the file\
@@ -7,7 +7,7 @@ description: "sftp-upload at its schema defaults. An HTTP call drives it; a spec
 content:
   labels: []
   elements:
-  - id: "e2e0h004-0000-4000-8000-000000000002"
+  - id: "e2e0b004-0000-4000-8000-000000000002"
     name: "HTTP Trigger"
     type: "http-trigger"
     properties:
@@ -20,7 +20,7 @@ content:
       handleChainFailureAction: "default"
       correlationId: false
       isExternalContextPath: false
-  - id: "e2e0h004-0000-4000-8000-000000000003"
+  - id: "e2e0b004-0000-4000-8000-000000000003"
     name: "SFTP Upload"
     type: "sftp-upload"
     properties:
@@ -34,7 +34,7 @@ content:
       throwExceptionOnConnectFailed: true
       useUserKnownHostsFile: false
   dependencies:
-  - from: "e2e0h004-0000-4000-8000-000000000002"
-    to: "e2e0h004-0000-4000-8000-000000000003"
+  - from: "e2e0b004-0000-4000-8000-000000000002"
+    to: "e2e0b004-0000-4000-8000-000000000003"
   deployAction: "NONE"
   migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

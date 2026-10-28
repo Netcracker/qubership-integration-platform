@@ -1085,7 +1085,11 @@ const Chains = () => {
     { label: "Expand All", key: "expandAll" },
     { label: "Collapse All", key: "collapseAll" },
     { type: "divider" },
-    { label: "Copy Link", key: "copyFolderLink" },
+    {
+      label: "Copy Link",
+      key: "copyFolderLink",
+      require: { folder: ["update"] },
+    },
     { label: "Edit", key: "editFolder", require: { folder: ["update"] } },
     { label: "Export", key: "export", require: { chain: ["export"] } },
     { type: "divider" },
@@ -1100,13 +1104,17 @@ const Chains = () => {
   ];
 
   const chainMenuItems: ProtectedMenuItem[] = [
-    { label: "Copy Link", key: "copyChainLink" },
+    {
+      label: "Copy Link",
+      key: "copyChainLink",
+      require: { chain: ["update"] },
+    },
     { label: "Edit", key: "editChain", require: { chain: ["update"] } },
     { label: "Export", key: "export", require: { chain: ["export"] } },
     {
       label: "Generate DDS",
       key: "generateDDS",
-      require: { chain: ["read"] },
+      require: { chain: ["read"], designTemplate: ["read"] },
     },
     { type: "divider" },
     { label: "Cut", key: "cut", require: { chain: ["delete"] } },
@@ -1339,8 +1347,7 @@ const Chains = () => {
               <CompactSearch
                 value={searchString}
                 onChange={setSearchString}
-                placeholder="Full text search"
-                allowClear
+                placeholder="Search chains and folders..."
                 className={commonStyles["searchField"]}
               />
             </Flex>

@@ -235,7 +235,6 @@ export const DesignTemplates: React.FC = () => {
     <Flex vertical className={commonStyles["container"]}>
       <AdminToolsHeader
         title="Design Templates"
-        iconName="fileText"
         toolbar={
           <TableToolbar
             variant="admin"
@@ -243,7 +242,6 @@ export const DesignTemplates: React.FC = () => {
               value: searchTerm,
               onChange: setSearchTerm,
               placeholder: "Search templates...",
-              allowClear: true,
             }}
             columnSettingsButton={columnSettingsButton}
             filterButton={filterButton}
@@ -256,6 +254,7 @@ export const DesignTemplates: React.FC = () => {
                     placement: "bottom",
                   }}
                   buttonProps={{
+                    "data-testid": "design-templates-delete",
                     disabled: !isDeleteEnabled(),
                     iconName: "delete",
                     onClick: () => {
@@ -286,6 +285,7 @@ export const DesignTemplates: React.FC = () => {
                     placement: "bottom",
                   }}
                   buttonProps={{
+                    "data-testid": "design-templates-create",
                     type: "primary",
                     iconName: "plus",
                     onClick: handleCreate,

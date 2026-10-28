@@ -20,7 +20,7 @@
  * reached 94% of its 12 allocated cores under a load lighter than a full run while using 29% of its
  * memory.
  *
- * The parsing here is exercised by `specs/schema/resources.spec.ts`, which needs no stack.
+ * The parsing here is exercised by `specs/harness/resources.spec.ts`, which needs no stack.
  */
 import { spawn } from "node:child_process";
 import fs from "node:fs";
@@ -60,9 +60,9 @@ export interface RunResources {
   /**
    * The run token of the run that started this sampler.
    *
-   * Ownership, and it is read at the end: a stack-free `--project=schema` run has no sampler of its
-   * own, and stopping the one it finds takes the readings out from under a full run going on beside
-   * it — whose `process-envelope` band check then fails on an empty file.
+   * Ownership, and it is read at the end: a stack-free `--project=schema --project=harness` run has
+   * no sampler of its own, and stopping the one it finds takes the readings out from under a full run
+   * going on beside it — whose `process-envelope` band check then fails on an empty file.
    */
   run?: string;
   /** The envelope of every role before any project ran, which is what the end is compared against. */

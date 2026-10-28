@@ -38,6 +38,31 @@ fixed-height body — the sticky header we want — while `undefined` does not. 
 drop `y` entirely, or the empty-state placeholder ends up trapped inside that split body. Omitting
 `y` and passing `y: ""` are therefore not interchangeable.
 
+### Key-value pairs
+
+Edit a list of key-value pairs (environment properties, dictionary rules, headers) with
+`KeyValuePairsEditor` from `src/components/table/kv/` rather than a local table or text area. It
+shows a table tab and a text tab over one `KeyValuePair[]` value and takes `value` and `onChange`, so
+it binds to a `Form.Item` directly. The table keeps the first pair of a duplicated key and rejects a
+key edit that would duplicate one.
+
+- Use `KeyValuePairsTable` alone where the text form is not wanted, and `KeyValuePairsTextEditor`
+  alone for the text form. The text form is `key=value;` per pair, with `=`, `;`, and `\` escaped by
+  a backslash.
+- Pass `tableColumnNames` to rename the columns and `tableHeader` to put buttons above the table.
+- `actionRef` exposes `add`, `clear`, and `activateTab`, so a toolbar outside the editor can drive
+  it. `EnvironmentParamsModal` hides the tab bar with `renderTabBar` and switches tabs from its own
+  radio group.
+- Convert at the edges with the helpers in `src/misc/key-value-text-util.ts`:
+  `buildKeyValuePairsFromObject` and `buildObjectFromKeyValuePairs` for a `Record` the API stores,
+  `makeArray` and `parse` for the text form.
+
+`KeyValuePairsTextEditor` imports only types from `monaco-editor` and reads `MarkerSeverity` from
+the `monaco` instance passed to `onMount`. Keep it that way: a runtime import loads Monaco's AMD
+bundle into every Jest suite that reaches the editor, and those suites fail with
+`define is not defined`. A test that renders the text tab mocks `@monaco-editor/react`; see
+`tests/components/table/kv/KeyValuePairsTextEditor.test.tsx`.
+
 ## Access control
 
 - Read permissions with `usePermissions` (`src/permissions/usePermissions.tsx`).

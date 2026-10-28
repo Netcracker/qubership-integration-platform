@@ -1,0 +1,7 @@
+---
+id: "e2e00053-0000-4000-8000-000000000001-retry"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/specification-group"
+name: "retry"
+content:
+  synchronization: false
+  parentId: "e2e00053-0000-4000-8000-000000000001"

@@ -16,9 +16,10 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { COMPONENT_TAGS, elementRegistry, reconcile, reportTarget, runsOn } from "./elements.ts";
-import { operationClaims } from "./operations.ts";
+import { COMPONENTS, elementRegistry, reconcile, reportTarget, runsOn, summarizeElements } from "./elements.ts";
+import { operationClaims, operationRegistry, summarizeOperations } from "./operations.ts";
 import { STACK_FILE, writeCaseCatalog } from "../support/report.ts";
+import { COVERAGE_FILE } from "../support/run-summary.mjs";
 
 // Derived from the run header's own path rather than spelled again here. `playwright.config.ts`
 // writes the report beside it, and three files agreeing by coincidence is how one of them goes
@@ -38,7 +39,7 @@ const report = JSON.parse(fs.readFileSync(reportPath, "utf-8"));
 // written. That is a document to lose, not a reason to skip the reconciliation the release gates
 // on, so the failure is reported and the run continues.
 try {
-  console.log(`case catalog written to ${writeCaseCatalog(report, COMPONENT_TAGS)}`);
+  console.log(`case catalog written to ${writeCaseCatalog(report, COMPONENTS)}`);
 } catch (cause) {
   console.error(`no case catalog: ${cause instanceof Error ? cause.message : String(cause)}`);
 }
@@ -46,6 +47,20 @@ try {
 const problems = reconcile(report, elementRegistry, operationClaims());
 // Each row is read against a run on its own target, and the report records which target this was.
 const target = reportTarget(report);
+const { covered, inScope, outOfScope, shared } = summarizeElements(
+  elementRegistry.filter((entry) => runsOn(entry.target, target)),
+);
+
+// The registry's claims on this target, for the CI step summary, which says whether they held.
+fs.writeFileSync(
+  path.join(path.dirname(reportPath), COVERAGE_FILE),
+  JSON.stringify({
+    target,
+    elements: { covered, inScope, outOfScope, shared },
+    operations: summarizeOperations(operationRegistry.filter((entry) => runsOn(entry.target, target))),
+    problems: problems.length,
+  }, null, 2) + "\n",
+);
 
 if (problems.length > 0) {
   console.error(`coverage reconciliation of a ${target} run failed (${problems.length}):`);
@@ -53,9 +68,7 @@ if (problems.length > 0) {
   process.exit(1);
 }
 
-const rows = elementRegistry.filter((entry) => runsOn(entry.target, target));
-const covered = rows.filter((entry) => entry.status === "covered").length;
 console.log(
-  `coverage reconciliation of a ${target} run passed: ${covered} of ${rows.length} registry rows ` +
-    `on this target covered`,
+  `coverage reconciliation of a ${target} run passed: ${covered} of ${inScope} registry rows ` +
+    `in scope on this target covered`,
 );

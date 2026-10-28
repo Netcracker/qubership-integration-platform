@@ -1,7 +1,7 @@
 /**
  * Reads the resources the catalog and the engine write to namespace `qip-e2e`: camel-k
- * Integrations, ConfigMaps, HTTPRoutes, and Services, and builds the addresses that reach them
- * through the proxy's e2e locations.
+ * Integrations and their pods, ConfigMaps, HTTPRoutes, and Services, and builds the addresses that
+ * reach them through the proxy's e2e locations.
  *
  * Only `specs/k8s/` imports this module. A spec anywhere else runs on both targets and reaches the
  * platform through `Env`; a spec in `specs/k8s/` asserts the Kubernetes resources themselves, which
@@ -10,6 +10,7 @@
 import { proxyUrl } from "../env/containers.js";
 import {
   deploymentOf,
+  INTEGRATIONS,
   kubectl,
   microChainUrl,
   microServiceOf,
@@ -29,7 +30,7 @@ export function classicPublicRoutes(chainId: string): string {
 }
 
 /** The gateway's path prefix for a chain with an external trigger. */
-export const GATEWAY_ROUTE_PREFIX = "/qip-routes";
+export const GATEWAY_ROUTE_PREFIX = "/cip-routes";
 
 export interface KubeObject {
   metadata: { name: string; labels?: Record<string, string> };
@@ -49,7 +50,6 @@ export interface Integration extends KubeObject {
   status?: { phase?: string };
 }
 
-const INTEGRATIONS = "integrations.camel.apache.org";
 const HTTP_ROUTES = "httproutes.gateway.networking.k8s.io";
 
 async function getOne<T>(kind: string, name: string): Promise<T | null> {
@@ -73,7 +73,7 @@ export function httpRoute(name: string): Promise<HttpRoute | null> {
   return getOne(HTTP_ROUTES, name);
 }
 
-/** The ConfigMaps matching a label selector, such as `qip-domain=<domain>`. */
+/** The ConfigMaps matching a label selector, such as `cip-domain=<domain>`. */
 export function configMaps(selector: string): Promise<KubeObject[]> {
   return list("configmaps", selector);
 }
@@ -86,6 +86,11 @@ export function configMaps(selector: string): Promise<KubeObject[]> {
 export function k8sName(id: string): string {
   const kept = id.replace(/[^-a-z0-9]/g, "");
   return (/^[-0-9]/.test(kept) ? kept.slice(1) : kept).slice(0, 63);
+}
+
+/** The names of the pods that run Integration `name`, terminating ones included. */
+export async function integrationPods(name: string): Promise<string[]> {
+  return (await list<KubeObject>("pods", `camel.apache.org/integration=${name}`)).map((each) => each.metadata.name);
 }
 
 /** The names of every Service in the namespace. */

@@ -10,13 +10,13 @@ import org.apache.qpid.jms.JmsConnectionFactory;
 import org.rnorth.ducttape.ratelimits.RateLimiter;
 import org.rnorth.ducttape.ratelimits.RateLimiterBuilder;
 import org.rnorth.ducttape.unreliables.Unreliables;
-import org.testcontainers.containers.Container;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.utility.DockerImageName;
 
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.time.Duration;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -29,9 +29,11 @@ final class SnapshotJmsBrokerControl implements AutoCloseable {
     private static final Duration STARTUP_TIMEOUT = Duration.ofSeconds(90);
     private static final long REQUEST_TIMEOUT_MILLIS = 5000;
 
+    private final Map<String, Integer> deliveryLimits = new LinkedHashMap<>();
     private GenericContainer<?> container;
     private JmsConnectionFactory producerFactory;
     private JmsConnectionFactory observerFactory;
+    private SnapshotJmsBrokerManagement management;
     private boolean stopped;
     private boolean deniedUserCreated;
 
@@ -47,6 +49,7 @@ final class SnapshotJmsBrokerControl implements AutoCloseable {
                 .withEnv("ARTEMIS_USER", USERNAME)
                 .withEnv("ARTEMIS_PASSWORD", PASSWORD)
                 .withEnv("ANONYMOUS_LOGIN", Boolean.FALSE.toString())
+                .withEnv("EXTRA_ARGS", "--http-host 0.0.0.0 --relax-jolokia --no-autotune --no-web")
                 .withStartupTimeout(STARTUP_TIMEOUT);
         container.start();
         String brokerUrl = "amqp://" + container.getHost() + ':' + container.getMappedPort(AMQP_PORT);
@@ -61,6 +64,28 @@ final class SnapshotJmsBrokerControl implements AutoCloseable {
 
     Connection createVerificationConnection() throws JMSException {
         return observerFactory.createConnection();
+    }
+
+    void setMaxDeliveryAttempts(String destination, int attempts) throws Exception {
+        management().setMaxDeliveryAttempts(destination, attempts);
+        // Qpid recovers CLIENT_ACKNOWLEDGE deliveries locally before the broker sees a rejection.
+        deliveryLimits.put(destination, attempts);
+        producerFactory.setRedeliveryPolicy(new SnapshotJmsRedeliveryPolicy(deliveryLimits));
+    }
+
+    int topicConsumerCount(String destination) {
+        try {
+            return management().topicConsumerCount(destination);
+        } catch (Exception exception) {
+            throw new IllegalStateException("Cannot observe Artemis subscriptions for '" + destination + "'.", exception);
+        }
+    }
+
+    private SnapshotJmsBrokerManagement management() throws Exception {
+        if (management == null) {
+            management = new SnapshotJmsBrokerManagement(createVerificationConnection());
+        }
+        return management;
     }
 
     static boolean disconnectsObservers(Map<String, Object> properties) {
@@ -81,6 +106,7 @@ final class SnapshotJmsBrokerControl implements AutoCloseable {
                 producerFactory.setUsername(DENIED_USERNAME);
             }
             case "CONNECTION_REFUSED" -> {
+                closeManagement();
                 container.getDockerClient().stopContainerCmd(container.getContainerId()).withTimeout(10).exec();
                 stopped = true;
             }
@@ -102,16 +128,7 @@ final class SnapshotJmsBrokerControl implements AutoCloseable {
         if (deniedUserCreated) {
             return;
         }
-        Container.ExecResult result = container.execInContainer(
-                "/var/lib/artemis-instance/bin/artemis", "user", "add",
-                "--user", USERNAME, "--password", PASSWORD,
-                "--user-command-user", DENIED_USERNAME, "--user-command-password", PASSWORD,
-                "--role", "snapshot-denied", "--silent"
-        );
-        if (result.getExitCode() != 0 || !result.getStdout().contains(DENIED_USERNAME + " added successfully.")) {
-            throw new IllegalStateException("Cannot create the Artemis user without send permission: "
-                    + result.getStdout() + result.getStderr());
-        }
+        management().addUser(DENIED_USERNAME, PASSWORD, "snapshot-denied");
         deniedUserCreated = true;
     }
 
@@ -135,11 +152,27 @@ final class SnapshotJmsBrokerControl implements AutoCloseable {
         return factory;
     }
 
+    private void closeManagement() {
+        if (management != null) {
+            try {
+                management.close();
+            } catch (Exception exception) {
+                throw new IllegalStateException("Cannot close the Artemis management connection.", exception);
+            } finally {
+                management = null;
+            }
+        }
+    }
+
     @Override
     public void close() {
-        if (container != null) {
-            container.stop();
-            container = null;
+        try {
+            closeManagement();
+        } finally {
+            if (container != null) {
+                container.stop();
+                container = null;
+            }
         }
     }
 }

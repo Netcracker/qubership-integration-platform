@@ -17,9 +17,9 @@
       "hooks": [
         {
           "type": "command",
-          "statusMessage": "Recording agent telemetry",
           "command": "ai-agent-telemetry ingest --agent=claude",
-          "timeout": 30
+          "timeout": 30,
+          "statusMessage": "Recording agent telemetry"
         }
       ],
       "_apm_source": "ai-agent-telemetry"
@@ -39,13 +39,12 @@
       "_apm_source": "netcracker/qubership-ai-agent-telemetry/agent-packages/ai-agent-telemetry"
     },
     {
-      "matcher": "*",
       "hooks": [
         {
           "type": "command",
-          "statusMessage": "Recording agent telemetry",
           "command": "ai-agent-telemetry ingest --agent=claude",
-          "timeout": 30
+          "timeout": 30,
+          "statusMessage": "Recording agent telemetry"
         }
       ],
       "_apm_source": "ai-agent-telemetry"
@@ -69,9 +68,9 @@
       "hooks": [
         {
           "type": "command",
-          "statusMessage": "Recording agent telemetry",
           "command": "ai-agent-telemetry ingest --agent=claude",
-          "timeout": 30
+          "timeout": 30,
+          "statusMessage": "Recording agent telemetry"
         }
       ],
       "_apm_source": "ai-agent-telemetry"
@@ -95,9 +94,9 @@
       "hooks": [
         {
           "type": "command",
-          "statusMessage": "Recording agent telemetry",
           "command": "ai-agent-telemetry ingest --agent=claude",
-          "timeout": 30
+          "timeout": 30,
+          "statusMessage": "Recording agent telemetry"
         }
       ],
       "_apm_source": "ai-agent-telemetry"

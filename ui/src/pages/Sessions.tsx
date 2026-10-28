@@ -560,6 +560,7 @@ export const Sessions: React.FC<SessionsProps> = ({
           require={{ session: ["delete"] }}
           tooltipProps={{ title: "Delete selected sessions" }}
           buttonProps={{
+            "data-testid": "sessions-delete",
             iconName: "delete",
             onClick: onDeleteBtnClick,
             disabled: !hasSelection,
@@ -590,7 +591,6 @@ export const Sessions: React.FC<SessionsProps> = ({
           value: searchString,
           onChange: setSearchString,
           placeholder: "Search sessions...",
-          allowClear: true,
         }}
         filterButton={filterButton}
         columnSettingsButton={columnSettingsButton}
@@ -645,7 +645,6 @@ export const Sessions: React.FC<SessionsProps> = ({
         <Flex vertical className={commonStyles.container}>
           <AdminToolsHeader
             title="Sessions"
-            iconName="snippets"
             toolbar={sessionsToolbar}
           />
           {sessionsTable}

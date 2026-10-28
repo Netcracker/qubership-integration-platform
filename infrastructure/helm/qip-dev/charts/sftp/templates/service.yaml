@@ -1,0 +1,18 @@
+{{- if .Values.enabled }}
+# The Compose service name, which the fixtures address.
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: sftp
+  name: sftp-server
+spec:
+  ports:
+    - name: tcp-ssh
+      port: 22
+      targetPort: 22
+  selector:
+    app: sftp
+---
+{{ include "qip-dev.brokerHostService" (dict "name" "sftp" "portName" "tcp-ssh" "targetPort" 22 "nodePort" .Values.nodePort "loadBalancerPort" .Values.loadBalancerPort) }}
+{{- end }}

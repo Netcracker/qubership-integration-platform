@@ -381,7 +381,6 @@ export const EndpointMocks: React.FC<EndpointMocksProps> = ({
         <Flex vertical className={commonStyles.container}>
           <AdminToolsHeader
             title="Endpoint Mocks"
-            iconName="api"
             toolbar={toolbar}
           />
           {table}

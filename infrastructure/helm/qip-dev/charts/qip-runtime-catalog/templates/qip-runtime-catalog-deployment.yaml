@@ -21,7 +21,7 @@ spec:
       serviceAccountName: {{ .Release.Name }}-service-account
       containers:
         - args:
-            - /opt/java/openjdk/bin/java
+            - /usr/lib/jvm/java-21-openjdk/bin/java
             - -Xmx{{ .Values.jvm.maxHeap }}
             - -XX:MetaspaceSize={{ .Values.jvm.metaspaceSize }}
             - -XX:MaxMetaspaceSize={{ .Values.jvm.maxMetaspaceSize }}
@@ -97,6 +97,11 @@ spec:
                   POSTGRES_USER: 'secret:{{ .Release.Name }}-postgres-auth/username',
                   POSTGRES_PASSWORD: 'secret:{{ .Release.Name }}-postgres-auth/password',
                   ROUTES_REGISTRATION_ENABLED: 'false',
+                  {{- /* The catalog overwrites MONITORING_ENABLED here with cip.cr.build.monitoring.enabled,
+                       which also creates a ServiceMonitor, so the engine's own property is set instead. */}}
+                  {{- if .Values.microDomainMetrics }}
+                  CIP_METRICS_ENABLED: 'true',
+                  {{- end }}
                   {{- /* Mocking is a property of the engine that runs the chain, so a micro
                        domain needs the same two settings the classic engine reads. They
                        come from the engine config map, which is rendered whatever the
@@ -121,6 +126,14 @@ spec:
                   name: {{ .Release.Name }}-env
             - name: ENGINE_SERVICE_NAME
               value: {{ .Release.Name }}-engine
+            {{- with .Values.microDomainResources }}
+            - name: MICRO_DOMAIN_RESOURCES
+              value: {{ join "," . | quote }}
+            {{- end }}
+            {{- with .Values.microDomainEmptyDirs }}
+            - name: MICRO_DOMAIN_EMPTY_DIRS
+              value: {{ join "," . | quote }}
+            {{- end }}
             - name: DEPLOYMENT_VERSION
               valueFrom:
                 configMapKeyRef:

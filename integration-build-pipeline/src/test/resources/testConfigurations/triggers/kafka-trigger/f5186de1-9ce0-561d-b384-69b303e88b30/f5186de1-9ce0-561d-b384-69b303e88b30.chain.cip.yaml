@@ -1,0 +1,64 @@
+---
+id: f5186de1-9ce0-561d-b384-69b303e88b30
+$schema: http://qubership.org/schemas/product/qip/chain
+name: kafka-trigger-offsets
+content:
+  labels: []
+  elements:
+  - id: 0134675f-6446-5dc6-af1b-5dfaa484f56b
+    name: Kafka Trigger earliest
+    type: kafka-trigger-2
+    properties:
+      autoOffsetReset: earliest
+      brokers: localhost:9092
+      connectionSourceType: manual
+      consumersCount: 1
+      groupId: snapshot-kafka-trigger-offsets-earliest
+      keyDeserializer: org.apache.kafka.common.serialization.StringDeserializer
+      maxPollIntervalMs: 300000
+      maxPollRecords: 500
+      reconnectBackoffMaxMs: 30000
+      saslMechanism: GSSAPI
+      securityProtocol: PLAINTEXT
+      sslProtocol: TLS
+      topics: snapshot.kafka.trigger.offsets.earliest
+      valueDeserializer: org.apache.kafka.common.serialization.StringDeserializer
+  - id: 5a2a2f4f-0fed-517a-8e10-67e7ce36de4e
+    name: Process earliest records
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 5a2a2f4f-0fed-517a-8e10-67e7ce36de4e.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  - id: baebf805-71c9-5e68-ad3e-944fd2d33f06
+    name: Kafka Trigger none
+    type: kafka-trigger-2
+    properties:
+      autoOffsetReset: none
+      brokers: localhost:9092
+      connectionSourceType: manual
+      consumersCount: 1
+      groupId: snapshot-kafka-trigger-offsets-none
+      keyDeserializer: org.apache.kafka.common.serialization.StringDeserializer
+      maxPollIntervalMs: 300000
+      maxPollRecords: 500
+      reconnectBackoffMaxMs: 30000
+      saslMechanism: GSSAPI
+      securityProtocol: PLAINTEXT
+      sslProtocol: TLS
+      topics: snapshot.kafka.trigger.offsets.none
+      valueDeserializer: org.apache.kafka.common.serialization.StringDeserializer
+  - id: c78c73da-7faa-573a-9c25-1b896e571f9c
+    name: Process none records
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: c78c73da-7faa-573a-9c25-1b896e571f9c.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: 0134675f-6446-5dc6-af1b-5dfaa484f56b
+    to: 5a2a2f4f-0fed-517a-8e10-67e7ce36de4e
+  - from: baebf805-71c9-5e68-ad3e-944fd2d33f06
+    to: c78c73da-7faa-573a-9c25-1b896e571f9c
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

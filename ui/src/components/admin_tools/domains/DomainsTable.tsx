@@ -191,7 +191,6 @@ const DomainsTable: React.FC<Props> = ({
     <Flex vertical className={layoutStyles.tableSection}>
       <AdminToolsHeader
         title="Domains"
-        iconName="domains"
         toolbar={
           <TableToolbar
             refresh={onRefresh ? { onRefresh, loading: isLoading } : undefined}
@@ -200,7 +199,6 @@ const DomainsTable: React.FC<Props> = ({
               value: searchTerm,
               onChange: setSearchTerm,
               placeholder: "Search domains...",
-              allowClear: true,
             }}
             columnSettingsButton={columnSettingsButton}
           />

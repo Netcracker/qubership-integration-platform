@@ -1,4 +1,4 @@
-<from uri="jms-{{identifier}}:{{property 'destinationType'}}:{{escape (property 'destinationName')}}?acknowledgementModeName={{property 'acknowledgmentMode'}}&amp;disableReplyTo=true"/>
+<from uri="jms-{{identifier}}:{{property 'destinationType'}}:{{escape (property 'destinationName')}}?acknowledgementModeName={{property 'acknowledgmentMode'}}{{#if-property 'acknowledgmentMode' equals='SESSION_TRANSACTED'}}&amp;transacted=true{{#if-property 'destinationType' equals='topic'}}&amp;cacheLevelName=CACHE_CONSUMER{{/if-property}}{{/if-property}}&amp;disableReplyTo=true"/>
 <step id="{{identifier}}">
     <process ref="jmsProcessor"/>
     {{> idempotency}}

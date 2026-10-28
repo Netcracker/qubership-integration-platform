@@ -1,0 +1,6 @@
+{{- /* A micro pod that mounts a missing Secret stays in ContainerCreating, so the chart refuses to render. */}}
+{{- $certs := printf "secret:%s-engine-certs@" .Release.Name }}
+{{- $resources := join "," (index .Values "qip-runtime-catalog" "microDomainResources" | default list) }}
+{{- if and (contains $certs $resources) (not (index .Values "qip-engine" "trustedCerts")) }}
+{{- fail (printf "qip-runtime-catalog.microDomainResources mounts Secret %s-engine-certs, which the chart renders only when qip-engine.trustedCerts is set" .Release.Name) }}
+{{- end }}

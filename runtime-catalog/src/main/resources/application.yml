@@ -61,6 +61,12 @@ spring:
         enabled: false
     consul:
       enabled: true
+      # Retries the config import for about 110 s while Consul starts, then fails the pod
+      retry:
+        initial-interval: 1000
+        multiplier: 2
+        max-interval: 5000
+        max-attempts: 24
       config:
         enabled: true
         prefixes: config/${NAMESPACE}
@@ -219,6 +225,7 @@ cip:
       mount:
         emptyDirs: ${MICRO_DOMAIN_EMPTY_DIRS:}
         resources: ${MICRO_DOMAIN_RESOURCES:}
+        serviceAccountTokens: ${MICRO_DOMAIN_SERVICE_ACCOUNT_TOKENS:}
       health:
         liveness:
           enabled: ${MICRO_DOMAIN_HEALTH_LIVENESS_ENABLED:false}
@@ -231,14 +238,14 @@ cip:
           probe: ${MICRO_DOMAIN_HEALTH_LIVENESS_PROBE:}
           port: ${MICRO_DOMAIN_HEALTH_LIVENESS_PORT:8080}
         readiness:
-          enabled: ${MICRO_DOMAIN_HEALTH_READINESS_ENABLED:false}
+          enabled: ${MICRO_DOMAIN_HEALTH_READINESS_ENABLED:true}
           schema: ${MICRO_DOMAIN_HEALTH_READINESS_SCHEMA:}
           initialDelay: ${MICRO_DOMAIN_HEALTH_READINESS_INITIAL_DELAY:0}
           timeout: ${MICRO_DOMAIN_HEALTH_READINESS_TIMEOUT:0}
           period: ${MICRO_DOMAIN_HEALTH_READINESS_PERIOD:0}
           successThreshold: ${MICRO_DOMAIN_HEALTH_READINESS_SUCCESS_THRESHOLD:0}
           failureThreshold: ${MICRO_DOMAIN_HEALTH_READINESS_FAILURE_THRESHOLD:0}
-          probe: ${MICRO_DOMAIN_HEALTH_READINESS_PROBE:}
+          probe: ${MICRO_DOMAIN_HEALTH_READINESS_PROBE:/q/health/ready}
           port: ${MICRO_DOMAIN_HEALTH_READINESS_PORT:8080}
         startup:
           enabled: ${MICRO_DOMAIN_HEALTH_SETUP_ENABLED:false}

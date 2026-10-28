@@ -1,0 +1,43 @@
+---
+id: 3980e88f-2fec-59f7-8759-613ad2d52e66
+$schema: http://qubership.org/schemas/product/qip/chain
+name: kafka-trigger-idempotency-ignore
+content:
+  labels: []
+  elements:
+  - id: 8841196c-d048-59b3-9ac3-e6bedbd8e357
+    name: Kafka Trigger ignore
+    type: kafka-trigger-2
+    properties:
+      autoOffsetReset: latest
+      brokers: localhost:9092
+      connectionSourceType: manual
+      consumersCount: 1
+      groupId: snapshot-kafka-trigger-idempotency-ignore
+      keyDeserializer: org.apache.kafka.common.serialization.StringDeserializer
+      maxPollIntervalMs: 300000
+      maxPollRecords: 500
+      reconnectBackoffMaxMs: 30000
+      saslMechanism: GSSAPI
+      securityProtocol: PLAINTEXT
+      sslProtocol: TLS
+      topics: snapshot.kafka.trigger.idempotency.ignore
+      valueDeserializer: org.apache.kafka.common.serialization.StringDeserializer
+      idempotency:
+        enabled: true
+        keyExpiry: 600
+        keyExpression: ${header.businessKey}
+        contextExpression: ${header.businessContext}
+        actionOnDuplicate: ignore
+  - id: 40de57de-51c2-53ed-85fb-45cf5767d4c7
+    name: Process business record
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 40de57de-51c2-53ed-85fb-45cf5767d4c7.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: 8841196c-d048-59b3-9ac3-e6bedbd8e357
+    to: 40de57de-51c2-53ed-85fb-45cf5767d4c7
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

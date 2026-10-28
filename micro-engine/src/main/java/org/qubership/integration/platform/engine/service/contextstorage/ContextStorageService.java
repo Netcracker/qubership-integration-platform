@@ -19,6 +19,7 @@ package org.qubership.integration.platform.engine.service.contextstorage;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.smallrye.common.annotation.Identifier;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -53,28 +54,11 @@ public class ContextStorageService {
 
     @Transactional
     public void storeValue(String contextKey, String contextValue, String contextServiceId, String contextId, long ttl) {
-        Optional<ContextSystemRecords> oldRecord = contextStorageRepository.findByContextServiceIdAndContextId(contextServiceId, contextId);
-        ContextData existingContext = oldRecord
-                .map(stored -> contextKeyExits(contextKey, contextValue, stored))
-                .orElseGet(() -> {
-                    log.debug("No existing storage found, creating new context for contextKey: {}", contextKey);
-                    return createNewContext(contextKey, contextValue);
-                });
-        JsonNode value = objectMapper.convertValue(existingContext, JsonNode.class);
-        Timestamp now = Timestamp.from(Instant.now());
-        Timestamp expiresAt = Timestamp.from(Instant.now().plusSeconds(ttl));
-        oldRecord.ifPresentOrElse(stored -> {
-            stored.setValue(value);
-            stored.setExpiresAt(expiresAt);
-            stored.setUpdatedAt(now);
-        }, () -> contextStorageRepository.persist(ContextSystemRecords.builder()
-                .value(value)
-                .contextServiceId(contextServiceId)
-                .contextId(contextId)
-                .createdAt(now)
-                .expiresAt(expiresAt)
-                .updatedAt(now)
-                .build()));
+        // The value is built as a tree because the mapper drops a null map value, and a null has to reach the statement as a JSON null.
+        ObjectNode context = objectMapper.createObjectNode().put(contextKey, contextValue);
+        String value = objectMapper.createObjectNode().set(CONTEXT, context).toString();
+        Instant now = Instant.now();
+        contextStorageRepository.mergeValue(UUID.randomUUID().toString(), value, contextServiceId, contextId, Timestamp.from(now), Timestamp.from(now.plusSeconds(ttl)));
         log.debug("Value stored successfully for contextKey: {}, contextServiceId: {}, contextId: {}", contextKey, contextServiceId, contextId);
     }
 
@@ -118,33 +102,6 @@ public class ContextStorageService {
         } catch (Exception e) {
             throw new ContextStorageException("Error occurred while deleting old records from context storage", e);
         }
-    }
-
-    private ContextData contextKeyExits(String contextKey, String contextValue, ContextSystemRecords existingStorage) {
-        try {
-            JsonNode existingContext = existingStorage.getValue();
-            Map<String, String> updatedContext = new HashMap<>();
-            if (existingContext != null) {
-                log.debug("Updating existing context for contextKey: {}", contextKey);
-                JsonNode contextNode = existingContext.get(CONTEXT);
-                contextNode.fields().forEachRemaining(entry -> updatedContext.put(entry.getKey(), entry.getKey().equals(contextKey) ? contextValue : entry.getValue().asText()));
-                updatedContext.putIfAbsent(contextKey, contextValue);
-            } else {
-                log.debug("No existing context found, creating new context for contextKey: {}", contextKey);
-                updatedContext.put(contextKey, contextValue);
-            }
-            return ContextData.builder().context(updatedContext).build();
-        } catch (Exception e) {
-            throw new ContextStorageException("Error occurred while processing contextKey: " + contextKey + " contextServiceId: " + existingStorage.getContextServiceId() + " contextId: " + existingStorage.getContextId(), e);
-
-        }
-    }
-
-    private ContextData createNewContext(String key, String value) {
-        Map<String, String> updatedContext = new HashMap<>();
-        updatedContext.put(key, value);
-        log.info("Creating new context with key: {} and value: {}", key, value);
-        return ContextData.builder().context(updatedContext).build();
     }
 
 }

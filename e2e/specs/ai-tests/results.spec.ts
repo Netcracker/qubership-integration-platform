@@ -18,14 +18,15 @@ const root = fileURLToPath(new URL("../../../", import.meta.url));
 const entry = resolve(root, "ai-service/e2e/run.py");
 let directory: string, server: ChildProcess, url: string;
 
-test.beforeEach(async () => {
-  directory = mkdtempSync(join(tmpdir(), "ai-test-ui-"));
-  mkdirSync(join(directory, "package/testing"), { recursive: true });
-  const fixtureRoot = join(directory, "prepared-workspace");
-  const preparation = join(fixtureRoot, ".dev/prepared");
-  mkdirSync(preparation, { recursive: true });
-  const launcher = join(preparation, "acceptance.py");
-  const launcherSource = `import json, sys
+test.describe("AI test results", { tag: ["@infra"] }, () => {
+  test.beforeEach(async () => {
+    directory = mkdtempSync(join(tmpdir(), "ai-test-ui-"));
+    mkdirSync(join(directory, "package/testing"), { recursive: true });
+    const fixtureRoot = join(directory, "prepared-workspace");
+    const preparation = join(fixtureRoot, ".dev/prepared");
+    mkdirSync(preparation, { recursive: true });
+    const launcher = join(preparation, "acceptance.py");
+    const launcherSource = `import json, sys
 from pathlib import Path
 if sys.argv[1:] == ['check']:
     print(json.dumps(dict(outcome='READY', limitsChanged=False, paidRequestsInPreparation=0)))
@@ -33,40 +34,41 @@ else:
     Path(__file__).with_name('paid-command').write_text('Unexpected live dispatch')
     raise RuntimeError('No paid command is authorized')
 `;
-  writeFileSync(launcher, launcherSource);
-  const source = join(fixtureRoot, "ai-service/src/fixture.txt");
-  mkdirSync(join(fixtureRoot, "ai-service/src"), { recursive: true });
-  writeFileSync(source, "prepared source");
-  const sha = (text: string) => createHash("sha256").update(text).digest("hex");
-  const candidate = JSON.stringify({
-    limitsChanged: false,
-    files: { "ai-service/src/fixture.txt": sha("prepared source") },
-  });
-  writeFileSync(join(preparation, "candidate.json"), candidate);
-  writeFileSync(
-    join(fixtureRoot, ".dev/recovery-acceptance.json"),
-    JSON.stringify({
-      launcher,
-      launcherSha256: sha(launcherSource),
-      candidateSha256: sha(candidate),
-      waveRoot: "wave",
-    }),
-  );
-  const acceptanceSuite = {
-    usesLlm: false,
-    timeoutSeconds: 30,
-    format: "result",
-    command: ["{python}", "-m", "test_system.acceptance", "check"],
-    env: {
-      PYTHONPATH: resolve(root, "ai-service/e2e"),
-      QIP_SERVICE_ROOT: fixtureRoot,
-    },
-    reports: "{task_dir}/result.json",
-  };
-  const fixture = join(directory, "fixture.py");
-  writeFileSync(
-    fixture,
-    `import json, os, sys, time
+    writeFileSync(launcher, launcherSource);
+    const source = join(fixtureRoot, "ai-service/src/fixture.txt");
+    mkdirSync(join(fixtureRoot, "ai-service/src"), { recursive: true });
+    writeFileSync(source, "prepared source");
+    const sha = (text: string) =>
+      createHash("sha256").update(text).digest("hex");
+    const candidate = JSON.stringify({
+      limitsChanged: false,
+      files: { "ai-service/src/fixture.txt": sha("prepared source") },
+    });
+    writeFileSync(join(preparation, "candidate.json"), candidate);
+    writeFileSync(
+      join(fixtureRoot, ".dev/recovery-acceptance.json"),
+      JSON.stringify({
+        launcher,
+        launcherSha256: sha(launcherSource),
+        candidateSha256: sha(candidate),
+        waveRoot: "wave",
+      }),
+    );
+    const acceptanceSuite = {
+      usesLlm: false,
+      timeoutSeconds: 30,
+      format: "result",
+      command: ["{python}", "-m", "test_system.acceptance", "check"],
+      env: {
+        PYTHONPATH: resolve(root, "ai-service/e2e"),
+        QIP_SERVICE_ROOT: fixtureRoot,
+      },
+      reports: "{task_dir}/result.json",
+    };
+    const fixture = join(directory, "fixture.py");
+    writeFileSync(
+      fixture,
+      `import json, os, sys, time
 from pathlib import Path
 if sys.argv[1] == 'wait':
     print('Waiting for cancellation', flush=True)
@@ -78,114 +80,114 @@ else:
        'recovery': {'status': 'FAILED', 'attempts': [{'number': 1, 'feedback': 'Readback still returns v1'}],
          'diagnosis': {'status': 'HYPOTHESIS', 'summary': 'The retry may have reused a stale binding.'}}}]}))
 `,
-  );
-  writeFileSync(
-    join(directory, "package/testing/suites.json"),
-    JSON.stringify({
-      contract: "qip-ai-tests/v1",
-      version: "fixture",
-      profiles: {
-        "report-fixture": ["fixture-report"],
-        "cancel-fixture": ["fixture-wait"],
-        "recovery-acceptance-check": ["acceptance-readiness"],
-        "recovery-acceptance": ["acceptance-live"],
-      },
-      suites: [
-        { ...acceptanceSuite, id: "acceptance-readiness" },
-        {
-          ...acceptanceSuite,
-          id: "acceptance-live",
-          usesLlm: true,
-          command: [
-            "{python}",
-            "-m",
-            "test_system.acceptance",
-            "run",
-            "--model",
-            "{model}",
-          ],
-        },
-        {
-          id: "fixture-report",
-          usesLlm: false,
-          timeoutSeconds: 30,
-          format: "result",
-          command: ["{python}", fixture, "report"],
-          reports: "{task_dir}/result.json",
-        },
-        {
-          id: "fixture-wait",
-          usesLlm: false,
-          timeoutSeconds: 180,
-          command: ["{python}", fixture, "wait"],
-        },
-      ],
-    }),
-  );
-  server = spawn("python3", [
-    entry,
-    "--package",
-    join(directory, "package"),
-    "--store",
-    join(directory, "runs"),
-    "serve",
-    "--port",
-    "0",
-  ]);
-  const lines = createInterface({ input: server.stdout! });
-  url = await new Promise<string>((accept, reject) => {
-    const timer = setTimeout(
-      () => reject(new Error("The local test UI did not start")),
-      10_000,
     );
-    server.once("exit", (code) => {
-      clearTimeout(timer);
-      reject(new Error(`UI server exited: ${code}`));
-    });
-    lines.on("line", (line) => {
-      if (line.startsWith("Test results: ")) {
+    writeFileSync(
+      join(directory, "package/testing/suites.json"),
+      JSON.stringify({
+        contract: "qip-ai-tests/v1",
+        version: "fixture",
+        profiles: {
+          "report-fixture": ["fixture-report"],
+          "cancel-fixture": ["fixture-wait"],
+          "recovery-acceptance-check": ["acceptance-readiness"],
+          "recovery-acceptance": ["acceptance-live"],
+        },
+        suites: [
+          { ...acceptanceSuite, id: "acceptance-readiness" },
+          {
+            ...acceptanceSuite,
+            id: "acceptance-live",
+            usesLlm: true,
+            command: [
+              "{python}",
+              "-m",
+              "test_system.acceptance",
+              "run",
+              "--model",
+              "{model}",
+            ],
+          },
+          {
+            id: "fixture-report",
+            usesLlm: false,
+            timeoutSeconds: 30,
+            format: "result",
+            command: ["{python}", fixture, "report"],
+            reports: "{task_dir}/result.json",
+          },
+          {
+            id: "fixture-wait",
+            usesLlm: false,
+            timeoutSeconds: 180,
+            command: ["{python}", fixture, "wait"],
+          },
+        ],
+      }),
+    );
+    server = spawn("python3", [
+      entry,
+      "--package",
+      join(directory, "package"),
+      "--store",
+      join(directory, "runs"),
+      "serve",
+      "--port",
+      "0",
+    ]);
+    const lines = createInterface({ input: server.stdout! });
+    url = await new Promise<string>((accept, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error("The local test UI did not start")),
+        10_000,
+      );
+      server.once("exit", (code) => {
         clearTimeout(timer);
-        accept(line.slice(14));
-      }
+        reject(new Error(`UI server exited: ${code}`));
+      });
+      lines.on("line", (line) => {
+        if (line.startsWith("Test results: ")) {
+          clearTimeout(timer);
+          accept(line.slice(14));
+        }
+      });
     });
   });
-});
 
-test.afterEach(async () => {
-  if (url && server?.exitCode === null) {
-    const runs = await (await fetch(url + "/api/runs")).json();
-    for (const run of runs) {
-      await fetch(url + `/api/runs/${run.id}/cancel`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: "{}",
-      });
+  test.afterEach(async () => {
+    if (url && server?.exitCode === null) {
+      const runs = await (await fetch(url + "/api/runs")).json();
+      for (const run of runs) {
+        await fetch(url + `/api/runs/${run.id}/cancel`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+        });
+      }
+      await expect
+        .poll(async () => {
+          const current = await (await fetch(url + "/api/runs")).json();
+          return current.every((run: { status: string }) =>
+            ["PASS", "FAIL", "ERROR", "BLOCKED", "CANCELLED"].includes(
+              run.status,
+            ),
+          );
+        })
+        .toBe(true);
     }
-    await expect
-      .poll(async () => {
-        const current = await (await fetch(url + "/api/runs")).json();
-        return current.every((run: { status: string }) =>
-          ["PASS", "FAIL", "ERROR", "BLOCKED", "CANCELLED"].includes(
-            run.status,
-          ),
-        );
-      })
-      .toBe(true);
-  }
-  if (server?.exitCode === null) {
-    const exited = new Promise<void>((accept) =>
-      server.once("exit", () => accept()),
-    );
-    server.kill("SIGTERM");
-    await exited;
-  }
-  rmSync(directory, { recursive: true, force: true });
-});
+    if (server?.exitCode === null) {
+      const exited = new Promise<void>((accept) =>
+        server.once("exit", () => accept()),
+      );
+      server.kill("SIGTERM");
+      await exited;
+    }
+    rmSync(directory, { recursive: true, force: true });
+  });
 
-test(
-  "an agent run appears in the UI with separate failure and recovery details",
-  { tag: ["@ui", "@tier1"] },
-  async ({ page, request }) => {
+  test("reports failure and recovery details in the UI", async ({
+    page,
+    request,
+  }) => {
     const run = JSON.parse(
       execFileSync(
         "python3",
@@ -243,13 +245,12 @@ test(
     expect(
       (await (await request.get(url + `/api/runs/${run.id}`)).json()).status,
     ).toBe("FAIL");
-  },
-);
+  });
 
-test(
-  "a manual run can be cancelled and remains in history",
-  { tag: ["@ui", "@tier1"] },
-  async ({ page, request }) => {
+  test("cancels a manual run and preserves its history", async ({
+    page,
+    request,
+  }) => {
     await page.goto(url);
     await page
       .getByRole("combobox", { name: "Profile", exact: true })
@@ -283,13 +284,12 @@ test(
     await expect(
       page.getByRole("navigation", { name: "Run history" }),
     ).toContainText("CANCELLED");
-  },
-);
+  });
 
-test(
-  "prepared recovery readiness appears in the UI and Kimi stays blocked without LLM authorization",
-  { tag: ["@ui", "@tier1"] },
-  async ({ page, request }) => {
+  test("shows recovery readiness and blocks unauthorized Kimi", async ({
+    page,
+    request,
+  }) => {
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await page.goto(url);
@@ -335,5 +335,5 @@ test(
       page.getByRole("navigation", { name: "Run history" }),
     ).toContainText(live.id);
     expect(errors).toEqual([]);
-  },
-);
+  });
+});

@@ -27,7 +27,7 @@ spec:
       serviceAccountName: {{ .Release.Name }}-service-account
       containers:
         - args:
-            - /opt/java/openjdk/bin/java
+            - /usr/lib/jvm/java-21-openjdk/bin/java
             - -Xmx{{ .Values.jvm.maxHeap }}
             - -XX:MetaspaceSize={{ .Values.jvm.metaspaceSize }}
             - -XX:MaxMetaspaceSize={{ .Values.jvm.maxMetaspaceSize }}
@@ -166,8 +166,19 @@ spec:
             - name: pod-secrets
               mountPath: /etc/secrets/pod-secrets
               readOnly: true
+            {{- if .Values.trustedCerts }}
+            # The development profile builds the engine's truststore from the certificates here.
+            - name: trusted-certs
+              mountPath: /app/cert/defaultsslcertificate
+              readOnly: true
+            {{- end }}
       volumes:
         - name: pod-secrets
           secret:
             secretName: {{ .Release.Name }}-engine-pod-secrets
+        {{- if .Values.trustedCerts }}
+        - name: trusted-certs
+          secret:
+            secretName: {{ .Release.Name }}-engine-certs
+        {{- end }}
       restartPolicy: Always

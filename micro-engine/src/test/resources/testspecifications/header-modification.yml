@@ -1,0 +1,30 @@
+# yaml-language-server: $schema=../testspecifications.schema.json
+scenarios:
+  - id: "adds-and-removes-headers"
+    scope: Short
+    driver:
+      provider: "routeSelector"
+      sourceElementId: "aa27fb4a-e9a7-4a12-a8c0-9acb9442f3c4"
+    body: "Original"
+    headers:
+      X-Remove-This-Header: "remove-me"
+      X-Unchanged-Header: "preserved"
+    expectedBody: "Original"
+    expectedHeaders:
+      X-Add-This-Header: "thisValue"
+      X-Unchanged-Header: "preserved"
+    expectedAbsentHeaders:
+      - "X-Remove-This-Header"
+  - id: "updates-header"
+    scope: Short
+    driver:
+      provider: "routeSelector"
+      sourceElementId: "c74b44da-f6b6-467b-96f0-a20f83a52df0"
+    body: "Original"
+    headers:
+      X-Update-Headers: "oldValue"
+      X-Unchanged-Header: "preserved"
+    expectedBody: "Original"
+    expectedHeaders:
+      X-Update-Headers: "newValue"
+      X-Unchanged-Header: "preserved"

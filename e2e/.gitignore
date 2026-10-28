@@ -1,5 +1,6 @@
 node_modules/
 playwright-report/
+blob-report/
 test-results/
 # Run state: the manifest, the corpus files, the resource samples, the override record and the UI
 # server's pid and log, per target, with the `.tmp` a run killed mid-write leaves behind.

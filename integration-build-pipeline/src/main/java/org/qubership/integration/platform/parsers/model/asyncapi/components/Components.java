@@ -28,6 +28,6 @@ import java.util.Map;
 @ToString
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Components {
-    private Map<String, SchemaObject> schemas;
+    private Map<String, Map<String, Object>> schemas;
     private Map<String, MessageObject> messages;
 }

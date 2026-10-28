@@ -160,7 +160,7 @@ The `go` directive is pinned to 1.22 — see [testing-service/AGENTS.md](testing
 cd e2e
 npm install
 npm test                                          # the whole suite, about 12 minutes
-npm test -- --project=schema                      # registries and fixtures only, no stack needed
+npm test -- --project=schema --project=harness    # the product's tracked files and the suite's own code, no stack needed
 ```
 
 The suite provisions the Compose stack itself: it starts whatever is down, and it rebuilds a service whose sources have outrun the image its container runs. It also builds and serves the UI bundle, so it needs no dev server. See [e2e/README.md](e2e/README.md) for the prerequisites, the flags, and how to read a failure.
