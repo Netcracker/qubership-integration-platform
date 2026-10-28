@@ -10,6 +10,7 @@ import {
   ChainCreationRequest,
   ChainItem,
   DeployMode,
+  DomainType,
   FolderItem,
   RestApiError,
   ListFolderRequest,
@@ -558,6 +559,9 @@ const Chains = () => {
     try {
       return await api.bulkDeploy({
         domains: domains.map((domain) => domain.name),
+        microDomains: domains
+          .filter((domain) => domain.type === DomainType.MICRO)
+          .map((domain) => domain.name),
         chainIds,
         snapshotAction,
         mode: DeployMode.APPEND,

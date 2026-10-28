@@ -1419,6 +1419,7 @@ export enum BulkDeploymentSnapshotAction {
 
 export type BulkDeploymentRequest = {
   domains: string[];
+  microDomains?: string[];
   snapshotAction: BulkDeploymentSnapshotAction;
   chainIds: string[];
   mode?: DeployMode;
