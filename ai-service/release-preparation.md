@@ -39,6 +39,8 @@ Subagents own separate files; the coordinating chat owns commits and the shared 
    so incorporation of revised requirements remains unverified.
    The static plan-fault case passed native checks for automatic owner-stage reopening, plan rebuilding, and
    materialization. This result covers the configured contract-shape fault; it does not cover provider outages.
+   Both EDIT cases passed native checks and catalog readback. Exact script content, graph order, and preservation
+   of seeded elements are checked from catalog evidence separately from the native assertion predicates.
 5. **Merge readiness — pending.** Review the final diff and evidence, record unresolved findings and exclusions,
    and prepare the delivery summary. Recheck affected gates after any correction.
 
