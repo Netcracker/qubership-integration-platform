@@ -51,10 +51,14 @@ import AppExtension from "../src/AppExtension.tsx";
 
 installDataRouterGlobals();
 
-function postMessage(type: string, payload: unknown): void {
+function postMessage(
+  type: string,
+  payload: unknown,
+  origin = window.location.origin,
+): void {
   act(() => {
     window.dispatchEvent(
-      new MessageEvent("message", { data: { type, payload } }),
+      new MessageEvent("message", { data: { type, payload }, origin }),
     );
   });
 }
@@ -66,6 +70,7 @@ describe("AppExtension", () => {
 
     postMessage("theme-update", {});
     postMessage("navigate", undefined);
+    postMessage("navigate", "/chains/c-1", "https://example.com");
     expect(screen.getByText("DefaultExtensionPage /")).toBeInTheDocument();
 
     postMessage("navigate", "/services/systems/s-1/parameters");

@@ -115,6 +115,10 @@ const AppExtension = () => {
   // The extension sends a path both on startup and when a "Go to" link activates an open tab.
   useEffect(() => {
     const onMessage = (event: MessageEvent<VSCodeResponse<unknown>>) => {
+      // VS Code's webview host forwards extension messages from the webview's own origin.
+      if (event.origin !== window.location.origin) {
+        return;
+      }
       const { type, payload } = event.data;
       if (type === NAVIGATE_EVENT && typeof payload === "string") {
         void router.navigate(payload);
