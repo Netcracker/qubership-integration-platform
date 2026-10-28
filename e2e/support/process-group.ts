@@ -4,7 +4,7 @@
  */
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
-import { sleep } from "./poll.js";
+import { readUntil } from "./poll.js";
 import { processAlive } from "./run.js";
 import { readStateFile, writeStateFile } from "./state-file.js";
 
@@ -38,11 +38,8 @@ export async function stopGroup(pid: number): Promise<void> {
   } catch {
     return; // The group has already exited.
   }
-  const deadline = Date.now() + 10_000;
-  while (groupAlive(pid) && Date.now() < deadline) {
-    await sleep(100);
-  }
-  if (groupAlive(pid)) process.kill(-pid, "SIGKILL");
+  const alive = await readUntil(async () => groupAlive(pid), (each) => !each, 10_000, 100);
+  if (alive) process.kill(-pid, "SIGKILL");
 }
 
 /** What a server's state file holds: its process group, and the runner of the run that started it. */

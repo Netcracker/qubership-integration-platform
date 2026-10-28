@@ -33,3 +33,14 @@ export async function pickOption(scope: Page | FrameLocator, title: string, pick
     await (picked ? expect(picked).toBeVisible({ timeout: 3_000 }) : expect(open).toHaveCount(0, { timeout: 3_000 }));
   }).toPass({ timeout: 30_000 });
 }
+
+/**
+ * Types `label` into an antd tags select and adds it with Enter. The select mounts the option for a
+ * typed value in a hidden popup some time after the first key, and an Enter before that adds nothing
+ * (2 of 12 runs on 2026-10-28), so Enter waits for the hidden option.
+ */
+export async function addTag(scope: Page | FrameLocator, select: Locator, label: string): Promise<void> {
+  await select.pressSequentially(label);
+  await expect(scope.getByRole("option", { name: label, exact: true, includeHidden: true })).toBeAttached();
+  await select.press("Enter");
+}

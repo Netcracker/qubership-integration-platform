@@ -52,9 +52,9 @@ export const messageRegistry: MessageEntry[] = [
   covered("cloneElements"),
   covered("transferElement"),
   ...notCovered("no screen calls api.getConnections: the chain editor reads the dependencies from getChain", "getConnections"),
-  // `openChainInNewTab` and `navigateInNewTab` count only through `sentMessage`: the extension posts no answer.
   covered("findChainByElementId"),
   covered("getElementsByType"),
+  // `openChainInNewTab` and `navigateInNewTab` count only through `sentMessage`: the extension posts no answer.
   covered("openChainInNewTab"),
   covered("navigateInNewTab"),
 

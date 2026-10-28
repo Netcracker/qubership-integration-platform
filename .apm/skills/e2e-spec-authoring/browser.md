@@ -152,7 +152,8 @@ nothing. A press that opened the input is not repeated.
 DOM hidden. A page object that serves both projects takes `Page | FrameLocator`, as
 `ChainGraphPage`, `TableView`, and `pickOption` do. The workbench itself gives Quick Open and its
 editors no role, so `VsCodePage` locates them by their classes, which stay the same within the
-pinned build.
+pinned build. A Monaco editor inside a webview is reached the same way, through `VsCodePage.monaco`
+and `lines`.
 
 **Opening a file.** `VsCodePage.openFile` types the file's path relative to the workspace into Quick
 Open, which finds a file by that path only, and found none at the workspace root: the export case
@@ -166,7 +167,8 @@ the top frame, turning `\r\n` into `\n`. The in-memory file system fires its cha
 debounce, and the text editor can still show an earlier write, so pass `readAsText` the predicate
 of the state the case asserts and let it poll. The workbench remembers the last editor of a file,
 so after `readAsText` it opens that file as text, and `reopenWith(displayName)` returns to the
-custom editor. Parse a chain with `parseChain` from `support/vscode-workspace.ts`, and compare a
+custom editor. Parse a chain with `parseChain` and a service with `parseService` from
+`support/vscode-workspace.ts`, which also holds the fixture ids and the workspace paths, and compare a
 whole file with a golden under `fixtures/vscode/goldens/`, after `normalizeIds` from
 `support/vscode-golden.ts` has numbered the ids the extension generated.
 

@@ -11,7 +11,7 @@
  * handler for `getSpecificationModelSource`, answers it with no payload, and the dialog's schema
  * stays empty.
  *
- * Shown failing, each by an edit in `vscode-extension/src/web/response/`:
+ * Shown failing, each by an edit in `vscode-extension/src/web/response/` run alone:
  * - `updateElement` skipping `writeMainChain`: the property, mapper, and checkpoint cases timed out
  *   reading the file;
  * - `updateElement` dropping the description: the checkpoint case timed out;
@@ -29,36 +29,48 @@
  * - a `getSpecificationModelSource` handler returning the schema, the fix: the pinned case met
  *   `notTheKnownDefect`.
  */
-import type { Locator } from "@playwright/test";
 import { test, expect } from "../../support/vscode-guard.js";
 import { ChainGraphPage } from "../../pages/ChainGraphPage.js";
 import { pickOption } from "../../support/pick-option.js";
 import { normalizeIds, readGolden } from "../../support/vscode-golden.js";
 import { notTheKnownDefect, outsideTheDefect } from "../../support/known-defect.js";
-import { chainFile, element, fixture, parseChain } from "../../support/vscode-workspace.js";
+import {
+  chainFile,
+  CHECKPOINT,
+  CHECKPOINT_CHAIN_ID,
+  CONTEXT_STORAGE,
+  element,
+  fixture,
+  GRAPHQL_CHAIN_ID,
+  HTTP_TRIGGER,
+  MAPPER,
+  MCP_TRIGGER,
+  MOCHA_CHAIN_ID,
+  parseChain,
+  resourceFile,
+  SCRIPT,
+  SERVICE_CALL,
+  SERVICES_CHAIN_ID,
+} from "../../support/vscode-workspace.js";
 
 /** The uncaught error Monaco's failed worker request raises in the webview, #1223. */
 const MONACO_WORKER_ERROR = "Event";
 
-const CHAIN = chainFile("1419390b-7423-4fab-853f-67c653e16a86");
-const HTTP_TRIGGER = "7f15ea75-516e-4104-81c6-e68550a9b9e5";
-const SCRIPT = "54b4728d-7000-4350-b310-c58b792311c5";
-const SCRIPT_RESOURCE = `chains/1419390b-7423-4fab-853f-67c653e16a86/resources/${SCRIPT}.element.script.cip.groovy`;
+const CHAIN = chainFile(MOCHA_CHAIN_ID);
+const SCRIPT_RESOURCE = resourceFile(MOCHA_CHAIN_ID, SCRIPT, "script.cip.groovy");
+const SERVICES_CHAIN = chainFile(SERVICES_CHAIN_ID);
+const GRAPHQL_CHAIN = chainFile(GRAPHQL_CHAIN_ID);
+const MAPPER_RESOURCE = resourceFile(GRAPHQL_CHAIN_ID, MAPPER, "mapper.cip.json");
+const CHECKPOINT_CHAIN = chainFile(CHECKPOINT_CHAIN_ID);
 
-const SERVICES_CHAIN = chainFile("e2e20004-0000-4000-8000-000000000001");
-const SERVICE_CALL = "e2e20004-0000-4000-8000-000000000003";
-const CONTEXT_STORAGE = "e2e20004-0000-4000-8000-000000000004";
-const MCP_TRIGGER = "e2e20004-0000-4000-8000-000000000005";
-
-const GRAPHQL_CHAIN = chainFile("e2e20005-0000-4000-8000-000000000001");
-const MAPPER = "e2e20005-0000-4000-8000-000000000004";
-const MAPPER_RESOURCE = `chains/e2e20005-0000-4000-8000-000000000001/resources/${MAPPER}.element.mapper.cip.json`;
-
-const CHECKPOINT_CHAIN = chainFile("e2e20008-0000-4000-8000-000000000001");
-const CHECKPOINT = "e2e20008-0000-4000-8000-000000000002";
-
-/** The content of a Monaco editor inside the wrapper `testId` names, once its model is attached. */
-const monaco = (scope: Locator, testId: string) => scope.getByTestId(testId).locator(".monaco-editor[data-uri]");
+/** The mapper's resource file, as far as the case reads it. */
+interface MapperResource {
+  mappingDescription: {
+    source: { headers: { id: string; name: string }[] };
+    target: { headers: { id: string; name: string }[] };
+    actions: { sources: { path?: string[] }[]; target: { path?: string[] } }[];
+  };
+}
 
 test.describe("element forms", () => {
   test("a property saved in the form is written to the chain file", async ({ vscode, messages }) => {
@@ -86,9 +98,9 @@ test.describe("element forms", () => {
     const graph = new ChainGraphPage(vscode.webview);
 
     const form = await graph.openElement(SCRIPT);
-    const editor = monaco(form, "script-editor");
+    const editor = vscode.monaco(form, "script-editor");
     await expect(editor).toContainText('setBody("fixture")');
-    await editor.locator(".view-lines").click();
+    await vscode.lines(editor).click();
     await vscode.page.keyboard.press("Control+End");
     await vscode.page.keyboard.type("\n// e2e-edited");
     await expect(editor).toContainText("// e2e-edited");
@@ -108,7 +120,7 @@ test.describe("element forms", () => {
 
     const form = await graph.openElement(MAPPER);
     await form.getByRole("tab", { name: "Text", exact: true }).click();
-    const editor = monaco(form, "mapping-actions-editor");
+    const editor = vscode.monaco(form, "mapping-actions-editor");
     await expect(editor).toBeVisible();
     await editor.click();
     await vscode.page.keyboard.type("header.e2e-in -> header.e2e-out");
@@ -119,11 +131,7 @@ test.describe("element forms", () => {
     const chain = parseChain(await vscode.readAsText((each) => element(parseChain(each), MAPPER)?.properties?.propertiesFilename !== undefined));
     expect(element(chain, MAPPER)?.properties).toMatchObject({ propertiesFilename: `${MAPPER}.element.mapper.cip.json`, propertiesToExportInSeparateFile: "mappingDescription" });
     await vscode.openFile(MAPPER_RESOURCE);
-    const { mappingDescription: mapping } = JSON.parse(await vscode.readText((each) => each.includes("e2e-out"))) as { mappingDescription: {
-      source: { headers: { id: string; name: string }[] };
-      target: { headers: { id: string; name: string }[] };
-      actions: { sources: { path?: string[] }[]; target: { path?: string[] } }[];
-    } };
+    const { mappingDescription: mapping } = JSON.parse(await vscode.readText((each) => each.includes("e2e-out"))) as MapperResource;
     const [source] = mapping.source.headers;
     const [target] = mapping.target.headers;
     expect([source?.name, target?.name]).toEqual(["e2e-in", "e2e-out"]);
@@ -229,11 +237,11 @@ test.describe("element forms", () => {
       await vscode.webview.getByRole("menuitem", { name: "Load" }).click();
       const loaded = vscode.webview.getByRole("dialog", { name: "Load source" });
       // The dialog fills the query and the schema together, once the schema's answer is in.
-      await expect(monaco(loaded, "load-schema-graphql-query-editor")).toContainText("query Widget");
+      await expect(vscode.monaco(loaded, "load-schema-graphql-query-editor")).toContainText("query Widget");
       return loaded;
     });
 
-    const schema = (await monaco(dialog, "load-schema-graphql-schema-editor").locator(".view-lines").innerText()).trim();
+    const schema = (await vscode.lines(vscode.monaco(dialog, "load-schema-graphql-schema-editor")).innerText()).trim();
     if (!messages.answeredWithoutPayload("getSpecificationModelSource") || schema !== "") {
       notTheKnownDefect(`#1214 answers getSpecificationModelSource with no payload, so the schema stays empty, but the schema read ${JSON.stringify(schema)}`);
     }

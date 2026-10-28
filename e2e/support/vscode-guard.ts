@@ -9,6 +9,7 @@
  * `@playwright/test` rather than `support/fixtures.ts`, whose automatic fixtures need the stack.
  */
 import { test as base, expect } from "@playwright/test";
+import { escapeRegExp } from "../fixtures/templating.js";
 import { VsCodePage } from "../pages/VsCodePage.js";
 import { VSCODE_PORT } from "./vscode-server.js";
 import { annotateMessage, recordMessages, type MessageRecorder } from "./vscode-messages.js";
@@ -48,7 +49,16 @@ const matches = (expected: ExpectedError, message: string) => (typeof expected =
  * The pattern of `message` followed by its stack trace, whose line numbers in `extension.js` change
  * with every build of the extension.
  */
-export const withAnyStack = (message: string) => new RegExp(`^${message.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\n\\tat `);
+export const withAnyStack = (message: string) => new RegExp(`^${escapeRegExp(message)}\\n\\tat `);
+
+/**
+ * The two lines the workbench prints for one error the extension host logs: `message`, the text the
+ * extension passes, followed by `error`, the error it passes with it.
+ */
+export const extensionHostErrors = (message: string, error: string) => [
+  `%c  ERR color: #f33 [Extension Host] ${message} ${error}`,
+  `%c[Extension Host] %c${message} color: blue color:  ${error}`,
+];
 
 /**
  * What fails the case: every problem neither allowed nor expected, and every expected message that

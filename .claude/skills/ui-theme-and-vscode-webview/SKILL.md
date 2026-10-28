@@ -29,11 +29,11 @@ const { isDark, isVSCodeWebview, palette } = useVSCodeTheme();
 
 - `isDark` — conditional visuals: Monaco theme, chart colors, icon variants.
 - `isVSCodeWebview` — behavior that differs inside the extension host.
+- `palette` — resolved VS Code colors, with the browser fallbacks applied when a variable is absent.
 
-Outside a component, detect the webview with `isVsCodeWebview()` from `utils/isVsCodeWebview.ts`,
+Outside a component, detect the webview with `isVsCodeWebview()` from `misc/isVsCodeWebview.ts`,
 which checks that `acquireVsCodeApi` is a function. Never read `location.protocol`: the webview is
 `vscode-webview:` on desktop and `http:` or `https:` in VS Code for the web.
-- `palette` — resolved VS Code colors, with the browser fallbacks applied when a variable is absent.
 
 ## Where color lives
 

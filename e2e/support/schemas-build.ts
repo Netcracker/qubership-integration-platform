@@ -13,7 +13,7 @@ const SCHEMA_SOURCES = ["src/main"];
 /** What `npm run build` writes, relative to `schemas/`. The build deletes all three first. */
 export const SCHEMA_OUTPUTS = ["assets", "types", "dist"];
 
-export const SCHEMAS_BUILD_ARGS = ["run", "build", "-w", "@netcracker/qip-schemas"];
+const SCHEMAS_BUILD_ARGS = ["run", "build", "-w", "@netcracker/qip-schemas"];
 
 /** Whether an output is missing or older than the newest source. */
 export async function schemasAreStale(schemasDir = path.resolve(repoRoot(), "schemas")): Promise<boolean> {

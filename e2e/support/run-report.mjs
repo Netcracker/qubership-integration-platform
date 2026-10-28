@@ -98,9 +98,10 @@ export function fixedPinIn(report) {
 const zero = () => ({ passed: 0, failed: 0, pins: 0, flaky: 0, skipped: 0 });
 
 /**
- * The counts of each group. A failed count leaves out the pins to remove, which are counted apart.
- * `report.stats` tallies every project, so the setup and suite groups are counted off the report
- * and the product counts are what remains of the stats.
+ * The counts of each group. The product group's failed count leaves out the pins to remove, which
+ * it counts apart; the setup and suite groups hold no pins. `report.stats` tallies every project, so
+ * the setup and suite groups are counted off the report and the product counts are what remains of
+ * the stats.
  *
  * @param {Report} report
  * @returns {Record<Group, Counts>}

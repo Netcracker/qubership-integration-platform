@@ -14,7 +14,7 @@
  * case breaks a chain itself, through the text editor, since a broken fixture would stop
  * every image export, and expects the editor to show the parser's message.
  *
- * Shown failing, each by an edit in `vscode-extension/src/web/response/`:
+ * Shown failing, each by an edit in `vscode-extension/src/web/response/` run alone:
  * - `getContextService` answering `{}`: both context cases found no name in the form;
  * - `updateContextService` skipping `writeMainService`: both context cases timed out reading the
  *   file;
@@ -27,41 +27,28 @@
  *   caught the extension host's `Failed to fetch data` lines.
  */
 import type { FrameLocator } from "@playwright/test";
-import { load } from "js-yaml";
-import { test, expect, withAnyStack } from "../../support/vscode-guard.js";
+import { test, expect, extensionHostErrors, withAnyStack } from "../../support/vscode-guard.js";
+import { ChainGraphPage } from "../../pages/ChainGraphPage.js";
 import type { VsCodePage } from "../../pages/VsCodePage.js";
 import type { MessageRecorder } from "../../support/vscode-messages.js";
 import { notTheKnownDefect, outsideTheDefect } from "../../support/known-defect.js";
-import { chainFile } from "../../support/vscode-workspace.js";
+import { addTag } from "../../support/pick-option.js";
+import { chainFile, MOCHA_CHAIN_ID, parseService, serviceFile, type ServiceFile } from "../../support/vscode-workspace.js";
 
-const CONTEXT_ID = "269327ed-e44d-491e-9f86-4a3010d63108";
-const CONTEXT = `services/${CONTEXT_ID}/${CONTEXT_ID}.context-service.cip.yaml`;
-const MCP_ID = "0edab1e2-c311-4718-8411-adb16bfa5d54";
-const MCP = `services/${MCP_ID}/${MCP_ID}.mcp-service.cip.yaml`;
+const CONTEXT = serviceFile("269327ed-e44d-491e-9f86-4a3010d63108", "context-service");
+const MCP = serviceFile("0edab1e2-c311-4718-8411-adb16bfa5d54", "mcp-service");
 
-const CHAIN = chainFile("1419390b-7423-4fab-853f-67c653e16a86");
-const CHAIN_URI = `vscode-test-web://mount/${CHAIN}`;
-/** What the extension host logs when the chain file does not parse, in the two forms the workbench prints. */
-const PARSE_ERROR = "Error: Failed to parse content: not valid JSON or YAML";
-const PARSE_ERRORS = [
-  `%c  ERR color: #f33 [Extension Host] Chain file ${CHAIN_URI} can't be parsed from CIP Extension API ${PARSE_ERROR}`,
-  `%c[Extension Host] %cChain file ${CHAIN_URI} can't be parsed from CIP Extension API color: blue color:  ${PARSE_ERROR}`,
-];
+const CHAIN = chainFile(MOCHA_CHAIN_ID);
+/** What the extension host logs when the chain file does not parse. */
+const PARSE_ERRORS = extensionHostErrors(
+  `Chain file vscode-test-web://mount/${CHAIN} can't be parsed from CIP Extension API`,
+  "Error: Failed to parse content: not valid JSON or YAML",
+);
 
-interface ServiceFile {
-  name: string;
-  content: { description?: string; identifier?: string; instructions?: string; labels?: string[] };
-}
-
-const parseService = (text: string) => load(text) as ServiceFile;
-
-/** Types `label` into a tags field and adds it with Enter, once the select's hidden option for it exists. */
+/** Adds `label` in the Labels field and closes the option list, which stays open over the Save button. */
 async function addLabel(webview: FrameLocator, label: string): Promise<void> {
   const labels = webview.getByRole("combobox", { name: "Labels" });
-  await labels.pressSequentially(label);
-  await expect(webview.getByRole("option", { name: label, exact: true, includeHidden: true })).toBeAttached();
-  await labels.press("Enter");
-  // The option list stays open over the Save button.
+  await addTag(webview, labels, label);
   await labels.press("Escape");
 }
 
@@ -143,9 +130,9 @@ test.describe("context and MCP service editors", () => {
     await outsideTheDefect("breaking the chain file and opening it again", async () => {
       await vscode.open();
       await vscode.openFile(CHAIN);
-      await expect(vscode.webview.getByTestId(/^rf__node-/)).toHaveCount(2);
+      await expect(new ChainGraphPage(vscode.webview).nodes).toHaveCount(2);
       await vscode.runCommand("View: Reopen Editor with Text Editor");
-      await vscode.textEditor.locator(".view-lines").click();
+      await vscode.lines(vscode.textEditor).click();
       await page.keyboard.press("Control+A");
       // A mapping nested on one line is not YAML, and Monaco closes no bracket in it.
       await page.keyboard.type("name: a: b");

@@ -27,10 +27,10 @@ import type { FrameLocator } from "@playwright/test";
 import { test, expect } from "../../support/vscode-guard.js";
 import { TableView } from "../../pages/TableView.js";
 import { notTheKnownDefect, outsideTheDefect } from "../../support/known-defect.js";
-import { chainFile, parseChain } from "../../support/vscode-workspace.js";
+import { addTag } from "../../support/pick-option.js";
+import { chainFile, MOCHA_CHAIN_ID, parseChain } from "../../support/vscode-workspace.js";
 
-const CHAIN_ID = "1419390b-7423-4fab-853f-67c653e16a86";
-const CHAIN = chainFile(CHAIN_ID);
+const CHAIN = chainFile(MOCHA_CHAIN_ID);
 
 /** A field of the Properties form by its label, which antd names with a trailing colon and, when required, a leading `* `. */
 const field = (webview: FrameLocator, role: "textbox" | "combobox", label: string) =>
@@ -50,9 +50,7 @@ test.describe("chain properties", () => {
     await name.fill("vsc-fixture-chain-renamed");
     await field(webview, "textbox", "Group").fill("e2e/moved");
     await field(webview, "textbox", "Description").fill("set in VS Code");
-    const labels = field(webview, "combobox", "Labels");
-    await labels.fill("e2e-label");
-    await labels.press("Enter");
+    await addTag(webview, field(webview, "combobox", "Labels"), "e2e-label");
     const apply = webview.getByRole("button", { name: /Apply$/ });
     await apply.click();
     await expect(apply).toBeDisabled();
@@ -106,7 +104,7 @@ test.describe("chain properties", () => {
       await expect(webview.getByText("No masked fields")).toBeVisible();
       await expect.poll(() => messages.answered()).toContain("deleteMaskedFields");
       // Every write is in before the text editor opens, so it reads the file the delete left.
-      return await vscode.readAsText((each) => parseChain(each).id === CHAIN_ID);
+      return await vscode.readAsText((each) => parseChain(each).id === MOCHA_CHAIN_ID);
     });
     const names = maskedNames(text);
     if (names.length > 0 && JSON.stringify(names) !== JSON.stringify(["e2eOnly"])) {

@@ -39,27 +39,30 @@ import type { Locator } from "@playwright/test";
 import { test, expect } from "../../support/vscode-guard.js";
 import { ChainGraphPage } from "../../pages/ChainGraphPage.js";
 import { normalizeIds, readGolden } from "../../support/vscode-golden.js";
-import { chainFile, fixture, parseChain as parse, type ChainElement, type ChainFile } from "../../support/vscode-workspace.js";
+import {
+  CALLEE_CHAIN_ID,
+  CALLER_CHAIN_ID,
+  CHAIN_CALL,
+  CHAIN_TRIGGER,
+  chainFile,
+  fixture,
+  HTTP_TRIGGER,
+  MCP_TRIGGER,
+  MOCHA_CHAIN_ID,
+  parseChain,
+  resourceFile,
+  SCRIPT,
+  SERVICE_CALL,
+  SERVICES_CHAIN_ID,
+  SERVICES_TRIGGER,
+  type ChainElement,
+  type ChainFile,
+} from "../../support/vscode-workspace.js";
 
-/** The mocha workspace's chain: an HTTP trigger connected to a script. */
-const CHAIN_ID = "1419390b-7423-4fab-853f-67c653e16a86";
-const CHAIN = chainFile(CHAIN_ID);
-const HTTP_TRIGGER = "7f15ea75-516e-4104-81c6-e68550a9b9e5";
-const SCRIPT = "54b4728d-7000-4350-b310-c58b792311c5";
+const CHAIN = chainFile(MOCHA_CHAIN_ID);
 /** The file a script element's code lives in, beside the chain file. */
-const scriptResource = (elementId: string) => `chains/${CHAIN_ID}/resources/${elementId}.element.script.cip.groovy`;
-
-/** Four elements bound to services, with no container among them. */
-const SERVICES_CHAIN = chainFile("e2e20004-0000-4000-8000-000000000001");
-const SERVICES_TRIGGER = "e2e20004-0000-4000-8000-000000000002";
-const SERVICE_CALL = "e2e20004-0000-4000-8000-000000000003";
-const MCP_TRIGGER = "e2e20004-0000-4000-8000-000000000005";
-
-/** A chain whose chain call targets the trigger of the callee chain. */
-const CALLER = "e2e20002-0000-4000-8000-000000000001";
-const CHAIN_CALL = "e2e20002-0000-4000-8000-000000000003";
-const CALLEE = "e2e20003-0000-4000-8000-000000000001";
-const CHAIN_TRIGGER = "e2e20003-0000-4000-8000-000000000002";
+const scriptResource = (elementId: string) => resourceFile(MOCHA_CHAIN_ID, elementId, "script.cip.groovy");
+const SERVICES_CHAIN = chainFile(SERVICES_CHAIN_ID);
 
 const ids = (elements: readonly ChainElement[]) => elements.map((each) => each.id).sort();
 const edges = (chain: ChainFile) => chain.content.dependencies.map(({ from, to }) => ({ from, to }));
@@ -106,7 +109,7 @@ test.describe("chain editor", () => {
     await graph.connect(SCRIPT, logRecord);
     await expect(graph.edge(SCRIPT, logRecord)).toBeAttached();
 
-    const text = await vscode.readAsText((each) => edges(parse(each)).length === 2);
+    const text = await vscode.readAsText((each) => edges(parseChain(each)).length === 2);
     expect(normalizeIds(text, original)).toBe(readGolden("chain-add-element-and-connection.chain.cip.yaml"));
     expect(messages.answered()).toEqual(expect.arrayContaining(["createElement", "createConnection"]));
   });
@@ -121,7 +124,7 @@ test.describe("chain editor", () => {
     await vscode.page.keyboard.press("Delete");
     await expect(graph.edge(HTTP_TRIGGER, SCRIPT)).toHaveCount(0);
 
-    const chain = parse(await vscode.readAsText((each) => edges(parse(each)).length === 0));
+    const chain = parseChain(await vscode.readAsText((each) => edges(parseChain(each)).length === 0));
     expect(ids(chain.content.elements)).toEqual([SCRIPT, HTTP_TRIGGER].sort());
     expect(messages.answered()).toContain("deleteConnections");
   });
@@ -136,7 +139,7 @@ test.describe("chain editor", () => {
     await vscode.webview.getByRole("menuitem", { name: "Delete", exact: true }).click();
     await expect(graph.nodes).toHaveCount(1);
 
-    const chain = parse(await vscode.readAsText((each) => parse(each).content.elements.length === 1));
+    const chain = parseChain(await vscode.readAsText((each) => parseChain(each).content.elements.length === 1));
     expect(ids(chain.content.elements)).toEqual([HTTP_TRIGGER]);
     expect(edges(chain)).toEqual([]);
     // The extension deletes the script's resource after the chain file, before it answers.
@@ -156,7 +159,7 @@ test.describe("chain editor", () => {
     await vscode.webview.getByRole("menuitem", { name: "Group", exact: true }).click();
     await expect(graph.nodes).toHaveCount(3);
 
-    let chain = parse(await vscode.readAsText((each) => parse(each).content.elements.length === 1));
+    let chain = parseChain(await vscode.readAsText((each) => parseChain(each).content.elements.length === 1));
     const [container] = chain.content.elements;
     expect(container.type).toBe("container");
     expect(ids(container.children ?? [])).toEqual([SCRIPT, HTTP_TRIGGER].sort());
@@ -167,7 +170,7 @@ test.describe("chain editor", () => {
     await vscode.webview.getByRole("menuitem", { name: "Ungroup", exact: true }).click();
     await expect(graph.nodes).toHaveCount(2);
 
-    chain = parse(await vscode.readAsText((each) => parse(each).content.elements.length === 2));
+    chain = parseChain(await vscode.readAsText((each) => parseChain(each).content.elements.length === 2));
     expect(ids(chain.content.elements)).toEqual([SCRIPT, HTTP_TRIGGER].sort());
     expect(edges(chain)).toEqual([{ from: HTTP_TRIGGER, to: SCRIPT }]);
     expect(messages.answered()).toEqual(expect.arrayContaining(["groupElements", "ungroupElements"]));
@@ -187,7 +190,7 @@ test.describe("chain editor", () => {
     await vscode.webview.getByRole("menuitem", { name: "Paste", exact: true }).click();
     await expect(graph.nodes).toHaveCount(3);
 
-    const chain = parse(await vscode.readAsText((each) => parse(each).content.elements.length === 3));
+    const chain = parseChain(await vscode.readAsText((each) => parseChain(each).content.elements.length === 3));
     const scripts = chain.content.elements.filter((each) => each.type === "script");
     expect(scripts).toHaveLength(2);
     expect(scripts.map((each) => each.id)).toContain(SCRIPT);
@@ -216,9 +219,9 @@ test.describe("chain editor", () => {
 
     await graph.dragNode(MCP_TRIGGER, container, { x: 30, y: 30 });
 
-    const chain = parse(
+    const chain = parseChain(
       await vscode.readAsText((each) => {
-        const group = parse(each).content.elements.find((element) => element.id === containerId);
+        const group = parseChain(each).content.elements.find((element) => element.id === containerId);
         return (group?.children ?? []).length === 3;
       }),
     );
@@ -231,7 +234,7 @@ test.describe("chain editor", () => {
 
   test("the sequence diagram names the chain a chain call calls", async ({ vscode, messages }) => {
     await vscode.open();
-    await vscode.openFile(chainFile(CALLER));
+    await vscode.openFile(chainFile(CALLER_CHAIN_ID));
     const graph = new ChainGraphPage(vscode.webview);
     await expect(graph.nodes).toHaveCount(2);
 
@@ -243,7 +246,7 @@ test.describe("chain editor", () => {
 
   test("Go to chain on a chain call opens the chain it calls", async ({ vscode, messages, sentMessage }) => {
     await vscode.open();
-    await vscode.openFile(chainFile(CALLER));
+    await vscode.openFile(chainFile(CALLER_CHAIN_ID));
     const graph = new ChainGraphPage(vscode.webview);
 
     const form = await graph.openElement(CHAIN_CALL);
@@ -251,7 +254,7 @@ test.describe("chain editor", () => {
     await expect(form.getByText("vsc-fixture-chain-callee", { exact: true })).toBeVisible();
     await form.getByRole("button", { name: "Go to chain" }).click();
 
-    await expect(vscode.activeTab).toContainText(`${CALLEE}.chain.cip.yaml`);
+    await expect(vscode.activeTab).toContainText(`${CALLEE_CHAIN_ID}.chain.cip.yaml`);
     await expect(graph.node(CHAIN_TRIGGER)).toContainText("Chain Trigger");
     await sentMessage("navigateInNewTab");
     expect(messages.answered()).toContain("getElementsByType");
@@ -259,14 +262,14 @@ test.describe("chain editor", () => {
 
   test("a chain trigger opens the chain that calls it", async ({ vscode, sentMessage }) => {
     await vscode.open();
-    await vscode.openFile(chainFile(CALLEE));
+    await vscode.openFile(chainFile(CALLEE_CHAIN_ID));
     const graph = new ChainGraphPage(vscode.webview);
 
     const form = await graph.openElement(CHAIN_TRIGGER);
     await form.getByRole("button", { name: "1 chain" }).click();
     await vscode.webview.getByRole("menuitem", { name: "vsc-fixture-chain-caller", exact: true }).click();
 
-    await expect(vscode.activeTab).toContainText(`${CALLER}.chain.cip.yaml`);
+    await expect(vscode.activeTab).toContainText(`${CALLER_CHAIN_ID}.chain.cip.yaml`);
     await expect(graph.node(CHAIN_CALL)).toContainText("Chain Call");
     await sentMessage("openChainInNewTab");
   });

@@ -200,10 +200,7 @@ export async function ensureVsCodeServer(): Promise<{ pid: number; built: string
   return { pid, built };
 }
 
-/**
- * Stops the server the state file records, if this run or a dead one started it, and waits for its
- * process group to exit. A server of a run still in progress stays up.
- */
+/** Stops the recorded server, as `RecordedServer.stop` does. */
 export async function stopVsCodeServer(): Promise<void> {
   await server.stop();
 }

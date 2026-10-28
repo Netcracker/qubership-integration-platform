@@ -1,5 +1,5 @@
 /** @jest-environment jsdom */
-import { isVsCodeWebview } from "../../src/utils/isVsCodeWebview";
+import { isVsCodeWebview } from "../../src/misc/isVsCodeWebview";
 
 type WebviewWindow = Window & { acquireVsCodeApi?: unknown };
 
@@ -8,13 +8,7 @@ describe("isVsCodeWebview", () => {
     delete (window as WebviewWindow).acquireVsCodeApi;
   });
 
-  it("should return true when acquireVsCodeApi is defined", () => {
-    (window as WebviewWindow).acquireVsCodeApi = jest.fn();
-
-    expect(isVsCodeWebview()).toBe(true);
-  });
-
-  it("should return true when the page is served over http", () => {
+  it("should return true when acquireVsCodeApi is defined, though the page is served over http", () => {
     (window as WebviewWindow).acquireVsCodeApi = jest.fn();
 
     expect(window.location.protocol).toBe("http:");

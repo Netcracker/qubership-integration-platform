@@ -1,22 +1,16 @@
 /**
- * The `vscode-server` setup's command line, the freshness check that decides its two builds, and
- * the state file that tells it which server to stop or refuse.
+ * The `vscode-server` setup's command line and the freshness check that decides its two builds.
+ * `specs/harness/process-group.spec.ts` covers the state file it shares with `ui-server`.
  *
  * Shown failing, each edit alone turning only the case named: `SERVER_ARGS` matching port 3918
  * ("the server runs the pinned build"); the library marker back to all of `ui/dist-lib` ("a missing
- * output rebuilds it"); `RecordedServer.stop` skipping the live-owner check ("a server of another
- * live run"), the stop of the group ("a server a finished run recorded"), and the command-line check
- * ("a recorded pid that now runs something else").
+ * output rebuilds it").
  */
-import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test, expect } from "@playwright/test";
 import { repoRoot } from "../../env/host.js";
-import { groupAlive, RecordedServer } from "../../support/process-group.js";
-import { readUntil } from "../../support/poll.js";
-import { readStateFile } from "../../support/state-file.js";
 import { SCHEMA_OUTPUTS } from "../../support/schemas-build.js";
 import {
   EXTENSION_INPUTS,
@@ -149,69 +143,6 @@ test.describe("vscode-server", () => {
     expect(await staleBuilds(repoTree({ "vscode-extension/dist/.e2e-build": null }))).toEqual({
       uiLib: false,
       extension: true,
-    });
-  });
-
-  test.describe("the state file", () => {
-    /** A process group of its own whose command line `pattern` matches, as the setup starts the server. */
-    function startGroup(): number {
-      const child = spawn(process.execPath, ["-e", "setTimeout(() => {}, 60000)", "e2e-recorded-server"], { detached: true, stdio: "ignore" });
-      child.unref();
-      if (child.pid === undefined) throw new Error("the stand-in server did not start");
-      return child.pid;
-    }
-    const pattern = /e2e-recorded-server/;
-    /** A pid no process holds: a child that has exited. */
-    async function deadPid(): Promise<number> {
-      const child = spawn(process.execPath, ["-e", ""], { stdio: "ignore" });
-      await new Promise((resolve) => child.on("exit", resolve));
-      return child.pid!;
-    }
-    const stateFile = () => path.join(tempDir("e2e-recorded-server-"), "server.json");
-
-    test("a server of another live run is refused and left running", async () => {
-      const file = stateFile();
-      const pid = startGroup();
-      try {
-        // This worker stands for the other run's runner, alive and not this run's.
-        new RecordedServer(file, pattern, process.pid).record(pid);
-        const thisRun = new RecordedServer(file, pattern, await deadPid());
-        expect(thisRun.otherLiveOwner()).toBe(process.pid);
-        await thisRun.stop();
-        expect(groupAlive(pid)).toBe(true);
-        expect(readStateFile(file)).toEqual({ pid, owner: process.pid });
-      } finally {
-        process.kill(-pid, "SIGKILL");
-      }
-    });
-
-    test("a server a finished run recorded is stopped", async () => {
-      const file = stateFile();
-      const pid = startGroup();
-      try {
-        new RecordedServer(file, pattern, await deadPid()).record(pid);
-        const thisRun = new RecordedServer(file, pattern, process.pid);
-        expect(thisRun.otherLiveOwner()).toBeNull();
-        await thisRun.stop();
-        expect(await readUntil(async () => groupAlive(pid), (alive) => !alive, 5_000, 50)).toBe(false);
-        expect(fs.existsSync(file)).toBe(false);
-      } finally {
-        if (groupAlive(pid)) process.kill(-pid, "SIGKILL");
-      }
-    });
-
-    test("a recorded pid that now runs something else is left alone", async () => {
-      const file = stateFile();
-      const pid = startGroup();
-      try {
-        const server = new RecordedServer(file, /vscode-test-web\b.*--port 3917\b/, process.pid);
-        server.record(pid);
-        await server.stop();
-        expect(groupAlive(pid)).toBe(true);
-        expect(fs.existsSync(file)).toBe(false);
-      } finally {
-        process.kill(-pid, "SIGKILL");
-      }
     });
   });
 });

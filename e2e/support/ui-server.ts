@@ -12,7 +12,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { newestMtimeMs, repoRoot, runToCompletion } from "../env/host.js";
 import { groupAlive, RecordedServer } from "./process-group.js";
-import { sleep } from "./poll.js";
+import { readUntil } from "./poll.js";
 
 export const UI_PORT = 4200;
 
@@ -126,13 +126,13 @@ function startPreview(): number {
 }
 
 async function waitForPort(pid: number, budgetMs: number): Promise<boolean> {
-  const deadline = Date.now() + budgetMs;
-  while (Date.now() < deadline) {
-    if (await answers(UI_PORT)) return true;
-    if (!groupAlive(pid)) return false;
-    await sleep(250);
-  }
-  return false;
+  const last = await readUntil(
+    async () => ({ answered: await answers(UI_PORT), alive: groupAlive(pid) }),
+    ({ answered, alive }) => answered || !alive,
+    budgetMs,
+    250,
+  );
+  return last.answered;
 }
 
 /**
