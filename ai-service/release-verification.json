@@ -114,7 +114,30 @@
       },
       {
         "id": "product-create-chain-petstore-service-call",
-        "status": "PENDING"
+        "status": "PASS_SCOPED",
+        "conversationId": "f67d8ce2-9097-44a1-8dad-d27386d3835e",
+        "chainId": "d257cb68-e3ec-4744-8cea-ba1d20ac652d",
+        "chainName": "AiCreateSmoke.20261028T122827.r1",
+        "nativeValidation": "PASS",
+        "reconcile": true,
+        "materialization": "PASS",
+        "requirements": "PASS_NATIVE_AND_INDEPENDENT_CATALOG_REVIEW",
+        "scriptChecks": "PASS_STATIC_REVIEW_ONLY",
+        "unsavedChanges": true,
+        "deployment": "NOT_RUN",
+        "providerCapture": {
+          "requestedModel": "gpt-6-luna",
+          "returnedModel": "gpt-6-luna",
+          "endpoint": "https://api.openai.com/v1",
+          "phaseRequests": 27,
+          "phaseResponses": 27,
+          "conversationTaggedRequests": 16,
+          "requestsWithoutConversationTagInExclusivePhase": 11,
+          "attribution": "Exchange-ID difference from the preceding 15-exchange capture; all added exchanges occurred in the single Petstore case window.",
+          "rawEvidence": "Ignored case candidate-captures directory and checksum manifest."
+        },
+        "independentReview": "PASS_SCOPED",
+        "evidence": "Ignored local evidence: live-luna/cases/product-create-chain-petstore-service-call/product-attempt-1/"
       },
       {
         "id": "product-create-chain-uploaded-openapi-mapping",
