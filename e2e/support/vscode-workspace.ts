@@ -8,6 +8,9 @@ const WORKSPACE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..
 /** The path of a chain file in `fixtures/vscode/workspace/`, relative to the workspace. */
 export const chainFile = (chainId: string) => `chains/${chainId}/${chainId}.chain.cip.yaml`;
 
+/** The path of a service file in `fixtures/vscode/workspace/`, relative to the workspace. */
+export const serviceFile = (serviceId: string) => `services/${serviceId}/${serviceId}.service.cip.yaml`;
+
 export interface ChainElement {
   id: string;
   name: string;
@@ -28,8 +31,11 @@ export interface ChainFile {
   };
 }
 
+/** The path on disk of a workspace file, for a case that uploads it. */
+export const fixturePath = (relativePath: string) => path.join(WORKSPACE, relativePath);
+
 /** The text of a workspace file as the fixture holds it. */
-export const fixture = (relativePath: string) => readFileSync(path.join(WORKSPACE, relativePath), "utf8");
+export const fixture = (relativePath: string) => readFileSync(fixturePath(relativePath), "utf8");
 
 export const parseChain = (text: string) => load(text) as ChainFile;
 

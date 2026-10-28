@@ -118,6 +118,17 @@ test.describe("vscode messages", () => {
       expect(recorder.answeredWithoutPayload("getLibrary")).toBe(false);
     });
 
+    test("a request stays unanswered until any answer to it arrives", () => {
+      const recorder = new MessageRecorder();
+      recorder.record(sent("getService", "r1"));
+      recorder.record(sent("getService", "r2"));
+      recorder.record(sent("getLibrary", "r3"));
+      expect(recorder.unanswered()).toEqual(["getService", "getService", "getLibrary"]);
+      recorder.record(answer("getService", "r2"));
+      recorder.record(answer("getLibrary", "r3", true));
+      expect(recorder.unanswered()).toEqual(["getService"]);
+    });
+
     test("comparedDocumentsResponse answers comparedDocumentsRequest", () => {
       const recorder = new MessageRecorder();
       recorder.record(sent("comparedDocumentsRequest", "r1"));

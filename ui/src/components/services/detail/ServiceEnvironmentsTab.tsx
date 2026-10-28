@@ -476,6 +476,7 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
             require={{ environment: ["delete"] }}
             tooltipProps={{ title: "Delete", placement: "bottom" }}
             buttonProps={{
+              "data-testid": "environments-delete",
               type: "text",
               iconName: "delete",
               danger: true,

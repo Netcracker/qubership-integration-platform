@@ -33,12 +33,15 @@ export class MessageRecorder {
   private readonly requests = new Map<string, string>();
   private readonly answeredTypes = new Set<string>();
   private readonly emptyAnswers = new Set<string>();
+  /** The `requestId` of every request that got an answer, an error included. */
+  private readonly answeredIds = new Set<string>();
 
   record(message: BridgeMessage): void {
     if (message.direction === "sent") {
       this.requests.set(message.requestId, message.type);
       return;
     }
+    this.answeredIds.add(message.requestId);
     // An answer marks the type of its request: `comparedDocumentsResponse` counts for `comparedDocumentsRequest`.
     // An unknown `requestId` is a message the extension started, such as its own `navigate`.
     const type = this.requests.get(message.requestId);
@@ -50,6 +53,14 @@ export class MessageRecorder {
   /** Whether any webview sent a request of `type`. */
   sent(type: string): boolean {
     return [...this.requests.values()].includes(type);
+  }
+
+  /**
+   * The types of the requests still waiting for an answer, one entry per request. The extension
+   * never answers `openChainInNewTab` or `navigateInNewTab`, so those stay here once sent.
+   */
+  unanswered(): string[] {
+    return [...this.requests].filter(([requestId]) => !this.answeredIds.has(requestId)).map(([, type]) => type);
   }
 
   /** Whether a request of `type` was answered with neither an error nor a payload. */

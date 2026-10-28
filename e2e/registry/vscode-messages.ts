@@ -24,7 +24,6 @@ export interface MessageEntry {
 /** The reason every handler with no sender in `ui/src` carries; the harness reads its prefix. */
 export const NO_UI_SENDER = "no UI sender";
 
-const R_SERVICE = "no case opens the service editor yet";
 const R_CONTEXT_MCP = "no case opens the context service or MCP service editor yet";
 const R_1214 = "#1214: the extension has no handler, so the UI receives an answer with no payload";
 
@@ -93,27 +92,33 @@ export const messageRegistry: MessageEntry[] = [
   covered("exportImagesItemFailed"),
   covered("exportImagesItemWarning"),
 
+  // specs/vscode/service-editor.spec.ts
+  covered("updateService"),
+  covered("createEnvironment"),
+  covered("updateEnvironment"),
+  covered("deleteEnvironment"),
+  covered("getSpecificationModel"),
+  covered("updateApiSpecificationGroup"),
+  covered("updateSpecificationModel"),
+  covered("deprecateModel"),
+  covered("deleteSpecificationGroup"),
+  covered("deleteSpecificationModel"),
+  covered("importSpecificationGroup"),
+  covered("importSpecification"),
+  covered("getImportSpecificationResult"),
+  covered("getSpecApiFiles"),
+  covered("readSpecificationFileContent"),
+  {
+    message: "createService",
+    status: "not-covered",
+    reason: "no screen of the extension calls api.createService: the services list that does is not among the extension's routes, and the cip.createService command writes the file itself",
+  },
   ...notCovered(
-    R_SERVICE,
-    "updateService",
-    "createService",
-    "createEnvironment",
-    "updateEnvironment",
-    "deleteEnvironment",
-    "getSpecificationModel",
-    "updateApiSpecificationGroup",
-    "updateSpecificationModel",
-    "deprecateModel",
-    "deleteSpecificationGroup",
-    "deleteSpecificationModel",
-    "importSpecificationGroup",
-    "importSpecification",
-    "getImportSpecificationResult",
-    "getSpecApiFiles",
-    "readSpecificationFileContent",
-    "navigateToOperations",
+    "no screen calls the api method: the service editor moves between its tables with its own router",
     "navigateToSpecifications",
+    "navigateToOperations",
   ),
+
   ...notCovered(R_CONTEXT_MCP, "getContextService", "updateContextService", "getMcpService", "updateMcpService"),
 
   {
