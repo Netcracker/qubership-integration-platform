@@ -2,7 +2,13 @@
  * @jest-environment jsdom
  */
 import { useState } from "react";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { NameValueTable } from "../../../src/components/testing/NameValueTable";
 import { TestingNamedParameter } from "../../../src/api/apiTypes";
@@ -48,17 +54,18 @@ describe("NameValueTable", () => {
       name: "Delete",
     });
     fireEvent.blur(input, { relatedTarget: deleteFirst });
-    await act(() => new Promise((resolve) => setTimeout(resolve, 100)));
+    await within(bodyRows()[1]).findByText("Enter a header name.");
     fireEvent.click(deleteFirst);
 
     const editor = screen.getByLabelText("Name");
     fireEvent.change(editor, { target: { value: "X-New" } });
     fireEvent.keyDown(editor, { key: "Enter", keyCode: 13 });
-    await act(() => new Promise((resolve) => setTimeout(resolve, 100)));
 
-    expect(saved).toEqual([
-      { name: "X-New", value: "2" },
-      { name: "X-Second", value: "3" },
-    ]);
+    await waitFor(() =>
+      expect(saved).toEqual([
+        { name: "X-New", value: "2" },
+        { name: "X-Second", value: "3" },
+      ]),
+    );
   });
 });

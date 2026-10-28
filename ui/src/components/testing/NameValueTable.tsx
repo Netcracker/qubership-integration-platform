@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef } from "react";
+import React, { useMemo } from "react";
 import { Button, Table, Tooltip, Typography } from "antd";
 import type { Rule } from "antd/lib/form/index";
 import type { TableProps } from "antd/lib/table";
@@ -11,6 +11,20 @@ import { createActionsColumnBase } from "../table/actionsColumn.ts";
 import { TextValueEdit } from "../table/TextValueEdit.tsx";
 
 type KeyedParameter = TestingNamedParameter & { key: number };
+
+// Pairs carry no id, so each row object gets one and an edited copy inherits it.
+// An index key would move an open editor to another pair when a row above is deleted.
+const rowIds = new WeakMap<TestingNamedParameter, number>();
+let nextRowId = 0;
+
+function idOf(row: TestingNamedParameter): number {
+  let id = rowIds.get(row);
+  if (id === undefined) {
+    id = nextRowId++;
+    rowIds.set(row, id);
+  }
+  return id;
+}
 
 /** Returns a message when the text is not accepted, and undefined when it is. */
 export type ValueValidator = (text: string) => string | undefined;
@@ -54,21 +68,9 @@ export const NameValueTable: React.FC<NameValueTableProps> = ({
   "data-testid": dataTestId,
 }) => {
   const rows = useMemo(() => values ?? [], [values]);
-  // Pairs carry no id, so each row object gets one and an edited copy inherits it.
-  // An index key would move an open editor to another pair when a row above is deleted.
-  const rowIds = useRef(new WeakMap<TestingNamedParameter, number>());
-  const nextRowId = useRef(0);
-  const idOf = useCallback((row: TestingNamedParameter): number => {
-    let id = rowIds.current.get(row);
-    if (id === undefined) {
-      id = nextRowId.current++;
-      rowIds.current.set(row, id);
-    }
-    return id;
-  }, []);
   const keyedRows = useMemo<KeyedParameter[]>(
     () => rows.map((row) => ({ ...row, key: idOf(row) })),
-    [rows, idOf],
+    [rows],
   );
 
   const replaceRow = (index: number, changes: Partial<TestingNamedParameter>) =>
@@ -78,7 +80,7 @@ export const NameValueTable: React.FC<NameValueTableProps> = ({
           return row;
         }
         const changed = { ...row, ...changes };
-        rowIds.current.set(changed, idOf(row));
+        rowIds.set(changed, idOf(row));
         return changed;
       }),
     );
