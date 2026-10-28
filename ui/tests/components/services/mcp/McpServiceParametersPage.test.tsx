@@ -9,6 +9,7 @@ import { MCPSystem } from "../../../../src/api/apiTypes";
 // ---------------------------------------------------------------------------
 import { McpServiceParametersPage } from "../../../../src/components/services/mcp/McpServiceParametersPage";
 import { useNotificationService } from "../../../../src/hooks/useNotificationService";
+import { useBlocker } from "react-router-dom";
 
 // ---------------------------------------------------------------------------
 // Browser API stubs required by Ant Design
@@ -35,6 +36,7 @@ const mockGetMcpSystem = jest.fn();
 const mockUpdateMcpSystem = jest.fn();
 const mockRequestFailed = jest.fn();
 const mockNavigate = jest.fn();
+const mockShowModal = jest.fn();
 let isVsCodeFlag = false;
 
 jest.mock("../../../../src/api/api", () => ({
@@ -62,6 +64,11 @@ jest.mock("react-router", () => ({
 // ServiceBreadcrumb imports useNavigate from "react-router-dom"
 jest.mock("react-router-dom", () => ({
   useNavigate: () => mockNavigate,
+  useBlocker: jest.fn(),
+}));
+
+jest.mock("../../../../src/Modals.tsx", () => ({
+  useModalsContext: () => ({ showModal: mockShowModal }),
 }));
 
 // ---------------------------------------------------------------------------
@@ -105,6 +112,12 @@ describe("McpServiceParametersPage", () => {
       warning: jest.fn(),
       errorWithDetails: jest.fn(),
     });
+    jest.mocked(useBlocker).mockReturnValue({
+      state: "unblocked",
+      proceed: jest.fn(),
+      reset: jest.fn(),
+      location: undefined,
+    } as unknown as ReturnType<typeof useBlocker>);
   });
 
   // --- Loading & initial render --------------------------------------------
@@ -430,5 +443,85 @@ describe("McpServiceParametersPage", () => {
 
     expect(screen.queryByText("Created")).not.toBeInTheDocument();
     expect(screen.queryByText("Modified")).not.toBeInTheDocument();
+  });
+
+  // --- Unsaved changes -----------------------------------------------------
+
+  it("should block navigation after a field is changed", async () => {
+    renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Name")).toBeInTheDocument(),
+    );
+    expect(useBlocker).toHaveBeenLastCalledWith(false);
+
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Changed" },
+    });
+
+    expect(useBlocker).toHaveBeenLastCalledWith(true);
+  });
+
+  it("should block navigation after a label is removed", async () => {
+    mockGetMcpSystem.mockResolvedValue(
+      makeMcpSystem({ labels: [{ name: "lbl", technical: false }] }),
+    );
+    renderPage();
+
+    await waitFor(() => expect(screen.getByText("lbl")).toBeInTheDocument());
+
+    const remove = screen
+      .getByText("lbl")
+      .parentElement!.querySelector(".ant-select-selection-item-remove");
+    fireEvent.click(remove!);
+
+    await waitFor(() => expect(useBlocker).toHaveBeenLastCalledWith(true));
+  });
+
+  it("should stop blocking navigation after a successful save", async () => {
+    renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Name")).toBeInTheDocument(),
+    );
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Changed" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /save/i }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /save/i })).toBeDisabled(),
+    );
+    expect(mockUpdateMcpSystem).toHaveBeenCalled();
+    expect(useBlocker).toHaveBeenLastCalledWith(false);
+  });
+
+  it("should not block navigation when the system fails to load", async () => {
+    mockGetMcpSystem.mockRejectedValue(new Error("Not found"));
+    renderPage();
+
+    await waitFor(() => expect(mockRequestFailed).toHaveBeenCalled());
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Changed" },
+    });
+
+    expect(useBlocker).toHaveBeenLastCalledWith(false);
+  });
+
+  it("should keep blocking navigation after a failed save", async () => {
+    mockUpdateMcpSystem.mockRejectedValue(new Error("Save failed"));
+    renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Name")).toBeInTheDocument(),
+    );
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Changed" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /save/i }));
+
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: /save/i })).toBeEnabled();
+    expect(useBlocker).toHaveBeenLastCalledWith(true);
   });
 });

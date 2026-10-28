@@ -29,6 +29,7 @@ import { useParams } from "react-router";
 import { isVsCode } from "../../../api/rest/vscodeExtensionApi.ts";
 import { formatTimestamp } from "../../../misc/format-utils.ts";
 import { getErrorMessage } from "../../../misc/error-utils.ts";
+import { useUnsavedChangesWithModal } from "../useUnsavedChangesWithModal.tsx";
 
 const { useForm } = Form;
 
@@ -39,9 +40,13 @@ export const McpServiceParametersPage: React.FC = () => {
   const [system, setSystem] = useState<MCPSystem | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
-  const [hasChanges, setHasChanges] = useState<boolean>(false);
   const [errorText, setErrorText] = useState<string | null>(null);
   const [form] = useForm();
+  const { hasChanges, setHasChanges } = useUnsavedChangesWithModal({
+    system,
+    blockerCondition: system !== null,
+    onYes: () => Promise.resolve(form.submit()),
+  });
   const notificationService = useNotificationService();
 
   const loadSystem = useCallback(
@@ -79,7 +84,7 @@ export const McpServiceParametersPage: React.FC = () => {
         setIsSaving(false);
       }
     },
-    [notificationService],
+    [notificationService, setHasChanges],
   );
 
   useEffect(() => {
