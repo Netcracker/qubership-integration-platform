@@ -30,7 +30,6 @@ if (args.error) {
   console.error(args.error);
   process.exit(1);
 }
-const only = args.only;
 // Derived from the run header's own path rather than spelled again here. `playwright.config.ts`
 // writes the report beside it, and three files agreeing by coincidence is how one of them goes
 // stale.
@@ -45,8 +44,8 @@ if (!fs.existsSync(reportPath)) {
 
 const report = JSON.parse(fs.readFileSync(reportPath, "utf-8"));
 
-if (only === "vscode-messages") {
-  const problems = reconcileMessages(report, messageRegistry, { only: true });
+if (args.onlyMessages) {
+  const problems = reconcileMessages(report, messageRegistry, true);
   if (problems.length > 0) {
     console.error(`message reconciliation failed (${problems.length}):`);
     for (const problem of problems) console.error(`  - ${problem}`);

@@ -1,4 +1,5 @@
 import type { FrameLocator, Locator, Page } from "@playwright/test";
+import { readUntil } from "../support/poll.js";
 
 /** The deadline of `readText`, the expect timeout the suite sets. */
 const TEXT_DEADLINE_MS = 30_000;
@@ -58,6 +59,18 @@ export class VsCodePage {
     await this.pick("Control+P", relativePath, fileOption(relativePath));
   }
 
+  /** Whether Quick Open lists `relativePath`; a file that is gone leaves it on `No matching results`. */
+  async listsFile(relativePath: string): Promise<boolean> {
+    await this.openQuickInput("Control+P");
+    await this.quickInput.getByRole("textbox").fill(relativePath);
+    const option = this.quickInput.getByRole("option", { name: fileOption(relativePath) });
+    await option.or(this.quickInput.getByText("No matching results", { exact: true })).first().waitFor();
+    const listed = await option.isVisible();
+    await this.page.keyboard.press("Escape");
+    await this.quickInput.waitFor({ state: "hidden" });
+    return listed;
+  }
+
   /** Opens the diff of the active file with `relativePath` through `File: Compare Active File With...`. */
   async compareActiveFileWith(relativePath: string): Promise<void> {
     await this.runCommand("File: Compare Active File With...");
@@ -90,19 +103,27 @@ export class VsCodePage {
    * Returns the text of the active text editor, copied through the clipboard with the line breaks
    * turned back into `\n` (the Windows user agent copies `\r\n`). The extension writes a change to
    * the in-memory file system, whose change event fires after a debounce, so with `until` the copy
-   * repeats until `until` returns true for the text.
+   * repeats until `until` returns true for the text. A copy `until` throws on, such as an empty one
+   * that does not parse, counts as false.
    */
   async readText(until?: (text: string) => boolean): Promise<string> {
-    const deadline = Date.now() + TEXT_DEADLINE_MS;
-    for (;;) {
+    const copy = async () => {
       await this.textEditor.locator(".view-lines").click();
       await this.page.keyboard.press("Control+A");
       await this.page.keyboard.press("Control+C");
-      const text = (await this.page.evaluate(() => navigator.clipboard.readText())).replaceAll("\r\n", "\n");
-      if (!until || until(text)) return text;
-      if (Date.now() > deadline) throw new Error(`the text editor shows no text the case waits for after ${TEXT_DEADLINE_MS} ms:\n${text}`);
-      await this.page.waitForTimeout(250);
-    }
+      return (await this.page.evaluate(() => navigator.clipboard.readText())).replaceAll("\r\n", "\n");
+    };
+    if (!until) return await copy();
+    const holds = (text: string) => {
+      try {
+        return until(text);
+      } catch {
+        return false;
+      }
+    };
+    const text = await readUntil(copy, holds, TEXT_DEADLINE_MS, 250);
+    if (!holds(text)) throw new Error(`the text editor shows no text the case waits for after ${TEXT_DEADLINE_MS} ms:\n${text}`);
+    return text;
   }
 
   /** Reopens the active editor with the editor `displayName` names, such as `CIP Chain File Visual Editor`. */
@@ -111,30 +132,25 @@ export class VsCodePage {
     await this.pickOpen(new RegExp(`^${literal(displayName)}(,|$)`));
   }
 
-  async close(): Promise<void> {
-    await this.runCommand("View: Close Editor");
-  }
-
-  /** Closes the active editor and opens `relativePath` again, which loads a new webview. */
-  async reopen(relativePath: string): Promise<void> {
-    await this.close();
-    await this.openFile(relativePath);
-  }
-
   /**
    * Opens the quick input with `key`, types `query`, and clicks the option named by `option`. A key
-   * pressed before the workbench registers its keybindings opens nothing, so the key repeats until
-   * the input shows.
+   * pressed before the workbench registers its keybindings opens nothing, and the workbench shows
+   * no state that marks the registration, so the key repeats until the input shows: an exception
+   * to rule 9, listed in `browser.md`. A press that opened the input is not repeated.
    */
   private async pick(key: string, query: string, option: RegExp): Promise<void> {
+    await this.openQuickInput(key);
+    await this.quickInput.getByRole("textbox").fill(query);
+    await this.pickOpen(option);
+  }
+
+  private async openQuickInput(key: string): Promise<void> {
     const input = this.quickInput.getByRole("textbox");
     for (let attempt = 1; ; attempt++) {
       await this.page.keyboard.press(key);
-      if (await input.waitFor({ timeout: 500 }).then(() => true, () => false)) break;
+      if (await input.waitFor({ timeout: 500 }).then(() => true, () => false)) return;
       if (attempt === 20) throw new Error(`${key} opened no quick input`);
     }
-    await input.fill(query);
-    await this.pickOpen(option);
   }
 
   /**

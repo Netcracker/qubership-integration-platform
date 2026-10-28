@@ -53,11 +53,15 @@ export const withAnyStack = (message: string) => new RegExp(`^${message.replace(
 /**
  * What fails the case: every problem neither allowed nor expected, and every expected message that
  * never arrived. An expected message matches exactly, or its pattern matches, and absorbs each
- * repeat of itself.
+ * repeat of itself. A message in `permitted` passes the same way, and its absence fails nothing.
  */
-export function guardFailures(problems: readonly VsCodeProblem[], expected: readonly ExpectedError[]): string[] {
+export function guardFailures(
+  problems: readonly VsCodeProblem[],
+  expected: readonly ExpectedError[],
+  permitted: readonly ExpectedError[] = [],
+): string[] {
   const unexpected = problems
-    .filter((each) => !allowed(each) && !expected.some((message) => matches(message, each.message)))
+    .filter((each) => !allowed(each) && ![...expected, ...permitted].some((message) => matches(message, each.message)))
     .map((each) => (each.source === "pageerror" ? `uncaught ${each.message}` : `console.error${each.url ? ` at ${each.url}` : ""}: ${each.message}`));
   const missing = expected
     .filter((message) => !problems.some((each) => matches(message, each.message)))
@@ -72,10 +76,13 @@ interface VsCodeFixtures {
   vscode: VsCodePage;
   /** Declares an error the case meets, by its exact message or a pattern, so that the guard lets it through. */
   expectConsoleError: (message: ExpectedError) => void;
+  /** Lets an error through that the case meets only sometimes, so its absence fails nothing. */
+  allowConsoleError: (message: ExpectedError) => void;
   messages: MessageRecorder;
   /** Waits until a webview sent a request of `type`, and counts the type for the case. */
   sentMessage: (type: string) => Promise<void>;
   expectedErrors: ExpectedError[];
+  allowedErrors: ExpectedError[];
   vscodeGuard: void;
   offsiteAnswers: void;
 }
@@ -110,6 +117,12 @@ export const test = base.extend<VsCodeFixtures>({
   expectConsoleError: async ({ expectedErrors }, use) => {
     await use((message) => expectedErrors.push(message));
   },
+  allowedErrors: async ({}, use) => {
+    await use([]);
+  },
+  allowConsoleError: async ({ allowedErrors }, use) => {
+    await use((message) => allowedErrors.push(message));
+  },
   sentMessage: async ({ messages }, use, testInfo) => {
     await use(async (type) => {
       await expect.poll(() => messages.sent(type), { message: `a webview sends ${type}` }).toBe(true);
@@ -117,14 +130,14 @@ export const test = base.extend<VsCodeFixtures>({
     });
   },
   vscodeGuard: [
-    async ({ page, expectedErrors }, use, testInfo) => {
+    async ({ page, expectedErrors, allowedErrors }, use, testInfo) => {
       const problems: VsCodeProblem[] = [];
       page.on("pageerror", (error) => problems.push({ source: "pageerror", message: error.message }));
       page.on("console", (message) => {
         if (message.type() === "error") problems.push({ source: "console", message: message.text(), url: message.location().url || undefined });
       });
       await use();
-      const failures = guardFailures(problems, expectedErrors);
+      const failures = guardFailures(problems, expectedErrors, allowedErrors);
       if (failures.length === 0) return;
       // A `test.fail()` case pins one defect, and a problem the guard caught is not that defect.
       testInfo.expectedStatus = "passed";

@@ -12,6 +12,8 @@
  * every chain with no catch, so one such chain stops the export before the webview opens.
  *
  * Shown failing, each by an edit in `vscode-extension/src/web/response/apiRouter.ts`:
+ * - `startup` answering `{}`, with no export operation: the webview never showed `Export
+ *   completed` in either case;
  * - `saveExportedImage` not writing the file: the explorer listed no PNG, and the second case's
  *   blocked write did not fail;
  * - `exportImagesProgress` throwing: no image was saved, so neither case found its summary, and the
@@ -21,9 +23,8 @@
  * - `exportImagesItemWarning` showing no warning: the empty chain's notification never appeared;
  * - `exportImagesItemFailed` showing no error: the failed chain's notification never appeared.
  */
-import { test, expect } from "../../support/vscode-guard.js";
+import { test, expect, withAnyStack } from "../../support/vscode-guard.js";
 import type { VsCodePage } from "../../pages/VsCodePage.js";
-import { VSCODE_PORT } from "../../support/vscode-server.js";
 
 const COMMAND = "CIP: Export All Chain Graphs as PNG";
 const OPEN_LABEL = "Select output folder";
@@ -43,14 +44,18 @@ const DRAWN_CHAINS = [
   "e2e20008-0000-4000-8000-000000000001",
 ];
 
-/** The workspace file the blocked write targets, and what the extension logs for it. */
+/**
+ * The workspace file the blocked write targets, and what the extension logs for it. The stack names
+ * a line of the workbench's file system extension, which changes with the VS Code build.
+ */
 const BLOCKED_URI = `vscode-test-web://mount/exports/${BLOCKED_CHAIN}.png`;
-const BLOCKED_ERROR = `EntryIsADirectory (FileSystemError): ${BLOCKED_URI}\n\tat MemFileSystemProvider.writeFile (http://localhost:${VSCODE_PORT}/static/extensions/fs/dist/fsExtensionMain.js#vscode-extension:71:44)`;
+const BLOCKED_ERROR = `EntryIsADirectory (FileSystemError): ${BLOCKED_URI}`;
+/** The workbench logs every error notification. */
+const BLOCKED_NOTIFICATION = `Chain "${BLOCKED_CHAIN}": ${BLOCKED_URI}`;
 const BLOCKED_ERRORS = [
-  `%c  ERR color: #f33 [Extension Host] Failed to fetch data for CIP Extension API ${BLOCKED_ERROR}`,
-  `%c[Extension Host] %cFailed to fetch data for CIP Extension API color: blue color:  ${BLOCKED_ERROR}`,
-  // The workbench logs every error notification.
-  `Chain "${BLOCKED_CHAIN}": ${BLOCKED_URI}`,
+  withAnyStack(`%c  ERR color: #f33 [Extension Host] Failed to fetch data for CIP Extension API ${BLOCKED_ERROR}`),
+  withAnyStack(`%c[Extension Host] %cFailed to fetch data for CIP Extension API color: blue color:  ${BLOCKED_ERROR}`),
+  BLOCKED_NOTIFICATION,
 ];
 
 /** Runs the export into `folder` and waits for its summary in the webview. */
@@ -97,7 +102,7 @@ test.describe("export images", () => {
     await exportInto(vscode, "/exports/");
 
     await expect(vscode.webview.getByText("6 of 8 image file(s) exported. 1 empty chain(s) skipped. 1 failed.", { exact: true })).toBeVisible();
-    await expect(vscode.notifications.getByText(BLOCKED_ERRORS[2], { exact: true })).toBeVisible();
+    await expect(vscode.notifications.getByText(BLOCKED_NOTIFICATION, { exact: true })).toBeVisible();
     // The chains after the failed one are written too.
     for (const chainId of DRAWN_CHAINS.slice(DRAWN_CHAINS.indexOf(BLOCKED_CHAIN) + 1)) await expectImage(vscode, "/exports/", chainId);
     expect(messages.answered()).toContain("exportImagesItemFailed");

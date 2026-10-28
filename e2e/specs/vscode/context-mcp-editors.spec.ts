@@ -134,9 +134,10 @@ test.describe("context and MCP service editors", () => {
     expect(messages.answered()).toEqual(expect.arrayContaining(["getMcpService", "updateMcpService"]));
   });
 
-  test("a chain file that does not parse opens with an error", async ({ vscode, page, expectConsoleError }) => {
+  test("a chain file that does not parse opens with an error", async ({ vscode, page, allowConsoleError }) => {
     test.fail(true, "#1224: the editor opens a chain file that does not parse on Not implemented yet, with no error");
-    for (const error of PARSE_ERRORS) expectConsoleError(withAnyStack(error));
+    // The fix may stop logging them, and the pin then has to fail as a fixed pin.
+    for (const error of PARSE_ERRORS) allowConsoleError(withAnyStack(error));
     const notImplemented = vscode.webview.getByText("Not implemented yet", { exact: true });
     const parseError = vscode.webview.getByText(/not valid JSON or YAML/);
     await outsideTheDefect("breaking the chain file and opening it again", async () => {

@@ -20,6 +20,7 @@ export interface ChainElement {
 }
 
 export interface ChainFile {
+  id: string;
   name: string;
   metaInfo?: { group?: string };
   content: {

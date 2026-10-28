@@ -7,7 +7,7 @@
  *
  * Shown failing: `getChain` in `vscode-extension/src/web/response/apiRouter.ts` throwing turned the
  * case red on the guard (`[Extension Host] Failed to fetch data for CIP Extension API`) and on the
- * missing nodes. The guard itself: a `console.error`, a scheduled throw in the content frame, and a
+ * missing nodes; `navigate` answering nothing left the editor with no graph. The guard itself: a `console.error`, a scheduled throw in the content frame, and a
  * throw at the start of the extension's `activate` each turned the case red.
  */
 import { test, expect } from "../../support/vscode-guard.js";

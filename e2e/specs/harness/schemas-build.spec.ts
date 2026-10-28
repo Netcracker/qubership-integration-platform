@@ -7,12 +7,16 @@ import os from "node:os";
 import path from "node:path";
 import { test, expect } from "@playwright/test";
 import { repoRoot } from "../../env/host.js";
-import { schemasAreStale, SCHEMA_OUTPUTS, SCHEMA_SOURCES } from "../../support/schemas-build.js";
-import { BUNDLE_INPUTS, UI_BUILD_ARGS } from "../../support/ui-server.js";
+import { schemasAreStale, SCHEMA_OUTPUTS } from "../../support/schemas-build.js";
+import { BUNDLE_INPUTS } from "../../support/ui-server.js";
+
+/** The trees a case made, removed after it. */
+const made: string[] = [];
 
 /** A `schemas/` tree with one file per source and output directory, each with the given mtime in seconds. */
 function schemasTree(mtimes: Record<string, number>): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "e2e-schemas-"));
+  made.push(dir);
   for (const [relative, seconds] of Object.entries(mtimes)) {
     const file = path.join(dir, relative, "file");
     fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -23,11 +27,14 @@ function schemasTree(mtimes: Record<string, number>): string {
 }
 
 test.describe("schemas-build", () => {
+  test.afterEach(() => {
+    for (const dir of made.splice(0)) fs.rmSync(dir, { recursive: true, force: true });
+  });
+
   test("the outputs are what the schemas build writes", () => {
     const script = fs.readFileSync(path.join(repoRoot(), "schemas", "src", "main", "scripts", "build.ts"), "utf-8");
     const written = [...script.matchAll(/path\.join\(PROJECT_ROOT, "([^"]+)"\)/g)].map((match) => match[1]);
     expect(written.sort()).toEqual([...SCHEMA_OUTPUTS].sort());
-    expect(SCHEMA_SOURCES).toEqual(["src/main"]);
   });
 
   test("current when every output is newer than the sources", async () => {
@@ -50,7 +57,6 @@ test.describe("schemas-build", () => {
   });
 
   test("ui-server bundles the UI without building the schemas", () => {
-    expect(UI_BUILD_ARGS).toEqual(["run", "build", "--ignore-scripts", "-w", "@netcracker/qip-ui"]);
     // `--ignore-scripts` skips only the pre and post scripts, so the docs still come from `build`.
     const { scripts } = JSON.parse(fs.readFileSync(path.join(repoRoot(), "ui", "package.json"), "utf-8")) as {
       scripts: Record<string, string>;

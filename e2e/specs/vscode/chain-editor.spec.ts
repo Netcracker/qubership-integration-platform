@@ -11,13 +11,24 @@
  * `getConnections` stays uncovered: no screen calls it, since the editor reads the dependencies
  * from `getChain`.
  *
- * Shown failing, each by an edit in `vscode-extension/src/web/response/`:
+ * Shown failing, each by an edit in `vscode-extension/src/web/response/` run alone, each turning
+ * only its own case red unless a line names more:
  * - `getElements` answering `[]`: the element list stayed empty;
+ * - `getLibrary` with the Log Record element renamed: the drop found no Log Record to drag;
+ * - `getLibraryElementByType` answering `{}`: the form's type badge read `http-trigger`;
  * - `createConnection`, `deleteConnections`, `deleteElements`, `ungroupElements`, and
  *   `transferElement` each skipping `writeMainChain`: the file read timed out on the old text,
  *   and for `deleteElements` the guard also caught the extension host's `EntryNotFound` for the
- *   script resource it had deleted; `createConnection` alone turned only its own case red;
+ *   script resource it had deleted;
+ * - `createElement` skipping `writeMainChain`: the drop drew no Log Record, and the guard caught
+ *   `ElementId not found`;
+ * - `groupElements` skipping `writeMainChain`: both cases that group turned red, on
+ *   `ElementId not found`;
+ * - `transferElement` copying the element instead of moving it: the top level still held it;
+ * - `deleteElements` leaving the resource files: Quick Open still listed the script's resource;
  * - `cloneElements` giving the clone the id of its source: the canvas drew two nodes, not three;
+ * - `cloneElements` writing no resource for the clone: the clone kept the source's
+ *   `propertiesFilename`;
  * - `findChainByElementId` answering `null`: the sequence diagram lost the callee's name;
  * - `navigateInNewTab` and `openChainInNewTab` each answering `undefined`: no tab opened, and the
  *   guard caught the extension host's error;
@@ -31,9 +42,12 @@ import { normalizeIds, readGolden } from "../../support/vscode-golden.js";
 import { chainFile, fixture, parseChain as parse, type ChainElement, type ChainFile } from "../../support/vscode-workspace.js";
 
 /** The mocha workspace's chain: an HTTP trigger connected to a script. */
-const CHAIN = chainFile("1419390b-7423-4fab-853f-67c653e16a86");
+const CHAIN_ID = "1419390b-7423-4fab-853f-67c653e16a86";
+const CHAIN = chainFile(CHAIN_ID);
 const HTTP_TRIGGER = "7f15ea75-516e-4104-81c6-e68550a9b9e5";
 const SCRIPT = "54b4728d-7000-4350-b310-c58b792311c5";
+/** The file a script element's code lives in, beside the chain file. */
+const scriptResource = (elementId: string) => `chains/${CHAIN_ID}/resources/${elementId}.element.script.cip.groovy`;
 
 /** Four elements bound to services, with no container among them. */
 const SERVICES_CHAIN = chainFile("e2e20004-0000-4000-8000-000000000001");
@@ -73,7 +87,8 @@ test.describe("chain editor", () => {
 
     // The trigger's form holds no script editor, whose Monaco workers fail to load in the webview (#1223).
     const form = await graph.openElement(HTTP_TRIGGER);
-    await expect(form.getByRole("button", { name: "Edit name" })).toContainText("HTTP Trigger");
+    // The element's name, then its type's title from the library element; without one the badge shows `http-trigger`.
+    await expect(form.getByRole("button", { name: "Edit name" })).toHaveText(/^HTTP Trigger\s*HTTP Trigger$/);
     await expect.poll(() => messages.answered()).toContain("getLibraryElementByType");
   });
 
@@ -124,7 +139,9 @@ test.describe("chain editor", () => {
     const chain = parse(await vscode.readAsText((each) => parse(each).content.elements.length === 1));
     expect(ids(chain.content.elements)).toEqual([HTTP_TRIGGER]);
     expect(edges(chain)).toEqual([]);
-    expect(messages.answered()).toContain("deleteElements");
+    // The extension deletes the script's resource after the chain file, before it answers.
+    await expect.poll(() => messages.answered()).toContain("deleteElements");
+    expect(await vscode.listsFile(scriptResource(SCRIPT)), "the deleted script's resource is listed").toBe(false);
   });
 
   test("a group holds its elements until it is ungrouped", async ({ vscode, messages }) => {
@@ -174,7 +191,12 @@ test.describe("chain editor", () => {
     const scripts = chain.content.elements.filter((each) => each.type === "script");
     expect(scripts).toHaveLength(2);
     expect(scripts.map((each) => each.id)).toContain(SCRIPT);
-    expect(new Set(scripts.map((each) => each.id)).size).toBe(2);
+    const clone = scripts.find((each) => each.id !== SCRIPT);
+    if (!clone) throw new Error("the clone has the id of its source");
+    // The clone keeps its code in a resource of its own, with the source's code in it.
+    expect(clone.properties?.propertiesFilename).toBe(`${clone.id}.element.script.cip.groovy`);
+    await vscode.openFile(scriptResource(clone.id));
+    expect((await vscode.readText((each) => each.trim() !== "")).trim()).toBe(fixture(scriptResource(SCRIPT)).trim());
     expect(messages.answered()).toContain("cloneElements");
   });
 
@@ -202,6 +224,8 @@ test.describe("chain editor", () => {
     );
     const group = chain.content.elements.find((element) => element.id === containerId);
     expect(ids(group?.children ?? [])).toEqual([SERVICES_TRIGGER, SERVICE_CALL, MCP_TRIGGER].sort());
+    // Moved, not copied: the top level holds the container and the fourth element only.
+    expect(ids(chain.content.elements)).not.toContain(MCP_TRIGGER);
     expect(messages.answered()).toContain("transferElement");
   });
 

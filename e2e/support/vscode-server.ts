@@ -11,10 +11,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { httpStatus, newestMtimeMs, repoRoot, runToCompletion } from "../env/host.js";
-import { groupAlive, groupRuns, stopGroup } from "./process-group.js";
-import { processAlive } from "./run.js";
-import { sleep } from "./poll.js";
-import { readStateFile, writeStateFile } from "./state-file.js";
+import { groupAlive, RecordedServer } from "./process-group.js";
+import { readUntil } from "./poll.js";
 
 export const VSCODE_PORT = 3917;
 
@@ -25,7 +23,7 @@ export const VSCODE_PORT = 3917;
 export const VSCODE_COMMIT = "c718b461a175300ec6f4949c808291d2149f3f8d";
 
 /** The pinned build, or the one `E2E_VSCODE_COMMIT` names. */
-export function vscodeCommit(): string {
+function vscodeCommit(): string {
   return process.env.E2E_VSCODE_COMMIT ?? VSCODE_COMMIT;
 }
 
@@ -46,10 +44,13 @@ export const UI_LIB_INPUTS = [
   "../package-lock.json",
 ];
 
-/** What `build:lib:bundled` and `build:lib:types` write, relative to `ui/`. */
-export const UI_LIB_OUTPUT = "dist-lib";
+/**
+ * Written into `ui/dist-lib` after the suite's two library builds, and read as the time of those
+ * builds. Other builds write `dist-lib` too: `build:lib` empties it and leaves no bundled file.
+ */
+export const UI_LIB_OUTPUT = "dist-lib/.e2e-build";
 
-export const UI_LIB_BUILDS = [
+const UI_LIB_BUILDS = [
   ["run", "build:lib:bundled", "-w", "@netcracker/qip-ui"],
   ["run", "build:lib:types", "-w", "@netcracker/qip-ui"],
 ];
@@ -72,7 +73,7 @@ export const EXTENSION_INPUTS = [
  */
 export const EXTENSION_OUTPUT = "dist/.e2e-build";
 
-export const EXTENSION_BUILD = ["run", "compile-web", "-w", "@netcracker/qip-vscode-extension"];
+const EXTENSION_BUILD = ["run", "compile-web", "-w", "@netcracker/qip-vscode-extension"];
 
 /** Whether `output` is missing or older than the newest of `inputs`, all relative to `dir`. */
 async function outputIsStale(dir: string, inputs: string[], output: string): Promise<boolean> {
@@ -114,16 +115,10 @@ export function serverCommand(root = repoRoot()): { command: string; args: strin
   };
 }
 
-/** The process group of the server this suite started, and the run that started it. */
-interface VsCodeServerState {
-  pid: number;
-  owner: number;
-}
+/** The server's command line, which `stopVsCodeServer` looks for in the recorded process group. */
+export const SERVER_ARGS = new RegExp(`vscode-test-web\\b.*--port ${VSCODE_PORT}\\b`);
 
-/** The Playwright runner, whose pid `.e2e-runs.json` records; setup and teardown run in its child workers. */
-const RUNNER = process.ppid;
-
-const SERVER_ARGS = new RegExp(`vscode-test-web\\b.*--port ${VSCODE_PORT}\\b`);
+const server = new RecordedServer(STATE_FILE, SERVER_ARGS);
 
 const workbenchUrl = () => `http://localhost:${VSCODE_PORT}/`;
 
@@ -132,6 +127,7 @@ async function buildStale(): Promise<string[]> {
   const built: string[] = [];
   if (uiLib) {
     for (const args of UI_LIB_BUILDS) await runToCompletion("npm", args, repoRoot(), process.env);
+    fs.writeFileSync(path.join(repoRoot(), "ui", UI_LIB_OUTPUT), "");
     built.push("the UI library");
   }
   if (extension) {
@@ -159,13 +155,12 @@ function startServer(): number {
  * download fails or the workspace path is not a directory.
  */
 async function waitForWorkbench(pid: number, budgetMs: number): Promise<boolean> {
-  const deadline = Date.now() + budgetMs;
-  while (Date.now() < deadline) {
-    if ((await httpStatus(workbenchUrl())) === 200) return true;
-    if (!groupAlive(pid)) return false;
-    await sleep(500);
-  }
-  return false;
+  const last = await readUntil(
+    async () => ({ status: await httpStatus(workbenchUrl()), alive: groupAlive(pid) }),
+    ({ status, alive }) => status === 200 || !alive,
+    budgetMs,
+  );
+  return last.status === 200;
 }
 
 /**
@@ -175,11 +170,11 @@ async function waitForWorkbench(pid: number, budgetMs: number): Promise<boolean>
  * it. A server whose run is still going fails the setup, and so does any other server on the port.
  */
 export async function ensureVsCodeServer(): Promise<{ pid: number; built: string[] }> {
-  const found = readStateFile<VsCodeServerState>(STATE_FILE);
-  if (found && found.owner !== RUNNER && processAlive(found.owner)) {
+  const owner = server.otherLiveOwner();
+  if (owner !== null) {
     throw new Error(
       `port ${VSCODE_PORT} is served by the vscode-test-web of another e2e run still in progress ` +
-        `(runner pid ${found.owner}). Wait for it to finish or stop it: one run at a time.`,
+        `(runner pid ${owner}). Wait for it to finish or stop it: one run at a time.`,
     );
   }
   await stopVsCodeServer();
@@ -189,9 +184,14 @@ export async function ensureVsCodeServer(): Promise<{ pid: number; built: string
         `another checkout or another workspace, so stop it and run again.`,
     );
   }
+  // A missing binary would otherwise surface after the builds, as an unhandled `error` event of the child.
+  const { command } = serverCommand();
+  if (!fs.existsSync(command)) {
+    throw new Error(`${command} does not exist: run \`npm ci --legacy-peer-deps\` at the repository root`);
+  }
   const built = await buildStale();
   const pid = startServer();
-  writeStateFile<VsCodeServerState>(STATE_FILE, { pid, owner: RUNNER });
+  server.record(pid);
   if (!(await waitForWorkbench(pid, 300_000))) {
     await stopVsCodeServer();
     const log = fs.readFileSync(SERVER_LOG, "utf-8").split("\n").slice(-20).join("\n");
@@ -205,9 +205,5 @@ export async function ensureVsCodeServer(): Promise<{ pid: number; built: string
  * process group to exit. A server of a run still in progress stays up.
  */
 export async function stopVsCodeServer(): Promise<void> {
-  const state = readStateFile<VsCodeServerState>(STATE_FILE);
-  if (state && state.owner !== RUNNER && processAlive(state.owner)) return;
-  fs.rmSync(STATE_FILE, { force: true });
-  if (!state?.pid || !groupRuns(state.pid, SERVER_ARGS)) return;
-  await stopGroup(state.pid);
+  await server.stop();
 }

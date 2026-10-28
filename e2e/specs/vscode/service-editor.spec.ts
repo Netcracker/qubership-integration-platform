@@ -23,6 +23,8 @@
  *   guard caught the extension host's error;
  * - `importSpecificationGroup` and `importSpecification` each throwing, and
  *   `getImportSpecificationResult` never reporting done: the import dialog stayed open;
+ * - the import writing no specification file (`SpecificationImportService`): the group showed no
+ *   `1.0.0` row, since the tables read the files the extension wrote;
  * - `updateApiSpecificationGroup` and `updateSpecificationModel` each skipping its write: the row
  *   never showed the label;
  * - `deprecateModel` skipping its write: the status stayed `In use`, in both cases that deprecate;
@@ -129,6 +131,7 @@ test.describe("service editor", () => {
 
     await webview.getByRole("button", { name: "Add Environment" }).click();
     const added = webview.getByRole("dialog", { name: "Add Environment" });
+    // The dialog's Name field has no accessible name (#1226), so the case keeps the default name.
     await added.getByRole("textbox", { name: "* Address" }).fill("http://e2e-added.invalid");
     await added.getByRole("button", { name: "Save" }).click();
     await expect(added).toBeHidden();

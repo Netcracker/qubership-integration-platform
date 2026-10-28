@@ -340,10 +340,12 @@ holds a micro domain's pod only because a failed micro case keeps the run's micr
 - `stack-free` runs `npm run check-types` and the `schema` and `harness` projects, and annotates
   each failed case at its line.
 - `changes` lists the files the pull request's merge commit changes against its first parent, the
-  base branch. `support/pr-changes.mjs` matches them against the paths in its `JOB_PATHS` and
-  prints `vscode=true` or `vscode=false`. The paths are `vscode-extension/`, `ui/`, `schemas/`, the
-  root `package.json` and lockfile, the workflow itself, and the files under `e2e/` that only the
-  `vscode` project reads.
+  base branch, with rename detection off, so a moved file lists its old path too.
+  `support/pr-changes.mjs` matches them against the paths in its `JOB_PATHS` and prints
+  `vscode=true` or `vscode=false`. The paths are `vscode-extension/`, `ui/`, `schemas/`, the root
+  `package.json` and lockfile, the workflow itself, the package files of `e2e/`, and every file
+  under `e2e/` that the `vscode` project's specs and setups load, which
+  `specs/harness/pr-changes.spec.ts` checks.
 - `vscode` runs when `changes` printed `vscode=true`: `--project=vscode --max-failures=1`, then
   `npm run reconcile -- --only=vscode-messages` after a green run. It caches
   `vscode-extension/.vscode-test-web/` under a key built from the hash of `support/vscode-server.ts`,
@@ -352,9 +354,10 @@ holds a micro domain's pod only because a failed micro case keeps the run's micr
   ends with the result of the last scheduled `e2e-k8s.yaml` run on `main`.
 
 A skipped `vscode` job counts as passed, which is why the workflow sets no `paths` filter: a
-required check that never starts blocks the merge. The nightly `e2e-k8s.yaml` runs every project,
-`vscode` included, and the rest of the suite runs only there. Run the checks before pushing, as
-`AGENTS.md` describes.
+required check that never starts blocks the merge. A failed `changes` job skips `vscode` too, so a
+branch protection that requires `vscode` requires `changes` as well. The nightly `e2e-k8s.yaml`
+runs every project, `vscode` included, and the rest of the suite runs only there. Run the checks
+before pushing, as `AGENTS.md` describes.
 
 **Selecting cases.** Each spec file holds one top-level `test.describe` named after its subject, and
 every tag comes from a closed list:
@@ -419,9 +422,11 @@ chain, none of them needs a stack, and provisioning skips a selection of only th
 - `schemas-build` builds `schemas/` when `schemas/src/main` is newer than `schemas/assets`, `types`,
   or `dist`. `ui-server` depends on it too.
 - `vscode-server` rebuilds what is stale, then serves the workbench on 3917. The UI library is
-  stale when `ui/dist-lib` is older than what it is built from (`ui/src`, `ui/.env`,
+  stale when the marker `ui/dist-lib/.e2e-build`, which the setup writes after its two library
+  builds, is missing or older than what the library is built from (`ui/src`, `ui/.env`,
   `ui/package.json`, the library's Vite and TypeScript configs, `schemas/dist`, and the root
-  lockfile), and `build:lib:bundled` and `build:lib:types` rebuild it. The extension is stale when
+  lockfile), and `build:lib:bundled` and `build:lib:types` rebuild it. `build:lib` empties
+  `ui/dist-lib`, the marker included, and leaves no bundled file. The extension is stale when
   the library was rebuilt, or when one of `vscode-extension/src`, `package.json`,
   `webpack.config.js`, `media`, `ui/dist-lib`, `schemas/dist`, and `schemas/assets` is newer than
   the marker `vscode-extension/dist/.e2e-build`, which the setup writes after `compile-web`. The
@@ -579,7 +584,8 @@ fails, `e2e/.e2e-ui-server.log` holds the whole `vite preview` log.
 A `vscode` case fails on an uncaught exception or a `console.error` in any frame: a webview, the
 workbench, or the extension host, whose errors the workbench prints in the top frame as
 `[Extension Host] …`. The failure lists every such problem, and also every error the case declared
-with `expectConsoleError` that never arrived. The one error every page load reports, the 404 for
+with `expectConsoleError` that never arrived. An error allowed with `allowConsoleError` passes
+whether or not it arrives. The one error every page load reports, the 404 for
 `/static/devextensions/package.nls.json`, is allowed in `support/vscode-guard.ts`. The guard also
 answers every request to a host other than `localhost` and `*.localhost` with an empty 200, since
 the workbench asks the internet for its experiment assignments and its chat and Marketplace
@@ -599,10 +605,10 @@ issue:
 | --- | --- | --- |
 | #1214 | Five message types the UI sends have no handler in the extension, which answers them with no payload. | `unhandled` rows in `registry/vscode-messages.ts`, and a pin on the mapper's GraphQL schema load in `element-forms.spec.ts` |
 | #1222 | `deleteMaskedFields` skips the field at index 0. | a pin in `chain-properties.spec.ts` |
-| #1223 | The webview's request for a Monaco worker answers 404, and the frame raises an uncaught `Event`. | `expectConsoleError` in the Monaco cases of `element-forms.spec.ts` |
+| #1223 | The webview's request for a Monaco worker answers 404, and the frame raises an uncaught `Event`. | `expectConsoleError` in the Monaco cases of `element-forms.spec.ts`, `allowConsoleError` in its #1214 pin; `chain-editor.spec.ts` opens a form with no script editor |
 | #1224 | A chain file that does not parse opens on "Not implemented yet", with no error. | a pin in `context-mcp-editors.spec.ts` |
 | #1225 | A context service's labels are not saved. | a pin in `context-mcp-editors.spec.ts` |
-| #1226 | The inline labels editor resets on a redraw, the MCP form keeps Save enabled after a save, and the environment dialog's Name field has no accessible name. | waits in `service-editor.spec.ts` and `context-mcp-editors.spec.ts` |
+| #1226 | The inline labels editor resets on a redraw, the MCP form keeps Save enabled after a save, and the environment dialog's Name field has no accessible name. | waits in `service-editor.spec.ts` and `context-mcp-editors.spec.ts`, and the environment case of `service-editor.spec.ts` keeps the dialog's default name |
 | #1236 | The element form moves focus to its root after its open animation, which closes a select the user already opened. | `ChainGraphPage.openElement` waits for that move |
 
 A fix removes its pin or its declaration, since the case that then passes is the regression case.
@@ -707,7 +713,7 @@ E2E_PROVISION=never npm test   # check health only, and fail naming whatever is 
 
 Use it against a stack somebody else provisioned, or one you are debugging: nothing is built,
 started, or recreated. A run whose `--project` selection needs no stack skips provisioning and
-prints `[provision] skipped: the selected projects need no stack (schema, harness)`. Such a
+prints `[provision] skipped: the selected projects need no stack (<the selected projects>)`. Such a
 selection names only `schema`, `harness`, `schemas-build`, `vscode-server`, `vscode`, or the
 teardown of `vscode-server`, which declare `metadata: { stack: false }`.
 

@@ -3,7 +3,9 @@
  * resources, and what the service fields list from the workspace.
  *
  * A Monaco editor in the webview asks for its worker at the workbench origin, which answers 404,
- * and the frame then raises an uncaught `Event` (#1223); the cases that open one declare it.
+ * and the frame then raises an uncaught `Event` (#1223); the cases that open one declare it. The
+ * pinned case ends soon after its editors mount, before the error arrives on some runs, so it
+ * allows the error instead.
  *
  * The mapper's schema load for a GraphQL service call is pinned on #1214: the extension has no
  * handler for `getSpecificationModelSource`, answers it with no payload, and the dialog's schema
@@ -17,6 +19,10 @@
  * - the JSON resource not written: the mapper form stayed open, and the guard caught the extension
  *   host's `EntryNotFound`;
  * - `getServices` answering `[]`: the service-call and HTTP trigger cases lost their service;
+ * - `getService` answering `{}`: the HTTP trigger's base path lost the address;
+ * - `getOperations` answering `[]`: the service call lost `createOrder`;
+ * - `getEnvironments` answering `[]`: the additional parameters lost `soTimeout`;
+ * - `getApiSpecifications` answering `[]`: the picked service brought no `widgets` specification;
  * - `getLatestApiSpecification` throwing: the specification stayed empty after the service changed;
  * - `getEnvironment` answering `{}`: the base path lost the address;
  * - `getContextServices` and `getMcpServices` each answering `[]`: the form showed no service name;
@@ -204,9 +210,9 @@ test.describe("element forms", () => {
     expect(messages.answered()).toContain("getMcpServices");
   });
 
-  test("the mapper loads the GraphQL schema of the call before it", async ({ vscode, messages, expectConsoleError }) => {
+  test("the mapper loads the GraphQL schema of the call before it", async ({ vscode, messages, allowConsoleError }) => {
     test.fail(true, "#1214: the extension has no handler for getSpecificationModelSource, so the schema arrives empty");
-    expectConsoleError(MONACO_WORKER_ERROR);
+    allowConsoleError(MONACO_WORKER_ERROR);
     const dialog = await outsideTheDefect("opening the mapper's Load source dialog on the GraphQL call", async () => {
       await vscode.open();
       await vscode.openFile(GRAPHQL_CHAIN);

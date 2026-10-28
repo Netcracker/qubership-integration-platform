@@ -115,6 +115,11 @@ makes to a file, a tab a message opens, a notification. A behavior of the extens
 such as a command or a read through `workspace.fs`, belongs in the extension's integration suite.
 The selector and waiting rules above hold inside the webview too.
 
+A case starts with `await vscode.open()`, where the `vscode` fixture is a `VsCodePage` over the
+case's `page`. Each case runs in Playwright's per-test `context`, never a worker-scoped one: VS Code
+for the web restores open editors and `workspaceState` from IndexedDB, so a shared context would
+open one case on the editors the case before it left.
+
 **Every spec imports `test` and `expect` from `support/vscode-guard.ts`, never from
 `page-guard.ts`,** whose fixtures need the stack. Its automatic guard fails the case on an uncaught
 exception or a `console.error` in any frame, the extension host's included. It cannot tell the
@@ -127,12 +132,20 @@ that meets a product error declares it with `expectConsoleError`, naming the iss
   in `extension.js` change with every build of the extension;
 - a declaration that never matches fails the case, so declare an error only where it arrives every
   time. An error that arrives only sometimes, such as Monaco's `Event` (#1223), is kept out of the
-  case instead: the chain editor case opens a form with no script editor.
+  case where the case can avoid it: the chain editor case opens a form with no script editor;
+- `allowConsoleError` lets an error through without requiring it. A pinned case uses it for an
+  error its fix may stop raising, since a declared error that stops arriving fails the case for
+  real, and for an error it cannot avoid that arrives only sometimes.
 
 A guard failure clears `test.fail()` here as well. The `offsiteAnswers` fixture answers every
 request to a host other than `localhost` and `*.localhost` with an empty 200: the workbench asks the
 internet for its experiment assignments and its chat and Marketplace manifests, and a request that
 fails logs a `console.error`.
+
+`VsCodePage` presses the key of Quick Open or the command palette again while no quick input shows,
+up to 20 times, an exception to rule 9 in `SKILL.md`. The workbench registers its keybindings some
+time after it renders and shows no state that marks it, and a key pressed before that opens
+nothing. A press that opened the input is not repeated.
 
 **Frames.** `VsCodePage.webview` is the content frame of the visible webview,
 `iframe.webview.ready:visible` and then `#active-frame`, since a webview a case left stays in the

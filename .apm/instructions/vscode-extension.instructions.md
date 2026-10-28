@@ -53,6 +53,9 @@ Domain types (`Chain`, `Element`, `LibraryData`, message envelopes) come from `@
 - `e2e/registry/vscode-messages.ts` holds one row per message type of the webview bridge. A message type added to or
   removed from `getApiResponse`, or from what `ui/src` sends, changes its row in the same commit, or
   `e2e/specs/harness/vscode-messages.spec.ts` fails.
+- A pull request that changes `vscode-extension/`, `ui/`, `schemas/`, or the root `package.json` or lockfile runs
+  the `vscode` job of `.github/workflows/e2e-pr.yaml`, about 10 minutes. Run it before pushing with
+  `cd e2e && npm test -- --project=vscode`: it needs no stack, and it never takes `--no-deps`.
 - Jest cases live under `tests/` and beside their sources in `src/web/api-services/` and `src/web/services/`. Level-2
   specs live in `src/web/test/suite/`, which Jest ignores.
 - Jest maps `vscode` to the fake in `tests/fake-vscode/`, an in-memory filesystem. Seed it with `seedWorkspace`,

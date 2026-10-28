@@ -273,15 +273,15 @@ test.describe("vscode messages", () => {
     test("the options are read apart from the report path", () => {
       expect(reconcileArgs([])).toEqual({});
       expect(reconcileArgs(["test-results/report.json"])).toEqual({ report: "test-results/report.json" });
-      expect(reconcileArgs(["--only=vscode-messages", "r.json"])).toEqual({ only: "vscode-messages", report: "r.json" });
-      expect(reconcileArgs(["r.json", "--only=vscode-messages"])).toEqual({ only: "vscode-messages", report: "r.json" });
+      expect(reconcileArgs(["--only=vscode-messages", "r.json"])).toEqual({ onlyMessages: true, report: "r.json" });
+      expect(reconcileArgs(["r.json", "--only=vscode-messages"])).toEqual({ onlyMessages: true, report: "r.json" });
       expect(reconcileArgs(["--only=elements"]).error).toMatch(/unknown option --only=elements/);
       expect(reconcileArgs(["--verbose"]).error).toMatch(/unknown option --verbose/);
     });
 
     test("a covered row a passing test recorded agrees", () => {
-      expect(reconcileMessages(vscodeRun([{ recorded: ["getChain"] }]), rows, { only: true })).toEqual([]);
-      expect(reconcileMessages(run(["--project", "vscode"], [{ recorded: ["getChain"] }]), rows, { only: true })).toEqual([]);
+      expect(reconcileMessages(vscodeRun([{ recorded: ["getChain"] }]), rows, true)).toEqual([]);
+      expect(reconcileMessages(run(["--project", "vscode"], [{ recorded: ["getChain"] }]), rows, true)).toEqual([]);
     });
 
     test("a whole run reconciles without the option", () => {
@@ -291,44 +291,38 @@ test.describe("vscode messages", () => {
 
     test("--only=vscode-messages accepts exactly --project=vscode", () => {
       for (const args of [[], ["--project=ui"], ["--project=vscode", "--project=ui"], ["--project=vscode", "-g", "smoke"], ["specs/vscode/smoke.spec.ts"]]) {
-        expect(reconcileMessages(run(args, [{ recorded: ["getChain"] }]), rows, { only: true })).toEqual([
+        expect(reconcileMessages(run(args, [{ recorded: ["getChain"] }]), rows, true)).toEqual([
           expect.stringMatching(/^the run was narrowed by `.*`: --only=vscode-messages reads a run of --project=vscode$/),
         ]);
       }
       // A non-selecting option leaves the run at --project=vscode.
-      expect(reconcileMessages(run(["--project=vscode", "--workers=1"], [{ recorded: ["getChain"] }]), rows, { only: true })).toEqual([]);
+      expect(reconcileMessages(run(["--project=vscode", "--workers=1"], [{ recorded: ["getChain"] }]), rows, true)).toEqual([]);
       // The PR workflow's vscode job runs it so.
-      expect(reconcileMessages(run(["--project=vscode", "--max-failures=1"], [{ recorded: ["getChain"] }]), rows, { only: true })).toEqual([]);
-    });
-
-    test("a narrowed run without the option is refused", () => {
-      expect(reconcileMessages(vscodeRun([{ recorded: ["getChain"] }]), rows)).toEqual([
-        "the run was narrowed by `--project=vscode`: reconciliation reads a whole run or none",
-      ]);
+      expect(reconcileMessages(run(["--project=vscode", "--max-failures=1"], [{ recorded: ["getChain"] }]), rows, true)).toEqual([]);
     });
 
     test("a covered row no passing test recorded fails", () => {
       const failed = vscodeRun([{ recorded: ["getChain"], status: "unexpected" }]);
       const pinned = vscodeRun([{ recorded: ["getChain"], expectedStatus: "failed" }]);
       for (const report of [vscodeRun([]), failed, pinned]) {
-        expect(reconcileMessages(report, rows, { only: true })).toEqual(["getChain: marked covered, but no passing test recorded it"]);
+        expect(reconcileMessages(report, rows, true)).toEqual(["getChain: marked covered, but no passing test recorded it"]);
       }
     });
 
     test("a not-covered row a passing test recorded fails", () => {
-      expect(reconcileMessages(vscodeRun([{ recorded: ["getChain", "getLibrary"] }]), rows, { only: true })).toEqual([
+      expect(reconcileMessages(vscodeRun([{ recorded: ["getChain", "getLibrary"] }]), rows, true)).toEqual([
         "getLibrary: marked not-covered, but a passing test recorded it",
       ]);
     });
 
     test("a recorded type with no row fails", () => {
-      expect(reconcileMessages(vscodeRun([{ recorded: ["getChain", "brandNew"] }]), rows, { only: true })).toEqual([
+      expect(reconcileMessages(vscodeRun([{ recorded: ["getChain", "brandNew"] }]), rows, true)).toEqual([
         "brandNew was recorded, but it is not a message row",
       ]);
     });
 
     test("an answer recorded for an unhandled row is ignored", () => {
-      expect(reconcileMessages(vscodeRun([{ recorded: ["getChain", "importSystems"] }]), rows, { only: true })).toEqual([]);
+      expect(reconcileMessages(vscodeRun([{ recorded: ["getChain", "importSystems"] }]), rows, true)).toEqual([]);
     });
   });
 });

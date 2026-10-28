@@ -8,7 +8,7 @@ import path from "node:path";
 import { newestMtimeMs, repoRoot, runToCompletion } from "../env/host.js";
 
 /** What the schemas are built from, relative to `schemas/`: the schema sources and the build scripts. */
-export const SCHEMA_SOURCES = ["src/main"];
+const SCHEMA_SOURCES = ["src/main"];
 
 /** What `npm run build` writes, relative to `schemas/`. The build deletes all three first. */
 export const SCHEMA_OUTPUTS = ["assets", "types", "dist"];

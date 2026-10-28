@@ -1161,24 +1161,22 @@ function countTests(report: JsonReport): number {
   return total;
 }
 
-/** What `npm run reconcile` reads one registry alone for: `--only=<name>`. */
-export const RECONCILE_ONLY = ["vscode-messages"] as const;
+/** The one option of `npm run reconcile`: reconcile the message registry alone. */
+const ONLY_MESSAGES = "--only=vscode-messages";
 
 /**
  * The arguments of `reconcile.mjs`: the report path, and the options apart from it, so an option is
  * never read as a path.
  */
-export function reconcileArgs(argv: readonly string[]): { report?: string; only?: (typeof RECONCILE_ONLY)[number]; error?: string } {
-  const result: { report?: string; only?: (typeof RECONCILE_ONLY)[number]; error?: string } = {};
+export function reconcileArgs(argv: readonly string[]): { report?: string; onlyMessages?: boolean; error?: string } {
+  const result: { report?: string; onlyMessages?: boolean; error?: string } = {};
   for (const argument of argv) {
     if (!argument.startsWith("-")) {
       result.report ??= argument;
       continue;
     }
-    const value = /^--only=(.*)$/.exec(argument)?.[1];
-    const known = RECONCILE_ONLY.find((name) => name === value);
-    if (known === undefined) return { error: `unknown option ${argument}; the one option is --only=${RECONCILE_ONLY.join("|")}` };
-    result.only = known;
+    if (argument !== ONLY_MESSAGES) return { error: `unknown option ${argument}; the one option is ${ONLY_MESSAGES}` };
+    result.onlyMessages = true;
   }
   return result;
 }

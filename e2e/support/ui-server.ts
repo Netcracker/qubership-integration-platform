@@ -11,10 +11,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { newestMtimeMs, repoRoot, runToCompletion } from "../env/host.js";
-import { groupAlive, groupRuns, stopGroup } from "./process-group.js";
-import { processAlive } from "./run.js";
+import { groupAlive, RecordedServer } from "./process-group.js";
 import { sleep } from "./poll.js";
-import { readStateFile, writeStateFile } from "./state-file.js";
 
 export const UI_PORT = 4200;
 
@@ -54,14 +52,7 @@ export const BUNDLE_INPUTS = [
   "../package-lock.json",
 ];
 
-/** The process group of the preview this suite started, and the run that started it. */
-interface UiServerState {
-  pid: number;
-  owner: number;
-}
-
-/** The Playwright runner, whose pid `.e2e-runs.json` records; setup and teardown run in its child workers. */
-const RUNNER = process.ppid;
+const server = new RecordedServer(STATE_FILE, new RegExp(`\\bpreview\\b.*--port ${UI_PORT}\\b`));
 
 function uiDir(): string {
   return path.resolve(repoRoot(), "ui");
@@ -109,7 +100,7 @@ async function bundleIsStale(): Promise<boolean> {
  * The bundle build, `fetch-docs` included. `--ignore-scripts` skips the UI's `prebuild`, which would
  * build the schemas a second time after the `schemas-build` project.
  */
-export const UI_BUILD_ARGS = ["run", "build", "--ignore-scripts", "-w", "@netcracker/qip-ui"];
+const UI_BUILD_ARGS = ["run", "build", "--ignore-scripts", "-w", "@netcracker/qip-ui"];
 
 /** Builds the bundle with `BUILD_ENV`, which Vite reads at build time, and marks it as the suite's. */
 async function buildBundle(): Promise<void> {
@@ -154,11 +145,11 @@ async function waitForPort(pid: number, budgetMs: number): Promise<boolean> {
  * `stopUiServer`.
  */
 export async function ensureUiServer(): Promise<{ pid: number | null; built: boolean }> {
-  const found = readStateFile<UiServerState>(STATE_FILE);
-  if (found && found.owner !== RUNNER && processAlive(found.owner)) {
+  const owner = server.otherLiveOwner();
+  if (owner !== null) {
     throw new Error(
       `port ${UI_PORT} is served by the vite preview of another e2e run still in progress (runner pid ` +
-        `${found.owner}). Wait for it to finish or stop it: one run per stack at a time.`,
+        `${owner}). Wait for it to finish or stop it: one run per stack at a time.`,
     );
   }
   await stopUiServer();
@@ -170,7 +161,7 @@ export async function ensureUiServer(): Promise<{ pid: number | null; built: boo
     });
   }
   const pid = startPreview();
-  writeStateFile<UiServerState>(STATE_FILE, { pid, owner: RUNNER });
+  server.record(pid);
   if (!(await waitForPort(pid, 60_000))) {
     await stopUiServer();
     const log = fs.readFileSync(PREVIEW_LOG, "utf-8").split("\n").slice(-20).join("\n");
@@ -188,9 +179,5 @@ export async function ensureUiServer(): Promise<{ pid: number | null; built: boo
  * stay up.
  */
 export async function stopUiServer(): Promise<void> {
-  const state = readStateFile<UiServerState>(STATE_FILE);
-  if (state && state.owner !== RUNNER && processAlive(state.owner)) return;
-  fs.rmSync(STATE_FILE, { force: true });
-  if (!state?.pid || !groupRuns(state.pid, new RegExp(`\\bpreview\\b.*--port ${UI_PORT}\\b`))) return;
-  await stopGroup(state.pid);
+  await server.stop();
 }

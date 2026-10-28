@@ -1,6 +1,7 @@
 /**
- * What the `vscode` guard lets through: the measured allowlist, and the errors a case declares with
- * `expectConsoleError`. Also which hosts the page reaches rather than an empty answer.
+ * What the `vscode` guard lets through: the measured allowlist, the errors a case declares with
+ * `expectConsoleError`, and those it allows with `allowConsoleError`. Also which hosts the page
+ * reaches rather than an empty answer.
  */
 import { test, expect } from "@playwright/test";
 import { ALLOWED, guardFailures, isLocal, withAnyStack, type VsCodeProblem } from "../../support/vscode-guard.js";
@@ -51,6 +52,13 @@ test.describe("vscode guard", () => {
 
   test("an expected error that never arrives fails the case", () => {
     expect(guardFailures([], ["Event"])).toEqual(["the expected error never arrived: Event"]);
+  });
+
+  test("an allowed error passes, and its absence fails nothing", () => {
+    expect(guardFailures([{ source: "pageerror", message: "Event" }], [], ["Event"])).toEqual([]);
+    expect(guardFailures([], [], ["Event"])).toEqual([]);
+    // It lets through its own message only.
+    expect(guardFailures([{ source: "pageerror", message: "Event loop stalled" }], [], ["Event"])).toEqual(["uncaught Event loop stalled"]);
   });
 
   test("an undeclared error fails beside a declared one", () => {

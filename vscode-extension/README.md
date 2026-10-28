@@ -14,6 +14,10 @@ This application should be built by Visual Studio Code itself (usually F5 hotkey
 Run `npm run test:unit` for the Jest suite and `npm run test:integration` for the integration tests, which run in
 VS Code for the Web and need the upstream builds from `npm run prepare-deps`.
 
+The editors' webviews are covered by the `vscode` project of the end-to-end suite. Run it from `e2e/` with
+`npm test -- --project=vscode`; it needs no stack and builds what it needs. See
+[The `vscode` project](../e2e/README.md#the-vscode-project).
+
 ## Contribution
 
 For the details on contribution, see [Contribution Guide](../CONTRIBUTING.md). For details on reporting of security issues

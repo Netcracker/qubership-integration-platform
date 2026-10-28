@@ -6,7 +6,9 @@
  * `e2e/pages/VsCodePage.ts` entry renamed to `e2e/pages/VSCodePage.ts` ("every path matches a
  * tracked file" and "a change under each path runs the vscode job"); the job output renamed to
  * `vs-code`, and the vscode job's `if` replaced by `always()` ("the workflow gates each job on its
- * output"); the printed value negated ("the script prints one output per job").
+ * output"); the printed value negated ("the script prints one output per job"); the
+ * `e2e/env/host.ts` entry removed ("a change to any file the vscode project loads runs its job");
+ * `--no-renames` dropped from the workflow ("the workflow gates each job on its output").
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -16,8 +18,32 @@ import { test, expect } from "@playwright/test";
 import { repoRoot } from "../../env/host.js";
 import { JOB_PATHS, globRegExp, jobsFor } from "../../support/pr-changes.mjs";
 
-const SCRIPT = path.join(repoRoot(), "e2e", "support", "pr-changes.mjs");
+const E2E = path.join(repoRoot(), "e2e");
+const SCRIPT = path.join(E2E, "support", "pr-changes.mjs");
 const WORKFLOW = path.join(repoRoot(), ".github", "workflows", "e2e-pr.yaml");
+
+/** A runtime import or re-export, and a bare `import "…"`. A type-only import is erased, and `check-types` reads it. */
+const IMPORT = /^\s*(?:import|export)\s+(?!type\s)(?:[^"';]*?\sfrom\s+)?["'](\.[^"']+)["']/gm;
+
+/**
+ * Every file `seeds` load, relative to the repository root. The config's own imports load in every
+ * project, so the stack-free job's harness run reads them.
+ */
+function importClosure(seeds: string[]): string[] {
+  const seen = new Set<string>();
+  const visit = (file: string) => {
+    if (seen.has(file)) return;
+    seen.add(file);
+    for (const [, specifier] of fs.readFileSync(file, "utf-8").matchAll(IMPORT)) {
+      const target = path.resolve(path.dirname(file), specifier);
+      const found = [target, target.replace(/\.js$/, ".ts")].find((each) => fs.existsSync(each));
+      if (!found) throw new Error(`${path.relative(E2E, file)} imports ${specifier}, which resolves to no file`);
+      visit(found);
+    }
+  };
+  for (const seed of seeds) visit(seed);
+  return [...seen].map((file) => path.relative(repoRoot(), file)).sort();
+}
 
 type Job = { if?: string; needs?: string | string[]; outputs?: Record<string, string>; steps?: { id?: string; run?: string }[] };
 
@@ -28,6 +54,18 @@ test.describe("pr-changes", () => {
       .flat()
       .filter((glob) => !tracked.some((file) => globRegExp(glob).test(file)));
     expect(unmatched).toEqual([]);
+  });
+
+  test("a change to any file the vscode project loads runs its job", () => {
+    const seeds = execFileSync("git", ["ls-files", "specs/vscode*", "specs/schemas-build"], { cwd: E2E, encoding: "utf-8" })
+      .split("\n")
+      .filter((file) => /\.(ts|mjs)$/.test(file))
+      .map((file) => path.join(E2E, file));
+    const loaded = importClosure([...seeds, path.join(E2E, "registry", "reconcile.mjs")]);
+    // The closure reaches past the trees the project's own globs name.
+    expect(loaded).toEqual(expect.arrayContaining(["e2e/pages/ChainGraphPage.ts", "e2e/registry/elements.ts", "e2e/env/host.ts"]));
+    const packageFiles = ["e2e/package.json", "e2e/package-lock.json", "e2e/tsconfig.json"];
+    expect([...loaded, ...packageFiles].filter((file) => !jobsFor([file]).vscode)).toEqual([]);
   });
 
   test("a change under each path runs the vscode job", () => {
@@ -61,14 +99,13 @@ test.describe("pr-changes", () => {
       "vscode-extension-notes.md",
       "ui-old/index.ts",
       "packages/app/settings.json",
-      "e2e/package.json",
       "e2e/specs/ui/chains.spec.ts",
       "e2e/specs/harness/target.spec.ts",
       "e2e/specs/harness/nested/vscode-guard.spec.ts",
       "e2e/support/ui-server.ts",
       "e2e/support/nested/vscode-server.ts",
-      "e2e/pages/ChainGraphPage.ts",
-      "e2e/registry/elements.ts",
+      "e2e/pages/ChainsPage.ts",
+      "e2e/registry/operations.cache.json",
       ".github/workflows/e2e-k8s.yaml",
     ];
     expect(jobsFor(changed)).toEqual({ vscode: false });
@@ -86,6 +123,8 @@ test.describe("pr-changes", () => {
     const changes = jobs["changes"];
     const step = changes.steps?.find((each) => each.run?.includes("support/pr-changes.mjs"));
     expect(step?.id, "the changes job runs the script in a step with an id").toBeTruthy();
+    // With rename detection a file moved out of a watched tree lists only its new path.
+    expect(step?.run).toMatch(/git diff --name-only --no-renames HEAD\^1 HEAD \|/);
     const outputs = Object.fromEntries(Object.keys(JOB_PATHS).map((job) => [job, `\${{ steps.${step?.id}.outputs.${job} }}`]));
     expect(changes.outputs).toEqual(outputs);
     for (const job of Object.keys(JOB_PATHS)) {

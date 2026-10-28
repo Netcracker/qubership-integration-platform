@@ -10,20 +10,27 @@
  * so the field comes back when the chain is opened again (#1222). The pinned case carries it, and the
  * other case deletes the second of two fields.
  *
- * Shown failing, each by an edit in `vscode-extension/src/web/response/chainApiModify.ts`:
+ * Shown failing, each by an edit in `vscode-extension/src/web/response/` run alone:
  * - `updateChain` skipping `writeMainChain`: the file read timed out on the old name;
  * - `changeFolder` skipping `writeMainChain`: the group was missing from the written file;
  * - `updateMaskedField` skipping `writeMainChain`: the file held a field with an empty name;
+ * - `getMaskedFields` answering no fields: the reopened Masking tab listed none;
+ * - `createMaskedField` skipping `writeMainChain`: both masked-field cases lost the row, the pin
+ *   through `outsideTheDefect`, and the guard caught `Masked Field not found`;
+ * - `deleteMaskedFields` skipping `writeMainChain`: the file read timed out on two fields;
+ * - an undeclared `console.error` in the pinned case: the guard turned it red, and with the guard
+ *   no longer clearing `expectedStatus` the same error passed as the expected failure;
  * - `if (index >= 0)` in `deleteMaskedFields`, the fix: the pinned case passed, so `test.fail()`
  *   turned it red.
  */
 import type { FrameLocator } from "@playwright/test";
 import { test, expect } from "../../support/vscode-guard.js";
 import { TableView } from "../../pages/TableView.js";
-import { outsideTheDefect } from "../../support/known-defect.js";
+import { notTheKnownDefect, outsideTheDefect } from "../../support/known-defect.js";
 import { chainFile, parseChain } from "../../support/vscode-workspace.js";
 
-const CHAIN = chainFile("1419390b-7423-4fab-853f-67c653e16a86");
+const CHAIN_ID = "1419390b-7423-4fab-853f-67c653e16a86";
+const CHAIN = chainFile(CHAIN_ID);
 
 /** A field of the Properties form by its label, which antd names with a trailing colon and, when required, a leading `* `. */
 const field = (webview: FrameLocator, role: "textbox" | "combobox", label: string) =>
@@ -76,6 +83,11 @@ test.describe("chain properties", () => {
     await expect.poll(() => messages.answered()).toContain("deleteMaskedFields");
 
     expect(maskedNames(await vscode.readAsText((each) => maskedNames(each).length === 1))).toEqual(["e2eFirst"]);
+    // Opened again, the tab lists what getMaskedFields reads from the file.
+    await vscode.reopenWith("CIP Chain File Visual Editor");
+    await webview.getByRole("tab", { name: "Masking", exact: true }).click();
+    await expect(table.row("e2eFirst")).toBeVisible();
+    await expect(table.rows).toHaveCount(1);
     expect(messages.answered()).toEqual(expect.arrayContaining(["getMaskedFields", "createMaskedField", "updateMaskedField"]));
   });
 
@@ -94,9 +106,13 @@ test.describe("chain properties", () => {
       await expect(webview.getByText("No masked fields")).toBeVisible();
       await expect.poll(() => messages.answered()).toContain("deleteMaskedFields");
       // Every write is in before the text editor opens, so it reads the file the delete left.
-      return await vscode.readAsText();
+      return await vscode.readAsText((each) => parseChain(each).id === CHAIN_ID);
     });
-    expect(maskedNames(text)).toEqual([]);
+    const names = maskedNames(text);
+    if (names.length > 0 && JSON.stringify(names) !== JSON.stringify(["e2eOnly"])) {
+      notTheKnownDefect(`the defect leaves the deleted field e2eOnly in the file, but the file holds ${JSON.stringify(names)}`);
+    }
+    expect(names).toEqual([]);
   });
 });
 

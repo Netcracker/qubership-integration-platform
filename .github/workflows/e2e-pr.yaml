@@ -79,7 +79,8 @@ jobs:
 
       - name: Decide which jobs run
         id: paths
-        run: git diff --name-only HEAD^1 HEAD | node support/pr-changes.mjs | tee -a "$GITHUB_OUTPUT"
+        # --no-renames lists a moved file under its old path too, which may be a watched one.
+        run: git diff --name-only --no-renames HEAD^1 HEAD | node support/pr-changes.mjs | tee -a "$GITHUB_OUTPUT"
 
   vscode:
     name: VS Code editors
