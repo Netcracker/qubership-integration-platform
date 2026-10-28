@@ -25,7 +25,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 
 class RequirementCapabilityConsistencyTest {
   private static final String SOURCE = "Receive POST /work. Invoke the existing catalog operation. "
-      + "Do not add native senders. No IDS.";
+      + "Process work. Do not add native senders. No IDS.";
   private static final String QUOTE = "Do not add native senders.";
   private static final String CONFLICT = "CAPABILITY_ANCHOR_CONFLICT";
   private final ObjectMapper json = new ObjectMapper().findAndRegisterModules();
@@ -177,8 +177,13 @@ class RequirementCapabilityConsistencyTest {
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
   void pendingCorrectionRetainsAnAcceptedPartialBaseAndItsOriginalHistory(boolean reload) throws Exception {
-    var h = new Harness(); h.begin();
-    var initial = input(false);
+    var h = new Harness(); var source = h.begin();
+    var original = input(false);
+    var initial = new DraftInput(original.flow(), original.facts().stream().map(fact ->
+        fact.sourceFactId().equals("entryAnchor") ? fact : new FactInput(fact.sourceFactId(), fact.interactionIds(),
+            fact.kind(), fact.polarity(), fact.text(), fact.fieldMapping(), fact.policyConflict(), fact.elementIntent(),
+            new ClaimEvidenceInput(source.turnId(), fact.text()))).toList(), original.capabilities(),
+        original.openQuestions(), original.settings());
     var partial = new DraftInput(new FlowInput(List.of(initial.flow().interactions().getFirst()), List.of()),
         List.of(initial.facts().get(1)), initial.capabilities(), List.of(), initial.settings());
     h.store.put(h.chat, RequirementCaptureProjection.toDraft(partial, null, List.of(), "1", "hash"));

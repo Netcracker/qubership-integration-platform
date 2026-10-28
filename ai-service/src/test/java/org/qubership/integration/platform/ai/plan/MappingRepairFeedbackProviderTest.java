@@ -99,7 +99,10 @@ class MappingRepairFeedbackProviderTest {
     var changedText = mapping(mapping.sourceFactId(), "Return only a shortened receipt.",
         corrected.fieldMapping().targetPath(), corrected.fieldMapping().expression());
     var unauthorized = mapping("unapproved-extra", "Add an extra result.", "$.extra", "Constant arbitrary");
-    var allowed = mapping("command", "Set the result command.", "$.command", "Constant completed");
+    var command = mapping("command", "Set the result command.", "$.command", "Constant completed");
+    var allowed = new FactInput(command.sourceFactId(), command.interactionIds(), command.kind(), command.polarity(),
+        command.text(), command.fieldMapping(), command.policyConflict(), command.elementIntent(),
+        new RequirementCaptureInput.ClaimEvidenceInput(sourceInput.turnId(), "Set the result command to completed."));
     var missing = json.convertValue(Map.of("sourceRef", "entry", "targetRef", "delivery", "targetPath", "$.command"),
         MappingValidationDetails.class);
     var script = new ScriptedStreamingChatModel(

@@ -71,7 +71,8 @@ class IdsChoiceRuntimeTest {
     assertEquals(idsGate ? 0 : 1, calls.get());
     assertEquals(partial.facts(), store.get(chat).orElseThrow().facts());
     assertEquals(partial.openQuestions(), store.get(chat).orElseThrow().openQuestions());
-    assertEquals(RunStatus.WAITING_FOR_INPUT, runs.load(run).orElseThrow().run().status());
+    assertEquals(idsGate ? RunStatus.RUNNING : RunStatus.WAITING_FOR_INPUT,
+        runs.load(run).orElseThrow().run().status());
     assertEquals(answer, artifacts.payload(artifacts.latest(run, CompilationArtifacts.Kind.USER_INPUT).orElseThrow(),
         UserInput.class).text());
   }

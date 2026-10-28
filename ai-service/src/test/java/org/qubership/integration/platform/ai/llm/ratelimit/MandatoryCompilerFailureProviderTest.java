@@ -53,6 +53,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.*;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.*;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.*;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.*;
+import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeSidecarApi;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.*;
 import org.qubership.integration.platform.ai.productpipeline.profile.*;
 import org.qubership.integration.platform.ai.productpipeline.profile.RetryPolicy;
@@ -108,6 +109,10 @@ class MandatoryCompilerFailureProviderTest {
     var fixture = FakeKnowledgeClient.defaultFixture();
     when(knowledgeContext.forConversation(anyString())).thenReturn(fixture.context());
     when(knowledge.context(any(), any())).thenAnswer(call -> fixture.context(call.getArgument(0), call.getArgument(1)));
+    when(knowledge.documentationManifest()).thenReturn(
+        new KnowledgeSidecarApi.DocumentationManifestDto(1, "sha256:" + "d".repeat(64), 1, 1));
+    when(knowledge.searchDocumentation(any(), any(), any(), anyInt())).thenReturn(
+        new KnowledgeSidecarApi.DocumentationSearchDto("sha256:" + "d".repeat(64), List.of()));
     var h = new Harness();
     var controlDirectory = evidence.resolve("captures");
     Files.createDirectories(controlDirectory);
@@ -283,6 +288,10 @@ class MandatoryCompilerFailureProviderTest {
     var fixture = FakeKnowledgeClient.defaultFixture();
     when(knowledgeContext.forConversation(anyString())).thenReturn(fixture.context());
     when(knowledge.context(any(), any())).thenAnswer(call -> fixture.context(call.getArgument(0), call.getArgument(1)));
+    when(knowledge.documentationManifest()).thenReturn(
+        new KnowledgeSidecarApi.DocumentationManifestDto(1, "sha256:" + "d".repeat(64), 1, 1));
+    when(knowledge.searchDocumentation(any(), any(), any(), anyInt())).thenReturn(
+        new KnowledgeSidecarApi.DocumentationSearchDto("sha256:" + "d".repeat(64), List.of()));
     var h = new Harness();
     String tail = "permitted-raw-tail-847e";
     String raw = RAW + "x".repeat(14_000) + tail;

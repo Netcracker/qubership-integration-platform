@@ -143,7 +143,7 @@ class UnboundLiteralFeedbackProviderTest {
           assertEquals(savedSource, json.valueToTree(conversations.archive().read(chat)));
         }, "The native refusal and accepted requirements remain unchanged."));
     run(chat, source, script);
-    assertTrue(refusal.get().path("repairConstraints").path("facts").toString().contains(UNBOUND.getLast()));
+    assertFalse(refusal.get().hasNonNull("repairConstraints"), refusal.get().toString());
     var nextTurn = new ScriptedStreamingChatModel(Turn.text("pending", request -> {
       String text = request.messages().stream().filter(UserMessage.class::isInstance).map(UserMessage.class::cast)
           .map(UserMessage::singleText).reduce("", String::concat);

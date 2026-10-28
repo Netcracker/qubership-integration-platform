@@ -269,14 +269,15 @@ class RequirementPreservationCheckTest {
   @Test
   void aNewAcceptedBaseMakesAnEarlierRejectedAttemptStale() throws Exception {
     var h = new Harness();
-    h.begin("Create POST /policy-check and preserve identifiers. Proceed without IDS.");
+    var source = h.begin("Create POST /policy-check and preserve identifiers. Proceed without IDS.");
     assertTrue(h.capture(simpleDraft(List.of(goal()))).accepted());
     assertFalse(h.update(updateFacts(List.of(new FactInput("goal", List.of("entry"), FactKind.GOAL,
         Polarity.POSITIVE, "Discard the requested result.")), List.of())).accepted());
     var attempt = h.lastAttempt();
     var add = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(),
         List.of(new FactInput("retain-id", List.of("entry"), FactKind.CONSTRAINT, Polarity.POSITIVE,
-            "Preserve identifiers.")), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null);
+            "Preserve identifiers.", null, null, null,
+            new RequirementCaptureInput.ClaimEvidenceInput(source.turnId(), "preserve identifiers"))), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null);
     assertTrue(h.update(add).accepted());
     assertEquals(UNPROVEN, h.evaluate(attempt, null).outcome());
   }

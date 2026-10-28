@@ -29,6 +29,7 @@ import org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFin
 import org.qubership.integration.platform.ai.integration.catalog.materialize.UploadedSpecImportOutcome;
 import org.qubership.integration.platform.ai.integration.catalog.pipeline.CatalogMutationGateway;
 import org.qubership.integration.platform.ai.plan.*;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.ClaimEvidenceInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.*;
 import org.qubership.integration.platform.ai.productpipeline.artifact.*;
 import org.qubership.integration.platform.ai.productpipeline.capability.*;
@@ -197,7 +198,7 @@ class UploadedSpecRequirementRecoveryTest {
     var ready = h.drafts.get(CHAT).orElseThrow();
     assertTrue(ready.readyForPlan());
     var completedFacts = new java.util.ArrayList<>(partial.authoredDraft().facts());
-    completedFacts.add(nativeAnchorFact("result", "http-sender"));
+    completedFacts.add(resultAnchor(input.turnId()));
     assertEquals(completedFacts, ready.authoredDraft().facts());
     assertEquals(partial.flow(), ready.flow());
     assertTrue(ready.openQuestions().isEmpty());
@@ -216,6 +217,13 @@ class UploadedSpecRequirementRecoveryTest {
         .collect().asList().await().indefinitely();
     assertEquals(RunStatus.PLAN_APPROVED, h.run().run().status());
     verify(h.gateway, times(1)).importUploadedSpec(any(), any(), any());
+  }
+
+  private static FactInput resultAnchor(String turnId) {
+    var fact = nativeAnchorFact("result", "http-sender");
+    return new FactInput(fact.sourceFactId(), fact.interactionIds(), fact.kind(),
+        fact.polarity(), fact.text(), fact.fieldMapping(), fact.policyConflict(), fact.elementIntent(),
+        new ClaimEvidenceInput(turnId, "Send results by POST to https://om.example/results."));
   }
 
   private static final class Harness {
@@ -307,7 +315,7 @@ class UploadedSpecRequirementRecoveryTest {
                 .path("accepted").asBoolean());
           } else {
             var captured = tools.updateRequirementDraft(new DraftUpdate(List.of(), List.of(), List.of(),
-                List.of(), List.of(), List.of(nativeAnchorFact("result", "http-sender")), List.of(), List.of(),
+                List.of(), List.of(), List.of(resultAnchor(drafts.writeAuthority(chat).sourceTurnId())), List.of(), List.of(),
                 List.of(new CapabilityInput("result", "http-sender", null,
                     HttpMethod.POST, "https://om.example/results", null, null, null)), List.of(),
                 List.of(), List.of(), List.of(RESULT_QUESTION), new DraftSettings(false, null)));
