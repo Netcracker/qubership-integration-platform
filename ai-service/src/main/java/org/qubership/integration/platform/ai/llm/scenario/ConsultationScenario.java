@@ -14,6 +14,7 @@ import org.qubership.integration.platform.ai.model.ScenarioType;
 @ForScenario(ScenarioType.CONSULTATION)
 public class ConsultationScenario implements ScenarioHandler {
   @Inject ConsultationAgent agent;
+  @Inject org.qubership.integration.platform.ai.productpipeline.knowledge.DocumentationTools documentation;
   @Inject ConversationService conversations;
   @Inject org.qubership.integration.platform.ai.compiler.capture.ChatMemorySanitizer memory;
 
@@ -21,6 +22,7 @@ public class ConsultationScenario implements ScenarioHandler {
   public Multi<ChatEvent> handle(ChatRequest request, String conversationId, ScenarioType type) {
     String memoryId = "consultation:" + conversationId;
     memory.clear(memoryId);
+    documentation.beginConsultationTurn(memoryId);
     String prompt =
         TranscriptWindow.format(conversations.getMessages(conversationId))
             + "\nLatest user message: " + request.getEffectiveUserText();

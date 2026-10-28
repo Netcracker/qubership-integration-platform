@@ -5,6 +5,14 @@ on:
     types: [opened, synchronize, reopened]
     paths:
       - 'ai-service/**'
+      - 'help/docs/**'
+      - 'ui/scripts/**'
+      - 'ui/src/services/documentation/**'
+      - 'ui/package.json'
+      - 'schemas/package.json'
+      - 'vscode-extension/package.json'
+      - 'package.json'
+      - 'package-lock.json'
       - 'schemas/**'
       - 'pom.xml'
       - '.github/workflows/ai-service-build.yaml'
@@ -71,4 +79,19 @@ jobs:
           pytest
 
       - name: Verify Dockerfile builds
-        run: docker build -t qip-knowledge-sidecar:ci ai-service/knowledge-sidecar
+        run: docker build -t qip-knowledge-sidecar:ci -f ai-service/knowledge-sidecar/Dockerfile .
+
+      - name: Read documentation from the immutable image
+        run: |
+          docker run --rm --read-only --network none --entrypoint python qip-knowledge-sidecar:ci -c '
+          from pathlib import Path
+          from qip_knowledge_sidecar.documentation import DocumentationStore
+          store = DocumentationStore(Path("/documentation"))
+          manifest = store.manifest()
+          result = store.search(manifest["checksum"], "http trigger", ["http-trigger"], 5)
+          assert result["results"], result
+          page = store.read(manifest["checksum"], result["results"][0]["id"], None, 256)
+          assert page["text"], page
+          assert len(page["text"].encode()) == page["endByte"] - page["startByte"], page
+          print(manifest)
+          '

@@ -19,7 +19,7 @@ public final class LlmRequestBudget {
   private static final com.fasterxml.jackson.databind.ObjectMapper JSON = new com.fasterxml.jackson.databind.ObjectMapper();
   static final Set<String> REPLACEABLE_READS = Set.of("readRequirementDraft",
       "searchCatalogSystems", "getApiSpecifications", "listCatalogOperations", "describeBoundOperation",
-      "describeElementPatchSchema", "describeElementProperty");
+      "describeElementPatchSchema", "describeElementProperty", "searchDocumentation", "readDocumentation");
   public static final class Overflow extends IllegalArgumentException {
     public Overflow(String message) { super(message); }
   }

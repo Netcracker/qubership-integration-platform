@@ -7,7 +7,6 @@ import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ToolExecutionResultMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.request.ChatRequest;
-import io.quarkiverse.langchain4j.RegisterAiService;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
@@ -19,12 +18,13 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationSessions;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureProposal;
-import org.qubership.integration.platform.ai.llm.agent.CompilerSkillAgent;
 import org.qubership.integration.platform.ai.plan.ChainPlanStore;
 
 /** Persists completed reads within the existing compiler input and accepted graph scope. */
 @ApplicationScoped
 public class ToolReadProgress {
+  private static final int REPEATED_READ_LIMIT = 3;
+
   private final CompilationArtifacts artifacts;
   private final CompilationSessions sessions;
   private final CaptureAttemptFeedbackStore feedback;
@@ -61,7 +61,7 @@ public class ToolReadProgress {
       seen.addAll(state.seenCallIds());
     });
     var before = new LinkedHashMap<>(reads);
-    int limit = CompilerSkillAgent.class.getAnnotation(RegisterAiService.class).maxSequentialToolInvocations();
+    int limit = REPEATED_READ_LIMIT;
     Read repeated = null;
     var calls = new LinkedHashMap<String, ToolExecutionRequest>();
     int start = 0;

@@ -188,6 +188,15 @@ class SidecarKnowledgeClientTest {
 
   /** Recording stub used by contract tests; exposes {@code lastExactRequest()}. */
   static final class RecordingKnowledgeSidecarApi implements KnowledgeSidecarApi {
+    @Override
+    public DocumentationManifestDto documentationManifest() { throw new UnsupportedOperationException(); }
+
+    @Override
+    public DocumentationSearchDto searchDocumentation(DocumentationSearchRequestDto body) { throw new UnsupportedOperationException(); }
+
+    @Override
+    public DocumentationReadDto readDocumentation(DocumentationReadRequestDto body) { throw new UnsupportedOperationException(); }
+
     private final AtomicReference<ExactRequestDto> lastExact = new AtomicReference<>();
     private final AtomicReference<ContextRequestDto> lastContext = new AtomicReference<>();
     ExactResponseDto exactResponse;

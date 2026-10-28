@@ -209,6 +209,7 @@ const config: Config = {
 
   // A map from regular expressions to paths to transformers
   transform: {
+    "^.+\\.mjs$": "<rootDir>/scripts/jest-mjs-transformer.cjs",
     "^.+\\.tsx?$": [
       "ts-jest",
       {

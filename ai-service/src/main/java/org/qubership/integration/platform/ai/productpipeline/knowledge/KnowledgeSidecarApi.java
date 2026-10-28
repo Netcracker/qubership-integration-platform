@@ -40,6 +40,33 @@ public interface KnowledgeSidecarApi {
   @Path("/v1/query/context")
   ContextResponseDto context(ContextRequestDto body);
 
+  @GET
+  @Path("/v1/documentation/manifest")
+  DocumentationManifestDto documentationManifest();
+
+  @POST
+  @Path("/v1/documentation/search")
+  DocumentationSearchDto searchDocumentation(DocumentationSearchRequestDto body);
+
+  @POST
+  @Path("/v1/documentation/read")
+  DocumentationReadDto readDocumentation(DocumentationReadRequestDto body);
+
+  record DocumentationManifestDto(int schemaVersion, String checksum, int documentCount, int sectionCount) {}
+
+  record DocumentationSearchRequestDto(String expectedChecksum, String query, List<String> elementTypes, int limit) {}
+
+  record DocumentationSectionDto(String id, String path, String title, List<String> headingPath,
+      String url, String snippet, int startByte, int endByte) {}
+
+  record DocumentationSearchDto(String checksum, List<DocumentationSectionDto> results) {}
+
+  record DocumentationReadRequestDto(String expectedChecksum, String id, String cursor, int maxBytes) {}
+
+  record DocumentationReadDto(String checksum, String id, String path, String title, String url,
+      List<String> headingPath, int startByte, int endByte, String text, String context,
+      boolean complete, String nextCursor) {}
+
   record HealthDto(String status, String detail) {}
 
   record PackageRefDto(
