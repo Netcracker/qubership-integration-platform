@@ -3,7 +3,7 @@
  * resources, and what the service fields list from the workspace.
  *
  * A Monaco editor in the webview asks for its worker at the workbench origin, which answers 404,
- * and the frame then raises an uncaught `Event`; the cases that open one declare it.
+ * and the frame then raises an uncaught `Event` (#1223); the cases that open one declare it.
  *
  * The mapper's schema load for a GraphQL service call is pinned on #1214: the extension has no
  * handler for `getSpecificationModelSource`, answers it with no payload, and the dialog's schema
@@ -31,7 +31,7 @@ import { normalizeIds, readGolden } from "../../support/vscode-golden.js";
 import { notTheKnownDefect, outsideTheDefect } from "../../support/known-defect.js";
 import { chainFile, element, fixture, parseChain } from "../../support/vscode-workspace.js";
 
-/** The uncaught error Monaco's failed worker request raises in the webview. */
+/** The uncaught error Monaco's failed worker request raises in the webview, #1223. */
 const MONACO_WORKER_ERROR = "Event";
 
 const CHAIN = chainFile("1419390b-7423-4fab-853f-67c653e16a86");

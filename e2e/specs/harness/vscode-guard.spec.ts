@@ -3,7 +3,7 @@
  * `expectConsoleError`.
  */
 import { test, expect } from "@playwright/test";
-import { ALLOWED, guardFailures, type VsCodeProblem } from "../../support/vscode-guard.js";
+import { ALLOWED, guardFailures, withAnyStack, type VsCodeProblem } from "../../support/vscode-guard.js";
 
 const [nls] = ALLOWED;
 const allowed: VsCodeProblem = { source: "console", message: nls.message, url: nls.url };
@@ -34,6 +34,19 @@ test.describe("vscode guard", () => {
       "console.error: Even",
       "the expected error never arrived: Event",
     ]);
+  });
+
+  test("a pattern with any stack needs the message and a stack", () => {
+    const message = "[Extension Host] Chain file x.yaml can't be parsed (CIP) Error: not valid";
+    const thrown: VsCodeProblem = { source: "console", message: `${message}\n\tat parse (extension.js:4085:19)\n\tat async open (extension.js:326:32)` };
+    expect(guardFailures([thrown, thrown], [withAnyStack(message)])).toEqual([]);
+    // The message alone, another message with a stack, and a longer first line are not the declared error.
+    const pattern = withAnyStack(message);
+    expect(guardFailures([{ source: "console", message }], [pattern])).toEqual([`console.error: ${message}`, `the expected error never arrived: ${pattern}`]);
+    const other = `[Extension Host] Chain file y.yaml can't be parsed (CIP) Error: not valid\n\tat parse (extension.js:1:1)`;
+    expect(guardFailures([{ source: "console", message: other }], [pattern])).toEqual([`console.error: ${other}`, `the expected error never arrived: ${pattern}`]);
+    const longer = `${message} again\n\tat parse (extension.js:1:1)`;
+    expect(guardFailures([{ source: "console", message: longer }], [pattern])).toEqual([`console.error: ${longer}`, `the expected error never arrived: ${pattern}`]);
   });
 
   test("an expected error that never arrives fails the case", () => {

@@ -24,7 +24,6 @@ export interface MessageEntry {
 /** The reason every handler with no sender in `ui/src` carries; the harness reads its prefix. */
 export const NO_UI_SENDER = "no UI sender";
 
-const R_CONTEXT_MCP = "no case opens the context service or MCP service editor yet";
 const R_1214 = "#1214: the extension has no handler, so the UI receives an answer with no payload";
 
 const covered = (message: string): MessageEntry => ({ message, status: "covered" });
@@ -119,7 +118,11 @@ export const messageRegistry: MessageEntry[] = [
     "navigateToOperations",
   ),
 
-  ...notCovered(R_CONTEXT_MCP, "getContextService", "updateContextService", "getMcpService", "updateMcpService"),
+  // specs/vscode/context-mcp-editors.spec.ts
+  covered("getContextService"),
+  covered("updateContextService"),
+  covered("getMcpService"),
+  covered("updateMcpService"),
 
   {
     message: "exportImagesDone",

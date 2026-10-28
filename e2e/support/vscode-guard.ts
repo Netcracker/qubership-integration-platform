@@ -39,16 +39,28 @@ export const ALLOWED: readonly AllowedProblem[] = [
 const allowed = (problem: VsCodeProblem) =>
   ALLOWED.some((each) => problem.source === "console" && each.message === problem.message && each.url === problem.url);
 
+/** An error a case expects: its exact message, or a pattern for a message that carries a build's line numbers. */
+export type ExpectedError = string | RegExp;
+
+const matches = (expected: ExpectedError, message: string) => (typeof expected === "string" ? expected === message : expected.test(message));
+
+/**
+ * The pattern of `message` followed by its stack trace, whose line numbers in `extension.js` change
+ * with every build of the extension.
+ */
+export const withAnyStack = (message: string) => new RegExp(`^${message.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\n\\tat `);
+
 /**
  * What fails the case: every problem neither allowed nor expected, and every expected message that
- * never arrived. An expected message matches exactly and absorbs each repeat of itself.
+ * never arrived. An expected message matches exactly, or its pattern matches, and absorbs each
+ * repeat of itself.
  */
-export function guardFailures(problems: readonly VsCodeProblem[], expected: readonly string[]): string[] {
+export function guardFailures(problems: readonly VsCodeProblem[], expected: readonly ExpectedError[]): string[] {
   const unexpected = problems
-    .filter((each) => !allowed(each) && !expected.includes(each.message))
+    .filter((each) => !allowed(each) && !expected.some((message) => matches(message, each.message)))
     .map((each) => (each.source === "pageerror" ? `uncaught ${each.message}` : `console.error${each.url ? ` at ${each.url}` : ""}: ${each.message}`));
   const missing = expected
-    .filter((message) => !problems.some((each) => each.message === message))
+    .filter((message) => !problems.some((each) => matches(message, each.message)))
     .map((message) => `the expected error never arrived: ${message}`);
   return [...unexpected, ...missing];
 }
@@ -58,12 +70,12 @@ export const EXPERIMENT_SERVICE = "https://default.exp-tas.com/**";
 
 interface VsCodeFixtures {
   vscode: VsCodePage;
-  /** Declares an error the case meets, by its exact message, so that the guard lets it through. */
-  expectConsoleError: (message: string) => void;
+  /** Declares an error the case meets, by its exact message or a pattern, so that the guard lets it through. */
+  expectConsoleError: (message: ExpectedError) => void;
   messages: MessageRecorder;
   /** Waits until a webview sent a request of `type`, and counts the type for the case. */
   sentMessage: (type: string) => Promise<void>;
-  expectedErrors: string[];
+  expectedErrors: ExpectedError[];
   vscodeGuard: void;
   experimentService: void;
 }

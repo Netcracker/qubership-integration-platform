@@ -7,8 +7,8 @@
  *
  * Deleting the first masked field leaves it in the file: `deleteMaskedFields` in `chainApiModify.ts`
  * tests the found index with `if (index)`, which is false for index 0. The UI drops the row anyway,
- * so the field comes back when the chain is opened again. Not filed yet; the pinned case carries it,
- * and the other case deletes the second of two fields.
+ * so the field comes back when the chain is opened again (#1222). The pinned case carries it, and the
+ * other case deletes the second of two fields.
  *
  * Shown failing, each by an edit in `vscode-extension/src/web/response/chainApiModify.ts`:
  * - `updateChain` skipping `writeMainChain`: the file read timed out on the old name;
@@ -80,7 +80,7 @@ test.describe("chain properties", () => {
   });
 
   test("a deleted first masked field leaves the chain file", async ({ vscode, messages }) => {
-    test.fail(true, "deleteMaskedFields tests the found index with `if (index)`, which skips index 0; not filed yet");
+    test.fail(true, "#1222: deleteMaskedFields tests the found index with `if (index)`, which skips index 0");
     const text = await outsideTheDefect("adding a masked field, deleting it, and reading the chain file", async () => {
       await vscode.open();
       await vscode.openFile(CHAIN);
