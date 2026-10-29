@@ -38,6 +38,9 @@ Map each path to a workspace:
 
 Then decide how much to run:
 
+- **`e2e/` touched** — `e2e/` is not a workspace, has its own `node_modules`, and its
+  specs need a running stack. Run only the checks that need none, and say the specs did
+  not run: `cd e2e && npm run check-types && npm test -- --project=schema --project=harness`.
 - **No workspace touched** — report "nothing to verify" and stop. Do not run checks
   because a Java file or a Helm chart changed.
 - **Only `*.md`, `*.txt`, or files under `docs/`** — stop the same way. Documentation
@@ -100,9 +103,9 @@ cd ui && npx jest --findRelatedTests src/components/Foo.tsx --coverage=false --p
 code 1, which reads as a failure when nothing actually broke.
 
 `--findRelatedTests` follows imports transitively, so a widely-used module pulls in far
-more than its own test. Changing one hook under `src/hooks/` runs about 29 suites and
-511 tests in roughly 25 seconds, against 219 test files in the workspace. That is the
-correct blast radius, not a bug — but do not promise the caller a single-test run.
+more than its own test. Changing one hook under `src/hooks/` ran about 29 suites and
+511 tests in roughly 25 seconds. That is the correct blast radius, not a bug — but do
+not promise the caller a single-test run.
 
 Changed test files, run directly:
 
@@ -112,6 +115,9 @@ cd ui && npx jest tests/hooks/useServiceFilter.test.ts --coverage=false
 
 The `vscode-extension` suite needs its own config:
 `cd vscode-extension && npx jest -c jest.config.cjs --coverage=false`.
+
+The `schemas` suite runs from its directory after the build in step 1:
+`cd schemas && npx jest`.
 
 Run the full suite (`npm -w @netcracker/qip-ui test`) only when the caller asks for it,
 or when a change touches something that import-following cannot reach — a theme token, a

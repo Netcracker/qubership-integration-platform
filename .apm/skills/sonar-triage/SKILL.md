@@ -20,10 +20,13 @@ gh api repos/Netcracker/qubership-integration-platform/actions/variables \
   --jq '.variables[] | select(.name|test("SONAR")) | "\(.name)=\(.value)"'
 ```
 
-`SONAR_PROJECT_KEY` (no suffix) is the aggregate project; the per-module keys
-are `-engine`, `-micro-engine`, `-runtime-catalog`, `-sessions-management`,
-`-integration-build-pipeline`, `-integration-build-maven-plugin`, `-ui`, and
-`-vscode-extension`. `schemas` and `testing-service` have no scan.
+Six modules are scanned, each into its own project: `-engine`, `-micro-engine`,
+`-runtime-catalog`, `-sessions-management`, `-ui`, and `-vscode-extension`.
+Three more are wired in their build workflows but have no variable set, so
+the scan job is skipped: `SONAR_INTEGRATION_BUILD_PIPELINE_PROJECT_KEY`,
+`SONAR_INTEGRATION_BUILD_MAVEN_PLUGIN_PROJECT_KEY`, and
+`SONAR_AI_SERVICE_PROJECT_KEY`. `SONAR_PROJECT_KEY` (no suffix) is set, and no
+workflow reads it. `schemas` and `testing-service` have no scan.
 
 The read API needs no token — plain `curl` against `https://sonarcloud.io/api`
 works. Scope every call to the pull request with `&pullRequest=<N>`; without it
