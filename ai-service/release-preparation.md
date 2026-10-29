@@ -7,7 +7,7 @@ Subagents own separate files; the coordinating chat owns commits and the shared 
 The checkpoint at the end of this file is the current release state; earlier checkpoints remain historical.
 The approved recovery strategy correction is committed as `70107fee5` and passed independent implementation review.
 Module verification passed with 6,699 tests, zero failures, and 11 skips. A new Greetings run passed native checks.
-Local scoped acceptance passed; the deferred restart test remains required before push, and other live gates remain unrun.
+Local scoped acceptance passed. The 17-test restart check passed locally before push; other live gates remain unrun.
 
 ## Delivery contract
 
@@ -200,7 +200,7 @@ checkout retains local evidence under `.dev/release-preparation-20261028/`. The 
 each accepted source revision and outcome, including failures and checks that did not run.
 
 
-## Current checkpoint — bounded clean recovery and Greetings
+## Previous checkpoint — bounded clean recovery and Greetings
 
 Application source is `70107fee53cee04bf12a56f1bb744791925bef99`. A repeated correctable capture can spend its unused
 native recovery allowance on the existing clean regeneration strategy after a validated producer-owned diagnosis.
@@ -251,3 +251,31 @@ Status remains LOCAL_SCOPED_ACCEPTANCE_PASSED. Deployment, chain invocation, UI,
 cases, and manual restart acceptance were not run on this source. The earlier documentation literal-fidelity gap remains
 visible. Main integration, push, and publication remain pending. Fresh independent review of this checkpoint and its
 acceptance evidence passed before the local record commit.
+
+
+## Current PR checkpoint — isolated branch and local pre-push checks
+
+The PR branch is `codex/ai-service-release-pr`. The original `feature/ai-service-recovery-test-system` branch remains at
+`48cc3027b6dba421efffbe7edbdba516607289c4`, with six preexisting local instruction-file changes preserved.
+The approved 57-path editor and agent configuration restoration is committed as `771fe3c45` in the PR branch only.
+All restored blobs and modes equal target main `f74e776c3b1f03381f87a8690da699cb723e3408`, including 20 absent paths.
+The AI-service instruction and tested product code remain intact. Independent restoration review passed.
+
+The Jest transformer now uses `.mjs` and ESM loading, following the existing main script convention.
+`ui/eslint.config.mjs` remains byte-identical to main. Scoped lint, format, types, six Node tests, 74 loader tests,
+and 192 related Jest suites with 2,661 tests passed. Commit `f214808ce` contains the correction.
+Full unscoped UI lint, builds, and browser flows were not run; this result covers changed files and related tests.
+
+Restart checks remain required locally before pushing relevant recovery changes, and excluded from CI and default
+builds. The full `CreateChainServerRestartIT` command passed 17 tests with zero failures, errors, or skips in 374.52
+seconds. It includes A2A transport probes under explicit user authorization; the dedicated A2A package suite remains
+unrun. Command-local C1 settings address the known local JDK crash and do not change image JVM settings. The earlier
+interrupted attempt remains separately recorded. Cleanup confirmed no owned processes or containers remained.
+Commit `48cc3027b` clarifies local execution and preserves the default exclusions.
+
+The frozen application candidate remains source `70107fee5`, with its successful 6,699-test module run and native
+Greetings evidence. Runtime source paths, the sidecar implementation, and UI application sources are unchanged by
+PR preparation. The new edits concern test tooling, instructions, configuration restoration, and this record.
+GitHub records PR publication and CI results; this checkpoint retains the pre-push checks. Main integration, deployment,
+runtime invocation, semantic judging, and remaining live acceptance gates are not claimed complete.
+Evidence remains in ignored local `pr-preparation/` files.
