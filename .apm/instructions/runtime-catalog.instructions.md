@@ -5,7 +5,7 @@ applyTo: "runtime-catalog/**"
 
 ### Build & Test Commands
 
-Run from the repository root. The POM binds GPG signing to `verify`, so that phase needs `-Dgpg.skip=true`.
+Run from the repository root.
 
 ```bash
 # Build (checkstyle runs automatically at compile phase)
@@ -67,21 +67,11 @@ mvn -pl runtime-catalog checkstyle:check
 
 ### Conventions
 
-- **Conventional Commits** required for all commits and PRs
 - **Checkstyle** enforced at compile time (rules from the `qip-checkstyle` artifact)
 - Unit tests use `@ExtendWith(MockitoExtension.class)` by default. A test that needs Spring wiring uses
   `@ExtendWith(SpringExtension.class)` with `@ContextConfiguration` (lightweight, no full app context). Test
   resources include `src/test/resources`, `src/main/resources`, and
   `integration-build-pipeline/src/test/resources/testConfigurations/`
-- **MapStruct** runs with `-Amapstruct.unmappedTargetPolicy=IGNORE` from `parent/pom.xml`, so an unmapped target
-  property compiles without a warning and only a test or a review catches it. Do not add per-field
-  `@Mapping(target = ..., ignore = true)` or turn the warning back on.
-- **A null source collection maps to a null target collection** in MapStruct 1.5.5. `defaultExpression` and
-  `nullValuePropertyMappingStrategy = SET_TO_DEFAULT` on a collection property compile and change nothing in a
-  create method. To default one property, declare its collection mapping as its own method annotated
-  `@IterableMapping(nullValueMappingStrategy = NullValueMappingStrategy.RETURN_DEFAULT)`. A Lombok builder loses the
-  field initializer and `@Builder.Default` when the mapper calls `builder.field(null)` (#805). Read the generated
-  `target/generated-sources/annotations/**/*MapperImpl.java` to confirm an annotation took effect.
 
 ### The Protobuf toolchain
 

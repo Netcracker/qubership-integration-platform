@@ -18,23 +18,20 @@ git -C "$WT" ls-remote origin fix/<N>-<slug>   # compare with git -C "$WT" rev-p
 
 A push during a network fault returned success and moved nothing; the `ls-remote` is the check.
 
-Before every push after the first, confirm the pull request is still open. A maintainer can
-merge it mid-run, and a push then recreates the deleted branch, after which an edit changes the
-merged pull request:
+Before every push after the first, and at gate 6, confirm the pull request is still open and
+read its `mergeable_state`. A maintainer can merge it mid-run, and a push then recreates the
+deleted branch, after which an edit changes the merged pull request. On `dirty`, merge
+`origin/main`, re-run the criteria the merge can reach, and push:
 
 ```bash
 gh pr view <PR> -R Netcracker/qubership-integration-platform --json state --jq .state   # OPEN
-```
-
-Before each push and at gate 6, check that the branch still merges. On `dirty` or `behind`,
-merge `main` into the branch, re-run the criteria the merge can reach, and push:
-
-```bash
-gh api repos/{owner}/{repo}/pulls/<PR> --jq .mergeable_state   # clean, unstable, blocked: fine
+gh api repos/{owner}/{repo}/pulls/<PR> --jq .mergeable_state   # dirty: merge main
 git -C "$WT" fetch origin main && git -C "$WT" merge origin/main
 ```
 
-`unknown` means GitHub has not computed it yet; ask again a few seconds later.
+`unknown` means GitHub has not computed it yet; ask again a few seconds later. `behind` does not
+block the merge, because the `main` ruleset requires no up-to-date branch, so merging `main` then
+only re-runs CI.
 
 ## Attach images
 
@@ -123,9 +120,6 @@ missing, ask the user to run `gh auth refresh -s project` at the very end, once,
 report that the board was not updated.
 
 ## Review comments
-
-Read the inline comments and the reviews, reply in each thread, and remove `ai:reviewed` once
-the fixes are pushed and gate 6 is green again:
 
 ```bash
 gh api --paginate repos/{owner}/{repo}/pulls/<PR>/comments --jq '.[] | "\(.id)\t\(.user.login)\t\(.path):\(.line)\t\(.body)"'

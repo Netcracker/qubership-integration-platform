@@ -70,9 +70,8 @@ cd ui && npx prettier --check src/components/Foo.tsx src/misc/bar.ts
 cd ui && npx eslint src/components/Foo.tsx
 ```
 
-Call `eslint` directly on the changed files. Do not use `npm -w @netcracker/qip-vscode-extension run lint`:
-that script is `eslint --fix src`, which rewrites sources and lints the whole directory.
-A verifier reports; it does not edit.
+Call `eslint` directly on the changed files, never the `vscode-extension` `lint` script,
+which runs `eslint --fix src`. A verifier reports; it does not edit.
 
 ### Types — tens of seconds
 

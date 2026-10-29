@@ -40,13 +40,13 @@ which file owns a linter is not obvious from the error text:
   from the workspace directory:
   - `ui`: `npm run lint` (ESLint over `.`, tests included), `npm run check-types`,
     `npm test`;
-  - `vscode-extension`: `npx --no-install eslint src`, because its `lint` script
-    is `eslint --fix src` and rewrites the sources; then `npm run check-types`
-    and `npm run test:unit`.
+  - `vscode-extension`: `npx --no-install eslint src`, `npm run check-types`,
+    `npm run test:unit`.
 - **Go lint and vet** come from the `lint` job in `testing-service-build.yaml`,
-  which runs `golangci-lint` v1.64.8 against `testing-service/.golangci.yml`;
-  super-linter's Go validators are off. A v2 binary reads that file differently,
-  so reproduce with v1.64.8 from `testing-service/`.
+  which runs `golangci-lint` at the version `testing-service-build.yaml` pins,
+  against `testing-service/.golangci.yml`; super-linter's Go validators are off.
+  A v2 binary reads that file differently, so reproduce with the pinned version
+  from `testing-service/`.
 - **YAML, shell, Markdown, Dockerfile, JSON, GitHub Actions, secrets, Groovy,
   Python** come from `super-linter.yaml`. Its behaviour is set by
   `.github/super-linter.env` and the per-linter configs in `.github/linters/`
@@ -62,9 +62,9 @@ which file owns a linter is not obvious from the error text:
 - **A POM version drift** comes from `version-invariants.yaml`, which runs
   `scripts/check-version-invariants.sh` on a change to a `pom.xml` or to
   `scripts/`. Run the script locally.
-- **Maven `[ERROR]` with 401, 403, or "Could not resolve"** on `micro-engine` is
-  a credentials problem, not a code problem: it needs GitHub Packages auth for
-  the private `com.netcracker.cloud` BOMs.
+- **Maven `[ERROR]` with 401, 403, or "Could not resolve"** on a
+  `com.netcracker.cloud` artifact is a credentials problem; see the `monorepo`
+  instruction, Branch model.
 
 ## Reproduce locally before pushing
 

@@ -38,10 +38,8 @@ Companion to `SKILL.md`, gates 2 and 4.
 The `e2e-decision` instruction decides whether a defect gets an end-to-end case. Load the
 `e2e-spec-authoring` skill before writing one. A browser case goes in `e2e/specs/ui/`, following
 `browser.md` in that skill; the #679 cases in `e2e/specs/ui/chain-tabs.spec.ts` are the shape.
-Run it with the one-case commands of rule 23 in that skill, against the running stack:
-`cd "$WT/e2e" && E2E_PROVISION=never npm test -- --project=ui -g "<title>"`. Its `ui-server`
-dependency builds and serves the bundle itself. A defect jsdom renders the same way gets a Jest
-case under `ui/tests/` instead.
+Run it from `$WT/e2e` against the running stack, with the commands in "Reproducing one case"
+of `e2e/README.md`. A defect jsdom renders the same way gets a Jest case under `ui/tests/` instead.
 
 Evidence that does not become a case, such as a screenshot for the pull request in both themes,
 comes from a scratch script in `$TMP` that loads the end-to-end suite's Playwright. Never add Playwright
@@ -74,13 +72,8 @@ stale `dist-lib` types, and `tsc` then passed on broken code.
 cd "$WT" && npm ci && npm -w @netcracker/qip-schemas run build
 ```
 
-Static checks, from `ui/` as the working directory (`eslint` fails from the root):
-
-```bash
-cd "$WT/ui" && npx tsc --noEmit && npm run lint && npm run format:check && npx jest --coverage=false
-```
-
-Or hand the diff to the `npm-verifier` agent.
+Static checks: the Commands of the `ui-core-development` skill, run from `$WT/ui`, or hand the
+diff to the `npm-verifier` agent.
 
 Sonar counts every changed line in a touched file as new code. Extracting constants in a file
 you fixed once moved 27 lines and failed the coverage gate on methods the fix never touched.
@@ -203,9 +196,7 @@ Add `EXPLAIN ANALYZE` for the queries that changed, and a table of medians over 
   new attribute to a `@Converter`. An `isEmpty()` added to an import result made every stored
   session unreadable and cost 13 minutes on the stand. Grep for `@Converter` and `@JsonProperty`
   on the class before adding an accessor.
-- MapStruct ignores `defaultExpression` and `SET_TO_DEFAULT` for a null collection; only
-  `@IterableMapping(nullValueMappingStrategy = RETURN_DEFAULT)` works. Read the generated
-  `*MapperImpl` under `target/generated-sources` to see what actually runs.
+- MapStruct traps are in the `monorepo` instruction, under Cross-module change tips.
 - Mutate one part of the fix at a time and record which test catches it; `git show
   origin/main:"$F" > "$F"` restores a file to its unfixed state without `git stash`. Run mutation
   builds with `-Dcheckstyle.skip=true`: an unused import or an empty block fails checkstyle before
@@ -275,16 +266,9 @@ form.
 
 ## testing-service
 
-The Go module builds and tests with the Go toolchain, and the `testing-service` instruction
-lists its invariants. Reproduce through its API at `http://localhost:8095/api/v1`
-(`qip-testing-service`), and run the checks CI runs:
-
-```bash
-cd "$WT/testing-service" && go build ./... && go vet ./... && go test ./...
-```
-
-CI also runs `golangci-lint` v1.64.8 against `.golangci.yml`, and `go test -tags integration`
-starts PostgreSQL through testcontainers.
+Reproduce through the service API at `http://localhost:8095/api/v1` (`qip-testing-service`),
+then run the checks in the `testing-service` instruction, Testing and linting, from
+`$WT/testing-service`.
 
 ## infrastructure
 

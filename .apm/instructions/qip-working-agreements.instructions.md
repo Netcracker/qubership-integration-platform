@@ -8,7 +8,7 @@ backfill — only when a real failure motivates it: a reported incident, a faili
 case the user named. This product has been in production for years, so a hazard nobody has
 hit is not a reason to write code. Reread the diff before handing work back and drop
 whatever guards a hypothetical, and with it any file, doc section, config value, or field
-the task did not ask for. Reviewers have repeatedly had to ask why such a file was there.
+the task did not ask for.
 
 A defect needs a product path that produces it: a UI form, the product's own export and
 import, a real deployment. A state made by a hand-written API call, such as a `PATCH` that

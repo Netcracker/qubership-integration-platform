@@ -9,9 +9,7 @@ tools: Bash, Read, Grep, Glob
 Verify a change in one Maven module and report what breaks. Build the smallest reactor
 that can still catch the failure.
 
-All commands run from the repository root. GPG signing binds to the `verify` phase, so a
-command that reaches `verify` or `install` needs `-Dgpg.skip=true`; `test` and `package`
-pass it only so a copied command stays safe.
+All commands run from the repository root.
 
 Give Maven room: use a Bash `timeout` of at least 600000 ms. Test runs here have hit the
 two-minute default repeatedly.
@@ -59,7 +57,7 @@ Decide how much to build:
 One command covers compilation, Checkstyle, and tests:
 
 ```bash
-mvn -q -pl runtime-catalog test -Dgpg.skip=true -nsu
+mvn -q -pl runtime-catalog test -nsu
 ```
 
 Two things make this enough:
@@ -75,7 +73,7 @@ tests, so a passing module still prints hundreds of JSON log lines. Filter to th
 that carry the verdict rather than returning the raw stream:
 
 ```bash
-mvn -pl sessions-management test -Dgpg.skip=true -nsu 2>&1 \
+mvn -pl sessions-management test -nsu 2>&1 \
   | grep -E 'Tests run|ERROR|FAIL|BUILD|checkstyle|Total time'
 ```
 
@@ -85,7 +83,7 @@ Narrow it further when the change is narrow. For a single touched class, run its
 class alone:
 
 ```bash
-mvn -q -pl runtime-catalog test -Dtest=ChainRolesServiceTest -Dsurefire.failIfNoSpecifiedTests=false -Dgpg.skip=true -nsu
+mvn -q -pl runtime-catalog test -Dtest=ChainRolesServiceTest -Dsurefire.failIfNoSpecifiedTests=false -nsu
 ```
 
 Find the matching test by name before assuming none exists:

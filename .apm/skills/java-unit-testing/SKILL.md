@@ -126,23 +126,15 @@ production seam that would expose it (an injected factory, clock, executor, or w
 
 ## Running tests
 
-micro-engine has no Maven wrapper. Run plain `mvn` from the repository root, where the aggregator `pom.xml` lists the
-module:
+Run the changed test class from the repository root, or hand it to the `maven-verifier` agent. `-q` does not silence
+Quarkus logging, so filter the output and read the Surefire summary:
 
 ```bash
-mvn -q -pl micro-engine test -Dtest=<TestClassName> -Dsurefire.failIfNoSpecifiedTests=false -Dgpg.skip=true -nsu
-```
-
-`-Dgpg.skip=true` is required locally. `-nsu` skips snapshot update checks. `-q` does not silence Quarkus logging, so
-read the exit code and the Surefire summary, and filter long output:
-
-```bash
-mvn -pl micro-engine test -Dtest=<TestClassName> -Dsurefire.failIfNoSpecifiedTests=false -Dgpg.skip=true -nsu 2>&1 \
+mvn -pl micro-engine test -Dtest=<TestClassName> -Dsurefire.failIfNoSpecifiedTests=false -nsu 2>&1 \
   | grep -E 'Tests run|ERROR|FAIL|BUILD|checkstyle'
 ```
 
-On a failure, read the first compiler, Checkstyle, or assertion error, not the whole log. Never run `mvn install`: it
-writes snapshots to the `~/.m2` that every other checkout builds against.
+On a failure, read the first compiler, Checkstyle, or assertion error, not the whole log.
 
 ### Coverage
 

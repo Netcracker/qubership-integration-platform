@@ -81,9 +81,8 @@ bundle into every Jest suite that reaches the editor, and those suites fail with
 - Modal components live under `src/components/modal/`.
 - Confirmation dialogs use `confirmAndRun`; the `ui-api-and-utilities` skill describes it.
 - Take `Upload.Dragger` off the root `antd` import. `antd/es/upload/Dragger` is untranspiled ESM and
-  breaks the Jest run. Four files still import it that way: `ImportSessions.tsx` and
-  `ImportChains.tsx` under `src/components/modal/`, `src/components/admin_tools/ImportInstructions.tsx`,
-  and `src/components/admin_tools/design-templates/CreateDesignTemplateModal.tsx`.
+  breaks the Jest run. `grep -rn "antd/es/upload/Dragger" ui/src` finds the files that still import it
+  that way.
 - A create modal for a testing entity is built on `CreateTestingEntityModal`
   (`src/components/modal/testing/`), which owns the footer wiring, the saving state, the element
   preselect and the failure notification. Pass the entity's own nouns, its element predicate, and one
