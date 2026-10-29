@@ -19,7 +19,7 @@ const DefaultExtensionPage: React.FC = () => {
 
   useEffect(() => {
     const onMessage = (
-      event: MessageEvent<VSCodeResponse<AppExtensionProps | string>>,
+      event: MessageEvent<VSCodeResponse<AppExtensionProps>>,
     ) => {
       const { type, payload } = event.data;
 
@@ -49,12 +49,6 @@ const DefaultExtensionPage: React.FC = () => {
             setNavigateError(getErrorMessage(error));
           });
         }
-
-        return;
-      }
-
-      if (type === NAVIGATE_EVENT && typeof payload === "string") {
-        void navigate(payload);
       }
     };
 

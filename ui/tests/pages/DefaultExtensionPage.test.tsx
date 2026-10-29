@@ -52,14 +52,11 @@ describe("DefaultExtensionPage", () => {
     (api as VSCodeExtensionApi).sendMessageToExtension = sendMessageToExtension;
   });
 
-  test("navigates to the path the extension sends", () => {
+  test("asks the extension for the path on startup", () => {
     sendMessageToExtension.mockResolvedValue({});
     startUp();
 
-    postMessage("navigate", "/chains/chain-1/graph");
-
     expect(sendMessageToExtension).toHaveBeenCalledWith("navigate");
-    expect(mockNavigate).toHaveBeenCalledWith("/chains/chain-1/graph");
     expect(screen.getByText("Loading")).toBeInTheDocument();
   });
 
