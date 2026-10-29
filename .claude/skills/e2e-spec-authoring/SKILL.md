@@ -16,9 +16,9 @@ for `specs/ui/` are in `browser.md` beside this file.
 projects, and `playwright.config.ts` writes it into `metadata`, which the report and
 `npm run reconcile` read.
 
-`dependencies` is resolved transitively: a bare `--project=global` fires `seed`, then `runtime`, then
-`global`, and a setup project's `teardown` runs after every transitive dependent. So a project that
-reaches the corpus through a project declaring `seed` needs no edge of its own.
+`dependencies` is resolved transitively: a bare `--project=runtime` fires `seed`, then `tooling`,
+then `runtime`, and a setup project's `teardown` runs after every transitive dependent. So a project
+that reaches the corpus through a project declaring `seed` needs no edge of its own.
 
 `dependencies` also gates a project on the success of the ones it names. That is why `global` names
 no broker project: one failing broker case would skip every `global` case. Where only the order
@@ -50,23 +50,23 @@ from the product cases, a failed setup project reads there as an infrastructure 
 failed case of any group still fails the run. A change to `support/`, `registry/`, or `env/` changes its `harness` cases in the same
 commit.
 
-**Run the smallest selection that shows the change.** While you iterate, run the changed spec
-against a kept corpus, red first and then green, and run `schema` and `harness` beside it. Each
-takes seconds:
+How to run a changed case before you commit it is rule 23.
 
-```bash
-E2E_SWEEP=never npm test -- --project=<project> --no-deps specs/<dir>/<file>.spec.ts
-npm test -- --project=schema --project=harness
-```
+## The fixtures a spec gets
 
-Before you push a broad change, run the whole suite on Compose with `npm test`, about 13 minutes on
-the classic engine alone. Dispatch `.github/workflows/e2e-k8s.yaml`, about 37 minutes on both
-engines on Kubernetes, in three cases only: the change touches the micro engine, a project only
-`k8s` declares, or Kubernetes provisioning (`env/provision/k8s.ts`, or `env/provision.ts` and
-`env/provision/common.ts`, which both targets share); the work reaches a checkpoint, before a merge
-or at the end of a large step; or a failure looks flaky and needs a second run on the reference
-environment. Queue no second dispatch while one runs. The workflow's `concurrency` group sets no
-`cancel-in-progress`, so a third dispatch cancels the second while it waits in the queue.
+A spec outside `specs/schema/` and `specs/harness/` takes `test` from `support/fixtures.ts`, or from
+`support/page-guard.ts` under `specs/ui/`, which extends it. It names the fixtures it needs:
+
+- `run`: the run token, minted in `globalSetup` and shared by every worker.
+- `env`: the `Env` for the target and for the project's `engineKind` (rule 4).
+- `catalog`, `engine`, `testingService`: the clients of runtime-catalog, of the engine the project
+  runs on, and of the testing service. Each records the operations it calls as `reached`.
+- `sessions`: the session lookup, created per test over the case's own `request`.
+- `folder`: the worker's folder, created before its first case and deleted after its last. A chain a
+  case creates goes in it.
+- `engineKind` and `microDomainState`: options that a project sets through `use` and a spec never
+  sets (rule 20).
+- `diagnostics`: automatic. It attaches the engine's lines and the session to a failed case.
 
 ## Coverage registries
 
@@ -251,7 +251,8 @@ right now, so a controller added to a service fails a run.
 8. **A spec asserts behavior, not the presence of a control.**
 9. **A flaky spec is fixed or deleted, never skipped.** A skipped spec claims coverage it does not
    have. Fix it where it surfaces, whoever wrote the file, and fix it by asserting what the case is
-   about rather than by polling harder.
+   about rather than by polling harder. The same holds for a pull request check: a project added to
+   one blocks the merge from its first run, with no period of green nightly runs first.
 10. **Put a file's cases under one `test.describe` that names its subject, and tag the describe.**
     A file has exactly one top-level describe; nested describes group its sub-topics. Setup and
     teardown files (`*.setup.ts`, `*.teardown.ts`) hold one bare case with its component tag. Tags
@@ -328,10 +329,11 @@ right now, so a controller added to a service fails a run.
       the case becomes an expected failure only when the step throws that defect on that engine,
       and the defect's `matches` gets a case in `specs/harness/conditional-defects.spec.ts`. On the
       other engine the same message stays a real failure, because a regression of the same feature
-      can produce it. A defect lives in `specs/<project>/<component>-defects.ts`, which Playwright
-      does not collect. `matches` reads the message without color codes. It keys on an assertion
-      message the case writes itself (`RESULT_AT_100`, `WIPE_ANSWERED`), and that assertion comes
-      last, so the rest of the case still runs when the defect strikes. Reconcile reads the calls a
+      can produce it. A defect goes in `specs/<project>/<component>-defects.ts`, which Playwright
+      does not collect; the synthetic defects in `specs/harness/conditional-defects.spec.ts` show
+      the shape. `matches` reads the message without color codes. It keys on an assertion message
+      the case writes itself, and that assertion comes last, so the rest of the case still runs
+      when the defect strikes. Reconcile reads the calls a
       struck case made, but not its `covers()`. A fixed defect leaves the case passing rather than
       red, so the pin is removed by hand.
 14. **A `specs/schema/` or `specs/harness/` spec imports `test` and `expect` from
@@ -353,9 +355,9 @@ right now, so a controller added to a service fails a run.
 17. **Prove a guard by breaking what it guards.** An assertion nobody has watched fail is a claim, so
     make one edit at a time, each turning its own case red and no other. A transport that drops a
     parameter, a header, or a body field is a failure no spec-side edit can reach, so some mutations
-    belong in `support/`. Record each mutation in the spec header, on a line that starts
-    `Shown failing:` and names the edit and the assertion it turned red, or say there why the case
-    is a guard that no mutation reaches.
+    belong in `support/`. A new spec records each mutation in its header, on a line that starts
+    `Shown failing:` and names the edit and the assertion it turned red, or says there why the case
+    is a guard that no mutation reaches. Most older specs predate the line.
 18. **An assertion on a log is two-sided, and scoped to a window the spec opened.** `env.logs` takes
     a `since` for that reason: an unscoped read is satisfied by an unrelated earlier line, and an
     absence-only assertion is equally green when the mechanism never ran. Assert the line that
@@ -364,7 +366,7 @@ right now, so a controller added to a service fails a run.
     the shape: `Resetting groovy script cache` read after the case's own `Saved library` line for its
     model id, and `Failed to reset groovy script cache` absent.
 19. **Correlate a broker or file trigger by transport, never by the shared run token.**
-    `Properties.TESTING_SESSION_ID` is set in exactly one place, `HttpTriggerProcessor.java:85`, so a
+    `Properties.TESTING_SESSION_ID` is set in one place in each engine, `HttpTriggerProcessor`, so a
     chain triggered by Kafka, RabbitMQ, pub/sub, SFTP, or the scheduler is never marked as a
     test-case run, and its outbound calls reach real endpoints, un-mocked. Kafka and RabbitMQ
     triggers, and every sender (Kafka, RabbitMQ, pub/sub), carry a per-call
@@ -417,6 +419,31 @@ right now, so a controller added to a service fails a run.
     stage: the report shows which stage failed, and the case pays for its setup once. Cases that
     observe different outcomes of one feature, such as the four idempotency modes, stay separate
     cases, so a red result names the mode that broke.
+23. **Run a new or changed case, and see it pass, before you commit it.** No pull request check
+    runs the suite until #1219 adds one, so a case nobody ran fails first in the nightly run on
+    `main`, and every project that depends on its project skips with it. Either target serves the
+    run: Compose, or a cluster with `CIP_TARGET=k8s` in front of every command. Use the one that is
+    already up. The two stacks do not fit on one machine together, so bring one up only when
+    neither runs, and never stop a stack that another session is using; the "Targets" section of
+    `e2e/README.md` says how to switch. A project only the `k8s` target declares
+    (`env/target-setup.ts`) runs on the cluster only.
+
+    A regression case runs red on the code without the fix, then green with it. A case that runs
+    more than once, such as red and then green, runs against a kept corpus rather than a fresh seed
+    each time. The pull request description names the target and the command the case passed
+    under. A case you could not run stays out of the commit, or the description says that it has
+    not run.
+
+    Before you push a broad change, run the whole suite with `npm test`. Dispatch
+    `.github/workflows/e2e-k8s.yaml`, which runs both engines on Kubernetes, in three cases only:
+    the change touches the micro engine, a project only `k8s` declares, or Kubernetes provisioning
+    (`env/provision/k8s.ts`, or `env/provision.ts` and `env/provision/common.ts`, which both
+    targets share); the work reaches a checkpoint, before a merge or at the end of a large step; or
+    a failure looks flaky and needs a second run on the reference environment. Queue no second
+    dispatch while one runs. The workflow's `concurrency` group sets no `cancel-in-progress`, so a
+    third dispatch cancels the second while it waits in the queue.
+
+    The commands are under "Reproducing one case" in `e2e/README.md`.
 
 ## Assertions that catch a reported success
 
@@ -449,7 +476,9 @@ exist for that shape, and each is invisible from inside the file that carries it
 imports every fixture under `fixtures/chains/`, `fixtures/axes/` and `fixtures/script/` as one
 archive, deploys them in one batch, and writes what it imported to `.e2e-corpus.json`, which is how
 the dependent projects address them. The file sits outside `test-results/`, which Playwright clears
-at the start of every run, because a corpus kept with `E2E_KEEP=1` is meant to outlive one. The three
+at the start of every run, because a corpus kept with `E2E_KEEP=1` is meant to outlive one. On
+`k8s` every state file this skill names starts with `.e2e-k8s-` instead of `.e2e-`, as in
+`.e2e-k8s-corpus.json`, so the two targets never read each other's state. The three
 directories are `CORPUS_FIXTURE_DIRS` in `fixtures/templating.ts`, and they hold two layouts: a
 directory per chain, or, under `fixtures/script/`, whose chains ship no companion file, a **file**
 per chain, whose name carries the `.yaml` and is what a spec asks `seedChain` for. A fixture a spec
@@ -517,8 +546,8 @@ gate sends warm-up calls until one records, and fails once more of them are lost
 checks would stall the whole shared corpus whenever a broker is down. `support/brokers.ts` is its
 assembler, and it also creates the run-token topics, queues, exchanges, dead-letter bindings, and
 pub/sub topology each fixture needs before deploying, since nothing on either side of a broker chain
-declares its own. What it imported is written to `.e2e-brokers-corpus.json` (`.e2e-k8s-brokers-corpus.json` on
-`k8s`) and read back with `readBrokersCorpusState`.
+declares its own. What it imported is written to `.e2e-brokers-corpus.json` and read back with
+`readBrokersCorpusState`.
 
 On `k8s`, `brokers-micro-seed` deploys a micro copy of the same fixtures to a micro domain of its
 own. `microCopy` appends `-micro` to every topic, group, queue, exchange, and subscription, and moves

@@ -134,4 +134,4 @@ changing a route, a JSON field name, the import and export envelope, or a CSV ex
 The `go` directive stays at 1.22: the downstream build pins `GOTOOLCHAIN=local` to a 1.22 toolchain, and so do CI and
 the Dockerfile. Check the `go` directive of every dependency you add or upgrade, and record a held-back version in a
 `// held back:` comment in `go.mod`. A new dependency source means adding its prefix to the allowlist in
-`scripts/check-go-dependencies.sh`.
+the repository-root `scripts/check-go-dependencies.sh`.

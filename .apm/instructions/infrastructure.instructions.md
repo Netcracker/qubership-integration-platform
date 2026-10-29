@@ -5,12 +5,12 @@ applyTo: "infrastructure/**"
 
 ### Project Overview
 
-Infrastructure and deployment assets for the QIP local stack — **no application code**. Holds the Docker Compose definitions for the local dev stack under `docker/`, the Helm chart (`helm/cip-dev/`) for Kubernetes, the Nginx reverse-proxy routing config, Consul/OpenSearch/PostgreSQL config, and the `init-db` SQL. Stack: Docker Compose, Helm (camel-k), Nginx, Consul, PostgreSQL, OpenSearch.
+Infrastructure and deployment assets for the QIP local stack — **no application code**. Holds the Docker Compose definitions for the local dev stack under `docker/`, the Helm chart `cip-k8s-dev` (`helm/cip-dev/`) for Kubernetes, the Nginx reverse-proxy routing config, Consul/OpenSearch/PostgreSQL config, and the `init-db` SQL. Stack: Docker Compose, Helm (camel-k), Nginx, Consul, PostgreSQL, OpenSearch.
 
 ### Local Stack Commands
 
 ```bash
-# Bring up the full local stack (builds Java service images from sibling module dirs)
+# Bring up the base local stack (builds the service images from the module dirs)
 docker compose -f infrastructure/docker/docker-compose.yml up -d --build
 
 # Add optional brokers/caches via overlay files (compose them together with the base)
@@ -20,27 +20,19 @@ docker compose -f infrastructure/docker/docker-compose.yml -f infrastructure/doc
 docker compose -f infrastructure/docker/docker-compose.yml -f infrastructure/docker/docker-compose.pubsub.yml up -d --build
 docker compose -f infrastructure/docker/docker-compose.yml -f infrastructure/docker/docker-compose.sftp.yml up -d --build
 
+# Add the AI services (qip-ai-service, qip-knowledge-sidecar, minio); --profile ai-e2e adds qip-e2e-evaluator
+docker compose -f infrastructure/docker/docker-compose.yml --profile ai up -d --build
+
 # Tear down
 docker compose -f infrastructure/docker/docker-compose.yml down
 ```
 
 #### The service file format round trip
 
-The live check for the per-type service file names (#553), against a running stack, is
-`e2e/specs/env/service-type-roundtrip.spec.ts`. It creates one service of each of the five kinds, exports and re-imports
-them through the three v1 endpoint families, then repeats with `CIP_EXPORT_LEGACY_FORMAT=true`. **The legacy hop restores
-exactly three** — nothing scans for `context-service-<id>.yaml` or `mcp-service-<id>.yaml`, in this version or any older
-one, so those two are written and discovered by nothing, and the import answers 204.
-
-Two things in it are load bearing and were measured, not read: every import hop deletes first (an import over a live id
-is an `UPDATE`, so "the IDs are there" cannot fail otherwise), and it imports the **original archive bytes** (a flat
-archive imports as 204 with an empty body, because `ArchiveWriter` builds `services/<id>/` unconditionally).
-
-The flag goes on through a throwaway compose override plus `up -d --no-deps --force-recreate`. `--no-deps` matters:
-`qip-runtime-catalog` declares `depends_on: postgres`, and postgres mounts no named volume, so a recreate without it
-wipes the database. Never set the flag in `docker/qip-dev.env` — `qip-engine` and `qip-sessions-management` read that file too.
-
-User-facing documentation lives in `docker/README.md`, which is the tracked file; this note is the reasoning behind it.
+`e2e/specs/env/service-type-roundtrip.spec.ts` checks the per-type service file names (#553) against a running stack.
+Its header comment gives the rules it measured, and `docker/README.md` says how to run it. To recreate one service
+with a throwaway override, pass `--no-deps`: postgres mounts no named volume, so recreating it with
+`qip-runtime-catalog` wipes the database.
 
 The UI is **not** containerized — `ui-proxy` (Nginx, port 8080) proxies non-`/api` paths to `host.docker.internal:4200`, so run the UI dev server separately (`npm -w @netcracker/qip-ui run dev`).
 
@@ -68,7 +60,7 @@ target runs. A new value's default must render exactly what the chart rendered b
 existed; `helm/cip-dev/README.md` lists the values the suite uses under "Values for the platform
 services" and "Brokers".
 
-Helm UI is exposed via NodePort at `http://localhost:30080/` (port set in `helm/cip-dev/values.yaml`); like Compose it only proxies to a locally-served UI. `values.yaml` toggles `qip.deploy.classic` (Spring engine) vs `qip.deploy.micro` (Quarkus micro-engine, image `ghcr.io/netcracker/qubership-integration-micro-engine:latest`).
+Helm UI is exposed via NodePort at `http://localhost:30080/` (port set in `helm/cip-dev/values.yaml`); like Compose it only proxies to a locally-served UI. `values.yaml` enables both engines by default: `global.qip.deploy.classic.enabled` (Spring engine) and `global.qip.deploy.micro.enabled` (Quarkus micro-engine, image `ghcr.io/netcracker/qubership-integration-micro-engine:latest`).
 
 ### Structure
 
@@ -76,7 +68,8 @@ Helm UI is exposed via NodePort at `http://localhost:30080/` (port set in `helm/
 docker/                       # Docker Compose local stack
   README.md                   # user-facing guide to the Compose stack
   docker-compose.yml          # base local stack: runtime-catalog, engine, sessions-management,
-                              # testing-service, ui-proxy, postgres, opensearch, consul
+                              # testing-service, ui-proxy, postgres, opensearch, consul; profile `ai`
+                              # adds ai-service, knowledge-sidecar, minio; `ai-e2e` adds e2e-evaluator
   docker-compose.kafka.yml    # optional: kafka in KRaft mode (9092) + akhq UI (8099); SASL, TLS,
                               # SASL-over-TLS, and TLSv1.3-only listeners, see README.md
                               # "Kafka listeners"
@@ -84,7 +77,10 @@ docker/                       # Docker Compose local stack
   docker-compose.redis.yml    # optional: redis (6379)
   docker-compose.pubsub.yml   # optional: GCP Pub/Sub emulator (8085)
   docker-compose.sftp.yml     # optional: SFTP server (2222), the e2e file transports' endpoint
+  docker-compose.local-env.yml # optional: layers ../.env.local (real LLM credentials) over ai-service-dev.env
+  docker-compose.a2a-lab.yml  # optional: turns on the ai-service A2A endpoints (scripts/a2a-lab.sh)
   qip-dev.env / engine-dev.env # env files mounted into the Spring Boot service containers
+  ai-service-dev.env          # env file of qip-ai-service and qip-e2e-evaluator
   nginx/
     nginx.conf                # http block; includes routes.conf
     routes.conf               # reverse-proxy routing (see Platform Context)
@@ -92,15 +88,15 @@ docker/                       # Docker Compose local stack
     server.json               # single-node bootstrap config (UI enabled, gossip encrypt key)
     consul-acl.json
   opensearch/opensearch.yml   # single-node OpenSearch config
-  init-db/init.sql            # creates engine_qrtz_db + engine_checkpoints_db
+  init-db/init.sql            # creates engine_qrtz_db, engine_checkpoints_db, and ai_a2a
   kafka-ssl/                  # committed test TLS material that generate.sh writes: client/ca.crt
                               # (mounted into engine), server/kafka.{crt,key} (mounted into kafka);
                               # gitleaks allowlists server/ by path
 helm/
-  cip-dev/                    # Helm umbrella chart (version 0.0.1) + per-component subcharts
+  cip-dev/                    # Helm umbrella chart + per-component subcharts
     istio.yaml                # IstioOperator for istioctl install: minimal profile, small requests
     charts/{camelk,consul,gateways,general,opensearch,postgres,ui,cip-engine,cip-runtime-catalog,
-            cip-sessions-management,cip-testing-service}
+            cip-sessions-management,cip-testing-service,cip-ai-service}
     charts/{kafka,rabbitmq,pubsub,sftp}  # brokers, off by default (helm/cip-dev/README.md "Brokers")
     templates/checks.yaml     # fails the render when micro domains mount the engine-certs Secret
                               # while cip-engine.trustedCerts is empty
@@ -109,6 +105,8 @@ docs/adr/                     # architecture decision records (0001 PostgreSQL t
 
 #### Compose ports (host → container)
 
+From `docker/docker-compose.yml`:
+
 | Service | Port(s) | Notes |
 |---|---|---|
 | ui-proxy (Nginx) | 8080 | single entrypoint; proxies UI to host:4200 |
@@ -116,9 +114,12 @@ docs/adr/                     # architecture decision records (0001 PostgreSQL t
 | qip-engine | 8092 → 8080, 5007 → 5005 | mounts `kafka-ssl/client` |
 | qip-sessions-management | 8093 → 8080, 5008 → 5005 | |
 | qip-testing-service | 8095 → 8080 | Go, no debug port; `read_only`, `PRODUCTION_MODE=false` |
+| qip-ai-service | 8094 → 8080 | Quarkus; profile `ai` |
+| qip-e2e-evaluator | 8100 → 8099 | profile `ai-e2e` |
+| minio | 9000, 9001 | profile `ai`; the only named volume, `minio-data` |
 | postgres | 5432 | image `postgres`, user/pass/db `postgres` |
-| opensearch | 9200, 9300 | `opensearchproject/opensearch:2.19.6`, single-node |
-| consul | 8500, 8600 (tcp/udp) | `hashicorp/consul:1.15.4`, `-bootstrap-expect=1` |
+| opensearch | 9200, 9300 | `opensearchproject/opensearch`, single-node |
+| consul | 8500, 8600 (tcp/udp) | `hashicorp/consul`, `-bootstrap-expect=1` |
 
 The three Java services run Spring profile `development`, build from their module dirs, and have actuator healthchecks at `/actuator/health`. `qip-testing-service` is the Go one: it builds from `../../testing-service`, runs `read_only`, and answers its healthcheck at `/health`.
 
@@ -128,8 +129,8 @@ This module orchestrates the local/dev deployment of the whole platform; it cont
 
 The base `docker/docker-compose.yml` builds and runs four services from **in-repo module dirs** via relative build
 contexts — `../../runtime-catalog`, `../../engine`, `../../sessions-management` and `../../testing-service` (two levels up
-from `infrastructure/docker/`, i.e. the monorepo root). After monorepo consolidation these are sibling directories
-inside this repo, not separate clones.
+from `infrastructure/docker/`, i.e. the monorepo root). The `ai` and `ai-e2e` profiles build theirs from
+`../../ai-service`.
 
 It also stands up the shared infra they depend on: PostgreSQL (catalog + `engine_qrtz_db` /
 `engine_checkpoints_db` created by `docker/init-db/init.sql`), OpenSearch (engine session recording +
@@ -137,4 +138,7 @@ sessions-management storage), and Consul (config + deployment publishing). Optio
 RabbitMQ, Redis, Pub/Sub, SFTP) are opt-in via overlay compose files for chains that use them; the chart
 offers Kafka, RabbitMQ, Pub/Sub and SFTP as subcharts, off by default.
 
-`docker/nginx/routes.conf` is the single entrypoint (port 8080) and encodes the platform's API routing: `^/api/{ver}/.*/catalog/...` and `variables-management` / `systems-catalog` → `runtime-catalog:8080`; `.../sessions-management` → `sessions-management:8080`; `.../engine` → `engine:8080`; everything else (the UI and `/doc/` help assets) proxies to `host.docker.internal:4200` (the locally-served UI/Vite dev server).
+`docker/nginx/routes.conf` is the single entrypoint (port 8080) and holds the API routing; `e2e/env/api-routes.ts`
+tabulates it by prefix. The `/api/` path shape differs between resources, so look a path up there instead of building
+it by hand. Chain invocation (`/routes/`, `/cip-routes/`) matches no `location` and gets the UI's `index.html` with
+200, so call a chain on the engine port, not through 8080.

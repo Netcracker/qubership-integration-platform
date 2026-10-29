@@ -2,8 +2,8 @@
  * The reads that address the whole platform rather than one worker's entities.
  *
  * `GET /v1/catalog/export` takes no ids: it exports every chain the catalog holds. That makes it
- * the one export a spec cannot scope, and `e2e/AGENTS.md` rule 2 is what sends it here — a spec
- * needing a global view gets a project running on its own rather than a place in `specs/api/`.
+ * the one export a spec cannot scope, and `e2e-spec-authoring` rule 2 is what sends it here — a
+ * spec needing a global view gets a project running on its own rather than a place in `specs/api/`.
  *
  * The rule earned itself on this endpoint. The exporter lists every chain and then resolves each
  * one's folder, so a folder a parallel worker deletes in between makes the whole request answer

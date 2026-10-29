@@ -346,8 +346,8 @@ written after its title. A pattern that spans a describe and its case therefore 
 `-g "runtime-catalog reports UP"` or `-g "runtime-catalog › reports UP"` selects nothing.
 
 Put `--no-deps` on every `--grep` and every file path. A filter selects tests, never dependency
-projects, so without the flag one matching `env` case drags `api`, `runtime`, `seed`,
-`seed-teardown`, and `tooling` in whole. On `k8s`, name the project too: a file under
+projects, so without the flag one matching `env` case drags `api`, `runtime`, `ui`, `ui-server`,
+`seed`, `tooling`, and their teardowns in whole. On `k8s`, name the project too: a file under
 `specs/runtime/` matches both `runtime` and `runtime-micro`. Run the browser layer with
 `--project=ui`.
 
@@ -356,24 +356,75 @@ load the stack can absorb. `E2E_WORKERS=4 npm test` overrides it.
 
 ### Reproducing one case
 
-`--grep` without `--no-deps` re-runs the seed, then the teardown that destroys the corpus you wanted
-to look at. Keep the corpus, then run the one case against it:
+A `-g` filter without `--no-deps` runs the case's dependency projects in full: the seed, its
+teardown, and for a `specs/ui/` case `ui-server`. The teardown then destroys the corpus you wanted
+to look at. A project such as `env` depends on most of the suite this way; its `dependencies` in
+`playwright.config.ts` list what it pulls in.
 
 ```bash
-E2E_KEEP=1 npm test                                     # leaves the corpus deployed
-E2E_SWEEP=never npm test -- --project=runtime --no-deps -g "part of the title"
+npm test -- --project=<project> -g "<title>"
 ```
 
-`E2E_SWEEP=never` stops the next run from collecting the kept corpus at its start. Drop the flag when
-you are done, and the next run collects it. Every runtime case reruns against a kept corpus.
+To run a case more than once, keep the corpus, then run the case against it:
+
+```bash
+E2E_KEEP=1 npm test -- <seeds>                                           # leaves the corpus deployed
+E2E_SWEEP=never npm test -- --project=<project> --no-deps -g "<title>"
+npm test -- --project=schema --project=harness                           # no stack needed
+npm run check-types
+```
+
+A spec's path in place of `-g "<title>"` runs every case in the file.
+
+`<seeds>` are the seed projects the case's project depends on:
+
+| Project | `<seeds>` |
+| --- | --- |
+| `api`, `tooling`, `runtime`, `ui`, `env`, `global`, `k8s` | `--project=seed` |
+| `brokers`, `brokers-restart` | `--project=brokers-seed`, which runs `seed` first |
+| `runtime-micro`, `global-micro`, `env-micro` | `--project=seed --project=seed-micro` |
+| `runtime-micro-redeploy` | `--project=seed-micro` |
+| `brokers-micro` | `--project=brokers-seed --project=brokers-micro-seed` |
+
+`E2E_SWEEP=never` stops the next run from collecting the kept corpus at its start. Every runtime case
+reruns against a kept corpus.
+
+While only the spec changes, add `E2E_PROVISION=never` to the second command, so the run checks
+health and builds nothing. After a change to the product, leave the flag out: the default, `auto`,
+rebuilds the changed service before the case runs.
+
+A kept micro corpus does not follow a micro-engine change. `auto` builds the new micro-engine image
+and points the catalog's default at it, but a micro domain already deployed keeps the image it was
+deployed with, and `--no-deps` skips the seed that deploys it. After a change under
+`micro-engine/`, keep the case's whole `<seeds>` row from the table again, in one command, before
+running the case: for `runtime-micro`, `E2E_KEEP=1 npm test -- --project=seed --project=seed-micro`.
+The new run collects the old corpus at its start, and the seeds of one command share its run token.
 
 A browser case needs the bundle on 4200 as well, which `--no-deps` does not start. After one run has
 built the bundle, start a preview at the repository root, then run the case:
 
 ```bash
 npm run preview -w @netcracker/qip-ui -- --port 4200 --strictPort   # at the repository root
-E2E_SWEEP=never npm test -- --project=ui --no-deps -g "part of the title"
+E2E_SWEEP=never npm test -- --project=ui --no-deps -g "<title>"
 ```
+
+The preview serves `ui/dist` as it was built. After a change under `ui/src`, stop the preview and
+run the case once without `--no-deps`: `ui-server` sees the stale bundle and rebuilds it. A bundle
+built by hand needs the settings `ui-server` builds with, `VITE_PRODUCTION_MODE=false` and
+`VITE_AI_SERVICE_ENABLED=false`; without the second, every page requests the AI health check, and on
+a stack with no AI service the page guard fails every case.
+
+When you are done, run both teardowns under the token of the kept run, which its `[keep]` lines
+print. `seed-teardown` removes the `seed` corpus, and `suite-teardown` runs the teardowns of the
+other seeds. Each removes only a corpus that the run named by `E2E_RUN` wrote and leaves a corpus of
+another run in place. `E2E_SWEEP=never` keeps the run's start from collecting other finished runs:
+
+```bash
+E2E_SWEEP=never E2E_RUN=<run> npm test -- --project=seed-teardown --project=suite-teardown
+```
+
+A later run without `E2E_SWEEP=never` also collects the corpus at its start, except the broker
+topology, which only the teardown of the run that created it removes (see "Broker residue" below).
 
 ## Debugging
 

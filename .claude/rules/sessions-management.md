@@ -9,24 +9,23 @@ Spring Boot 3.5 microservice that manages recorded sessions of integration flow 
 
 ### Build & Test Commands
 
+Run from the repository root.
+
 ```bash
 # Build (skip tests)
-mvn clean package -DskipTests
+mvn -pl sessions-management clean package -DskipTests
 
-# Build with tests
-mvn clean verify
+# Build with tests and the coverage report (sessions-management/target/site/jacoco/)
+mvn -pl sessions-management clean verify -Dgpg.skip=true
 
 # Run a single test class
-mvn test -Dtest=TimeUtilsTest
+mvn -pl sessions-management test -Dtest=TimeUtilsTest
 
 # Run a single test method
-mvn test -Dtest=TimeUtilsTest#testMethod
+mvn -pl sessions-management test -Dtest=TimeUtilsTest#testMethod
 
 # Generate executable JAR (produces target/qip-sessions-management-*-exec.jar)
-mvn clean package spring-boot:repackage -DskipTests
-
-# Code coverage report (target/site/jacoco/)
-mvn verify
+mvn -pl sessions-management clean package spring-boot:repackage -DskipTests
 ```
 
 Java 21 is required. Checkstyle is enforced with zero violations allowed.
@@ -43,8 +42,8 @@ Java 21 is required. Checkstyle is enforced with zero violations allowed.
 - `service/` — Business logic (SessionService, ImportService, ExportService, CatalogInternalService)
 - `dto/` — API contracts. `dto/filter/` for search filters, `dto/opensearch/` for OpenSearch document models
 - `mapper/` — MapStruct mappers converting between OpenSearch documents (`SessionElementElastic`) and API DTOs (`Session`, `SessionElement`)
-- `configuration/` — Spring auto-configurations including `opensearch/OpenSearchAutoConfiguration` for OpenSearch client setup
-- `configuration/opensearch/` — OpenSearch client wiring: `OpenSearchStandaloneAutoConfiguration` and `OpenSearchDefaultAutoConfiguration` pick the client for the deployment mode
+- `configuration/` — Spring auto-configurations (REST template, Swagger, web) and `PropertyPrefixAliasEnvironmentPostProcessor`
+- `configuration/opensearch/` — OpenSearch client wiring: `OpenSearchStandaloneAutoConfiguration` and `OpenSearchDefaultAutoConfiguration` pick the client for the deployment mode; `DevDbaasOpensearchClient` stands in for DBaaS
 - `properties/` — `@ConfigurationProperties` records for OpenSearch, sessions bulk config, internal services
 - `exception/` — `GlobalExceptionHandler` with custom exceptions mapping to HTTP status codes
 
@@ -72,18 +71,13 @@ Key environment variables: `OPENSEARCH_HOST`, `OPENSEARCH_PORT`, `OPENSEARCH_USE
 
 ### CI/CD
 
-GitHub Actions workflows in `.github/workflows/`:
-- `maven-build.yaml` — PR builds with SonarQube analysis
-- `pr-conventional-commits.yaml` — enforces Conventional Commits format
-- Checkstyle enforced via `qip-checkstyle` ruleset (zero violations)
+`.github/workflows/sessions-management-build.yaml` builds the module through `_maven-module-build.yaml`, which also
+runs the Sonar scan.
 
 ### Conventions
 
-- Conventional Commits required for PR titles/commits
-- Checkstyle strictly enforced (max violations = 0)
 - MapStruct for all DTO conversions (not manual mapping)
 - Properties defined as Java records in `properties/` package
-- CLA required for contributions
 
 ### Platform Context
 
@@ -106,10 +100,3 @@ This service handles **session observability** in the Qubership Integration Plat
 #### Data Flow
 
 Engine (and Micro Engine) write session elements directly to OpenSearch during chain execution. This service reads the same OpenSearch index to provide search, filtering, and export capabilities. There is no direct communication between Engine and Sessions Management — they share data through OpenSearch.
-
-### Legacy `qip.*` property names
-
-Properties use the `cip.` prefix. `PropertyPrefixAliasEnvironmentPostProcessor` keeps the old `qip.` names working from
-every property source, Consul included. For a lookup of `cip.x`, the first source that holds `cip.x` or `qip.x` wins,
-and within one source `cip.x` wins, so a `qip.x` in Consul still overrides a `cip.x` default in `application.yml`.
-Read and declare new keys under `cip.` only.

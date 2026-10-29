@@ -90,10 +90,7 @@ jobs:
         run: npm ci --legacy-peer-deps
 
       - name: Build workspace chain
-        run: |
-          npm run build -w schemas              # schemas/dist — consumed by the ui build
-          npm run build -w ui                   # standalone web UI (vite app build)
-          npm run build -w vscode-extension     # prepare-deps (schemas + ui:lib) + compile-web
+        run: npm run build  # schemas, the ui app, then vscode-extension (prepare-deps + compile-web)
 
       - name: Test
         run: npm test --workspaces --if-present

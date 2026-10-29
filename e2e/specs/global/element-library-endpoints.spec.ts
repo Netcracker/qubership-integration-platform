@@ -8,10 +8,10 @@
  * element is served, what shape every entry carries, that the by-name read answers the same object,
  * and what makes the types listing a subset of the palette rather than a copy of it.
  *
- * `e2e/AGENTS.md` rule 2 is what puts the file in `global`. `GET /v1/library/elements/types` is
- * `ElementRepository.findAllGroupByType`, `SELECT e.type FROM elements e GROUP BY e.type`, with no
- * chain, snapshot, folder or caller predicate. Its answer changes whenever **any** worker creates or
- * deletes an element of a type nothing else is using, so the round-trip below would be asserting
+ * `e2e-spec-authoring` rule 2 is what puts the file in `global`. `GET /v1/library/elements/types`
+ * is `ElementRepository.findAllGroupByType`, `SELECT e.type FROM elements e GROUP BY e.type`, with
+ * no chain, snapshot, folder or caller predicate. Its answer changes whenever **any** worker creates
+ * or deletes an element of a type nothing else is using, so the round-trip below would be asserting
  * over a list another worker is rewriting if this file sat in `api`.
  *
  * Five shapes measured against the stack rather than assumed:

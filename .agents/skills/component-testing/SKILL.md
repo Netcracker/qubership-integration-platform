@@ -20,7 +20,7 @@ scenarios with controlled external dependencies.
 | --- | --- |
 | Generated routes, element settings, component beans, and their runtime interactions | Use this skill and the snapshot scenario framework. |
 | One production Java class, Mockito behavior, or a small CDI configuration | Use `java-unit-testing`, including its Quarkus component reference. |
-| Catalog HTTP behavior and PostgreSQL or Consul effects in the local stack | Use `runtime-catalog-api-testing`. |
+| Catalog HTTP behavior and PostgreSQL or Consul effects in the local stack | Use an end-to-end case under `e2e/specs/api/` with the `e2e-spec-authoring` skill; the `runtime-catalog` instruction covers the module's own tests. |
 | Endpoint options absent from the exported element | Use an endpoint test; state that it does not establish generated-chain support. |
 
 Verify framework code used only by component tests through actual component

@@ -31,34 +31,51 @@ gh run view --job <job-id> --log-failed | sed 's/\x1b\[[0-9;]*m//g' > "$SCRATCH/
 The workflows are per module (`<module>-build.yaml`) plus repo-wide ones, and
 which file owns a linter is not obvious from the error text:
 
-- **ESLint, Prettier, `tsc`, Jest failures** come from the module job in
+- **ESLint, `tsc`, Jest failures** come from the module job in
   `ui-build.yaml` or `vscode-extension-build.yaml`, never from super-linter.
   `.github/super-linter.env` disables the TypeScript and JSX validators on
   purpose: the containerised ESLint cannot resolve each module's flat config,
-  local plugins, or type-aware rules. Fix these by running the module's own
-  `npm run lint` / `npm run test:unit` in its workspace.
-- **YAML, shell, Markdown, Dockerfile, JSON, GitHub Actions, secrets** come from
-  `super-linter.yaml`. Its behaviour is set by `.github/super-linter.env` and the
-  per-linter configs in `.github/linters/` (`.markdownlint.json`,
-  `.yaml-lint.yml`, `.stylelintrc.json`, `.gitleaks.toml`, `zizmor.yaml`,
-  `.editorconfig-checker.json`, `.textlintrc`).
+  local plugins, or type-aware rules. No CI job runs Prettier: the same file
+  turns its Prettier validators off. Reproduce with the command the job runs,
+  from the workspace directory:
+  - `ui`: `npm run lint` (ESLint over `.`, tests included), `npm run check-types`,
+    `npm test`;
+  - `vscode-extension`: `npx --no-install eslint src`, `npm run check-types`,
+    `npm run test:unit`.
+- **Go lint and vet** come from the `lint` job in `testing-service-build.yaml`,
+  which runs `golangci-lint` at the version `testing-service-build.yaml` pins,
+  against `testing-service/.golangci.yml`; super-linter's Go validators are off.
+  A v2 binary reads that file differently, so reproduce with the pinned version
+  from `testing-service/`.
+- **YAML, shell, Markdown, Dockerfile, JSON, GitHub Actions, secrets, Groovy,
+  Python** come from `super-linter.yaml`. Its behaviour is set by
+  `.github/super-linter.env` and the per-linter configs in `.github/linters/`
+  (`.markdownlint.json`, `.yaml-lint.yml`, `.stylelintrc.json`,
+  `.gitleaks.toml`, `zizmor.yaml`, `.editorconfig-checker.json`, `.textlintrc`,
+  `.groovylintrc.json`, `.mypy.ini`, `.python-lint`).
 - **PR title and commit message rejections** come from
   `pr-conventional-commits.yaml` and `pr-lint-title.yaml`. These fail on the
   metadata, not the code — fix the title or amend the message.
-- **Maven `[ERROR]` with 401, 403, or "Could not resolve"** on `micro-engine` is
-  a credentials problem, not a code problem: it needs GitHub Packages auth for
-  the private `com.netcracker.cloud` BOMs.
+- **"This pull request closes no issue"** comes from `pr-linked-issue.yaml`. Add
+  `Closes #<N>` to the description or `#<N>` to the title, then re-run the
+  check; a keyword in a commit message does not count.
+- **A POM version drift** comes from `version-invariants.yaml`, which runs
+  `scripts/check-version-invariants.sh` on a change to a `pom.xml` or to
+  `scripts/`. Run the script locally.
+- **Maven `[ERROR]` with 401, 403, or "Could not resolve"** on a
+  `com.netcracker.cloud` artifact is a credentials problem; see the `monorepo`
+  instruction, Branch model.
 
 ## Reproduce locally before pushing
 
 CI round-trips are the slow part, so reproduce the exact check first:
 
 ```bash
-npx stylelint <files> && npx prettier --check <files>   # from ui/
+npx stylelint --config .github/linters/.stylelintrc.json <files>   # from the repository root
 actionlint .github/workflows/<file>.yaml                 # if installed
 ```
 
-`dotenv-linter` enforces alphabetical keys in `infrastructure/*.env`. Verify
+`dotenv-linter` enforces alphabetical keys in `infrastructure/docker/*.env`. Verify
 without installing it:
 
 ```bash

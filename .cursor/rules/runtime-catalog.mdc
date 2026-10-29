@@ -5,30 +5,32 @@ globs: runtime-catalog/**
 
 ### Build & Test Commands
 
+Run from the repository root.
+
 ```bash
 # Build (checkstyle runs automatically at compile phase)
-mvn package
+mvn -pl runtime-catalog package
 
 # Build without tests
-mvn package -DskipTests
+mvn -pl runtime-catalog package -DskipTests
 
 # Run all tests
-mvn test
+mvn -pl runtime-catalog test
 
 # Run a single test class
-mvn test -Dtest=ChainElementDifferenceServiceTest
+mvn -pl runtime-catalog test -Dtest=ChainElementDifferenceServiceTest
 
 # Run a single test method
-mvn test -Dtest=ChainElementDifferenceServiceTest#testMethodName
+mvn -pl runtime-catalog test -Dtest=ChainElementDifferenceServiceTest#testMethodName
 
-# Test coverage report (target/site/jacoco/index.html)
-mvn verify
+# Test coverage report (runtime-catalog/target/site/jacoco/index.html)
+mvn -pl runtime-catalog verify -Dgpg.skip=true
 
 # Run locally with dev profile (debug port 18085)
-mvn spring-boot:run -Dspring-boot.run.profiles=development
+mvn -pl runtime-catalog spring-boot:run -Dspring-boot.run.profiles=development
 
 # Checkstyle only
-mvn checkstyle:check
+mvn -pl runtime-catalog checkstyle:check
 ```
 
 ### Architecture Overview
@@ -40,14 +42,16 @@ mvn checkstyle:check
 - **REST controllers** (`rest/v1`, `rest/v2`, `rest/v3`) — versioned API; v3 is the latest with session-based import/export
 - **Services** (`service/`) — core business logic: chain compilation, deployment building, import/export with versioned migrations, spec parsing (OpenAPI/GraphQL/WSDL/Protobuf)
 - **Persistence** (`persistence/`) — JPA entities and Spring Data repositories; PostgreSQL with `catalog` schema
-- **Builder** (`builder/`) — generates Apache Camel XML routes from chain definitions using Handlebars templates
-- **Mapper** (`mapper/`) — AtlasMap-based field mapping (JSON, XML, GraphQL, gRPC)
+- **Mappers** (`rest/v*/mapper/`, `model/mapper/`, `service/exportimport/mapper/`) — MapStruct DTO and entity mapping
 - **Consul** (`consul/`) — publishes compiled deployments and listens for library events
 
 #### Important Subsystems
 
-- **Deployment pipeline**: Chain → compiler → Camel XML builder (Handlebars) → Consul publish
-- **Import/Export**: Session-based (v3) with versioned migration chain (`service/exportimport/migrations/`)
+- **Deployment pipeline**: Chain → compiler → Camel XML builder (Handlebars) → Consul publish. The compiler, the
+  element templates (`integration-build-pipeline/src/main/resources/elements/*/template.hbs`), and the AtlasMap
+  mapper live in integration-build-pipeline.
+- **Import/Export**: Session-based (v3) with a versioned migration chain in integration-build-pipeline
+  (`io/readers/migrations/`)
   - Exported file names (`<id>.chain.cip.yaml`, `<id>.service.cip.yaml`, and the rest) take `cip` from
     `EXPORT_FILE_APP_NAME` in `util/ExportImportUtils.java`. Build a name with the
     `ExportImportUtils.generate*FileExportName` helpers. Import accepts `.cip.yaml` and the legacy `.qip.yaml`.
@@ -56,15 +60,18 @@ mvn checkstyle:check
 
 #### Code Generation & Processing
 
-- **ANTLR4** generates visitors (grammar sources processed at build time)
+- **ANTLR4**: the mapper expression grammar is in `integration-build-pipeline/src/main/antlr4/`; the
+  `antlr4-maven-plugin` execution in this POM has no grammar to process
 - **MapStruct** for DTO/entity mapping (configured with Lombok binding)
 - **Hibernate bytecode enhancement** enabled for lazy initialization
 
 ### Conventions
 
-- **Conventional Commits** required for all commits and PRs
-- **Checkstyle** enforced at compile time (rules from `qubership-integration-checkstyle` artifact)
-- Tests use `@ExtendWith(SpringExtension.class)` with `@ContextConfiguration` (lightweight, no full app context); test resources include both `src/test/resources` and `src/main/resources`
+- **Checkstyle** enforced at compile time (rules from the `qip-checkstyle` artifact)
+- Unit tests use `@ExtendWith(MockitoExtension.class)` by default. A test that needs Spring wiring uses
+  `@ExtendWith(SpringExtension.class)` with `@ContextConfiguration` (lightweight, no full app context). Test
+  resources include `src/test/resources`, `src/main/resources`, and
+  `integration-build-pipeline/src/test/resources/testConfigurations/`
 
 ### The Protobuf toolchain
 
@@ -94,7 +101,7 @@ This service is the **central brain** of the Qubership Integration Platform (QIP
 | **Consul** | REST (`/v1/kv/*`, `/v1/txn`) | Publish compiled deployment configs, listen for library events, configuration at `config/{NAMESPACE}/` |
 | **PostgreSQL** | JDBC | Primary data store (schema: `catalog`). Chains, elements, deployments, snapshots, specs, action logs, import sessions. |
 | **Engine pods** | REST (direct pod IPs via Kubernetes API) | `GET /v1/engine/live-exchanges` — fetch running exchanges; `DELETE /v1/engine/live-exchanges/{id}/{id}` — kill exchanges |
-| **Kubernetes API** | kubernetes-client-java | Discover engine pods/deployments by label `qip_engine_app`, get domain info |
+| **Kubernetes API** | kubernetes-client-java | Discover engine pods/deployments by label `cip_engine_app`, get domain info |
 
 #### Services That Depend on This
 
@@ -124,10 +131,3 @@ path both returned 200 and broke the data. A 200 is not a success on its own: th
 reports a failed chain in `result.chains[].status`, and the asynchronous import worker logs its
 error after the request returns. Read the body, the `[ERROR]` lines of the container log, and the
 rows the call should have written.
-
-### Legacy `qip.*` property names
-
-Properties use the `cip.` prefix. `PropertyPrefixAliasEnvironmentPostProcessor` keeps the old `qip.` names working from
-every property source, Consul included. For a lookup of `cip.x`, the first source that holds `cip.x` or `qip.x` wins,
-and within one source `cip.x` wins, so a `qip.x` in Consul still overrides a `cip.x` default in `application.yml`.
-Read and declare new keys under `cip.` only.

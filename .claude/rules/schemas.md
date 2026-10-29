@@ -5,16 +5,16 @@ paths:
 
 ### Project Overview
 
-Centralized JSON Schema definitions (authored as YAML, JSON Schema Draft-07) for QIP chains, services, specifications, and ~72 integration element types. Dual-published: as the npm package `@netcracker/qip-schemas` (v0.2.30) and as the Maven artifact `org.qubership.integration.platform:qip-schemas`. Build/codegen is a TypeScript pipeline (`ts-node` + `@apidevtools/json-schema-ref-parser` + `json-schema-to-typescript`); tested with Jest + AJV 8 (npm) and JUnit 5 + networknt `json-schema-validator` (Maven).
+Centralized JSON Schema definitions (authored as YAML, JSON Schema Draft-07) for QIP chains, services, specifications, and the integration element types. Dual-published: as the npm package `@netcracker/qip-schemas` and as the Maven artifact `org.qubership.integration.platform:qip-schemas`. Build/codegen is a TypeScript pipeline (`ts-node` + `@apidevtools/json-schema-ref-parser` + `json-schema-to-typescript`); tested with Jest + AJV 8 (npm) and JUnit 5 + networknt `json-schema-validator` (Maven).
 
 ### Build & Test Commands
 
-#### npm (root `package.json` scripts)
+#### npm (`schemas/package.json` scripts)
 
 ```bash
-npm run build                                  # ts-node src/main/scripts/build.ts build → assets/ + types/ + dist/
-npm run clean                                  # ts-node src/main/scripts/build.ts clean → removes assets/, types/, dist/
-npm test                                       # jest — AJV Draft-07 conformance + sample validation
+npm -w @netcracker/qip-schemas run build   # ts-node src/main/scripts/build.ts build → assets/ + types/ + dist/
+npm -w @netcracker/qip-schemas run clean   # ts-node src/main/scripts/build.ts clean → removes assets/, types/, dist/
+npm -w @netcracker/qip-schemas test        # jest — AJV Draft-07 conformance + sample validation
 ```
 
 - `prepublishOnly` runs `build`, `postpublish` runs `clean` (npm publish hooks).
@@ -23,12 +23,12 @@ npm test                                       # jest — AJV Draft-07 conforman
 #### Maven (`pom.xml`, `org.qubership.integration.platform:qip-schemas`)
 
 ```bash
-mvn -pl schemas clean install -Dgpg.skip=true  # runs JUnit conformance tests + zips conf-model schemas
-mvn -pl schemas test                           # JUnit 5 + networknt json-schema-validator (1.5.8)
+mvn -pl schemas package   # runs JUnit conformance tests + zips conf-model schemas
+mvn -pl schemas test      # JUnit 5 + networknt json-schema-validator
 ```
 
 - Maven build emits a `models` ZIP (`zip-pack.xml` assembly) packaging `src/main/resources/conf-model/`.
-- Checkstyle (`qip-checkstyle` `0.0.3`) is bound to the `compile` phase, zero violations allowed.
+- Checkstyle (`qip-checkstyle`, version from `qip-checkstyle-revision` in this POM) is bound to the `compile` phase, zero violations allowed.
 
 ### Project Structure
 
@@ -53,39 +53,27 @@ mvn -pl schemas test                           # JUnit 5 + networknt json-schema
   `e2e/specs/schema/frozen-corpus.spec.ts` measures. After changing either tree, run
   `npx playwright test --project=schema --project=harness` in `e2e/`; neither project needs a stack.
 - AJV is configured with `discriminator: true` and `allErrors: true`; keep schemas Draft-07 compatible (the Java side rejects unknown keywords).
-- **Service schemas are per type.** `external-service`, `internal-service`, and `implemented-service` each state only
-  what differs by type: its own `Protocol` enum in all three, `maxItems: 1` on `environments` in `internal-service` and
-  `implemented-service` (`external-service` declares no `environments` key, so it is unbounded), and
-  `internalServiceName` in `internal-service` alone. Everything they
-  share sits in `common-properties/typed-service-content.schema.yaml`, which they `allOf`-`$ref` from `content`: the
-  three common-property refs, `activeEnvironmentId`, the `environments` array, and the
-  `not: {required: [integrationSystemType]}` that suppresses the type field, because since #553 the file name carries
-  it.
-  `additionalProperties: false` cannot do the suppression: in Draft-07 it does not see properties contributed
-  through `allOf` `$ref`s, so it would reject the positive samples too. Reference `SourceType` by **absolute** URI
-  even from inside `environment.schema.yaml`, which declares it. A bare `#/definitions/SourceType` resolves against
-  the referring document, which defines nothing of the sort, and the constraint stops applying without either harness
-  saying so.
-  - **An environment is one schema, `common-properties/environment.schema.yaml`,** referenced by both
-    `typed-service-content` and the legacy `service.schema.yaml`, so the two formats cannot drift apart on what an
-    environment is. It owns the `SourceType` enum and the `if MANUAL then address required` rule.
-  - **The live path and the legacy format share only `environment`.** A single
-    `common-properties/service-content.schema.yaml` used to carry `Environment`, `SourceType` **and**
-    `activeEnvironmentId` for both, which forced the `not` guard into a separate file because `service.schema.yaml`
-    requires the very field the typed schemas forbid. Splitting `environment` out dissolved that conflict: the shared
-    part is now exactly the part both formats agree on.
-  - `common-properties/*` `$id`s never reach a document as `$schema`; only top-level entity schemas do. So these
-    files can be merged, renamed, or moved freely. A top-level `$id` is different: documents carry it as `$schema`,
-    and runtime-catalog checks that value on import through `ApplicationJsonSchemaProperties`, which accepts the
-    configured URI and the legacy `http://qubership.org/schemas/product/qip/<type>`. A change to a top-level `$id`
-    needs a matching change there.
-  - `schemaResolver.ts` and `generateTypes.ts` map an `$id` to a file by replacing the prefix with `conf-model/` and
-    appending `.schema.yaml`, so moving or renaming a schema file changes its `$id`.
-- The npm package version (`package.json`) and the Maven version (`pom.xml`) are independent and bumped separately.
+- `common-properties/*` `$id`s never reach a document as `$schema`; only top-level entity schemas do. So these
+  files can be merged, renamed, or moved freely. A top-level `$id` is different: documents carry it as `$schema`,
+  and runtime-catalog checks that value on import through `ApplicationJsonSchemaProperties`, which accepts the
+  configured URI and the legacy `http://qubership.org/schemas/product/qip/<type>`. A change to a top-level `$id`
+  needs a matching change there.
+- `schemaResolver.ts` and `generateTypes.ts` map an `$id` to a file by replacing the prefix with `conf-model/` and
+  appending `.schema.yaml`, so moving or renaming a schema file changes its `$id`.
+- The npm package (`package.json`) and the Maven artifact (`pom.xml`) are released under one version:
+  `schemas-release.yaml` lets npm compute the number and passes it to the Maven release.
+- **The element property form comes from these schemas,** in the web UI and the VS Code extension alike:
+  `chainElementSchemaModules.ts` reads `schemasByType`, and `DescriptionTooltipFieldTemplate.tsx` shows a property's
+  schema `description` next to its label. The element library's `description.yaml` in integration-build-pipeline
+  drives the palette, titles, mandatory flags, defaults, and the Camel URI `query` flag, and the form ignores its
+  property descriptions. Text a user should read goes into `conf-model/element/*.schema.yaml`. A `description` or
+  `title` next to a `$ref` does render in the form, although Draft-07 ignores siblings of `$ref`.
+- **After editing a schema, rebuild `dist/`** with `npm -w @netcracker/qip-schemas run build`. The UI reads
+  `dist/index.mjs`, and a stale build keeps showing the old form without an error.
 
 ### Platform Context
 
-`qip-schemas` is the single source of truth for QIP entity/element JSON Schemas, consumed by three downstream modules. See `README.md` for the repository layout.
+`qip-schemas` is the single source of truth for QIP entity/element JSON Schemas, consumed by the modules below. See `README.md` for the repository layout.
 
 This is a **shared library**, not a runtime service — it has no inter-service communication.
 
@@ -93,7 +81,8 @@ This is a **shared library**, not a runtime service — it has no inter-service 
 
 | Consumer | Mechanism | What it uses |
 |---|---|---|
-| **Runtime Catalog** | Maven (`org.qubership.integration.platform:qip-schemas`) | `conf-model` schemas (validation/compilation of chains & elements) |
+| **AI service** | `ai-service/scripts/fetch-qip-schemas.sh` at build time (no Maven dependency) | the `conf-model` sources, copied into `target/classes/qip-schemas` |
+| **End-to-end suite** | reads the sources directly | `conf-model/element/` and `src/test/resources/samples/` (see Conventions) |
 | **UI** (`@netcracker/qip-ui`) | npm workspace dep `@netcracker/qip-schemas` | `schemasByType` from `dist/index.mjs` (via `chainElementSchemaModules.ts`); element type → schema (e.g. `"http-trigger"`); RJSF chain-element forms |
 | **VS Code Extension** | npm dep (embeds qip-ui) | same `@netcracker/qip-schemas` schemas, offline |
 

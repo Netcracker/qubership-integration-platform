@@ -182,8 +182,8 @@ const suite: SuiteProject[] = [
   },
   {
     // Reads the platform holds no worker can scope: an export of every chain, a total, a sorted
-    // page. `e2e/AGENTS.md` rule 2 sends such a spec out of `specs/api/` and into a project of its
-    // own, and this is that project.
+    // page. `e2e-spec-authoring` rule 2 sends such a spec out of `specs/api/` and into a project of
+    // its own, and this is that project.
     //
     // `workers: 1` alone would not be enough, because it bounds this project and not the run:
     // Playwright schedules every project into one pool, so a parallel worker deleting its folder
