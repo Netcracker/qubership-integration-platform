@@ -14,6 +14,9 @@
  * `--only=vscode-messages` checks the message registry alone, against a run of `--project=vscode`,
  * and writes neither the catalog nor `coverage.json`.
  *
+ * `--partial` checks a narrowed run, such as a pull request lane, against the element and operation
+ * registries with `reconcile()`'s `partial` option, and also writes neither file.
+ *
  * Plain JavaScript importing TypeScript on purpose: Node strips the types, and the registry
  * imports nothing at runtime so it loads outside Playwright.
  */
@@ -53,6 +56,19 @@ if (args.onlyMessages) {
   }
   const { covered, handled, unhandled } = summarizeMessages(messageRegistry);
   console.log(`message reconciliation passed: ${covered} of ${handled} handled message types covered (${unhandled} unhandled)`);
+  process.exit(0);
+}
+
+if (args.partial) {
+  const problems = reconcile(report, elementRegistry, operationClaims(), { partial: true });
+  const target = reportTarget(report);
+  const narrowed = runFilters(report).join(" ") || "nothing";
+  if (problems.length > 0) {
+    console.error(`partial coverage reconciliation of a ${target} run narrowed by \`${narrowed}\` failed (${problems.length}):`);
+    for (const problem of problems) console.error(`  - ${problem}`);
+    process.exit(1);
+  }
+  console.log(`partial coverage reconciliation of a ${target} run narrowed by \`${narrowed}\` passed`);
   process.exit(0);
 }
 

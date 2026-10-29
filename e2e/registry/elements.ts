@@ -1161,24 +1161,47 @@ function countTests(report: JsonReport): number {
   return total;
 }
 
-/** The one option of `npm run reconcile`: reconcile the message registry alone. */
+/** The option of `npm run reconcile` that reconciles the message registry alone. */
 const ONLY_MESSAGES = "--only=vscode-messages";
+
+/** The option of `npm run reconcile` that reads a narrowed run, as a pull request lane makes one. */
+const PARTIAL = "--partial";
+
+export interface ReconcileArgs {
+  report?: string;
+  onlyMessages?: boolean;
+  partial?: boolean;
+  error?: string;
+}
 
 /**
  * The arguments of `reconcile.mjs`: the report path, and the options apart from it, so an option is
  * never read as a path.
  */
-export function reconcileArgs(argv: readonly string[]): { report?: string; onlyMessages?: boolean; error?: string } {
-  const result: { report?: string; onlyMessages?: boolean; error?: string } = {};
+export function reconcileArgs(argv: readonly string[]): ReconcileArgs {
+  const result: ReconcileArgs = {};
   for (const argument of argv) {
     if (!argument.startsWith("-")) {
       result.report ??= argument;
       continue;
     }
-    if (argument !== ONLY_MESSAGES) return { error: `unknown option ${argument}; the one option is ${ONLY_MESSAGES}` };
-    result.onlyMessages = true;
+    if (argument === ONLY_MESSAGES) result.onlyMessages = true;
+    else if (argument === PARTIAL) result.partial = true;
+    else return { error: `unknown option ${argument}; the options are ${ONLY_MESSAGES} and ${PARTIAL}` };
+  }
+  if (result.onlyMessages && result.partial) {
+    return { error: `${PARTIAL} and ${ONLY_MESSAGES} read different registries: pass one of them` };
   }
   return result;
+}
+
+export interface ReconcileOptions {
+  /**
+   * Accepts a narrowed run and runs only the checks a subset of the suite can fail. A row the run
+   * left out is not unproven, so a `covered` or `reached` row no test of this run proved is not
+   * reported.
+   */
+  partial?: boolean;
 }
 
 /**
@@ -1202,16 +1225,20 @@ export function reconcileArgs(argv: readonly string[]): { report?: string; onlyM
  * A row that names a target is read only against a run on that target, which the report records:
  * a custom-resource row is not unproven on Compose, where no cluster exists. A row that names no
  * target runs on both.
+ *
+ * `partial` accepts a narrowed run and keeps the checks that hold for any subset of the suite: the
+ * tags, the declarations against the rows, and a `not-reached` row the run reached.
  */
 export function reconcile(
   report: JsonReport,
   entries: readonly RegistryEntry[] = elementRegistry,
   operations: readonly OperationClaim[] = [],
+  { partial = false }: ReconcileOptions = {},
 ): string[] {
   const problems: string[] = [];
 
   const filters = runFilters(report);
-  if (filters.length > 0) {
+  if (filters.length > 0 && !partial) {
     return [
       `the run was narrowed by \`${filters.join(" ")}\`: reconciliation reads a whole run or none`,
     ];
@@ -1229,7 +1256,7 @@ export function reconcile(
   const byKey = new Map(entries.map((entry) => [entryKey(entry), entry]));
 
   for (const entry of entries) {
-    if (entry.status !== "covered" || !runsOn(entry.target, target)) continue;
+    if (entry.status !== "covered" || !runsOn(entry.target, target) || partial) continue;
     const key = entryKey(entry);
     if (!proven.has(key)) {
       problems.push(`${key}: marked covered, but no passing test declares it`);
@@ -1262,7 +1289,7 @@ export function reconcile(
     }
   }
 
-  problems.push(...reconcileOperations(report, operations, target));
+  problems.push(...reconcileOperations(report, operations, target, { partial }));
   return problems;
 }
 
@@ -1324,11 +1351,14 @@ export function reachedFromReport(report: JsonReport): Set<string> {
  * A run that recorded nothing at all reports that once rather than reporting every `covered` row as
  * unproven: the two readings are indistinguishable from the rows alone, and only one of them is a
  * registry problem. It still fails, because a proof loop nothing feeds proves nothing.
+ *
+ * Under `partial`, a `covered` or `reached` row the run did not reach is not reported.
  */
 export function reconcileOperations(
   report: JsonReport,
   operations: readonly OperationClaim[],
   target: Target = reportTarget(report),
+  { partial = false }: ReconcileOptions = {},
 ): string[] {
   if (operations.length === 0) return [];
 
@@ -1355,10 +1385,10 @@ export function reconcileOperations(
 
   for (const claim of operations) {
     if (!runsOn(claim.target, target)) continue;
-    if (claim.status === "covered" && !reached.has(claim.key)) {
+    if (!partial && claim.status === "covered" && !reached.has(claim.key)) {
       problems.push(`${claim.key}: marked covered, but no passing test reached it`);
     }
-    if (claim.status === "reached" && !reached.has(claim.key)) {
+    if (!partial && claim.status === "reached" && !reached.has(claim.key)) {
       problems.push(
         `${claim.key}: marked reached, but no passing test reached it. A call records one ` +
           `through a transport in support/ or through the \`request\` fixture on a service's own port`,
