@@ -346,8 +346,8 @@ written after its title. A pattern that spans a describe and its case therefore 
 `-g "runtime-catalog reports UP"` or `-g "runtime-catalog › reports UP"` selects nothing.
 
 Put `--no-deps` on every `--grep` and every file path. A filter selects tests, never dependency
-projects, so without the flag one matching `env` case drags `api`, `runtime`, `seed`,
-`seed-teardown`, and `tooling` in whole. On `k8s`, name the project too: a file under
+projects, so without the flag one matching `env` case drags `api`, `runtime`, `ui`, `ui-server`,
+`seed`, `tooling`, and their teardowns in whole. On `k8s`, name the project too: a file under
 `specs/runtime/` matches both `runtime` and `runtime-micro`. Run the browser layer with
 `--project=ui`.
 
@@ -365,7 +365,9 @@ E2E_SWEEP=never npm test -- --project=runtime --no-deps -g "part of the title"
 ```
 
 `E2E_SWEEP=never` stops the next run from collecting the kept corpus at its start. Drop the flag when
-you are done, and the next run collects it. Every runtime case reruns against a kept corpus.
+you are done, and the next run collects it. Broker topology is the exception: only the teardown of
+the run that created it removes it (see "Broker residue" below). Every runtime case reruns against a
+kept corpus.
 
 A browser case needs the bundle on 4200 as well, which `--no-deps` does not start. After one run has
 built the bundle, start a preview at the repository root, then run the case:
@@ -374,6 +376,9 @@ built the bundle, start a preview at the repository root, then run the case:
 npm run preview -w @netcracker/qip-ui -- --port 4200 --strictPort   # at the repository root
 E2E_SWEEP=never npm test -- --project=ui --no-deps -g "part of the title"
 ```
+
+The preview serves `ui/dist` as it was built. After a change under `ui/src`, stop the preview and
+run the case once without `--no-deps`: `ui-server` sees the stale bundle and rebuilds it.
 
 ## Debugging
 
