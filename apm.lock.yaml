@@ -83,27 +83,23 @@ dependencies:
   name: change-description-authoring
   host: github.com
   resolved_commit: 6c0dfc144be66b5d77e748ac9e8dcc46af6f83ed
-  version: 1.6.0
-  virtual_path: agent-packages/change-description-authoring
+  version: unknown
+  virtual_path: agent-packages/change-description-authoring/.apm/skills/change-description-authoring
   is_virtual: true
-  package_type: apm_package
+  package_type: claude_skill
   deployed_files:
   - .agents/skills/change-description-authoring
   - .agents/skills/change-description-authoring/SKILL.md
   - .agents/skills/change-description-authoring/references/merge-model.md
-  - .claude/rules/change-description-authoring.md
   - .claude/skills/change-description-authoring
   - .claude/skills/change-description-authoring/SKILL.md
   - .claude/skills/change-description-authoring/references/merge-model.md
-  - .cursor/rules/change-description-authoring.mdc
   deployed_file_hashes:
     .agents/skills/change-description-authoring/SKILL.md: sha256:0ee7e1a3b55cd0681346041f7304fa0e02e37758a377716180c41568b71a3299
     .agents/skills/change-description-authoring/references/merge-model.md: sha256:039e97546d1d40b6947a923b369d2139b77ef51838e42ba88c8be9cb8110cd6b
-    .claude/rules/change-description-authoring.md: sha256:874c537436380c5a66a67ef11c9165141e5f27d7b055774fc941cff987e6beb2
     .claude/skills/change-description-authoring/SKILL.md: sha256:0ee7e1a3b55cd0681346041f7304fa0e02e37758a377716180c41568b71a3299
     .claude/skills/change-description-authoring/references/merge-model.md: sha256:039e97546d1d40b6947a923b369d2139b77ef51838e42ba88c8be9cb8110cd6b
-    .cursor/rules/change-description-authoring.mdc: sha256:654904a7beea8515f694e2000f09420dfba321a4f01a4b5721e2afc04b3cc790
-  content_hash: sha256:1bb09596c1d5abc669526937024ac8d0c06eb577442d44b4b06fe2b663553463
+  content_hash: sha256:5878a639c784470065014ab17f2aa9ac770e6a6349547f44361f69cfd9214526
 - repo_url: netcracker/qubership-ai-packages
   materialization_repo_url: Netcracker/qubership-ai-packages
   name: codex-review
@@ -184,15 +180,6 @@ deployments:
   - netcracker/qubership-ai-packages/agent-packages/apm-authoring
   active_owner: netcracker/qubership-ai-packages/agent-packages/apm-authoring
   content_hash: sha256:5c4185d3d69333a810c01f5e26a8ea46b033e7082a21f1551433d6c97d8a24a2
-- kind: project-relative
-  target: claude
-  value: .claude/rules/change-description-authoring.md
-  runtime: null
-  scope: project
-  owners:
-  - netcracker/qubership-ai-packages/agent-packages/change-description-authoring
-  active_owner: netcracker/qubership-ai-packages/agent-packages/change-description-authoring
-  content_hash: sha256:874c537436380c5a66a67ef11c9165141e5f27d7b055774fc941cff987e6beb2
 - kind: project-relative
   target: claude
   value: .claude/rules/ci-fix.md
@@ -318,7 +305,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:39b3f168b8e20cdf24fe1d88a53f4bcfd3f673b0e5d9dd5c5fc8b51132400f0a
+  content_hash: sha256:e19910d837b7e33dffb7bb38403653fff046b0c916b8d748e3a8d62634cec1fc
 - kind: project-relative
   target: claude
   value: .claude/rules/qip-working-agreements.md
@@ -433,8 +420,8 @@ deployments:
   runtime: null
   scope: project
   owners:
-  - netcracker/qubership-ai-packages/agent-packages/change-description-authoring
-  active_owner: netcracker/qubership-ai-packages/agent-packages/change-description-authoring
+  - netcracker/qubership-ai-packages/agent-packages/change-description-authoring/.apm/skills/change-description-authoring
+  active_owner: netcracker/qubership-ai-packages/agent-packages/change-description-authoring/.apm/skills/change-description-authoring
   content_hash: null
 - kind: project-relative
   target: claude
@@ -442,8 +429,8 @@ deployments:
   runtime: null
   scope: project
   owners:
-  - netcracker/qubership-ai-packages/agent-packages/change-description-authoring
-  active_owner: netcracker/qubership-ai-packages/agent-packages/change-description-authoring
+  - netcracker/qubership-ai-packages/agent-packages/change-description-authoring/.apm/skills/change-description-authoring
+  active_owner: netcracker/qubership-ai-packages/agent-packages/change-description-authoring/.apm/skills/change-description-authoring
   content_hash: sha256:0ee7e1a3b55cd0681346041f7304fa0e02e37758a377716180c41568b71a3299
 - kind: project-relative
   target: claude
@@ -451,8 +438,8 @@ deployments:
   runtime: null
   scope: project
   owners:
-  - netcracker/qubership-ai-packages/agent-packages/change-description-authoring
-  active_owner: netcracker/qubership-ai-packages/agent-packages/change-description-authoring
+  - netcracker/qubership-ai-packages/agent-packages/change-description-authoring/.apm/skills/change-description-authoring
+  active_owner: netcracker/qubership-ai-packages/agent-packages/change-description-authoring/.apm/skills/change-description-authoring
   content_hash: sha256:039e97546d1d40b6947a923b369d2139b77ef51838e42ba88c8be9cb8110cd6b
 - kind: project-relative
   target: claude
@@ -651,7 +638,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:4e9c28af9c344b555d797ca69145e20920bfc723a2cfdaebbc9ff74f17266697
+  content_hash: sha256:5611f7d79fbb3cec5a2378d3efbb318a371178f5af38a1e2207ad2f8ba95d5b3
 - kind: project-relative
   target: claude
   value: .claude/skills/fix-issue/k8s.md
@@ -669,7 +656,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:4b78b21c5a3ae4893898d5060bb98724260aa902101e996a60fffc4cfb5a904d
+  content_hash: sha256:28860e5fc4b4896a217653ed0f7ed6091e5ba2fcb1da2600e247d97553bfa268
 - kind: project-relative
   target: claude
   value: .claude/skills/fix-issue/stack.md
@@ -1036,8 +1023,8 @@ deployments:
   runtime: null
   scope: project
   owners:
-  - netcracker/qubership-ai-packages/agent-packages/change-description-authoring
-  active_owner: netcracker/qubership-ai-packages/agent-packages/change-description-authoring
+  - netcracker/qubership-ai-packages/agent-packages/change-description-authoring/.apm/skills/change-description-authoring
+  active_owner: netcracker/qubership-ai-packages/agent-packages/change-description-authoring/.apm/skills/change-description-authoring
   content_hash: null
 - kind: project-relative
   target: codex
@@ -1045,8 +1032,8 @@ deployments:
   runtime: null
   scope: project
   owners:
-  - netcracker/qubership-ai-packages/agent-packages/change-description-authoring
-  active_owner: netcracker/qubership-ai-packages/agent-packages/change-description-authoring
+  - netcracker/qubership-ai-packages/agent-packages/change-description-authoring/.apm/skills/change-description-authoring
+  active_owner: netcracker/qubership-ai-packages/agent-packages/change-description-authoring/.apm/skills/change-description-authoring
   content_hash: sha256:0ee7e1a3b55cd0681346041f7304fa0e02e37758a377716180c41568b71a3299
 - kind: project-relative
   target: codex
@@ -1054,8 +1041,8 @@ deployments:
   runtime: null
   scope: project
   owners:
-  - netcracker/qubership-ai-packages/agent-packages/change-description-authoring
-  active_owner: netcracker/qubership-ai-packages/agent-packages/change-description-authoring
+  - netcracker/qubership-ai-packages/agent-packages/change-description-authoring/.apm/skills/change-description-authoring
+  active_owner: netcracker/qubership-ai-packages/agent-packages/change-description-authoring/.apm/skills/change-description-authoring
   content_hash: sha256:039e97546d1d40b6947a923b369d2139b77ef51838e42ba88c8be9cb8110cd6b
 - kind: project-relative
   target: codex
@@ -1185,15 +1172,6 @@ deployments:
   content_hash: sha256:f5935b93802f6b703f4340b3b491a06428daa1856f2036f0cac97dc2f8b65c7d
 - kind: project-relative
   target: cursor
-  value: .cursor/rules/change-description-authoring.mdc
-  runtime: null
-  scope: project
-  owners:
-  - netcracker/qubership-ai-packages/agent-packages/change-description-authoring
-  active_owner: netcracker/qubership-ai-packages/agent-packages/change-description-authoring
-  content_hash: sha256:654904a7beea8515f694e2000f09420dfba321a4f01a4b5721e2afc04b3cc790
-- kind: project-relative
-  target: cursor
   value: .cursor/rules/ci-fix.mdc
   runtime: null
   scope: project
@@ -1317,7 +1295,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:82a0658b672dd173378b56f591d0bddebde5f27359b618ab40089c800986ce88
+  content_hash: sha256:6eb174c0857ffa46aa315ed4be7aba7bf709eedf664e600f78b2c5739ba92ef4
 - kind: project-relative
   target: cursor
   value: .cursor/rules/qip-working-agreements.mdc
@@ -1569,7 +1547,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:4e9c28af9c344b555d797ca69145e20920bfc723a2cfdaebbc9ff74f17266697
+  content_hash: sha256:5611f7d79fbb3cec5a2378d3efbb318a371178f5af38a1e2207ad2f8ba95d5b3
 - kind: project-relative
   target: legacy
   value: .agents/skills/fix-issue/k8s.md
@@ -1587,7 +1565,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:4b78b21c5a3ae4893898d5060bb98724260aa902101e996a60fffc4cfb5a904d
+  content_hash: sha256:28860e5fc4b4896a217653ed0f7ed6091e5ba2fcb1da2600e247d97553bfa268
 - kind: project-relative
   target: legacy
   value: .agents/skills/fix-issue/stack.md
@@ -1885,6 +1863,42 @@ deployments:
   - .
   active_owner: .
   content_hash: sha256:05efcac338188580994aeb9942266d040fe561da5763474a2affbe65df41d802
+- kind: project-relative
+  target: claude
+  value: .claude/rules/npm-workspaces.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:3f8361e6ca7d8051574472264b59e66fda55fe703af800ffcfc685343248c6b2
+- kind: project-relative
+  target: cursor
+  value: .cursor/rules/npm-workspaces.mdc
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:45b6f4193027005bc12cffdd494c0ca9f6467a2ca3816022b88f30806ee95921
+- kind: project-relative
+  target: claude
+  value: .claude/rules/change-description.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:6d991481aa9b9c4a4bbdc4eba31ed68730c1aed0d4c64b778dda740d12bb2829
+- kind: project-relative
+  target: cursor
+  value: .cursor/rules/change-description.mdc
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:6e83d1ab1b11c03329b515b86f1a9e2e4df8fa6c970ffbdd73a346dd80c18ffa
 local_deployed_files:
 - .agents/skills/ci-fix
 - .agents/skills/ci-fix/SKILL.md
@@ -1941,6 +1955,7 @@ local_deployed_files:
 - .agents/skills/vscode-extension-testing/SKILL.md
 - .claude/agents/maven-verifier.md
 - .claude/agents/npm-verifier.md
+- .claude/rules/change-description.md
 - .claude/rules/ci-fix.md
 - .claude/rules/component-testing.md
 - .claude/rules/docs-authoring.md
@@ -1950,6 +1965,7 @@ local_deployed_files:
 - .claude/rules/infrastructure.md
 - .claude/rules/micro-engine.md
 - .claude/rules/monorepo.md
+- .claude/rules/npm-workspaces.md
 - .claude/rules/qip-working-agreements.md
 - .claude/rules/runtime-catalog.md
 - .claude/rules/schemas.md
@@ -2017,6 +2033,7 @@ local_deployed_files:
 - .codex/agents/npm-verifier.toml
 - .cursor/agents/maven-verifier.md
 - .cursor/agents/npm-verifier.md
+- .cursor/rules/change-description.mdc
 - .cursor/rules/ci-fix.mdc
 - .cursor/rules/component-testing.mdc
 - .cursor/rules/docs-authoring.mdc
@@ -2026,6 +2043,7 @@ local_deployed_files:
 - .cursor/rules/infrastructure.mdc
 - .cursor/rules/micro-engine.mdc
 - .cursor/rules/monorepo.mdc
+- .cursor/rules/npm-workspaces.mdc
 - .cursor/rules/qip-working-agreements.mdc
 - .cursor/rules/runtime-catalog.mdc
 - .cursor/rules/schemas.mdc
@@ -2048,9 +2066,9 @@ local_deployed_file_hashes:
   .agents/skills/endpoint-mocking/SKILL.md: sha256:f35bec5f95431cce4e06087bedd6e70d0d7d102014c02137c9692993478aef4a
   .agents/skills/endpoint-mocking/micro-engine.md: sha256:47fe1f42d97aaeb77ee435c10f4fd39c93a638c5c84cff4d37bde8afe0abaef0
   .agents/skills/fix-issue/SKILL.md: sha256:33528ed1e482f6785b23eb8ebfa521be591945fe6f258826fda0e7f4929223d9
-  .agents/skills/fix-issue/delivery.md: sha256:4e9c28af9c344b555d797ca69145e20920bfc723a2cfdaebbc9ff74f17266697
+  .agents/skills/fix-issue/delivery.md: sha256:5611f7d79fbb3cec5a2378d3efbb318a371178f5af38a1e2207ad2f8ba95d5b3
   .agents/skills/fix-issue/k8s.md: sha256:341bccc94cd900a978797bf041dd1022ecdeabfadb310ba36e5948576b87876c
-  .agents/skills/fix-issue/scripts/wait-checks.sh: sha256:4b78b21c5a3ae4893898d5060bb98724260aa902101e996a60fffc4cfb5a904d
+  .agents/skills/fix-issue/scripts/wait-checks.sh: sha256:28860e5fc4b4896a217653ed0f7ed6091e5ba2fcb1da2600e247d97553bfa268
   .agents/skills/fix-issue/stack.md: sha256:57b14e7ff51d3f23fe48e920bdce4d8770436e9d2610cc25a4ff52d4c5a17db3
   .agents/skills/fix-issue/verification.md: sha256:327907d860cfb5d022ea6f4c6cc5cf2748298711a3fddb919a522ba674853291
   .agents/skills/java-unit-testing/SKILL.md: sha256:9216056c8784fe5cdf9925f5665fccef7d667f23d35f10e2b7be6147a15b28ec
@@ -2078,6 +2096,7 @@ local_deployed_file_hashes:
   .agents/skills/vscode-extension-testing/SKILL.md: sha256:05efcac338188580994aeb9942266d040fe561da5763474a2affbe65df41d802
   .claude/agents/maven-verifier.md: sha256:9d7b95d24375c0c9b291c963dc38988ded28a5138b47497412e16f6ced604a0c
   .claude/agents/npm-verifier.md: sha256:cd94b9228627e8910fad60be98b52d9138afd475780ba7c6bce4b5bcd7b61012
+  .claude/rules/change-description.md: sha256:6d991481aa9b9c4a4bbdc4eba31ed68730c1aed0d4c64b778dda740d12bb2829
   .claude/rules/ci-fix.md: sha256:4de31150e369c45093fbfe099209e95118d30f19e3a8c23fd91d0b1cd332f559
   .claude/rules/component-testing.md: sha256:5d1ec6081f988ff39863bf48ed2a4154e08765d3bf18dc62eafcb26409ad70e5
   .claude/rules/docs-authoring.md: sha256:fb65f291a143c58e0b76a52a24d792a6f7a54c35813548e5d378341df89be806
@@ -2086,7 +2105,8 @@ local_deployed_file_hashes:
   .claude/rules/engine.md: sha256:3692f2f72eb760bb2abff2c4fc52d065e197d9381271aa1447220dee898fb09a
   .claude/rules/infrastructure.md: sha256:d73fc1116ebaf3bec00275d2d9335f468314713c468aee2bef4a242bf6e403cf
   .claude/rules/micro-engine.md: sha256:f01bf11ff64bc8390f1edea047618393c16e9f223a217c115fd97cd26360acdd
-  .claude/rules/monorepo.md: sha256:39b3f168b8e20cdf24fe1d88a53f4bcfd3f673b0e5d9dd5c5fc8b51132400f0a
+  .claude/rules/monorepo.md: sha256:e19910d837b7e33dffb7bb38403653fff046b0c916b8d748e3a8d62634cec1fc
+  .claude/rules/npm-workspaces.md: sha256:3f8361e6ca7d8051574472264b59e66fda55fe703af800ffcfc685343248c6b2
   .claude/rules/qip-working-agreements.md: sha256:894c2a9b4ce9dba38d824e6bf40fa1dcf0752477ef21f95941f18f16096529a2
   .claude/rules/runtime-catalog.md: sha256:4e11c201176cf1ba2c2b84cbcec1d69681a639f032649331a5716919dfe2cf47
   .claude/rules/schemas.md: sha256:bb0763baaa7e6fe207ff735a4c534f4e26a44dca5477e8195b8f70c313caf754
@@ -2108,9 +2128,9 @@ local_deployed_file_hashes:
   .claude/skills/endpoint-mocking/SKILL.md: sha256:f35bec5f95431cce4e06087bedd6e70d0d7d102014c02137c9692993478aef4a
   .claude/skills/endpoint-mocking/micro-engine.md: sha256:47fe1f42d97aaeb77ee435c10f4fd39c93a638c5c84cff4d37bde8afe0abaef0
   .claude/skills/fix-issue/SKILL.md: sha256:33528ed1e482f6785b23eb8ebfa521be591945fe6f258826fda0e7f4929223d9
-  .claude/skills/fix-issue/delivery.md: sha256:4e9c28af9c344b555d797ca69145e20920bfc723a2cfdaebbc9ff74f17266697
+  .claude/skills/fix-issue/delivery.md: sha256:5611f7d79fbb3cec5a2378d3efbb318a371178f5af38a1e2207ad2f8ba95d5b3
   .claude/skills/fix-issue/k8s.md: sha256:341bccc94cd900a978797bf041dd1022ecdeabfadb310ba36e5948576b87876c
-  .claude/skills/fix-issue/scripts/wait-checks.sh: sha256:4b78b21c5a3ae4893898d5060bb98724260aa902101e996a60fffc4cfb5a904d
+  .claude/skills/fix-issue/scripts/wait-checks.sh: sha256:28860e5fc4b4896a217653ed0f7ed6091e5ba2fcb1da2600e247d97553bfa268
   .claude/skills/fix-issue/stack.md: sha256:57b14e7ff51d3f23fe48e920bdce4d8770436e9d2610cc25a4ff52d4c5a17db3
   .claude/skills/fix-issue/verification.md: sha256:327907d860cfb5d022ea6f4c6cc5cf2748298711a3fddb919a522ba674853291
   .claude/skills/java-unit-testing/SKILL.md: sha256:9216056c8784fe5cdf9925f5665fccef7d667f23d35f10e2b7be6147a15b28ec
@@ -2140,6 +2160,7 @@ local_deployed_file_hashes:
   .codex/agents/npm-verifier.toml: sha256:e2caee9c2a430b11eae819408a61a318b72c87e74eeeaecd466e119a66a445bf
   .cursor/agents/maven-verifier.md: sha256:9d7b95d24375c0c9b291c963dc38988ded28a5138b47497412e16f6ced604a0c
   .cursor/agents/npm-verifier.md: sha256:cd94b9228627e8910fad60be98b52d9138afd475780ba7c6bce4b5bcd7b61012
+  .cursor/rules/change-description.mdc: sha256:6e83d1ab1b11c03329b515b86f1a9e2e4df8fa6c970ffbdd73a346dd80c18ffa
   .cursor/rules/ci-fix.mdc: sha256:35cf16a1ad4a3ff02b5531f2ae3d6c4347de83155ab29cbde7800d81fe13664f
   .cursor/rules/component-testing.mdc: sha256:ca40907357f1f0f77d0bdf3ba0f28992de54cd7a3e3a7aa4243637935b6a9f4c
   .cursor/rules/docs-authoring.mdc: sha256:04274aa51cc097ea37ababc82b6fe050cbfb15dc4fff8bc37b81e50f2568f52c
@@ -2148,7 +2169,8 @@ local_deployed_file_hashes:
   .cursor/rules/engine.mdc: sha256:ea62cf3608f3fb9bbeb66b7d1a5b32c47a879b9e3ae6da0acbe32b28062fd60f
   .cursor/rules/infrastructure.mdc: sha256:d77869a78d94aafb2aca5a01945cc1f7f87342947125eab4ede87a7ef4620f3b
   .cursor/rules/micro-engine.mdc: sha256:671954332ac537aa1370074d74ec9c000984a4497a7bd0711233f8441c1cc118
-  .cursor/rules/monorepo.mdc: sha256:82a0658b672dd173378b56f591d0bddebde5f27359b618ab40089c800986ce88
+  .cursor/rules/monorepo.mdc: sha256:6eb174c0857ffa46aa315ed4be7aba7bf709eedf664e600f78b2c5739ba92ef4
+  .cursor/rules/npm-workspaces.mdc: sha256:45b6f4193027005bc12cffdd494c0ca9f6467a2ca3816022b88f30806ee95921
   .cursor/rules/qip-working-agreements.mdc: sha256:a72e77dcd3a9706448ccd4282d3cd1fa7f63399697124bf30ed7f4ccd7dc5d41
   .cursor/rules/runtime-catalog.mdc: sha256:b07c4adc4a788d55ca78861e8dd4fd218a10ea76a02b566d77dbace1c7559d28
   .cursor/rules/schemas.mdc: sha256:026861efe1267f402a759be9398ce04ea3205cb9cb38fc2669c63455c0113633

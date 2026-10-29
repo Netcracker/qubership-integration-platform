@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Waits until every workflow run and every check on the head commit of a pull request is
-# finished, then prints the result. Exits 0 when everything passed, 1 when anything failed.
+# finished, then prints the result. Exits 0 when everything passed, 1 when anything failed or
+# the branch conflicts with its base.
 # Usage: wait-checks.sh <pr-number>    (run it in the background)
 set -euo pipefail
 
@@ -51,6 +52,13 @@ jq -r '.runs[]' <<< "$S"
 if [ "$(jq '.failed | length' <<< "$S")" -gt 0 ]; then
     echo "FAILED:"
     jq -r '.failed[]' <<< "$S"
+    exit 1
+fi
+# `behind` does not block a merge here (the ruleset has no up-to-date rule); `dirty` does.
+MERGEABLE=$(gh api "repos/$REPO/pulls/$PR" --jq .mergeable_state || echo unknown)
+echo "mergeable_state $MERGEABLE"
+if [ "$MERGEABLE" = dirty ]; then
+    echo "CONFLICT: merge origin/main, re-verify, and push"
     exit 1
 fi
 echo "ALL GREEN"
