@@ -1527,6 +1527,122 @@ describe("Sessions", () => {
     expect(mockGetCheckpointSessions).toHaveBeenNthCalledWith(2, ["late-1"]);
   });
 
+  describe("a load superseded by a newer one", () => {
+    type Page = { sessions: Session[]; offset: number };
+
+    function deferred<T>() {
+      let resolve!: (value: T) => void;
+      let reject!: (error: unknown) => void;
+      const promise = new Promise<T>((resolveIt, rejectIt) => {
+        resolve = resolveIt;
+        reject = rejectIt;
+      });
+      return { promise, resolve, reject };
+    }
+
+    const page = (id: string, offset: number): Page => ({
+      sessions: [baseSession({ id })],
+      offset,
+    });
+
+    function search(value: string) {
+      fireEvent.change(screen.getByTestId("search-input"), {
+        target: { value },
+      });
+    }
+
+    test("an initial load that finishes after a search leaves the search's rows", async () => {
+      const unfiltered = deferred<Page>();
+      mockGetSessions
+        .mockResolvedValueOnce(page("unfiltered-row", 1))
+        .mockReturnValueOnce(unfiltered.promise)
+        .mockResolvedValueOnce(page("searched-row", 1))
+        .mockResolvedValueOnce({ sessions: [], offset: 1 });
+
+      renderSessions();
+      await waitFor(() => expect(mockGetSessions).toHaveBeenCalledTimes(2));
+      search("searched");
+      await screen.findByText("searched-row");
+
+      await act(async () => unfiltered.resolve(page("unfiltered-row-2", 2)));
+
+      expect(screen.getByText("searched-row")).toBeInTheDocument();
+      expect(screen.queryByText("unfiltered-row")).not.toBeInTheDocument();
+    });
+
+    test("an initial load that finishes first neither shows its rows nor ends the newer load", async () => {
+      const unfiltered = deferred<Page>();
+      const searched = deferred<Page>();
+      mockGetSessions
+        .mockResolvedValueOnce(page("unfiltered-row", 1))
+        .mockReturnValueOnce(unfiltered.promise)
+        .mockResolvedValueOnce(page("searched-row", 1))
+        .mockReturnValueOnce(searched.promise);
+
+      renderSessions();
+      await waitFor(() => expect(mockGetSessions).toHaveBeenCalledTimes(2));
+      search("searched");
+      await waitFor(() => expect(mockGetSessions).toHaveBeenCalledTimes(4));
+
+      await act(async () => unfiltered.resolve(page("unfiltered-row-2", 2)));
+
+      expect(screen.queryByText("unfiltered-row")).not.toBeInTheDocument();
+      // The sentinel appears once a load ends; this early, it would fetch from the old list's offset.
+      expect(
+        screen.queryByTestId(SESSIONS_LOAD_SENTINEL_TEST_ID),
+      ).not.toBeInTheDocument();
+
+      await act(async () => searched.resolve(page("searched-row-2", 2)));
+
+      expect(screen.getByText("searched-row")).toBeInTheDocument();
+      expect(
+        screen.getByTestId(SESSIONS_LOAD_SENTINEL_TEST_ID),
+      ).toBeInTheDocument();
+    });
+
+    test("a page appended for the previous list stays out of the searched list", async () => {
+      mockGetSessions
+        .mockResolvedValueOnce(page("first-row", 1))
+        .mockResolvedValueOnce(page("second-row", 2));
+      renderSessions();
+      await screen.findByText("first-row");
+
+      const appended = deferred<Page>();
+      mockGetSessions
+        .mockReturnValueOnce(appended.promise)
+        .mockResolvedValueOnce(page("searched-row", 1))
+        .mockResolvedValueOnce({ sessions: [], offset: 1 });
+      fireSentinelIntersection();
+      search("searched");
+      await screen.findByText("searched-row");
+
+      await act(async () => appended.resolve(page("appended-row", 3)));
+
+      expect(screen.getByText("searched-row")).toBeInTheDocument();
+      expect(screen.queryByText("appended-row")).not.toBeInTheDocument();
+    });
+
+    test("a superseded load that fails neither reports the failure nor ends the new list", async () => {
+      const unfiltered = deferred<Page>();
+      mockGetSessions
+        .mockReturnValueOnce(unfiltered.promise)
+        .mockResolvedValueOnce(page("searched-row", 1))
+        .mockResolvedValueOnce(page("searched-row-2", 2));
+
+      renderSessions();
+      await waitFor(() => expect(mockGetSessions).toHaveBeenCalledTimes(1));
+      search("searched");
+      await screen.findByText("searched-row");
+
+      await act(async () => unfiltered.reject(new Error("Network error")));
+
+      expect(mockNotificationService.requestFailed).not.toHaveBeenCalled();
+      expect(
+        screen.getByTestId(SESSIONS_LOAD_SENTINEL_TEST_ID),
+      ).toBeInTheDocument();
+    });
+  });
+
   describe("toolbar layout variants", () => {
     test("chain-tab registers search and refresh in chain header slot", async () => {
       mockUseParams.mockReturnValue({ chainId: "chain-1" });
