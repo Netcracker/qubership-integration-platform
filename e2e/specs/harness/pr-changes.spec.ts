@@ -14,6 +14,7 @@
  * and the build list" and "each image is built when a file it is built from changes"); the
  * `help/docs/**` rule removed ("a change to a UI bundle input runs the ui job" and the samples);
  * `e2e/specs/seed-micro/**` mapped to `micro` only (the kind job closures and the samples);
+ * `e2e/specs/harness/**` and `e2e/specs/schema/**` mapped to `classic` (the samples);
  * `E2E_REBUILD` ignored by the script ("the script prints one output per job and the build list");
  * the step env `E2E_REBUILD` dropped, and an ungated `classic` job added ("the workflow gates each
  * job on its output").
@@ -222,6 +223,8 @@ test.describe("pr-changes", () => {
     expect(decide(["e2e/specs/k8s/discovery.spec.ts"]), "k8s spec").toEqual({ ...none, micro: true });
     expect(decide(["e2e/specs/seed-micro/seed-micro.teardown.ts"]), "seed-micro").toEqual({ ...none, classic: true, micro: true });
     expect(decide(["e2e/specs/vscode/smoke.spec.ts"]), "vscode spec").toEqual(none);
+    expect(decide(["e2e/specs/harness/pr-changes.spec.ts"]), "harness spec").toEqual(none);
+    expect(decide(["e2e/specs/schema/frozen-corpus.spec.ts"]), "schema spec").toEqual(none);
     expect(decide(["e2e/support/catalog.ts"]), "e2e only").toEqual({ ...all, build: "none" });
     expect(decide(["parent/pom.xml"]), "parent").toEqual({ ...all, build: "engine,runtime-catalog,sessions-management" });
     expect(decide(["pom.xml", "testing-service/main.go"]), "root pom").toEqual({ ...all, build: "engine,runtime-catalog,sessions-management,testing-service" });

@@ -110,6 +110,8 @@ export const KIND_RULES = [
   { paths: ["e2e/specs/k8s/**"], jobs: ["micro"] },
   // Its teardown runs in `classic` too, through `suite-teardown`, the teardown of `brokers-seed`.
   { paths: ["e2e/specs/seed-micro/**"], jobs: ["classic", "micro"] },
+  // The `stack-free` job runs these specs on every pull request.
+  { paths: ["e2e/specs/harness/**", "e2e/specs/schema/**"], jobs: [] },
   { paths: ["**"], jobs: KIND_JOBS },
 ];
 
