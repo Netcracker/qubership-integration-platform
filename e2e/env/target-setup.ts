@@ -49,7 +49,8 @@ export interface TargetSetup {
   name: Target;
   /** A project's environment; a micro one addresses the domain `microDomainState` records. */
   createEnv(engineKind: EngineKind, microDomainState?: string): Env;
-  provision(mode: ProvisionMode): Promise<ProvisionReport>;
+  /** `microProjects` are the projects of the run that run the micro engine. */
+  provision(mode: ProvisionMode, microProjects: readonly string[]): Promise<ProvisionReport>;
   observer: StackObserver;
   /** Projects this target adds to the common ones. */
   projects: SuiteProject[];

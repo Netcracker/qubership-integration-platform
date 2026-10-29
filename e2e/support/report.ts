@@ -31,7 +31,7 @@ import type { JsonReport, JsonResult, JsonTest } from "../registry/elements.ts";
 import { CONTAINER } from "../env/compose-containers.ts";
 import { serviceUrl } from "../env/containers.ts";
 import type { ServiceRole } from "../env/index.ts";
-import type { ProvisionReport } from "../env/provision.ts";
+import type { ProvisionReport, PublishedImage } from "../env/provision.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const RESULTS = path.join(HERE, "..", "test-results");
@@ -246,6 +246,12 @@ function escapeCell(text: string): string {
   return text.replace(/\|/g, "\\|");
 }
 
+/** A published image by its digest, which the tag `latest` does not pin. */
+export function publishedLabel(each: PublishedImage): string {
+  if (each.imageId === null) return `${each.image} (no pod yet)`;
+  return /sha256:[0-9a-f]{64}/.exec(each.imageId)?.[0] ?? each.imageId;
+}
+
 /** A Docker image id shortened to 12 digits; an image reference, as on Kubernetes, by its name. */
 function imageLabel(imageId: string | null): string {
   if (imageId === null) return "-";
@@ -316,6 +322,14 @@ function headerSection(header: StackHeader | null, report: JsonReport): string[]
         (header.provision.started.length
           ? `, started ${header.provision.started.join(", ")}`
           : ""),
+      ...(header.provision.published.length
+        ? [
+            `- From GHCR: ` +
+              header.provision.published
+                .map((each) => `${each.name} \`${publishedLabel(each)}\``)
+                .join(", "),
+          ]
+        : []),
       "",
     );
     // Its own line rather than another comma-separated item, because it is the one entry that says
