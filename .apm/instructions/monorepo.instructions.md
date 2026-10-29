@@ -43,40 +43,13 @@ needs no flag and anything that reaches `verify` or `install` needs `-Dgpg.skip=
 
 Consolidation did not rename any published artifact; each module's POM still carries its original coordinates.
 
-#### npm workspaces (root `package.json`)
-
-```bash
-npm install                                    # Installs all workspaces (schemas, ui, vscode-extension) + creates symlinks between them
-npm run build                                  # vscode-extension build (schemas, ui library, webpack), then the ui app
-npm -w @netcracker/qip-ui run dev              # Vite dev server (port 4200)
-npm -w @netcracker/qip-ui run build            # Vite app build (the working one)
-npm test --workspaces --if-present             # Run tests in all workspaces that define them
-```
-
-Node `>=22.5.0` is required (`engines` in the root `package.json`), and CI runs `22.x`. Treat a test or build result
-from another Node major as unconfirmed, and do not add a polyfill that only the local mismatch needs.
+The npm workspaces (`schemas`, `ui`, `vscode-extension`) have their own `npm-workspaces` instruction: the top-level
+npm commands, the Node version, and the build order between them.
 
 #### Local stack
 
 The `infrastructure` instruction and `infrastructure/docker/README.md` give the Compose commands, the overlay files,
 the profiles, and the ports.
-
-Browse the UI through the nginx proxy at `http://localhost:8080`, never the bare Vite port 4200: API routing and the
-library bootstrap work only through nginx, so 4200 shows an empty chain list and a deep link to a chain throws.
-
-### Build order between workspaces
-
-`@netcracker/qip-ui` imports `@netcracker/qip-schemas` as a workspace dep, and `@netcracker/qip-vscode-extension` embeds the qip-ui library bundle. So the build order matters:
-
-1. `npm -w @netcracker/qip-schemas run build` — writes `schemas/dist/index.mjs` (the runtime `schemasByType` map). Without this, qip-ui's vite build can't resolve `@netcracker/qip-schemas`.
-2. `npm -w @netcracker/qip-ui run build:lib:bundled` — writes `ui/dist-lib/index.bundled.es.js` (React embedded) and `cip-ui.css`; `build:lib:types` adds the declarations.
-3. `npm -w @netcracker/qip-vscode-extension run compile-web` — webpack + copy-webpack-plugin pulls `ui/dist-lib` into `vscode-extension/dist/web/qip-ui/`.
-
-`npm -w @netcracker/qip-vscode-extension run build` runs all three: its `prepare-deps` script covers steps 1 and 2, then
-`compile-web` runs.
-
-`npm -w @netcracker/qip-ui run build` (the **app** build, not `build:lib`) builds the standalone web UI bundle, a
-separate output. The root `npm run build` runs the extension build, then the app build.
 
 ### Branch model
 
@@ -93,10 +66,6 @@ separate output. The root `npm run build` runs the extension build, then the app
 ### CI workflows
 
 Each module owns a `<module>-build.yaml` / `<module>-release.yaml` pair under `.github/workflows/`, alongside the repo-wide workflows. **Conventional Commits** is enforced on PR titles and commit messages — non-conforming PRs are rejected at the CI gate.
-
-`profanity-filter.yaml` scans issue and PR titles, bodies, and comments for whole words, case-insensitive, and code
-spans do not protect a word. A match is masked with asterisks, gets the `profane content` label, and can lose the `bug`
-label. Write "flaky" or "has a race" instead of "racy", and "terminate" for a live exchange instead of "kill".
 
 `docs/` is in `.gitignore`; never force-add a plan.
 
@@ -123,7 +92,6 @@ wins, so a `qip.x` in Consul still overrides a `cip.x` default in `application.y
 
 ### Cross-module change tips
 
-- A change touching schemas + UI + vscode-extension usually only needs `npm install` once at the root — workspace symlinks propagate. No publish step required for local testing.
 - A Java change rarely needs the full aggregator build; prefer `mvn -pl <module> -am package`. `install` writes the branch's snapshots to the shared `~/.m2`, where every other checkout and worktree builds against them.
 - The `parent/` POM controls Spring Boot, MapStruct, Lombok, Checkstyle, JaCoCo versions for every Spring module — bump dependency versions there, not in module POMs.
 - The `qip-checkstyle` rules version is pinned by `qip-checkstyle-revision` in `parent/pom.xml` and again in the POMs that set it themselves: micro-engine, schemas, sessions-management, and ai-service. Bump them together. Engine and micro-engine carry a `checkstyle-suppressions.xml` that excludes only `target/` and applies only to a build started inside the module directory.
