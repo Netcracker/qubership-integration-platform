@@ -25,6 +25,7 @@ import fs from "node:fs";
  * @typedef {{ name: string, skipped: number }} IdleProject
  * @typedef {{ cause: string[], projects: IdleProject[] }} NotRun
  * @typedef {{ ms: number, project: string, location: string, title: string }} TimedTest
+ * @typedef {{ name: string, image: string, imageId: string | null }} PublishedImage
  */
 
 export const ERROR_LINES = 8;
@@ -317,4 +318,14 @@ export function shortTime(iso) {
 /** @param {string} iso */
 export function utcDate(iso) {
   return `${shortDate(iso)}, ${new Date(iso).getUTCFullYear()}, ${shortTime(iso)} UTC`;
+}
+
+/**
+ * A published image by its digest, which the tag `latest` does not pin.
+ *
+ * @param {PublishedImage} each
+ */
+export function publishedLabel(each) {
+  if (each.imageId === null) return `${each.image} (no pod yet)`;
+  return /sha256:[0-9a-f]{64}/.exec(each.imageId)?.[0] ?? each.imageId;
 }

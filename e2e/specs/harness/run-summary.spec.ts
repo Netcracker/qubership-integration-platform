@@ -62,6 +62,20 @@ test.describe("run summary", () => {
     expect(summary).not.toContain("### Errors");
   });
 
+  test("names each image taken from GHCR by its digest", () => {
+    const run = readRun("green");
+    const digest = `sha256:${"a".repeat(64)}`;
+    run.stack.provision = { published: [
+      { name: "runtime-catalog", image: "ghcr.io/netcracker/qubership-integration-runtime-catalog:latest", imageId: `ghcr.io/netcracker/qubership-integration-runtime-catalog@${digest}` },
+      { name: "micro-engine", image: "ghcr.io/netcracker/qubership-integration-micro-engine:latest", imageId: null },
+    ] };
+    const lines = summaryMarkdown(run).split("\n");
+    expect(lines).toContain(`From GHCR: runtime-catalog \`${digest}\`, micro-engine \`ghcr.io/netcracker/qubership-integration-micro-engine:latest (no pod yet)\`.`);
+
+    run.stack.provision = { published: [] };
+    expect(summaryMarkdown(run)).not.toContain("From GHCR");
+  });
+
   test("a red run lists each failure with its first error line", () => {
     const dir = copyRun("red");
 
