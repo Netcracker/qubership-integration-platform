@@ -19,6 +19,7 @@ import {
 } from "@playwright/test";
 import { proxyUrl, serviceUrl } from "./env/containers.js";
 import { target } from "./env/target.js";
+import { PROJECT_LANES } from "./support/lanes.mjs";
 import { VSCODE_PORT } from "./support/vscode-server.js";
 import {
   targetSetup,
@@ -78,6 +79,7 @@ const suite: SuiteProject[] = [
     name: "api",
     testDir: "./specs/api",
     fullyParallel: true,
+    metadata: { lanes: PROJECT_LANES.api },
     dependencies: ["seed"],
   },
   {
@@ -113,6 +115,7 @@ const suite: SuiteProject[] = [
     name: "runtime",
     testDir: "./specs/runtime",
     fullyParallel: true,
+    metadata: { lanes: PROJECT_LANES.runtime },
     dependencies: ["seed", "tooling"],
   },
   {
@@ -216,6 +219,7 @@ const suite: SuiteProject[] = [
     name: "ui",
     testDir: "./specs/ui",
     fullyParallel: true,
+    metadata: { lanes: PROJECT_LANES.ui },
     dependencies: ["seed", "ui-server"],
     use: {
       ...devices["Desktop Chrome"],

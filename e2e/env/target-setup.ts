@@ -22,6 +22,7 @@ import { provisionK8s } from "./provision/k8s.js";
 import { composeBaseline, startResourceSampler } from "./resources.js";
 import { brokersEnabled, target, type Target } from "./target.js";
 import { collectStackHeader, type Absence, type StackFacts } from "../support/report.js";
+import { PROJECT_LANES } from "../support/lanes.mjs";
 
 /** The worker-scoped options a project can set, which `support/fixtures.ts` declares. */
 export interface SuiteWorkerOptions {
@@ -93,6 +94,7 @@ function brokerProjects(restartAfter: string[] = ["brokers"]): SuiteProject[] {
       testDir: "./specs/brokers",
       testIgnore: /broker-restart\.spec\.ts$/,
       fullyParallel: true,
+      metadata: { lanes: PROJECT_LANES.brokers },
       dependencies: ["brokers-seed"],
     },
     {
@@ -174,6 +176,7 @@ function microBrokerProjects(): SuiteProject[] {
       testIgnore: [/broker-restart\.spec\.ts$/],
       grepInvert: /@classic-only/,
       fullyParallel: true,
+      metadata: { lanes: PROJECT_LANES["brokers-micro"] },
       dependencies: ["brokers-seed", "brokers-micro-seed"],
       use: { engineKind: "micro", microDomainState: BROKERS_MICRO_CORPUS_STATE_FILE },
     },
@@ -189,6 +192,7 @@ function k8sProjects(brokers: boolean): SuiteProject[] {
       name: "k8s",
       testDir: "./specs/k8s",
       fullyParallel: true,
+      metadata: { lanes: PROJECT_LANES.k8s },
       dependencies: ["seed"],
     },
     {
@@ -214,6 +218,7 @@ function k8sProjects(brokers: boolean): SuiteProject[] {
       // A case that cannot apply to the micro engine carries `@classic-only` and says why.
       grepInvert: /@classic-only/,
       fullyParallel: true,
+      metadata: { lanes: PROJECT_LANES["runtime-micro"] },
       dependencies: ["seed-micro", "tooling"],
       use: { engineKind: "micro" },
     },
@@ -227,6 +232,7 @@ function k8sProjects(brokers: boolean): SuiteProject[] {
       testDir: "./specs/runtime-micro-redeploy",
       grepInvert: /@classic-only/,
       workers: 1,
+      metadata: { lanes: PROJECT_LANES["runtime-micro-redeploy"] },
       dependencies: ["seed-micro"],
       use: { engineKind: "micro", microDomainState: MICRO_REDEPLOY_STATE_FILE },
     },
