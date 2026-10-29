@@ -213,15 +213,15 @@ class MandatoryCompilerFailureProviderTest {
 
     model.assertComplete();
     assertNotNull(delivered.get());
-    assertInstanceOf(StageDecision.WaitForInput.class, result.decision());
-    assertEquals(RunStatus.WAITING_FOR_INPUT, h.document().run().status());
+    assertInstanceOf(StageDecision.Retry.class, result.decision());
+    assertEquals(RunStatus.RUNNING, h.document().run().status());
     assertEquals("design-execution", h.document().run().currentStageId());
     assertEquals(StageStatus.SUCCEEDED, h.document().run().stages().getFirst().status());
     assertEquals(approved.getFirst(), h.document().run().stages().getFirst());
     assertEquals(inputs.getFirst(), h.document().attempts().getFirst().outputs());
     var rejected = h.document().run().stages().stream().filter(stage -> "design-execution".equals(stage.stageId()))
         .findFirst().orElseThrow();
-    assertEquals(StageStatus.WAITING_FOR_INPUT, rejected.status());
+    assertEquals(StageStatus.RUNNING, rejected.status());
     assertNull(rejected.approvedArtifactId());
     assertEquals(Set.of(Kind.CHAIN_PLAN_GRAPH, Kind.ORDERED_GRAPH_PATCHES, Kind.PLAN_VALIDATION_RESULT),
         rejected.outputRefs().stream().map(Reference::kind).collect(java.util.stream.Collectors.toSet()));
@@ -237,6 +237,8 @@ class MandatoryCompilerFailureProviderTest {
     assertEquals(1, h.partial.get().patchLedger().orderedReferences().size());
     assertEquals(0, h.budget.state(h.run).grants());
     assertEquals(3, h.budget.state(h.run).requests());
+    assertEquals(1L, h.document().transitions().stream().filter(transition -> transition.reason() != null
+        && transition.reason().startsWith(RecoveryAttemptLedger.CLEAN_REBUILD_REASON_PREFIX)).count());
     assertTrue(h.document().transitions().stream().noneMatch(transition -> transition.reason() != null
         && (transition.reason().startsWith(RecoveryAttemptLedger.GRANT_REASON_PREFIX)
             || transition.reason().startsWith(ProductPipelineStageExecutor.PRODUCER_REPAIR_REASON_PREFIX))));
@@ -264,7 +266,7 @@ class MandatoryCompilerFailureProviderTest {
       Path output = Path.of(export).resolve((controlled ? "controlled" : "model") + (large ? "-large" : "-small"));
       Files.createDirectories(output);
       json.writeValue(output.resolve("evidence.json").toFile(), Map.of("runId", h.run, "conversationId", h.chat,
-          "status", "NEGATIVE_PRESERVATION", "decision", result.decision().toString(), "requests", h.budget.state(h.run),
+          "status", "CLEAN_RETRY_PREPARED", "decision", result.decision().toString(), "requests", h.budget.state(h.run),
           "controlled", controlled, "large", large, "source", SOURCE, "recovered", false));
       json.writeValue(output.resolve("durable.json").toFile(), h.document());
       json.writeValue(output.resolve("actual-diagnosis-context.json").toFile(), delivered.get());

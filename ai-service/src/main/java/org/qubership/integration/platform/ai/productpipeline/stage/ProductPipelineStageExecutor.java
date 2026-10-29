@@ -1437,6 +1437,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         "inputs", RecoveryAttemptLedger.inputArtifactIdentity(doc, stage.stageId()),
         "defect", recoveryLedger.key(stage.stageId(), budgetCause,
             RecoveryAttemptLedger.inputArtifactIdentity(doc, stage.stageId()), doc.transitions()).evidenceIdentity()));
+    boolean syntheticRejectedOutput = rejectedRefs.isEmpty();
     if (rejectedRefs.isEmpty() && cause.causeCode() != RecoveryCauseCode.BRIEF_CONTRACT
         && "design-input".equals(stage.stageId())) {
       rejectedRefs =
@@ -1542,10 +1543,21 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       putRunAttribute(runId, ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR, cause.formattedFindings());
       putRunAttribute(runId, ProductPipelineRunSupport.STAGE_ERROR_REQUESTED_FACT_ATTR, question.propertyKey());
     }
+    boolean repeatedNativeCapture = cause.captureFailure() != null && cause.captureFailure().feedback() != null
+        && cause.captureFailure().feedback().failureClass()
+            == org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass.IDENTICAL_SPAM;
+    boolean currentCleanEligible = producerRepairAllowed && repeatedNativeCapture && !rejectedInput
+        && ProducerOwnedRecovery.permitsCurrentOutputRecovery(outcomeClass, cause,
+            invocationProved, pinnedInputsAvailable, unresolvedChoice, catalogHasBeenWritten(runId));
+    boolean validatedSyntheticOutput = currentCleanEligible && syntheticRejectedOutput
+        && acceptedRecovery.diagnosisStatus() == RecoveryStatus.READY && accepted != null
+        && accepted.action() == RecoveryAction.REGENERATE_ARTIFACT && accepted.faultArtifactRef() != null
+        && rejectedRefs.size() == 1 && accepted.faultArtifactRef().equals(rejectedRefs.getFirst());
     boolean currentProducerFallback = currentRepairEligible && (accepted == null
         || accepted.action() == RecoveryAction.PARK);
     if (accepted != null && accepted.action() == RecoveryAction.REGENERATE_ARTIFACT
-        && accepted.faultArtifactRef() != null && artifactStore.get(runId, accepted.faultArtifactRef()).isEmpty()) {
+        && accepted.faultArtifactRef() != null && artifactStore.get(runId, accepted.faultArtifactRef()).isEmpty()
+        && !validatedSyntheticOutput) {
       currentProducerFallback = currentRepairEligible;
       if (!currentRepairEligible) { accepted = null; }
     }
@@ -1562,7 +1574,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
                 "",
                 findings.isBlank() ? evidenceText : findings);
     }
-    boolean noProgress = cause.noProgress() || recurringRejectedOutput(draftEvidence, rejectedPayload, priorAttempts);
+    boolean noProgress = repeatedNativeCapture || cause.noProgress()
+        || recurringRejectedOutput(draftEvidence, rejectedPayload, priorAttempts);
     boolean targetedCreditSpent = false;
     RecoveryAttemptKey recoveryKey = null;
     if (accepted.action() == RecoveryAction.REGENERATE_ARTIFACT
@@ -1608,17 +1621,20 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR,
         storedEvidence.contentHash());
 
-    if (!nativeCaptureRepairAllowed(doc, stage, budgetCause)) {
+    Reference selectedFault = accepted.faultArtifactRef();
+    boolean currentRepairTarget = (currentRepairEligible || currentCleanEligible)
+        && accepted.action() == RecoveryAction.REGENERATE_ARTIFACT
+        && (currentProducerFallback || validatedSyntheticOutput || selectedFault != null && artifactStore.get(runId, selectedFault)
+            .filter(candidate -> candidate.provenance() != null
+                && stage.stageId().equals(candidate.provenance().stageId())).isPresent());
+    if (!nativeCaptureRepairAllowed(doc, stage, budgetCause)
+        && !(currentCleanEligible && currentRepairTarget && supportsCleanProducerRebuild(stage.stageId())
+            && nativeCaptureSlotAvailable(doc, stage, budgetCause)
+            && recoveryLedger.mayCleanRebuild(doc.transitions(), recoveryKey))) {
       return waitContextualRecovery(doc, stage, refs, PipelineGates.RECOVERY_REPEATED,
           "The capture validator has not permitted another correction. Progress is saved.", evidenceText, null, emitted);
     }
-
-    Reference selectedFault = accepted.faultArtifactRef();
-    boolean currentRepairTarget = currentRepairEligible && accepted.action() == RecoveryAction.REGENERATE_ARTIFACT
-        && (currentProducerFallback || selectedFault != null && artifactStore.get(runId, selectedFault)
-            .filter(candidate -> candidate.provenance() != null
-                && stage.stageId().equals(candidate.provenance().stageId())).isPresent());
-    if (noProgress && !targetedCreditSpent && currentRepairTarget
+    if (noProgress && !repeatedNativeCapture && !targetedCreditSpent && currentRepairTarget
         && supportsCleanProducerRebuild(stage.stageId())
         && !recoveryLedger.mayCleanRebuild(doc.transitions(), recoveryKey)) {
       changeStrategy = false;
@@ -1874,6 +1890,11 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       ProductPipelineRunDocument doc, ProfileStage stage, RecoveryCause cause) {
     if (cause.captureFailure() == null) return true;
     if (!ProducerOwnedRecovery.permitsNativeCaptureRepair(cause)) return false;
+    return nativeCaptureSlotAvailable(doc, stage, cause);
+  }
+
+  private boolean nativeCaptureSlotAvailable(
+      ProductPipelineRunDocument doc, ProfileStage stage, RecoveryCause cause) {
     var key = recoveryLedger.key(stage.stageId(), cause,
         RecoveryAttemptLedger.inputArtifactIdentity(doc, stage.stageId()), doc.transitions());
     // Native capture permits at most one outer correction, even when the stage has other credits.
