@@ -220,8 +220,8 @@ export function getAntdThemeConfig(
         ),
         subMenuItemBg: getCSSVariable(
           "--vscode-menu-background",
-
-        )
+          "rgba(0, 0, 0, 0)",
+        ),
       },
       Table: {
         headerBg: getCSSVariable(

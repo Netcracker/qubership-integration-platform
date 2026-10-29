@@ -1,29 +1,5 @@
-import {
-  ImportInstructionAction,
-  ImportInstructionResult,
-  ImportInstructionRequest,
-  ImportInstruction,
-} from "../../api/apiTypes.ts";
+import { ImportInstructionResult } from "../../api/apiTypes.ts";
 import yaml from "js-yaml";
-
-export type InstructionEntityType = "Chain" | "Service" | "Common Variable";
-
-export type AddInstructionFormValues = {
-  id: string;
-  entityType: InstructionEntityType;
-  action: ImportInstructionAction;
-  overriddenBy?: string;
-};
-
-export type AddInstructionFormLike = {
-  validateFields: () => Promise<AddInstructionFormValues>;
-};
-
-export type AddInstructionApi = {
-  addImportInstruction: (
-    request: ImportInstructionRequest,
-  ) => Promise<void | ImportInstruction>;
-};
 
 export type NotificationService = {
   requestFailed: (msg: string, err: unknown) => void;

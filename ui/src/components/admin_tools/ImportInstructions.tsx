@@ -491,17 +491,25 @@ export const ImportInstructions: React.FC = () => {
   }, [selectedRowKeys, tableData, fetchInstructions, notificationService]);
 
   const addInstruction = useCallback(
-    async (request: ImportInstructionRequest) => {
+    async (values: ImportInstructionRequest) => {
+      const isOverride =
+        values.entityType === ImportEntityType.CHAIN &&
+        values.action === ImportInstructionAction.OVERRIDE;
       try {
-        await api.addImportInstruction(request);
-        await fetchInstructions();
+        await api.addImportInstruction({
+          ...values,
+          id: values.id.trim(),
+          // The hidden Overridden By field keeps its value after the action changes.
+          overriddenBy: isOverride ? values.overriddenBy?.trim() : undefined,
+        });
       } catch (err: unknown) {
-        if (err && typeof err === "object" && "errorFields" in err) return;
         notificationService.requestFailed(
           "Failed to add import instruction",
           err,
         );
+        throw err;
       }
+      await fetchInstructions();
     },
     [fetchInstructions, notificationService],
   );
@@ -873,6 +881,8 @@ export const AddInstructionModal: React.FC<AddInstructionModalProps> = ({
       try {
         await onSubmit(request);
         closeContainingModal();
+      } catch {
+        // onSubmit reports the error; the modal stays open so the user can retry.
       } finally {
         setLoading(false);
       }
