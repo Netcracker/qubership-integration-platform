@@ -333,22 +333,41 @@ describe("ChainDiffTextView", () => {
 
   it("should navigate to Monaco diff hunks through its imperative handle", () => {
     const ref = createRef<ChainDiffTextViewHandle>();
-    const goToDiff = jest.fn();
+    let line = 1;
+    const setPosition = jest.fn((p: { lineNumber: number }) => {
+      line = p.lineNumber;
+    });
+    const revealLineInCenter = jest.fn();
+    const fakeEditor = {
+      getLineChanges: () => [
+        { modifiedStartLineNumber: 3 },
+        { modifiedStartLineNumber: 10 },
+      ],
+      getModifiedEditor: () => ({
+        getPosition: () => ({ lineNumber: line }),
+        setPosition,
+        revealLineInCenter,
+      }),
+    };
     render(
       <ChainDiffTextView ref={ref} changes={[]} onSelectChange={jest.fn()} />,
     );
 
     act(() => {
       capturedDiffEditorProps!.onMount!(
-        { goToDiff } as unknown as editor.IStandaloneDiffEditor,
+        fakeEditor as unknown as editor.IStandaloneDiffEditor,
         {} as typeof import("monaco-editor"),
       );
     });
     ref.current!.goToDiff("next");
-    ref.current!.goToDiff("previous");
+    ref.current!.goToDiff("next");
+    ref.current!.goToDiff("next"); // wraps
+    ref.current!.goToDiff("previous"); // wraps back
 
-    expect(goToDiff).toHaveBeenNthCalledWith(1, "next");
-    expect(goToDiff).toHaveBeenNthCalledWith(2, "previous");
+    expect(setPosition.mock.calls.map((c) => c[0].lineNumber)).toEqual([
+      3, 10, 3, 10,
+    ]);
+    expect(revealLineInCenter).toHaveBeenCalledTimes(4);
   });
 
   it("should use the result of buildElementMap as the element map for chain2 YAML when both chains are provided", () => {
