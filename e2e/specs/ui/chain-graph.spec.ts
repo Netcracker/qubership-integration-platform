@@ -10,6 +10,13 @@
  * chain whose elements all fit the viewport the `ui` project pins. Dragging nodes and the automatic
  * layout are left alone until a defect asks for them: the catalog stores no node position, so a
  * drag has no saved outcome to assert, and pixel coordinates move with every layout change.
+ *
+ * The select case opens the list before the form's open animation ends only when the library element
+ * loads within that animation, about 300 ms. On a slower load the fields render after the focus move
+ * has run, and the case passes on code that still moves focus unconditionally.
+ *
+ * Shown failing: `moveFocusIntoModal` without its guard (#1236) turned `toBeFocused()` red in the
+ * select case, with the select reporting `aria-expanded="false"`.
  */
 import { test, expect } from "../../support/page-guard.js";
 import { ChainGraphPage } from "../../pages/ChainGraphPage.js";
@@ -96,6 +103,30 @@ test.describe("chain editor", () => {
     await page.reload();
     form = await graph.openElement(element.id);
     await expect(form.getByRole("textbox", { name: "Sender" })).toHaveValue(sender);
+  });
+
+  // #1236: the form moved focus to its root a frame after its open animation ended, which closed a
+  // select the user had opened during the animation.
+  test("a select opened while the form animates in stays open", async ({ page, catalog, folder, run }) => {
+    const chain = await catalog.createChain(tokenized(run, "ui-graph-focus"), folder.id);
+    const element = await catalog.createElement(chain.id, "log-record");
+    const graph = new ChainGraphPage(page);
+
+    await graph.goto(chain.id);
+    const form = await graph.openElement(element.id);
+    const level = form.getByRole("combobox", { name: "Log as" });
+    // A click waits for the form's zoom animation to end, so it would land after the focus move.
+    await level.focus();
+    await level.press("ArrowDown");
+    await expect(level).toHaveAttribute("aria-expanded", "true");
+
+    // The open animation is finite; a spinner's infinite one never ends.
+    await expect
+      .poll(() => page.evaluate(() => document.getAnimations().filter((each) => each.effect?.getTiming().iterations !== Infinity).length))
+      .toBe(0);
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    await expect(level).toBeFocused();
+    await expect(level).toHaveAttribute("aria-expanded", "true");
   });
 
   test("a script element's form loads the stored script", async ({ page, catalog, folder, run }) => {
