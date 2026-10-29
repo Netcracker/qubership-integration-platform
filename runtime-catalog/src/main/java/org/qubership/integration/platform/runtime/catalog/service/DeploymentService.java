@@ -395,7 +395,7 @@ public class DeploymentService {
                 .filter(element -> ElementRouteUtils.intersects(getHttpTriggerRoute(new ChainElementAdapter(element)), route));
     }
 
-    private void checkTriggers(String domain, String snapshotId, String chainId, List<Deployment> excludeDeployments) {
+    public void checkTriggers(String domain, String snapshotId, String chainId, List<Deployment> excludeDeployments) {
         if (!triggersCheckEnabled) {
             return;
         }

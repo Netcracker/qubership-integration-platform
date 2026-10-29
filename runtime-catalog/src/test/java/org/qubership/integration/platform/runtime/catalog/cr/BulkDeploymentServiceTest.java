@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.runtime.catalog.cr;
 
+import jakarta.persistence.EntityExistsException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -24,6 +25,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Deployment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ChainRepository;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentRequest;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentResponse;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentSnapshotAction;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentStatus;
@@ -142,7 +144,29 @@ class BulkDeploymentServiceTest {
         return deployment;
     }
 
+    private static Deployment deployment(String id, Chain chain, Snapshot snapshot, String domain) {
+        Deployment deployment = new Deployment();
+        deployment.setId(id);
+        deployment.setChain(chain);
+        deployment.setSnapshot(snapshot);
+        deployment.setDomain(domain);
+        return deployment;
+    }
+
+    private static BulkDeploymentRequest bulkRequest(List<String> chainIds, String... domains) {
+        return BulkDeploymentRequest.builder()
+                .domains(List.of(domains))
+                .chainIds(chainIds)
+                .build();
+    }
+
     private List<BulkDeploymentResponse> deployChains(DeployWithSnapshotCreationRequest request) {
+        List<BulkDeploymentResponse> result = new ArrayList<>();
+        service.deployChains(request, result::add);
+        return result;
+    }
+
+    private List<BulkDeploymentResponse> deployChains(BulkDeploymentRequest request) {
         List<BulkDeploymentResponse> result = new ArrayList<>();
         service.deployChains(request, result::add);
         return result;
@@ -219,6 +243,7 @@ class BulkDeploymentServiceTest {
         BulkDeploymentResponse created = BulkDeploymentResponse.builder()
                 .chainId("chain-1")
                 .status(BulkDeploymentStatus.CREATED)
+                .domain(EngineDomain.builder().name("classic-domain").type(DomainType.CLASSIC).build())
                 .build();
         when(deploymentService.deploySnapshot(snapshot, List.of("classic-domain"), List.of())).thenReturn(List.of(created));
 
@@ -352,6 +377,170 @@ class BulkDeploymentServiceTest {
         // Read once, before the first deploy: a later read would also return deployments the batch created.
         verify(deploymentService, times(1)).findAllByChainId("chain-1");
         verify(deploymentService, times(1)).findAllByChainId("chain-2");
+    }
+
+    @Test
+    void deployChainsRechecksCreatedDeploymentsAgainstOnlyTheReplacementsThatCommitted() {
+        classicDomainEnabled(true);
+        microDomainEnabled(true);
+        domainsExist(engineDomain("classic-domain", DomainType.CLASSIC));
+        Chain firstChain = chain("chain-1");
+        Chain secondChain = chain("chain-2");
+        when(chainRepository.findAllById(List.of("chain-1", "chain-2"))).thenReturn(List.of(firstChain, secondChain));
+        Snapshot first = snapshot("s1", firstChain);
+        Snapshot second = snapshot("s2", secondChain);
+        when(deploymentService.provideSnapshots(any(), any(), any()))
+                .thenReturn(Map.of("chain-1", first, "chain-2", second));
+        Deployment firstReplaced = deployment("dep-1-old", firstChain, first, "classic-domain");
+        Deployment secondReplaced = deployment("dep-2-old", secondChain, second, "classic-domain");
+        when(deploymentService.findAllByChainId("chain-1")).thenReturn(List.of(firstReplaced));
+        when(deploymentService.findAllByChainId("chain-2")).thenReturn(List.of(secondReplaced));
+        BulkDeploymentResponse firstCreated = BulkDeploymentResponse.builder()
+                .chainId("chain-1")
+                .status(BulkDeploymentStatus.CREATED)
+                .domain(engineDomain("classic-domain", DomainType.CLASSIC))
+                .build();
+        BulkDeploymentResponse secondCreated = BulkDeploymentResponse.builder()
+                .chainId("chain-2")
+                .status(BulkDeploymentStatus.CREATED)
+                .domain(engineDomain("classic-domain", DomainType.CLASSIC))
+                .build();
+        when(deploymentService.deploySnapshot(eq(first), any(), any())).thenReturn(List.of(firstCreated));
+        when(deploymentService.deploySnapshot(eq(second), any(), any())).thenReturn(List.of(secondCreated));
+
+        List<BulkDeploymentResponse> result =
+                deployChains(bulkDeployRequest(List.of("chain-1", "chain-2"), "classic-domain"));
+
+        assertThat(result)
+                .extracting(BulkDeploymentResponse::getChainId, BulkDeploymentResponse::getStatus)
+                .containsExactlyInAnyOrder(
+                        tuple("chain-1", BulkDeploymentStatus.CREATED),
+                        tuple("chain-2", BulkDeploymentStatus.CREATED));
+        verify(deploymentService, never()).deleteById(any());
+        ArgumentCaptor<List<Deployment>> exclusions = ArgumentCaptor.forClass(List.class);
+        verify(deploymentService, times(2)).checkTriggers(eq("classic-domain"), any(), any(), exclusions.capture());
+        assertThat(exclusions.getAllValues()).allSatisfy(excluded ->
+                assertThat(excluded).containsExactlyInAnyOrder(firstReplaced, secondReplaced));
+    }
+
+    @Test
+    void deployChainsCompensatesACreatedDeploymentWhenTheReplacementOfThePathOwnerFailed() {
+        classicDomainEnabled(true);
+        microDomainEnabled(true);
+        domainsExist(engineDomain("classic-domain", DomainType.CLASSIC));
+        Chain pathOwner = chain("chain-A");
+        Chain successor = chain("chain-B");
+        when(chainRepository.findAllById(List.of("chain-A", "chain-B"))).thenReturn(List.of(pathOwner, successor));
+        Snapshot pathOwnerSnapshot = snapshot("s-a", pathOwner);
+        Snapshot successorSnapshot = snapshot("s-b", successor);
+        when(deploymentService.provideSnapshots(any(), any(), any()))
+                .thenReturn(Map.of("chain-A", pathOwnerSnapshot, "chain-B", successorSnapshot));
+        Deployment pathOwnerOld = deployment("dep-a-old", pathOwner, pathOwnerSnapshot, "classic-domain");
+        Deployment successorOld = deployment("dep-b-old", successor, successorSnapshot, "classic-domain");
+        Deployment successorNew = deployment("dep-b-new", successor, successorSnapshot, "classic-domain");
+        when(deploymentService.findAllByChainId("chain-A")).thenReturn(List.of(pathOwnerOld));
+        when(deploymentService.findAllByChainId("chain-B"))
+                .thenReturn(List.of(successorOld))
+                .thenReturn(List.of(successorNew));
+        BulkDeploymentResponse pathOwnerFailed = BulkDeploymentResponse.builder()
+                .chainId("chain-A")
+                .status(BulkDeploymentStatus.FAILED_DEPLOY)
+                .errorMessage("Found similar triggers paths registered on public/private gateway: [/c]")
+                .domain(engineDomain("classic-domain", DomainType.CLASSIC))
+                .build();
+        BulkDeploymentResponse successorCreated = BulkDeploymentResponse.builder()
+                .chainId("chain-B")
+                .status(BulkDeploymentStatus.CREATED)
+                .domain(engineDomain("classic-domain", DomainType.CLASSIC))
+                .build();
+        when(deploymentService.deploySnapshot(eq(pathOwnerSnapshot), any(), any())).thenReturn(List.of(pathOwnerFailed));
+        when(deploymentService.deploySnapshot(eq(successorSnapshot), any(), any())).thenReturn(List.of(successorCreated));
+        String conflictMessage = "Found similar triggers paths registered on public/private gateway: [/a]";
+        doThrow(new EntityExistsException(conflictMessage))
+                .when(deploymentService).checkTriggers(eq("classic-domain"), eq("s-b"), eq("chain-B"), any());
+
+        List<BulkDeploymentResponse> result = deployChains(bulkRequest(List.of("chain-A", "chain-B"), "classic-domain"));
+
+        assertThat(result)
+                .extracting(BulkDeploymentResponse::getChainId, BulkDeploymentResponse::getStatus)
+                .containsExactlyInAnyOrder(
+                        tuple("chain-A", BulkDeploymentStatus.FAILED_DEPLOY),
+                        tuple("chain-B", BulkDeploymentStatus.FAILED_DEPLOY));
+        assertThat(successorCreated.getErrorMessage()).isEqualTo(conflictMessage);
+        verify(deploymentService).deleteById("dep-b-new");
+        ArgumentCaptor<List<Deployment>> exclusions = ArgumentCaptor.forClass(List.class);
+        verify(deploymentService).checkTriggers(eq("classic-domain"), eq("s-b"), eq("chain-B"), exclusions.capture());
+        assertThat(exclusions.getValue()).containsExactly(successorOld);
+        assertThat(exclusions.getValue()).doesNotContain(pathOwnerOld);
+    }
+
+    @Test
+    void deployChainsCompensatesBothSidesWhenOneSideOfTheSwapFails() {
+        classicDomainEnabled(true);
+        microDomainEnabled(true);
+        domainsExist(engineDomain("classic-domain", DomainType.CLASSIC));
+        Chain firstChain = chain("chain-A");
+        Chain secondChain = chain("chain-B");
+        when(chainRepository.findAllById(List.of("chain-A", "chain-B"))).thenReturn(List.of(firstChain, secondChain));
+        Snapshot first = snapshot("s-a", firstChain);
+        Snapshot second = snapshot("s-b", secondChain);
+        when(deploymentService.provideSnapshots(any(), any(), any()))
+                .thenReturn(Map.of("chain-A", first, "chain-B", second));
+        Deployment firstReplaced = deployment("dep-a-old", firstChain, first, "classic-domain");
+        Deployment secondReplaced = deployment("dep-b-old", secondChain, second, "classic-domain");
+        Deployment firstCreatedRow = deployment("dep-a-new", firstChain, first, "classic-domain");
+        when(deploymentService.findAllByChainId("chain-A"))
+                .thenReturn(List.of(firstReplaced))
+                .thenReturn(List.of(firstCreatedRow));
+        when(deploymentService.findAllByChainId("chain-B")).thenReturn(List.of(secondReplaced));
+        BulkDeploymentResponse firstCreated = BulkDeploymentResponse.builder()
+                .chainId("chain-A")
+                .status(BulkDeploymentStatus.CREATED)
+                .domain(engineDomain("classic-domain", DomainType.CLASSIC))
+                .build();
+        BulkDeploymentResponse secondFailed = BulkDeploymentResponse.builder()
+                .chainId("chain-B")
+                .status(BulkDeploymentStatus.FAILED_DEPLOY)
+                .errorMessage("Found similar triggers paths registered on public/private gateway: [/b]")
+                .domain(engineDomain("classic-domain", DomainType.CLASSIC))
+                .build();
+        when(deploymentService.deploySnapshot(eq(first), any(), any())).thenReturn(List.of(firstCreated));
+        when(deploymentService.deploySnapshot(eq(second), any(), any())).thenReturn(List.of(secondFailed));
+        String conflictMessage = "Found similar triggers paths registered on public/private gateway: [/b]";
+        doThrow(new EntityExistsException(conflictMessage))
+                .when(deploymentService).checkTriggers(eq("classic-domain"), eq("s-a"), eq("chain-A"), any());
+
+        List<BulkDeploymentResponse> result =
+                deployChains(bulkDeployRequest(List.of("chain-A", "chain-B"), "classic-domain"));
+
+        assertThat(result)
+                .extracting(BulkDeploymentResponse::getChainId, BulkDeploymentResponse::getStatus)
+                .containsExactlyInAnyOrder(
+                        tuple("chain-A", BulkDeploymentStatus.FAILED_DEPLOY),
+                        tuple("chain-B", BulkDeploymentStatus.FAILED_DEPLOY));
+        assertThat(firstCreated.getErrorMessage()).isEqualTo(conflictMessage);
+        verify(deploymentService).deleteById("dep-a-new");
+        verify(deploymentService, never()).deleteById("dep-b-old");
+    }
+
+    @Test
+    void deployChainsDoesNotRecheckWhenNoClassicDeploymentWasCreated() {
+        classicDomainEnabled(true);
+        microDomainEnabled(true);
+        domainsExist(engineDomain("micro-domain", DomainType.MICRO));
+        resourceBuildSucceeds();
+        Chain chain = chain("chain-1");
+        when(chainRepository.findAllById(List.of("chain-1"))).thenReturn(List.of(chain));
+        Snapshot snapshot = snapshot("s1", chain);
+        when(deploymentService.provideSnapshots(any(), any(), any())).thenReturn(Map.of("chain-1", snapshot));
+
+        List<BulkDeploymentResponse> result = deployChains(bulkRequest(List.of("chain-1"), "micro-domain"));
+
+        assertThat(result)
+                .extracting(BulkDeploymentResponse::getStatus, response -> response.getDomain().getType())
+                .containsExactly(tuple(BulkDeploymentStatus.CREATED, DomainType.MICRO));
+        verify(deploymentService, never()).checkTriggers(any(), any(), any(), any());
+        verify(deploymentService, never()).deleteById(any());
     }
 
     @Test
