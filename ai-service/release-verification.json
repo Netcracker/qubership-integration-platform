@@ -22,12 +22,18 @@
   },
   "checks": {
     "ui": {
-      "commit": "94d60447e",
+      "commit": "f214808ce04d14bf4adb9c1c63eb6e937974ae83",
       "eslint": "PASS",
-      "jestTests": 13,
+      "eslintScope": "Changed UI files including transformer and Jest config; full unscoped lint not run.",
       "types": "PASS",
       "format": "PASS",
-      "independentReview": "PASS"
+      "jestSuites": 192,
+      "jestTests": 2661,
+      "loaderTests": 74,
+      "nodeScriptTests": 6,
+      "eslintConfigMatchesMain": true,
+      "independentReview": "PASS",
+      "evidence": "Ignored local evidence: pr-preparation/ui-main-convention/summary.txt and prechecks-final-review.md"
     },
     "packageInventory": {
       "commit": "0e676db9a",
@@ -57,6 +63,22 @@
       "testingBundleIncluded": false,
       "sharedContainersChanged": false,
       "independentReview": "PASS"
+    },
+    "manualServerRestart": {
+      "status": "PASS",
+      "tests": 17,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "exitCode": 0,
+      "durationSeconds": 374.52,
+      "command": "cd ai-service && ./mvnw test -Dtest=CreateChainServerRestartIT -Dqip.test.excluded-groups=certified-pack",
+      "execution": "Local pre-push check; default builds and CI exclude server-restart.",
+      "includesA2aTransportProbes": true,
+      "dedicatedA2aPackageSuite": "NOT_RUN",
+      "jdkWorkaround": "Command-local JDK_JAVA_OPTIONS=-XX:TieredStopAtLevel=1",
+      "ownedFixturesCleanedUp": true,
+      "evidence": "Ignored local evidence: pr-preparation/restart/full/run.json and fresh XML."
     }
   },
   "liveAcceptance": {
@@ -386,8 +408,7 @@
     }
   },
   "blockers": [
-    "CreateChainServerRestartIT remains deferred and is required before push.",
-    "UI, runtime, evaluator, and six other selected live cases were not run on this source revision; acceptance is scoped, not unconditional merge readiness.",
+    "UI browser flows, runtime, evaluator, and six other selected live cases were not run on this source revision; acceptance is scoped, not unconditional merge readiness.",
     "The prior documentation result remains partial at 11 of 12 literal endpoint entries and was not repeated."
   ],
   "evidencePolicy": "Raw prompts, responses, private packages and captures remain in ignored local evidence; this file is a sanitized summary.",
@@ -480,10 +501,9 @@
     }
   },
   "remainingActions": [
-    "Run the deferred CreateChainServerRestartIT before push.",
-    "Run remaining selected UI, runtime, evaluator, and live cases if required by the release gate.",
+    "Run remaining selected UI browser, runtime, evaluator, and live cases if required by the release gate.",
     "Keep the documentation literal-fidelity gap visible; do not report an unqualified documentation pass.",
-    "Main integration, push, and registry publication remain pending; the local scoped acceptance does not replace remaining release gates."
+    "Review PR CI and remaining acceptance gates before main integration; registry publication remains pending."
   ],
   "secretEvidenceScan": {
     "filesExamined": 56,
@@ -1681,7 +1701,7 @@
     }
   },
   "campaignStartDate": "2026-10-28",
-  "workspaceHeadAtReport": "70107fee53cee04bf12a56f1bb744791925bef99",
+  "workspaceHeadAtReport": "771fe3c45beab5a277279053112c7b2ebaf42afe",
   "historicalEvidenceScans": [
     {
       "filesExamined": 5043,
@@ -1721,5 +1741,41 @@
         }
       }
     }
-  ]
+  ],
+  "historicalUiChecks": [
+    {
+      "commit": "94d60447e",
+      "eslint": "PASS",
+      "jestTests": 13,
+      "types": "PASS",
+      "format": "PASS",
+      "independentReview": "PASS"
+    }
+  ],
+  "prPreparation": {
+    "status": "LOCAL_PREPUSH_CHECKS_PASSED",
+    "branch": "codex/ai-service-release-pr",
+    "sourceBranch": "feature/ai-service-recovery-test-system",
+    "sourceBranchHeadPreserved": "48cc3027b6dba421efffbe7edbdba516607289c4",
+    "targetMainRevision": "f74e776c3b1f03381f87a8690da699cb723e3408",
+    "excludedAgentConfigurationPaths": 57,
+    "restoredState": "Exact target-main blobs and modes; 37 existing paths and 20 baseline absences.",
+    "originalBranchAndSixLocalInstructionFilesPreserved": true,
+    "aiServiceInstructionPreserved": true,
+    "configurationRestorationReview": "PASS",
+    "runtimeSourceEquivalentToFrozenCandidate": true,
+    "runtimeComparedPaths": [
+      "ai-service/src/main",
+      "ai-service/knowledge-sidecar/src",
+      "ai-service/pom.xml",
+      "ai-service/Dockerfile",
+      "ui/src",
+      "ui/scripts/build-doc-index.mjs"
+    ],
+    "restartRequiredLocallyBeforePush": true,
+    "restartEnabledInCi": false,
+    "uiUsesMainEslintConfiguration": true,
+    "interruptedRestartAttempt": "Earlier narrowed run stopped after A2A dependency was identified and owned fixtures cleaned up; subsequent authorized full 17-test run passed.",
+    "evidence": "Ignored local evidence: pr-preparation/cleanup-verification.json, cleanup-final-review.md, prechecks-final-review.md, ui-main-convention/, restart/full/."
+  }
 }
