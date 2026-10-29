@@ -116,7 +116,7 @@ const AppExtension = () => {
   useEffect(() => {
     const onMessage = (event: MessageEvent<VSCodeResponse<unknown>>) => {
       // VS Code's webview host forwards extension messages from the webview's own origin.
-      if (event.origin !== window.location.origin) {
+      if (event.origin !== window.origin) {
         return;
       }
       const { type, payload } = event.data;

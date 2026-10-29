@@ -54,7 +54,7 @@ installDataRouterGlobals();
 function postMessage(
   type: string,
   payload: unknown,
-  origin = window.location.origin,
+  origin = window.origin,
 ): void {
   act(() => {
     window.dispatchEvent(
