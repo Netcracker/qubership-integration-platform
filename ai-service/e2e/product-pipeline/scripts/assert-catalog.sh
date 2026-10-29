@@ -253,15 +253,15 @@ while IFS= read -r reachable_type; do
             break
         fi
         # BFS fallback in shell for simple chains
-        if rg -q "\"from\"[[:space:]]*:[[:space:]]*\"${trigger_id}\"" "$deps_json" &&
-            rg -q "\"to\"[[:space:]]*:[[:space:]]*\"${target_id}\"" "$deps_json"; then
+        if grep -Eq "\"from\"[[:space:]]*:[[:space:]]*\"${trigger_id}\"" "$deps_json" &&
+            grep -Eq "\"to\"[[:space:]]*:[[:space:]]*\"${target_id}\"" "$deps_json"; then
             found=true
             break
         fi
     done <<< "$target_ids"
     if [[ "$found" != "true" ]]; then
         e2e_warn "catalog skeleton: could not prove reachability trigger -> ${reachable_type} (direct edge check only)"
-        if ! rg -q "\"to\"[[:space:]]*:[[:space:]]*\".*\"" "$deps_json"; then
+        if ! grep -Eq "\"to\"[[:space:]]*:[[:space:]]*\".*\"" "$deps_json"; then
             e2e_fail "catalog skeleton: no path to ${reachable_type}"
         fi
     fi
