@@ -13,6 +13,7 @@ dependencies:
     - path: ./integration-platform-skills
       skills:
         - rocky-binding-mapping
+    - Netcracker/qubership-ai-packages/agent-packages/change-description-authoring
 devDependencies:
   apm:
     - Netcracker/qubership-ai-packages/agent-packages/apm-authoring

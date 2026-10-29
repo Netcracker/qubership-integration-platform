@@ -1,8 +1,8 @@
 # The browser layer
 
-`specs/ui/` drives Chromium through nginx on 8080, against the production bundle `ui-server`
-serves on 4200. A case covers what only a browser shows: layout, computed styles, focus, a screen
-redrawn with no reload, a screen that throws. A fact the API can assert belongs in `specs/api/`,
+`specs/ui/` drives Chromium through the proxy, on 8080 on Compose and 30080 on `k8s`, against the
+production bundle `ui-server` serves on 4200. A case covers what only a browser shows: layout,
+computed styles, focus, a screen redrawn with no reload, a screen that throws. A fact the API can assert belongs in `specs/api/`,
 and a fact jsdom renders the same way belongs in Jest under `ui/tests/`. Data is created through
 the API and read in the browser; a case whose subject is the creation flow says so in its spec
 header. No `toHaveScreenshot()`: a golden image needs a baseline per platform.
@@ -16,17 +16,9 @@ the first case that meets it. A guard failure clears `test.fail()`, so a pinned 
 on a problem that is not its defect. A page object under `pages/` holds locators and the few
 interactions worth naming, and no assertion.
 
-**Running one case.** Rule 23 of the skill applies here too, with one more step. `--no-deps` starts
-no `ui-server`, so once a run has built the bundle, start the preview at the repository root and
-then run the case:
-
-```bash
-npm run preview -w @netcracker/qip-ui -- --port 4200 --strictPort   # at the repository root
-E2E_SWEEP=never npm test -- --project=ui --no-deps -g "<title>"
-```
-
-The preview serves `ui/dist` as it was built. After a change under `ui/src`, stop the preview and
-run the case once without `--no-deps`: `ui-server` sees the stale bundle and rebuilds it.
+**Running one case.** Rule 23 of the skill applies here too, with one more step: `--no-deps` starts
+no `ui-server`, so start the preview that "Reproducing one case" in `e2e/README.md` gives before you
+run the case, and stop it after a change under `ui/src`.
 
 **Selectors**, in this order:
 

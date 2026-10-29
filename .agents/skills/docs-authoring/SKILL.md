@@ -2,9 +2,10 @@
 name: docs-authoring
 description: >
   Update the product documentation under help/docs/ for a feature. Use after
-  implementing a feature, or when asked to "update the docs" or "document
-  issue #N". Maps changed code to the right doc page, follows the help/docs
-  structure and style, and leaves edits unstaged for human review.
+  implementing a feature, when asked to "update the docs" or "document issue
+  #N", or when invoked by name with an issue number. Reads the issue, maps
+  changed code to the right doc page, follows the help/docs structure and
+  style, and leaves edits unstaged for human review.
 ---
 
 # Feature documentation authoring
@@ -20,7 +21,9 @@ find the code that changed behind it.
 - **Read the linked issue in full first.** The issue description is the
   source of truth for *why* a feature exists and how it should behave —
   edge cases the diff alone won't show. If an issue number is given, run
-  `gh issue view <N>` before writing anything.
+  `gh issue view <N> --json title,body,comments` before writing anything;
+  without `--json` it fails on Projects classic. If the user gave no issue
+  number, ask for it, or for the branch to diff, before editing anything.
 - **Never commit, push, or open a pull request unless the prompt asks for
   it.** Leave doc edits as unstaged working-tree changes for a human to
   review and commit.
@@ -33,8 +36,8 @@ find the code that changed behind it.
 ## Documentation layout
 
 `help/docs/` holds nine top-level sections, each a `NN__Title` folder. Every
-topic is its own `N__Title_Name` folder with one snake_case `.md` file and an
-optional `img/` folder.
+topic is its own `N__Title_Name` folder with a `readme.md` and an optional
+`img/` folder. Every page, a landing page included, is a `readme.md`.
 
 - `00__Overview/` — orientation and concepts: Getting Started, Apache Camel
   context, general functions, architecture, glossary.
@@ -57,10 +60,9 @@ optional `img/` folder.
   system properties, token processing, retention settings, database
   multitenancy.
 
-Each section has a landing page (`overview.md`, `chains.md`, `services.md`,
-`admin_tools.md`, `dev_tools.md`, `how_to.md`, `observability.md`,
-`troubleshooting.md`, `features.md`). Most of them list their pages as
-`- [Title](N__Folder/page.md) - one-line summary`; when you add, move, or
+Each section has a landing page, `<section>/readme.md`, such as
+`01__Chains/readme.md`. Most of them list their pages as
+`- [Title](N__Folder/readme.md) - one-line summary`; when you add, move, or
 remove a page, update that list. Moving a page also means fixing every
 relative link to its old path: `grep -rn "<old folder>" help/docs`.
 
@@ -80,9 +82,9 @@ which one a new page goes into:
   parameters that tune it, goes to `08__Features/`. Keep it distinct from
   `03__Admin_Tools/`, which documents a tab inside the product.
 
-Two pages are indices over the whole tree: `00__Overview/4__Glossary/glossary.md`
+Two pages are indices over the whole tree: `00__Overview/4__Glossary/readme.md`
 has one `###` entry per term, each ending in a link to the page that owns it,
-and `07__Troubleshooting/troubleshooting.md` has the symptom table. A new term
+and `07__Troubleshooting/readme.md` has the symptom table. A new term
 gets a glossary entry; a new failure mode a reader can hit gets a symptom row.
 
 ## Code area to doc mapping
@@ -108,9 +110,9 @@ than to a one-to-one file. Use this to find the affected page(s):
 - `testing-service/**` → `help/docs/01__Chains/8__Testing/` (one chain) and
   `help/docs/03__Admin_Tools/9__Testing/` (all chains, test runs).
 - `schemas/**` (JSON Schema for chains, services, elements) → the matching
-  element page under `01__Chains/1__Graph/1__Elements_Library/`. File names
-  map to element types: `http_trigger.md` documents the `http-trigger`
-  element.
+  element page under `01__Chains/1__Graph/1__Elements_Library/`. Folder names
+  map to element types: `6__Triggers/1__HTTP_Trigger/readme.md` documents the
+  `http-trigger` element.
 - `ui/**` and `vscode-extension/**` → both render the whole `help/docs` tree;
   UI feature areas map one-to-one to the numbered sections. Integration
   mechanics belong in `ui/docs/DOCUMENTATION_INTEGRATION.md`, not in
@@ -136,17 +138,18 @@ Match the existing pages — verify against a neighbor before you write.
 - **Parameter tables** use the columns `Parameter | Mandatory | Data Type |
   Description | Sample`, where Mandatory is `M`, `O`, or `C`.
 - **Callouts** use the `> ℹ️ **Note:**` form already in the pages.
-- **Cross-links are relative** between doc pages
-  (`../../1__Routing/9__Try-Catch-Finally/try-catch-finally.md`). Images live
-  in the page's `img/` folder.
-- **Navigation is derived from folder order**, not a nav file. A new
-  `N__Title_Name` folder slots in by its numeric prefix; underscores in the
-  name become spaces in the display title. There is no `mkdocs.yml` or
-  `SUMMARY.md` to update.
+- **Cross-links are relative** between doc pages and end in `/readme.md`
+  (`../../1__Routing/9__Try-Catch-Finally/readme.md`). Images live in the
+  page's `img/` folder.
+- **Navigation is derived from folder order**, not a nav file.
+  `ui/scripts/build-doc-index.mjs` sorts the paths as strings, so the order is
+  lexicographic: `10__Split_Async` comes before `1__`, not after `9__`. The
+  text after `__` becomes the display title, with underscores as spaces. There
+  is no `mkdocs.yml` or `SUMMARY.md` to update.
 
 ## Task flow
 
-1. Read the linked issue in full (`gh issue view <N>`).
+1. Read the linked issue in full (`gh issue view <N> --json title,body,comments`).
 2. Review the change (`git status --short`, `git diff origin/main...HEAD`)
    to see which UI areas and elements the code touched.
 3. Map each changed path to its doc page(s) using the mapping above; search

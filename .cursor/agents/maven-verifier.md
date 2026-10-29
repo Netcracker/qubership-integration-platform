@@ -1,6 +1,6 @@
 ---
 name: maven-verifier
-description: Verify changes in any Maven module of the monorepo (engine, micro-engine, runtime-catalog, sessions-management, integration-build-pipeline, integration-build-maven-plugin, parent, checkstyle) by compiling and testing only the affected module. Use after editing Java sources, POMs, or resources under those modules, or when asked whether backend changes still build. Returns a verdict with the failing output; it does not fix anything.
+description: Verify changes in any Maven module of the monorepo (engine, micro-engine, runtime-catalog, sessions-management, integration-build-pipeline, integration-build-maven-plugin, schemas, ai-service, parent, checkstyle) by compiling and testing only the affected module. Use after editing Java sources, POMs, or resources under those modules, or when asked whether backend changes still build. Returns a verdict with the failing output; it does not fix anything.
 tools: Bash, Read, Grep, Glob
 ---
 
@@ -9,8 +9,9 @@ tools: Bash, Read, Grep, Glob
 Verify a change in one Maven module and report what breaks. Build the smallest reactor
 that can still catch the failure.
 
-All commands run from the repository root and need `-Dgpg.skip=true` — GPG signing is
-configured in `parent/pom.xml` for release publishing and fails locally without it.
+All commands run from the repository root. GPG signing binds to the `verify` phase, so a
+command that reaches `verify` or `install` needs `-Dgpg.skip=true`; `test` and `package`
+pass it only so a copied command stays safe.
 
 Give Maven room: use a Bash `timeout` of at least 600000 ms. Test runs here have hit the
 two-minute default repeatedly.
@@ -29,11 +30,13 @@ Map each path to its module — the top-level directory is the module name:
 |---|---|---|
 | `engine/` | engine | Spring Boot |
 | `micro-engine/` | micro-engine | Quarkus; slowest suite by far |
-| `runtime-catalog/` | runtime-catalog | ANTLR sources regenerate on build; depends on integration-build-pipeline |
+| `runtime-catalog/` | runtime-catalog | depends on integration-build-pipeline |
 | `sessions-management/` | sessions-management | |
-| `integration-build-pipeline/` | integration-build-pipeline | chain compilation; runtime-catalog and the Maven plugin consume it |
+| `integration-build-pipeline/` | integration-build-pipeline | chain compilation; ANTLR sources regenerate on build; runtime-catalog and the Maven plugin consume it |
 | `integration-build-maven-plugin/` | integration-build-maven-plugin | depends on integration-build-pipeline |
-| `parent/` | parent | shared config; affects every module |
+| `schemas/` | schemas | JUnit schema conformance; the npm side belongs to npm-verifier |
+| `ai-service/` | ai-service | Quarkus; copies `schemas/src/main/resources/conf-model` at build time |
+| `parent/` | parent | shared config; affects every module that declares it as `<parent>` |
 | `checkstyle/` | checkstyle | shared rules; affects every module |
 
 Decide how much to build:
@@ -47,7 +50,8 @@ Decide how much to build:
   compiles against the library version in `~/.m2`, not against the change.
 - **`parent/` or `checkstyle/` touched** — these change every downstream module. Verify the
   modules that matter to the caller with `-am`, which builds `parent` and `checkstyle` from
-  the checkout.
+  the checkout. Micro-engine, schemas, and ai-service have no `<parent>`, so a `parent/`
+  change does not reach them; they pin `qip-checkstyle-revision` themselves.
 - **Several modules touched** — pass them together: `-pl engine,runtime-catalog`.
 
 ## 2. Run the check
@@ -81,13 +85,13 @@ Narrow it further when the change is narrow. For a single touched class, run its
 class alone:
 
 ```bash
-mvn -q -pl runtime-catalog test -Dtest=ChainServiceTest -DfailIfNoTests=false -Dgpg.skip=true -nsu
+mvn -q -pl runtime-catalog test -Dtest=ChainRolesServiceTest -Dsurefire.failIfNoSpecifiedTests=false -Dgpg.skip=true -nsu
 ```
 
 Find the matching test by name before assuming none exists:
 
 ```bash
-find runtime-catalog/src/test -name 'ChainService*Test.java'
+find runtime-catalog/src/test -name 'ChainRolesService*Test.java'
 ```
 
 Fall back to the module's full suite when a change reaches shared code — a mapper, an
@@ -116,16 +120,16 @@ run on Quarkus and dominate the wall-clock time of any full-module run.
 
 Not every red build is a code problem:
 
-- **401 or 403 on `com.netcracker.cloud` artifacts** — the feature branches
-  (`feature/#173-core-adaptation`, `feature/#109-core-adaptation`, `feature/#33`) depend on
-  private GitHub Packages. This is a missing PAT in `~/.m2/settings.xml`, not a defect in
-  the change. Report it as a credential problem and stop.
+- **401 or 403 on `com.netcracker.cloud` artifacts** — `main` imports the private
+  `dbaas-client-bom` and `maas-client-bom` from GitHub Packages, and the feature branches
+  (`feature/#173-core-adaptation`, `feature/#109-core-adaptation`, `feature/#33`) need more.
+  This is a missing PAT in `~/.m2/settings.xml`, not a defect in the change. Report it as a
+  credential problem and stop.
 - **Checkstyle violations** — these fail at `compile`, before any test runs. Report the
-  rule and the file; the module's own `checkstyle-suppressions.xml` covers local
-  exceptions if one is genuinely warranted.
-- **`Could not resolve` an in-repo `-SNAPSHOT` artifact** (`qip-monorepo-parent`,
-  `qip-checkstyle`, `qip-integration-build-pipeline`) — `~/.m2` is behind the checkout: `main`
-  bumped that module, and a fresh worktree has never built it. Retry once with `-am`, which
+  rule and the file.
+- **`Could not resolve` an in-repo `-SNAPSHOT` artifact** (`qip-integration-build-pipeline`)
+  — `~/.m2` is behind the checkout: `main` bumped that module, and a fresh worktree has
+  never built it. Retry once with `-am`, which
   builds it in the reactor; never install to make it resolve.
 
 ## 5. Report
@@ -140,7 +144,7 @@ Compile:    pass
 Checkstyle: pass
 Tests:      fail — 1 of 85
 
-ChainServiceTest.shouldRejectDuplicateName:142
+ChainRolesServiceTest.shouldRejectDuplicateName:142
   expected: <409> but was: <200>
 ```
 

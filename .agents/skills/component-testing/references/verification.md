@@ -1,7 +1,9 @@
 # Verify component coverage
 
-Run commands from the repository root. Use the JDK configured by the module POMs and
-credentials for private Maven dependencies. Bundle generation needs Docker for
+Run commands from the repository root with system `mvn`; the repository has no Maven Wrapper. Use
+the JDK configured by the module POMs. Private Maven dependencies need credentials: pass
+`-s .github/maven-settings.xml`, which reads them from the `MAVEN_GITHUB_USERNAME` and
+`MAVEN_GITHUB_PASSWORD` environment variables. Bundle generation needs Docker for
 PostgreSQL; broker scenarios also start containers. Keep dependency and image
 versions in their existing manifests.
 
@@ -13,7 +15,7 @@ check whether the bundle matches the source exports or generator templates.
 1. If integration-build-pipeline code or templates changed, install that module first:
 
    ```bash
-   ./mvnw -q -B -Dstyle.color=never -Dgpg.skip=true \
+   mvn -q -B -Dstyle.color=never -Dgpg.skip=true \
      -pl integration-build-pipeline -am clean install -DskipTests
    ```
 
@@ -21,7 +23,7 @@ check whether the bundle matches the source exports or generator templates.
    regenerate the bundle:
 
    ```bash
-   ./mvnw -q -B -Dstyle.color=never -Dgpg.skip=true \
+   mvn -q -B -Dstyle.color=never -Dgpg.skip=true \
      -pl runtime-catalog -PsnapshotTests clean test
    ```
 
@@ -39,7 +41,7 @@ Select exact IDs from the manifest. Its filename without `.yml` is the target ID
 Use one worker while adding or diagnosing a scenario:
 
 ```bash
-./mvnw -q -B -Dstyle.color=never -Dgpg.skip=true \
+mvn -q -B -Dstyle.color=never -Dgpg.skip=true \
   -pl micro-engine -PsnapshotTests -Dsnapshot.workers=1 \
   -Dsnapshot.target=checkpoint \
   -Dsnapshot.scenario=retries-failed-session-from-checkpoint test
@@ -50,13 +52,13 @@ the whole target. A selected scenario retains its invocation sequence and deploy
 dependencies. `snapshotTests` includes both `Short` and `Long` scenarios.
 
 The optional `scripts/run-micro-engine-snapshots.py` launcher accepts `--workers 1`
-and Maven options after `--`. It selects the same profile and prefers the repository
-Maven Wrapper, falling back to system `mvn` if the wrapper is absent.
+and Maven options after `--`. It selects the same profile and runs system `mvn`, because it
+looks for a Maven Wrapper the repository does not have.
 
 Run the short suite when the changed fixture or runner affects multiple targets:
 
 ```bash
-./mvnw -q -B -Dstyle.color=never -Dgpg.skip=true \
+mvn -q -B -Dstyle.color=never -Dgpg.skip=true \
   -pl micro-engine -PsnapshotTestsShort -Dsnapshot.workers=1 test
 ```
 

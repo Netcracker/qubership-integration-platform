@@ -12,8 +12,8 @@ address as a parameter, so one factory serves every engine.
 ## Rules
 
 - **The host comes from `runtime.states`, never from `serviceName`.** The catalog documents `serviceName` as the name
-  to display for errors, and it lacks the version suffix a micro domain's service gets (`qip-engine-micro` against a
-  service named `qip-engine-micro-v1`). The `runtime.states` keys are the hosts the catalog dials itself:
+  to display for errors, and it lacks the version suffix a micro domain's service gets (`cip-engine-<domain>` against a
+  service named `cip-engine-<domain>-v1`). The `runtime.states` keys are the hosts the catalog dials itself:
   `LiveExchangesService` in runtime-catalog reaches an engine as `http://%s:8080/v1/engine/live-exchanges`.
 - **Nothing found falls back to `EngineAddress`.** A chain the catalog reports on no engine, and a deployments endpoint
   that cannot answer, both activate on the configured address. The classic engine keeps a stable service, so a test

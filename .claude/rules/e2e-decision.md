@@ -33,9 +33,10 @@ The change needs no end-to-end case when:
   `vscode-extension/src/web/test/suite/` covers it; `specs/api/extension-output.spec.ts` covers only
   the files the extension writes for import.
 
-A fix for a defect the suite already pins removes the pin, and the case that then passes is the
-regression case. `grep -rn "#<N>\b" e2e/specs e2e/support` finds the `test.fail()` case that
-pins it.
+A fix for a defect the suite already pins removes the pin (`test.fail()` or `strikesAsKnown`), and
+the case that then passes is the regression case. `grep -rn "#<N>\b" e2e/specs e2e/support` finds
+the case that pins it.
 
-A new regression case fails on the code without the fix and passes with it: run it both ways. Load
-the `e2e-spec-authoring` skill before you write it.
+A new regression case fails on the code without the fix and passes with it: run it both ways, and
+name in the pull request the target and the command it passed under. Load the
+`e2e-spec-authoring` skill before you write it; its rule 23 says how to run it.
