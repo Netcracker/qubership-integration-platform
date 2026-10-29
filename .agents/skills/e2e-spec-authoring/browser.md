@@ -16,10 +16,6 @@ the first case that meets it. A guard failure clears `test.fail()`, so a pinned 
 on a problem that is not its defect. A page object under `pages/` holds locators and the few
 interactions worth naming, and no assertion.
 
-**Running one case.** Rule 23 of the skill applies here too, with one more step: `--no-deps` starts
-no `ui-server`, so start the preview that "Reproducing one case" in `e2e/README.md` gives before you
-run the case, and stop it after a change under `ui/src`.
-
 **Selectors**, in this order:
 
 1. A role and an accessible name: `getByRole("dialog", { name: "Create service" })`. A list is

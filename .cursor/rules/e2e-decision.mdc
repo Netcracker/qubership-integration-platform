@@ -37,6 +37,6 @@ A fix for a defect the suite already pins removes the pin (`test.fail()` or `str
 the case that then passes is the regression case. `grep -rn "#<N>\b" e2e/specs e2e/support` finds
 the case that pins it.
 
-A new regression case fails on the code without the fix and passes with it: run it both ways, and
-name in the pull request the target and the command it passed under. Load the
-`e2e-spec-authoring` skill before you write it; its rule 23 says how to run it.
+A new regression case fails on the code without the fix and passes with it: run it both ways.
+Load the `e2e-spec-authoring` skill before you write it; its rule 23 says how to run it and what
+the pull request description records.

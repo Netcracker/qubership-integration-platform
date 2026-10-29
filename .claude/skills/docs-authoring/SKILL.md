@@ -149,7 +149,7 @@ Match the existing pages — verify against a neighbor before you write.
 
 ## Task flow
 
-1. Read the linked issue in full (`gh issue view <N> --json title,body,comments`).
+1. Read the linked issue in full (see above).
 2. Review the change (`git status --short`, `git diff origin/main...HEAD`)
    to see which UI areas and elements the code touched.
 3. Map each changed path to its doc page(s) using the mapping above; search

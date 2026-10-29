@@ -24,7 +24,7 @@ Adding a method means adding it to the `Api` interface **and** to both implement
 `VSCodeExtensionApi` method sends a webview message whose type is a string literal, by convention the
 method name (`sendMessageToExtension("getChain", payload)`). That string has to match the `case` the
 extension dispatches on in `vscode-extension/src/web/response/apiRouter.ts`, so renaming it is a
-protocol change, not a refactor. About 140 methods have no extension counterpart and throw
+protocol change, not a refactor. Many methods have no extension counterpart and throw
 `Method <name> not implemented.`; such a stub is acceptable when the extension lacks the feature.
 
 ## Types

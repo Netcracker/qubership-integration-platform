@@ -69,15 +69,14 @@ library bootstrap work only through nginx, so 4200 shows an empty chain list and
 `@netcracker/qip-ui` imports `@netcracker/qip-schemas` as a workspace dep, and `@netcracker/qip-vscode-extension` embeds the qip-ui library bundle. So the build order matters:
 
 1. `npm -w @netcracker/qip-schemas run build` — writes `schemas/dist/index.mjs` (the runtime `schemasByType` map). Without this, qip-ui's vite build can't resolve `@netcracker/qip-schemas`.
-2. `npm -w @netcracker/qip-ui run build:lib:bundled` — writes `ui/dist-lib/index.bundled.es.js` (React embedded) and `cip-ui.css`; `build:lib:types` adds the declarations. The webview loads `index.bundled.es.js` and falls back to `index.es.js`, the external bundle `build:lib` writes (`vscode-extension/src/web/extension.ts`).
+2. `npm -w @netcracker/qip-ui run build:lib:bundled` — writes `ui/dist-lib/index.bundled.es.js` (React embedded) and `cip-ui.css`; `build:lib:types` adds the declarations.
 3. `npm -w @netcracker/qip-vscode-extension run compile-web` — webpack + copy-webpack-plugin pulls `ui/dist-lib` into `vscode-extension/dist/web/qip-ui/`.
 
 `npm -w @netcracker/qip-vscode-extension run build` runs all three: its `prepare-deps` script covers steps 1 and 2, then
 `compile-web` runs.
 
 `npm -w @netcracker/qip-ui run build` (the **app** build, not `build:lib`) builds the standalone web UI bundle, a
-separate output. The root `npm run build` runs the extension build first and the app build after it, because the
-extension build is the one that writes `schemas/dist` and `ui/dist-lib`, and on a clean tree nothing else does.
+separate output. The root `npm run build` runs the extension build, then the app build.
 
 ### Branch model
 
@@ -99,8 +98,7 @@ Each module owns a `<module>-build.yaml` / `<module>-release.yaml` pair under `.
 spans do not protect a word. A match is masked with asterisks, gets the `profane content` label, and can lose the `bug`
 label. Write "flaky" or "has a race" instead of "racy", and "terminate" for a live exchange instead of "kill".
 
-Plans under `docs/plans/**` stay local. `docs/` is in `.gitignore`; never force-add a plan, and drop any plan commit,
-including the one `/planning:exec` makes, before a branch is pushed.
+`docs/` is in `.gitignore`; never force-add a plan.
 
 ### Release process
 
@@ -128,4 +126,5 @@ wins, so a `qip.x` in Consul still overrides a `cip.x` default in `application.y
 - A change touching schemas + UI + vscode-extension usually only needs `npm install` once at the root — workspace symlinks propagate. No publish step required for local testing.
 - A Java change rarely needs the full aggregator build; prefer `mvn -pl <module> -am package`. `install` writes the branch's snapshots to the shared `~/.m2`, where every other checkout and worktree builds against them.
 - The `parent/` POM controls Spring Boot, MapStruct, Lombok, Checkstyle, JaCoCo versions for every Spring module — bump dependency versions there, not in module POMs.
-- The `qip-checkstyle` rules version is pinned by `qip-checkstyle-revision` in `parent/pom.xml` and again in the POMs that set it themselves: micro-engine, schemas, sessions-management, and ai-service. Bump them together. Engine and micro-engine carry a `checkstyle-suppressions.xml` that excludes only `target/`. No POM configures it: the optional `SuppressionFilter` in the rules resolves the name against the working directory, so the file applies only to a build started inside the module directory.
+- The `qip-checkstyle` rules version is pinned by `qip-checkstyle-revision` in `parent/pom.xml` and again in the POMs that set it themselves: micro-engine, schemas, sessions-management, and ai-service. Bump them together. Engine and micro-engine carry a `checkstyle-suppressions.xml` that excludes only `target/` and applies only to a build started inside the module directory.
+- MapStruct runs with `-Amapstruct.unmappedTargetPolicy=IGNORE` (`parent/pom.xml`, and micro-engine's own POM), so do not add a per-field `ignore = true`. On a null source collection, `defaultExpression` and `SET_TO_DEFAULT` change nothing; only `@IterableMapping(nullValueMappingStrategy = RETURN_DEFAULT)` on the collection's own mapping method defaults it, and a Lombok `@Builder.Default` loses to an explicit `builder.field(null)` (#805).

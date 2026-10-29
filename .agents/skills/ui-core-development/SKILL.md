@@ -7,8 +7,8 @@ description: Core development standards for the Qubership Integration Platform U
 
 Everyday development in `ui/` — a React + TypeScript SPA for visual integration chain management.
 
-The application targets two runtimes, browser and VS Code webview, and three themes. Every UI
-decision has to hold in all of them; see [Theme and VS Code webview](#theme-and-vs-code-webview).
+The application targets two runtimes, browser and VS Code webview, and three themes; see
+[Theme and VS Code webview](#theme-and-vs-code-webview).
 
 ## Stack
 

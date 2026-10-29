@@ -19,7 +19,7 @@ npm run watch-web
 npm run test:unit
 npm run test:unit:coverage
 npm run test:integration
-npm run lint
+npm run lint                # eslint --fix src, which rewrites files; CI runs npx --no-install eslint src
 npm run check-types
 npm run run-in-browser      # manual smoke run in a browser host
 ```

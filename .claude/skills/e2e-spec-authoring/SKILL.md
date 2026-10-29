@@ -420,65 +420,30 @@ right now, so a controller added to a service fails a run.
     observe different outcomes of one feature, such as the four idempotency modes, stay separate
     cases, so a red result names the mode that broke.
 23. **Run a new or changed case, and see it pass, before you commit it.** No pull request check
-    runs the suite, so a case nobody ran fails first in the nightly run on `main`, and every project
-    that depends on its project skips with it. Either target serves the run: Compose, or a cluster
-    with `CIP_TARGET=k8s` in front of every command below. Use the one that is already up. The two
-    stacks do not fit on one machine together, so bring one up only when neither runs, and never
-    stop a stack that another session is using; the "Targets" section of `e2e/README.md` says how
-    to switch. A case in `k8s`, `seed-micro`, `runtime-micro`,
-    `runtime-micro-redeploy`, `global-micro`, `env-micro`, `brokers-micro-seed`, or `brokers-micro`
-    runs on the cluster only.
-    The pull request description names the target and the command the case passed under. A case
-    you could not run stays out of the commit, or the description says that it has not run.
+    runs the suite until #1219 adds one, so a case nobody ran fails first in the nightly run on
+    `main`, and every project that depends on its project skips with it. Either target serves the
+    run: Compose, or a cluster with `CIP_TARGET=k8s` in front of every command. Use the one that is
+    already up. The two stacks do not fit on one machine together, so bring one up only when
+    neither runs, and never stop a stack that another session is using; the "Targets" section of
+    `e2e/README.md` says how to switch. A project only the `k8s` target declares
+    (`env/target-setup.ts`) runs on the cluster only.
 
-    With no corpus kept, select the case by its title. The dependency projects then run in full:
-    the seed, its teardown, and for a `specs/ui/` case `ui-server`. A case in `env`, `global`, or
-    `brokers-restart`, or on the cluster in `global-micro` or `env-micro`, depends on most of the
-    suite that way, so run it against a kept corpus instead.
+    A regression case runs red on the code without the fix, then green with it. A case that runs
+    more than once, such as red and then green, runs against a kept corpus rather than a fresh seed
+    each time. The pull request description names the target and the command the case passed
+    under. A case you could not run stays out of the commit, or the description says that it has
+    not run.
 
-    ```bash
-    npm test -- --project=<project> -g "<title>"
-    ```
+    Before you push a broad change, run the whole suite with `npm test`. Dispatch
+    `.github/workflows/e2e-k8s.yaml`, which runs both engines on Kubernetes, in three cases only:
+    the change touches the micro engine, a project only `k8s` declares, or Kubernetes provisioning
+    (`env/provision/k8s.ts`, or `env/provision.ts` and `env/provision/common.ts`, which both
+    targets share); the work reaches a checkpoint, before a merge or at the end of a large step; or
+    a failure looks flaky and needs a second run on the reference environment. Queue no second
+    dispatch while one runs. The workflow's `concurrency` group sets no `cancel-in-progress`, so a
+    third dispatch cancels the second while it waits in the queue.
 
-    While you iterate, keep the corpus once, then run the changed spec against it, with `schema`,
-    `harness`, and the type check beside it. Each run takes seconds. A regression case runs red on
-    the code without the fix first, then green with it. `--no-deps` starts no `ui-server`, so a
-    `specs/ui/` case also needs the preview that `browser.md` points to.
-
-    ```bash
-    E2E_KEEP=1 npm test -- <seeds>
-    E2E_SWEEP=never npm test -- --project=<project> --no-deps specs/<dir>/<file>.spec.ts
-    npm test -- --project=schema --project=harness
-    npm run check-types
-    ```
-
-    `<seeds>` are the seed projects the case's project depends on:
-
-    | Project | `<seeds>` |
-    | --- | --- |
-    | `api`, `tooling`, `runtime`, `ui`, `env`, `global`, `k8s` | `--project=seed` |
-    | `brokers`, `brokers-restart` | `--project=brokers-seed`, which runs `seed` first |
-    | `runtime-micro`, `global-micro`, `env-micro` | `--project=seed --project=seed-micro` |
-    | `runtime-micro-redeploy` | `--project=seed-micro` |
-    | `brokers-micro` | `--project=brokers-seed --project=brokers-micro-seed` |
-
-    When you are done, `npm test -- --project=seed-teardown` removes a kept `seed` corpus. The
-    other seeds' teardowns run in `suite-teardown`, and each removes only a corpus that its own run
-    wrote, so run both teardowns under the token of the kept run, which its `[keep]` line prints:
-
-    ```bash
-    E2E_RUN=<run> npm test -- --project=seed-teardown --project=suite-teardown
-    ```
-
-    Before you push a broad change, run the whole suite with `npm test`, about 13 minutes on either
-    target. Dispatch `.github/workflows/e2e-k8s.yaml`, which takes 40–45 minutes on both engines on
-    Kubernetes, in three cases only: the change touches the micro engine, a project only `k8s`
-    declares, or Kubernetes provisioning (`env/provision/k8s.ts`, or `env/provision.ts` and
-    `env/provision/common.ts`, which both targets share); the work reaches a checkpoint, before a
-    merge or at the end of a large step; or a failure looks flaky and needs a second run on the
-    reference environment. Queue no second dispatch while one runs. The workflow's `concurrency`
-    group sets no `cancel-in-progress`, so a third dispatch cancels the second while it waits in
-    the queue.
+    The commands are under "Reproducing one case" in `e2e/README.md`.
 
 ## Assertions that catch a reported success
 
