@@ -100,7 +100,7 @@ gets rationalized, and a falsifiable criterion cannot be.
 - **Bring in the twins.** Grep for the same code in the other of `engine` and `micro-engine` and
   in sibling modules. A path with the same root cause that the product reaches joins the
   contract and is measured like the named one; a finding on another subject goes to the report.
-- **Name the product path to the bad state** (`qip-working-agreements`); without one, stop
+- **Name the product path to the bad state** (`cip-working-agreements`); without one, stop
   under rule 8.
 
 ### The shape of the fix
