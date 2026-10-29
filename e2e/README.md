@@ -599,13 +599,8 @@ A known divergence is pinned with `test.fail()` and a comment naming the defect,
 green while the defect stands. `grep -rn "test\.fail(" specs/` lists them. A pinned case
 turns red the day its defect is fixed, and that is the signal to remove the annotation.
 
-The `vscode` cases meet this filed defect, and the workaround names its issue:
-
-| Issue | Defect | In the suite |
-| --- | --- | --- |
-| #1236 | The element form moves focus to its root after its open animation, which closes a select the user already opened. | `ChainGraphPage.openElement` waits for that move |
-
-A fix removes its pin or its declaration, since the case that then passes is the regression case.
+A fix removes the defect's pin, or the `expectConsoleError` call that declares its error, since the
+case that then passes is the regression case.
 A handler added for an `unhandled` type also changes its row, and
 `specs/harness/vscode-messages.spec.ts` fails until the row matches the code: a handled row when
 the extension answers the type, and no row when the UI stops sending it.

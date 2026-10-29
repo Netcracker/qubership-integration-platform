@@ -1,12 +1,7 @@
 import type { FrameLocator, Locator, Page } from "@playwright/test";
 
-/** How long `openElement` and `dropFromLibrary` wait for the state they watch for, in ms. */
+/** How long `dropFromLibrary` waits for the library item to come fully into view, in ms. */
 const SETTLE_MS = 10_000;
-
-interface FocusWatch {
-  e2eFormFocused?: Promise<void>;
-  e2eStopFocusWatch?: () => void;
-}
 
 /**
  * The chain editor at `/chains/:chainId/graph`: the canvas, the element library, the element form.
@@ -81,53 +76,9 @@ export class ChainGraphPage {
     await mouse.up();
   }
 
-  /**
-   * Opens an element's form, which is what a double click on its node does.
-   *
-   * When its open animation ends, the form moves focus to its body, even from a field inside it, so
-   * a select opened before that closes again (#1236). This returns once the form has moved focus:
-   * the page notes the end of the dialog's animation and the first `focus()` call inside the dialog
-   * after it. It fails after 10 s without that move, which is what the fix of #1236 may bring.
-   */
+  /** Opens an element's form, which is what a double click on its node does. */
   async openElement(elementId: string): Promise<Locator> {
-    const body = this.page.locator("body");
-    await body.evaluate(() => {
-      const page = window as unknown as FocusWatch;
-      const focus = HTMLElement.prototype.focus;
-      let opened = false;
-      let focused = () => {};
-      const onAnimationEnd = (event: AnimationEvent) => {
-        if ((event.target as Element).getAttribute("role") === "dialog") opened = true;
-      };
-      page.e2eStopFocusWatch = () => {
-        HTMLElement.prototype.focus = focus;
-        window.removeEventListener("animationend", onAnimationEnd, true);
-      };
-      page.e2eFormFocused = new Promise<void>((resolve) => (focused = resolve));
-      window.addEventListener("animationend", onAnimationEnd, true);
-      HTMLElement.prototype.focus = function (this: HTMLElement, options?: FocusOptions) {
-        if (opened && this.closest('[role="dialog"]')) {
-          page.e2eStopFocusWatch?.();
-          focused();
-        }
-        focus.call(this, options);
-      };
-    });
-    try {
-      await this.node(elementId).dblclick();
-      await body.evaluate(
-        (_, ms) =>
-          Promise.race([
-            (window as unknown as FocusWatch).e2eFormFocused,
-            new Promise<never>((_, reject) =>
-              setTimeout(() => reject(new Error(`the element form moved no focus into itself within ${ms} ms of its open animation (#1236)`)), ms),
-            ),
-          ]),
-        SETTLE_MS,
-      );
-    } finally {
-      await body.evaluate(() => (window as unknown as FocusWatch).e2eStopFocusWatch?.());
-    }
+    await this.node(elementId).dblclick();
     return this.elementForm;
   }
 
