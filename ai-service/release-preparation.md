@@ -5,10 +5,9 @@ The starting revision is `c211950ab`. Each change requires scoped checks, an ind
 Subagents own separate files; the coordinating chat owns commits and the shared runtime.
 
 The checkpoint at the end of this file is the current release state; earlier checkpoints remain historical.
-The approved documentation and recovery fixes are complete. The source-ID hint change is implemented and reviewed. Its
-Greetings repeat was blocked by the automatic approval
-review before a process was created or any model request was sent. Release remains blocked pending explicit approval
-to transmit the frozen request to the configured external model endpoint.
+The approved documentation, recovery, and source-ID hint changes are implemented and reviewed. The single explicitly
+authorized Greetings run passed native materialization and catalog checks. Local scoped acceptance passed; the deferred
+restart integration test remains required before push, and several live acceptance gates remain unrun.
 
 ## Delivery contract
 
@@ -139,51 +138,63 @@ variant is not repeated; do not report an unqualified documentation pass. The te
 reverted and is not evidence of a tenant-lookup fix.
 
 
-## Current checkpoint — external model transmission approval pending
+## Current checkpoint — local scoped acceptance passed
 
-Source reconciliation is implemented on `28b46590c0fc5a513d8973de68192c81d125e5a2`. The minimal source-ID hint
-change covers two production files and adds 11 regression cases. The red run failed three of 11 tests with zero
-errors because the unavailable-source-ID error omitted current authorized source IDs and read/capture guidance.
-The scoped green run passed 163 tests across `RequirementCaptureToolsTest` (149),
-`RequirementCaptureToolsSchemaTest` (1), and `RequirementDraftStoreLifecycleTest` (13), with zero failures, errors,
-or skips. The hint includes only the latest 20 eligible source IDs, never source bodies; lookup and strict evidence
-validation remain unchanged. No foreign IDs, automatic substitution, new process, or budget increase is allowed.
-Evidence is under `.dev/release-preparation-20261028/source-id-feedback/`.
+The source-ID hint change is implemented on application source revision `28b46590c0fc5a513d8973de68192c81d125e5a2`. The
+workspace HEAD is `c4983492cc1c9ee256bb95c5ba4b012c32ca3c48`; it contains report metadata, while the tested application
+source and candidate images remain unchanged. The hint change covers two production files and adds 11 regression tests.
+Its red run failed three of 11 tests with zero errors because unavailable-source-ID feedback omitted current authorized
+source IDs and read/capture guidance. The scoped green run passed 163 tests across `RequirementCaptureToolsTest` (149),
+`RequirementCaptureToolsSchemaTest` (1), and `RequirementDraftStoreLifecycleTest` (13), with zero failures, errors, or
+skips. The hint includes at most the latest 20 eligible source IDs and never source bodies; lookup and strict evidence
+validation remain unchanged.
 
-The fresh full-module acceptance run passed 6,686 tests in 626 fresh reports, with zero failures, zero errors, and
-11 skips. Maven exited 0 in 337.057 seconds using the local Temurin 21.0.6 workaround. The recorded run archive
-SHA-256 is `1f07e721845e2e7f584ba12325a85679b0c1250d6115e2e9a1094ba770b96d31`. Independent XML and archive
-verification confirmed the same totals and archive hash. The dedicated A2A package suites were not executed; six
-incidental A2A-named cases in other suites ran, matching the historical list above. The full candidate is restored at
-`http://127.0.0.1:62951`; base readiness was checked at port `62924`. Evidence is under
-`.dev/release-preparation-20261028/source-id-feedback/full-module/`.
+The fresh full-module acceptance run passed 6,686 tests in 626 fresh reports, with zero failures, zero errors, and 11
+skips. Maven exited 0 in 337.057 seconds using the local Temurin 21.0.6 workaround. The recorded run archive SHA-256 is
+`1f07e721845e2e7f584ba12325a85679b0c1250d6115e2e9a1094ba770b96d31`. Independent XML and archive verification confirmed
+the same totals and archive hash. The dedicated A2A package suites were not executed; six incidental A2A-named cases in
+other suites ran. The full candidate remained at `http://127.0.0.1:62951`; the base candidate was checked at port
+`62924`. The completed Greetings run made no changes to either image.
 
-The requested `source-hint-greetings-repeat` did not run. Automatic approval review rejected the request before
-process creation because the normal private pipeline context would transmit data to `api.openai.com`; prior
-permission to repeat the test was judged insufficient for that payload and destination. The record shows zero
-requests, zero attempts, and no product or model execution. The frozen input contract remains unchanged at SHA-256
-`52631012b81c17058c21bb02693c071e82d2a56ff4a8b5e04389bbdd7225c2e3`. Frozen source, corpus, hints, and budgets
-remain unchanged; execution metadata is separate. No approval bypass or test attempt occurred. Explicit human approval
-to transmit the frozen
-request to the configured external model endpoint is pending. This is the current blocker; source-ID fix selection
-is resolved.
+The automatic approval review initially rejected the Greetings run before process creation or transmission. The user
+then explicitly authorized one run that sends the original test request and normal AI-service context to
+`https://api.openai.com/v1` using `gpt-6-luna`. Exactly one native run completed with 22 paired model requests and
+responses; requested and returned model were both `gpt-6-luna`. The frozen input contract remains unchanged at SHA-256
+`52631012b81c17058c21bb02693c071e82d2a56ff4a8b5e04389bbdd7225c2e3`; the submitted prompt differed only by the generated
+unique chain name. No extra retries, hints, manual patches, or budget changes were used. Twelve request pairs carry the
+conversation ID and ten downstream pairs are labeled `(none)`. Six provider responses are retained as raw JSON bodies
+and 16 as terminal SDK SSE `response.completed` payloads, all parsed as completed. Request messages are bounded
+previews; exact full-request replay is not established. The earlier rejected request remains a zero-call historical
+event, not a second run.
 
-The earlier Greetings failure on source revision `1b9bf03f56f3ba602bc8b16522e0b1e97c035200` remains historical.
-Its stale UUID and unsupported Groovy findings were not validated by this unrun repeat. The runtime, evaluator, and
-UI remain untested. Restart integration testing remains deferred and is required before push; no push was performed.
-A scoped scan examined 4,954 UTF-8 evidence and helper files for the exact current OpenAI key pattern and found
-zero matches; it did not print the value. Frozen source, generated knowledge, large files, and binary files were
-excluded, so this is not a general secret-absence guarantee. The scan evidence is
-`.dev/release-preparation-20261028/source-id-feedback/secret-evidence-scan.json`. The 139-file testing archive is
-unchanged from its prior verified baseline. The prior 1b9 source-ID evidence is retained below as historical, and
-no prior pending fix-selection status should be read as current.
+The native scenario passed through `CHAIN_MATERIALIZED`, validation, reconciliation, and catalog readback. Nine accepted
+facts remained byte-equivalent; the native trigger-anchor fact was added. The new source-ID hint path was
+**NOT_EXERCISED** because the model cited the correct source ID immediately. Typed source-review reopening was also
+**NOT_EXERCISED**; no source-review artifact or `MISSING_BRIEF_FACTS` rejection occurred. The ordinary native capture
+corrections worked without resetting the nine accepted facts.
 
+The retained chain is `AiCreateSmoke.20261029T064154.r1` (`f76d7439-af23-4131-9c7e-b15384c01f9b`). Catalog readback
+shows one internal `GET /greetings` HTTP trigger with access control `NONE`, one script, and one connecting edge. The
+script returns `Hello, world!` as `text/plain; charset=UTF-8`; static script review passed. No service-call or
+error-handler element exists. The chain remains an unsaved working copy (`unsavedChanges: true`), with no deployment
+artifact and no runtime invocation. This is a native materialization and catalog result, not deployed runtime evidence.
+
+Overall status is **LOCAL_SCOPED_ACCEPTANCE_PASSED**, not unconditional merge readiness. The required
+`CreateChainServerRestartIT` remains deferred and must pass before push; no push was performed. UI, runtime, evaluator,
+and the other six selected live cases were not run on this source revision. OpenAPI and semantic judging were not run.
+The prior documentation result remains partial at 11 of 12 literal endpoint entries; that scenario was not repeated. A
+fresh scoped scan examined 5,043 UTF-8 evidence and helper files for the exact current OpenAI key pattern and found zero
+matches; the value was not printed. The scan included feature evidence and excluded only frozen source snapshots,
+pre-merge source, generated knowledge, files over 64 MiB, and binary files. This is not a general guarantee that every
+secret is absent. The 139-file testing archive remains unchanged. Evidence for this run is under
+`.dev/release-preparation-20261028/source-hint-greetings-repeat/`; the post-run scan is under
+`.dev/release-preparation-20261028/source-id-feedback/post-greetings-secret-evidence-scan.json`.
 ## Evidence
 
-The current exact OpenAI-key scan examined 4,954 UTF-8 evidence and helper files and found zero matches;
-the value was not printed. Evidence is `source-id-feedback/secret-evidence-scan.json`.
-The scan excluded frozen source, generated knowledge, large files, and binary files, so
-it is not a general guarantee that every secret is absent. Keep raw logs, model exchanges, and private package data
-outside the committed delivery files. The coordinating
+The latest exact OpenAI-key scan examined 5,043 UTF-8 evidence and helper files and found zero matches; the value was
+not printed. Evidence is `source-id-feedback/post-greetings-secret-evidence-scan.json`. The scan includes feature
+run evidence and excludes frozen source snapshots, pre-merge source, generated knowledge, files over 64 MiB, and
+binary files. It is not a general guarantee that every secret is absent. Keep raw logs, model exchanges, and private
+package data outside the committed delivery files. The coordinating
 checkout retains local evidence under `.dev/release-preparation-20261028/`. The final delivery summary must name
 each accepted source revision and outcome, including failures and checks that did not run.
