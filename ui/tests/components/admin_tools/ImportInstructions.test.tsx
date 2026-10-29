@@ -730,6 +730,40 @@ services:
     );
   });
 
+  it("should set action to Ignore when Overridden By is cleared", async () => {
+    mockApi.updateImportInstruction.mockResolvedValue({});
+    mockApi.getImportInstructions.mockResolvedValueOnce({
+      chains: {
+        ignore: [],
+        override: [
+          { id: "chain-2", name: "Chain Two", overriddenById: "other-chain" },
+        ],
+        delete: [],
+      },
+      services: { ignore: [], delete: [] },
+      specificationGroups: { ignore: [], delete: [] },
+      specifications: { ignore: [], delete: [] },
+      commonVariables: { ignore: [], delete: [] },
+    });
+
+    render(<ImportInstructions />, { wrapper: ContextProviders });
+    await screen.findByText("Chain Two");
+
+    fireEvent.click(document.querySelectorAll(".inline-edit-value-wrap")[1]);
+    const input = await screen.findByDisplayValue("other-chain");
+    fireEvent.change(input, { target: { value: "  " } });
+    fireEvent.blur(input);
+
+    await waitFor(() =>
+      expect(mockApi.updateImportInstruction).toHaveBeenCalledWith({
+        id: "chain-2",
+        entityType: ImportEntityType.CHAIN,
+        action: ImportInstructionAction.IGNORE,
+        overriddenBy: undefined,
+      }),
+    );
+  });
+
   it("should open Overridden By link without entering edit mode", async () => {
     mockApi.getImportInstructions.mockResolvedValueOnce({
       chains: {

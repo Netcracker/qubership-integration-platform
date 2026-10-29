@@ -646,10 +646,14 @@ export const ImportInstructions: React.FC = () => {
               viewer={renderOverriddenByViewer(row, true)}
               onSubmit={async ({ overriddenBy }) => {
                 setPendingOverrideRowKey(null);
+                const target = overriddenBy?.trim();
+                // An override with no target turns the instruction into Ignore.
                 await handleUpdateAction(
                   row,
-                  ImportInstructionAction.OVERRIDE,
-                  overriddenBy || null,
+                  target
+                    ? ImportInstructionAction.OVERRIDE
+                    : ImportInstructionAction.IGNORE,
+                  target || null,
                 );
               }}
               onCancel={() => {
