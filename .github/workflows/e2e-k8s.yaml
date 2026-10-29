@@ -102,7 +102,7 @@ jobs:
 
       - name: Install root dependencies
         id: root-deps
-        run: npm ci --legacy-peer-deps
+        run: npm ci
 
       - name: Install e2e dependencies
         id: e2e-deps

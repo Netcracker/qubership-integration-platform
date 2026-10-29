@@ -17,7 +17,7 @@ Stack: `@playwright/test` as the runner, TypeScript, ESM. The `request` fixture 
 a browser, so API specs and browser specs share one runner and one report.
 
 The module sits **outside the npm workspaces** on purpose. `ui-build.yaml` runs
-`npm ci --legacy-peer-deps` at the repository root, so a workspace entry would pull Playwright and
+`npm ci` at the repository root, so a workspace entry would pull Playwright and
 its browser into every UI job and for every contributor who never runs these tests. `e2e/` keeps its
 own `package.json` and lockfile, and `npm install` runs inside the directory.
 
