@@ -121,6 +121,21 @@ The service manifest is [suites.json](suites.json). The external manifest is
 `--package <directory>` selects another installation; existing shell drivers also honor `QIP_SKILLS_TESTING_ROOT`.
 The bundle records its target skills version. A version mismatch blocks its profiles.
 
+For the customer layout, extract the testing archive under `integration-platform-skills/rocky-skills/` and pass
+that package root explicitly. The archive contains `testing/`; do not extract it inside another `testing/` directory.
+See the [package layout and installation guide](../README.md#skills-and-chain-tests) for the runtime/knowledge pair,
+Python dependencies, and the development-agent skill entries.
+
+```bash
+python3 ai-service/e2e/run.py --package integration-platform-skills/rocky-skills catalog
+python3 ai-service/e2e/run.py --package integration-platform-skills/rocky-skills run chain-offline
+```
+
+The service suite `evaluator-python` checks the service evaluator. The bundle suite `chain-evaluator-python`
+checks the separately distributed evaluator used by chain campaigns. Their IDs are distinct so both can be loaded
+by the same runner. The installed `testing/element-prompts/README.md` describes the original manual generation
+requests, including `http-sender.md`; these requests do not register extra automated suites.
+
 Live CREATE/PATCH scenarios, planner/executor inputs, checkpoint and recovery campaigns, generator cases, and goldens
 have one canonical home in that bundle. Old service entry scripts remain as compatibility adapters. Service Java
 mechanism tests use their own small fixture sets under `src/test/resources/executor-contract` and
