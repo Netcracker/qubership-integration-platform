@@ -82,7 +82,7 @@ jobs:
           cache: "npm"
 
       - name: Install dependencies (root workspaces)
-        run: npm ci --legacy-peer-deps
+        run: npm ci
 
       # ui's vite build resolves @netcracker/qip-schemas to its built dist/, so
       # schemas must be built first. (vscode-extension self-builds schemas + ui

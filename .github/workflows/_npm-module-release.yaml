@@ -146,7 +146,7 @@ jobs:
       - name: Install dependencies (root workspaces)
         # Always (even in recovery): npm version + the lockfile sync below need a
         # consistent install; npm ci is cached and cheap.
-        run: npm ci --legacy-peer-deps
+        run: npm ci
 
       # ui's vite build resolves @netcracker/qip-schemas to its built dist/, so
       # the schemas workspace must be built first. (vscode self-builds it via
@@ -185,7 +185,7 @@ jobs:
           # Sync the root lockfile with the bumped version so the next `npm ci`
           # doesn't fail on a mismatch. TAG tags this bump commit and pushes it
           # first (see the script). Runs in recovery too — no-ops if unchanged.
-          npm install --package-lock-only --legacy-peer-deps
+          npm install --package-lock-only
           bash scripts/commit-and-push.sh \
             "chore: $MODULE $RELEASE_VERSION [skip ci]" \
             "$MODULE/package.json" package-lock.json
