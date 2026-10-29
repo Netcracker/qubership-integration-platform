@@ -26,8 +26,9 @@ import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 | `withDefaultCamelContext()` | `basic()` plus a real `DefaultCamelContext` from `getContext()` |
 
 Use `defaultExchange()` when the test reads back headers, properties, or body. The mock variants are created with
-`withSettings().lenient()` and stub with `lenient()`, so strict stubbing does not report their unused stubs. Stubs you
-add on top of them are still strict.
+`withSettings().lenient()` and stub with `lenient()`, so strict stubbing does not report their unused stubs. The
+setting belongs to the mock, so a stub you add on top of one is lenient too and goes unreported when unused: check the
+interaction with `verify(...)` where it matters, or create a strict mock of your own.
 
 ## `ObjectMappers`
 

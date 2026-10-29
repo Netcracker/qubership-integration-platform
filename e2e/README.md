@@ -396,8 +396,9 @@ rebuilds the changed service before the case runs.
 A kept micro corpus does not follow a micro-engine change. `auto` builds the new micro-engine image
 and points the catalog's default at it, but a micro domain already deployed keeps the image it was
 deployed with, and `--no-deps` skips the seed that deploys it. After a change under
-`micro-engine/`, keep a new micro corpus (`E2E_KEEP=1 npm test -- --project=seed-micro`, or
-`--project=brokers-micro-seed`) before running the case again.
+`micro-engine/`, keep the case's whole `<seeds>` row from the table again, in one command, before
+running the case: for `runtime-micro`, `E2E_KEEP=1 npm test -- --project=seed --project=seed-micro`.
+The new run collects the old corpus at its start, and the seeds of one command share its run token.
 
 A browser case needs the bundle on 4200 as well, which `--no-deps` does not start. After one run has
 built the bundle, start a preview at the repository root, then run the case:

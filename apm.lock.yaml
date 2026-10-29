@@ -747,7 +747,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:c749c713ec3be36f2e72b18113831e439614c209ee1aaece9d12ee5ee0a386f2
+  content_hash: sha256:ba178c7e30457b81234024d9f1244b4f3c675ebcc92bdc9da87dbff7efd41d56
 - kind: project-relative
   target: claude
   value: .claude/skills/java-unit-testing/references/quarkus-component-testing.md
@@ -1548,7 +1548,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:c749c713ec3be36f2e72b18113831e439614c209ee1aaece9d12ee5ee0a386f2
+  content_hash: sha256:ba178c7e30457b81234024d9f1244b4f3c675ebcc92bdc9da87dbff7efd41d56
 - kind: project-relative
   target: legacy
   value: .agents/skills/java-unit-testing/references/quarkus-component-testing.md
@@ -1878,7 +1878,7 @@ local_deployed_file_hashes:
   .agents/skills/java-unit-testing/references/atlasmap-testing.md: sha256:14a2292804ac623a58a4cf68be122a7a7fa1668d426de3bf27569db8530f5255
   .agents/skills/java-unit-testing/references/camel-testing.md: sha256:18f15c58ba859fce0fdd19d3856d4b1bb227d9e160935a281b3e82c960293018
   .agents/skills/java-unit-testing/references/config-producer-customizer-testing.md: sha256:c72fd1e5cebc61294df3fd0021057f4ee561fe0bda4f2f21834409e067534435
-  .agents/skills/java-unit-testing/references/project-test-helpers.md: sha256:c749c713ec3be36f2e72b18113831e439614c209ee1aaece9d12ee5ee0a386f2
+  .agents/skills/java-unit-testing/references/project-test-helpers.md: sha256:ba178c7e30457b81234024d9f1244b4f3c675ebcc92bdc9da87dbff7efd41d56
   .agents/skills/java-unit-testing/references/quarkus-component-testing.md: sha256:7a413a5a2a9fb8e6b732361418e817de4102492580b0cdfcf0857e6976de22f3
   .agents/skills/release-process/SKILL.md: sha256:d536d8890266ee17d69e7ecf442140fe0a90a16fa324f9c8c7c46b2f78fd278c
   .agents/skills/sonar-triage/SKILL.md: sha256:217063748fc25e89d013d645e529fb7dc40d2c04d6a5fd817669970ebccc88e8
@@ -1940,7 +1940,7 @@ local_deployed_file_hashes:
   .claude/skills/java-unit-testing/references/atlasmap-testing.md: sha256:14a2292804ac623a58a4cf68be122a7a7fa1668d426de3bf27569db8530f5255
   .claude/skills/java-unit-testing/references/camel-testing.md: sha256:18f15c58ba859fce0fdd19d3856d4b1bb227d9e160935a281b3e82c960293018
   .claude/skills/java-unit-testing/references/config-producer-customizer-testing.md: sha256:c72fd1e5cebc61294df3fd0021057f4ee561fe0bda4f2f21834409e067534435
-  .claude/skills/java-unit-testing/references/project-test-helpers.md: sha256:c749c713ec3be36f2e72b18113831e439614c209ee1aaece9d12ee5ee0a386f2
+  .claude/skills/java-unit-testing/references/project-test-helpers.md: sha256:ba178c7e30457b81234024d9f1244b4f3c675ebcc92bdc9da87dbff7efd41d56
   .claude/skills/java-unit-testing/references/quarkus-component-testing.md: sha256:7a413a5a2a9fb8e6b732361418e817de4102492580b0cdfcf0857e6976de22f3
   .claude/skills/release-process/SKILL.md: sha256:d536d8890266ee17d69e7ecf442140fe0a90a16fa324f9c8c7c46b2f78fd278c
   .claude/skills/sonar-triage/SKILL.md: sha256:217063748fc25e89d013d645e529fb7dc40d2c04d6a5fd817669970ebccc88e8
