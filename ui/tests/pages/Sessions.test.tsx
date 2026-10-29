@@ -1622,6 +1622,48 @@ describe("Sessions", () => {
       expect(screen.queryByText("appended-row")).not.toBeInTheDocument();
     });
 
+    test("a sentinel notification from before a search leaves the search's load in place", async () => {
+      mockGetSessions
+        .mockResolvedValueOnce(page("first-row", 1))
+        .mockResolvedValueOnce(page("second-row", 2));
+      renderSessions();
+      await screen.findByText("first-row");
+
+      mockGetSessions.mockImplementation((_chainId, request, paging) =>
+        Promise.resolve(
+          request.searchString === "searched" && paging.offset === 0
+            ? page("searched-row", 1)
+            : { sessions: [], offset: paging.offset ?? 0 },
+        ),
+      );
+      // A browser can deliver an observer's notification after the observer is disconnected.
+      const callbacks: IntersectionObserverCallback[] = [];
+      const Observer = window.IntersectionObserver;
+      const observerSpy = jest
+        .spyOn(window, "IntersectionObserver")
+        .mockImplementation((callback, options) => {
+          callbacks.push(callback);
+          return new Observer(callback, options);
+        });
+
+      try {
+        search("searched");
+        // The search's commit renders the sentinel once more, with the old list's offset.
+        expect(callbacks).toHaveLength(1);
+        await act(async () => {
+          callbacks[0](
+            [{ isIntersecting: true } as IntersectionObserverEntry],
+            {} as IntersectionObserver,
+          );
+        });
+
+        expect(await screen.findByText("searched-row")).toBeInTheDocument();
+        expect(screen.queryByText("first-row")).not.toBeInTheDocument();
+      } finally {
+        observerSpy.mockRestore();
+      }
+    });
+
     test("a superseded load that fails neither reports the failure nor ends the new list", async () => {
       const unfiltered = deferred<Page>();
       mockGetSessions

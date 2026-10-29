@@ -452,9 +452,15 @@ export const Sessions: React.FC<SessionsProps> = ({
     sentinel.style.height = "1px";
     root.appendChild(sentinel);
 
+    // The load effect below runs after this one, so a filter or search that starts a load leaves this offset
+    // behind. The observer can still fire after that, and its append must not supersede the new load.
+    const generation = requestGenerationRef.current;
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
+        if (
+          generation === requestGenerationRef.current &&
+          entries.some((entry) => entry.isIntersecting)
+        ) {
           void fetchSessions(offset);
         }
       },
