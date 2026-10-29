@@ -28,8 +28,7 @@ import {
   withEntityType,
   withMatcherType,
 } from "./matchers.ts";
-
-const MATCHERS_SELECTION_COLUMN_WIDTH = 48;
+import { SELECTION_COLUMN_WIDTH } from "../table/useTableConfiguration.tsx";
 
 /** Sum of the column widths below; keeps the grid scrollable instead of squeezed. */
 const TABLE_SCROLL_X = 1280;
@@ -321,7 +320,7 @@ export const MatchersTable: React.FC<MatchersTableProps> = ({
     : {
         type: "checkbox",
         selectedRowKeys,
-        columnWidth: MATCHERS_SELECTION_COLUMN_WIDTH,
+        columnWidth: SELECTION_COLUMN_WIDTH,
         onChange: setSelectedRowKeys,
       };
 

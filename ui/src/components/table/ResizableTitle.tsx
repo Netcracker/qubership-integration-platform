@@ -3,6 +3,8 @@ import type { ResizeCallbackData, ResizableProps } from "react-resizable";
 
 export type ResizableTitleProps =
   React.ThHTMLAttributes<HTMLTableCellElement> & {
+    /** Receives the column's drawn width when a drag starts. */
+    onResizeStart?: ResizableProps["onResizeStart"];
     onResize?: ResizableProps["onResize"];
     onResizeStop?: ResizableProps["onResizeStop"];
     width: number | undefined;
@@ -23,6 +25,7 @@ export const ResizableTitle = React.forwardRef<
   ResizableTitleProps
 >((props, ref) => {
   const {
+    onResizeStart,
     onResize,
     onResizeStop,
     width,
@@ -164,6 +167,13 @@ export const ResizableTitle = React.forwardRef<
       handleEl: e.currentTarget,
     };
     lastEmittedRef.current = width ?? 0;
+    onResizeStart?.(
+      e,
+      toCallbackData(
+        e.currentTarget,
+        Math.floor(th.getBoundingClientRect().width),
+      ),
+    );
     e.currentTarget.setPointerCapture(e.pointerId);
   };
 

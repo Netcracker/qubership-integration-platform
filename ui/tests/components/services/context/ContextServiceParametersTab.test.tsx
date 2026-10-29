@@ -279,7 +279,7 @@ describe("ContextServiceParametersTab", () => {
     );
   });
 
-  it("shows save error when updateContextService fails", async () => {
+  it("shows save error and keeps the changes unsaved when updateContextService fails", async () => {
     mockUpdateContextService.mockRejectedValue(new Error("save failed"));
     renderTab();
     await waitFor(() =>
@@ -294,5 +294,26 @@ describe("ContextServiceParametersTab", () => {
     await waitFor(() =>
       expect(screen.getByText(/save failed/)).toBeInTheDocument(),
     );
+    expect(screen.getByRole("button", { name: /save/i })).toBeEnabled();
+    expect(useBlocker).toHaveBeenLastCalledWith(true);
+  });
+
+  it("keeps the changes unsaved when the name is empty", async () => {
+    renderTab();
+    await waitFor(() =>
+      expect(screen.getByRole("textbox", { name: /name/i })).toHaveValue("Svc"),
+    );
+    fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
+      target: { value: "" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /save/i }));
+    await waitFor(() =>
+      expect(screen.getAllByText("Enter service name").length).toBeGreaterThan(
+        0,
+      ),
+    );
+    expect(mockUpdateContextService).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /save/i })).toBeEnabled();
+    expect(useBlocker).toHaveBeenLastCalledWith(true);
   });
 });
