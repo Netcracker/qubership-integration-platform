@@ -7,7 +7,7 @@
     "vscode-extension"
   ],
   "scripts": {
-    "build": "npm run build -w vscode-extension && npm run build -w ui",
+    "build": "npm run build -w schemas && npm run build -w ui && npm run build -w vscode-extension",
     "build:ui": "npm run build -w ui",
     "build:schemas": "npm run prepublishOnly -w schemas",
     "test": "npm test --workspaces --if-present",
