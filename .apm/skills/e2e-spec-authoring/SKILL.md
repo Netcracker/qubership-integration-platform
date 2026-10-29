@@ -421,11 +421,11 @@ right now, so a controller added to a service fails a run.
     cases, so a red result names the mode that broke.
 23. **Run a new or changed case, and see it pass, before you commit it.** No pull request check
     runs the suite, so a case nobody ran fails first in the nightly run on `main`, and every project
-    that depends on its project skips with it. Either target serves the run: Compose by default, or
-    a cluster with `CIP_TARGET=k8s` in front of every command below. The two stacks do not fit on
-    one machine together, so stop the other one first: the Compose stack and its broker overlays
-    before a cluster run, or `helm uninstall cip -n cip-e2e --wait` before a Compose run, as the
-    "Targets" section of `e2e/README.md` says. A case in `k8s`, `seed-micro`, `runtime-micro`,
+    that depends on its project skips with it. Either target serves the run: Compose, or a cluster
+    with `CIP_TARGET=k8s` in front of every command below. Use the one that is already up. The two
+    stacks do not fit on one machine together, so bring one up only when neither runs, and never
+    stop a stack that another session is using; the "Targets" section of `e2e/README.md` says how
+    to switch. A case in `k8s`, `seed-micro`, `runtime-micro`,
     `runtime-micro-redeploy`, `global-micro`, `env-micro`, `brokers-micro-seed`, or `brokers-micro`
     runs on the cluster only.
     The pull request description names the target and the command the case passed under. A case
