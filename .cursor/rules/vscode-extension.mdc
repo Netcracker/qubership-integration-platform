@@ -1,6 +1,6 @@
 ---
-description: VS Code extension: build chain, architecture, and test conventions.
-globs: "vscode-extension/**"
+description: 'VS Code extension: build chain, architecture, and test conventions.'
+globs: vscode-extension/**
 ---
 
 ### Project overview
