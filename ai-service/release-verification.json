@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-29",
-  "status": "BLOCKED_PENDING_EXTERNAL_MODEL_TRANSMISSION_APPROVAL",
+  "status": "LOCAL_SCOPED_ACCEPTANCE_PASSED",
   "applicationSourceRevision": "28b46590c0fc5a513d8973de68192c81d125e5a2",
   "localImages": {
     "qip-ai-service:qa-20261028-28b46590-with-skills": {
@@ -301,8 +301,9 @@
     ]
   },
   "blockers": [
-    "Explicit human approval is pending for sending the frozen Greetings prompt and normal AI-service context to OpenAI api.openai.com.",
-    "Live Greetings acceptance on this revision is NOT_RUN; automatic approval review rejected process creation before any request."
+    "CreateChainServerRestartIT remains deferred and is required before push.",
+    "UI, runtime, evaluator, and six other selected live cases were not run on this source revision; acceptance is scoped, not unconditional merge readiness.",
+    "The prior documentation result remains partial at 11 of 12 literal endpoint entries and was not repeated."
   ],
   "evidencePolicy": "Raw prompts, responses, private packages and captures remain in ignored local evidence; this file is a sanitized summary.",
   "suppliedPackageFingerprints": [
@@ -394,16 +395,19 @@
     }
   },
   "remainingActions": [
-    "Obtain the requested destination-and-payload approval before any live model call.",
-    "After approval, run the single unchanged frozen Greetings case and preserve the exact result and provenance.",
-    "Review and locally commit the resulting acceptance record; keep all earlier failures and scope limitations.",
-    "Do not push or publish; the deferred restart integration test remains required before push."
+    "Run the deferred CreateChainServerRestartIT before push.",
+    "Run remaining selected UI, runtime, evaluator, and live cases if required by the release gate.",
+    "Keep the documentation literal-fidelity gap visible; do not report an unqualified documentation pass.",
+    "Review and locally commit the release record; do not push or publish."
   ],
   "secretEvidenceScan": {
-    "filesExamined": 4954,
+    "filesExamined": 5043,
     "matchingFiles": 0,
-    "scope": "Exact current OpenAI key in UTF-8 evidence/helpers; frozen source, generated knowledge, large and binary files excluded",
-    "valuePrinted": false
+    "valuePrinted": false,
+    "pattern": "Exact current OpenAI API key pattern",
+    "scope": "UTF-8 evidence and helper files including source-hint, source-id-feedback, and source-reconciliation evidence; frozen source-<hex revision> snapshots, pre-merge source, generated knowledge, files over 64 MiB, and binary files excluded.",
+    "doesNotGuarantee": "This scoped scan is not a general guarantee that every secret is absent.",
+    "evidence": "Ignored local evidence: .dev/release-preparation-20261028/source-id-feedback/post-greetings-secret-evidence-scan.json"
   },
   "openApiCorrection": {
     "codeCommit": "ace7916cfb773c3de50b17344cc33d937618560d",
@@ -872,8 +876,9 @@
     }
   },
   "currentFollowUp": {
-    "status": "BLOCKED_PENDING_EXTERNAL_MODEL_TRANSMISSION_APPROVAL",
+    "status": "LOCAL_SCOPED_ACCEPTANCE_PASSED",
     "sourceRevision": "28b46590c0fc5a513d8973de68192c81d125e5a2",
+    "workspaceHeadAtReport": "c4983492cc1c9ee256bb95c5ba4b012c32ca3c48",
     "implementedChange": {
       "files": 2,
       "productionLines": 18,
@@ -949,44 +954,108 @@
         "modelRequests": 0
       }
     },
-    "greetingsRepeat": {
-      "status": "NOT_RUN_AUTOAPPROVAL_REJECTED",
-      "attempts": 0,
-      "requests": 0,
+    "priorApprovalRejectedAttempt": {
+      "status": "NOT_SENT_AUTOAPPROVAL_REJECTED",
       "processCreated": false,
-      "productOrModelExecution": "NOT_RUN",
-      "reason": "Automatic approval review rejected before process creation because the normal private pipeline context would transmit data to api.openai.com; prior repeat permission was judged insufficient for this payload and destination.",
-      "transmissionApproval": "PENDING_EXPLICIT_HUMAN_APPROVAL",
+      "modelRequests": 0,
+      "reason": "Automatic approval review rejected the initial run before process creation or transmission.",
+      "supersededBy": "One later run, explicitly authorized for the frozen payload and destination."
+    },
+    "greetingsRepeat": {
+      "status": "PASS_NATIVE_MATERIALIZATION_AND_CATALOG",
+      "attempts": 1,
+      "requests": 2,
+      "modelCalls": 22,
+      "pairedRequestsAndResponses": 22,
+      "provider": "direct OpenAI",
+      "destination": "https://api.openai.com/v1",
+      "requestedModel": "gpt-6-luna",
+      "returnedModel": "gpt-6-luna",
+      "authorization": {
+        "scope": "One Greetings run sending the original test request and normal AI-service context (local skills/knowledge, schemas, policy, and tool results) to https://api.openai.com/v1 using gpt-6-luna.",
+        "receivedVia": "Root message quoting direct user approval"
+      },
+      "sourceRevision": "28b46590c0fc5a513d8973de68192c81d125e5a2",
+      "conversationId": "27718b88-9729-4b7e-8150-ed2ec47166f4",
+      "runId": "27718b88-9729-4b7e-8150-ed2ec47166f4-create-chain-2",
       "frozenInputContractSha256": "52631012b81c17058c21bb02693c071e82d2a56ff4a8b5e04389bbdd7225c2e3",
-      "frozenSourceCorpusHintsAndBudgets": "UNCHANGED",
-      "executionMetadata": "SEPARATE",
-      "approvalBypass": "NOT_ATTEMPTED",
-      "userSelection": "RESOLVED_SOURCE_ID_HINT_APPROVED"
+      "prompt": "UNCHANGED_EXCEPT_GENERATED_UNIQUE_CHAIN_NAME",
+      "extraRetriesHintsManualPatchesOrBudgetChanges": false,
+      "requestConversationLabels": {
+        "conversationIdTaggedPairs": 12,
+        "nonePairs": 10
+      },
+      "providerResponseEvidence": {
+        "rawJsonBodies": 6,
+        "sdkTerminalResponseCompletedSse": 16,
+        "allCompletedAndParsed": true
+      },
+      "exactFullRequestReplay": "NOT_ESTABLISHED_REQUEST_MESSAGES_ARE_BOUNDED_PREVIEWS",
+      "native": {
+        "terminalState": "CHAIN_MATERIALIZED",
+        "validation": "PASS",
+        "reconciliation": "PASS",
+        "catalogReadback": "PASS"
+      },
+      "catalog": {
+        "chainName": "AiCreateSmoke.20261029T064154.r1",
+        "chainId": "f76d7439-af23-4131-9c7e-b15384c01f9b",
+        "elements": [
+          "http-trigger",
+          "script"
+        ],
+        "edges": 1,
+        "accessControl": "NONE",
+        "trigger": "Internal GET /greetings",
+        "scriptResult": "Hello, world!",
+        "contentType": "text/plain; charset=UTF-8",
+        "staticScriptReview": "PASS",
+        "serviceCallElements": 0,
+        "errorHandlerElements": 0,
+        "unsavedChanges": true,
+        "deployment": "NOT_RUN",
+        "runtimeInvocation": "NOT_RUN"
+      },
+      "acceptedFacts": {
+        "preservedByteEquivalent": 9,
+        "nativeTriggerAnchorAdded": true
+      },
+      "sourceIdHint": "NOT_EXERCISED_MODEL_CITED_CORRECT_SOURCE_ID",
+      "typedSourceReview": "NOT_EXERCISED_NO_SOURCE_REVIEW_ARTIFACT_OR_MISSING_BRIEF_FACTS_REJECTION",
+      "ordinaryNativeCaptureCorrections": "PASS_WITHOUT_RESETTING_ACCEPTED_FACTS",
+      "evidence": "Ignored local evidence: .dev/release-preparation-20261028/source-hint-greetings-repeat/report.md, report.json, result.json, catalog-readback/, provider-response-completeness.json, and evidence-manifest.json.",
+      "independentEvidenceReview": {
+        "status": "PASS",
+        "reviewer": "greetings_success_review",
+        "hashedManifestEntries": 44,
+        "files": 45,
+        "permissions": "All files 0600; directories 0700",
+        "providerResponses": "22 completed and parsed: 6 raw JSON bodies and 16 terminal SDK SSE response.completed payloads."
+      }
     },
-    "historicalPriorSourceIdRun": {
-      "sourceRevision": "1b9bf03f56f3ba602bc8b16522e0b1e97c035200",
-      "status": "HISTORICAL",
-      "details": "Preserved under historicalFollowUps; earlier request failed before source reconciliation."
+    "finalSecretPatternScan": {
+      "status": "PASS_SCOPED",
+      "filesExamined": 5043,
+      "matchingFiles": 0,
+      "pattern": "Exact current OpenAI API key pattern",
+      "valuePrinted": false,
+      "scope": "UTF-8 evidence and helper files including source-hint, source-id-feedback, and source-reconciliation evidence; frozen source snapshots, pre-merge source, generated knowledge, files over 64 MiB, and binary files excluded.",
+      "doesNotGuarantee": "This scoped scan is not a general guarantee that every secret is absent.",
+      "evidence": "Ignored local evidence: .dev/release-preparation-20261028/source-id-feedback/post-greetings-secret-evidence-scan.json."
     },
+    "documentationAcceptance": "PARTIAL_11_OF_12_LITERAL_ENDPOINT_ENTRIES_NOT_RERUN",
+    "ui": "NOT_RUN",
     "runtime": "NOT_RUN",
     "evaluator": "NOT_RUN",
-    "ui": "NOT_RUN",
-    "restartIntegrationTest": "DEFERRED_USER_PRIORITY_REQUIRED_BEFORE_PUSH",
+    "openApi": "NOT_RUN",
+    "semanticJudge": "NOT_RUN",
+    "otherSelectedLiveCasesOnCurrentSource": "NOT_RUN",
+    "restartIntegrationTest": "DEFERRED_REQUIRED_BEFORE_PUSH",
     "testingArchive": {
       "files": 139,
       "status": "UNCHANGED_FROM_PRIOR_VERIFIED_BASELINE"
     },
-    "pushPerformed": false,
-    "finalSecretPatternScan": {
-      "status": "PASS_SCOPED",
-      "filesExamined": 4954,
-      "matchingFiles": 0,
-      "pattern": "Exact current OpenAI API key pattern",
-      "valuePrinted": false,
-      "scope": "UTF-8 evidence and helper files; frozen source, generated knowledge, large files, and binary files excluded.",
-      "doesNotGuarantee": "This scoped scan is not a general guarantee that every secret is absent.",
-      "evidence": "Ignored local evidence: .dev/release-preparation-20261028/source-id-feedback/secret-evidence-scan.json."
-    }
+    "pushPerformed": false
   },
   "historicalFollowUps": [
     {
@@ -1058,7 +1127,7 @@
         "assessment": "The draft cited a mismatched source-turn UUID even though the correct ID was present in the complete pending-source fragment and model request context. The tool error supplied no replacement ID. This does not show that guidance or context was absent, and does not establish a source-reconciliation code defect. The run halted before analysis, so the new linkage was not exercised.",
         "independentCaptureReview": "PASS_CLOSURE",
         "correctSourceIdPresentInPendingFragmentAndModelRequestContext": true,
-        "sourceToolFeedback": "The complete 111-character error says: \u201cCorrect the call and try once more.\u201d It supplies no replacement source ID.",
+        "sourceToolFeedback": "The complete 111-character error says: “Correct the call and try once more.” It supplies no replacement source ID.",
         "evidenceManifest": {
           "filesHashed": 38,
           "sha256": "60bc6a58ca93be2f73ecc7ec3bf6df6e3df4bc5dddba677bc9600bc04159cbb9"
@@ -1165,6 +1234,123 @@
         "evidence": "Ignored local evidence: source-reconciliation/secret-evidence-scan.json",
         "evidenceSha256": "1359416a370e3859a1be4958ba32dc33d42112827047943e87e050870349c133"
       }
+    },
+    {
+      "status": "BLOCKED_PENDING_EXTERNAL_MODEL_TRANSMISSION_APPROVAL",
+      "sourceRevision": "28b46590c0fc5a513d8973de68192c81d125e5a2",
+      "implementedChange": {
+        "files": 2,
+        "productionLines": 18,
+        "regressionTestsAdded": 11,
+        "scopedTests": {
+          "tests": 163,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "status": "PASS",
+          "selection": [
+            {
+              "test": "RequirementCaptureToolsTest",
+              "tests": 149
+            },
+            {
+              "test": "RequirementCaptureToolsSchemaTest",
+              "tests": 1
+            },
+            {
+              "test": "RequirementDraftStoreLifecycleTest",
+              "tests": 13
+            }
+          ]
+        },
+        "redRun": {
+          "tests": 11,
+          "failures": 3,
+          "errors": 0,
+          "skipped": 0,
+          "status": "EXPECTED_RED",
+          "reason": "Unavailable-source-ID feedback omitted current authorized source IDs and read/capture guidance."
+        },
+        "hintContract": "At most the latest 20 eligible source IDs; no source bodies, foreign IDs, automatic substitution, new process, or budget increase. Lookup and strict evidence validation remain unchanged.",
+        "evidence": "Ignored local evidence: .dev/release-preparation-20261028/source-id-feedback/verification.json and red.log."
+      },
+      "fullModuleAcceptance": {
+        "status": "PASS",
+        "tests": 6686,
+        "freshReports": 626,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 11,
+        "exitCode": 0,
+        "durationSeconds": 337.057,
+        "selection": "*Test,*IT,!**/a2a/**",
+        "c1LocalJdkWorkaround": "Command-local JDK_JAVA_OPTIONS=-XX:TieredStopAtLevel=1; repository and image JVM settings unchanged",
+        "a2aPackageTestSetExecuted": false,
+        "dedicatedA2aSuitesExecuted": 0,
+        "reportArchiveSha256": "1f07e721845e2e7f584ba12325a85679b0c1250d6115e2e9a1094ba770b96d31",
+        "evidence": "Ignored local evidence: .dev/release-preparation-20261028/source-id-feedback/full-module/summary.json and maven.log.",
+        "independentXmlArchiveVerification": {
+          "status": "PASS",
+          "tests": 6686,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 11,
+          "freshReports": 626,
+          "archiveSha256": "1f07e721845e2e7f584ba12325a85679b0c1250d6115e2e9a1094ba770b96d31",
+          "dedicatedA2aSuitesExecuted": 0,
+          "incidentalA2aNamedCasesExecuted": [
+            "browserCreateChainWorksWhenA2aDisabled",
+            "aiA2aDataSource_usesLogicalDbNameAndTenantClassifier",
+            "productionBrowserAndA2aShareTheFacadeSeam",
+            "browserAndA2aShareTheS3BackedFacade",
+            "a2aRetryStaysPinnedToTheOriginalOffer",
+            "browserAndA2aAdaptersInvokeSameFacadeWithDifferentSerialization"
+          ]
+        },
+        "imageLifecycle": {
+          "fullImage": "62951",
+          "precedingBaseImage": "62924",
+          "modelRequests": 0
+        }
+      },
+      "greetingsRepeat": {
+        "status": "NOT_RUN_AUTOAPPROVAL_REJECTED",
+        "attempts": 0,
+        "requests": 0,
+        "processCreated": false,
+        "productOrModelExecution": "NOT_RUN",
+        "reason": "Automatic approval review rejected before process creation because the normal private pipeline context would transmit data to api.openai.com; prior repeat permission was judged insufficient for this payload and destination.",
+        "transmissionApproval": "PENDING_EXPLICIT_HUMAN_APPROVAL",
+        "frozenInputContractSha256": "52631012b81c17058c21bb02693c071e82d2a56ff4a8b5e04389bbdd7225c2e3",
+        "frozenSourceCorpusHintsAndBudgets": "UNCHANGED",
+        "executionMetadata": "SEPARATE",
+        "approvalBypass": "NOT_ATTEMPTED",
+        "userSelection": "RESOLVED_SOURCE_ID_HINT_APPROVED"
+      },
+      "historicalPriorSourceIdRun": {
+        "sourceRevision": "1b9bf03f56f3ba602bc8b16522e0b1e97c035200",
+        "status": "HISTORICAL",
+        "details": "Preserved under historicalFollowUps; earlier request failed before source reconciliation."
+      },
+      "runtime": "NOT_RUN",
+      "evaluator": "NOT_RUN",
+      "ui": "NOT_RUN",
+      "restartIntegrationTest": "DEFERRED_USER_PRIORITY_REQUIRED_BEFORE_PUSH",
+      "testingArchive": {
+        "files": 139,
+        "status": "UNCHANGED_FROM_PRIOR_VERIFIED_BASELINE"
+      },
+      "pushPerformed": false,
+      "finalSecretPatternScan": {
+        "status": "PASS_SCOPED",
+        "filesExamined": 4954,
+        "matchingFiles": 0,
+        "pattern": "Exact current OpenAI API key pattern",
+        "valuePrinted": false,
+        "scope": "UTF-8 evidence and helper files; frozen source, generated knowledge, large files, and binary files excluded.",
+        "doesNotGuarantee": "This scoped scan is not a general guarantee that every secret is absent.",
+        "evidence": "Ignored local evidence: .dev/release-preparation-20261028/source-id-feedback/secret-evidence-scan.json."
+      }
     }
   ],
   "legacySummaryFieldsBeforeSourceIdHint": {
@@ -1269,5 +1455,6 @@
       }
     }
   },
-  "campaignStartDate": "2026-10-28"
+  "campaignStartDate": "2026-10-28",
+  "workspaceHeadAtReport": "c4983492cc1c9ee256bb95c5ba4b012c32ca3c48"
 }
