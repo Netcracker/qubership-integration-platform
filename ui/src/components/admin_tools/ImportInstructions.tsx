@@ -1,5 +1,11 @@
 import { Table } from "antd";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { Button, Flex, Form, Input, Modal, Select, UploadFile } from "antd";
 import Dragger from "antd/es/upload/Dragger";
 import type { TableProps } from "antd";
@@ -13,11 +19,11 @@ import {
   ImportInstructionAction,
   ImportInstructionResult,
   ImportEntityType,
+  ImportInstructionRequest,
 } from "../../api/apiTypes.ts";
 import { useNotificationService } from "../../hooks/useNotificationService.tsx";
 import { StatusTag } from "../labels/StatusTag.tsx";
 import { InlineEdit } from "../InlineEdit.tsx";
-import { InlineEditWithButtons } from "../InlineEditWithButtons.tsx";
 import { SelectEdit } from "../table/SelectEdit.tsx";
 import { TextValueEdit } from "../table/TextValueEdit.tsx";
 import inlineEditStyles from "../InlineEdit.module.css";
@@ -34,7 +40,6 @@ import { ProtectedButton } from "../../permissions/ProtectedButton.tsx";
 import { usePermissions } from "../../permissions/usePermissions.tsx";
 import { hasPermissions } from "../../permissions/funcs.ts";
 import {
-  submitAddInstruction,
   uploadFileHasDeleteInstructions,
   uploadImportInstructionsFile,
 } from "./importInstructionsHandlers.ts";
@@ -50,6 +55,7 @@ import {
   useColumnSettingsBasedOnColumnsType,
 } from "../table/useColumnSettingsButton.tsx";
 import { useImportInstructionsFilter } from "../../hooks/filter/useImportInstructionsFilter.ts";
+import { useModalContext } from "../../ModalContextProvider.tsx";
 
 const columnSettingsWithTestId = (button: React.ReactNode) => (
   <span data-testid="import-instructions-column-settings">{button}</span>
@@ -107,7 +113,7 @@ const UPLOAD_RESULT_ENTITY_ICON: Record<ImportEntityType, string> = {
 const UPLOAD_RESULT_ENTITY_ORDER = Object.values(ImportEntityType);
 
 const ENTITY_ICON: Record<InstructionEntityType, string> = {
-  Chain: "link",
+  Chain: "chain",
   Service: "cluster",
   "Common Variable": "code",
 };
@@ -380,14 +386,13 @@ export const ImportInstructions: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
-  const [addModalVisible, setAddModalVisible] = useState(false);
-  const [uploadModalVisible, setUploadModalVisible] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
   const [pendingOverrideRowKey, setPendingOverrideRowKey] = useState<
     string | null
   >(null);
   const permissions = usePermissions();
   const [enableEdit, setEnableEdit] = useState<boolean>(false);
+  const { showModal } = useModalsContext();
 
   useEffect(() => {
     setEnableEdit(
@@ -484,6 +489,22 @@ export const ImportInstructions: React.FC = () => {
       );
     }
   }, [selectedRowKeys, tableData, fetchInstructions, notificationService]);
+
+  const addInstruction = useCallback(
+    async (request: ImportInstructionRequest) => {
+      try {
+        await api.addImportInstruction(request);
+        await fetchInstructions();
+      } catch (err: unknown) {
+        if (err && typeof err === "object" && "errorFields" in err) return;
+        notificationService.requestFailed(
+          "Failed to add import instruction",
+          err,
+        );
+      }
+    },
+    [fetchInstructions, notificationService],
+  );
 
   const columns: ColumnsTypeWithSettings<InstructionRow> = useMemo(() => {
     return [
@@ -608,7 +629,7 @@ export const ImportInstructions: React.FC = () => {
           }
 
           return (
-            <InlineEditWithButtons<{ overriddenBy: string }>
+            <InlineEdit<{ overriddenBy: string }>
               values={{
                 overriddenBy: row.overriddenById ?? row.overriddenByName ?? "",
               }}
@@ -717,6 +738,35 @@ export const ImportInstructions: React.FC = () => {
       actions={
         <>
           <ProtectedButton
+            require={{ importInstructions: ["export"] }}
+            tooltipProps={{ title: "Export import instructions" }}
+            buttonProps={{
+              "data-testid": "import-instructions-export",
+              iconName: "cloudDownload",
+              loading: exportLoading,
+              onClick: () => void handleExport(),
+            }}
+          />
+          <ProtectedButton
+            require={{ importInstructions: ["import"] }}
+            tooltipProps={{ title: "Upload import instructions file" }}
+            buttonProps={{
+              "data-testid": "import-instructions-upload",
+              iconName: "cloudUpload",
+              onClick: () => {
+                showModal({
+                  component: (
+                    <UploadInstructionsModal
+                      onSubmit={() => {
+                        void fetchInstructions();
+                      }}
+                    />
+                  ),
+                });
+              },
+            }}
+          />
+          <ProtectedButton
             require={{ importInstructions: ["delete"] }}
             tooltipProps={{ title: "Delete selected" }}
             buttonProps={{
@@ -736,32 +786,16 @@ export const ImportInstructions: React.FC = () => {
             }}
           />
           <ProtectedButton
-            require={{ importInstructions: ["export"] }}
-            tooltipProps={{ title: "Export import instructions" }}
-            buttonProps={{
-              "data-testid": "import-instructions-export",
-              iconName: "cloudDownload",
-              loading: exportLoading,
-              onClick: () => void handleExport(),
-            }}
-          />
-          <ProtectedButton
-            require={{ importInstructions: ["import"] }}
-            tooltipProps={{ title: "Upload import instructions file" }}
-            buttonProps={{
-              "data-testid": "import-instructions-upload",
-              iconName: "cloudUpload",
-              onClick: () => setUploadModalVisible(true),
-            }}
-          />
-          <ProtectedButton
             require={{ importInstructions: ["create"] }}
             tooltipProps={{}}
             buttonProps={{
               type: "primary",
-              iconName: "plus",
-              onClick: () => setAddModalVisible(true),
-              children: "Add",
+              onClick: () => {
+                showModal({
+                  component: <AddInstructionModal onSubmit={addInstruction} />,
+                });
+              },
+              children: "Add Instruction",
             }}
           />
         </>
@@ -800,96 +834,85 @@ export const ImportInstructions: React.FC = () => {
           }}
         />
       </div>
-
-      {addModalVisible && (
-        <AddInstructionModal
-          onClose={() => setAddModalVisible(false)}
-          onSuccess={() => {
-            setAddModalVisible(false);
-            void fetchInstructions();
-          }}
-        />
-      )}
-
-      {uploadModalVisible && (
-        <UploadInstructionsModal
-          onClose={() => {
-            setUploadModalVisible(false);
-            void fetchInstructions();
-          }}
-        />
-      )}
     </Flex>
   );
 };
 
 type AddInstructionModalProps = {
-  onClose: () => void;
-  onSuccess: () => void;
+  onSubmit: (request: ImportInstructionRequest) => Promise<void>;
 };
 
 export const AddInstructionModal: React.FC<AddInstructionModalProps> = ({
-  onClose,
-  onSuccess,
-}) => {
-  const [form] = Form.useForm<{
-    id: string;
-    entityType: InstructionEntityType;
-    action: ImportInstructionAction;
-    overriddenBy?: string;
-  }>();
+  onSubmit,
+}): ReactNode => {
+  const [form] = Form.useForm<ImportInstructionRequest>();
+  const { closeContainingModal } = useModalContext();
   const [loading, setLoading] = useState(false);
-  const notificationService = useNotificationService();
   const entityType = Form.useWatch("entityType", form);
   const action = Form.useWatch("action", form);
+  const overrideEnabled = useMemo(() => {
+    return (
+      entityType === ImportEntityType.CHAIN &&
+      action === ImportInstructionAction.OVERRIDE
+    );
+  }, [action, entityType]);
 
   useEffect(() => {
     if (
       entityType &&
-      entityType !== "Chain" &&
+      entityType !== ImportEntityType.CHAIN &&
       action === ImportInstructionAction.OVERRIDE
     ) {
       form.setFieldValue("action", ImportInstructionAction.IGNORE);
     }
   }, [entityType, action, form]);
 
-  const handleSubmit = async () => {
-    setLoading(true);
-    try {
-      await submitAddInstruction(form, api, notificationService, onSuccess);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const handleSubmit = useCallback(
+    async (request: ImportInstructionRequest) => {
+      setLoading(true);
+      try {
+        await onSubmit(request);
+        closeContainingModal();
+      } finally {
+        setLoading(false);
+      }
+    },
+    [closeContainingModal, onSubmit],
+  );
+
+  const formId = "add-instruction-form";
 
   return (
     <Modal
       title="Add Instruction"
       open
       destroyOnHidden
-      onCancel={onClose}
+      onCancel={closeContainingModal}
       footer={[
-        <Button key="cancel" size="middle" onClick={onClose}>
+        <Button key="cancel" size="middle" onClick={closeContainingModal}>
           Cancel
         </Button>,
         <Button
           key="submit"
           type="primary"
+          htmlType={"submit"}
           size="middle"
+          form={formId}
           loading={loading}
-          onClick={() => void handleSubmit()}
         >
           Save
         </Button>,
       ]}
     >
-      <Form
+      <Form<ImportInstructionRequest>
+        id={formId}
         form={form}
         layout="vertical"
         initialValues={{
-          entityType: "Chain",
+          entityType: ImportEntityType.CHAIN,
           action: ImportInstructionAction.IGNORE,
         }}
+        onFinish={(values) => void handleSubmit(values)}
       >
         <Form.Item
           name="id"
@@ -905,48 +928,50 @@ export const AddInstructionModal: React.FC<AddInstructionModalProps> = ({
         >
           <Select
             options={[
-              { label: "Chain", value: "Chain" },
-              { label: "Service", value: "Service" },
-              { label: "Common Variable", value: "Common Variable" },
+              { label: "Chain", value: ImportEntityType.CHAIN },
+              { label: "Service", value: ImportEntityType.SERVICE },
+              {
+                label: "Common Variable",
+                value: ImportEntityType.COMMON_VARIABLE,
+              },
             ]}
           />
         </Form.Item>
         <Form.Item name="action" label="Action" rules={[{ required: true }]}>
           <Select
             options={
-              entityType === "Chain"
+              entityType === ImportEntityType.CHAIN
                 ? ACTION_OPTIONS_CHAIN
                 : ACTION_OPTIONS_SERVICE_OR_VAR
             }
           />
         </Form.Item>
-        {entityType === "Chain" &&
-          action === ImportInstructionAction.OVERRIDE && (
-            <Form.Item
-              name="overriddenBy"
-              label="Overridden By"
-              rules={[
-                {
-                  required: true,
-                  message: "Overridden By is required when Action is Override",
-                },
-              ]}
-            >
-              <Input placeholder="Enter overridden by id" />
-            </Form.Item>
-          )}
+        <Form.Item
+          name="overriddenBy"
+          label="Overridden By"
+          hidden={!overrideEnabled}
+          rules={[
+            {
+              required: overrideEnabled,
+              message: "Overridden By is required when Action is Override",
+            },
+          ]}
+        >
+          <Input placeholder="Enter overridden by id" />
+        </Form.Item>
       </Form>
     </Modal>
   );
 };
 
 type UploadInstructionsModalProps = {
-  onClose: () => void;
+  onSubmit: () => void;
 };
 
 export const UploadInstructionsModal: React.FC<
   UploadInstructionsModalProps
-> = ({ onClose }) => {
+> = ({ onSubmit }): ReactNode => {
+  const { closeContainingModal } = useModalContext();
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState<ImportInstructionResult[]>([]);
@@ -1043,15 +1068,22 @@ export const UploadInstructionsModal: React.FC<
     await uploadSelectedFile();
   };
 
+  const handleClose = useCallback(() => {
+    if (uploaded) {
+      onSubmit();
+    }
+    closeContainingModal();
+  }, [closeContainingModal, onSubmit, uploaded]);
+
   return (
     <Modal
       title="Upload Instructions (yaml, yml)"
       open
       destroyOnHidden
-      onCancel={onClose}
+      onCancel={handleClose}
       width={600}
       footer={[
-        <Button key="close" onClick={onClose}>
+        <Button key="close" onClick={handleClose}>
           Close
         </Button>,
         uploaded ? null : (

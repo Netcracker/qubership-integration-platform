@@ -207,17 +207,21 @@ export function getAntdThemeConfig(
       Menu: {
         itemBg: "transparent",
         itemSelectedBg: getCSSVariable(
-          "--vscode-list-activeSelectionBackground",
+          "--vscode-menu-selectionBackground",
           "#0078d4",
         ),
         itemSelectedColor: getCSSVariable(
-          "--vscode-list-activeSelectionForeground",
+          "--vscode-menu-selectionForeground",
           "#ffffff",
         ),
         itemHoverBg: getCSSVariable(
-          "--vscode-list-hoverBackground",
+          "--vscode-menu-hoverBackground",
           isDark ? "#262626" : "#f5f5f5",
         ),
+        subMenuItemBg: getCSSVariable(
+          "--vscode-menu-background",
+
+        )
       },
       Table: {
         headerBg: getCSSVariable(
