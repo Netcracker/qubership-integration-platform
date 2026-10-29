@@ -173,8 +173,8 @@ whole file with a golden under `fixtures/vscode/goldens/`, after `normalizeIds` 
 
 **Messages.** The `messages` fixture records every request a webview sends and the answer the
 extension posts back. Wait on it rather than on the screen where the screen cannot show the state:
-`messages.answered()` for the end of a save whose button stays enabled (#1226), and an empty
-`messages.unanswered()` before opening an editor that a redraw would reset. A type the extension
+`messages.answered()` for the end of a save whose button stays enabled, as on the context service
+page. A type the extension
 never answers counts only through `sentMessage`, after the case asserts the tab it opened.
 
 **Running and breaking a case.** Run the project with its dependencies, never `--no-deps`: one

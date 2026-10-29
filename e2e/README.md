@@ -598,12 +598,10 @@ A known divergence is pinned with `test.fail()` and a comment naming the defect,
 green while the defect stands. `grep -rn "test\.fail(" specs/` lists them. A pinned case
 turns red the day its defect is fixed, and that is the signal to remove the annotation.
 
-The `vscode` cases meet these filed defects, and each pin, declared error, or workaround names its
-issue:
+The `vscode` cases meet this filed defect, and the workaround names its issue:
 
 | Issue | Defect | In the suite |
 | --- | --- | --- |
-| #1226 | The inline labels editor resets on a redraw, the MCP form keeps Save enabled after a save, and the environment dialog's Name field has no accessible name. | waits in `service-editor.spec.ts` and `context-mcp-editors.spec.ts`, and the environment case of `service-editor.spec.ts` keeps the dialog's default name |
 | #1236 | The element form moves focus to its root after its open animation, which closes a select the user already opened. | `ChainGraphPage.openElement` waits for that move |
 
 A fix removes its pin or its declaration, since the case that then passes is the regression case.

@@ -48,11 +48,7 @@ async function addLabel(webview: FrameLocator, label: string): Promise<void> {
   await labels.press("Escape");
 }
 
-/**
- * Saves the form, waits for the answer to `update`, and reads the service file once `until` holds
- * for it. The MCP form keeps Save enabled after a save (#1226), so the answer marks the end of the
- * save.
- */
+/** Saves the form, waits for the answer to `update`, and reads the service file once `until` holds for it. */
 async function saveAndRead(vscode: VsCodePage, messages: MessageRecorder, update: string, until: (service: ServiceFile) => boolean): Promise<ServiceFile> {
   await vscode.webview.getByRole("button", { name: "Save" }).click();
   await expect.poll(() => messages.answered()).toContain(update);
@@ -98,7 +94,12 @@ test.describe("context and MCP service editors", () => {
     await webview.getByRole("textbox", { name: "Identifier" }).fill("vscRenamedMcp");
     await webview.getByRole("textbox", { name: "Instructions" }).fill("Answer from VS Code.");
     await addLabel(webview, "e2e-label");
-    const service = await saveAndRead(vscode, messages, "updateMcpService", (each) => each.name === "vsc-mcp-renamed");
+    const save = webview.getByRole("button", { name: "Save" });
+    await save.click();
+    await expect.poll(() => messages.answered()).toContain("updateMcpService");
+    // A saved form has nothing left to save.
+    await expect(save).toBeDisabled();
+    const service = parseService(await vscode.readAsText((text) => parseService(text).name === "vsc-mcp-renamed"));
     expect({ name: service.name, ...service.content }).toEqual({
       name: "vsc-mcp-renamed",
       description: "set in VS Code",

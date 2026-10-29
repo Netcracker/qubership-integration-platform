@@ -36,7 +36,6 @@ import { load } from "js-yaml";
 import { test, expect } from "../../support/vscode-guard.js";
 import { TableView } from "../../pages/TableView.js";
 import type { VsCodePage } from "../../pages/VsCodePage.js";
-import type { MessageRecorder } from "../../support/vscode-messages.js";
 import { addTag } from "../../support/pick-option.js";
 import {
   fixturePath,
@@ -128,18 +127,18 @@ test.describe("service editor", () => {
 
     await webview.getByRole("button", { name: "Add Environment" }).click();
     const added = webview.getByRole("dialog", { name: "Add Environment" });
-    // The dialog's Name field has no accessible name (#1226), so the case keeps the default name.
+    await added.getByRole("textbox", { name: "Name" }).fill("e2e-added");
     await added.getByRole("textbox", { name: "* Address" }).fill("http://e2e-added.invalid");
     await added.getByRole("button", { name: "Save" }).click();
     await expect(added).toBeHidden();
-    await expect(table.row("New Environment")).toContainText("http://e2e-added.invalid");
+    await expect(table.row("e2e-added")).toContainText("http://e2e-added.invalid");
 
-    await table.row("New Environment").getByRole("button", { name: "New Environment" }).click();
+    await table.row("e2e-added").getByRole("button", { name: "e2e-added" }).click();
     const edited = webview.getByRole("dialog", { name: "Edit Environment" });
     await edited.getByRole("textbox", { name: "* Address" }).fill("http://e2e-edited.invalid");
     await edited.getByRole("button", { name: "Save" }).click();
     await expect(edited).toBeHidden();
-    await expect(table.row("New Environment")).toContainText("http://e2e-edited.invalid");
+    await expect(table.row("e2e-added")).toContainText("http://e2e-edited.invalid");
 
     await table.row("primary").getByTestId("environments-delete").click();
     await webview.getByRole("dialog", { name: "Are you sure you want to delete this Environment?" }).getByRole("button", { name: "OK" }).click();
@@ -147,7 +146,7 @@ test.describe("service editor", () => {
 
     const environments = (each: ServiceFile) => (each.content.environments ?? []).map(({ name, address }) => ({ name, address }));
     const service = parseService(await vscode.readAsText((text) => environments(parseService(text)).length === 1));
-    expect(environments(service)).toEqual([{ name: "New Environment", address: "http://e2e-edited.invalid" }]);
+    expect(environments(service)).toEqual([{ name: "e2e-added", address: "http://e2e-edited.invalid" }]);
     // The deleted environment was the active one.
     expect(service.content.activeEnvironmentId).toBe("");
     expect(messages.answered()).toEqual(expect.arrayContaining(["createEnvironment", "updateEnvironment", "deleteEnvironment"]));
@@ -197,13 +196,13 @@ test.describe("service editor", () => {
     const table = new TableView(webview);
     await webview.getByRole("tab", { name: "API Specifications" }).click();
 
-    await addLabel(vscode, messages, await table.cell(table.row("orders"), LABELS), "e2e-group");
+    await addLabel(vscode, await table.cell(table.row("orders"), LABELS), "e2e-group");
     await table.row("orders").getByText("orders", { exact: true }).click();
     const spec = table.row("1.0.0");
     // The group table has Labels one column further left, so the cell is looked up only once the
     // specification table shows.
     await expect(spec).toBeVisible();
-    await addLabel(vscode, messages, await table.cell(spec, LABELS), "e2e-spec");
+    await addLabel(vscode, await table.cell(spec, LABELS), "e2e-spec");
     await expect(await table.cell(spec, STATUS)).toHaveText("In use");
     await runRowAction(vscode, spec, "Deprecate", "Deprecate this specification?");
     await expect(await table.cell(spec, STATUS)).toHaveText("Deprecated");
@@ -239,13 +238,8 @@ test.describe("service editor", () => {
   });
 });
 
-/**
- * Adds `label` in a row's inline labels editor, which Enter saves, and waits for the row to show it.
- * The open editor takes its values again from the table on every redraw (#1226), and an answer
- * from the extension redraws the page, so the editor opens only once every request has its answer.
- */
-async function addLabel(vscode: VsCodePage, messages: MessageRecorder, cell: Locator, label: string): Promise<void> {
-  await expect.poll(() => messages.unanswered(), { message: "every request of the webview is answered" }).toEqual([]);
+/** Adds `label` in a row's inline labels editor, which Enter saves, and waits for the row to show it. */
+async function addLabel(vscode: VsCodePage, cell: Locator, label: string): Promise<void> {
   await cell.getByRole("button").click();
   const select = cell.getByRole("combobox");
   await expect(select).toBeFocused();
