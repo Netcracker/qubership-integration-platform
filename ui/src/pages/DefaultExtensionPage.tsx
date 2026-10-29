@@ -21,6 +21,10 @@ const DefaultExtensionPage: React.FC = () => {
     const onMessage = (
       event: MessageEvent<VSCodeResponse<AppExtensionProps | string>>,
     ) => {
+      // VS Code's webview host forwards extension messages from the webview's own origin.
+      if (event.origin !== window.origin) {
+        return;
+      }
       const { type, payload } = event.data;
 
       if (type === STARTUP_EVENT && payload && typeof payload === "object") {

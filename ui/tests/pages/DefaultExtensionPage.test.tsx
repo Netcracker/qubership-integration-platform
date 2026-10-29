@@ -27,21 +27,25 @@ jest.mock("../../src/appConfig.ts", () => ({
   configureAppExtension: jest.fn(() => Promise.resolve()),
 }));
 
-function postMessage(type: string, payload: unknown): void {
+function postMessage(
+  type: string,
+  payload: unknown,
+  origin = window.origin,
+): void {
   act(() => {
     window.dispatchEvent(
-      new MessageEvent("message", { data: { type, payload } }),
+      new MessageEvent("message", { data: { type, payload }, origin }),
     );
   });
 }
 
-function startUp(): void {
+function startUp(origin?: string): void {
   render(
     <MemoryRouter>
       <DefaultExtensionPage />
     </MemoryRouter>,
   );
-  postMessage("startup", {});
+  postMessage("startup", {}, origin);
 }
 
 describe("DefaultExtensionPage", () => {
@@ -60,6 +64,13 @@ describe("DefaultExtensionPage", () => {
 
     expect(sendMessageToExtension).toHaveBeenCalledWith("navigate");
     expect(mockNavigate).toHaveBeenCalledWith("/chains/chain-1/graph");
+    expect(screen.getByText("Loading")).toBeInTheDocument();
+  });
+
+  test("ignores a startup message from another origin", () => {
+    startUp("https://example.com");
+
+    expect(sendMessageToExtension).not.toHaveBeenCalled();
     expect(screen.getByText("Loading")).toBeInTheDocument();
   });
 

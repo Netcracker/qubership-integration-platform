@@ -274,6 +274,10 @@ export const useVSCodeTheme = () => {
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
+      // VS Code's webview host forwards extension messages from the webview's own origin.
+      if (event.origin !== window.origin) {
+        return;
+      }
       const message = event.data as {
         type?: string;
         payload?: ThemeData;
