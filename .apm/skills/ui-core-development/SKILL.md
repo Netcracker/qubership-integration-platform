@@ -1,14 +1,14 @@
 ---
 name: ui-core-development
-description: Core development standards for the Qubership Integration Platform UI. Use when implementing, refactoring, or testing code in ui/.
+description: Core development standards for the Qubership Integration Platform UI. Use when implementing, refactoring, or testing code in ui/, including styles, color logic, and behavior that differs between the browser and the VS Code webview.
 ---
 
 # UI Core Development
 
 Everyday development in `ui/` — a React + TypeScript SPA for visual integration chain management.
 
-The application targets two runtimes, browser and VS Code webview, and four theme modes. Every UI
-decision has to hold in all of them; see the `ui-theme-and-vscode-webview` skill.
+The application targets two runtimes, browser and VS Code webview, and three themes. Every UI
+decision has to hold in all of them; see [Theme and VS Code webview](#theme-and-vs-code-webview).
 
 ## Stack
 
@@ -62,7 +62,7 @@ and the documentation page reports "Document Not Found". Restart the dev server 
 
 ```text
 src/
-├── api/          — ApiClient interface, REST and VS Code implementations, all business types
+├── api/          — the Api interface, REST and VS Code implementations, all business types
 ├── components/   — React components (see below)
 ├── hooks/        — data-fetching, theme, graph, and filter hooks
 │   └── testing/  — the hooks the testing screens share
@@ -74,24 +74,28 @@ src/
 ├── styles/       — global CSS: theme variables, antd overrides, reactflow theme
 ├── icons/        — IconProvider and icon registry
 ├── diagrams/     — sequence and DDS diagram generation
-├── ai/           — AI panel
+├── ai/           — AI service configuration, model providers, chat sessions
+├── batch/        — batch export of chain graphs
+├── services/     — the documentation service
+├── types/        — antd helper types that the package root no longer exports
+├── utils/        — vscodeApi.ts, the VS Code API singleton
+├── assets/       — SVG files and the context-to-documentation mapping
 └── config/       — runtime app configuration
 ```
 
 Under `src/components/`: `table/`, `modal/`, `graph/`, `mapper/`, `services/`, `sessions/`,
 `admin_tools/`, `dev_tools/`, `elements_library/`, `notifications/`, `labels/`, `logging/`,
-`chains/`, `documentation/`, `testing/`, `deployment_runtime_states/`, `ai/`.
+`chains/`, `documentation/`, `testing/`, `deployment_runtime_states/`, and `ai/`, which holds the
+AI panel.
 
-Reuse existing components and helpers before adding new ones — the table, modal, and permission
-layers all have shared primitives, and duplicating them is the most common review comment.
+Reuse existing components and helpers before adding new ones. The `ui-component-patterns` skill
+names the shared primitive for each kind of component.
 
-Two hooks under `src/hooks/` are worth knowing before you write your own:
-
-- `useTableInfiniteScroll.ts` loads the next page when a sentinel row scrolls into view. Reuse it
-  rather than writing a new observer; `src/pages/Sessions.tsx` still carries an inline copy from
-  before the hook existed, so a search turns up two implementations.
-- `src/hooks/testing/` holds what the testing screens share — `useTestingEntityList` for a list,
-  `useTestingBulkActions` for its toolbar, `useTestingEntityEditor` for an editor page.
+`useTableInfiniteScroll.ts` under `src/hooks/` loads the next page when a sentinel row scrolls into
+view. Reuse it rather than writing a new observer; `src/pages/Sessions.tsx` still carries an inline
+copy from before the hook existed, so a search turns up two implementations. The hooks under
+`src/hooks/testing/` are described in the `ui-api-and-utilities` skill for a list page and in the
+`ui-component-patterns` skill for an editor page.
 
 ## Testing style
 
@@ -112,6 +116,9 @@ when `src` changed. The selector rules are in `browser.md` of the `e2e-spec-auth
 
 ## jsdom prerequisites
 
+`jest.config.ts` sets `testEnvironment: "node"`, so a suite that renders components opts in to jsdom with a
+`/** @jest-environment jsdom */` docblock at the top of the file.
+
 jsdom is missing browser APIs that production code and react-router rely on. Two of them are already solved; reuse the
 solutions rather than stubbing again.
 
@@ -121,6 +128,52 @@ solutions rather than stubbing again.
 - **`crypto.randomUUID`.** jsdom's `crypto` has no `randomUUID`, which production code uses for client-side row and
   modal keys. `tests/setup/crypto-random-uuid.ts` fills it in and runs globally from `jest.config.ts`, so no suite
   needs to import it.
-- **`LightweightTable` mock.** `tests/__mocks__/LightweightTable.tsx` renders the custom entries of
-  `rowSelection.selections`, which is what makes "select all that match the filters" reachable from a test. Drive
-  sorting through the columns the component actually supplied rather than typing a column key into the test.
+- **`LightweightTable` mock.** `tests/helpers/antdMockWithLightweightTable.ts` returns the real antd with `Table`
+  replaced by `tests/__mocks__/LightweightTable.tsx`; pass it to `jest.mock("antd", ...)`. The mock renders the custom
+  entries of `rowSelection.selections`, which is what makes "select all that match the filters" reachable from a test.
+  Drive sorting through the columns the component actually supplied rather than typing a column key into the test.
+
+## Theme and VS Code webview
+
+The UI has three themes: light, dark, and high contrast. `ThemeSwitcher` also offers System, which
+follows the OS preference. `applyThemeToDOM` in `theme/themeInit.ts` sets the theme as `data-theme`
+on `:root`, and `styles/theme-variables.css` gives each value its own block of `--vscode-*`
+fallbacks: `:root:not(.vscode-webview)` for light, with `[data-theme="dark"]` and
+`[data-theme="high-contrast"]` added for the other two.
+
+The fallbacks exist for the browser. In the webview, `useVSCodeTheme` adds the `vscode-webview`
+class to `:root` and `body` once the extension host sends its theme, and the class switches the
+fallback blocks off in favor of the IDE's real `--vscode-*` variables. Until that message arrives,
+the webview renders with the browser fallbacks. A color that looks right in the browser can still
+render differently in VS Code, so never hardcode a color that a `--vscode-*` variable already covers.
+
+Read the theme in a component with the hook:
+
+```typescript
+const { isDark, isVSCodeWebview, palette } = useVSCodeTheme();
+```
+
+- `isDark` for conditional visuals: Monaco theme, chart colors, icon variants.
+- `isVSCodeWebview` for behavior that differs inside the extension host.
+- `palette` for resolved VS Code colors, with the browser fallbacks applied when a variable is
+  absent.
+
+The hook also returns `isHighContrast`, `colors`, and `fonts`, which come from the theme the host
+sends, so in the browser they keep their defaults and `isHighContrast` is `false`. Code that has to
+detect high contrast in both runtimes reads `data-theme` on `:root`, as `hooks/useMonacoTheme.ts`
+does.
+
+Color lives in a few places:
+
+- `styles/theme-variables.css` holds the CSS variables and their per-theme overrides.
+- `styles/antd-overrides.css` and `styles/reactflow-theme.css` theme the library surfaces that need
+  their own rules.
+- `theme/antdTokens.ts` holds the Ant Design token set.
+- `theme/semanticColors.ts` holds the palettes that carry meaning across components:
+  `METHOD_COLORS`, `PROTOCOL_COLORS`, `SOURCE_COLORS`, `SOURCE_FLAG_COLORS`, `SWIMLANE_COLORS`,
+  `COLOR_PALETTE`, and `SOLID_TAG_TONES`. Reuse these instead of picking a hex per component, or the
+  same concept ends up a different color on two pages.
+
+Any new visual behavior has to hold in all three themes and in both runtimes. Check dark and high
+contrast before handing the change back. High contrast is the one that usually breaks, because a
+fallback that merely looks dim in dark mode becomes unreadable there.
