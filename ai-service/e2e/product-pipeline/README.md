@@ -83,8 +83,8 @@ after streamed text, thinking, or tool-call output. Expected stops are safety ch
 Add a scenario as named `Turn` values in a module test. Assert the initial input, the native rejection store,
 the feedback delivered to the next request, and the actual accepted artifact and consumer output.
 Keep expected repairs in test data. Do not add a production branch that recognizes the scenario.
-No additional root e2e case is needed: these checks exercise module behavior without a running platform stack.
-The existing lifecycle e2e case continues to cover container and storage isolation.
+No additional root end-to-end case is needed: these checks exercise module behavior without a running platform stack.
+The existing lifecycle end-to-end case continues to cover container and storage isolation.
 
 Scripted checks do not establish that a real model can find a correction. Independent real-model acceptance
 remains mandatory, with ordinary limits and the checkpoint/completion evidence described below.

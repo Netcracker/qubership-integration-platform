@@ -4,18 +4,18 @@
 
 Proposed
 
-#### Date
+### Date
 
-#### Owner
+### Owner
 
 AI-service maintainers. Assumption: a maintainer will take ownership during review.
 
-#### Participants and approvers
+### Participants and approvers
 
 The product owner approved implementation in the release-preparation conversation.
 Repository review of this record is pending.
 
-#### Related ADRs
+### Related ADRs
 
 - [Capture repair budget](0005-key-the-capture-repair-budget-to-the-rejection-not-the-payload.md)
 - [Run recovery budget](0006-key-the-run-recovery-budget-to-the-input-artifact-not-to-author-text.md)

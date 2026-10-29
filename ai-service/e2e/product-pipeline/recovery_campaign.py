@@ -1,21 +1,22 @@
 #!/usr/bin/env python3
 """Run isolated recovery cases and judge native evidence without model grading."""
+# pylint: disable=too-many-lines
 
 import argparse
 import copy
-from datetime import datetime
 import hashlib
 import json
 import os
-from pathlib import Path
 import re
+import signal
 import subprocess
 import tempfile
 import time
 import uuid
+from datetime import datetime
+from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
-
 
 HERE = Path(__file__).resolve().parent
 DEFAULT_CASES = HERE / "fixtures/recovery/cases.json"
@@ -33,13 +34,15 @@ ALLOWED_ACTIONS = {
 
 
 def read_json(path):
-    return json.loads(Path(path).read_text())
+    return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
 def write_json(path, value):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(value, indent=2, ensure_ascii=False) + "\n")
+    path.write_text(
+        json.dumps(value, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
 
 
 def load_cases(path=DEFAULT_CASES):
@@ -97,8 +100,12 @@ def graph_errors(case, graph):
     if sorted(node.get("type", "") for node in nodes) != sorted(expected["exactTypes"]):
         errors.append("Graph element types differ from the case")
     for check in expected["properties"]:
-        matches = [node for node in nodes if node.get("type") == check["type"]
-                   and (not check.get("label") or node.get("label") == check["label"])]
+        matches = [
+            node
+            for node in nodes
+            if node.get("type") == check["type"]
+            and (not check.get("label") or node.get("label") == check["label"])
+        ]
         if len(matches) != 1:
             errors.append("Expected one " + check["type"])
             continue
@@ -115,13 +122,17 @@ def graph_errors(case, graph):
         errors.append("Script does not preserve the required response")
     for check in expected.get("scriptSnippets", []):
         matching = [node for node in scripts if node.get("label") == check["label"]]
-        if len(matching) != 1 or not any(prop.get("key") == "script" and check["contains"] in prop.get("value", "")
-                                         for prop in matching[0].get("properties", [])):
+        if len(matching) != 1 or not any(
+            prop.get("key") == "script" and check["contains"] in prop.get("value", "")
+            for prop in matching[0].get("properties", [])
+        ):
             errors.append("Required script value is absent from its owner")
     if expected.get("namedEdges") is not None:
         labels = {node["nodeId"]: node.get("label") for node in nodes}
-        actual = sorted([labels.get(edge.get("fromNodeId")), labels.get(edge.get("toNodeId"))]
-                        for edge in graph.get("edges", []))
+        actual = sorted(
+            [labels.get(edge.get("fromNodeId")), labels.get(edge.get("toNodeId"))]
+            for edge in graph.get("edges", [])
+        )
         if actual != sorted(expected["namedEdges"]):
             errors.append("Directed edges differ from the named author steps")
     node_ids = {node.get("nodeId") for node in nodes}
@@ -153,45 +164,69 @@ def graph_errors(case, graph):
     return errors
 
 
-def model_boundary_errors(case, evidence):
+def model_boundary_errors(_case, evidence):
     records = evidence.get("providerBoundary", [])
-    requests = {row.get("id"): row for row in records if "request" in row
-                and row.get("runId") == evidence.get("runId")}
-    outcomes = {row.get("requestId") for row in records if row.get("kind") in {"response", "error"}}
-    if len(requests) != evidence.get("budget", {}).get("requests") or set(requests) != outcomes.intersection(requests):
+    requests = {
+        row.get("id"): row
+        for row in records
+        if "request" in row and row.get("runId") == evidence.get("runId")
+    }
+    outcomes = {
+        row.get("requestId")
+        for row in records
+        if row.get("kind") in {"response", "error"}
+    }
+    if len(requests) != evidence.get("budget", {}).get("requests") or set(
+        requests
+    ) != outcomes.intersection(requests):
         return ["Required provider request/outcome recording is incomplete"]
     for row in requests.values():
         context = row.get("context", {})
-        if context.get("runId") != evidence.get("runId") or not context.get("attemptId"):
+        if context.get("runId") != evidence.get("runId") or not context.get(
+            "attemptId"
+        ):
             return ["Provider request lacks the actual run/stage/attempt binding"]
         if not row.get("originalRequestHash") or not row.get("redactedRequestHash"):
             return ["Provider request hashes are missing"]
     return []
 
 
+# pylint: disable-next=too-many-return-statements
 def fault_scope_errors(kind, original, mutated, parameters=None):
     expected = copy.deepcopy(original)
     if kind in {"http-exposure-type", "http-distinct-fields"}:
         if mutated.get("endpoints", [{}])[0].get("semanticNodeId") is False:
             expected["endpoints"][0]["semanticNodeId"] = False
         else:
-            expected["endpoints"][0]["externalRoute"] = str(expected["endpoints"][0]["externalRoute"]).lower()
+            expected["endpoints"][0]["externalRoute"] = str(
+                expected["endpoints"][0]["externalRoute"]
+            ).lower()
     elif kind == "element-property-values":
         values = (parameters or {}).get("propertyValues", {})
         if not values:
             return ["Element property fault has no declared values"]
         for key, value in values.items():
-            targets = [row for row in expected.get("propertyPatches", []) if row.get("key") == key and row.get("operation") != "REMOVE"]
+            targets = [
+                row
+                for row in expected.get("propertyPatches", [])
+                if row.get("key") == key and row.get("operation") != "REMOVE"
+            ]
             if not targets:
                 return ["Element property fault has no matching patch field"]
             target = targets[0]
             for field in ("arrayValue", "mapEntries", "mapValue"):
                 target[field] = None
             target["value"] = {}
-            target["scalarValue"] = value if isinstance(value, str) else json.dumps(value, separators=(",", ":"))
+            target["scalarValue"] = (
+                value
+                if isinstance(value, str)
+                else json.dumps(value, separators=(",", ":"))
+            )
     elif kind == "semantic-required-node":
-        variants = [original["operations"][:index] + original["operations"][index + 1:]
-                    for index in range(len(original.get("operations", [])))]
+        variants = [
+            original["operations"][:index] + original["operations"][index + 1 :]
+            for index in range(len(original.get("operations", [])))
+        ]
         if mutated.get("operations") not in variants:
             return ["Semantic fault must omit exactly one processing node"]
         expected["operations"] = mutated["operations"]
@@ -202,10 +237,17 @@ def fault_scope_errors(kind, original, mutated, parameters=None):
                 changed += 1
                 intent = before["elementIntent"]
                 values = after.get("elementIntent", {}).get("exactValues", [])
-                if not intent.get("exactValues") and (len(values) != 1 or not any(
-                    row.get("value") == values[0] and values[0] in before.get("text", "")
-                    for row in intent.get("requestedProperties", []))):
-                    return ["Fault invented a literal instead of retaining supplied data"]
+                if not intent.get("exactValues") and (
+                    len(values) != 1
+                    or not any(
+                        row.get("value") == values[0]
+                        and values[0] in before.get("text", "")
+                        for row in intent.get("requestedProperties", [])
+                    )
+                ):
+                    return [
+                        "Fault invented a literal instead of retaining supplied data"
+                    ]
                 intent["requestedProperties"] = []
                 if not intent.get("exactValues"):
                     intent["exactValues"] = values
@@ -216,17 +258,29 @@ def fault_scope_errors(kind, original, mutated, parameters=None):
     return []
 
 
+# pylint: disable-next=too-many-return-statements
 def catalog_graph_errors(evidence, graph):
     revisions = evidence.get("pipelineArtifacts", [])
-    by_ref = {(row["kind"], row["artifactId"], row["contentHash"]): row for row in revisions}
-    completed = [row["payload"] for row in revisions if row["kind"] == "MATERIALIZATION_RESULT"
-                 and row["payload"].get("completedPhase") == "COMPLETE"]
+    by_ref = {
+        (row["kind"], row["artifactId"], row["contentHash"]): row for row in revisions
+    }
+    completed = [
+        row["payload"]
+        for row in revisions
+        if row["kind"] == "MATERIALIZATION_RESULT"
+        and row["payload"].get("completedPhase") == "COMPLETE"
+    ]
     if not completed:
         return ["No completed native materialization"]
     result = completed[-1]
+
     def payload(reference):
         reference = reference or {}
-        return by_ref.get(tuple(reference.get(key) for key in ("kind", "artifactId", "contentHash")), {}).get("payload", {})
+        return by_ref.get(
+            tuple(reference.get(key) for key in ("kind", "artifactId", "contentHash")),
+            {},
+        ).get("payload", {})
+
     snapshot = payload(result.get("catalogSnapshotRef"))
     reconcile = payload(result.get("reconcileResultRef"))
     if reconcile.get("matches") is not True:
@@ -235,6 +289,7 @@ def catalog_graph_errors(evidence, graph):
     mapping = result.get("materializationMap", {}).get("nodeIdToElementId", {})
     if len(elements) != len(graph.get("nodes", [])):
         return ["Catalog element count differs from the admitted graph"]
+
     def decoded(value):
         if not isinstance(value, str):
             return value
@@ -242,16 +297,27 @@ def catalog_graph_errors(evidence, graph):
             return json.loads(value)
         except ValueError:
             return value
+
     for node in graph.get("nodes", []):
         actual = elements.get(mapping.get(node["nodeId"]), {})
-        if actual.get("type") != node.get("type") or actual.get("name") != node.get("label"):
+        if actual.get("type") != node.get("type") or actual.get("name") != node.get(
+            "label"
+        ):
             return ["Catalog element identity, type, or name differs from the graph"]
-        if any(decoded(actual.get("properties", {}).get(prop["key"])) != decoded(prop.get("value"))
-               for prop in node.get("properties", [])):
+        if any(
+            decoded(actual.get("properties", {}).get(prop["key"]))
+            != decoded(prop.get("value"))
+            for prop in node.get("properties", [])
+        ):
             return ["Catalog properties differ from the admitted graph"]
-    expected_edges = sorted((mapping.get(edge["fromNodeId"]), mapping.get(edge["toNodeId"]))
-                            for edge in graph.get("edges", []))
-    actual_edges = sorted((row["fromElementId"], row["toElementId"]) for row in snapshot.get("dependencies", []))
+    expected_edges = sorted(
+        (mapping.get(edge["fromNodeId"]), mapping.get(edge["toNodeId"]))
+        for edge in graph.get("edges", [])
+    )
+    actual_edges = sorted(
+        (row["fromElementId"], row["toElementId"])
+        for row in snapshot.get("dependencies", [])
+    )
     if actual_edges != expected_edges:
         return ["Catalog directed topology differs from the admitted graph"]
     return []
@@ -260,7 +326,11 @@ def catalog_graph_errors(evidence, graph):
 def capture_value(value):
     # Capture records normalize absent optional lists to empty lists and nullable members to null.
     if isinstance(value, dict):
-        return {key: capture_value(child) for key, child in value.items() if child is not None and child != [] and child != {}}
+        return {
+            key: capture_value(child)
+            for key, child in value.items()
+            if child is not None and child != [] and child != {}
+        }
     if isinstance(value, list):
         return [capture_value(child) for child in value]
     return value
@@ -301,7 +371,9 @@ def delivered_capture_issues(messages):
         if start < 0:
             continue
         try:
-            issues, _ = json.JSONDecoder().raw_decode(text[start + len(marker):].lstrip())
+            issues, _ = json.JSONDecoder().raw_decode(
+                text[start + len(marker) :].lstrip()
+            )
         except ValueError:
             continue
         if isinstance(issues, dict):
@@ -310,12 +382,20 @@ def delivered_capture_issues(messages):
             if not isinstance(issues, list) or not isinstance(constraints, dict):
                 continue
             for issue in issues:
-                if not isinstance(issue, dict) or not isinstance(issue.get("details", {}), dict):
+                if not isinstance(issue, dict) or not isinstance(
+                    issue.get("details", {}), dict
+                ):
                     continue
                 details = issue.get("details", {})
-                reference = details.get("constraint", {}).get("$ref") if isinstance(details.get("constraint"), dict) else None
-                if isinstance(reference, str) and reference.startswith("#/constraints/"):
-                    target = constraints.get(reference[len("#/constraints/"):])
+                reference = (
+                    details.get("constraint", {}).get("$ref")
+                    if isinstance(details.get("constraint"), dict)
+                    else None
+                )
+                if isinstance(reference, str) and reference.startswith(
+                    "#/constraints/"
+                ):
+                    target = constraints.get(reference[len("#/constraints/") :])
                     if target is not None:
                         details["constraint"] = target
         if isinstance(issues, list):
@@ -323,25 +403,42 @@ def delivered_capture_issues(messages):
     return delivered
 
 
+# pylint: disable-next=too-many-return-statements
 def typed_recovery_errors(case, evidence, checkpoint):
     evidence["providerProof"] = []
-    faults = [row for row in evidence.get("events", []) if row.get("type") == "FAULT_APPLIED"]
+    faults = [
+        row for row in evidence.get("events", []) if row.get("type") == "FAULT_APPLIED"
+    ]
     if len(faults) != case["fault"]["applications"]:
         return ["Declared finite faults were not all exercised"]
-    artifacts = evidence.get("captureArtifacts", []) + evidence.get("pipelineArtifacts", [])
-    by_ref = {(row["kind"], row["artifactId"], row["contentHash"]): row for row in artifacts}
+    artifacts = evidence.get("captureArtifacts", []) + evidence.get(
+        "pipelineArtifacts", []
+    )
+    by_ref = {
+        (row["kind"], row["artifactId"], row["contentHash"]): row for row in artifacts
+    }
     records = evidence.get("providerBoundary", [])
-    requests = {row.get("id"): row for row in records if "request" in row
-                and row.get("runId") == evidence.get("runId")}
+    requests = {
+        row.get("id"): row
+        for row in records
+        if "request" in row and row.get("runId") == evidence.get("runId")
+    }
     for fault in faults:
-        scope_errors = fault_scope_errors(case["fault"]["kind"], fault["original"], fault["mutated"], case["fault"])
+        scope_errors = fault_scope_errors(
+            case["fault"]["kind"], fault["original"], fault["mutated"], case["fault"]
+        )
         if scope_errors:
             return scope_errors
         if fault.get("original") == fault.get("mutated"):
             return ["Fault did not change the candidate"]
-        rejections = [row for row in evidence.get("events", []) if row.get("type") == "CAPTURE_REJECTED"
-                      and row.get("tool") == fault.get("tool") and row.get("proposal") == fault.get("mutated")
-                      and row.get("sequence", 0) > fault["sequence"]]
+        rejections = [
+            row
+            for row in evidence.get("events", [])
+            if row.get("type") == "CAPTURE_REJECTED"
+            and row.get("tool") == fault.get("tool")
+            and row.get("proposal") == fault.get("mutated")
+            and row.get("sequence", 0) > fault["sequence"]
+        ]
         if not rejections:
             return ["Missing correlated native refusal of the injected candidate"]
         refusal = rejections[0]
@@ -349,24 +446,48 @@ def typed_recovery_errors(case, evidence, checkpoint):
         if native.get("accepted") is not False or not native.get("issues"):
             return ["Injected candidate was not rejected by native admission"]
         reference = refusal.get("rejectionRef") or {}
-        saved = by_ref.get(tuple(reference.get(key) for key in ("kind", "artifactId", "contentHash")))
+        saved = by_ref.get(
+            tuple(reference.get(key) for key in ("kind", "artifactId", "contentHash"))
+        )
         if saved is None:
             return ["Native refusal has no immutable stored evidence"]
         if case["fault"]["kind"] == "element-property-values":
-            if native["issues"] != saved.get("payload", {}).get("feedback", {}).get("issues"):
-                return ["Observed element refusal differs from immutable native schema findings"]
-            following = [request for request in requests.values()
-                         if native_time(request.get("at", 0)) > native_time(refusal["observedAt"])]
+            if native["issues"] != saved.get("payload", {}).get("feedback", {}).get(
+                "issues"
+            ):
+                return [
+                    "Observed element refusal differs from immutable native schema findings"
+                ]
+            following = [
+                request
+                for request in requests.values()
+                if native_time(request.get("at", 0))
+                > native_time(refusal["observedAt"])
+            ]
             if not following:
                 return ["No actual provider request followed the element refusal"]
-            first_request = min(following, key=lambda request: native_time(request["at"]))
-            delivered = delivered_capture_issues(first_request.get("request", {}).get("messages", []))
+            first_request = min(
+                following, key=lambda request: native_time(request["at"])
+            )
+            delivered = delivered_capture_issues(
+                first_request.get("request", {}).get("messages", [])
+            )
             if not all(issue in delivered for issue in native["issues"]):
-                return ["The next actual provider request lost native schema repair details"]
-        accepted = [row for row in evidence.get("events", []) if row.get("type") == "CAPTURE_ACCEPTED"
-                    and row.get("tool") == fault.get("tool") and row.get("source") == "model-tool"
-                    and (not fault.get("capabilityId") or row.get("capabilityId") == fault["capabilityId"])
-                    and row.get("sequence", 0) > refusal["sequence"]]
+                return [
+                    "The next actual provider request lost native schema repair details"
+                ]
+        accepted = [
+            row
+            for row in evidence.get("events", [])
+            if row.get("type") == "CAPTURE_ACCEPTED"
+            and row.get("tool") == fault.get("tool")
+            and row.get("source") == "model-tool"
+            and (
+                not fault.get("capabilityId")
+                or row.get("capabilityId") == fault["capabilityId"]
+            )
+            and row.get("sequence", 0) > refusal["sequence"]
+        ]
         if not accepted:
             return ["No subsequent model candidate passed native admission"]
         repaired = accepted[-1]
@@ -374,16 +495,32 @@ def typed_recovery_errors(case, evidence, checkpoint):
             return ["Accepted proposal did not correct the rejected candidate"]
         proven = False
         for response in records:
-            if response.get("kind") != "response" or native_time(response["at"]) < native_time(refusal["observedAt"]):
+            if response.get("kind") != "response" or native_time(
+                response["at"]
+            ) < native_time(refusal["observedAt"]):
                 continue
             request = requests.get(response.get("requestId"), {})
             if native_time(request.get("at", 0)) <= native_time(refusal["observedAt"]):
                 continue
-            packet = "\n".join(text_fragments(request.get("request", {}).get("messages", [])))
-            if case["fault"]["kind"] != "element-property-values" and not any(issue.get("message") in packet and (
-                issue.get("code") not in {"INVALID_TYPE", "INVALID_JSON", "MISSING_FIELD", "DUPLICATE_JSON_KEY"}
-                or issue.get("code") in packet and issue.get("path") in packet)
-                for issue in native["issues"] if issue.get("code") and issue.get("message")):
+            packet = "\n".join(
+                text_fragments(request.get("request", {}).get("messages", []))
+            )
+            if case["fault"]["kind"] != "element-property-values" and not any(
+                issue.get("message") in packet
+                and (
+                    issue.get("code")
+                    not in {
+                        "INVALID_TYPE",
+                        "INVALID_JSON",
+                        "MISSING_FIELD",
+                        "DUPLICATE_JSON_KEY",
+                    }
+                    or issue.get("code") in packet
+                    and issue.get("path") in packet
+                )
+                for issue in native["issues"]
+                if issue.get("code") and issue.get("message")
+            ):
                 continue
             message = response.get("value", {}).get("message") or {}
             for call in message.get("toolExecutionRequests", []):
@@ -391,18 +528,31 @@ def typed_recovery_errors(case, evidence, checkpoint):
                     arguments = json.loads(call.get("arguments", ""))
                 except (TypeError, ValueError):
                     continue
-                if call.get("name") == fault.get("tool") and capture_value(arguments.get(fault.get("parameter", "capture"))) == capture_value(repaired.get("proposal")):
+                if call.get("name") == fault.get("tool") and capture_value(
+                    arguments.get(fault.get("parameter", "capture"))
+                ) == capture_value(repaired.get("proposal")):
                     proven = True
-                    evidence["providerProof"].append({"faultSequence": fault["sequence"], "requestId": response["requestId"],
-                        "modelCallId": call.get("id"), "tool": call["name"], "rejectionRef": reference,
-                        "acceptedSequence": repaired["sequence"], "consumerSequence": checkpoint["sequence"]})
+                    evidence["providerProof"].append(
+                        {
+                            "faultSequence": fault["sequence"],
+                            "requestId": response["requestId"],
+                            "modelCallId": call.get("id"),
+                            "tool": call["name"],
+                            "rejectionRef": reference,
+                            "acceptedSequence": repaired["sequence"],
+                            "consumerSequence": checkpoint["sequence"],
+                        }
+                    )
         if not proven:
-            return ["Actual next provider request and corrected model tool call are not proven"]
+            return [
+                "Actual next provider request and corrected model tool call are not proven"
+            ]
         if checkpoint.get("sequence", 0) <= repaired["sequence"]:
             return ["Consumer did not continue after native model correction"]
     return []
 
 
+# pylint: disable-next=too-many-return-statements
 def verdict(case, evidence):
     def result(outcome, *reasons):
         return {"caseId": case["id"], "outcome": outcome, "reasons": list(reasons)}
@@ -416,13 +566,16 @@ def verdict(case, evidence):
         value = record.get("value") or {}
         calls = (
             list((value.get("message") or {}).get("toolExecutionRequests", []))
-            if record.get("kind") == "response" else []
+            if record.get("kind") == "response"
+            else []
         )
         if record.get("kind", "").startswith("tool-"):
             calls.append(value.get("toolExecutionRequest") or {})
         for call in calls:
             if call.get("name") in forbidden_tools:
-                return result("RECOVERY_FAILURE", "Forbidden model tool call: " + call["name"])
+                return result(
+                    "RECOVERY_FAILURE", "Forbidden model tool call: " + call["name"]
+                )
     for interaction in evidence.get("interactions", []):
         if (
             interaction.get("kind") == "decision"
@@ -623,10 +776,20 @@ def verdict(case, evidence):
                     and any(
                         issue.get("code") == "INVALID_TYPE"
                         and issue.get("path") == "/capture/endpoints/0/externalRoute"
-                        and (issue.get("message") == native.get("payload", {}).get("feedback", {}).get("summary")
-                             or any(typed.get("code") == issue.get("code") and typed.get("path") == issue.get("path")
-                                    and typed.get("message") == issue.get("message")
-                                    for typed in native.get("payload", {}).get("feedback", {}).get("issues", [])))
+                        and (
+                            issue.get("message")
+                            == native.get("payload", {})
+                            .get("feedback", {})
+                            .get("summary")
+                            or any(
+                                typed.get("code") == issue.get("code")
+                                and typed.get("path") == issue.get("path")
+                                and typed.get("message") == issue.get("message")
+                                for typed in native.get("payload", {})
+                                .get("feedback", {})
+                                .get("issues", [])
+                            )
+                        )
                         for issue in issues
                     )
                 ):
@@ -785,7 +948,7 @@ def process_identity(container):
     }
 
 
-class IsolatedInstance:
+class IsolatedInstance:  # pylint: disable=too-many-instance-attributes
     def __init__(self, output, image, baseline="qip-ai-service"):
         self.output = Path(output).resolve()
         self.project = "qip-recovery-" + uuid.uuid4().hex[:12]
@@ -865,7 +1028,9 @@ class IsolatedInstance:
                 stderr=subprocess.STDOUT,
                 check=True,
             )
+        return None
 
+    # Runtime addresses become available after Compose starts the services.
     def start(self, conversation, boundary, mutation="", property_values=None):
         write_json(
             self.control / "plan.json",
@@ -880,11 +1045,13 @@ class IsolatedInstance:
         self.compose("config", "--quiet")
         self.started = True
         self.compose("up", "-d", "--wait", "--wait-timeout", "240")
+        # pylint: disable=attribute-defined-outside-init
         self.url = "http://" + self.compose("port", "recovery-ai", "8080", capture=True)
         self.storage_url = "http://" + self.compose(
             "port", "recovery-storage", "9000", capture=True
         )
         self.identities = {}
+        # pylint: enable=attribute-defined-outside-init
         shared_mounts = {
             mount["Source"]
             for name in self.shared
@@ -978,7 +1145,7 @@ class IsolatedInstance:
                     stderr=subprocess.STDOUT,
                     check=True,
                 )
-        except Exception as error:
+        except Exception as error:  # pylint: disable=broad-exception-caught
             failure = error
             retain = True
         try:
@@ -995,7 +1162,7 @@ class IsolatedInstance:
                 raise RuntimeError(
                     "Shared service process changed during the owned case"
                 )
-        except Exception as error:
+        except Exception as error:  # pylint: disable=broad-exception-caught
             failure = error
             retain = True
         try:
@@ -1134,8 +1301,10 @@ def run_case(case, output, image, baseline="qip-ai-service"):
             },
         )
         instance.start(
-            conversation, case["boundary"], (case.get("fault") or {}).get("kind", ""),
-            (case.get("fault") or {}).get("propertyValues")
+            conversation,
+            case["boundary"],
+            (case.get("fault") or {}).get("kind", ""),
+            (case.get("fault") or {}).get("propertyValues"),
         )
         environment = {
             **os.environ,
@@ -1198,8 +1367,10 @@ def run_case(case, output, image, baseline="qip-ai-service"):
             read_json(path)
             for path in sorted((instance.control / "events").glob("*.json"))
         ]
-        evidence["providerBoundary"] = [read_json(path) for path in sorted(
-            (instance.control / "provider-boundary").glob("*.json"))]
+        evidence["providerBoundary"] = [
+            read_json(path)
+            for path in sorted((instance.control / "provider-boundary").glob("*.json"))
+        ]
         if (instance.control / "checkpoint.json").exists():
             evidence["checkpoint"] = read_json(instance.control / "checkpoint.json")
         evidence["interactions"] = [
@@ -1235,7 +1406,7 @@ def run_case(case, output, image, baseline="qip-ai-service"):
         retain = judged["outcome"] not in PASS
         write_json(output / "evidence.json", evidence)
         write_json(output / "proof-verdict.json", judged)
-    except Exception as error:
+    except Exception as error:  # pylint: disable=broad-exception-caught
         evidence["infrastructureErrors"].append(
             type(error).__name__ + ": " + str(error)
         )
@@ -1251,15 +1422,13 @@ def run_case(case, output, image, baseline="qip-ai-service"):
             try:
                 if instance is not None:
                     instance.stop(retain=retain)
-            except Exception as error:
+            except Exception as error:  # pylint: disable=broad-exception-caught
                 evidence["infrastructureErrors"].append(
                     "Teardown failed: " + str(error)
                 )
         finally:
             try:
                 if driver is not None and driver.poll() is None:
-                    import signal
-
                     try:
                         os.killpg(driver.pid, signal.SIGTERM)
                     except ProcessLookupError:
@@ -1269,7 +1438,7 @@ def run_case(case, output, image, baseline="qip-ai-service"):
                     except subprocess.TimeoutExpired:
                         os.killpg(driver.pid, signal.SIGKILL)
                         driver.wait(timeout=15)
-            except Exception as error:
+            except Exception as error:  # pylint: disable=broad-exception-caught
                 evidence["infrastructureErrors"].append(
                     "Transport teardown failed: " + str(error)
                 )
@@ -1277,7 +1446,7 @@ def run_case(case, output, image, baseline="qip-ai-service"):
                 if instance is not None:
                     try:
                         instance.close()
-                    except Exception as error:
+                    except Exception as error:  # pylint: disable=broad-exception-caught
                         evidence["infrastructureErrors"].append(
                             "Runtime environment cleanup failed: " + str(error)
                         )

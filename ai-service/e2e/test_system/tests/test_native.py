@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from test_system.native import summarize, main
+from test_system.native import main, summarize
 
 
 class NativeTest(unittest.TestCase):

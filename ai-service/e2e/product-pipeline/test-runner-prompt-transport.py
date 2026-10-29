@@ -34,24 +34,43 @@ class RunnerPromptTransportTest(unittest.TestCase):
             }
             if unique_name:
                 scenario["uniqueChainNamePrefix"] = "TransportFixture"
-            (root / "scenarios.json").write_text(json.dumps({"prompt-transport": scenario}))
+            (root / "scenarios.json").write_text(
+                json.dumps({"prompt-transport": scenario})
+            )
             result = subprocess.run(
                 [
-                    "bash", str(DIR / "run-product-scenario.sh"),
-                    "--scenario", "prompt-transport", "--rep", "1",
-                    "--base-url", "http://fixture", "--evaluator-url", "http://fixture",
-                    "--report", str(root / "report.json"),
-                    "--scenarios-file", str(root / "scenarios.json"),
-                    "--conversation-id", "transport-fixture", "--strict-recovery",
+                    "bash",
+                    str(DIR / "run-product-scenario.sh"),
+                    "--scenario",
+                    "prompt-transport",
+                    "--rep",
+                    "1",
+                    "--base-url",
+                    "http://fixture",
+                    "--evaluator-url",
+                    "http://fixture",
+                    "--report",
+                    str(root / "report.json"),
+                    "--scenarios-file",
+                    str(root / "scenarios.json"),
+                    "--conversation-id",
+                    "transport-fixture",
+                    "--strict-recovery",
                 ],
                 env={
-                    **{key: value for key, value in os.environ.items()
-                       if key in {"PATH", "HOME", "LANG", "LC_ALL", "TMPDIR"}},
+                    **{
+                        key: value
+                        for key, value in os.environ.items()
+                        if key in {"PATH", "HOME", "LANG", "LC_ALL", "TMPDIR"}
+                    },
                     "PATH": f"{root}:{os.environ['PATH']}",
                     "RUNNER_REQUEST_FILE": str(root / "request.json"),
                     "PRODUCT_PIPELINE_STUB_MODE": "0",
                 },
-                capture_output=True, text=True, timeout=15, check=False,
+                capture_output=True,
+                text=True,
+                timeout=15,
+                check=False,
             )
             if not prompt:
                 self.assertEqual(1, result.returncode, result.stderr)
@@ -64,7 +83,10 @@ class RunnerPromptTransportTest(unittest.TestCase):
                 name = (root / "unique-chain-name.txt").read_text().removesuffix("\n")
                 expected = prompt.replace("{{UNIQUE_CHAIN_NAME}}", name)
             body = json.loads((root / "request.json").read_bytes())
-            interactions = [json.loads(line) for line in (root / "interactions.jsonl").read_text().splitlines()]
+            interactions = [
+                json.loads(line)
+                for line in (root / "interactions.jsonl").read_text().splitlines()
+            ]
             self.assertEqual(expected.encode("utf-8"), body["message"].encode("utf-8"))
             self.assertEqual([{"kind": "initial", "text": expected}], interactions)
             self.assertEqual("transport-fixture", body["conversationId"])
@@ -72,16 +94,24 @@ class RunnerPromptTransportTest(unittest.TestCase):
 
     def test_exact_source_bytes_reach_the_http_payload_and_interaction_log(self):
         for prompt in (
-            "plain", "one final LF\n", "several final LFs\n\n\n",
-            "first\n\nthird\n", "first\r\nsecond\r\n", "literal space \t\n",
-            "literal space \t", "original sentinel.", ".\n\n",
+            "plain",
+            "one final LF\n",
+            "several final LFs\n\n\n",
+            "first\n\nthird\n",
+            "first\r\nsecond\r\n",
+            "literal space \t\n",
+            "literal space \t",
+            "original sentinel.",
+            ".\n\n",
             "quotes: \"double\" 'single' $dollar `ticks` \\slash café 中文 😀\n",
         ):
             with self.subTest(prompt=repr(prompt)):
                 self.run_prompt(prompt)
 
     def test_unique_name_substitution_preserves_other_bytes(self):
-        self.run_prompt("Name {{UNIQUE_CHAIN_NAME}}\nKeep \"literal \" \t\n\n", unique_name=True)
+        self.run_prompt(
+            'Name {{UNIQUE_CHAIN_NAME}}\nKeep "literal " \t\n\n', unique_name=True
+        )
 
     def test_missing_prompt_is_still_rejected_before_submission(self):
         for prompt in ("", None):

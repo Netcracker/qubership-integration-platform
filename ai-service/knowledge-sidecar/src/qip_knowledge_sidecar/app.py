@@ -10,11 +10,12 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from knowledge_sdk import KnowledgeSDK
+from qip_knowledge_sidecar.documentation import DocumentationStore
 from qip_knowledge_sidecar.models import (
     ContextQueryRequest,
+    ContextQueryResponse,
     DocumentationReadRequest,
     DocumentationSearchRequest,
-    ContextQueryResponse,
     ExactQueryRequest,
     ExactQueryResponse,
     FilterQueryRequest,
@@ -24,7 +25,6 @@ from qip_knowledge_sidecar.models import (
     RelationsQueryResponse,
     SearchQueryResponse,
 )
-from qip_knowledge_sidecar.documentation import DocumentationStore
 from qip_knowledge_sidecar.package import (
     PackageEligibilityError,
     PackageRef,

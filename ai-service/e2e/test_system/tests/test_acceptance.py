@@ -1,10 +1,10 @@
 import json
-from pathlib import Path
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
-from test_system.acceptance import COMPONENTS, preparation, summarize, main
+from test_system.acceptance import COMPONENTS, main, preparation, summarize
 from test_system.catalog import digest
 from test_system.runs import write_json
 

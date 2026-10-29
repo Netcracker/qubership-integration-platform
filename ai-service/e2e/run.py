@@ -14,8 +14,10 @@ from test_system.runs import (
     create_run,
     execute_run,
     markdown_report,
+    now,
     start_worker,
 )
+from test_system.server import serve
 
 
 def main():
@@ -54,8 +56,6 @@ def main():
         try:
             execute_run(store, args.run_id)
         except Exception as exc:
-            from test_system.runs import now
-
             with store.edit(args.run_id) as run:
                 run.update(
                     status="ERROR",
@@ -85,8 +85,6 @@ def main():
         return 0
     catalog = Catalog(args.root, args.package)
     if args.action == "serve":
-        from test_system.server import serve
-
         serve(catalog, store, Path(__file__).resolve(), args.port)
         return 0
     if args.action == "catalog":
@@ -125,4 +123,4 @@ if __name__ == "__main__":
         raise SystemExit(main())
     except (OSError, ValueError, KeyError) as exc:
         print(json.dumps({"error": str(exc)}), file=sys.stderr)
-        raise SystemExit(2)
+        raise SystemExit(2) from exc

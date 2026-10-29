@@ -45,6 +45,8 @@ def make_server(catalog: Catalog, store: RunStore, entry: Path, port: int):
                 f"localhost:{self.server.server_port}",
             }
 
+        # Method names follow BaseHTTPRequestHandler dispatch.
+        # pylint: disable-next=invalid-name,too-many-return-statements
         def do_GET(self):
             if not self.host_valid():
                 return self.send(
@@ -95,8 +97,9 @@ def make_server(catalog: Catalog, store: RunStore, entry: Path, port: int):
                     )
                 raise FileNotFoundError("Unknown resource")
             except (ValueError, OSError, KeyError) as exc:
-                self.send({"error": str(exc)}, 404)
+                return self.send({"error": str(exc)}, 404)
 
+        # pylint: disable-next=invalid-name
         def do_POST(self):
             origin = self.headers.get("Origin")
             expected = "http://" + self.headers.get("Host", "")
@@ -148,7 +151,7 @@ def make_server(catalog: Catalog, store: RunStore, entry: Path, port: int):
                         )
                 raise ValueError("Unknown action")
             except (ValueError, OSError, KeyError, TypeError) as exc:
-                self.send({"error": str(exc)}, 400)
+                return self.send({"error": str(exc)}, 400)
 
     return ThreadingHTTPServer(("127.0.0.1", port), Handler)
 

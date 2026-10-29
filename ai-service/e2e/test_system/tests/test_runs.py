@@ -44,7 +44,11 @@ class RunsTest(unittest.TestCase):
         command = [
             sys.executable,
             "-c",
-            "from pathlib import Path; Path('{task_dir}/native.xml').write_text('<testsuite><testcase name=\"wrong-version\"><failure>expected 2 got 1</failure></testcase></testsuite>'); print('native rejection'); raise SystemExit(1)",
+            (
+                "from pathlib import Path; Path('{task_dir}/native.xml').write_text('<testsu"
+                'ite><testcase name="wrong-version"><failure>expected 2 got 1</failure></tes'
+                "tcase></testsuite>'); print('native rejection'); raise SystemExit(1)"
+            ),
         ]
         catalog = self.catalog(
             [
@@ -104,7 +108,10 @@ class RunsTest(unittest.TestCase):
                     "command": [
                         sys.executable,
                         "-c",
-                        "import os; assert os.environ['QIP_RECOVERY_LIVE'] == 'false'; assert 'LLM_API_KEY' not in os.environ",
+                        (
+                            "import os; assert os.environ['QIP_RECOVERY_LIVE'] == 'false'; assert 'LLM_A"
+                            "PI_KEY' not in os.environ"
+                        ),
                     ],
                 }
             ]
