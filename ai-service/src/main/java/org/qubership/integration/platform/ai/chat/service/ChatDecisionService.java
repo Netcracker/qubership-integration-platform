@@ -593,22 +593,59 @@ public class ChatDecisionService {
 
   private Multi<ChatEvent> selectPolicyChoice(String conversationId, ChatDecisionCommand command) {
     var open = openDecision(conversationId);
-    if (policyChoices == null || open.isEmpty() || !PolicyChoiceSelection.ARTIFACT_TYPE.equals(open.get().artifactType())
-        || !Objects.equals(open.get().artifactType(), command.getArtifactType())
-        || !Objects.equals(open.get().artifactHash(), command.getArtifactHash())
-        || open.get().revision() != command.getRevision() || !open.get().actions().contains(command.getAction())) {
-      return openGateEvents(conversationId);
-    }
-    var confirmed = policyChoices.confirm(conversationId, command, open.get().revision());
+    if (!matchesPolicyCard(open, command)) return openGateEvents(conversationId);
+    var confirmed = policyChoices.confirm(conversationId, command, open.orElseThrow().revision());
     if (confirmed.isEmpty()) return openGateEvents(conversationId);
-    var selection = confirmed.get().selection();
+    return projectWithOpenGate(conversationId, facade.continueWithInput(
+        policyContinuation(conversationId, confirmed.get(), UUID.randomUUID().toString())));
+  }
+
+  /** Prepares an exact A2A policy answer, or resumes the same already-confirmed command. */
+  public Optional<ContinueCreateChainCommand> policyChoiceContinuation(
+      String conversationId, ChatDecisionCommand command, String commandId) {
+    if (policyChoices == null || conversationService == null || !rockySkills.available()) return Optional.empty();
+    var confirmed = policyChoices.trusted(conversationId).stream().filter(value -> {
+      var selection = value.selection();
+      String action = selection.decision() == org.qubership.integration.platform.ai.plan.RequirementPolicyConflict.Decision.KEEP_REQUESTED
+          ? ChatEvent.KEEP_REQUESTED_ACTION : ChatEvent.USE_RECOMMENDED_ACTION;
+      return commandId.equals(selection.sourceTurnId()) && action.equals(command.getAction())
+          && PolicyChoiceSelection.ARTIFACT_TYPE.equals(command.getArtifactType())
+          && selection.offered().hash().equals(command.getArtifactHash())
+          && selection.cardRevision() == command.getRevision();
+    }).findFirst();
+    if (confirmed.isEmpty()) {
+      var open = openDecision(conversationId);
+      if (!matchesPolicyCard(open, command)) return Optional.empty();
+      String marker = transcriptMarker(command);
+      var decision = com.fasterxml.jackson.databind.node.JsonNodeFactory.instance.objectNode();
+      decision.put("action", command.getAction());
+      decision.put("artifactType", command.getArtifactType());
+      decision.put("artifactHash", command.getArtifactHash());
+      decision.put("revision", command.getRevision());
+      var archive = conversationService.archive();
+      var source = archive.beginInput(conversationId, commandId, marker, decision);
+      archive.resolveInput(conversationId, source, marker, decision);
+      confirmed = policyChoices.confirm(conversationId, command, open.orElseThrow().revision());
+    }
+    return confirmed.map(value -> policyContinuation(conversationId, value, commandId));
+  }
+
+  private boolean matchesPolicyCard(Optional<ChatEvent.Decision> open, ChatDecisionCommand command) {
+    return policyChoices != null && open.isPresent()
+        && PolicyChoiceSelection.ARTIFACT_TYPE.equals(open.get().artifactType())
+        && Objects.equals(open.get().artifactType(), command.getArtifactType())
+        && Objects.equals(open.get().artifactHash(), command.getArtifactHash())
+        && open.get().revision() == command.getRevision() && open.get().actions().contains(command.getAction());
+  }
+
+  private ContinueCreateChainCommand policyContinuation(String conversationId,
+      PolicyChoiceSelection.TrustedSelection confirmed, String commandId) {
+    var selection = confirmed.selection();
     var offered = selection.offered();
     String input = "The author selected " + selection.decision() + " (" + selection.selectedValue()
         + ") on the validated policy card for sourceFactId=" + offered.fact().sourceFactId()
         + ", questionId=" + offered.question().questionId() + ". Record exactly this decision, preserve the policy"
-        + " values and owner, and close its question. The trusted selection is " + confirmed.get().reference().artifactId() + ".";
-    var old = draftStore.get(conversationId).stream().flatMap(draft -> draft.authoredDraft().facts().stream())
-        .filter(fact -> fact.sourceFactId().equals(offered.fact().sourceFactId())).findFirst().orElse(null);
+        + " values and owner, and close its question. The trusted selection is " + confirmed.reference().artifactId() + ".";
     if (conversationService != null) {
       var source = conversationService.archive().read(conversationId).activeTurns().stream()
           .filter(turn -> turn.id().equals(selection.sourceTurnId())).findFirst().orElseThrow();
@@ -618,12 +655,10 @@ public class ChatDecisionService {
           + " do not capture the decision alone and consume its source before reconciling these values."
           + " Retain every unrelated fact, value, owner, and policy field. For amendments use sourceTurnId="
           + selection.sourceTurnId() + " and this exact quote: " + source.message().content();
-      if (old != null && old.policyConflict() != null && old.policyConflict().decision() != null) {
-        input += " Also amend /facts/" + offered.fact().sourceFactId() + "/policyConflict/decision.";
-      }
+      input += " When replacing an existing decision, also amend /facts/"
+          + offered.fact().sourceFactId() + "/policyConflict/decision.";
     }
-    return projectWithOpenGate(conversationId, facade.continueWithInput(
-        new ContinueCreateChainCommand(conversationId, input, UUID.randomUUID().toString(), InputOrigin.TRUSTED)));
+    return new ContinueCreateChainCommand(conversationId, input, commandId, InputOrigin.TRUSTED);
   }
 
   private Multi<ChatEvent> selectCatalogVersion(String conversationId, ChatDecisionCommand command) {

@@ -672,6 +672,23 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
       throws A2AError {
     facadeInvocations.incrementAndGet();
 
+    if (command instanceof InboundCommand.PolicyChoice choice) {
+      var continuation = decisionService == null ? Optional.<ContinueCreateChainCommand>empty()
+          : decisionService.policyChoiceContinuation(taskId, choice.decision(), commandId);
+      if (continuation.isEmpty()) {
+        var before = facade.snapshot(taskId).orElseThrow(A2aProtocolErrorMapper::taskNotFound);
+        ensureOwnership(ownershipLost);
+        var projected = CreateChainA2aStateMapper.project(before, List.of());
+        var persisted = persister.persistAndBuildSdkTask(taskId, contextId, caller, projected, history);
+        emitProjected(emitter, persisted, projected, false, true);
+        return persisted;
+      }
+      renewLease(caller, messageId, ownerToken);
+      ensureOwnership(ownershipLost);
+      return consumeFacadeEvents(taskId, contextId, caller, false, history, emitter,
+          facade.continueWithInput(continuation.get()), messageId, ownerToken, ownershipLost, facadeSubscription);
+    }
+
     if (command instanceof InboundCommand.Approve approve) {
       CreateChainExecutionSnapshot before =
           facade
