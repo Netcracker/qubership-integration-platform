@@ -36,7 +36,7 @@ const (
 // The address is built from Runtime.States rather than from ServiceName: the
 // catalog documents that field as the name to show beside an error, and it does
 // not carry the version suffix the Kubernetes service of a micro domain gets —
-// "qip-engine-micro" against a service actually named "qip-engine-micro-v1".
+// "cip-engine-micro" against a service actually named "cip-engine-micro-v1".
 // The keys of Runtime.States are the engine hosts themselves, which is what the
 // catalog uses to reach an engine of its own accord.
 type Deployment struct {

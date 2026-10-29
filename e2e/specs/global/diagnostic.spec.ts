@@ -1,8 +1,8 @@
 /**
  * Chain-rule validation: `diagnostic-controller`, whole — search, get by id, and run.
  *
- * Global by construction, and `e2e/AGENTS.md` rule 2 is what puts the file here. A run deletes and
- * rewrites `validation_chains_alerts` for **every** chain on the stack, one rule at a time
+ * Global by construction, and `e2e-spec-authoring` rule 2 is what puts the file here. A run deletes
+ * and rewrites `validation_chains_alerts` for **every** chain on the stack, one rule at a time
  * (`DiagnosticService.runValidationsAsync`), and the last-run status is a single row per rule in
  * `validation_status` that `POST /validations` and `GET /validations/{id}` both read. Two workers
  * running validations at once would each be reading the other's rewrite, which the service stops

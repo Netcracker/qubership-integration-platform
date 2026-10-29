@@ -2,11 +2,11 @@
  * `event-controller`, whole: one operation, `GET /v1/catalog/events`.
  *
  * This is the change stream the UI polls to keep a chain's deployment badge live. It is **global by
- * construction** and `e2e/AGENTS.md` rule 2 is what puts the file here: `EventService` holds one
- * `CircularFifoQueue<Event>` of 100 entries for the whole catalog, and the answer is a window over
- * it. No parameter narrows the queue to a caller, a chain, or a folder — `lastEventId` moves the
- * window's start and nothing else — so "the window holds one event" is a claim about every worker
- * on the stack, and it is only true where nothing else is deploying.
+ * construction** and `e2e-spec-authoring` rule 2 is what puts the file here: `EventService` holds
+ * one `CircularFifoQueue<Event>` of 100 entries for the whole catalog, and the answer is a window
+ * over it. No parameter narrows the queue to a caller, a chain, or a folder — `lastEventId` moves
+ * the window's start and nothing else — so "the window holds one event" is a claim about every
+ * worker on the stack, and it is only true where nothing else is deploying.
  *
  * The spec needs a deployed chain and no `seed` dependency of its own: `global` already declares
  * `api`, `runtime` and `env`, and `runtime` declares `seed`, which Playwright resolves

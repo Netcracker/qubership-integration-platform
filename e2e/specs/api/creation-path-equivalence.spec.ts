@@ -105,8 +105,8 @@ async function deployAndServe(
  *
  * Without this the comparison is vacuous: the engine learns of the undeploy on its next Consul
  * round, so a poll for a serving route straight after one sees the **old** route still answering
- * 405 and returns at once. `e2e/AGENTS.md` owns what that round costs and how it was measured;
- * repeating the number here is how the last stale copy of it got written.
+ * 405 and returns at once. The `e2e` instruction owns what that round costs and how it was
+ * measured; repeating the number here is how the last stale copy of it got written.
  */
 async function waitForRouteGone(
   request: APIRequestContext,

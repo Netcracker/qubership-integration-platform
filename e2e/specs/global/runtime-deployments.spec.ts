@@ -1,7 +1,7 @@
 /**
  * `runtime-deployment-controller`, whole: one operation, `GET /v1/catalog/runtime-deployments`.
  *
- * Global by construction, and `e2e/AGENTS.md` rule 2 is what puts the file here: the answer is
+ * Global by construction, and `e2e-spec-authoring` rule 2 is what puts the file here: the answer is
  * every deployment of every chain on every engine pod, keyed by chain id. No parameter narrows it
  * — `fields` reduces each row's *shape* and never the set of rows — so a spec asserting anything
  * about the answer as a whole is asserting over what every other worker has deployed.
