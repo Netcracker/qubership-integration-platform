@@ -1,10 +1,12 @@
 /**
  * Which gated jobs of `.github/workflows/e2e-pr.yaml` a pull request needs, from the paths it
- * changes. The `changes` job pipes the diff in and appends the output to `$GITHUB_OUTPUT`:
+ * changes, and which images its kind jobs build. The `changes` job pipes the diff in and appends
+ * the output to `$GITHUB_OUTPUT`:
  *
- *     git diff --name-only --no-renames HEAD^1 HEAD | node support/pr-changes.mjs
+ *     git diff --name-only --no-renames HEAD^1 HEAD | E2E_REBUILD=false node support/pr-changes.mjs
  *
- * It prints one `<job>=true` or `<job>=false` line per job in `JOB_PATHS`.
+ * It prints one `<job>=true` or `<job>=false` line per job in `JOB_PATHS` and `KIND_JOBS`, then
+ * `build=<E2E_BUILD>`.
  */
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -65,6 +67,65 @@ export const JOB_PATHS = {
   ],
 };
 
+/** The jobs that call `_e2e-kind.yaml`, each with the lane of its name in `support/lanes.mjs`. */
+export const KIND_JOBS = ["classic", "micro", "ui"];
+
+/**
+ * The kind jobs a changed path runs. The first rule with a matching path decides, and the last
+ * matches every path. `specs/harness/pr-changes.spec.ts` checks that a rule naming fewer jobs than
+ * all three leaves out no job whose specs and setups import the file. A file a job reads without
+ * importing it needs a rule of its own, as the first two show.
+ *
+ * @type {{ paths: string[]; jobs: string[] }[]}
+ */
+export const KIND_RULES = [
+  // `specs/api/extension-output.spec.ts` reads the extension's goldens and its test workspace.
+  { paths: ["vscode-extension/src/web/test/golden/**", "vscode-extension/src/web/test/workspace/**"], jobs: ["classic"] },
+  // The UI bundle copies the help pages, and `specs/ui/doc.spec.ts` reads their headings. They are
+  // Markdown, so this rule comes before the documentation rule.
+  { paths: ["help/docs/**"], jobs: ["ui"] },
+  {
+    paths: [
+      "docs/**",
+      "help/**",
+      "*.md",
+      "**/*.md",
+      "ai-service/**",
+      "checkstyle/**",
+      "integration-build-maven-plugin/**",
+      ".agents/**",
+      ".apm/**",
+      ".claude/**",
+      ".cursor/**",
+    ],
+    jobs: [],
+  },
+  { paths: [".github/workflows/e2e-*.yaml", ".github/workflows/_e2e-kind.yaml"], jobs: KIND_JOBS },
+  { paths: [".github/workflows/**"], jobs: [] },
+  { paths: ["ui/**", "package-lock.json"], jobs: ["ui"] },
+  { paths: ["vscode-extension/**"], jobs: [] },
+  { paths: ["micro-engine/**"], jobs: ["micro"] },
+  { paths: ["e2e/specs/ui/**", "e2e/pages/**"], jobs: ["ui"] },
+  { paths: ["e2e/specs/vscode*/**"], jobs: [] },
+  { paths: ["e2e/specs/k8s/**"], jobs: ["micro"] },
+  // Its teardown runs in `classic` too, through `suite-teardown`, the teardown of `brokers-seed`.
+  { paths: ["e2e/specs/seed-micro/**"], jobs: ["classic", "micro"] },
+  { paths: ["**"], jobs: KIND_JOBS },
+];
+
+/**
+ * The images a kind job builds from the checkout when a path changes, by `E2E_BUILD` name. Every
+ * other image runs from GHCR; the `micro` job adds `micro-engine` itself.
+ *
+ * @type {Record<string, string[]>}
+ */
+export const BUILD_PATHS = {
+  engine: ["engine/**", "parent/**", "pom.xml"],
+  "runtime-catalog": ["runtime-catalog/**", "integration-build-pipeline/**", "parent/**", "pom.xml"],
+  "sessions-management": ["sessions-management/**", "parent/**", "pom.xml"],
+  "testing-service": ["testing-service/**"],
+};
+
 /** @param {string} glob */
 export function globRegExp(glob) {
   const source = glob
@@ -84,15 +145,43 @@ export function globRegExp(glob) {
  * @returns {Record<string, boolean>}
  */
 export function jobsFor(files) {
-  return Object.fromEntries(
-    Object.entries(JOB_PATHS).map(([job, globs]) => {
-      const patterns = globs.map(globRegExp);
-      return [job, files.some((file) => patterns.some((pattern) => pattern.test(file)))];
-    }),
-  );
+  const kindJobs = new Set(files.flatMap(kindRule));
+  return {
+    ...Object.fromEntries(Object.entries(JOB_PATHS).map(([job, globs]) => [job, files.some(matching(globs))])),
+    ...Object.fromEntries(KIND_JOBS.map((job) => [job, kindJobs.has(job)])),
+  };
+}
+
+/**
+ * The `E2E_BUILD` value of the kind jobs: `all` under the `e2e-rebuild` label, otherwise the images
+ * the changed paths reach, or `none`.
+ *
+ * @param {string[]} files paths relative to the repository root
+ * @param {boolean} rebuild
+ */
+export function buildFor(files, rebuild) {
+  if (rebuild) return "all";
+  const images = Object.entries(BUILD_PATHS).filter(([, globs]) => files.some(matching(globs)));
+  return images.map(([image]) => image).join(",") || "none";
+}
+
+/** @param {string[]} globs */
+function matching(globs) {
+  const patterns = globs.map(globRegExp);
+  return (/** @type {string} */ file) => patterns.some((pattern) => pattern.test(file));
+}
+
+/**
+ * The jobs of the first rule in `KIND_RULES` that matches `file`.
+ *
+ * @param {string} file
+ */
+function kindRule(file) {
+  return KIND_RULES.find((rule) => matching(rule.paths)(file))?.jobs ?? [];
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const files = fs.readFileSync(0, "utf-8").split("\n").filter(Boolean);
   for (const [job, runs] of Object.entries(jobsFor(files))) console.log(`${job}=${runs}`);
+  console.log(`build=${buildFor(files, process.env.E2E_REBUILD === "true")}`);
 }
