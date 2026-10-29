@@ -11,6 +11,8 @@ import org.a2aproject.sdk.spec.Message;
 import org.a2aproject.sdk.spec.Part;
 import org.a2aproject.sdk.spec.TextPart;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
+import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
 
 /**
  * Parses inbound A2A Message parts into create-chain commands.
@@ -82,6 +84,19 @@ public final class A2aInboundMessageParser {
     }
     if ("implement".equalsIgnoreCase(action)) {
       throw A2aProtocolErrorMapper.unsupportedImplementAction();
+    }
+    if (ChatEvent.KEEP_REQUESTED_ACTION.equals(action) || ChatEvent.USE_RECOMMENDED_ACTION.equals(action)) {
+      if (!(data.get("artifactType") instanceof String type) || type.isBlank()
+          || !(data.get("artifactHash") instanceof String hash) || hash.isBlank()) {
+        throw A2aProtocolErrorMapper.malformedStructuredData("Policy choice requires artifactType and artifactHash");
+      }
+      long revision;
+      try {
+        revision = new java.math.BigDecimal(String.valueOf(data.get("revision"))).longValueExact();
+      } catch (NumberFormatException | ArithmeticException invalid) {
+        throw A2aProtocolErrorMapper.malformedStructuredData("Policy choice requires an integer revision");
+      }
+      return new InboundCommand.PolicyChoice(action, type, hash, revision);
     }
     if ("approve".equalsIgnoreCase(action)) {
       Object type = data.get("artifactType");
@@ -168,6 +183,7 @@ public final class A2aInboundMessageParser {
   public static final String KIND_INITIAL_CLARIFY = "initial-clarify";
   public static final String KIND_CONTINUE_CLARIFY = "continue-clarify";
   public static final String KIND_APPROVE = "approve";
+  public static final String KIND_POLICY_CHOICE = "policy-choice";
 
   /** Reuses the command bound at claim time; the caller must still verify the full fingerprint. */
   static InboundCommand resolveSavedCommand(InboundCommand command,
@@ -197,7 +213,8 @@ public final class A2aInboundMessageParser {
 
   static String commandPayload(InboundCommand command) {
     if (!(command instanceof InboundCommand.Approve)
-        && !(command instanceof InboundCommand.ClarifyText)) {
+        && !(command instanceof InboundCommand.ClarifyText)
+        && !(command instanceof InboundCommand.PolicyChoice)) {
       return null;
     }
     try {
@@ -221,10 +238,24 @@ public final class A2aInboundMessageParser {
     if (command instanceof InboundCommand.Approve) {
       return KIND_APPROVE;
     }
+    if (command instanceof InboundCommand.PolicyChoice) {
+      return KIND_POLICY_CHOICE;
+    }
     throw new IllegalArgumentException("Unsupported command: " + command.getClass().getName());
   }
 
   public sealed interface InboundCommand {
+    record PolicyChoice(String action, String artifactType, String artifactHash, long revision) implements InboundCommand {
+      public ChatDecisionCommand decision() {
+        var result = new ChatDecisionCommand();
+        result.setAction(action);
+        result.setArtifactType(artifactType);
+        result.setArtifactHash(artifactHash);
+        result.setRevision(revision);
+        return result;
+      }
+    }
+
     record ClarifyText(String text, String clarificationOfferId) implements InboundCommand {
       public ClarifyText(String text) {
         this(text, "");
