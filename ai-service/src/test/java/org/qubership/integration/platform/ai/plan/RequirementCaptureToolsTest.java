@@ -2555,6 +2555,107 @@ class RequirementCaptureToolsTest {
     }
   }
 
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void shouldOfferOnlyCurrentCaptureSourceIdsWhenRequestedSourceIsUnavailable(boolean foreignId) {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var archive = new ConversationArchive(blobs, mapper);
+    var conversations = mock(ConversationService.class);
+    when(conversations.archive()).thenReturn(archive);
+    String chat = "source-read-" + UUID.randomUUID();
+    var source = archive.beginInput(chat, "Current author requirement", null);
+    archive.resolveInput(chat, source, "Current author requirement");
+    var foreign = archive.beginInput("foreign-chat", "Private foreign requirement", null);
+    archive.resolveInput("foreign-chat", foreign, "Private foreign requirement");
+    var unresolved = archive.beginInput(chat, "Unresolved private input", null);
+    var h = persistentHarness(blobs, mapper, conversations, chat);
+    h.store().beginTurn(chat);
+    try (var ignored = ToolSession.open(chat)) {
+      var failure = assertThrows(IllegalArgumentException.class, () -> h.tools().readRequirementSource(
+          new RequirementCaptureTools.SourceRead(foreignId ? foreign.turnId() : "mistyped-source-id", 0, 16000)));
+      assertEquals("Source turn is not in this conversation. Available source turn IDs in the current capture context: ["
+          + source.turnId() + "]. Copy an exact ID, read it with readRequirementSource, then retry captureRequirementDraft"
+          + " with that sourceTurnId and its exact quote.", failure.getMessage());
+      assertEquals(archive.readSource(chat, source.turnId(), 0, 16000), h.tools().readRequirementSource(
+          new RequirementCaptureTools.SourceRead(source.turnId(), 0, 16000)));
+      assertFalse(failure.getMessage().contains(foreign.turnId()));
+      assertFalse(failure.getMessage().contains(unresolved.turnId()));
+      assertTrue(h.store().get(chat).isEmpty());
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"empty", "unknown", "not-started", "superseded"})
+  void shouldKeepUnavailableSourceErrorWhenNoCurrentCaptureSourcesExist(String context) {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var archive = new ConversationArchive(blobs, mapper);
+    var conversations = mock(ConversationService.class);
+    when(conversations.archive()).thenReturn(archive);
+    String chat = "source-context-" + UUID.randomUUID();
+    var source = archive.beginInput(chat, "Author requirement", null);
+    if (!"empty".equals(context)) archive.resolveInput(chat, source, "Author requirement");
+    var h = persistentHarness(blobs, mapper, conversations, chat);
+    if (!"not-started".equals(context)) h.store().beginTurn(chat);
+    if ("superseded".equals(context)) archive.beginInput(chat, "Later author requirement", null);
+    try (var ignored = ToolSession.open("unknown".equals(context) ? "unknown-chat" : chat)) {
+      var failure = assertThrows(IllegalArgumentException.class, () -> h.tools().readRequirementSource(
+          new RequirementCaptureTools.SourceRead("mistyped-source-id", 0, 16000)));
+      assertEquals("Source turn is not in this conversation.", failure.getMessage());
+    }
+  }
+
+  @ParameterizedTest
+  @org.junit.jupiter.params.provider.CsvSource({"-1, 16000", "2147483647, 16000", "0, 0", "0, 16001"})
+  void shouldPreserveSourceRangeErrorsWithoutOfferingSourceIds(int offset, int maxChars) {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var archive = new ConversationArchive(blobs, mapper);
+    var conversations = mock(ConversationService.class);
+    when(conversations.archive()).thenReturn(archive);
+    String chat = "source-range-" + UUID.randomUUID();
+    var source = archive.beginInput(chat, "Author requirement", null);
+    archive.resolveInput(chat, source, "Author requirement");
+    var h = persistentHarness(blobs, mapper, conversations, chat);
+    h.store().beginTurn(chat);
+    try (var ignored = ToolSession.open(chat)) {
+      var rangeFailure = assertThrows(IllegalArgumentException.class, () -> h.tools().readRequirementSource(
+          new RequirementCaptureTools.SourceRead(source.turnId(), offset, maxChars)));
+      assertEquals("Use a valid source offset and 1 to 16000 characters.", rangeFailure.getMessage());
+      var failure = assertThrows(IllegalArgumentException.class, () -> h.tools().readRequirementSource(
+          new RequirementCaptureTools.SourceRead("mistyped-source-id", -1, maxChars)));
+      assertEquals("Source turn is not in this conversation.", failure.getMessage());
+    }
+  }
+
+  @Test
+  void shouldBoundSourceIdHintToTheLatestTwentyEligibleSources() {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var archive = new ConversationArchive(blobs, mapper);
+    var conversations = mock(ConversationService.class);
+    when(conversations.archive()).thenReturn(archive);
+    String chat = "source-bound-" + UUID.randomUUID();
+    var sources = new ArrayList<String>();
+    for (int index = 0; index < 21; index++) {
+      var source = archive.beginInput(chat, "Author requirement " + index, null);
+      archive.resolveInput(chat, source, "Author requirement " + index);
+      sources.add(source.turnId());
+    }
+    var h = persistentHarness(blobs, mapper, conversations, chat);
+    h.store().beginTurn(chat);
+    try (var ignored = ToolSession.open(chat)) {
+      var failure = assertThrows(IllegalArgumentException.class, () -> h.tools().readRequirementSource(
+          new RequirementCaptureTools.SourceRead("mistyped-source-id", 0, 16000)));
+      String hint = failure.getMessage();
+      assertEquals("Source turn is not in this conversation. Available source turn IDs in the current capture context: "
+          + sources.subList(1, 21) + ". Copy an exact ID, read it with readRequirementSource, then retry"
+          + " captureRequirementDraft with that sourceTurnId and its exact quote.", hint);
+      assertFalse(hint.contains(sources.getFirst()));
+    }
+  }
+
   private static Harness persistentHarness(
       InMemoryArtifactBlobStore blobs,
       ObjectMapper mapper,
