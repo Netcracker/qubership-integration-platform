@@ -17,8 +17,8 @@ Snapshot shall be created manually via CIP UI (navigate to "**Snapshots**" tab, 
 ### Snapshot Table View
 There is a **"Snapshots"** tab, available for each particular chain. By navigating to this tab user will be presented with a table, that contains next info and control elements:
 - **Name** - snapshot's name. First snapshot is automatically named "**V1**". Every subsequent snapshot will be named with incremented number (**V2**, **V3**, etc).
-    > ℹ️ **Note**: To **change** snapshot's **current version name**, hover the mouse on the version name of suitable snapshot, click on it, type new version name and click **`Enter`**.
-- **Labels** - list of colored snapshot labels, unique within particular snapshot. It might contain **custom** labels, entered on the snapshot by user via Cloud Integration Platform UI or **technical** labels, populated as part of the deployment via Samples Repository. **Custom** labels can be added or removed clicking on the row respectively. **Technical** labels cannot be updated manually.
+    > ℹ️ **Note**: To change a snapshot's name, click its **Name** cell, enter a new name, and press **`Enter`** or click outside the cell.
+- **Labels** - list of colored snapshot labels, unique within particular snapshot. It might contain **custom** labels, entered on the snapshot by user via Cloud Integration Platform UI or **technical** labels, populated as part of the deployment via Samples Repository. **Custom** labels can be added or removed by clicking the cell. Click outside the cell to submit the changes. **Technical** labels cannot be updated manually.
 - **Created By** - username of snapshot creation.
 - **Created At** - the datetime of snapshot creation.
 - **Modified By** - username of snapshot modification.

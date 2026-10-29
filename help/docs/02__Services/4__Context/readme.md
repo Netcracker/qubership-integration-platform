@@ -76,7 +76,7 @@ To create any service using VS Code Extension, follow the steps outlined below:
 
 ### Import Service(s)
 
-**`⛔ Not available via VS Code extension`**
+**`⛔ Not available via the VS Code extension`**
 
 To import the service(s), click the icon ![cloud-upload](img/cloud-upload.svg), drag and drop **.zip** file into import area or click **"browse"** link and select **single** file with respective format from the explorer menu. When appropriate file is added to the window, click **"Import"** button to start the import process. During the import, system follows next logic:
 - Verify Import Instructions, saved in the system. Proceed with the step below only if they exist:
@@ -99,11 +99,20 @@ When import is completed, system displays import result table with the following
 
 ### Export Service(s)
 
-**`⛔ Not available via VS Code extension`**
+**`⛔ Not available via the VS Code extension`**
 
 System allows exporting service. There are two possible ways to export service(s):
 - From **"Context Services"** page - mark specific services with checkboxes and click ![cloud-download](img/cloud-download.svg) (Export).
 - From exact service page - simply click ![cloud-download](img/cloud-download.svg) (Export) from the action menu ![more](img/more.svg).
+
+### Delete Service
+<ins>Web UI</ins>
+
+From the "Context Services" View, click the action menu for the entity to be deleted and then "Delete" ![delete](img/delete.svg). The confirmation pop-up appears on the screen, so click "Yes" to delete or "No" to cancel operation.
+
+<ins>VS Code Extension</ins>
+
+Under the "Services" folder, right-click on the service name you want to delete. From the available options, click "Delete Service". A notification appears in the bottom-right corner of the screen to confirm deletion is successful.
 
 ## Data Storage
 

@@ -11,6 +11,29 @@ page that describes the concept in full.
 
 ---
 
+### Chain
+
+An integration configuration made of Apache Camel (or customized) modules, intended to perform one particular
+integration task. A chain starts with a trigger and must be deployed on at least one engine domain before anything can
+trigger it. See [Chains](../../01__Chains/readme.md).
+
+### Service
+
+An entity holding the integration settings of a real system inside or outside the platform: API specifications,
+environment addresses, properties. There are five types — [External](../../02__Services/1__External/readme.md),
+[Inner Cloud](../../02__Services/2__Inner_Cloud/readme.md),
+[Implemented](../../02__Services/3__Implemented/readme.md),
+[Context](../../02__Services/4__Context/readme.md), and [MCP](../../02__Services/5__MCP/readme.md) — described in
+[Services](../../02__Services/readme.md):
+
+- **External** — a service located outside the environment, reachable only via the Egress Gateway.
+- **Inner Cloud** — also called an internal service; it shares the Kubernetes environment with the platform and is
+  called directly.
+- **Implemented** — a custom service, usually created from an HTTP Trigger.
+- **Context** — a database instance used to store chain contexts, so a chain can create, read, and delete context
+  data.
+- **MCP** — a service exposing chains as tools through the Model Context Protocol.
+
 ### API Specification
 
 A standardized description of the operations a service exposes. Specifications belong to a service, carry a status
@@ -22,12 +45,6 @@ Context and MCP services. See [Services](../../02__Services/readme.md).
 A grouping of a service's specifications by business or technical logic — for example, one group for customer
 management and another for order management. Not available for Context and MCP services. See
 [Services](../../02__Services/readme.md).
-
-### Chain
-
-An integration configuration made of Apache Camel (or customized) modules, intended to perform one particular
-integration task. A chain starts with a trigger and must be deployed on at least one engine domain before anything can
-trigger it. See [Chains](../../01__Chains/readme.md).
 
 ### Checkpoint
 
@@ -151,23 +168,6 @@ parts of the chain invoke through a **Reuse Reference** element instead of dupli
 A variable for protected data such as credentials. Values are stored in Kubernetes secrets and hidden in the UI. To
 reference one that lives in a non-default secret, prefix the name with the secret name and a `:` delimiter. See
 [Variables](../../03__Admin_Tools/2__Variables/readme.md).
-
-### Service
-
-An entity holding the integration settings of a real system inside or outside the platform: API specifications,
-environment addresses, properties. There are five types — [External](../../02__Services/1__External/readme.md),
-[Inner Cloud](../../02__Services/2__Inner_Cloud/readme.md),
-[Implemented](../../02__Services/3__Implemented/readme.md),
-[Context](../../02__Services/4__Context/readme.md), and [MCP](../../02__Services/5__MCP/readme.md) — described in
-[Services](../../02__Services/readme.md):
-
-- **External** — a service located outside the environment, reachable only via the Egress Gateway.
-- **Inner Cloud** — also called an internal service; it shares the Kubernetes environment with the platform and is
-  called directly.
-- **Implemented** — a custom service, usually created from an HTTP Trigger.
-- **Context** — a database instance used to store chain contexts, so a chain can create, read, and delete context
-  data.
-- **MCP** — a service exposing chains as tools through the Model Context Protocol.
 
 ### Session
 
