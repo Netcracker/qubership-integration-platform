@@ -106,8 +106,10 @@ public class BulkDeploymentService {
                     String.format("Domain %s is discovered as %s, the request declares %s",
                         name, discovered.get(name), DomainType.MICRO))
                 .forEach(resultConsumer));
+            List<Deployment> replacedDeployments = findReplacedDeployments(classicDomainNames.stream()
+                .collect(Collectors.toMap(Function.identity(), domain -> snapshots, (first, second) -> first)));
             deploySnapshots(snapshots, classicDomainNames, microDomainNames, request.getMode(),
-                List.of(), resultConsumer);
+                replacedDeployments, resultConsumer);
         });
     }
 
