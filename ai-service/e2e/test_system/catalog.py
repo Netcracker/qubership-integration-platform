@@ -209,7 +209,9 @@ class Catalog:
             if options["model"] == "unspecified":
                 options["model"] = "kimi"
             if options["model"] not in {"ordinary", "kimi", "both"}:
-                raise ValueError("Recovery acceptance needs model ordinary, kimi, or both.")
+                raise ValueError(
+                    "Recovery acceptance needs model ordinary, kimi, or both."
+                )
         if profile not in self.profiles:
             if profile in {
                 "chain-acceptance",

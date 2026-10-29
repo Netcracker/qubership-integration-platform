@@ -6,7 +6,7 @@ from pathlib import Path
 from subprocess import run
 
 
-class BuildEntryTest(unittest.TestCase):
+class BuildEntryTest(unittest.TestCase):  # pylint: disable=too-many-instance-attributes
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
@@ -24,8 +24,8 @@ class BuildEntryTest(unittest.TestCase):
         self.arguments = self.root / "maven-arguments.txt"
         self.mvn = self.bin / "mvn"
         self.mvn.write_text(
-            "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$MAVEN_ARGUMENTS_FILE\"\n"
-            "exit \"${MAVEN_EXIT_CODE:-0}\"\n"
+            '#!/bin/sh\nprintf \'%s\\n\' "$@" > "$MAVEN_ARGUMENTS_FILE"\n'
+            'exit "${MAVEN_EXIT_CODE:-0}"\n'
         )
         self.mvn.chmod(0o755)
         self.env = {
@@ -129,7 +129,9 @@ class BuildEntryTest(unittest.TestCase):
         )
         self.assertIn("-Pwith-rocky-skills", arguments)
 
-    def test_partial_customer_layout_takes_precedence_without_mixing_private_packages(self):
+    def test_partial_customer_layout_takes_precedence_without_mixing_private_packages(
+        self,
+    ):
         (self.customer_packages / "rocky-skills").mkdir(parents=True)
         (self.packages / "rocky-skills").mkdir(parents=True)
         (self.packages / "rocky-knowledge").mkdir()
@@ -172,7 +174,9 @@ class BuildEntryTest(unittest.TestCase):
 
     def test_dangling_customer_package_symlink_still_selects_customer_layout(self):
         self.customer_packages.mkdir()
-        (self.customer_packages / "rocky-knowledge").symlink_to(self.root / "missing-package")
+        (self.customer_packages / "rocky-knowledge").symlink_to(
+            self.root / "missing-package"
+        )
         (self.packages / "rocky-skills").mkdir(parents=True)
         (self.packages / "rocky-knowledge").mkdir()
 

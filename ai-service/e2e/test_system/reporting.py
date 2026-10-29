@@ -61,13 +61,14 @@ def inspect_reports(
             root = ET.parse(path).getroot()
             for case in root.iter("testcase"):
                 counts["tests"] += 1
-                if case.find("skipped") is not None:
+                skipped = case.find("skipped")
+                if skipped is not None:
                     counts["skipped"] += 1
                     skipped_cases.append(
                         failure(
                             suite["id"],
                             f"{case.get('classname', '')}#{case.get('name', '')}",
-                            case.find("skipped").get(
+                            skipped.get(
                                 "message", "The selected test was not executed."
                             ),
                             "coverage",

@@ -1,11 +1,11 @@
 import copy
 import json
-import unittest
 import os
-from pathlib import Path
+import runpy
 import subprocess
 import tempfile
-import runpy
+import unittest
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import recovery_campaign as campaign
@@ -112,16 +112,27 @@ def evidence_fixture():
     return json.loads(json.dumps(value))
 
 
-class RecoveryContractTest(unittest.TestCase):
+class RecoveryContractTest(
+    unittest.TestCase
+):  # pylint: disable=too-many-public-methods
     def test_shared_process_stopping_changes_its_recorded_identity(self):
-        container = {"Id": "shared", "RestartCount": 0,
-                     "State": {"StartedAt": "unchanged", "Running": True}}
+        container = {
+            "Id": "shared",
+            "RestartCount": 0,
+            "State": {"StartedAt": "unchanged", "Running": True},
+        }
         running = campaign.process_identity(container)
         container["State"]["Running"] = False
         self.assertNotEqual(running, campaign.process_identity(container))
 
     def setUp(self):
-        self.case = next(iter(campaign.load_cases(campaign.HERE / "test-fixtures/recovery/cases.json").values()))
+        self.case = next(
+            iter(
+                campaign.load_cases(
+                    campaign.HERE / "test-fixtures/recovery/cases.json"
+                ).values()
+            )
+        )
         self.evidence = evidence_fixture()
 
     def outcome(self):
@@ -131,39 +142,87 @@ class RecoveryContractTest(unittest.TestCase):
         del self.case["checks"]["scriptContains"]
         graph = self.evidence["pipelineArtifacts"][0]["payload"]
         graph["nodes"][1]["label"] = "Response"
-        self.case["checks"]["scriptSnippets"] = [{"label": "Response", "contains": "Hello world"}]
+        self.case["checks"]["scriptSnippets"] = [
+            {"label": "Response", "contains": "Hello world"}
+        ]
         self.assertEqual([], campaign.graph_errors(self.case, graph))
         graph["nodes"][1]["properties"][0]["value"] = 'return "Wrong value"'
-        self.assertIn("Required script value is absent from its owner", campaign.graph_errors(self.case, graph))
+        self.assertIn(
+            "Required script value is absent from its owner",
+            campaign.graph_errors(self.case, graph),
+        )
 
     def test_catalog_outgoing_check_uses_the_declared_trigger_type(self):
-        for trigger_type, connected in [("http-trigger", True), ("async-api-trigger", True),
-                                        ("async-api-trigger", False)]:
-            with self.subTest(trigger=trigger_type, connected=connected), tempfile.TemporaryDirectory() as directory:
+        for trigger_type, connected in [
+            ("http-trigger", True),
+            ("async-api-trigger", True),
+            ("async-api-trigger", False),
+        ]:
+            with self.subTest(
+                trigger=trigger_type, connected=connected
+            ), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 campaign.write_json(root / "chain.json", {"id": "chain"})
-                campaign.write_json(root / "elements.json", [
-                    {"id": "entry", "type": trigger_type, "properties": {}},
-                    {"id": "reply", "type": "script", "properties": {}}])
-                campaign.write_json(root / "dependencies.json", [{"from": "entry", "to": "reply"}] if connected else [])
-                skeleton = {"triggerMustHaveOutgoing": True, "reachableFromTrigger": ["script"]}
+                campaign.write_json(
+                    root / "elements.json",
+                    [
+                        {"id": "entry", "type": trigger_type, "properties": {}},
+                        {"id": "reply", "type": "script", "properties": {}},
+                    ],
+                )
+                campaign.write_json(
+                    root / "dependencies.json",
+                    [{"from": "entry", "to": "reply"}] if connected else [],
+                )
+                skeleton = {
+                    "triggerMustHaveOutgoing": True,
+                    "reachableFromTrigger": ["script"],
+                }
                 if trigger_type != "http-trigger":
                     skeleton["triggerType"] = trigger_type
-                campaign.write_json(root / "scenario.json", {"fixture": {"catalog": {
-                    "requiredTypes": [trigger_type, "script"], "skeleton": skeleton}}})
+                campaign.write_json(
+                    root / "scenario.json",
+                    {
+                        "fixture": {
+                            "catalog": {
+                                "requiredTypes": [trigger_type, "script"],
+                                "skeleton": skeleton,
+                            }
+                        }
+                    },
+                )
                 (root / "curl").write_text(
                     "#!/usr/bin/env python3\nimport os,sys\nfrom pathlib import Path\n"
                     "suffix=sys.argv[-1].rstrip('/').split('/')[-1]\n"
                     "name=suffix if suffix in ['elements','dependencies'] else 'chain'\n"
-                    "print((Path(os.environ['CATALOG_FIXTURE_DIR'])/(name+'.json')).read_text())\n")
+                    "print((Path(os.environ['CATALOG_FIXTURE_DIR'])/(name+'.json')).read_text())\n"
+                )
                 (root / "curl").chmod(0o755)
-                checked = subprocess.run(["bash", str(campaign.HERE / "scripts/assert-catalog.sh"),
-                    str(root / "scenario.json"), "fixture", "http://fixture", "chain"],
-                    env={**os.environ, "PATH": str(root)+os.pathsep+os.environ["PATH"],
-                         "CATALOG_FIXTURE_DIR": str(root)}, capture_output=True, text=True)
-                self.assertEqual(connected, checked.returncode == 0, checked.stdout+checked.stderr)
+                checked = subprocess.run(
+                    [
+                        "bash",
+                        str(campaign.HERE / "scripts/assert-catalog.sh"),
+                        str(root / "scenario.json"),
+                        "fixture",
+                        "http://fixture",
+                        "chain",
+                    ],
+                    env={
+                        **os.environ,
+                        "PATH": str(root) + os.pathsep + os.environ["PATH"],
+                        "CATALOG_FIXTURE_DIR": str(root),
+                    },
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(
+                    connected, checked.returncode == 0, checked.stdout + checked.stderr
+                )
                 if not connected:
-                    self.assertIn("trigger has no outgoing dependencies", checked.stderr)
+                    self.assertIn(
+                        "trigger has no outgoing dependencies", checked.stderr
+                    )
 
     def test_tool_prohibition_allows_negative_text_and_tool_schemas(self):
         self.enhanced()
@@ -179,16 +238,19 @@ class RecoveryContractTest(unittest.TestCase):
     def test_tool_prohibition_rejects_response_tool_calls(self):
         self.enhanced()
         self.case["checks"]["forbiddenTools"] = ["getApiHubDocument"]
-        self.evidence["providerBoundary"][-1]["value"]["message"]["toolExecutionRequests"].append(
-            {"name": "getApiHubDocument", "arguments": "{}"}
-        )
+        self.evidence["providerBoundary"][-1]["value"]["message"][
+            "toolExecutionRequests"
+        ].append({"name": "getApiHubDocument", "arguments": "{}"})
         self.assertEqual("RECOVERY_FAILURE", self.outcome())
 
     def test_tool_prohibition_rejects_completed_stream_tool_calls(self):
         self.enhanced()
         self.case["checks"]["forbiddenTools"] = ["getApiHubDocument"]
         self.evidence["providerBoundary"].append(
-            {"kind": "tool-completed", "value": {"toolExecutionRequest": {"name": "getApiHubDocument"}}}
+            {
+                "kind": "tool-completed",
+                "value": {"toolExecutionRequest": {"name": "getApiHubDocument"}},
+            }
         )
         self.assertEqual("RECOVERY_FAILURE", self.outcome())
 
@@ -199,30 +261,75 @@ class RecoveryContractTest(unittest.TestCase):
         fault.update(tool="captureHttpTriggers", parameter="capture", observedAt=20)
         fault["mutated"] = copy.deepcopy(fault["original"])
         fault["mutated"]["endpoints"][0]["externalRoute"] = "false"
-        ref = {"kind": "CAPTURE_ATTEMPT_FEEDBACK", "artifactId": "rejected", "contentHash": "reject-hash"}
-        issue = {"code": "INVALID_TYPE", "path": "/capture/endpoints/0/externalRoute", "message": "Wrong type"}
-        self.evidence["captureArtifacts"] = [{**ref, "payload": {"feedback": {"issues": [issue]}}}]
-        rejection = {"type": "CAPTURE_REJECTED", "tool": "captureHttpTriggers", "proposal": fault["mutated"],
-                     "sequence": 2, "observedAt": 21, "rejectionRef": ref,
-                     "nativeResult": {"accepted": False, "issues": [issue]}}
+        ref = {
+            "kind": "CAPTURE_ATTEMPT_FEEDBACK",
+            "artifactId": "rejected",
+            "contentHash": "reject-hash",
+        }
+        issue = {
+            "code": "INVALID_TYPE",
+            "path": "/capture/endpoints/0/externalRoute",
+            "message": "Wrong type",
+        }
+        self.evidence["captureArtifacts"] = [
+            {**ref, "payload": {"feedback": {"issues": [issue]}}}
+        ]
+        rejection = {
+            "type": "CAPTURE_REJECTED",
+            "tool": "captureHttpTriggers",
+            "proposal": fault["mutated"],
+            "sequence": 2,
+            "observedAt": 21,
+            "rejectionRef": ref,
+            "nativeResult": {"accepted": False, "issues": [issue]},
+        }
         accepted = self.evidence["events"][-1]
         accepted.update(tool="captureHttpTriggers", sequence=3)
         self.evidence["events"].insert(1, rejection)
         self.evidence["checkpoint"]["sequence"] = 4
         self.evidence["budget"]["requests"] = 1
         self.evidence["providerBoundary"] = [
-            {"id": "request", "runId": "run", "at": 21.5, "context": {"runId": "run", "attemptId": "attempt"},
-             "request": {"messages": [{"text": "INVALID_TYPE /capture/endpoints/0/externalRoute Wrong type"}]},
-             "originalRequestHash": "original", "redactedRequestHash": "redacted"},
-            {"requestId": "request", "kind": "response", "at": 22,
-             "value": {"message": {"toolExecutionRequests": [{"name": "captureHttpTriggers", "id": "corrected",
-                        "arguments": json.dumps({"capture": accepted["proposal"]})}]}}},
+            {
+                "id": "request",
+                "runId": "run",
+                "at": 21.5,
+                "context": {"runId": "run", "attemptId": "attempt"},
+                "request": {
+                    "messages": [
+                        {
+                            "text": "INVALID_TYPE /capture/endpoints/0/externalRoute Wrong type"
+                        }
+                    ]
+                },
+                "originalRequestHash": "original",
+                "redactedRequestHash": "redacted",
+            },
+            {
+                "requestId": "request",
+                "kind": "response",
+                "at": 22,
+                "value": {
+                    "message": {
+                        "toolExecutionRequests": [
+                            {
+                                "name": "captureHttpTriggers",
+                                "id": "corrected",
+                                "arguments": json.dumps(
+                                    {"capture": accepted["proposal"]}
+                                ),
+                            }
+                        ]
+                    }
+                },
+            },
         ]
 
     def test_actual_provider_refusal_and_model_correction_are_required(self):
         self.enhanced()
         self.assertEqual("CHECKPOINT_PASS", self.outcome())
-        self.evidence["providerBoundary"][0]["request"] = {"messages": [{"text": "No refusal delivered"}]}
+        self.evidence["providerBoundary"][0]["request"] = {
+            "messages": [{"text": "No refusal delivered"}]
+        }
         self.assertEqual("RECOVERY_FAILURE", self.outcome())
 
     def test_a_request_prepared_before_the_refusal_cannot_prove_repair(self):
@@ -230,15 +337,25 @@ class RecoveryContractTest(unittest.TestCase):
         self.evidence["providerBoundary"][0]["at"] = 19
         self.assertEqual("RECOVERY_FAILURE", self.outcome())
 
-    def test_optional_capture_defaults_preserve_false_zero_and_explicit_string_values(self):
-        self.assertEqual(campaign.capture_value({"operations": [{"nodeId": "reply"}], "loopRegions": [], "owner": None}),
-                         campaign.capture_value({"operations": [{"nodeId": "reply"}]}))
-        self.assertNotEqual(campaign.capture_value({"externalRoute": False, "count": 0, "value": "[]"}),
-                            campaign.capture_value({}))
+    def test_optional_capture_defaults_preserve_false_zero_and_explicit_string_values(
+        self,
+    ):
+        self.assertEqual(
+            campaign.capture_value(
+                {"operations": [{"nodeId": "reply"}], "loopRegions": [], "owner": None}
+            ),
+            campaign.capture_value({"operations": [{"nodeId": "reply"}]}),
+        )
+        self.assertNotEqual(
+            campaign.capture_value({"externalRoute": False, "count": 0, "value": "[]"}),
+            campaign.capture_value({}),
+        )
 
     def test_projection_without_a_corrected_model_call_cannot_pass(self):
         self.enhanced()
-        self.evidence["providerBoundary"][1]["value"]["message"]["toolExecutionRequests"] = []
+        self.evidence["providerBoundary"][1]["value"]["message"][
+            "toolExecutionRequests"
+        ] = []
         self.assertEqual("RECOVERY_FAILURE", self.outcome())
 
     def test_incomplete_provider_recording_cannot_pass(self):
@@ -253,18 +370,46 @@ class RecoveryContractTest(unittest.TestCase):
 
     def test_full_readback_checks_directed_edges_and_each_bound_property(self):
         graph = self.evidence["pipelineArtifacts"][0]["payload"]
-        snapshot_ref = {"kind": "CATALOG_CHAIN_SNAPSHOT", "artifactId": "catalog", "contentHash": "catalog-hash"}
-        reconcile_ref = {"kind": "RECONCILE_RESULT", "artifactId": "reconcile", "contentHash": "reconcile-hash"}
-        snapshot = {"elements": [{"elementId": node["nodeId"], "type": node["type"], "name": node.get("label"),
-                                "properties": {prop["key"]: prop["value"] for prop in node["properties"]}}
-                               for node in graph["nodes"]],
-                    "dependencies": [{"fromElementId": "http", "toElementId": "script"}]}
+        snapshot_ref = {
+            "kind": "CATALOG_CHAIN_SNAPSHOT",
+            "artifactId": "catalog",
+            "contentHash": "catalog-hash",
+        }
+        reconcile_ref = {
+            "kind": "RECONCILE_RESULT",
+            "artifactId": "reconcile",
+            "contentHash": "reconcile-hash",
+        }
+        snapshot = {
+            "elements": [
+                {
+                    "elementId": node["nodeId"],
+                    "type": node["type"],
+                    "name": node.get("label"),
+                    "properties": {
+                        prop["key"]: prop["value"] for prop in node["properties"]
+                    },
+                }
+                for node in graph["nodes"]
+            ],
+            "dependencies": [{"fromElementId": "http", "toElementId": "script"}],
+        }
         self.evidence["pipelineArtifacts"] += [
-            {**snapshot_ref, "payload": snapshot}, {**reconcile_ref, "payload": {"matches": True}},
-            {"kind": "MATERIALIZATION_RESULT", "artifactId": "result", "contentHash": "result-hash",
-             "payload": {"completedPhase": "COMPLETE", "catalogSnapshotRef": snapshot_ref,
-                         "reconcileResultRef": reconcile_ref,
-                         "materializationMap": {"nodeIdToElementId": {"http": "http", "script": "script"}}}},
+            {**snapshot_ref, "payload": snapshot},
+            {**reconcile_ref, "payload": {"matches": True}},
+            {
+                "kind": "MATERIALIZATION_RESULT",
+                "artifactId": "result",
+                "contentHash": "result-hash",
+                "payload": {
+                    "completedPhase": "COMPLETE",
+                    "catalogSnapshotRef": snapshot_ref,
+                    "reconcileResultRef": reconcile_ref,
+                    "materializationMap": {
+                        "nodeIdToElementId": {"http": "http", "script": "script"}
+                    },
+                },
+            },
         ]
         self.assertEqual([], campaign.catalog_graph_errors(self.evidence, graph))
         snapshot["dependencies"] = [{"fromElementId": "script", "toElementId": "http"}]
@@ -483,7 +628,7 @@ class RecoveryContractTest(unittest.TestCase):
                     url="http://fixture",
                 )
 
-                def start(*args):
+                def start(*_args, output=output, sample=sample):
                     (output / "interactions.jsonl").write_text(
                         "\n".join(json.dumps(item) for item in sample["interactions"])
                     )
@@ -555,6 +700,7 @@ class RecoveryContractTest(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 env={**os.environ, "PRODUCT_PIPELINE_STUB_MODE": "1"},
+                check=False,
             )
             self.assertEqual(2, process.returncode)
             self.assertIn("refuses scripted repair assistance", process.stderr)
@@ -629,6 +775,7 @@ class RecoveryContractTest(unittest.TestCase):
                     capture_output=True,
                     text=True,
                     timeout=15,
+                    check=False,
                 )
                 turns = campaign.read_json(root / "turns.json")
                 self.assertEqual("continue-to-planning", turns[1]["decision"]["action"])
@@ -654,56 +801,108 @@ class EvidenceProbeOutputTest(unittest.TestCase):
             instance.storage_url = "http://localhost:9000"
             output = root / "nested/evidence/snapshot.json"
 
-            def write_probe(arguments, **kwargs):
+            def write_probe(arguments, **_kwargs):
                 destination = Path(arguments[-1])
                 self.assertEqual(output, destination)
                 self.assertTrue(destination.parent.is_dir())
-                destination.write_text('{"captured": true}')
+                destination.write_text('{"captured": true}', encoding="utf-8")
 
             with patch.object(campaign, "ROOT", root), patch.object(
                 campaign.subprocess, "run", side_effect=write_probe
             ) as invoke:
-                self.assertEqual({"captured": True}, instance.export("conversation", output))
+                self.assertEqual(
+                    {"captured": True}, instance.export("conversation", output)
+                )
                 invoke.assert_called_once()
 
 
 class ElementPatchEvidenceTest(unittest.TestCase):
     def test_actual_messages_preserve_complete_schema_data(self):
-        issue = {"code": "enum", "entityId": "element", "path": "/properties/options/mode",
-                 "message": "Rejected mode", "details": {"rejectedValue": "invalid",
-                 "constraint": {"enum": ["value-" + str(index) for index in range(90)]},
-                 "propertySchema": {"if": {"properties": {"kind": {"const": "Map"}}},
-                                    "then": {"required": ["mapping"]}}}}
-        text = "Remaining validation issues (recheck every issue; preserve corrections):\n" + json.dumps([issue])
+        issue = {
+            "code": "enum",
+            "entityId": "element",
+            "path": "/properties/options/mode",
+            "message": "Rejected mode",
+            "details": {
+                "rejectedValue": "invalid",
+                "constraint": {"enum": ["value-" + str(index) for index in range(90)]},
+                "propertySchema": {
+                    "if": {"properties": {"kind": {"const": "Map"}}},
+                    "then": {"required": ["mapping"]},
+                },
+            },
+        }
+        text = (
+            "Remaining validation issues (recheck every issue; preserve corrections):\n"
+            + json.dumps([issue])
+        )
         for payload in (text, json.dumps(text)):
             self.assertIn(issue, campaign.delivered_capture_issues([{"text": payload}]))
         self.assertEqual([], campaign.delivered_capture_issues([{"text": text[:800]}]))
 
     def test_shared_constraints_resolve_to_the_exact_native_schema(self):
         constraint = {"enum": ["value-" + str(index) for index in range(160)]}
-        native = [{"code": "enum", "path": "/properties/mode", "entityId": str(index),
-                   "details": {"rejectedValue": "invalid", "constraint": constraint}} for index in range(4)]
+        native = [
+            {
+                "code": "enum",
+                "path": "/properties/mode",
+                "entityId": str(index),
+                "details": {"rejectedValue": "invalid", "constraint": constraint},
+            }
+            for index in range(4)
+        ]
         shared = copy.deepcopy(native)
         for issue in shared:
             issue["details"]["constraint"] = {"$ref": "#/constraints/c0"}
         packet = {"issues": shared, "constraints": {"c0": copy.deepcopy(constraint)}}
-        marker = "Remaining validation issues (recheck every issue; preserve corrections):\n"
-        self.assertEqual(native, campaign.delivered_capture_issues([{"text": marker + json.dumps(packet)}]))
+        marker = (
+            "Remaining validation issues (recheck every issue; preserve corrections):\n"
+        )
+        self.assertEqual(
+            native,
+            campaign.delivered_capture_issues([{"text": marker + json.dumps(packet)}]),
+        )
         packet["constraints"]["c0"]["enum"].pop()
-        self.assertNotEqual(native, campaign.delivered_capture_issues([{"text": marker + json.dumps(packet)}]))
+        self.assertNotEqual(
+            native,
+            campaign.delivered_capture_issues([{"text": marker + json.dumps(packet)}]),
+        )
 
     def test_element_fault_scope_preserves_other_fields(self):
-        original = {"patchId": "same", "propertyPatches": [
-            {"key": "logLevel", "targetNodeId": "element", "operation": "ADD", "scalarValue": "Info", "value": {}},
-            {"key": "message", "targetNodeId": "element", "scalarValue": "retained"}]}
+        original = {
+            "patchId": "same",
+            "propertyPatches": [
+                {
+                    "key": "logLevel",
+                    "targetNodeId": "element",
+                    "operation": "ADD",
+                    "scalarValue": "Info",
+                    "value": {},
+                },
+                {
+                    "key": "message",
+                    "targetNodeId": "element",
+                    "scalarValue": "retained",
+                },
+            ],
+        }
         mutated = copy.deepcopy(original)
         mutated["propertyPatches"][0]["scalarValue"] = "invalid"
         for field in ("arrayValue", "mapEntries", "mapValue"):
             mutated["propertyPatches"][0][field] = None
         parameters = {"propertyValues": {"logLevel": "invalid"}}
-        self.assertEqual([], campaign.fault_scope_errors("element-property-values", original, mutated, parameters))
+        self.assertEqual(
+            [],
+            campaign.fault_scope_errors(
+                "element-property-values", original, mutated, parameters
+            ),
+        )
         mutated["propertyPatches"][1]["scalarValue"] = "destroyed"
-        self.assertTrue(campaign.fault_scope_errors("element-property-values", original, mutated, parameters))
+        self.assertTrue(
+            campaign.fault_scope_errors(
+                "element-property-values", original, mutated, parameters
+            )
+        )
 
 
 if __name__ == "__main__":

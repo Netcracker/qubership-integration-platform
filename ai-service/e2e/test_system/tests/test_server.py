@@ -3,9 +3,9 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
-from unittest.mock import patch
 
 from test_system.catalog import CONTRACT, Catalog
 from test_system.runs import RunStore

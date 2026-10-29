@@ -16,7 +16,11 @@ class ReportingTest(unittest.TestCase):
     def test_failure_keeps_actual_error_and_does_not_invent_root_cause(self):
         report = self.root / "tests.xml"
         report.write_text(
-            '<testsuite><testcase classname="Import" name="version"><failure type="AssertionError" message="wrong version">expected 2, got 1</failure></testcase></testsuite>'
+            (
+                '<testsuite><testcase classname="Import" name="version"><failure type="Asser'
+                'tionError" message="wrong version">expected 2, got 1</failure></testcase></'
+                "testsuite>"
+            )
         )
         result = inspect_reports(self.suite, self.root, [report], 1)
         self.assertEqual(result["status"], "FAIL")
@@ -113,7 +117,10 @@ class ReportingTest(unittest.TestCase):
     def test_partially_skipped_required_suite_is_blocked(self):
         report = self.root / "tests.xml"
         report.write_text(
-            '<testsuite><testcase name="passed"/><testcase name="not run"><skipped message="Missing evidence"/></testcase></testsuite>'
+            (
+                '<testsuite><testcase name="passed"/><testcase name="not run"><skipped messa'
+                'ge="Missing evidence"/></testcase></testsuite>'
+            )
         )
         result = inspect_reports(self.suite, self.root, [report], 0)
         self.assertEqual(result["status"], "BLOCKED")

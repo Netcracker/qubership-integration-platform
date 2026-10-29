@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import fcntl
 import glob
+import hashlib
 import json
 import os
 import shutil
@@ -14,9 +15,10 @@ import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import IO, Any, cast
 
-from .catalog import Catalog, ID, digest, inside, read_json, tree_digest
-from .reporting import failure, inspect_reports, redact
+from .catalog import ID, Catalog, digest, inside, read_json, tree_digest
+from .reporting import DIAGNOSES, failure, inspect_reports, redact
 
 TERMINAL = {"PASS", "FAIL", "ERROR", "BLOCKED", "CANCELLED"}
 
@@ -39,8 +41,6 @@ def git_identity(root: Path) -> dict:
             ["git", *args], cwd=root, capture_output=True, check=True
         )
         return result.stdout
-
-    import hashlib
 
     changes = hashlib.sha256(git("diff", "HEAD", "--", ":!.dev"))
     untracked = git("ls-files", "--others", "--exclude-standard", "-z").split(b"\0")
@@ -126,8 +126,6 @@ class RunStore:
         return self.read(run_id)
 
     def diagnose(self, run_id: str, failure_id: str, target: str, diagnosis: dict):
-        from .reporting import DIAGNOSES
-
         if (
             target not in {"failure", "recovery"}
             or diagnosis.get("status") not in DIAGNOSES
@@ -269,7 +267,9 @@ def _missing_requirements(suite: dict) -> list[str]:
         if requirement.startswith("python:"):
             name = requirement.split(":", 1)[1]
             result = subprocess.run(
-                [sys.executable, "-c", f"import {name}"], capture_output=True
+                [sys.executable, "-c", f"import {name}"],
+                capture_output=True,
+                check=False,
             )
             if result.returncode:
                 missing.append(requirement)
@@ -340,9 +340,11 @@ def _execute(catalog: Catalog, store: RunStore, run_id: str, index: int) -> dict
         start_new_session=True,
     )
 
+    output = cast(IO[str], process.stdout)
+
     def capture():
         with (directory / "output.log").open("w", encoding="utf-8") as stream:
-            for line in process.stdout:
+            for line in output:
                 stream.write(redact(line))
                 stream.flush()
 
@@ -369,7 +371,7 @@ def _execute(catalog: Catalog, store: RunStore, run_id: str, index: int) -> dict
             os.killpg(process.pid, signal.SIGTERM)
             process.wait(timeout=15)
         reader.join(timeout=5)
-        process.stdout.close()
+        output.close()
     reports = []
     for source, checksum in (
         _snapshot(report_pattern) if report_pattern else {}
@@ -385,7 +387,7 @@ def _execute(catalog: Catalog, store: RunStore, run_id: str, index: int) -> dict
             if stopped == "CANCELLED"
             else "The declared runner deadline expired."
         )
-        result = {
+        result: dict[str, Any] = {
             "status": stopped,
             "failures": (
                 []
@@ -442,6 +444,7 @@ def execute_run(store: RunStore, run_id: str):
             if current["status"] in TERMINAL:
                 return
             current["status"] = "RUNNING"
+        result: dict[str, Any]
         failure_number = 0
         for index, task in enumerate(run["tasks"]):
             current = store.read(run_id)
@@ -467,7 +470,7 @@ def execute_run(store: RunStore, run_id: str):
                             "A test manifest changed after the run was created"
                         )
                     result = _execute(catalog, store, run_id, index)
-                except Exception as exc:
+                except Exception as exc:  # pylint: disable=broad-exception-caught
                     result = {
                         "status": "ERROR",
                         "reason": str(exc),

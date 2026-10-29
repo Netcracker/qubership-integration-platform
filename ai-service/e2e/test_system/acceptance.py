@@ -5,10 +5,10 @@ from __future__ import annotations
 import argparse
 import json
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 from .catalog import digest, read_json
 from .reporting import diagnosis
@@ -73,7 +73,9 @@ def summarize(root: Path, models: tuple[str, ...], return_code: int) -> dict:
     native = root / "native"
     summary = read_json(native / "acceptance/summary.json")
     rows = summary["results"]
-    expected = {(m, "CONTROLLED_REGISTERED_COMPONENTS", None) for m in models}
+    expected: set[tuple[str, str, str | None]] = {
+        (m, "CONTROLLED_REGISTERED_COMPONENTS", None) for m in models
+    }
     expected |= {(m, "FULL_PRODUCT_PIPELINE", c) for m in models for c in CASES}
     actual = [(r["model"], r["scope"], r.get("case")) for r in rows]
     if len(actual) != len(expected) or set(actual) != expected:
@@ -233,7 +235,9 @@ def main():
         launcher, config = preparation(root)
         write_json(output / "native/preparation.json", config)
         command = [sys.executable, "-B", str(launcher), "check"]
-        checked = subprocess.run(command, cwd=root, capture_output=True, text=True)
+        checked = subprocess.run(
+            command, cwd=root, capture_output=True, text=True, check=False
+        )
         print(checked.stdout, end="", flush=True)
         print(checked.stderr, end="", file=sys.stderr, flush=True)
         ready = [

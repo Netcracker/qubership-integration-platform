@@ -4,8 +4,8 @@
 from __future__ import annotations
 
 import argparse
-import os
 import json
+import os
 import re
 from collections import defaultdict
 from pathlib import Path
@@ -80,7 +80,11 @@ def render_coverage(supported: set[str], coverage: dict[str, list[str]]) -> str:
 def main(argv: list[str] | None = None) -> int:
     script_dir = Path(__file__).resolve().parent
     repo_root = script_dir.parents[2]
-    testing_root = Path(os.environ.get("QIP_SKILLS_TESTING_ROOT", str(repo_root / ".private/rocky-skills/testing")))
+    testing_root = Path(
+        os.environ.get(
+            "QIP_SKILLS_TESTING_ROOT", str(repo_root / ".private/rocky-skills/testing")
+        )
+    )
     parser = argparse.ArgumentParser(
         description="Check that every supported element has a declared live test scenario."
     )
