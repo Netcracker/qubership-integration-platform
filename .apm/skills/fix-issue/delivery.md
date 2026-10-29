@@ -18,10 +18,11 @@ git -C "$WT" ls-remote origin fix/<N>-<slug>   # compare with git -C "$WT" rev-p
 
 A push during a network fault returned success and moved nothing; the `ls-remote` is the check.
 
-Before every push after the first, and at gate 6, confirm the pull request is still open and
-read its `mergeable_state`. A maintainer can merge it mid-run, and a push then recreates the
-deleted branch, after which an edit changes the merged pull request. On `dirty`, merge
-`origin/main`, re-run the criteria the merge can reach, and push:
+Before every push after the first, confirm the pull request is still open and read its
+`mergeable_state`; at gate 6, `scripts/wait-checks.sh` reads it and fails on `dirty`. A maintainer
+can merge the pull request mid-run, and a push then recreates the deleted branch, after which an
+edit changes the merged pull request. On `dirty`, merge `origin/main`, re-run the criteria the
+merge can reach, and push:
 
 ```bash
 gh pr view <PR> -R Netcracker/qubership-integration-platform --json state --jq .state   # OPEN
@@ -30,8 +31,7 @@ git -C "$WT" fetch origin main && git -C "$WT" merge origin/main
 ```
 
 `unknown` means GitHub has not computed it yet; ask again a few seconds later. `behind` does not
-block the merge, because the `main` ruleset requires no up-to-date branch, so merging `main` then
-only re-runs CI.
+block the merge, because the `main` ruleset requires no up-to-date branch.
 
 ## Attach images
 
