@@ -50,23 +50,7 @@ from the product cases, a failed setup project reads there as an infrastructure 
 failed case of any group still fails the run. A change to `support/`, `registry/`, or `env/` changes its `harness` cases in the same
 commit.
 
-**Run the smallest selection that shows the change.** While you iterate, run the changed spec
-against a kept corpus, red first and then green, and run `schema` and `harness` beside it. Each
-takes seconds:
-
-```bash
-E2E_SWEEP=never npm test -- --project=<project> --no-deps specs/<dir>/<file>.spec.ts
-npm test -- --project=schema --project=harness
-```
-
-Before you push a broad change, run the whole suite on Compose with `npm test`, about 13 minutes on
-the classic engine alone. Dispatch `.github/workflows/e2e-k8s.yaml`, about 37 minutes on both
-engines on Kubernetes, in three cases only: the change touches the micro engine, a project only
-`k8s` declares, or Kubernetes provisioning (`env/provision/k8s.ts`, or `env/provision.ts` and
-`env/provision/common.ts`, which both targets share); the work reaches a checkpoint, before a merge
-or at the end of a large step; or a failure looks flaky and needs a second run on the reference
-environment. Queue no second dispatch while one runs. The workflow's `concurrency` group sets no
-`cancel-in-progress`, so a third dispatch cancels the second while it waits in the queue.
+How to run a changed case before you commit it is rule 23.
 
 ## Coverage registries
 
@@ -417,6 +401,42 @@ right now, so a controller added to a service fails a run.
     stage: the report shows which stage failed, and the case pays for its setup once. Cases that
     observe different outcomes of one feature, such as the four idempotency modes, stay separate
     cases, so a red result names the mode that broke.
+23. **Run a new or changed case, and see it pass, before you commit it.** No pull request check
+    runs the suite, so a case nobody ran fails first in the nightly run on `main`, and every project
+    that depends on its project skips with it. Either target serves the run: Compose by default, or
+    a cluster with `CIP_TARGET=k8s`. Only one target runs at a time, so use the one that is free.
+    The pull request description names the target and the command the case passed under. A case
+    you could not run stays out of the commit, or the description says that it has not run.
+
+    With no corpus kept, select the case by its title. The dependency projects then run in full:
+    the seed, its teardown, and for a `specs/ui/` case `ui-server`.
+
+    ```bash
+    npm test -- --project=<project> -g "<title>"
+    ```
+
+    While you iterate, keep the corpus once, then run the changed spec against it with `schema` and
+    `harness` beside it. Each run takes seconds. A regression case runs red on the code without the
+    fix first, then green with it. `--no-deps` starts no `ui-server`, so a `specs/ui/` case also
+    needs the preview that `browser.md` starts.
+
+    ```bash
+    E2E_KEEP=1 npm test -- --project=seed
+    E2E_SWEEP=never npm test -- --project=<project> --no-deps specs/<dir>/<file>.spec.ts
+    npm test -- --project=schema --project=harness
+    ```
+
+    When you are done, `npm test -- --project=seed-teardown` removes the kept corpus.
+
+    Before you push a broad change, run the whole suite with `npm test`, about 13 minutes on either
+    target. Dispatch `.github/workflows/e2e-k8s.yaml`, about 37 minutes on both engines on
+    Kubernetes, in three cases only: the change touches the micro engine, a project only `k8s`
+    declares, or Kubernetes provisioning (`env/provision/k8s.ts`, or `env/provision.ts` and
+    `env/provision/common.ts`, which both targets share); the work reaches a checkpoint, before a
+    merge or at the end of a large step; or a failure looks flaky and needs a second run on the
+    reference environment. Queue no second dispatch while one runs. The workflow's `concurrency`
+    group sets no `cancel-in-progress`, so a third dispatch cancels the second while it waits in
+    the queue.
 
 ## Assertions that catch a reported success
 

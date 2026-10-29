@@ -463,7 +463,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:7f844f29f716e33add5e4c417665d691dfab8e9df3af127f2479bfa8d8718740
+  content_hash: sha256:09bea185fc772b44876679a534633be4b749428d8965eebd1a4a17881c254613
 - kind: project-relative
   target: claude
   value: .claude/skills/e2e-spec-authoring/browser.md
@@ -472,7 +472,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:0711d463919f082eba2b5f16d1d5ef4f68e653086fd06edc3de4b254a2c9b86f
+  content_hash: sha256:2fb3799e4bc1acc7fdb047fadf6455a0445db7a7c9f088900a03f2bc0a5637b2
 - kind: project-relative
   target: claude
   value: .claude/skills/endpoint-mocking
@@ -1210,7 +1210,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:7f844f29f716e33add5e4c417665d691dfab8e9df3af127f2479bfa8d8718740
+  content_hash: sha256:09bea185fc772b44876679a534633be4b749428d8965eebd1a4a17881c254613
 - kind: project-relative
   target: legacy
   value: .agents/skills/e2e-spec-authoring/browser.md
@@ -1219,7 +1219,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:0711d463919f082eba2b5f16d1d5ef4f68e653086fd06edc3de4b254a2c9b86f
+  content_hash: sha256:2fb3799e4bc1acc7fdb047fadf6455a0445db7a7c9f088900a03f2bc0a5637b2
 - kind: project-relative
   target: legacy
   value: .agents/skills/endpoint-mocking
@@ -1671,8 +1671,8 @@ local_deployed_files:
 local_deployed_file_hashes:
   .agents/skills/ci-fix/SKILL.md: sha256:02914caedcfbb0bf49fe6868a293850c856d1db2c2c248242a89fb00aad8a7bb
   .agents/skills/docs-authoring/SKILL.md: sha256:8623ceb1e549764d9593b8fadc194f9279c7cb108d328d0d3af36ed5dabe7d57
-  .agents/skills/e2e-spec-authoring/SKILL.md: sha256:7f844f29f716e33add5e4c417665d691dfab8e9df3af127f2479bfa8d8718740
-  .agents/skills/e2e-spec-authoring/browser.md: sha256:0711d463919f082eba2b5f16d1d5ef4f68e653086fd06edc3de4b254a2c9b86f
+  .agents/skills/e2e-spec-authoring/SKILL.md: sha256:09bea185fc772b44876679a534633be4b749428d8965eebd1a4a17881c254613
+  .agents/skills/e2e-spec-authoring/browser.md: sha256:2fb3799e4bc1acc7fdb047fadf6455a0445db7a7c9f088900a03f2bc0a5637b2
   .agents/skills/endpoint-mocking/SKILL.md: sha256:f35bec5f95431cce4e06087bedd6e70d0d7d102014c02137c9692993478aef4a
   .agents/skills/endpoint-mocking/micro-engine.md: sha256:47fe1f42d97aaeb77ee435c10f4fd39c93a638c5c84cff4d37bde8afe0abaef0
   .agents/skills/fix-issue/SKILL.md: sha256:974cd17e1f5440d66c0fdd0f1ab2befa43b11c08387a4e82b09f35d4af53de02
@@ -1720,8 +1720,8 @@ local_deployed_file_hashes:
   .claude/rules/vscode-extension.md: sha256:2193bd4fd746aa9b907426a051f31946c87fbcaa1d78f6801fd62197b4edfd3e
   .claude/skills/ci-fix/SKILL.md: sha256:02914caedcfbb0bf49fe6868a293850c856d1db2c2c248242a89fb00aad8a7bb
   .claude/skills/docs-authoring/SKILL.md: sha256:8623ceb1e549764d9593b8fadc194f9279c7cb108d328d0d3af36ed5dabe7d57
-  .claude/skills/e2e-spec-authoring/SKILL.md: sha256:7f844f29f716e33add5e4c417665d691dfab8e9df3af127f2479bfa8d8718740
-  .claude/skills/e2e-spec-authoring/browser.md: sha256:0711d463919f082eba2b5f16d1d5ef4f68e653086fd06edc3de4b254a2c9b86f
+  .claude/skills/e2e-spec-authoring/SKILL.md: sha256:09bea185fc772b44876679a534633be4b749428d8965eebd1a4a17881c254613
+  .claude/skills/e2e-spec-authoring/browser.md: sha256:2fb3799e4bc1acc7fdb047fadf6455a0445db7a7c9f088900a03f2bc0a5637b2
   .claude/skills/endpoint-mocking/SKILL.md: sha256:f35bec5f95431cce4e06087bedd6e70d0d7d102014c02137c9692993478aef4a
   .claude/skills/endpoint-mocking/micro-engine.md: sha256:47fe1f42d97aaeb77ee435c10f4fd39c93a638c5c84cff4d37bde8afe0abaef0
   .claude/skills/fix-issue/SKILL.md: sha256:974cd17e1f5440d66c0fdd0f1ab2befa43b11c08387a4e82b09f35d4af53de02

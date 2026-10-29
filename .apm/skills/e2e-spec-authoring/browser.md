@@ -16,6 +16,18 @@ the first case that meets it. A guard failure clears `test.fail()`, so a pinned 
 on a problem that is not its defect. A page object under `pages/` holds locators and the few
 interactions worth naming, and no assertion.
 
+**Running one case.** Rule 23 of the skill applies here too, with one more step. `--no-deps` starts
+no `ui-server`, so once a run has built the bundle, start the preview at the repository root and
+then run the case:
+
+```bash
+npm run preview -w @netcracker/qip-ui -- --port 4200 --strictPort   # at the repository root
+E2E_SWEEP=never npm test -- --project=ui --no-deps -g "<title>"
+```
+
+The preview serves `ui/dist` as it was built. After a change under `ui/src`, stop the preview and
+run the case once without `--no-deps`: `ui-server` sees the stale bundle and rebuilds it.
+
 **Selectors**, in this order:
 
 1. A role and an accessible name: `getByRole("dialog", { name: "Create service" })`. A list is
