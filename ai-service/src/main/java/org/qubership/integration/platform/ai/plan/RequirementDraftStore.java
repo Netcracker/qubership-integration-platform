@@ -1288,7 +1288,24 @@ public class RequirementDraftStore {
     if (conversations == null) {
       throw new IllegalStateException("Conversation source storage is unavailable.");
     }
-    return conversations.archive().readSource(conversationId, turnId, offset, maxChars);
+    try {
+      return conversations.archive().readSource(conversationId, turnId, offset, maxChars);
+    } catch (IllegalArgumentException failure) {
+      if (!"Source turn is not in this conversation.".equals(failure.getMessage())
+          || offset < 0 || maxChars < 1 || maxChars > 16000) {
+        throw failure;
+      }
+      var source = sourceInputs.get(conversationId);
+      if (source == null || !currentSource(conversationId)) throw failure;
+      var inputs = AuthorSourceEvidence.packet(source).inputs();
+      var ids = inputs.stream().skip(Math.max(0, inputs.size() - 20))
+          .map(AuthorSourceEvidence.Input::sourceTurnId).toList();
+      if (ids.isEmpty()) throw failure;
+      throw new IllegalArgumentException(failure.getMessage()
+          + " Available source turn IDs in the current capture context: " + ids
+          + ". Copy an exact ID, read it with readRequirementSource, then retry captureRequirementDraft"
+          + " with that sourceTurnId and its exact quote.", failure);
+    }
   }
 
   public Optional<String> currentAuthorText(String conversationId) {
