@@ -223,8 +223,193 @@ class ProductPipelineStageExecutorTest {
   }
 
   @ParameterizedTest
-  @ValueSource(ints = {0, 1, 2})
-  void nativeCaptureDenialParksWithoutSpendingAnyRemainingStrategy(int cleanLimit) {
+  @ValueSource(strings = {"Invalid property.", "Missing required field."})
+  void repeatedCaptureCanRegenerateCleanly(String finding) {
+    var fixture = nativeCaptureFixture(finding, true, repeatClass(), 1, 12);
+    var first = execute(fixture.runtime(), "design-execution");
+    assertInstanceOf(StageDecision.Retry.class, first.decision());
+    applyLifecycle(fixture.runtime(), first);
+    var complete = assertInstanceOf(StageDecision.Complete.class,
+        execute(fixture.runtime(), "design-execution").decision());
+    assertEquals(RunStatus.PLAN_APPROVED, complete.status());
+    assertEquals(List.of(false, true), fixture.clean());
+    assertEquals(1, cleanAttempts());
+  }
+
+  @Test
+  void repeatedCaptureWithoutAnOutputCanRegenerateCleanly() {
+    var fixture = nativeCaptureFixture("Invalid property.", true, repeatClass(), 1, 12, false);
+    var first = execute(fixture.runtime(), "design-execution");
+    assertInstanceOf(StageDecision.Retry.class, first.decision());
+    applyLifecycle(fixture.runtime(), first);
+    var complete = assertInstanceOf(StageDecision.Complete.class,
+        execute(fixture.runtime(), "design-execution").decision());
+    assertEquals(RunStatus.PLAN_APPROVED, complete.status());
+    assertEquals(List.of(false, true), fixture.clean());
+    assertEquals(1, cleanAttempts());
+  }
+
+  @Test
+  void repeatedDiscoveryCaptureWithoutCandidateRegeneratesFromSavedInput() {
+    var input = new ArtifactTypeRef("user-input", 1);
+    var profile = new ProductPipelineProfile(1, "discovery-repeat", "1", List.of(input), List.of(
+        new ProfileStage("preparation", "preparation-cap", List.of(input), List.of(), null, null, new RetryPolicy(0, 0L)),
+        new ProfileStage("requirement-discovery", "discovery-cap", List.of(input),
+            List.of(new ArtifactTypeRef("requirement-draft", 1)), null, null,
+            new RetryPolicy(0, 0L))), new TerminalPolicy("requirement-discovery", "PLAN_APPROVED"),
+        List.of("preparation-cap", "discovery-cap"));
+    var preparation = capability("preparation-cap", context -> Multi.createFrom().item(
+        new CapabilitySignal.Completed(context.attributeAsString("userText") == null
+            ? StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "Provide requirements.")
+            : StageOutcome.of(StageOutcomeClass.SUCCEEDED, "Prepared."))));
+    var clean = new ArrayList<Boolean>();
+    var discovery = capability("discovery-cap", context -> {
+      boolean cleanTurn = !context.attributeAsString(ProductPipelineRunSupport.PRODUCER_CLEAN_REBUILD_EVIDENCE_REF_ATTR).isBlank();
+      clean.add(cleanTurn);
+      assertTrue(artifactStore.latest(RUN_ID, Kind.USER_INPUT).isPresent());
+      if (cleanTurn) return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(
+          StageOutcomeClass.SUCCEEDED,
+          List.of(new ArtifactCandidate(Kind.REQUIREMENT_DRAFT, new RequirementDraft(true, "draft"), List.of())),
+          "Captured requirements.", null, null)));
+      var fingerprints = new org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore(mapper);
+      var store = new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore(fingerprints);
+      var gateway = new org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway(fingerprints, store);
+      var channel = org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFeedbackChannel.PLAN;
+      var kind = org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind.VALIDATION;
+      var classification = org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass.CORRECTABLE;
+      gateway.onFailure(channel, CONVERSATION, "discovery-cap", kind, classification, "captureRequirements", null, "Missing field.");
+      assertThrows(org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException.class,
+          () -> gateway.onFailure(channel, CONVERSATION, "discovery-cap", kind, classification,
+              "captureRequirements", null, "Missing field."));
+      return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
+          "Missing field.", RecoveryCause.captureFailure(store.lastPlanFailure(CONVERSATION).orElseThrow(),
+              List.of(new PlanValidationFinding("CONTRACT_SHAPE", "Missing field.", true)), null))));
+    });
+    var agent = FakeFailureNarrativeAgent.narrates("Missing field.")
+        .recoverRegenerates(Kind.REQUIREMENT_DRAFT, "Regenerate the requirements.");
+    var runtime = newRuntime(new FailureNarrative(agent), profile, preparation, discovery);
+    runtime.startOrResume(new StartOrResumeCommand(CONVERSATION, RUN_ID, profile, manifest(profile)))
+        .collect().asList().await().indefinitely();
+    runtime.recordInput(new AcceptInputCommand(RUN_ID, "provided input", "source-1", "source-hash", InputOrigin.TRUSTED))
+        .collect().asList().await().indefinitely();
+    applyLifecycle(runtime, execute(runtime, "preparation"));
+    var first = execute(runtime, "requirement-discovery");
+    assertInstanceOf(StageDecision.Retry.class, first.decision(), () -> first.decision().toString());
+    assertTrue(agent.lastRecoveryContextJson.get().contains("provided input"));
+    applyLifecycle(runtime, first);
+    assertInstanceOf(StageDecision.Complete.class, execute(runtime, "requirement-discovery").decision());
+    assertEquals(List.of(false, true), clean);
+    assertEquals(1, cleanAttempts());
+  }
+
+  @Test
+  void failedCleanRegenerationConsumesTheNativeAllowance() {
+    var fixture = nativeCaptureFixture("Invalid property.", false, repeatClass(), 1, 12);
+    var first = execute(fixture.runtime(), "design-execution");
+    assertInstanceOf(StageDecision.Retry.class, first.decision());
+    applyLifecycle(fixture.runtime(), first);
+    var wait = assertInstanceOf(StageDecision.WaitForInput.class,
+        execute(fixture.runtime(), "design-execution").decision());
+    assertEquals(PipelineGates.RECOVERY_REPEATED, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertEquals(List.of(false, true), fixture.clean());
+    assertEquals(1, cleanAttempts());
+  }
+
+  @ParameterizedTest
+  @org.junit.jupiter.params.provider.EnumSource(value = org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass.class,
+      names = {"PERMANENT", "TOOL_ARGUMENTS", "ACCEPTED", "DUPLICATE"})
+  void closedCaptureClassificationsDoNotRegenerate(
+      org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass classification) {
+    var fixture = nativeCaptureFixture("Invalid property.", true, classification, 1, 12);
+    assertInstanceOf(StageDecision.WaitForInput.class, execute(fixture.runtime(), "design-execution").decision());
+    assertEquals(List.of(false), fixture.clean());
+    assertEquals(0, cleanAttempts());
+  }
+
+  @ParameterizedTest
+  @org.junit.jupiter.params.provider.CsvSource({"0, 12", "1, 0"})
+  void exhaustedRecoveryBudgetDoesNotRegenerate(int cleanLimit, int runCeiling) {
+    var fixture = nativeCaptureFixture("Invalid property.", true, repeatClass(), cleanLimit, runCeiling);
+    assertInstanceOf(StageDecision.WaitForInput.class, execute(fixture.runtime(), "design-execution").decision());
+    assertEquals(List.of(false), fixture.clean());
+    assertEquals(0, cleanAttempts());
+  }
+
+  private record NativeCaptureFixture(CreateChainTestOrchestrator runtime, List<Boolean> clean) { }
+
+  private static org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass repeatClass() {
+    return org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass.IDENTICAL_SPAM;
+  }
+
+  private long cleanAttempts() {
+    return requireRun().transitions().stream().filter(t -> t.reason() != null
+        && t.reason().startsWith(RecoveryAttemptLedger.CLEAN_REBUILD_REASON_PREFIX)).count();
+  }
+
+  private NativeCaptureFixture nativeCaptureFixture(String finding, boolean succeeds,
+      org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass classification,
+      int cleanLimit, int runCeiling) {
+    return nativeCaptureFixture(finding, succeeds, classification, cleanLimit, runCeiling, true);
+  }
+
+  private NativeCaptureFixture nativeCaptureFixture(String finding, boolean succeeds,
+      org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass classification,
+      int cleanLimit, int runCeiling, boolean output) {
+    var original = analysisThenPlanningThenExecutionProfile();
+    var stages = original.stages().stream().map(stage -> "design-execution".equals(stage.stageId())
+        ? new ProfileStage(stage.stageId(), stage.capabilityId(), stage.consumes(),
+            List.of(new ArtifactTypeRef("chain-plan-graph", 1)), null, null, stage.retry()) : stage).toList();
+    var profile = new ProductPipelineProfile(1, original.profileId(), "1", original.runInputs(), stages,
+        original.terminal(), original.dependencyRoots());
+    var clean = new ArrayList<Boolean>();
+    var graph = new ChainPlanGraph("1.0", new ChainSection("c1", "Graph"),
+        List.of(failingServiceCallNode()), List.of());
+    var execution = capability("execution-cap", context -> {
+      boolean cleanTurn = StageRepairEvidence.isCleanExecutionRebuild(context, StageRepairEvidence.from(context));
+      clean.add(cleanTurn);
+      if (cleanTurn && succeeds) {
+        return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(
+            StageOutcomeClass.SUCCEEDED, List.of(new ArtifactCandidate(Kind.CHAIN_PLAN_GRAPH, graph, List.of())),
+            "Generated graph.", null, null)));
+      }
+      var fingerprints = new org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore(mapper);
+      var feedbackStore = new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore(fingerprints);
+      var gateway = new org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway(
+          fingerprints, feedbackStore);
+      var channel = org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFeedbackChannel.PLAN;
+      var kind = org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind.VALIDATION;
+      var failure = org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass.CORRECTABLE;
+      gateway.onFailure(channel, CONVERSATION, "execution-cap", kind, failure, "captureGraphPatch", null, finding);
+      assertThrows(org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException.class,
+          () -> gateway.onFailure(channel, CONVERSATION, "execution-cap", kind, failure, "captureGraphPatch", null, finding));
+      var feedback = feedbackStore.lastPlanFailure(CONVERSATION).orElseThrow();
+      if (classification != org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass.IDENTICAL_SPAM) {
+        feedback = new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedback(
+            kind, finding, classification, false, List.of());
+      }
+      return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(
+          StageOutcomeClass.CONTRACT_FAILURE, output ? List.of(new ArtifactCandidate(Kind.CHAIN_PLAN_GRAPH, graph, List.of())) : List.of(),
+          finding, null, RecoveryCause.captureFailure(feedback,
+              List.of(new PlanValidationFinding("CONTRACT_SHAPE", finding, true,
+                  MappingValidationDetails.empty(), "call-1", "/properties")), null))));
+    });
+    var agent = FakeFailureNarrativeAgent.narrates(finding).recoverRegenerates(Kind.CHAIN_PLAN_GRAPH, finding);
+    var runtime = new CreateChainTestOrchestrator(CreateChainTestOrchestrator.supportBuilder(runStore, artifactStore,
+        new StageCapabilityRegistry(List.of(analysisCandidate(), planningAlwaysCandidate(), execution)),
+        Clock.fixed(FIXED, ZoneOffset.UTC)).failureNarrative(new FailureNarrative(agent))
+        .recoveryLedger(new RecoveryAttemptLedger(new RecoveryAttemptLedger.Limits(1, 2, runCeiling, cleanLimit)))
+        .build(), runStore);
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+    approveStage(runtime, "design-planning");
+    return new NativeCaptureFixture(runtime, clean);
+  }
+
+  @ParameterizedTest
+  @org.junit.jupiter.params.provider.EnumSource(value = org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass.class,
+      names = {"IDENTICAL_SPAM", "PERMANENT", "TOOL_ARGUMENTS", "ACCEPTED", "DUPLICATE"})
+  void nativeCaptureDenialWithoutValidDiagnosisParks(
+      org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass failureClass) {
     var clean = new ArrayList<Boolean>();
     var pinnedInputs = new AtomicReference<List<Reference>>();
     var execution = capability("execution-cap", context -> {
@@ -240,8 +425,7 @@ class ProductPipelineStageExecutorTest {
       }
       var feedback = new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedback(
           org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind.VALIDATION, "Invalid property.",
-          org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass.IDENTICAL_SPAM,
-          false, List.of(), "", true);
+          failureClass, false, List.of(), "", true);
       return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
           "Invalid property.", RecoveryCause.captureFailure(feedback,
               List.of(new PlanValidationFinding("CONTRACT_SHAPE", "Invalid property.", true,
@@ -249,7 +433,7 @@ class ProductPipelineStageExecutorTest {
     });
     var profile = analysisThenPlanningThenExecutionProfile();
     var runtime = newRuntime(2,
-        new RecoveryAttemptLedger(new RecoveryAttemptLedger.Limits(2, 2, 12, cleanLimit)),
+        new RecoveryAttemptLedger(new RecoveryAttemptLedger.Limits(2, 2, 12, 1)),
         profile, analysisCandidate(), planningAlwaysCandidate(), execution);
     startAndRecordInput(runtime, profile);
     approveStage(runtime, "requirement-analysis");
@@ -289,12 +473,23 @@ class ProductPipelineStageExecutorTest {
     var clean = new ArrayList<Boolean>();
     var graph = new ChainPlanGraph("1.0", new ChainSection("c1", "Rejected graph"),
         List.of(failingServiceCallNode()), List.of());
+    var fingerprints = new org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore(mapper);
+    var feedbackStore = new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore(fingerprints);
+    var gateway = new org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway(fingerprints, feedbackStore);
     var execution = capability("execution-cap", context -> {
       clean.add(StageRepairEvidence.isCleanExecutionRebuild(context, StageRepairEvidence.from(context)));
-      var nativeFeedback = new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedback(
-          org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind.VALIDATION, "Invalid property.",
-          org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass.CORRECTABLE,
-          true, List.of(), "", false);
+      var channel = org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFeedbackChannel.PLAN;
+      var kind = org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind.VALIDATION;
+      var classification = org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass.CORRECTABLE;
+      if (clean.size() == 1) {
+        gateway.onFailure(channel, CONVERSATION, "execution-cap", kind, classification,
+            "captureGraphPatch", null, "Invalid property.");
+      } else {
+        assertThrows(org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException.class,
+            () -> gateway.onFailure(channel, CONVERSATION, "execution-cap", kind, classification,
+                "captureGraphPatch", null, "Invalid property."));
+      }
+      var nativeFeedback = feedbackStore.lastPlanFailure(CONVERSATION).orElseThrow();
       return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(
           StageOutcomeClass.CONTRACT_FAILURE,
           List.of(new ArtifactCandidate(Kind.CHAIN_PLAN_GRAPH, graph, List.of())), "Invalid property.", null,
@@ -317,7 +512,8 @@ class ProductPipelineStageExecutorTest {
     assertEquals(List.of(false, false), clean);
     var evidence = artifactStore.payload(artifactStore.latest(RUN_ID, Kind.RECOVERY_EVIDENCE).orElseThrow(),
         RecoveryEvidence.class);
-    assertTrue(evidence.captureFailure().feedback().outerAllowed());
+    assertEquals(repeatClass(), evidence.captureFailure().feedback().failureClass());
+    assertFalse(evidence.captureFailure().feedback().outerAllowed());
     assertEquals(1, requireRun().transitions().stream().filter(t -> t.reason() != null
         && t.reason().startsWith(ProductPipelineStageExecutor.PRODUCER_REPAIR_REASON_PREFIX)).count());
     assertEquals(0, requireRun().transitions().stream().filter(t -> t.reason() != null

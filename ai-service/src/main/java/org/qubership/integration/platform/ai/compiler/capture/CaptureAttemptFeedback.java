@@ -10,10 +10,10 @@ import org.qubership.integration.platform.ai.productpipeline.recovery.Requiremen
  * repair (ADR 0005).
  *
  * <p>{@link #kind()} remains the wording channel for {@link CaptureRepairMessageBuilder}. {@link
- * #failureClass()} and {@link #outerAllowed()} own outer budgets: PERMANENT, TOOL_ARGUMENTS, and
- * IDENTICAL_SPAM → no outer; CORRECTABLE → outer ≤ 1. A repeated rejection gets no outer turn
- * because the generator has already failed to answer that same complaint twice. {@link
- * #fieldHints()} carry actionable nested→top copy guidance when present.
+ * #failureClass()} and {@link #outerAllowed()} gate targeted correction. A repeated rejection
+ * forbids another targeted correction but may use an available producer-owned clean regeneration.
+ * PERMANENT and TOOL_ARGUMENTS forbid automatic capture recovery; CORRECTABLE permits at most one outer attempt.
+ * {@link #fieldHints()} carry actionable nested→top copy guidance when present.
  */
 public record CaptureAttemptFeedback(
     CaptureFailureKind kind,

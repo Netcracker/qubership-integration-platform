@@ -122,7 +122,14 @@ public final class ProducerOwnedRecovery {
   public static boolean permitsCurrentOutputRepair(
       StageOutcomeClass outcome, RecoveryCause cause, boolean invocationProved,
       boolean pinnedInputsAvailable, boolean unresolvedAuthorChoice, boolean catalogWritten) {
-    if (!permitsNativeCaptureRepair(cause) || !invocationProved || !pinnedInputsAvailable || unresolvedAuthorChoice || catalogWritten
+    return permitsNativeCaptureRepair(cause) && permitsCurrentOutputRecovery(
+        outcome, cause, invocationProved, pinnedInputsAvailable, unresolvedAuthorChoice, catalogWritten);
+  }
+
+  public static boolean permitsCurrentOutputRecovery(
+      StageOutcomeClass outcome, RecoveryCause cause, boolean invocationProved,
+      boolean pinnedInputsAvailable, boolean unresolvedAuthorChoice, boolean catalogWritten) {
+    if (!invocationProved || !pinnedInputsAvailable || unresolvedAuthorChoice || catalogWritten
         || outcome != StageOutcomeClass.CONTRACT_FAILURE && outcome != StageOutcomeClass.VALIDATION_FAILURE) {
       return false;
     }
