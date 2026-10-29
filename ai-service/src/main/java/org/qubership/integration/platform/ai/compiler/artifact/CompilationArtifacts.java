@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.compiler.artifact;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -313,7 +314,8 @@ public class CompilationArtifacts {
   }
 
   private static ObjectMapper canonicalMapper(ObjectMapper source) {
-    return source.copy().enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
+    return source.copy().enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
+        .enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS);
   }
 
   private static String sha256(byte[] content) {

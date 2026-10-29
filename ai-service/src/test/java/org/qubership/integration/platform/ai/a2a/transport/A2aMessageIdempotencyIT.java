@@ -12,6 +12,8 @@ import static org.mockito.Mockito.when;
 
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.junit.TestProfile;
+import org.qubership.integration.platform.ai.compiler.artifact.TestArtifactBlobStoreProducer;
 import io.restassured.http.ContentType;
 import io.smallrye.mutiny.Multi;
 import jakarta.inject.Inject;
@@ -36,6 +38,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.facade.Start
 
 /** Slice 5: (taskId, messageId) idempotency and fingerprint conflict over REST. */
 @QuarkusTest
+@TestProfile(TestArtifactBlobStoreProducer.Profile.class)
 class A2aMessageIdempotencyIT {
 
   @InjectMock CreateChainApplicationFacade facade;
