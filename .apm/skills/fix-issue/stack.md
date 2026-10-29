@@ -8,13 +8,16 @@ Companion to `SKILL.md`, gate 2. What to start, what each symptom means, and wha
 docker ps --format '{{.Names}}\t{{.Status}}'                              # up already: leave it as it is
 docker compose -f "$REPO/infrastructure/docker/docker-compose.yml" up -d   # only when it is down
 curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8091/actuator/health   # 200
-curl -s -o /dev/null -w '%{http_code}\n' http://localhost:4200/                  # 200: Vite runs, reuse it
+curl -s -o /dev/null -w '%{http_code}\n' http://localhost:4200/                  # 200: a UI server runs
 ```
 
 - Start the stack from the main checkout, `$REPO`, not from `$WT`: the worktree is removed when
   the run ends, and the stack outlives it.
-- A UI run needs Vite on 4200. When it answers, reuse it and leave it running. Otherwise start
-  `npm -w @netcracker/qip-ui run dev` from `$WT` as a background command, with its output in
+- A UI run needs a UI server on 4200 that serves `$WT`. When one answers, check which checkout it
+  runs from, `readlink /proc/$(lsof -ti :4200 | head -1)/cwd`, and reuse it only when that is
+  `$WT/ui`; leave it running. A server from another checkout shows that checkout's UI, and it may
+  belong to another session, so do not stop it: ask under rule 7 whether to. When nothing answers,
+  start `npm -w @netcracker/qip-ui run dev` from `$WT` as a background command, with its output in
   `$TMP/vite.log`, and stop it at the end. Before Vite starts, `npm run dev` copies
   `help/docs` into the UI (`ui/.documentation-config.json` has `"source": "local"`). `vite` is
   hoisted to the repo-root `node_modules/.bin`.

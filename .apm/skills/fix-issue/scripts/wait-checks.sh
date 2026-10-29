@@ -55,8 +55,18 @@ if [ "$(jq '.failed | length' <<< "$S")" -gt 0 ]; then
     exit 1
 fi
 # `behind` does not block a merge here (the ruleset has no up-to-date rule); `dirty` does.
-MERGEABLE=$(gh api "repos/$REPO/pulls/$PR" --jq .mergeable_state || echo unknown)
+# GitHub computes the state lazily and answers `unknown` meanwhile; a failed call counts the same.
+MERGEABLE=unknown
+for _ in $(seq 1 "${MERGEABLE_TRIES:-10}"); do
+    MERGEABLE=$(gh api "repos/$REPO/pulls/$PR" --jq .mergeable_state) || MERGEABLE=unknown
+    [ "$MERGEABLE" != unknown ] && break
+    sleep "${MERGEABLE_INTERVAL:-6}"
+done
 echo "mergeable_state $MERGEABLE"
+if [ "$MERGEABLE" = unknown ]; then
+    echo "UNKNOWN: GitHub did not report whether the branch merges; run the script again"
+    exit 1
+fi
 if [ "$MERGEABLE" = dirty ]; then
     echo "CONFLICT: merge origin/main, re-verify, and push"
     exit 1
