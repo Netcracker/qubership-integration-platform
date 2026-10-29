@@ -31,9 +31,8 @@ class LongStringSerializerTest {
     @Mock
     LongString value;
 
-    @BeforeEach()
+    @BeforeEach
     void setUp() {
-        value = mock(LongString.class);
         serializer = new LongStringSerializer(LongString.class);
     }
 
