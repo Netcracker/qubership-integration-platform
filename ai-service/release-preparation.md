@@ -5,9 +5,9 @@ The starting revision is `c211950ab`. Each change requires scoped checks, an ind
 Subagents own separate files; the coordinating chat owns commits and the shared runtime.
 
 The checkpoint at the end of this file is the current release state; earlier checkpoints remain historical.
-The approved documentation, recovery, and source-ID hint changes are implemented and reviewed. The single explicitly
-authorized Greetings run passed native materialization and catalog checks. Local scoped acceptance passed; the deferred
-restart integration test remains required before push, and several live acceptance gates remain unrun.
+The approved recovery strategy correction is committed as `70107fee5` and passed independent implementation review.
+Module verification passed with 6,699 tests, zero failures, and 11 skips. A new Greetings run passed native checks.
+Local scoped acceptance passed; the deferred restart test remains required before push, and other live gates remain unrun.
 
 ## Delivery contract
 
@@ -138,7 +138,7 @@ variant is not repeated; do not report an unqualified documentation pass. The te
 reverted and is not evidence of a tenant-lookup fix.
 
 
-## Current checkpoint — local scoped acceptance passed
+## Previous checkpoint — source-ID hint acceptance
 
 The source-ID hint change is implemented on application source revision `28b46590c0fc5a513d8973de68192c81d125e5a2`. The
 workspace HEAD is `c4983492cc1c9ee256bb95c5ba4b012c32ca3c48`; it contains report metadata, while the tested application
@@ -189,12 +189,65 @@ pre-merge source, generated knowledge, files over 64 MiB, and binary files. This
 secret is absent. The 139-file testing archive remains unchanged. Evidence for this run is under
 `.dev/release-preparation-20261028/source-hint-greetings-repeat/`; the post-run scan is under
 `.dev/release-preparation-20261028/source-id-feedback/post-greetings-secret-evidence-scan.json`.
-## Evidence
+## Previous evidence checkpoint
 
-The latest exact OpenAI-key scan examined 5,043 UTF-8 evidence and helper files and found zero matches; the value was
+The earlier exact OpenAI-key scan examined 5,043 UTF-8 evidence and helper files and found zero matches; the value was
 not printed. Evidence is `source-id-feedback/post-greetings-secret-evidence-scan.json`. The scan includes feature
 run evidence and excludes frozen source snapshots, pre-merge source, generated knowledge, files over 64 MiB, and
 binary files. It is not a general guarantee that every secret is absent. Keep raw logs, model exchanges, and private
 package data outside the committed delivery files. The coordinating
 checkout retains local evidence under `.dev/release-preparation-20261028/`. The final delivery summary must name
 each accepted source revision and outcome, including failures and checks that did not run.
+
+
+## Current checkpoint — bounded clean recovery and Greetings
+
+Application source is `70107fee53cee04bf12a56f1bb744791925bef99`. A repeated correctable capture can spend its unused
+native recovery allowance on the existing clean regeneration strategy after a validated producer-owned diagnosis.
+The combined targeted-correction and clean-regeneration limit remains one. Request, token, time, and run limits are
+unchanged. Permanent refusals and successful capture terminators remain closed; source and approval checks remain.
+A no-output failure uses only the exact runtime-created marker in a READY diagnosis, with proved invocation and inputs.
+See [ADR 0008](docs/adr/0008-separate-capture-repetition-from-recovery-strategy-permission.md).
+
+The connected discovery regression failed on the original executor with the exact capture-permission veto and no test
+errors. The current executor was restored after that controlled red run. Final scoped verification passed 383 tests
+across seven classes with no failures, errors, or skips. It covers accepted progress, no-candidate discovery, the spent
+targeted allowance, repeated clean failure, zero budgets, closed classifications, and registered-provider preservation.
+Foreign target rejection is covered at the validator level. Independent implementation review passed before commit.
+
+Full-module verification passed 6,699 tests across 626 fresh reports, with zero failures, zero errors, and 11 skips.
+The XML archive SHA-256 is `85129fd52234dcad0fd2b8f98a2657e610a9240104e7fb6ba39a222865bbd898`.
+The run used command-local `JDK_JAVA_OPTIONS=-XX:TieredStopAtLevel=1` for the known local JDK crash; image JVM settings
+are unchanged. Dedicated A2A suites were excluded. Earlier approval timeouts, the concurrent-build failure, changed
+policy expectations, and fixture failures remain in ignored evidence; they are superseded by the final successful runs.
+
+The with-skills and base images and the knowledge sidecar were rebuilt from this commit. The source snapshot verified
+9,109 files with tree SHA-256 `01ee88b9cacfb54a955cd4672597722e354baab342119565f98a1c6dead30d39`.
+Private resources remain restricted to the full image. The QA knowledge archive SHA-256 is
+`5fe5a28d9103cd68e9823d46e285f4ac989512917d9dfc15e70cd2b64646dc8f`.
+The separate 139-file testing archive is unchanged. Image IDs are recorded in the verification JSON.
+
+Exactly one normal Greetings attempt passed on the isolated full candidate at `http://127.0.0.1:51301`.
+Its frozen 275-byte prompt template and original scenario answers match the prior normal case; only the unique chain
+name changed. Runner limits remain 900/180/300 seconds. Nineteen paired OpenAI requests and completed responses used
+`gpt-6-luna`: six raw JSON responses and 13 terminal SDK SSE responses. Eighteen calls used the existing 24,000 output
+limit and one the existing 4,096 brief limit, with temperature 0.2 and reasoning none. Request messages are bounded
+previews, so exact full-request replay is not established. Runtime knowledge was used: 18 objects, 117,259 characters.
+
+The retained chain is `AiCreateSmoke.20261029T090750.r1` (`ad553b18-c1de-4c59-aaa6-7be9f8833fba`), in conversation
+`3e0cb4fd-6a1d-4e4a-8752-d7cdabb351cf`. Native validation and reconcile passed. Catalog readback confirms an internal
+`GET /greetings`, a plain-text greeting script, and one edge. All nine original facts were retained.
+Ordinary source-body binding and ownership corrections occurred. The source-ID hint, typed source review,
+and new clean regeneration path
+were NOT_EXERCISED in this live run; the forced module regressions cover the new strategy. Two durable approvals and
+four native SSE turns are retained. Shared container identities and restart counts did not change.
+
+The latest exact-current-key scan checked 56 current Greetings evidence files with zero matches and no printed key.
+This scoped scan is not a guarantee that every secret is absent. The final evidence manifest covers 55 files and has
+SHA-256 `ec6c14cc3f511739500e1d7e54922c97a969c96e53e8775ad9e60cf040009475`.
+Raw evidence remains under `.dev/release-preparation-20261028/universal-recovery/`.
+
+Status remains LOCAL_SCOPED_ACCEPTANCE_PASSED. Deployment, chain invocation, UI, semantic judging, the other six live
+cases, and manual restart acceptance were not run on this source. The earlier documentation literal-fidelity gap remains
+visible. Main integration, push, and publication remain pending. Fresh independent review of this checkpoint and its
+acceptance evidence passed before the local record commit.

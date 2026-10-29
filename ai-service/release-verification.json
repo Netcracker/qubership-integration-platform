@@ -2,22 +2,22 @@
   "schemaVersion": 1,
   "date": "2026-10-29",
   "status": "LOCAL_SCOPED_ACCEPTANCE_PASSED",
-  "applicationSourceRevision": "28b46590c0fc5a513d8973de68192c81d125e5a2",
+  "applicationSourceRevision": "70107fee53cee04bf12a56f1bb744791925bef99",
   "localImages": {
-    "qip-ai-service:qa-20261028-28b46590-with-skills": {
-      "id": "sha256:fb77f683f3d6c656234121d1c3b75e7ec72b944937a7526d88c3471f0f3f20f0",
+    "qip-ai-service:qa-20261028-70107fee-with-skills": {
+      "id": "sha256:b69d3d5b097ca7f82b5e99a92406087d26df5bed2364860abd1c099a907f4757",
       "repoDigests": [],
-      "revision": "28b46590c0fc5a513d8973de68192c81d125e5a2"
+      "revision": "70107fee53cee04bf12a56f1bb744791925bef99"
     },
-    "qip-ai-service:qa-20261028-28b46590-base": {
-      "id": "sha256:e2f71035d11bb79d1f60ab462a54252e38e04616d31a2a7c27e27cdbc62a8d5a",
+    "qip-ai-service:qa-20261028-70107fee-base": {
+      "id": "sha256:46653da628091d2c43344335f8e41e335cc632914651ef5cd1702e4142eb825b",
       "repoDigests": [],
-      "revision": "28b46590c0fc5a513d8973de68192c81d125e5a2"
+      "revision": "70107fee53cee04bf12a56f1bb744791925bef99"
     },
-    "qip-knowledge-sidecar:qa-20261028-28b46590": {
-      "id": "sha256:35877ddfe38d6e5c7837d09f8d7e790db4a7fc8971405754a1643e2d90dd486e",
+    "qip-knowledge-sidecar:qa-20261028-70107fee": {
+      "id": "sha256:5e6c5ac0e2b71ec2da627e0f0cbd1850619ee95d9849ab89047e58bb8e858a50",
       "repoDigests": [],
-      "revision": "28b46590c0fc5a513d8973de68192c81d125e5a2"
+      "revision": "70107fee53cee04bf12a56f1bb744791925bef99"
     }
   },
   "checks": {
@@ -298,7 +298,92 @@
         },
         "scriptChecks": "PASS_STATIC_REVIEW_ONLY"
       }
-    ]
+    ],
+    "universalRecoveryGreetings": {
+      "verdict": "PASS_NATIVE_MATERIALIZATION_AND_CATALOG",
+      "sourceRevision": "70107fee53cee04bf12a56f1bb744791925bef99",
+      "attempts": 1,
+      "conversationId": "3e0cb4fd-6a1d-4e4a-8752-d7cdabb351cf",
+      "runId": "3e0cb4fd-6a1d-4e4a-8752-d7cdabb351cf-create-chain-2",
+      "chainId": "ad553b18-c1de-4c59-aaa6-7be9f8833fba",
+      "chainName": "AiCreateSmoke.20261029T090750.r1",
+      "native": "PASS",
+      "materialization": "PASS",
+      "requirements": "PASS_CATALOG_AND_STATIC_SCRIPT_INSPECTION",
+      "validation": "PASS",
+      "reconcileMatches": true,
+      "script": "PASS_STATIC_INSPECTION",
+      "providerRequests": 19,
+      "providerResponses": 19,
+      "configuredRequestedReturnedModel": "gpt-6-luna",
+      "originalFactsRetained": 9,
+      "sourceBodyBindingCorrection": "EXERCISED_NATIVE_BODY_SOURCE_MISMATCH_TO_GENERATED_CANDIDATE",
+      "sourceIdHint": "NOT_EXERCISED",
+      "typedSourceReview": "NOT_EXERCISED",
+      "cleanRegeneration": "NOT_EXERCISED",
+      "faultInjection": false,
+      "addedRepairHints": [],
+      "sharedContainersChanged": {},
+      "UI": "NOT_RUN",
+      "runtime": "NOT_RUN",
+      "deployment": "NOT_RUN",
+      "semanticJudge": "NOT_RUN",
+      "RuntimeKnowledge": {
+        "used": true,
+        "objectCount": 18,
+        "contentChars": 117259
+      },
+      "evidenceLimit": "Request messages are bounded previews; exact complete request replay is not established.",
+      "images": {
+        "qip-ai-service:qa-20261028-70107fee-with-skills": {
+          "id": "sha256:b69d3d5b097ca7f82b5e99a92406087d26df5bed2364860abd1c099a907f4757",
+          "repoDigests": [],
+          "revision": "70107fee53cee04bf12a56f1bb744791925bef99"
+        },
+        "qip-ai-service:qa-20261028-70107fee-base": {
+          "id": "sha256:46653da628091d2c43344335f8e41e335cc632914651ef5cd1702e4142eb825b",
+          "repoDigests": [],
+          "revision": "70107fee53cee04bf12a56f1bb744791925bef99"
+        },
+        "qip-knowledge-sidecar:qa-20261028-70107fee": {
+          "id": "sha256:5e6c5ac0e2b71ec2da627e0f0cbd1850619ee95d9849ab89047e58bb8e858a50",
+          "repoDigests": [],
+          "revision": "70107fee53cee04bf12a56f1bb744791925bef99"
+        }
+      },
+      "sourceSnapshot": {
+        "sourceRevision": "70107fee53cee04bf12a56f1bb744791925bef99",
+        "verifiedFiles": "9109",
+        "sourceTreeSha256": "01ee88b9cacfb54a955cd4672597722e354baab342119565f98a1c6dead30d39"
+      },
+      "HEADValidatedAtCompletion": "70107fee53cee04bf12a56f1bb744791925bef99",
+      "templateBytes": 275,
+      "templateSha256": "b5f5f45e6bf5b311979ac22d2a1488d7bfc0a7805bc7d11d59caa855690b7fdc",
+      "effectiveLimits": {
+        "E2E_TURN_TIMEOUT_SEC": 900,
+        "PRODUCT_PIPELINE_PLANNING_STALL_SEC": 180,
+        "PRODUCT_PIPELINE_POLL_TIMEOUT_SEC": 300
+      },
+      "limitsEqualPriorContract": true,
+      "durableApprovalRecordCount": 2,
+      "nativeSseTurns": 4,
+      "allPreparationHashesUnchanged": true,
+      "providerResponseRepresentations": {
+        "rawResponseBody": 6,
+        "sdkTerminalResponseCompleted": 13
+      },
+      "qaArchiveSha256": {
+        ".dev/release-preparation-20261028/universal-recovery/full-module/fresh-surefire-reports.zip": "85129fd52234dcad0fd2b8f98a2657e610a9240104e7fb6ba39a222865bbd898",
+        ".dev/release-preparation-20261028/delivery/testing.zip": "23f1e01defbf73c15907ef8f276344f031018eac776f0a4b486078f6f8282052"
+      },
+      "qaArchives": {
+        "knowledgeRuntime": {
+          "path": ".dev/release-preparation-20261028/candidate-luna/build/evidence/knowledge-runtime.tar.gz",
+          "sha256": "5fe5a28d9103cd68e9823d46e285f4ac989512917d9dfc15e70cd2b64646dc8f",
+          "adjacentSha256Matches": true
+        }
+      }
+    }
   },
   "blockers": [
     "CreateChainServerRestartIT remains deferred and is required before push.",
@@ -318,7 +403,7 @@
       "sha256": "8c07f382368f30027cbe44786538089deaf4d01052a4ef3fa7c093b00aaf478f"
     }
   ],
-  "qaKnowledgeArchiveSha256": "d5ba00baa1f136770fac75a94882b13407e9b82e9b7f1d923d02d0aeaedfaaf3",
+  "qaKnowledgeArchiveSha256": "5fe5a28d9103cd68e9823d46e285f4ac989512917d9dfc15e70cd2b64646dc8f",
   "testingArchive": {
     "status": "PASS_INVENTORY_AND_READBACK",
     "localArtifact": "Ignored local delivery/testing.zip",
@@ -398,16 +483,16 @@
     "Run the deferred CreateChainServerRestartIT before push.",
     "Run remaining selected UI, runtime, evaluator, and live cases if required by the release gate.",
     "Keep the documentation literal-fidelity gap visible; do not report an unqualified documentation pass.",
-    "Review and locally commit the release record; do not push or publish."
+    "Main integration, push, and registry publication remain pending; the local scoped acceptance does not replace remaining release gates."
   ],
   "secretEvidenceScan": {
-    "filesExamined": 5043,
+    "filesExamined": 56,
     "matchingFiles": 0,
     "valuePrinted": false,
-    "pattern": "Exact current OpenAI API key pattern",
-    "scope": "UTF-8 evidence and helper files including source-hint, source-id-feedback, and source-reconciliation evidence; frozen source-<hex revision> snapshots, pre-merge source, generated knowledge, files over 64 MiB, and binary files excluded.",
+    "pattern": "Exact current OpenAI API key",
+    "scope": "Current universal-recovery/greetings evidence files only. Earlier broader scans remain historical.",
     "doesNotGuarantee": "This scoped scan is not a general guarantee that every secret is absent.",
-    "evidence": "Ignored local evidence: .dev/release-preparation-20261028/source-id-feedback/post-greetings-secret-evidence-scan.json"
+    "evidence": "Ignored local evidence: .dev/release-preparation-20261028/universal-recovery/greetings/secret-scan.json"
   },
   "openApiCorrection": {
     "codeCommit": "ace7916cfb773c3de50b17344cc33d937618560d",
@@ -577,14 +662,14 @@
     ]
   },
   "latestCandidateBuild": {
-    "sourceRevision": "28b46590c0fc5a513d8973de68192c81d125e5a2",
+    "sourceRevision": "70107fee53cee04bf12a56f1bb744791925bef99",
     "status": "PASS_LOCAL_BUILD",
     "mavenTests": "SKIPPED_FOR_PACKAGING_SEPARATE_ACCEPTANCE_PASSED",
-    "sourceFilesVerified": 9108,
-    "sourceTreeSha256": "21b167f66db21a22fa3d8fa9f5c6f91a63fd81d1e8ed975730d05a26eea73fc5",
-    "knowledgeArchiveSha256": "d5ba00baa1f136770fac75a94882b13407e9b82e9b7f1d923d02d0aeaedfaaf3",
+    "sourceFilesVerified": 9109,
+    "sourceTreeSha256": "01ee88b9cacfb54a955cd4672597722e354baab342119565f98a1c6dead30d39",
+    "knowledgeArchiveSha256": "5fe5a28d9103cd68e9823d46e285f4ac989512917d9dfc15e70cd2b64646dc8f",
     "imageMetadata": "localImages",
-    "evidence": "Ignored local candidate-luna/build/evidence: build-summary.txt, source-snapshot-check.txt, images.json, private-inputs.json, private-resource-verdict.json and build logs."
+    "evidence": "Ignored local candidate-luna/build/evidence: build-summary.txt, source-snapshot-check.txt, images.json, private-inputs.json, private-resource-verdict.json and build logs. The old build-verification.json is not current-source evidence."
   },
   "mainIntegration": {
     "integrationCommit": "74517a81a",
@@ -877,185 +962,143 @@
   },
   "currentFollowUp": {
     "status": "LOCAL_SCOPED_ACCEPTANCE_PASSED",
-    "sourceRevision": "28b46590c0fc5a513d8973de68192c81d125e5a2",
-    "workspaceHeadAtReport": "c4983492cc1c9ee256bb95c5ba4b012c32ca3c48",
+    "sourceRevision": "70107fee53cee04bf12a56f1bb744791925bef99",
+    "workspaceHeadAtReport": "70107fee53cee04bf12a56f1bb744791925bef99",
     "implementedChange": {
-      "files": 2,
-      "productionLines": 18,
-      "regressionTestsAdded": 11,
-      "scopedTests": {
-        "tests": 163,
-        "failures": 0,
-        "errors": 0,
-        "skipped": 0,
-        "status": "PASS",
-        "selection": [
-          {
-            "test": "RequirementCaptureToolsTest",
-            "tests": 149
-          },
-          {
-            "test": "RequirementCaptureToolsSchemaTest",
-            "tests": 1
-          },
-          {
-            "test": "RequirementDraftStoreLifecycleTest",
-            "tests": 13
-          }
-        ]
-      },
-      "redRun": {
-        "tests": 11,
-        "failures": 3,
-        "errors": 0,
-        "skipped": 0,
-        "status": "EXPECTED_RED",
-        "reason": "Unavailable-source-ID feedback omitted current authorized source IDs and read/capture guidance."
-      },
-      "hintContract": "At most the latest 20 eligible source IDs; no source bodies, foreign IDs, automatic substitution, new process, or budget increase. Lookup and strict evidence validation remain unchanged.",
-      "evidence": "Ignored local evidence: .dev/release-preparation-20261028/source-id-feedback/verification.json and red.log."
+      "commit": "70107fee53cee04bf12a56f1bb744791925bef99",
+      "strategy": "A repeated correctable capture may spend its unused existing native allowance on clean regeneration after a validated producer-owned diagnosis.",
+      "nativeCombinedTargetedAndCleanLimit": 1,
+      "limitsIncreased": false,
+      "errorSpecificExceptions": false,
+      "sourceAndApprovalChecksPreserved": true,
+      "noOutputRecovery": "Only the exact runtime-created rejected-output reference in a READY diagnosis qualifies, with proved producer invocation and saved inputs.",
+      "independentImplementationReview": "PASS",
+      "reviewEvidence": "Ignored local evidence: universal-recovery/final-review.md",
+      "regressionEvidence": {
+        "baseDiscoveryRed": "discovery-base-red/summary.json: one assertion failure, zero errors, exact recovery-repeated veto; current source restored.",
+        "scoped": {
+          "exitCode": 0,
+          "elapsedSeconds": 84.033,
+          "classes": 7,
+          "tests": 383,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "reportArchiveSha256": "1f2ef6aa2025a7505d117fd836dde85bdc86db6be455f62ba003b279c696f600",
+          "jdkWorkaround": "command-local TieredStopAtLevel=1"
+        },
+        "scope": "Gateway-to-stage connected regressions, no-output discovery, accepted progress, targeted-then-repeat and clean-then-repeat, zero budgets, closed capture classes, invalid diagnosis, registered provider preservation. Foreign target rejection is checked at validator level."
+      }
     },
     "fullModuleAcceptance": {
-      "status": "PASS",
-      "tests": 6686,
-      "freshReports": 626,
+      "exitCode": 0,
+      "elapsedSeconds": 339.797,
+      "classes": 626,
+      "tests": 6699,
       "failures": 0,
       "errors": 0,
       "skipped": 11,
-      "exitCode": 0,
-      "durationSeconds": 337.057,
+      "reportArchiveSha256": "85129fd52234dcad0fd2b8f98a2657e610a9240104e7fb6ba39a222865bbd898",
+      "jdkWorkaround": "command-local TieredStopAtLevel=1",
+      "status": "PASS",
       "selection": "*Test,*IT,!**/a2a/**",
-      "c1LocalJdkWorkaround": "Command-local JDK_JAVA_OPTIONS=-XX:TieredStopAtLevel=1; repository and image JVM settings unchanged",
-      "a2aPackageTestSetExecuted": false,
       "dedicatedA2aSuitesExecuted": 0,
-      "reportArchiveSha256": "1f07e721845e2e7f584ba12325a85679b0c1250d6115e2e9a1094ba770b96d31",
-      "evidence": "Ignored local evidence: .dev/release-preparation-20261028/source-id-feedback/full-module/summary.json and maven.log.",
-      "independentXmlArchiveVerification": {
-        "status": "PASS",
-        "tests": 6686,
-        "failures": 0,
-        "errors": 0,
-        "skipped": 11,
-        "freshReports": 626,
-        "archiveSha256": "1f07e721845e2e7f584ba12325a85679b0c1250d6115e2e9a1094ba770b96d31",
-        "dedicatedA2aSuitesExecuted": 0,
-        "incidentalA2aNamedCasesExecuted": [
-          "browserCreateChainWorksWhenA2aDisabled",
-          "aiA2aDataSource_usesLogicalDbNameAndTenantClassifier",
-          "productionBrowserAndA2aShareTheFacadeSeam",
-          "browserAndA2aShareTheS3BackedFacade",
-          "a2aRetryStaysPinnedToTheOriginalOffer",
-          "browserAndA2aAdaptersInvokeSameFacadeWithDifferentSerialization"
-        ]
-      },
-      "imageLifecycle": {
-        "fullImage": "62951",
-        "precedingBaseImage": "62924",
-        "modelRequests": 0
-      }
+      "evidence": "Ignored local evidence: universal-recovery/full-module/summary.json, run.log, archive-verification.json and fresh-surefire-reports.zip"
     },
-    "priorApprovalRejectedAttempt": {
-      "status": "NOT_SENT_AUTOAPPROVAL_REJECTED",
-      "processCreated": false,
-      "modelRequests": 0,
-      "reason": "Automatic approval review rejected the initial run before process creation or transmission.",
-      "supersededBy": "One later run, explicitly authorized for the frozen payload and destination."
-    },
-    "greetingsRepeat": {
-      "status": "PASS_NATIVE_MATERIALIZATION_AND_CATALOG",
+    "nativeGreetings": {
+      "verdict": "PASS_NATIVE_MATERIALIZATION_AND_CATALOG",
+      "sourceRevision": "70107fee53cee04bf12a56f1bb744791925bef99",
       "attempts": 1,
-      "requests": 2,
-      "modelCalls": 22,
-      "pairedRequestsAndResponses": 22,
-      "provider": "direct OpenAI",
-      "destination": "https://api.openai.com/v1",
-      "requestedModel": "gpt-6-luna",
-      "returnedModel": "gpt-6-luna",
-      "authorization": {
-        "scope": "One Greetings run sending the original test request and normal AI-service context (local skills/knowledge, schemas, policy, and tool results) to https://api.openai.com/v1 using gpt-6-luna.",
-        "receivedVia": "Root message quoting direct user approval"
+      "conversationId": "3e0cb4fd-6a1d-4e4a-8752-d7cdabb351cf",
+      "runId": "3e0cb4fd-6a1d-4e4a-8752-d7cdabb351cf-create-chain-2",
+      "chainId": "ad553b18-c1de-4c59-aaa6-7be9f8833fba",
+      "chainName": "AiCreateSmoke.20261029T090750.r1",
+      "native": "PASS",
+      "materialization": "PASS",
+      "requirements": "PASS_CATALOG_AND_STATIC_SCRIPT_INSPECTION",
+      "validation": "PASS",
+      "reconcileMatches": true,
+      "script": "PASS_STATIC_INSPECTION",
+      "providerRequests": 19,
+      "providerResponses": 19,
+      "configuredRequestedReturnedModel": "gpt-6-luna",
+      "originalFactsRetained": 9,
+      "sourceBodyBindingCorrection": "EXERCISED_NATIVE_BODY_SOURCE_MISMATCH_TO_GENERATED_CANDIDATE",
+      "sourceIdHint": "NOT_EXERCISED",
+      "typedSourceReview": "NOT_EXERCISED",
+      "cleanRegeneration": "NOT_EXERCISED",
+      "faultInjection": false,
+      "addedRepairHints": [],
+      "sharedContainersChanged": {},
+      "UI": "NOT_RUN",
+      "runtime": "NOT_RUN",
+      "deployment": "NOT_RUN",
+      "semanticJudge": "NOT_RUN",
+      "RuntimeKnowledge": {
+        "used": true,
+        "objectCount": 18,
+        "contentChars": 117259
       },
-      "sourceRevision": "28b46590c0fc5a513d8973de68192c81d125e5a2",
-      "conversationId": "27718b88-9729-4b7e-8150-ed2ec47166f4",
-      "runId": "27718b88-9729-4b7e-8150-ed2ec47166f4-create-chain-2",
-      "frozenInputContractSha256": "52631012b81c17058c21bb02693c071e82d2a56ff4a8b5e04389bbdd7225c2e3",
-      "prompt": "UNCHANGED_EXCEPT_GENERATED_UNIQUE_CHAIN_NAME",
-      "extraRetriesHintsManualPatchesOrBudgetChanges": false,
-      "requestConversationLabels": {
-        "conversationIdTaggedPairs": 12,
-        "nonePairs": 10
+      "evidenceLimit": "Request messages are bounded previews; exact complete request replay is not established.",
+      "images": {
+        "qip-ai-service:qa-20261028-70107fee-with-skills": {
+          "id": "sha256:b69d3d5b097ca7f82b5e99a92406087d26df5bed2364860abd1c099a907f4757",
+          "repoDigests": [],
+          "revision": "70107fee53cee04bf12a56f1bb744791925bef99"
+        },
+        "qip-ai-service:qa-20261028-70107fee-base": {
+          "id": "sha256:46653da628091d2c43344335f8e41e335cc632914651ef5cd1702e4142eb825b",
+          "repoDigests": [],
+          "revision": "70107fee53cee04bf12a56f1bb744791925bef99"
+        },
+        "qip-knowledge-sidecar:qa-20261028-70107fee": {
+          "id": "sha256:5e6c5ac0e2b71ec2da627e0f0cbd1850619ee95d9849ab89047e58bb8e858a50",
+          "repoDigests": [],
+          "revision": "70107fee53cee04bf12a56f1bb744791925bef99"
+        }
       },
-      "providerResponseEvidence": {
-        "rawJsonBodies": 6,
-        "sdkTerminalResponseCompletedSse": 16,
-        "allCompletedAndParsed": true
+      "sourceSnapshot": {
+        "sourceRevision": "70107fee53cee04bf12a56f1bb744791925bef99",
+        "verifiedFiles": "9109",
+        "sourceTreeSha256": "01ee88b9cacfb54a955cd4672597722e354baab342119565f98a1c6dead30d39"
       },
-      "exactFullRequestReplay": "NOT_ESTABLISHED_REQUEST_MESSAGES_ARE_BOUNDED_PREVIEWS",
-      "native": {
-        "terminalState": "CHAIN_MATERIALIZED",
-        "validation": "PASS",
-        "reconciliation": "PASS",
-        "catalogReadback": "PASS"
+      "HEADValidatedAtCompletion": "70107fee53cee04bf12a56f1bb744791925bef99",
+      "templateBytes": 275,
+      "templateSha256": "b5f5f45e6bf5b311979ac22d2a1488d7bfc0a7805bc7d11d59caa855690b7fdc",
+      "effectiveLimits": {
+        "E2E_TURN_TIMEOUT_SEC": 900,
+        "PRODUCT_PIPELINE_PLANNING_STALL_SEC": 180,
+        "PRODUCT_PIPELINE_POLL_TIMEOUT_SEC": 300
       },
-      "catalog": {
-        "chainName": "AiCreateSmoke.20261029T064154.r1",
-        "chainId": "f76d7439-af23-4131-9c7e-b15384c01f9b",
-        "elements": [
-          "http-trigger",
-          "script"
-        ],
-        "edges": 1,
-        "accessControl": "NONE",
-        "trigger": "Internal GET /greetings",
-        "scriptResult": "Hello, world!",
-        "contentType": "text/plain; charset=UTF-8",
-        "staticScriptReview": "PASS",
-        "serviceCallElements": 0,
-        "errorHandlerElements": 0,
-        "unsavedChanges": true,
-        "deployment": "NOT_RUN",
-        "runtimeInvocation": "NOT_RUN"
+      "limitsEqualPriorContract": true,
+      "durableApprovalRecordCount": 2,
+      "nativeSseTurns": 4,
+      "allPreparationHashesUnchanged": true,
+      "providerResponseRepresentations": {
+        "rawResponseBody": 6,
+        "sdkTerminalResponseCompleted": 13
       },
-      "acceptedFacts": {
-        "preservedByteEquivalent": 9,
-        "nativeTriggerAnchorAdded": true
+      "qaArchiveSha256": {
+        ".dev/release-preparation-20261028/universal-recovery/full-module/fresh-surefire-reports.zip": "85129fd52234dcad0fd2b8f98a2657e610a9240104e7fb6ba39a222865bbd898",
+        ".dev/release-preparation-20261028/delivery/testing.zip": "23f1e01defbf73c15907ef8f276344f031018eac776f0a4b486078f6f8282052"
       },
-      "sourceIdHint": "NOT_EXERCISED_MODEL_CITED_CORRECT_SOURCE_ID",
-      "typedSourceReview": "NOT_EXERCISED_NO_SOURCE_REVIEW_ARTIFACT_OR_MISSING_BRIEF_FACTS_REJECTION",
-      "ordinaryNativeCaptureCorrections": "PASS_WITHOUT_RESETTING_ACCEPTED_FACTS",
-      "evidence": "Ignored local evidence: .dev/release-preparation-20261028/source-hint-greetings-repeat/report.md, report.json, result.json, catalog-readback/, provider-response-completeness.json, and evidence-manifest.json.",
-      "independentEvidenceReview": {
-        "status": "PASS",
-        "reviewer": "greetings_success_review",
-        "hashedManifestEntries": 44,
-        "files": 45,
-        "permissions": "All files 0600; directories 0700",
-        "providerResponses": "22 completed and parsed: 6 raw JSON bodies and 16 terminal SDK SSE response.completed payloads."
+      "qaArchives": {
+        "knowledgeRuntime": {
+          "path": ".dev/release-preparation-20261028/candidate-luna/build/evidence/knowledge-runtime.tar.gz",
+          "sha256": "5fe5a28d9103cd68e9823d46e285f4ac989512917d9dfc15e70cd2b64646dc8f",
+          "adjacentSha256Matches": true
+        }
       }
     },
-    "finalSecretPatternScan": {
-      "status": "PASS_SCOPED",
-      "filesExamined": 5043,
-      "matchingFiles": 0,
-      "pattern": "Exact current OpenAI API key pattern",
-      "valuePrinted": false,
-      "scope": "UTF-8 evidence and helper files including source-hint, source-id-feedback, and source-reconciliation evidence; frozen source snapshots, pre-merge source, generated knowledge, files over 64 MiB, and binary files excluded.",
-      "doesNotGuarantee": "This scoped scan is not a general guarantee that every secret is absent.",
-      "evidence": "Ignored local evidence: .dev/release-preparation-20261028/source-id-feedback/post-greetings-secret-evidence-scan.json."
+    "evidenceManifest": {
+      "files": 55,
+      "sha256": "ec6c14cc3f511739500e1d7e54922c97a969c96e53e8775ad9e60cf040009475",
+      "path": "Ignored local evidence: universal-recovery/greetings/evidence-manifest.json"
     },
-    "documentationAcceptance": "PARTIAL_11_OF_12_LITERAL_ENDPOINT_ENTRIES_NOT_RERUN",
-    "ui": "NOT_RUN",
-    "runtime": "NOT_RUN",
-    "evaluator": "NOT_RUN",
-    "openApi": "NOT_RUN",
-    "semanticJudge": "NOT_RUN",
-    "otherSelectedLiveCasesOnCurrentSource": "NOT_RUN",
-    "restartIntegrationTest": "DEFERRED_REQUIRED_BEFORE_PUSH",
-    "testingArchive": {
-      "files": 139,
-      "status": "UNCHANGED_FROM_PRIOR_VERIFIED_BASELINE"
-    },
-    "pushPerformed": false
+    "acceptanceRecordReview": {
+      "status": "PASS",
+      "evidence": "Ignored local evidence: universal-recovery/acceptance-final-review.md"
+    }
   },
   "historicalFollowUps": [
     {
@@ -1351,6 +1394,188 @@
         "doesNotGuarantee": "This scoped scan is not a general guarantee that every secret is absent.",
         "evidence": "Ignored local evidence: .dev/release-preparation-20261028/source-id-feedback/secret-evidence-scan.json."
       }
+    },
+    {
+      "status": "LOCAL_SCOPED_ACCEPTANCE_PASSED",
+      "sourceRevision": "28b46590c0fc5a513d8973de68192c81d125e5a2",
+      "workspaceHeadAtReport": "c4983492cc1c9ee256bb95c5ba4b012c32ca3c48",
+      "implementedChange": {
+        "files": 2,
+        "productionLines": 18,
+        "regressionTestsAdded": 11,
+        "scopedTests": {
+          "tests": 163,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "status": "PASS",
+          "selection": [
+            {
+              "test": "RequirementCaptureToolsTest",
+              "tests": 149
+            },
+            {
+              "test": "RequirementCaptureToolsSchemaTest",
+              "tests": 1
+            },
+            {
+              "test": "RequirementDraftStoreLifecycleTest",
+              "tests": 13
+            }
+          ]
+        },
+        "redRun": {
+          "tests": 11,
+          "failures": 3,
+          "errors": 0,
+          "skipped": 0,
+          "status": "EXPECTED_RED",
+          "reason": "Unavailable-source-ID feedback omitted current authorized source IDs and read/capture guidance."
+        },
+        "hintContract": "At most the latest 20 eligible source IDs; no source bodies, foreign IDs, automatic substitution, new process, or budget increase. Lookup and strict evidence validation remain unchanged.",
+        "evidence": "Ignored local evidence: .dev/release-preparation-20261028/source-id-feedback/verification.json and red.log."
+      },
+      "fullModuleAcceptance": {
+        "status": "PASS",
+        "tests": 6686,
+        "freshReports": 626,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 11,
+        "exitCode": 0,
+        "durationSeconds": 337.057,
+        "selection": "*Test,*IT,!**/a2a/**",
+        "c1LocalJdkWorkaround": "Command-local JDK_JAVA_OPTIONS=-XX:TieredStopAtLevel=1; repository and image JVM settings unchanged",
+        "a2aPackageTestSetExecuted": false,
+        "dedicatedA2aSuitesExecuted": 0,
+        "reportArchiveSha256": "1f07e721845e2e7f584ba12325a85679b0c1250d6115e2e9a1094ba770b96d31",
+        "evidence": "Ignored local evidence: .dev/release-preparation-20261028/source-id-feedback/full-module/summary.json and maven.log.",
+        "independentXmlArchiveVerification": {
+          "status": "PASS",
+          "tests": 6686,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 11,
+          "freshReports": 626,
+          "archiveSha256": "1f07e721845e2e7f584ba12325a85679b0c1250d6115e2e9a1094ba770b96d31",
+          "dedicatedA2aSuitesExecuted": 0,
+          "incidentalA2aNamedCasesExecuted": [
+            "browserCreateChainWorksWhenA2aDisabled",
+            "aiA2aDataSource_usesLogicalDbNameAndTenantClassifier",
+            "productionBrowserAndA2aShareTheFacadeSeam",
+            "browserAndA2aShareTheS3BackedFacade",
+            "a2aRetryStaysPinnedToTheOriginalOffer",
+            "browserAndA2aAdaptersInvokeSameFacadeWithDifferentSerialization"
+          ]
+        },
+        "imageLifecycle": {
+          "fullImage": "62951",
+          "precedingBaseImage": "62924",
+          "modelRequests": 0
+        }
+      },
+      "priorApprovalRejectedAttempt": {
+        "status": "NOT_SENT_AUTOAPPROVAL_REJECTED",
+        "processCreated": false,
+        "modelRequests": 0,
+        "reason": "Automatic approval review rejected the initial run before process creation or transmission.",
+        "supersededBy": "One later run, explicitly authorized for the frozen payload and destination."
+      },
+      "greetingsRepeat": {
+        "status": "PASS_NATIVE_MATERIALIZATION_AND_CATALOG",
+        "attempts": 1,
+        "requests": 2,
+        "modelCalls": 22,
+        "pairedRequestsAndResponses": 22,
+        "provider": "direct OpenAI",
+        "destination": "https://api.openai.com/v1",
+        "requestedModel": "gpt-6-luna",
+        "returnedModel": "gpt-6-luna",
+        "authorization": {
+          "scope": "One Greetings run sending the original test request and normal AI-service context (local skills/knowledge, schemas, policy, and tool results) to https://api.openai.com/v1 using gpt-6-luna.",
+          "receivedVia": "Root message quoting direct user approval"
+        },
+        "sourceRevision": "28b46590c0fc5a513d8973de68192c81d125e5a2",
+        "conversationId": "27718b88-9729-4b7e-8150-ed2ec47166f4",
+        "runId": "27718b88-9729-4b7e-8150-ed2ec47166f4-create-chain-2",
+        "frozenInputContractSha256": "52631012b81c17058c21bb02693c071e82d2a56ff4a8b5e04389bbdd7225c2e3",
+        "prompt": "UNCHANGED_EXCEPT_GENERATED_UNIQUE_CHAIN_NAME",
+        "extraRetriesHintsManualPatchesOrBudgetChanges": false,
+        "requestConversationLabels": {
+          "conversationIdTaggedPairs": 12,
+          "nonePairs": 10
+        },
+        "providerResponseEvidence": {
+          "rawJsonBodies": 6,
+          "sdkTerminalResponseCompletedSse": 16,
+          "allCompletedAndParsed": true
+        },
+        "exactFullRequestReplay": "NOT_ESTABLISHED_REQUEST_MESSAGES_ARE_BOUNDED_PREVIEWS",
+        "native": {
+          "terminalState": "CHAIN_MATERIALIZED",
+          "validation": "PASS",
+          "reconciliation": "PASS",
+          "catalogReadback": "PASS"
+        },
+        "catalog": {
+          "chainName": "AiCreateSmoke.20261029T064154.r1",
+          "chainId": "f76d7439-af23-4131-9c7e-b15384c01f9b",
+          "elements": [
+            "http-trigger",
+            "script"
+          ],
+          "edges": 1,
+          "accessControl": "NONE",
+          "trigger": "Internal GET /greetings",
+          "scriptResult": "Hello, world!",
+          "contentType": "text/plain; charset=UTF-8",
+          "staticScriptReview": "PASS",
+          "serviceCallElements": 0,
+          "errorHandlerElements": 0,
+          "unsavedChanges": true,
+          "deployment": "NOT_RUN",
+          "runtimeInvocation": "NOT_RUN"
+        },
+        "acceptedFacts": {
+          "preservedByteEquivalent": 9,
+          "nativeTriggerAnchorAdded": true
+        },
+        "sourceIdHint": "NOT_EXERCISED_MODEL_CITED_CORRECT_SOURCE_ID",
+        "typedSourceReview": "NOT_EXERCISED_NO_SOURCE_REVIEW_ARTIFACT_OR_MISSING_BRIEF_FACTS_REJECTION",
+        "ordinaryNativeCaptureCorrections": "PASS_WITHOUT_RESETTING_ACCEPTED_FACTS",
+        "evidence": "Ignored local evidence: .dev/release-preparation-20261028/source-hint-greetings-repeat/report.md, report.json, result.json, catalog-readback/, provider-response-completeness.json, and evidence-manifest.json.",
+        "independentEvidenceReview": {
+          "status": "PASS",
+          "reviewer": "greetings_success_review",
+          "hashedManifestEntries": 44,
+          "files": 45,
+          "permissions": "All files 0600; directories 0700",
+          "providerResponses": "22 completed and parsed: 6 raw JSON bodies and 16 terminal SDK SSE response.completed payloads."
+        }
+      },
+      "finalSecretPatternScan": {
+        "status": "PASS_SCOPED",
+        "filesExamined": 5043,
+        "matchingFiles": 0,
+        "pattern": "Exact current OpenAI API key pattern",
+        "valuePrinted": false,
+        "scope": "UTF-8 evidence and helper files including source-hint, source-id-feedback, and source-reconciliation evidence; frozen source snapshots, pre-merge source, generated knowledge, files over 64 MiB, and binary files excluded.",
+        "doesNotGuarantee": "This scoped scan is not a general guarantee that every secret is absent.",
+        "evidence": "Ignored local evidence: .dev/release-preparation-20261028/source-id-feedback/post-greetings-secret-evidence-scan.json."
+      },
+      "documentationAcceptance": "PARTIAL_11_OF_12_LITERAL_ENDPOINT_ENTRIES_NOT_RERUN",
+      "ui": "NOT_RUN",
+      "runtime": "NOT_RUN",
+      "evaluator": "NOT_RUN",
+      "openApi": "NOT_RUN",
+      "semanticJudge": "NOT_RUN",
+      "otherSelectedLiveCasesOnCurrentSource": "NOT_RUN",
+      "restartIntegrationTest": "DEFERRED_REQUIRED_BEFORE_PUSH",
+      "testingArchive": {
+        "files": 139,
+        "status": "UNCHANGED_FROM_PRIOR_VERIFIED_BASELINE"
+      },
+      "pushPerformed": false
     }
   ],
   "legacySummaryFieldsBeforeSourceIdHint": {
@@ -1456,5 +1681,45 @@
     }
   },
   "campaignStartDate": "2026-10-28",
-  "workspaceHeadAtReport": "c4983492cc1c9ee256bb95c5ba4b012c32ca3c48"
+  "workspaceHeadAtReport": "70107fee53cee04bf12a56f1bb744791925bef99",
+  "historicalEvidenceScans": [
+    {
+      "filesExamined": 5043,
+      "matchingFiles": 0,
+      "valuePrinted": false,
+      "pattern": "Exact current OpenAI API key pattern",
+      "scope": "UTF-8 evidence and helper files including source-hint, source-id-feedback, and source-reconciliation evidence; frozen source-<hex revision> snapshots, pre-merge source, generated knowledge, files over 64 MiB, and binary files excluded.",
+      "doesNotGuarantee": "This scoped scan is not a general guarantee that every secret is absent.",
+      "evidence": "Ignored local evidence: .dev/release-preparation-20261028/source-id-feedback/post-greetings-secret-evidence-scan.json"
+    }
+  ],
+  "historicalCandidateBuilds": [
+    {
+      "sourceRevision": "28b46590c0fc5a513d8973de68192c81d125e5a2",
+      "status": "PASS_LOCAL_BUILD",
+      "mavenTests": "SKIPPED_FOR_PACKAGING_SEPARATE_ACCEPTANCE_PASSED",
+      "sourceFilesVerified": 9108,
+      "sourceTreeSha256": "21b167f66db21a22fa3d8fa9f5c6f91a63fd81d1e8ed975730d05a26eea73fc5",
+      "knowledgeArchiveSha256": "d5ba00baa1f136770fac75a94882b13407e9b82e9b7f1d923d02d0aeaedfaaf3",
+      "imageMetadata": "historicalCandidateBuilds[0].localImages",
+      "evidence": "Historical checkpoint originally recorded under candidate-luna/build/evidence; this build directory is reused. Preserved image identities are embedded in this historical record; see the corresponding historical follow-up for retained native acceptance evidence.",
+      "localImages": {
+        "qip-ai-service:qa-20261028-28b46590-with-skills": {
+          "id": "sha256:fb77f683f3d6c656234121d1c3b75e7ec72b944937a7526d88c3471f0f3f20f0",
+          "repoDigests": [],
+          "revision": "28b46590c0fc5a513d8973de68192c81d125e5a2"
+        },
+        "qip-ai-service:qa-20261028-28b46590-base": {
+          "id": "sha256:e2f71035d11bb79d1f60ab462a54252e38e04616d31a2a7c27e27cdbc62a8d5a",
+          "repoDigests": [],
+          "revision": "28b46590c0fc5a513d8973de68192c81d125e5a2"
+        },
+        "qip-knowledge-sidecar:qa-20261028-28b46590": {
+          "id": "sha256:35877ddfe38d6e5c7837d09f8d7e790db4a7fc8971405754a1643e2d90dd486e",
+          "repoDigests": [],
+          "revision": "28b46590c0fc5a513d8973de68192c81d125e5a2"
+        }
+      }
+    }
+  ]
 }
