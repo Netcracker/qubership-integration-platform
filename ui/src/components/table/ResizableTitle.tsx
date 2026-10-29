@@ -185,9 +185,11 @@ export const ResizableTitle = React.forwardRef<
     <th {...restProps} ref={ref} style={thStyle}>
       {children}
       {isResizable ? (
+        // Pointer-only, so hidden: its label would join the header's accessible name.
         <button
           type="button"
           aria-label="Resize column"
+          aria-hidden="true"
           style={{
             position: "absolute",
             top: 0,
