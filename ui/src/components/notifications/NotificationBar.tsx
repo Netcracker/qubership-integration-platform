@@ -40,7 +40,7 @@ export const NotificationBar: React.FC = () => {
         title="Notifications"
         placement="right"
         open={open}
-        closable={false}
+        closable={{ placement: "end" }}
         onClose={onClose}
         extra={
           <Button type="default" onClick={clearAll}>

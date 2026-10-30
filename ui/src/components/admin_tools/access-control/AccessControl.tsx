@@ -645,7 +645,7 @@ export const AccessControl: React.FC = () => {
           title="Endpoint Details"
           placement="right"
           open={openSidebar}
-          closable={false}
+          closable={{ placement: "end" }}
           onClose={onClose}
           getContainer={".page-content"}
           rootStyle={{ position: "absolute" }}

@@ -516,7 +516,7 @@ export const ActionsLog: React.FC = () => {
           title="Action Details"
           placement="right"
           open={openSidebar}
-          closable={false}
+          closable={{ placement: "end" }}
           onClose={onClose}
           getContainer={".page-content"}
           rootStyle={{ position: "absolute" }}

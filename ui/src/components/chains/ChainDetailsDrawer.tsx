@@ -143,6 +143,7 @@ export const ChainDetailsDrawer: React.FC<ChainDetailsDrawerProps> = ({
       open={open}
       onClose={onClose}
       destroyOnHidden
+      closable={{ placement: "end" }}
       getContainer={".page-content"}
       rootStyle={{ position: "absolute" }}
     >

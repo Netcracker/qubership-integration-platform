@@ -1636,7 +1636,7 @@ export const AiAssistant: React.FC = () => {
         }
         placement="right"
         open={open}
-        closable
+        closable={{ placement: 'end' }}
         onClose={onClose}
         // The panel slides in over a CSS transition the scroll-to-bottom effect cannot see;
         // this fires once that transition genuinely finishes, so a restored session lands on its
