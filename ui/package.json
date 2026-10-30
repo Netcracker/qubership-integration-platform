@@ -66,6 +66,7 @@
     "axios-rate-limit": "1.4.0",
     "clsx": "^2.1.1",
     "dayjs": "^1.11.20",
+    "dom-to-svg": "^0.12.2",
     "elkjs": "^0.10.0",
     "exceljs": "4.4.0",
     "fast-xml-parser": "^5.2.5",
