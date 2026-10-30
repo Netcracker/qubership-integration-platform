@@ -6,8 +6,8 @@
  * an unknown one"); `ui` declared with the lanes of `api` ("the config declares the lanes the map
  * holds"); a lane on `global` in the map and the config ("no lane reaches a project that only the
  * nightly runs"); a `classic` job calling lane `ui`, a job calling lane `nightly`, a `classic` job
- * with no lane, and the `classic` or the `ui` job removed ("the workflow calls each lane by the job
- * of its name").
+ * with no lane, and the `classic`, `ui`, or `micro` job removed ("the workflow calls each lane by
+ * the job of its name").
  */
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -87,9 +87,6 @@ test.describe("lanes", () => {
     );
     expect(called.filter(({ lane }) => !lanes().includes(String(lane)))).toEqual([]);
     expect(called.filter(({ job, lane }) => job !== lane)).toEqual([]);
-    const withJob = lanes().filter((lane) => jobs[lane]);
-    for (const lane of withJob) expect(jobs[lane].with?.lane, lane).toBe(lane);
-    // The jobs enter the workflow one at a time; every lane but this one has one.
-    expect(lanes().filter((lane) => !jobs[lane]).sort(), "lanes without a job").toEqual(["micro"]);
+    for (const lane of lanes()) expect(jobs[lane]?.with?.lane, lane).toBe(lane);
   });
 });

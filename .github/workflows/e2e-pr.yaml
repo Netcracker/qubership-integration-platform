@@ -209,6 +209,23 @@ jobs:
       timeout-minutes: 60
       global-timeout: 45
 
+  # The one lane that runs micro-engine, so it builds every image. On CI, provisioning takes about
+  # 8 minutes and the micro cases about 10, so both timeouts leave twice that.
+  micro:
+    needs: changes
+    if: needs.changes.outputs.micro == 'true'
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+    uses: ./.github/workflows/_e2e-kind.yaml
+    with:
+      name: micro
+      lane: micro
+      pull-request: true
+      timeout-minutes: 60
+      global-timeout: 45
+
   # Provisioning takes about 6 minutes, the seed about 3 beside the UI bundle build, and the ui
   # cases about 5 on 4 workers, so both timeouts leave twice that.
   ui:
@@ -233,7 +250,7 @@ jobs:
   # because its failure skips every kind job.
   kind-result:
     name: Kind jobs
-    needs: [changes, classic, ui]
+    needs: [changes, classic, micro, ui]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5

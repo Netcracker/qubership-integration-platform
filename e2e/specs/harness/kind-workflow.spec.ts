@@ -4,8 +4,9 @@
  * nightly's run history.
  *
  * Shown failing: `secrets: inherit` on the nightly, `pull-request: true` dropped from the `classic`
- * job, `build: all` passed by it, and `testing-service` dropped from the `ui` job's build ("callers
- * pass declared inputs and never inherit secrets");
+ * job, `build: all` passed by it, `testing-service` dropped from the `ui` job's build, and the
+ * `micro` job's build without micro-engine ("callers pass declared inputs and never inherit
+ * secrets");
  * the outcomes uploaded as `e2e-outcomes-nightly` and the cluster dump without the suffix ("the
  * history fetch downloads the outcomes the nightly uploads"); the email step without
  * `!inputs.pull-request` and the partial reconcile under `always()` ("a pull request run skips the

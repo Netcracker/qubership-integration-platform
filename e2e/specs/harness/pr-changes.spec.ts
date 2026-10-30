@@ -13,8 +13,8 @@
  * the `help/docs/**` rule removed ("a change to a UI bundle input runs the ui job" and the samples);
  * `e2e/specs/seed-micro/**` mapped to `micro` only (the kind job closures and the samples);
  * `e2e/specs/harness/**` and `e2e/specs/schema/**` mapped to `classic` (the samples); the
- * `classic` job ungated, the `ui` job ungated, and the `classic` or the `ui` job removed ("the
- * workflow gates each job on its output"); `classic` or `ui` dropped from the needs of
+ * `classic`, `ui`, or `micro` job ungated, and the `classic`, `ui`, or `micro` job removed ("the
+ * workflow gates each job on its output"); `classic`, `ui`, or `micro` dropped from the needs of
  * `kind-result`, and `cancelled` from its check ("kind-result needs every kind job and fails on a
  * failure").
  */
@@ -247,9 +247,7 @@ test.describe("pr-changes", () => {
     const outputs = Object.fromEntries(names.map((name) => [name, `\${{ steps.${step?.id}.outputs.${name} }}`]));
     expect(changes.outputs).toEqual(outputs);
     expect(changes.permissions).toEqual({ contents: "read" });
-    // The kind jobs enter the workflow one at a time; every kind job but this one is in it.
-    expect(KIND_JOBS.filter((job) => !jobs[job]), "kind jobs not in the workflow").toEqual(["micro"]);
-    for (const job of [...Object.keys(JOB_PATHS), ...KIND_JOBS.filter((each) => jobs[each])]) {
+    for (const job of names) {
       expect(jobs[job]?.needs, job).toContain("changes");
       expect(jobs[job]?.if, job).toBe(`needs.changes.outputs.${job} == 'true'`);
     }
@@ -260,7 +258,7 @@ test.describe("pr-changes", () => {
     const jobs = (yaml.load(fs.readFileSync(WORKFLOW, "utf-8")) as { jobs: Record<string, Job> }).jobs;
     const result = jobs["kind-result"];
     // A failed `changes` skips every kind job, and a skipped job passes.
-    expect(result?.needs).toEqual(["changes", ...KIND_JOBS.filter((job) => jobs[job])]);
+    expect(result?.needs).toEqual(["changes", ...KIND_JOBS]);
     expect(result?.if).toBe("always()");
     const [check] = result?.steps ?? [];
     expect(check?.env?.RESULTS).toBe("${{ join(needs.*.result, ' ') }}");
