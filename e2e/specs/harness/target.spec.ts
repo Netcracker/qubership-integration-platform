@@ -9,6 +9,7 @@
  * `k8s-adapter.spec.ts`.
  */
 import fs from "node:fs";
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test, expect, type FullConfig } from "@playwright/test";
@@ -60,7 +61,9 @@ const COMPOSE_PROJECTS = [
 ];
 
 function composeProjects(brokers: string | undefined): SuiteProject[] {
-  return withEnv({ E2E_BROKERS: brokers }, () => suiteProjects(targetSetup("compose")));
+  return withEnv({ E2E_BROKERS: brokers, E2E_AI_RECOVERY: undefined }, () =>
+    suiteProjects(targetSetup("compose")),
+  );
 }
 
 /**
@@ -77,7 +80,7 @@ const COMPOSE_SCHEDULE: Record<string, string> = {
   "seed-teardown": "./specs/seed /.*\\.teardown\\.ts$/",
   tooling: "./specs/tooling; after seed",
   runtime: "./specs/runtime; after seed, tooling; parallel",
-  env: "./specs/env; after api, runtime, ui; 1 worker",
+  env: "./specs/env except **/ai-recovery-lifecycle.spec.ts; after api, runtime, ui; 1 worker",
   "schemas-build": "./specs/schemas-build /.*\\.setup\\.ts$/",
   "ui-server": "./specs/ui-server /.*\\.setup\\.ts$/; after schemas-build; teardown ui-server-teardown",
   "ui-server-teardown": "./specs/ui-server /.*\\.teardown\\.ts$/",
@@ -140,6 +143,24 @@ test.describe("target", () => {
   });
 
   test.describe("projects", () => {
+    for (const on of ["compose", "k8s"] as const) {
+      for (const enabled of [false, true]) {
+        test(`${on} collects AI recovery (${enabled ? "enabled" : "default"})`, () => {
+          const report = JSON.parse(execFileSync(
+            path.join(E2E_DIR, "node_modules/.bin/playwright"),
+            ["test", "--project=env", "--no-deps", "--list", "--reporter=json"],
+            {
+              cwd: E2E_DIR,
+              env: { ...process.env, CIP_TARGET: on, E2E_AI_RECOVERY: enabled ? "1" : undefined },
+              encoding: "utf8",
+            },
+          )) as { suites: { file: string }[] };
+          expect(report.suites.map((suite) => path.basename(suite.file)).filter(
+            (file) => file === "ai-recovery-lifecycle.spec.ts",
+          )).toEqual(on === "compose" && enabled ? ["ai-recovery-lifecycle.spec.ts"] : []);
+        });
+      }
+    }
     test("Compose declares the projects it had before the seam", () => {
       const projects = composeProjects(undefined);
       expect(projects.map((each) => each.name).sort()).toEqual([...COMPOSE_PROJECTS].sort());

@@ -92,6 +92,7 @@ function displayRun(run) {
       act(async () => {
         const next = await api("/api/runs", {
           profile: run.profile,
+          suites: run.tasks.map((task) => task.suite.id),
           settings: run.settings,
           allowLlm: run.allowLlm,
           parentRunId: run.id,
