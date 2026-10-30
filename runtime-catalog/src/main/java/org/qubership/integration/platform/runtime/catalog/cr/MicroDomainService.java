@@ -293,8 +293,8 @@ public class MicroDomainService {
         });
     }
 
-    public void deleteChainSnapshot(String name, String snapshotId) {
-        getMainIntegrationResources(name).ifPresent(resources -> {
+    public void deleteChainSnapshot(String domainName, String snapshotId) {
+        getMainIntegrationResources(domainName).ifPresent(resources -> {
             CamelKIntegration integration = resources.integration();
             String cfgName = Optional.ofNullable(resources.getSourceByLabelMap(SNAPSHOT_ID_LABEL))
                     .map(m -> m.get(k8sNameValidator.validate(snapshotId)))
@@ -328,7 +328,7 @@ public class MicroDomainService {
                 kubeOperator.deleteConfigMap(cfgName);
             }
             String snapshotLabel = k8sNameValidator.validate(snapshotId);
-            deleteChainHttpRoutes(name, snapshotLabel::equals);
+            deleteChainHttpRoutes(domainName, snapshotLabel::equals);
         });
     }
 
@@ -340,10 +340,10 @@ public class MicroDomainService {
         return getIntegrationResources(name, true);
     }
 
-    private Optional<IntegrationResources> getIntegrationResources(String name, boolean includeAdditionalResources) {
-        String integrationName = getIntegrationResourceName(name);
+    private Optional<IntegrationResources> getIntegrationResources(String domainName, boolean includeAdditionalResources) {
+        String integrationName = getIntegrationResourceName(domainName);
         Optional<CamelKIntegration> integration = kubeOperator.getIntegrationsByLabels(
-            Map.of(domainLabel, name, bgVersionLabel, bgVersion))
+            Map.of(domainLabel, domainName, bgVersionLabel, bgVersion))
                 .stream()
                 .findFirst();
         if (integration.isEmpty()) {
@@ -360,7 +360,7 @@ public class MicroDomainService {
                     .findFirst()
                 : Optional.empty();
         List<V1ConfigMap> configMaps = kubeOperator.getConfigMapsByLabel(CAMEL_K_INTEGRATION_LABEL, integrationName);
-        String cfgName = getIntegrationCfgConfigMapName(name);
+        String cfgName = getIntegrationCfgConfigMapName(domainName);
         Optional<V1ConfigMap> integrationsConfiguration = configMaps.stream()
                 .filter(cm -> cfgName.equals(getName(cm).orElse(null)))
                 .findFirst();
