@@ -71,7 +71,7 @@ pinned VS Code build, a 54 MB archive, into the gitignored `vscode-extension/.vs
 it needs network access. [The `vscode` project](#the-vscode-project) covers the rest.
 
 The two setups build one at a time: the bundle build of `ui-server` and the library and extension
-builds of `vscode-server` each hold the lock file `e2e/.e2e-build.lock`. Run together beside the
+builds of `vscode-server` each hold the lockfile `e2e/.e2e-build.lock`. Run together beside the
 seed, they pushed the `vscode-server` setup past its 10-minute timeout on a 4-core CI runner.
 Starting and waiting for the servers needs no lock. When the run includes `ui-server` and the
 bundle is stale, `globalSetup` reserves the lock for `ui-server` before any worker starts, so the
