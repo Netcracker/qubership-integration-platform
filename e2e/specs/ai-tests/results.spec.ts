@@ -7,6 +7,7 @@ import {
   writeFileSync,
   rmSync,
   existsSync,
+  readdirSync,
 } from "node:fs";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
@@ -73,6 +74,8 @@ from pathlib import Path
 if sys.argv[1] == 'wait':
     print('Waiting for cancellation', flush=True)
     time.sleep(120)
+elif sys.argv[1] == 'unselected':
+    Path(__file__).with_name('unselected-ran').write_text('Unselected suite ran')
 else:
     root = Path(os.environ['QIP_TEST_TASK_DIR'])
     (root / 'result.json').write_text(json.dumps({'schemaVersion': 1, 'status': 'FAIL', 'failures': [
@@ -88,6 +91,7 @@ else:
         version: "fixture",
         profiles: {
           "report-fixture": ["fixture-report"],
+          "focused-fixture": ["fixture-report", "fixture-unselected"],
           "cancel-fixture": ["fixture-wait"],
           "recovery-acceptance-check": ["acceptance-readiness"],
           "recovery-acceptance": ["acceptance-live"],
@@ -114,6 +118,12 @@ else:
             format: "result",
             command: ["{python}", fixture, "report"],
             reports: "{task_dir}/result.json",
+          },
+          {
+            id: "fixture-unselected",
+            usesLlm: false,
+            timeoutSeconds: 30,
+            command: ["{python}", fixture, "unselected"],
           },
           {
             id: "fixture-wait",
@@ -245,6 +255,67 @@ else:
     expect(
       (await (await request.get(url + `/api/runs/${run.id}`)).json()).status,
     ).toBe("FAIL");
+  });
+
+  test("repeats only the selected suites", async ({ page, request }) => {
+    const started = await request.post(url + "/api/runs", {
+      data: { profile: "focused-fixture", suites: ["fixture-report"] },
+    });
+    expect(started.status()).toBe(201);
+    const original = await started.json();
+    await expect
+      .poll(
+        async () =>
+          (await (await request.get(url + `/api/runs/${original.id}`)).json())
+            .status,
+      )
+      .toBe("FAIL");
+    expect(
+      original.tasks.map((task: { suite: { id: string } }) => task.suite.id),
+    ).toEqual(["fixture-report"]);
+    await page.goto(url + "/#" + original.id);
+    const repeated = page.waitForResponse(
+      (response) =>
+        response.url() === url + "/api/runs" &&
+        response.request().method() === "POST",
+    );
+    await page.getByRole("button", { name: "Run again" }).click();
+    const response = await repeated;
+    const next = await response.json();
+    expect
+      .soft(response.request().postDataJSON().suites)
+      .toEqual(["fixture-report"]);
+    expect
+      .soft(next.tasks.map((task: { suite: { id: string } }) => task.suite.id))
+      .toEqual(["fixture-report"]);
+    expect(next.parentRunId).toBe(original.id);
+    expect(next.id).not.toBe(original.id);
+    expect(next.settings).toEqual(original.settings);
+    expect(next.allowLlm).toBe(original.allowLlm);
+    await expect
+      .poll(
+        async () =>
+          (await (await request.get(url + `/api/runs/${next.id}`)).json())
+            .status,
+      )
+      .toBe("FAIL");
+    expect.soft(readdirSync(directory)).not.toContain("unselected-ran");
+    const full = await (
+      await request.post(url + "/api/runs", {
+        data: { profile: "focused-fixture" },
+      })
+    ).json();
+    expect(
+      full.tasks.map((task: { suite: { id: string } }) => task.suite.id),
+    ).toEqual(["fixture-report", "fixture-unselected"]);
+    await expect
+      .poll(
+        async () =>
+          (await (await request.get(url + `/api/runs/${full.id}`)).json())
+            .status,
+      )
+      .toBe("FAIL");
+    expect(readdirSync(directory)).toContain("unselected-ran");
   });
 
   test("cancels a manual run and preserves its history", async ({

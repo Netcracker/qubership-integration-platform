@@ -246,7 +246,7 @@ const suite: SuiteProject[] = [
 export function suiteProjects(setup: TargetSetup): SuiteProject[] {
   return [
     ...suite.map((project) =>
-      setup.name === "k8s" && project.name === "env"
+      (setup.name === "k8s" || process.env.E2E_AI_RECOVERY !== "1") && project.name === "env"
         ? {
             ...project,
             testIgnore: [
