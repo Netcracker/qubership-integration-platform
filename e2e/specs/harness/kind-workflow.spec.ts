@@ -10,10 +10,17 @@
  * the outcomes uploaded as `e2e-outcomes-nightly` and the cluster dump without the suffix ("the
  * history fetch downloads the outcomes the nightly uploads"); the email step without
  * `!inputs.pull-request` and the partial reconcile under `always()` ("a pull request run skips the
- * nightly's history and email").
+ * nightly's history and email"); a dispatch falling back to `vars.EMAIL_TO` and a boolean
+ * `email-to` ("a schedule mails vars.EMAIL_TO, a dispatch its email-to"); the email step without
+ * the recipients gate and the action reading `EMAIL_TO` from `env` ("only a run with recipients is
+ * mailed, and only to them"); the recipients read after the suite, and `secrets.EMAIL_TO` in the
+ * suite's `env` ("the recipients are masked before any step can print them"); an address check that accepts `a@example`, `a b@example.com`, or `a@@example.com` ("the
+ * address check refuses a malformed entry"); no mask commands, the entry in the error, and the
+ * output written before the check ("the script masks every entry before it checks them").
  */
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import yaml from "js-yaml";
 import { test, expect, type FullConfig } from "@playwright/test";
 import { ROLES } from "../../env/containers.js";
@@ -22,6 +29,7 @@ import { microProjects } from "../../env/provision.js";
 import { imagesToBuild } from "../../env/provision/k8s.js";
 import { targetSetup } from "../../env/target-setup.js";
 import { suiteProjects } from "../../playwright.config.js";
+import { recipients } from "../../support/email-recipients.mjs";
 import { laneFlags } from "../../support/lanes.mjs";
 import { withEnv } from "../../support/with-env.js";
 
@@ -30,8 +38,10 @@ const KIND = "_e2e-kind.yaml";
 const NIGHTLY = "e2e-k8s.yaml";
 const CALLERS = [NIGHTLY, "e2e-pr.yaml"];
 const SUFFIX = "${{ env.ARTIFACT_SUFFIX }}";
+const SCRIPT = path.join(repoRoot(), "e2e", "support", "email-recipients.mjs");
 
 interface Step {
+  id?: string;
   name?: string;
   if?: string;
   uses?: string;
@@ -49,6 +59,7 @@ interface Job {
 }
 interface Workflow {
   on: {
+    workflow_dispatch?: { inputs: Record<string, { type?: string; default?: unknown }> };
     workflow_call?: { inputs: Record<string, { required?: boolean; default?: unknown }>; secrets: Record<string, unknown> };
   };
   jobs: Record<string, Job>;
@@ -102,18 +113,95 @@ test.describe("kind workflow", () => {
       const micro = laneMicroProjects(job).length ? ["micro-engine"] : [];
       expect([...build].sort(), name).toEqual([...ROLES, ...micro].sort());
     }
-    expect(callers(NIGHTLY)[0][1].secrets, "the email step needs the password").toEqual({ EMAIL_PASSWORD: "${{ secrets.EMAIL_PASSWORD }}" });
+    expect(Object.keys(callers(NIGHTLY)[0][1].secrets ?? {}), "the email steps need the password and the recipients").toEqual(["EMAIL_PASSWORD", "EMAIL_TO"]);
   });
 
-  test("the nightly runs the whole suite and mails a scheduled run", () => {
+  test("the nightly runs the whole suite", () => {
     const [[, nightly]] = callers(NIGHTLY);
     expect(nightly.with).toEqual({
       name: "Full suite on kind",
       workers: "${{ inputs.workers }}",
-      email: "${{ github.event_name == 'schedule' || inputs.email }}",
       "timeout-minutes": 180,
       "global-timeout": 140,
     });
+  });
+
+  // The recipients reach the called workflow as a secret: an input would show in the header of the
+  // step that masks it.
+  test("a schedule mails vars.EMAIL_TO, a dispatch its email-to", () => {
+    const [[, nightly]] = callers(NIGHTLY);
+    const secrets = nightly.secrets as Record<string, string>;
+    expect(secrets.EMAIL_PASSWORD).toBe("${{ secrets.EMAIL_PASSWORD }}");
+    expect(secrets.EMAIL_TO).toBe("${{ github.event_name == 'schedule' && vars.EMAIL_TO || inputs.email-to }}");
+    expect(read(NIGHTLY).on.workflow_dispatch?.inputs["email-to"]).toMatchObject({ type: "string", default: "" });
+    expect(Object.keys(read(NIGHTLY).on.workflow_dispatch?.inputs ?? {})).not.toContain("email");
+    // A dispatch with an empty email-to then sends nothing, since the called workflow never reads vars.EMAIL_TO.
+    expect(fs.readFileSync(path.join(WORKFLOWS, KIND), "utf-8")).not.toContain("vars.EMAIL_TO");
+  });
+
+  test("only a run with recipients is mailed, and only to them", () => {
+    // "a pull request run skips the nightly's history and email" checks the !inputs.pull-request half.
+    expect(step("Write the run email").if).toContain("steps.recipients.outputs.to != ''");
+    const send = step("Email the run");
+    expect(send.if).toBe("${{ always() && steps.email.outcome == 'success' }}");
+    expect(send.with?.to).toBe("${{ steps.recipients.outputs.to }}");
+    // The action falls back to EMAIL_TO from env for an empty `to`.
+    expect(Object.keys(send.env ?? {})).not.toContain("EMAIL_TO");
+  });
+
+  test("the recipients are masked before any step can print them", () => {
+    const steps = kindJob().steps ?? [];
+    const masking = steps.findIndex((each) => each.id === "recipients");
+    expect(steps[masking]).toMatchObject({
+      name: "Read the email recipients",
+      env: { EMAIL_TO: "${{ secrets.EMAIL_TO }}" },
+      run: "node e2e/support/email-recipients.mjs",
+    });
+    expect(masking).toBe(steps.findIndex((each) => each.name === "Checkout") + 1);
+    const mentions = (each: Step) => JSON.stringify(each).includes("secrets.EMAIL_TO");
+    expect(steps.filter(mentions).map((each) => each.name)).toEqual(["Read the email recipients"]);
+    for (const name of ["Run the suite", "Write the run email", "Email the run"]) {
+      expect(masking, name).toBeLessThan(steps.findIndex((each) => each.name === name));
+    }
+    expect(JSON.stringify(kindJob().env ?? {})).not.toContain("EMAIL_TO");
+  });
+
+  test("the address check refuses a malformed entry", () => {
+    expect(recipients("a@example.com, b@example.com")).toEqual(["a@example.com", "b@example.com"]);
+    expect(recipients(" a@example.com ,, ")).toEqual(["a@example.com"]);
+    expect(recipients("")).toEqual([]);
+    expect(recipients(undefined)).toEqual([]);
+    for (const [list, position] of [
+      ["a@example", "1 of 1"],
+      ["a@example.com, a b@example.com", "2 of 2"],
+      ["a@@example.com", "1 of 1"],
+    ]) {
+      expect(() => recipients(list), list).toThrow(`Recipient ${position} is not an email address`);
+    }
+  });
+
+  test("the script masks every entry before it checks them", () => {
+    const run = (list: string) => {
+      const output = test.info().outputPath(`output-${list.length}`);
+      fs.writeFileSync(output, "");
+      const result = spawnSync(process.execPath, [SCRIPT], { env: { ...process.env, EMAIL_TO: list, GITHUB_OUTPUT: output }, encoding: "utf-8" });
+      return { status: result.status, stdout: result.stdout, output: fs.readFileSync(output, "utf-8") };
+    };
+    const good = run("a@example.com, b@example.com");
+    expect(good.status).toBe(0);
+    expect(good.output).toBe("to=a@example.com,b@example.com\n");
+    expect(good.stdout).toBe("::add-mask::a@example.com\n::add-mask::b@example.com\nThe run email goes to 2 addresses.\n");
+
+    const bad = run("a@example.com, example.com");
+    expect(bad.status).toBe(1);
+    expect(bad.output).toBe("");
+    const lines = bad.stdout.split("\n");
+    expect(lines.slice(0, 2)).toEqual(["::add-mask::a@example.com", "::add-mask::example.com"]);
+    // Only the mask commands name an address, and the runner prints none of them.
+    expect(lines.slice(2).join("\n")).not.toContain("example.com");
+    expect(lines[2]).toMatch(/^::error::Recipient 2 of 2 is not an email address/);
+
+    expect(run("")).toEqual({ status: 0, stdout: "The run email is not sent.\n", output: "to=\n" });
   });
 
   test("the history fetch downloads the outcomes the nightly uploads", () => {

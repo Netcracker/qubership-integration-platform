@@ -71,15 +71,15 @@ The rest of the suite provisions a Compose stack or a cluster namespace and expe
 the length of the run.
 
 The job's step summary comes from `support/run-summary.mjs`, and `support/run-page.mjs` writes the
-run page, which the job uploads unzipped beside Playwright's HTML report. Every scheduled run, and
-every dispatch with the `email` input, which is on by default, mails an HTML report that
-`support/run-email.mjs` writes through the org email action to `vars.EMAIL_TO`, passed or failed,
-with the verdict in the subject. All three render one model from `support/run-model.mjs`: they name
-a test by its describe path and title joined with ` › `, count the product, setup, and suite
-project groups apart, mark each failed test as new, intermittent, or still failing from the
-`e2e-outcomes` artifacts of earlier runs on the branch, which `support/run-history.mjs` reads, and
-list a `test.fail()` case that passed apart, as a pin to remove. The email gives each failed test
-the command that reruns it alone.
+run page, which the job uploads unzipped beside Playwright's HTML report. Every scheduled run mails
+an HTML report that `support/run-email.mjs` writes through the org email action to `vars.EMAIL_TO`,
+passed or failed, with the verdict in the subject; a dispatch mails it only to the addresses in its
+`email-to` input. `support/email-recipients.mjs` masks the recipients in the public log. All three
+render one model from `support/run-model.mjs`: they name a test by its describe path and title
+joined with ` › `, count the product, setup, and suite project groups apart, mark each failed test
+as new, intermittent, or still failing from the `e2e-outcomes` artifacts of earlier runs on the
+branch, which `support/run-history.mjs` reads, and list a `test.fail()` case that passed apart, as a
+pin to remove. The email gives each failed test the command that reruns it alone.
 The summary also reads `coverage.json`, which `npm run reconcile` writes, and the `resource-peaks`
 and `metaspace` attachments of `specs/env/process-envelope.spec.ts`.
 
