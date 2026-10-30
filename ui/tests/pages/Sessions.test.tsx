@@ -31,6 +31,7 @@ import { downloadFile } from "../../src/misc/download-utils.ts";
 import { triggerIntersection } from "../setup/intersection-observer.ts";
 import { useSessionsFilter } from "../../src/hooks/filter/useSessionsFilter.ts";
 import type { EntityFilterModel } from "../../src/components/table/filter/filterTypes.ts";
+import { configure } from "../../src/appConfig.ts";
 
 let capturedConfirmOnOk: (() => void | Promise<void>) | undefined;
 let capturedConfirmContent: unknown;
@@ -1561,6 +1562,67 @@ describe("Sessions", () => {
       ).not.toBeInTheDocument();
 
       expect(screen.getByTestId("search-input")).toBeInTheDocument();
+    });
+  });
+
+  describe("in-memory sessions alert", () => {
+    const alertText =
+      "In-memory sessions queue is configured in this environment. Please configure kafka sessions streaming.";
+
+    beforeEach(() => {
+      mockUseParams.mockReturnValue({});
+      mockGetSessions.mockResolvedValue({ sessions: [], offset: 0 });
+    });
+
+    afterEach(() => {
+      configure({ opensearchKafkaEnabled: undefined });
+    });
+
+    test("should show the alert when Kafka streaming is not configured", async () => {
+      renderPageWithChainHeader(<Sessions variant="admin-page" />);
+
+      expect(await screen.findByText(alertText)).toBeInTheDocument();
+    });
+
+    test("should show the alert when Kafka streaming is disabled", async () => {
+      configure({ opensearchKafkaEnabled: false });
+
+      renderPageWithChainHeader(<Sessions variant="admin-page" />);
+
+      expect(await screen.findByText(alertText)).toBeInTheDocument();
+    });
+
+    test("should hide the alert when Kafka streaming is enabled", async () => {
+      configure({ opensearchKafkaEnabled: true });
+
+      renderPageWithChainHeader(<Sessions variant="admin-page" />);
+
+      await waitFor(() => {
+        expect(mockGetSessions).toHaveBeenCalled();
+      });
+      expect(screen.queryByText(alertText)).not.toBeInTheDocument();
+    });
+
+    test("should hide the alert when Kafka streaming is enabled after render", async () => {
+      renderPageWithChainHeader(<Sessions variant="admin-page" />);
+      expect(await screen.findByText(alertText)).toBeInTheDocument();
+
+      act(() => {
+        configure({ opensearchKafkaEnabled: true });
+      });
+
+      expect(screen.queryByText(alertText)).not.toBeInTheDocument();
+    });
+
+    test("should not show the alert on the chain tab", async () => {
+      mockUseParams.mockReturnValue({ chainId: "chain-1" });
+
+      renderSessions();
+
+      await waitFor(() => {
+        expect(mockGetSessions).toHaveBeenCalled();
+      });
+      expect(screen.queryByText(alertText)).not.toBeInTheDocument();
     });
   });
 });

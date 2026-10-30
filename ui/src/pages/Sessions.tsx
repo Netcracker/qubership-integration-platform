@@ -108,10 +108,13 @@ export const Sessions: React.FC<SessionsProps> = ({
   const { filters, filterButton } = useSessionsFilter(chainId);
   const notificationService = useNotificationService();
   const tableWrapperRef = useRef<HTMLDivElement>(null);
-  const [isOpensearchKafkaEnabled, setIsOpensearchKafkaEnabled] = useState<boolean>(false);
+  const [isOpensearchKafkaEnabled, setIsOpensearchKafkaEnabled] =
+    useState<boolean>(false);
 
   useEffect(() => {
-    const updateOpensearchKafkaEnabled = (cfg: ReturnType<typeof getConfig>) => {
+    const updateOpensearchKafkaEnabled = (
+      cfg: ReturnType<typeof getConfig>,
+    ) => {
       setIsOpensearchKafkaEnabled(!!cfg.opensearchKafkaEnabled);
     };
     updateOpensearchKafkaEnabled(getConfig());
@@ -653,15 +656,14 @@ export const Sessions: React.FC<SessionsProps> = ({
     <>
       {variant === "admin-page" ? (
         <Flex vertical className={commonStyles.container}>
-          <AdminToolsHeader
-            title="Sessions"
-            toolbar={sessionsToolbar}
-          />
+          <AdminToolsHeader title="Sessions" toolbar={sessionsToolbar} />
           {!isOpensearchKafkaEnabled && (
             <Alert
               type="warning"
               showIcon
-              title={"In-memory sessions queue is configured in this environment. Please configure kafka sessions streaming."}
+              title={
+                "In-memory sessions queue is configured in this environment. Please configure kafka sessions streaming."
+              }
             />
           )}
           {sessionsTable}
