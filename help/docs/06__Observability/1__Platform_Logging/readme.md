@@ -298,6 +298,14 @@ java.lang.IllegalArgumentException: AMQP addresses has invalid format, check con
 ...
 ```
 
+#### GraphQL
+
+When chain **Log Level** is **Info** and **Log Payload** includes **Body**, the GraphQL logging processor assembles JSON for [GraphQL Sender](../../01__Chains/1__Graph/1__Elements_Library/7__Senders/7__GraphQL_Sender/readme.md) and [GraphQL Service Call](../../01__Chains/1__Graph/1__Elements_Library/7__Senders/6__Service_Call/readme.md) request logs.
+
+The assembled body contains `query`, `operationName`, and `variables`. The processor reads `variables` from an existing `CamelGraphQLVariables` header before the route converts configured **Variables JSON** into that header. If the header is absent, it records `"variables": {}`.
+
+The same processor assembles the body for [session logging](#session-logs).
+
 #### Sub-Chains
 
 When chains, that are being deployed, are linked via [Chain Call](../../01__Chains/1__Graph/1__Elements_Library/1__Routing/6__Chain_Call/readme.md)/[Chain Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/2__Chain_Trigger/readme.md) the way it forms cyclic relationship, system registers an error:
