@@ -1,4 +1,4 @@
-import { Table } from "antd";
+import { Alert, Table } from "antd";
 import React, {
   useCallback,
   useEffect,
@@ -51,6 +51,7 @@ import commonStyles from "../components/admin_tools/CommonStyle.module.css";
 import { TableToolbar } from "../components/table/TableToolbar.tsx";
 import { AdminToolsHeader } from "../components/admin_tools/AdminToolsHeader.tsx";
 import { useSessionsFilter } from "../hooks/filter/useSessionsFilter.ts";
+import { getConfig, onConfigChange } from "../appConfig.ts";
 
 type SessionWithCheckpoints = Session & {
   checkpoints?: Checkpoint[];
@@ -107,6 +108,15 @@ export const Sessions: React.FC<SessionsProps> = ({
   const { filters, filterButton } = useSessionsFilter(chainId);
   const notificationService = useNotificationService();
   const tableWrapperRef = useRef<HTMLDivElement>(null);
+  const [isOpensearchKafkaEnabled, setIsOpensearchKafkaEnabled] = useState<boolean>(false);
+
+  useEffect(() => {
+    const updateOpensearchKafkaEnabled = (cfg: ReturnType<typeof getConfig>) => {
+      setIsOpensearchKafkaEnabled(!!cfg.opensearchKafkaEnabled);
+    };
+    updateOpensearchKafkaEnabled(getConfig());
+    return onConfigChange((config) => updateOpensearchKafkaEnabled(config));
+  }, []);
 
   const tableData = useMemo<SessionTableItem[]>(() => {
     const rowMap = new Map<string, SessionTableItem>(
@@ -647,6 +657,13 @@ export const Sessions: React.FC<SessionsProps> = ({
             title="Sessions"
             toolbar={sessionsToolbar}
           />
+          {!isOpensearchKafkaEnabled && (
+            <Alert
+              type="warning"
+              showIcon
+              title={"In-memory sessions queue is configured in this environment. Please configure kafka sessions streaming."}
+            />
+          )}
           {sessionsTable}
         </Flex>
       ) : (
