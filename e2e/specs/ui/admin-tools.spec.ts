@@ -180,8 +180,11 @@ test.describe("admin tools", () => {
       await page.goto("/admintools/exchanges");
       const row = new TableView(page).rows.filter({ has: page.getByText(listed.sessionId, { exact: true }) });
       const dialog = page.getByRole("dialog").filter({ hasText: "Terminate Exchange" });
-      // The actions column shows its buttons only while the row is hovered.
+      // The actions column shows its buttons after the pointer enters a cell of the row. The pointer
+      // moves to the heading first: the Cancel click can leave it resting inside the row, and a move
+      // that stays inside one cell fires no mouseenter.
       const terminate = async () => {
+        await page.getByRole("heading", { name: "Live Exchanges" }).hover();
         await row.hover();
         await row.getByTestId("live-exchanges-terminate").click();
       };
