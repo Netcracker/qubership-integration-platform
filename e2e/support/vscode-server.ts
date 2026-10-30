@@ -11,6 +11,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { httpStatus, newestMtimeMs, repoRoot, runToCompletion } from "../env/host.js";
+import { BuildLock } from "./build-lock.js";
 import { groupAlive, RecordedServer } from "./process-group.js";
 import { readUntil } from "./poll.js";
 
@@ -122,19 +123,23 @@ const server = new RecordedServer(STATE_FILE, SERVER_ARGS);
 
 const workbenchUrl = () => `http://localhost:${VSCODE_PORT}/`;
 
+/** Runs the stale builds while holding the build lock, after the UI bundle when `ui-server` builds it. */
 async function buildStale(): Promise<string[]> {
   const { uiLib, extension } = await staleBuilds();
   const built: string[] = [];
-  if (uiLib) {
-    for (const args of UI_LIB_BUILDS) await runToCompletion("npm", args, repoRoot(), process.env);
-    fs.writeFileSync(path.join(repoRoot(), "ui", UI_LIB_OUTPUT), "");
-    built.push("the UI library");
-  }
-  if (extension) {
-    await runToCompletion("npm", EXTENSION_BUILD, repoRoot(), process.env);
-    fs.writeFileSync(path.join(repoRoot(), "vscode-extension", EXTENSION_OUTPUT), "");
-    built.push("the extension");
-  }
+  if (!uiLib && !extension) return built;
+  await new BuildLock().run("vscode-server", async () => {
+    if (uiLib) {
+      for (const args of UI_LIB_BUILDS) await runToCompletion("npm", args, repoRoot(), process.env);
+      fs.writeFileSync(path.join(repoRoot(), "ui", UI_LIB_OUTPUT), "");
+      built.push("the UI library");
+    }
+    if (extension) {
+      await runToCompletion("npm", EXTENSION_BUILD, repoRoot(), process.env);
+      fs.writeFileSync(path.join(repoRoot(), "vscode-extension", EXTENSION_OUTPUT), "");
+      built.push("the extension");
+    }
+  });
   return built;
 }
 

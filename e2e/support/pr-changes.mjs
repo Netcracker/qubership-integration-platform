@@ -32,6 +32,7 @@ export const JOB_PATHS = {
     "e2e/support/vscode-*",
     "e2e/support/schemas-build.ts",
     "e2e/support/absent.ts",
+    "e2e/support/build-lock.ts",
     "e2e/support/colors.ts",
     "e2e/support/known-defect.ts",
     "e2e/support/pick-option.ts",

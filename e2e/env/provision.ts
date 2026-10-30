@@ -13,6 +13,7 @@ import { Catalog } from "../support/catalog.js";
 import { discardCorpusStateOf } from "../support/corpus.js";
 import { formatPreviousRunSweep, sweepPreviousRuns } from "../support/fixtures.js";
 import { publishedLabel, writeStackHeader } from "../support/report.js";
+import { reserveBundleBuild } from "../support/ui-server.js";
 import { targetSetup } from "./target-setup.js";
 
 /** `auto` provisions; `never` only checks health, so a stack somebody is debugging is left alone. */
@@ -270,4 +271,9 @@ export default async function globalSetup(config: FullConfig): Promise<void> {
   // finished restarting things and before any project has asked the stack to do anything. The
   // sampler runs for the rest of the run: a peak lasts seconds, so nothing read afterwards is it.
   setup.observer.startSampler(run, await setup.observer.baseline());
+
+  // Before any worker starts, so the `vscode-server` builds cannot take the lock first.
+  if (await reserveBundleBuild(runProjects(config).map((project) => project.name))) {
+    console.log("[build-lock] reserved for the UI bundle, which builds before the vscode-server builds");
+  }
 }
