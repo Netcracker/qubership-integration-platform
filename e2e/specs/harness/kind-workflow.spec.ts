@@ -17,11 +17,10 @@
  * suite's `env` ("the recipients are masked before any step can print them"); an address check that accepts `a@example`, `a b@example.com`, or `a@@example.com` ("the
  * address check refuses a malformed entry"); no mask commands, the entry in the error, and the
  * output written before the check ("the script masks every entry before it checks them"); the
- * `background-bootstrap` default true, and the `ui` job without it ("the bootstrap runs in the
- * background only for the PR lanes"); the foreground bootstrap step without its `if`, the start step
- * after the root dependencies, and the suite's `E2E_BOOTSTRAP_LOG` without the input ("with the
- * input, the suite waits for the bootstrap it started"); the subshell without `&`, and the exit
- * code written under another name ("the start step returns before the bootstrap ends").
+ * start step after the root dependencies, a `kubectl` step between it and the suite, the suite
+ * without `E2E_BOOTSTRAP_LOG`, and the log outside the report upload ("the suite waits for the
+ * bootstrap it started"); the subshell without `&`, and the exit code written under another name
+ * ("the start step returns before the bootstrap ends").
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -209,28 +208,17 @@ test.describe("kind workflow", () => {
     expect(run("")).toEqual({ status: 0, stdout: "The run email is not sent.\n", output: "to=\n" });
   });
 
-  test("the bootstrap runs in the background only for the PR lanes", () => {
-    expect(kind().on.workflow_call?.inputs["background-bootstrap"]).toMatchObject({ type: "boolean", default: false });
-    // "the nightly runs the whole suite" pins the nightly's inputs, which leave it out.
-    const lanes = callers("e2e-pr.yaml");
-    expect(lanes.map(([name]) => name).sort()).toEqual(["classic", "micro", "ui"]);
-    for (const [name, job] of lanes) expect(job.with?.["background-bootstrap"], name).toBe(true);
-  });
-
-  test("with the input, the suite waits for the bootstrap it started", () => {
+  test("the suite waits for the bootstrap it started", () => {
     const steps = kindJob().steps ?? [];
     const at = (name: string) => steps.findIndex((each) => each.name === name);
-    expect(step("Bootstrap the cluster").if).toBe("${{ !inputs.background-bootstrap }}");
-    expect(step("Start the cluster bootstrap").if).toBe("${{ inputs.background-bootstrap }}");
     // Started once the tools are on PATH, so it runs beside npm ci, Chromium, and the image builds.
-    expect(at("Start the cluster bootstrap")).toBe(at("Bootstrap the cluster") + 1);
-    expect(at("Bootstrap the cluster")).toBeGreaterThan(at("Install kind and istioctl"));
+    expect(at("Start the cluster bootstrap")).toBeGreaterThan(at("Install kind and istioctl"));
     expect(at("Start the cluster bootstrap")).toBeLessThan(at("Install root dependencies"));
+    // Unconditional, because the suite always waits for its exit code.
+    expect(step("Start the cluster bootstrap").if).toBeUndefined();
     const between = steps.slice(at("Start the cluster bootstrap") + 1, at("Run the suite"));
     expect(between.filter((each) => /\b(kubectl|kind|helm|istioctl)\b/.test(each.run ?? "")).map((each) => each.name)).toEqual([]);
-    // The provisioner waits for the exit code only when the input started the bootstrap; the nightly
-    // would otherwise wait for a file nothing writes.
-    expect(step("Run the suite").env?.E2E_BOOTSTRAP_LOG).toBe("${{ inputs.background-bootstrap && env.BOOTSTRAP_LOG || '' }}");
+    expect(step("Run the suite").env?.E2E_BOOTSTRAP_LOG).toBe("${{ env.BOOTSTRAP_LOG }}");
     expect(kindJob().env?.BOOTSTRAP_LOG).toBe("${{ github.workspace }}/e2e/.e2e-k8s-bootstrap.log");
     expect(String(step("Upload the report").with?.path)).toContain("e2e/.e2e-k8s-*");
   });

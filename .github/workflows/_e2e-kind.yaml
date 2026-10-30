@@ -43,11 +43,6 @@ on:
         required: false
         type: number
         default: 140
-      background-bootstrap:
-        description: Bootstrap the cluster in the background while the dependencies and the images install and build
-        required: false
-        type: boolean
-        default: false
       pull-request:
         description: Stop at the first failure, keep the entities, reconcile only the lane, no run history, no email
         required: false
@@ -159,16 +154,10 @@ jobs:
           helm version
           mvn -v
 
-      - name: Bootstrap the cluster
-        id: bootstrap
-        if: ${{ !inputs.background-bootstrap }}
-        run: e2e/k8s/bootstrap-cluster.sh
-
       # Runs alongside the next steps and the suite's image builds. The exit code is written to a file
       # after the log is complete, and the provisioner waits for that file before its first cluster call.
       - name: Start the cluster bootstrap
         id: bootstrap-start
-        if: ${{ inputs.background-bootstrap }}
         run: |
           (
             set +e
@@ -205,7 +194,7 @@ jobs:
           GLOBAL_TIMEOUT_MINUTES: ${{ inputs.global-timeout }}
           PROJECTS: ${{ steps.lane.outputs.projects }}
           PULL_REQUEST: ${{ inputs.pull-request }}
-          E2E_BOOTSTRAP_LOG: ${{ inputs.background-bootstrap && env.BOOTSTRAP_LOG || '' }}
+          E2E_BOOTSTRAP_LOG: ${{ env.BOOTSTRAP_LOG }}
           MAVEN_ARGS: -B -s ${{ github.workspace }}/.github/maven-settings.xml
           MAVEN_GITHUB_USERNAME: ${{ github.actor }}
           MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}

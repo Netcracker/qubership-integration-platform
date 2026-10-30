@@ -205,7 +205,6 @@ jobs:
       name: classic
       lane: classic
       build: runtime-catalog,engine,sessions-management,testing-service
-      background-bootstrap: true
       pull-request: true
       timeout-minutes: 60
       global-timeout: 45
@@ -223,7 +222,6 @@ jobs:
     with:
       name: micro
       lane: micro
-      background-bootstrap: true
       pull-request: true
       timeout-minutes: 60
       global-timeout: 45
@@ -243,7 +241,6 @@ jobs:
       lane: ui
       build: runtime-catalog,engine,sessions-management,testing-service
       brokers: false
-      background-bootstrap: true
       pull-request: true
       timeout-minutes: 45
       global-timeout: 30
