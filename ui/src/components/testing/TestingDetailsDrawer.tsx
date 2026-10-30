@@ -101,6 +101,8 @@ export const TestingDetailsDrawer: React.FC<TestingDetailsDrawerProps> = ({
     open={open}
     onClose={onClose}
     destroyOnHidden
+    getContainer={".page-content"}
+    rootStyle={{ position: "absolute" }}
   >
     {sections.map((items, index) => (
       <React.Fragment key={index}>

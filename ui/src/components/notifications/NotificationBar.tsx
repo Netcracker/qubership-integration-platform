@@ -47,6 +47,8 @@ export const NotificationBar: React.FC = () => {
             Clear All
           </Button>
         }
+        getContainer={".page-content"}
+        rootStyle={{ position: "absolute" }}
       >
         <List
           dataSource={notificationLogData.history}

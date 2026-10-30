@@ -1647,6 +1647,8 @@ export const AiAssistant: React.FC = () => {
         width={drawerWidth}
         zIndex={DRAWER_Z_INDEX}
         rootClassName="ai-assistant-drawer"
+        rootStyle={{ position: "absolute" }}
+        getContainer={".page-content"}
       >
         <div
           className={`ai-drawer-resize-handle ${isResizing ? "resizing" : ""}`}

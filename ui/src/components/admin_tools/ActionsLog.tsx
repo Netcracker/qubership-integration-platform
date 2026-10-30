@@ -466,45 +466,6 @@ export const ActionsLog: React.FC = () => {
           overflow: "hidden",
         }}
       >
-        {currentActionLog && (
-          <Drawer
-            title="Action Details"
-            placement="right"
-            open={openSidebar}
-            closable={false}
-            onClose={onClose}
-          >
-            <Descriptions column={1} size="small" layout="vertical">
-              <Descriptions.Item label="Action Time">
-                {formatTimestamp(currentActionLog.actionTime)}
-              </Descriptions.Item>
-              <Descriptions.Item label="Initiator">
-                {currentActionLog.username}
-              </Descriptions.Item>
-              <Descriptions.Item label="Operation">
-                {capitalize(OperationTypeMap[currentActionLog.operation])}
-              </Descriptions.Item>
-              <Descriptions.Item label="Entity Id">
-                {currentActionLog.entityId}
-              </Descriptions.Item>
-              <Descriptions.Item label="Entity Type">
-                {capitalize(currentActionLog.entityType)}
-              </Descriptions.Item>
-              <Descriptions.Item label="Entity Name">
-                {renderEntityLink(currentActionLog)}
-              </Descriptions.Item>
-              <Descriptions.Item label="Parent Id">
-                {currentActionLog.parentId}
-              </Descriptions.Item>
-              <Descriptions.Item label="Parent Name">
-                {renderParentLink(currentActionLog)}
-              </Descriptions.Item>
-              <Descriptions.Item label="Request Id">
-                {currentActionLog.requestId}
-              </Descriptions.Item>
-            </Descriptions>
-          </Drawer>
-        )}
         <Flex
           style={{
             width: "100%",
@@ -550,6 +511,47 @@ export const ActionsLog: React.FC = () => {
           </div>
         </Flex>
       </Flex>
+      {currentActionLog && (
+        <Drawer
+          title="Action Details"
+          placement="right"
+          open={openSidebar}
+          closable={false}
+          onClose={onClose}
+          getContainer={".page-content"}
+          rootStyle={{ position: "absolute" }}
+        >
+          <Descriptions column={1} size="small" layout="vertical">
+            <Descriptions.Item label="Action Time">
+              {formatTimestamp(currentActionLog.actionTime)}
+            </Descriptions.Item>
+            <Descriptions.Item label="Initiator">
+              {currentActionLog.username}
+            </Descriptions.Item>
+            <Descriptions.Item label="Operation">
+              {capitalize(OperationTypeMap[currentActionLog.operation])}
+            </Descriptions.Item>
+            <Descriptions.Item label="Entity Id">
+              {currentActionLog.entityId}
+            </Descriptions.Item>
+            <Descriptions.Item label="Entity Type">
+              {capitalize(currentActionLog.entityType)}
+            </Descriptions.Item>
+            <Descriptions.Item label="Entity Name">
+              {renderEntityLink(currentActionLog)}
+            </Descriptions.Item>
+            <Descriptions.Item label="Parent Id">
+              {currentActionLog.parentId}
+            </Descriptions.Item>
+            <Descriptions.Item label="Parent Name">
+              {renderParentLink(currentActionLog)}
+            </Descriptions.Item>
+            <Descriptions.Item label="Request Id">
+              {currentActionLog.requestId}
+            </Descriptions.Item>
+          </Descriptions>
+        </Drawer>
+      )}
     </Flex>
   );
 };

@@ -143,6 +143,8 @@ export const ChainDetailsDrawer: React.FC<ChainDetailsDrawerProps> = ({
       open={open}
       onClose={onClose}
       destroyOnHidden
+      getContainer={".page-content"}
+      rootStyle={{ position: "absolute" }}
     >
       {!chain ? null : (
         <Spin spinning={isLoading}>
