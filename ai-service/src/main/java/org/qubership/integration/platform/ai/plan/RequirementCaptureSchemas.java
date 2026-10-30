@@ -118,6 +118,20 @@ public final class RequirementCaptureSchemas {
     if (type instanceof ParameterizedType parameterized
         && parameterized.getRawType() == List.class) {
       return JsonArraySchema.builder()
+          .description("exactValues".equals(name)
+              ? "Complete author-supplied runtime keys or scalar values that this owner's artifact must contain exactly,"
+                  + " such as a complete response body, error code, JSON key, or marker. Preserve all characters, including"
+                  + " whitespace or '=' in a complete value such as 'a=b'. Script values are checked as complete executable"
+                  + " constants. Preserve an explicitly required literal component or prefix byte-for-byte even when"
+                  + " the output adds a dynamic suffix; compose separators and runtime expressions outside that constant."
+                  + " For an object property assignment or binding, list the exact key and any actual fixed scalar separately."
+                  + " The whole key=value clause is a required constant only when the author explicitly requests that"
+                  + " complete string as a literal."
+                  + " Keep whole binding, computation, and composition descriptions in BEHAVIOR text or a FIELD_MAPPING"
+                  + " on a real business transition, not as standalone constants. Source occurrence alone does not establish"
+                  + " a runtime constant. Names belong in requestedName;"
+                  + " do not list type or language display names."
+              : null)
           .items(schema(parameterized.getActualTypeArguments()[0], name + "[]"))
           .build();
     }
@@ -136,7 +150,12 @@ public final class RequirementCaptureSchemas {
               .build();
         }
         object.addProperty(component.getName(), field);
-        required.add(component.getName());
+        try {
+          JsonProperty declaration = clazz.getDeclaredField(component.getName()).getAnnotation(JsonProperty.class);
+          if (declaration == null || declaration.required()) required.add(component.getName());
+        } catch (NoSuchFieldException error) {
+          throw new IllegalStateException(error);
+        }
       }
       return object.required(required).build();
     }
@@ -154,7 +173,7 @@ public final class RequirementCaptureSchemas {
       return JsonEnumSchema.builder().enumValues(List.copyOf(keys)).build();
     }
     if ("directive".equals(name)) {
-      return JsonEnumSchema.builder().enumValues("STAY", "CONTINUE").build();
+      return JsonEnumSchema.builder().enumValues("STAY", "CONTINUE", "DISCUSS").build();
     }
     if (clazz.isEnum()) {
       return JsonEnumSchema.builder().enumValues(
@@ -162,6 +181,12 @@ public final class RequirementCaptureSchemas {
               .map(value -> ((Enum<?>) value).name()).toList()).build();
     }
     if (clazz == String.class) {
+      if ("sourceFactId".equals(name)) {
+        return JsonStringSchema.builder().description(
+            "Stable local fact ID matching " + RequirementCaptureEditor.localIdPattern()
+                + " as a complete value. Field paths belong in their declared fields.")
+            .build();
+      }
       if ("targetPath".equals(name)) {
         return JsonStringSchema.builder().description(
             "Exactly one target field path. Capture a separate FIELD_MAPPING fact for each output field.")

@@ -14,14 +14,14 @@ import org.qubership.integration.platform.ai.llm.ratelimit.RateLimitChatModelPro
 public class OpenAiStreamingReasoningCustomizer
     implements ModelBuilderCustomizer<OpenAiStreamingChatModel.OpenAiStreamingChatModelBuilder> {
 
-  private final String reasoningEffort;
+  private final Optional<String> reasoningEffort;
   private final Optional<Integer> thinkingBudgetTokens;
 
   OpenAiStreamingReasoningCustomizer(
       @ConfigProperty(
               name = "quarkus.langchain4j.openai.openai-upstream.chat-model.reasoning-effort",
               defaultValue = "none")
-          String reasoningEffort,
+          Optional<String> reasoningEffort,
       @ConfigProperty(name = "qip.ai.llm.thinking.budget-tokens")
           Optional<Integer> thinkingBudgetTokens) {
     this.reasoningEffort = reasoningEffort;
@@ -30,7 +30,7 @@ public class OpenAiStreamingReasoningCustomizer
 
   @Override
   public void customize(OpenAiStreamingChatModel.OpenAiStreamingChatModelBuilder builder) {
-    builder.reasoningEffort(reasoningEffort);
+    reasoningEffort.ifPresent(builder::reasoningEffort);
     ThinkingBudget.customParameters(thinkingBudgetTokens).ifPresent(builder::customParameters);
   }
 }

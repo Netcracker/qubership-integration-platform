@@ -19,6 +19,7 @@ public class CipKnowledgeRagManifestBuilder {
     List<CipKnowledgeRagChunk> chunks = new ArrayList<>();
     for (CapabilityDescriptor capability : result.registry().capabilities()) {
       String sourcePath = "skills/" + capability.sourceSkillId() + "/SKILL.md";
+      if (!contentByPath.containsKey(sourcePath)) continue;
       chunks.add(
           new CipKnowledgeRagChunk(
               capability.sourceSkillId(),

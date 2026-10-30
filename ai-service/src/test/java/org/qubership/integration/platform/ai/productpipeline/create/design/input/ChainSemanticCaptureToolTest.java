@@ -81,6 +81,9 @@ class ChainSemanticCaptureToolTest {
         capture.sequenceRegions(), capture.conditionRegions(), capture.splitRegions(), capture.loopRegions(),
         capture.retryRegions(), capture.errorScopeRegions(), capture.edges(), capture.containment());
     assertTrue(tool.captureChainSemanticRevision(invalid).contains("DESIGN_CONTRACT_VIOLATION"));
+    String noticed = tool.captureChainSemanticRevision(invalid);
+    assertTrue(noticed.contains("UNCHANGED_PROPOSAL"), noticed);
+    assertTrue(noticed.contains("REPAIR_CAPTURE"), noticed);
     assertTrue(tool.captureChainSemanticRevision(invalid).contains("REPAIR_NO_PROGRESS"));
     assertTrue(ProductCapabilityCaptureContext.semanticCandidate().isEmpty());
     assertTrue(tool.captureChainSemanticRevision(capture).contains("HANDOFF"));
@@ -100,6 +103,26 @@ class ChainSemanticCaptureToolTest {
         ProductCapabilityCaptureContext.semanticCandidate().orElseThrow();
     assertTrue(stored.revisionId().startsWith("semantic-"), stored.revisionId());
     assertEquals(CONTRACT.contractVersion(), stored.compilerContractVersion());
+  }
+
+  @Test
+  void captureAcceptsCompactRuntimeMetadata() throws Exception {
+    var files = Map.of("runtime/generator-contracts.json", "contracts",
+        "runtime/validation-rules.yaml", "validation");
+    var tool = tool(pack(completeAddons(), files));
+    bindDesign(ChainSemanticCaptureFixtures.approvedBrief());
+    var outcome = MAPPER.readTree(tool.captureChainSemanticRevision(ChainSemanticCaptureFixtures.linearCapture()));
+    assertTrue(outcome.path("accepted").asBoolean(), outcome.toString());
+    assertEquals("HANDOFF", outcome.path("nextAction").asText());
+  }
+
+  @Test
+  void captureRejectsMissingCompactValidationRules() {
+    var tool = tool(pack(completeAddons(), Map.of("runtime/generator-contracts.json", "contracts")));
+    bindDesign(ChainSemanticCaptureFixtures.approvedBrief());
+    String result = tool.captureChainSemanticRevision(ChainSemanticCaptureFixtures.linearCapture());
+    assertTrue(result.contains("Required knowledge fragment is missing: validation-rules"), result);
+    assertTrue(ProductCapabilityCaptureContext.semanticCandidate().isEmpty());
   }
 
   @Test

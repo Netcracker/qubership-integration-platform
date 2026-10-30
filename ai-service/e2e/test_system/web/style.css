@@ -1,0 +1,341 @@
+:root {
+  color-scheme: light dark;
+  font:
+    15px/1.5 system-ui,
+    sans-serif;
+
+  --bg: #f4f6fa;
+  --panel: #fff;
+  --text: #1e293b;
+  --muted: #526174;
+  --line: #d8e0ea;
+  --brand: #2553cc;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+
+header,
+main,
+footer {
+  max-width: 1400px;
+  margin: auto;
+  padding: 24px;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0 0 12px;
+}
+
+h1 {
+  font-size: 28px;
+}
+
+h2 {
+  font-size: 20px;
+}
+
+.eyebrow,
+header span,
+footer {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+section,
+nav {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 20px;
+  min-width: 0;
+}
+
+form {
+  display: flex;
+  align-items: end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+label {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+
+input,
+select,
+button {
+  font: inherit;
+  max-width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+}
+
+button {
+  cursor: pointer;
+  background: var(--brand);
+  color: white;
+  border: 0;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  max-width: 240px;
+}
+
+.check input {
+  width: 18px;
+  height: 18px;
+}
+
+#profile-detail {
+  width: 100%;
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0;
+}
+
+#error {
+  color: #bc2636;
+  margin-top: 12px;
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: 310px minmax(0, 1fr);
+  gap: 20px;
+  margin-top: 20px;
+}
+
+#history a {
+  display: block;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  color: inherit;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+a {
+  color: var(--brand);
+}
+
+small {
+  color: var(--muted);
+}
+
+.badge {
+  display: inline-block;
+  border-radius: 5px;
+  padding: 2px 7px;
+  background: #e3e9f2;
+  font-size: 12px;
+  color: #263550;
+}
+
+[class~="PASS"] {
+  background: #d6f3e3;
+  color: #125233;
+}
+
+[class~="FAIL"],
+[class~="ERROR"] {
+  background: #ffe1e5;
+  color: #8c1b30;
+}
+
+[class~="RUNNING"],
+[class~="QUEUED"] {
+  background: #dfeaff;
+  color: #1746a3;
+}
+
+[class~="BLOCKED"],
+[class~="NOT_RUN"],
+[class~="CANCELLED"] {
+  background: #fff0d1;
+  color: #754c04;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin: 16px 0;
+  flex-wrap: wrap;
+}
+
+dl {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr);
+  gap: 6px;
+  margin: 16px 0;
+  font-size: 13px;
+}
+
+dt {
+  color: var(--muted);
+}
+
+dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 16px 0;
+  font-size: 13px;
+}
+
+td,
+th {
+  text-align: left;
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.episode {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin: 16px 0;
+  padding: 16px;
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.columns > div {
+  min-width: 0;
+}
+
+pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font:
+    12px/1.5 ui-monospace,
+    monospace;
+  background: var(--bg);
+  padding: 12px;
+  border-radius: 5px;
+  max-height: 360px;
+  overflow: auto;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+details {
+  margin: 12px 0;
+}
+
+summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.log {
+  max-height: 300px;
+}
+
+body:has(button:focus-visible) button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 3px solid #668dff;
+  outline-offset: 3px;
+}
+
+@media (width <= 850px) {
+  .workspace,
+  .columns {
+    grid-template-columns: 1fr;
+  }
+
+  header {
+    display: block;
+  }
+
+  #history {
+    max-height: 230px;
+    overflow: auto;
+  }
+
+  main,
+  header,
+  footer {
+    padding: 16px;
+  }
+
+  section,
+  nav {
+    padding: 16px;
+  }
+
+  dl {
+    grid-template-columns: 100px minmax(0, 1fr);
+  }
+
+  table {
+    display: block;
+    overflow: auto;
+  }
+
+  label {
+    width: 100%;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #121a28;
+    --panel: #1a2638;
+    --text: #edf2fa;
+    --muted: #acbbcf;
+    --line: #34445b;
+    --brand: #91b0ff;
+  }
+
+  button {
+    background: #315cce;
+    color: #fff;
+  }
+
+  #error {
+    color: #ff9caa;
+  }
+}

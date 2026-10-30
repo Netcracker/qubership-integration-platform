@@ -11,6 +11,7 @@ import javax.net.ssl.SSLHandshakeException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.qubership.integration.platform.ai.llm.ratelimit.RateLimitTurnBudgetExhaustedException;
 
 class TransientFailuresTest {
@@ -38,9 +39,34 @@ class TransientFailuresTest {
     assertTrue(TransientFailures.isTransient(new RateLimitTurnBudgetExhaustedException(2)));
   }
 
+  @ParameterizedTest
+  @ValueSource(ints = {502, 503, 504})
+  void detectsNestedProviderGatewayStatus(int status) {
+    assertTrue(TransientFailures.isTransient(new dev.langchain4j.exception.InternalServerException(
+        "Provider failed", new dev.langchain4j.exception.HttpException(status, "Upstream failed"))));
+  }
+
+  @Test
+  void sharesTheProviderTransportMessageClassification() {
+    assertTrue(TransientFailures.isTransient(new dev.langchain4j.exception.InternalServerException(
+        "upstream connect error", new dev.langchain4j.exception.HttpException(500, "upstream connect error"))));
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {400, 401, 403, 404, 422, 500})
+  void doesNotTreatPermanentOrUnknownProviderErrorsAsTransient(int status) {
+    assertFalse(TransientFailures.isTransient(new dev.langchain4j.exception.InternalServerException(
+        "Provider rejected request", new dev.langchain4j.exception.HttpException(status, "{\"error\":{\"code\":502}}"))));
+  }
+
   @Test
   void ignoresValidationAndNonTransientHttpFailures() {
     assertFalse(TransientFailures.isTransient(new IllegalArgumentException("invalid plan")));
+    assertFalse(TransientFailures.isTransient(new IllegalStateException("The contract quotes connection reset")));
+    assertFalse(TransientFailures.isTransient(new dev.langchain4j.exception.HttpException(400, "connection reset")));
+    assertFalse(TransientFailures.isTransient(new SSLHandshakeException("connection reset")));
+    assertFalse(TransientFailures.isTransient(new dev.langchain4j.exception.InternalServerException(
+        "connection reset", new SSLHandshakeException("PKIX path building failed"))));
     assertFalse(
         TransientFailures.isTransient(new WebApplicationException(Response.status(400).build())));
   }

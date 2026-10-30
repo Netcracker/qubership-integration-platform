@@ -53,6 +53,7 @@ public class StringifiedToolArgumentsNormalizer implements QuarkusToolExecutor.W
   private final DesignPlanCaptureTool designPlanTool;
   private final HttpTriggerCaptureTool httpTriggerTool;
   private final CaptureToolOutcomeGateway outcomeGateway;
+  @Inject org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryTestControl recoveryControl;
 
   @Inject
   public StringifiedToolArgumentsNormalizer(
@@ -122,11 +123,23 @@ public class StringifiedToolArgumentsNormalizer implements QuarkusToolExecutor.W
     if (isHttpTriggerCapture(method)) {
       StructuredCaptureArguments.Result inspected =
           StructuredCaptureArguments.inspect(request, method, objectMapper);
+      Object memoryId = invocationContext == null ? null : invocationContext.chatMemoryId();
+      String conversationId = memoryId == null
+          ? ToolSession.resolveConversationId()
+          : org.qubership.integration.platform.ai.compiler.CompilerSkillMemoryIds.conversationId(memoryId.toString());
+      String capabilityId = CompilerGraphPatchTool.resolveCapabilityId();
+      if (inspected.issue() == null && recoveryControl != null) {
+        var controlled = recoveryControl.httpArguments(conversationId, capabilityId, inspected.request());
+        if (controlled != inspected.request()) {
+          request = controlled;
+          inspected = StructuredCaptureArguments.inspect(controlled, method, objectMapper);
+        }
+      }
       if (inspected.issue() != null) {
-        Object memoryId = invocationContext == null ? null : invocationContext.chatMemoryId();
-        String conversationId = memoryId == null
-            ? ToolSession.resolveConversationId() : memoryId.toString();
-        String result = httpTriggerTool.rejectArguments(conversationId, inspected.issue());
+        String result = httpTriggerTool.rejectArguments(conversationId, inspected.issue(), request);
+        if (recoveryControl != null) {
+          recoveryControl.rejectedHttpArguments(conversationId, capabilityId, request, result);
+        }
         return ToolExecutionResult.builder().result(result).resultText(result).build();
       }
       return next.apply(inspected.request(), invocationContext);
@@ -135,13 +148,26 @@ public class StringifiedToolArgumentsNormalizer implements QuarkusToolExecutor.W
         "repairScriptBodies")
         .contains(method.methodName())) {
       var inspected = StructuredCaptureArguments.inspect(request, method, objectMapper);
+      Object memoryId = invocationContext == null ? null : invocationContext.chatMemoryId();
+      String conversationId = memoryId == null ? ToolSession.resolveConversationId()
+          : org.qubership.integration.platform.ai.compiler.CompilerSkillMemoryIds.conversationId(memoryId.toString());
+      String capabilityId = CompilerGraphPatchTool.resolveCapabilityId();
+      if (inspected.issue() == null && recoveryControl != null && "captureGraphPatch".equals(method.methodName())) {
+        var controlled = recoveryControl.graphArguments(conversationId, capabilityId, request);
+        if (controlled != request) {
+          request = controlled;
+          inspected = StructuredCaptureArguments.inspect(controlled, method, objectMapper);
+        }
+      }
       if (inspected.issue() != null) {
-        Object memoryId = invocationContext == null ? null : invocationContext.chatMemoryId();
-        String conversationId = memoryId == null ? ToolSession.resolveConversationId()
-            : org.qubership.integration.platform.ai.compiler.CompilerSkillMemoryIds.conversationId(memoryId.toString());
-        String capabilityId = CompilerGraphPatchTool.resolveCapabilityId();
         var issue = inspected.issue();
-        String result = outcomeGateway.onFailure(
+        if (List.of("captureGraphPatch", "repairScriptBodies").contains(method.methodName())) {
+          outcomeGateway.beginRejectedProposal(conversationId, capabilityId, method.methodName(),
+              request.arguments(), request.id());
+        }
+        String result = null;
+        try {
+          result = outcomeGateway.onFailure(
             List.of("captureGraphPatch", "repairScriptBodies").contains(method.methodName())
                 ? CaptureFeedbackChannel.PATCH
                 : CaptureFeedbackChannel.PLAN,
@@ -149,13 +175,26 @@ public class StringifiedToolArgumentsNormalizer implements QuarkusToolExecutor.W
             CaptureFailureKind.VALIDATION,
             CaptureFailureClass.CORRECTABLE,
             method.methodName(), request.arguments(),
-            issue.code() + " " + issue.path() + ": " + issue.message()
-                + " Resubmit the complete " + method.methodName() + " argument object.");
-        return ToolExecutionResult.builder().result(result).resultText(result).build();
+            structuredFailureMessage(issue, method.methodName()));
+          return ToolExecutionResult.builder().result(result).resultText(result).build();
+        } finally {
+          if (recoveryControl != null && "captureGraphPatch".equals(method.methodName())) {
+            recoveryControl.rejectedGraphArguments(conversationId, capabilityId, request, result);
+          }
+        }
       }
       return next.apply(inspected.request(), invocationContext);
     }
     return next.apply(normalize(request, executor.getMethodCreateInfo()), invocationContext);
+  }
+
+  private static String structuredFailureMessage(StructuredCaptureArguments.Issue issue, String method) {
+    String message = issue.message();
+    String instruction = " Resubmit the complete " + method + " argument object.";
+    int details = message.indexOf(
+        org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprints.NATIVE_PARSER_DETAILS);
+    return issue.code() + " " + issue.path() + ": " + (details < 0 ? message + instruction
+        : message.substring(0, details) + instruction + message.substring(details));
   }
 
   private static boolean isProductBriefCapture(ToolMethodCreateInfo method) {

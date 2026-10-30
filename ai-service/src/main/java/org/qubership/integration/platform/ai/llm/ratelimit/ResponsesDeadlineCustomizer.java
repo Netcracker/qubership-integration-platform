@@ -14,8 +14,13 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Produces;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.client.ClientRequestFilter;
+import jakarta.ws.rs.client.ClientResponseFilter;
 import java.net.http.HttpTimeoutException;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.Optional;
@@ -61,6 +66,7 @@ public class ResponsesDeadlineCustomizer {
     builder.readTimeout(timeout);
     resolveTls(named.tlsConfigurationName()).ifPresent(builder::tlsConfiguration);
     builder.addClientProvider(deadlineFilter(timeout));
+    builder.addClientProvider(rateLimitResponseFilter());
     openRouterProvider.filter(provider -> !provider.isBlank())
         .ifPresent(provider -> builder.addClientProvider(providerFilter(provider, mapper)));
     return builder;
@@ -79,6 +85,29 @@ public class ResponsesDeadlineCustomizer {
       ObjectNode payload = (ObjectNode) mapper.readTree((String) request.getEntity());
       payload.putObject("provider").put("allow_fallbacks", false).putArray("only").add(provider);
       request.setEntity(mapper.writeValueAsString(payload));
+    };
+  }
+
+  static ClientResponseFilter rateLimitResponseFilter() {
+    return (request, response) -> {
+      if (response.getStatus() != 429) {
+        return;
+      }
+      var headers = new LinkedHashMap<String, String>();
+      for (String name : List.of("Retry-After", "X-RateLimit-Reset")) {
+        String value = response.getHeaderString(name);
+        if (value != null) {
+          headers.put(name, value);
+        }
+      }
+      var mediaType = response.getMediaType();
+      String charset = mediaType == null ? null : mediaType.getParameters().get("charset");
+      var encoding = charset == null ? StandardCharsets.UTF_8 : Charset.forName(charset);
+      String body;
+      try (var stream = response.getEntityStream()) {
+        body = stream == null ? "" : new String(stream.readAllBytes(), encoding);
+      }
+      throw new RateLimitHttpException(body, headers);
     };
   }
 

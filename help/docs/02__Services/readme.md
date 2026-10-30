@@ -59,6 +59,7 @@ API Specification statuses details:
 In the Web UI, an OpenAPI or AsyncAPI file can be attached to a Rocky chat with a request to import
 the specification. The import card confirms the files and their service types. This task imports
 specifications without creating a chain.
+This standalone import remains available when the private `rocky-skills` package is not installed.
 
 Rocky reuses an existing specification when its parsed content matches the attachment, excluding
 `info.title`. Changing only the title does not create another service, specification group, or

@@ -162,7 +162,9 @@ public class DeterministicElementSchemaService {
     if (schema == null || schema.isMissingNode()) {
       return errorJson("Unknown property: " + segments[0]);
     }
-    schema = derefOne(schema, schemaRefResolver, elementRoot, docUri, refStack);
+    if (segments.length > 1) {
+      schema = derefOne(schema, schemaRefResolver, elementRoot, docUri, refStack);
+    }
     for (int i = 1; i < segments.length; i++) {
       schema = navigatePropertySchema(
           schema, segments[i], schemaRefResolver, elementRoot, docUri, refStack);
@@ -175,8 +177,11 @@ public class DeterministicElementSchemaService {
     out.put("propertyPath", normalized);
     out.set(
         "schema",
-        ElementSchemaCompactFormatter.summarizePropertySchema(
-            schema, schemaRefResolver, elementRoot, docUri, MAX_DESCRIPTION, 8));
+        ElementSchemaCompactFormatter.describePropertySchema(
+            schema, schemaRefResolver, elementRoot, docUri, 8));
+    out.put("schemaView", "Native schema with $refTarget resolution metadata. In draft 7, $ref siblings"
+        + " are not additional assertions. Depth and cycle markers leave references unexpanded."
+        + " Resolution metadata does not assert complete expansion or change native validation.");
     return objectMapper.writeValueAsString(out);
   }
 
@@ -351,8 +356,8 @@ public class DeterministicElementSchemaService {
   }
 
   /**
-   * Validates a structured capture value ({@link JsonNode}) against the element property schema.
-   *
+   * Validates a capture value against its property schema and Simple predicate syntax.
+   * Runtime functions are not resolved or evaluated.
    * @return validation error message, or empty when valid or schema is unavailable
    */
   public Optional<String> validateCapturePropertyValue(
@@ -386,10 +391,39 @@ public class DeterministicElementSchemaService {
               elementRoot,
               model.elementDocumentUri(),
               objectMapper);
-      return errors.isEmpty() ? Optional.empty() : Optional.of(errors.get(0));
+      return errors.isEmpty()
+          ? CamelSimplePredicateValidator.validateProperty(trimmedType, propertyKey.trim(), value)
+          : Optional.of(errors.get(0));
     } catch (Exception e) {
       return Optional.of("Property validation failed: " + e.getMessage());
     }
+  }
+
+  /** All native capture violations; prose summaries must not replace their repair data. */
+  public List<JsonNode> capturePropertyIssues(String elementType, String propertyKey, JsonNode value) {
+    if (elementType == null || propertyKey == null || value == null || value.isNull()
+        || !hasElementSchema(elementType)) {
+      return List.of();
+    }
+    var model = elementPropertiesSchemaModel(elementType);
+    JsonNode schema = model.propertyDefs().get(propertyKey);
+    if (schema == null) {
+      return List.of();
+    }
+    var errors = ElementPatchValidator.validatePropertyIssues(propertyKey, value, schema,
+        schemaRefResolver, objectMapper);
+    List<JsonNode> result = new ArrayList<>();
+    errors.forEach(result::add);
+    CamelSimplePredicateValidator.validateProperty(elementType, propertyKey, value).ifPresent(error -> {
+      ObjectNode issue = objectMapper.createObjectNode();
+      issue.put("code", "syntax");
+      issue.put("path", "/properties/" + propertyKey);
+      issue.put("message", error);
+      issue.put("valueMissing", false);
+      issue.set("rejectedValue", value);
+      result.add(issue);
+    });
+    return List.copyOf(result);
   }
 
   /**

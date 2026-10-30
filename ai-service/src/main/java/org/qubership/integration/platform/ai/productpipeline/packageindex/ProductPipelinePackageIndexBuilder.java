@@ -20,13 +20,15 @@ public final class ProductPipelinePackageIndexBuilder {
 
   public ProductPipelinePackageIndex build(
       Path repoRoot, Path packRoot, List<String> dynamicSkills) {
-    Path productPipelines = packRoot.resolve("product-pipelines");
-    ReferenceBaseline baseline =
-        loadBaseline(productPipelines.resolve("reference-baseline-v1.yaml"));
+    Path productPipelines = productPipelinesRoot(packRoot);
+    boolean standalone = productPipelines.startsWith(packRoot.resolve("runtime"));
+    ReferenceBaseline baseline = standalone
+        ? new ReferenceBaseline(1, "rocky-skills", packageVersion(packRoot), "", java.util.Map.of(), java.util.Map.of(), List.of())
+        : loadBaseline(productPipelines.resolve("reference-baseline-v1.yaml"));
     List<CapabilityManifest> capabilities =
         resolver.loadCapabilities(productPipelines);
     List<DependencyPin> pins =
-        resolver.resolveClosure(packRoot, capabilities, dynamicSkills);
+        resolver.resolveClosure(repoRoot, packRoot, capabilities, dynamicSkills);
     String closureDigest = resolver.closureDigest(pins);
     String baselineDigest = digestBaseline(baseline, pins);
     ProductPipelinePackageIndex index =
@@ -39,8 +41,23 @@ public final class ProductPipelinePackageIndexBuilder {
             capabilities,
             pins,
             baseline.artifacts());
-    ReferenceBaselineValidator.validateTarget(baseline, repoRoot, pins);
+    if (!standalone) ReferenceBaselineValidator.validateTarget(baseline, repoRoot, pins);
     return index;
+  }
+
+  public static Path productPipelinesRoot(Path packRoot) {
+    Path runtime = packRoot.resolve("runtime/product-pipelines");
+    return java.nio.file.Files.isDirectory(runtime) ? runtime : packRoot.resolve("product-pipelines");
+  }
+
+  private static String packageVersion(Path packRoot) {
+    try {
+      String version = YAML.readTree(packRoot.resolve("manifest.json").toFile()).path("version").asText();
+      if (version.isBlank()) throw new IllegalArgumentException("Rocky package version is missing");
+      return version;
+    } catch (java.io.IOException e) {
+      throw new IllegalStateException("Cannot read Rocky package version", e);
+    }
   }
 
   private ReferenceBaseline loadBaseline(Path baselineFile) {

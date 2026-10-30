@@ -14,13 +14,44 @@ public record RequirementAnalysisCapture(
     @Description("Readable summary for review") String summary,
     @Description("Knowledge references used during analysis") List<CipKnowledgeCitation> citations,
     @Description("Field adaptations on selected flow transitions; omit for pass-through")
-        List<Mapping> mappingIntents) {
+        List<Mapping> mappingIntents,
+    @Description("Source discrepancies in the selected draft, supported by exact saved author quotes; "
+        + "use an empty list after reviewing all source requirements. A report does not authorize changes.")
+        List<SourceOmission> sourceOmissions) {
+
+  public RequirementAnalysisCapture(String goal, List<String> inputs, List<String> assumptions,
+      String summary, List<CipKnowledgeCitation> citations, List<Mapping> mappingIntents) {
+    this(goal, inputs, assumptions, summary, citations, mappingIntents, List.of());
+  }
 
   public RequirementAnalysisCapture {
     inputs = inputs == null ? List.of() : List.copyOf(inputs);
     assumptions = assumptions == null ? List.of() : List.copyOf(assumptions);
     citations = citations == null ? List.of() : List.copyOf(citations);
     mappingIntents = mappingIntents == null ? List.of() : List.copyOf(mappingIntents);
+    sourceOmissions = sourceOmissions == null ? List.of() : List.copyOf(sourceOmissions);
+  }
+
+  public enum SourceDiscrepancyKind { OMITTED_REQUIREMENT, UNSUPPORTED_ADDITION }
+
+  public record SourceOmission(
+      @Description("The sourceTurnId in the saved author evidence") String sourceTurnId,
+      @Description("Exact saved author quote supporting this report") String quote,
+      @Description("How the draft differs from the source, accounting for later amendments and choices")
+          String explanation,
+      @Description("OMITTED_REQUIREMENT for absent author content; UNSUPPORTED_ADDITION"
+          + " for an unsupported extra claim in one selected draft fact.")
+          SourceDiscrepancyKind kind,
+      @Description("Stable sourceFactId of the unsupported selected draft fact; empty for an omission.")
+          String sourceFactId) {
+    public SourceOmission(String sourceTurnId, String quote, String explanation) {
+      this(sourceTurnId, quote, explanation, SourceDiscrepancyKind.OMITTED_REQUIREMENT, "");
+    }
+
+    public SourceOmission {
+      kind = kind == null ? SourceDiscrepancyKind.OMITTED_REQUIREMENT : kind;
+      sourceFactId = sourceFactId == null ? "" : sourceFactId;
+    }
   }
 
   public record Mapping(

@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.llm.ratelimit;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+import dev.langchain4j.model.chat.request.ChatRequestParameters;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.UserMessage;
@@ -152,7 +153,8 @@ class LlmRunBudgetTest {
     var wrapper = new RateLimitChatModel(upstream, config, seconds -> {},
         new RateLimitErrorClassifier(), new RateLimitWaitPolicy()).withRunBudget(budget);
     var agent = mock(org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent.class);
-    when(agent.recover(anyString(), anyString())).thenAnswer(call -> {
+    when(agent.recover(anyString(), anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class))).thenAnswer(call -> {
       try { wrapper.chat(ChatRequest.builder().messages(UserMessage.from("diagnose")).build()); return null; }
       finally { agentReturned.countDown(); }
     });

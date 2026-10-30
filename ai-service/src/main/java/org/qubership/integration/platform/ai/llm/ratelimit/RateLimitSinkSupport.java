@@ -34,6 +34,11 @@ final class RateLimitSinkSupport {
 
   static StreamingChatResponseHandler completionAwareHandler(
       StreamingChatResponseHandler handler, AtomicBoolean backoffInCall) {
+    return completionAwareHandler(handler, backoffInCall, false);
+  }
+
+  static StreamingChatResponseHandler completionAwareHandler(
+      StreamingChatResponseHandler handler, AtomicBoolean backoffInCall, boolean requireTool) {
     return new StreamingChatResponseHandler() {
 
       @Override
@@ -74,6 +79,17 @@ final class RateLimitSinkSupport {
       @Override
       public void onCompleteResponse(ChatResponse completeResponse) {
         completeIfBackoffOccurred(backoffInCall);
+        if (completeResponse != null
+            && completeResponse.finishReason() == dev.langchain4j.model.output.FinishReason.LENGTH) {
+          handler.onError(new IllegalStateException("LLM_OUTPUT_INCOMPLETE: model output limit reached"));
+          return;
+        }
+        if (requireTool && (completeResponse == null || completeResponse.aiMessage() == null
+            || !completeResponse.aiMessage().hasToolExecutionRequests())) {
+          handler.onError(new IllegalStateException(
+              "The model completed a required tool request without a tool action."));
+          return;
+        }
         handler.onCompleteResponse(completeResponse);
       }
 

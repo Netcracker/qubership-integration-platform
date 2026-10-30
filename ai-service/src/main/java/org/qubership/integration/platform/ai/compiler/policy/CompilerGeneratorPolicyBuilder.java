@@ -1,11 +1,15 @@
 package org.qubership.integration.platform.ai.compiler.policy;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.qubership.integration.platform.ai.compiler.catalog.CompilerSkillCatalog;
 import org.qubership.integration.platform.ai.compiler.catalog.CompilerSkillDescriptor;
 import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackScanResult;
@@ -28,6 +32,9 @@ public final class CompilerGeneratorPolicyBuilder {
       CompilerSkillCatalog skillCatalog,
       CompilerGeneratorSpecIndex specIndex,
       Path addonPackRoot) {
+    if (Files.isRegularFile(scanResult.packRoot().resolve("runtime/generator-contracts.json"))) {
+      return buildRuntimePolicy(scanResult, registry, skillCatalog, specIndex, addonPackRoot);
+    }
     ScannedCipKnowledgeFile contractsFile = requireFile(scanResult, GENERATOR_CONTRACTS_PATH);
     ScannedCipKnowledgeFile ruleMappingFile = requireFile(scanResult, RULE_MAPPING_PATH);
 
@@ -91,6 +98,40 @@ public final class CompilerGeneratorPolicyBuilder {
     return new CompilerGeneratorPolicyBuildResult(policy, List.of());
   }
 
+  private CompilerGeneratorPolicyBuildResult buildRuntimePolicy(
+      CipKnowledgePackScanResult scanResult, CapabilityRegistry registry, CompilerSkillCatalog catalog,
+      CompilerGeneratorSpecIndex specs, Path metadataRoot) {
+    var source = requireFile(scanResult, "runtime/generator-contracts.json");
+    List<CompilerGeneratorDescriptor> generators = new ArrayList<>();
+    Set<String> ids = new HashSet<>();
+    try {
+      var declared = new ObjectMapper().readValue(
+          source.content(), CompilerGeneratorDescriptor[].class);
+      for (var entry : declared) {
+        String resolved = resolveRunnableSkillId(specs, catalog, registry, entry.generatorId());
+        if (!ids.add(entry.generatorId()) || !entry.skillId().equals(resolved)
+            || entry.order() != generators.size() + 1 || entry.planArtifact() == null
+            || entry.planArtifact().isBlank() || entry.ownedRules() == null) {
+          throw new CompilerGeneratorPolicyParseException("Invalid runtime generator contract: " + entry.generatorId());
+        }
+        generators.add(new CompilerGeneratorDescriptor(entry.generatorId(), entry.skillId(), entry.order(),
+            entry.planArtifact(), entry.ownedRules(), loadReadiness(metadataRoot, entry.skillId())));
+      }
+    } catch (IOException e) {
+      throw new IllegalStateException("Cannot read runtime generator contracts", e);
+    }
+    for (var candidate : specs.specs()) {
+      if (candidate.generatorId() != null
+          && resolveRunnableSkillId(specs, catalog, registry, candidate.generatorId()) != null
+          && !ids.contains(candidate.generatorId())) {
+        throw new CompilerGeneratorPolicyParseException("Missing runtime generator contract: " + candidate.generatorId());
+      }
+    }
+    if (generators.isEmpty()) throw new CompilerGeneratorPolicyParseException("Runtime generator policy is empty");
+    return new CompilerGeneratorPolicyBuildResult(new CompilerGeneratorPolicy(scanResult.version(),
+        new CompilerGeneratorPolicySource(source.sha256(), source.sha256()), List.copyOf(generators)), List.of());
+  }
+
   private List<CompilerGeneratorPolicyIssue> validateRuntimeSupportedGenerators(
       CompilerGeneratorSpecIndex specIndex,
       CompilerSkillCatalog skillCatalog,
@@ -139,7 +180,10 @@ public final class CompilerGeneratorPolicyBuilder {
     if (addonPackRoot == null || !Files.isDirectory(addonPackRoot)) {
       return null;
     }
-    Path addonFile = addonPackRoot.resolve("skills").resolve(skillId + ".addon.md");
+    Path addonFile = addonPackRoot.resolve("skills").resolve(skillId + ".json");
+    if (!Files.isRegularFile(addonFile)) {
+      addonFile = addonPackRoot.resolve("skills").resolve(skillId + ".addon.md");
+    }
     return addonReadinessParser.parseAddonFile(addonFile);
   }
 

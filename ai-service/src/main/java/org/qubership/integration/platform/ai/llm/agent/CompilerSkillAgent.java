@@ -21,9 +21,10 @@ import org.qubership.integration.platform.ai.integration.catalog.tool.ElementSch
       CompilerGraphPatchTool.class,
       NamingManifestCaptureTool.class,
       ConfiguredTriggerSetCaptureTool.class,
-      ElementSchemaTools.class
+      ElementSchemaTools.class,
+      org.qubership.integration.platform.ai.productpipeline.knowledge.DocumentationTools.class
     },
-    maxSequentialToolInvocations = 3)
+    maxSequentialToolInvocations = 6)
 @ApplicationScoped
 public interface CompilerSkillAgent {
 

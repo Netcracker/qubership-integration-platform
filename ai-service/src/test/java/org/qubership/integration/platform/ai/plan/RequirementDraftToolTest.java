@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.plan;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -10,9 +11,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.jboss.logmanager.MDC;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -681,6 +684,52 @@ class RequirementDraftToolTest {
     assertTrue(description.contains("do not invent a user question"), description);
     assertTrue(description.contains("by meaning"), description);
     assertTrue(description.contains("A chain picker is shown to the user"), description);
+  }
+
+  @Test
+  void captureToolOpenApiExampleMapsRequestAndResponseAcrossTheCallerAndTarget() throws Exception {
+    String description =
+        String.join(
+            "\n",
+            RequirementDraftTool.class
+                .getMethod("captureRequirementDraft", RequirementDraftCapture.class)
+                .getAnnotation(dev.langchain4j.agent.tool.Tool.class)
+                .value());
+    int completeField = description.indexOf("\"complete\": true");
+    RequirementDraftCapture example =
+        new ObjectMapper()
+            .readValue(
+                description.substring(description.lastIndexOf('{', completeField)),
+                RequirementDraftCapture.class);
+    RequirementDraftStore exampleStore = new RequirementDraftStore();
+    ConversationService conversationService = mock(ConversationService.class);
+    when(conversationService.getAllowedAttachmentKeys("openapi-example"))
+        .thenReturn(List.of("uploaded-orders-api.yaml"));
+    RequirementDraftTool exampleTool =
+        new RequirementDraftTool(
+            exampleStore, null, null, null, null, conversationService, null);
+    MDC.put(ChatMdc.CONVERSATION_ID, "openapi-example");
+    exampleStore.beginTurn("openapi-example");
+
+    exampleTool.captureRequirementDraft(example);
+
+    RequirementDraft draft = exampleStore.get("openapi-example").orElseThrow();
+    assertEquals(DraftDecision.READY_FOR_PLAN, draft.decision());
+    assertTrue(draft.complete(), () -> "Captured draft: " + draft);
+    assertEquals(2, draft.flow().interactions().size());
+    assertEquals(
+        List.of(new Transition("order-received", "create-order")), draft.flow().transitions());
+    assertEquals(Direction.INBOUND, draft.flow().interactions().get(0).direction());
+    assertEquals("Caller", draft.flow().interactions().get(0).participant());
+    assertEquals(Direction.OUTBOUND, draft.flow().interactions().get(1).direction());
+    assertNotEquals("Caller", draft.flow().interactions().get(1).participant());
+    assertEquals(
+        Map.of(
+            "order-request-mapping", List.of("order-received"),
+            "order-response-mapping", List.of("create-order")),
+        draft.facts().stream()
+            .filter(fact -> fact.kind() == RequirementFactKind.BEHAVIOR)
+            .collect(Collectors.toMap(RequirementFact::sourceFactId, RequirementFact::interactionIds)));
   }
 
   @Test

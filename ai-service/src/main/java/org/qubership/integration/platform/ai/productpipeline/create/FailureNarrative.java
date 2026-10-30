@@ -2,7 +2,10 @@ package org.qubership.integration.platform.ai.productpipeline.create;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import dev.langchain4j.model.chat.request.ChatRequestParameters;
+import dev.langchain4j.model.openai.OpenAiResponsesChatRequestParameters;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -20,6 +23,8 @@ import org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFin
 import org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent;
 import org.qubership.integration.platform.ai.llm.agent.HaltQuestionDraft;
 import org.qubership.integration.platform.ai.llm.agent.OwnerDiagnosisDraft;
+import org.qubership.integration.platform.ai.llm.ratelimit.RateLimitRetryDeadline;
+import org.qubership.integration.platform.ai.llm.ratelimit.RateLimitRetryDeferredException;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationResult;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
@@ -28,6 +33,7 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageOut
 import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryContext;
 import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryContextProjector;
 import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryDecision;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryDecisionSchemas;
 
 /**
  * Model-authored halt-card body from structured evidence. Empty when the turn fails; callers keep
@@ -256,7 +262,11 @@ public final class FailureNarrative {
     }
   }
 
-  public record RecoveryResult(RecoveryStatus status, RecoveryDecision decision, String detail) {
+  public record RecoveryResult(RecoveryStatus status, RecoveryDecision decision, String detail, Instant retryAt) {
+    public RecoveryResult(RecoveryStatus status, RecoveryDecision decision, String detail) {
+      this(status, decision, detail, null);
+    }
+
     public static RecoveryResult reply(RecoveryDecision decision) {
       return new RecoveryResult(decision == null ? RecoveryStatus.INVALID_REPLY : RecoveryStatus.READY,
           decision, decision == null ? "Missing recovery decision." : "");
@@ -273,8 +283,11 @@ public final class FailureNarrative {
     }
     String locale = normalizedLocale(context.responseLocale());
     String recoveryContextJson;
+    ChatRequestParameters requestParameters;
     try {
       recoveryContextJson = RecoveryContextProjector.project(context, new ObjectMapper().findAndRegisterModules());
+      requestParameters = OpenAiResponsesChatRequestParameters.builder().strictJsonSchema(true)
+          .responseFormat(RecoveryDecisionSchemas.responseFormat(context)).build();
     } catch (RuntimeException ex) {
       LOG.warnf(ex, "Recovery context projection failed; keeping raw evidence");
       return new RecoveryResult(RecoveryStatus.PROJECTION_FAILURE, null, ex.getMessage());
@@ -284,20 +297,19 @@ public final class FailureNarrative {
     }
     TurnResult<RecoveryDecision> turn = awaitTurnResult("Recovery decision",
         () -> org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget.withRun(runId,
-            () -> agent.recover(locale, recoveryContextJson)));
+            () -> agent.recover(locale, recoveryContextJson, requestParameters)));
     if (turn.status() != RecoveryStatus.READY) {
-      return new RecoveryResult(turn.status(), null, turn.detail());
+      return new RecoveryResult(turn.status(), null, turn.detail(), turn.retryAt());
     }
-    RecoveryDecision decision = turn.value();
-    if (decision == null || decision.causeClass() == null || decision.action() == null) {
-      return new RecoveryResult(RecoveryStatus.INVALID_REPLY, null, "Recovery decision is incomplete.");
-    }
-    return RecoveryResult.reply(decision);
+    return RecoveryResult.reply(turn.value());
   }
 
   /**
-   * Authors the clarification question in the conversation locale. Empty when there is no agent or
-   * the turn fails; the caller then uses the requested fact itself, not an English template.
+   * Authors the clarification question in the conversation locale.
+   *
+   * <p>Empty when there is no agent, the turn fails, or the model returns blank text. Callers show
+   * this text only. A blank result leaves the requested fact, backend message, and raw evidence off
+   * the question the reader sees.
    */
   public Optional<String> askClarification(
       String runId,
@@ -487,7 +499,11 @@ public final class FailureNarrative {
     return awaitTurnResult(turnName, turn).value();
   }
 
-  private record TurnResult<T>(T value, RecoveryStatus status, String detail) {}
+  private record TurnResult<T>(T value, RecoveryStatus status, String detail, Instant retryAt) {
+    private TurnResult(T value, RecoveryStatus status, String detail) {
+      this(value, status, detail, null);
+    }
+  }
 
   private <T> TurnResult<T> awaitTurnResult(String turnName, Supplier<T> turn) {
     if (timeout == null) {
@@ -498,7 +514,7 @@ public final class FailureNarrative {
         return failedTurn(ex);
       }
     }
-    Future<T> pending = workers().submit(turn::get);
+    Future<T> pending = workers().submit(() -> RateLimitRetryDeadline.withDeadline(timeout, turn));
     try {
       return new TurnResult<>(pending.get(timeout.toMillis(), TimeUnit.MILLISECONDS), RecoveryStatus.READY, "");
     } catch (TimeoutException ex) {
@@ -521,6 +537,10 @@ public final class FailureNarrative {
       return new TurnResult<>(null, RecoveryStatus.PROJECTION_FAILURE, failure.getMessage());
     }
     for (Throwable current = failure; current != null; current = current.getCause()) {
+      if (current instanceof RateLimitRetryDeferredException deferred) {
+        return new TurnResult<>(null, RecoveryStatus.TRANSIENT_PROVIDER_FAILURE,
+            deferred.getMessage(), deferred.retryAt());
+      }
       if (current instanceof org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget.Exhausted) {
         return new TurnResult<>(null, RecoveryStatus.RESOURCE_REFUSAL, current.getMessage());
       }

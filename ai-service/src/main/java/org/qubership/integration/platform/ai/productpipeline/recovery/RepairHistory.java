@@ -134,6 +134,14 @@ public final class RepairHistory {
     result.path("findings").forEach(finding -> {
       if (finding instanceof ObjectNode item) { item.remove("rawValidatorJson"); }
     });
+    if (result.get("feedback") instanceof ObjectNode feedback) {
+      feedback.path("issues").forEach(issue -> {
+        if (issue instanceof ObjectNode item && item.has("details")) {
+          item.remove("details");
+          feedback.put("issueDetailsOmitted", true);
+        }
+      });
+    }
     if (result.get("feedback") instanceof ObjectNode feedback
         && feedback.path("summary").asText().length() > 2000) {
       feedback.put("summary", feedback.path("summary").asText().substring(0, 2000));

@@ -5,22 +5,20 @@ import jakarta.inject.Inject;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import org.qubership.integration.platform.ai.compiler.CompilerSkillDocument;
-import org.qubership.integration.platform.ai.compiler.CompilerSkillDocumentService;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRunPin;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
-import org.qubership.integration.platform.ai.productpipeline.create.facade.CanonicalPayloadHash;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 
 /** Builds the validated plan from approved targets without requesting optional model descriptions. */
 @ApplicationScoped
 public class DefaultDesignPlanSkillRunner implements DesignPlanSkillRunner {
 
-  private final CompilerSkillDocumentService documentService;
+  private final CipKnowledgePackRepository repository;
 
   @Inject
-  public DefaultDesignPlanSkillRunner(CompilerSkillDocumentService documentService) {
-    this.documentService = Objects.requireNonNull(documentService, "documentService");
+  public DefaultDesignPlanSkillRunner(CipKnowledgePackRepository repository) {
+    this.repository = Objects.requireNonNull(repository, "repository");
   }
 
   @Override
@@ -34,9 +32,8 @@ public class DefaultDesignPlanSkillRunner implements DesignPlanSkillRunner {
       ChainSemanticRevision revision,
       RequirementBrief brief,
       CompilerRunPin pin) {
-    CompilerSkillDocument document = documentService.loadByCapabilityId(CipDesignPlannerAdapter.SKILL_ID);
-    String actualHash = CanonicalPayloadHash.sha256Hex(document.markdown() == null ? "" : document.markdown());
-    if (!pinnedSkillHash.equals(actualHash)) {
+    String actualHash = repository.loadManifest().addonSha256().get(CipDesignPlannerAdapter.SKILL_ID);
+    if (actualHash == null || !pinnedSkillHash.equals(actualHash)) {
       throw new PlannerContractException(
           "pinned skill hash mismatch for " + CipDesignPlannerAdapter.SKILL_ID
               + ": expected " + pinnedSkillHash + " but was " + actualHash);

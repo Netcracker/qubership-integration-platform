@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.productpipeline.store;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -26,6 +27,7 @@ import org.qubership.integration.platform.ai.compiler.artifact.StaleBlobVersionE
 import org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactProvenance;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
 import org.qubership.integration.platform.ai.productpipeline.artifact.UserInput;
+import org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition;
 
 class ProductPipelineRunStoreTest {
 
@@ -411,6 +413,66 @@ class ProductPipelineRunStoreTest {
 
     assertEquals(
         "run-1", runStore.loadByConversation(CONVERSATION_ID).orElseThrow().run().runId());
+  }
+
+  @Test
+  void waitingTransitionRoundTripsTheExactOfferFields() {
+    var draftReference =
+        new CompilationArtifacts.Reference(Kind.REQUIREMENT_DRAFT, "draft-1", "sha-draft");
+    var offer =
+        new ClarificationTransition.Offer(
+            "offer-1", draftReference, "question-role", 7L, "source-generation-1");
+
+    RunTransition loaded =
+        commitAndReload(new ClarificationTransition(offer, null), RunStatus.WAITING_FOR_INPUT);
+
+    assertEquals(offer, loaded.clarification().offer());
+    assertNull(loaded.clarification().answer());
+  }
+
+  @Test
+  void answerTransitionRoundTripsOfferIdAnswerTurnIdAndDisposition() {
+    var answer =
+        new ClarificationTransition.Answer(
+            "offer-1", "answer-turn-1", ClarificationTransition.Disposition.ANSWER);
+
+    RunTransition loaded = commitAndReload(new ClarificationTransition(null, answer), RunStatus.RUNNING);
+
+    ClarificationTransition.Answer loadedAnswer = loaded.clarification().answer();
+    assertEquals("offer-1", loadedAnswer.offerId());
+    assertEquals("answer-turn-1", loadedAnswer.answerTurnId());
+    assertEquals(ClarificationTransition.Disposition.ANSWER, loadedAnswer.disposition());
+    assertNull(loaded.clarification().offer());
+  }
+
+  private RunTransition commitAndReload(ClarificationTransition clarification, RunStatus nextStatus) {
+    ProductPipelineRunDocument created = runStore.create(sampleSnapshot(1L, RunStatus.RUNNING));
+    long expected = created.run().runRevision();
+    long next = expected + 1L;
+    StageStatus stageStatus =
+        nextStatus == RunStatus.WAITING_FOR_INPUT ? StageStatus.WAITING_FOR_INPUT : StageStatus.RUNNING;
+    runStore.commit(
+        expected,
+        new LogicalCommit(
+            created.run().runId(),
+            expected,
+            nextStatus,
+            "collect",
+            List.of(new StageSnapshot("collect", stageStatus, List.of(), null)),
+            new StageAttempt(
+                "attempt-clarification", "collect", next, stageStatus, FIXED, FIXED, List.of(), null),
+            new RunTransition(
+                expected,
+                next,
+                created.run().status(),
+                nextStatus,
+                "collect",
+                FIXED,
+                "clarification",
+                null,
+                null,
+                clarification)));
+    return runStore.load(created.run().runId()).orElseThrow().transitions().getLast();
   }
 
   private CompletableFuture<Void> replacementAttempt(

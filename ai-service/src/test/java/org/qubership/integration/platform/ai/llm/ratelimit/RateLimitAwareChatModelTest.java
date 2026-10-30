@@ -39,6 +39,20 @@ class RateLimitAwareChatModelTest {
   }
 
   @Test
+  void outputLimitRejectsIncompleteSynchronousResponseWithoutRetry() {
+    ChatModel delegate = mock(ChatModel.class);
+    when(delegate.chat(any(ChatRequest.class))).thenReturn(ChatResponse.builder()
+        .aiMessage(AiMessage.from("Partial answer"))
+        .finishReason(dev.langchain4j.model.output.FinishReason.LENGTH).build());
+    var sleeper = new RecordingSleeper();
+    ChatModel model = new RateLimitAwareChatModel(delegate, classifier, policy, sleeper, true, 3, events::add);
+    var failure = assertThrows(IllegalStateException.class, () -> model.chat(request));
+    assertEquals("LLM_OUTPUT_INCOMPLETE: model output limit reached", failure.getMessage());
+    org.mockito.Mockito.verify(delegate, org.mockito.Mockito.times(1)).chat(request);
+    assertEquals(List.of(), sleeper.sleptSeconds);
+  }
+
+  @Test
   void retriesOnceThenSucceeds() {
     ChatModel delegate = mock(ChatModel.class);
     when(delegate.chat(any(ChatRequest.class)))
@@ -52,6 +66,51 @@ class RateLimitAwareChatModelTest {
     assertSame(successResponse, out);
     assertEquals(List.of(1), sleeper.sleptSeconds);
     assertEquals(1, events.size());
+  }
+
+  @Test
+  void defersKnownWaitOutsideBoundedCallWithoutSpendingAnotherAttempt() {
+    ChatModel delegate = mock(ChatModel.class);
+    when(delegate.chat(any(ChatRequest.class))).thenThrow(
+        new RateLimitHttpException("quota exhausted", java.util.Map.of("Retry-After", "60")));
+    var sleeper = new RecordingSleeper();
+    ChatModel model = new RateLimitAwareChatModel(delegate, classifier, policy, sleeper, true, 3, events::add);
+    var before = java.time.Instant.now();
+    var deferred = assertThrows(RateLimitRetryDeferredException.class, () ->
+        RateLimitRetryDeadline.withDeadline(java.time.Duration.ofSeconds(20), () -> model.chat(request)));
+    assertTrue(!deferred.retryAt().isBefore(before.plusSeconds(60)));
+    org.mockito.Mockito.verify(delegate, org.mockito.Mockito.times(1)).chat(request);
+    assertTrue(sleeper.sleptSeconds.isEmpty());
+    assertTrue(events.isEmpty());
+  }
+
+  @Test
+  void ordinaryCallWaitsForTheProviderUsingTheSameRequest() {
+    ChatModel delegate = mock(ChatModel.class);
+    when(delegate.chat(any(ChatRequest.class))).thenThrow(
+        new RateLimitHttpException("quota exhausted", java.util.Map.of("Retry-After", "60")))
+        .thenReturn(successResponse);
+    var sleeper = new RecordingSleeper();
+    ChatModel model = new RateLimitAwareChatModel(delegate, classifier, policy, sleeper, true, 3, events::add);
+    assertSame(successResponse, model.chat(request));
+    assertEquals(List.of(60), sleeper.sleptSeconds);
+    org.mockito.Mockito.verify(delegate, org.mockito.Mockito.times(2)).chat(request);
+  }
+
+  @Test
+  void scopedDeadlineIsRestoredAfterAnInnerFailure() {
+    assertThrows(IllegalStateException.class, () -> RateLimitRetryDeadline.withDeadline(
+        java.time.Duration.ofSeconds(20), () -> { throw new IllegalStateException("failed"); }));
+    org.junit.jupiter.api.Assertions.assertNull(RateLimitRetryDeadline.current());
+    RateLimitRetryDeadline.withDeadline(java.time.Duration.ofSeconds(60), () -> {
+      var outer = RateLimitRetryDeadline.current();
+      RateLimitRetryDeadline.withDeadline(java.time.Duration.ofSeconds(1), () -> {
+        assertTrue(RateLimitRetryDeadline.current().isBefore(outer));
+        return null;
+      });
+      assertEquals(outer, RateLimitRetryDeadline.current());
+      return null;
+    });
   }
 
   @Test
@@ -108,6 +167,20 @@ class RateLimitAwareChatModelTest {
 
     ChatResponse out = model.chat(request);
     assertSame(successResponse, out);
+    assertEquals(List.of(2, 5), sleeper.sleptSeconds);
+  }
+
+  @Test
+  void exhaustedTransientAttemptsPreserveTheProviderExceptionAndStopAtTheExistingLimit() {
+    ChatModel delegate = mock(ChatModel.class);
+    var failure = new InternalServerException("Provider gateway failed", new HttpException(502, "Upstream failed"));
+    when(delegate.chat(any(ChatRequest.class))).thenThrow(failure);
+    var sleeper = new RecordingSleeper();
+    ChatModel model = new RateLimitAwareChatModel(delegate, classifier, new TransientErrorClassifier(), policy,
+        TransientWaitPolicy.fromCsv("2,5,10"), sleeper, false, 3, true, 3, events::add);
+
+    assertSame(failure, assertThrows(InternalServerException.class, () -> model.chat(request)));
+    org.mockito.Mockito.verify(delegate, org.mockito.Mockito.times(3)).chat(request);
     assertEquals(List.of(2, 5), sleeper.sleptSeconds);
   }
 

@@ -2,6 +2,10 @@ package org.qubership.integration.platform.ai.productpipeline.runtime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
@@ -9,21 +13,65 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import io.smallrye.mutiny.Multi;
 import java.io.InputStream;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationSessions;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.CapabilityInput;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftSettings;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactKind;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FlowInput;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.HttpMethod;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.InteractionInput;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polarity;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.QuestionInput;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.TransitionInput;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureProjection;
+import org.qubership.integration.platform.ai.plan.RequirementClarificationCoordinator;
+import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
+import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageCapability;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureTools;
+import org.qubership.integration.platform.ai.plan.RequirementTargetResolver;
+import org.qubership.integration.platform.ai.productpipeline.create.CreateRunBindingStore;
+import org.qubership.integration.platform.ai.productpipeline.create.RequirementDiscoveryCapability;
+import org.qubership.integration.platform.ai.productpipeline.create.CreateRunSelectionService;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction;
+import org.qubership.integration.platform.ai.productpipeline.create.orchestration.CreateChainOrchestrator;
+import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
+import org.qubership.integration.platform.ai.productpipeline.profile.ProfileStage;
+import org.qubership.integration.platform.ai.productpipeline.profile.RetryPolicy;
+import org.qubership.integration.platform.ai.productpipeline.profile.TerminalPolicy;
+import org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedback;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind;
+import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRunPin;
 import org.qubership.integration.platform.ai.productpipeline.artifact.DependencyClosureEntry;
@@ -31,6 +79,9 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPip
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerDag;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageCapabilityRegistry;
+import org.qubership.integration.platform.ai.productpipeline.capability.CaptureFailureEvidence;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerRunPinResolver;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
@@ -50,6 +101,22 @@ import org.qubership.integration.platform.ai.productpipeline.store.StageStatus;
 class ProductPipelineRunSupportTest {
 
   @Test
+  void completeRecoveryCauseSurvivesTheStrictPersistedReaderWithOrWithoutCaptureEvidence() throws Exception {
+    var json = new ObjectMapper();
+    var feedback = new CaptureAttemptFeedback(CaptureFailureKind.VALIDATION, "Repeated invalid field",
+        CaptureFailureClass.IDENTICAL_SPAM, false, List.of(), "", true);
+    var capture = new CaptureFailureEvidence(feedback, null,
+        new CompilationArtifacts.Reference(CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_ATTEMPT,
+            "native-attempt", "native-hash"), List.of());
+    for (boolean captured : List.of(false, true)) {
+      var cause = new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, List.of(), "", true, captured ? capture : null);
+      String saved = ProductPipelineRunSupport.recoveryCauseJson(cause);
+      assertEquals(cause, json.readValue(saved, RecoveryCause.class));
+      assertTrue(json.readTree(saved).path("noProgress").asBoolean());
+    }
+  }
+
+  @Test
   void upstreamSuccessKeepsTheObserverErrorUntilTheObserverSucceeds() {
     var attrs = new HashMap<String, Object>();
     attrs.put(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR, "Rejected downstream plan");
@@ -58,6 +125,58 @@ class ProductPipelineRunSupportTest {
     assertTrue(org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence.haltRecorded(attrs));
     ProductPipelineRunSupport.settleActiveRepair("design-planning", attrs);
     assertFalse(org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence.haltRecorded(attrs));
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"question", "allowance", "failure", "other-observer"})
+  void onlyTheValidatedReadyGateCanSettleItsOwnDiscoveryDefect(String scenario) {
+    var attrs = new HashMap<String, Object>();
+    attrs.put(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR, "Retain the unresolved native defect");
+    attrs.put(ProductPipelineRunSupport.STAGE_ERROR_FAILED_STAGE_ATTR,
+        "other-observer".equals(scenario) ? "design-execution" : "requirement-discovery");
+    attrs.put(ProductPipelineRunSupport.RECOVERY_PREPARING_OWNER_ATTR, "requirement-discovery");
+    var before = Map.copyOf(attrs);
+    String gate = "question".equals(scenario)
+        ? org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates.STAGE_CLARIFICATION
+        : "allowance".equals(scenario)
+            ? org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates.RECOVERY_REPAIR_ALLOWANCE
+            : org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates.REQUIREMENT_DRAFT_READY;
+    var outcome = org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome.of(
+        "failure".equals(scenario)
+            ? org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass.CONTRACT_FAILURE
+            : org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass.NEEDS_INPUT,
+        org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates.tag(gate, "Native checkpoint"));
+
+    assertFalse(ProductPipelineRunSupport.settleReadyDiscoveryRepair("requirement-discovery", outcome, attrs));
+    assertEquals(before, attrs);
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"requirement-discovery", "another-owner"})
+  void readyDiscoverySettlesOnlyItsOwnPreparation(String owner) {
+    var attrs = new HashMap<String, Object>();
+    attrs.put(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR, "Resolved native defect");
+    attrs.put(ProductPipelineRunSupport.STAGE_ERROR_FAILED_STAGE_ATTR, "requirement-discovery");
+    attrs.put(ProductPipelineRunSupport.RECOVERY_PREPARING_OWNER_ATTR, owner);
+    attrs.put(ProductPipelineRunSupport.ACCEPTED_SOURCE_BRIEF_REF_ATTR, "retained-source-reference");
+    attrs.put("mappingRepairAutomatic", "true");
+    var outcome = org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome.of(
+        org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass.NEEDS_INPUT,
+        org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates.tag(
+            org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates.REQUIREMENT_DRAFT_READY,
+            "Requirements draft saved."));
+
+    assertTrue(ProductPipelineRunSupport.settleReadyDiscoveryRepair("requirement-discovery", outcome, attrs));
+    assertFalse(attrs.containsKey(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR));
+    if ("another-owner".equals(owner)) {
+      assertEquals(owner, attrs.get(ProductPipelineRunSupport.RECOVERY_PREPARING_OWNER_ATTR));
+      assertEquals("retained-source-reference", attrs.get(ProductPipelineRunSupport.ACCEPTED_SOURCE_BRIEF_REF_ATTR));
+      assertEquals("true", attrs.get("mappingRepairAutomatic"));
+    } else {
+      assertFalse(attrs.containsKey(ProductPipelineRunSupport.RECOVERY_PREPARING_OWNER_ATTR));
+      assertFalse(attrs.containsKey(ProductPipelineRunSupport.ACCEPTED_SOURCE_BRIEF_REF_ATTR));
+      assertFalse(attrs.containsKey("mappingRepairAutomatic"));
+    }
   }
 
   @org.junit.jupiter.params.ParameterizedTest
@@ -338,6 +457,240 @@ class ProductPipelineRunSupportTest {
             new HashMap<>(), ProductPipelineRunSupport.BRIEF_REPAIR_APPROVAL_PROMPT));
   }
 
+  @Test
+  void waitingForAnAuthoredQuestionPersistsAndRestoresItsOffer() {
+    var harness = new OfferHarness();
+    String conversationId = "conv-offer";
+    String runId = "run-offer";
+    var accepted = harness.acceptChainCallQuestion(conversationId);
+    String prompt = PipelineGates.retag(PipelineGates.STAGE_CLARIFICATION, "Name the operation for this call.");
+    var waiting = harness.wait(runId, conversationId, "requirement-discovery", "requirement-discovery", prompt);
+    var transition = waiting.transitions().stream()
+        .filter(item -> item.toStatus() == RunStatus.WAITING_FOR_INPUT)
+        .reduce((earlier, later) -> later)
+        .orElseThrow();
+    var clarification = transition.clarification();
+    assertNotNull(clarification, "waiting transitions do not carry an offer");
+    assertNull(clarification.answer());
+    var offer = clarification.offer();
+    assertNotNull(offer, "waiting transitions do not carry an offer");
+    assertEquals(1, waiting.transitions().stream().filter(item -> item.clarification() != null
+        && item.clarification().offer() != null).count());
+    assertEquals(accepted.reference(), offer.draftReference());
+    assertEquals("chain-target", offer.questionId());
+    assertEquals(transition.toRevision(), offer.runRevision());
+    assertEquals(harness.generation(conversationId), offer.sourceGeneration());
+    assertEquals(new RequirementClarificationCoordinator().createOffer(
+        new RequirementClarificationCoordinator().activeQuestion(
+            accepted, harness.drafts.get(conversationId).orElseThrow(), offer.sourceGeneration()).orElseThrow(),
+        transition.toRevision()), offer);
+
+    var restored = harness.freshSupport();
+    restored.restoreForExternalWorkflow(harness.command(runId, conversationId, waiting))
+        .collect().asList().await().indefinitely();
+    var clarify = assertInstanceOf(CreateChainPendingAction.Clarify.class,
+        harness.facade().snapshot(conversationId).orElseThrow().pendingAction());
+    assertEquals(offer.offerId(), clarify.clarificationOfferId());
+    var decision = assertInstanceOf(ChatEvent.Decision.class,
+        ChatEvent.decision(clarify, waiting.run().runRevision(), "Name the operation for this call."));
+    assertEquals(offer.offerId(), decision.id());
+  }
+
+  @Test
+  void idsCatalogBindingAndOtherGatesDoNotAcquireARequirementOffer() {
+    var harness = new OfferHarness();
+    harness.acceptChainCallQuestion("conv-ids");
+    harness.acceptChainCallQuestion("conv-binding");
+    harness.acceptChainCallQuestion("conv-mapping");
+    var ids = harness.wait("run-ids", "conv-ids", "requirement-discovery", "requirement-discovery",
+        PipelineGates.tag(PipelineGates.IDS_PATH_CHOICE, "Show the Integration Design Specification (IDS) for review?"));
+    var binding = harness.wait("run-binding", "conv-binding", "design-execution", "design-execution",
+        PipelineGates.retag(PipelineGates.STAGE_CLARIFICATION, "Name the catalog service this interaction should use."));
+    var mapping = harness.wait("run-mapping", "conv-mapping", "requirement-discovery", "requirement-discovery",
+        PipelineGates.tag(PipelineGates.MAPPING_GAP, "Describe the field mappings."));
+    for (var doc : List.of(ids, binding, mapping)) {
+      var transition = doc.transitions().stream()
+          .filter(item -> item.toStatus() == RunStatus.WAITING_FOR_INPUT)
+          .reduce((earlier, later) -> later)
+          .orElseThrow();
+      assertNull(transition.clarification(), doc.run().runId());
+      var clarify = assertInstanceOf(CreateChainPendingAction.Clarify.class,
+          harness.facade().snapshot(doc.run().conversationId()).orElseThrow().pendingAction());
+      assertEquals("", clarify.clarificationOfferId(), doc.run().runId());
+      var decision = assertInstanceOf(ChatEvent.Decision.class,
+          ChatEvent.decision(clarify, doc.run().runRevision(), clarify.reason()));
+      assertEquals("clarify:" + doc.run().runRevision(), decision.id(), doc.run().runId());
+    }
+  }
+
+  @Test
+  void stageClarificationAnswerKeepsTheOfferItReturns() {
+    var harness = new OfferHarness();
+    String conversationId = "conv-offer-stamp";
+    String runId = "run-offer-stamp";
+    harness.acceptChainCallQuestion(conversationId, false);
+    String prompt = PipelineGates.retag(PipelineGates.STAGE_CLARIFICATION, "Name the operation for this call.");
+    var waiting = harness.wait(runId, conversationId, "requirement-discovery", "requirement-discovery", prompt);
+    String offerId = waiting.transitions().stream()
+        .filter(item -> item.toStatus() == RunStatus.WAITING_FOR_INPUT)
+        .reduce((earlier, later) -> later).orElseThrow()
+        .clarification().offer().offerId();
+    var signals = harness.support().recordInput(
+        new AcceptInputCommand(runId, "trigger-element", "cmd-offer-stamp", "hash-offer-stamp"))
+        .collect().asList().await().indefinitely();
+    assertTrue(signals.isEmpty(), runId);
+    assertEquals(PipelineGates.STAGE_CLARIFICATION, harness.support().runAttributes(runId)
+        .get(ProductPipelineRunSupport.ADMITTED_INPUT_GATE_ATTR));
+    assertEquals(offerId, harness.support().runAttributes(runId)
+        .get(ProductPipelineRunSupport.ADMITTED_CLARIFICATION_OFFER_ATTR));
+  }
+
+  @Test
+  void aWaitingOfferAdmitsTheChainCallThroughDiscovery() throws Exception {
+    var harness = new OfferHarness();
+    String conversationId = "conv-real-offer";
+    String runId = "run-real-offer";
+    harness.acceptChainCallQuestion(conversationId, false);
+    String prompt = PipelineGates.retag(PipelineGates.STAGE_CLARIFICATION, "Name the operation for this call.");
+    var waiting = harness.wait(runId, conversationId, "requirement-discovery", "requirement-discovery", prompt);
+    var offer = waiting.transitions().stream()
+        .filter(item -> item.toStatus() == RunStatus.WAITING_FOR_INPUT)
+        .reduce((earlier, later) -> later).orElseThrow()
+        .clarification().offer();
+    harness.support().recordInput(
+        new AcceptInputCommand(runId, "trigger-element", "cmd-real-offer", "hash-real-offer"))
+        .collect().asList().await().indefinitely();
+    var attributes = harness.support().runAttributes(runId);
+    assertEquals(offer.offerId(), attributes.get(ProductPipelineRunSupport.ADMITTED_CLARIFICATION_OFFER_ATTR));
+    assertEquals(waiting.run().runRevision(),
+        attributes.get(ProductPipelineRunSupport.ADMITTED_INPUT_REVISION_ATTR));
+
+    var chains = mock(org.qubership.integration.platform.ai.catalog.binding.CompositionCatalogBinder.class);
+    var trigger = new org.qubership.integration.platform.ai.integration.catalog.model.CatalogElementResponseDto();
+    trigger.id = "trigger-element";
+    trigger.chainId = "chain-1";
+    trigger.chainName = "Existing chain";
+    trigger.type = "chain-trigger-2";
+    when(chains.listChainTriggers()).thenReturn(List.of(trigger));
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var fingerprints = new org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore(mapper);
+    var feedback = new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore(fingerprints);
+    var tools = new RequirementCaptureTools(harness.drafts, mock(org.qubership.integration.platform.ai.plan.RequirementDraftTool.class),
+        mapper, new org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway(fingerprints, feedback),
+        feedback, new RequirementTargetResolver(chains,
+            mock(org.qubership.integration.platform.ai.catalog.binding.McpSystemCatalogBinder.class)));
+    var gatherCalled = new AtomicBoolean();
+    var matcher = mock(org.qubership.integration.platform.ai.productpipeline.create.design.execution.CatalogBindingMatcher.class);
+    var capability = new RequirementDiscoveryCapability(null, harness.drafts, null, (conversation, text) -> {
+      gatherCalled.set(true);
+      return Multi.createFrom().empty();
+    }, harness.conversationService(), matcher);
+    capability.setCaptureTools(tools);
+    capability.execute(new StageExecutionContext(runId, conversationId, "requirement-discovery", "exec-real-offer",
+        "attempt-real-offer", null, null, List.of(), attributes)).collect().asList().await().indefinitely();
+
+    assertEquals("trigger-element", harness.drafts.get(conversationId).orElseThrow().authoredDraft().capabilities()
+        .stream().filter(item -> "child".equals(item.interactionId())).findFirst().orElseThrow().targetReference());
+    assertFalse(gatherCalled.get());
+    verifyNoInteractions(matcher);
+  }
+
+  @Test
+  void specializedClarificationAnswersAdmitTheirGate() {
+    for (String gate : List.of(
+        PipelineGates.TARGET_FOLDER_CHOICE, PipelineGates.REQUIREMENT_RECOVERY_CLARIFICATION)) {
+      var harness = new OfferHarness();
+      String runId = "run-" + gate;
+      harness.wait(runId, "conv-" + gate, "requirement-discovery", "requirement-discovery",
+          PipelineGates.tag(gate, "Choose one."));
+      var signals = harness.support().recordInput(
+          new AcceptInputCommand(runId, "A/Salesforce", "cmd-" + gate, "hash-" + gate))
+          .collect().asList().await().indefinitely();
+      assertTrue(signals.isEmpty(), gate);
+      assertEquals(gate, harness.support().runAttributes(runId)
+          .get(ProductPipelineRunSupport.ADMITTED_INPUT_GATE_ATTR), gate);
+    }
+  }
+
+  @Test
+  void stageClarificationWithoutAnAuthoredQuestionStoresNoOffer() {
+    var harness = new OfferHarness();
+    String conversationId = "conv-no-question";
+    String runId = "run-no-question";
+    var accepted = harness.acceptAuthoredDraft(conversationId, List.of());
+    assertTrue(new RequirementClarificationCoordinator().activeQuestion(
+        accepted, harness.drafts.get(conversationId).orElseThrow(), harness.generation(conversationId)).isEmpty());
+    String prompt = PipelineGates.retag(PipelineGates.STAGE_CLARIFICATION, "Name the operation for this call.");
+    var waiting = harness.wait(runId, conversationId, "requirement-discovery", "requirement-discovery", prompt);
+    var transition = waiting.transitions().stream()
+        .filter(item -> item.toStatus() == RunStatus.WAITING_FOR_INPUT)
+        .reduce((earlier, later) -> later)
+        .orElseThrow();
+    assertNull(transition.clarification(), runId);
+    var clarify = assertInstanceOf(CreateChainPendingAction.Clarify.class,
+        harness.facade().snapshot(conversationId).orElseThrow().pendingAction());
+    assertEquals("", clarify.clarificationOfferId(), runId);
+    var decision = assertInstanceOf(ChatEvent.Decision.class,
+        ChatEvent.decision(clarify, waiting.run().runRevision(), clarify.reason()));
+    assertEquals("clarify:" + waiting.run().runRevision(), decision.id(), runId);
+  }
+
+  @Test
+  void requirementClarificationRebuildsTheActiveQuestionOffer() {
+    var harness = new OfferHarness();
+    String conversationId = "conv-offer-builder";
+    String runId = "run-offer-builder";
+    harness.acceptChainCallQuestion(conversationId);
+    String prompt = PipelineGates.retag(PipelineGates.STAGE_CLARIFICATION, "Name the operation for this call.");
+    var waiting = harness.wait(runId, conversationId, "requirement-discovery", "requirement-discovery", prompt);
+    long revision = waiting.run().runRevision();
+    var coordinator = new RequirementClarificationCoordinator();
+    var active = coordinator.activeQuestion(
+        harness.drafts.latestRevision(conversationId).orElseThrow(),
+        harness.drafts.get(conversationId).orElseThrow(),
+        harness.generation(conversationId)).orElseThrow();
+    var built = harness.support().requirementClarification(waiting, revision, prompt);
+    assertNotNull(built, runId);
+    assertEquals(coordinator.createOffer(active, revision), built.offer());
+    assertNull(built.answer());
+    assertNull(harness.support().requirementClarification(
+        waiting, revision, PipelineGates.retag(PipelineGates.MAPPING_GAP, "Describe the field mappings.")));
+
+    String otherConversation = "conv-other-capability";
+    harness.acceptChainCallQuestion(otherConversation);
+    String otherPrompt = PipelineGates.retag(
+        PipelineGates.STAGE_CLARIFICATION, "Name the catalog service this interaction should use.");
+    var other = harness.wait(
+        "run-other-capability", otherConversation, "design-execution", "design-execution", otherPrompt);
+    assertNull(harness.support().requirementClarification(other, other.run().runRevision(), otherPrompt));
+  }
+
+  @Test
+  void theTransitionThatConsumesAnAnswerPersistsItBeforeTheNextOffer() throws Exception {
+    var harness = new OfferHarness();
+    String conversationId = "conv-answer-envelope";
+    String runId = "run-answer-envelope";
+    harness.acceptChainCallQuestion(conversationId, false);
+    String prompt = PipelineGates.retag(PipelineGates.STAGE_CLARIFICATION, "Name the operation for this call.");
+    var waiting = harness.wait(runId, conversationId, "requirement-discovery", "requirement-discovery", prompt);
+    var first = waiting.transitions().stream()
+        .filter(item -> item.toStatus() == RunStatus.WAITING_FOR_INPUT)
+        .reduce((earlier, later) -> later).orElseThrow();
+    assertNull(first.clarification().answer());
+    var consumed = harness.consumePinnedAnswer(runId, conversationId);
+    assertNull(first.clarification().answer());
+    var latest = consumed.transitions().stream()
+        .filter(item -> item.toStatus() == RunStatus.WAITING_FOR_INPUT)
+        .reduce((earlier, later) -> later).orElseThrow();
+    assertNotNull(latest.clarification());
+    assertNotNull(latest.clarification().answer());
+    assertEquals(first.clarification().offer().offerId(), latest.clarification().answer().offerId());
+    assertEquals(org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Disposition.NON_ANSWER,
+        latest.clarification().answer().disposition());
+    assertNotNull(latest.clarification().offer());
+    assertNotEquals(first.clarification().offer().offerId(), latest.clarification().offer().offerId());
+  }
+
   private static StageAttempt attempt(String stageId, long revision, StageStatus outcome) {
     return new StageAttempt(
         "attempt-" + revision, stageId, revision, outcome, FIXED, FIXED, List.of(), null);
@@ -354,4 +707,208 @@ class ProductPipelineRunSupportTest {
         List.of(),
         ProductPipelineRunSupport.nonTechnicalFailureEvidence("invalid contract"));
   }
+
+  private static final class OfferHarness {
+    private final ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    private final InMemoryArtifactBlobStore blobs = new InMemoryArtifactBlobStore();
+    private final CompilationArtifacts artifacts = new CompilationArtifacts(blobs, mapper, FIXED_CLOCK);
+    private final CompilationSessions sessions = new CompilationSessions(blobs, mapper, FIXED_CLOCK);
+    private final ConversationService conversations = new ConversationService();
+    private final ProductPipelineRunStore runStore = new ProductPipelineRunStore(blobs, mapper, FIXED_CLOCK);
+    private final ProductPipelineArtifactStore artifactStore = new ProductPipelineArtifactStore(artifacts);
+    final RequirementDraftStore drafts = new RequirementDraftStore(artifacts, sessions, conversations);
+    private final Map<String, String> prompts = new ConcurrentHashMap<>();
+    private final Map<String, StartOrResumeCommand> commands = new HashMap<>();
+    private final List<ProductPipelineProfile> profiles = new ArrayList<>();
+    private final ProductPipelineRunSupport support = newSupport();
+
+    CompilationArtifacts.Revision acceptChainCallQuestion(String conversationId) {
+      return acceptChainCallQuestion(conversationId, true);
+    }
+
+    CompilationArtifacts.Revision acceptChainCallQuestion(String conversationId, boolean resolved) {
+      return acceptAuthoredDraft(conversationId, resolved, List.of(new QuestionInput(
+          "chain-target",
+          List.of("child"),
+          "Which chain-trigger element id should this chain call use?",
+          new AuthorQuestionEvidence(
+              "child", "targetReference", AuthorQuestionEvidence.Kind.CATALOG_CHOICE, List.of("turn-1")))));
+    }
+
+    CompilationArtifacts.Revision acceptAuthoredDraft(String conversationId, List<QuestionInput> openQuestions) {
+      return acceptAuthoredDraft(conversationId, true, openQuestions);
+    }
+
+    CompilationArtifacts.Revision acceptAuthoredDraft(String conversationId, boolean resolved,
+        List<QuestionInput> openQuestions) {
+      String text = "Call the existing chain.";
+      var input = conversations.archive().beginInput(conversationId, text, null);
+      conversations.archive().resolveInput(conversationId, input, text);
+      drafts.beginTurn(conversationId);
+      var authored = new DraftInput(
+          new FlowInput(
+              List.of(
+                  new InteractionInput("entry", Direction.INBOUND, "Caller", "GET /context", null, null, null),
+                  new InteractionInput("child", Direction.OUTBOUND, "Existing chain", "Run", null, null, null)),
+              List.of(new TransitionInput("entry", "child"))),
+          List.of(new FactInput("goal", List.of("child"), FactKind.GOAL, Polarity.POSITIVE, "Call the existing chain.")),
+          List.of(
+              new CapabilityInput("entry", "http-trigger", null, HttpMethod.GET, "/context", null, null, null),
+              new CapabilityInput("child", "chain-call-2", null, null, null, null, null,
+                  resolved ? "trigger-element" : null)),
+          openQuestions,
+          new DraftSettings(false, null));
+      drafts.put(conversationId, RequirementCaptureProjection.toDraft(
+          authored, null, List.of(), "1", "hash",
+          resolved ? Map.of("child", "resolved-trigger") : Map.of()));
+      return drafts.latestRevision(conversationId).orElseThrow();
+    }
+
+    String generation(String conversationId) {
+      return conversations.archive().read(conversationId).generation();
+    }
+
+    ConversationService conversationService() {
+      return conversations;
+    }
+
+    ProductPipelineRunDocument wait(
+        String runId, String conversationId, String stageId, String capabilityId, String prompt) {
+      prompts.put(runId, prompt);
+      var profile = new ProductPipelineProfile(
+          1,
+          "offer-" + runId,
+          "1",
+          List.of(),
+          List.of(new ProfileStage(
+              stageId, capabilityId, List.of(), List.of(), null, null, new RetryPolicy(0, 1L))),
+          new TerminalPolicy(stageId, "PLAN_APPROVED"),
+          List.of(stageId));
+      profiles.add(profile);
+      var manifest = new RunManifest(
+          runId,
+          null,
+          List.of(),
+          "product",
+          profile.profileId(),
+          profile.profileVersion(),
+          "profile-sha",
+          "baseline",
+          "baseline-sha",
+          List.of(new DependencyClosureEntry(stageId, "1", "stage-sha")),
+          "closure-sha",
+          new KnowledgePackageRef("knowledge-1", "1", "1.0.0", "checksum", "CERTIFIED", "sha256:certificate"),
+          "24.4",
+          List.of(),
+          null);
+      var command = new StartOrResumeCommand(conversationId, runId, profile, manifest);
+      commands.put(runId, command);
+      support.bootstrap(command, "flow-" + runId);
+      support.stageExecutor().execute(runId, stageId).await().indefinitely();
+      return runStore.load(runId).orElseThrow();
+    }
+
+    StartOrResumeCommand command(String runId, String conversationId, ProductPipelineRunDocument ignored) {
+      return commands.get(runId);
+    }
+
+    ProductPipelineRunSupport support() {
+      return support;
+    }
+
+    ProductPipelineRunSupport freshSupport() {
+      return newSupport();
+    }
+
+    CreateChainApplicationFacade facade() {
+      return new CreateChainApplicationFacade(
+          mock(CreateRunSelectionService.class),
+          mock(CreateRunBindingStore.class),
+          mock(CreateChainOrchestrator.class),
+          runStore,
+          new ProductPipelineProfileCatalog(profiles),
+          drafts);
+    }
+
+    private ProductPipelineRunSupport newSupport() {
+      return CreateChainTestOrchestrator.supportBuilder(
+              runStore,
+              artifactStore,
+              new StageCapabilityRegistry(List.of(
+                  promptCapability("requirement-discovery"),
+                  promptCapability("design-execution"))),
+              FIXED_CLOCK)
+          .build()
+          .withConversations(conversations)
+          .withNativeRequirementCapture(drafts, null);
+    }
+
+    ProductPipelineRunDocument consumePinnedAnswer(String runId, String conversationId) throws Exception {
+      var waiting = runStore.load(runId).orElseThrow();
+      var offer = waiting.transitions().stream().map(RunTransition::clarification)
+          .filter(java.util.Objects::nonNull).map(item -> item.offer()).filter(java.util.Objects::nonNull)
+          .reduce((earlier, later) -> later).orElseThrow();
+      String reply = "I do not know the element id yet.";
+      String turnId = org.qubership.integration.platform.ai.chat.conversation.ConversationArchive
+          .deterministicAnswerTurnId(offer.offerId(), reply);
+      var metadata = mapper.createObjectNode().put("clarificationOfferId", offer.offerId());
+      var input = conversations.archive().beginInput(conversationId, turnId, reply, metadata);
+      conversations.archive().resolveInput(conversationId, input, reply);
+      drafts.beginTurn(conversationId, reply);
+      var readyIds = conversations.archive().read(conversationId).activeTurns().stream()
+          .filter(turn -> "READY".equals(turn.status())).map(turn -> turn.id()).toList();
+      var question = drafts.get(conversationId).orElseThrow().authoredDraft().openQuestions().getFirst();
+      var reviewed = new QuestionInput(question.questionId(), question.interactionIds(), question.text(),
+          new AuthorQuestionEvidence(question.evidence().interactionId(), question.evidence().propertyKey(),
+              question.evidence().kind(), readyIds));
+      var update = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftUpdate(
+          List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+          List.of(), List.of(), List.of(reviewed), List.of(), null, List.of(), null,
+          new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.ClarificationDispositionInput(
+              question.questionId(),
+              org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Disposition.NON_ANSWER,
+              turnId, reply, List.of()));
+      var tools = new org.qubership.integration.platform.ai.plan.RequirementCaptureTools(
+          drafts, new org.qubership.integration.platform.ai.plan.RequirementDraftTool(drafts), mapper);
+      try (var ignored = org.qubership.integration.platform.ai.chat.ToolSession.open(conversationId)) {
+        var opened = mapper.readValue(tools.updateRequirementDraft(
+            new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftUpdate(
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+                List.of(), List.of(), List.of(), List.of(), List.of(), null, List.of(), null)),
+            org.qubership.integration.platform.ai.plan.RequirementCaptureResult.class);
+        var confirmed = mapper.readValue(tools.updateRequirementDraft(update),
+            org.qubership.integration.platform.ai.plan.RequirementCaptureResult.class);
+        if (opened.accepted() || !confirmed.accepted()) {
+          throw new AssertionError(opened + " then " + confirmed);
+        }
+      }
+      var current = runStore.load(runId).orElseThrow();
+      long expected = current.run().runRevision();
+      var transition = new RunTransition(expected, expected + 1L, current.run().status(), RunStatus.RUNNING,
+          current.run().currentStageId(), FIXED, "accepted clarification", null, null);
+      var attempt = new StageAttempt("resume-" + expected, current.run().currentStageId(), expected + 1L,
+          StageStatus.RUNNING, FIXED, FIXED, List.of(), null);
+      runStore.commit(expected, org.qubership.integration.platform.ai.productpipeline.store.LogicalCommit.statusChange(
+          current.run(), StageStatus.RUNNING, current.run().stages(), attempt, transition));
+      support.stageExecutor().execute(runId, current.run().currentStageId()).await().indefinitely();
+      return runStore.load(runId).orElseThrow();
+    }
+
+    private StageCapability promptCapability(String capabilityId) {
+      return new StageCapability() {
+        @Override
+        public String capabilityId() {
+          return capabilityId;
+        }
+
+        @Override
+        public Multi<CapabilitySignal> execute(StageExecutionContext context) {
+          return Multi.createFrom().item(new CapabilitySignal.Completed(
+              StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, prompts.get(context.runId()))));
+        }
+      };
+    }
+  }
+
+  private static final Clock FIXED_CLOCK = Clock.fixed(FIXED, ZoneOffset.UTC);
 }

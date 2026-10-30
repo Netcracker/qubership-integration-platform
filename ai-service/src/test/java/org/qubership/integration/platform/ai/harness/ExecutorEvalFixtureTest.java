@@ -21,7 +21,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 
 class ExecutorEvalFixtureTest {
 
-  private static final Path FIXTURE_ROOT = Path.of("e2e", "executor-eval");
+  private static final Path FIXTURE_ROOT = Path.of("src", "test", "resources", "executor-contract");
   private static final ObjectMapper JSON = new ObjectMapper().registerModule(new JavaTimeModule());
 
   @ParameterizedTest

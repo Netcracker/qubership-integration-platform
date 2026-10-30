@@ -64,6 +64,8 @@ public class ChainSemanticCaptureTool {
   private final CatalogElementDescriptorLoader descriptorLoader;
   private final E2eRecoveryFaultInjector recoveryFaultInjector;
 
+  @Inject org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryTestControl recoveryControl;
+
   @Inject
   public ChainSemanticCaptureTool(
       ChainSemanticCaptureAdapter adapter,
@@ -137,7 +139,21 @@ public class ChainSemanticCaptureTool {
     long startMs = System.currentTimeMillis();
     String conversationId = ToolSession.resolveConversationId();
     ToolTraceLog.logToolInvoke(LOG, TOOL_NAME, conversationId, shape(capture));
+    if (recoveryControl != null) {
+      var original = capture;
+      capture = recoveryControl.semantic(conversationId, capture, () -> {
+        var binding = ProductCapabilityCaptureContext.designBinding(conversationId).orElse(null);
+        if (binding == null || binding.approvedBrief() == null) return false;
+        try {
+          var contract = contractRepository.require(CompilerContract.V1);
+          validator.validate(adapter.adapt(original, binding.runId(), binding.approvedBrief(), contract),
+              contract, binding.approvedBrief());
+          return true;
+        } catch (IllegalArgumentException rejectedOriginal) { return false; }
+      });
+    }
     String result = encode(capture(capture, conversationId));
+    if (recoveryControl != null) recoveryControl.semanticOutcome(conversationId, capture, result);
     ToolTraceLog.logToolComplete(
         LOG, TOOL_NAME, conversationId, System.currentTimeMillis() - startMs, result);
     return result;
@@ -195,7 +211,14 @@ public class ChainSemanticCaptureTool {
       validator.validate(revision, contract, brief);
     } catch (org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException repeated) {
       String summary = feedbackStore.lastPlanFailure(conversationId).orElseThrow().summary();
-      ProductCapabilityCaptureContext.offerSemanticRejection(binding, summary);
+      boolean terminal = feedbackStore.identicalFailureCount(conversationId, "design-input") >= 2;
+      ProductCapabilityCaptureContext.offerSemanticRejection(binding, summary, terminal);
+      if (!terminal) {
+        return rejected("UNCHANGED_PROPOSAL", "/capture",
+            "This proposal is unchanged. " + summary
+                + " Change the capture. Sending this same proposal again ends the correction.",
+            false);
+      }
       return rejected("REPAIR_NO_PROGRESS", "/capture", summary, true);
     } catch (IllegalArgumentException ex) {
       feedbackStore.recordClassifiedPlanFailure(conversationId,
@@ -281,6 +304,14 @@ public class ChainSemanticCaptureTool {
   }
 
   private static boolean fragmentPresent(CipKnowledgePackManifest manifest, String fragment) {
+    if (manifest.fileChecksums().containsKey("runtime/generator-contracts.json")) {
+      String path = switch (fragment) {
+        case "validation-rules" -> "runtime/validation-rules.yaml";
+        case "generator-contracts", "generator-rule-mapping" -> "runtime/generator-contracts.json";
+        default -> fragment;
+      };
+      return manifest.fileChecksums().containsKey(path);
+    }
     String fileName = knowledgeFileName(fragment);
     for (String path : manifest.fileChecksums().keySet()) {
       if (fileName.equals(path) || fileName.equals(lastSegment(path))) {

@@ -1,0 +1,166 @@
+{
+  "contract": "qip-ai-tests/v1",
+  "version": "1.0.0",
+  "profiles": {
+    "core-regression": [
+      "test-system",
+      "service-imports",
+      "service-conversations",
+      "recovery-mechanisms"
+    ],
+    "service-full": [
+      "service-java",
+      "service-python",
+      "evaluator-python",
+      "test-system"
+    ],
+    "runner-self-test": [
+      "test-system"
+    ]
+  },
+  "suites": [
+    {
+      "id": "test-system",
+      "usesLlm": false,
+      "timeoutSeconds": 60,
+      "gate": true,
+      "feature": "test-infrastructure",
+      "format": "command",
+      "command": [
+        "{python}",
+        "-c",
+        "import sys, unittest; suite = unittest.defaultTestLoader.discover(sys.argv[1]); assert suite.countTestCases() > 0, 'No tests discovered'; sys.exit(not unittest.TextTestRunner(verbosity=2).run(suite).wasSuccessful())",
+        "ai-service/e2e/test_system/tests"
+      ],
+      "env": {
+        "PYTHONPATH": "ai-service/e2e"
+      }
+    },
+    {
+      "id": "service-imports",
+      "usesLlm": false,
+      "timeoutSeconds": 900,
+      "gate": true,
+      "feature": "service-import",
+      "format": "junit",
+      "requires": [
+        "mvn"
+      ],
+      "command": [
+        "mvn",
+        "-B",
+        "-f",
+        "ai-service/pom.xml",
+        "-Dtest=CatalogSpecificationImporterTest,ApiHubSpecificationImportServiceTest,UploadedSpecAutoImporterTest,ApiHubExistingCatalogBinderTest,ApiHubMcpToolsTest,SpecificationImportPipelineTest,SpecificationImportCapabilityTest,AutoUploadedSpecImportCapabilityTest,RequirementDraftImportIntentTest,ImportSpecificationScenarioTest,ImportSpecificationRoutingPolicyTest,SpecificationImportBoundaryTest",
+        "test"
+      ],
+      "reports": "{service_root}/ai-service/target/surefire-reports/TEST-*.xml",
+      "verifiedBoundary": "service-unit-and-http-contracts"
+    },
+    {
+      "id": "service-conversations",
+      "usesLlm": false,
+      "timeoutSeconds": 900,
+      "gate": true,
+      "feature": "conversation",
+      "format": "junit",
+      "requires": [
+        "mvn"
+      ],
+      "command": [
+        "mvn",
+        "-B",
+        "-f",
+        "ai-service/pom.xml",
+        "-Dtest=ConversationEvidenceResourceTest,ConversationTurnResourceTest,ProductPipelineRunResourceTest,ConversationServiceTruncateTest,ChatExecutionServiceTest,ChainCatalogViewServiceTest,ChainCatalogFactsServiceTest,PlanPresentationFactsServiceTest",
+        "test"
+      ],
+      "reports": "{service_root}/ai-service/target/surefire-reports/TEST-*.xml",
+      "verifiedBoundary": "service-unit-contracts"
+    },
+    {
+      "id": "recovery-mechanisms",
+      "usesLlm": false,
+      "timeoutSeconds": 1200,
+      "gate": true,
+      "feature": "recovery",
+      "format": "junit",
+      "requires": [
+        "mvn"
+      ],
+      "command": [
+        "bash",
+        "ai-service/e2e/product-pipeline/run-recovery-deterministic.sh"
+      ],
+      "reports": "{service_root}/ai-service/target/surefire-reports/TEST-*.xml",
+      "verifiedBoundary": "mechanism-contracts"
+    },
+    {
+      "id": "service-java",
+      "usesLlm": false,
+      "timeoutSeconds": 1800,
+      "gate": true,
+      "feature": "service",
+      "format": "junit",
+      "requires": [
+        "mvn"
+      ],
+      "command": [
+        "mvn",
+        "-B",
+        "-f",
+        "ai-service/pom.xml",
+        "test"
+      ],
+      "reports": "{service_root}/ai-service/target/surefire-reports/TEST-*.xml",
+      "verifiedBoundary": "service-unit-contracts"
+    },
+    {
+      "id": "service-python",
+      "usesLlm": false,
+      "timeoutSeconds": 180,
+      "feature": "knowledge-sidecar",
+      "format": "junit",
+      "requires": [
+        "python:pytest",
+        "python:fastapi",
+        "python:lancedb"
+      ],
+      "command": [
+        "{python}",
+        "-m",
+        "pytest",
+        "ai-service/knowledge-sidecar/tests",
+        "--junitxml={task_dir}/pytest.xml"
+      ],
+      "env": {
+        "PYTHONPATH": "ai-service/knowledge-sidecar/src"
+      },
+      "reports": "{task_dir}/pytest.xml",
+      "verifiedBoundary": "mechanism-contracts"
+    },
+    {
+      "id": "evaluator-python",
+      "usesLlm": false,
+      "timeoutSeconds": 180,
+      "feature": "evaluation",
+      "format": "junit",
+      "requires": [
+        "python:pytest",
+        "python:fastapi"
+      ],
+      "command": [
+        "{python}",
+        "-m",
+        "pytest",
+        "ai-service/e2e/evaluator/tests",
+        "--junitxml={task_dir}/pytest.xml"
+      ],
+      "env": {
+        "PYTHONPATH": "ai-service/e2e/evaluator/src"
+      },
+      "reports": "{task_dir}/pytest.xml",
+      "verifiedBoundary": "mechanism-contracts"
+    }
+  ]
+}

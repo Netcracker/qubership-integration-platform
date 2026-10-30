@@ -8,8 +8,8 @@ import static org.mockito.Mockito.when;
 
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
-import org.qubership.integration.platform.ai.compiler.CompilerSkillDocument;
-import org.qubership.integration.platform.ai.compiler.CompilerSkillDocumentService;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackManifest;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract.TargetKind;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CanonicalPayloadHash;
 
@@ -46,11 +46,12 @@ class DefaultDesignPlanSkillRunnerTest {
         "2026.1", revision, DesignPlanTestFixtures.brief(), DesignPlanTestFixtures.pin(revision)));
   }
 
-  private static CompilerSkillDocumentService documents() {
-    var documents = mock(CompilerSkillDocumentService.class);
-    when(documents.loadByCapabilityId(CipDesignPlannerAdapter.SKILL_ID)).thenReturn(
-        new CompilerSkillDocument(CipDesignPlannerAdapter.SKILL_ID, "source", "path", "Planner",
-            null, true, null, "planner skill"));
-    return documents;
+  private static CipKnowledgePackRepository documents() {
+    var repository = mock(CipKnowledgePackRepository.class);
+    var manifest = mock(CipKnowledgePackManifest.class);
+    when(manifest.addonSha256()).thenReturn(java.util.Map.of(
+        CipDesignPlannerAdapter.SKILL_ID, CanonicalPayloadHash.sha256Hex("planner skill")));
+    when(repository.loadManifest()).thenReturn(manifest);
+    return repository;
   }
 }

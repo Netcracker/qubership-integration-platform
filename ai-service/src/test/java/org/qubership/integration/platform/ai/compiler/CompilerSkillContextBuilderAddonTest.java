@@ -36,6 +36,7 @@ class CompilerSkillContextBuilderAddonTest {
 
   private CompilerSkillContextBuilder contextBuilder;
   private CompilerSkillDocumentService documentService;
+  private CompilerSkillAddonRepository addonRepository;
   private String previousAddonPackRoot;
 
   @BeforeEach
@@ -66,8 +67,8 @@ class CompilerSkillContextBuilderAddonTest {
     CipKnowledgePackVersion version = CipKnowledgePackFixturePaths.packVersion();
     FilesystemCipKnowledgePackRepository repository =
         new FilesystemCipKnowledgePackRepository(outputDir, version);
-    CompilerSkillAddonRepository addonRepository =
-        CompilerSkillAddonRepository.forFilesystem(outputDir, version, getClass().getClassLoader());
+    addonRepository = org.mockito.Mockito.spy(
+        CompilerSkillAddonRepository.forFilesystem(outputDir, version, getClass().getClassLoader()));
     documentService = new CompilerSkillDocumentService(repository);
     CompilerSkillRuntimeEligibility runtimeEligibility =
         new CompilerSkillRuntimeEligibility(repository);
@@ -487,6 +488,41 @@ class CompilerSkillContextBuilderAddonTest {
     assertTrue(message.contains("Catch scripts vs try-path scripts"));
   }
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+  void scriptProductionAndRepairReceiveTheSameExecutableLiteralContract(boolean standalone) {
+    org.mockito.Mockito.doReturn(standalone).when(addonRepository).hasStandaloneSkills();
+    CompilerSkillDocument document = documentService.loadByCapabilityId("cip-script-generator");
+    String behavior = "Copy the original identifier to the result and prepend the approved label.";
+    String brief = "{\"text\":\"" + behavior + "\",\"exactValues\":[\"Ready \",\"a=b\"]}";
+    CompilerSkillInputSnapshot snapshot = new CompilerSkillInputSnapshot(
+        behavior, brief, null, graphWithScriptNode("exchange.in.body = 'a=b'"), null);
+    var renderer = io.quarkus.qute.Engine.builder().addDefaults()
+        .addParserHook(new io.quarkiverse.langchain4j.QuarkusPromptTemplateFactory
+            .MustacheTemplateVariableStyleParserHook()).build();
+
+    for (String encoded : java.util.List.of(
+        contextBuilder.buildUserMessage(document, snapshot),
+        contextBuilder.buildScriptRepairMessage(
+            "conversation-1", document, snapshot, java.util.List.of("script-1")),
+        contextBuilder.buildScriptRepairMessage(
+            "conversation-1", document, snapshot, java.util.List.of("script-1"), true))) {
+      String message = renderer.parse(encoded).render();
+      assertTrue(message.contains(behavior), message);
+      assertTrue(message.contains(brief), message);
+      assertTrue(message.contains("including whitespace and quotation marks"), message);
+      assertTrue(message.contains("runtime expressions outside that constant"), message);
+      assertTrue(message.contains("unused constants"), message);
+      assertTrue(message.contains("Do not remove or rewrite approved exactValues"), message);
+      assertTrue(message.contains("does not authorize changing a required runtime output value"), message);
+      assertTrue(message.contains("field binding. Preserve both the approved behavior"), message);
+      assertTrue(message.contains("incompatibility in the capture rationale"), message);
+      assertTrue(message.contains("Use only approved success and failure predicates"), message);
+      assertTrue(message.contains("Missing, null, empty, blank, false, and numeric zero are distinct"), message);
+      assertFalse(message.contains("def failed = (status != null && status >= 400)"), message);
+    }
+  }
+
   @Test
   void scriptEditPromptIncludesOnlySelectedOriginalBodiesAndEditContext() {
     String original = "def data = exchange.in.body\nreturn data";
@@ -499,11 +535,14 @@ class CompilerSkillContextBuilderAddonTest {
     CompilerSkillDocument document = documentService.loadByCapabilityId("cip-script-generator");
     var snapshot = new CompilerSkillInputSnapshot("Add the current date", "Static response", null, graph, null,
         "action: CONFIGURE\nproperty keys: script");
-    String message = contextBuilder.buildScriptRepairMessage("conversation-1", document, snapshot,
+    String encoded = contextBuilder.buildScriptRepairMessage("conversation-1", document, snapshot,
         java.util.List.of("script-1"), true);
+    var renderer = io.quarkus.qute.Engine.builder().addDefaults()
+        .addParserHook(new io.quarkiverse.langchain4j.QuarkusPromptTemplateFactory
+            .MustacheTemplateVariableStyleParserHook()).build();
+    String message = renderer.parse(encoded).render();
     String json = message.substring(message.indexOf("Original script bodies:\n")
-        + "Original script bodies:\n".length(), message.indexOf("\n\nRequired script node IDs:"))
-        .replace("\\{", "{").replace("\\\\", "\\");
+        + "Original script bodies:\n".length(), message.indexOf("\n\nRequired script node IDs:"));
     try {
       assertEquals(original, new ObjectMapper().readTree(json).get(0).path("script").asText());
     } catch (java.io.IOException e) {

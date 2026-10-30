@@ -1,7 +1,6 @@
 package org.qubership.integration.platform.ai.productpipeline.knowledge;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 /** One compiled runtime context package returned by the knowledge sidecar. */
 public record KnowledgeContextPackage(
@@ -15,13 +14,7 @@ public record KnowledgeContextPackage(
   }
 
   public String renderMarkdown() {
-    KnowledgePackageRef ref = identity.packageRef();
     StringBuilder body = new StringBuilder("Runtime Context Package\n");
-    body.append("- package: ").append(ref.packageKey()).append('\n');
-    body.append("- checksum: ").append(ref.packageChecksum()).append('\n');
-    body.append("- capabilities: ")
-        .append(capabilities.stream().sorted().collect(Collectors.joining(", ")))
-        .append('\n');
     for (CanonicalKnowledgeObject object : objects) {
       body.append("\n## ")
           .append(object.id())

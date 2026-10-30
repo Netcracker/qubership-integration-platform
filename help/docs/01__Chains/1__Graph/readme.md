@@ -23,6 +23,19 @@ On the "**Graph**" tab user can view and edit a particular chain by adding, upda
 > - If **unsupported elements are detected** in the chain, they appear on the canvas highlighted in red and labeled **Unknown**. Opening an unsupported element shows an error message, disables the form, and prevents saving. The chain continues to run as expected.
 > - If **overridden chain** is opened, the system displays notification panel explaining that the current chain can't be deployed with a reference to the chain that overrides it.
 
+### Ask Rocky about the platform
+
+Rocky can search the product documentation and read the relevant sections when answering platform questions.
+Source links in an answer open the corresponding pages in the product help.
+For example, ask how an HTTP Trigger restricts access or how a Service Call handles a response.
+Rocky also has access to element property schemas for configuration details.
+
+Documentation consultations are available without the private `rocky-skills` package.
+AI creation and editing of chains require that package. Manual editing in the graph remains available.
+Long sections can be read in parts. When the documentation is unavailable or does not answer the question,
+Rocky is instructed to state that limitation. A manual describes expected behavior; it does not establish
+whether a chain is deployed or healthy in the current environment.
+
 ### Tool Panel
 
 Please find the description for all available tools below:

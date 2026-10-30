@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.model;
 
 public enum ScenarioType {
+  CONSULTATION,
   GATHER_REQUIREMENTS,
   CREATE_CHAIN_PLAN,
   ASK_PLAN,

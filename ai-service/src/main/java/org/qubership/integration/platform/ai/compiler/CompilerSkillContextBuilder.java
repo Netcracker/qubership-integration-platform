@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import org.qubership.integration.platform.ai.chat.evidence.EvidenceEmitter;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.compiler.addon.AddonPromptMaterialStripper;
 import org.qubership.integration.platform.ai.compiler.addon.CaptureTool;
 import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonContext;
@@ -32,6 +33,7 @@ import org.qubership.integration.platform.ai.plan.mapping.envelope.MappingEnvelo
 import org.qubership.integration.platform.ai.plan.mapping.schema.JsonSchemaMappingContractFactory;
 import org.qubership.integration.platform.ai.plan.mapping.schema.MappingSchemaSide;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.AuthorSourceEvidence;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
@@ -62,6 +64,9 @@ public class CompilerSkillContextBuilder {
   private final KnowledgeClient knowledgeClient;
   private final KnowledgeContextProvider knowledgeContextProvider;
   private final EvidenceEmitter evidenceEmitter;
+
+  @Inject ConversationService conversations;
+  @Inject org.qubership.integration.platform.ai.productpipeline.knowledge.DocumentationTools documentation;
 
   @Inject
   public CompilerSkillContextBuilder(
@@ -107,7 +112,7 @@ public class CompilerSkillContextBuilder {
         readSelectedPatternText(workspace),
         readGraph(workspace),
         readGeneratorPlanManifestSummary(workspace),
-        ChainEditSkillContext.render(workspace));
+        ChainEditSkillContext.render(workspace, addonRepository.hasStandaloneSkills()));
   }
 
   public String buildUserMessage(CompilerSkillDocument document, CompilerSkillInputSnapshot snapshot) {
@@ -132,10 +137,14 @@ public class CompilerSkillContextBuilder {
 
     StringBuilder body = new StringBuilder();
     appendPipelineContract(body, document, captureTool);
-    appendCatalogContext(body, document);
+    if (!addonRepository.hasStandaloneSkills()) {
+      appendCatalogContext(body, document);
+    }
 
-    body.append("User request:\n").append(nullToEmpty(snapshot.rawUserRequest())).append("\n\n");
+    body.append("Approved requirement interpretation:\n")
+        .append(nullToEmpty(snapshot.rawUserRequest())).append("\n\n");
     body.append("Requirement brief:\n").append(nullToEmpty(snapshot.requirementBrief())).append("\n\n");
+    appendAuthorSource(body, conversationId);
     if (!nullToEmpty(snapshot.selectedPatternId()).isBlank()) {
       body.append("Selected golden pattern:\n").append(snapshot.selectedPatternId()).append("\n\n");
     }
@@ -179,11 +188,17 @@ public class CompilerSkillContextBuilder {
 
     appendAddonSections(body, document);
 
-    body.append("Compiler skill document (").append(document.sourcePath()).append("):\n");
+    if (addonRepository.hasStandaloneSkills()) {
+      body.append("Skill instructions:\n");
+    } else {
+      body.append("Compiler skill document (").append(document.sourcePath()).append("):\n");
+    }
     body.append(document.markdown());
     appendRuntimeContextPackage(body, conversationId, document, snapshot);
     appendGeneratorConstraints(body, document, snapshot);
-    appendFinalEditConstraint(body, document, snapshot);
+    if (!addonRepository.hasStandaloneSkills()) {
+      appendFinalEditConstraint(body, document, snapshot);
+    }
 
     return QuteUserMessageEscaping.escapeForAiServiceUserMessage(body.toString());
   }
@@ -575,8 +590,30 @@ public class CompilerSkillContextBuilder {
       boolean editsExistingBodies) {
     runtimeEligibility.requirePromptContext(document.capabilityId());
 
+    if (addonRepository.hasStandaloneSkills()) {
+      StringBuilder prompt = new StringBuilder("Approved requirement interpretation:\n")
+          .append(nullToEmpty(snapshot.rawUserRequest())).append("\n\nRequirement brief:\n")
+          .append(nullToEmpty(snapshot.requirementBrief())).append("\n\n")
+          .append(nullToEmpty(snapshot.mappingGenerationContext())).append("\n\n")
+          .append(nullToEmpty(snapshot.editContext())).append("\n\n")
+          .append(editsExistingBodies ? "Update existing bodies.\n" : "Fill missing bodies.\n")
+          .append("Required script node IDs:\n").append(formatJson(requiredNodeIds)).append("\n\n");
+      appendAuthorSource(prompt, conversationId);
+      appendScriptNodeSlice(prompt, snapshot.chainPlanGraph(), requiredNodeIds);
+      if (editsExistingBodies && snapshot.chainPlanGraph() != null) {
+        prompt.append("\nOriginal script nodes:\n").append(formatJson(
+            snapshot.chainPlanGraph().nodes().stream()
+                .filter(node -> requiredNodeIds.contains(node.nodeId()) && "script".equals(node.type()))
+                .toList()));
+      }
+      appendAddonSections(prompt, document);
+      prompt.append("\n\nSkill instructions:\n").append(document.markdown());
+      appendRuntimeContextPackage(prompt, conversationId, document, snapshot);
+      appendGeneratorConstraints(prompt, document, snapshot);
+      return QuteUserMessageEscaping.escapeForAiServiceUserMessage(prompt.toString());
+    }
     StringBuilder body = new StringBuilder();
-    body.append("Pipeline instruction:\n");
+    body.append("Script repair task:\n");
     body.append(
         "You are executing compiler skill '"
             + document.capabilityId()
@@ -589,8 +626,10 @@ public class CompilerSkillContextBuilder {
       body.append("Submit only script bodies for the listed targetNodeIds.\n");
     }
     body.append("Do not call captureGraphPatch.\n\n");
-    body.append("User request:\n").append(nullToEmpty(snapshot.rawUserRequest())).append("\n\n");
+    body.append("Approved requirement interpretation:\n")
+        .append(nullToEmpty(snapshot.rawUserRequest())).append("\n\n");
     body.append("Requirement brief:\n").append(nullToEmpty(snapshot.requirementBrief())).append("\n\n");
+    appendAuthorSource(body, conversationId);
     if (!nullToEmpty(snapshot.selectedPatternId()).isBlank()) {
       body.append("Selected golden pattern:\n").append(snapshot.selectedPatternId()).append("\n\n");
     }
@@ -655,6 +694,12 @@ public class CompilerSkillContextBuilder {
     return QuteUserMessageEscaping.escapeForAiServiceUserMessage(body.toString());
   }
 
+  private void appendAuthorSource(StringBuilder body, String conversationId) {
+    if (conversations != null && conversationId != null && !conversationId.isBlank()) {
+      body.append(AuthorSourceEvidence.render(conversations.archive().read(conversationId)));
+    }
+  }
+
   private void appendGeneratorConstraints(
       StringBuilder body, CompilerSkillDocument document, CompilerSkillInputSnapshot snapshot) {
     if ("cip-naming-generator".equals(document.capabilityId())
@@ -672,20 +717,43 @@ public class CompilerSkillContextBuilder {
       body.append("""
 
           Script runtime contract:
+          Implement each approved exactValues scalar in its owned script as an executable Groovy
+          constant with exactly that value, including whitespace and quotation marks in the value.
+          Use the constant in the required output or expression. Compose requested separators and
+          runtime expressions outside that constant; do not merge it into a longer GString segment.
+          Preserve the complete approved behavior and field mappings. Their prose is not a runtime
+          string to emit. Comments, unused constants, and values in unrelated scripts do not implement
+          a requirement. Do not remove or rewrite approved exactValues to bypass a rejected body.
+          A literal-presence finding does not authorize changing a required runtime output value or
+          field binding. Preserve both the approved behavior and the exact constant contract.
+          If they cannot both be satisfied, preserve the required behavior and report the
+          incompatibility in the capture rationale; do not emit a different value or an unused constant.
           Incoming JSON bodies can be strings or maps. Parse a string before reading event fields.
+          Use only approved success and failure predicates; examples do not define business policy.
+          Missing, null, empty, blank, false, and numeric zero are distinct. Groovy truth and Elvis
+          defaults can conflate them. Whitespace-only strings are truthy; empty collections and
+          numeric zero are falsy. Use explicit presence, type, value, and whitespace checks when
+          the source distinguishes them. Follow the source's definition of blankness and preserve
+          accepted strings unchanged unless normalization is required. Check booleans and numbers by
+          their required types and values. Apply conversions and defaults only when the approved
+          source requests them; do not discard valid false or zero values.
+          Preserve the approved grouping and order of conditions and arithmetic, comparison
+          boundaries, rounding, and first-match error reasons. Do not simplify them through truthiness.
           Groovy 4 has no groovy-dateutil module in this runtime. Use Java time APIs for dates.
           Today's ISO date is java.time.LocalDate.now().toString(); Date.format() and Date.parse()
           are unavailable.
           For an approved INLINE_RESPONSE HTTP call, errorThrowing=false means the failed response
           can arrive without CamelExceptionCaught. Check the HTTP status and the actual body.
-          A successful response with errors=[] is success. A plain-text error must still reach the
+          Use the complete approved success predicate, including any status, shape, and errors checks.
+          A plain-text error must still reach the
           requested result delivery. Preserve the error response text and all retained input fields.
           Build the approved response envelope once with its constants and correlation fields on
           both success and failure paths. Add the requested error fields to that envelope on failure.
           Do not return an error-only body before assembling the approved fields. A handled inline
           error does not require session or element failure markers unless an approved behavior
           fact explicitly requests them; keep the downstream delivery reachable.
-          Use this normalization pattern, then build only the approved output fields:
+          This pattern normalizes representation only; derive success and failure from the approved
+          predicates. Keep parsed so arrays, scalars, and null remain distinguishable:
 
           ```groovy
           def raw = exchange.in.body
@@ -694,11 +762,8 @@ public class CompilerSkillContextBuilder {
               try { parsed = new groovy.json.JsonSlurper().parseText(raw) }
               catch (Exception ignored) { parsed = null }
           }
-          def response = parsed instanceof Map ? parsed : [:]
-          def errors = parsed instanceof Collection ? parsed : response.errors
+          def response = parsed instanceof Map ? parsed : null
           def status = exchange.in.getHeader('CamelHttpResponseCode', Integer)
-          def failed = (status != null && status >= 400) || response.success == false ||
-              (errors instanceof Collection && !errors.isEmpty())
           def errorText = raw instanceof String ? raw : groovy.json.JsonOutput.toJson(raw)
           ```
 
@@ -728,6 +793,10 @@ public class CompilerSkillContextBuilder {
                 20_000));
     KnowledgePackageRef ref = contextPackage.identity().packageRef();
     body.append("\n\n").append(contextPackage.renderMarkdown());
+    if (documentation != null) {
+      body.append(documentation.context(conversationId, snapshot.rawUserRequest(),
+          activeElementTypes(snapshot.chainPlanGraph())));
+    }
 
     if (evidenceEmitter != null && conversationId != null) {
       evidenceEmitter.knowledge(
@@ -754,6 +823,10 @@ public class CompilerSkillContextBuilder {
 
   private void appendPipelineContract(
       StringBuilder body, CompilerSkillDocument document, CaptureTool captureTool) {
+    if (addonRepository.hasStandaloneSkills()) {
+      body.append("Execute the skill instructions below for this turn.\n\n");
+      return;
+    }
     body.append("Pipeline instruction:\n");
     body.append(
         "You are executing compiler skill '"
@@ -916,12 +989,21 @@ public class CompilerSkillContextBuilder {
       }
     }
 
+    boolean standalone = addonRepository.hasStandaloneSkills();
+    if (standalone && !addon.examples().isEmpty()) {
+      body.append("Runtime examples are reference cases, not additional author requirements. "
+          + "Follow the current capture-tool schema, approved requirements, and ownership constraints. "
+          + "Counterexamples demonstrate rejected output and must not be copied.\n\n");
+    }
     for (CompilerSkillAddonDocument example : addon.examples()) {
-      String label =
-          document.phase() == CipKnowledgeCapabilityPhase.GENERATOR
-              ? "GraphPatch example"
-              : "Example";
-      body.append(label).append(" (").append(example.relativePath()).append("):\n");
+      if (standalone) {
+        String name = example.relativePath().substring(example.relativePath().lastIndexOf('/') + 1);
+        body.append(name.startsWith("invalid-") ? "Counterexample (must be rejected; " : "Runtime example (")
+            .append(example.relativePath()).append("):\n");
+      } else {
+        String label = document.phase() == CipKnowledgeCapabilityPhase.GENERATOR ? "GraphPatch example" : "Example";
+        body.append(label).append(" (").append(example.relativePath()).append("):\n");
+      }
       body.append(example.content()).append("\n\n");
     }
   }
@@ -956,6 +1038,10 @@ public class CompilerSkillContextBuilder {
   }
 
   private String formatActivePlan(GeneratorPlan activePlan) {
+    if (addonRepository.hasStandaloneSkills()) {
+      return formatJson(Map.of("targetNodeIds",
+          activePlan.targetNodeIds() == null ? List.of() : activePlan.targetNodeIds()));
+    }
     try {
       return objectMapper.writeValueAsString(activePlan);
     } catch (JsonProcessingException e) {

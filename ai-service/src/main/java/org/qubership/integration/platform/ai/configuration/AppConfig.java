@@ -241,6 +241,9 @@ public interface AppConfig {
 
     @WithName("recovery-fault-plan")
     java.util.Optional<String> recoveryFaultPlan();
+
+    @WithName("recovery-control-directory")
+    java.util.Optional<String> recoveryControlDirectory();
   }
 
   interface ApihubConfig {

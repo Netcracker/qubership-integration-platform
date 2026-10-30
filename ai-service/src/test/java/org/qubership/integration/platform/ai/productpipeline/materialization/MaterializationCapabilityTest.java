@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.productpipeline.materialization;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -116,6 +117,34 @@ class MaterializationCapabilityTest {
 
     assertEquals(StageOutcomeClass.CONTRACT_FAILURE, completed.outcome().outcomeClass());
     verify(materializer, never()).resume(any(), any());
+  }
+
+  @Test
+  void focusedCheckpointRequiresNativeAdmissionAndPreventsTheFirstCatalogWrite(
+      @org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws Exception {
+    var mapper = new ObjectMapper();
+    mapper.writeValue(directory.resolve("plan.json").toFile(), Map.of("schemaVersion", 1,
+        "conversationId", "conv-1", "boundary", "checkpoint"));
+    capability.recoveryControl = new org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryTestControl(
+        directory, mapper);
+    PreparedV2Inputs invalidEndpoint = appendHappyPathV2Inputs("/wrong");
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE,
+        completed(capability.execute(v2Context(invalidEndpoint, invalidEndpoint.requestRef(), invalidEndpoint.bundleRef()))).outcome().outcomeClass());
+    assertFalse(java.nio.file.Files.exists(directory.resolve("checkpoint.json")));
+
+    PreparedV2Inputs prepared = appendHappyPathV2Inputs();
+    var wrongRef = new Reference(Kind.VALIDATED_EXECUTION_BUNDLE, "absent", "absent");
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE,
+        completed(capability.execute(v2Context(prepared, prepared.requestRef(), wrongRef))).outcome().outcomeClass());
+    assertFalse(java.nio.file.Files.exists(directory.resolve("checkpoint.json")));
+
+    var stream = capability.execute(v2Context(prepared, prepared.requestRef(), prepared.bundleRef()));
+    var subscription = stream.subscribe().with(ignored -> org.junit.jupiter.api.Assertions.fail("Parked stage emitted success"));
+    assertTrue(java.nio.file.Files.exists(directory.resolve("checkpoint.json")));
+    var checkpoint = mapper.readTree(directory.resolve("checkpoint.json").toFile());
+    assertEquals(prepared.bundle().graphRef().artifactId(), checkpoint.path("graphRef").path("artifactId").asText());
+    verify(materializer, never()).resume(any(), any());
+    subscription.cancel();
   }
 
   @org.junit.jupiter.params.ParameterizedTest

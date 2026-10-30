@@ -19,6 +19,10 @@ import {
 } from "./documentationHighlightUtils";
 import { onConfigChange } from "../../appConfig";
 import { IntegrationSystemType } from "../../api/apiTypes";
+import {
+  buildElementTypeMapping as mapElementDocumentationPaths,
+  ELEMENT_ALIASES,
+} from "../../../scripts/element-documentation-mapping.mjs";
 
 interface SearchDocument {
   id: number;
@@ -29,52 +33,8 @@ interface SearchDocument {
 type Fetcher = (url: string) => Promise<Response>;
 type WindowOpener = (url: string, target: string) => Window | null;
 
-/**
- * Configuration for element type aliases.
- * Maps base element types to their alternative names.
- */
-const ELEMENT_ALIASES: Record<string, string[]> = {
-  condition: ["else", "if"],
-  "try-catch-finally": [
-    "try",
-    "catch",
-    "finally",
-    "try-2",
-    "catch-2",
-    "finally-2",
-    "try-catch-finally-2",
-  ],
-  "headers-modification": ["header-modification"],
-  "asyncapi-trigger": ["async-api-trigger"],
-  scheduler: ["quartz", "quartz-scheduler"],
-  "chain-call": ["chain-call-2"],
-  "chain-trigger": ["chain-trigger-2"],
-  "circuit-breaker": [
-    "circuit-breaker-2",
-    "circuit-breaker-configuration-2",
-    "on-fallback-2",
-  ],
-  loop: ["loop-2"],
-  split: ["split-2", "split-element-2", "main-split-element-2"],
-  "split-async": ["split-async-2", "async-split-element-2"],
-  "kafka-sender": ["kafka-sender-2"],
-  "kafka-trigger": ["kafka-trigger-2"],
-  "rabbitmq-sender": ["rabbitmq-sender-2"],
-  "rabbitmq-trigger": ["rabbitmq-trigger-2"],
-  mapper: ["mapper-2"],
-  "sftp-trigger": ["sftp-trigger-2"],
-};
-
 export class DocumentationService {
   private readonly MAX_FOUND_DOCUMENT_FRAGMENTS = 5;
-  // Matches a whole path segment named "Elements_Library", with or without a
-  // numeric and/or "QIP_" prefix ("1__Elements_Library", "QIP_Elements_Library",
-  // "1__QIP_Elements_Library"), so an unrelated folder that merely embeds the
-  // words is not treated as the library.
-  private readonly ELEMENTS_LIBRARY_SEGMENT = /(^|__)(QIP_)?Elements_Library$/;
-  private readonly INDEX_FILENAME = "index";
-  private readonly README_FILENAME = "readme";
-
   private pathsPromise: Promise<string[]> | null = null;
   private namesPromise: Promise<string[][]> | null = null;
   private tocPromise: Promise<TableOfContentNode> | null = null;
@@ -229,53 +189,9 @@ export class DocumentationService {
       return this.elementTypeMappingCache;
     }
 
-    const paths = await this.loadPaths();
-    const autoMapping: Record<string, string> = {};
-
-    // Auto-generate mapping from file/folder names
-    paths.forEach((path) => {
-      const parts = path.split("/");
-      if (
-        !parts.some((segment) => this.ELEMENTS_LIBRARY_SEGMENT.test(segment))
-      ) {
-        return;
-      }
-
-      const fileName = parts[parts.length - 1].replace(".md", "");
-      const folderName = parts[parts.length - 2];
-
-      // Extract element types from both file name and folder name
-      const elementTypes = new Set<string>();
-
-      // From file name: "http_trigger" → "http-trigger" (old naming;
-      // readme.md pages map through the folder name below)
-      if (
-        fileName &&
-        fileName !== this.INDEX_FILENAME &&
-        fileName !== this.README_FILENAME
-      ) {
-        elementTypes.add(fileName.replace(/_/g, "-"));
-      }
-
-      // From folder name: "1__HTTP_Trigger" → "http-trigger"
-      const folderPart = folderName.split("__")[1];
-      if (folderPart) {
-        elementTypes.add(folderPart.replace(/_/g, "-").toLowerCase());
-      }
-
-      // Register all variants (use nullish coalescing for more modern syntax)
-      const docPath = `/doc/${path.replace(".md", "")}`;
-      elementTypes.forEach((type) => {
-        autoMapping[type] ??= docPath;
-      });
-    });
-
-    // Apply hardcoded aliases for elements with multiple IDs
-    const aliases = this.getElementTypeAliases(autoMapping);
-    const finalMapping = { ...autoMapping, ...aliases };
-
-    this.elementTypeMappingCache = finalMapping;
-    return finalMapping;
+    const mapping = mapElementDocumentationPaths(await this.loadPaths());
+    this.elementTypeMappingCache = mapping;
+    return mapping;
   }
 
   /**

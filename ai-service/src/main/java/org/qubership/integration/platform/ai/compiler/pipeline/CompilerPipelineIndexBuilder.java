@@ -89,12 +89,13 @@ public final class CompilerPipelineIndexBuilder {
   }
 
   private static boolean hasCanonicalSources(Path packRoot) {
-    return Files.isRegularFile(
+    return Files.isRegularFile(packRoot.resolve("runtime/generator-contracts.json"))
+        || (Files.isRegularFile(
             packRoot.resolve("knowledge/runtime-substrate/runtime-dependency-model.yaml"))
         && Files.isRegularFile(packRoot.resolve("skills/skill-catalog.yaml"))
         && Files.isRegularFile(
             packRoot.resolve("knowledge/runtime-substrate/generator-packages.yaml"))
-        && Files.isRegularFile(packRoot.resolve("product-pipelines/artifact-schemas.yaml"));
+        && Files.isRegularFile(packRoot.resolve("product-pipelines/artifact-schemas.yaml")));
   }
 
   private CompilerPipelineIndex buildPolicyCompatibilityIndex(
@@ -664,6 +665,16 @@ public final class CompilerPipelineIndexBuilder {
   }
 
   private static List<String> parseApplicabilitySignals(String addonContent) {
+    if (addonContent.stripLeading().startsWith("{")) {
+      try {
+        List<String> signals = new ArrayList<>();
+        new ObjectMapper().readTree(addonContent).path("applicabilitySignals")
+            .forEach(signal -> signals.add(signal.asText()));
+        return List.copyOf(signals);
+      } catch (java.io.IOException e) {
+        throw new CompilerPipelineIndexParseException("Invalid applicability metadata: " + e.getMessage());
+      }
+    }
     Matcher section = APPLICABILITY_SECTION.matcher(addonContent);
     if (!section.find()) {
       return List.of();
@@ -737,7 +748,8 @@ public final class CompilerPipelineIndexBuilder {
   }
 
   private static Path resolveAddonRoot() {
-    String property = System.getProperty("qip.ai.qipknowledge.addon-pack-root");
+    String property = System.getProperty("qip.ai.qipknowledge.skill-metadata-root",
+        System.getProperty("qip.ai.qipknowledge.addon-pack-root"));
     if (property == null || property.isBlank()) {
       return null;
     }

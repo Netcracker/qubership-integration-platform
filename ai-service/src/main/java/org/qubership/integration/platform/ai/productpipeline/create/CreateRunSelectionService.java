@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.qubership.integration.platform.ai.skills.RockySkills;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRunPin;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeContextProvider;
@@ -23,6 +24,9 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipe
  */
 @ApplicationScoped
 public class CreateRunSelectionService {
+
+  @jakarta.inject.Inject
+  RockySkills rockySkills = new RockySkills();
 
   public static final String CREATE_PROFILE_ID = "create-chain";
   public static final String CREATE_PROFILE_VERSION = "2";
@@ -145,6 +149,7 @@ public class CreateRunSelectionService {
   }
 
   public CreateRunSelection selectOrCreate(String conversationId, String firstPrompt) {
+    rockySkills.requireAvailable();
     Objects.requireNonNull(conversationId, "conversationId");
     return bindingStore
         .load(conversationId)

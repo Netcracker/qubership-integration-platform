@@ -10,8 +10,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -63,20 +61,20 @@ class CompilerContractKnowledgeAlignmentTest {
   }
 
   @Test
-  void packAddonsTreatIdsAsDerivedViewAndReuseSemanticCompilerSeed() throws Exception {
-    String generatorAddon = readPackAddon("cip-design-generator");
-    String structureAddon = readPackAddon("cip-structure-generator");
-    String executorAddon = readPackAddon("cip-design-executor");
+  void standaloneSkillsReuseSemanticCompilerSeed() throws Exception {
+    String generatorAddon = readPackSkill("cip-conf-semantic-design");
+    String structureAddon = readPackSkill("cip-structure-generator");
+    String executorAddon = readPackSkill("cip-conf-semantic-design");
     List<String> addons = List.of(generatorAddon, structureAddon, executorAddon);
 
     assertTrue(
         addons.stream().noneMatch(text -> text.contains(IDS_COMPILER_EXTRACTION)),
-        "Addons must not treat IDS markdown as compiler input");
+        "Skills must not treat IDS markdown as compiler input");
     assertTrue(
         addons.stream().noneMatch(CompilerContractKnowledgeAlignmentTest::hasCompilerSourceChoice),
         "Deprecated GENERATE/DERIVE/PROVIDE compiler-source choice must be absent");
     assertTrue(
-        generatorAddon.toLowerCase(Locale.ROOT).contains("derived"),
+        generatorAddon.toLowerCase(Locale.ROOT).contains("server owns"),
         "cip-design-generator must describe IDS as a derived approval view");
     assertTrue(
         structureAddon.toLowerCase(Locale.ROOT).contains("semantic compiler"),
@@ -92,8 +90,8 @@ class CompilerContractKnowledgeAlignmentTest {
         new ClasspathCompilerContractRepository().require(CompilerContract.V1);
     for (String addonId : contract.requiredAddons()) {
       assertTrue(
-          Files.isRegularFile(packAddonFile(addonId)),
-          "Required pack addon is missing: " + addonId);
+          Files.isRegularFile(CipKnowledgePackFixturePaths.addonRoot().resolve("skills/" + addonId + ".json")),
+          "Required runtime definition is missing: " + addonId);
     }
     for (String fragment : contract.requiredKnowledgeFragments()) {
       assertTrue(
@@ -103,38 +101,39 @@ class CompilerContractKnowledgeAlignmentTest {
   }
 
   @Test
-  void everyCompilerContractRuleMapsToAddonAndDescriptor() throws Exception {
+  void everyCompilerContractRuleMapsToRuntimeDefinitionAndDescriptor() throws Exception {
     CompilerContract contract =
         new ClasspathCompilerContractRepository().require(CompilerContract.V1);
-    String executorAddon = readPackAddon("cip-design-executor");
-    String structureAddon = readPackAddon("cip-structure-generator");
-    String generatorAddon = readPackAddon("cip-design-generator");
-    Set<String> headings = addonHeadings(generatorAddon, structureAddon, executorAddon);
-    Map<String, MappingRow> rows = parseOwnershipTable(executorAddon);
+    var rows = new ObjectMapper().readTree(
+        CipKnowledgePackFixturePaths.packRoot().resolveSibling("rocky-skills-maintenance").resolve("contract-alignment.json").toFile());
 
     Set<String> requiredIds = new LinkedHashSet<>();
     requiredIds.addAll(contract.topology().keySet());
     requiredIds.addAll(contract.elements().keySet());
     for (String ruleId : requiredIds) {
-      MappingRow row = rows.get(ruleId);
+      var row = rows.get(ruleId);
       assertNotNull(row, "Unmapped compiler contract rule: " + ruleId);
-      assertFalse(
-          row.addonSection().isBlank() || "this mapping".equalsIgnoreCase(row.addonSection()),
-          "Named addon section is missing for " + ruleId);
-      assertTrue(
-          headingCovers(headings, row.addonSection()),
-          "Addon section '" + row.addonSection() + "' is not a heading for " + ruleId);
-      assertFalse(
-          row.descriptorPath().isBlank() || "none".equalsIgnoreCase(row.descriptorPath()),
-          "Runtime descriptor path is absent for " + ruleId);
+      String owner = row.path("owner").asText();
+      assertFalse(owner.isBlank(), "Owner is missing for " + ruleId);
+      boolean unsupportedOwner = "unsupported".equals(owner);
+      if (unsupportedOwner) {
+        assertTrue(contract.topology().containsKey(ruleId) && !contract.topology().get(ruleId).supported(),
+            "Supported rule cannot have an unsupported owner: " + ruleId);
+      } else {
+        assertTrue(Files.isRegularFile(CipKnowledgePackFixturePaths.packRoot()
+            .resolve("skills/" + owner + "/SKILL.md")) || Files.isRegularFile(
+                CipKnowledgePackFixturePaths.addonRoot().resolve("skills/" + owner + ".json")), owner);
+      }
+      String descriptorPath = row.path("descriptorPath").asText();
+      assertFalse(descriptorPath.isBlank(), "Runtime descriptor path is absent for " + ruleId);
       boolean unsupportedTopology =
           contract.topology().containsKey(ruleId) && !contract.topology().get(ruleId).supported();
-      if ("unsupported".equals(row.descriptorPath())) {
+      if ("unsupported".equals(descriptorPath)) {
         assertTrue(
             unsupportedTopology,
             "Supported rule " + ruleId + " cannot map to an unsupported descriptor");
       } else {
-        Path descriptorFile = descriptorFileFromPath(row.descriptorPath());
+        Path descriptorFile = descriptorFileFromPath(descriptorPath);
         assertTrue(
             Files.isRegularFile(descriptorFile),
             "Runtime descriptor is missing for " + ruleId + ": " + descriptorFile);
@@ -191,12 +190,8 @@ class CompilerContractKnowledgeAlignmentTest {
     throw new IllegalStateException("Runtime descriptor is missing for " + elementType);
   }
 
-  private static String readPackAddon(String skillId) throws Exception {
-    return Files.readString(packAddonFile(skillId));
-  }
-
-  private static Path packAddonFile(String skillId) {
-    return CipKnowledgePackFixturePaths.addonRoot().resolve("skills").resolve(skillId + ".addon.md");
+  private static String readPackSkill(String skillId) throws Exception {
+    return Files.readString(CipKnowledgePackFixturePaths.packRoot().resolve("skills/" + skillId + "/SKILL.md"));
   }
 
   private static String readPackKnowledge(String fileName) throws Exception {
@@ -212,75 +207,6 @@ class CompilerContractKnowledgeAlignmentTest {
           default -> fragment;
         };
     return CipKnowledgePackFixturePaths.knowledgeRoot().resolve("ai").resolve(fileName);
-  }
-
-  private static Map<String, MappingRow> parseOwnershipTable(String executorAddon) {
-    String marker = "## Semantic node and edge ownership";
-    int start = executorAddon.indexOf(marker);
-    assertTrue(start >= 0, "Executor addon is missing semantic ownership mapping");
-    Map<String, MappingRow> rows = new LinkedHashMap<>();
-    boolean inTable = false;
-    for (String line : executorAddon.substring(start).split("\n")) {
-      String trimmed = line.trim();
-      if (!trimmed.startsWith("|")) {
-        if (inTable) {
-          break;
-        }
-        continue;
-      }
-      List<String> cells = splitTableRow(trimmed);
-      if (cells.size() < 4) {
-        continue;
-      }
-      String ruleId = cells.get(0);
-      if ("Contract rule".equalsIgnoreCase(ruleId)) {
-        inTable = true;
-        continue;
-      }
-      if (ruleId.contains("---")) {
-        continue;
-      }
-      if (!inTable) {
-        continue;
-      }
-      rows.put(ruleId, new MappingRow(ruleId, cells.get(1), cells.get(2), cells.get(3)));
-    }
-    return rows;
-  }
-
-  private static List<String> splitTableRow(String line) {
-    String[] raw = line.split("\\|", -1);
-    List<String> cells = new ArrayList<>();
-    for (int i = 0; i < raw.length; i++) {
-      String cell = raw[i].trim();
-      if ((i == 0 || i == raw.length - 1) && cell.isEmpty()) {
-        continue;
-      }
-      cells.add(cell);
-    }
-    return cells;
-  }
-
-  private static Set<String> addonHeadings(String... addons) {
-    Set<String> headings = new LinkedHashSet<>();
-    for (String addon : addons) {
-      for (String line : addon.split("\n")) {
-        String trimmed = line.trim();
-        if (trimmed.startsWith("## ")) {
-          headings.add(trimmed.substring(3).trim());
-        }
-      }
-    }
-    return headings;
-  }
-
-  private static boolean headingCovers(Set<String> headings, String section) {
-    for (String heading : headings) {
-      if (heading.equals(section) || heading.startsWith(section)) {
-        return true;
-      }
-    }
-    return false;
   }
 
   private static Path descriptorFileFromPath(String descriptorPath) {
@@ -310,9 +236,6 @@ class CompilerContractKnowledgeAlignmentTest {
     }
     throw new IllegalStateException("Missing repository path: " + relative);
   }
-
-  private record MappingRow(
-      String ruleId, String owner, String addonSection, String descriptorPath) {}
 
   @JsonIgnoreProperties(ignoreUnknown = true)
   private record RuntimeElementDescriptor(Map<String, CatalogChildQuantity> allowedChildren) {

@@ -10,10 +10,12 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.function.UnaryOperator;
 import org.qubership.integration.platform.ai.compiler.artifact.ArtifactBlobStore;
 import org.qubership.integration.platform.ai.compiler.artifact.StaleBlobVersionException;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.CanonicalPayloadHash;
 
 /** Durable source turns; resetting a chat changes authority without deleting evidence. */
 @ApplicationScoped
@@ -80,10 +82,75 @@ public class ConversationArchive {
   }
 
   public Input beginInput(String conversationId, String rawText, JsonNode metadata) {
-    String id = UUID.randomUUID().toString();
-    Turn turn = new Turn(id, ConversationMessage.user(rawText), rawText, metadata, "RECEIVED", null);
+    return beginInput(conversationId, null, rawText, metadata);
+  }
+
+  /**
+   * Archives one author turn.
+   *
+   * <p>A blank {@code deterministicTurnId} appends a new turn. The same id, canonical answer, and
+   * offer metadata return the existing turn and leave the source generation unchanged. The same id
+   * with a different answer or offer is rejected.
+   */
+  public Input beginInput(
+      String conversationId, String deterministicTurnId, String rawText, JsonNode metadata) {
+    if (deterministicTurnId == null || deterministicTurnId.isBlank()) {
+      return appendReceived(conversationId, UUID.randomUUID().toString(), rawText, metadata);
+    }
+    String id = deterministicTurnId;
+    Document updated = update(conversationId, doc -> {
+      for (Turn existing : doc.turns()) {
+        if (!existing.id().equals(id)) {
+          continue;
+        }
+        if (sameClarificationAnswer(existing, rawText, metadata)) {
+          return doc;
+        }
+        throw new IllegalStateException("Clarification answer id collides with a different payload.");
+      }
+      return append(doc, receivedTurn(id, rawText, metadata));
+    });
+    return new Input(id, updated.generation(), updated.activeTurnIds().indexOf(id));
+  }
+
+  /**
+   * Turn id for one clarification answer. The digest covers the offer and the canonical answer
+   * text, and no run revision.
+   */
+  public static String deterministicAnswerTurnId(String offerId, String rawText) {
+    return CanonicalPayloadHash.sha256Hex(Map.of(
+        "clarificationOfferId", offerId == null ? "" : offerId,
+        "text", canonicalAnswerText(rawText)));
+  }
+
+  private Input appendReceived(String conversationId, String id, String rawText, JsonNode metadata) {
+    Turn turn = receivedTurn(id, rawText, metadata);
     Document updated = update(conversationId, doc -> append(doc, turn));
     return new Input(id, updated.generation(), updated.activeTurnIds().indexOf(id));
+  }
+
+  private static Turn receivedTurn(String id, String rawText, JsonNode metadata) {
+    return new Turn(id, ConversationMessage.user(rawText), rawText, metadata, "RECEIVED", null);
+  }
+
+  private static boolean sameClarificationAnswer(Turn existing, String rawText, JsonNode metadata) {
+    return canonicalAnswerText(existing.rawText()).equals(canonicalAnswerText(rawText))
+        && clarificationOfferId(existing.metadata()).equals(clarificationOfferId(metadata));
+  }
+
+  private static String canonicalAnswerText(String rawText) {
+    return rawText == null ? "" : rawText.strip();
+  }
+
+  private static String clarificationOfferId(JsonNode metadata) {
+    if (metadata == null || !metadata.isObject()) {
+      return "";
+    }
+    JsonNode value = metadata.get("clarificationOfferId");
+    if (value == null || value.isNull()) {
+      return "";
+    }
+    return value.asText("");
   }
 
   public void resolveInput(String conversationId, Input input, String effectiveText) {

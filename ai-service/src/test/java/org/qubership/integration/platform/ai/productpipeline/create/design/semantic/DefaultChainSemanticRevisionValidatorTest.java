@@ -33,6 +33,23 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementSe
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFailureMode;
 
 class DefaultChainSemanticRevisionValidatorTest {
+  @ParameterizedTest
+  @ValueSource(strings = {
+      "${date:now:minute} % 2 == 0", "${header.minute} ==", "${header.minute",
+      "${date:now:minute} == 0", "${date-with-timezone:now:UTC:minute} == 0"
+  })
+  void rejectsMalformedCamelPredicatesBeforeGeneration(String predicate) {
+    var candidate = singleConditionRevision(
+        List.of(new SemanticBranch.Condition(
+            "approved", ConditionBranchRole.IF, predicate, 1, "call-a", List.of("call-a"))),
+        List.of(new SemanticNode.ServiceCall(
+            "call-a", "call-a", "getOrder", new SemanticProvenance(List.of()))),
+        List.of(branchEdge("edge-approved", "call-a", "approved")));
+    var error = assertThrows(IllegalArgumentException.class, () -> validator.validate(candidate, CONTRACT));
+    assertTrue(error.getMessage().contains("approved"), error.getMessage());
+    assertTrue(error.getMessage().contains("Camel Simple"), error.getMessage());
+  }
+
   @Test
   void conditionCannotContainItsOwnerInABranch() throws Exception {
     var mapper = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
@@ -980,9 +997,9 @@ class DefaultChainSemanticRevisionValidatorTest {
             "condition-1",
             List.of(
                 new SemanticBranch.Condition(
-                    "approved", ConditionBranchRole.IF, "status == 'ok'", 1, "call-a", List.of("call-a")),
+                    "approved", ConditionBranchRole.IF, "${header.status} == 'ok'", 1, "call-a", List.of("call-a")),
                 new SemanticBranch.Condition(
-                    "rejected", ConditionBranchRole.IF, "status != 'ok'", 2, "call-b", List.of("call-b"))),
+                    "rejected", ConditionBranchRole.IF, "${header.status} != 'ok'", 2, "call-b", List.of("call-b"))),
             "script-common");
     List<SemanticExecutionEdge> edges =
         List.of(
@@ -1187,14 +1204,14 @@ class DefaultChainSemanticRevisionValidatorTest {
                 new SemanticBranch.Condition(
                     "approved",
                     ConditionBranchRole.IF,
-                    "status == 'ok'",
+                    "${header.status} == 'ok'",
                     1,
                     "call-a",
                     List.of("call-a")),
                 new SemanticBranch.Condition(
                     "rejected",
                     ConditionBranchRole.IF,
-                    "status != 'ok'",
+                    "${header.status} != 'ok'",
                     2,
                     "call-b",
                     List.of("call-b"))),
@@ -1300,7 +1317,7 @@ class DefaultChainSemanticRevisionValidatorTest {
             new SemanticBranch.Condition(
                 "approved",
                 ConditionBranchRole.IF,
-                "status == 'ok'",
+                "${header.status} == 'ok'",
                 1,
                 "call-a",
                 List.of("call-a")),
@@ -1327,14 +1344,14 @@ class DefaultChainSemanticRevisionValidatorTest {
             new SemanticBranch.Condition(
                 "approved",
                 ConditionBranchRole.IF,
-                "status == 'ok'",
+                "${header.status} == 'ok'",
                 1,
                 "call-a",
                 List.of("call-a")),
             new SemanticBranch.Condition(
                 "rejected",
                 ConditionBranchRole.IF,
-                "status != 'ok'",
+                "${header.status} != 'ok'",
                 1,
                 "call-b",
                 List.of("call-b"))),

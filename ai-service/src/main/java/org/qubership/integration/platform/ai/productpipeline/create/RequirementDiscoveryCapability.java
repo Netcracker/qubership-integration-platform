@@ -1,11 +1,15 @@
 package org.qubership.integration.platform.ai.productpipeline.create;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.qubership.integration.platform.ai.productpipeline.capability.CaptureFailureEvidence;
 import io.smallrye.mutiny.Multi;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -15,10 +19,12 @@ import java.util.function.BiFunction;
 import io.smallrye.mutiny.Context;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationMessage;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore.RequirementRejection;
+import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass;
 import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway;
 import org.qubership.integration.platform.ai.llm.agent.GatherRequirementsAgent;
 import org.qubership.integration.platform.ai.llm.scenario.GatherRequirementsAgentCall;
@@ -27,8 +33,14 @@ import org.qubership.integration.platform.ai.plan.DraftDecision;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.plan.RequirementDraftTool;
+import org.qubership.integration.platform.ai.plan.TargetFolderChoiceResolver;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureEditor.Issue;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.QuestionInput;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureTools;
+import org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureProjection;
+import org.qubership.integration.platform.ai.plan.RequirementClarificationCoordinator;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentState;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskScope;
 import org.qubership.integration.platform.ai.plan.workdocument.flow.WorkLogicalFlow;
@@ -53,6 +65,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProfileStage;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RequirementRecoveryLadder;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 
 /**
@@ -63,6 +76,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 public class RequirementDiscoveryCapability implements StageCapability {
 
   public static final String CAPABILITY_ID = "requirement-discovery";
+  private static final ObjectMapper MAPPING_REPAIR_MAPPER = new ObjectMapper();
 
   private final GatherRequirementsAgent gatherRequirementsAgent;
   private final RequirementDraftStore draftStore;
@@ -71,6 +85,14 @@ public class RequirementDiscoveryCapability implements StageCapability {
   private final ConversationService conversationService;
   private final CatalogBindingMatcher catalogBindingMatcher;
   @Inject CaptureAttemptFeedbackStore captureFeedback;
+  @Inject FailureNarrative failureNarrative;
+  @Inject TargetFolderChoiceResolver targetFolderChoices;
+  @Inject RequirementCaptureTools captureTools;
+
+  /** Lets a cross-package test supply the capture tools the container would inject. */
+  public void setCaptureTools(RequirementCaptureTools tools) {
+    this.captureTools = tools;
+  }
   @Inject org.qubership.integration.platform.ai.plan.UploadedSpecOperations uploadedSpecs;
 
   @Inject
@@ -134,7 +156,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
         null);
   }
 
-  RequirementDiscoveryCapability(
+  public RequirementDiscoveryCapability(
       GatherRequirementsAgent gatherRequirementsAgent,
       RequirementDraftStore draftStore,
       GatherRequirementsPromptBuilder promptBuilder,
@@ -248,13 +270,18 @@ public class RequirementDiscoveryCapability implements StageCapability {
             context.executionKey(), context.attemptId(), context.profile(), context.runManifest(),
             context.inputRefs(), attributes));
       }
-      if (!decided.readyForPlan()) {
-        String questions = String.join("\n", decided.openQuestions());
-        return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(
-            StageOutcomeClass.NEEDS_INPUT, questions.isBlank()
-                ? "IDS choice saved. The remaining requirements still need clarification." : questions)));
-      }
       return Multi.createFrom().item(completeDiscovery(context, new AtomicReference<>(decided)));
+    }
+    userMessage = focusedRecoveryInput(context, conversationId, userMessage);
+    var folderAgain = unresolvedTargetFolder(context, conversationId, userMessage);
+    if (folderAgain.isPresent()) {
+      return Multi.createFrom().item(folderAgain.get());
+    }
+    if (admitActiveChainCall(context, conversationId, userMessage)) {
+      draftStore.finishTurn(conversationId, RequirementDiscoveryDirective.STAY);
+      draftStore.markCaptured(conversationId);
+      return Multi.createFrom().item(completeDiscovery(context,
+          new AtomicReference<>(draftStore.get(conversationId).orElse(null))));
     }
     RequirementDraft mappingRepairDraft = mappingRepairDraft(context);
     if (mappingRepairDraft != null) {
@@ -262,8 +289,12 @@ public class RequirementDiscoveryCapability implements StageCapability {
       userMessage = """
           Repair the selected draft's field paths using the catalog contract findings below.
           Read the accepted draft, then call updateRequirementDraft for the affected FIELD_MAPPING
-          facts. Preserve all fact IDs, text, expressions, source and target interactions, flow,
-          settings, and unrelated requirements. Change only the invalid field paths.
+          facts. Read readRequirementSource and preserve all fact IDs, text, source and
+          target interactions, flow, settings, and unrelated requirements. Change only invalid field
+          paths, or add FIELD_MAPPING facts for the unresolved required targets named by the native
+          findings. Derive their source fields or constants from the saved author messages.
+          If a rejected mapping's derived expression must change with its field binding, implement
+          the same saved requirement; preserve explicit author formulas and unrelated expressions.
           Paths are relative to the actual message body. An operation name, resource name, or schema
           title is not a JSON wrapper. For example, a schema with root property Subject requires
           targetPath Subject; use Task.Subject only if its properties actually contain Task.Subject.
@@ -273,9 +304,24 @@ public class RequirementDiscoveryCapability implements StageCapability {
           Contract findings:
           %s
           %s
-          """.formatted(repair.diagnosticText(), repair.errorEvidence());
+          Native editable scope:
+          %s
+          """.formatted(context.attributes().getOrDefault("mappingRepairFindings", repair.diagnosticText()),
+              repair.errorEvidence(), mappingRepairScope(mappingRepairPaths(context), missingMappingTargets(context),
+                  mappingRepairDraft.authoredDraft()));
     }
     var repair = StageRepairEvidence.from(context);
+    if (context.attributes().get("sourceRestorationReview")
+        instanceof org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool.SourceReview review) {
+      userMessage = """
+          Restore every named provisional fact to its own exact saved author quote. Read readRequirementSource and the
+          current draft. Call updateRequirementDraft to change only those facts' text to their own quotes, preserving each ID,
+          evidence, polarity, kind, settings, flow, other facts, and confirmed choices. Do not ask the author to select
+          an implementation default introduced by the model. This produces a candidate for renewed brief approval.
+          After saving, finish with CONTINUE. Native source review:
+          %s
+          """.formatted(review);
+    }
     if (repair != null && ChatEvent.CONTINUE_TO_PLANNING_ACTION.equals(userMessage.strip())) {
       userMessage = "";
     }
@@ -298,20 +344,37 @@ public class RequirementDiscoveryCapability implements StageCapability {
               context.attributes().getOrDefault(ProductPipelineRunSupport.PROPOSED_BRIEF_CHANGES_ATTR, List.of()));
     }
     if (userMessage.isBlank() && repair != null) {
-      boolean clean = context.attributeAsString(ProductPipelineRunSupport.PRODUCER_CLEAN_REBUILD_EVIDENCE_REF_ATTR) != null;
-      userMessage = """
-          Correct the generated requirement draft using the saved author messages and accepted facts.
-          Read readRequirementSource and the current draft. Preserve confirmed choices, exact values,
-          fact IDs, flow, and unrelated requirements. A capture/schema failure is a producer error;
-          ask the author only if the saved source leaves a required value or product choice unresolved.
-          Strategy: %s
-          Cause: %s
-          Findings:
-          %s
-          %s
-          """.formatted(clean ? "Generate a complete draft in this fresh turn from the saved source."
-              : "Correct the affected capture fields from the saved evidence.",
-              repair.causeCode(), repair.findings(), repair.errorEvidence());
+      var guidance = draftStore.recoveryGuidance(conversationId);
+      if (guidance.isPresent()
+          && guidance.get().strategy() == RequirementRecoveryLadder.Stage.PROJECTION_REBUILD) {
+        userMessage = """
+            Capture the requirements again from the author evidence and the semantic baseline.
+            Do not restore rejected fields.
+            Conflict participants: %s
+            Editable paths: %s
+            Cause: %s
+            Findings:
+            %s
+            %s
+            """.formatted(String.join(", ", guidance.get().participants()),
+                String.join(", ", guidance.get().editablePaths()),
+                repair.causeCode(), repair.findings(), repair.errorEvidence());
+      } else {
+        boolean clean = context.attributeAsString(ProductPipelineRunSupport.PRODUCER_CLEAN_REBUILD_EVIDENCE_REF_ATTR) != null;
+        userMessage = """
+            Correct the generated requirement draft using the saved author messages and accepted facts.
+            Read readRequirementSource and the current draft. Preserve confirmed choices, exact values,
+            fact IDs, flow, and unrelated requirements. A capture/schema failure is a producer error;
+            ask the author only if the saved source leaves a required value or product choice unresolved.
+            Strategy: %s
+            Cause: %s
+            Findings:
+            %s
+            %s
+            """.formatted(clean ? "Generate a complete draft in this fresh turn from the saved source."
+                : "Correct the affected capture fields from the saved evidence.",
+                repair.causeCode(), repair.findings(), repair.errorEvidence());
+      }
     }
     if (userMessage.isBlank() && conversationService != null && context.inputRefs().stream()
         .anyMatch(ref -> ref.kind() == CompilationArtifacts.Kind.USER_INPUT)) {
@@ -348,14 +411,17 @@ public class RequirementDiscoveryCapability implements StageCapability {
     }
     AtomicReference<RequirementDraft> captured = new AtomicReference<>();
     String gatherMessage = userMessage;
-    RequirementDraft repairBase = mappingRepairDraft != null ? mappingRepairDraft : draftStore.get(conversationId).orElse(null);
+    RequirementDraft repairBase = draftStore.get(conversationId).orElse(mappingRepairDraft);
     var nativeRepairPaths = requirementRepairPaths(context, repairBase);
+    var sourceRestoration = context.attributes().get("sourceRestorationReview")
+        instanceof org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool.SourceReview review ? review : null;
     ToolSession.bind(conversationId);
     Context toolSessionContext = ToolSession.attachedContext();
     java.util.function.Supplier<Context> startCapture = () -> {
       Context installed = ProductCapabilityCaptureContext.bindDiscovery(
-        context.runId(), conversationId, nativeRepairPaths.isEmpty() ? mappingRepairDraft : repairBase,
-        mappingRepairPaths(context), nativeRepairPaths, payload -> {
+        context.runId(), conversationId, mappingRepairDraft == null && nativeRepairPaths.isEmpty() && sourceRestoration == null
+            ? null : repairBase,
+        mappingRepairPaths(context), nativeRepairPaths, missingMappingTargets(context), sourceRestoration, payload -> {
           if (payload instanceof RequirementDraft draft) {
             captured.set(draft);
           }
@@ -364,6 +430,10 @@ public class RequirementDiscoveryCapability implements StageCapability {
         captureFeedback.clearRequirement(conversationId);
       }
       draftStore.beginTurn(conversationId, gatherMessage);
+      if (PipelineGates.STAGE_CLARIFICATION.equals(context.attributeAsString(
+          ProductPipelineRunSupport.ADMITTED_INPUT_GATE_ATTR))) {
+        if (repair == null) draftStore.allowDiscussion(conversationId);
+      }
       return installed;
     };
     if (conversationService != null) {
@@ -379,10 +449,10 @@ public class RequirementDiscoveryCapability implements StageCapability {
     Multi<ChatEvent> agentStream =
         ToolSession.propagateBinding(
             toolSessionContext,
-            runGather(
+            Multi.createFrom().deferred(() -> runGather(
                 conversationId,
-                userMessage,
-                context.runManifest() == null ? "en" : context.runManifest().responseLocale(), binding));
+                gatherMessage,
+                context.runManifest() == null ? "en" : context.runManifest().responseLocale(), binding, repair)));
     return Multi.createBy()
         .concatenating()
         .streams(
@@ -401,9 +471,12 @@ public class RequirementDiscoveryCapability implements StageCapability {
                                 org.qubership.integration.platform.ai.chat.conversation.ConversationArchive.latestInputId(authority), finish);
                         List<CapabilitySignal> signals = new ArrayList<>();
                         var settledDraft = draftStore.get(conversationId).orElse(null);
-                        if (completed.outcome().outcomeClass() == StageOutcomeClass.NEEDS_INPUT
-                            && PipelineGates.gateOf(completed.outcome().message()).isEmpty()
-                            && (settledDraft == null || !settledDraft.readyForPlan()
+                        boolean discuss = draftStore.turnDirective(conversationId)
+                            == RequirementDiscoveryDirective.DISCUSS;
+                        boolean needsInput = completed.outcome().outcomeClass() == StageOutcomeClass.NEEDS_INPUT;
+                        if (needsInput
+                            && (discuss || PipelineGates.gateOf(completed.outcome().message()).isEmpty())
+                            && (discuss || settledDraft == null || !settledDraft.readyForPlan()
                                 || !draftStore.wasCapturedThisTurn(conversationId))) {
                           events.forEach(event -> signals.add(new CapabilitySignal.Message(tokenText(event))));
                         }
@@ -440,6 +513,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
           .readValue(repair.typedCauseJson(), RecoveryCause.class);
       var paths = new java.util.LinkedHashSet<String>();
       for (var finding : cause.findings()) {
+        if ("REPAIR_FACT_LOSS".equals(finding.code()) || "SOURCE_UNSUPPORTED_ADDITION".equals(finding.code())) continue;
         String path = RequirementDraftStore.requirementRepairPath(draft, finding);
         if (path != null) paths.add(path);
       }
@@ -449,23 +523,257 @@ public class RequirementDiscoveryCapability implements StageCapability {
     }
   }
 
+  private String focusedRecoveryInput(StageExecutionContext context, String conversationId, String userMessage) {
+    if (userMessage == null || userMessage.isBlank() || captureFeedback == null
+        || !PipelineGates.REQUIREMENT_RECOVERY_CLARIFICATION.equals(
+            context.attributeAsString(ProductPipelineRunSupport.ADMITTED_INPUT_GATE_ATTR))) {
+      return userMessage;
+    }
+    var rejection = captureFeedback.lastRequirementRejection(conversationId).orElse(null);
+    String finding = rejection == null ? "" : structuredFinding(rejection);
+    String editable = rejection == null ? "" : rejection.issues().stream().map(issue -> issue.path())
+        .filter(path -> path != null && !path.isBlank()).distinct()
+        .reduce((left, right) -> left + ", " + right).orElse("");
+    return """
+        Repair the focused requirement using the author's clarification.
+        Original finding:
+        %s
+        Editable target:
+        %s
+        Author clarification:
+        %s
+        """.formatted(finding, editable, userMessage.strip());
+  }
+
+  private Optional<CapabilitySignal.Completed> unresolvedTargetFolder(
+      StageExecutionContext context, String conversationId, String userMessage) {
+    if (captureFeedback == null || !PipelineGates.TARGET_FOLDER_CHOICE.equals(
+        context.attributeAsString(ProductPipelineRunSupport.ADMITTED_INPUT_GATE_ATTR))) {
+      return Optional.empty();
+    }
+    if (submittedFolderPath(conversationId, userMessage)) {
+      captureFeedback.clearRequirement(conversationId);
+      return Optional.empty();
+    }
+    var rejection = captureFeedback.lastRequirementRejection(conversationId).orElse(null);
+    if (rejection == null || rejection.issues().stream().noneMatch(issue ->
+        "AMBIGUOUS_TARGET_FOLDER".equals(issue.code()))) {
+      return Optional.empty();
+    }
+    String saved = context.attributeAsString(ProductPipelineRunSupport.ADMITTED_CLARIFICATION_PROMPT_ATTR);
+    if (saved != null && !PipelineGates.strip(saved).isBlank()
+        && PipelineGates.TARGET_FOLDER_CHOICE.equals(PipelineGates.gateOf(saved).orElse(""))) {
+      return Optional.of(new CapabilitySignal.Completed(
+          StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, saved)));
+    }
+    return Optional.of(folderQuestion(context, rejection));
+  }
+
+  /** One exact folder path is admitted through {@link TargetFolderChoiceResolver#apply}. */
+  private boolean submittedFolderPath(String conversationId, String userMessage) {
+    if (targetFolderChoices == null || userMessage == null || userMessage.isBlank()) {
+      return false;
+    }
+    String before = folderPath(draftStore.get(conversationId).orElse(null));
+    draftStore.beginTurn(conversationId, userMessage);
+    ToolSession.bind(conversationId);
+    try {
+      if (targetFolderChoices.apply(userMessage) == null) {
+        return false;
+      }
+    } finally {
+      ToolSession.clear();
+    }
+    String after = folderPath(draftStore.get(conversationId).orElse(null));
+    return after != null && !after.isBlank() && !after.equals(before);
+  }
+
+  private static String folderPath(RequirementDraft draft) {
+    if (draft == null || draft.authoredDraft() == null || draft.authoredDraft().settings() == null) {
+      return null;
+    }
+    return draft.authoredDraft().settings().targetFolderPath();
+  }
+
+  /**
+   * Writes one chain-trigger element id when this answer returns the open requirement offer and
+   * that offer is still the active catalog question. Admission is the capture result, not a
+   * before-and-after comparison.
+   */
+  private boolean admitActiveChainCall(StageExecutionContext context, String conversationId, String userMessage) {
+    if (captureTools == null || context == null || userMessage == null || userMessage.isBlank()) {
+      return false;
+    }
+    if (!PipelineGates.STAGE_CLARIFICATION.equals(
+        context.attributeAsString(ProductPipelineRunSupport.ADMITTED_INPUT_GATE_ATTR))) {
+      return false;
+    }
+    String offered = context.attributeAsString(ProductPipelineRunSupport.ADMITTED_CLARIFICATION_OFFER_ATTR);
+    if (!(context.attributes().get(ProductPipelineRunSupport.ADMITTED_INPUT_REVISION_ATTR) instanceof Long revision)
+        || offered == null || offered.isBlank()) {
+      return false;
+    }
+    RequirementDraft current = draftStore.get(conversationId).orElse(null);
+    var active = selectActiveQuestion(conversationId, current).orElse(null);
+    if (active == null || active.question().evidence() == null
+        || active.question().evidence().kind() != AuthorQuestionEvidence.Kind.CATALOG_CHOICE) {
+      return false;
+    }
+    if (!offered.equals(new RequirementClarificationCoordinator().createOffer(active, revision).offerId())) {
+      return false;
+    }
+    var update = captureTools.chainCallAnswerUpdate(current.authoredDraft(), active.question(), userMessage);
+    if (update.isEmpty()) {
+      return false;
+    }
+    draftStore.beginTurn(conversationId, userMessage);
+    ToolSession.bind(conversationId);
+    String encoded;
+    try {
+      encoded = captureTools.updateRequirementDraft(update.get());
+    } finally {
+      ToolSession.clear();
+    }
+    return acceptedCapture(encoded);
+  }
+
+  private static boolean acceptedCapture(String encoded) {
+    if (encoded == null || encoded.isBlank()) {
+      return false;
+    }
+    try {
+      return MAPPING_REPAIR_MAPPER.readTree(encoded).path("accepted").asBoolean(false);
+    } catch (com.fasterxml.jackson.core.JsonProcessingException invalid) {
+      return false;
+    }
+  }
+
+  private CapabilitySignal.Completed folderQuestion(StageExecutionContext context, RequirementRejection rejection) {
+    var wording = clarificationWording(context, "targetFolderPath", structuredFinding(rejection));
+    if (wording.isEmpty()) {
+      return internalClarification(context.conversationId(), rejection);
+    }
+    return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT,
+        PipelineGates.tag(PipelineGates.TARGET_FOLDER_CHOICE, wording.get())));
+  }
+
+  private CapabilitySignal.Completed recoveryQuestion(StageExecutionContext context, RequirementRejection rejection) {
+    var wording = clarificationWording(context, "requirement", structuredFinding(rejection));
+    if (wording.isEmpty()) {
+      return internalClarification(context.conversationId(), rejection);
+    }
+    return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT,
+        PipelineGates.tag(PipelineGates.REQUIREMENT_RECOVERY_CLARIFICATION, wording.get())));
+  }
+
+  private CapabilitySignal.Completed internalClarification(String conversationId, RequirementRejection rejection) {
+    String message = "Requirement capture failed internally. This is not an author question.";
+    draftStore.recordCaptureRejection(conversationId, message);
+    var findings = rejection.issues().stream().map(issue -> new PlanValidationFinding(
+        issue.code(), issue.path(), true, MappingValidationDetails.empty(),
+        issue.entityId() == null || issue.entityId().isBlank() ? "requirement-draft" : issue.entityId(),
+        CaptureToolOutcomeGateway.logicalRequirementPath(issue.path()))).toList();
+    var evidence = new CaptureFailureEvidence(rejection.feedback(), null, null, List.of());
+    return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.INTERNAL_FAILURE, message,
+        RecoveryCause.captureFailure(rejection.feedback(), findings, evidence)));
+  }
+
+  private Optional<String> clarificationWording(StageExecutionContext context, String requestedFact,
+      String structuredFinding) {
+    if (failureNarrative == null || context == null) {
+      return Optional.empty();
+    }
+    String locale = context.runManifest() == null || context.runManifest().responseLocale() == null
+        ? "en" : context.runManifest().responseLocale();
+    return failureNarrative.askClarification(context.runId(), locale, requestedFact, context.stageId(),
+        structuredFinding);
+  }
+
+  private static String structuredFinding(RequirementRejection rejection) {
+    return rejection.issues().stream().map(issue -> issue.code() + " " + issue.path())
+        .reduce((left, right) -> left + "\n" + right).orElse("");
+  }
+
+  private Optional<CapabilitySignal.Completed> ladderDiscoveryOutcome(StageExecutionContext context,
+      String conversationId, RequirementRejection rejection, List<Issue> preservation) {
+    var stage = rejection.feedback().ladderStage();
+    if (stage == null || stage == RequirementRecoveryLadder.Stage.FOCUSED_REPAIR) {
+      return Optional.empty();
+    }
+    if (stage == RequirementRecoveryLadder.Stage.INTERNAL_FAILURE
+        && rejection.issues().stream().anyMatch(issue ->
+            CaptureFailureClass.clarificationRepresentation(issue.code()))) {
+      String message = "Requirement capture failed internally. This is not an author question.";
+      draftStore.recordCaptureRejection(conversationId, message);
+      return Optional.of(new CapabilitySignal.Completed(
+          StageOutcome.of(StageOutcomeClass.INTERNAL_FAILURE, message)));
+    }
+    var codes = rejection.issues().stream().map(issue -> issue.code()).toList();
+    if (stage == RequirementRecoveryLadder.Stage.ASK_AUTHOR && RequirementRecoveryLadder.asksAuthor(codes)) {
+      return Optional.of(recoveryQuestion(context, rejection));
+    }
+    String message = stage == RequirementRecoveryLadder.Stage.PROJECTION_REBUILD
+        ? "Capture the requirements again from the author evidence and the semantic baseline."
+        : stage == RequirementRecoveryLadder.Stage.INTERNAL_FAILURE
+            ? rejection.issues().stream().map(issue -> issue.message())
+                .filter(text -> text != null && !text.isBlank()).findFirst()
+                .orElse("Requirement capture failed internally. This is not an author question.")
+            : "Requirement capture failed internally. This is not an author question.";
+    var findings = rejection.issues().stream().map(issue -> new PlanValidationFinding(
+        issue.code(), issue.path() + ": " + issue.message(), true, MappingValidationDetails.empty(),
+        issue.entityId() == null || issue.entityId().isBlank() ? "requirement-draft" : issue.entityId(),
+        CaptureToolOutcomeGateway.logicalRequirementPath(issue.path()))).toList();
+    var consequences = preservation.stream().map(issue -> new PlanValidationFinding(issue.code(), issue.message(), true,
+        MappingValidationDetails.empty(), issue.entityId(),
+        CaptureToolOutcomeGateway.logicalRequirementPath(issue.path()))).toList();
+    var acceptedBase = draftStore.latestRevision(conversationId).map(revision -> revision.reference()).orElse(null);
+    var evidence = new CaptureFailureEvidence(rejection.feedback(), acceptedBase, null, consequences);
+    draftStore.recordCaptureRejection(conversationId, message);
+    return Optional.of(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE, message,
+        RecoveryCause.captureFailure(rejection.feedback(), findings, evidence))));
+  }
+
   private CapabilitySignal.Completed completeDiscovery(
       StageExecutionContext context,
       AtomicReference<RequirementDraft> captured) {
     String conversationId = context.conversationId();
     RequirementDiscoveryDirective directive = draftStore.turnDirective(conversationId);
-    RequirementDraft draft = draftStore.get(conversationId).orElse(captured.get());
-    var preservation = draftStore.validateCurrent(conversationId);
+    RequirementDraft draft = context.attributes().get("sourceRestorationReview")
+        instanceof org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool.SourceReview && captured.get() != null
+        ? captured.get() : draftStore.get(conversationId).orElse(captured.get());
+    var preservation = directive == RequirementDiscoveryDirective.DISCUSS
+        ? draftStore.validateCurrent(conversationId) : draftStore.validateForContinuation(conversationId);
     Optional<RequirementRejection> rejection = captureFeedback == null ? Optional.empty()
         : captureFeedback.lastRequirementRejection(conversationId);
     if (rejection.isPresent() && !rejection.get().issues().isEmpty() && rejection.get().issues().stream()
         .allMatch(issue -> "AMBIGUOUS_TARGET_FOLDER".equals(issue.code()))) {
-      return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT,
-          PipelineGates.tag(PipelineGates.STAGE_CLARIFICATION,
-              "Which catalog folder should contain this chain? Several folders have the requested name.")));
+      return folderQuestion(context, rejection.get());
+    }
+    if (preservation.isEmpty() && rejection.isPresent() && !rejection.get().issues().isEmpty()
+        && rejection.get().issues().stream().allMatch(issue ->
+        "POLICY_RESPONSE_REQUIRED".equals(issue.code())) && draft != null && draft.authoredDraft() != null
+        && draft.facts().stream().anyMatch(fact -> fact.policyConflict() != null
+            && fact.policyConflict().decision() == null
+            && draft.authoredDraft().openQuestions().stream().anyMatch(question ->
+                question.questionId().equals(fact.policyConflict().questionId())))
+        && draftStore.validateAuthorQuestions(conversationId).isEmpty()) {
+      captureFeedback.clearRequirement(conversationId);
+      rejection = Optional.empty();
+    }
+    if (preservation.isEmpty() && rejection.isPresent() && !rejection.get().issues().isEmpty()
+        && rejection.get().issues().stream().allMatch(issue -> "POLICY_RESPONSE_REQUIRED".equals(issue.code()))) {
+      var replacement = draftStore.pendingPolicyReplacement(conversationId);
+      if (replacement.isPresent()) {
+        return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT,
+            PipelineGates.retag(PipelineGates.STAGE_CLARIFICATION, replacement.get().question().text())));
+      }
     }
     if (rejection.isPresent() && rejection.get().issues().stream()
         .anyMatch(issue -> !"AMBIGUOUS_TARGET_FOLDER".equals(issue.code()))) {
+      var ladderOutcome = ladderDiscoveryOutcome(context, conversationId, rejection.get(), preservation);
+      if (ladderOutcome.isPresent()) {
+        return ladderOutcome.get();
+      }
       var findings = rejection.get().issues().stream().map(issue ->
           new PlanValidationFinding(
               issue.code(), issue.path() + ": " + issue.message(), true,
@@ -489,14 +797,21 @@ public class RequirementDiscoveryCapability implements StageCapability {
       var findings = preservation.stream().map(issue -> new PlanValidationFinding(issue.code(), issue.message(), true,
           MappingValidationDetails.empty(), issue.entityId(), CaptureToolOutcomeGateway.logicalRequirementPath(issue.path()))).toList();
       return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
-          "Retain validated requirements from rejected attempts before continuing.",
+          "Complete and retain validated requirements before continuing.",
           new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, findings, "")));
     }
     RequirementDraft repairDraft = mappingRepairDraft(context);
-    if (repairDraft != null && !preservesMappingRepair(context, repairDraft, draft)) {
+    if (repairDraft != null) repairDraft = ProductCapabilityCaptureContext.binding(conversationId)
+        .map(ProductCapabilityCaptureContext.Binding::approvedDraft).orElse(repairDraft);
+    var mappingIssues = repairDraft == null ? List.<Issue>of()
+        : mappingRepairIssues(mappingRepairPaths(context), missingMappingTargets(context), repairDraft.authoredDraft(),
+            draft == null ? null : draft.authoredDraft());
+    if (!mappingIssues.isEmpty()) {
+      var findings = mappingIssues.stream().map(issue -> new PlanValidationFinding(issue.code(), issue.message(), true,
+          MappingValidationDetails.empty(), issue.entityId(), issue.path())).toList();
       return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
           "REPAIR_FACT_LOSS: Change only the rejected mapping field paths.",
-          RecoveryCause.mappingContract(List.of())));
+          RecoveryCause.mappingContract(findings)));
     }
     if (draft == null) {
       return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
@@ -504,6 +819,32 @@ public class RequirementDiscoveryCapability implements StageCapability {
           new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, List.of(new PlanValidationFinding(
               "CAPTURE_MISSING", "Capture the requirements draft before finishing the generation turn.", true,
               MappingValidationDetails.empty(), "requirement-draft", "/draft")), "")));
+    }
+    if (directive == RequirementDiscoveryDirective.DISCUSS && !draftStore.discussionAllowed(conversationId)) {
+      return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
+          "Complete the producer work before finishing. Discussion requires a new author turn at a paused draft.",
+          new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, List.of(new PlanValidationFinding(
+              "DISCUSSION_NOT_AUTHORIZED", "An automatic producer turn cannot become an author discussion.", true)), "")));
+    }
+    if (draft.authoredDraft() != null && !draft.openQuestions().equals(RequirementCaptureProjection.toDraft(
+        draft.authoredDraft(), draft, draft.catalogBindings(), draft.sourceSkillVersion(), draft.sourceSkillHash(),
+        RequirementCaptureProjection.resolvedTargets(draft))
+        .openQuestions())) {
+      return focusedAuthorQuestionRepair();
+    }
+    if (queueHeadMissesNewerSourceTurns(conversationId, draft)) {
+      return focusedAuthorQuestionRepair();
+    }
+    var questionIssues = draftStore.validateAuthorQuestions(conversationId);
+    if (!questionIssues.isEmpty()) {
+      var findings = questionIssues.stream().map(issue -> new PlanValidationFinding(issue.code(), issue.message(), true,
+          MappingValidationDetails.empty(), issue.entityId(), CaptureToolOutcomeGateway.logicalRequirementPath(issue.path()))).toList();
+      return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
+          "Apply the saved author answer or justify the remaining uncertainty before waiting again.",
+          new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, findings, "")));
+    }
+    if (directive == RequirementDiscoveryDirective.DISCUSS && legacyProjectedQuestion(draft)) {
+      return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, ""));
     }
     if (shouldOfferIds(context, draft)) {
       return idsChoiceOutcome();
@@ -534,10 +875,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
                     PipelineGates.REQUIREMENT_DRAFT_READY,
                     "Requirements draft saved. Continue to planning when ready.")));
       }
-      String questions = String.join("\n", draft.openQuestions());
-      return new CapabilitySignal.Completed(
-          StageOutcome.of(StageOutcomeClass.NEEDS_INPUT,
-              questions.isBlank() ? "" : PipelineGates.tag(PipelineGates.STAGE_CLARIFICATION, questions)));
+      return presentClarification(conversationId, draft, true);
     }
     if (directive == RequirementDiscoveryDirective.NONE && !draftStore.wasCapturedThisTurn(conversationId)) {
       return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, ""));
@@ -549,9 +887,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
     boolean pendingImportHandoff = draft.hasPendingImport() && !draft.facts().isEmpty();
     boolean pendingUploadedSpecHandoff = onlyUploadedImports && !draft.facts().isEmpty();
     if (!draft.readyForPlan() && !pendingImportHandoff && !pendingUploadedSpecHandoff) {
-      return new CapabilitySignal.Completed(
-          StageOutcome.of(StageOutcomeClass.NEEDS_INPUT,
-              PipelineGates.tag(PipelineGates.STAGE_CLARIFICATION, String.join("\n", draft.openQuestions()))));
+      return presentClarification(conversationId, draft, false);
     }
     if (draft.facts().isEmpty()) {
       return new CapabilitySignal.Completed(
@@ -588,6 +924,76 @@ public class RequirementDiscoveryCapability implements StageCapability {
     return new CapabilitySignal.Completed(
         new StageOutcome(
             outcomeClass, candidates, "Requirement draft candidate ready", null));
+  }
+
+  private CapabilitySignal.Completed presentClarification(String conversationId, RequirementDraft draft,
+      boolean blankWhenAbsent) {
+    if (legacyProjectedQuestion(draft)) {
+      return focusedAuthorQuestionRepair();
+    }
+    var active = selectActiveQuestion(conversationId, draft);
+    if (active.isPresent()) {
+      return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT,
+          PipelineGates.retag(PipelineGates.STAGE_CLARIFICATION, active.get().question().text())));
+    }
+    if (blankWhenAbsent) {
+      return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, ""));
+    }
+    return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT,
+        PipelineGates.retag(PipelineGates.STAGE_CLARIFICATION, "")));
+  }
+
+  private Optional<RequirementClarificationCoordinator.ActiveQuestion> selectActiveQuestion(String conversationId,
+      RequirementDraft draft) {
+    var revision = draftStore.latestRevision(conversationId).orElse(null);
+    if (revision == null) {
+      return Optional.empty();
+    }
+    String generation = "";
+    if (conversationService != null) {
+      String recorded = conversationService.archive().read(conversationId).generation();
+      generation = recorded == null ? "" : recorded;
+    }
+    return new RequirementClarificationCoordinator().activeQuestion(revision, draft, generation);
+  }
+
+  private boolean queueHeadMissesNewerSourceTurns(String conversationId, RequirementDraft draft) {
+    if (draft == null || draft.authoredDraft() == null || draft.authoredDraft().openQuestions().isEmpty()) {
+      return false;
+    }
+    QuestionInput head = draft.authoredDraft().openQuestions().getFirst();
+    if (head == null || head.evidence() == null) {
+      return false;
+    }
+    var reviewed = new HashSet<>(head.evidence().reviewedInputIds());
+    return readySourceTurnIds(conversationId).stream().anyMatch(id -> !reviewed.contains(id));
+  }
+
+  private List<String> readySourceTurnIds(String conversationId) {
+    if (conversationService == null) {
+      return List.of();
+    }
+    return conversationService.archive().read(conversationId).activeTurns().stream()
+        .filter(turn -> turn.message().role() == ConversationMessage.Role.USER && "READY".equals(turn.status()))
+        .map(turn -> turn.id())
+        .toList();
+  }
+
+  private static boolean legacyProjectedQuestion(RequirementDraft draft) {
+    if (draft == null || draft.openQuestions().isEmpty()) {
+      return false;
+    }
+    var authored = draft.authoredDraft();
+    return authored == null || authored.openQuestions().stream().allMatch(question -> question == null);
+  }
+
+  private static CapabilitySignal.Completed focusedAuthorQuestionRepair() {
+    return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
+        "Review the saved sources and capture a scoped author question before waiting for more input.",
+        new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, List.of(new PlanValidationFinding(
+            "AUTHOR_QUESTION_NOT_SUPPORTED", "Derived pending work does not establish missing author input."
+                + " Read the saved sources, complete the draft, or capture the remaining question with its evidence.",
+            true, MappingValidationDetails.empty(), "requirement-draft", "/openQuestions")), "")));
   }
 
   /** True when the active profile stage declares an approval gate for this capability run. */
@@ -649,6 +1055,8 @@ public class RequirementDiscoveryCapability implements StageCapability {
             .anyMatch(question -> PipelineGates.IDS_PATH_CHOICE.equals(question.questionId()))
         || draft.decision() == DraftDecision.NEEDS_INPUT && draft.openQuestions().isEmpty()
             && !draft.facts().isEmpty() && !draft.flow().interactions().isEmpty()
+            && (draft.authoredDraft() == null || RequirementCaptureProjection.pending(
+                draft.authoredDraft(), draft.catalogBindings(), RequirementCaptureProjection.resolvedTargets(draft)).isEmpty())
             && RequirementFlowValidator.validateBindings(draft.flow(), draft.facts(), draft.catalogBindings()).isEmpty();
   }
 
@@ -703,7 +1111,14 @@ public class RequirementDiscoveryCapability implements StageCapability {
 
   private Multi<ChatEvent> runGather(
       String conversationId, String userMessage, String responseLocale,
-      ProductCapabilityCaptureContext.Binding binding) {
+      ProductCapabilityCaptureContext.Binding binding, StageRepairEvidence repair) {
+    if (repair != null) {
+      userMessage = (userMessage == null ? "" : userMessage)
+          + "\n\n<current-native-repair-evidence>\n"
+          + "Current server validation for this repair turn; this is not an author message or amendment authority.\n"
+          + repair.diagnosticText()
+          + "\n</current-native-repair-evidence>\n";
+    }
     userMessage = (userMessage == null ? "" : userMessage)
         + org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.block(
             draftStore.rejectedProposalHistory(conversationId));
@@ -718,14 +1133,15 @@ public class RequirementDiscoveryCapability implements StageCapability {
             ? promptBuilder.wrap(conversationId, userMessage, responseLocale)
             : (userMessage == null ? "" : userMessage);
     return GatherRequirementsAgentCall.run(gatherRequirementsAgent, conversationId, agentInput,
-        ProductCapabilityCaptureContext.invocationParameters(binding));
+        ProductCapabilityCaptureContext.invocationParameters(binding), repair != null);
   }
 
   private static RequirementDraft mappingRepairDraft(StageExecutionContext context) {
     return StageRepairEvidence.isRepairTurn(context)
         && "true".equals(context.attributeAsString("mappingRepairAutomatic"))
-        && RecoveryCauseCode.MAPPING_CONTRACT.name().equals(
+        && (RecoveryCauseCode.MAPPING_CONTRACT.name().equals(
             context.attributeAsString(ProductPipelineRunSupport.STAGE_ERROR_CAUSE_CODE_ATTR))
+            || context.attributes().containsKey("mappingRepairFindings"))
         && context.attributes().get("requirementCorrectionDraft") instanceof RequirementDraft draft
         && draft.authoredDraft() != null ? draft : null;
   }
@@ -745,21 +1161,129 @@ public class RequirementDiscoveryCapability implements StageCapability {
 
   static boolean preservesMappingRepair(
       StageExecutionContext context, RequirementDraft original, RequirementDraft candidate) {
-    return preservesMappingRepair(mappingRepairPaths(context), original, candidate);
+    return preservesMappingRepair(mappingRepairPaths(context), missingMappingTargets(context), original, candidate);
+  }
+
+  private static List<MappingValidationDetails> missingMappingTargets(StageExecutionContext context) {
+    Object value = context.attributes().get("missingMappingTargets");
+    return value instanceof List<?> targets ? targets.stream().filter(MappingValidationDetails.class::isInstance)
+        .map(MappingValidationDetails.class::cast).toList() : List.of();
   }
 
   public static boolean preservesMappingRepair(
       Map<String, java.util.Set<String>> editable, RequirementDraft original, RequirementDraft candidate) {
+    return preservesMappingRepair(editable, List.of(), original, candidate);
+  }
+
+  public static boolean preservesMappingRepair(Map<String, java.util.Set<String>> editable,
+      List<MappingValidationDetails> missingTargets, RequirementDraft original, RequirementDraft candidate) {
     if (candidate == null || candidate.authoredDraft() == null) {
       return false;
     }
-    var accepted = original.authoredDraft();
-    var proposed = candidate.authoredDraft();
+    return preservesMappingRepair(editable, missingTargets, original.authoredDraft(), candidate.authoredDraft());
+  }
+
+  public static boolean preservesMappingRepair(Map<String, java.util.Set<String>> editable,
+      List<MappingValidationDetails> missingTargets, RequirementCaptureInput.DraftInput accepted,
+      RequirementCaptureInput.DraftInput proposed) {
+    return mappingRepairIssues(editable, missingTargets, accepted, proposed).isEmpty();
+  }
+
+  /** Reports exactly the protected differences left after applying the existing mapping authority. */
+  public static List<Issue> mappingRepairIssues(
+      Map<String, java.util.Set<String>> editable, List<MappingValidationDetails> missingTargets,
+      RequirementCaptureInput.DraftInput accepted, RequirementCaptureInput.DraftInput proposed) {
+    var retained = retainMappingRepair(editable, missingTargets, accepted, proposed);
+    if (retained != null && accepted.equals(retained)) return List.of();
+    var issues = new ArrayList<Issue>();
+    if (retained != null) {
+      mappingRepairDifferences(mappingRepairTree(accepted), mappingRepairTree(retained), "/draft", null, issues);
+      var beforeIds = accepted.facts().stream().map(RequirementCaptureInput.FactInput::sourceFactId).toList();
+      var afterIds = retained.facts().stream().map(RequirementCaptureInput.FactInput::sourceFactId).toList();
+      if (!beforeIds.equals(afterIds) && beforeIds.size() == afterIds.size()
+          && new java.util.HashSet<>(beforeIds).equals(new java.util.HashSet<>(afterIds))) {
+        mappingRepairDifferences(MAPPING_REPAIR_MAPPER.valueToTree(beforeIds), MAPPING_REPAIR_MAPPER.valueToTree(afterIds),
+            "/draft/facts", null, issues);
+      }
+    }
+    if (issues.isEmpty()) issues.add(new Issue(
+        "REPAIR_FACT_LOSS", "/draft", null, "Preserve the complete selected draft and submit a valid mapping correction."));
+    var first = issues.getFirst();
+    issues.set(0, new Issue(first.code(), first.path(),
+        first.entityId(), first.message() + " " + mappingRepairScope(editable, missingTargets, accepted)));
+    return List.copyOf(issues);
+  }
+
+  private static ObjectNode mappingRepairTree(RequirementCaptureInput.DraftInput draft) {
+    ObjectNode tree = MAPPING_REPAIR_MAPPER.valueToTree(draft);
+    var facts = tree.putObject("facts");
+    draft.facts().forEach(fact -> facts.set(fact.sourceFactId(), MAPPING_REPAIR_MAPPER.valueToTree(fact)));
+    return tree;
+  }
+
+  private static void mappingRepairDifferences(JsonNode before,
+      JsonNode after, String path, String factId,
+      List<Issue> issues) {
+    if (before.equals(after)) return;
+    if (before.isObject() && after.isObject()) {
+      var fields = new java.util.TreeSet<String>();
+      before.fieldNames().forEachRemaining(fields::add);
+      after.fieldNames().forEachRemaining(fields::add);
+      for (String field : fields) mappingRepairDifferences(before.path(field), after.path(field),
+          path + "/" + field.replace("~", "~0").replace("/", "~1"), "/draft/facts".equals(path) ? field : factId, issues);
+      return;
+    }
+    if (before.isArray() && after.isArray()) {
+      for (int i = 0; i < Math.max(before.size(), after.size()); i++)
+        mappingRepairDifferences(before.path(i), after.path(i), path + "/" + i, factId, issues);
+      return;
+    }
+    String reason = after.isMissingNode() ? "A protected requirement was removed."
+        : before.isMissingNode() ? "This addition is outside the authorized missing mapping targets."
+            : "This protected value is outside the editable mapping fields.";
+    issues.add(new Issue("REPAIR_FACT_LOSS", path, factId,
+        reason + " Accepted value: " + (before.isMissingNode() ? "<absent>" : before)
+            + ". Rejected value: " + (after.isMissingNode() ? "<absent>" : after) + "."));
+  }
+
+  private static String mappingRepairScope(Map<String, java.util.Set<String>> editable,
+      List<MappingValidationDetails> missingTargets, RequirementCaptureInput.DraftInput accepted) {
+    var paths = new java.util.TreeSet<String>();
+    if (accepted != null && accepted.facts() != null) accepted.facts().stream().filter(Objects::nonNull)
+        .filter(fact -> fact.fieldMapping() != null).forEach(fact -> {
+          for (String field : editable.getOrDefault(fact.sourceFactId(), java.util.Set.of())) {
+            if (java.util.Set.of("sourcePath", "targetPath", "expression").contains(field))
+              paths.add("/draft/facts/" + fact.sourceFactId().replace("~", "~0").replace("/", "~1") + "/fieldMapping/" + field);
+          }
+        });
+    var additions = missingTargets.stream().map(target -> MAPPING_REPAIR_MAPPER.createObjectNode()
+        .put("sourceInteractionId", target.sourceRef()).put("targetInteractionId", target.targetRef())
+        .put("targetPath", target.targetPath())).toList();
+    return "Allowed existing mapping field paths: " + MAPPING_REPAIR_MAPPER.valueToTree(paths)
+        + ". Add only positive FIELD_MAPPING facts for these source/target/path contracts: "
+        + MAPPING_REPAIR_MAPPER.valueToTree(additions) + ". Preserve all other values and fact order.";
+  }
+
+  private static RequirementCaptureInput.DraftInput retainMappingRepair(Map<String, java.util.Set<String>> editable,
+      List<MappingValidationDetails> missingTargets, RequirementCaptureInput.DraftInput accepted,
+      RequirementCaptureInput.DraftInput proposed) {
+    if (accepted == null || proposed == null || accepted.facts() == null || proposed.facts() == null
+        || accepted.facts().stream().anyMatch(Objects::isNull) || proposed.facts().stream().anyMatch(Objects::isNull)) {
+      return null;
+    }
     var retained = new java.util.ArrayList<RequirementCaptureInput.FactInput>();
     for (var fact : proposed.facts()) {
       String factId = fact.sourceFactId();
       var prior = accepted.facts().stream()
           .filter(value -> value.sourceFactId().equals(factId)).findFirst().orElse(null);
+      var addedMapping = fact.fieldMapping();
+      if (prior == null && fact.kind() == RequirementCaptureInput.FactKind.FIELD_MAPPING
+          && fact.polarity() == RequirementCaptureInput.Polarity.POSITIVE && fact.fieldMapping() != null
+          && missingTargets.stream().anyMatch(target ->
+              target.sourceRef().equals(addedMapping.sourceInteractionId())
+                  && target.targetRef().equals(addedMapping.targetInteractionId())
+                  && target.targetPath().equals(org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContract
+                      .canonicalPath(addedMapping.targetPath())))) continue;
       if (prior != null && editable.containsKey(fact.sourceFactId())
           && prior.fieldMapping() != null && fact.fieldMapping() != null) {
         var mapping = fact.fieldMapping();
@@ -768,12 +1292,13 @@ public class RequirementDiscoveryCapability implements StageCapability {
                 mapping.sourceInteractionId(), editable.get(factId).contains("sourcePath")
                     ? prior.fieldMapping().sourcePath() : mapping.sourcePath(), mapping.targetInteractionId(),
                 editable.get(factId).contains("targetPath") ? prior.fieldMapping().targetPath() : mapping.targetPath(),
-                mapping.expression()), fact.policyConflict(), fact.elementIntent());
+                editable.get(factId).contains("expression") ? prior.fieldMapping().expression()
+                    : mapping.expression()), fact.policyConflict(), fact.elementIntent());
       }
       retained.add(fact);
     }
-    return accepted.equals(new RequirementCaptureInput.DraftInput(proposed.flow(), retained,
-        proposed.capabilities(), proposed.openQuestions(), proposed.settings()));
+    return new RequirementCaptureInput.DraftInput(proposed.flow(), retained,
+        proposed.capabilities(), proposed.openQuestions(), proposed.settings());
   }
 
   private static String tokenText(ChatEvent event) {

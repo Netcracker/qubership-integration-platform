@@ -1,14 +1,17 @@
 package org.qubership.integration.platform.ai.productpipeline.recovery;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.plan.RequirementPolicyConflict;
 import org.qubership.integration.platform.ai.productpipeline.artifact.UserInput;
+import org.qubership.integration.platform.ai.productpipeline.capability.CaptureFailureEvidence;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -69,6 +72,54 @@ class RecoveryDecisionValidatorTest {
     var unrelated = new RecoveryDecision(RecoveryCauseClass.UNCLASSIFIED, null,
         List.of("unrelated-failure"), RecoveryAction.PARK, List.of(), "", "Review the rejected proposal.");
     assertFalse(RecoveryDecisionValidator.validate(unrelated, input).accepted());
+  }
+
+  @Test
+  void invalidFaultTargetNamesTheExactFieldAndCompleteMembershipCandidates() {
+    var json = new ObjectMapper();
+    var producer = new Reference(Kind.REQUIREMENT_DRAFT, "current-producer", "producer-" + "x".repeat(2_300));
+    var nested = new Reference(Kind.REQUIREMENT_CAPTURE_ATTEMPT, "nested-attempt", "nested-hash");
+    var nativeEvidence = new RecoveryEvidence(1, "capture-failure", "CONTRACT_SHAPE", "requirement-discovery",
+        "requirement-discovery", briefRef, semanticRef, List.of(producer), List.of(), null, List.of(), List.of(),
+        List.of(), List.of(), false, new CaptureFailureEvidence(null, briefRef, nested, List.of()));
+    var input = new RecoveryContext(nativeEvidence, context.approvedBrief(), null, "en", List.of(), planRef, null);
+    var decision = new RecoveryDecision(RecoveryCauseClass.DERIVATION_DEFECT, nested,
+        List.of(nativeEvidence.failureId()), RecoveryAction.REGENERATE_ARTIFACT, List.of(), "", "Repair the generated output.");
+    var result = RecoveryDecisionValidator.validate(decision, input);
+    assertFalse(result.accepted());
+    assertEquals(1, result.findings().size());
+    String finding = result.findings().getFirst();
+    assertTrue(finding.startsWith("faultArtifactRef is not present"), finding);
+    assertTrue(finding.contains("Rejected value: " + json.valueToTree(nested)), finding);
+    assertTrue(finding.contains("Current known references for faultArtifactRef membership:"), finding);
+    for (Reference known : List.of(producer, briefRef, semanticRef, planRef)) {
+      assertTrue(finding.contains(json.valueToTree(known).toString()), finding);
+    }
+    assertTrue(finding.contains("Action and strategy constraints still apply"), finding);
+    assertTrue(finding.contains("evidence.rejectedArtifactRefs"), finding);
+    assertTrue(finding.contains("diagnostic evidence, not fault targets unless also listed here"), finding);
+    var legal = new RecoveryDecision(decision.causeClass(), producer, decision.evidenceRefs(), decision.action(),
+        List.of(), "", decision.userSummary());
+    assertTrue(RecoveryDecisionValidator.validate(legal, input).accepted());
+    var protectedBrief = new RecoveryDecision(decision.causeClass(), briefRef, decision.evidenceRefs(), decision.action(),
+        List.of(), "", decision.userSummary());
+    assertTrue(RecoveryDecisionValidator.validate(protectedBrief, input).findings().stream()
+        .anyMatch(message -> message.equals("REGENERATE_ARTIFACT must not target the approved brief.")));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"missing", "foreign", "park-foreign"})
+  void faultReferenceDiagnosticsDoNotAuthorizeMissingOrForeignTargets(String mode) {
+    Reference fault = "missing".equals(mode) ? null : new Reference(Kind.REQUIREMENT_DRAFT, "foreign", "foreign-hash");
+    boolean park = "park-foreign".equals(mode);
+    var decision = new RecoveryDecision(park ? RecoveryCauseClass.UNCLASSIFIED : RecoveryCauseClass.DERIVATION_DEFECT,
+        fault, List.of(evidence.failureId()), park ? RecoveryAction.PARK : RecoveryAction.REGENERATE_ARTIFACT,
+        List.of(), "", "Inspect the generated output.");
+    var result = RecoveryDecisionValidator.validate(decision, context);
+    assertFalse(result.accepted());
+    assertEquals(1, result.findings().size());
+    assertTrue(result.findings().getFirst().startsWith("faultArtifactRef "));
+    assertTrue(result.findings().getFirst().contains("Rejected value: " + new ObjectMapper().valueToTree(fault)));
   }
 
   @Test
@@ -220,7 +271,8 @@ class RecoveryDecisionValidatorTest {
       var result = RecoveryDecisionValidator.validate(decision, new RecoveryContext(evidence,
           context.approvedBrief().withFacts(List.of(endpoint)), null, "en", inputs));
       assertFalse(result.accepted());
-      assertTrue(result.findings().stream().anyMatch(finding -> finding.contains("every saved author input")));
+      assertTrue(result.findings().stream().anyMatch(finding -> finding.contains("reviewedInputIds")
+          && finding.contains("first") && finding.contains("second")));
     }
   }
 
@@ -257,6 +309,20 @@ class RecoveryDecisionValidatorTest {
           List.of(authorInput("input-1", "Use NONE for external access"))));
       org.junit.jupiter.api.Assertions.assertEquals(choice == null, result.accepted());
     }
+  }
+
+  @Test
+  void aKnownPolicyIdDoesNotAuthorizeAnInventedRecommendation() {
+    var policy = new RequirementPolicyConflict(
+        org.qubership.integration.platform.ai.qipknowledge.validation.CompilerSecurityValidator.EXTERNAL_RBAC_POLICY,
+        "accessControlType", "RBAC", "NONE", "access-choice", null);
+    var fact = new RequirementFact("access", RequirementFactPolarity.POSITIVE, RequirementFactKind.CONSTRAINT,
+        "http-trigger", "Use RBAC for external access", "", "", "", "", "", "", List.of("entry"), policy);
+    var decision = ask("entry", "accessControlType", AuthorQuestionEvidence.Kind.POLICY_CHOICE, List.of("input-1"));
+    var result = RecoveryDecisionValidator.validate(decision, new RecoveryContext(policyEvidence("entry"),
+        context.approvedBrief().withFacts(List.of(fact)), null, "en",
+        List.of(authorInput("input-1", "Use RBAC for external access"))));
+    assertFalse(result.accepted());
   }
 
   @Test
@@ -347,6 +413,31 @@ class RecoveryDecisionValidatorTest {
 
   private static UserInput authorInput(String id, String text) {
     return new UserInput(id, "conversation-source", text, java.time.Instant.EPOCH);
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"valid", "no-source", "wrong-fact", "wrong-field", "other-finding"})
+  void literalSourceCorrectionRequiresTheReportedFactFieldAndAuthorEvidence(String variant) {
+    var intent = new org.qubership.integration.platform.ai.plan.RequirementElementIntent("work-script", "script",
+        org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.LOCAL_NODE,
+        "entry", null, null, null, List.of(), List.of("recorded-value"));
+    var fact = new RequirementFact("behavior", RequirementFactPolarity.POSITIVE, RequirementFactKind.BEHAVIOR,
+        "", "Use the supplied value.", "", "", "", "", "", "", List.of("entry"), null, intent);
+    var finding = new SemanticFinding("other-finding".equals(variant) ? "MISSING_REQUIRED_PROPERTY"
+        : "MISSING_REQUIRED_SCRIPT_LITERAL", "Missing script binding", "occurrence", "behavior", "script",
+        List.of(), List.of(), List.of(), "", java.util.Map.of(), List.of(), "{}");
+    var observed = new RecoveryEvidence(1, evidence.failureId(), "MISSING_REQUIRED_PROPERTY", "design-execution",
+        briefRef, semanticRef, List.of(graphRef), List.of(finding), null, List.of());
+    var input = new RecoveryContext(observed, context.approvedBrief().withFacts(List.of(fact)),
+        context.rejectedArtifact(), "en", List.of(authorInput("input-1", "Use supplied-value.")));
+    var decision = new RecoveryDecision(RecoveryCauseClass.BRIEF_DEFECT, briefRef,
+        "no-source".equals(variant) ? List.of(evidence.failureId()) : List.of(evidence.failureId(), "input-1"),
+        RecoveryAction.REVISE_BRIEF, List.of(new ProposedBriefChange(
+            "wrong-fact".equals(variant) ? "unrelated" : "behavior",
+            "wrong-field".equals(variant) ? "text" : "elementIntent.exactValues",
+            "recorded-value", "supplied-value", "SOURCE_VALUE_MISRECORDED", false)), "", "Correct the recorded value.");
+    org.junit.jupiter.api.Assertions.assertEquals("valid".equals(variant),
+        RecoveryDecisionValidator.validate(decision, input).accepted());
   }
 
   @ParameterizedTest

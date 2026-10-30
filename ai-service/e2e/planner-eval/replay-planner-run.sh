@@ -3,6 +3,7 @@
 set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${DIR}/../testing-paths.sh"
 ROOT="$(cd "${DIR}/../../.." && pwd)"
 REQUEST=""
 RESPONSE=""
@@ -59,7 +60,7 @@ RESPONSE="$(cd "$(dirname "${RESPONSE}")" && pwd)/$(basename "${RESPONSE}")"
 required="$(printf '%s\n' "${REQUIRED_PATTERNS[@]:-}")"
 forbidden="$(printf '%s\n' "${FORBIDDEN_PATTERNS[@]:-}")"
 
-mvn -f "${ROOT}/pom.xml" -pl ai-service \
+mvn -f "${ROOT}/ai-service/pom.xml" \
     -Dtest=PlannerHarnessReplayTest \
     -Dplanner.replay.request="${REQUEST}" \
     -Dplanner.replay.response="${RESPONSE}" \

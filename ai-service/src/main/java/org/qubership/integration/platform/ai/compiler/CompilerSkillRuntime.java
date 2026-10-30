@@ -379,11 +379,11 @@ public class CompilerSkillRuntime {
     if (failure.isPresent() && failure.get().noProgress()) {
       throw new org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException(
           "contract failure: skill did not complete " + context.skillId() + " status=FAILED: " + result.message(),
-          new org.qubership.integration.platform.ai.productpipeline.capability.CaptureFailureEvidence(
-              failure.get(), null, failure.get().evidenceReference(), List.of()));
+          feedbackStore.failureEvidence(context.conversationId(), capabilityId, failure.get()));
     }
     return new SkillExecutionResult(result.status(), result.outputs(), result.message(),
-        failure.map(CaptureAttemptFeedback::outerAllowed).orElse(true));
+        failure.map(CaptureAttemptFeedback::outerAllowed).orElse(true),
+        failure.map(value -> feedbackStore.failureEvidence(context.conversationId(), capabilityId, value)).orElse(null));
   }
 
   private SkillExecutionResult finishExistingRoute(
@@ -785,20 +785,19 @@ public class CompilerSkillRuntime {
 
   /**
    * Before an outer repair retry, fill unanswered tool_calls with honest dangling text. When the
-   * last failure is VALIDATION with a non-blank summary, reuse that summary (capped locally at 800
-   * chars). Otherwise keep the parse-default filler.
+   * last failure is a validation or conversion refusal, retain its complete repair data.
+   * Otherwise keep the parse-default filler.
    */
   private Runnable sanitizingBeforeRepairRetry(
       String memoryId, Supplier<Optional<CaptureAttemptFeedback>> feedbackSupplier) {
     return () -> {
       Optional<CaptureAttemptFeedback> last = feedbackSupplier.get();
       if (last.isPresent()
-          && last.get().kind() == CaptureFailureKind.VALIDATION
+          && last.get().kind() != CaptureFailureKind.TOOL_ARGUMENTS
           && last.get().summary() != null
           && !last.get().summary().isBlank()) {
         String summary = last.get().summary();
-        int max = 800;
-        String dangling = summary.length() <= max ? summary : summary.substring(0, max);
+        String dangling = summary + repairMessageBuilder.issueDetails(last.get());
         chatMemorySanitizer.repairDanglingToolCalls(memoryId, dangling);
         return;
       }
@@ -1320,9 +1319,7 @@ public class CompilerSkillRuntime {
         HttpTriggerCaptureSession.get(conversationId).orElseThrow();
     StringBuilder text = new StringBuilder();
     text.append("\n\n## Active HTTP trigger capture\n\n");
-    text.append("Call captureHttpTriggers with endpoints only. This tool replaces ");
-    text.append("captureConfiguredTriggerSet for this HTTP-only run. Do not send trigger ");
-    text.append("properties or copy JSON examples above. Use each approved role and node once.\n");
+    text.append("Active capture tool: captureHttpTriggers\n");
     text.append("Approved role ids: ")
         .append(String.join(", ", binding.skeleton().entryPointRoleIds())).append("\n");
     for (var entry : binding.revision().entryPoints()) {
@@ -1335,8 +1332,7 @@ public class CompilerSkillRuntime {
             .append(approved.path()).append("\n");
       }
     }
-    text.append("externalRoute must be a JSON boolean. Choose true only for an ");
-    text.append("explicit external or public route; otherwise choose false.\n");
+
     return text.toString();
   }
 

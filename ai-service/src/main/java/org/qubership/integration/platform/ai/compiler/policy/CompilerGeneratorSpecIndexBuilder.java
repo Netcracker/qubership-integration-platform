@@ -39,7 +39,9 @@ public class CompilerGeneratorSpecIndexBuilder {
         readSkillSource(file, specs);
       }
     }
-    applyRuntimeGeneratorIds(specs, runtimeGeneratorIds);
+    applyRuntimeGeneratorIds(specs, runtimeGeneratorIds,
+        java.nio.file.Files.isRegularFile(scanResult.packRoot().resolve("runtime/registry.json"))
+            ? "runtime/registry.json" : CompilerRuntimeGeneratorRegistry.MANIFEST_SOURCE);
     List<CompilerGeneratorSpec> result = new ArrayList<>();
     for (MutableSpec spec : specs.values()) {
       result.add(spec.toSpec());
@@ -49,12 +51,12 @@ public class CompilerGeneratorSpecIndexBuilder {
   }
 
   private static void applyRuntimeGeneratorIds(
-      Map<String, MutableSpec> specs, Map<String, String> runtimeGeneratorIds) {
+      Map<String, MutableSpec> specs, Map<String, String> runtimeGeneratorIds, String registrySource) {
     for (Map.Entry<String, String> entry : runtimeGeneratorIds.entrySet()) {
       MutableSpec spec = spec(specs, entry.getKey());
       spec.skillName = entry.getKey();
       spec.generatorId = firstNonBlank(spec.generatorId, entry.getValue());
-      spec.addSource(CompilerRuntimeGeneratorRegistry.MANIFEST_SOURCE);
+      spec.addSource(registrySource);
     }
   }
 

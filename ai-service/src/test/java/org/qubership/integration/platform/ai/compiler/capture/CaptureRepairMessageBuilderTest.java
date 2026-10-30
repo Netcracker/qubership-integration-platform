@@ -204,7 +204,7 @@ class CaptureRepairMessageBuilderTest {
   }
 
   @Test
-  void validationMessageTruncatesManyErrors() {
+  void validationMessageRetainsEveryError() {
     String summary =
         "Plan validation failed:\n"
             + "error one\nerror two\nerror three\nerror four\nerror five";
@@ -214,7 +214,8 @@ class CaptureRepairMessageBuilderTest {
     assertTrue(message.contains("error one"));
     assertTrue(message.contains("error two"));
     assertTrue(message.contains("error three"));
-    assertTrue(!message.contains("error four"));
+    assertTrue(message.contains("error four"));
+    assertTrue(message.contains("error five"));
   }
 
   @Test

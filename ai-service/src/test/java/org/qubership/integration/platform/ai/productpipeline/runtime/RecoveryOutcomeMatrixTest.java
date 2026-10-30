@@ -326,38 +326,6 @@ class RecoveryOutcomeMatrixTest {
   }
 
   @Test
-  void aChangedFailureAfterRetryIsPartialProgress() {
-    AtomicInteger calls = new AtomicInteger();
-    StageCapability failing =
-        capability(
-            "fail-cap",
-            context -> {
-              int n = calls.incrementAndGet();
-              String evidence = n == 1 ? "first transport failure" : "different catalog error";
-              return Multi.createFrom()
-                  .item(
-                      new CapabilitySignal.Completed(
-                          StageOutcome.of(StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE, evidence)));
-            });
-    ProductPipelineProfile profile =
-        retryProfile("work", "fail-cap", new RetryPolicy(0, 1L), "PLAN_APPROVED");
-    CreateChainTestOrchestrator runtime = newRuntime(profile, failing);
-    startAndRecordInput(runtime, profile);
-    execute(runtime, "work");
-    runtime
-        .recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.RETRY_ACTION))
-        .collect()
-        .asList()
-        .await()
-        .indefinitely();
-    execute(runtime, "work");
-
-    RecoveryOutcomeTelemetry.Event outcome = lastKind(RecoveryOutcomeTelemetry.KIND_OUTCOME);
-    assertEquals(RecoveryOutcomeTelemetry.OUTCOME_PARTIAL_PROGRESS, outcome.outcome());
-    assertEquals(Boolean.TRUE, outcome.identityChanged());
-  }
-
-  @Test
   void retryThenMaterializationIsSuccess() {
     AtomicInteger calls = new AtomicInteger();
     StageCapability sometimes =

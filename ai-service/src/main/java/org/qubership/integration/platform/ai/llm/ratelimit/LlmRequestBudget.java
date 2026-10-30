@@ -17,9 +17,9 @@ import org.qubership.integration.platform.ai.configuration.AppConfig;
 public final class LlmRequestBudget {
   private static final Logger LOG = Logger.getLogger(LlmRequestBudget.class);
   private static final com.fasterxml.jackson.databind.ObjectMapper JSON = new com.fasterxml.jackson.databind.ObjectMapper();
-  private static final Set<String> REPLACEABLE_READS = Set.of("readRequirementDraft",
+  static final Set<String> REPLACEABLE_READS = Set.of("readRequirementDraft",
       "searchCatalogSystems", "getApiSpecifications", "listCatalogOperations", "describeBoundOperation",
-      "describeElementPatchSchema", "describeElementProperty");
+      "describeElementPatchSchema", "describeElementProperty", "searchDocumentation", "readDocumentation");
   public static final class Overflow extends IllegalArgumentException {
     public Overflow(String message) { super(message); }
   }
@@ -42,13 +42,19 @@ public final class LlmRequestBudget {
     return false;
   }
 
+  private final ProviderBoundaryEvidence evidence;
   private final AppConfig.LlmConfig config;
   private final CipJtokkitTokenCountEstimator estimator;
 
   LlmRequestBudget(AppConfig config) {
+    this.evidence = new ProviderBoundaryEvidence(config.e2e() == null ? null
+        : config.e2e().recoveryControlDirectory().map(java.nio.file.Path::of).orElse(null));
     this.config = config.llm();
     this.estimator = new CipJtokkitTokenCountEstimator(this.config.modelName());
   }
+
+  String recordProviderRequest(ChatRequest request, String runId) { return evidence.request(request, runId); }
+  void recordProviderOutcome(String id, String kind, Object value) { evidence.outcome(id, kind, value); }
 
   ChatRequest prepare(ChatRequest request) {
     request.messages().forEach(message -> {

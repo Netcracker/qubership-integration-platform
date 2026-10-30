@@ -1,5 +1,8 @@
 # Executor evaluation harness
 
+The cases, typed inputs, and saved planner responses ship under `.private/rocky-skills/testing/executor-eval`.
+Use [the shared runner](../test-system.md) profile `executor` for agent and UI runs.
+
 This harness replays a saved `cip-design-planner` response through the production compiler
 executor. It does not invoke the planner, so repeated generator runs spend tokens only on the
 selected owning skills and validation path.
@@ -45,7 +48,7 @@ Validate fixtures and runner syntax without starting the service or spending mod
 
 ```bash
 ai-service/e2e/executor-eval/test-offline.sh
-mvn -pl ai-service \
+mvn -f ai-service/pom.xml \
   -Dtest=BindingMappingContractInvestigationTest,ExecutorEvalFixtureTest test
 ```
 

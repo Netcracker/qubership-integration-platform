@@ -134,4 +134,34 @@ class RecoveryOutcomeTelemetryTest {
     assertEquals(1, telemetry.events().getFirst().attempt());
     assertEquals(2, telemetry.events().getLast().attempt());
   }
+
+  @Test
+  void clarificationOutcomesStayPrivacySafeAndNameTheEvidence() {
+    var registry = new io.micrometer.core.instrument.simple.SimpleMeterRegistry();
+    var telemetry = new RecoveryOutcomeTelemetry(registry, new java.util.concurrent.CopyOnWriteArrayList<>(),
+        new java.util.concurrent.CopyOnWriteArrayList<>());
+    String quote = "Use https://secret.example/tasks";
+    var outcomes = List.of("SUCCESS", "AMBIGUOUS", "NON_ANSWER", "NO_PROGRESS", "PROJECTION_REBUILD",
+        "INTERNAL_FAILURE");
+
+    for (String outcome : outcomes) {
+      telemetry.recordClarificationOutcome(new RecoveryOutcomeTelemetry.ClarificationOutcome(
+          "run-1", "draft-before:hash", "target-uri", "turn-2", "submit", "path", outcome, "FOCUSED_REPAIR",
+          "evidence-1", "draft-after:hash"));
+    }
+    telemetry.recordClarificationOutcome(new RecoveryOutcomeTelemetry.ClarificationOutcome(
+        "run-1", "draft-before:hash", "target-uri", "turn-2", "submit", "path", quote, quote,
+        "evidence-1", "draft-after:hash"));
+
+    assertEquals(outcomes, telemetry.clarificationOutcomes().stream().limit(outcomes.size())
+        .map(RecoveryOutcomeTelemetry.ClarificationOutcome::outcomeCode).toList());
+    assertEquals("-", telemetry.clarificationOutcomes().getLast().outcomeCode());
+    assertEquals("-", telemetry.clarificationOutcomes().getLast().ladderStage());
+    assertEquals("evidence-1", telemetry.clarificationOutcomes().getFirst().feedbackEvidenceReference());
+    for (var event : telemetry.clarificationOutcomes()) {
+      assertFalse(event.toString().contains(quote));
+    }
+    assertTrue(registry.getMeters().stream().flatMap(meter -> meter.getId().getTags().stream())
+        .noneMatch(tag -> tag.getValue().contains(quote) || tag.getValue().contains("secret.example")));
+  }
 }

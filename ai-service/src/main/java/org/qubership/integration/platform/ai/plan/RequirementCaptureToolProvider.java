@@ -1,10 +1,9 @@
 package org.qubership.integration.platform.ai.plan;
 
 import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.agent.tool.Tool;
@@ -30,6 +29,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.llm.tool.StructuredCaptureArguments;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureEditor.Issue;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftUpdate;
@@ -37,6 +37,15 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftU
 /** Builds capture tools for the explicit gather supplier, not for default CDI tool lookup. */
 @ApplicationScoped
 public class RequirementCaptureToolProvider {
+
+  public record ArgumentBinding(String toolCallId, String rawArguments, JsonNode effectiveArguments,
+      Map<String, String> relocations) {}
+
+  private static final ThreadLocal<ArgumentBinding> ARGUMENT_BINDING = new ThreadLocal<>();
+
+  static ArgumentBinding argumentBinding() {
+    return ARGUMENT_BINDING.get();
+  }
 
   private final RequirementCaptureTools tools;
   private final ObjectMapper mapper;
@@ -69,30 +78,32 @@ public class RequirementCaptureToolProvider {
     var result = ToolProviderResult.builder()
         .add(spec("captureRequirementDraft", DraftInput.class, capture),
             (call, memoryId) -> inConversation(memoryId, authority, expected, () -> execute(
-                call.arguments(), "captureRequirementDraft", capture,
+                call, "captureRequirementDraft", capture,
                 "draft", DraftInput.class, tools::captureRequirementDraft)))
         .add(spec("updateRequirementDraft", DraftUpdate.class, update),
             (call, memoryId) -> inConversation(memoryId, authority, expected, () -> execute(
-                call.arguments(), "updateRequirementDraft", update,
+                call, "updateRequirementDraft", update,
                 "changes", DraftUpdate.class, tools::updateRequirementDraft)))
         .add(spec("readRequirementDraft", null, read),
             (call, memoryId) -> inConversation(memoryId, authority, expected, () -> executeRead(call.arguments(), read)))
         .add(spec("finishRequirementDiscoveryTurn", RequirementDiscoveryDirective.class, finish),
             (call, memoryId) -> inConversation(memoryId, authority, expected, () -> execute(
-                call.arguments(), "finishRequirementDiscoveryTurn", finish,
+                call, "finishRequirementDiscoveryTurn", finish,
                 "directive", RequirementDiscoveryDirective.class,
                 tools::finishRequirementDiscoveryTurn)))
         .add(spec("readRequirementSource", RequirementCaptureTools.SourceRead.class,
                 RequirementCaptureSchemas.parameters("source", RequirementCaptureTools.SourceRead.class)),
-            (call, memoryId) -> inConversation(memoryId, authority, expected, () -> execute(call.arguments(),
+            (call, memoryId) -> inConversation(memoryId, authority, expected, () -> execute(call,
                 "readRequirementSource", RequirementCaptureSchemas.parameters("source", RequirementCaptureTools.SourceRead.class),
                 "source", RequirementCaptureTools.SourceRead.class, tools::readRequirementSource)));
     if (request != null) {
       var factory = Arc.container().instance(io.quarkiverse.langchain4j.runtime.tool.QuarkusToolExecutorFactory.class).get();
       for (Class<?> type : List.of(SelectApiHubCandidateTool.class,
           org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemTools.class,
+          org.qubership.integration.platform.ai.integration.catalog.tool.ElementSchemaTools.class,
           CatalogFirstApiHubDiscoveryTool.class,
-          org.qubership.integration.platform.ai.productpipeline.knowledge.RequirementDiscoveryKnowledgeTool.class)) {
+          org.qubership.integration.platform.ai.productpipeline.knowledge.RequirementDiscoveryKnowledgeTool.class,
+          org.qubership.integration.platform.ai.productpipeline.knowledge.DocumentationTools.class)) {
         for (var method : io.quarkiverse.langchain4j.runtime.ToolsRecorder.getMetadata().get(type.getName())) {
           var executor = factory.create(new io.quarkiverse.langchain4j.runtime.tool.QuarkusToolExecutor.Context(
               Arc.container().instance(type).get(), method.invokerClassName(), method.methodName(),
@@ -123,21 +134,31 @@ public class RequirementCaptureToolProvider {
   }
 
   private <T> String execute(
-      String arguments, String toolName, JsonObjectSchema parameters,
+      dev.langchain4j.agent.tool.ToolExecutionRequest call, String toolName, JsonObjectSchema parameters,
       String field, Class<T> type, Function<T, String> action) {
+    String arguments = call.arguments();
+    ArgumentBinding previous = ARGUMENT_BINDING.get();
+    ARGUMENT_BINDING.remove();
     try {
-      JsonNode input = parse(arguments);
+      var nesting = org.qubership.integration.platform.ai.llm.tool.StructuredCaptureArguments
+          .restoreNesting(parse(arguments), parameters);
+      JsonNode input = nesting.arguments();
+      if (!nesting.relocations().isEmpty()) {
+        ARGUMENT_BINDING.set(new ArgumentBinding(call.id(), arguments, input.deepCopy(), nesting.relocations()));
+      }
+      supplyAnchorElementRefs(input);
       Issue issue = check(input, parameters, "");
       if (issue != null) {
         return tools.rejectArguments(toolName, arguments, issue);
       }
       return action.apply(mapper.treeToValue(input.get(field), type));
-    } catch (JsonProcessingException error) {
-      return tools.rejectArguments(toolName, arguments, new Issue(
-          jsonErrorCode(error), "/", null, "Send one valid JSON argument object."));
     } catch (IOException error) {
       return tools.rejectArguments(toolName, arguments, new Issue(
-          "INVALID_JSON", "/", null, "Send one valid JSON argument object."));
+          StructuredCaptureArguments.jsonErrorCode(error), "/", null,
+          StructuredCaptureArguments.syntaxMessage("Send one valid JSON argument object.", error)));
+    } finally {
+      if (previous == null) ARGUMENT_BINDING.remove();
+      else ARGUMENT_BINDING.set(previous);
     }
   }
 
@@ -148,41 +169,56 @@ public class RequirementCaptureToolProvider {
           : tools.rejectArguments("readRequirementDraft", arguments, issue);
     } catch (IOException error) {
       return tools.rejectArguments("readRequirementDraft", arguments, new Issue(
-          jsonErrorCode(error), "/", null, "Send an empty JSON object."));
+          StructuredCaptureArguments.jsonErrorCode(error), "/", null,
+          StructuredCaptureArguments.syntaxMessage("Send an empty JSON object.", error)));
     }
   }
 
   private JsonNode parse(String arguments) throws IOException {
-    JsonNode input = parseOnce(arguments);
+    JsonNode input = StructuredCaptureArguments.parseJson(mapper, arguments, "outer");
     if (input != null && input.isTextual()) {
-      input = parseOnce(input.textValue());
+      input = StructuredCaptureArguments.parseJson(mapper, input.textValue(), "decoded rootString argument /");
     }
     return input;
   }
 
-  private JsonNode parseOnce(String input) throws IOException {
-    if (input == null || input.isBlank()) {
-      throw new IOException("Empty JSON arguments");
+  /** An ANCHOR element has one legal elementRef: its owner interaction. */
+  static void supplyAnchorElementRefs(JsonNode input) {
+    JsonNode facts = input == null ? null : input.at("/draft/facts");
+    if (facts == null || !facts.isArray()) {
+      return;
     }
-    try (JsonParser parser = mapper.getFactory().createParser(input)) {
-      JsonNode value = mapper.readTree(parser);
-      if (parser.nextToken() != null) {
-        throw new IOException("Trailing JSON content");
+    for (JsonNode fact : facts) {
+      if (!(fact.get("elementIntent") instanceof ObjectNode intent)) {
+        continue;
       }
-      return value;
+      if (!"ANCHOR".equals(intent.path("placement").asText())) {
+        continue;
+      }
+      JsonNode ref = intent.get("elementRef");
+      if (ref != null && ref.isTextual() && !ref.asText().isBlank()) {
+        continue;
+      }
+      JsonNode owner = intent.get("ownerInteractionId");
+      if (owner != null && owner.isTextual() && !owner.asText().isBlank()) {
+        intent.put("elementRef", owner.asText());
+      }
     }
   }
 
-  private static String jsonErrorCode(IOException error) {
-    return error instanceof JsonParseException
-        && error.getMessage() != null
-        && error.getMessage().contains("Duplicate field")
-        ? "DUPLICATE_JSON_KEY" : "INVALID_JSON";
-  }
-
-  private static Issue check(JsonNode value, JsonSchemaElement schema, String path) {
+  static Issue check(JsonNode value, JsonSchemaElement schema, String path) {
     if (schema instanceof JsonAnyOfSchema anyOf) {
-      for (JsonSchemaElement alternative : anyOf.anyOf()) {
+      List<JsonSchemaElement> alternatives = anyOf.anyOf();
+      boolean nullable = alternatives.stream().anyMatch(JsonNullSchema.class::isInstance);
+      long structural = alternatives.stream().filter(alternative -> !(alternative instanceof JsonNullSchema)).count();
+      if (nullable && structural == 1 && value != null && !value.isNull()) {
+        for (JsonSchemaElement alternative : alternatives) {
+          if (!(alternative instanceof JsonNullSchema)) {
+            return check(value, alternative, path);
+          }
+        }
+      }
+      for (JsonSchemaElement alternative : alternatives) {
         if (check(value, alternative, path) == null) {
           return null;
         }

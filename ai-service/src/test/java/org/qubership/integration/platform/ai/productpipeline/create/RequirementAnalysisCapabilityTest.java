@@ -815,7 +815,7 @@ class RequirementAnalysisCapabilityTest {
   }
 
   @Test
-  void runAnalyzerEscapesBracesInUserMessageForAiService() {
+  void runAnalyzerPreservesJsonAfterTemplateRendering() {
     String jsonBody = "{\"message\":\"hello world!\"}";
     RequirementDraft approved =
         new RequirementDraft(
@@ -857,8 +857,11 @@ class RequirementAnalysisCapabilityTest {
     runWithUserText(analyzerOnly, approved, "conv-escape", null);
     String escaped = lastUserMessage.get();
     assertTrue(escaped != null && !escaped.isBlank());
-    assertTrue(escaped.contains("\\{\"message\":\"hello world!\"}"), escaped);
-    assertFalse(escaped.contains(" JSON {\"message\""), escaped);
+    var renderer = io.quarkus.qute.Engine.builder().addDefaults()
+        .addParserHook(new io.quarkiverse.langchain4j.QuarkusPromptTemplateFactory
+            .MustacheTemplateVariableStyleParserHook()).build();
+    String rendered = renderer.parse(escaped).render();
+    assertTrue(rendered.contains("Return JSON " + jsonBody + " from script"), rendered);
   }
 
   @Test

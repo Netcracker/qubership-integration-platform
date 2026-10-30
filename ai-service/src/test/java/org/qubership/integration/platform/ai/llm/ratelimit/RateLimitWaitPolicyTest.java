@@ -44,4 +44,10 @@ class RateLimitWaitPolicyTest {
     assertTrue(policy.shouldRetry(1, 3));
     assertFalse(policy.shouldRetry(2, 3));
   }
+  @Test
+  void neverRoundsAResetDownOrOverflowsTheSleeper() {
+    assertEquals(2, new RateLimitWaitPolicy().ceilWaitSeconds(Duration.ofSeconds(1).plusNanos(1)));
+    assertEquals(Integer.MAX_VALUE, new RateLimitWaitPolicy().ceilWaitSeconds(Duration.ofSeconds(Long.MAX_VALUE)));
+  }
+
 }

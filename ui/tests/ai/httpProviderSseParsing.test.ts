@@ -330,6 +330,27 @@ describe("parseCipSseBlock", () => {
     expect(decision?.actions).toEqual(["stop-with-report"]);
   });
 
+  it("should preserve exact policy options and command bindings on a decision payload", () => {
+    const policy = {
+      id: "requirement-policy-choice:policy-hash",
+      kind: "clarify",
+      question: "Keep NONE or use recommended RBAC?",
+      artifactType: "requirement-policy-choice",
+      artifactHash: "policy-hash",
+      revision: 7,
+      actions: ["keep-requested", "use-recommended"],
+      actionLabels: {
+        "keep-requested": "Keep NONE",
+        "use-recommended": "Use recommended RBAC",
+      },
+    };
+
+    expect(parseDecisionPayload(JSON.stringify(policy))).toEqual(policy);
+    expect(
+      parseCipSseBlock(`event: decision\ndata: ${JSON.stringify(policy)}\n`),
+    ).toEqual([{ type: "decision", decision: policy }]);
+  });
+
   it("parses uploaded-spec rows on a decision payload", () => {
     const payload =
       '{"id":"uploaded-specs-import-proposal:hash","kind":"approve",' +

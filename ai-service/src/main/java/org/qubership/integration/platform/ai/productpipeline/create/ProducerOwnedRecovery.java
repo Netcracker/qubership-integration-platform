@@ -112,8 +112,21 @@ public final class ProducerOwnedRecovery {
 
   private ProducerOwnedRecovery() { }
 
+  /** Native capture permission is independent of the stage's remaining repair allowance. */
+  public static boolean permitsNativeCaptureRepair(RecoveryCause cause) {
+    return cause == null || cause.captureFailure() == null
+        || cause.captureFailure().feedback() != null && cause.captureFailure().feedback().outerAllowed();
+  }
+
   /** Missing diagnosis can retry a proved output invocation, never infer an upstream owner. */
   public static boolean permitsCurrentOutputRepair(
+      StageOutcomeClass outcome, RecoveryCause cause, boolean invocationProved,
+      boolean pinnedInputsAvailable, boolean unresolvedAuthorChoice, boolean catalogWritten) {
+    return permitsNativeCaptureRepair(cause) && permitsCurrentOutputRecovery(
+        outcome, cause, invocationProved, pinnedInputsAvailable, unresolvedAuthorChoice, catalogWritten);
+  }
+
+  public static boolean permitsCurrentOutputRecovery(
       StageOutcomeClass outcome, RecoveryCause cause, boolean invocationProved,
       boolean pinnedInputsAvailable, boolean unresolvedAuthorChoice, boolean catalogWritten) {
     if (!invocationProved || !pinnedInputsAvailable || unresolvedAuthorChoice || catalogWritten
@@ -132,6 +145,7 @@ public final class ProducerOwnedRecovery {
   public static Route route(final Request request) {
     String failed = request.failedStageId();
     RecoveryCause cause = request.cause();
+    if (!permitsNativeCaptureRepair(cause)) return new Route(Action.PARK, failed);
     if (request.outcomeClass() == StageOutcomeClass.INTERNAL_FAILURE
         || cause.causeCode() == RecoveryCauseCode.INTERNAL) {
       return new Route(Action.PARK, failed);

@@ -129,6 +129,8 @@ public final class RequirementCaptureProjection {
       DraftInput input, List<CatalogBindingHint> bindings, Map<String, String> targets,
       Set<String> uploadedSpecInteractions) {
     List<PendingWork> pending = new ArrayList<>();
+    RequirementFailureConsistency.issues(input, bindings).forEach(issue ->
+        pending.add(new PendingWork(issue.code(), issue.entityId(), null, issue.message())));
     Map<String, CapabilityInput> capabilities = new HashMap<>();
     for (CapabilityInput capability : input.capabilities()) {
       capabilities.put(capability.interactionId(), capability);
@@ -222,7 +224,8 @@ public final class RequirementCaptureProjection {
                 && (fact.kind() == RequirementCaptureInput.FactKind.BEHAVIOR
                     || fact.kind() == RequirementCaptureInput.FactKind.ROUTING));
         boolean hasSuccessor = input.flow().transitions().stream().anyMatch(edge ->
-            id.equals(edge.sourceInteractionId()));
+            id.equals(edge.sourceInteractionId()))
+            || RequirementFlowValidator.hasLocalResponseSuccessor(id, facts(input));
         if (!hasSupportingFact || (interaction.failureMode() == ServiceCallFailureMode.INLINE_RESPONSE
             && !hasSuccessor)) {
           pending.add(new PendingWork("FAILURE_RESPONSE_REQUIRED", id, null,
@@ -257,12 +260,7 @@ public final class RequirementCaptureProjection {
       pending.add(new PendingWork("FACTS_REQUIRED", null, null,
           "Record the intended result or behavior."));
     }
-    var chainCalls = input.capabilities().stream()
-        .filter(capability -> "chain-call-2".equals(capability.capabilityKey())).toList();
-    boolean chainTargetsResolved = !chainCalls.isEmpty() && chainCalls.stream()
-        .allMatch(capability -> targets.containsKey(capability.interactionId()));
     for (QuestionInput question : input.openQuestions()) {
-      if (chainTargetsResolved && RequirementDraftTool.isChainCallTriggerUuidQuestion(question.text())) continue;
       pending.add(new PendingWork("BUSINESS_CHOICE_REQUIRED", null, question.questionId(),
           question.text()));
     }
@@ -444,23 +442,6 @@ public final class RequirementCaptureProjection {
     boolean ready = remaining.isEmpty()
         && RequirementFlowValidator.validateBindings(flow, facts, bindings).isEmpty();
     List<String> openQuestions = input.openQuestions().stream().map(QuestionInput::text).toList();
-    var chainCalls = input.capabilities().stream()
-        .filter(capability -> "chain-call-2".equals(capability.capabilityKey())).toList();
-    if (!chainCalls.isEmpty()) {
-      var unresolved = chainCalls.stream()
-          .filter(capability -> !targets.containsKey(capability.interactionId())).findFirst();
-      openQuestions = unresolved.isPresent()
-          ? RequirementDraftTool.replaceChainCallUuidQuestions(openQuestions,
-              org.qubership.integration.platform.ai.catalog.binding.CompositionCatalogBinder
-                  .pickerQuestion(unresolved.get().interactionId()))
-          : RequirementDraftTool.dropChainCallUuidQuestions(openQuestions);
-    }
-    var questions = new ArrayList<>(openQuestions);
-    remaining.stream().filter(item -> "RBAC_ROLES_REQUIRED".equals(item.code())
-            || "CAPABILITY_FIELD_REQUIRED".equals(item.code()) && input.capabilities().stream()
-                .anyMatch(capability -> "http-sender".equals(capability.capabilityKey())
-                    && capability.interactionId().equals(item.interactionId())))
-        .map(PendingWork::message).filter(question -> !questions.contains(question)).forEach(questions::add);
     String candidateInteractionId = previous == null
         ? null : previous.apiHubCandidateInteractionId();
     boolean candidateBound = candidateInteractionId != null && bindings.stream()
@@ -469,7 +450,7 @@ public final class RequirementCaptureProjection {
         ready,
         render(input, bindings),
         ready ? DraftDecision.READY_FOR_PLAN : DraftDecision.NEEDS_INPUT,
-        questions,
+        openQuestions,
         RequirementDraftTool.SOURCE_SKILL_ID, sourceVersion, sourceHash,
         previous == null || candidateBound ? null : previous.apiHubCandidate(),
         false,

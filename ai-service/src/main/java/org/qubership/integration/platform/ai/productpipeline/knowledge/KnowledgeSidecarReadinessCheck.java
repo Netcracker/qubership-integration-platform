@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.productpipeline.knowledge;
 
+import org.qubership.integration.platform.ai.skills.RockySkills;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.health.HealthCheck;
@@ -7,10 +8,13 @@ import org.eclipse.microprofile.health.HealthCheckResponse;
 import org.eclipse.microprofile.health.Readiness;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 
-/** Fails readiness until the sidecar reports ready and a CERTIFIED active package. */
+/** Requires public documentation and, when skills are installed, certified private knowledge. */
 @Readiness
 @ApplicationScoped
 public class KnowledgeSidecarReadinessCheck implements HealthCheck {
+
+  @jakarta.inject.Inject
+  RockySkills rockySkills = new RockySkills();
 
   private final KnowledgeSidecarApi api;
 
@@ -22,6 +26,12 @@ public class KnowledgeSidecarReadinessCheck implements HealthCheck {
   @Override
   public HealthCheckResponse call() {
     try {
+      var documentation = new SidecarKnowledgeClient(api).documentationManifest();
+      if (!rockySkills.available()) {
+        return HealthCheckResponse.named("knowledge-sidecar").up()
+            .withData("documentationChecksum", documentation.checksum())
+            .withData("privateKnowledgeRequired", false).build();
+      }
       KnowledgeSidecarApi.HealthDto ready = api.ready();
       if (ready == null || !"ok".equalsIgnoreCase(ready.status())) {
         return HealthCheckResponse.named("knowledge-sidecar")

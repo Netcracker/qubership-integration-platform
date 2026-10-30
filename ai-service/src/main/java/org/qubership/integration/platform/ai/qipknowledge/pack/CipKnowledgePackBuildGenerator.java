@@ -38,7 +38,12 @@ public final class CipKnowledgePackBuildGenerator {
       throw new IllegalArgumentException(
           "QIP skill pack root must be a directory: " + packRoot);
     }
-    CipKnowledgeExportValidator.validatePack(packRoot);
+    validateSourceManifest(packRoot);
+    String export = System.getProperty("qip.knowledge.export");
+    Path exportRoot = export != null && !export.isBlank() ? Path.of(export)
+        : Files.isRegularFile(packRoot.resolve("runtime/generator-contracts.json"))
+            ? packRoot.resolveSibling("rocky-knowledge") : packRoot.resolve("knowledge-export");
+    CipKnowledgeExportValidator.validate(exportRoot);
     CipKnowledgePackIngestionService ingestionService = new CipKnowledgePackIngestionService();
     CipKnowledgePackIngestionResult result = ingestionService.ingest(packRoot);
     ingestionService.writeArtifacts(result, outputRoot, addonPackRoot);
@@ -49,6 +54,35 @@ public final class CipKnowledgePackBuildGenerator {
       CompilerSkillAddonBuildSupport.materialize(addonPackRoot, versionDir);
     }
     stampCompilerContractPin(versionDir);
+  }
+
+  private static void validateSourceManifest(Path packRoot) throws Exception {
+    Path source = packRoot.resolve("manifest.json");
+    if (!Files.isRegularFile(source)) return;
+    var manifest = MANIFEST_MAPPER.readTree(source.toFile());
+    var files = manifest.path("files").fields();
+    Path root = packRoot.toAbsolutePath().normalize();
+    while (files.hasNext()) {
+      var entry = files.next();
+      Path path = root.resolve(entry.getKey()).normalize();
+      if (!path.startsWith(root) || !Files.isRegularFile(path)
+          || !entry.getValue().path("sha256").asText().equals(CompilerSkillAddonDocument.sha256(
+              Files.readString(path, StandardCharsets.UTF_8)))) {
+        throw new IllegalArgumentException("Rocky source checksum mismatch: " + entry.getKey());
+      }
+    }
+    for (String directory : java.util.List.of("skills", "runtime")) {
+      Path directoryPath = root.resolve(directory);
+      if (!Files.isDirectory(directoryPath)) continue;
+      try (Stream<Path> paths = Files.walk(directoryPath)) {
+        for (Path path : paths.filter(Files::isRegularFile).toList()) {
+          String relative = root.relativize(path).toString().replace('\\', '/');
+          if (!path.getFileName().toString().startsWith(".") && !manifest.path("files").has(relative)) {
+            throw new IllegalArgumentException("Undeclared Rocky source: " + relative);
+          }
+        }
+      }
+    }
   }
 
   static void stampCompilerContractPin(Path versionDir) throws IOException {
@@ -69,6 +103,10 @@ public final class CipKnowledgePackBuildGenerator {
   private static Map<String, String> addonDigests(Path versionDir) throws IOException {
     Path skillsDir =
         versionDir.resolve(CompilerSkillAddonBuildSupport.ADDONS_DIR).resolve("skills");
+    boolean standalone = Files.isDirectory(versionDir.resolve(CompilerSkillAddonBuildSupport.RUNTIME_DIR));
+    if (standalone) {
+      skillsDir = versionDir.resolve(CompilerSkillAddonBuildSupport.RUNTIME_DIR).resolve("skills");
+    }
     if (!Files.isDirectory(skillsDir)) {
       return Map.of();
     }
@@ -76,12 +114,12 @@ public final class CipKnowledgePackBuildGenerator {
     try (Stream<Path> stream = Files.list(skillsDir)) {
       stream
           .filter(Files::isRegularFile)
-          .filter(path -> path.getFileName().toString().endsWith(".addon.md"))
+          .filter(path -> path.getFileName().toString().endsWith(standalone ? ".json" : ".addon.md"))
           .sorted()
           .forEach(
               file -> {
                 String fileName = file.getFileName().toString();
-                String skillId = fileName.substring(0, fileName.length() - ".addon.md".length());
+                String skillId = fileName.substring(0, fileName.length() - (standalone ? 5 : 9));
                 try {
                   String content = Files.readString(file, StandardCharsets.UTF_8);
                   digests.put(skillId, CompilerSkillAddonDocument.sha256(content));
@@ -116,7 +154,8 @@ public final class CipKnowledgePackBuildGenerator {
   }
 
   private static Path resolveAddonRoot() {
-    String fromProperty = System.getProperty("qip.ai.qipknowledge.addon-pack-root");
+    String fromProperty = System.getProperty("qip.ai.qipknowledge.skill-metadata-root",
+        System.getProperty("qip.ai.qipknowledge.addon-pack-root"));
     if (fromProperty == null || fromProperty.isBlank()) {
       return null;
     }

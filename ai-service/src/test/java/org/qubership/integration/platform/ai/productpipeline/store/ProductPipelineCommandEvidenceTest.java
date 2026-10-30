@@ -53,6 +53,7 @@ class ProductPipelineCommandEvidenceTest {
     RunTransition transition = loaded.transitions().get(loaded.transitions().size() - 1);
     assertNull(transition.commandId());
     assertNull(transition.commandPayloadHash());
+    assertNull(transition.clarification());
     assertTrue(loaded.appliedCommand("cmd-legacy", "hash-legacy").isEmpty());
   }
 
@@ -129,6 +130,44 @@ class ProductPipelineCommandEvidenceTest {
     ProductPipelineRunDocument loaded = runStore.load(RUN_ID).orElseThrow();
     assertEquals(
         1L, loaded.transitions().stream().filter(t -> "cmd-same".equals(t.commandId())).count());
+  }
+
+  @Test
+  void oldTransitionJsonWithoutClarificationDeserializesAsNull() throws Exception {
+    ProductPipelineRunDocument created = runStore.create(snapshot(1L, RunStatus.RUNNING));
+    runStore.commit(1L, commit(created, "cmd-old", "hash-old", RunStatus.WAITING_FOR_INPUT));
+
+    stripClarificationFromStoredDocument();
+
+    ProductPipelineRunDocument loaded = runStore.load(RUN_ID).orElseThrow();
+    RunTransition transition = loaded.transitions().get(loaded.transitions().size() - 1);
+    assertEquals("cmd-old", transition.commandId());
+    assertNull(transition.clarification());
+  }
+
+  @Test
+  void commandReplayKeepsTheSameCommandIdentityWhenClarificationIsAbsent() throws Exception {
+    ProductPipelineRunDocument created = runStore.create(snapshot(1L, RunStatus.RUNNING));
+    ProductPipelineRunDocument committed =
+        runStore.commit(1L, commit(created, "cmd-replay", "hash-replay", RunStatus.RUNNING));
+    RunTransition before = committed.appliedCommand("cmd-replay", "hash-replay").orElseThrow();
+
+    stripClarificationFromStoredDocument();
+
+    ProductPipelineRunDocument loaded = runStore.load(RUN_ID).orElseThrow();
+    RunTransition reloaded = loaded.appliedCommand("cmd-replay", "hash-replay").orElseThrow();
+    assertEquals(before.commandId(), reloaded.commandId());
+    assertEquals(before.commandPayloadHash(), reloaded.commandPayloadHash());
+    assertEquals(before, reloaded);
+    assertNull(reloaded.clarification());
+  }
+
+  private void stripClarificationFromStoredDocument() throws Exception {
+    VersionedBlob stored = blobStore.getVersioned(RUN_KEY).orElseThrow();
+    ObjectNode document = (ObjectNode) mapper.readTree(stored.content());
+    ArrayNode transitions = (ArrayNode) document.get("transitions");
+    transitions.forEach(node -> ((ObjectNode) node).remove("clarification"));
+    blobStore.putIfVersion(RUN_KEY, mapper.writeValueAsBytes(document), stored.version());
   }
 
   private void stripEvidenceFieldsFromStoredDocument() throws Exception {

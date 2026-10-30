@@ -106,6 +106,50 @@ function buildDecision(overrides: Partial<ChatDecision> = {}): ChatDecision {
 }
 
 describe("AiDecisionCard", () => {
+  it.each([
+    ["keep-requested", "Keep NONE"],
+    ["use-recommended", "Use recommended RBAC"],
+  ])(
+    "should send policy choice %s only after the reader selects it",
+    (action, label) => {
+      const onAnswer = jest.fn();
+      const onSubmitClarification = jest.fn();
+      const question =
+        "NONE has no access control. Keep NONE or use recommended RBAC?";
+      render(
+        <AiDecisionCard
+          decision={buildDecision({
+            kind: "clarify",
+            question,
+            artifactType: "requirement-policy-choice",
+            actions: ["keep-requested", "use-recommended"],
+            actionLabels: {
+              "keep-requested": "Keep NONE",
+              "use-recommended": "Use recommended RBAC",
+            },
+          })}
+          onAnswer={onAnswer}
+          onSubmitClarification={onSubmitClarification}
+        />,
+      );
+
+      expect(screen.getByText(question)).toBeInTheDocument();
+      for (const value of ["Keep NONE", "Use recommended RBAC"]) {
+        expect(
+          screen.getByRole("button", { name: value }).className,
+        ).not.toMatch(/ant-btn-primary/);
+      }
+      expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+      expect(onAnswer).not.toHaveBeenCalled();
+      expect(onSubmitClarification).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByRole("button", { name: label }));
+
+      expect(onAnswer).toHaveBeenCalledWith(action, "");
+      expect(onSubmitClarification).not.toHaveBeenCalled();
+    },
+  );
+
   it("should send the clicked action with the typed comment when a button is clicked", () => {
     const onAnswer = jest.fn();
     render(<AiDecisionCard decision={buildDecision()} onAnswer={onAnswer} />);

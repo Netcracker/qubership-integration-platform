@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.chat.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
@@ -9,6 +10,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -37,14 +39,19 @@ import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.OpenChainTurnContext;
 import org.qubership.integration.platform.ai.chat.OpenChainTurnContextFactory;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
+import org.qubership.integration.platform.ai.productpipeline.create.CreateProductPipelineCoordinator;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ContinueCreateChainCommand;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.StartCreateChainCommand;
+import org.qubership.integration.platform.ai.productpipeline.create.orchestration.CreateChainOrchestrator;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainExecutionSnapshot;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainExecutionStatus;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction;
 import org.qubership.integration.platform.ai.productpipeline.facade.ApprovalQuestionStore;
+import org.qubership.integration.platform.ai.productpipeline.runtime.AcceptInputCommand;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationArchive;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationMessage;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.chat.decision.UploadedSpecsApprovalHandler;
@@ -875,6 +882,290 @@ class ChatExecutionServiceTest {
 
     assertEquals("(materialized)", description);
     verify(traceRunStore).loadByConversation(CONVERSATION_ID);
+  }
+
+  @Test
+  void missingClarificationOfferIsRejectedBeforeArchivalAndReemitsTheOpenDecision() throws Exception {
+    ChatEvent.Decision open = requirementOffer("offer-current", "Which protocol?");
+    ScenarioRouter router = mock(ScenarioRouter.class);
+    ChatDecisionService decisions = mock(ChatDecisionService.class);
+    when(decisions.openDecision("conv-offer")).thenReturn(Optional.of(open));
+    ChatExecutionService execution = service(router, decisions);
+
+    List<String> frames = execution.streamV1Sse(clarificationRequest("conv-offer", "HTTPS", null))
+        .collect().asList().await().indefinitely();
+
+    assertTrue(userTurns("conv-offer").isEmpty());
+    assertEquals("offer-current", decisionId(frames));
+    verify(router, never()).route(any(), anyString());
+  }
+
+  @Test
+  void staleClarificationOfferIsRejectedBeforeArchivalAndReemitsTheOpenDecision() throws Exception {
+    ChatEvent.Decision open = requirementOffer("offer-current", "Which protocol?");
+    ScenarioRouter router = mock(ScenarioRouter.class);
+    ChatDecisionService decisions = mock(ChatDecisionService.class);
+    when(decisions.openDecision("conv-offer")).thenReturn(Optional.of(open));
+    ChatExecutionService execution = service(router, decisions);
+
+    List<String> frames = execution.streamV1Sse(clarificationRequest("conv-offer", "HTTPS", "offer-stale"))
+        .collect().asList().await().indefinitely();
+
+    assertTrue(userTurns("conv-offer").isEmpty());
+    assertEquals("offer-current", decisionId(frames));
+    verify(router, never()).route(any(), anyString());
+  }
+
+  @Test
+  void matchingClarificationOfferArchivesTheCompleteTextOnce() {
+    String text = "Use the billing API.\nKeep the trailing detail.";
+    ChatEvent.Decision open = requirementOffer("offer-current", "Which API?");
+    ScenarioRouter router = mock(ScenarioRouter.class);
+    when(router.route(any(), anyString())).thenReturn(Multi.createFrom().item(ChatEvent.token("noted")));
+    ChatDecisionService decisions = mock(ChatDecisionService.class);
+    when(decisions.openDecision("conv-offer")).thenReturn(Optional.of(open));
+    ChatExecutionService execution = service(router, decisions);
+
+    execution.streamV1Sse(clarificationRequest("conv-offer", text, "offer-current"))
+        .collect().asList().await().indefinitely();
+
+    var turns = userTurns("conv-offer");
+    assertEquals(1, turns.size());
+    assertEquals(text, turns.getFirst().rawText());
+    assertEquals(ConversationArchive.deterministicAnswerTurnId("offer-current", text), turns.getFirst().id());
+    assertEquals("offer-current", turns.getFirst().metadata().get("clarificationOfferId").asText());
+  }
+
+  @Test
+  void specializedGateDoesNotArchiveAGenericRequirementOffer() {
+    String text = "A/Salesforce";
+    ScenarioRouter router = mock(ScenarioRouter.class);
+    when(router.route(any(), anyString())).thenReturn(Multi.createFrom().item(ChatEvent.token("noted")));
+    ChatDecisionService decisions = mock(ChatDecisionService.class);
+    when(decisions.withholdsRequirementOffer("conv-specialized")).thenReturn(true);
+    when(decisions.openDecision("conv-specialized"))
+        .thenReturn(Optional.of(requirementOffer("offer-current", "Which folder?")));
+    ChatExecutionService execution = service(router, decisions);
+
+    execution.streamV1Sse(clarificationRequest("conv-specialized", text, "offer-current"))
+        .collect().asList().await().indefinitely();
+
+    var turns = userTurns("conv-specialized");
+    assertEquals(1, turns.size());
+    assertNotEquals(ConversationArchive.deterministicAnswerTurnId("offer-current", text), turns.getFirst().id());
+    assertTrue(turns.getFirst().metadata() == null
+        || !turns.getFirst().metadata().has("clarificationOfferId"));
+    verify(router).route(any(), anyString());
+  }
+
+  @Test
+  void retryingTheSameOfferAndPayloadReturnsTheOriginalTurn() {
+    String text = "Use HTTPS only.";
+    ChatEvent.Decision open = requirementOffer("offer-current", "Which protocol?");
+    ScenarioRouter router = mock(ScenarioRouter.class);
+    when(router.route(any(), anyString())).thenReturn(Multi.createFrom().item(ChatEvent.token("noted")));
+    ChatDecisionService decisions = mock(ChatDecisionService.class);
+    when(decisions.openDecision("conv-offer")).thenReturn(Optional.of(open));
+    ChatExecutionService execution = service(router, decisions);
+    ChatRequest request = clarificationRequest("conv-offer", text, "offer-current");
+
+    execution.streamV1Sse(request).collect().asList().await().indefinitely();
+    String turnId = userTurns("conv-offer").getFirst().id();
+    String generation = conversations.archive().read("conv-offer").generation();
+    execution.streamV1Sse(request).collect().asList().await().indefinitely();
+
+    var turns = userTurns("conv-offer");
+    assertEquals(1, turns.size());
+    assertEquals(turnId, turns.getFirst().id());
+    assertEquals(text, turns.getFirst().rawText());
+    assertEquals(generation, conversations.archive().read("conv-offer").generation());
+  }
+
+  @Test
+  void retryAfterTheOpenDecisionClosesReturnsTheArchivedTurnWithoutRouting() throws Exception {
+    String text = "Use HTTPS only.";
+    AtomicReference<Optional<ChatEvent.Decision>> open =
+        new AtomicReference<>(Optional.of(requirementOffer("offer-current", "Which protocol?")));
+    ScenarioRouter router = mock(ScenarioRouter.class);
+    when(router.route(any(), anyString())).thenReturn(Multi.createFrom().item(ChatEvent.token("noted")));
+    ChatDecisionService decisions = mock(ChatDecisionService.class);
+    when(decisions.openDecision("conv-closed-offer")).thenAnswer(invocation -> open.get());
+    ChatExecutionService execution = service(router, decisions);
+    ChatRequest request = clarificationRequest("conv-closed-offer", text, "offer-current");
+
+    List<String> first = execution.streamV1Sse(request).collect().asList().await().indefinitely();
+    String turnId = userTurns("conv-closed-offer").getFirst().id();
+    String generation = conversations.archive().read("conv-closed-offer").generation();
+    open.set(Optional.empty());
+
+    List<String> retry = execution.streamV1Sse(request).collect().asList().await().indefinitely();
+
+    var turns = userTurns("conv-closed-offer");
+    assertEquals(1, turns.size());
+    assertEquals(ConversationArchive.deterministicAnswerTurnId("offer-current", text), turnId);
+    assertEquals(turnId, turns.getFirst().id());
+    assertEquals(text, turns.getFirst().rawText());
+    assertEquals(generation, conversations.archive().read("conv-closed-offer").generation());
+    assertEquals(userMessageIndex(first), userMessageIndex(retry));
+    assertFalse(
+        retry.stream().anyMatch(frame -> frame.startsWith("event: token\n")),
+        () -> "retry must not route, got: " + retry);
+    assertFalse(
+        retry.stream().anyMatch(frame -> frame.startsWith("event: error\n")),
+        () -> "archived offer must be returned, got: " + retry);
+    verify(router, times(1)).route(any(), eq("conv-closed-offer"));
+  }
+
+  @Test
+  void closedRequirementOfferWithoutAnArchivedTurnDoesNotRoute() {
+    ScenarioRouter router = mock(ScenarioRouter.class);
+    ChatDecisionService decisions = mock(ChatDecisionService.class);
+    when(decisions.openDecision("conv-missing-offer")).thenReturn(Optional.empty());
+    ChatExecutionService execution = service(router, decisions);
+
+    List<String> frames = execution.streamV1Sse(
+            clarificationRequest("conv-missing-offer", "HTTPS", "offer-missing"))
+        .collect().asList().await().indefinitely();
+
+    assertTrue(userTurns("conv-missing-offer").isEmpty());
+    assertTrue(
+        frames.stream().anyMatch(frame -> frame.startsWith("event: error\n")),
+        () -> "expected event: error, got: " + frames);
+    verify(router, never()).route(any(), anyString());
+  }
+
+  @Test
+  void syntheticClarificationOfferDoesNotContinueOrAcceptInput() {
+    String conversationId = "conv-synthetic-offer";
+    ProductPipelineRunDocument waiting =
+        new ProductPipelineRunDocument(
+            new RunSnapshot(
+                "run-synthetic",
+                conversationId,
+                9L,
+                RunStatus.WAITING_FOR_INPUT,
+                "requirement-discovery",
+                List.of(),
+                null,
+                "flow-1"),
+            List.of(),
+            List.of(),
+            "v1");
+    ProductPipelineRunStore runs = mock(ProductPipelineRunStore.class);
+    when(runs.loadByConversation(conversationId)).thenReturn(Optional.of(waiting));
+    CreateChainOrchestrator runtime = mock(CreateChainOrchestrator.class);
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.pendingCreationHash(anyString())).thenReturn(Optional.empty());
+    when(facade.start(any(StartCreateChainCommand.class))).thenReturn(Multi.createFrom().empty());
+    when(facade.continueWithInput(any(ContinueCreateChainCommand.class)))
+        .thenAnswer(invocation -> {
+          ContinueCreateChainCommand command = invocation.getArgument(0);
+          runtime.acceptInput(new AcceptInputCommand(
+              "run-synthetic",
+              command.clarificationText(),
+              command.commandId(),
+              null,
+              command.origin(),
+              command.clarificationOfferId()));
+          return Multi.createFrom().empty();
+        });
+    CreateProductPipelineCoordinator coordinator = new CreateProductPipelineCoordinator(facade, runs);
+    ScenarioRouter router = mock(ScenarioRouter.class);
+    when(router.route(any(), anyString())).thenAnswer(invocation ->
+        coordinator.handle(invocation.getArgument(0), invocation.getArgument(1)));
+    ChatDecisionService decisions = mock(ChatDecisionService.class);
+    when(decisions.openDecision(conversationId)).thenReturn(Optional.of(new ChatEvent.Decision(
+        "clarify:9", "clarify", "Try again?", null, null, 9L, "Try again?", List.of(), List.of())));
+    ChatExecutionService execution = service(router, decisions);
+
+    execution.streamV1Sse(clarificationRequest(conversationId, "retry the stage", "clarify:9"))
+        .collect().asList().await().indefinitely();
+
+    ArgumentCaptor<StartCreateChainCommand> started =
+        ArgumentCaptor.forClass(StartCreateChainCommand.class);
+    verify(facade).start(started.capture());
+    assertEquals("retry the stage", started.getValue().requirementText());
+    assertEquals(conversationId, started.getValue().taskId());
+    verify(facade, never()).continueWithInput(any());
+    verify(runtime, never()).acceptInput(any());
+  }
+
+  @Test
+  void previousClarificationOfferCannotAnswerTheNextQuestion() throws Exception {
+    AtomicReference<ChatEvent.Decision> open =
+        new AtomicReference<>(requirementOffer("offer-previous", "Which protocol?"));
+    ScenarioRouter router = mock(ScenarioRouter.class);
+    when(router.route(any(), anyString())).thenReturn(Multi.createFrom().item(ChatEvent.token("noted")));
+    ChatDecisionService decisions = mock(ChatDecisionService.class);
+    when(decisions.openDecision("conv-offer")).thenAnswer(invocation -> Optional.of(open.get()));
+    ChatExecutionService execution = service(router, decisions);
+
+    execution.streamV1Sse(clarificationRequest("conv-offer", "HTTPS", "offer-previous"))
+        .collect().asList().await().indefinitely();
+    open.set(requirementOffer("offer-next", "Which environment?"));
+    List<String> frames = execution.streamV1Sse(
+            clarificationRequest("conv-offer", "HTTPS", "offer-previous"))
+        .collect().asList().await().indefinitely();
+
+    assertEquals(1, userTurns("conv-offer").size());
+    assertEquals("HTTPS", userTurns("conv-offer").getFirst().rawText());
+    assertEquals("offer-next", decisionId(frames));
+    verify(router).route(any(), eq("conv-offer"));
+  }
+
+  @Test
+  void nonRequirementClarificationStillArchivesFreeText() {
+    ChatEvent.Decision open = new ChatEvent.Decision(
+        "clarify:9", "clarify", "Try again?", null, null, 9L, "Try again?", List.of(), List.of());
+    ScenarioRouter router = mock(ScenarioRouter.class);
+    when(router.route(any(), anyString())).thenReturn(Multi.createFrom().item(ChatEvent.token("noted")));
+    ChatDecisionService decisions = mock(ChatDecisionService.class);
+    when(decisions.openDecision("conv-offer")).thenReturn(Optional.of(open));
+    ChatExecutionService execution = service(router, decisions);
+
+    execution.streamV1Sse(clarificationRequest("conv-offer", "retry the stage", null))
+        .collect().asList().await().indefinitely();
+
+    assertEquals(List.of("retry the stage"), userTurns("conv-offer").stream()
+        .map(ConversationArchive.Turn::rawText).toList());
+  }
+
+  private static ChatEvent.Decision requirementOffer(String offerId, String question) {
+    return new ChatEvent.Decision(
+        offerId, "clarify", question, null, null, 4L, question, List.of(), List.of());
+  }
+
+  private static ChatRequest clarificationRequest(String conversationId, String text, String offerId) {
+    ChatRequest request = new ChatRequest();
+    request.setConversationId(conversationId);
+    request.setMessage(text);
+    request.setClarificationOfferId(offerId);
+    return request;
+  }
+
+  private List<ConversationArchive.Turn> userTurns(String conversationId) {
+    return conversations.archive().read(conversationId).turns().stream()
+        .filter(turn -> turn.message().role() == ConversationMessage.Role.USER)
+        .toList();
+  }
+
+  private static int userMessageIndex(List<String> frames) throws Exception {
+    String frame = frames.stream().filter(item -> item.startsWith("event: meta\n")).findFirst().orElse("");
+    int data = frame.indexOf("data: ");
+    if (data < 0) {
+      return -1;
+    }
+    var index = new ObjectMapper().readTree(frame.substring(data + 6).trim()).get("userMessageIndex");
+    return index == null || index.isNull() ? -1 : index.asInt();
+  }
+
+  private static String decisionId(List<String> frames) throws Exception {
+    String frame = frames.stream().filter(item -> item.startsWith("event: decision\n")).findFirst().orElse("");
+    int data = frame.indexOf("data: ");
+    if (data < 0) {
+      return "";
+    }
+    return new ObjectMapper().readTree(frame.substring(data + 6).trim()).path("id").asText();
   }
 
   private ProductPipelineRunDocument createRun(String runId) {

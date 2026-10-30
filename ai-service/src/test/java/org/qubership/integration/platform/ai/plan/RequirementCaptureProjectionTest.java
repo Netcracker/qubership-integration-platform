@@ -19,6 +19,7 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.HttpMe
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.HttpMode;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.InteractionInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polarity;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.QuestionInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.RetryInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.TransitionInput;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
@@ -26,6 +27,38 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementEn
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 
 class RequirementCaptureProjectionTest {
+
+  @Test
+  void inlineResponseMayContinueIntoAnAuthoredLocalNode() {
+    for (String placement : List.of("after", "anchor-link", "before", "other-owner", "negative", "absent", "self")) {
+      var intent = new RequirementElementIntent(placement.equals("self") ? "call" : "reply", "script",
+          RequirementElementIntent.Placement.LOCAL_NODE,
+          placement.equals("other-owner") ? "entry" : "call", placement.equals("before") ? "call" : null,
+          placement.equals("anchor-link") ? null : placement.equals("before") ? "entry" : "call",
+          "Render response", List.of(), List.of());
+      var local = new FactInput("reply-behavior", List.of("call"), FactKind.BEHAVIOR,
+          placement.equals("negative") ? Polarity.NEGATIVE : Polarity.POSITIVE,
+          "Render the call's success or failure in the local response script.", null, null, intent);
+      var facts = new java.util.ArrayList<FactInput>();
+      if (!placement.equals("absent")) facts.add(local);
+      if (placement.equals("anchor-link")) facts.add(new FactInput("call-anchor", List.of("call"),
+          FactKind.CONSTRAINT, Polarity.POSITIVE, "Continue into the response script.", null, null,
+          new RequirementElementIntent("call", "service-call", RequirementElementIntent.Placement.ANCHOR,
+              "call", "reply", null, "Remote call", List.of(), List.of())));
+      var input = new DraftInput(new FlowInput(List.of(
+          new InteractionInput("entry", Direction.INBOUND, "Caller", "POST /work", null, null, null),
+          new InteractionInput("call", Direction.OUTBOUND, "Remote", "create", null,
+              org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFailureMode.INLINE_RESPONSE, null)),
+          List.of(new TransitionInput("entry", "call"))),
+          facts, List.of(), List.of(), new DraftSettings(false, null));
+      boolean after = placement.equals("after") || placement.equals("anchor-link");
+      assertEquals(!after, RequirementCaptureProjection.pending(input, List.of()).stream()
+          .anyMatch(work -> work.code().equals("FAILURE_RESPONSE_REQUIRED")), placement);
+      assertEquals(!after, RequirementFlowValidator.validateBindings(RequirementCaptureProjection.flow(input),
+          RequirementCaptureProjection.facts(input), List.of())
+          .filter(message -> message.contains("no successor response interaction")).isPresent(), placement);
+    }
+  }
 
   @Test
   void rbacNeedsAnExplicitRoleBeforePlanning() {
@@ -49,7 +82,7 @@ class RequirementCaptureProjectionTest {
       boolean supplied = roles.equals("[\"qip-viewer\"]");
 
       assertEquals(supplied, draft.readyForPlan(), roles);
-      assertEquals(supplied, draft.openQuestions().isEmpty(), roles);
+      assertTrue(draft.openQuestions().isEmpty(), "Pending roles do not establish an author question: " + roles);
       assertEquals(input, draft.authoredDraft());
       if (!supplied) {
         var question = RequirementCaptureProjection.pending(input, List.of()).stream()
@@ -74,7 +107,7 @@ class RequirementCaptureProjectionTest {
               "/check", null, null, null)), List.of(), new DraftSettings(false, null));
       var draft = RequirementCaptureProjection.toDraft(input, null, List.of(), "1", "hash");
       assertEquals(decision == RequirementPolicyConflict.Decision.KEEP_REQUESTED, draft.readyForPlan());
-      assertEquals(decision == RequirementPolicyConflict.Decision.KEEP_REQUESTED, draft.openQuestions().isEmpty());
+      assertTrue(draft.openQuestions().isEmpty());
       assertEquals(policy, draft.authoredDraft().facts().getFirst().policyConflict());
     }
   }
@@ -200,6 +233,7 @@ class RequirementCaptureProjectionTest {
 
       assertEquals(example.getValue(), draft.readyForPlan(), example.getKey());
       assertEquals(example.getValue(), pending.isEmpty(), example.getKey());
+      assertTrue(draft.openQuestions().isEmpty(), "Review the source before asking for an endpoint.");
       assertTrue(draft.facts().stream().anyMatch(f -> f.sourceFactId().equals("helper-behavior")
           && f.text().equals(input.facts().getFirst().text())));
       if (!example.getValue()) {
@@ -327,6 +361,29 @@ class RequirementCaptureProjectionTest {
         "step-retry-retry".equals(fact.sourceFactId())
             && fact.polarity() == RequirementFactPolarity.POSITIVE
             && fact.text().contains("1 times")));
+  }
+
+  @Test
+  void projectionKeepsModelAuthoredChainCallQuestionText() {
+    String chainQuestion = "Which chain-trigger element id should this chain call use?";
+    String later = "Which retry count should the chain call use?";
+    DraftInput input = new DraftInput(new FlowInput(List.of(
+        new InteractionInput("entry", Direction.INBOUND, "Caller", "GET /context", null, null, null),
+        new InteractionInput("child", Direction.OUTBOUND, "Existing chain", "Run", null, null, null)),
+        List.of(new TransitionInput("entry", "child"))),
+        List.of(new FactInput("goal", List.of("child"), FactKind.GOAL, Polarity.POSITIVE, "Call the existing chain.")),
+        List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.GET, "/context", null, null, null),
+            new CapabilityInput("child", "chain-call-2", null, null, null, null, null, "trigger-element")),
+        List.of(new QuestionInput("chain-target", List.of("child"), chainQuestion),
+            new QuestionInput("retry", List.of("child"), later)),
+        new DraftSettings(false, null));
+
+    RequirementDraft unresolved = RequirementCaptureProjection.toDraft(input, null, List.of(), "1", "hash");
+    RequirementDraft resolved = RequirementCaptureProjection.toDraft(input, null, List.of(), "1", "hash",
+        Map.of("child", "resolved-trigger"));
+
+    assertEquals(List.of(chainQuestion, later), unresolved.openQuestions());
+    assertEquals(List.of(chainQuestion, later), resolved.openQuestions());
   }
 
   @Test

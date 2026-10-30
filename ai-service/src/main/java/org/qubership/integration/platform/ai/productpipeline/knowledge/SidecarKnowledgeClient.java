@@ -104,6 +104,72 @@ public class SidecarKnowledgeClient implements KnowledgeClient {
     }
   }
 
+  public KnowledgeSidecarApi.DocumentationManifestDto documentationManifest() {
+    try {
+      var manifest = api.documentationManifest();
+      if (manifest == null || manifest.schemaVersion() != 1 || manifest.checksum() == null
+          || !manifest.checksum().matches("sha256:[a-f0-9]{64}")
+          || manifest.documentCount() < 1 || manifest.sectionCount() < 1) {
+        throw new KnowledgeClientException(KnowledgeFailureKind.DOCUMENTATION_INTEGRITY_FAILURE,
+            "Invalid documentation manifest");
+      }
+      return manifest;
+    } catch (RuntimeException error) {
+      throw mapFailure(error);
+    }
+  }
+
+  public KnowledgeSidecarApi.DocumentationSearchDto searchDocumentation(
+      String checksum, String query, List<String> elementTypes, int limit) {
+    requireText(checksum, "checksum");
+    requireText(query, "query");
+    try {
+      var result = api.searchDocumentation(new KnowledgeSidecarApi.DocumentationSearchRequestDto(
+          checksum, query, elementTypes == null ? List.of() : elementTypes, limit));
+      if (result == null || result.results() == null) {
+        throw new KnowledgeClientException(KnowledgeFailureKind.DOCUMENTATION_INTEGRITY_FAILURE,
+            "Missing documentation search result");
+      }
+      verifyDocumentationChecksum(checksum, result.checksum());
+      return result;
+    } catch (RuntimeException error) {
+      throw mapFailure(error);
+    }
+  }
+
+  public KnowledgeSidecarApi.DocumentationReadDto readDocumentation(
+      String checksum, String id, String cursor, int maxBytes) {
+    requireText(checksum, "checksum");
+    requireText(id, "id");
+    try {
+      var result = api.readDocumentation(new KnowledgeSidecarApi.DocumentationReadRequestDto(
+          checksum, id, cursor, maxBytes));
+      if (result == null) {
+        throw new KnowledgeClientException(KnowledgeFailureKind.DOCUMENTATION_INTEGRITY_FAILURE,
+            "Missing documentation read result");
+      }
+      verifyDocumentationChecksum(checksum, result.checksum());
+      if (!id.equals(result.id()) || result.text() == null || result.startByte() < 0
+          || result.endByte() <= result.startByte()
+          || result.text().getBytes(java.nio.charset.StandardCharsets.UTF_8).length != result.endByte() - result.startByte()
+          || result.complete() != (result.nextCursor() == null)
+          || (!result.complete() && (result.nextCursor().isBlank() || result.nextCursor().equals(cursor)))) {
+        throw new KnowledgeClientException(KnowledgeFailureKind.DOCUMENTATION_INTEGRITY_FAILURE,
+            "Invalid documentation range or continuation");
+      }
+      return result;
+    } catch (RuntimeException error) {
+      throw mapFailure(error);
+    }
+  }
+
+  private static void verifyDocumentationChecksum(String expected, String actual) {
+    if (!expected.equals(actual)) {
+      throw new KnowledgeClientException(KnowledgeFailureKind.DOCUMENTATION_VERSION_MISMATCH,
+          "Documentation response does not match the pinned corpus");
+    }
+  }
+
   static KnowledgeResponseIdentity verifyIdentity(
       KnowledgeQueryContext context, KnowledgeSidecarApi.PackageRefDto packageRef) {
     if (packageRef == null) {

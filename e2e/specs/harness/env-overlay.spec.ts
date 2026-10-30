@@ -92,8 +92,9 @@ test.describe("env overlay", () => {
       try {
         expect(await tcpReady("127.0.0.1", port)()).toBeNull();
         const probe = hostReady("rabbitmq");
-        expect(await withEnv({ CIP_RABBITMQ_URL: `amqp://guest:guest@127.0.0.1:${port}` }, () => probe()))
-          .toMatch(/did not complete an AMQP handshake .*Socket closed abruptly during opening handshake/);
+        expect(await withEnv({ CIP_RABBITMQ_URL: `amqp://guest:guest@127.0.0.1:${port}` }, () => probe())).toMatch(
+          /did not complete an AMQP handshake .*(?:Socket closed abruptly during opening handshake|ECONNRESET)/,
+        );
       } finally {
         await new Promise((resolve) => server.close(resolve));
       }

@@ -14,7 +14,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.ConfiguredTri
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ConfiguredTriggerSet;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.NamingManifest;
 
-/** Applies validated author values after model-generated configuration and naming. */
+/** Applies validated author configuration without changing compiler-owned bodies after validation. */
 public final class RequestedElementValues {
   public static final class ResolvedTargetConflict extends IllegalArgumentException {
     private final String sourceFactId;
@@ -28,6 +28,29 @@ public final class RequestedElementValues {
     public PlanValidationFinding finding() {
       return new PlanValidationFinding(
           "BRIEF_CONTRACT", getMessage(), true, null, sourceFactId, "/elementIntent");
+    }
+  }
+
+  /** Identifies the admitted source field that must acquire native body authority. */
+  public static final class UnprovenBodyBinding extends IllegalArgumentException {
+    private final String sourceFactId;
+
+    private UnprovenBodyBinding(String sourceFactId, IllegalArgumentException cause) {
+      super(cause.getMessage(), cause);
+      this.sourceFactId = sourceFactId;
+    }
+
+    public PlanValidationFinding finding() {
+      return new PlanValidationFinding("BODY_BINDING_REQUIRED", getMessage(), true, null,
+          sourceFactId, "/elementIntent/bodyBinding");
+    }
+  }
+
+  private static void requireBodyBinding(RequirementFact fact) {
+    try {
+      org.qubership.integration.platform.ai.plan.RequirementBodySources.requireBinding(fact.elementIntent());
+    } catch (IllegalArgumentException unproven) {
+      throw new UnprovenBodyBinding(fact.sourceFactId(), unproven);
     }
   }
 
@@ -77,6 +100,22 @@ public final class RequestedElementValues {
         generated.sourceRequirementFactIds(), generated.knowledgeCitations());
   }
 
+  public static ChainPlanGraph seedBodies(ChainPlanGraph graph, List<RequirementFact> facts) {
+    for (var fact : facts) {
+      var intent = fact.elementIntent();
+      if (intent == null || fact.polarity() != RequirementFactPolarity.POSITIVE) continue;
+      for (var property : intent.requestedProperties()) {
+        if (!org.qubership.integration.platform.ai.plan.RequirementBodySources.ownsBody(intent, property.key())) continue;
+        requireBodyBinding(fact);
+        if (intent.bodyBinding().authority()
+            == org.qubership.integration.platform.ai.plan.RequirementBodyBinding.Authority.VERBATIM_SOURCE_BODY) {
+          graph = graph.withNodeProperty(intent.elementRef(), property.key(), property.value());
+        }
+      }
+    }
+    return graph;
+  }
+
   public static ChainPlanGraph apply(ChainPlanGraph graph, List<RequirementFact> facts) {
     Map<String, String> names = names(facts);
     List<ChainPlanNode> nodes = graph.nodes().stream().map(node -> names.containsKey(node.nodeId())
@@ -101,6 +140,18 @@ public final class RequestedElementValues {
       }
       for (var property : intent.requestedProperties()) {
         String value = property.value();
+        if (org.qubership.integration.platform.ai.plan.RequirementBodySources.ownsBody(intent, property.key())) {
+          requireBodyBinding(fact);
+          if (intent.bodyBinding().authority()
+              == org.qubership.integration.platform.ai.plan.RequirementBodyBinding.Authority.VERBATIM_SOURCE_BODY
+              && graph.nodes().stream().filter(candidate -> candidate.nodeId().equals(intent.elementRef()))
+                  .flatMap(candidate -> candidate.properties().stream()).noneMatch(candidate ->
+                      candidate.key().equals(property.key()) && java.util.Objects.equals(candidate.value(), property.value()))) {
+            throw new IllegalArgumentException("Compiler body differs from exact author source for " + intent.elementRef()
+                + ". Restore the verified whole body before validation; final projection cannot rewrite it.");
+          }
+          continue;
+        }
         if ("chain-call-2".equals(node.type()) && "elementId".equals(property.key())) {
           throw new ResolvedTargetConflict(fact.sourceFactId(), node.nodeId());
         }

@@ -2,11 +2,14 @@ package org.qubership.integration.platform.ai.chat.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
@@ -49,6 +52,8 @@ import org.qubership.integration.platform.ai.model.ScenarioType;
 import org.qubership.integration.platform.ai.chain.patch.ProposedChainPatch;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
+import org.qubership.integration.platform.ai.chat.decision.PolicyChoiceSelection;
+import org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition;
 import org.qubership.integration.platform.ai.chat.decision.UploadedSpecsApprovalHandler;
 import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
 import org.qubership.integration.platform.ai.llm.agent.ApprovalPromptAgent;
@@ -86,6 +91,211 @@ import org.qubership.integration.platform.ai.productpipeline.runtime.RestartChec
 import org.qubership.integration.platform.ai.storage.S3Service;
 
 class ChatDecisionServiceTest {
+
+  @Test
+  void requirementClarificationDecisionUsesThePersistedOfferId() {
+    long revision = 6L;
+    var clarify = new CreateChainPendingAction.Clarify(
+        "Which chain-trigger element id should this chain call use?",
+        List.of(),
+        PipelineGates.STAGE_CLARIFICATION,
+        "",
+        null,
+        "run-offer",
+        "requirement-discovery",
+        "offer-chain-target");
+    var facade = mock(CreateChainApplicationFacade.class);
+    when(facade.snapshot("conv-offer")).thenReturn(Optional.of(new CreateChainExecutionSnapshot(
+        "conv-offer", "run-offer", CreateChainExecutionStatus.INPUT_REQUIRED, revision, clarify, "")));
+    var decision = new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
+        .openDecision("conv-offer")
+        .orElseThrow();
+
+    assertEquals("offer-chain-target", decision.id());
+  }
+
+  @Test
+  void blankClarificationOfferKeepsTheRevisionDecisionId() {
+    long revision = 4L;
+    var clarify = new CreateChainPendingAction.Clarify(
+        "Show the Integration Design Specification (IDS) for review?",
+        List.of(),
+        PipelineGates.IDS_PATH_CHOICE);
+    var facade = mock(CreateChainApplicationFacade.class);
+    when(facade.snapshot("conv-ids")).thenReturn(Optional.of(new CreateChainExecutionSnapshot(
+        "conv-ids", "run-ids", CreateChainExecutionStatus.INPUT_REQUIRED, revision, clarify, "")));
+    var decision = new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
+        .openDecision("conv-ids")
+        .orElseThrow();
+
+    assertEquals("clarify:" + revision, decision.id());
+  }
+
+  @Test
+  void specializedGatesDoNotConsumeTheRequirementOffer() {
+    long revision = 8L;
+    for (String gate : List.of(
+        PipelineGates.TARGET_FOLDER_CHOICE,
+        PipelineGates.REQUIREMENT_RECOVERY_CLARIFICATION,
+        PipelineGates.IDS_PATH_CHOICE)) {
+      var clarify = new CreateChainPendingAction.Clarify(
+          "Choose one.",
+          List.of(),
+          gate,
+          "",
+          null,
+          "run-specialized",
+          "requirement-discovery",
+          "offer-generic");
+      var facade = mock(CreateChainApplicationFacade.class);
+      when(facade.snapshot("conv-" + gate)).thenReturn(Optional.of(new CreateChainExecutionSnapshot(
+          "conv-" + gate, "run-specialized", CreateChainExecutionStatus.INPUT_REQUIRED, revision, clarify, "")));
+      var service = new ChatDecisionService(facade, questionStore(), new RequirementDraftStore());
+      var decision = service.openDecision("conv-" + gate).orElseThrow();
+      assertEquals("clarify:" + revision, decision.id(), "openDecision(" + gate + ")");
+      assertNotEquals("offer-generic", decision.id(), "openDecision(" + gate + ")");
+      assertTrue(service.withholdsRequirementOffer("conv-" + gate), "withholdsRequirementOffer(" + gate + ")");
+    }
+  }
+
+  @Test
+  void runtimeBindingDoesNotConsumeTheRequirementOffer() {
+    long revision = 7L;
+    String conversationId = "conv-version";
+    var interaction = new org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction(
+        "task", org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction.OUTBOUND,
+        "Salesforce", "createTask", "Create a task");
+    var match = new org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogMatch(
+        "system", "group", "spec", "operation", "Salesforce", "http", "POST", "/tasks", "createTask",
+        "evidence", "2.0.0");
+    var pending = new org.qubership.integration.platform.ai.chat.decision.CatalogVersionSelection.Pending(
+        new org.qubership.integration.platform.ai.chat.decision.CatalogVersionSelection.Proposal(
+            interaction, match, false), "version-hash");
+    var versions = mock(org.qubership.integration.platform.ai.chat.decision.CatalogVersionSelection.class);
+    when(versions.pending(conversationId)).thenReturn(Optional.of(pending));
+    when(versions.decision(eq(pending), eq(revision), any())).thenReturn(new ChatEvent.Decision(
+        org.qubership.integration.platform.ai.chat.decision.CatalogVersionSelection.ARTIFACT_TYPE + ":version-hash",
+        "approve", "Use version 2.0.0?",
+        org.qubership.integration.platform.ai.chat.decision.CatalogVersionSelection.ARTIFACT_TYPE,
+        "version-hash", revision, null, List.of(), List.of()));
+    var clarify = new CreateChainPendingAction.Clarify(
+        "Which operation version?",
+        List.of(),
+        PipelineGates.STAGE_CLARIFICATION,
+        "",
+        null,
+        "run-version",
+        "requirement-discovery",
+        "offer-generic");
+    var facade = mock(CreateChainApplicationFacade.class);
+    when(facade.snapshot(conversationId)).thenReturn(Optional.of(new CreateChainExecutionSnapshot(
+        conversationId, "run-version", CreateChainExecutionStatus.INPUT_REQUIRED, revision, clarify, "")));
+    var service = new ChatDecisionService(facade, questionStore(), new RequirementDraftStore());
+    service.versionSelections = versions;
+    var decision = service.openDecision(conversationId).orElseThrow();
+    assertEquals("catalog-operation-version:version-hash", decision.id(), "openDecision(runtime binding)");
+    assertNotEquals("offer-generic", decision.id(), "openDecision(runtime binding)");
+    assertTrue(service.withholdsRequirementOffer(conversationId), "withholdsRequirementOffer(runtime binding)");
+  }
+
+  @Test
+  void policyCardUsesTheActiveOfferAndKeepsTheArtifactHashCheck() {
+    String conversationId = "conv-policy";
+    long revision = 4L;
+    var draftRef = new CompilationArtifacts.Reference(
+        CompilationArtifacts.Kind.REQUIREMENT_DRAFT, "draft-1", "hash-1");
+    var offer = new ClarificationTransition.Offer(
+        "offer-policy", draftRef, "policy-choice", revision, "source-gen");
+    var clarify = new CreateChainPendingAction.Clarify(
+        "Keep NONE or use recommended RBAC?",
+        List.of(),
+        PipelineGates.STAGE_CLARIFICATION,
+        "",
+        null,
+        "run-policy",
+        "requirement-discovery",
+        offer.offerId());
+    var facade = mock(CreateChainApplicationFacade.class);
+    when(facade.snapshot(conversationId)).thenReturn(Optional.of(new CreateChainExecutionSnapshot(
+        conversationId, "run-policy", CreateChainExecutionStatus.INPUT_REQUIRED, revision, clarify, "")));
+    when(facade.activeClarificationOffer(conversationId)).thenReturn(Optional.of(offer));
+    var choices = mock(PolicyChoiceSelection.class);
+    var pending = new PolicyChoiceSelection.Pending(
+        draftRef, draftRef, "source-gen", "turn-1", null, null, revision, "policy-hash");
+    when(choices.pending(conversationId, revision, draftRef, "policy-choice")).thenReturn(Optional.of(pending));
+    when(choices.decision(pending, revision)).thenReturn(new ChatEvent.Decision(
+        PolicyChoiceSelection.ARTIFACT_TYPE + ":policy-hash",
+        "clarify",
+        "Keep NONE or use recommended RBAC?",
+        PolicyChoiceSelection.ARTIFACT_TYPE,
+        "policy-hash",
+        revision,
+        null,
+        List.of(),
+        List.of(ChatEvent.KEEP_REQUESTED_ACTION, ChatEvent.USE_RECOMMENDED_ACTION)));
+    var service = new ChatDecisionService(facade, questionStore(), new RequirementDraftStore());
+    service.policyChoices = choices;
+
+    var opened = service.openDecision(conversationId).orElseThrow();
+
+    verify(choices).pending(conversationId, revision, draftRef, "policy-choice");
+    assertEquals(PolicyChoiceSelection.ARTIFACT_TYPE + ":policy-hash", opened.id(), "openDecision(policy)");
+    assertNotEquals(offer.offerId(), opened.id(), "openDecision(policy)");
+    assertTrue(service.withholdsRequirementOffer(conversationId), "withholdsRequirementOffer(policy)");
+    assertEquals("policy-hash", opened.artifactHash());
+
+    var mismatch = command(
+        ChatEvent.USE_RECOMMENDED_ACTION, PolicyChoiceSelection.ARTIFACT_TYPE, "other-hash", "");
+    mismatch.setRevision(revision);
+    service.apply(conversationId, mismatch).collect().asList().await().indefinitely();
+    verify(choices, never()).confirm(any(), any(), anyLong());
+
+    var match = command(
+        ChatEvent.USE_RECOMMENDED_ACTION, PolicyChoiceSelection.ARTIFACT_TYPE, "policy-hash", "");
+    match.setRevision(revision);
+    when(choices.confirm(eq(conversationId), eq(match), eq(revision))).thenReturn(Optional.empty());
+    service.apply(conversationId, match).collect().asList().await().indefinitely();
+    verify(choices).confirm(eq(conversationId), eq(match), eq(revision));
+  }
+
+  @Test
+  void standaloneImportApprovalRemainsAvailableWithoutPrivateSkillsOrCreateState() {
+    var facade = mock(CreateChainApplicationFacade.class);
+    var service = new ChatDecisionService(facade, questionStore(), new RequirementDraftStore());
+    service.rockySkills = mock(org.qubership.integration.platform.ai.skills.RockySkills.class);
+    service.specificationImports = mock(
+        org.qubership.integration.platform.ai.productpipeline.importspec.SpecificationImportPipeline.class);
+    service.importScenario = mock(org.qubership.integration.platform.ai.llm.scenario.ImportSpecificationScenario.class);
+    when(service.specificationImports.standaloneRequest("chat")).thenReturn(Optional.of(
+        new org.qubership.integration.platform.ai.productpipeline.importspec.SpecificationImportPipeline.StandaloneRequest(
+            "attachment", "Import", false)));
+    var command = new ChatDecisionCommand();
+    command.setAction(ChatEvent.APPROVE_ACTION);
+    command.setArtifactType(UploadedSpecsApprovalHandler.ARTIFACT_TYPE);
+    when(service.importScenario.approve("chat", command)).thenReturn(Multi.createFrom().item(ChatEvent.token("Imported")));
+
+    assertEquals(List.of(ChatEvent.token("Imported")),
+        service.apply("chat", command).collect().asList().await().indefinitely());
+    verify(service.importScenario).approve("chat", command);
+    org.mockito.Mockito.verifyNoInteractions(facade);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"approve", "approve-and-create", "create-chain", "request-changes", "restart-from-beginning"})
+  void savedPrivateCommandsAreRefusedBeforeReadingCreateState(String action) {
+    var facade = mock(CreateChainApplicationFacade.class);
+    var service = new ChatDecisionService(facade, questionStore(), new RequirementDraftStore());
+    service.rockySkills = mock(org.qubership.integration.platform.ai.skills.RockySkills.class);
+    var command = new ChatDecisionCommand();
+    command.setAction(action);
+    command.setArtifactType("old-private-artifact");
+
+    assertEquals(List.of(ChatEvent.token(org.qubership.integration.platform.ai.skills.RockySkills.UNAVAILABLE)),
+        service.apply("chat", command).collect().asList().await().indefinitely());
+    assertTrue(service.openDecision("chat").isEmpty());
+    org.mockito.Mockito.verifyNoInteractions(facade);
+  }
+
   @ParameterizedTest
   @CsvSource({"stage-clarification,false", "stage-clarification,true",
       "recovery-retry-technical,false", "recovery-retry-technical,true"})
@@ -972,6 +1182,44 @@ class ChatDecisionServiceTest {
     assertEquals("Approve the plan?", decision.question());
     assertEquals("sha256:abc", decision.artifactHash());
     assertEquals(5L, decision.revision());
+  }
+
+  @Test
+  void typedContinuationKeepsTheFreshApprovalQuestionOnOneDurableCard() {
+    var facade = mock(CreateChainApplicationFacade.class);
+    var blank = new CreateChainPendingAction.Approve("requirement-brief", "sha256:brief", 5L, "");
+    when(facade.snapshot("conv-1")).thenReturn(Optional.of(new CreateChainExecutionSnapshot(
+        "conv-1", "run-1", CreateChainExecutionStatus.INPUT_REQUIRED, 5L, blank, "")));
+    when(facade.restartCheckpoints("conv-1")).thenReturn(List.of(RestartCheckpoint.BEGINNING));
+    when(facade.continueWithInput(any())).thenReturn(Multi.createFrom().items(
+        new CreateChainEvent.Waiting(new CreateChainPendingAction.Approve(
+            "requirement-brief", "sha256:brief", 5L, "Approve the selected RBAC endpoint requirements?")),
+        new CreateChainEvent.Waiting(blank)));
+    var blobs = new InMemoryArtifactBlobStore();
+    var questions = new ApprovalQuestionStore(blobs);
+    var service = new ChatDecisionService(facade, questions, new RequirementDraftStore());
+    service.promptAgent = mock(ApprovalPromptAgent.class);
+
+    var events = service.apply("conv-1",
+        command(ChatEvent.REQUEST_CHANGES_ACTION, "requirement-brief", "sha256:previous", "Use the selected policy."))
+        .collect().asList().await().indefinitely();
+
+    assertEquals(1, events.size());
+    var emitted = assertInstanceOf(ChatEvent.Decision.class, events.getFirst());
+    assertEquals("approve:sha256:brief", emitted.id());
+    assertEquals("approve", emitted.kind());
+    assertEquals("requirement-brief", emitted.artifactType());
+    assertEquals("sha256:brief", emitted.artifactHash());
+    assertEquals(5L, emitted.revision());
+    assertEquals("Approve the selected RBAC endpoint requirements?", emitted.question());
+    assertEquals(List.of(ChatEvent.APPROVE_ACTION, ChatEvent.REQUEST_CHANGES_ACTION,
+        ChatEvent.RESTART_FROM_BEGINNING_ACTION), emitted.actions());
+    assertEquals(Optional.of(emitted.question()), questions.find("conv-1", "sha256:brief"));
+    assertTrue(questions.find("conv-1", "sha256:previous").isEmpty());
+    assertTrue(questions.find("other-conversation", "sha256:brief").isEmpty());
+    var restored = new ChatDecisionService(facade, new ApprovalQuestionStore(blobs), new RequirementDraftStore());
+    assertEquals(emitted, restored.openDecision("conv-1").orElseThrow());
+    org.mockito.Mockito.verifyNoInteractions(service.promptAgent);
   }
 
   @Test

@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.chat.service;
 
+import org.qubership.integration.platform.ai.skills.RockySkills;
 import org.qubership.integration.platform.ai.llm.scenario.ImportSpecificationScenario;
 import org.qubership.integration.platform.ai.productpipeline.importspec.SpecificationImportPipeline;
 import io.smallrye.mutiny.Multi;
@@ -19,6 +20,7 @@ import org.qubership.integration.platform.ai.chat.conversation.ConversationMessa
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.chat.decision.UploadedSpecsApprovalHandler;
 import org.qubership.integration.platform.ai.chat.decision.CatalogVersionSelection;
+import org.qubership.integration.platform.ai.chat.decision.PolicyChoiceSelection;
 import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
 import org.qubership.integration.platform.ai.llm.agent.ApprovalPromptAgent;
 import org.qubership.integration.platform.ai.llm.scenario.ChainListScenario;
@@ -30,6 +32,7 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPip
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ApproveCreateChainArtifactCommand;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ApproveCreateChainOutcome;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainEvent;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPublicArtifactTypes;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ContinueCreateChainCommand;
@@ -52,6 +55,9 @@ import org.qubership.integration.platform.ai.productpipeline.runtime.RestartChec
 @ApplicationScoped
 public class ChatDecisionService {
 
+  @jakarta.inject.Inject
+  RockySkills rockySkills = new RockySkills();
+
   private static final Logger LOG = Logger.getLogger(ChatDecisionService.class);
 
   private final CreateChainApplicationFacade facade;
@@ -69,6 +75,7 @@ public class ChatDecisionService {
   @ForScenario(ScenarioType.IMPORT_SPECIFICATION)
   ImportSpecificationScenario importScenario;
   @Inject CatalogVersionSelection versionSelections;
+  @Inject PolicyChoiceSelection policyChoices;
 
   @Inject ProductPipelineArtifactStore artifactStore;
 
@@ -113,6 +120,10 @@ public class ChatDecisionService {
         return chainList;
       }
     }
+    if (!rockySkills.available()) {
+      return specificationImports != null && specificationImports.standaloneRequest(conversationId).isPresent()
+          ? importScenario.openDecision(conversationId) : Optional.empty();
+    }
     var snapshot = facade.snapshot(conversationId);
     if (specificationImports != null && (snapshot.isEmpty() || snapshot.get().finished())
         && specificationImports.standaloneRequest(conversationId).isPresent()) {
@@ -125,9 +136,25 @@ public class ChatDecisionService {
     if (uploaded.isPresent()) {
       return uploaded;
     }
+    var policyChoice = snapshot.filter(current -> current.pendingAction() instanceof PendingAction.Clarify clarify
+        && (clarify.gateId().isBlank() || PipelineGates.STAGE_CLARIFICATION.equals(clarify.gateId())))
+        .flatMap(current -> {
+          if (policyChoices == null) {
+            return Optional.<ChatEvent.Decision>empty();
+          }
+          var offer = facade.activeClarificationOffer(conversationId).orElse(null);
+          return policyChoices.pending(
+                  conversationId,
+                  current.revision(),
+                  offer == null ? null : offer.draftReference(),
+                  offer == null ? null : offer.questionId())
+              .map(pending -> policyChoices.decision(pending, current.revision()));
+        });
+    if (policyChoice.isPresent()) return policyChoice;
     var versionChoice = snapshot
         .filter(current -> current.pendingAction() instanceof PendingAction.Clarify clarify
-            && clarify.gateId().isBlank())
+            && (clarify.gateId().isBlank()
+                || PipelineGates.STAGE_CLARIFICATION.equals(clarify.gateId())))
         .flatMap(current -> catalogVersionDecision(conversationId, current.revision()));
     if (versionChoice.isPresent()) {
       return versionChoice;
@@ -142,7 +169,7 @@ public class ChatDecisionService {
                             pending ->
                                 (ChatEvent.Decision)
                                     ChatEvent.decision(
-                                        pending,
+                                        withoutGenericOffer(pending),
                                         current.revision(),
                                         storedQuestion(conversationId, pending),
                                         actionsFor(conversationId, pending))));
@@ -170,7 +197,7 @@ public class ChatDecisionService {
   /** Converts an unambiguous typed restart request into the same command used by the UI menu. */
   public Optional<ChatDecisionCommand> restartCommandForMessage(
       String conversationId, String message) {
-    if (message == null || message.isBlank()) {
+    if (!rockySkills.available() || message == null || message.isBlank()) {
       return Optional.empty();
     }
     String normalized =
@@ -243,6 +270,50 @@ public class ChatDecisionService {
                     ChatEvent.importDecision(
                         draft.apiHubCandidate().packageId(),
                         importQuestion(conversationId, draft)));
+  }
+
+  /**
+   * True when this answer belongs to a specialized card and must not be archived as the generic
+   * requirement offer, even if the client still sends that offer id.
+   */
+  public boolean withholdsRequirementOffer(String conversationId) {
+    var current = facade.snapshot(conversationId).orElse(null);
+    if (current == null || !(current.pendingAction() instanceof PendingAction.Clarify clarify)) {
+      return false;
+    }
+    if (PipelineGates.withholdsGenericRequirementOffer(clarify.gateId())) {
+      return true;
+    }
+    boolean generic = clarify.gateId().isBlank() || PipelineGates.STAGE_CLARIFICATION.equals(clarify.gateId());
+    if (!generic) {
+      return false;
+    }
+    if (versionSelections != null && versionSelections.pending(conversationId).isPresent()) {
+      return true;
+    }
+    if (policyChoices == null) {
+      return false;
+    }
+    var offer = facade.activeClarificationOffer(conversationId).orElse(null);
+    return policyChoices.pending(
+        conversationId,
+        current.revision(),
+        offer == null ? null : offer.draftReference(),
+        offer == null ? null : offer.questionId()).isPresent();
+  }
+
+  /**
+   * A typed gate keeps its own decision id. The persisted requirement offer stays on generic
+   * requirement clarification.
+   */
+  private static PendingAction withoutGenericOffer(PendingAction pending) {
+    if (!(pending instanceof CreateChainPendingAction.Clarify clarify) || clarify.gateId().isBlank()
+        || PipelineGates.STAGE_CLARIFICATION.equals(clarify.gateId())
+        || clarify.clarificationOfferId().isBlank()) {
+      return pending;
+    }
+    return new CreateChainPendingAction.Clarify(clarify.reason(), clarify.missingEvidence(), clarify.gateId(),
+        clarify.technicalDetails(), clarify.retryDelayMs(), clarify.runId(), clarify.failedStageId(), "");
   }
 
   private Optional<ChatEvent.Decision> catalogVersionDecision(String conversationId, long revision) {
@@ -402,6 +473,8 @@ public class ChatDecisionService {
               "Approved " + command.getArtifactType() + " " + command.getArtifactHash();
           case ChatEvent.REQUEST_CHANGES_ACTION ->
               "Requested changes to " + command.getArtifactType();
+          case ChatEvent.KEEP_REQUESTED_ACTION -> "Keep the requested policy value";
+          case ChatEvent.USE_RECOMMENDED_ACTION -> "Use the recommended policy value";
           case ChatEvent.CREATE_ACTION -> "Create the chain in the catalog";
           case ChatEvent.APPLY_CHAIN_PATCH_ACTION -> "Apply the proposed change to the chain";
           case ChatEvent.REDEPLOY_ACTION -> "Redeploy the chain on domain " + domainName;
@@ -463,6 +536,14 @@ public class ChatDecisionService {
         && standaloneImportPending(conversationId)) {
       return importScenario.approve(conversationId, command);
     }
+    if (!rockySkills.available()) {
+      return Multi.createFrom().item(ChatEvent.token(
+          RockySkills.UNAVAILABLE));
+    }
+    if (PolicyChoiceSelection.ARTIFACT_TYPE.equals(command.getArtifactType())
+        || ChatEvent.KEEP_REQUESTED_ACTION.equals(action) || ChatEvent.USE_RECOMMENDED_ACTION.equals(action)) {
+      return selectPolicyChoice(conversationId, command);
+    }
     if (CatalogVersionSelection.ARTIFACT_TYPE.equals(command.getArtifactType())) {
       return selectCatalogVersion(conversationId, command);
     }
@@ -508,6 +589,76 @@ public class ChatDecisionService {
         .transformToMultiAndConcatenate(event -> toChatEvent(conversationId, event))
         .onCompletion()
         .switchTo(() -> createAfterApproval(conversationId));
+  }
+
+  private Multi<ChatEvent> selectPolicyChoice(String conversationId, ChatDecisionCommand command) {
+    var open = openDecision(conversationId);
+    if (!matchesPolicyCard(open, command)) return openGateEvents(conversationId);
+    var confirmed = policyChoices.confirm(conversationId, command, open.orElseThrow().revision());
+    if (confirmed.isEmpty()) return openGateEvents(conversationId);
+    return projectWithOpenGate(conversationId, facade.continueWithInput(
+        policyContinuation(conversationId, confirmed.get(), UUID.randomUUID().toString())));
+  }
+
+  /** Prepares an exact A2A policy answer, or resumes the same already-confirmed command. */
+  public Optional<ContinueCreateChainCommand> policyChoiceContinuation(
+      String conversationId, ChatDecisionCommand command, String commandId) {
+    if (policyChoices == null || conversationService == null || !rockySkills.available()) return Optional.empty();
+    var confirmed = policyChoices.trusted(conversationId).stream().filter(value -> {
+      var selection = value.selection();
+      String action = selection.decision() == org.qubership.integration.platform.ai.plan.RequirementPolicyConflict.Decision.KEEP_REQUESTED
+          ? ChatEvent.KEEP_REQUESTED_ACTION : ChatEvent.USE_RECOMMENDED_ACTION;
+      return commandId.equals(selection.sourceTurnId()) && action.equals(command.getAction())
+          && PolicyChoiceSelection.ARTIFACT_TYPE.equals(command.getArtifactType())
+          && selection.offered().hash().equals(command.getArtifactHash())
+          && selection.cardRevision() == command.getRevision();
+    }).findFirst();
+    if (confirmed.isEmpty()) {
+      var open = openDecision(conversationId);
+      if (!matchesPolicyCard(open, command)) return Optional.empty();
+      String marker = transcriptMarker(command);
+      var decision = com.fasterxml.jackson.databind.node.JsonNodeFactory.instance.objectNode();
+      decision.put("action", command.getAction());
+      decision.put("artifactType", command.getArtifactType());
+      decision.put("artifactHash", command.getArtifactHash());
+      decision.put("revision", command.getRevision());
+      var archive = conversationService.archive();
+      var source = archive.beginInput(conversationId, commandId, marker, decision);
+      archive.resolveInput(conversationId, source, marker, decision);
+      confirmed = policyChoices.confirm(conversationId, command, open.orElseThrow().revision());
+    }
+    return confirmed.map(value -> policyContinuation(conversationId, value, commandId));
+  }
+
+  private boolean matchesPolicyCard(Optional<ChatEvent.Decision> open, ChatDecisionCommand command) {
+    return policyChoices != null && open.isPresent()
+        && PolicyChoiceSelection.ARTIFACT_TYPE.equals(open.get().artifactType())
+        && Objects.equals(open.get().artifactType(), command.getArtifactType())
+        && Objects.equals(open.get().artifactHash(), command.getArtifactHash())
+        && open.get().revision() == command.getRevision() && open.get().actions().contains(command.getAction());
+  }
+
+  private ContinueCreateChainCommand policyContinuation(String conversationId,
+      PolicyChoiceSelection.TrustedSelection confirmed, String commandId) {
+    var selection = confirmed.selection();
+    var offered = selection.offered();
+    String input = "The author selected " + selection.decision() + " (" + selection.selectedValue()
+        + ") on the validated policy card for sourceFactId=" + offered.fact().sourceFactId()
+        + ", questionId=" + offered.question().questionId() + ". Record exactly this decision, preserve the policy"
+        + " values and owner, and close its question. The trusted selection is " + confirmed.reference().artifactId() + ".";
+    if (conversationService != null) {
+      var source = conversationService.archive().read(conversationId).activeTurns().stream()
+          .filter(turn -> turn.id().equals(selection.sourceTurnId())).findFirst().orElseThrow();
+      input += " In the same update, reconcile any existing requestedProperties value for propertyKey="
+          + offered.fact().policyConflict().propertyKey() + " on owner=" + offered.fact().interactionIds()
+          + " with the selected value. Use the normal author amendment for each changed existing value;"
+          + " do not capture the decision alone and consume its source before reconciling these values."
+          + " Retain every unrelated fact, value, owner, and policy field. For amendments use sourceTurnId="
+          + selection.sourceTurnId() + " and this exact quote: " + source.message().content();
+      input += " When replacing an existing decision, also amend /facts/"
+          + offered.fact().sourceFactId() + "/policyConflict/decision.";
+    }
+    return new ContinueCreateChainCommand(conversationId, input, commandId, InputOrigin.TRUSTED);
   }
 
   private Multi<ChatEvent> selectCatalogVersion(String conversationId, ChatDecisionCommand command) {
@@ -711,6 +862,9 @@ public class ChatDecisionService {
             event -> {
               if (event instanceof CreateChainEvent.Waiting waiting) {
                 fallback.set(waiting);
+                if (waiting.pendingAction() instanceof PendingAction.Approve approve) {
+                  approvalQuestions.save(conversationId, approve.artifactHash(), approve.prompt());
+                }
               }
             })
         .onItem()
@@ -849,7 +1003,7 @@ public class ChatDecisionService {
 
   private boolean standaloneImportPending(String conversationId) {
     return specificationImports != null
-        && facade.snapshot(conversationId).map(ExecutionSnapshot::finished).orElse(true)
+        && (!rockySkills.available() || facade.snapshot(conversationId).map(ExecutionSnapshot::finished).orElse(true))
         && specificationImports.standaloneRequest(conversationId).filter(request -> !request.completed()).isPresent();
   }
 

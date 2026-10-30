@@ -57,10 +57,10 @@ public final class CompilerPipelineSourceLoader {
       throw new IllegalArgumentException("packRoot is required");
     }
     Path normalizedPack = packRoot.toAbsolutePath().normalize();
-    Path dependencyModel = requireFile(normalizedPack, RUNTIME_DEPENDENCY_MODEL_PATH);
-    Path skillCatalog = requireFile(normalizedPack, SKILL_CATALOG_PATH);
-    Path generatorPackages = requireFile(normalizedPack, GENERATOR_PACKAGES_PATH);
-    Path artifactSchemas = requireFile(normalizedPack, ARTIFACT_SCHEMAS_PATH);
+    Path dependencyModel = requireFile(normalizedPack, sourcePath(normalizedPack, "runtime/runtime-dependency-model.yaml", RUNTIME_DEPENDENCY_MODEL_PATH));
+    Path skillCatalog = requireFile(normalizedPack, sourcePath(normalizedPack, "runtime/skill-catalog.yaml", SKILL_CATALOG_PATH));
+    Path generatorPackages = requireFile(normalizedPack, sourcePath(normalizedPack, "runtime/generator-packages.yaml", GENERATOR_PACKAGES_PATH));
+    Path artifactSchemas = requireFile(normalizedPack, sourcePath(normalizedPack, "runtime/product-pipelines/artifact-schemas.yaml", ARTIFACT_SCHEMAS_PATH));
 
     String dependencyYaml = read(dependencyModel);
     String catalogYaml = read(skillCatalog);
@@ -70,6 +70,7 @@ public final class CompilerPipelineSourceLoader {
     Map<String, String> skillContents = new LinkedHashMap<>();
     Map<String, String> skillSha = new LinkedHashMap<>();
     loadSkills(normalizedPack.resolve(APM_SKILLS_ROOT), skillContents, skillSha);
+    loadSkills(normalizedPack.resolve("skills"), skillContents, skillSha);
 
     Map<String, String> addonContents = new LinkedHashMap<>();
     Map<String, String> addonSha = new LinkedHashMap<>();
@@ -93,6 +94,10 @@ public final class CompilerPipelineSourceLoader {
         skillSha,
         addonSha,
         digests);
+  }
+
+  private static String sourcePath(Path root, String runtime, String legacy) {
+    return Files.isRegularFile(root.resolve("runtime/generator-contracts.json")) ? runtime : legacy;
   }
 
   private static void loadSkills(
@@ -130,13 +135,14 @@ public final class CompilerPipelineSourceLoader {
     try (Stream<Path> files = Files.list(skillsDir)) {
       files
           .filter(Files::isRegularFile)
-          .filter(path -> path.getFileName().toString().endsWith(".addon.md"))
+          .filter(path -> path.getFileName().toString().endsWith(".addon.md")
+              || path.getFileName().toString().endsWith(".json"))
           .sorted()
           .forEach(
               file -> {
                 String fileName = file.getFileName().toString();
                 String skillId =
-                    fileName.substring(0, fileName.length() - ".addon.md".length());
+                    fileName.substring(0, fileName.length() - (fileName.endsWith(".json") ? 5 : 9));
                 String content = read(file);
                 contents.put(skillId, content);
                 digests.put(skillId, sha256(content));

@@ -14,6 +14,7 @@ import org.qubership.integration.platform.ai.llm.agent.ApprovalPromptAgent;
 import org.qubership.integration.platform.ai.llm.agent.GateReplyAgent;
 import org.qubership.integration.platform.ai.model.ScenarioType;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ApproveCreateChainArtifactCommand;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.ContinueCreateChainCommand;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainEvent;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction;
@@ -121,6 +122,14 @@ public class CreateProductPipelineCoordinator {
         return createChain(conversationId);
       }
       return Multi.createFrom().item(creationDecision(conversationId, doc));
+    }
+    String offerId = request == null ? null : request.getClarificationOfferId();
+    if (offerId != null && !offerId.isBlank()) {
+      return mapEvents(
+          facade.continueWithInput(
+              new ContinueCreateChainCommand(
+                  conversationId, text, null, InputOrigin.TRUSTED, offerId)),
+          conversationId);
     }
     return mapEvents(
         facade.start(

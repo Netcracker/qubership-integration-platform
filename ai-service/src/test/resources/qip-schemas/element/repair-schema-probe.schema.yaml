@@ -1,0 +1,238 @@
+{
+  "$id": "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/repair-schema-probe",
+  "$schema": "http://json-schema.org/draft-07/schema",
+  "type": "object",
+  "properties": {
+    "type": {
+      "const": "repair-schema-probe"
+    },
+    "properties": {
+      "type": "object",
+      "properties": {
+        "settings": {
+          "type": "object",
+          "properties": {
+            "first": {
+              "type": "string"
+            },
+            "second": {
+              "type": "string"
+            },
+            "third": {
+              "type": "string"
+            },
+            "fourth": {
+              "type": "string"
+            },
+            "mode": {
+              "type": "string",
+              "enum": [
+                "permitted-option-0-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-1-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-2-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-3-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-4-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-5-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-6-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-7-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-8-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-9-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-10-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-11-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-12-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-13-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-14-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-15-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-16-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-17-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-18-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-19-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-20-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-21-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-22-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-23-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-24-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-25-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-26-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-27-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-28-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-29-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-30-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-31-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-32-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-33-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-34-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-35-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-36-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-37-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-38-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-39-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-40-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-41-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-42-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-43-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-44-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-45-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-46-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-47-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-48-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-49-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-50-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-51-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-52-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-53-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-54-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-55-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-56-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-57-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-58-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-59-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-60-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-61-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-62-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-63-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-64-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-65-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-66-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-67-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-68-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-69-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-70-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-71-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-72-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-73-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-74-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-75-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-76-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-77-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-78-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-79-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-80-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-81-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-82-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-83-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-84-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-85-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-86-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-87-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-88-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-89-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-90-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-91-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-92-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-93-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-94-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-95-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-96-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-97-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-98-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-99-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-100-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-101-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-102-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-103-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-104-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-105-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-106-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-107-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-108-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-109-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-110-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-111-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-112-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-113-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-114-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-115-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-116-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-117-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-118-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-119-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-120-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-121-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-122-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-123-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-124-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-125-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-126-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-127-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-128-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-129-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-130-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-131-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-132-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-133-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-134-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-135-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-136-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-137-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-138-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-139-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-140-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-141-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-142-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-143-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-144-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-145-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-146-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-147-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-148-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-149-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-150-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-151-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-152-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-153-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-154-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-155-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-156-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-157-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-158-xxxxxxxxxxxxxxxxxx",
+                "permitted-option-159-xxxxxxxxxxxxxxxxxx"
+              ]
+            },
+            "kind": {
+              "enum": [
+                "String",
+                "Map"
+              ]
+            },
+            "mapping": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          },
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "Map"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "mapping"
+            ]
+          },
+          "required": [
+            "first",
+            "second",
+            "third",
+            "fourth",
+            "mode",
+            "kind"
+          ]
+        }
+      },
+      "required": [
+        "settings"
+      ]
+    }
+  },
+  "required": [
+    "type"
+  ]
+}

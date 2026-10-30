@@ -35,15 +35,27 @@ public sealed interface CreateChainPendingAction extends PendingAction {
       String technicalDetails,
       Long retryDelayMs,
       String runId,
-      String failedStageId)
+      String failedStageId,
+      String offerId)
       implements CreateChainPendingAction, PendingAction.Clarify {
 
     public Clarify(String reason, List<String> missingEvidence) {
-      this(reason, missingEvidence, "", "", null, "", "");
+      this(reason, missingEvidence, "", "", null, "", "", "");
     }
 
     public Clarify(String reason, List<String> missingEvidence, String gateId) {
-      this(reason, missingEvidence, gateId, "", null, "", "");
+      this(reason, missingEvidence, gateId, "", null, "", "", "");
+    }
+
+    public Clarify(
+        String reason,
+        List<String> missingEvidence,
+        String gateId,
+        String technicalDetails,
+        Long retryDelayMs,
+        String runId,
+        String failedStageId) {
+      this(reason, missingEvidence, gateId, technicalDetails, retryDelayMs, runId, failedStageId, "");
     }
 
     public Clarify {
@@ -54,11 +66,17 @@ public sealed interface CreateChainPendingAction extends PendingAction {
       technicalDetails = technicalDetails == null ? "" : technicalDetails;
       runId = runId == null ? "" : runId;
       failedStageId = failedStageId == null ? "" : failedStageId;
+      offerId = offerId == null ? "" : offerId;
     }
 
     @Override
     public String action() {
       return "clarify";
+    }
+
+    @Override
+    public String clarificationOfferId() {
+      return offerId;
     }
   }
 }

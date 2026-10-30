@@ -82,6 +82,26 @@ docker compose -f infrastructure/docker/docker-compose.yml --profile ai up -d --
 
 AI Service (profile `ai`): `http://localhost:8094` (direct), health `GET /q/health`. Nginx proxy routes `/api/chat/`, `/api/v1/storage/`, and `/q/health` when profile `ai` is up.
 
+Rocky works without the private skill package for consultation, chain explanations, catalog management,
+specification imports, and deployments. CREATE and EDIT require `rocky-skills`; their server commands
+are refused when the package is missing or invalid. The A2A Agent Card advertises creation only when
+the package is available.
+
+The default AI service build excludes private skills, even if they are present locally. To build the
+private distribution, supply the package under `.private/rocky-skills/` and its independently certified
+knowledge artifact under `.private/rocky-knowledge/`. Set `-Dqip.knowledge.export=/path/to/export`
+to use another knowledge location. Opt in explicitly:
+
+```bash
+mvn -f ai-service/pom.xml -Pwith-rocky-skills -DskipTests package
+```
+
+Restart the service after replacing its package. Private AI images and JARs contain skill instructions;
+distribute them through private channels. Supply the separate certified knowledge artifact to the
+knowledge sidecar. Public builds remove stale private resources from Maven output, including when
+switching modes without `clean`. Public builds also
+disable automatic resumption of saved CREATE workflows; read-only catalog operations stay available.
+
 ### Step 5 — Start the UI dev server
 
 ```bash

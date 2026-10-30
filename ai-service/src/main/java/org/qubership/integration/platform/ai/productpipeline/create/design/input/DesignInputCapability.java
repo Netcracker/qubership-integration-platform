@@ -12,6 +12,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.skills.RockySkills;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
@@ -65,6 +66,9 @@ public class DesignInputCapability implements StageCapability {
       "Design did not capture a chain semantic revision.";
 
   private static final String IDS_FLOW_MARKER = "Integration flow for CIP Chain";
+
+  @jakarta.inject.Inject
+  org.qubership.integration.platform.ai.productpipeline.knowledge.DocumentationTools documentation;
 
   private final ChainSemanticDesignAgent designAgent;
   private final ChainSemanticIdsRenderer idsRenderer;
@@ -235,7 +239,9 @@ public class DesignInputCapability implements StageCapability {
     try {
       agentText =
           runDesignAgent(captureConversationId, authoringPrompt(brief, contract, context)
-              + org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.block(history));
+              + org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.block(history)
+              + (documentation == null ? "" : documentation.context(context.conversationId(),
+                  brief.goal() + " " + brief.summary() + " " + brief.approvedDraftText(), List.of())));
       ProductCapabilityCaptureContext.designBinding(captureConversationId).ifPresent(binding -> {
         rejection.set(binding.captureRejection().get());
         terminalRejection.set(binding.captureTerminal().get());
@@ -288,7 +294,9 @@ public class DesignInputCapability implements StageCapability {
       stream = designRunner.apply(conversationId, safePrompt);
     } else if (designAgent != null) {
       // Capture returns directly so only the stage ledger can authorize another model attempt.
-      return designAgent.chat(conversationId, safePrompt);
+      return designAgent.chat(conversationId, QuteUserMessageEscaping.escapeForAiServiceUserMessage(
+          new RockySkills()
+              .instructions("cip-conf-semantic-design") + "\n\n" + prompt));
     } else {
       stream = Multi.createFrom().empty();
     }
@@ -440,6 +448,15 @@ public class DesignInputCapability implements StageCapability {
     if (repairSection != null && !repairSection.isBlank()) {
       prompt.append(repairSection);
     }
+    prompt.append("""
+
+        Preserve every approved branch decision and outcome when authoring or repairing predicates.
+        Correct syntax or date formats without weakening the condition or replacing it with a
+        convenient comparison. Recheck the predicate against the approved behavior, including the
+        opposite branch. Camel Simple date functions use SimpleDateFormat patterns; mm is minutes.
+        For example, even minutes can use `${date:now:mm} regex '.*[02468]'`, with ELSE for odd minutes.
+        This is a syntax example; derive each actual condition from its approved requirement.
+        """);
     for (RequirementFact fact : brief.facts()) {
       var intent = fact.elementIntent();
       if (fact.polarity() != RequirementFactPolarity.POSITIVE || intent == null

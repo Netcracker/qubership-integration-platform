@@ -28,6 +28,28 @@ public final class PublicCipKnowledgePackFixture {
     Path root = Path.of(args[0]).resolve("integration-platform-skills");
     create(root);
     CipKnowledgePackBuildGenerator.generate(root, Path.of(args[1]), root.resolve("addons"));
+    stageAvailabilityFixture(Path.of(args[1]).getParent());
+  }
+
+  private static void stageAvailabilityFixture(Path output) throws Exception {
+    Path resources = output.resolve("META-INF/rocky-skills");
+    var json = new com.fasterxml.jackson.databind.ObjectMapper();
+    var manifest = json.createObjectNode();
+    manifest.put("schemaVersion", 1).put("package", "rocky-skills")
+        .put("runtimeCompatibilityId", "integration-platform-skills");
+    var ids = manifest.putArray("activePromptIds");
+    var files = manifest.putObject("files");
+    for (String id : List.of("brainstorming", "cip-chain-edit-planner",
+        "cip-conf-requirement-analysis", "cip-conf-semantic-design")) {
+      ids.add(id);
+      String relative = "skills/" + id + "/SKILL.md";
+      Path path = resources.resolve(relative);
+      Files.createDirectories(path.getParent());
+      Files.writeString(path, "# Synthetic test capability\n");
+      files.putObject(relative).put("sha256", HexFormat.of().formatHex(
+          MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(path))));
+    }
+    json.writeValue(resources.resolve("manifest.json").toFile(), manifest);
   }
 
   static void create(Path root) throws Exception {
@@ -76,8 +98,7 @@ public final class PublicCipKnowledgePackFixture {
     put(root, "product-pipelines/capabilities/planning.yaml", "schemaVersion: 1\ncapabilityId: planning\ncapabilityVersion: '1'\nskills:\n  required: [cip-auth-generator]\naddons:\n  required: [cip-auth-generator]\nrules:\n  required: []\n");
     canonicalSources(root);
     var resolver = new org.qubership.integration.platform.ai.productpipeline.packageindex.ProductPipelineDependencyResolver();
-    var pins = resolver.resolveClosure(
-        root,
+    var pins = resolver.resolveClosure(root.getParent(), root,
         resolver.loadCapabilities(root.resolve("product-pipelines")),
         GENERATORS.stream().map(name -> "cip-" + name + "-generator").toList());
     StringBuilder baseline = new StringBuilder("schemaVersion: 1\nbaselineId: experimental-migration\nbaselineVersion: '1'\nroot: integration-platform-skills\nreferenceEvidence: {}\nmapping: {}\nartifacts:\n");

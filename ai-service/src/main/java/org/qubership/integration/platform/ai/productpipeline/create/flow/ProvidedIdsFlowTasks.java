@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ThreadLocalRandom;
+import org.qubership.integration.platform.ai.skills.RockySkills;
 import org.qubership.integration.platform.ai.configuration.AppConfig;
 import org.qubership.integration.platform.ai.productpipeline.profile.RetryPolicy;
 import org.qubership.integration.platform.ai.productpipeline.runtime.PipelineSignal;
@@ -25,6 +26,9 @@ import org.qubership.integration.platform.ai.productpipeline.stage.StageExecutio
 /** Executes one profile stage per Flow task and records live signals for the current command. */
 @ApplicationScoped
 public class ProvidedIdsFlowTasks {
+
+  @Inject
+  RockySkills rockySkills = new RockySkills();
 
   private static final ObjectMapper JSON = new ObjectMapper();
   private static final TypeReference<Map<String, Object>> MAP = new TypeReference<>() {};
@@ -66,6 +70,7 @@ public class ProvidedIdsFlowTasks {
     if (input.waitForActivation()) {
       return input;
     }
+    rockySkills.requireAvailable();
     runSupport.ensureDurablePinsLoaded(input.runId());
     String stageId = runSupport.currentStageId(input.runId());
     int used = runSupport.restoreTechnicalRetryCount(input.runId(), stageId);
