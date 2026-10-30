@@ -83,7 +83,7 @@ Application has 'development' Spring profile to run service locally with minimum
 This service relies on the [Runtime Catalog](../runtime-catalog) service.
 It also requires:
 - Consul. At startup the service retries it as long as `spring.cloud.consul.retry` in `application.yml` allows.
-- OpenSearch
+- OpenSearch. At startup the service retries creating its session index aliases for about 110 s, then fails to start.
 - PostgreSQL
 - Redis (if idempotency support enabled).
 - Kafka (if kafka client enabled for sessions).

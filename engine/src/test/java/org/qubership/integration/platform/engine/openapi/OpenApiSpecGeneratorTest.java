@@ -20,14 +20,11 @@ import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.engine.configuration.datasource.FlywayInitializer;
-import org.qubership.integration.platform.engine.opensearch.ism.converters.StringToTimeValueConverter;
+import org.qubership.integration.platform.engine.configuration.opensearch.OpenSearchInitializer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
-import org.springframework.context.ApplicationContextInitializer;
-import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.io.IOException;
@@ -56,12 +53,8 @@ import static org.springframework.boot.test.context.SpringBootTest.WebEnvironmen
  *         disabled, since they're real, unconnected {@code HikariDataSource} instances.
  *     <li>{@link FlywayInitializer} is a Mockito mock, so it never tries to migrate those
  *         datasources.
- *     <li>{@link ConverterInitializer} replicates a registration that
- *         {@code IntegrationEngineApplication.main} normally performs by calling
- *         {@code SpringApplication.addListeners(...)} directly; {@code @SpringBootTest} never
- *         runs {@code main}, so without it a plain {@code @Value}-injected {@code TimeValue}
- *         field (used by the OpenSearch index rollover configuration) fails to convert from its
- *         string property.
+ *     <li>{@link OpenSearchInitializer} is a Mockito mock, so startup does not wait for an
+ *         OpenSearch that is not there.
  * </ul>
  *
  * <p>Runs as part of the normal test suite, so every {@code mvn test} keeps
@@ -77,7 +70,6 @@ import static org.springframework.boot.test.context.SpringBootTest.WebEnvironmen
         "springdoc.writer-with-order-by-keys=true"
 })
 @ActiveProfiles("development")
-@ContextConfiguration(initializers = OpenApiSpecGeneratorTest.ConverterInitializer.class)
 class OpenApiSpecGeneratorTest {
 
     private static final Path OUTPUT_DIR = Path.of("api-spec");
@@ -87,16 +79,11 @@ class OpenApiSpecGeneratorTest {
     @MockitoBean
     private FlywayInitializer flywayInitializer;
 
+    @MockitoBean
+    private OpenSearchInitializer openSearchInitializer;
+
     @Autowired
     private TestRestTemplate restTemplate;
-
-    static class ConverterInitializer implements ApplicationContextInitializer<ConfigurableApplicationContext> {
-        @Override
-        public void initialize(ConfigurableApplicationContext applicationContext) {
-            applicationContext.getEnvironment().getConversionService()
-                    .addConverter(new StringToTimeValueConverter());
-        }
-    }
 
     private static HttpServer startConsulStub() {
         try {

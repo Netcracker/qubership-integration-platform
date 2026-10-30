@@ -62,6 +62,11 @@ import static org.qubership.integration.platform.engine.opensearch.ism.rest.Requ
 public class OpenSearchInitializer {
     public static final long TEMPLATE_VERSION = 6L;
 
+    // About 110 s in total, matching the Consul config import retry
+    static final int INIT_MAX_ATTEMPTS = 24;
+    private static final long INIT_INITIAL_DELAY_MILLIS = 1000L;
+    private static final long INIT_MAX_DELAY_MILLIS = 5000L;
+
     @Value("${cip.opensearch.index.elements.shards:3}")
     private int indexShardsAmount;
 
@@ -92,10 +97,32 @@ public class OpenSearchInitializer {
     @PostConstruct
     public void initialize() {
         log.info("Update opensearch template and indexes");
-        updateTemplateAndIndexes(openSearchClient.getClient());
+        OpenSearchClient client = openSearchClient.getClient();
+        long delay = INIT_INITIAL_DELAY_MILLIS;
+        for (int attempt = 1; !updateTemplateAndIndexes(client); attempt++) {
+            if (attempt == INIT_MAX_ATTEMPTS) {
+                throw new IllegalStateException(
+                        "Failed to create OpenSearch session index aliases after " + attempt + " attempts");
+            }
+            log.warn("OpenSearch session index aliases are missing on attempt {}/{}, retrying in {} ms",
+                    attempt, INIT_MAX_ATTEMPTS, delay);
+            pause(delay);
+            delay = Math.min(delay * 2, INIT_MAX_DELAY_MILLIS);
+        }
     }
 
-    private void updateTemplateAndIndexes(OpenSearchClient client) {
+    void pause(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while waiting for OpenSearch", e);
+        }
+    }
+
+    // Returns true when the write alias of every document index exists afterward
+    private boolean updateTemplateAndIndexes(OpenSearchClient client) {
+        boolean aliasesExist = true;
         String packageRoot = IntegrationEngineApplication.class.getPackage().getName();
         Set<Class<?>> indexClasses = new Reflections(
                 new ConfigurationBuilder().forPackages(packageRoot))
@@ -116,11 +143,21 @@ public class OpenSearchInitializer {
                     createOrUpdatePolicy(client, buildRolloverPolicy(prefix));
                     updateTemplate(client, prefix, mapping);
                     updateIndices(client, prefix, mapping);
+                    aliasesExist &= aliasExists(client, prefix);
                 }
             } catch (Exception exception) {
                 log.error("Failed to create or update index template, policies, and indices for {}.", documentName, exception);
+                aliasesExist = false;
             }
         }
+        return aliasesExist;
+    }
+
+    private boolean aliasExists(OpenSearchClient client, String prefix) throws IOException {
+        return client.indices().existsAlias(builder -> builder
+                .index(getIndexNameMask(prefix))
+                .name(getAliasName(prefix))
+        ).value();
     }
 
     private void updateTemplate(OpenSearchClient client, String prefix, Map<String, Object> mapping) {
