@@ -95,6 +95,12 @@ The engine and the catalog also take `jvm.maxHeap`, `jvm.metaspaceSize`, and
 defaults are `832m`, `384m`, and `384m` for the engine, and `642m`, `192m`, and `192m` for the
 catalog. Both services still run with `-XX:+ExitOnOutOfMemoryError`.
 
+The engine pod starts after OpenSearch answers, as in `docker-compose.yml`. Its init container,
+`wait-for-opensearch`, polls `/_cluster/health` on `OPENSEARCH_HOST` and `OPENSEARCH_PORT` from
+ConfigMap `<release>-env`. The engine creates its session index and write alias only at startup,
+and an engine that starts before OpenSearch records no session until it restarts.
+`tests/assert-engine-waits-for-opensearch.sh` checks the rendered init container.
+
 `cip-runtime-catalog.serviceAliases` lists extra ClusterIP Service names for the catalog's port
 8080, for a caller that addresses the catalog by another name.
 
