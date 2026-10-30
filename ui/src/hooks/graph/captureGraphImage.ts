@@ -1,6 +1,9 @@
 import { getNodesBounds, type Node } from "@xyflow/react";
-import { elementToSVG } from "dom-to-svg";
-import { domToBlob, type Options } from "modern-screenshot";
+import {
+  domToBlob,
+  domToForeignObjectSvg,
+  type Options,
+} from "modern-screenshot";
 import { getGraphCaptureSource } from "./graphCaptureBridge.ts";
 import {
   applyLightThemeFlip,
@@ -242,33 +245,12 @@ export async function captureGraphImage(params: {
   };
 
   if (format === "svg") {
-    // True vector SVG built from native elements (no <foreignObject>), so renderers
-    // without foreignObject support (resvg) still draw it. dom-to-svg reads the LIVE
-    // layout, so frame by the viewport's current pan/zoom instead of a restyled clone.
-    const zoom = new DOMMatrixReadOnly(getComputedStyle(viewportEl).transform);
-    const origin = (
-      viewportEl.parentElement ?? viewportEl
-    ).getBoundingClientRect();
-    const captureArea = new DOMRect(
-      origin.left + zoom.e + zoom.a * (bounds.x - PADDING),
-      origin.top + zoom.f + zoom.d * (bounds.y - PADDING),
-      zoom.a * width,
-      zoom.d * height,
-    );
-    const svg = elementToSVG(viewportEl, { captureArea });
-    const root = svg.documentElement;
-    // Normalize to zoom 1: the viewBox stays in screen px, the size is the graph's.
-    root.setAttribute("width", String(width));
-    root.setAttribute("height", String(height));
-    const background = svg.createElementNS(root.namespaceURI, "rect");
-    background.setAttribute("x", String(captureArea.x));
-    background.setAttribute("y", String(captureArea.y));
-    background.setAttribute("width", String(captureArea.width));
-    background.setAttribute("height", String(captureArea.height));
-    background.setAttribute("fill", shared.backgroundColor ?? "#ffffff");
-    root.querySelector("style")?.after(background);
+    // True vector (foreignObject) SVG — the same intermediate the PNG path
+    // rasterizes, minus rasterization. Resolution-independent, so no DPI scale.
+    const svg = await domToForeignObjectSvg(viewportEl, shared);
+    const markup = new XMLSerializer().serializeToString(svg);
     return new TextEncoder().encode(
-      `<?xml version="1.0" encoding="UTF-8"?>\n${new XMLSerializer().serializeToString(svg)}`,
+      `<?xml version="1.0" encoding="UTF-8"?>\n${markup}`,
     ).buffer;
   }
 
