@@ -27,6 +27,7 @@ export type AppConfig = {
   additionalCss?: string[];
   themeOverrides?: Partial<ThemeConfig>;
   documentationBaseUrl?: string;
+  opensearchKafkaEnabled?: boolean;
   /**
    * Whether this is a live installation. Set on every service of the platform,
    * not on the front end alone, and read here to keep the screens that are
@@ -203,6 +204,17 @@ export function configure(config: Partial<AppConfig>): void {
     overrides.push(`onLogout: handler ${config.onLogout ? "set" : "cleared"}`);
   }
 
+  if (
+    "opensearchKafkaEnabled" in config &&
+    appConfigValue.opensearchKafkaEnabled !== config.opensearchKafkaEnabled
+  ) {
+    const oldValue = appConfigValue.opensearchKafkaEnabled;
+    appConfigValue.opensearchKafkaEnabled = config.opensearchKafkaEnabled;
+    overrides.push(
+      `opensearchKafkaEnabled: ${JSON.stringify(oldValue)} -> ${JSON.stringify(config.opensearchKafkaEnabled)}`,
+    );
+  }
+
   if (overrides.length > 0) {
     console.log("[CIP UI Config] Configuration overrides applied:", overrides);
   }
@@ -289,6 +301,12 @@ export function loadConfigFromEnv(): Partial<AppConfig> {
     | undefined;
   if (productionMode !== undefined && productionMode !== "") {
     config.productionMode = productionMode === "true";
+  }
+
+  const opensearchKafkaEnabled = import.meta.env
+    .VITE_OPENSEARCH_KAFKA_ENABLED as string | undefined;
+  if (opensearchKafkaEnabled !== undefined && opensearchKafkaEnabled !== "") {
+    config.opensearchKafkaEnabled = opensearchKafkaEnabled === "true";
   }
 
   return config;
