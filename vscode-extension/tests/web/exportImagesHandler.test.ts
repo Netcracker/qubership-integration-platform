@@ -42,6 +42,16 @@ describe("exportImagesHandler", () => {
       expect(uriApi.parse).toHaveBeenCalledWith("file:///workspace/chain.yaml");
     });
 
+    test("uses file() for Windows drive paths, not parse()", () => {
+      toUri("c:\\Users\\me\\chain.chain.cip.yaml", uriApi);
+      expect(uriApi.parse).not.toHaveBeenCalled();
+      expect(uriApi.file).toHaveBeenCalledWith(
+        "c:\\Users\\me\\chain.chain.cip.yaml",
+      );
+      toUri("C:/Users/me/chain.chain.cip.yaml", uriApi);
+      expect(uriApi.parse).not.toHaveBeenCalled();
+    });
+
     test("uses file() for relative paths", () => {
       toUri("/workspace/chain.yaml", uriApi);
       expect(uriApi.file).toHaveBeenCalledWith("/workspace/chain.yaml");

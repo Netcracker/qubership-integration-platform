@@ -1,7 +1,7 @@
 import { Uri } from "vscode";
 import type { ExportImagesStartupPayload, ExportImagesTarget } from "@netcracker/qip-ui";
 import type { ExportImagesCommandConfig } from "./exportImageTypes";
-import { sanitizeExportOutputName } from "./exportImageUtils";
+import { hasUriScheme, sanitizeExportOutputName } from "./exportImageUtils";
 import { fileApi } from "./response/file";
 
 type UriApi = {
@@ -19,7 +19,7 @@ export function toUri(
   if (typeof value !== "string") {
     return value;
   }
-  if (/^[a-zA-Z][\w+.-]*:/.test(value)) {
+  if (hasUriScheme(value)) {
     return uriApi.parse(value);
   }
   return uriApi.file(value);
