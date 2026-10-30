@@ -155,13 +155,14 @@ is missing or runs another version.
    its sources: the module's `src/`, `pom.xml`, and `Dockerfile`, and `parent/pom.xml` for the
    Spring services. The runtime-catalog hash also covers `integration-build-pipeline/src` and its
    `pom.xml`, the library linked into its jar, and the testing service's covers its whole directory.
-   These are the sources the Compose provisioner compares. An image whose tag exists is not rebuilt, and `mvn install` runs only for the
-   modules whose image is missing. The micro engine is built with
+   These are the sources the Compose provisioner compares. An image whose tag exists is not rebuilt, and one
+   `mvn install -T 1C` runs for the modules whose image is missing. `E2E_BUILD` narrows the images
+   built to the ones it lists; every other one is tagged `latest` and comes from GHCR. The micro engine is built with
    `-Dquarkus.profile=development,no-m2m`, the profiles `micro-engine/README.md` gives for a local
    stack, and the tag covers them too: Quarkus fixes part of its configuration at build time, and a
    `prod` build stops at startup with `auth method "cip-e2e" not found`, because it logs in to
    Consul through M2M and expects a DBaaS agent.
-2. Loads the images into the node on kind and k3d.
+2. Loads the images it built into the node on kind and k3d.
 3. Creates the namespace and labels it for sidecar injection.
 4. Runs `helm upgrade --install cip infrastructure/helm/cip-dev -n cip-e2e -f e2e/k8s/values.e2e.yaml`
    with the tags, the micro image, the host ports, and the cluster's values. Helm leaves a Deployment whose tag did

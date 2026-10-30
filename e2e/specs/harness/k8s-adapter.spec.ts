@@ -1,7 +1,8 @@
 /**
  * The Kubernetes adapter's logic that needs no cluster: the cluster kind read from the context, the
  * addresses per role and per engine kind, the micro state file a project names, the prerequisite
- * checks against a stubbed `kubectl`, the Helm arguments, the micro-engine build profile, the
+ * checks against a stubbed `kubectl`, the Helm arguments, `E2E_BUILD` and the Maven reactor it
+ * builds, the refusal of a micro run without the micro engine, the micro-engine build profile, the
  * `kubectl top` parser, the broker overlay methods, the micro engine's address and restart, the
  * edges only the Kubernetes target adds, and the `env` patches a restart sends.
  */
@@ -18,11 +19,19 @@ import {
   type EnvVar,
 } from "../../env/k8s-env-patch.js";
 import {
+  checkMicroBuild,
   checkPrerequisites,
   clusterChoice,
   helmArguments,
+  imagesToBuild,
+  imageTags,
+  mavenReactor,
   suiteImages,
 } from "../../env/provision/k8s.js";
+import { microProjects } from "../../env/provision.js";
+import { suiteProjects } from "../../playwright.config.js";
+import { laneFlags } from "../../support/lanes.mjs";
+import type { FullConfig } from "@playwright/test";
 import { imageTag, repoRoot } from "../../env/host.js";
 import { OVERLAY_READY_TIMEOUT } from "../../env/overlays.js";
 import { targetSetup } from "../../env/target-setup.js";
@@ -289,6 +298,105 @@ test.describe("k8s adapter", () => {
       // A tag over the sources alone would reuse an image built with the default `prod` profile.
       expect(imageTag(repoRoot(), micro!.sources, micro!.mavenArgs)).not.toBe(
         imageTag(repoRoot(), micro!.sources),
+      );
+    });
+
+    test("E2E_BUILD names the images built from the checkout", () => {
+      const every = ["runtime-catalog", "engine", "sessions-management", "testing-service", "micro-engine"];
+      const built = (raw: string | undefined) => [...imagesToBuild(raw)].sort();
+      expect(built(undefined)).toEqual([...every].sort());
+      expect(built("")).toEqual([...every].sort());
+      expect(built(" , ")).toEqual([...every].sort());
+      expect(built("all")).toEqual([...every].sort());
+      expect(built("all,micro-engine")).toEqual([...every].sort());
+      expect(built("engine")).toEqual(["engine"]);
+      expect(built(" engine, ,runtime-catalog ")).toEqual(["engine", "runtime-catalog"]);
+      expect(built("none")).toEqual([]);
+      expect(built("none,micro-engine")).toEqual(["micro-engine"]);
+      expect(() => imagesToBuild("engine,ui")).toThrow(
+        "E2E_BUILD names ui, which the suite has no image for. It takes a comma list of " +
+          "runtime-catalog, engine, sessions-management, testing-service, micro-engine, or all, or none.",
+      );
+    });
+
+    test("Helm tags a built image by its hash, the rest latest", () => {
+      const images = suiteImages();
+      const hashOf = (name: string) => {
+        const image = images.find((each) => each.name === name)!;
+        return imageTag(repoRoot(), image.sources, image.mavenArgs);
+      };
+      const tagArguments = (build: string | undefined) => {
+        const tags = imageTags(repoRoot(), images, imagesToBuild(build));
+        return helmArguments({ root: "/repo", choice: clusterChoice("kind-qip"), devServerHost: "host", tags }).filter(
+          (each) => /\.image\.tag=|micro\.image=/.test(each),
+        );
+      };
+      const expected = (built: string[]) => {
+        const tag = (name: string) => (built.includes(name) ? hashOf(name) : "latest");
+        return [
+          `global.qip.deploy.micro.image=ghcr.io/netcracker/qubership-integration-micro-engine:${tag("micro-engine")}`,
+          `cip-runtime-catalog.image.tag=${tag("runtime-catalog")}`,
+          `cip-engine.image.tag=${tag("engine")}`,
+          `cip-sessions-management.image.tag=${tag("sessions-management")}`,
+          `cip-testing-service.image.tag=${tag("testing-service")}`,
+        ];
+      };
+      const every = ["runtime-catalog", "engine", "sessions-management", "testing-service", "micro-engine"];
+      expect(tagArguments("engine")).toEqual(expected(["engine"]));
+      expect(tagArguments(undefined)).toEqual(expected(every));
+      expect(tagArguments("")).toEqual(expected(every));
+      expect(tagArguments("none")).toEqual(expected([]));
+      expect(tagArguments("none,micro-engine")).toEqual(expected(["micro-engine"]));
+      expect(tagArguments("all,micro-engine")).toEqual(expected(every));
+      expect(() => tagArguments("engin")).toThrow(/E2E_BUILD names engin/);
+    });
+
+    test("one Maven reactor installs every module the build lists", () => {
+      const images = suiteImages();
+      const pick = (...names: string[]) => images.filter((each) => names.includes(each.name));
+      expect(mavenReactor(pick("engine", "runtime-catalog"))).toEqual({
+        modules: ["runtime-catalog", "engine"],
+        args: ["-T", "1C"],
+      });
+      // The Quarkus profile goes to the whole reactor, and no Spring module reads it.
+      expect(mavenReactor(pick("engine", "micro-engine"))).toEqual({
+        modules: ["engine", "micro-engine"],
+        args: ["-T", "1C", "-Dquarkus.profile=development,no-m2m"],
+      });
+      // The Go service's Dockerfile builds it, so Maven has nothing to do.
+      expect(mavenReactor(pick("testing-service"))).toBeNull();
+    });
+
+    test("a micro project refuses a build without micro-engine", () => {
+      /** The k8s projects, in the shape `FullConfig` carries them, for a command line. */
+      const configFor = (...argv: string[]) => {
+        const projects = withEnv({ E2E_BROKERS: undefined }, () => suiteProjects(targetSetup("k8s"))).map(
+          (each) => ({ ...each, dependencies: each.dependencies ?? [], use: each.use ?? {} }),
+        );
+        return { argv: ["node", "playwright", "test", ...argv], projects } as unknown as FullConfig;
+      };
+      expect(microProjects(configFor("--project=seed"))).toEqual([]);
+      expect(microProjects(configFor(...laneFlags("classic")))).toEqual([]);
+      expect(microProjects(configFor(...laneFlags("ui")))).toEqual([]);
+      expect(microProjects(configFor(...laneFlags("micro"))).sort()).toEqual([
+        "brokers-micro",
+        "brokers-micro-seed",
+        "runtime-micro",
+        "runtime-micro-redeploy",
+        "seed-micro",
+      ]);
+      // A run that selects nothing runs every project, the micro ones among them.
+      expect(microProjects(configFor())).toContain("env-micro");
+
+      const engineOnly = imagesToBuild("engine");
+      expect(() => checkMicroBuild(engineOnly, [])).not.toThrow();
+      expect(() => checkMicroBuild(imagesToBuild("engine,micro-engine"), ["seed-micro"])).not.toThrow();
+      expect(() =>
+        withEnv({ E2E_BUILD: "engine" }, () => checkMicroBuild(engineOnly, ["seed-micro", "runtime-micro"])),
+      ).toThrow(
+        "E2E_BUILD=engine leaves out micro-engine, and this run selects seed-micro, runtime-micro, which run " +
+          "the micro engine. The published micro-engine image is a prod build the chart cannot start. Add " +
+          "micro-engine to E2E_BUILD, or select no micro project.",
       );
     });
 

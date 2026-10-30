@@ -7,12 +7,13 @@
  * its own module under `env/provision/`, reached through `targetSetup()`, and the header facts,
  * the baseline, and the sampler come from the target's observer.
  */
-import { request, type FullConfig } from "@playwright/test";
+import { request, type FullConfig, type FullProject } from "@playwright/test";
 import { ensureRunToken, readRuns, recordRun, sweepableRuns, type RunRecord } from "../support/run.js";
 import { Catalog } from "../support/catalog.js";
 import { discardCorpusStateOf } from "../support/corpus.js";
 import { formatPreviousRunSweep, sweepPreviousRuns } from "../support/fixtures.js";
-import { writeStackHeader } from "../support/report.js";
+import { publishedLabel, writeStackHeader } from "../support/report.js";
+import { reserveBundleBuild } from "../support/ui-server.js";
 import { targetSetup } from "./target-setup.js";
 
 /** `auto` provisions; `never` only checks health, so a stack somebody is debugging is left alone. */
@@ -41,6 +42,8 @@ export interface ProvisionReport {
   started: string[];
   /** Services left exactly as they were found. */
   untouched: string[];
+  /** Images the Kubernetes target ran from GHCR instead of building them, which `E2E_BUILD` decides. */
+  published: PublishedImage[];
   /**
    * Compose support services whose configuration has moved on and which the suite will not recreate.
    *
@@ -53,6 +56,15 @@ export interface ProvisionReport {
   proxyReloaded: boolean;
   /** The reload was for `infrastructure/docker/nginx/` rather than for a container that changed address. */
   proxyConfigChanged: boolean;
+}
+
+/** An image a run did not build, and the digest its pod runs. */
+export interface PublishedImage {
+  name: string;
+  /** The reference the chart names, with the tag `latest`. */
+  image: string;
+  /** The pod's `imageID`, which carries the digest; `null` where no pod runs the image yet. */
+  imageId: string | null;
 }
 
 export function provisionMode(): ProvisionMode {
@@ -92,6 +104,12 @@ export function formatReport(report: ProvisionReport): string {
     );
   }
   if (report.started.length) lines.push(`[provision]   started: ${report.started.join(", ")}`);
+  if (report.published.length) {
+    lines.push(
+      `[provision]   from GHCR: ` +
+        report.published.map((each) => `${each.name} ${publishedLabel(each)}`).join(", "),
+    );
+  }
   // The one line the suite prints instead of acting. Silence here reads as "the stack matches the
   // commit", and the container that does not match is the one holding the data every spec asserts
   // against.
@@ -153,6 +171,31 @@ export function selectedProjects(argv: readonly string[]): string[] {
 }
 
 /**
+ * The projects a run executes: the ones `--project` selected, or every project when it selected
+ * none, together with what they depend on, transitively.
+ */
+export function runProjects(config: Pick<FullConfig, "argv" | "projects">): FullProject[] {
+  const byName = new Map(config.projects.map((project) => [project.name, project]));
+  const selected = selectedProjects(config.argv);
+  const pending = selected.length ? [...selected] : [...byName.keys()];
+  const reached = new Map<string, FullProject>();
+  while (pending.length) {
+    const project = byName.get(pending.pop()!);
+    if (!project || reached.has(project.name)) continue;
+    reached.set(project.name, project);
+    pending.push(...project.dependencies);
+  }
+  return [...reached.values()];
+}
+
+/** The projects of this run that run the micro engine. */
+export function microProjects(config: Pick<FullConfig, "argv" | "projects">): string[] {
+  return runProjects(config)
+    .filter((project) => (project.use as { engineKind?: string }).engineKind === "micro")
+    .map((project) => project.name);
+}
+
+/**
  * Whether this run reaches the stack at all.
  *
  * Playwright runs `globalSetup` **once per run**, before any project, and has no flag that skips
@@ -191,7 +234,7 @@ export default async function globalSetup(config: FullConfig): Promise<void> {
 
   const setup = targetSetup();
   console.log(`[provision] target=${setup.name}`);
-  const report = await setup.provision(provisionMode());
+  const report = await setup.provision(provisionMode(), microProjects(config));
   console.log(formatReport(report));
   console.log(`[run] token=${run}, entities are named e2e-${run}-…`);
 
@@ -228,4 +271,9 @@ export default async function globalSetup(config: FullConfig): Promise<void> {
   // finished restarting things and before any project has asked the stack to do anything. The
   // sampler runs for the rest of the run: a peak lasts seconds, so nothing read afterwards is it.
   setup.observer.startSampler(run, await setup.observer.baseline());
+
+  // Before any worker starts, so the `vscode-server` builds cannot take the lock first.
+  if (await reserveBundleBuild(runProjects(config).map((project) => project.name))) {
+    console.log("[build-lock] reserved for the UI bundle, which builds before the vscode-server builds");
+  }
 }

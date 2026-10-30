@@ -49,11 +49,13 @@ npx playwright install chromium
 Then run `npm install` at the repository root as well, because the `ui-server` project builds and
 serves the UI bundle itself. It rebuilds the production bundle when it is stale, starts
 `vite preview` on port 4200, and stops it at the end of the run; nginx on 8080 sends every request
-outside `/api/` to that port. The rebuild takes about 75 seconds: it builds `schemas/dist` first,
-because the UI imports it and `npm install` does not create it, then runs
-`npm run build -w @netcracker/qip-ui` with `VITE_PRODUCTION_MODE=false`. The bundle is stale when
-`ui/dist` was built outside the suite (the suite's own build leaves `ui/dist/.e2e-build` behind), or
-when anything it is built from is newer: `ui/src`, `ui/public`, the `ui/.env*` files,
+outside `/api/` to that port. Before it, the `schemas-build` project builds `schemas/` when
+`schemas/src/main` is newer than `schemas/assets`, `types`, or `dist`, because the UI imports
+`schemas/dist` and `npm install` does not create it. The rebuild of the bundle takes about 75
+seconds: `npm run build --ignore-scripts -w @netcracker/qip-ui` with `VITE_PRODUCTION_MODE=false`,
+where `--ignore-scripts` skips the `prebuild` that would build the schemas again. The bundle is
+stale when `ui/dist` was built outside the suite (the suite's own build leaves `ui/dist/.e2e-build`
+behind), or when anything it is built from is newer: `ui/src`, `ui/public`, the `ui/.env*` files,
 `schemas/src/main`, `help/docs`, or the lockfile.
 
 A server already answering on 4200 is used as found and left running. A dev server started with
@@ -62,11 +64,26 @@ then test the dev server. A preview an interrupted run left on 4200 is stopped f
 `.e2e-ui-server.json` still records it; when the runner that started it is still alive, the setup
 fails naming its pid instead.
 
+The `vscode` project needs the same root `npm install` and the same Chromium, and no stack. Its
+`vscode-server` setup builds the UI library and the extension when they are stale, then serves VS
+Code for the web on port 3917 with the extension of this checkout. The first run downloads the
+pinned VS Code build, a 54 MB archive, into the gitignored `vscode-extension/.vscode-test-web/`, so
+it needs network access. [The `vscode` project](#the-vscode-project) covers the rest.
+
+The two setups build one at a time: the bundle build of `ui-server` and the library and extension
+builds of `vscode-server` each hold the lockfile `e2e/.e2e-build.lock`. Run together beside the
+seed, they pushed the `vscode-server` setup past its 10-minute timeout on a 4-core CI runner.
+Starting and waiting for the servers needs no lock. When the run includes `ui-server` and the
+bundle is stale, `globalSetup` reserves the lock for `ui-server` before any worker starts, so the
+bundle that the `ui` project waits on builds first. A setup that waits on a lock whose holder pid
+has exited removes it and goes on.
+
 `schema`, `harness`, `api`, `tooling`, `runtime`, `runtime-micro`, `runtime-micro-redeploy`, `k8s`,
 `brokers`, and `brokers-micro` run with no browser installed. `env`, `global`, `global-micro`,
 `env-micro`, and `brokers-restart` depend on `ui`, directly or through `global`, so `--project=env`,
-`--project=global`, and `--project=brokers-restart` build the bundle and launch Chromium too. Set
-`PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` if your environment downloads a browser you do not want.
+`--project=global`, and `--project=brokers-restart` build the bundle and launch Chromium too, and
+`vscode` launches Chromium as well. Set `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` if your environment
+downloads a browser you do not want.
 
 The default Compose run also starts the four broker overlays and binds their host ports: `9092`
 (Kafka), `5672` and `15672` (RabbitMQ), `8085` (the pub/sub emulator), and `2222` (SFTP), and
@@ -112,7 +129,10 @@ target its `Env`, its provisioner, and the projects only it declares:
 | --- | --- | --- |
 | `schema`, `harness`, `api`, `tooling`, `ui`, `env`, `global` | yes | yes |
 | `seed`, `seed-teardown` | the corpus, deployed to the classic engine | the same |
+| `schemas-build` | build `schemas/` when its sources are newer, with no stack | the same |
 | `ui-server`, `ui-server-teardown` | build and serve the UI bundle on 4200, then stop it | the same |
+| `vscode-server`, `vscode-server-teardown` | build the UI library and the extension when their inputs are newer, serve VS Code for the web on 3917, then stop it, with no stack | the same |
+| `vscode` | the extension's editors in VS Code for the web on 3917, one worker, with no stack | the same |
 | `runtime` | `specs/runtime/` against the classic engine | the same |
 | `suite-teardown` | the teardowns of `seed-micro`, `brokers-seed`, and `brokers-micro-seed`, after `global` | the same |
 | `seed-micro` | not declared | a second copy of the corpus, deployed to a micro domain named `e2e-<run>-micro` |
@@ -125,7 +145,7 @@ target its `Env`, its provisioner, and the projects only it declares:
 | `brokers-micro` | not declared | unless `E2E_BROKERS=0`, `specs/brokers/` against that copy, minus `broker-restart.spec.ts` and the cases tagged `@classic-only` |
 | `k8s` | not declared | `specs/k8s/`: camel-k custom resources, public gateway routes, service discovery, the proxy's `/e2e/` locations, and a micro domain that a broken chain takes down |
 
-That is sixteen projects on Compose and twenty-four on Kubernetes, three fewer on Compose and five
+That is twenty projects on Compose and twenty-eight on Kubernetes, three fewer on Compose and five
 fewer on Kubernetes with `E2E_BROKERS=0`. The run header records the target and lists every project
 the target leaves out, with the reason. It does not list the cases a micro project leaves out; see
 "The classic-only cases" below.
@@ -197,15 +217,18 @@ npm test -- --project=brokers         # kafka, rabbitmq, pub/sub and sftp
 npm test -- --project=brokers-micro   # the same on the micro engine, k8s only
 npm test -- --project=brokers-restart # the one spec that restarts a broker mid-run, after brokers and global, so api, runtime, ui, and env run first
 npm test -- --project=ui              # the browser layer, against the bundle it serves on 4200
+npm test -- --project=vscode          # the extension's editors in VS Code for the web on 3917, no stack
 npm test -- --grep @engine --no-deps  # one backend component's cases, no browser
 npm run report                        # open the HTML report of the last run
 npm run release-check                 # everything, then the extension's integration tests
 ```
 
-Four more commands sit beside the suite:
+These commands sit beside the suite:
 
 ```bash
 npm run reconcile           # write test-results/cases.md, then diff the registries against the run
+npm run reconcile -- --only=vscode-messages  # the message registry alone, after --project=vscode
+npm run reconcile -- --partial  # the checks a narrowed run can pass, after a lane or a --grep
 npm run refresh-operations  # rebuild registry/operations.cache.json from a running stack
 npm run frozen-checksums    # rewrite fixtures/archives/frozen/CHECKSUMS after a deliberate change
 npm run check-types         # type-check
@@ -220,17 +243,20 @@ first one failed, and the command exits non-zero when either did. The extension'
 the console output only, and the command does not run `npm run reconcile`.
 
 `.github/workflows/e2e-k8s.yaml` runs the full suite on a kind cluster, nightly on `main` and on
-manual dispatch from the Actions tab. The dispatch input `workers` sets `E2E_WORKERS`; left empty,
-the run uses the nightly value. The dispatch input `email`, on by default, makes a manual run send
-the run email as well.
+manual dispatch from the Actions tab. Its job calls `_e2e-kind.yaml`, which also runs the pull
+request kind jobs (see [The pull request jobs](#the-pull-request-jobs)). The dispatch input
+`workers` sets `E2E_WORKERS`; left empty, the run uses the nightly value. The dispatch input
+`email-to` takes comma-separated addresses, and a manual run mails the run email to those addresses
+only; left empty, the default, it sends no email.
 
 Each project belongs to one of three groups, which every count below keeps apart. Product projects
-run the product's cases. Setup and teardown projects seed, serve, or remove what the product cases
-need: `seed`, `seed-micro`, `brokers-seed`, `brokers-micro-seed`, `ui-server`, `tooling`, and every
-teardown project, `suite-teardown` included. Suite checks are `schema` and `harness`, which test
-the suite's own files and code. A project declares its group as `metadata: { group: "setup" }` or
-`metadata: { group: "suite" }` in `playwright.config.ts` or `env/target-setup.ts`; a project that
-declares none is a product project. A failed case of any group fails the run.
+run the product's cases. Setup and teardown projects seed, build, serve, or remove what the product
+cases need: `seed`, `seed-micro`, `brokers-seed`, `brokers-micro-seed`, `schemas-build`,
+`ui-server`, `vscode-server`, `tooling`, and every teardown project, `suite-teardown` included. Suite checks are
+`schema` and `harness`, which test the suite's own files and code. A project declares its group as
+`metadata: { group: "setup" }` or `metadata: { group: "suite" }` in `playwright.config.ts` or
+`env/target-setup.ts`; a project that declares none is a product project. A failed case of any
+group fails the run.
 
 Start with the job's step summary, which `support/run-summary.mjs` writes. From the top, it holds:
 
@@ -253,8 +279,9 @@ Start with the job's step summary, which `support/run-summary.mjs` writes. From 
 A full name is the describe path and the case title joined with ` › `, such as
 `actuator health › engine › names no component as down`. The coverage line divides the covered
 element rows by the rows in scope and counts the out-of-scope and shared rows beside them (see
-[Coverage registries](#coverage-registries)), then gives the API operations covered and reached. A
-pin to remove is a `test.fail()` case that passed: the defect it pins no longer reproduces, so
+[Coverage registries](#coverage-registries)), then gives the API operations covered and reached and
+the VS Code message types covered out of those the extension handles. A pin to remove is a
+`test.fail()` case that passed in a product project: the defect it pins no longer reproduces, so
 remove the annotation and close the defect's issue. A summary that would pass 900 KiB drops the
 slowest tests first, then the project tables, then the bodies of the failures.
 
@@ -281,16 +308,19 @@ needs unpacking:
 - the `e2e-playwright-report` ZIP archive: the same report with its traces and attachments, at the
   archive's root, so `npx playwright show-report e2e-playwright-report.zip` opens the downloaded
   file as it is;
-- the `e2e-report` ZIP archive: `test-results/`, the `.e2e-k8s-` state files, and
-  `.e2e-ui-server.log`.
+- the `e2e-report` ZIP archive: `test-results/`, the `.e2e-k8s-` state files,
+  `.e2e-ui-server.log`, and `.e2e-vscode-server.log`.
 
 An unzipped artifact takes its name from the file, and a second upload under one name fails, so the
 run number and the attempt are part of each file name.
 
-Every nightly run, passed or failed, mails a report to the addresses in the repository variable
-`EMAIL_TO`, which the email step needs. `support/run-email.mjs` writes it. The subject opens with
-the verdict, such as `E2E nightly failed: 1 new, 1 still failing in api (main @ 7a393a8)`, and the
-inbox preview line holds the verdict sentence. The message is 600 px wide and names every status in
+Every scheduled run, passed or failed, mails a report to the addresses in the repository variable
+`EMAIL_TO`. `support/run-email.mjs` writes it. The addresses reach `_e2e-kind.yaml` as a secret,
+and `support/email-recipients.mjs` masks each one in the log before the setup steps run. It fails
+the job when an entry is not an address, which needs one `@`, no spaces, and a dot in its domain.
+The subject opens with the verdict, such as
+`E2E nightly failed: 1 new, 1 still failing in api (main @ 7a393a8)`, and the inbox preview line
+holds the verdict sentence. The message is 600 px wide and names every status in
 words beside its color. It holds the verdict and how the failures compare with the previous run, the
 product counts with a line for setup and teardown and one for suite checks, and links to the run,
 the run page, the HTML report, the report with traces, the run artifacts, the cluster dump, and the
@@ -307,7 +337,8 @@ npm run test:k8s -- --project=runtime --no-deps specs/runtime/http-echo.spec.ts:
 
 The `file:line` alone is not enough, because the cases a loop or a function declares share one
 line, and the title alone can repeat under another describe. Run the command against a kept corpus,
-as [Reproducing one case](#reproducing-one-case) describes.
+as [Reproducing one case](#reproducing-one-case) describes. A case of a project that needs no stack,
+such as `vscode`, reruns without `--no-deps`, so its setup builds and starts the VS Code server.
 
 A run whose only failures are pins to remove is titled "found fixed defects". The email also lists
 the projects a failed project kept from running and the errors raised outside any test. When every
@@ -318,15 +349,15 @@ of those pods' containers, istiod, and the camel-k operator. The dump runs after
 holds a micro domain's pod only because a failed micro case keeps the run's micro domains (see
 [Reading a failure](#reading-a-failure)).
 
-No pull request check runs the suite. `npm run check-types` and `--project=schema --project=harness`
-need no stack; run them before pushing, as `AGENTS.md` describes.
+`.github/workflows/e2e-pr.yaml` runs part of the suite on every pull request, as
+[The pull request jobs](#the-pull-request-jobs) describes.
 
 **Selecting cases.** Each spec file holds one top-level `test.describe` named after its subject, and
 every tag comes from a closed list:
 
 - a component: `@catalog`, `@engine`, `@sessions`, `@testing-service`, or `@infra`. The cases of
-  the `ui`, `schema`, and `harness` projects carry none: the project is their component, and the
-  HTML report already names it;
+  the `ui`, `vscode`, `schema`, and `harness` projects carry none: the project is their component,
+  and the HTML report already names it;
 - `@slow`, for a case that needs more than 60 s;
 - `@classic-only`, for a case the micro projects leave out;
 - a broker: `@kafka`, `@rabbitmq`, `@pubsub`, or `@sftp`;
@@ -349,7 +380,8 @@ Put `--no-deps` on every `--grep` and every file path. A filter selects tests, n
 projects, so without the flag one matching `env` case drags `api`, `runtime`, `seed`,
 `seed-teardown`, and `tooling` in whole. On `k8s`, name the project too: a file under
 `specs/runtime/` matches both `runtime` and `runtime-micro`. Run the browser layer with
-`--project=ui`.
+`--project=ui`. The `vscode` project is the exception: its dependencies need no stack and start
+its server, so run it without `--no-deps` (see [The `vscode` project](#the-vscode-project)).
 
 The worker count is pinned at 8 rather than derived from your CPU count, because what matters is the
 load the stack can absorb. `E2E_WORKERS=4 npm test` overrides it.
@@ -374,6 +406,140 @@ built the bundle, start a preview at the repository root, then run the case:
 npm run preview -w @netcracker/qip-ui -- --port 4200 --strictPort   # at the repository root
 E2E_SWEEP=never npm test -- --project=ui --no-deps -g "part of the title"
 ```
+
+### The `vscode` project
+
+`specs/vscode/` drives the extension's editors in VS Code for the web. Three projects run in a
+chain, none of them needs a stack, and provisioning skips a selection of only these:
+
+- `schemas-build` builds `schemas/` when `schemas/src/main` is newer than `schemas/assets`, `types`,
+  or `dist`. `ui-server` depends on it too.
+- `vscode-server` rebuilds what is stale, then serves the workbench on 3917. The UI library is
+  stale when the marker `ui/dist-lib/.e2e-build`, which the setup writes after its two library
+  builds, is missing or older than what the library is built from (`ui/src`, `ui/.env`,
+  `ui/package.json`, the library's Vite and TypeScript configs, `schemas/dist`, and the root
+  lockfile), and `build:lib:bundled` and `build:lib:types` rebuild it. `build:lib` empties
+  `ui/dist-lib`, the marker included, and leaves no bundled file. The extension is stale when
+  the library was rebuilt, or when one of `vscode-extension/src`, `package.json`,
+  `webpack.config.js`, `media`, `ui/dist-lib`, `schemas/dist`, and `schemas/assets` is newer than
+  the marker `vscode-extension/dist/.e2e-build`, which the setup writes after `compile-web`. The
+  files in `dist` cannot date the build, because webpack leaves an unchanged asset unwritten. The server
+  logs to `e2e/.e2e-vscode-server.log`, and `vscode-server-teardown` stops it.
+- `vscode` runs the cases on one worker, each in a browser context of its own. The workspace is
+  `fixtures/vscode/workspace/`. The server mounts it read-only and the workbench keeps every write
+  in memory, so each case starts from the committed files and a run leaves them unchanged.
+
+Run the project with its dependencies, never with `--no-deps`, which finds no server on 3917:
+
+```bash
+npm test -- --project=vscode
+npm test -- --project=vscode specs/vscode/chain-editor.spec.ts -g "part of the title"
+```
+
+With nothing stale the setup takes about 3 s, a rebuild of the extension alone about 17 s, and a
+cold start with both builds and the download 1.7 minutes. The whole project then takes about 7.5
+minutes. Port 3917 is fixed, so run one `vscode` run at a time. The setup fails on a server that
+another run still owns, naming its runner's pid, and on any server it did not start, which may
+serve another checkout or another workspace. It stops a server an interrupted run left behind,
+because `.e2e-vscode-server.json` still records it.
+
+**The host pin.** `VSCODE_COMMIT` in `support/vscode-server.ts` pins the insiders build the project
+runs against, and `E2E_VSCODE_COMMIT=<sha>` overrides it for one run. A new build is adopted by
+changing the constant, which also changes the key of the pull request workflow's cache. The
+workbench gives Quick Open and its editors no role a locator could use, so `pages/VsCodePage.ts`
+finds them by their classes, and a build that renames them needs a change there only. The
+extension's own integration suite keeps following the latest insiders build.
+
+**A mutation check** (rule 17 of the `e2e-spec-authoring` skill) edits the extension under
+`vscode-extension/src/web/response/`, or the UI under `ui/src/`, and runs the spec file with its
+dependencies. `vscode-server` finds the edited source newer than its output and rebuilds: a UI edit
+runs both library builds and then `compile-web`, and an extension edit runs `compile-web` alone.
+The next page loads the new bundle. Undo the edit and run the file again: the setup rebuilds once
+more, and the case passes.
+
+### The pull request jobs
+
+`.github/workflows/e2e-pr.yaml` runs these jobs on every pull request:
+
+- `stack-free` runs `npm run check-types` and the `schema` and `harness` projects, and annotates
+  each failed case at its line.
+- `changes` lists the files the pull request's merge commit changes against its first parent, the
+  base branch, with rename detection off, so a moved file lists its old path too.
+  `support/pr-changes.mjs` reads the list and prints one `<job>=true` or `<job>=false` line for
+  each of `vscode`, `classic`, `micro`, and `ui`.
+- `vscode` runs when `changes` printed `vscode=true`: `--project=vscode --max-failures=1`, then
+  `npm run reconcile -- --only=vscode-messages` after a green run. It caches
+  `vscode-extension/.vscode-test-web/` under a key built from the hash of `support/vscode-server.ts`,
+  so a new pin starts with an empty cache. A failed run uploads `e2e-playwright-report-vscode` and
+  `e2e-report-vscode`, which holds `test-results/` and `.e2e-vscode-server.log`. The step summary
+  ends with the result of the last scheduled `e2e-k8s.yaml` run on `main`.
+- `classic`, `micro`, and `ui` each run one lane of the suite on a kind cluster, through
+  `_e2e-kind.yaml`, when `changes` printed `true` for them.
+- `kind-result` runs on every pull request and fails when `changes` or one of the three kind jobs
+  failed or was cancelled.
+
+A skipped job counts as passed, which is why the workflow sets no `paths` filter: a required check
+that never starts blocks the merge. A failed `changes` job skips `vscode` and the kind jobs, so a
+branch protection that requires `vscode` requires `changes` as well. The kind jobs need
+`kind-result` for the same reason: a caller job's check is named `classic` when the job is skipped
+and `classic / classic` when it runs, so neither name can be required. The checks to require are
+`stack-free`, `changes`, `vscode`, and `kind-result`. Run the stack-free checks before pushing, as
+`AGENTS.md` describes.
+
+**Which paths run which job.** `support/pr-changes.mjs` is the source of truth, and
+`specs/harness/pr-changes.spec.ts` checks it. `vscode` runs when any changed file matches a path in
+`JOB_PATHS`: `vscode-extension/`, `ui/`, `schemas/`, the root `package.json` and lockfile, the
+workflow itself, the package files of `e2e/`, and every file under `e2e/` that the `vscode`
+project's specs and setups load. The kind jobs read `KIND_RULES`, an ordered rule table: the first
+rule that matches a file decides which of the three jobs it runs, and the last rule sends every
+other file to all three. Markdown outside `help/docs/`, `docs/`, `.apm/` and the agent rule copies,
+and every workflow but `e2e-*.yaml` and `_e2e-kind.yaml` run no kind job. Of the three, `ui/` runs
+only `ui`, and `micro-engine/` only `micro`. The `schema` and `harness` specs run no kind job,
+because `stack-free` runs them. A rule that names fewer than three jobs may not leave out a job
+whose specs and setups import the file, which the harness checks against each lane's import
+closure. A file that a job reads without importing it needs a rule of its own: a help page the UI
+bundle copies, or a golden that `specs/api/extension-output.spec.ts` imports into the catalog.
+
+**Lanes.** `support/lanes.mjs` maps each project a pull request runs to its lane:
+
+| Lane | Projects |
+| --- | --- |
+| `classic` | `api`, `runtime`, `brokers` |
+| `micro` | `k8s`, `runtime-micro`, `runtime-micro-redeploy`, `brokers-micro` |
+| `ui` | `ui` |
+
+`playwright.config.ts` and `env/target-setup.ts` copy each project's lanes into its
+`metadata.lanes`. A lane's setups, such as `seed`, `seed-micro`, and `ui-server`, come in through
+`dependencies`. `env`, `env-micro`, `global`, `global-micro`, and `brokers-restart` are in no lane
+and no lane reaches them, so they run only nightly; `specs/harness/lanes.spec.ts` checks that, and
+that `e2e-pr.yaml` calls each lane from the job of the same name. Run as a script, the module prints
+a lane's `--project` flags, which is how a job selects its projects and how you run a lane locally:
+
+```bash
+npm run test:k8s -- $(node support/lanes.mjs micro)
+```
+
+**How a kind job differs from the nightly.** Each job passes `pull-request: true`, so the run stops
+at its first failure (`--max-failures=1`), skips teardown with `E2E_KEEP=1`, since the cluster goes
+away with the runner, fetches no run history, and sends no email. After a green suite it runs `npm
+run reconcile -- --partial` (see [Coverage registries](#coverage-registries)). Every artifact and
+HTML file name carries the job's name, as in `e2e-report-classic`, because the three jobs share one
+workflow run. The step summary ends with the result of the last scheduled nightly on `main`.
+`e2e-pr.yaml` sets each job's timeout and `--global-timeout`.
+
+**Every image comes from the checkout.** `classic` and `ui` build runtime-catalog, engine,
+sessions-management, and testing-service, and `micro` builds micro-engine as well, so no kind job
+runs a platform image from GHCR. The published `:latest` images come from the last release and lag
+`main`: the first `classic` run on `:latest` failed, because the engine of release 1.6.0 lacked
+fixes that the specs on `main` assert. Publishing an image on every
+merge to `main` was rejected, and so was a run that tries `:latest` and rebuilds on failure.
+`E2E_BUILD` still narrows the build for a local run (see [Flags](#flags)).
+
+The cluster bootstrap, `e2e/k8s/bootstrap-cluster.sh`, runs in the background while the dependencies
+install and the images build, and the provisioner waits for it before its first cluster call
+(`E2E_BOOTSTRAP_LOG` under [Flags](#flags)). Its log is `.e2e-k8s-bootstrap.log` in the `e2e-report`
+artifact, `e2e-report-<job>` on a pull request. Measured on the runner in October 2026, `classic`
+took 12 to 14 minutes, `ui` about 15, and `micro` 16 to 18.5.
 
 ## Debugging
 
@@ -411,7 +577,10 @@ defaults below are the Compose ports; on `k8s` they are the fixed host ports fro
 | `E2E_SWEEP`               | unset                                | `never` stops a run from collecting a previous run's residue at its start.           |
 | `E2E_RUN`                 | minted per run                       | The token entities are named after. Pass one to pin it; the shape is validated.      |
 | `E2E_ELEMENT_SCHEMA_DIR`  | the tracked schemas                  | Points the coverage checks at another element-schema tree, which is how they are proved to still go red. |
+| `E2E_VSCODE_COMMIT`       | `VSCODE_COMMIT` in `support/vscode-server.ts` | The VS Code insiders build `vscode-server` serves, by its commit (see [The `vscode` project](#the-vscode-project)). |
 | `E2E_BROKERS`             | unset, meaning `1`                   | `0` drops `brokers-seed`, `brokers`, and `brokers-restart` from the run, and `brokers-micro-seed` and `brokers-micro` on `k8s`, for a faster local pass: Compose starts no broker overlay, and on `k8s` the release is installed without the brokers. |
+| `E2E_BUILD`               | unset, meaning `all`                 | On `k8s`, the images built from the checkout: a comma list of `runtime-catalog`, `engine`, `sessions-management`, `testing-service`, and `micro-engine`, or `all`, or `none`. Every other image runs as its published `:latest` from GHCR, and the run header names each by the digest its pod runs. `all` beside other names is still `all`, `none` beside them adds nothing, and an unknown name fails the run. A run that selects a micro project fails unless the list builds `micro-engine`: the published micro image is a `prod` build the chart cannot start. On Docker Desktop, `docker pull` those `:latest` images first, because the node runs whatever copy the host already holds. The nightly and the pull request jobs build every image their projects run. |
+| `E2E_BOOTSTRAP_LOG`       | unset                                | On `k8s`, the log of a cluster bootstrap still running in the background, which `_e2e-kind.yaml` starts before it installs the dependencies. The run builds the images first, then waits for the exit code the workflow writes to `<log>.exit`, and checks the cluster only after that. A non-zero code fails the run with the log. Unset, the run checks the cluster before it builds the images. |
 | `CIP_TARGET`              | `compose`                            | `k8s` runs the suite against the local cluster in the current kube-context (see [Targets](#targets)). Any other value fails the run at config load. |
 | `CIP_REPO_ROOT`           | the parent directory                 | The repository root everything else is resolved against.                             |
 | `CIP_COMPOSE_FILE`        | `infrastructure/docker/docker-compose.yml`  | The compose file provisioning drives on the Compose target.                          |
@@ -491,11 +660,28 @@ guard names the route the page was on and the first problem it caught: an uncaug
 `console.error`, or an `/api/` request that answered 4xx or 5xx. When the `ui-server` setup itself
 fails, `e2e/.e2e-ui-server.log` holds the whole `vite preview` log.
 
+A `vscode` case fails on an uncaught exception or a `console.error` in any frame: a webview, the
+workbench, or the extension host, whose errors the workbench prints in the top frame as
+`[Extension Host] …`. The failure lists every such problem, and also every error the case declared
+with `expectConsoleError` that never arrived. An error allowed with `allowConsoleError` passes
+whether or not it arrives. The one error every page load reports, the 404 for
+`/static/devextensions/package.nls.json`, is allowed in `support/vscode-guard.ts`. The guard also
+answers every request to a host other than `localhost` and `*.localhost` with an empty 200, since
+the workbench asks the internet for its experiment assignments and its chat and Marketplace
+manifests, and a closed connection would log an error. `e2e/.e2e-vscode-server.log` holds the
+server's log, and a setup whose workbench never answers quotes its last 20 lines.
+
 ### Known defects pinned with `test.fail()`
 
 A known divergence is pinned with `test.fail()` and a comment naming the defect, so the run stays
 green while the defect stands. `grep -rn "test\.fail(" specs/` lists them. A pinned case
 turns red the day its defect is fixed, and that is the signal to remove the annotation.
+
+A fix removes the defect's pin, or the `expectConsoleError` call that declares its error, since the
+case that then passes is the regression case.
+A handler added for an `unhandled` type also changes its row, and
+`specs/harness/vscode-messages.spec.ts` fails until the row matches the code: a handled row when
+the extension answers the type, and no row when the UI stops sending it.
 
 A defect only one engine meets, or a race, is pinned with `strikesAsKnown` and a `ConditionalDefect`
 instead, defined in `specs/<project>/<component>-defects.ts`; `grep -rn strikesAsKnown specs/` lists
@@ -537,7 +723,8 @@ re-running.
   Docker more, or run fewer workers with `E2E_WORKERS=4`.
 - **A container cannot start because a port is taken.** The Compose stack binds 8080, 8091, 8092,
   8093, 8095, 5432, 8500, and 9200, the broker overlays bind the ports under
-  [Prerequisites](#prerequisites), and `ui-server` binds 4200. Stop whatever holds the port. On
+  [Prerequisites](#prerequisites), `ui-server` binds 4200, and `vscode-server` binds 3917. Stop
+  whatever holds the port. On
   kind, a broker port that does not answer was not mapped into `kind-qip` when it was created;
   recreate the cluster as [the Kubernetes target page](k8s/README.md) describes.
 - **`[provision] mvn install` fails.** Fix the build first: run
@@ -548,6 +735,9 @@ re-running.
 
 - **The browser cases test the wrong UI.** A dev server was already answering on 4200, and the suite
   used it as found. Stop it and run again.
+- **`vscode-server` fails because port 3917 already answers.** The `vscode-test-web` of another
+  run holds the port, or a server the suite did not start. Wait for the other run or stop the
+  server, then run again.
 
 ## Provisioning
 
@@ -589,9 +779,10 @@ E2E_PROVISION=never npm test   # check health only, and fail naming whatever is 
 ```
 
 Use it against a stack somebody else provisioned, or one you are debugging: nothing is built,
-started, or recreated. A run whose `--project` selection needs no stack, which today means `schema`,
-`harness`, or both, skips provisioning and prints
-`[provision] skipped: the selected projects need no stack (schema, harness)`.
+started, or recreated. A run whose `--project` selection needs no stack skips provisioning and
+prints `[provision] skipped: the selected projects need no stack (<the selected projects>)`. Such a
+selection names only `schema`, `harness`, `schemas-build`, `vscode-server`, `vscode`, or the
+teardown of `vscode-server`, which declare `metadata: { stack: false }`.
 
 ## Broker overlays
 
@@ -676,6 +867,8 @@ Some residue is not swept:
   which a failed micro case also keeps, and whose micro domain the sweep does delete.
 - **A `vite preview` on 4200.** The next run's `ui-server` setup stops it, finding it in
   `.e2e-ui-server.json`.
+- **A `vscode-test-web` on 3917.** The next run's `vscode-server` setup stops it, finding it in
+  `.e2e-vscode-server.json`.
 
 ### A service left running settings no file carries
 
@@ -710,10 +903,13 @@ fixtures/   the chains the seed imports, the axis chain generator, the API docum
             imports as a specification, and the frozen import corpus; services/ holds one
             directory per service the seeds import, and the catalog export
             specs/api/service-roundtrip.spec.ts imports; broker-services/ holds the AsyncAPI
-            services the broker seeds import
+            services the broker seeds import; vscode/ holds the workspace VS Code opens and
+            the goldens of the files the extension writes
 registry/   what the suite claims to cover, and the checks that keep the claim honest
 support/    the service clients, the corpus assembler, the chain builders, the report, the page
-            guard every browser spec imports, the UI bundle server, and the release-check runner
+            guard every browser spec imports, the UI bundle server, the schemas build, the VS
+            Code server, the guard and message recorder every vscode spec imports, the paths
+            the pull request workflow reads, and the release-check runner
 specs/
   schema/       no stack: the product's routes, Compose files, migrations, and schemas
   harness/      no stack: the suite's own code, the registries, and the lint rules over the specs
@@ -726,8 +922,15 @@ specs/
                 then removes it
   brokers/      kafka, rabbitmq, pub/sub and sftp, called and asserted
   global/       reads over the whole platform or over state it shares, one worker, after env
+  schemas-build/
+                builds schemas/ when its sources are newer
   ui-server/    builds and serves the UI bundle on 4200, then stops it
+  vscode-server/
+                builds the UI library and the extension, serves VS Code for the web on 3917,
+                then stops it
   ui/           the browser layer, Chromium through nginx on 8080
+  vscode/       the extension's editors in VS Code for the web; imports `test` from
+                support/vscode-guard.ts, which fails a case on an error in any frame
   seed-micro/   k8s only: deploys the micro copy of the corpus to a micro domain, then removes it
   brokers-micro-seed/
                 k8s only: deploys the micro copy of fixtures/brokers/ to a micro domain, then
@@ -737,7 +940,8 @@ specs/
                 own, one file at a time
   k8s/          k8s only: custom resources, gateway routes, discovery, the /e2e/ locations, a
                 micro domain that a broken chain takes down, and one redeployed under load
-pages/      page objects for the UI and the shared TableView; selectors by role, test id, then title
+pages/      page objects for the UI and the shared TableView; selectors by role, test id, then title;
+            VsCodePage for the workbench around the extension's editors
 ```
 
 The split into projects is about scheduling rather than subject. `schema` and `harness` read files
@@ -763,7 +967,7 @@ one batch, and waits until the routes answer. What it deployed lands in
 
 ## Coverage registries
 
-Two registries under `registry/` hold what the suite claims to cover, and `npm run reconcile` checks
+Three registries under `registry/` hold what the suite claims to cover, and `npm run reconcile` checks
 them against the run rather than believing them:
 
 - `registry/elements.ts` has one row per element family and per axis value the schemas declare,
@@ -779,6 +983,17 @@ them against the run rather than believing them:
   when a call to it was recorded, `covered` when a named assertion about it passed, and
   `not-reached` otherwise, with a reason. The two numbers are reported side by side and never
   summed.
+- `registry/vscode-messages.ts` has one row per message type of the VS Code webview bridge. A row is
+  `covered` when a passing `vscode` case recorded the type answered without an error, `not-covered`
+  otherwise, with a reason, and `unhandled` for a type the UI sends and the extension has no handler
+  for (#1214). `specs/harness/vscode-messages.spec.ts` reads the rows against the extension and UI
+  sources, in both directions: a type `getApiResponse` handles with no row fails it, so does a type
+  `ui/src` sends that no handler takes and no `unhandled` row names, and so does a row for a type
+  neither side knows. A handled type nothing in `ui/src` sends stays `not-covered`, with a reason
+  that starts `no UI sender`. Reconcile ignores what a case recorded for an `unhandled` row, since
+  the extension answers it with no error and no payload. The run summary counts the covered rows
+  out of the handled types, with the `unhandled` rows beside them:
+  `VS Code messages: 64 of 70 handled message types covered, 2 unhandled.`
 
 Run reconcile after the suite, never instead of it:
 
@@ -789,7 +1004,16 @@ npm test; npm run reconcile
 It reads a whole run or none. A run narrowed by `--project` or `--grep` is refused, and a run given
 `--reporter=line` writes no `test-results/report.json` for it to read. A row only one target can
 prove carries that target, so covering the whole registry takes a reconcile after a full run on
-each target.
+each target. `npm run reconcile -- --only=vscode-messages` checks the message registry alone, after a
+run of exactly `--project=vscode`, and writes neither `cases.md` nor `coverage.json`. Execution
+options such as `--workers` and `--max-failures` select no case, so the check accepts them too.
+
+`npm run reconcile -- --partial` accepts a narrowed run, such as a pull request lane, and keeps the
+checks that hold for any subset of the suite: every case carries its tags, every `covers()`
+declaration names a row of the run's target and carries the row's tags, every API call the run
+recorded matches an operation row, and a `not-reached` row the run reached fails. It skips the
+check that every `covered` or `reached` row was proven, which only a whole run can pass. Like
+`--only`, it writes neither `cases.md` nor `coverage.json`, and the two cannot be combined.
 
 `npm run refresh-operations` rewrites `registry/operations.cache.json` from a running stack, and it
 is the only thing that writes it. Point it elsewhere with `CIP_CATALOG_URL`, `CIP_ENGINE_URL`,
@@ -804,7 +1028,8 @@ is the only thing that writes it. Point it elsewhere with `CIP_CATALOG_URL`, `CI
 The VS Code extension has its own integration suite, outside `e2e/`. Its specs are in
 `vscode-extension/src/web/test/suite/`, and they run under mocha inside `@vscode/test-web`, because
 they call the `vscode` API and need the extension's webpack build. They need no stack: the extension
-reads and writes local files and calls no backend.
+reads and writes local files and calls no backend. They send the router the message a webview would
+send, so the editors' webviews, and what they send, are covered by the `vscode` project instead.
 
 The build needs the npm workspaces installed at the repository root and the upstream bundles the
 extension copies in, `ui/dist-lib/index.bundled.es.js` and `schemas/assets/`. On a fresh checkout,
@@ -823,7 +1048,8 @@ npm run test:integration -w @netcracker/qip-vscode-extension
   every run resolves the current insiders build. The first run downloads it into the gitignored
   `vscode-extension/.vscode-test-web/`, which needs network access; later runs reuse that download
   until the insiders build rotates, and a rotation means a fresh download. A run takes about 25
-  seconds. Re-pin `--commit <sha>` if a download fails.
+  seconds. Re-pin `--commit <sha>` if a download fails. The `vscode` project pins its own build
+  instead (see [The `vscode` project](#the-vscode-project)).
 - It opens `vscode-extension/src/web/test/workspace/` as the workspace. The test host keeps every
   write in memory, so a run leaves those files unchanged.
 - `vscode-extension-build.yaml` runs it in the `npm-build` job, after the Jest suite. `npm run

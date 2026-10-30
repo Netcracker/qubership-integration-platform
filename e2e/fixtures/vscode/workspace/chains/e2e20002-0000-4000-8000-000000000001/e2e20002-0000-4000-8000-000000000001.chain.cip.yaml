@@ -1,0 +1,35 @@
+---
+id: "e2e20002-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "vsc-fixture-chain-caller"
+content:
+  description: "Calls the chain trigger of vsc-fixture-chain-callee"
+  labels: []
+  elements:
+  - id: "e2e20002-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      accessControlType: "NONE"
+      chunked: true
+      connectTimeout: 120000
+      contextPath: "vsc-fixture-chain-caller"
+      externalRoute: true
+      handleChainFailureAction: "default"
+      handleValidationAction: "default"
+      httpBinding: "handlingHttpBinding"
+      httpMethodRestrict: "POST"
+      killSessionOnTimeout: false
+      privateRoute: false
+      rejectRequestIfNonNullBodyGetDelete: true
+  - id: "e2e20002-0000-4000-8000-000000000003"
+    name: "Chain Call"
+    type: "chain-call-2"
+    properties:
+      elementId: "e2e20003-0000-4000-8000-000000000002"
+      timeout: 30000
+  dependencies:
+  - from: "e2e20002-0000-4000-8000-000000000002"
+    to: "e2e20002-0000-4000-8000-000000000003"
+  deployAction: "SNAPSHOT"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

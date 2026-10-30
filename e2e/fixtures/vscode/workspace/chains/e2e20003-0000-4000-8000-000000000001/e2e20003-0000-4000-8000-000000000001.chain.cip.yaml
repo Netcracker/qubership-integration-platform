@@ -1,0 +1,25 @@
+---
+id: "e2e20003-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "vsc-fixture-chain-callee"
+content:
+  description: "The chain vsc-fixture-chain-caller calls"
+  labels: []
+  elements:
+  - id: "e2e20003-0000-4000-8000-000000000002"
+    name: "Chain Trigger"
+    type: "chain-trigger-2"
+    properties:
+      elementId: "e2e20003-0000-4000-8000-000000000002"
+  - id: "e2e20003-0000-4000-8000-000000000003"
+    name: "Callee Reply"
+    type: "script"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesFilename: "e2e20003-0000-4000-8000-000000000003.element.script.cip.groovy"
+      propertiesToExportInSeparateFile: "script"
+  dependencies:
+  - from: "e2e20003-0000-4000-8000-000000000002"
+    to: "e2e20003-0000-4000-8000-000000000003"
+  deployAction: "SNAPSHOT"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

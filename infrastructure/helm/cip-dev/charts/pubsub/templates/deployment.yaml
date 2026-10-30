@@ -38,6 +38,7 @@ spec:
               path: /
               port: 8085
             periodSeconds: 5
+            timeoutSeconds: 5
           resources:
             requests:
               cpu: 50m

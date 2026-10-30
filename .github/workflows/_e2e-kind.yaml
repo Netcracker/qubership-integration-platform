@@ -1,0 +1,429 @@
+---
+
+# The e2e suite on a kind cluster. `e2e-k8s.yaml` calls it nightly for the whole suite, and
+# `e2e-pr.yaml` calls it once per lane of `e2e/support/lanes.mjs`. The calling job grants
+# `actions: read`, `contents: read`, and `packages: read`.
+
+name: E2E on kind
+
+on:
+  workflow_call:
+    inputs:
+      name:
+        description: The job name; under pull-request, also the suffix of every artifact name
+        required: true
+        type: string
+      lane:
+        description: The lane whose projects run (e2e/support/lanes.mjs); empty runs the whole suite
+        required: false
+        type: string
+        default: ""
+      build:
+        description: The images built from the checkout (E2E_BUILD); the rest run from GHCR
+        required: false
+        type: string
+        default: all
+      brokers:
+        description: Run the broker projects; false sets E2E_BROKERS=0
+        required: false
+        type: boolean
+        default: true
+      workers:
+        description: Playwright workers (E2E_WORKERS); empty uses 4
+        required: false
+        type: string
+        default: "4"
+      timeout-minutes:
+        description: The job timeout
+        required: false
+        type: number
+        default: 180
+      global-timeout:
+        description: The suite's --global-timeout and the resource sampler's bound, in minutes
+        required: false
+        type: number
+        default: 140
+      pull-request:
+        description: Stop at the first failure, keep the entities, reconcile only the lane, no run history, no email
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      EMAIL_PASSWORD:
+        description: The SMTP password of vars.EMAIL_FROM
+        required: false
+      EMAIL_TO:
+        description: Comma-separated addresses to email the run to; empty sends no email, and pull-request sends none
+        required: false
+
+permissions: {}
+
+jobs:
+  e2e:
+    name: ${{ inputs.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+    env:
+      # Pull request jobs share the caller's run, so each one names its artifacts apart. The nightly
+      # keeps the bare names, which its history fetch downloads by.
+      ARTIFACT_SUFFIX: ${{ inputs.pull-request && format('-{0}', inputs.name) || '' }}
+      # A .e2e-k8s- name, so "Upload the report" carries the log.
+      BOOTSTRAP_LOG: ${{ github.workspace }}/e2e/.e2e-k8s-bootstrap.log
+    steps:
+      - name: Checkout
+        id: checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      # Masks each address before any later step can print one, and fails here on a malformed
+      # entry. First after the checkout, so a run that fails while setting up still sends its email.
+      - name: Read the email recipients
+        id: recipients
+        env:
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+        run: node e2e/support/email-recipients.mjs
+
+      - name: Set up Java
+        id: java
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          java-version: "21"
+          distribution: "temurin"
+
+      # This job never saves the cache; the snapshot-flow cache from main covers runtime-catalog and micro-engine.
+      - name: Restore the Maven repository
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ runner.os }}-snapshot-flow-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            maven-${{ runner.os }}-snapshot-flow-
+            maven-${{ runner.os }}-runtime-catalog-
+
+      - name: Set up Node.js
+        id: node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            e2e/package-lock.json
+
+      # A caller job that uses a workflow runs no steps, so the lane is turned into projects here.
+      - name: Select the lane's projects
+        id: lane
+        if: ${{ inputs.lane != '' }}
+        env:
+          LANE: ${{ inputs.lane }}
+        run: echo "projects=$(node e2e/support/lanes.mjs "$LANE")" >> "$GITHUB_OUTPUT"
+
+      # The runner image ships an older kind in /usr/local/bin, so the pinned one goes first on PATH.
+      - name: Install kind and istioctl
+        id: tools
+        env:
+          KIND_VERSION: v0.33.0
+          KIND_SHA256: aee6151561422756b764a4ae28e7f44cda5af5a9eead3cc9985112b1de8d8e0d
+          ISTIO_VERSION: 1.31.1
+          ISTIOCTL_SHA256: a44563904f22f2a8bf6ac4fff1b0bad9f718587c2be6aa807b83fe9049910639
+          TOOLS_DIR: ${{ runner.temp }}/tools
+        run: |
+          set -eu
+          mkdir -p "$TOOLS_DIR"
+          cd "$TOOLS_DIR"
+          curl -fsSL -o kind "https://github.com/kubernetes-sigs/kind/releases/download/${KIND_VERSION}/kind-linux-amd64"
+          echo "${KIND_SHA256}  kind" | sha256sum -c -
+          chmod +x kind
+          curl -fsSL -o istioctl.tar.gz "https://github.com/istio/istio/releases/download/${ISTIO_VERSION}/istioctl-${ISTIO_VERSION}-linux-amd64.tar.gz"
+          echo "${ISTIOCTL_SHA256}  istioctl.tar.gz" | sha256sum -c -
+          tar -xzf istioctl.tar.gz istioctl
+          rm istioctl.tar.gz
+          echo "$TOOLS_DIR" >> "$GITHUB_PATH"
+
+      - name: Print tool versions
+        id: versions
+        run: |
+          kind version
+          istioctl version --remote=false
+          kubectl version --client
+          helm version
+          mvn -v
+
+      # Runs alongside the next steps and the suite's image builds. The exit code is written to a file
+      # after the log is complete, and the provisioner waits for that file before its first cluster call.
+      - name: Start the cluster bootstrap
+        id: bootstrap-start
+        run: |
+          (
+            set +e
+            e2e/k8s/bootstrap-cluster.sh > "$BOOTSTRAP_LOG" 2>&1
+            echo "$?" > "$BOOTSTRAP_LOG.tmp"
+            mv "$BOOTSTRAP_LOG.tmp" "$BOOTSTRAP_LOG.exit"
+          ) < /dev/null > /dev/null 2>&1 &
+
+      - name: Install root dependencies
+        id: root-deps
+        run: npm ci --legacy-peer-deps
+
+      - name: Install e2e dependencies
+        id: e2e-deps
+        working-directory: e2e
+        run: npm ci
+
+      - name: Install Chromium
+        id: chromium
+        working-directory: e2e
+        run: npx playwright install --with-deps chromium
+
+      # E2E_SAMPLE_MAX_MS bounds the resource sampler and, as --global-timeout, the suite.
+      # At the global timeout the reporters still write; a job cancel gives them about 7.5 s.
+      # MAVEN_ARGS needs Maven 3.9 or later.
+      - name: Run the suite
+        id: suite
+        working-directory: e2e
+        env:
+          E2E_WORKERS: ${{ inputs.workers || '4' }}
+          E2E_BUILD: ${{ inputs.build }}
+          E2E_BROKERS: ${{ inputs.brokers && '1' || '0' }}
+          E2E_KEEP: ${{ inputs.pull-request && '1' || '' }}
+          GLOBAL_TIMEOUT_MINUTES: ${{ inputs.global-timeout }}
+          PROJECTS: ${{ steps.lane.outputs.projects }}
+          PULL_REQUEST: ${{ inputs.pull-request }}
+          E2E_BOOTSTRAP_LOG: ${{ env.BOOTSTRAP_LOG }}
+          MAVEN_ARGS: -B -s ${{ github.workspace }}/.github/maven-settings.xml
+          MAVEN_GITHUB_USERNAME: ${{ github.actor }}
+          MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          export E2E_SAMPLE_MAX_MS=$((GLOBAL_TIMEOUT_MINUTES * 60000))
+          args=(--global-timeout="$E2E_SAMPLE_MAX_MS")
+          if [ "$PULL_REQUEST" = true ]; then args+=(--max-failures=1); fi
+          # shellcheck disable=SC2086 # one --project flag per word
+          npm run test:k8s -- $PROJECTS "${args[@]}"
+
+      - name: Reconcile the coverage registry
+        id: reconcile
+        if: ${{ always() && !inputs.pull-request && hashFiles('e2e/test-results/report.json') != '' }}
+        working-directory: e2e
+        run: npm run reconcile
+
+      # After a green run only: a run that stopped at its first failure left the later cases unrun,
+      # and reconcile would also report their API calls as never recorded.
+      - name: Reconcile the lane's coverage
+        id: reconcile-partial
+        if: ${{ inputs.pull-request }}
+        working-directory: e2e
+        run: npm run reconcile -- --partial
+
+      # Earlier runs on this branch, which mark a failed test new, intermittent, or still failing in the
+      # summary and the email. A run without the e2e-outcomes artifact is passed over, and a failed
+      # fetch costs the history, not the run.
+      - name: Fetch the run history
+        if: ${{ always() && !inputs.pull-request && hashFiles('e2e/test-results/report.json') != '' }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HISTORY_DIR: ${{ runner.temp }}/history
+          HISTORY_RUNS: "10"
+        run: |
+          mkdir -p "$HISTORY_DIR"
+          for id in $(gh run list -R "$GITHUB_REPOSITORY" --workflow e2e-k8s.yaml --branch "$GITHUB_REF_NAME" \
+              --status completed --limit 30 --json databaseId --jq '.[].databaseId'); do
+            [ "$(find "$HISTORY_DIR" -mindepth 1 -maxdepth 1 | wc -l)" -ge "$HISTORY_RUNS" ] && break
+            gh run download "$id" -R "$GITHUB_REPOSITORY" -n e2e-outcomes -D "$HISTORY_DIR/$id" > /dev/null 2>&1 ||
+              rm -rf "${HISTORY_DIR:?}/$id"
+          done
+          echo "Fetched the outcomes of $(find "$HISTORY_DIR" -mindepth 1 -maxdepth 1 | wc -l) earlier runs"
+
+      # The suite writes a blob report on CI, and merge-reports builds the HTML report from it, which
+      # adds the run's timeline to the Speedboard tab. PLAYWRIGHT_HTML_TITLE is the reporter's title option.
+      - name: Build the HTML report
+        id: html
+        if: ${{ always() && hashFiles('e2e/blob-report/*.zip') != '' }}
+        working-directory: e2e
+        env:
+          PLAYWRIGHT_HTML_OPEN: never
+          HTML_DIR: ${{ runner.temp }}/html
+          HTML_FILE: e2e-report${{ env.ARTIFACT_SUFFIX }}-${{ github.run_number }}-${{ github.run_attempt }}.html
+        run: |
+          export PLAYWRIGHT_HTML_TITLE="E2E $GITHUB_REF_NAME @ ${GITHUB_SHA::7}"
+          npx playwright merge-reports --reporter html blob-report
+          mkdir -p "$HTML_DIR"
+          cp playwright-report/index.html "$HTML_DIR/$HTML_FILE"
+
+      # An unzipped upload takes its name from the file and refuses a name it already holds, so each
+      # attempt copies the page to a name of its own (actions/upload-artifact#769).
+      - name: Upload the HTML report
+        id: report-html
+        if: ${{ always() && steps.html.outcome == 'success' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          path: ${{ runner.temp }}/html/e2e-report${{ env.ARTIFACT_SUFFIX }}-${{ github.run_number }}-${{ github.run_attempt }}.html
+          archive: false
+          retention-days: 14
+
+      # The report at the root of its own zip, which `npx playwright show-report <zip>` opens as it is.
+      - name: Upload the report with its traces
+        id: report-zip
+        if: ${{ always() && steps.html.outcome == 'success' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-playwright-report${{ env.ARTIFACT_SUFFIX }}
+          path: e2e/playwright-report/
+          retention-days: 14
+
+      - name: Write the run page
+        id: run-page
+        if: ${{ always() && hashFiles('e2e/test-results/report.json') != '' }}
+        working-directory: e2e
+        env:
+          E2E_HISTORY_DIR: ${{ runner.temp }}/history
+          REPORT_HTML_URL: ${{ steps.report-html.outputs.artifact-url }}
+          PLAYWRIGHT_REPORT_URL: ${{ steps.report-zip.outputs.artifact-url }}
+          PAGE_DIR: ${{ runner.temp }}/run-page
+          PAGE_FILE: e2e-run${{ env.ARTIFACT_SUFFIX }}-${{ github.run_number }}-${{ github.run_attempt }}.html
+        run: |
+          npm run --silent run-page
+          mkdir -p "$PAGE_DIR"
+          cp test-results/run-page.html "$PAGE_DIR/$PAGE_FILE"
+
+      - name: Upload the run page
+        id: run-page-upload
+        if: ${{ always() && steps.run-page.outcome == 'success' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          path: ${{ runner.temp }}/run-page/e2e-run${{ env.ARTIFACT_SUFFIX }}-${{ github.run_number }}-${{ github.run_attempt }}.html
+          archive: false
+          retention-days: 14
+
+      - name: Upload the report
+        id: report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-report${{ env.ARTIFACT_SUFFIX }}
+          path: |
+            e2e/test-results/
+            e2e/.e2e-k8s-*
+            e2e/.e2e-ui-server.log
+            e2e/.e2e-vscode-server.log
+          # The run state files start with a dot, and the action drops dotfiles by default.
+          include-hidden-files: true
+          retention-days: 14
+
+      # After the uploads, whose links it carries. A run that fails before the suite has no
+      # test-results directory to summarize.
+      - name: Write the step summary
+        id: summary
+        if: ${{ always() }}
+        working-directory: e2e
+        env:
+          E2E_HISTORY_DIR: ${{ runner.temp }}/history
+          REPORT_HTML_URL: ${{ steps.report-html.outputs.artifact-url }}
+          RUN_PAGE_URL: ${{ steps.run-page-upload.outputs.artifact-url }}
+          REPORT_URL: ${{ steps.report.outputs.artifact-url }}
+          PLAYWRIGHT_REPORT_URL: ${{ steps.report-zip.outputs.artifact-url }}
+        run: |
+          if [ -d test-results ]; then
+            npm run --silent run-summary
+            cat test-results/summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # A pull request run has no history of its own, so the summary names the last nightly result.
+      - name: Name the last nightly run
+        if: ${{ always() && inputs.pull-request }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          nightly=$(gh run list -R "$GITHUB_REPOSITORY" --workflow e2e-k8s.yaml --branch main --event schedule \
+            --status completed --limit 1 --json conclusion,createdAt,url \
+            --jq '.[] | "[\(.conclusion)](\(.url)) on \(.createdAt[:10])"') || nightly=""
+          echo "Last nightly run on \`main\`: ${nightly:-none found}" >> "$GITHUB_STEP_SUMMARY"
+
+      # The next run reads this run's history from here.
+      - name: Upload the outcomes
+        if: ${{ always() && hashFiles('e2e/test-results/outcomes.json') != '' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-outcomes${{ env.ARTIFACT_SUFFIX }}
+          path: e2e/test-results/outcomes.json
+          retention-days: 30
+
+      - name: Dump the cluster
+        if: ${{ failure() || cancelled() }}
+        env:
+          DUMP_DIR: ${{ runner.temp }}/cluster
+        # A container that never started has no logs, and the rest of the dump still matters.
+        # The micro domains are still here after a failed micro case: the suite's teardown keeps them.
+        run: |
+          set +e
+          mkdir -p "$DUMP_DIR"
+          cd "$DUMP_DIR"
+          kubectl get all,events -A -o wide > get-all-events.txt 2>&1
+          kubectl describe pods -n cip-e2e > describe-pods-cip-e2e.txt 2>&1
+          kubectl get integrations.camel.apache.org -n cip-e2e -o yaml > integrations-cip-e2e.yaml 2>&1
+          for pod in $(kubectl get pods -n cip-e2e -o name); do
+            name="${pod#pod/}"
+            for container in $(kubectl get -n cip-e2e "$pod" -o jsonpath='{.spec.initContainers[*].name} {.spec.containers[*].name}'); do
+              kubectl logs -n cip-e2e "$pod" -c "$container" > "$name.$container.log" 2>&1
+              kubectl logs -n cip-e2e "$pod" -c "$container" --previous > "$name.$container.previous.log" 2> /dev/null ||
+                rm -f "$name.$container.previous.log"
+            done
+          done
+          kubectl logs -n istio-system deploy/istiod --all-containers > istiod.log 2>&1
+          kubectl logs -n camel-k deploy/camel-k-operator --all-containers > camel-k-operator.log 2>&1
+
+      - name: Upload the cluster dump
+        id: cluster
+        if: ${{ failure() || cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-cluster${{ env.ARTIFACT_SUFFIX }}
+          path: ${{ runner.temp }}/cluster/
+          retention-days: 14
+
+      # Every run with recipients is mailed, a green one too. On a failed run the subject names the
+      # failed tests, or else the first global error, or else the step that failed first, which the
+      # jobs API names.
+      # Without a checkout there is no script to write the email.
+      - name: Write the run email
+        id: email
+        if: ${{ always() && steps.recipients.outputs.to != '' && !inputs.pull-request }}
+        env:
+          JOB_STATUS: ${{ job.status }}
+          GH_TOKEN: ${{ github.token }}
+          E2E_HISTORY_DIR: ${{ runner.temp }}/history
+          REPORT_URL: ${{ steps.report.outputs.artifact-url }}
+          REPORT_HTML_URL: ${{ steps.report-html.outputs.artifact-url }}
+          RUN_PAGE_URL: ${{ steps.run-page-upload.outputs.artifact-url }}
+          PLAYWRIGHT_REPORT_URL: ${{ steps.report-zip.outputs.artifact-url }}
+          CLUSTER_URL: ${{ steps.cluster.outputs.artifact-url }}
+        run: |
+          FAILED_STEP=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs" \
+            --jq '[.jobs[] | select(.status == "in_progress") | .steps[] | select(.conclusion == "failure") | .name][0] // empty') || true
+          echo "First failed step: ${FAILED_STEP:-none named}"
+          if [ "$JOB_STATUS" != success ]; then
+            export FAILED_STEP="${FAILED_STEP:-a step the run page names}"
+          fi
+          node e2e/support/run-email.mjs e2e/test-results >> "$GITHUB_OUTPUT"
+
+      - name: Email the run
+        if: ${{ always() && steps.email.outcome == 'success' }}
+        uses: netcracker/qubership-workflow-hub/actions/email-action@0eefd4976131d113c986281eed8bc642b6da303d # v2.8.1
+        env:
+          EMAIL_SMTP_HOST: ${{ vars.EMAIL_SMTP_HOST }}
+          EMAIL_SMTP_PORT: ${{ vars.EMAIL_SMTP_PORT }}
+          EMAIL_FROM: ${{ vars.EMAIL_FROM }}
+          EMAIL_USERNAME: ${{ vars.EMAIL_FROM }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+        with:
+          to: ${{ steps.recipients.outputs.to }}
+          subject: ${{ steps.email.outputs.subject }}
+          body: file://${{ github.workspace }}/e2e/test-results/email.txt
+          html-body: file://${{ github.workspace }}/e2e/test-results/email.html
+          # The action runs html-body through showdown for any non-empty value, "false" included.
+          convert-markdown: ""

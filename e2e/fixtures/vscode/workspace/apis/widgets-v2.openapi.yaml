@@ -1,0 +1,12 @@
+# A second version for the import into an existing group: version 2.0.0, one operation.
+openapi: 3.0.3
+info:
+  title: E2E Widgets API
+  version: 2.0.0
+paths:
+  /widgets:
+    get:
+      operationId: listWidgets
+      responses:
+        "200":
+          description: every widget

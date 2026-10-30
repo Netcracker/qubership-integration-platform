@@ -24,7 +24,8 @@ file, provisioning, residue, and troubleshooting. This file holds what any work 
 
 **Before you write or change a spec, a fixture, a registry row, or the code under `support/`, load
 the `e2e-spec-authoring` skill.** It holds the rules for a spec, the coverage registries, the shared
-corpus, residue, and frozen fixtures, and its `browser.md` holds the rules for `specs/ui/`.
+corpus, residue, and frozen fixtures, and its `browser.md` holds the rules for `specs/ui/` and
+`specs/vscode/`.
 
 ### Commands
 
@@ -32,6 +33,7 @@ corpus, residue, and frozen fixtures, and its `browser.md` holds the rules for `
 npm run check-types          # type-check
 npm test -- --project=schema --project=harness  # the specs that need no stack
 npm test -- --project=<name> --no-deps -g "…"  # one case, against a corpus kept with E2E_KEEP=1
+npm test -- --project=vscode # the extension's editors, no stack; never with --no-deps
 npm test; npm run reconcile  # a full run, then the registries checked against it
 npx playwright test --list   # count the cases and the projects; starts nothing
 ```
@@ -39,38 +41,47 @@ npx playwright test --list   # count the cases and the projects; starts nothing
 `--no-deps` belongs on every `--grep` and every file path: a filter selects tests and never
 dependency projects, so without it one tagged `env` case drags `api`, `runtime`, `seed`,
 `seed-teardown`, and `tooling` in whole. Every runtime case reruns against a kept corpus; a case that
-cannot is a case to fix, not to document.
+cannot is a case to fix, not to document. `vscode` is the exception: its dependencies need no stack,
+build what is stale, and start the server its cases use, so it always runs with them.
 
 The VS Code extension's integration tests are a sibling suite with their own runner, not Playwright
-specs. A case that needs the `vscode` API goes under `vscode-extension/src/web/test/suite/`, never
-under `specs/`. The suites meet on `vscode-extension/src/web/test/golden/`, which
-`specs/api/extension-output.spec.ts` imports into the catalog, and two suites write it: the eight
-files at its top level come from the extension's own integration suite, and the twenty-one under
-`golden/import/` from the Jest cases in `vscode-extension/tests/web/import/`, which the integration
-bundle never loads. Regenerate a golden in the suite that writes it.
+specs. A case that calls the `vscode` API, a command or `workspace.fs`, goes under
+`vscode-extension/src/web/test/suite/`, never under `specs/`. A case about an editor's webview, what
+it shows and what it sends the extension, goes in the `vscode` project under `specs/vscode/`, which
+drives VS Code for the web on port 3917 with the extension of this checkout. The suites meet on
+`vscode-extension/src/web/test/golden/`, which `specs/api/extension-output.spec.ts` imports into the
+catalog, and two suites write it: the eight files at its top level come from the extension's own
+integration suite, and the twenty-one under `golden/import/` from the Jest cases in
+`vscode-extension/tests/web/import/`, which the integration bundle never loads. Regenerate a golden
+in the suite that writes it.
 
 ### CI
 
 `.github/workflows/e2e-k8s.yaml` runs the full suite on a kind cluster, nightly on `main` and on
-manual dispatch. No pull request check runs it. `npm run check-types` and
-`npx playwright test --project=schema --project=harness` need no stack, so run both before pushing
-a change to `e2e/` or to a tree the two projects read:
+manual dispatch. `.github/workflows/e2e-pr.yaml` runs `npm run check-types` and
+`npx playwright test --project=schema --project=harness` on every pull request. Both need no stack,
+so run them before pushing a change to `e2e/` or to a tree the two projects read:
 `schemas/src/main/resources/conf-model/`, `schemas/src/test/resources/samples/`, `infrastructure/`,
 and the import-file migration classes under `integration-build-pipeline/`. `harness` also holds
 `specs/harness/title-rules.spec.ts`, which checks the describes, titles, and tags of every spec.
-The rest of the suite provisions a Compose stack or a cluster namespace and expects to own it for
-the length of the run.
+The workflow's `vscode` job runs `--project=vscode` and `npm run reconcile -- --only=vscode-messages`
+when the pull request changes a path that `support/pr-changes.mjs` lists. That project needs no
+stack either, so run it before pushing a change to `vscode-extension/`, `ui/`, or `schemas/`.
+Its `classic`, `micro`, and `ui` jobs each run one lane of `support/lanes.mjs` through
+`_e2e-kind.yaml`, the workflow the nightly calls, when `support/pr-changes.mjs` maps a changed path
+to that job. A project in no lane runs only nightly. The rest of the suite provisions a Compose
+stack or a cluster namespace and expects to own it for the length of the run.
 
 The job's step summary comes from `support/run-summary.mjs`, and `support/run-page.mjs` writes the
-run page, which the job uploads unzipped beside Playwright's HTML report. Every scheduled run, and
-every dispatch with the `email` input, which is on by default, mails an HTML report that
-`support/run-email.mjs` writes through the org email action to `vars.EMAIL_TO`, passed or failed,
-with the verdict in the subject. All three render one model from `support/run-model.mjs`: they name
-a test by its describe path and title joined with ` › `, count the product, setup, and suite
-project groups apart, mark each failed test as new, intermittent, or still failing from the
-`e2e-outcomes` artifacts of earlier runs on the branch, which `support/run-history.mjs` reads, and
-list a `test.fail()` case that passed apart, as a pin to remove. The email gives each failed test
-the command that reruns it alone.
+run page, which the job uploads unzipped beside Playwright's HTML report. Every scheduled run mails
+an HTML report that `support/run-email.mjs` writes through the org email action to `vars.EMAIL_TO`,
+passed or failed, with the verdict in the subject; a dispatch mails it only to the addresses in its
+`email-to` input. `support/email-recipients.mjs` masks the recipients in the public log. All three
+render one model from `support/run-model.mjs`: they name a test by its describe path and title
+joined with ` › `, count the product, setup, and suite project groups apart, mark each failed test
+as new, intermittent, or still failing from the `e2e-outcomes` artifacts of earlier runs on the
+branch, which `support/run-history.mjs` reads, and list a `test.fail()` case that passed apart, as a
+pin to remove. The email gives each failed test the command that reruns it alone.
 The summary also reads `coverage.json`, which `npm run reconcile` writes, and the `resource-peaks`
 and `metaspace` attachments of `specs/env/process-envelope.spec.ts`.
 
@@ -97,17 +108,18 @@ debugging on the same stack.
   and has no flag that skips it, so `globalSetup` returns before it mints a run token when every
   selected project declares `metadata: { stack: false }` in `playwright.config.ts`. The selection
   is read off `config.argv`, because `config.grep` serializes to `{}` and `config.projects` lists
-  every declared project. Without that return, `--project=schema --project=harness` could not run on
-  a machine with no Docker.
+  every declared project. Without that return, `--project=schema --project=harness` or
+  `--project=vscode` could not run on a machine with no Docker.
 
 On `k8s` the suite provisions the namespace, never the cluster; `e2e/k8s/bootstrap-cluster.sh`
 prepares the cluster. The cluster versions are pinned in the script and in `e2e/k8s/README.md`.
 `infrastructure/helm/cip-dev/README.md` also pins Gateway API and Istio, and
-`.github/workflows/e2e-k8s.yaml` pins kind and istioctl. Bump them in all four places together.
+`.github/workflows/_e2e-kind.yaml` pins kind and istioctl. Bump them in all four places together.
 `env/provision/k8s.ts` checks the kube-context, the Gateway API CRDs, Istio, the camel-k operator,
 and metrics-server in that order, and fails on the first one missing, naming the section of
 `e2e/k8s/README.md` that installs it. It then builds the images, each tagged with a hash over its
-own sources, and runs
+own sources. With `E2E_BOOTSTRAP_LOG` set, as on CI, where the bootstrap runs in the background, it
+builds the images first and waits for the bootstrap before the check. Then it runs
 `helm upgrade --install cip infrastructure/helm/cip-dev -n cip-e2e -f e2e/k8s/values.e2e.yaml`. A chart
 change the suite needs goes in the chart as an optional value with a default that renders what it
 rendered before, and `e2e/k8s/values.e2e.yaml` sets it.
@@ -147,9 +159,15 @@ e2e/
                          broker-restart cases
   specs/global/          reads over the whole platform, or over state it shares; one
                          worker, after api, runtime, env and ui
+  specs/schemas-build/   builds schemas/ when its sources are newer; no stack
   specs/ui-server/       builds and serves the UI bundle on 4200, then stops it
   specs/ui/              the browser layer, Chromium through nginx on 8080; imports `test`
                          from support/page-guard.ts, which fails a case on a page error
+  specs/vscode-server/   builds the UI library and the extension when stale, serves VS Code
+                         for the web on 3917, then stops it; no stack
+  specs/vscode/          the extension's editors in VS Code for the web, one worker, no stack;
+                         imports `test` from support/vscode-guard.ts, which fails a case on
+                         an error in any frame and records the webview's messages
   specs/seed-micro/      k8s only: the micro copy of the corpus, on a micro domain of the run
   specs/brokers-micro-seed/
                          k8s only: the micro copy of fixtures/brokers/, on a micro domain of its own
@@ -158,7 +176,7 @@ e2e/
                          domain of its own, one file at a time
   specs/k8s/             k8s only: custom resources, gateway routes, discovery, /e2e/ locations,
                          and a micro domain that a broken chain takes down
-  pages/                 page objects for the UI, plus the shared TableView
+  pages/                 page objects for the UI, plus the shared TableView and VsCodePage
 ```
 
 `runtime-micro`, `brokers-micro`, `global-micro`, and `env-micro` have no directory of their own:
