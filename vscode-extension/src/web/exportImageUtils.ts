@@ -17,7 +17,7 @@ export function hasUriScheme(value: string): boolean {
 }
 
 export function isAbsoluteFsPath(value: string): boolean {
-  return value.startsWith("/") || value.startsWith("\\") || /^[a-zA-Z]:[\\/]/.test(value);
+  return /^(\/|\\\\|[a-zA-Z]:[\\/])/.test(value);
 }
 
 export function resolveOutputFileUri(outputDir: string, fileName: string): Uri {
