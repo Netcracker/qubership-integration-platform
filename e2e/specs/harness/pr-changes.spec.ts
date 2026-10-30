@@ -16,8 +16,9 @@
  * `e2e/specs/seed-micro/**` mapped to `micro` only (the kind job closures and the samples);
  * `e2e/specs/harness/**` and `e2e/specs/schema/**` mapped to `classic` (the samples);
  * `E2E_REBUILD` ignored by the script ("the script prints one output per job and the build list");
- * the step env `E2E_REBUILD` dropped, and an ungated `classic` job added ("the workflow gates each
- * job on its output").
+ * the step env `E2E_REBUILD` dropped, the `classic` job ungated, and the `classic` job removed ("the
+ * workflow gates each job on its output"); `classic` dropped from the needs of `kind-result`, and
+ * `cancelled` from its check ("kind-result needs every kind job and fails on a failure").
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -267,14 +268,27 @@ test.describe("pr-changes", () => {
     expect(labels?.env).toMatchObject({ GH_TOKEN: "${{ github.token }}", PR: "${{ github.event.pull_request.number }}" });
     expect(step?.env?.E2E_REBUILD).toBe(`\${{ steps.${labels?.id}.outputs.rebuild }}`);
     expect(changes.permissions).toEqual({ contents: "read", "pull-requests": "read" });
-    // The kind jobs enter the workflow one at a time, so a kind job not added yet is reported, not failed.
-    const kindJobs = KIND_JOBS.filter((job) => jobs[job]);
-    for (const job of [...Object.keys(JOB_PATHS), ...kindJobs]) {
+    // The kind jobs enter the workflow one at a time; every kind job but these two is in it.
+    expect(KIND_JOBS.filter((job) => !jobs[job]), "kind jobs not in the workflow").toEqual(["micro", "ui"]);
+    for (const job of [...Object.keys(JOB_PATHS), ...KIND_JOBS.filter((each) => jobs[each])]) {
       expect(jobs[job]?.needs, job).toContain("changes");
       expect(jobs[job]?.if, job).toBe(`needs.changes.outputs.${job} == 'true'`);
     }
-    const missing = KIND_JOBS.filter((job) => !jobs[job]);
-    if (missing.length) test.info().annotations.push({ type: "kind jobs not in the workflow", description: missing.join(", ") });
     expect(jobs["stack-free"]?.needs, "stack-free runs on every pull request").toBeUndefined();
+  });
+
+  test("kind-result needs every kind job and fails on a failure", () => {
+    const jobs = (yaml.load(fs.readFileSync(WORKFLOW, "utf-8")) as { jobs: Record<string, Job> }).jobs;
+    const result = jobs["kind-result"];
+    // A failed `changes` skips every kind job, and a skipped job passes.
+    expect(result?.needs).toEqual(["changes", ...KIND_JOBS.filter((job) => jobs[job])]);
+    expect(result?.if).toBe("always()");
+    const [check] = result?.steps ?? [];
+    expect(check?.env?.RESULTS).toBe("${{ join(needs.*.result, ' ') }}");
+    const status = (results: string) => spawnSync("bash", ["-e", "-c", check?.run ?? ""], { env: { ...process.env, RESULTS: results } }).status;
+    expect(status("success success")).toBe(0);
+    expect(status("success skipped")).toBe(0);
+    expect(status("success failure")).toBe(1);
+    expect(status("cancelled skipped")).toBe(1);
   });
 });

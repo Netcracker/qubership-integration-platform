@@ -1,7 +1,8 @@
 ---
 
 # The e2e checks of a pull request. `stack-free` runs on every one; `changes` reads the paths the
-# pull request changes, and each job after it runs only when its paths changed.
+# pull request changes, and each job after it runs only when its paths changed. `kind-result` runs
+# on every pull request and fails when a kind job failed.
 # No `paths` filter: the projects read trees outside `e2e/`, and a required check that never starts
 # blocks the merge, where a skipped job counts as passed.
 
@@ -199,3 +200,38 @@ jobs:
             --status completed --limit 1 --json conclusion,createdAt,url \
             --jq '.[] | "[\(.conclusion)](\(.url)) on \(.createdAt[:10])"') || nightly=""
           echo "Last nightly run on \`main\`: ${nightly:-none found}" >> "$GITHUB_STEP_SUMMARY"
+
+  # The lane's projects are in e2e/support/lanes.mjs. On CI, provisioning takes about 8 minutes and
+  # the classic cases about 10, so both timeouts leave twice that.
+  classic:
+    needs: changes
+    if: needs.changes.outputs.classic == 'true'
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+    uses: ./.github/workflows/_e2e-kind.yaml
+    with:
+      name: classic
+      lane: classic
+      build: ${{ needs.changes.outputs.build }}
+      pull-request: true
+      timeout-minutes: 60
+      global-timeout: 45
+
+  # The one required check for the kind jobs: a caller job's own check is named after the job when
+  # skipped and after the called job when run, so neither can be required. `changes` is here too,
+  # because its failure skips every kind job.
+  kind-result:
+    name: Kind jobs
+    needs: [changes, classic]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check the results
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Results: $RESULTS"
+          case " $RESULTS " in *" failure "* | *" cancelled "*) exit 1 ;; esac

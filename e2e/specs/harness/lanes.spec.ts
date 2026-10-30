@@ -5,8 +5,9 @@
  * Shown failing: the printed flags joined by commas ("the script prints a lane's flags and refuses
  * an unknown one"); `ui` declared with the lanes of `api` ("the config declares the lanes the map
  * holds"); a lane on `global` in the map and the config ("no lane reaches a project that only the
- * nightly runs"); a `classic` job calling lane `ui`, a job calling lane `nightly`, and a `classic`
- * job with no lane ("the workflow calls each lane by the job of its name").
+ * nightly runs"); a `classic` job calling lane `ui`, a job calling lane `nightly`, a `classic` job
+ * with no lane, and the `classic` job removed ("the workflow calls each lane by the job of its
+ * name").
  */
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -88,10 +89,7 @@ test.describe("lanes", () => {
     expect(called.filter(({ job, lane }) => job !== lane)).toEqual([]);
     const withJob = lanes().filter((lane) => jobs[lane]);
     for (const lane of withJob) expect(jobs[lane].with?.lane, lane).toBe(lane);
-    // The jobs enter the workflow one at a time, so a lane with no job yet is reported, not failed.
-    const withoutJob = lanes().filter((lane) => !jobs[lane]);
-    if (withoutJob.length) {
-      test.info().annotations.push({ type: "lanes without a job", description: withoutJob.join(", ") });
-    }
+    // The jobs enter the workflow one at a time; every lane but these two has one.
+    expect(lanes().filter((lane) => !jobs[lane]).sort(), "lanes without a job").toEqual(["micro", "ui"]);
   });
 });

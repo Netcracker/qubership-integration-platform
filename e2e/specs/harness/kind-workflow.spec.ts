@@ -3,11 +3,12 @@
  * for the lane jobs of `e2e-pr.yaml`. These cases read it against its callers and against the
  * nightly's run history.
  *
- * Shown failing: `secrets: inherit` on the nightly ("each caller passes declared inputs and names
- * its secrets"); the outcomes uploaded as `e2e-outcomes-nightly` and the cluster dump without the
- * suffix ("the history fetch downloads the outcomes the nightly uploads"); the email step without
- * `!inputs.pull-request` and the partial reconcile under `always()` ("a pull request run skips the
- * nightly's history and email").
+ * Shown failing: `secrets: inherit` on the nightly, and `pull-request: true` dropped from the
+ * `classic` job ("callers pass declared inputs and never inherit secrets"); the outcomes
+ * uploaded as `e2e-outcomes-nightly` and the cluster dump without the suffix ("the history fetch
+ * downloads the outcomes the nightly uploads"); the email step without `!inputs.pull-request` and
+ * the partial reconcile under `always()` ("a pull request run skips the nightly's history and
+ * email").
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -54,7 +55,7 @@ function step(name: string): Step {
 }
 
 test.describe("kind workflow", () => {
-  test("each caller passes declared inputs and names its secrets", () => {
+  test("callers pass declared inputs and never inherit secrets", () => {
     const call = kind().on.workflow_call!;
     expect(callers(NIGHTLY).map(([name]) => name)).toEqual(["e2e"]);
     for (const file of CALLERS) {
@@ -65,11 +66,12 @@ test.describe("kind workflow", () => {
         const required = Object.entries(call.inputs).filter(([, input]) => input.required).map(([input]) => input);
         expect(required.filter((input) => !passed.includes(input)), where).toEqual([]);
         // A called workflow gets no secret it is not handed, and `inherit` would hand it every one.
-        expect(typeof job.secrets, where).toBe("object");
-        expect(Object.keys(job.secrets as object).filter((secret) => !(secret in call.secrets)), where).toEqual([]);
+        expect(job.secrets, where).not.toBe("inherit");
+        expect(Object.keys(job.secrets ?? {}).filter((secret) => !(secret in call.secrets)), where).toEqual([]);
         expect(job.permissions, where).toEqual({ actions: "read", contents: "read", packages: "read" });
       }
     }
+    for (const [name, job] of callers("e2e-pr.yaml")) expect(job.with?.["pull-request"], name).toBe(true);
     expect(callers(NIGHTLY)[0][1].secrets, "the email step needs the password").toEqual({ EMAIL_PASSWORD: "${{ secrets.EMAIL_PASSWORD }}" });
   });
 
