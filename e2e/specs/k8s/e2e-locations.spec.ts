@@ -22,7 +22,7 @@ test.describe("e2e proxy locations", { tag: ["@infra"] }, () => {
       failOnStatusCode: false,
     });
     // The inherited error page would answer 200 with no body, and the SPA fallback 200 with the page.
-    expect(response.status()).toBe(599); // TEMPORARY: deliberately broken to prove the PR job blocks; reverted next commit
+    expect(response.status()).toBe(502);
   });
 
   test("/e2e/svc/ passes a chain's 503 through to the caller", { tag: ["@engine"] }, async ({ catalog, env, folder, run, request }) => {

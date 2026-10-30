@@ -14,7 +14,7 @@ test.describe("SPA fallthrough", () => {
   test("/routes/ answers the SPA on the proxy and 404 on the engine", async ({ request, env }) => {
     // The `ui` project's base URL is the proxy.
     const throughProxy = await request.get("/routes/no-such-chain", { failOnStatusCode: false });
-    expect(throughProxy.status()).toBe(299); // TEMPORARY: deliberately broken to prove the PR job blocks; reverted next commit
+    expect(throughProxy.status()).toBe(200);
     expect(throughProxy.headers()["content-type"]).toMatch(/^text\/html/);
 
     const onTheEngine = await request.get(env.chainUrl("no-such-chain"), { failOnStatusCode: false });
