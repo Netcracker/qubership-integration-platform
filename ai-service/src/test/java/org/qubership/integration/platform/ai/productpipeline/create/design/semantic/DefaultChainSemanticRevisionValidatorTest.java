@@ -34,7 +34,10 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFa
 
 class DefaultChainSemanticRevisionValidatorTest {
   @ParameterizedTest
-  @ValueSource(strings = {"${date:now:minute} % 2 == 0", "${header.minute} ==", "${header.minute"})
+  @ValueSource(strings = {
+      "${date:now:minute} % 2 == 0", "${header.minute} ==", "${header.minute",
+      "${date:now:minute} == 0", "${date-with-timezone:now:UTC:minute} == 0"
+  })
   void rejectsMalformedCamelPredicatesBeforeGeneration(String predicate) {
     var candidate = singleConditionRevision(
         List.of(new SemanticBranch.Condition(

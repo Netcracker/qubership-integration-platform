@@ -60,6 +60,7 @@ class ProductEvidenceTest(unittest.TestCase):
         mutations = [
             ("knowledgeContext", "objectIds", []),
             ("knowledgeContext", "objectIds", [""]),
+            ("knowledgeContext", "objectIds", [42]),
             ("knowledgeContext", "contentChars", 0),
             ("knowledgeContext", "packageChecksum", "sha256:other"),
             ("knowledgePackage", "certificationStatus", "UNTRUSTED"),

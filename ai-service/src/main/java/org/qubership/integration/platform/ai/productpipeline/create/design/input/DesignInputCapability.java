@@ -448,6 +448,15 @@ public class DesignInputCapability implements StageCapability {
     if (repairSection != null && !repairSection.isBlank()) {
       prompt.append(repairSection);
     }
+    prompt.append("""
+
+        Preserve every approved branch decision and outcome when authoring or repairing predicates.
+        Correct syntax or date formats without weakening the condition or replacing it with a
+        convenient comparison. Recheck the predicate against the approved behavior, including the
+        opposite branch. Camel Simple date functions use SimpleDateFormat patterns; mm is minutes.
+        For example, even minutes can use `${date:now:mm} regex '.*[02468]'`, with ELSE for odd minutes.
+        This is a syntax example; derive each actual condition from its approved requirement.
+        """);
     for (RequirementFact fact : brief.facts()) {
       var intent = fact.elementIntent();
       if (fact.polarity() != RequirementFactPolarity.POSITIVE || intent == null
