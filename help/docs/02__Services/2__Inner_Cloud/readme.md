@@ -62,15 +62,13 @@ Parameters tab contains the following information:
 - **Name** - mandatory service name.
 - **Description** - description of service.
 - **Protocol** - service's integration protocol.
+- **Type** (read-only) - shows the service type. Available in the <ins>VS Code Extension</ins> only.
 - **Labels** - list of colored labels of the service, specification group or specification, unique within particular entity of each type.
   It might contain **custom** labels, entered by user via Cloud Integration Platform UI or **technical** labels,
   populated as part of the **deployment via Samples Repository**. Custom labels can be added or removed clicking on the field.
   **Technical** labels cannot be updated manually.
-
-For <ins>Web UI</ins> there is some additional information:
-
-- **Created** - datetime of entity creation.
-- **Modified** - datetime of entity modifying.
+- **Created** - datetime of entity creation. **`⛔ Not available via the VS Code extension`**
+- **Modified** - datetime of entity modifying. **`⛔ Not available via the VS Code extension`**
 
 ### View Specification Groups
 When service is clicked, the system shows the table with all specification groups and specifications, available for clicked service. Next columns and elements are available for the table:
@@ -100,7 +98,7 @@ Column visibility and order can be adjusted using the ![setting](img/setting.svg
 **Actions menu** - list of operations, accessed via ![more](img/more.svg) menu. Contains the following operations:
 - **Expand** ![down](img/down.svg) / **Collapse** ![up](img/up.svg) - fully expands or collapses the entity.
 - **Add Specification** ![plus](img/plus.svg) - allows to add a new specification to the group.
-- **Delete** ![delete](img/delete.svg) - deletes entity.
+- **Delete** ![delete](img/delete.svg) - deletes the specification group, all specifications in the group, and their imported API definition files.
 
 **Control panel**
 
@@ -140,6 +138,10 @@ To add new information, click on the button ![setting](img/setting.svg) located 
 **Actions menu** - list of operations, accessed via ![more](img/more.svg) menu. Contains the following operations:
 - ![down](img/down.svg) / ![up](img/up.svg) - expands the specification and shows all operations under it or collapses the specification and hides operations under it.
 - ![stop](img/stop.svg) - deprecates the specification, that makes it unavailable for newly added chain elements.
+- ![delete](img/delete.svg) - deletes the specification and its imported API definition files.
+
+  > ℹ️ The **"Delete"** action is available only for deprecated specifications.
+
 - ![cloud-download](img/cloud-download.svg) - exports the specification.
 
 **Control panel**
@@ -163,10 +165,16 @@ identified in the **path** (parameters, mentioned in the **{ }** are ignored). R
 **Control panel**
 
 At the top of the table the following options are available:
+  - **To Specifications** - returns to the list of specifications in the current group.
+  - **Search field** - filters operations by name, method, or path. Search is case-insensitive, and every space-separated term must match. For example, `GET /users` matches operations containing both terms.
+
+    > ℹ️ **Note:** In the Web UI, `%` matches any number of characters and `_` matches one character. The VS Code Extension treats both as literal characters.
+
   - ![cloud-download](img/cloud-download.svg) - export specification (available only for <ins>Web UI</ins>).
+  - ![setting](img/setting.svg) **Column settings** - changes column visibility and order. The **Name** column remains visible and first. Use **Reset** to restore the default settings.
   
 ### Discover Inner Cloud Services
-**`⛔ Not available via VS Code extension`**
+**`⛔ Not available via the VS Code extension`**
 
 To find all available Inner Services, there is a specific button ![cloud-sync](img/cloud-sync.svg) **"Service Discovery"**  available on **"Inner Cloud Services"** tab under **"Services"** section. To start a discovery process, simply click the mentioned button. Progress bar will show the percentage of discovery completion. Notification at the top-right will additionally signal about process start and finish. The result of the discovery might be:
 
@@ -258,7 +266,7 @@ Default properties are unique for different protocols and described below:
 #### http
 
 | Parameter                | Data Type | Description                                                                                                                                                                            | Sample |
-| ------------------------ | :-------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+|--------------------------|:----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------|
 | connectTimeout           | String    | Determines the timeout in milliseconds until a connection is established. Infinite timeout will be applied when zero value is specified.<br>**Default value:** 120000                  | 120000 |
 | soTimeout                | String    | Defines the socket timeout in milliseconds, which is the timeout for waiting for data. Infinite timeout will be applied when zero value is specified.<br>**Default value:** 120000     | 120000 |
 | connectionRequestTimeout | String    | The timeout in milliseconds used when requesting a connection from the connection manager. Infinite timeout will be applied when zero value is specified.<br>**Default value:** 120000 | 120000 |
@@ -268,16 +276,16 @@ Default properties are unique for different protocols and described below:
 
 #### kafka
 
-| Parameter               | Data Type | Description                                                                                                                                                                                                                                                                                                                                                                                                             | Sample                                                                                          |
-| ----------------------- | :-------- |-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------| ----------------------------------------------------------------------------------------------- |
-| key                     | String    | The record key (or null if no key is specified). If this option has been configured, then it takes precedence over header KafkaConstants#KEY.                                                                                                                                                                                                                                                                           | key_sample                                                                                      |
-| sslProtocol             | String    | The SSL protocol used to generate the SSLContext. Default setting is TLS, which is used for most of the cases. Allowed values in recent JVMs are TLS, TLSv1.1 and TLSv1.2. SSL, SSLv2 and SSLv3 may be supported in older JVMs, but their usage is discouraged due to known security vulnerabilities.                                                                                                                   | TLSv1.2                                                                                         |
-| saslMechanism           | String    | The Simple Authentication and Security Layer (SASL) Mechanism used. For the valid values see [valid SASL mechanism values](http://www.iana.org/assignments/sasl-mechanisms/sasl-mechanisms.xhtml).                                                                                                                                                                                                                                                     | GSSAPI                                                               |
-| saslJaasConfig          | String    | Expose Kafka sasl.jaas.config parameter.                                                                                                                                                                                                                                                                                                                                                                                | org.apache.kafka.common.security.plain.PlainLoginModule required username=example password=example; |
-| securityProtocol        | String    | Protocol used to communicate with brokers. Possible values: SASL_PLAINTEXT, PLAINTEXT, SASL_SSL, SSL                                                                                                                                                                                                                                                                                                                    | PLAINTEXT                                                                                       |
-| consumerConsistencyMode | String    | Blue-green specific parameter. Possible values: EVENTUAL – Default option when blue-green is supported. Consumers offset for candidate during promotion stays the same; GUARANTEE_CONSUMPTION - consumers offset for candidate during promotion is copied from lowest offset for this group of consumers. <br>ℹ️ **Note:** This parameter and its value should be entered manually if required.                             | EVENTUAL                                                                                        |
-| sslEnabledProtocols     | String    | The list of protocols enabled for SSL connections. The default is TLSv1.2,TLSv1.3 when running with Java 11 or newer, TLSv1.2 otherwise. With the default value for Java 11, clients and servers will prefer TLSv1.3 if both support it and fallback to TLSv1.2 otherwise (assuming both support at least TLSv1.2). This default should be fine for most cases.                                                         | TLSv1,TLSv1.1,TLSv1.2                                                                           |
-| sslEndpointAlgorithm    | String    | The endpoint identification algorithm to validate server hostname using server certificate.                                                                                                                                                                                                                                                                                                                             | HTTPS                                                                                           |
+| Parameter               | Data Type | Description                                                                                                                                                                                                                                                                                                                                                                                     | Sample                                                                                              |
+|-------------------------|:----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------|
+| key                     | String    | The record key (or null if no key is specified). If this option has been configured, then it takes precedence over header KafkaConstants#KEY.                                                                                                                                                                                                                                                   | key_sample                                                                                          |
+| sslProtocol             | String    | The SSL protocol used to generate the SSLContext. Default setting is TLS, which is used for most of the cases. Allowed values in recent JVMs are TLS, TLSv1.1 and TLSv1.2. SSL, SSLv2 and SSLv3 may be supported in older JVMs, but their usage is discouraged due to known security vulnerabilities.                                                                                           | TLSv1.2                                                                                             |
+| saslMechanism           | String    | The Simple Authentication and Security Layer (SASL) Mechanism used. For the valid values see [valid SASL mechanism values](http://www.iana.org/assignments/sasl-mechanisms/sasl-mechanisms.xhtml).                                                                                                                                                                                              | GSSAPI                                                                                              |
+| saslJaasConfig          | String    | Expose Kafka sasl.jaas.config parameter.                                                                                                                                                                                                                                                                                                                                                        | org.apache.kafka.common.security.plain.PlainLoginModule required username=example password=example; |
+| securityProtocol        | String    | Protocol used to communicate with brokers. Possible values: SASL_PLAINTEXT, PLAINTEXT, SASL_SSL, SSL                                                                                                                                                                                                                                                                                            | PLAINTEXT                                                                                           |
+| consumerConsistencyMode | String    | Blue-green specific parameter. Possible values: EVENTUAL – Default option when blue-green is supported. Consumers offset for candidate during promotion stays the same; GUARANTEE_CONSUMPTION - consumers offset for candidate during promotion is copied from lowest offset for this group of consumers. <br>ℹ️ **Note:** This parameter and its value should be entered manually if required. | EVENTUAL                                                                                            |
+| sslEnabledProtocols     | String    | The list of protocols enabled for SSL connections. The default is TLSv1.2,TLSv1.3 when running with Java 11 or newer, TLSv1.2 otherwise. With the default value for Java 11, clients and servers will prefer TLSv1.3 if both support it and fallback to TLSv1.2 otherwise (assuming both support at least TLSv1.2). This default should be fine for most cases.                                 | TLSv1,TLSv1.1,TLSv1.2                                                                               |
+| sslEndpointAlgorithm    | String    | The endpoint identification algorithm to validate server hostname using server certificate.                                                                                                                                                                                                                                                                                                     | HTTPS                                                                                               |
 
 > ℹ️ **Note:** When message processing is slow, it could lead to interruption due to reached timeout.
 > In such cases, it is recommended to specify parameter **maxPollIntervalMs**
@@ -288,12 +296,12 @@ Default properties are unique for different protocols and described below:
 
 #### amqp
 
-| Parameter  | Data Type | Description                                                                                                                               | Sample |
-| ---------- | :-------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| username   | String    | Username in case of authenticated access.                                                                                                 | N/A    |
-| password   | String    | Password for authenticated access.                                                                                                        | N/A    |
-| routingKey | String    | The routing key to use when binding a consumer queue to the exchange. For producer routing keys, you set the header rabbitmq.ROUTING_KEY. | rkey1  |
-| acknowledgeMode | String  | Flag controlling the behaviour of the container with respect to message acknowledgement. Possible values: NONE, MANUAL, AUTO | AUTO |
+| Parameter       | Data Type | Description                                                                                                                               | Sample |
+|-----------------|:----------|-------------------------------------------------------------------------------------------------------------------------------------------|--------|
+| username        | String    | Username in case of authenticated access.                                                                                                 | N/A    |
+| password        | String    | Password for authenticated access.                                                                                                        | N/A    |
+| routingKey      | String    | The routing key to use when binding a consumer queue to the exchange. For producer routing keys, you set the header rabbitmq.ROUTING_KEY. | rkey1  |
+| acknowledgeMode | String    | Flag controlling the behaviour of the container with respect to message acknowledgement. Possible values: NONE, MANUAL, AUTO              | AUTO   |
 
 Additionally, if it is required to use same connection for multiple requests of **http** and **GraphQL** services, it is possible to specify **reuseEstablishedConnection** property with values: true/false.
 When environment is saved, its updated item will be available under the environment tab. The environment will have next information and elements:
@@ -306,7 +314,7 @@ When environment is saved, its updated item will be available under the environm
 
 ### Import Service(s)
 
-**`⛔ Not available via VS Code extension`**
+**`⛔ Not available via the VS Code extension`**
 
 To import the service(s), click the icon ![cloud-upload](img/cloud-upload.svg), drag and drop **.zip** file into import area
 or click **"browse"** link and select **single** file with respective format from the explorer menu.
@@ -348,9 +356,20 @@ When import is completed, system displays import result table with the following
 
 ### Export Service(s)
 
-**`⛔ Not available via VS Code extension`**
+**`⛔ Not available via the VS Code extension`**
 
 System allows to export service with all its API specifications, environments and sources. From **"Inner Cloud Services"** page - mark specific services with checkboxes and click ![cloud-download](img/cloud-download.svg) **Export**. Or simply click this button to export all services at once after confirmation.
+
+### Delete Service
+<ins>Web UI</ins>
+
+From the "Inner Cloud Services" View, click the action menu for the entity to be deleted and then "Delete" ![delete](img/delete.svg). The confirmation pop-up appears on the screen, so click "Yes" to delete or "No" to cancel operation.
+
+<ins>VS Code Extension</ins>
+
+Under the "Services" folder, right-click on the service name you want to delete. From the available options, click "Delete Service". A notification appears in the bottom-right corner of the screen to confirm deletion is successful.
+
+> ℹ️ The "Delete Service" operation also deletes the service's specification groups, specifications, and imported API definition files stored in its `resources` folder.
 
 ## Data Storage
 

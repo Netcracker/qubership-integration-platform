@@ -228,19 +228,19 @@ test.describe("run email", () => {
 
   test("gives an error outside any test its own block and subject", () => {
     const report = reportOf({ api: [] }, [file("api/a.spec.ts", [passing("api")])], [
-      { message: "\u001b[31mError: Command failed: helm upgrade --install qip\u001b[39m\n    at provision" },
+      { message: "\u001b[31mError: Command failed: helm upgrade --install cip\u001b[39m\n    at provision" },
     ]);
     const email = emailOf({ report, lastRun: { status: "failed" }, env: { ...ENV, FAILED_STEP: "Run the suite" } });
 
     expect(email.tone).toBe("failed");
     expect(email.failedStep).toBeUndefined();
-    expect(emailSubject(email)).toBe("E2E nightly failed: Error: Command failed: helm upgrade --install qip (main @ 7a393a8)");
+    expect(emailSubject(email)).toBe("E2E nightly failed: Error: Command failed: helm upgrade --install cip (main @ 7a393a8)");
     const html = emailHtml(email);
     expect(html).toContain("Errors outside any test");
-    expect(html).toContain("Error: Command failed: helm upgrade --install qip<br>&nbsp;&nbsp;&nbsp;&nbsp;at provision");
+    expect(html).toContain("Error: Command failed: helm upgrade --install cip<br>&nbsp;&nbsp;&nbsp;&nbsp;at provision");
     expect(html).not.toContain("\u001b");
     expect(html).not.toContain("What failed");
-    expect(email.verdict).toBe("An error outside any test failed the run: Command failed: helm upgrade --install qip");
+    expect(email.verdict).toBe("An error outside any test failed the run: Command failed: helm upgrade --install cip");
 
     const timedOut = emailOf({ report, lastRun: { status: "timedout" }, env: ENV });
     expect(timedOut.tone).toBe("warning");

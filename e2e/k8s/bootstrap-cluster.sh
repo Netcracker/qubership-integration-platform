@@ -63,8 +63,8 @@ echo "Gateway API: applying the standard channel $gateway_api_version"
 kubectl apply --server-side --force-conflicts \
     -f "https://github.com/kubernetes-sigs/gateway-api/releases/download/$gateway_api_version/standard-install.yaml"
 
-echo "Istio: installing from infrastructure/helm/qip-dev/istio.yaml"
-istioctl install -y -f "$repo_root/infrastructure/helm/qip-dev/istio.yaml"
+echo "Istio: installing from infrastructure/helm/cip-dev/istio.yaml"
+istioctl install -y -f "$repo_root/infrastructure/helm/cip-dev/istio.yaml"
 echo # istioctl leaves its last line unterminated
 
 echo "camel-k: installing chart $camel_k_chart_version"

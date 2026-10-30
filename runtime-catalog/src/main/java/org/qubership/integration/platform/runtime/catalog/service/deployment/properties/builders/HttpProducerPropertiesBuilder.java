@@ -24,6 +24,7 @@ import org.qubership.integration.platform.library.constants.CamelNames;
 import org.qubership.integration.platform.library.constants.CamelOptions;
 import org.qubership.integration.platform.runtime.catalog.service.deployment.properties.ElementPropertiesBuilder;
 import org.qubership.integration.platform.util.ElementUtils;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
 import java.util.Collections;
@@ -31,12 +32,14 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-import static org.qubership.integration.platform.library.constants.CamelOptions.URI;
+import static org.qubership.integration.platform.library.constants.CamelNames.M2M_PROP;
+import static org.qubership.integration.platform.library.constants.CamelOptions.*;
 
 @Slf4j
 @Component
 public class HttpProducerPropertiesBuilder  implements ElementPropertiesBuilder {
     public static final String REUSE_CONN_DEFAULT_VALUE = "true";
+    public static final String M2M_DEFAULT_VALUE = "false";
 
     @Override
     public boolean applicableTo(Element element) {
@@ -52,6 +55,7 @@ public class HttpProducerPropertiesBuilder  implements ElementPropertiesBuilder 
         Map<String, String> properties = new HashMap<>();
         String type = element.getType();
         String reuseConn = null;
+        String m2mEnabled = null;
         switch (type) {
             case CamelNames.SERVICE_CALL_COMPONENT -> {
                 String protocol = (String) element.getProperties().get(CamelNames.OPERATION_PROTOCOL_TYPE_PROP);
@@ -70,18 +74,31 @@ public class HttpProducerPropertiesBuilder  implements ElementPropertiesBuilder 
                             .orElse(Collections.emptyMap());
                         reuseConn = (String) props.get(CamelNames.REUSE_ESTABLISHED_CONN);
                     }
+                    m2mEnabled = getM2MFlagFromServiceCall(element.getProperties());
                 } else {
                     return Collections.emptyMap();
                 }
             }
             case CamelNames.HTTP_SENDER_COMPONENT, CamelNames.GRAPHQL_SENDER_COMPONENT -> {
                 reuseConn = ElementUtils.getPropertyAsString(element, CamelNames.REUSE_ESTABLISHED_CONN);
+                m2mEnabled = ElementUtils.getPropertyAsString(element, M2M_PROP);
                 if (element.getProperties().containsKey(URI)) {
                     properties.put(CamelNames.OPERATION_PATH_EXCHANGE, element.getProperties().get(URI).toString());
                 }
             }
         }
         properties.put(CamelNames.REUSE_ESTABLISHED_CONN, StringUtils.isEmpty(reuseConn) ? REUSE_CONN_DEFAULT_VALUE : reuseConn);
+        properties.put(M2M_PROP, StringUtils.isEmpty(m2mEnabled) ? M2M_DEFAULT_VALUE : m2mEnabled);
         return properties;
+    }
+
+    @Nullable
+    private String getM2MFlagFromServiceCall(Map<String, Object> elementProperties) {
+        String m2mEnabled = null;
+        Map<String, String> authorizationConfig = (Map<String, String>) elementProperties.get(AUTHORIZATION_CONFIGURATION);
+        if (authorizationConfig != null) {
+            m2mEnabled = String.valueOf(M2M_PROP.equalsIgnoreCase(authorizationConfig.get(TYPE)));
+        }
+        return m2mEnabled;
     }
 }

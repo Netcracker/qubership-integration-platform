@@ -407,7 +407,16 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
 
   const moveFocusIntoModal = useCallback(() => {
     globalThis.requestAnimationFrame(() => {
-      modalFocusRootRef.current?.focus({ preventScroll: true });
+      const root = modalFocusRootRef.current;
+      // A field the user focused before the form settled keeps focus and its open dropdown.
+      if (
+        !root ||
+        root.contains(document.activeElement) ||
+        elementNameRef.current?.isEditing()
+      ) {
+        return;
+      }
+      root.focus({ preventScroll: true });
     });
   }, []);
 

@@ -35,7 +35,10 @@ import {
   ColumnsTypeWithSettings,
   useColumnSettingsBasedOnColumnsType,
 } from "../../table/useColumnSettingsButton.tsx";
-import { useTableConfiguration } from "../../table/useTableConfiguration.tsx";
+import {
+  SELECTION_COLUMN_WIDTH,
+  useTableConfiguration,
+} from "../../table/useTableConfiguration.tsx";
 import { matchesByFields } from "../../table/tableSearch.ts";
 import { TableToolbar } from "../../table/TableToolbar.tsx";
 import { AdminToolsHeader } from "../AdminToolsHeader.tsx";
@@ -391,7 +394,7 @@ export const AccessControl: React.FC = () => {
       chain: 190,
       chainStatus: 110,
     },
-    { selectionColumnWidth: 48 },
+    { selectionColumnWidth: SELECTION_COLUMN_WIDTH },
     "accessControlTable",
   );
 

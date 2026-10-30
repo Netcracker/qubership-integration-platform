@@ -1,5 +1,5 @@
 /**
- * Reads the resources the catalog and the engine write to namespace `qip-e2e`: camel-k
+ * Reads the resources the catalog and the engine write to namespace `cip-e2e`: camel-k
  * Integrations and their pods, ConfigMaps, HTTPRoutes, and Services, and builds the addresses that
  * reach them through the proxy's e2e locations.
  *

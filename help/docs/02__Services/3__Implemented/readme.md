@@ -67,15 +67,13 @@ Parameters tab contains the following information:
 - **Name** - mandatory service name.
 - **Description** - description of service.
 - **Protocol** - service's integration protocol.
+- **Type** (read-only) - shows the service type. Available in the <ins>VS Code Extension</ins> only.
 - **Labels** - list of colored labels of the service, specification group or specification, unique within particular entity of each type.
   It might contain **custom** labels, entered by user via Cloud Integration Platform UI or **technical** labels,
   populated as part of the **deployment via Samples Repository**. Custom labels can be added or removed clicking on the field.
   **Technical** labels cannot be updated manually.
-
-For <ins>Web UI</ins> there is some additional information:
-
-- **Created** - datetime of entity creation.
-- **Modified** - datetime of entity modifying.
+- **Created** - datetime of entity creation. **`⛔ Not available via the VS Code extension`**
+- **Modified** - datetime of entity modifying. **`⛔ Not available via the VS Code extension`**
 
 ### View Specification Groups
 When service is clicked, the system shows the table with all specification groups and specifications, available for clicked service. Next columns and elements are available for the table:
@@ -105,7 +103,7 @@ Column visibility and order can be adjusted using the ![setting](img/setting.svg
 **Actions menu** - list of operations, accessed via ![more](img/more.svg) menu. Contains the following operations:
 - **Expand** ![down](img/down.svg) / **Collapse** ![up](img/up.svg) - fully expands or collapses the entity.
 - **Add Specification** ![plus](img/plus.svg) - allows to add a new specification to the group.
-- **Delete** ![delete](img/delete.svg) - deletes entity.
+- **Delete** ![delete](img/delete.svg) - deletes the specification group, all specifications in the group, and their imported API definition files.
 
 **Control panel**
 
@@ -145,6 +143,10 @@ To add new information, click on the button ![setting](img/setting.svg) located 
 **Actions menu** - list of operations, accessed via ![more](img/more.svg) menu. Contains the following operations:
 - ![down](img/down.svg) / ![up](img/up.svg) - expands the specification and shows all operations under it or collapses the specification and hides operations under it.
 - ![stop](img/stop.svg) - deprecates the specification, that makes it unavailable for newly added chain elements.
+- ![delete](img/delete.svg) - deletes the specification and its imported API definition files.
+
+  > ℹ️ The **"Delete"** action is available only for deprecated specifications.
+
 - ![cloud-download](img/cloud-download.svg) - exports the specification.
 
 **Control panel**
@@ -169,7 +171,13 @@ When specification is clicked, the system opens new page with the table of avail
 **Control panel**
 
 At the top of the table the following options are available:
+- **To Specifications** - returns to the list of specifications in the current group.
+- **Search field** - filters operations by name, method, or path. Search is case-insensitive, and every space-separated term must match. For example, `GET /users` matches operations containing both terms.
+
+  > ℹ️ **Note:** In the Web UI, `%` matches any number of characters and `_` matches one character. The VS Code Extension treats both as literal characters.
+
 - ![cloud-download](img/cloud-download.svg) - export specification (available only for <ins>Web UI</ins>).
+- ![setting](img/setting.svg) **Column settings** - changes column visibility and order. The **Name** column remains visible and first. Use **Reset** to restore the default settings.
 
 ### Add Implemented Service
 <ins>Web UI</ins>
@@ -251,13 +259,13 @@ Below you can find the detailed information of all available parameters for the 
 Default properties are described below:
 
 | Parameter                | Data Type | Description                                                                                                                                                                            | Sample |
-| ------------------------ | :-------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+|--------------------------|:----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------|
 | connectTimeout           | String    | Determines the timeout in milliseconds until a connection is established. Infinite timeout will be applied when zero value is specified.<br>**Default value:** 120000                  | 120000 |
 | soTimeout                | String    | Defines the socket timeout in milliseconds, which is the timeout for waiting for data. Infinite timeout will be applied when zero value is specified.<br>**Default value:** 120000     | 120000 |
 | connectionRequestTimeout | String    | The timeout in milliseconds used when requesting a connection from the connection manager. Infinite timeout will be applied when zero value is specified.<br>**Default value:** 120000 | 120000 |
 | responseTimeout          | String    | Determines the timeout in milliseconds until arrival of a response. Infinite timeout will be applied when zero value is specified.<br>**Default value:** 120000                        | 120000 |
 | deleteWithBody           | Boolean   | Indicates that DELETE request contains body.<br>**Default value:** false                                                                                                               | false  |
-| getWithBody              | Boolean   | Indicates that GET request contains body.<br>**Default value:** false                                                                                                                   | false  |
+| getWithBody              | Boolean   | Indicates that GET request contains body.<br>**Default value:** false                                                                                                                  | false  |
 
 Additionally, if it is required to use same connection for multiple requests, it is possible to specify **reuseEstablishedConnection** property with values: true/false.
 
@@ -271,7 +279,7 @@ When environment is saved, its updated item will be available under the environm
 
 ### Import Service(s)
 
-**`⛔ Not available via VS Code extension`**
+**`⛔ Not available via the VS Code extension`**
 
 To import the service(s), click the icon ![cloud-upload](img/cloud-upload.svg), drag and drop **.zip** file into import area
 or click **"browse"** link and select **single** file with respective format from the explorer menu.
@@ -310,9 +318,20 @@ When import is completed, system displays import result table with the following
 
 ### Export Service(s)
 
-**`⛔ Not available via VS Code extension`**
+**`⛔ Not available via the VS Code extension`**
 
 System allows to export service with all its API specifications, environments and sources. From **"Implemented Services"** page - mark specific services with checkboxes and click ![cloud-download](img/cloud-download.svg) **Export**. Or simply click this button to export all services at once after confirmation.
+
+### Delete Service
+<ins>Web UI</ins>
+
+From the "Implemented Services" View, click the action menu for the entity to be deleted and then "Delete" ![delete](img/delete.svg). The confirmation pop-up appears on the screen, so click "Yes" to delete or "No" to cancel operation.
+
+<ins>VS Code Extension</ins>
+
+Under the "Services" folder, right-click on the service name you want to delete. From the available options, click "Delete Service". A notification appears in the bottom-right corner of the screen to confirm deletion is successful.
+
+> ℹ️ The "Delete Service" operation also deletes the service's specification groups, specifications, and imported API definition files stored in its `resources` folder.
 
 ## Data Storage
 

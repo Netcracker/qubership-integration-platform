@@ -1,0 +1,135 @@
+#!/usr/bin/env bash
+# Asserts cip-dev Helm wiring for A2A shared PostgreSQL, feature flag, and topology.
+set -euo pipefail
+
+CHART="$(cd "$(dirname "$0")/.." && pwd)"
+RENDERED="$(mktemp)"
+trap 'rm -f "$RENDERED"' EXIT
+
+helm lint "$CHART"
+
+# Default-off render must succeed with an empty public URL (localhost fallback at runtime).
+helm template qip-dev "$CHART" > "$RENDERED"
+
+# Enabling A2A without a public Agent Card URL must fail closed.
+if helm template qip-dev "$CHART" --set global.qip.ai.a2aEnabled=true > /dev/null 2>&1; then
+    echo "FAIL: expected helm template to fail when a2aEnabled=true and a2aPublicBaseUrl is empty" >&2
+    exit 1
+fi
+echo "OK: enable without public URL fails"
+
+# Enable path with a configured public URL must render the URL into the ConfigMap.
+ENABLE_RENDERED="$(mktemp)"
+TAG_OUTPUT="$(mktemp)"
+trap 'rm -f "$RENDERED" "$ENABLE_RENDERED" "$TAG_OUTPUT"' EXIT
+REF_NAME=main GITHUB_OUTPUT="$TAG_OUTPUT" bash "$CHART/../../../scripts/compute-image-tags.sh" > /dev/null
+RELEASE_TAG="$(sed -n 's/^list=//p' "$TAG_OUTPUT")"
+helm template qip-dev "$CHART" \
+    --set global.qip.ai.a2aEnabled=true \
+    --set global.qip.ai.a2aPublicBaseUrl=https://ai.example.com \
+    --set-string global.qip.ai.minioEndpoint=https://storage.example.com \
+    --set-string global.qip.ai.minioCredentialsSecret=custom-storage \
+    > "$ENABLE_RENDERED"
+if ! grep -Fq 'QIP_AI_A2A_PUBLIC_BASE_URL: "https://ai.example.com"' "$ENABLE_RENDERED"; then
+    echo "FAIL: missing configured public Agent Card URL in enable render" >&2
+    exit 1
+fi
+if ! grep -Fq 'QIP_AI_A2A_ENABLED: "true"' "$ENABLE_RENDERED"; then
+    echo "FAIL: missing A2A enabled flag in enable render" >&2
+    exit 1
+fi
+echo "OK: enable with public URL renders Agent Card base URL"
+
+if ! grep -Fq 'MINIO_ENDPOINT: "https://storage.example.com"' "$ENABLE_RENDERED" ||
+    ! grep -A4 'name: MINIO_ACCESS_KEY$' "$ENABLE_RENDERED" | grep -Fq 'name: "custom-storage"' ||
+    ! grep -A4 'name: MINIO_SECRET_KEY$' "$ENABLE_RENDERED" | grep -Fq 'name: "custom-storage"'; then
+    echo "FAIL: configured MinIO endpoint or credentials Secret is missing" >&2
+    exit 1
+fi
+echo "OK: configured MinIO endpoint and credentials Secret"
+
+assert_contains() {
+    local needle="$1"
+    local label="$2"
+    if ! grep -Fq "$needle" "$RENDERED"; then
+        echo "FAIL: missing ${label}: ${needle}" >&2
+        exit 1
+    fi
+    echo "OK: ${label}"
+}
+
+assert_absent() {
+    local needle="$1"
+    local label="$2"
+    if grep -Fq "$needle" "$RENDERED"; then
+        echo "FAIL: unexpected ${label}: ${needle}" >&2
+        exit 1
+    fi
+    echo "OK: absent ${label}"
+}
+
+assert_contains 'CREATE DATABASE ai_a2a;' 'fresh-volume init SQL for ai_a2a'
+assert_contains 'jdbc:postgresql://qip-dev-postgres:5432/ai_a2a' 'ConfigMap JDBC URL'
+assert_contains 'CATALOG_URL: "http://qip-dev-runtime-catalog-v1:8080"' 'catalog URL of the rendered catalog Service'
+assert_contains 'QUARKUS_DATASOURCE_JDBC_URL' 'datasource JDBC env'
+assert_contains 'QUARKUS_DATASOURCE_USERNAME' 'datasource username env'
+assert_contains 'QUARKUS_DATASOURCE_PASSWORD' 'datasource password env'
+assert_contains 'MINIO_ENDPOINT: "http://minio:9000"' 'default MinIO endpoint'
+assert_contains 'name: MINIO_ENDPOINT' 'MinIO endpoint env'
+assert_contains 'name: MINIO_ACCESS_KEY' 'MinIO access key env'
+assert_contains 'name: MINIO_SECRET_KEY' 'MinIO secret key env'
+assert_contains 'name: "minio-credentials"' 'existing MinIO credentials Secret reference'
+assert_contains 'key: accessKey' 'MinIO access key Secret entry'
+assert_contains 'key: secretKey' 'MinIO secret key Secret entry'
+assert_contains 'name: qip-dev-postgres-auth' 'existing postgres Secret reference'
+assert_contains 'QIP_AI_A2A_ENABLED' 'A2A feature flag env'
+assert_contains "image: ghcr.io/netcracker/qubership-integration-ai-service:$RELEASE_TAG" 'published AI image tag'
+assert_contains "image: ghcr.io/netcracker/qubership-integration-knowledge-sidecar:$RELEASE_TAG" 'published sidecar image tag'
+python3 - "$RENDERED" << 'PY'
+import pathlib
+import re
+import sys
+
+documents = pathlib.Path(sys.argv[1]).read_text().split("\n---")
+deployment = next(document for document in documents
+                  if "kind: Deployment" in document
+                  and re.search(r"(?m)^  name: qip-dev-ai-service$", document))
+for probe, path in [("livenessProbe", "/q/health/live"), ("readinessProbe", "/q/health/ready")]:
+    pattern = rf"(?m)^( +){probe}:\n\1  httpGet:\n\1    path: {re.escape(path)}\n\1    port: 8080$"
+    if not re.search(pattern, deployment):
+        raise SystemExit(f"FAIL: AI service {probe} must use {path}")
+print("OK: AI service uses separate liveness and readiness endpoints")
+PY
+assert_contains 'location = /api/v1/chat {' 'chat endpoint without a trailing slash'
+assert_contains 'a2a-db-preflight' 'database-exists preflight initContainer'
+assert_contains 'SELECT 1 FROM pg_database WHERE datname = '\''ai_a2a'\''' 'preflight existence query'
+
+# One replica for ai-service (first match under ai-service deployment).
+AI_REPLICAS="$(awk '/name: qip-dev-ai-service$/,/^---$/ { if ($1=="replicas:") { print $2; exit } }' "$RENDERED")"
+if [[ "$AI_REPLICAS" != "1" ]]; then
+    echo "FAIL: expected ai-service replicas=1, got '${AI_REPLICAS}'" >&2
+    exit 1
+fi
+echo "OK: ai-service replicas=1"
+
+PG_COUNT="$(grep -c 'name: qip-dev-postgres$' "$RENDERED" || true)"
+if [[ "$PG_COUNT" -lt 1 ]]; then
+    echo "FAIL: shared postgres deployment missing" >&2
+    exit 1
+fi
+echo "OK: shared postgres present"
+
+# Negative: no recurring A2A database bootstrap Job in the release.
+if awk '
+  /kind:[[:space:]]*Job/ { in_job=1; buf=$0; next }
+  in_job && /^---$/ { in_job=0; buf=""; next }
+  in_job { buf=buf ORS $0 }
+  in_job && /a2a|ai_a2a|bootstrap/ { print buf; found=1 }
+  END { exit found ? 0 : 1 }
+' "$RENDERED"; then
+    echo "FAIL: found recurring A2A database bootstrap Job" >&2
+    exit 1
+fi
+echo "OK: no recurring A2A database bootstrap Job"
+
+echo "All A2A Helm wiring assertions passed."

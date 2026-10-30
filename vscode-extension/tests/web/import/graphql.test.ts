@@ -4,7 +4,8 @@
 // `SpecificationGroupService` and `SystemService`, with the real `VSCodeFileApi` writing into the
 // fake's filesystem. The case asserts the files that end up on disk, byte for byte, against the
 // golden tree in `src/web/test/golden/import/graphql/`, which mirrors the service folder the import
-// leaves behind and is what the level-3 case posts to the catalog.
+// leaves behind and is what the level-3 case posts to the catalog. The last case reads the imported
+// schema back through `getSpecificationModelSource`, the message the mapper sends.
 //
 // `freezeSourceIds` makes the ids deterministic. Only two values are minted here: value 1 is the
 // `importId`, which no file carries, and value 2 is the one `specificationSources[].id`. GraphQL is
@@ -172,5 +173,24 @@ describe("the GraphQL import", () => {
     expect(Object.keys(tree)).toContain(
       `${SERVICE_DIR}/resources/source-${SPECIFICATION_ID}/orders.graphqls`,
     );
+  });
+
+  // The mapper's "Load schema" dialog sends this for a GraphQL service-call element. The router
+  // used to have no case for it, so the dialog received an undefined schema.
+  test("returns the imported schema as the specification's main source", async () => {
+    const serviceFileUri = seedServiceDocument({ id: SERVICE_ID });
+    await postImportGroup(serviceFileUri, {
+      systemId: SERVICE_ID,
+      name: GROUP_NAME,
+      files: [fixtureFile(SCHEMA)],
+    });
+
+    const source = await getApiResponse(
+      { type: "getSpecificationModelSource", payload: SPECIFICATION_ID } as any,
+      serviceFileUri,
+      {} as ExtensionContext,
+    );
+
+    expect(source).toBe(fixtureText(SCHEMA));
   });
 });
