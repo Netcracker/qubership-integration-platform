@@ -187,9 +187,12 @@ jobs:
             --jq '.[] | "[\(.conclusion)](\(.url)) on \(.createdAt[:10])"') || nightly=""
           echo "Last nightly run on \`main\`: ${nightly:-none found}" >> "$GITHUB_STEP_SUMMARY"
 
-  # The lane's projects are in e2e/support/lanes.mjs. Every image is built from the checkout, since
-  # the GHCR images lag main until a release. On CI, provisioning takes about 8 minutes and the
-  # classic cases about 10, so both timeouts leave twice that.
+  # The lane's projects are in e2e/support/lanes.mjs. Every image a lane runs is built from the
+  # checkout, since the GHCR images lag main until a release. Only the micro lane runs micro-engine,
+  # so the other lanes leave it out of `build`.
+
+  # On CI, provisioning takes about 6 minutes and the classic cases about 10, so both timeouts leave
+  # twice that.
   classic:
     needs: changes
     if: needs.changes.outputs.classic == 'true'
@@ -201,16 +204,36 @@ jobs:
     with:
       name: classic
       lane: classic
+      build: runtime-catalog,engine,sessions-management,testing-service
       pull-request: true
       timeout-minutes: 60
       global-timeout: 45
+
+  # Provisioning takes about 6 minutes, the seed about 3 beside the UI bundle build, and the ui
+  # cases about 5 on 4 workers, so both timeouts leave twice that.
+  ui:
+    needs: changes
+    if: needs.changes.outputs.ui == 'true'
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+    uses: ./.github/workflows/_e2e-kind.yaml
+    with:
+      name: ui
+      lane: ui
+      build: runtime-catalog,engine,sessions-management,testing-service
+      brokers: false
+      pull-request: true
+      timeout-minutes: 45
+      global-timeout: 30
 
   # The one required check for the kind jobs: a caller job's own check is named after the job when
   # skipped and after the called job when run, so neither can be required. `changes` is here too,
   # because its failure skips every kind job.
   kind-result:
     name: Kind jobs
-    needs: [changes, classic]
+    needs: [changes, classic, ui]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5

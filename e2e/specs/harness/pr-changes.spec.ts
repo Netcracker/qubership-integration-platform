@@ -13,9 +13,10 @@
  * the `help/docs/**` rule removed ("a change to a UI bundle input runs the ui job" and the samples);
  * `e2e/specs/seed-micro/**` mapped to `micro` only (the kind job closures and the samples);
  * `e2e/specs/harness/**` and `e2e/specs/schema/**` mapped to `classic` (the samples); the
- * `classic` job ungated, and the `classic` job removed ("the workflow gates each job on its
- * output"); `classic` dropped from the needs of `kind-result`, and `cancelled` from its check
- * ("kind-result needs every kind job and fails on a failure").
+ * `classic` job ungated, the `ui` job ungated, and the `classic` or the `ui` job removed ("the
+ * workflow gates each job on its output"); `classic` or `ui` dropped from the needs of
+ * `kind-result`, and `cancelled` from its check ("kind-result needs every kind job and fails on a
+ * failure").
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -246,8 +247,8 @@ test.describe("pr-changes", () => {
     const outputs = Object.fromEntries(names.map((name) => [name, `\${{ steps.${step?.id}.outputs.${name} }}`]));
     expect(changes.outputs).toEqual(outputs);
     expect(changes.permissions).toEqual({ contents: "read" });
-    // The kind jobs enter the workflow one at a time; every kind job but these two is in it.
-    expect(KIND_JOBS.filter((job) => !jobs[job]), "kind jobs not in the workflow").toEqual(["micro", "ui"]);
+    // The kind jobs enter the workflow one at a time; every kind job but this one is in it.
+    expect(KIND_JOBS.filter((job) => !jobs[job]), "kind jobs not in the workflow").toEqual(["micro"]);
     for (const job of [...Object.keys(JOB_PATHS), ...KIND_JOBS.filter((each) => jobs[each])]) {
       expect(jobs[job]?.needs, job).toContain("changes");
       expect(jobs[job]?.if, job).toBe(`needs.changes.outputs.${job} == 'true'`);

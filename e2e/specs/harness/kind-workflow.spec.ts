@@ -4,7 +4,8 @@
  * nightly's run history.
  *
  * Shown failing: `secrets: inherit` on the nightly, `pull-request: true` dropped from the `classic`
- * job, and `build: none` passed by it ("callers pass declared inputs and never inherit secrets");
+ * job, `build: all` passed by it, and `testing-service` dropped from the `ui` job's build ("callers
+ * pass declared inputs and never inherit secrets");
  * the outcomes uploaded as `e2e-outcomes-nightly` and the cluster dump without the suffix ("the
  * history fetch downloads the outcomes the nightly uploads"); the email step without
  * `!inputs.pull-request` and the partial reconcile under `always()` ("a pull request run skips the
@@ -13,8 +14,15 @@
 import fs from "node:fs";
 import path from "node:path";
 import yaml from "js-yaml";
-import { test, expect } from "@playwright/test";
+import { test, expect, type FullConfig } from "@playwright/test";
+import { ROLES } from "../../env/containers.js";
 import { repoRoot } from "../../env/host.js";
+import { microProjects } from "../../env/provision.js";
+import { imagesToBuild } from "../../env/provision/k8s.js";
+import { targetSetup } from "../../env/target-setup.js";
+import { suiteProjects } from "../../playwright.config.js";
+import { laneFlags } from "../../support/lanes.mjs";
+import { withEnv } from "../../support/with-env.js";
 
 const WORKFLOWS = path.join(repoRoot(), ".github", "workflows");
 const KIND = "_e2e-kind.yaml";
@@ -39,7 +47,9 @@ interface Job {
   steps?: Step[];
 }
 interface Workflow {
-  on: { workflow_call?: { inputs: Record<string, { required?: boolean }>; secrets: Record<string, unknown> } };
+  on: {
+    workflow_call?: { inputs: Record<string, { required?: boolean; default?: unknown }>; secrets: Record<string, unknown> };
+  };
   jobs: Record<string, Job>;
 }
 
@@ -47,6 +57,18 @@ const read = (file: string) => yaml.load(fs.readFileSync(path.join(WORKFLOWS, fi
 const kind = () => read(KIND);
 const kindJob = () => Object.values(kind().jobs)[0];
 const callers = (file: string) => Object.entries(read(file).jobs).filter(([, job]) => job.uses === `./.github/workflows/${KIND}`);
+
+/** The projects a caller's lane runs on kind that run the micro engine, as the provisioner reads them. */
+function laneMicroProjects(job: Job): string[] {
+  const brokers = job.with?.brokers === false ? "0" : undefined;
+  const projects = withEnv({ E2E_BROKERS: brokers }, () => suiteProjects(targetSetup("k8s"))).map((each) => ({
+    ...each,
+    dependencies: each.dependencies ?? [],
+    use: each.use ?? {},
+  }));
+  const argv = ["node", "playwright", "test", ...laneFlags(String(job.with?.lane ?? ""))];
+  return microProjects({ argv, projects } as unknown as FullConfig);
+}
 
 function step(name: string): Step {
   const found = kindJob().steps?.find((each) => each.name === name);
@@ -73,8 +95,11 @@ test.describe("kind workflow", () => {
     }
     for (const [name, job] of callers("e2e-pr.yaml")) {
       expect(job.with?.["pull-request"], name).toBe(true);
-      // The GHCR images lag main until a release, so a pull request builds every image (`build` defaults to all).
-      expect(job.with, name).not.toHaveProperty("build");
+      // The GHCR images lag main until a release, so a pull request builds every image its lane runs,
+      // and micro-engine only for a lane that selects a micro project.
+      const build = imagesToBuild(String(job.with?.build ?? call.inputs.build.default));
+      const micro = laneMicroProjects(job).length ? ["micro-engine"] : [];
+      expect([...build].sort(), name).toEqual([...ROLES, ...micro].sort());
     }
     expect(callers(NIGHTLY)[0][1].secrets, "the email step needs the password").toEqual({ EMAIL_PASSWORD: "${{ secrets.EMAIL_PASSWORD }}" });
   });
