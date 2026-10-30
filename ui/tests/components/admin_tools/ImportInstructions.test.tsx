@@ -27,6 +27,7 @@ import {
 } from "../../../src/api/apiTypes";
 import { uploadImportInstructionsFile } from "../../../src/components/admin_tools/importInstructionsHandlers";
 import { Modals } from "../../../src/Modals.tsx";
+import { ModalContextProvider } from "../../../src/ModalContextProvider.tsx";
 import { UserPermissionsContext } from "../../../src/permissions/UserPermissionsContext.tsx";
 import { getAllPermissions } from "../../../src/permissions/funcs.ts";
 
@@ -193,10 +194,24 @@ const ContextProviders: React.FC<PropsWithChildren> = ({ children }) => {
   );
 };
 
+// A modal rendered on its own needs the context that Modals gives each modal it shows.
+const ModalContextProviders: React.FC<PropsWithChildren> = ({ children }) => (
+  <ContextProviders>
+    <ModalContextProvider modalId="test-modal">{children}</ModalContextProvider>
+  </ContextProviders>
+);
+
 async function flushPromises(): Promise<void> {
   await act(async () => {
     await Promise.resolve();
   });
+}
+
+async function openAddInstructionModal(): Promise<HTMLElement> {
+  render(<ImportInstructions />, { wrapper: ContextProviders });
+  await flushPromises();
+  fireEvent.click(screen.getByRole("button", { name: /^add instruction$/i }));
+  return screen.getByRole("dialog");
 }
 
 describe("ImportInstructions", () => {
@@ -301,14 +316,10 @@ describe("ImportInstructions", () => {
     );
   });
 
-  it("opens Add modal when Add button is clicked", async () => {
-    render(<ImportInstructions />, { wrapper: ContextProviders });
+  it("opens Add modal when Add Instruction button is clicked", async () => {
+    const dialog = await openAddInstructionModal();
 
-    await flushPromises();
-    const addButton = screen.getByRole("button", { name: /^add$/i });
-    fireEvent.click(addButton);
-
-    expect(screen.getByText("Add Instruction")).toBeInTheDocument();
+    expect(within(dialog).getByText("Add Instruction")).toBeInTheDocument();
   });
 
   it("opens Upload modal when Upload button is clicked", async () => {
@@ -387,8 +398,8 @@ describe("ImportInstructions", () => {
   });
 
   it("renders AddInstructionModal form", () => {
-    render(<AddInstructionModal onClose={jest.fn()} onSuccess={jest.fn()} />, {
-      wrapper: ContextProviders,
+    render(<AddInstructionModal onSubmit={jest.fn()} />, {
+      wrapper: ModalContextProviders,
     });
 
     const dialog = screen.getByRole("dialog");
@@ -396,8 +407,8 @@ describe("ImportInstructions", () => {
   });
 
   it("AddInstructionModal footer shows Save", () => {
-    render(<AddInstructionModal onClose={jest.fn()} onSuccess={jest.fn()} />, {
-      wrapper: ContextProviders,
+    render(<AddInstructionModal onSubmit={jest.fn()} />, {
+      wrapper: ModalContextProviders,
     });
 
     const dialog = screen.getByRole("dialog");
@@ -406,33 +417,84 @@ describe("ImportInstructions", () => {
     ).toBeInTheDocument();
   });
 
-  it("AddInstructionModal Save calls addImportInstruction with trimmed id", async () => {
+  it("should send trimmed id and close modal when Add Instruction is saved", async () => {
     mockApi.addImportInstruction.mockResolvedValue(undefined);
-    render(<AddInstructionModal onClose={jest.fn()} onSuccess={jest.fn()} />, {
-      wrapper: ContextProviders,
-    });
+    const dialog = await openAddInstructionModal();
 
-    const dialog = screen.getByRole("dialog");
-    act(() => {
-      fireEvent.change(within(dialog).getByPlaceholderText("Enter id"), {
-        target: { value: "  new-rule-id  " },
-      });
-      fireEvent.click(within(dialog).getByRole("button", { name: /^save$/i }));
+    fireEvent.change(within(dialog).getByPlaceholderText("Enter id"), {
+      target: { value: "  new-rule-id  " },
     });
+    fireEvent.click(within(dialog).getByRole("button", { name: /^save$/i }));
 
     await waitFor(() =>
-      expect(mockApi.addImportInstruction).toHaveBeenCalledWith({
-        id: "new-rule-id",
-        entityType: ImportEntityType.CHAIN,
-        action: ImportInstructionAction.IGNORE,
-        overriddenBy: undefined,
-      }),
+      expect(mockApi.addImportInstruction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: "new-rule-id",
+          entityType: ImportEntityType.CHAIN,
+          action: ImportInstructionAction.IGNORE,
+          overriddenBy: undefined,
+        }),
+      ),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    expect(mockApi.getImportInstructions).toHaveBeenCalledTimes(2);
+  });
+
+  it("should not send Overridden By when action is switched back from Override", async () => {
+    mockApi.addImportInstruction.mockResolvedValue(undefined);
+    const dialog = await openAddInstructionModal();
+
+    fireEvent.change(within(dialog).getByPlaceholderText("Enter id"), {
+      target: { value: "chain-1" },
+    });
+    const actionSelect = within(dialog).getAllByRole("combobox")[1];
+    fireEvent.mouseDown(actionSelect);
+    fireEvent.click(await screen.findByTitle("Override"));
+    fireEvent.change(
+      await within(dialog).findByPlaceholderText("Enter overridden by id"),
+      { target: { value: "other-chain" } },
+    );
+    fireEvent.mouseDown(actionSelect);
+    fireEvent.click(await screen.findByTitle("Ignore"));
+    fireEvent.click(within(dialog).getByRole("button", { name: /^save$/i }));
+
+    await waitFor(() =>
+      expect(mockApi.addImportInstruction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: "chain-1",
+          action: ImportInstructionAction.IGNORE,
+          overriddenBy: undefined,
+        }),
+      ),
+    );
+  });
+
+  it("should keep Add Instruction modal open when saving fails", async () => {
+    mockApi.addImportInstruction.mockRejectedValue(new Error("Conflict"));
+    const dialog = await openAddInstructionModal();
+
+    fireEvent.change(within(dialog).getByPlaceholderText("Enter id"), {
+      target: { value: "rule-id" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: /^save$/i }));
+
+    await waitFor(() =>
+      expect(mockRequestFailed).toHaveBeenCalledWith(
+        "Failed to add import instruction",
+        expect.any(Error),
+      ),
+    );
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(within(dialog).getByPlaceholderText("Enter id")).toHaveValue(
+      "rule-id",
     );
   });
 
   it("UploadInstructionsModal Upload button is disabled when no file selected", () => {
-    render(<UploadInstructionsModal onClose={jest.fn()} />, {
-      wrapper: ContextProviders,
+    render(<UploadInstructionsModal onSubmit={jest.fn()} />, {
+      wrapper: ModalContextProviders,
     });
 
     const uploadButton = screen
@@ -465,8 +527,8 @@ describe("ImportInstructions", () => {
       },
     );
 
-    render(<UploadInstructionsModal onClose={jest.fn()} />, {
-      wrapper: ContextProviders,
+    render(<UploadInstructionsModal onSubmit={jest.fn()} />, {
+      wrapper: ModalContextProviders,
     });
     fireEvent.click(screen.getByTestId("dragger"));
 
@@ -505,8 +567,8 @@ services:
 `;
     mockUploadImportInstructionsFile.mockResolvedValue(undefined);
 
-    render(<UploadInstructionsModal onClose={jest.fn()} />, {
-      wrapper: ContextProviders,
+    render(<UploadInstructionsModal onSubmit={jest.fn()} />, {
+      wrapper: ModalContextProviders,
     });
     fireEvent.click(screen.getByTestId("dragger"));
 
@@ -626,7 +688,7 @@ services:
     );
   });
 
-  it("inline editing Overridden By: click trigger shows Input, Apply calls updateImportInstruction", async () => {
+  it("inline editing Overridden By: click trigger shows Input, Enter calls updateImportInstruction", async () => {
     mockApi.updateImportInstruction.mockResolvedValue({});
     mockApi.getImportInstructions.mockResolvedValueOnce({
       chains: {
@@ -656,9 +718,7 @@ services:
     const input = await screen.findByDisplayValue("other-chain");
     fireEvent.change(input, { target: { value: "other-chain-updated" } });
 
-    const applyButton = document.querySelector(".inline-edit-buttons button");
-    expect(applyButton).toBeTruthy();
-    fireEvent.click(applyButton!);
+    fireEvent.keyDown(input, { key: "Enter", code: "Enter", keyCode: 13 });
 
     await waitFor(() =>
       expect(mockApi.updateImportInstruction).toHaveBeenCalledWith(
@@ -667,6 +727,40 @@ services:
           action: "OVERRIDE",
         }),
       ),
+    );
+  });
+
+  it("should set action to Ignore when Overridden By is cleared", async () => {
+    mockApi.updateImportInstruction.mockResolvedValue({});
+    mockApi.getImportInstructions.mockResolvedValueOnce({
+      chains: {
+        ignore: [],
+        override: [
+          { id: "chain-2", name: "Chain Two", overriddenById: "other-chain" },
+        ],
+        delete: [],
+      },
+      services: { ignore: [], delete: [] },
+      specificationGroups: { ignore: [], delete: [] },
+      specifications: { ignore: [], delete: [] },
+      commonVariables: { ignore: [], delete: [] },
+    });
+
+    render(<ImportInstructions />, { wrapper: ContextProviders });
+    await screen.findByText("Chain Two");
+
+    fireEvent.click(document.querySelectorAll(".inline-edit-value-wrap")[1]);
+    const input = await screen.findByDisplayValue("other-chain");
+    fireEvent.change(input, { target: { value: "  " } });
+    fireEvent.blur(input);
+
+    await waitFor(() =>
+      expect(mockApi.updateImportInstruction).toHaveBeenCalledWith({
+        id: "chain-2",
+        entityType: ImportEntityType.CHAIN,
+        action: ImportInstructionAction.IGNORE,
+        overriddenBy: undefined,
+      }),
     );
   });
 
@@ -741,23 +835,49 @@ services:
     );
   });
 
-  it("UploadInstructionsModal: Close button refetches instructions", async () => {
+  it("UploadInstructionsModal: Close button refetches instructions after an upload", async () => {
     render(<ImportInstructions />, { wrapper: ContextProviders });
 
     await waitFor(() =>
       expect(mockApi.getImportInstructions).toHaveBeenCalledTimes(1),
     );
 
+    mockUploadImportInstructionsFile.mockImplementation(
+      (_fileList, _api, _notification, onSuccess) => {
+        onSuccess([]);
+        return Promise.resolve();
+      },
+    );
     fireEvent.click(screen.getByTestId("import-instructions-upload"));
-    expect(
-      screen.getByText("Upload Instructions (yaml, yml)"),
-    ).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("dragger"));
+    const uploadButton = screen
+      .getAllByRole("button", { name: /^upload$/i })
+      .find((b) => b.closest(".ant-modal-footer"));
+    fireEvent.click(uploadButton!);
+    await waitFor(() =>
+      expect(mockUploadImportInstructionsFile).toHaveBeenCalled(),
+    );
 
     fireEvent.click(screen.getByText("Close"));
 
     await waitFor(() =>
       expect(mockApi.getImportInstructions).toHaveBeenCalledTimes(2),
     );
+  });
+
+  it("UploadInstructionsModal: Close button does not refetch instructions when nothing was uploaded", async () => {
+    render(<ImportInstructions />, { wrapper: ContextProviders });
+    await waitFor(() =>
+      expect(mockApi.getImportInstructions).toHaveBeenCalledTimes(1),
+    );
+
+    fireEvent.click(screen.getByTestId("import-instructions-upload"));
+    fireEvent.click(screen.getByText("Close"));
+
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    expect(mockApi.getImportInstructions).toHaveBeenCalledTimes(1);
   });
 });
 

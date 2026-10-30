@@ -1,69 +1,9 @@
-import {
-  ImportInstructionAction,
-  ImportInstructionResult,
-  ImportEntityType,
-  ImportInstructionRequest,
-  ImportInstruction,
-} from "../../api/apiTypes.ts";
+import { ImportInstructionResult } from "../../api/apiTypes.ts";
 import yaml from "js-yaml";
-
-export type InstructionEntityType = "Chain" | "Service" | "Common Variable";
-
-const ENTITY_TO_API: Record<InstructionEntityType, ImportEntityType> = {
-  Chain: ImportEntityType.CHAIN,
-  Service: ImportEntityType.SERVICE,
-  "Common Variable": ImportEntityType.COMMON_VARIABLE,
-};
-
-export type AddInstructionFormValues = {
-  id: string;
-  entityType: InstructionEntityType;
-  action: ImportInstructionAction;
-  overriddenBy?: string;
-};
-
-export type AddInstructionFormLike = {
-  validateFields: () => Promise<AddInstructionFormValues>;
-};
-
-export type AddInstructionApi = {
-  addImportInstruction: (
-    request: ImportInstructionRequest,
-  ) => Promise<void | ImportInstruction>;
-};
 
 export type NotificationService = {
   requestFailed: (msg: string, err: unknown) => void;
 };
-
-/**
- * Validates form, calls API, invokes onSuccess or requestFailed.
- * Extracted for synchronous unit testing without UI.
- */
-export async function submitAddInstruction(
-  form: AddInstructionFormLike,
-  api: AddInstructionApi,
-  notificationService: NotificationService,
-  onSuccess: () => void,
-): Promise<void> {
-  try {
-    const values = await form.validateFields();
-    await api.addImportInstruction({
-      id: values.id.trim(),
-      entityType: ENTITY_TO_API[values.entityType],
-      action: values.action,
-      overriddenBy:
-        values.entityType === "Chain" &&
-        values.action === ImportInstructionAction.OVERRIDE
-          ? (values.overriddenBy?.trim() ?? null)
-          : undefined,
-    });
-    onSuccess();
-  } catch (err: unknown) {
-    if (err && typeof err === "object" && "errorFields" in err) return;
-    notificationService.requestFailed("Failed to add import instruction", err);
-  }
-}
 
 export type UploadFileLike = {
   originFileObj?: File;
