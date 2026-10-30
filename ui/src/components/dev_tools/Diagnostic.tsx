@@ -14,8 +14,6 @@ import { useNotificationService } from "../../hooks/useNotificationService";
 import { formatTimestamp } from "../../misc/format-utils";
 import { IconName, OverridableIcon } from "../../icons/IconProvider";
 import { treeExpandIcon } from "../table/TreeExpandIcon";
-import { useModalsContext } from "../../Modals";
-import { DiagnosticValidationModal } from "./DiagnosticValidationModal";
 import { useDiagnosticValidationFilters } from "./useDiagnosticValidationFilters";
 import {
   ColumnsTypeWithSettings,
@@ -27,6 +25,7 @@ import {
   useTableConfiguration,
 } from "../table/useTableConfiguration.tsx";
 import commonStyles from "../admin_tools/CommonStyle.module.css";
+import { DiagnosticValidationSidebar } from "./DiagnosticValidationSidebar.tsx";
 
 export const VALIDATION_STATE_TO_LABEL: { [key: string]: string } = {
   [ValidationState.OK]: "Finished",
@@ -73,7 +72,6 @@ const isChainEntity = (item: DiagnosticValidationTableItem): boolean => {
 export const Diagnostic: React.FC = () => {
   const updateStatusDelay = 2500;
   const notificationService = useNotificationService();
-  const { showModal } = useModalsContext();
   const [isLoading, setIsLoading] = useState(false);
   const [diagnosticInProgress, setDiagnosticInProgress] = useState<boolean>();
   const diagnosticInProgressRef = useRef(diagnosticInProgress);
@@ -89,6 +87,8 @@ export const Diagnostic: React.FC = () => {
   );
   const [searchString, setSearchString] = useState<string>("");
   const { filters, filterButton } = useDiagnosticValidationFilters();
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
+  const [selectedValidation, setSelectedValidation] = useState<DiagnosticValidation | undefined>();
 
   const columns: ColumnsTypeWithSettings<DiagnosticValidationTableItem> = [
     {
@@ -107,13 +107,10 @@ export const Diagnostic: React.FC = () => {
           return (
             <Tooltip placement="right" title={validation.description}>
               <a
-                onClick={() =>
-                  showModal({
-                    component: (
-                      <DiagnosticValidationModal {...diagnosticValidation} />
-                    ),
-                  })
-                }
+                onClick={() => {
+                  setSelectedValidation(diagnosticValidation);
+                  setIsSidebarOpen(true);
+                }}
               >
                 {diagnosticValidation.title}
               </a>
@@ -427,7 +424,7 @@ export const Diagnostic: React.FC = () => {
       <Alert
         type="info"
         showIcon
-        message="This menu is only available for testing environment and won't be accessible on production. Data, created via this tab won't be exported with the chains."
+        title="This menu is only available for testing environment and won't be accessible on production. Data, created via this tab won't be exported with the chains."
       />
       <Flex vertical={false} align="center" gap={8} wrap="wrap">
         <CompactSearch
@@ -477,6 +474,11 @@ export const Diagnostic: React.FC = () => {
             }
           },
         }}
+      />
+      <DiagnosticValidationSidebar
+        value={selectedValidation}
+        open={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
       />
     </Flex>
   );
