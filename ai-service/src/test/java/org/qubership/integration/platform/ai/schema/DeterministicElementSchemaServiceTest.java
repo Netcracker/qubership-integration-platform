@@ -21,7 +21,7 @@ class DeterministicElementSchemaServiceTest {
 
   @Test
   void rejectsInvalidCamelConditionAcrossCaptureAndCatalogPatch() throws Exception {
-    String expression = "${date:now:minute} % 2 == 0";
+    String expression = "${date:now:mm} % 2 == 0";
     assertNotEquals(Optional.empty(), service.validateCapturePropertyValue(
         "if", "condition", objectMapper.valueToTree(expression)));
     JsonNode result = objectMapper.readTree(service.validateElementPatch(

@@ -9,11 +9,20 @@ import static org.mockito.Mockito.when;
 
 import io.smallrye.mutiny.Multi;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.GregorianCalendar;
+import java.util.Optional;
+import java.util.regex.Pattern;
+import java.util.stream.IntStream;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.camel.impl.DefaultCamelContext;
+import org.apache.camel.support.DefaultExchange;
+import org.qubership.integration.platform.ai.schema.CamelSimplePredicateValidator;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
@@ -51,6 +60,42 @@ import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackR
 import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
 
 class DesignInputCapabilityTest {
+
+  @Test
+  void minutePredicateExamplePreservesParityAcrossTheWholeMinuteDomain() throws Exception {
+    String prompt = DesignInputCapability.authoringPrompt(
+        ChainSemanticCaptureFixtures.approvedBrief(), CONTRACT);
+    var example = Pattern.compile(
+        Pattern.quote("${date:now:mm}") + " regex '[^']+'").matcher(prompt);
+    assertTrue(example.find(), prompt);
+    String predicateText = example.group();
+    assertEquals(Optional.empty(),
+        CamelSimplePredicateValidator.validate(predicateText));
+    try (var camel = new DefaultCamelContext()) {
+      // Use a header clock to exercise the unchanged pattern and operator for every minute.
+      var predicate = camel.resolveLanguage("simple").createPredicate(
+          predicateText.replace("date:now:", "date:header.testTimestamp:"));
+      var weakened = camel.resolveLanguage("simple")
+          .createPredicate("${date:header.testTimestamp:mm} == 0");
+      var exchange = new DefaultExchange(camel);
+      List<Integer> matched = new ArrayList<>();
+      List<Integer> zeroOnly = new ArrayList<>();
+      for (int minute = 0; minute < 60; minute++) {
+        exchange.getIn().setHeader("testTimestamp", new GregorianCalendar(
+            2026, Calendar.OCTOBER, 30, 12, minute, 0).getTime());
+        if (predicate.matches(exchange)) {
+          matched.add(minute);
+        }
+        if (weakened.matches(exchange)) {
+          zeroOnly.add(minute);
+        }
+      }
+      List<Integer> expected = IntStream.range(0, 60)
+          .filter(minute -> minute % 2 == 0).boxed().toList();
+      assertEquals(expected, matched, predicateText);
+      assertNotEquals(expected, zeroOnly);
+    }
+  }
 
   private static final CompilerContract CONTRACT =
       new ClasspathCompilerContractRepository().require(CompilerContract.V1);
@@ -543,6 +588,7 @@ class DesignInputCapabilityTest {
     assertTrue(prompt.contains("Treat onTaskResult as a Kafka produce, not a trigger"));
     assertTrue(prompt.contains("Rebuild the topology so this rejection cannot recur"));
     assertTrue(prompt.contains("Preserve the approved element placements"));
+    assertTrue(prompt.contains("Preserve every approved branch decision and outcome"), prompt);
     assertFalse(prompt.contains("OM to Salesforce WFM original request"));
   }
 
