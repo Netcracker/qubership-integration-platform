@@ -12,8 +12,8 @@ helm template cip "$CHART" > "$RENDERED/default.yaml"
 helm template cip "$CHART" -f "$E2E_VALUES" > "$RENDERED/e2e.yaml"
 # The brokers lane turns the four broker subcharts on, as the provisioner does on its command line.
 helm template cip "$CHART" -f "$E2E_VALUES" \
-  --set kafka.enabled=true --set rabbitmq.enabled=true --set pubsub.enabled=true --set sftp.enabled=true \
-  > "$RENDERED/e2e-brokers.yaml"
+    --set kafka.enabled=true --set rabbitmq.enabled=true --set pubsub.enabled=true --set sftp.enabled=true \
+    > "$RENDERED/e2e-brokers.yaml"
 
 python3 - "$RENDERED/default.yaml" "$RENDERED/e2e.yaml" "$RENDERED/e2e-brokers.yaml" << 'PY'
 import sys
