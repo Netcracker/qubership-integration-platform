@@ -38,8 +38,12 @@ class ProductEvidenceTest(unittest.TestCase):
             },
             "materializedElementTypes": ["try-catch-finally-2", "try-2", "catch-2"],
             "committedArtifactKinds": [
-                "IMPLEMENTATION_PLAN", "PLAN_VALIDATION_RESULT", "APPROVAL_RECORD",
-                "MATERIALIZATION_RESULT", "CATALOG_CHAIN_SNAPSHOT", "RECONCILE_RESULT",
+                "IMPLEMENTATION_PLAN",
+                "PLAN_VALIDATION_RESULT",
+                "APPROVAL_RECORD",
+                "MATERIALIZATION_RESULT",
+                "CATALOG_CHAIN_SNAPSHOT",
+                "RECONCILE_RESULT",
             ],
         }
 
@@ -48,8 +52,14 @@ class ProductEvidenceTest(unittest.TestCase):
             path = Path(temporary) / "report.json"
             path.write_text(json.dumps(report))
             return subprocess.run(
-                ["bash", str(Path(__file__).with_name("assert-product-run.sh")), str(path)],
-                capture_output=True, text=True,
+                [
+                    "bash",
+                    str(Path(__file__).with_name("assert-product-run.sh")),
+                    str(path),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
             )
 
     def test_accepts_certified_knowledge_without_a_specific_object(self):
