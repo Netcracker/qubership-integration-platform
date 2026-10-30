@@ -52,6 +52,14 @@ describe("resolveOutputFileUri", () => {
     expect(uri.path).toBe("/tmp/export/chain-1.png");
   });
 
+  test("treats Windows drive paths as file paths, not URI schemes", () => {
+    const uri = resolveOutputFileUri("c:\\Users\\me\\out", "chain-1.png");
+    expect(uri.scheme).toBe("file");
+    expect(uri.path.toLowerCase()).toMatch(/^\/?c:/);
+    expect(uri.path).toContain("chain-1.png");
+    expect(getRootDirectory).not.toHaveBeenCalled();
+  });
+
   test("resolves relative output dir against workspace root", () => {
     const uri = resolveOutputFileUri("exports", "chain-1");
     expect(uri.path).toBe("/workspace/exports/chain-1.png");

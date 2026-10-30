@@ -12,15 +12,22 @@ export function sanitizeExportOutputName(chainId: string): string {
   return sanitized.slice(0, MAX_EXPORT_OUTPUT_NAME_LENGTH);
 }
 
+export function hasUriScheme(value: string): boolean {
+  return /^[a-zA-Z][\w+.-]+:/.test(value);
+}
+
+export function isAbsoluteFsPath(value: string): boolean {
+  return value.startsWith("/") || value.startsWith("\\") || /^[a-zA-Z]:[\\/]/.test(value);
+}
+
 export function resolveOutputFileUri(outputDir: string, fileName: string): Uri {
   const normalizedName = /\.(png|svg)$/i.test(fileName)
     ? fileName
     : `${fileName}.png`;
-  const hasScheme = /^[a-zA-Z][\w+.-]*:/.test(outputDir);
-  if (hasScheme) {
+  if (hasUriScheme(outputDir)) {
     return Uri.joinPath(Uri.parse(outputDir), normalizedName);
   }
-  if (outputDir.startsWith("/")) {
+  if (isAbsoluteFsPath(outputDir)) {
     return Uri.joinPath(Uri.file(outputDir), normalizedName);
   }
   return Uri.joinPath(fileApi.getRootDirectory(), outputDir, normalizedName);
