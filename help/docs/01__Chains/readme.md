@@ -86,7 +86,7 @@ Each **folder** contains the following parameters in the table:
   - **_Paste_** - pastes copied chain/folder.
   - _**Delete**_ - deletes folder with all content under it.
 
-> ℹ️ The **Chains** window **does not validate** the uniqueness of names for folders or chains. It is possible that multiple chains (or folders) have the same name.
+> ℹ️ There is no uniqueness validation for folder/chain names. It is possible that multiple chains (or folders) have the same name.
 
 <ins>VS Code Extension</ins>
 
@@ -160,7 +160,9 @@ To upload the chain(s), click the icon ![cloud-upload](img/cloud-upload.svg), dr
 #### Chains Tab
 This tab contains all chains that are going to be imported.
 
-The first element is a switcher "Validate By Hash". This option can reduce the import time by comparing the hash of each chain. If the hash matches, the system skips importing that chain.
+The first element is a switcher **"Validate By Hash"**. This option can reduce the import time by comparing the hash of each chain. If the hash matches, the system skips importing that chain.
+
+> ℹ️ Importing a service whose active environment parameters (any of them) differ from the stored ones resets the hash of every chain that uses the service and marks those chains with the "Unsaved changes" label.
 
 Under this option there is a table of chains with the following parameters:
 * Name - name of the imported chain. If a chain with the same ID already exists in the system, a ![diff](img/diff.svg) icon appears next to the name — click it to open the **Chain compare** dialog and preview the differences between the existing chain and the version being imported before proceeding with the import;
