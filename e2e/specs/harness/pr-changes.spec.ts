@@ -1,24 +1,21 @@
 /**
- * The path lists of `support/pr-changes.mjs`, which decide the gated jobs of the PR workflow and the
- * images its kind jobs build, and the `changes` job that reads them.
+ * The path lists of `support/pr-changes.mjs`, which decide the gated jobs of the PR workflow, and the
+ * `changes` job that reads them.
  *
  * Shown failing: `*` translated to `.*` ("a change elsewhere skips the vscode job"); the
  * `e2e/pages/VsCodePage.ts` entry renamed to `e2e/pages/VSCodePage.ts` ("every path matches a
  * tracked file" and "a change under each path runs the vscode job"); the job output renamed to
  * `vs-code`, and the vscode job's `if` replaced by `always()` ("the workflow gates each job on its
- * output"); the printed value negated ("the script prints one output per job and the build list");
+ * output"); the printed value negated ("the script prints one output per job");
  * the `e2e/env/host.ts` entry removed ("a change to any file the vscode project loads runs its job");
  * `--no-renames` dropped from the workflow ("the workflow gates each job on its output");
  * `e2e/pages/**` mapped to `classic` only ("a change to any file a kind job loads runs that job");
- * `integration-build-pipeline/**` dropped from the catalog build ("sample diffs decide the kind jobs
- * and the build list" and "each image is built when a file it is built from changes"); the
- * `help/docs/**` rule removed ("a change to a UI bundle input runs the ui job" and the samples);
+ * the `help/docs/**` rule removed ("a change to a UI bundle input runs the ui job" and the samples);
  * `e2e/specs/seed-micro/**` mapped to `micro` only (the kind job closures and the samples);
- * `e2e/specs/harness/**` and `e2e/specs/schema/**` mapped to `classic` (the samples);
- * `E2E_REBUILD` ignored by the script ("the script prints one output per job and the build list");
- * the step env `E2E_REBUILD` dropped, the `classic` job ungated, and the `classic` job removed ("the
- * workflow gates each job on its output"); `classic` dropped from the needs of `kind-result`, and
- * `cancelled` from its check ("kind-result needs every kind job and fails on a failure").
+ * `e2e/specs/harness/**` and `e2e/specs/schema/**` mapped to `classic` (the samples); the
+ * `classic` job ungated, and the `classic` job removed ("the workflow gates each job on its
+ * output"); `classic` dropped from the needs of `kind-result`, and `cancelled` from its check
+ * ("kind-result needs every kind job and fails on a failure").
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -27,12 +24,11 @@ import yaml from "js-yaml";
 import { test, expect } from "@playwright/test";
 import { repoRoot } from "../../env/host.js";
 import { suiteProjects } from "../../playwright.config.js";
-import { suiteImages } from "../../env/provision/k8s.js";
 import { targetSetup, type SuiteProject } from "../../env/target-setup.js";
 import { laneFlags } from "../../support/lanes.mjs";
 import { BUNDLE_INPUTS } from "../../support/ui-server.js";
 import { withEnv } from "../../support/with-env.js";
-import { BUILD_PATHS, JOB_PATHS, KIND_JOBS, KIND_RULES, buildFor, globRegExp, jobsFor } from "../../support/pr-changes.mjs";
+import { JOB_PATHS, KIND_JOBS, KIND_RULES, globRegExp, jobsFor } from "../../support/pr-changes.mjs";
 
 const E2E = path.join(repoRoot(), "e2e");
 const SCRIPT = path.join(E2E, "support", "pr-changes.mjs");
@@ -111,7 +107,7 @@ type Job = { if?: string; needs?: string | string[]; outputs?: Record<string, st
 test.describe("pr-changes", () => {
   test("every path matches a tracked file", () => {
     const files = tracked(repoRoot());
-    const globs = [...Object.values(JOB_PATHS), ...KIND_RULES.map((rule) => rule.paths), ...Object.values(BUILD_PATHS)];
+    const globs = [...Object.values(JOB_PATHS), ...KIND_RULES.map((rule) => rule.paths)];
     const unmatched = globs.flat().filter((glob) => !files.some((file) => globRegExp(glob).test(file)));
     expect(unmatched).toEqual([]);
   });
@@ -195,21 +191,12 @@ test.describe("pr-changes", () => {
     expect(files.filter((file) => !jobsFor([file]).ui)).toEqual([]);
   });
 
-  test("each image is built when a file it is built from changes", () => {
-    // The micro job adds micro-engine to every build list itself.
-    for (const image of suiteImages().filter((each) => each.name !== "micro-engine")) {
-      const sources = tracked(repoRoot(), ...image.sources);
-      expect(sources.length, image.name).toBeGreaterThan(0);
-      expect(sources.filter((file) => !buildFor([file], false).split(",").includes(image.name)), image.name).toEqual([]);
-    }
-  });
-
-  test("sample diffs decide the kind jobs and the build list", () => {
-    const decide = (files: string[], rebuild = false) => {
+  test("sample diffs decide the kind jobs", () => {
+    const decide = (files: string[]) => {
       const { classic, micro, ui } = jobsFor(files);
-      return { classic, micro, ui, build: buildFor(files, rebuild) };
+      return { classic, micro, ui };
     };
-    const none = { classic: false, micro: false, ui: false, build: "none" };
+    const none = { classic: false, micro: false, ui: false };
     const all = { classic: true, micro: true, ui: true };
     expect(decide(["ui/src/pages/Chains.tsx", "package-lock.json"]), "ui only").toEqual({ ...none, ui: true });
     expect(decide(["micro-engine/src/main/java/App.java"]), "micro-engine only").toEqual({ ...none, micro: true });
@@ -220,35 +207,31 @@ test.describe("pr-changes", () => {
     expect(decide(["README.md"]), "root README.md").toEqual(none);
     expect(decide(["help/docs/00__Overview/0__Getting_Started/readme.md"]), "help page").toEqual({ ...none, ui: true });
     expect(decide([".github/workflows/ui-build.yaml"]), "other workflow").toEqual(none);
-    expect(decide([".github/workflows/_e2e-kind.yaml"]), "kind workflow").toEqual({ ...all, build: "none" });
+    expect(decide([".github/workflows/_e2e-kind.yaml"]), "kind workflow").toEqual(all);
     expect(decide(["e2e/specs/k8s/discovery.spec.ts"]), "k8s spec").toEqual({ ...none, micro: true });
     expect(decide(["e2e/specs/seed-micro/seed-micro.teardown.ts"]), "seed-micro").toEqual({ ...none, classic: true, micro: true });
     expect(decide(["e2e/specs/vscode/smoke.spec.ts"]), "vscode spec").toEqual(none);
     expect(decide(["e2e/specs/harness/pr-changes.spec.ts"]), "harness spec").toEqual(none);
     expect(decide(["e2e/specs/schema/frozen-corpus.spec.ts"]), "schema spec").toEqual(none);
-    expect(decide(["e2e/support/catalog.ts"]), "e2e only").toEqual({ ...all, build: "none" });
-    expect(decide(["parent/pom.xml"]), "parent").toEqual({ ...all, build: "engine,runtime-catalog,sessions-management" });
-    expect(decide(["pom.xml", "testing-service/main.go"]), "root pom").toEqual({ ...all, build: "engine,runtime-catalog,sessions-management,testing-service" });
-    expect(decide(["integration-build-pipeline/pom.xml"]), "build pipeline").toEqual({ ...all, build: "runtime-catalog" });
-    expect(decide(["sessions-management/src/a.java"]), "sessions").toEqual({ ...all, build: "sessions-management" });
-    expect(decide(["e2e/support/catalog.ts"], true), "E2E_REBUILD").toEqual({ ...all, build: "all" });
+    expect(decide(["e2e/support/catalog.ts"]), "e2e only").toEqual(all);
+    expect(decide(["parent/pom.xml"]), "parent").toEqual(all);
+    expect(decide(["integration-build-pipeline/pom.xml"]), "build pipeline").toEqual(all);
     expect(decide([]), "no change").toEqual(none);
   });
 
-  test("the script prints one output per job and the build list", () => {
-    const run = (input: string, rebuild?: string) =>
-      spawnSync(process.execPath, [SCRIPT], { input, encoding: "utf-8", env: { ...process.env, E2E_REBUILD: rebuild } });
+  test("the script prints one output per job", () => {
+    const run = (input: string) => spawnSync(process.execPath, [SCRIPT], { input, encoding: "utf-8" });
     expect(run("docs/README.md\nui/src/index.ts\n")).toMatchObject({
       status: 0,
-      stdout: "vscode=true\nclassic=false\nmicro=false\nui=true\nbuild=none\n",
+      stdout: "vscode=true\nclassic=false\nmicro=false\nui=true\n",
     });
-    expect(run("docs/README.md\n", "false")).toMatchObject({
+    expect(run("docs/README.md\n")).toMatchObject({
       status: 0,
-      stdout: "vscode=false\nclassic=false\nmicro=false\nui=false\nbuild=none\n",
+      stdout: "vscode=false\nclassic=false\nmicro=false\nui=false\n",
     });
-    expect(run("engine/pom.xml\n", "true")).toMatchObject({
+    expect(run("engine/pom.xml\n")).toMatchObject({
       status: 0,
-      stdout: "vscode=false\nclassic=true\nmicro=true\nui=true\nbuild=all\n",
+      stdout: "vscode=false\nclassic=true\nmicro=true\nui=true\n",
     });
   });
 
@@ -259,15 +242,10 @@ test.describe("pr-changes", () => {
     expect(step?.id, "the changes job runs the script in a step with an id").toBeTruthy();
     // With rename detection a file moved out of a watched tree lists only its new path.
     expect(step?.run).toMatch(/git diff --name-only --no-renames HEAD\^1 HEAD \|/);
-    const names = [...Object.keys(JOB_PATHS), ...KIND_JOBS, "build"];
+    const names = [...Object.keys(JOB_PATHS), ...KIND_JOBS];
     const outputs = Object.fromEntries(names.map((name) => [name, `\${{ steps.${step?.id}.outputs.${name} }}`]));
     expect(changes.outputs).toEqual(outputs);
-    // The label is read at run time, which a rerun after labeling picks up and the event payload does not.
-    const labels = changes.steps?.find((each) => each.run?.includes("gh pr view"));
-    expect(labels?.run).toMatch(/gh pr view "\$PR" -R "\$GITHUB_REPOSITORY" --json labels .*"e2e-rebuild"/);
-    expect(labels?.env).toMatchObject({ GH_TOKEN: "${{ github.token }}", PR: "${{ github.event.pull_request.number }}" });
-    expect(step?.env?.E2E_REBUILD).toBe(`\${{ steps.${labels?.id}.outputs.rebuild }}`);
-    expect(changes.permissions).toEqual({ contents: "read", "pull-requests": "read" });
+    expect(changes.permissions).toEqual({ contents: "read" });
     // The kind jobs enter the workflow one at a time; every kind job but these two is in it.
     expect(KIND_JOBS.filter((job) => !jobs[job]), "kind jobs not in the workflow").toEqual(["micro", "ui"]);
     for (const job of [...Object.keys(JOB_PATHS), ...KIND_JOBS.filter((each) => jobs[each])]) {

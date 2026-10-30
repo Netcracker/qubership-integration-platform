@@ -1,12 +1,10 @@
 /**
  * Which gated jobs of `.github/workflows/e2e-pr.yaml` a pull request needs, from the paths it
- * changes, and which images its kind jobs build. The `changes` job pipes the diff in and appends
- * the output to `$GITHUB_OUTPUT`:
+ * changes. The `changes` job pipes the diff in and appends the output to `$GITHUB_OUTPUT`:
  *
- *     git diff --name-only --no-renames HEAD^1 HEAD | E2E_REBUILD=false node support/pr-changes.mjs
+ *     git diff --name-only --no-renames HEAD^1 HEAD | node support/pr-changes.mjs
  *
- * It prints one `<job>=true` or `<job>=false` line per job in `JOB_PATHS` and `KIND_JOBS`, then
- * `build=<E2E_BUILD>`.
+ * It prints one `<job>=true` or `<job>=false` line per job in `JOB_PATHS` and `KIND_JOBS`.
  */
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -115,19 +113,6 @@ export const KIND_RULES = [
   { paths: ["**"], jobs: KIND_JOBS },
 ];
 
-/**
- * The images a kind job builds from the checkout when a path changes, by `E2E_BUILD` name. Every
- * other image runs from GHCR; the `micro` job adds `micro-engine` itself.
- *
- * @type {Record<string, string[]>}
- */
-export const BUILD_PATHS = {
-  engine: ["engine/**", "parent/**", "pom.xml"],
-  "runtime-catalog": ["runtime-catalog/**", "integration-build-pipeline/**", "parent/**", "pom.xml"],
-  "sessions-management": ["sessions-management/**", "parent/**", "pom.xml"],
-  "testing-service": ["testing-service/**"],
-};
-
 /** @param {string} glob */
 export function globRegExp(glob) {
   const source = glob
@@ -154,19 +139,6 @@ export function jobsFor(files) {
   };
 }
 
-/**
- * The `E2E_BUILD` value of the kind jobs: `all` under the `e2e-rebuild` label, otherwise the images
- * the changed paths reach, or `none`.
- *
- * @param {string[]} files paths relative to the repository root
- * @param {boolean} rebuild
- */
-export function buildFor(files, rebuild) {
-  if (rebuild) return "all";
-  const images = Object.entries(BUILD_PATHS).filter(([, globs]) => files.some(matching(globs)));
-  return images.map(([image]) => image).join(",") || "none";
-}
-
 /** @param {string[]} globs */
 function matching(globs) {
   const patterns = globs.map(globRegExp);
@@ -185,5 +157,4 @@ function kindRule(file) {
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const files = fs.readFileSync(0, "utf-8").split("\n").filter(Boolean);
   for (const [job, runs] of Object.entries(jobsFor(files))) console.log(`${job}=${runs}`);
-  console.log(`build=${buildFor(files, process.env.E2E_REBUILD === "true")}`);
 }

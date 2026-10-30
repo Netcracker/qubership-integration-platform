@@ -3,12 +3,12 @@
  * for the lane jobs of `e2e-pr.yaml`. These cases read it against its callers and against the
  * nightly's run history.
  *
- * Shown failing: `secrets: inherit` on the nightly, and `pull-request: true` dropped from the
- * `classic` job ("callers pass declared inputs and never inherit secrets"); the outcomes
- * uploaded as `e2e-outcomes-nightly` and the cluster dump without the suffix ("the history fetch
- * downloads the outcomes the nightly uploads"); the email step without `!inputs.pull-request` and
- * the partial reconcile under `always()` ("a pull request run skips the nightly's history and
- * email").
+ * Shown failing: `secrets: inherit` on the nightly, `pull-request: true` dropped from the `classic`
+ * job, and `build: none` passed by it ("callers pass declared inputs and never inherit secrets");
+ * the outcomes uploaded as `e2e-outcomes-nightly` and the cluster dump without the suffix ("the
+ * history fetch downloads the outcomes the nightly uploads"); the email step without
+ * `!inputs.pull-request` and the partial reconcile under `always()` ("a pull request run skips the
+ * nightly's history and email").
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -71,7 +71,11 @@ test.describe("kind workflow", () => {
         expect(job.permissions, where).toEqual({ actions: "read", contents: "read", packages: "read" });
       }
     }
-    for (const [name, job] of callers("e2e-pr.yaml")) expect(job.with?.["pull-request"], name).toBe(true);
+    for (const [name, job] of callers("e2e-pr.yaml")) {
+      expect(job.with?.["pull-request"], name).toBe(true);
+      // The GHCR images lag main until a release, so a pull request builds every image (`build` defaults to all).
+      expect(job.with, name).not.toHaveProperty("build");
+    }
     expect(callers(NIGHTLY)[0][1].secrets, "the email step needs the password").toEqual({ EMAIL_PASSWORD: "${{ secrets.EMAIL_PASSWORD }}" });
   });
 

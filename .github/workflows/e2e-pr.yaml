@@ -58,13 +58,11 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
-      pull-requests: read
     outputs:
       vscode: ${{ steps.paths.outputs.vscode }}
       classic: ${{ steps.paths.outputs.classic }}
       micro: ${{ steps.paths.outputs.micro }}
       ui: ${{ steps.paths.outputs.ui }}
-      build: ${{ steps.paths.outputs.build }}
     defaults:
       run:
         working-directory: e2e
@@ -83,20 +81,8 @@ jobs:
         with:
           node-version: '22.x'
 
-      # Read now rather than from the event, so "Re-run all jobs" after adding the label sees it.
-      - name: Read the rebuild label
-        id: labels
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR: ${{ github.event.pull_request.number }}
-        run: |
-          rebuild=$(gh pr view "$PR" -R "$GITHUB_REPOSITORY" --json labels --jq 'any(.labels[]; .name == "e2e-rebuild")')
-          echo "rebuild=$rebuild" >> "$GITHUB_OUTPUT"
-
       - name: Decide which jobs run
         id: paths
-        env:
-          E2E_REBUILD: ${{ steps.labels.outputs.rebuild }}
         # --no-renames lists a moved file under its old path too, which may be a watched one.
         run: git diff --name-only --no-renames HEAD^1 HEAD | node support/pr-changes.mjs | tee -a "$GITHUB_OUTPUT"
 
@@ -201,8 +187,9 @@ jobs:
             --jq '.[] | "[\(.conclusion)](\(.url)) on \(.createdAt[:10])"') || nightly=""
           echo "Last nightly run on \`main\`: ${nightly:-none found}" >> "$GITHUB_STEP_SUMMARY"
 
-  # The lane's projects are in e2e/support/lanes.mjs. On CI, provisioning takes about 8 minutes and
-  # the classic cases about 10, so both timeouts leave twice that.
+  # The lane's projects are in e2e/support/lanes.mjs. Every image is built from the checkout, since
+  # the GHCR images lag main until a release. On CI, provisioning takes about 8 minutes and the
+  # classic cases about 10, so both timeouts leave twice that.
   classic:
     needs: changes
     if: needs.changes.outputs.classic == 'true'
@@ -214,7 +201,6 @@ jobs:
     with:
       name: classic
       lane: classic
-      build: ${{ needs.changes.outputs.build }}
       pull-request: true
       timeout-minutes: 60
       global-timeout: 45
