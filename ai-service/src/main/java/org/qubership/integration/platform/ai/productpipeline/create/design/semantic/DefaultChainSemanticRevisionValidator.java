@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import org.qubership.integration.platform.ai.schema.CamelSimplePredicateValidator;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract.ContainmentRole;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract.ElementContract;
@@ -643,6 +644,9 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
       if (branch.predicate() == null || branch.predicate().isBlank()) {
         errors.add(
             "Condition IF branch '" + branch.branchId() + "' requires a non-empty predicate");
+      } else {
+        CamelSimplePredicateValidator.validate(branch.predicate())
+            .ifPresent(error -> errors.add("Condition IF branch '" + branch.branchId() + "': " + error));
       }
       if (!ifPriorities.add(branch.priority())) {
         errors.add("Condition '" + condition.regionId() + "' requires unique IF priorities");

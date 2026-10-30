@@ -84,7 +84,7 @@ class DefaultChainSemanticGraphCompilerTest {
     assertEquals("condition-1-if-true-branch", node(graph, "script-true").parentNodeId());
     assertEquals("condition-1-else-false-branch", node(graph, "script-false").parentNodeId());
     assertNull(node(graph, "script-common").parentNodeId());
-    assertEquals("status == 'ok'", property(node(graph, "condition-1-if-true-branch"), "condition"));
+    assertEquals("${header.status} == 'ok'", property(node(graph, "condition-1-if-true-branch"), "condition"));
     assertEquals("1", property(node(graph, "condition-1-if-true-branch"), "priority"));
     assertEquals("condition-1-if-true-branch", edge(graph, "edge-true").fromNodeId());
     assertEquals("condition-1-else-false-branch", edge(graph, "edge-false").fromNodeId());
@@ -106,7 +106,7 @@ class DefaultChainSemanticGraphCompilerTest {
     assertEquals(1, graph.nodes().stream().filter(node -> "if".equals(node.type())).count());
     assertEquals("condition-1", node(graph, "existing-if").parentNodeId());
     assertEquals("existing-if", node(graph, "script-true").parentNodeId());
-    assertEquals("status == 'ok'", property(node(graph, "existing-if"), "condition"));
+    assertEquals("${header.status} == 'ok'", property(node(graph, "existing-if"), "condition"));
     assertEquals("1", property(node(graph, "existing-if"), "priority"));
     assertEquals("condition-1", edge(graph, "edge-true").fromNodeId());
     assertEquals("existing-if", edge(graph, "edge-true").toNodeId());
@@ -911,7 +911,7 @@ class DefaultChainSemanticGraphCompilerTest {
                     new SemanticBranch.Condition(
                         "true-branch",
                         ConditionBranchRole.IF,
-                        "status == 'ok'",
+                        "${header.status} == 'ok'",
                         1,
                         "script-true",
                         List.of("script-true")),

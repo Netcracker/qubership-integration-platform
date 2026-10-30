@@ -352,7 +352,7 @@ public final class SemanticFixtures {
                     new SemanticBranch.Condition(
                         "true-branch",
                         ConditionBranchRole.IF,
-                        "status == 'ok'",
+                        "${header.status} == 'ok'",
                         1,
                         "script-true",
                         List.of("script-true")),

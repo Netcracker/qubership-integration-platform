@@ -356,8 +356,8 @@ public class DeterministicElementSchemaService {
   }
 
   /**
-   * Validates a structured capture value ({@link JsonNode}) against the element property schema.
-   *
+   * Validates a capture value against its property schema and Simple predicate syntax.
+   * Runtime functions are not resolved or evaluated.
    * @return validation error message, or empty when valid or schema is unavailable
    */
   public Optional<String> validateCapturePropertyValue(
@@ -391,7 +391,9 @@ public class DeterministicElementSchemaService {
               elementRoot,
               model.elementDocumentUri(),
               objectMapper);
-      return errors.isEmpty() ? Optional.empty() : Optional.of(errors.get(0));
+      return errors.isEmpty()
+          ? CamelSimplePredicateValidator.validateProperty(trimmedType, propertyKey.trim(), value)
+          : Optional.of(errors.get(0));
     } catch (Exception e) {
       return Optional.of("Property validation failed: " + e.getMessage());
     }
@@ -412,6 +414,15 @@ public class DeterministicElementSchemaService {
         schemaRefResolver, objectMapper);
     List<JsonNode> result = new ArrayList<>();
     errors.forEach(result::add);
+    CamelSimplePredicateValidator.validateProperty(elementType, propertyKey, value).ifPresent(error -> {
+      ObjectNode issue = objectMapper.createObjectNode();
+      issue.put("code", "syntax");
+      issue.put("path", "/properties/" + propertyKey);
+      issue.put("message", error);
+      issue.put("valueMissing", false);
+      issue.set("rejectedValue", value);
+      result.add(issue);
+    });
     return List.copyOf(result);
   }
 

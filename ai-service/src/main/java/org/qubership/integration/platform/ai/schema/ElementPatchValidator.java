@@ -17,7 +17,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Deterministic pre-validation of {@code updateElement} patch JSON against embedded QIP schemas.
+ * Validates patch JSON against QIP schemas and Simple predicate syntax without runtime evaluation.
  */
 public final class ElementPatchValidator {
 
@@ -138,6 +138,10 @@ public final class ElementPatchValidator {
     if (props.isObject()) {
       validatePropertiesAgainstModel(
           objectMapper, (ObjectNode) props, model, resolver, errors, missingRequired);
+      props.fields().forEachRemaining(property ->
+          CamelSimplePredicateValidator.validateProperty(model.elementType(), property.getKey(), property.getValue())
+              .ifPresent(error -> errors.add(objectMapper.createObjectNode()
+                  .put("path", "properties." + property.getKey()).put("message", error))));
     }
 
     boolean valid = errors.isEmpty();

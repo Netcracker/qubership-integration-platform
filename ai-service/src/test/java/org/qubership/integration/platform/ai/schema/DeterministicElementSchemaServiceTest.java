@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.schema;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -10,12 +11,38 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 
 class DeterministicElementSchemaServiceTest {
+
+  @Test
+  void rejectsInvalidCamelConditionAcrossCaptureAndCatalogPatch() throws Exception {
+    String expression = "${date:now:minute} % 2 == 0";
+    assertNotEquals(Optional.empty(), service.validateCapturePropertyValue(
+        "if", "condition", objectMapper.valueToTree(expression)));
+    JsonNode result = objectMapper.readTree(service.validateElementPatch(
+        "if", objectMapper.writeValueAsString(Map.of("properties", Map.of("condition", expression)))));
+    assertFalse(result.path("valid").asBoolean(), result.toString());
+    assertTrue(result.path("errors").toString().contains("Unexpected token %"), result.toString());
+    assertNotEquals(List.of(), service.capturePropertyIssues(
+        "if", "condition", objectMapper.valueToTree(expression)));
+  }
+
+  @Test
+  void acceptsCamelConditionWithoutResolvingRuntimeHeaders() throws Exception {
+    String expression = "${header.minute} == 2";
+    assertEquals(Optional.empty(), service.validateCapturePropertyValue(
+        "if", "condition", objectMapper.valueToTree(expression)));
+    JsonNode result = objectMapper.readTree(service.validateElementPatch(
+        "if", objectMapper.writeValueAsString(Map.of("properties", Map.of("condition", expression)))));
+    assertTrue(result.path("valid").asBoolean(), result.toString());
+    assertEquals(List.of(), service.capturePropertyIssues(
+        "if", "condition", objectMapper.valueToTree(expression)));
+  }
 
   private final ObjectMapper objectMapper = new ObjectMapper();
 
