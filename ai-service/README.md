@@ -31,6 +31,7 @@ integration-platform-skills/
 │   ├── manifest.json
 │   ├── skills/                 # Runtime instructions for CREATE and EDIT
 │   ├── runtime/                # Runtime contracts and product pipelines
+│   │   └── examples/           # Service-specific examples, grouped by skill ID
 │   └── testing/                # Extracted optional testing archive
 │       ├── README.md           # Test bundle setup and archive instructions
 │       ├── suites.json
@@ -44,6 +45,13 @@ The developer installation uses the same package layout under `.private/`. Runti
 supplied separately from this public repository. Service unit tests and their small mechanism fixtures stay in
 `ai-service/src/test/`; live chain scenarios, planner/executor inputs, generator goldens, and test-agent skills
 belong to `rocky-skills/testing/`.
+
+Runtime examples belong under `rocky-skills/runtime/examples/<skill-id>/`. The build records those JSON files
+in the standalone runtime index. The service includes only the selected skill's examples in its context,
+including script-repair turns. This does not require an addon document or restore addon prompt overlays.
+Files named `invalid-*.json` are presented as counterexamples that must be rejected. Examples illustrate contracts;
+they do not add author requirements or override the current capture-tool schema, ownership, or approval rules.
+Package maintainers must update the source manifest checksums after changing runtime example files.
 
 Extract the testing archive at the `rocky-skills/` root; the archive already contains its `testing/` directory.
 Its `skillsPackageVersion` must match the runtime `manifest.json` version. Use Python 3.12 or later, Bash, jq,

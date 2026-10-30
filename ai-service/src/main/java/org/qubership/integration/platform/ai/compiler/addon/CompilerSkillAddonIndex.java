@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.List;
 import java.util.Map;
 
-/** Build-time index of compiler skill addon documents under the addons directory. */
+/** Build-time index of standalone runtime examples or legacy addon documents. */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record CompilerSkillAddonIndex(
     List<String> globalDocuments,

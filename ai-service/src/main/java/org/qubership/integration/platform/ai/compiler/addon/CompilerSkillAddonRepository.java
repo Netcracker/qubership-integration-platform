@@ -65,13 +65,13 @@ public class CompilerSkillAddonRepository {
     }
 
     CompilerSkillAddonIndex.CompilerSkillAddonSkillIndex skillIndex = index.skills().get(skillId);
-    if (skillIndex == null || skillIndex.addonDocument() == null) {
+    if (skillIndex == null) {
       return new CompilerSkillAddonContext(
           List.copyOf(globalDocuments), null, List.of());
     }
 
     CompilerSkillAddonDocument skillAddon =
-        readDocument(skillIndex.addonDocument()).orElse(null);
+        skillIndex.addonDocument() == null ? null : readDocument(skillIndex.addonDocument()).orElse(null);
     List<CompilerSkillAddonDocument> examples = new ArrayList<>();
     for (String examplePath : skillIndex.examples()) {
       readDocument(examplePath).ifPresent(examples::add);

@@ -606,6 +606,7 @@ public class CompilerSkillContextBuilder {
                 .filter(node -> requiredNodeIds.contains(node.nodeId()) && "script".equals(node.type()))
                 .toList()));
       }
+      appendAddonSections(prompt, document);
       prompt.append("\n\nSkill instructions:\n").append(document.markdown());
       appendRuntimeContextPackage(prompt, conversationId, document, snapshot);
       appendGeneratorConstraints(prompt, document, snapshot);
@@ -988,12 +989,21 @@ public class CompilerSkillContextBuilder {
       }
     }
 
+    boolean standalone = addonRepository.hasStandaloneSkills();
+    if (standalone && !addon.examples().isEmpty()) {
+      body.append("Runtime examples are reference cases, not additional author requirements. "
+          + "Follow the current capture-tool schema, approved requirements, and ownership constraints. "
+          + "Counterexamples demonstrate rejected output and must not be copied.\n\n");
+    }
     for (CompilerSkillAddonDocument example : addon.examples()) {
-      String label =
-          document.phase() == CipKnowledgeCapabilityPhase.GENERATOR
-              ? "GraphPatch example"
-              : "Example";
-      body.append(label).append(" (").append(example.relativePath()).append("):\n");
+      if (standalone) {
+        String name = example.relativePath().substring(example.relativePath().lastIndexOf('/') + 1);
+        body.append(name.startsWith("invalid-") ? "Counterexample (must be rejected; " : "Runtime example (")
+            .append(example.relativePath()).append("):\n");
+      } else {
+        String label = document.phase() == CipKnowledgeCapabilityPhase.GENERATOR ? "GraphPatch example" : "Example";
+        body.append(label).append(" (").append(example.relativePath()).append("):\n");
+      }
       body.append(example.content()).append("\n\n");
     }
   }
