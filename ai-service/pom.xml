@@ -52,6 +52,7 @@
         <surefire-plugin.version>3.5.4</surefire-plugin.version>
         <wiremock.version>3.10.0</wiremock.version>
         <groovy.version>4.0.30</groovy.version>
+        <camel.version>4.18.2</camel.version>
         <qip-checkstyle-revision>0.0.3</qip-checkstyle-revision>
         <flatten-maven-plugin.version>1.5.0</flatten-maven-plugin.version>
         <jacoco.plugin.version>0.8.14</jacoco.plugin.version>
@@ -130,6 +131,11 @@
     </dependencyManagement>
 
     <dependencies>
+        <dependency>
+            <groupId>org.apache.camel</groupId>
+            <artifactId>camel-core-languages</artifactId>
+            <version>${camel.version}</version>
+        </dependency>
         <dependency>
             <groupId>com.networknt</groupId>
             <artifactId>json-schema-validator</artifactId>
