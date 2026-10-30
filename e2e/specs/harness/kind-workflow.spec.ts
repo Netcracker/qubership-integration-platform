@@ -16,7 +16,12 @@
  * mailed, and only to them"); the recipients read after the suite, and `secrets.EMAIL_TO` in the
  * suite's `env` ("the recipients are masked before any step can print them"); an address check that accepts `a@example`, `a b@example.com`, or `a@@example.com` ("the
  * address check refuses a malformed entry"); no mask commands, the entry in the error, and the
- * output written before the check ("the script masks every entry before it checks them").
+ * output written before the check ("the script masks every entry before it checks them"); the
+ * `background-bootstrap` default true, and the `ui` job without it ("the bootstrap runs in the
+ * background only for the PR lanes"); the foreground bootstrap step without its `if`, the start step
+ * after the root dependencies, and the suite's `E2E_BOOTSTRAP_LOG` without the input ("with the
+ * input, the suite waits for the bootstrap it started"); the subshell without `&`, and the exit
+ * code written under another name ("the start step returns before the bootstrap ends").
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -26,7 +31,7 @@ import { test, expect, type FullConfig } from "@playwright/test";
 import { ROLES } from "../../env/containers.js";
 import { repoRoot } from "../../env/host.js";
 import { microProjects } from "../../env/provision.js";
-import { imagesToBuild } from "../../env/provision/k8s.js";
+import { awaitBootstrap, imagesToBuild } from "../../env/provision/k8s.js";
 import { targetSetup } from "../../env/target-setup.js";
 import { suiteProjects } from "../../playwright.config.js";
 import { recipients } from "../../support/email-recipients.mjs";
@@ -60,7 +65,7 @@ interface Job {
 interface Workflow {
   on: {
     workflow_dispatch?: { inputs: Record<string, { type?: string; default?: unknown }> };
-    workflow_call?: { inputs: Record<string, { required?: boolean; default?: unknown }>; secrets: Record<string, unknown> };
+    workflow_call?: { inputs: Record<string, { required?: boolean; type?: string; default?: unknown }>; secrets: Record<string, unknown> };
   };
   jobs: Record<string, Job>;
 }
@@ -202,6 +207,54 @@ test.describe("kind workflow", () => {
     expect(lines[2]).toMatch(/^::error::Recipient 2 of 2 is not an email address/);
 
     expect(run("")).toEqual({ status: 0, stdout: "The run email is not sent.\n", output: "to=\n" });
+  });
+
+  test("the bootstrap runs in the background only for the PR lanes", () => {
+    expect(kind().on.workflow_call?.inputs["background-bootstrap"]).toMatchObject({ type: "boolean", default: false });
+    // "the nightly runs the whole suite" pins the nightly's inputs, which leave it out.
+    const lanes = callers("e2e-pr.yaml");
+    expect(lanes.map(([name]) => name).sort()).toEqual(["classic", "micro", "ui"]);
+    for (const [name, job] of lanes) expect(job.with?.["background-bootstrap"], name).toBe(true);
+  });
+
+  test("with the input, the suite waits for the bootstrap it started", () => {
+    const steps = kindJob().steps ?? [];
+    const at = (name: string) => steps.findIndex((each) => each.name === name);
+    expect(step("Bootstrap the cluster").if).toBe("${{ !inputs.background-bootstrap }}");
+    expect(step("Start the cluster bootstrap").if).toBe("${{ inputs.background-bootstrap }}");
+    // Started once the tools are on PATH, so it runs beside npm ci, Chromium, and the image builds.
+    expect(at("Start the cluster bootstrap")).toBe(at("Bootstrap the cluster") + 1);
+    expect(at("Bootstrap the cluster")).toBeGreaterThan(at("Install kind and istioctl"));
+    expect(at("Start the cluster bootstrap")).toBeLessThan(at("Install root dependencies"));
+    const between = steps.slice(at("Start the cluster bootstrap") + 1, at("Run the suite"));
+    expect(between.filter((each) => /\b(kubectl|kind|helm|istioctl)\b/.test(each.run ?? "")).map((each) => each.name)).toEqual([]);
+    // The provisioner waits for the exit code only when the input started the bootstrap; the nightly
+    // would otherwise wait for a file nothing writes.
+    expect(step("Run the suite").env?.E2E_BOOTSTRAP_LOG).toBe("${{ inputs.background-bootstrap && env.BOOTSTRAP_LOG || '' }}");
+    expect(kindJob().env?.BOOTSTRAP_LOG).toBe("${{ github.workspace }}/e2e/.e2e-k8s-bootstrap.log");
+    expect(String(step("Upload the report").with?.path)).toContain("e2e/.e2e-k8s-*");
+  });
+
+  test("the start step returns before the bootstrap ends", async () => {
+    const run = (code: number) => {
+      const root = test.info().outputPath(`checkout-${code}`);
+      const script = path.join(root, "e2e", "k8s", "bootstrap-cluster.sh");
+      fs.mkdirSync(path.dirname(script), { recursive: true });
+      fs.writeFileSync(script, `#!/usr/bin/env bash\necho "Cluster: creating kind-qip"\nsleep 1\necho "exit ${code}" >&2\nexit ${code}\n`, { mode: 0o755 });
+      const log = path.join(root, "bootstrap.log");
+      // GitHub runs a step's script with bash -e.
+      const result = spawnSync("bash", ["-e", "-c", step("Start the cluster bootstrap").run ?? ""], {
+        cwd: root,
+        env: { ...process.env, BOOTSTRAP_LOG: log },
+        encoding: "utf-8",
+      });
+      expect(result.status).toBe(0);
+      expect(fs.existsSync(`${log}.exit`), "the exit code before the bootstrap ended").toBe(false);
+      const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("no exit code within 10 s")), 10_000));
+      return Promise.race([awaitBootstrap(log, 50), timeout]);
+    };
+    await expect(run(0)).resolves.toBeUndefined();
+    await expect(run(3)).rejects.toThrow("exited with 3. Its log:\nCluster: creating kind-qip\nexit 3\n");
   });
 
   test("the history fetch downloads the outcomes the nightly uploads", () => {
