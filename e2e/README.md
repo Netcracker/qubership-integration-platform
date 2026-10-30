@@ -228,6 +228,7 @@ These commands sit beside the suite:
 ```bash
 npm run reconcile           # write test-results/cases.md, then diff the registries against the run
 npm run reconcile -- --only=vscode-messages  # the message registry alone, after --project=vscode
+npm run reconcile -- --partial  # the checks a narrowed run can pass, after a lane or a --grep
 npm run refresh-operations  # rebuild registry/operations.cache.json from a running stack
 npm run frozen-checksums    # rewrite fixtures/archives/frozen/CHECKSUMS after a deliberate change
 npm run check-types         # type-check
@@ -242,9 +243,11 @@ first one failed, and the command exits non-zero when either did. The extension'
 the console output only, and the command does not run `npm run reconcile`.
 
 `.github/workflows/e2e-k8s.yaml` runs the full suite on a kind cluster, nightly on `main` and on
-manual dispatch from the Actions tab. The dispatch input `workers` sets `E2E_WORKERS`; left empty,
-the run uses the nightly value. The dispatch input `email-to` takes comma-separated addresses, and a
-manual run mails the run email to those addresses only; left empty, the default, it sends no email.
+manual dispatch from the Actions tab. Its job calls `_e2e-kind.yaml`, which also runs the pull
+request kind jobs (see [The pull request jobs](#the-pull-request-jobs)). The dispatch input
+`workers` sets `E2E_WORKERS`; left empty, the run uses the nightly value. The dispatch input
+`email-to` takes comma-separated addresses, and a manual run mails the run email to those addresses
+only; left empty, the default, it sends no email.
 
 Each project belongs to one of three groups, which every count below keeps apart. Product projects
 run the product's cases. Setup and teardown projects seed, build, serve, or remove what the product
@@ -346,29 +349,8 @@ of those pods' containers, istiod, and the camel-k operator. The dump runs after
 holds a micro domain's pod only because a failed micro case keeps the run's micro domains (see
 [Reading a failure](#reading-a-failure)).
 
-`.github/workflows/e2e-pr.yaml` runs three jobs on every pull request:
-
-- `stack-free` runs `npm run check-types` and the `schema` and `harness` projects, and annotates
-  each failed case at its line.
-- `changes` lists the files the pull request's merge commit changes against its first parent, the
-  base branch, with rename detection off, so a moved file lists its old path too.
-  `support/pr-changes.mjs` matches them against the paths in its `JOB_PATHS` and prints
-  `vscode=true` or `vscode=false`. The paths are `vscode-extension/`, `ui/`, `schemas/`, the root
-  `package.json` and lockfile, the workflow itself, the package files of `e2e/`, and every file
-  under `e2e/` that the `vscode` project's specs and setups load, which
-  `specs/harness/pr-changes.spec.ts` checks.
-- `vscode` runs when `changes` printed `vscode=true`: `--project=vscode --max-failures=1`, then
-  `npm run reconcile -- --only=vscode-messages` after a green run. It caches
-  `vscode-extension/.vscode-test-web/` under a key built from the hash of `support/vscode-server.ts`,
-  so a new pin starts with an empty cache. A failed run uploads `e2e-playwright-report-vscode` and
-  `e2e-report-vscode`, which holds `test-results/` and `.e2e-vscode-server.log`. The step summary
-  ends with the result of the last scheduled `e2e-k8s.yaml` run on `main`.
-
-A skipped `vscode` job counts as passed, which is why the workflow sets no `paths` filter: a
-required check that never starts blocks the merge. A failed `changes` job skips `vscode` too, so a
-branch protection that requires `vscode` requires `changes` as well. The nightly `e2e-k8s.yaml`
-runs every project, `vscode` included, and the rest of the suite runs only there. Run the checks
-before pushing, as `AGENTS.md` describes.
+`.github/workflows/e2e-pr.yaml` runs part of the suite on every pull request, as
+[The pull request jobs](#the-pull-request-jobs) describes.
 
 **Selecting cases.** Each spec file holds one top-level `test.describe` named after its subject, and
 every tag comes from a closed list:
@@ -475,6 +457,90 @@ runs both library builds and then `compile-web`, and an extension edit runs `com
 The next page loads the new bundle. Undo the edit and run the file again: the setup rebuilds once
 more, and the case passes.
 
+### The pull request jobs
+
+`.github/workflows/e2e-pr.yaml` runs these jobs on every pull request:
+
+- `stack-free` runs `npm run check-types` and the `schema` and `harness` projects, and annotates
+  each failed case at its line.
+- `changes` lists the files the pull request's merge commit changes against its first parent, the
+  base branch, with rename detection off, so a moved file lists its old path too.
+  `support/pr-changes.mjs` reads the list and prints one `<job>=true` or `<job>=false` line for
+  each of `vscode`, `classic`, `micro`, and `ui`.
+- `vscode` runs when `changes` printed `vscode=true`: `--project=vscode --max-failures=1`, then
+  `npm run reconcile -- --only=vscode-messages` after a green run. It caches
+  `vscode-extension/.vscode-test-web/` under a key built from the hash of `support/vscode-server.ts`,
+  so a new pin starts with an empty cache. A failed run uploads `e2e-playwright-report-vscode` and
+  `e2e-report-vscode`, which holds `test-results/` and `.e2e-vscode-server.log`. The step summary
+  ends with the result of the last scheduled `e2e-k8s.yaml` run on `main`.
+- `classic`, `micro`, and `ui` each run one lane of the suite on a kind cluster, through
+  `_e2e-kind.yaml`, when `changes` printed `true` for them.
+- `kind-result` runs on every pull request and fails when `changes` or one of the three kind jobs
+  failed or was cancelled.
+
+A skipped job counts as passed, which is why the workflow sets no `paths` filter: a required check
+that never starts blocks the merge. A failed `changes` job skips `vscode` and the kind jobs, so a
+branch protection that requires `vscode` requires `changes` as well. The kind jobs need
+`kind-result` for the same reason: a caller job's check is named `classic` when the job is skipped
+and `classic / classic` when it runs, so neither name can be required. The checks to require are
+`stack-free`, `changes`, `vscode`, and `kind-result`. Run the stack-free checks before pushing, as
+`AGENTS.md` describes.
+
+**Which paths run which job.** `support/pr-changes.mjs` is the source of truth, and
+`specs/harness/pr-changes.spec.ts` checks it. `vscode` runs when any changed file matches a path in
+`JOB_PATHS`: `vscode-extension/`, `ui/`, `schemas/`, the root `package.json` and lockfile, the
+workflow itself, the package files of `e2e/`, and every file under `e2e/` that the `vscode`
+project's specs and setups load. The kind jobs read `KIND_RULES`, an ordered rule table: the first
+rule that matches a file decides which of the three jobs it runs, and the last rule sends every
+other file to all three. Markdown outside `help/docs/`, `docs/`, `.apm/` and the agent rule copies,
+and every workflow but `e2e-*.yaml` and `_e2e-kind.yaml` run no kind job. Of the three, `ui/` runs
+only `ui`, and `micro-engine/` only `micro`. The `schema` and `harness` specs run no kind job,
+because `stack-free` runs them. A rule that names fewer than three jobs may not leave out a job
+whose specs and setups import the file, which the harness checks against each lane's import
+closure. A file that a job reads without importing it needs a rule of its own: a help page the UI
+bundle copies, or a golden that `specs/api/extension-output.spec.ts` imports into the catalog.
+
+**Lanes.** `support/lanes.mjs` maps each project a pull request runs to its lane:
+
+| Lane | Projects |
+| --- | --- |
+| `classic` | `api`, `runtime`, `brokers` |
+| `micro` | `k8s`, `runtime-micro`, `runtime-micro-redeploy`, `brokers-micro` |
+| `ui` | `ui` |
+
+`playwright.config.ts` and `env/target-setup.ts` copy each project's lanes into its
+`metadata.lanes`. A lane's setups, such as `seed`, `seed-micro`, and `ui-server`, come in through
+`dependencies`. `env`, `env-micro`, `global`, `global-micro`, and `brokers-restart` are in no lane
+and no lane reaches them, so they run only nightly; `specs/harness/lanes.spec.ts` checks that, and
+that `e2e-pr.yaml` calls each lane from the job of the same name. Run as a script, the module prints
+a lane's `--project` flags, which is how a job selects its projects and how you run a lane locally:
+
+```bash
+npm run test:k8s -- $(node support/lanes.mjs micro)
+```
+
+**How a kind job differs from the nightly.** Each job passes `pull-request: true`, so the run stops
+at its first failure (`--max-failures=1`), skips teardown with `E2E_KEEP=1`, since the cluster goes
+away with the runner, fetches no run history, and sends no email. After a green suite it runs `npm
+run reconcile -- --partial` (see [Coverage registries](#coverage-registries)). Every artifact and
+HTML file name carries the job's name, as in `e2e-report-classic`, because the three jobs share one
+workflow run. The step summary ends with the result of the last scheduled nightly on `main`.
+`e2e-pr.yaml` sets each job's timeout and `--global-timeout`.
+
+**Every image comes from the checkout.** `classic` and `ui` build runtime-catalog, engine,
+sessions-management, and testing-service, and `micro` builds micro-engine as well, so no kind job
+runs a platform image from GHCR. The published `:latest` images come from the last release and lag
+`main`: the first `classic` run on `:latest` failed, because the engine of release 1.6.0 lacked
+fixes that the specs on `main` assert. Publishing an image on every
+merge to `main` was rejected, and so was a run that tries `:latest` and rebuilds on failure.
+`E2E_BUILD` still narrows the build for a local run (see [Flags](#flags)).
+
+The cluster bootstrap, `e2e/k8s/bootstrap-cluster.sh`, runs in the background while the dependencies
+install and the images build, and the provisioner waits for it before its first cluster call
+(`E2E_BOOTSTRAP_LOG` under [Flags](#flags)). Its log is `.e2e-k8s-bootstrap.log` in the `e2e-report`
+artifact, `e2e-report-<job>` on a pull request. Measured on the runner in October 2026, `classic`
+took 12 to 14 minutes, `ui` about 15, and `micro` 16 to 18.5.
+
 ## Debugging
 
 - `npm run report` opens the HTML report of the last run, from `playwright-report/`. A failed case
@@ -513,7 +579,7 @@ defaults below are the Compose ports; on `k8s` they are the fixed host ports fro
 | `E2E_ELEMENT_SCHEMA_DIR`  | the tracked schemas                  | Points the coverage checks at another element-schema tree, which is how they are proved to still go red. |
 | `E2E_VSCODE_COMMIT`       | `VSCODE_COMMIT` in `support/vscode-server.ts` | The VS Code insiders build `vscode-server` serves, by its commit (see [The `vscode` project](#the-vscode-project)). |
 | `E2E_BROKERS`             | unset, meaning `1`                   | `0` drops `brokers-seed`, `brokers`, and `brokers-restart` from the run, and `brokers-micro-seed` and `brokers-micro` on `k8s`, for a faster local pass: Compose starts no broker overlay, and on `k8s` the release is installed without the brokers. |
-| `E2E_BUILD`               | unset, meaning `all`                 | On `k8s`, the images built from the checkout: a comma list of `runtime-catalog`, `engine`, `sessions-management`, `testing-service`, and `micro-engine`, or `all`, or `none`. Every other image runs as its published `:latest` from GHCR, and the run header names each by the digest its pod runs. `all` beside other names is still `all`, `none` beside them adds nothing, and an unknown name fails the run. A run that selects a micro project fails unless the list builds `micro-engine`: the published micro image is a `prod` build the chart cannot start. On Docker Desktop, `docker pull` those `:latest` images first, because the node runs whatever copy the host already holds. |
+| `E2E_BUILD`               | unset, meaning `all`                 | On `k8s`, the images built from the checkout: a comma list of `runtime-catalog`, `engine`, `sessions-management`, `testing-service`, and `micro-engine`, or `all`, or `none`. Every other image runs as its published `:latest` from GHCR, and the run header names each by the digest its pod runs. `all` beside other names is still `all`, `none` beside them adds nothing, and an unknown name fails the run. A run that selects a micro project fails unless the list builds `micro-engine`: the published micro image is a `prod` build the chart cannot start. On Docker Desktop, `docker pull` those `:latest` images first, because the node runs whatever copy the host already holds. The nightly and the pull request jobs build every image their projects run. |
 | `E2E_BOOTSTRAP_LOG`       | unset                                | On `k8s`, the log of a cluster bootstrap still running in the background, which `_e2e-kind.yaml` starts before it installs the dependencies. The run builds the images first, then waits for the exit code the workflow writes to `<log>.exit`, and checks the cluster only after that. A non-zero code fails the run with the log. Unset, the run checks the cluster before it builds the images. |
 | `CIP_TARGET`              | `compose`                            | `k8s` runs the suite against the local cluster in the current kube-context (see [Targets](#targets)). Any other value fails the run at config load. |
 | `CIP_REPO_ROOT`           | the parent directory                 | The repository root everything else is resolved against.                             |
@@ -941,6 +1007,13 @@ prove carries that target, so covering the whole registry takes a reconcile afte
 each target. `npm run reconcile -- --only=vscode-messages` checks the message registry alone, after a
 run of exactly `--project=vscode`, and writes neither `cases.md` nor `coverage.json`. Execution
 options such as `--workers` and `--max-failures` select no case, so the check accepts them too.
+
+`npm run reconcile -- --partial` accepts a narrowed run, such as a pull request lane, and keeps the
+checks that hold for any subset of the suite: every case carries its tags, every `covers()`
+declaration names a row of the run's target and carries the row's tags, every API call the run
+recorded matches an operation row, and a `not-reached` row the run reached fails. It skips the
+check that every `covered` or `reached` row was proven, which only a whole run can pass. Like
+`--only`, it writes neither `cases.md` nor `coverage.json`, and the two cannot be combined.
 
 `npm run refresh-operations` rewrites `registry/operations.cache.json` from a running stack, and it
 is the only thing that writes it. Point it elsewhere with `CIP_CATALOG_URL`, `CIP_ENGINE_URL`,

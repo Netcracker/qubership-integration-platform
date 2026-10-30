@@ -67,8 +67,10 @@ and the import-file migration classes under `integration-build-pipeline/`. `harn
 The workflow's `vscode` job runs `--project=vscode` and `npm run reconcile -- --only=vscode-messages`
 when the pull request changes a path that `support/pr-changes.mjs` lists. That project needs no
 stack either, so run it before pushing a change to `vscode-extension/`, `ui/`, or `schemas/`.
-The rest of the suite provisions a Compose stack or a cluster namespace and expects to own it for
-the length of the run.
+Its `classic`, `micro`, and `ui` jobs each run one lane of `support/lanes.mjs` through
+`_e2e-kind.yaml`, the workflow the nightly calls, when `support/pr-changes.mjs` maps a changed path
+to that job. A project in no lane runs only nightly. The rest of the suite provisions a Compose
+stack or a cluster namespace and expects to own it for the length of the run.
 
 The job's step summary comes from `support/run-summary.mjs`, and `support/run-page.mjs` writes the
 run page, which the job uploads unzipped beside Playwright's HTML report. Every scheduled run mails
@@ -112,11 +114,12 @@ debugging on the same stack.
 On `k8s` the suite provisions the namespace, never the cluster; `e2e/k8s/bootstrap-cluster.sh`
 prepares the cluster. The cluster versions are pinned in the script and in `e2e/k8s/README.md`.
 `infrastructure/helm/cip-dev/README.md` also pins Gateway API and Istio, and
-`.github/workflows/e2e-k8s.yaml` pins kind and istioctl. Bump them in all four places together.
+`.github/workflows/_e2e-kind.yaml` pins kind and istioctl. Bump them in all four places together.
 `env/provision/k8s.ts` checks the kube-context, the Gateway API CRDs, Istio, the camel-k operator,
 and metrics-server in that order, and fails on the first one missing, naming the section of
 `e2e/k8s/README.md` that installs it. It then builds the images, each tagged with a hash over its
-own sources, and runs
+own sources. With `E2E_BOOTSTRAP_LOG` set, as on CI, where the bootstrap runs in the background, it
+builds the images first and waits for the bootstrap before the check. Then it runs
 `helm upgrade --install cip infrastructure/helm/cip-dev -n cip-e2e -f e2e/k8s/values.e2e.yaml`. A chart
 change the suite needs goes in the chart as an optional value with a default that renders what it
 rendered before, and `e2e/k8s/values.e2e.yaml` sets it.
