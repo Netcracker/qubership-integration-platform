@@ -124,7 +124,7 @@ test.describe("actuator health", () => {
   test.describe("testing-service", { tag: ["@testing-service"] }, () => {
     test("answers its own /health", async ({ request, env }) => {
       const document = await health(request, `${env.url("testing-service")}/health`);
-      expect(document).toEqual({ status: "UP" });
+      expect(document).toEqual({ status: "UP-broken" }); // TEMPORARY: deliberately broken to prove the PR job blocks; reverted next commit
 
       // Not an actuator, and worth pinning: a spec that assumed the Spring path would poll a 404
       // forever and report the service down while it was serving.
