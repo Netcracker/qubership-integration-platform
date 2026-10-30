@@ -95,9 +95,21 @@ public class SkillHarnessService {
         message.append(promptMaterial);
       }
     }
+    boolean standalone = addonRepository.hasStandaloneSkills();
+    if (standalone && !addon.examples().isEmpty()) {
+      message.append("\n\nRuntime examples are reference cases, not additional author requirements. "
+          + "Follow current catalog tool schemas, approved requirements, and ownership constraints. "
+          + "Preserve current catalog UUIDs. Counterexamples must not be applied. Do not emit GraphPatch.\n\n");
+    }
     for (CompilerSkillAddonDocument example : addon.examples()) {
-      message.append("\n\n## Addon example (").append(example.relativePath()).append(")\n\n");
-      message.append("Property contract. Apply with catalog element tools; do not emit GraphPatch.\n\n");
+      if (standalone) {
+        String name = example.relativePath().substring(example.relativePath().lastIndexOf('/') + 1);
+        message.append(name.startsWith("invalid-") ? "\n\n## Counterexample (must be rejected; " : "\n\n## Runtime example (")
+            .append(example.relativePath()).append(")\n\n");
+      } else {
+        message.append("\n\n## Addon example (").append(example.relativePath()).append(")\n\n");
+        message.append("Property contract. Apply with catalog element tools; do not emit GraphPatch.\n\n");
+      }
       message.append(example.content());
     }
   }

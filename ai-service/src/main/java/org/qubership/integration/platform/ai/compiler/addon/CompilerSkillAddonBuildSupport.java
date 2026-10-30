@@ -58,7 +58,8 @@ public final class CompilerSkillAddonBuildSupport {
         for (Path file : files.filter(path -> path.toString().endsWith(".json")).sorted().toList()) {
           String id = file.getFileName().toString().replaceFirst("\\.json$", "");
           AddonRuntimeMetadata metadata = readRuntimeMetadata(file, id);
-          skills.put(id, new CompilerSkillAddonIndex.CompilerSkillAddonSkillIndex(null, List.of(), metadata));
+          skills.put(id, new CompilerSkillAddonIndex.CompilerSkillAddonSkillIndex(
+              null, listRelativeFiles(runtimeDir, "examples/" + id, ".json"), metadata));
         }
       }
       INDEX_MAPPER.writerWithDefaultPrettyPrinter().writeValue(
