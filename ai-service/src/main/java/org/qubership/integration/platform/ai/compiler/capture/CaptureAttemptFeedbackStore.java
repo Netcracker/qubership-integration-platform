@@ -14,6 +14,7 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationSessions;
 import org.qubership.integration.platform.ai.productpipeline.capability.CaptureFailureEvidence;
 import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass;
@@ -81,8 +82,21 @@ public class CaptureAttemptFeedbackStore {
   }
 
   public record PendingProposal(String capabilityId, String inputScope, String scope, String toolName,
-      com.fasterxml.jackson.databind.JsonNode arguments) {}
+      com.fasterxml.jackson.databind.JsonNode arguments, String toolCallId) {
+    public PendingProposal(String capabilityId, String inputScope, String scope, String toolName,
+        com.fasterxml.jackson.databind.JsonNode arguments) {
+      this(capabilityId, inputScope, scope, toolName, arguments, null);
+    }
+  }
   public record Observation(String channel, String capabilityId, PendingProposal proposal, CaptureAttemptFeedback feedback) {}
+
+  /** Tool name for a stalled clarification target. Identity is the target projection, not the candidate JSON. */
+  public static final String CLARIFICATION_TARGET_TOOL = "clarificationTargetTransition";
+
+  /** The pinned answer and target projections that identify one stalled clarification, excluding wording and reviewed ids. */
+  public record ClarificationFailureKey(String answerTurnId, String offerId, String interactionId, String propertyKey,
+      com.fasterxml.jackson.databind.JsonNode beforeProjection,
+      com.fasterxml.jackson.databind.JsonNode afterProjection) {}
 
   /** The runtime pins effective inputs and contract before a skill turn; history grants no authority. */
   public void beginScope(String conversationId, String capabilityId, Object effectiveInputs) {
@@ -94,6 +108,14 @@ public class CaptureAttemptFeedbackStore {
     historyOwners.put(conversationId, historyOwner);
     scopes.put(scopeKey(conversationId, capabilityId), CaptureProposal.digest(effectiveInputs));
     pending.remove(conversationId);
+  }
+
+  public int identicalFailureCount(String conversationId, String capabilityId) {
+    return (int) history(conversationId).stream()
+        .filter(observation -> capabilityId.equals(observation.capabilityId()))
+        .filter(observation -> observation.feedback() != null
+            && observation.feedback().failureClass() == CaptureFailureClass.IDENTICAL_SPAM)
+        .count();
   }
 
   public boolean hasScope(String conversationId, String capabilityId) {
@@ -138,7 +160,7 @@ public class CaptureAttemptFeedbackStore {
     var previous = prior.orElseThrow();
     var feedback = previous.feedback();
     var duplicate = observe(conversationId, previous.channel(), new CaptureAttemptFeedback(
-        feedback.kind(), feedback.summary(), CaptureFailureClass.IDENTICAL_SPAM, false, feedback.fieldHints(), "", true));
+        feedback.kind(), feedback.summary(), CaptureFailureClass.IDENTICAL_SPAM, false, feedback.fieldHints(), "", true, null, feedback.issues(), feedback.presentationDetails(), feedback.ladderStage()));
     cache(conversationId, capability, previous.channel(), duplicate);
     throw new CaptureNoProgressException("REPAIR_NO_PROGRESS: The same proposal was rejected under the current inputs. " + duplicate.summary(),
         new CaptureFailureEvidence(duplicate, null, duplicate.evidenceReference(), List.of()));
@@ -165,7 +187,7 @@ public class CaptureAttemptFeedbackStore {
   private CaptureAttemptFeedback observe(String conversationId, String channel, String channelCapability,
       CaptureAttemptFeedback feedback) {
     var captured = pending.remove(conversationId);
-    var proposal = feedback.kind() == CaptureFailureKind.TOOL_ARGUMENTS ? null : captured;
+    var proposal = captured;
     String capability = proposal == null ? channelCapability : proposal.capabilityId();
     var observation = new Observation(channel, capability, proposal, feedback);
     if (artifacts != null) {
@@ -187,7 +209,74 @@ public class CaptureAttemptFeedbackStore {
         .projectValues(relevant, json, org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.CHAR_BUDGET)
         .toString();
     return new CaptureAttemptFeedback(feedback.kind(), feedback.summary(), feedback.failureClass(),
-        feedback.outerAllowed(), feedback.fieldHints(), summary, feedback.noProgress(), feedback.evidenceReference());
+        feedback.outerAllowed(), feedback.fieldHints(), summary, feedback.noProgress(), feedback.evidenceReference(),
+        feedback.issues(), feedback.presentationDetails(), feedback.ladderStage());
+  }
+
+  /** Retains unmapped input verbatim; validation identity never depends on its payload. */
+  public void beginRejectedProposal(String conversationId, String capabilityId, String toolName,
+      String rawArguments, String toolCallId) {
+    if (conversationId == null) { return; }
+    String capability = capabilityId == null ? "" : capabilityId;
+    String scope = inputScope(conversationId, capability);
+    pending.put(conversationId, new PendingProposal(capability, scope, scope, toolName,
+        JSON.getNodeFactory().textNode(rawArguments == null ? "" : rawArguments), toolCallId));
+  }
+
+  public String inputScope(String conversationId, String capabilityId) {
+    return scopes.getOrDefault(scopeKey(conversationId, capabilityId == null ? "" : capabilityId), "");
+  }
+
+  /** Persists one stalled clarification target and returns the feedback, including its evidence reference. */
+  public CaptureAttemptFeedback recordClarificationFailure(String conversationId, String capabilityId,
+      ClarificationFailureKey key, List<TypedIssue> issues) {
+    if (conversationId == null || conversationId.isBlank() || key == null) {
+      return null;
+    }
+    boolean repeated = repeatedClarificationFailure(conversationId, key);
+    String capability = capabilityId == null ? "" : capabilityId;
+    String scope = inputScope(conversationId, capability);
+    pending.put(conversationId, new PendingProposal(capability, scope, scope, CLARIFICATION_TARGET_TOOL,
+        JSON.valueToTree(key)));
+    var feedback = new CaptureAttemptFeedback(CaptureFailureKind.VALIDATION, "CLARIFICATION_ANSWER_NO_PROGRESS",
+        CaptureFailureClass.CORRECTABLE, true, List.of(), "", repeated, null,
+        issues == null ? List.of() : issues);
+    return observe(conversationId, "VALIDATION", capability, feedback);
+  }
+
+  /** True when this conversation already stored the same clarification target key. */
+  public boolean repeatedClarificationFailure(String conversationId, ClarificationFailureKey key) {
+    if (conversationId == null || conversationId.isBlank() || key == null) {
+      return false;
+    }
+    var wanted = JSON.valueToTree(key);
+    return history(conversationId).stream().map(Observation::proposal).filter(java.util.Objects::nonNull)
+        .filter(proposal -> CLARIFICATION_TARGET_TOOL.equals(proposal.toolName()))
+        .anyMatch(proposal -> wanted.equals(proposal.arguments()));
+  }
+
+  public void recordTypedPlanFailure(String conversationId, String capabilityId,
+      CaptureFailureKind kind, CaptureFailureClass failureClass, boolean outerAllowed,
+      String summary, List<TypedIssue> issues) {
+    cache(conversationId, capabilityId, "PLAN", observe(conversationId, "PLAN", capabilityId,
+        new CaptureAttemptFeedback(kind, summary, failureClass, outerAllowed, List.of(), "", false, null, issues)));
+  }
+
+  /** A smaller remaining issue set is progress; changing rejected values alone is not. */
+  public boolean recordTypedPatchFailure(String conversationId, String capabilityId, List<TypedIssue> issues) {
+    var identities = issues.stream().map(issue -> issue.code() + ":" + issue.entityId() + ":" + issue.path())
+        .sorted().toList();
+    String fingerprint = fingerprintStore.fingerprint("captureGraphPatch", capabilityId,
+        List.of(inputScope(conversationId, capabilityId), identities));
+    boolean repeated = fingerprintStore.softCreditUsed(conversationId, fingerprint);
+    fingerprintStore.consumeSoftCredit(conversationId, fingerprint);
+    String summary = issues.stream().map(issue -> issue.entityId() + " " + issue.path() + ": " + issue.message())
+        .collect(java.util.stream.Collectors.joining("\n"));
+    var failure = new CaptureAttemptFeedback(CaptureFailureKind.VALIDATION, summary,
+        repeated ? CaptureFailureClass.IDENTICAL_SPAM : CaptureFailureClass.CORRECTABLE,
+        !repeated, List.of(), "", false, null, issues);
+    cache(conversationId, capabilityId, "PATCH", observe(conversationId, "PATCH", capabilityId, failure));
+    return repeated;
   }
 
   public String repairHistory(String conversationId, String capabilityId) {
@@ -305,11 +394,20 @@ public class CaptureAttemptFeedbackStore {
   public void recordClassifiedRequirementFailure(String conversationId, CaptureFailureKind kind,
       CaptureFailureClass failureClass, boolean outerAllowed, String summary, List<TypedIssue> issues,
       boolean noProgress) {
+    recordClassifiedRequirementFailure(conversationId, kind, failureClass, outerAllowed, summary, issues,
+        noProgress, null);
+  }
+
+  /** Stores requirement feedback. {@code ladderStage} is omitted from older artifacts when null. */
+  public void recordClassifiedRequirementFailure(String conversationId, CaptureFailureKind kind,
+      CaptureFailureClass failureClass, boolean outerAllowed, String summary, List<TypedIssue> issues,
+      boolean noProgress,
+      org.qubership.integration.platform.ai.productpipeline.recovery.RequirementRecoveryLadder.Stage ladderStage) {
     if (conversationId == null || conversationId.isBlank()) {
       return;
     }
     var rejection = new RequirementRejection(new CaptureAttemptFeedback(kind, summary, failureClass, outerAllowed,
-        List.of(), "", noProgress),
+        List.of(), "", noProgress, null, issues, null, ladderStage),
         List.copyOf(issues));
     saveRequirementFeedback(conversationId, rejection);
     requirementFailures.put(conversationId, rejection);
@@ -321,6 +419,11 @@ public class CaptureAttemptFeedbackStore {
 
   public record RequirementRejection(CaptureAttemptFeedback feedback, List<TypedIssue> issues) {}
 
+  public Optional<Reference> lastRequirementFeedbackReference(String conversationId) {
+    return artifacts == null ? Optional.empty() : sessions.current(conversationId)
+        .flatMap(link -> artifacts.latest(link.compilationId(), Kind.REQUIREMENT_CAPTURE_FEEDBACK)).map(Revision::reference);
+  }
+
   public Optional<RequirementRejection> lastRequirementRejection(String conversationId) {
     if (conversationId == null || conversationId.isBlank()) {
       return Optional.empty();
@@ -328,8 +431,15 @@ public class CaptureAttemptFeedbackStore {
     if (artifacts != null) {
       return sessions.current(conversationId)
           .flatMap(link -> artifacts.latest(link.compilationId(), Kind.REQUIREMENT_CAPTURE_FEEDBACK))
-          .map(revision -> artifacts.payload(revision, RequirementFeedback.class))
-          .map(RequirementFeedback::rejection);
+          .map(revision -> {
+            var rejection = artifacts.payload(revision, RequirementFeedback.class).rejection();
+            if (rejection == null) return null;
+            var saved = rejection.feedback();
+            return new RequirementRejection(new CaptureAttemptFeedback(saved.kind(), saved.summary(), saved.failureClass(),
+                saved.outerAllowed(), saved.fieldHints(), saved.repairHistoryJson(), saved.noProgress(),
+                revision.reference(), rejection.issues(), saved.presentationDetails(), saved.ladderStage()),
+                rejection.issues());
+          });
     }
     return Optional.ofNullable(requirementFailures.get(conversationId));
   }
@@ -363,12 +473,19 @@ public class CaptureAttemptFeedbackStore {
       boolean outerAllowed,
       String summary,
       List<CaptureFieldHint> fieldHints) {
+    recordClassifiedPlanFailure(conversationId, kind, failureClass, outerAllowed, summary, fieldHints, null);
+  }
+
+  public void recordClassifiedPlanFailure(
+      String conversationId, CaptureFailureKind kind, CaptureFailureClass failureClass,
+      boolean outerAllowed, String summary, List<CaptureFieldHint> fieldHints, String presentationDetails) {
     if (conversationId == null || conversationId.isBlank()) {
       return;
     }
     planFailures.put(
         conversationId,
-        observe(conversationId, "PLAN", new CaptureAttemptFeedback(kind, summary, failureClass, outerAllowed, fieldHints)));
+        observe(conversationId, "PLAN", new CaptureAttemptFeedback(kind, summary, failureClass,
+            outerAllowed, fieldHints, "", false, null, List.of(), presentationDetails)));
   }
 
   public void recordClassifiedPatchFailure(
@@ -524,6 +641,36 @@ public class CaptureAttemptFeedbackStore {
       return restored(conversationId, "VALIDATION", capabilityId);
     }
     return Optional.ofNullable(byCapability.get(capabilityId)).or(() -> restored(conversationId, "VALIDATION", capabilityId));
+  }
+
+  /** Reads the exact scoped native observation; a reference or scope mismatch supplies no proposal. */
+  public CaptureFailureEvidence failureEvidence(
+      String conversationId, String capabilityId, CaptureAttemptFeedback feedback) {
+    Observation observation = null;
+    Reference reference = feedback.evidenceReference();
+    String scope = inputScope(conversationId, capabilityId);
+    if (artifacts != null && sessions != null && reference != null
+        && reference.kind() == Kind.CAPTURE_ATTEMPT_FEEDBACK && !scope.isBlank()) {
+      var session = sessions.current(historyOwner(conversationId));
+      var stored = session.flatMap(link -> artifacts.get(link.compilationId(), reference));
+      if (stored.isPresent()) {
+        var nativeValue = artifacts.payload(stored.orElseThrow(), Observation.class);
+        var proposal = nativeValue.proposal();
+        var saved = nativeValue.feedback();
+        // History is a derived display projection. Every native feedback field must still match.
+        if (saved != null && proposal != null && Objects.equals(capabilityId, nativeValue.capabilityId())
+            && Objects.equals(capabilityId, proposal.capabilityId()) && scope.equals(proposal.inputScope())
+            && new CaptureAttemptFeedback(saved.kind(), saved.summary(), saved.failureClass(), saved.outerAllowed(),
+                saved.fieldHints(), "", saved.noProgress(), reference, saved.issues(), saved.presentationDetails(),
+                saved.ladderStage())
+                .equals(new CaptureAttemptFeedback(feedback.kind(), feedback.summary(), feedback.failureClass(),
+                    feedback.outerAllowed(), feedback.fieldHints(), "", feedback.noProgress(), reference,
+                    feedback.issues(), feedback.presentationDetails(), feedback.ladderStage()))) {
+          observation = nativeValue;
+        }
+      }
+    }
+    return new CaptureFailureEvidence(feedback, null, reference, List.of(), observation);
   }
 
   public void clearPlan(String conversationId) {

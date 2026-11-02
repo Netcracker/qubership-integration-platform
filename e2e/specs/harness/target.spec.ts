@@ -9,6 +9,7 @@
  * `k8s-adapter.spec.ts`.
  */
 import fs from "node:fs";
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test, expect } from "@playwright/test";
@@ -24,16 +25,29 @@ import {
 import { target } from "../../env/target.js";
 import { targetSetup, type SuiteProject } from "../../env/target-setup.js";
 import { URL_OVERRIDES, withEnv } from "../../support/with-env.js";
-import { BROKERS_MICRO_CORPUS_STATE_FILE, MICRO_CORPUS_STATE_FILE, MICRO_REDEPLOY_STATE_FILE } from "../../env/k8s.js";
-import { BROKER_PROJECTS, K8S_PROJECTS, MICRO_BROKER_PROJECTS } from "./projects.js";
+import {
+  BROKERS_MICRO_CORPUS_STATE_FILE,
+  MICRO_CORPUS_STATE_FILE,
+  MICRO_REDEPLOY_STATE_FILE,
+} from "../../env/k8s.js";
+import {
+  BROKER_PROJECTS,
+  K8S_PROJECTS,
+  MICRO_BROKER_PROJECTS,
+} from "./projects.js";
 
-const E2E_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+const E2E_DIR = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+);
 
 /**
  * The projects the config declared on 2026-09-24, before the target seam, with brokers on, and with
  * `suite-teardown` in place of `brokers-seed-teardown` and `harness` split off `schema`.
  */
 const COMPOSE_PROJECTS = [
+  "ai-tests",
   "schema",
   "harness",
   "api",
@@ -53,7 +67,9 @@ const COMPOSE_PROJECTS = [
 ];
 
 function composeProjects(brokers: string | undefined): SuiteProject[] {
-  return withEnv({ E2E_BROKERS: brokers }, () => suiteProjects(targetSetup("compose")));
+  return withEnv({ E2E_BROKERS: brokers, E2E_AI_RECOVERY: undefined }, () =>
+    suiteProjects(targetSetup("compose")),
+  );
 }
 
 /**
@@ -62,6 +78,7 @@ function composeProjects(brokers: string | undefined): SuiteProject[] {
  * this table in the same commit.
  */
 const COMPOSE_SCHEDULE: Record<string, string> = {
+  "ai-tests": "./specs/ai-tests",
   schema: "./specs/schema; parallel",
   harness: "./specs/harness; parallel",
   api: "./specs/api; after seed; parallel",
@@ -69,19 +86,24 @@ const COMPOSE_SCHEDULE: Record<string, string> = {
   "seed-teardown": "./specs/seed /.*\\.teardown\\.ts$/",
   tooling: "./specs/tooling; after seed",
   runtime: "./specs/runtime; after seed, tooling; parallel",
-  env: "./specs/env; after api, runtime, ui; 1 worker",
-  "ui-server": "./specs/ui-server /.*\\.setup\\.ts$/; teardown ui-server-teardown",
+  env: "./specs/env except **/ai-recovery-lifecycle.spec.ts; after api, runtime, ui; 1 worker",
+  "ui-server":
+    "./specs/ui-server /.*\\.setup\\.ts$/; teardown ui-server-teardown",
   "ui-server-teardown": "./specs/ui-server /.*\\.teardown\\.ts$/",
   ui: "./specs/ui; after seed, ui-server; parallel",
   // The broker and micro teardowns wait for `global` without gating either side.
-  global: "./specs/global; after api, runtime, env, ui; teardown suite-teardown; 1 worker",
+  global:
+    "./specs/global; after api, runtime, env, ui; teardown suite-teardown; 1 worker",
   "suite-teardown":
     "./specs /\\/(seed-micro|brokers-seed|brokers-micro-seed)\\/[^/]*\\.teardown\\.ts$/",
   // Both seeds deploy to the classic engine, which reports a batch's state once the whole batch loads.
-  "brokers-seed": "./specs/brokers-seed /.*\\.setup\\.ts$/; after seed; teardown suite-teardown",
-  brokers: "./specs/brokers except /broker-restart\\.spec\\.ts$/; after brokers-seed; parallel",
+  "brokers-seed":
+    "./specs/brokers-seed /.*\\.setup\\.ts$/; after seed; teardown suite-teardown",
+  brokers:
+    "./specs/brokers except /broker-restart\\.spec\\.ts$/; after brokers-seed; parallel",
   // After `global`, and so after `env`, whose engine restart drops the consumer a broker restart case waits on.
-  "brokers-restart": "./specs/brokers /broker-restart\\.spec\\.ts$/; after brokers, global; 1 worker",
+  "brokers-restart":
+    "./specs/brokers /broker-restart\\.spec\\.ts$/; after brokers, global; 1 worker",
 };
 
 /** A project's schedule as one line; without `edges`, what it waits for is left out. */
@@ -93,15 +115,22 @@ function schedule(project: SuiteProject, edges = true): string {
   ].join(" ");
   return [
     collects,
-    ...(edges && project.dependencies?.length ? [`after ${project.dependencies.join(", ")}`] : []),
+    ...(edges && project.dependencies?.length
+      ? [`after ${project.dependencies.join(", ")}`]
+      : []),
     ...(edges && project.teardown ? [`teardown ${project.teardown}`] : []),
-    ...(project.workers ? [`${project.workers} worker${project.workers === 1 ? "" : "s"}`] : []),
+    ...(project.workers
+      ? [`${project.workers} worker${project.workers === 1 ? "" : "s"}`]
+      : []),
     ...(project.fullyParallel ? ["parallel"] : []),
   ].join("; ");
 }
 
 /** Every project `name` waits for, through every edge. */
-function waitsFor(projects: readonly SuiteProject[], name: string): Set<string> {
+function waitsFor(
+  projects: readonly SuiteProject[],
+  name: string,
+): Set<string> {
   const byName = new Map(projects.map((each) => [each.name, each]));
   const after = new Set<string>();
   const visit = (from: string) => {
@@ -115,23 +144,49 @@ function waitsFor(projects: readonly SuiteProject[], name: string): Set<string> 
   return after;
 }
 
-const k8sProjects = () => withEnv({ E2E_BROKERS: undefined }, () => suiteProjects(targetSetup("k8s")));
-const k8sProject = (name: string) => k8sProjects().find((each) => each.name === name);
+const k8sProjects = () =>
+  withEnv({ E2E_BROKERS: undefined }, () => suiteProjects(targetSetup("k8s")));
+const k8sProject = (name: string) =>
+  k8sProjects().find((each) => each.name === name);
 
 test.describe("target", () => {
   test("an unknown target fails, naming both valid values", () => {
     // Read as `compose`, a typo such as `kube` would run the Compose projects and report them as a
     // cluster run.
     for (const value of ["kube", "K8S", ""]) {
-      expect(() => withEnv({ CIP_TARGET: value }, target)).toThrow(/"compose" or "k8s"/);
+      expect(() => withEnv({ CIP_TARGET: value }, target)).toThrow(
+        /"compose" or "k8s"/,
+      );
     }
   });
 
   test.describe("projects", () => {
+    for (const on of ["compose", "k8s"] as const) {
+      for (const enabled of [false, true]) {
+        test(`${on} collects AI recovery (${enabled ? "enabled" : "default"})`, () => {
+          const report = JSON.parse(execFileSync(
+            path.join(E2E_DIR, "node_modules/.bin/playwright"),
+            ["test", "--project=env", "--no-deps", "--list", "--reporter=json"],
+            {
+              cwd: E2E_DIR,
+              env: { ...process.env, CIP_TARGET: on, E2E_AI_RECOVERY: enabled ? "1" : undefined },
+              encoding: "utf8",
+            },
+          )) as { suites: { file: string }[] };
+          expect(report.suites.map((suite) => path.basename(suite.file)).filter(
+            (file) => file === "ai-recovery-lifecycle.spec.ts",
+          )).toEqual(on === "compose" && enabled ? ["ai-recovery-lifecycle.spec.ts"] : []);
+        });
+      }
+    }
     test("Compose declares the projects it had before the seam", () => {
       const projects = composeProjects(undefined);
-      expect(projects.map((each) => each.name).sort()).toEqual([...COMPOSE_PROJECTS].sort());
-      expect(Object.fromEntries(projects.map((each) => [each.name, schedule(each)]))).toEqual(COMPOSE_SCHEDULE);
+      expect(projects.map((each) => each.name).sort()).toEqual(
+        [...COMPOSE_PROJECTS].sort(),
+      );
+      expect(
+        Object.fromEntries(projects.map((each) => [each.name, schedule(each)])),
+      ).toEqual(COMPOSE_SCHEDULE);
     });
 
     test("both targets declare the harness project with no stack", () => {
@@ -145,21 +200,40 @@ test.describe("target", () => {
     // The run summary and the email count each group apart, so a seed that fails reads as setup.
     test("every setup and teardown project is grouped as setup", () => {
       for (const projects of [composeProjects(undefined), k8sProjects()]) {
-        const lifecycle = projects.filter((each) => /setup|teardown/.test(String(each.testMatch)));
+        const lifecycle = projects.filter((each) =>
+          /setup|teardown/.test(String(each.testMatch)),
+        );
         expect(lifecycle.length).toBeGreaterThan(0);
-        for (const each of lifecycle) expect(each.metadata?.group, each.name).toBe("setup");
-        const groups = Object.fromEntries(projects.map((each) => [each.name, each.metadata?.group ?? "product"]));
-        expect(groups).toMatchObject({ schema: "suite", harness: "suite", tooling: "setup", api: "product", ui: "product" });
+        for (const each of lifecycle)
+          expect(each.metadata?.group, each.name).toBe("setup");
+        const groups = Object.fromEntries(
+          projects.map((each) => [
+            each.name,
+            each.metadata?.group ?? "product",
+          ]),
+        );
+        expect(groups).toMatchObject({
+          schema: "suite",
+          harness: "suite",
+          tooling: "setup",
+          api: "product",
+          ui: "product",
+        });
       }
     });
 
     test("suite-teardown collects only the micro and broker teardowns", () => {
-      const testMatch = composeProjects(undefined).find((each) => each.name === "suite-teardown")?.testMatch;
+      const testMatch = composeProjects(undefined).find(
+        (each) => each.name === "suite-teardown",
+      )?.testMatch;
       expect(testMatch).toBeInstanceOf(RegExp);
-      const collects = (file: string) => (testMatch as RegExp).test(`/repo/e2e/${file}`);
+      const collects = (file: string) =>
+        (testMatch as RegExp).test(`/repo/e2e/${file}`);
       expect(collects("specs/seed-micro/seed-micro.teardown.ts")).toBe(true);
       expect(collects("specs/brokers-seed/brokers.teardown.ts")).toBe(true);
-      expect(collects("specs/brokers-micro-seed/brokers-micro.teardown.ts")).toBe(true);
+      expect(
+        collects("specs/brokers-micro-seed/brokers-micro.teardown.ts"),
+      ).toBe(true);
       // `seed` and `ui-server` keep teardowns of their own, which `global` depends on through them.
       expect(collects("specs/seed/seed.teardown.ts")).toBe(false);
       expect(collects("specs/ui-server/ui-server.teardown.ts")).toBe(false);
@@ -167,39 +241,88 @@ test.describe("target", () => {
     });
 
     test("E2E_BROKERS=0 drops the broker projects as absent", () => {
-      const dropped = { compose: BROKER_PROJECTS, k8s: [...BROKER_PROJECTS, ...MICRO_BROKER_PROJECTS] };
+      const dropped = {
+        compose: BROKER_PROJECTS,
+        k8s: [...BROKER_PROJECTS, ...MICRO_BROKER_PROJECTS],
+      };
+      const aiLifecycleAbsent = {
+        name: "env: specs/env/ai-recovery-lifecycle.spec.ts",
+        reason: "owned Compose AI-service lifecycle",
+      };
       for (const on of ["compose", "k8s"] as const) {
         withEnv({ E2E_BROKERS: "0" }, () => {
           const setup = targetSetup(on);
-          expect(setup.absent, on).toEqual(dropped[on].map((name) => ({ name, reason: "E2E_BROKERS=0" })));
+          expect(
+            setup.absent.filter(({ name }) => name !== aiLifecycleAbsent.name),
+            on,
+          ).toEqual(
+            dropped[on].map((name) => ({ name, reason: "E2E_BROKERS=0" })),
+          );
+          expect(
+            setup.absent.filter(({ name }) => name === aiLifecycleAbsent.name),
+            on,
+          ).toEqual(on === "k8s" ? [aiLifecycleAbsent] : []);
           // A dependency or a teardown naming a dropped project would fail the config.
           const projects = suiteProjects(setup);
           const names = projects.map((each) => each.name);
-          const named = projects.flatMap((each) => [...(each.dependencies ?? []), ...(each.teardown ? [each.teardown] : [])]);
-          expect(named.filter((name) => !names.includes(name)), on).toEqual([]);
+          const named = projects.flatMap((each) => [
+            ...(each.dependencies ?? []),
+            ...(each.teardown ? [each.teardown] : []),
+          ]);
+          expect(
+            named.filter((name) => !names.includes(name)),
+            on,
+          ).toEqual([]);
         });
       }
-      expect(composeProjects("0").map((each) => each.name).sort()).toEqual(
-        COMPOSE_PROJECTS.filter((name) => !BROKER_PROJECTS.includes(name)).sort(),
+      expect(
+        composeProjects("0")
+          .map((each) => each.name)
+          .sort(),
+      ).toEqual(
+        COMPOSE_PROJECTS.filter(
+          (name) => !BROKER_PROJECTS.includes(name),
+        ).sort(),
       );
-      expect(withEnv({ E2E_BROKERS: "0" }, () => targetSetup("k8s")).projects.map((each) => each.name)).toEqual(K8S_PROJECTS);
+      expect(
+        withEnv({ E2E_BROKERS: "0" }, () => targetSetup("k8s")).projects.map(
+          (each) => each.name,
+        ),
+      ).toEqual(K8S_PROJECTS);
     });
 
     test("a project asks for the micro engine, which Compose refuses", () => {
       // Typed so that `tsc` checks the option on a project, as `runtime-micro` sets it.
-      const micro: SuiteProject = { name: "runtime-micro", use: { engineKind: "micro" } };
-      expect(targetSetup("k8s").projects.find((each) => each.name === micro.name)?.use).toEqual(micro.use);
+      const micro: SuiteProject = {
+        name: "runtime-micro",
+        use: { engineKind: "micro" },
+      };
+      expect(
+        targetSetup("k8s").projects.find((each) => each.name === micro.name)
+          ?.use,
+      ).toEqual(micro.use);
       const compose = targetSetup("compose");
       expect(compose.createEnv("classic").name).toBe("compose");
       expect(() => compose.createEnv("micro")).toThrow(/classic engine only/);
     });
 
+    test("k8s excludes the AI lifecycle spec", () => {
+      expect(k8sProject("env")?.testIgnore).toContain(
+        "**/ai-recovery-lifecycle.spec.ts",
+      );
+    });
+
     test("runtime-micro-redeploy reads a state file of its own", () => {
       const project = k8sProject("runtime-micro-redeploy");
-      expect(project && schedule(project, false)).toBe("./specs/runtime-micro-redeploy; 1 worker");
+      expect(project && schedule(project, false)).toBe(
+        "./specs/runtime-micro-redeploy; 1 worker",
+      );
       expect(project?.grepInvert).toEqual(/@classic-only/);
       // Never the shared domain's file: a deploy there would roll the pod under every runtime-micro case.
-      expect(project?.use).toEqual({ engineKind: "micro", microDomainState: MICRO_REDEPLOY_STATE_FILE });
+      expect(project?.use).toEqual({
+        engineKind: "micro",
+        microDomainState: MICRO_REDEPLOY_STATE_FILE,
+      });
       expect(MICRO_REDEPLOY_STATE_FILE).not.toBe(MICRO_CORPUS_STATE_FILE);
     });
 
@@ -213,42 +336,70 @@ test.describe("target", () => {
       expect(project?.use).toEqual({ engineKind: "micro" });
       // Each file it names exists, so a rename cannot leave the project collecting nothing.
       const files = fs.readdirSync(path.join(E2E_DIR, "specs", "global"));
-      expect(files.filter((file) => (project?.testMatch as RegExp).test(`/${file}`)).sort()).toEqual([
-        "live-exchanges.spec.ts",
-        "runtime-deployments.spec.ts",
-      ]);
+      expect(
+        files
+          .filter((file) => (project?.testMatch as RegExp).test(`/${file}`))
+          .sort(),
+      ).toEqual(["live-exchanges.spec.ts", "runtime-deployments.spec.ts"]);
     });
 
     test("env-micro restarts the micro domain after classic restarts", () => {
-      const projects = withEnv({ E2E_BROKERS: "0" }, () => suiteProjects(targetSetup("k8s")));
+      const projects = withEnv({ E2E_BROKERS: "0" }, () =>
+        suiteProjects(targetSetup("k8s")),
+      );
       const project = projects.find((each) => each.name === "env-micro");
-      expect(project && schedule(project, false)).toBe("./specs/env /restart-resilience\\.spec\\.ts$/; 1 worker");
+      expect(project && schedule(project, false)).toBe(
+        "./specs/env /restart-resilience\\.spec\\.ts$/; 1 worker",
+      );
       expect(project?.grepInvert).toEqual(/@classic-only/);
       // The shared domain's state file, the default, and the micro copy seed-micro deployed to it.
       expect(project?.use).toEqual({ engineKind: "micro" });
       const files = fs.readdirSync(path.join(E2E_DIR, "specs", "env"));
-      expect(files.filter((file) => (project?.testMatch as RegExp).test(`/${file}`))).toEqual(["restart-resilience.spec.ts"]);
+      expect(
+        files.filter((file) => (project?.testMatch as RegExp).test(`/${file}`)),
+      ).toEqual(["restart-resilience.spec.ts"]);
       // Through every edge, the classic restarts in `env` and the session wipe in `global` come first.
-      expect([...waitsFor(projects, "env-micro")]).toEqual(expect.arrayContaining(["env", "global"]));
+      expect([...waitsFor(projects, "env-micro")]).toEqual(
+        expect.arrayContaining(["env", "global"]),
+      );
     });
 
     test("brokers-micro-seed deploys to a domain of its own", () => {
       const project = k8sProject("brokers-micro-seed");
-      expect(project && schedule(project, false)).toBe("./specs/brokers-micro-seed /.*\\.setup\\.ts$/");
-      expect(project?.use).toEqual({ engineKind: "micro", microDomainState: BROKERS_MICRO_CORPUS_STATE_FILE });
-      expect([MICRO_CORPUS_STATE_FILE, MICRO_REDEPLOY_STATE_FILE]).not.toContain(BROKERS_MICRO_CORPUS_STATE_FILE);
+      expect(project && schedule(project, false)).toBe(
+        "./specs/brokers-micro-seed /.*\\.setup\\.ts$/",
+      );
+      expect(project?.use).toEqual({
+        engineKind: "micro",
+        microDomainState: BROKERS_MICRO_CORPUS_STATE_FILE,
+      });
+      expect([
+        MICRO_CORPUS_STATE_FILE,
+        MICRO_REDEPLOY_STATE_FILE,
+      ]).not.toContain(BROKERS_MICRO_CORPUS_STATE_FILE);
       // The setup project collects its seed, and `suite-teardown` the teardown file beside it.
       const dir = path.join(E2E_DIR, "specs", "brokers-micro-seed");
-      expect(fs.readdirSync(dir).filter((file) => (project?.testMatch as RegExp).test(file))).toEqual(["brokers-micro.setup.ts"]);
-      expect(fs.existsSync(path.join(dir, "brokers-micro.teardown.ts"))).toBe(true);
+      expect(
+        fs
+          .readdirSync(dir)
+          .filter((file) => (project?.testMatch as RegExp).test(file)),
+      ).toEqual(["brokers-micro.setup.ts"]);
+      expect(fs.existsSync(path.join(dir, "brokers-micro.teardown.ts"))).toBe(
+        true,
+      );
     });
 
     test("brokers-micro runs the broker specs on the micro copy", () => {
       const project = k8sProject("brokers-micro");
-      expect(project && schedule(project, false)).toBe("./specs/brokers except /broker-restart\\.spec\\.ts$/; parallel");
+      expect(project && schedule(project, false)).toBe(
+        "./specs/brokers except /broker-restart\\.spec\\.ts$/; parallel",
+      );
       expect(project?.grepInvert).toEqual(/@classic-only/);
       // The env fixture and brokerChain both read the brokers-micro domain, never the shared micro one.
-      expect(project?.use).toEqual({ engineKind: "micro", microDomainState: BROKERS_MICRO_CORPUS_STATE_FILE });
+      expect(project?.use).toEqual({
+        engineKind: "micro",
+        microDomainState: BROKERS_MICRO_CORPUS_STATE_FILE,
+      });
       // Each pattern it leaves out matches one spec file of specs/brokers/.
       const files = fs.readdirSync(path.join(E2E_DIR, "specs", "brokers"));
       for (const pattern of project?.testIgnore as RegExp[]) {
@@ -258,11 +409,24 @@ test.describe("target", () => {
 
     // No restart project but env-micro waits for a broker case, so a red broker case skips none of them.
     test("brokers-restart runs after every service restart", () => {
-      const brokerProjects = ["brokers-seed", "brokers", "brokers-micro-seed", "brokers-micro", "brokers-restart"];
+      const brokerProjects = [
+        "brokers-seed",
+        "brokers",
+        "brokers-micro-seed",
+        "brokers-micro",
+        "brokers-restart",
+      ];
       for (const projects of [k8sProjects(), composeProjects(undefined)]) {
-        expect([...waitsFor(projects, "brokers-restart")]).toEqual(expect.arrayContaining(["env", "global"]));
+        expect([...waitsFor(projects, "brokers-restart")]).toEqual(
+          expect.arrayContaining(["env", "global"]),
+        );
         for (const name of ["env", "global"]) {
-          expect([...waitsFor(projects, name)].filter((each) => brokerProjects.includes(each)), name).toEqual([]);
+          expect(
+            [...waitsFor(projects, name)].filter((each) =>
+              brokerProjects.includes(each),
+            ),
+            name,
+          ).toEqual([]);
         }
       }
     });
@@ -270,7 +434,9 @@ test.describe("target", () => {
 
   test.describe("addresses", () => {
     test("the service ports follow the target", () => {
-      const unset = Object.fromEntries(URL_OVERRIDES.map((name) => [name, undefined]));
+      const unset = Object.fromEntries(
+        URL_OVERRIDES.map((name) => [name, undefined]),
+      );
       const urls = (value: string) =>
         withEnv({ ...unset, CIP_TARGET: value }, () => ({
           catalog: serviceUrl("runtime-catalog"),
@@ -297,7 +463,9 @@ test.describe("target", () => {
     });
 
     function brokerAddresses(vars: Record<string, string | undefined>) {
-      const unset = Object.fromEntries(URL_OVERRIDES.map((name) => [name, undefined]));
+      const unset = Object.fromEntries(
+        URL_OVERRIDES.map((name) => [name, undefined]),
+      );
       return withEnv({ ...unset, ...vars }, () => ({
         kafka: kafkaHostBrokers(),
         rabbitmq: rabbitmqHostUrl(),
@@ -339,7 +507,10 @@ test.describe("target", () => {
         });
       }
       // Each SFTP variable overrides its own half.
-      expect(brokerAddresses({ CIP_TARGET: "k8s", CIP_SFTP_HOST: "broker.example" }).sftp).toEqual({
+      expect(
+        brokerAddresses({ CIP_TARGET: "k8s", CIP_SFTP_HOST: "broker.example" })
+          .sftp,
+      ).toEqual({
         host: "broker.example",
         port: 30022,
       });
@@ -349,8 +520,12 @@ test.describe("target", () => {
       withEnv({ CIP_TARGET: "compose", CIP_ENGINE_URL: undefined }, () => {
         const env = targetSetup("compose").createEnv("classic");
         expect(env.engineUrl()).toBe("http://localhost:8092");
-        expect(env.engineMetricsUrl()).toBe("http://localhost:8092/actuator/prometheus");
-        expect(env.chainUrl("e2e/echo")).toBe("http://localhost:8092/routes/e2e/echo");
+        expect(env.engineMetricsUrl()).toBe(
+          "http://localhost:8092/actuator/prometheus",
+        );
+        expect(env.chainUrl("e2e/echo")).toBe(
+          "http://localhost:8092/routes/e2e/echo",
+        );
       });
     });
   });

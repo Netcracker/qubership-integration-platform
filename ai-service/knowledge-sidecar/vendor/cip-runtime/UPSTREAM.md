@@ -20,7 +20,7 @@ compiled, certified export at `/knowledge` and set `QIP_KNOWLEDGE_PATH=/knowledg
 
 | Field | Value |
 |-------|-------|
-| Local source | `integration-platform-skills/.apm/skills/cip-runtime-context-loader/assets/knowledge-export/` |
+| Local source | `.private/rocky-knowledge/` |
 | Container path | `/knowledge` |
 | Host-path variable | `QIP_KNOWLEDGE_HOST_PATH` |
 

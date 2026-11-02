@@ -19,6 +19,7 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureProjection;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.plan.RequirementDraftTool;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RequirementRecoveryLadder;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 
 /**
@@ -37,6 +38,7 @@ public class GatherRequirementsPromptBuilder {
   private final RequirementDraftStore draftStore;
   private final ConversationService conversationService;
   @Inject org.qubership.integration.platform.ai.plan.UploadedSpecOperations uploadedSpecs;
+  @Inject org.qubership.integration.platform.ai.chat.decision.PolicyChoiceSelection policyChoices;
 
   @Inject
   public GatherRequirementsPromptBuilder(
@@ -67,8 +69,12 @@ public class GatherRequirementsPromptBuilder {
         draftStore != null ? draftStore.get(conversationId) : Optional.empty();
     Set<String> uploadedInteractions = uploadedSpecs == null ? Set.of()
         : uploadedSpecs.pendingInteractionIds(conversationId, draft.orElse(null));
-    String mandatory = currentDraftBlock(draft) + incompleteDraftBlock(draft, uploadedInteractions)
+    boolean standalone = addonRepository != null && addonRepository.hasStandaloneSkills();
+    String mandatory = currentDraftBlock(draft)
+        + nativeRepairScopeBlock(conversationId)
+        + incompleteDraftBlock(draft, uploadedInteractions)
         + lastCaptureRejectionBlock(conversationId, draft)
+        + recoveryLadderBlock(conversationId)
         + sourceDialogueBlock(conversationId, userMessage)
         + "\nPinned response locale: " + normalizedLocale(responseLocale) + "\n";
     if (skillDocumentService == null) {
@@ -77,6 +83,12 @@ public class GatherRequirementsPromptBuilder {
     try {
       CompilerSkillDocument document =
           skillDocumentService.loadByCapabilityId(RequirementDraftTool.SOURCE_SKILL_ID);
+      if (standalone) {
+        return QuteUserMessageEscaping.escapeForAiServiceUserMessage(
+            "Skill instructions:\n" + document.markdown()
+                + "\nUploaded specifications approved for import: " + hasUploadedSpecifications(conversationId)
+                + "\n" + mandatory);
+      }
       String body =
           """
           <compiler-process-skill id="%s" version="%s" source="%s">
@@ -124,12 +136,10 @@ public class GatherRequirementsPromptBuilder {
           Preserve explicit elementIntent on facts: ANCHOR uses the interaction ID; LOCAL_NODE
           uses a separate stable elementRef; BEFORE_HOOK and AFTER_HOOK belong only to their
           Service Call. Chain names use CHAIN placement with elementType=chain. Copy requestedName
-          without prefixes or language labels, and keep literal bodies/strings in exactValues.
+          without prefixes or language labels.
           Use existing element schema keys for requestedProperties; omit guessed defaults.
           AsyncAPI Trigger topic and classifier come from the selected catalog operation. Keep
           their requested literals in fact text and exactValues, not standalone runtime properties.
-          After a rejected capture, retain every validated fact ID, text, and elementIntent field;
-          repair only the reported property. Do not remove the fact or clear its elementIntent.
           Capture known requirements before catalog lookup or a clarifying question. When a
           business choice is unresolved, save the known interactions and facts as a partial
           draft with an open question. Do not end a create or design request without saving
@@ -174,19 +184,69 @@ public class GatherRequirementsPromptBuilder {
     }
   }
 
+  private String nativeRepairScopeBlock(String conversationId) {
+    var paths = draftStore == null ? Set.<String>of() : draftStore.activeRequirementRepairPaths(conversationId);
+    if (paths.isEmpty()) {
+      return "";
+    }
+    return """
+
+        <native-requirement-repair>
+        Native validation permits technical correction of the current draft at these fields.
+        Writable stable paths: %s
+        Use amendments: [] for these corrections, using the saved author source; no new author answer is required.
+        Preserve all other accepted content and confirmed answers. Apply affected corrections atomically.
+        Native admission still validates the proposal; this scope grants no permission to invent requirements.
+        </native-requirement-repair>
+        """.formatted(paths.stream().sorted().toList());
+  }
+
   private String sourceDialogueBlock(String conversationId, String currentText) {
     StringBuilder body = new StringBuilder("\n<requirement-source>\n");
     body.append("Use the current draft as accepted state. Apply explicit author amendments; ")
         .append("retain unrelated requirements. Prior sources are evidence, and superseded values ")
         .append("do not override accepted changes. Read an earlier source by its turn id when needed. ")
-        .append("When changing or removing accepted content, include amendments in updateRequirementDraft: ")
+        .append("For explicit author changes to accepted content, include amendments in updateRequirementDraft: ")
         .append("each has the exact stable path, pending author sourceTurnId, and a verbatim quote of the amendment. ")
         .append("Examples: /facts/goal/text, /facts/goal for removal, /capabilities/entry/path, /transitions/entry for outgoing transitions. ")
         .append("Apply one author amendment atomically to every affected representation. When an endpoint URL changes, ")
         .append("update its capability path and any operation, description, or fact text that repeats that URL. ")
         .append("Use the same source quote with a separate exact path for each changed field; retain all other content. ")
         .append("An unrelated new message grants no permission to change earlier requirements. ")
-        .append("Automatic correction uses amendments: [] and retains confirmed answers.\n");
+        .append("Automatic correction uses amendments: [] and retains confirmed answers.\n")
+        .append("A validated policy-card selection authorizes only its policyConflict.decision and the selected value ")
+        .append("of an existing owned requestedProperties entry. Preserve the policy fact's original text as historical ")
+        .append("source context; the typed decision records the current choice. Do not rewrite that text or treat its ")
+        .append("historical unchosen wording as a new unanswered question. Use the exact indexed /value amendment path, ")
+        .append("not its parent fact, elementIntent, or requestedProperties list. After native admission accepts the ")
+        .append("selection, its source amendments are consumed: do not repeat them with later addFacts. Additional ")
+        .append("source-backed facts use amendments: [].\n")
+        .append("Capture each explicit name in requestedName on its owning elementIntent, including entry triggers ")
+        .append("and calls with ANCHOR placement even when they have no requestedProperties. ")
+        .append("The interaction participant identifies the other party; it does not name the trigger or call. ")
+        .append("Before finishing, compare each explicit name in the saved author source to the accepted elementIntent fields. ")
+        .append("Add a missing naming fact on that elementRef before using CONTINUE.\n")
+        .append("""
+            exactValues contains only complete runtime keys or scalar values explicitly required verbatim;
+            script values are checked as complete executable constants. Preserve an explicitly required
+            literal component or prefix byte-for-byte even when the output adds a dynamic suffix;
+            compose separators and runtime expressions outside that exact constant.
+            For an object property assignment or binding, list the exact key and any actual fixed scalar separately.
+            The whole key=value clause is a required constant only when the author explicitly requests that
+            complete string as a literal.
+            Keep whole binding, computation, and composition descriptions in BEHAVIOR text or
+            FIELD_MAPPING on a real business transition, not as required standalone constants.
+            Source occurrence alone does not establish a runtime constant. Preserve complete literals
+            containing '=' or spaces, such as a required response body "a=b". Do not invent a business
+            interaction for local script output or remove its behavior requirements.
+            """);
+    if (policyChoices != null) {
+      var paths = policyChoices.pendingAmendmentPaths(conversationId);
+      if (!paths.isEmpty()) {
+        body.append("Current typed-policy amendment paths (exact source and accepted base; native admission still validates): ")
+            .append(paths).append('\n');
+      }
+    }
     boolean currentIncluded = false;
     if (conversationService != null) {
       var archive = conversationService.archive();
@@ -335,6 +395,30 @@ public class GatherRequirementsPromptBuilder {
         The saved draft is still partial. Read it with readRequirementDraft and use updateRequirementDraft to fill the missing fields before CONTINUE. Do not tell the user the draft is ready.
         %s</incomplete-requirement-draft>
         """.formatted(gaps);
+  }
+
+  private String recoveryLadderBlock(String conversationId) {
+    if (draftStore == null || conversationId == null) {
+      return "";
+    }
+    var guidance = draftStore.recoveryGuidance(conversationId);
+    if (guidance.isEmpty()) {
+      return "";
+    }
+    var value = guidance.get();
+    String participants = value.participants().isEmpty() ? "(none)" : String.join(", ", value.participants());
+    String paths = value.editablePaths().isEmpty() ? "(none)" : String.join(", ", value.editablePaths());
+    String rebuild = value.strategy() == RequirementRecoveryLadder.Stage.PROJECTION_REBUILD
+        ? "Capture again from the author evidence and the semantic baseline.\nDo not restore rejected fields.\n"
+        : "";
+    return """
+
+        <requirement-recovery-strategy>
+        Strategy: %s
+        Conflict participants: %s
+        Editable paths: %s
+        %s</requirement-recovery-strategy>
+        """.formatted(value.strategy(), participants, paths, rebuild);
   }
 
   private String lastCaptureRejectionBlock(

@@ -7,6 +7,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.qubership.integration.platform.ai.compiler.catalog.CompilerSkillCatalog;
 import org.qubership.integration.platform.ai.compiler.policy.CompilerGeneratorSpecIndex;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineIndex;
@@ -16,6 +19,40 @@ import org.qubership.integration.platform.ai.qipknowledge.CipKnowledgePackFixtur
 class CipKnowledgePackIngestionServiceTest {
 
   private final CipKnowledgePackIngestionService ingestionService = new CipKnowledgePackIngestionService();
+
+  @ParameterizedTest
+  @ValueSource(strings = {"product-pipelines", "runtime/product-pipelines"})
+  void incompatiblePackProfileIsExcludedFromCompatibilityReport(
+      String pipelineDirectory, @TempDir Path directory) throws Exception {
+    Path packRoot = directory.resolve("integration-platform-skills");
+    PublicCipKnowledgePackFixture.create(packRoot);
+    Path productPipelines = packRoot.resolve(pipelineDirectory);
+    if (pipelineDirectory.startsWith("runtime/")) {
+      Files.createDirectories(productPipelines.getParent());
+      Files.move(packRoot.resolve("product-pipelines"), productPipelines);
+      Files.writeString(packRoot.resolve("manifest.json"), "{\"version\":\"1.0.0\"}");
+    }
+    Files.createDirectories(productPipelines.resolve("profiles"));
+    Files.writeString(productPipelines.resolve("profiles/create-chain-v2.yaml"), """
+        schemaVersion: 1
+        profileId: create-chain
+        profileVersion: "2"
+        compilerPipeline:
+          supportedIndexSchemas: [2]
+          allowedPhases: [Discovery]
+          requiredTerminalArtifacts:
+            - { type: unavailable-terminal, schemaVersion: 1 }
+        """);
+    Path output = directory.resolve("output");
+
+    ingestionService.writeArtifacts(
+        ingestionService.ingest(packRoot), output, packRoot.resolve("addons"));
+
+    Path versionDir = output.resolve(CipKnowledgePackVersion.fromPath(packRoot).normalized());
+    var report = new CipKnowledgePackIndexLoader().loadPipelineCompatibilityReport(versionDir);
+    assertFalse(report.compatibleProfileVersions().contains("create-chain@2"),
+        () -> "Compatible profiles: " + report.compatibleProfileVersions());
+  }
 
   @Test
   void ingestsFixturePack() {

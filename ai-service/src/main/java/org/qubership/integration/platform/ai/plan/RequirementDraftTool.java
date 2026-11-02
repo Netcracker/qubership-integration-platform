@@ -372,6 +372,10 @@ public class RequirementDraftTool {
       catalog miss. Never invent UUIDs.
       When this conversation has uploaded API specifications already approved for import, capture
       the flow from those documents and set READY_FOR_PLAN without catalog bindings.
+      For an uploaded OpenAPI service call, capture request mapping as a BEHAVIOR fact scoped to
+      the INBOUND caller interaction, and response mapping as a BEHAVIOR fact scoped to the
+      OUTBOUND API interaction. Set interactionIds explicitly on both facts; keep the response
+      mapping on the target interaction rather than creating another caller interaction.
       Do not search API Hub for operations the attached spec already defines; import after
       discovery binds them.
       When catalog lookup misses but API Hub returns a match, call selectApiHubCandidate with
@@ -388,7 +392,7 @@ public class RequirementDraftTool {
       {
         "complete": true,
         "decision": "READY_FOR_PLAN",
-        "assembledText": "Receive an order and create it in the target system.",
+        "assembledText": "Use the uploaded Orders API specification to receive an order and create it.",
         "openQuestions": [],
         "flow": {
           "interactions": [
@@ -402,7 +406,7 @@ public class RequirementDraftTool {
             {
               "interactionId": "create-order",
               "direction": "OUTBOUND",
-              "participant": "Order System",
+              "participant": "Orders API",
               "operation": "createOrder",
               "description": "The chain creates the order."
             }
@@ -422,7 +426,22 @@ public class RequirementDraftTool {
             "capabilityKey": "http-trigger",
             "text": "Expose POST /orders.",
             "httpMethod": "POST",
-            "path": "/orders"
+            "path": "/orders",
+            "interactionIds": ["order-received"]
+          },
+          {
+            "sourceFactId": "order-request-mapping",
+            "polarity": "POSITIVE",
+            "kind": "BEHAVIOR",
+            "text": "Map caller order fields to the Orders API request.",
+            "interactionIds": ["order-received"]
+          },
+          {
+            "sourceFactId": "order-response-mapping",
+            "polarity": "POSITIVE",
+            "kind": "BEHAVIOR",
+            "text": "Map the Orders API response fields to the caller response.",
+            "interactionIds": ["create-order"]
           }
         ]
       }""")
@@ -511,7 +530,7 @@ public class RequirementDraftTool {
       RequirementFlow capturedFlow =
           capture.flow() == null ? RequirementFlow.EMPTY : capture.flow();
       if (!capturedFlow.interactions().isEmpty()) {
-        Optional<String> structureError = RequirementFlowValidator.validateStructure(capturedFlow);
+        Optional<String> structureError = RequirementFlowValidator.validateStructure(capturedFlow, facts);
         if (structureError.isPresent()) {
           LOG.warnf(
               "captureRequirementDraft: validation failed conversationId=%s reason=%s",

@@ -1,5 +1,8 @@
 # Design-planner evaluation
 
+The cases and input documents ship under `.private/rocky-skills/testing/planner-eval`.
+Use [the shared runner](../test-system.md) profile `planner` for agent and UI runs.
+
 Run `cip-design-planner` without the preceding CREATE stages or catalog writes. Each run retains
 the request, every model response, format-retry diagnostics, the skill hash, and the model name.
 

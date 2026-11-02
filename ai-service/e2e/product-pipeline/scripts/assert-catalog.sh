@@ -28,6 +28,13 @@ curl -sf "${CATALOG_URL}/v1/chains/${CHAIN_ID}/elements" > "$elements_json" ||
 curl -sf "${CATALOG_URL}/v1/chains/${CHAIN_ID}/dependencies" > "$deps_json" ||
     e2e_fail "catalog GET dependencies failed for chain ${CHAIN_ID}"
 
+if [[ -n "${E2E_CATALOG_EVIDENCE_DIR:-}" ]]; then
+    mkdir -p "${E2E_CATALOG_EVIDENCE_DIR}"
+    cp "${catalog_json}" "${E2E_CATALOG_EVIDENCE_DIR}/chain.json"
+    cp "${elements_json}" "${E2E_CATALOG_EVIDENCE_DIR}/elements.json"
+    cp "${deps_json}" "${E2E_CATALOG_EVIDENCE_DIR}/dependencies.json"
+fi
+
 if ! jq -e --arg s "$SCENARIO" '.[$s].catalog' "$SCENARIOS_FILE" > /dev/null; then
     e2e_info "no catalog section for ${SCENARIO}; skip catalog assertions"
     exit 0
@@ -214,9 +221,10 @@ if [[ -n "$min_deps" && "$min_deps" != "null" ]]; then
     e2e_pass "catalog skeleton dependencies=${dep_count} (min ${min_deps})"
 fi
 
+trigger_type="$(jq -r --arg s "$SCENARIO" '.[$s].catalog.skeleton.triggerType // "http-trigger"' "$SCENARIOS_FILE")"
 if jq -e --arg s "$SCENARIO" '.[$s].catalog.skeleton.triggerMustHaveOutgoing == true' "$SCENARIOS_FILE" > /dev/null; then
-    trigger_id="$(jq -r '[.. | objects | select(.type? == "http-trigger") | .id] | first // empty' "$elements_json")"
-    [[ -n "$trigger_id" ]] || e2e_fail "catalog skeleton: http-trigger not found"
+    trigger_id="$(jq -r --arg t "$trigger_type" '[.. | objects | select(.type? == $t) | .id] | first // empty' "$elements_json")"
+    [[ -n "$trigger_id" ]] || e2e_fail "catalog skeleton: ${trigger_type} not found"
     outgoing="$(jq -r --arg from "$trigger_id" '[.[] | select(.from == $from)] | length' "$deps_json")"
     if ((outgoing < 1)); then
         e2e_fail "catalog skeleton: trigger has no outgoing dependencies"
@@ -226,7 +234,7 @@ fi
 
 while IFS= read -r reachable_type; do
     [[ -n "$reachable_type" ]] || continue
-    trigger_id="$(jq -r '[.. | objects | select(.type? == "http-trigger") | .id] | first // empty' "$elements_json")"
+    trigger_id="$(jq -r --arg t "$trigger_type" '[.. | objects | select(.type? == $t) | .id] | first // empty' "$elements_json")"
     target_ids="$(jq -r --arg t "$reachable_type" '[.. | objects | select(.type? == $t) | .id] | unique[]' "$elements_json")"
     if [[ -z "$target_ids" ]]; then
         e2e_fail "catalog skeleton: no element of type ${reachable_type}"
@@ -245,15 +253,15 @@ while IFS= read -r reachable_type; do
             break
         fi
         # BFS fallback in shell for simple chains
-        if rg -q "\"from\"[[:space:]]*:[[:space:]]*\"${trigger_id}\"" "$deps_json" &&
-            rg -q "\"to\"[[:space:]]*:[[:space:]]*\"${target_id}\"" "$deps_json"; then
+        if grep -Eq "\"from\"[[:space:]]*:[[:space:]]*\"${trigger_id}\"" "$deps_json" &&
+            grep -Eq "\"to\"[[:space:]]*:[[:space:]]*\"${target_id}\"" "$deps_json"; then
             found=true
             break
         fi
     done <<< "$target_ids"
     if [[ "$found" != "true" ]]; then
         e2e_warn "catalog skeleton: could not prove reachability trigger -> ${reachable_type} (direct edge check only)"
-        if ! rg -q "\"to\"[[:space:]]*:[[:space:]]*\".*\"" "$deps_json"; then
+        if ! grep -Eq "\"to\"[[:space:]]*:[[:space:]]*\".*\"" "$deps_json"; then
             e2e_fail "catalog skeleton: no path to ${reachable_type}"
         fi
     fi

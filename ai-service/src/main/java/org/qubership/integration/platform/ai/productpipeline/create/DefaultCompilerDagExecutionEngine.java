@@ -279,6 +279,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
       llmBudget.linkConversation(engineRequest.runId(), workspaceId);
     }
     applySeed(seed);
+    installAttributedRepairGraph(engineRequest);
     PinnedRunContext pinned = resolvePinnedRun(engineRequest);
     List<Reference> consumedArtifacts =
         consumedArtifactsForRun(pinned, engineRequest.preSatisfiedArtifactRefs());
@@ -310,6 +311,11 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
           LOG.infof(
               "Skipping generator skillId=%s reason=manifest SKIPPED",
               node.skillId());
+          state = applyCompletion(state, node, List.of());
+          executed.add(node.skillId());
+        } else if (defersToAttributedOwner(node, engineRequest.repairEvidence())) {
+          LOG.infof("Skipping generator skillId=%s reason=repair is owned by %s",
+              node.skillId(), engineRequest.repairEvidence().failedSkillId());
           state = applyCompletion(state, node, List.of());
           executed.add(node.skillId());
         } else {
@@ -348,6 +354,24 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
             executed.add(node.skillId());
             skillProgress.accept(node.skillId(), "completed");
           } catch (RuntimeException ex) {
+            if (node.mandatory() && isGraphPatchCapture(node)
+                && (ex instanceof CompilerDagExecutionFailure
+                    || ex instanceof org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException
+                    || org.qubership.integration.platform.ai.llm.ratelimit.ReadNoProgressException.find(ex).isPresent())) {
+              skillProgress.accept(node.skillId(), "error");
+              var nativeFailure = ex instanceof CompilerDagExecutionFailure failed ? failed.nativeFailure()
+                  : ex instanceof org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException stopped
+                      ? stopped.evidence() : null;
+              var graph = workspace.get(SkillArtifactType.CHAIN_PLAN_GRAPH)
+                  .map(artifact -> ((SkillArtifactPayload.ChainPlanGraphPayload) artifact.payload()).graph()).orElse(null);
+              var findings = new ArrayList<>(degradations);
+              findings.add(new PlanValidationFinding("COMPILER_SKILL_FAILED", ex.getMessage(), true, null,
+                  node.skillId(), ""));
+              var rejected = new CompilerDagExecutionResult(StageOutcomeClass.CONTRACT_FAILURE, ex.getMessage(),
+                  List.copyOf(executed), patchLedger.build(), graph, null, null, findings,
+                  graph == null ? Set.of() : Set.of(SkillArtifactType.CHAIN_PLAN_GRAPH.name()));
+              throw new CompilerDagExecutionFailure(ex.getMessage(), rejected, nativeFailure, ex);
+            }
             if (!isSkippablePlanningSkillFailure(node, ex)) {
               skillProgress.accept(node.skillId(), "error");
               throw ex;
@@ -468,6 +492,21 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
     }
     String generatorId = node.generatorId();
     return generatorId != null && !generatorId.isBlank() && generatorId.startsWith("GEN-");
+  }
+
+  private void installAttributedRepairGraph(CompilerDagExecutionRequest engineRequest) {
+    var repair = engineRequest.repairEvidence();
+    if (repair == null || !repair.keepsRejectedGraph()) {
+      return;
+    }
+    repair.rejectedGraph().ifPresent(graph -> workspaceStore.putArtifact(
+        engineRequest.effectiveSeed().workspaceId(),
+        SkillArtifact.of(SkillArtifactType.CHAIN_PLAN_GRAPH, repair.failedSkillId(),
+            new SkillArtifactPayload.ChainPlanGraphPayload(graph))));
+  }
+
+  private static boolean defersToAttributedOwner(ResolvedCompilerNode node, StageRepairEvidence repair) {
+    return isGeneratorNode(node) && repair != null && repair.defersGenerator(node.skillId());
   }
 
   private boolean shouldSkipGenerator(ResolvedCompilerNode node, SkillWorkspace workspace) {
@@ -641,12 +680,12 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
       if (result.status() != SkillRunStatus.COMPLETED && result.status() != SkillRunStatus.SKIPPED) {
         String detail =
             result.message() == null || result.message().isBlank() ? "" : ": " + result.message();
-        throw new IllegalStateException(
+        throw new CompilerDagExecutionFailure(
             "contract failure: skill did not complete "
                 + node.skillId()
                 + " status="
                 + result.status()
-                + detail);
+                + detail, null, result.nativeFailure());
       }
       return result.outputs() == null ? List.of() : List.copyOf(result.outputs());
     }
@@ -1300,6 +1339,18 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
     for (SkillArtifact artifact : seed.artifacts()) {
       workspaceStore.putArtifact(seed.workspaceId(), artifact);
     }
+    var workspace = workspaceStore.getOrCreate(seed.workspaceId());
+    var facts = workspace.get(SkillArtifactType.REQUIREMENT_BRIEF)
+        .map(artifact -> ((SkillArtifactPayload.RequirementBriefPayload) artifact.payload()).brief().facts())
+        .orElse(List.of());
+    workspace.get(SkillArtifactType.CHAIN_PLAN_GRAPH).ifPresent(artifact -> {
+      var original = ((SkillArtifactPayload.ChainPlanGraphPayload) artifact.payload()).graph();
+      var seeded = org.qubership.integration.platform.ai.qipknowledge.validation.RequestedElementValues
+          .seedBodies(original, facts);
+      if (!original.equals(seeded)) workspaceStore.putArtifact(seed.workspaceId(), SkillArtifact.of(
+          SkillArtifactType.CHAIN_PLAN_GRAPH, artifact.producerSkillId(),
+          new SkillArtifactPayload.ChainPlanGraphPayload(seeded)));
+    });
   }
 
   private CompilerDagExecutionResult toResult(

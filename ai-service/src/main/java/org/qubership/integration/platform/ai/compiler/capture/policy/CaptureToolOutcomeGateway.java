@@ -8,6 +8,7 @@ import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeed
 import org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureFieldHint;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RequirementRecoveryLadder;
 
 /**
  * Sole adapter exit for capture validation failures (ADR 0005).
@@ -26,7 +27,12 @@ public class CaptureToolOutcomeGateway {
 
   public record TypedIssue(String code, String path, String message,
       @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-      String entityId) {
+      String entityId,
+      @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+      com.fasterxml.jackson.databind.JsonNode details) {
+    public TypedIssue(String code, String path, String message, String entityId) {
+      this(code, path, message, entityId, null);
+    }
     public TypedIssue(String code, String path, String message) {
       this(code, path, message, null);
     }
@@ -39,6 +45,16 @@ public class CaptureToolOutcomeGateway {
   /** Applies the shared soft-credit policy to each structured requirement issue. */
   public boolean repeatedRequirementIssue(
       String conversationId, String mutationScope, List<TypedIssue> issues) {
+    return repeatedRequirementIssue(conversationId, mutationScope, issues, null);
+  }
+
+  /**
+   * Records the same issue fingerprints as {@link #repeatedRequirementIssue(String, String, List)}.
+   * A non-null ladder stage is stored with that evidence and does not spend another soft credit.
+   */
+  public boolean repeatedRequirementIssue(
+      String conversationId, String mutationScope, List<TypedIssue> issues,
+      RequirementRecoveryLadder.Stage stage) {
     boolean repeated = false;
     List<String> fingerprints = new ArrayList<>();
     List<String> identities = new ArrayList<>();
@@ -55,6 +71,20 @@ public class CaptureToolOutcomeGateway {
           CaptureAttemptState.forFingerprint(consumed.contains(fingerprint)), identity);
       repeated |= decision.failureClass() == CaptureFailureClass.IDENTICAL_SPAM;
       fingerprints.add(fingerprint);
+    }
+    if (stage != null) {
+      boolean continueCapture = stage == RequirementRecoveryLadder.Stage.PROJECTION_REBUILD
+          || stage == RequirementRecoveryLadder.Stage.ASK_AUTHOR;
+      feedbackStore.recordClassifiedRequirementFailure(
+          conversationId,
+          CaptureFailureKind.VALIDATION,
+          continueCapture ? CaptureFailureClass.CORRECTABLE : CaptureFailureClass.PERMANENT,
+          continueCapture,
+          String.join(", ", identities),
+          issues,
+          stage == RequirementRecoveryLadder.Stage.INTERNAL_FAILURE,
+          stage);
+      return true;
     }
     if (!repeated) {
       fingerprintStore.consumeSoftCredits(conversationId, fingerprints);
@@ -90,7 +120,7 @@ public class CaptureToolOutcomeGateway {
         logical.append('/').append(part);
         continue;
       }
-      if ((i == 1 && ("draft".equals(part) || "changes".equals(part)))
+      if ((i == 1 && ("draft".equals(part) || "changes".equals(part) || "capture".equals(part)))
           || ("flow".equals(part) && (i == 1 || i == 2 && "draft".equals(parts[1])))) {
         continue;
       }
@@ -105,6 +135,7 @@ public class CaptureToolOutcomeGateway {
         case "addQuestions", "updateQuestions", "removeQuestionIds", "openQuestions" -> "questions[]";
         case "addTransitions", "removeTransitions", "transitions" -> "transitions[]";
         case "interactionIds" -> "interactionIds[]";
+        case "endpoints" -> "endpoints[]";
         default -> part;
       };
       logical.append('/').append(normalized);
@@ -192,6 +223,19 @@ public class CaptureToolOutcomeGateway {
       Object fingerprintArgs,
       String message,
       List<CaptureFieldHint> fieldHints) {
+    return onFailure(channel, conversationId, capabilityId, kind, failureClass, toolName,
+        fingerprintArgs, message, fieldHints, null);
+  }
+
+  /** PLAN presentation detail is retained separately from the unchanged defect identity. */
+  public String onFailure(
+      CaptureFeedbackChannel channel, String conversationId, String capabilityId,
+      CaptureFailureKind kind, CaptureFailureClass failureClass, String toolName,
+      Object fingerprintArgs, String message, List<CaptureFieldHint> fieldHints,
+      String presentationDetails) {
+    if (presentationDetails != null && channel != CaptureFeedbackChannel.PLAN) {
+      throw new IllegalArgumentException("Presentation details require the PLAN feedback channel");
+    }
     CaptureFailureKind safeKind = kind == null ? CaptureFailureKind.VALIDATION : kind;
     CaptureFailureClass classified =
         failureClass == null ? CaptureFailureClass.CORRECTABLE : failureClass;
@@ -201,7 +245,7 @@ public class CaptureToolOutcomeGateway {
     boolean softUsed = fingerprintStore.softCreditUsed(conversationId, fingerprint);
     CaptureFailureDecision decision =
         policy.decide(classified, CaptureAttemptState.forFingerprint(softUsed), message);
-    recordFeedback(channel, conversationId, capabilityId, safeKind, decision, fieldHints);
+    recordFeedback(channel, conversationId, capabilityId, safeKind, decision, fieldHints, presentationDetails);
     recordMetrics(decision, capabilityId, toolName);
     if (decision.softToolResult()) {
       fingerprintStore.consumeSoftCredit(conversationId, fingerprint);
@@ -211,6 +255,28 @@ public class CaptureToolOutcomeGateway {
       throw new CaptureValidationException(cveMessage(decision));
     }
     return decision.message();
+  }
+
+  /** Uses the same failure policy with typed, source-scoped defect identity. */
+  public void onTypedPlanFailure(String conversationId, String capabilityId, String toolName, TypedIssue issue) {
+    String logicalPath = logicalRequirementPath(issue.path());
+    String fingerprint = fingerprintStore.fingerprint(toolName, capabilityId,
+        List.of(feedbackStore.inputScope(conversationId, capabilityId), issue.code(), logicalPath,
+            issue.entityId() == null ? "" : issue.entityId()));
+    String message = issue.code() + " " + issue.path() + ": " + issue.message();
+    var decision = policy.decide(CaptureFailureClass.CORRECTABLE,
+        CaptureAttemptState.forFingerprint(fingerprintStore.softCreditUsed(conversationId, fingerprint)), message);
+    feedbackStore.recordTypedPlanFailure(conversationId, capabilityId, CaptureFailureKind.VALIDATION,
+        decision.failureClass(), decision.outerAllowed(), message, List.of(issue));
+    recordMetrics(decision, capabilityId, toolName);
+    if (decision.softToolResult()) { fingerprintStore.consumeSoftCredit(conversationId, fingerprint); }
+    if (decision.throwCve()) { throw new CaptureValidationException(cveMessage(decision)); }
+  }
+
+  /** Retains the original rejected call in the same immutable native feedback journal. */
+  public void beginRejectedProposal(String conversationId, String capabilityId, String toolName,
+      String rawArguments, String toolCallId) {
+    feedbackStore.beginRejectedProposal(conversationId, capabilityId, toolName, rawArguments, toolCallId);
   }
 
   public void beginProposal(String conversationId, String capabilityId, String toolName, Object arguments) {
@@ -239,7 +305,8 @@ public class CaptureToolOutcomeGateway {
       String capabilityId,
       CaptureFailureKind kind,
       CaptureFailureDecision decision,
-      List<CaptureFieldHint> fieldHints) {
+      List<CaptureFieldHint> fieldHints,
+      String presentationDetails) {
     CaptureFeedbackChannel safeChannel =
         channel == null ? CaptureFeedbackChannel.PATCH : channel;
     List<CaptureFieldHint> hints = fieldHints == null ? List.of() : fieldHints;
@@ -251,7 +318,7 @@ public class CaptureToolOutcomeGateway {
               decision.failureClass(),
               decision.outerAllowed(),
               decision.message(),
-              hints);
+              hints, presentationDetails);
       case PATCH ->
           feedbackStore.recordClassifiedPatchFailure(
               conversationId,

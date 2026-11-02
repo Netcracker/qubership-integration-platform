@@ -5,16 +5,21 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Base64;
 import java.time.Clock;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass;
 import org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore;
 import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway.TypedIssue;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationSessions;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
 
 class CaptureAttemptFeedbackStoreTest {
 
@@ -23,6 +28,84 @@ class CaptureAttemptFeedbackStoreTest {
   @BeforeEach
   void setUp() {
     store = new CaptureAttemptFeedbackStore();
+  }
+
+  @Test
+  void optionalFailureCarriersPreserveLegacyNullSerializationAndRoundTripExactNativeData() throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var old = new org.qubership.integration.platform.ai.productpipeline.capability.CaptureFailureEvidence(
+        new CaptureAttemptFeedback(CaptureFailureKind.VALIDATION, "Rejected"), null, null, List.of());
+    assertFalse(mapper.valueToTree(old).has("nativeObservation"));
+    assertEquals(old, mapper.readValue(mapper.writeValueAsBytes(old),
+        org.qubership.integration.platform.ai.productpipeline.capability.CaptureFailureEvidence.class));
+    var result = org.qubership.integration.platform.ai.skill.executor.SkillExecutionResult.completed(List.of(), "done");
+    assertFalse(mapper.valueToTree(result).has("nativeFailure"));
+    assertEquals(result, mapper.readValue(mapper.writeValueAsBytes(result),
+        org.qubership.integration.platform.ai.skill.executor.SkillExecutionResult.class));
+  }
+
+  @Test
+  void exactNativeFailureObservationRequiresItsSessionCapabilityScopeAndReference() {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var artifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
+    var sessions = new CompilationSessions(blobs, mapper, Clock.systemUTC());
+    var durable = new CaptureAttemptFeedbackStore(new ToolCallFingerprintStore(mapper, artifacts, sessions), artifacts, sessions);
+    durable.beginScope("chat", "owner", Map.of("runId", "run", "inputHash", "input-1"));
+    String raw = "{\"patch\": { broken ";
+    durable.beginRejectedProposal("chat", "owner", "captureGraphPatch", raw, "native-call");
+    durable.recordClassifiedPatchFailure("chat", "owner", CaptureFailureKind.VALIDATION,
+        CaptureFailureClass.IDENTICAL_SPAM, false, "INVALID_JSON /: Send one valid JSON argument object.");
+    var failure = durable.lastPatchFailure("chat", "owner").orElseThrow();
+    var before = artifacts.history(sessions.active("chat"), CompilationArtifacts.Kind.CAPTURE_ATTEMPT_FEEDBACK);
+    var packet = durable.failureEvidence("chat", "owner", failure);
+    org.junit.jupiter.api.Assertions.assertNotNull(packet.nativeObservation());
+    assertEquals(raw, packet.nativeObservation().proposal().arguments().asText());
+    assertEquals("native-call", packet.nativeObservation().proposal().toolCallId());
+    assertEquals(failure, packet.feedback());
+    assertEquals(failure.evidenceReference(), packet.rejectedCandidate());
+    org.junit.jupiter.api.Assertions.assertNull(durable.failureEvidence("other-chat", "owner", failure).nativeObservation());
+    org.junit.jupiter.api.Assertions.assertNull(durable.failureEvidence("chat", "foreign-owner", failure).nativeObservation());
+    var foreignReference = new CompilationArtifacts.Reference(failure.evidenceReference().kind(),
+        failure.evidenceReference().artifactId(), "foreign-hash");
+    org.junit.jupiter.api.Assertions.assertNull(durable.failureEvidence("chat", "owner",
+        failure.withEvidenceReference(foreignReference)).nativeObservation());
+    org.junit.jupiter.api.Assertions.assertNull(durable.failureEvidence("chat", "owner",
+        new CaptureAttemptFeedback(failure.kind(), "Changed summary", failure.failureClass(), false, List.of(),
+            "", false, failure.evidenceReference())).nativeObservation());
+    durable.beginScope("chat", "owner", Map.of("runId", "run", "inputHash", "input-2"));
+    org.junit.jupiter.api.Assertions.assertNull(durable.failureEvidence("chat", "owner", failure).nativeObservation());
+    assertEquals(before, artifacts.history(sessions.active("chat"), CompilationArtifacts.Kind.CAPTURE_ATTEMPT_FEEDBACK));
+  }
+
+  @Test
+  void unmappedTypedFailureAndItsCreditSurviveRestart() {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var artifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
+    var sessions = new CompilationSessions(blobs, mapper, Clock.systemUTC());
+    var first = new CaptureAttemptFeedbackStore(new ToolCallFingerprintStore(mapper, artifacts, sessions), artifacts, sessions);
+    first.beginScope("chat", "http", java.util.Map.of("approved", "source-1"));
+    first.beginRejectedProposal("chat", "http", "captureHttpTriggers", "{invalid", "call-1");
+    var gateway = new org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway(
+        first.fingerprintStore(), first);
+    gateway.onTypedPlanFailure("chat", "http", "captureHttpTriggers", new TypedIssue("INVALID_JSON", "/capture", "Bad JSON"));
+    var feedback = first.lastPlanFailure("chat").orElseThrow();
+    var saved = artifacts.payload(artifacts.get(sessions.active("chat"), feedback.evidenceReference()).orElseThrow(),
+        CaptureAttemptFeedbackStore.Observation.class);
+    assertEquals("{invalid", saved.proposal().arguments().asText());
+    assertEquals("call-1", saved.proposal().toolCallId());
+    assertEquals("INVALID_JSON", saved.feedback().issues().getFirst().code());
+    var restored = new CaptureAttemptFeedbackStore(new ToolCallFingerprintStore(mapper, artifacts, sessions), artifacts, sessions);
+    restored.beginScope("chat", "http", java.util.Map.of("approved", "source-1"));
+    assertEquals(feedback.evidenceReference(), restored.lastPlanFailure("chat").orElseThrow().evidenceReference());
+    restored.beginRejectedProposal("chat", "http", "captureHttpTriggers", "{different", "call-2");
+    var second = new org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway(
+        restored.fingerprintStore(), restored);
+    org.junit.jupiter.api.Assertions.assertThrows(CaptureValidationException.class, () -> second.onTypedPlanFailure(
+        "chat", "http", "captureHttpTriggers", new TypedIssue("INVALID_JSON", "/capture", "Reworded explanation")));
+    org.junit.jupiter.api.Assertions.assertDoesNotThrow(() -> second.onTypedPlanFailure("chat", "http", "captureHttpTriggers",
+        new TypedIssue("MISSING_FIELD", "/capture/endpoints/0/externalRoute", "Bad JSON")));
   }
 
   @Test
@@ -113,6 +196,68 @@ class CaptureAttemptFeedbackStoreTest {
         artifacts, sessions).lastRequirementRejection("chat").isEmpty());
     assertEquals(2, artifacts.history(sessions.active("chat"),
         CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_FEEDBACK).size());
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void nativeRequirementEvidenceReachesRecoveryAfterReloadWithoutWriting(boolean legacyPayload) {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var artifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
+    var sessions = new CompilationSessions(blobs, mapper, Clock.systemUTC());
+    var first = new CaptureAttemptFeedbackStore(new ToolCallFingerprintStore(mapper, artifacts, sessions),
+        artifacts, sessions);
+    var issues = List.of(new TypedIssue("INVALID_REQUESTED_PROPERTY",
+        "/draft/facts/http-settings/elementIntent/requestedProperties/roles", "Use an array of role names.",
+        "http-settings", mapper.valueToTree(Map.of("expectedType", "array"))),
+        new TypedIssue("UNKNOWN_INTERACTION_REFERENCE", "/draft/facts/2/interactionIds/0",
+            "Target must name an accepted interaction.", "context"));
+    if (legacyPayload) {
+      var legacyFeedback = new CaptureAttemptFeedback(CaptureFailureKind.VALIDATION, "Rejected native fields",
+          CaptureFailureClass.IDENTICAL_SPAM, false, List.of(), "", true);
+      var payload = mapper.<com.fasterxml.jackson.databind.node.ObjectNode>valueToTree(
+          new CaptureAttemptFeedbackStore.RequirementFeedback(
+              new CaptureAttemptFeedbackStore.RequirementRejection(legacyFeedback, issues)));
+      ((com.fasterxml.jackson.databind.node.ObjectNode) payload.at("/rejection/feedback"))
+          .remove(List.of("issues", "evidenceReference"));
+      artifacts.append(new CompilationArtifacts.AppendCommand(sessions.active("chat"),
+          CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_FEEDBACK, "1", "requirement-capture-feedback", "1",
+          payload, List.of(), null));
+    } else {
+      first.recordClassifiedRequirementFailure("chat", CaptureFailureKind.VALIDATION,
+          CaptureFailureClass.IDENTICAL_SPAM, false, "Rejected native fields", issues, true);
+    }
+    var saved = artifacts.latest(sessions.active("chat"),
+        CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_FEEDBACK).orElseThrow();
+    var beforeReads = blobSnapshot(blobs);
+    var original = first.lastRequirementFailure("chat").orElseThrow();
+    var reloadedArtifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
+    var reloadedSessions = new CompilationSessions(blobs, mapper, Clock.systemUTC());
+    var restored = new CaptureAttemptFeedbackStore(
+        new ToolCallFingerprintStore(mapper, reloadedArtifacts, reloadedSessions), reloadedArtifacts, reloadedSessions);
+    var feedback = restored.lastRequirementFailure("chat").orElseThrow();
+    assertEquals(original, feedback);
+    assertEquals(saved.reference(), feedback.evidenceReference());
+    assertEquals(issues, feedback.issues());
+    var cause = RecoveryCause.captureFailure(feedback, List.of(), null);
+    assertTrue(cause.noProgress());
+    assertEquals(issues.stream().map(TypedIssue::code).toList(),
+        cause.findings().stream().map(finding -> finding.code()).toList());
+    assertEquals(issues.stream().map(TypedIssue::entityId).toList(),
+        cause.findings().stream().map(finding -> finding.originRecordId()).toList());
+    assertEquals(issues.stream().map(TypedIssue::path).toList(),
+        cause.findings().stream().map(finding -> finding.fieldPointer()).toList());
+    assertEquals(issues, cause.captureFailure().feedback().issues());
+    assertEquals(saved.reference(), cause.captureFailure().feedback().evidenceReference());
+    assertEquals(saved.reference(), restored.lastRequirementFeedbackReference("chat").orElseThrow());
+    assertEquals(beforeReads, blobSnapshot(blobs));
+  }
+
+  private static Map<String, String> blobSnapshot(InMemoryArtifactBlobStore blobs) {
+    return blobs.list("").stream().collect(java.util.stream.Collectors.toMap(key -> key, key -> {
+      var blob = blobs.getVersioned(key).orElseThrow();
+      return blob.version() + ":" + Base64.getEncoder().encodeToString(blob.content());
+    }));
   }
 
   @Test
@@ -207,6 +352,75 @@ class CaptureAttemptFeedbackStoreTest {
     assertFalse(
         store.recordPatchConversionFailure(
             "conv-1", "cip-routing-generator", "invalid path value"));
+  }
+
+  @Test
+  void clarificationFailureIdentityIgnoresIssueWording() {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var before = mapper.createObjectNode().put("interactionId", "submit").put("propertyKey", "path");
+    before.putArray("requestedValues");
+    var key = new CaptureAttemptFeedbackStore.ClarificationFailureKey(
+        "turn-2", "offer-1", "submit", "path", before, before.deepCopy());
+    var movedAfter = mapper.createObjectNode().put("interactionId", "submit").put("propertyKey", "path");
+    movedAfter.putArray("requestedValues").add("https://example.com/tasks");
+    var moved = new CaptureAttemptFeedbackStore.ClarificationFailureKey(
+        "turn-2", "offer-1", "submit", "path", before, movedAfter);
+
+    assertFalse(store.repeatedClarificationFailure("conv-1", key));
+    store.recordClarificationFailure("conv-1", "requirement-discovery", key, List.of(new TypedIssue(
+        "CLARIFICATION_ANSWER_NO_PROGRESS", "/draft/openQuestions/target-uri",
+        "The pinned target is unchanged.", "target-uri")));
+
+    assertTrue(store.repeatedClarificationFailure("conv-1", key));
+    store.recordClarificationFailure("conv-1", "requirement-discovery", key, List.of(new TypedIssue(
+        "CLARIFICATION_ANSWER_NO_PROGRESS", "/draft/openQuestions/target-uri",
+        "A different sentence about the same target.", "target-uri")));
+    assertFalse(store.repeatedClarificationFailure("conv-1", moved));
+  }
+
+  @Test
+  void theFirstClarificationTargetIsNotAlreadyNoProgress() {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var projection = mapper.createObjectNode().put("interactionId", "submit").put("propertyKey", "path");
+    projection.putArray("requestedValues");
+    var key = new CaptureAttemptFeedbackStore.ClarificationFailureKey(
+        "turn-2", "offer-1", "submit", "path", projection, projection.deepCopy());
+    var issue = List.of(new TypedIssue(
+        "CLARIFICATION_ANSWER_NO_PROGRESS", "/draft/openQuestions/target-uri",
+        "The pinned target is unchanged.", "target-uri"));
+
+    var first = store.recordClarificationFailure("conv-1", "requirement-discovery", key, issue);
+    assertEquals(false, first.noProgress());
+    var second = store.recordClarificationFailure("conv-1", "requirement-discovery", key, issue);
+    assertEquals(true, second.noProgress());
+  }
+
+  @Test
+  void clarificationFailureSurvivesANewStoreOnTheSameArtifacts() {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var artifacts = new CompilationArtifacts(blobs, mapper, java.time.Clock.systemUTC());
+    var sessions = new CompilationSessions(blobs, mapper, java.time.Clock.systemUTC());
+    var first = new CaptureAttemptFeedbackStore(
+        new ToolCallFingerprintStore(mapper, artifacts, sessions), artifacts, sessions);
+    var projection = mapper.createObjectNode().put("interactionId", "submit").put("propertyKey", "path");
+    projection.putArray("requestedValues");
+    var key = new CaptureAttemptFeedbackStore.ClarificationFailureKey(
+        "turn-2", "offer-1", "submit", "path", projection, projection.deepCopy());
+
+    var feedback = first.recordClarificationFailure("conv-1", "requirement-discovery", key, List.of(new TypedIssue(
+        "CLARIFICATION_ANSWER_NO_PROGRESS", "/draft/openQuestions/target-uri",
+        "The pinned target is unchanged.", "target-uri")));
+
+    org.junit.jupiter.api.Assertions.assertNotNull(feedback.evidenceReference());
+    var restored = new CaptureAttemptFeedbackStore(
+        new ToolCallFingerprintStore(mapper, artifacts, sessions), artifacts, sessions);
+    assertTrue(restored.repeatedClarificationFailure("conv-1", key));
+    var saved = artifacts.history(sessions.active("conv-1"), CompilationArtifacts.Kind.CAPTURE_ATTEMPT_FEEDBACK);
+    var observation = artifacts.payload(saved.getLast(), CaptureAttemptFeedbackStore.Observation.class);
+    assertEquals(CaptureAttemptFeedbackStore.CLARIFICATION_TARGET_TOOL, observation.proposal().toolName());
+    assertEquals("turn-2", observation.proposal().arguments().get("answerTurnId").asText());
+    assertFalse(observation.proposal().arguments().toString().contains("Which URI"));
   }
 
   @Test

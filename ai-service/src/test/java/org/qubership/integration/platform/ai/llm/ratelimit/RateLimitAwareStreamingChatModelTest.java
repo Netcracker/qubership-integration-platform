@@ -61,6 +61,24 @@ class RateLimitAwareStreamingChatModelTest {
   }
 
   @Test
+  void asynchronousErrorKeepsTheOriginalBoundedDeadline() {
+    FakeStreamingChatModel delegate = new FakeStreamingChatModel();
+    var sleeper = new RateLimitAwareChatModelTest.RecordingSleeper();
+    var model = new RateLimitAwareStreamingChatModel(delegate, classifier, policy, sleeper, true, 3, events::add);
+    var outer = new CapturingHandler();
+    RateLimitRetryDeadline.withDeadline(java.time.Duration.ofSeconds(20), () -> {
+      model.chat(request, outer);
+      return null;
+    });
+    delegate.handlers.getFirst().onError(new RateLimitHttpException("quota exhausted",
+        java.util.Map.of("Retry-After", "60")));
+    assertTrue(outer.error instanceof RateLimitRetryDeferredException);
+    assertEquals(1, delegate.chatCallCount);
+    assertTrue(sleeper.sleptSeconds.isEmpty());
+    assertTrue(events.isEmpty());
+  }
+
+  @Test
   void doesNotRetryAfterPartialToken() {
     FakeStreamingChatModel delegate = new FakeStreamingChatModel();
     RateLimitAwareChatModelTest.RecordingSleeper sleeper = new RateLimitAwareChatModelTest.RecordingSleeper();

@@ -136,7 +136,7 @@ class ScopedBindingMappingCompileTest {
                     new SemanticBranch.Condition(
                         "accepted",
                         ConditionBranchRole.IF,
-                        "approved == true",
+                        "${header.approved} == true",
                         1,
                         "map-a-shell",
                         List.of("call-a")),

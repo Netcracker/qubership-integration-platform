@@ -3,7 +3,9 @@
 set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CASES_FILE="${DIR}/cases.json"
+source "${DIR}/../testing-paths.sh"
+DATA_DIR="${QIP_SKILLS_TESTING_ROOT}/executor-eval"
+CASES_FILE="${DATA_DIR}/cases.json"
 BASE_URL="${BASE_URL:-http://localhost:8094}"
 RUNS=""
 REPORT_DIR=""
@@ -85,8 +87,8 @@ while IFS= read -r case_id; do
     minimum_types="$(jq -c --arg id "${case_id}" '.cases[] | select(.id == $id) | .minimumGraphTypeOccurrences // []' "${CASES_FILE}")"
     required_mappings="$(jq -c --arg id "${case_id}" '.cases[] | select(.id == $id) | .requiredMappingIntentIds // []' "${CASES_FILE}")"
     expected_bindings="$(jq -c --arg id "${case_id}" '.cases[] | select(.id == $id) | .expectedCatalogBindings // []' "${CASES_FILE}")"
-    input_path="${DIR}/${input_relative}"
-    planner_path="${DIR}/${planner_relative}"
+    input_path="${DATA_DIR}/${input_relative}"
+    planner_path="${DATA_DIR}/${planner_relative}"
     [[ -f "${input_path}" ]] || {
         echo "FAIL: missing executor input ${input_path}" >&2
         exit 1

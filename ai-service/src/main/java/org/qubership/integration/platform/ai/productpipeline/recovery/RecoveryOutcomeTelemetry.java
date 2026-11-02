@@ -6,6 +6,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.jboss.logging.Logger;
@@ -32,6 +33,12 @@ public class RecoveryOutcomeTelemetry {
   public static final String OUTCOME_PARTIAL_PROGRESS = "partial_progress";
   public static final String OUTCOME_SUCCESS = "success";
   public static final String OUTCOME_USER_EXIT = "user_exit";
+  public static final String KIND_CLARIFICATION = "clarification";
+
+  private static final Set<String> CLARIFICATION_OUTCOMES = Set.of(
+      "SUCCESS", "AMBIGUOUS", "NON_ANSWER", "NO_PROGRESS", "PROJECTION_REBUILD", "INTERNAL_FAILURE");
+  private static final Set<String> CLARIFICATION_STAGES = Set.of(
+      "FOCUSED_REPAIR", "PROJECTION_REBUILD", "INTERNAL_FAILURE");
 
   public record Event(
       String kind,
@@ -50,27 +57,91 @@ public class RecoveryOutcomeTelemetry {
     }
   }
 
+  /** One clarification result. Tags and logs keep identifiers and bounded codes, never answer text. */
+  public record ClarificationOutcome(
+      String runId,
+      String draftReference,
+      String questionId,
+      String answerTurnId,
+      String interactionId,
+      String propertyKey,
+      String outcomeCode,
+      String ladderStage,
+      String feedbackEvidenceReference,
+      String resultingDraftReference) {}
+
   private final MeterRegistry meterRegistry;
   private final List<Event> events;
+  private final List<ClarificationOutcome> clarificationOutcomes;
   private final ConcurrentHashMap<String, OpenDialog> openByRun = new ConcurrentHashMap<>();
 
   @Inject
   public RecoveryOutcomeTelemetry(MeterRegistry meterRegistry) {
-    this(meterRegistry, null);
+    this(meterRegistry, null, null);
   }
 
-  /** Test helper without CDI. Collects events for assertions. */
+  /** Test helper without CDI. Collects events and clarification outcomes for assertions. */
   public RecoveryOutcomeTelemetry() {
-    this(new io.micrometer.core.instrument.simple.SimpleMeterRegistry(), new CopyOnWriteArrayList<>());
+    this(new io.micrometer.core.instrument.simple.SimpleMeterRegistry(), new CopyOnWriteArrayList<>(),
+        new CopyOnWriteArrayList<>());
   }
 
   RecoveryOutcomeTelemetry(MeterRegistry meterRegistry, List<Event> events) {
+    this(meterRegistry, events, null);
+  }
+
+  RecoveryOutcomeTelemetry(MeterRegistry meterRegistry, List<Event> events,
+      List<ClarificationOutcome> clarificationOutcomes) {
     this.meterRegistry = Objects.requireNonNull(meterRegistry, "meterRegistry");
     this.events = events;
+    this.clarificationOutcomes = clarificationOutcomes;
   }
 
   public List<Event> events() {
     return events == null ? List.of() : List.copyOf(events);
+  }
+
+  public List<ClarificationOutcome> clarificationOutcomes() {
+    return clarificationOutcomes == null ? List.of() : List.copyOf(clarificationOutcomes);
+  }
+
+  /** Records one clarification outcome. Metric tags and logs keep bounded codes and identifiers only. */
+  public void recordClarificationOutcome(ClarificationOutcome outcome) {
+    if (outcome == null) {
+      return;
+    }
+    var safe = new ClarificationOutcome(
+        text(outcome.runId()),
+        text(outcome.draftReference()),
+        text(outcome.questionId()),
+        text(outcome.answerTurnId()),
+        text(outcome.interactionId()),
+        text(outcome.propertyKey()),
+        bounded(outcome.outcomeCode(), CLARIFICATION_OUTCOMES),
+        bounded(outcome.ladderStage(), CLARIFICATION_STAGES),
+        text(outcome.feedbackEvidenceReference()),
+        text(outcome.resultingDraftReference()));
+    if (clarificationOutcomes != null) {
+      clarificationOutcomes.add(safe);
+    }
+    Counter.builder(METRIC_NAME)
+        .description("Clarification answer recovery outcome")
+        .tag("kind", KIND_CLARIFICATION)
+        .tag("category", safe.ladderStage())
+        .tag("outcome", safe.outcomeCode())
+        .register(meterRegistry)
+        .increment();
+    LOG.infof("clarification outcome: runId=%s, questionId=%s, outcome=%s, stage=%s, evidence=%s",
+        safe.runId(), safe.questionId(), safe.outcomeCode(), safe.ladderStage(),
+        safe.feedbackEvidenceReference());
+  }
+
+  private static String text(String value) {
+    return value == null ? "" : value;
+  }
+
+  private static String bounded(String value, Set<String> allowed) {
+    return value != null && allowed.contains(value) ? value : "-";
   }
 
   /**

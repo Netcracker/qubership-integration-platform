@@ -526,6 +526,29 @@ class CipDesignExecutorJavaAdapterTest {
   }
 
   @Test
+  void repeatedReadKeepsRejectedGraphAndReachesDiagnosisWithoutImpersonatingCaptureFailure() {
+    var completed = successfulEngineResult(List.of("cip-trigger-generator"));
+    var read = new org.qubership.integration.platform.ai.llm.ratelimit.ReadNoProgressException("Retained native schema");
+    var rejected = new CompilerDagExecutionResult(StageOutcomeClass.CONTRACT_FAILURE, read.getMessage(),
+        completed.executedSkillIds(), completed.patchLedger(), completed.graph(), null, null);
+    var failed = mock(org.qubership.integration.platform.ai.productpipeline.create.CompilerDagExecutionFailure.class);
+    when(failed.getMessage()).thenReturn(read.getMessage());
+    when(failed.getCause()).thenReturn(read);
+    when(failed.rejectedProgress()).thenReturn(rejected);
+    when(runner.execute(eq(approvedPlan), eq(revision), eq(bindings), eq(manifest), any())).thenThrow(failed);
+
+    var result = adapter.executeAfterApproval(baseInputs());
+
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, result.outcomeClass());
+    assertTrue(result.recoveryCause().noProgress());
+    assertNull(result.recoveryCause().captureFailure());
+    assertTrue(result.recoveryCause().findings().stream().anyMatch(finding -> "TOOL_READ_NO_PROGRESS".equals(finding.code())));
+    assertEquals(rejected.graph(), result.candidates().stream().filter(candidate -> candidate.kind() == Kind.CHAIN_PLAN_GRAPH)
+        .findFirst().orElseThrow().payload());
+    assertTrue(result.candidates().stream().noneMatch(candidate -> candidate.kind() == Kind.VALIDATED_EXECUTION_BUNDLE));
+  }
+
+  @Test
   void resolvedChainCallConflictKeepsItsBriefFactInRecovery() {
     var graph = new org.qubership.integration.platform.ai.plan.model.ChainPlanGraph("1.0",
         new org.qubership.integration.platform.ai.plan.model.ChainSection("Call", ""), List.of(
@@ -551,6 +574,54 @@ class CipDesignExecutorJavaAdapterTest {
     assertEquals("chain-call-anchor", result.recoveryCause().findings().getFirst().originRecordId());
     assertEquals("/elementIntent", result.recoveryCause().findings().getFirst().fieldPointer());
     assertTrue(result.candidates().isEmpty());
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+  void unprovenBodyAuthorityUsesTheExistingBriefOwnerRecoveryCause(boolean seeding) {
+    var graph = new org.qubership.integration.platform.ai.plan.model.ChainPlanGraph("1.0",
+        new org.qubership.integration.platform.ai.plan.model.ChainSection("Example", ""), List.of(
+            new org.qubership.integration.platform.ai.plan.model.ChainPlanNode("prepare", "script", "Prepare",
+                null, null, List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty("script", "return 'author'")))),
+        List.of());
+    var intent = new org.qubership.integration.platform.ai.plan.RequirementElementIntent("prepare", "script",
+        org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.LOCAL_NODE,
+        "entry", null, null, null,
+        List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty("script", "return 'author'")), List.of());
+    var fact = new org.qubership.integration.platform.ai.plan.RequirementFact("prepare-source",
+        org.qubership.integration.platform.ai.plan.RequirementFactPolarity.POSITIVE,
+        org.qubership.integration.platform.ai.plan.RequirementFactKind.BEHAVIOR, "", "Run the author script.",
+        "", "", "", "", "", "", List.of("entry"), null, intent);
+    when(runner.execute(eq(approvedPlan), eq(revision), eq(bindings), eq(manifest), any())).thenAnswer(call -> {
+      if (seeding) org.qubership.integration.platform.ai.qipknowledge.validation.RequestedElementValues.seedBodies(graph, List.of(fact));
+      else org.qubership.integration.platform.ai.qipknowledge.validation.RequestedElementValues.apply(graph, List.of(fact));
+      throw new AssertionError("An unproven body cannot proceed to compilation.");
+    });
+
+    var result = org.junit.jupiter.api.Assertions.assertDoesNotThrow(() -> adapter.executeAfterApproval(baseInputs()));
+
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, result.outcomeClass());
+    assertEquals(RecoveryCauseCode.BRIEF_CONTRACT, result.recoveryCause().causeCode());
+    assertEquals(1, result.recoveryCause().findings().size());
+    var finding = result.recoveryCause().findings().getFirst();
+    assertEquals("BODY_BINDING_REQUIRED", finding.code());
+    assertEquals("prepare-source", finding.originRecordId());
+    assertEquals("/elementIntent/bodyBinding", finding.fieldPointer());
+    assertTrue(finding.blocker());
+    assertTrue(result.candidates().isEmpty());
+    assertNull(intent.bodyBinding());
+    assertEquals("return 'author'", graph.nodes().getFirst().properties().getFirst().value());
+  }
+
+  @Test
+  void unrelatedIllegalArgumentsKeepTheirExistingFailureBoundary() {
+    var failure = new IllegalArgumentException("An unrelated compiler contract failed.");
+    when(runner.execute(eq(approvedPlan), eq(revision), eq(bindings), eq(manifest), any())).thenThrow(failure);
+
+    var observed = org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+        () -> adapter.executeAfterApproval(baseInputs()));
+
+    assertEquals(failure, observed);
   }
 
   @Test

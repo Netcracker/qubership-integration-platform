@@ -2,14 +2,27 @@ package org.qubership.integration.platform.ai.llm.tool;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.exception.ToolArgumentsException;
+import dev.langchain4j.invocation.InvocationContext;
 import dev.langchain4j.service.tool.ToolErrorContext;
 import dev.langchain4j.service.tool.ToolErrorHandlerResult;
+import dev.langchain4j.service.tool.ToolService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.qubership.integration.platform.ai.compiler.HttpTriggerCaptureTool;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException;
 import org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext;
 
 class ToolCallErrorHandlerTest {
@@ -19,6 +32,27 @@ class ToolCallErrorHandlerTest {
   @AfterEach
   void unbind() {
     ProductCapabilityCaptureContext.unbind();
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void noProgressLeavesTheToolLoopWithoutCallingTheModelAgain(boolean wrapped) {
+    var stopped = new CaptureNoProgressException("REPAIR_NO_PROGRESS: native repeated proposal");
+    var request = ToolExecutionRequest.builder().id("repeated-capture")
+        .name("captureRequirementDraft").arguments("{}").build();
+    var context = InvocationContext.builder().chatMemoryId("conv-no-progress").build();
+    var continued = new java.util.concurrent.atomic.AtomicBoolean();
+
+    var actual = assertThrows(CaptureNoProgressException.class, () -> {
+      ToolService.executeWithErrorHandling(request, (call, memoryId) -> {
+        if (wrapped) throw new IllegalStateException("Tool invocation failed", stopped);
+        throw stopped;
+      }, context, handler, handler);
+      continued.set(true);
+    });
+
+    assertSame(stopped, actual);
+    assertFalse(continued.get());
   }
 
   @Test
@@ -37,6 +71,20 @@ class ToolCallErrorHandlerTest {
     assertTrue(response.contains("\"code\":\"INVALID_TYPE\""), response);
     assertTrue(ProductCapabilityCaptureContext.designBinding("conv-1")
         .orElseThrow().captureRejection().get().contains("INVALID_TYPE"));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"conv-1", "compiler-skill/conv-1/cip-trigger-generator"})
+  void httpMapperFailureUsesTheConversationInsteadOfTheCompilerMemoryId(String memoryId) {
+    handler.httpTriggerTool = mock(HttpTriggerCaptureTool.class);
+    when(handler.httpTriggerTool.rejectArguments(eq("conv-1"), any(), any())).thenReturn("native rejection");
+    ToolErrorContext context = ToolErrorContext.builder()
+        .toolExecutionRequest(ToolExecutionRequest.builder()
+            .id("call-http").name("captureHttpTriggers").arguments("{}").build())
+        .memoryId(memoryId).build();
+
+    assertEquals("native rejection", handler.handle(new ToolArgumentsException("bad type"), context).text());
+    verify(handler.httpTriggerTool).rejectArguments(eq("conv-1"), any(), any());
   }
 
   @Test

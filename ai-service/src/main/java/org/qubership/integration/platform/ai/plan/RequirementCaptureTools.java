@@ -20,6 +20,7 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway;
 import org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException;
 import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureEditor.EditResult;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureEditor.Issue;
@@ -27,6 +28,8 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftI
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftUpdate;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput;
 import org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RequirementRecoveryLadder;
+import org.qubership.integration.platform.ai.productpipeline.capability.CaptureFailureEvidence;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.logging.ToolTraceLog;
 
@@ -44,6 +47,14 @@ public class RequirementCaptureTools {
   private final CatalogFolders catalogFolders;
   private final UploadedSpecOperations uploadedSpecs;
   @Inject org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService elementSchemas;
+  @Inject org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryTestControl recoveryControl;
+  @Inject org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryOutcomeTelemetry recoveryTelemetry;
+  private final java.util.concurrent.ConcurrentMap<String, CaptureAttemptFeedbackStore.ClarificationFailureKey>
+      clarificationFailures = new java.util.concurrent.ConcurrentHashMap<>();
+  private final java.util.concurrent.ConcurrentMap<String, RequirementDraftStore.ClarificationAdmissionContext>
+      acceptedClarifications = new java.util.concurrent.ConcurrentHashMap<>();
+  private static final String INTERNAL_CLARIFICATION_MESSAGE =
+      "Requirement capture failed internally. This is not an author question.";
   org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations;
 
   @Inject
@@ -51,7 +62,8 @@ public class RequirementCaptureTools {
       RequirementDraftStore store, RequirementDraftTool legacyBindingAdapter, ObjectMapper mapper,
       CaptureToolOutcomeGateway outcomeGateway, CaptureAttemptFeedbackStore feedbackStore,
       RequirementTargetResolver targetResolver, CatalogFolders catalogFolders, UploadedSpecOperations uploadedSpecs,
-      org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations) {
+      org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations,
+      org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore runs) {
     this.store = store;
     this.legacyBindingAdapter = legacyBindingAdapter;
     this.mapper = mapper;
@@ -61,6 +73,18 @@ public class RequirementCaptureTools {
     this.catalogFolders = catalogFolders;
     this.uploadedSpecs = uploadedSpecs;
     this.conversations = conversations;
+    if (runs != null) {
+      store.useRunJournal(runs);
+    }
+  }
+
+  public RequirementCaptureTools(
+      RequirementDraftStore store, RequirementDraftTool legacyBindingAdapter, ObjectMapper mapper,
+      CaptureToolOutcomeGateway outcomeGateway, CaptureAttemptFeedbackStore feedbackStore,
+      RequirementTargetResolver targetResolver, CatalogFolders catalogFolders, UploadedSpecOperations uploadedSpecs,
+      org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations) {
+    this(store, legacyBindingAdapter, mapper, outcomeGateway, feedbackStore, targetResolver, catalogFolders,
+        uploadedSpecs, conversations, null);
   }
 
   public RequirementCaptureTools(
@@ -96,8 +120,14 @@ public class RequirementCaptureTools {
 
   @Tool("""
       Save the initial requirements known so far. The server owns readiness and the readable review.
-      A partial draft is valid. Call once for initialization; later edits use updateRequirementDraft.
-      If initialization is rejected, correct only reported fields and preserve unaffected facts.
+      A partial draft is valid. Initialize with captureRequirementDraft until a draft is accepted.
+      After initialization is accepted, later edits use updateRequirementDraft.
+      If initialization is rejected, correct the full rejected candidate and call captureRequirementDraft again,
+      or readRequirementDraft and use updateRequirementDraft with the exact pendingProposal.token for focused initial repair.
+      Correct the reported fields. A projection rebuild captures again from the author evidence and the semantic baseline.
+      A new claim requires evidence: sourceTurnId and an exact quote from that user turn.
+      The quote must be an exact substring of the named turn. A fact already in the saved
+      semantic baseline, and a legacy accepted fact, may omit the quote.
       For a field adaptation across a direct transition, record one FIELD_MAPPING fact per target
       field. Include both endpoints in interactionIds and exact field paths in fieldMapping.
       Retain earlier event fields through BEHAVIOR naming their source and save-before-call timing.
@@ -111,30 +141,46 @@ public class RequirementCaptureTools {
       Never send complete, decision, assembledText, catalog bindings, or revision references.
       """)
   public String captureRequirementDraft(@P("Authored requirement snapshot") DraftInput draft) {
-    return traced("captureRequirementDraft", draft, () -> {
+    String conversation = ToolSession.resolveConversationId();
+    DraftInput proposal = recoveryControl != null && recoveryControl.needsLiteralFault(conversation)
+        && RequirementCaptureEditor.initialize(draft).accepted()
+        && validateElementEvidence(conversation, draft, store.get(conversation).orElse(null)).isEmpty()
+        ? recoveryControl.requirements(conversation, draft) : draft;
+    return traced("captureRequirementDraft", proposal, () -> {
       String conversationId = ToolSession.resolveConversationId();
       synchronized (store) {
         RequirementDraft previous = store.get(conversationId).orElse(null);
         if (previous != null && previous.authoredDraft() != null) {
-          if (Objects.equals(previous.authoredDraft(), draft)) {
-            return publish(conversationId, draft, previous, null, List.of());
+          if (Objects.equals(previous.authoredDraft(), proposal)) {
+            return publish(conversationId, proposal, previous, null, List.of());
           }
           return view(previous, false, false, List.of(new Issue(
               "DRAFT_ALREADY_EXISTS", "/draft", null,
               "Read the accepted draft and use updateRequirementDraft for changes.")));
         }
-        EditResult edit = RequirementCaptureEditor.initialize(draft);
-        return publish(conversationId, draft, previous, null, edit.issues());
+        EditResult edit = RequirementCaptureEditor.initialize(proposal);
+        return publish(conversationId, proposal, previous, null, edit.issues());
       }
     });
   }
 
   @Tool("""
-      Apply focused requirement changes atomically. Each updated entity is a complete small record.
+      Apply focused requirement changes atomically. If no draft is accepted, first readRequirementDraft and copy
+      the exact current pendingProposal.token into changes.pendingProposalToken to edit that unaccepted initial proposal.
+      This does not approve it or authorize changing protected facts; the full initial validation still applies.
+      Omit pendingProposalToken or set it null when editing an accepted draft. Each updated entity is a complete small record.
       Empty lists leave their entity family unchanged. Remove references explicitly when deleting an
-      interaction. Preserve existing fact IDs, kind, full text, polarity,
+      interaction. Preserve accepted fact IDs, kind, full text, polarity,
       and mapping values. Reassign fact references when fixing topology; add omitted requirements as
-      new facts. A new author message permits only its explicit amendments. For each changed accepted
+      new facts.       A rejected FIELD_MAPPING classification may become BEHAVIOR when no business
+      transition is intended; retain its fact ID, complete author text, polarity, and valid references.
+      A new claim requires evidence: sourceTurnId and an exact quote from that user turn.
+      The quote must be an exact substring of the named turn. A fact already in the saved
+      semantic baseline, and a legacy accepted fact, may omit the quote.
+      Deleting or changing claim text or polarity requires a new source-linked amendment.
+      Kind, interaction IDs, mapping, element placement, and exact values stay fixed on an
+      accepted draft unless an amendment or a server repair path covers that change.
+      A new author message permits only its explicit amendments. For each changed accepted
       value, supply amendments with path, sourceTurnId, and the exact quote authorizing that change.
       Paths use stable IDs, such as /facts/goal/text, /facts/goal for removal, /capabilities/entry/path,
       or /interactions/entry/operation. Use /transitions/entry for the outgoing transitions of entry.
@@ -147,11 +193,11 @@ public class RequirementCaptureTools {
       A rejected edit retains the accepted draft and bindings.
       """)
   public String updateRequirementDraft(@P("Focused edits to the accepted draft") DraftUpdate changes) {
-    return traced("updateRequirementDraft", changes, () -> {
+    return traced("updateRequirementDraft", changes, pending -> {
       String conversationId = ToolSession.resolveConversationId();
       synchronized (store) {
         RequirementDraft previous = store.get(conversationId).orElse(null);
-        EditResult edit = RequirementCaptureEditor.apply(
+        EditResult edit = pending != null ? pending : RequirementCaptureEditor.apply(
             previous == null ? null : previous.authoredDraft(), changes);
         return publish(conversationId, edit.accepted() ? edit.draft() : edit.candidate(), previous, changes, edit.issues());
       }
@@ -188,6 +234,43 @@ public class RequirementCaptureTools {
     return null;
   }
 
+  /**
+   * Turns one exact chain-call answer into a draft update for normal admission.
+   *
+   * <p>Empty when the answer is not one verified chain-trigger element. The update sets
+   * {@code targetReference} and removes only that question.
+   */
+  public Optional<DraftUpdate> chainCallAnswerUpdate(DraftInput draft,
+      RequirementCaptureInput.QuestionInput activeQuestion, String answerText) {
+    if (targetResolver == null || draft == null || activeQuestion == null
+        || activeQuestion.questionId() == null) {
+      return Optional.empty();
+    }
+    RequirementTargetResolver.Resolution resolution =
+        targetResolver.resolveChainCallAnswer(draft, activeQuestion, answerText);
+    if (resolution.targetIds().size() != 1) {
+      return Optional.empty();
+    }
+    Map.Entry<String, String> selected = resolution.targetIds().entrySet().iterator().next();
+    String triggerId = selected.getValue();
+    if (triggerId == null || triggerId.isBlank() || triggerId.contains("/")) {
+      return Optional.empty();
+    }
+    RequirementCaptureInput.CapabilityInput capability = draft.capabilities() == null ? null
+        : draft.capabilities().stream().filter(item -> item != null
+            && selected.getKey().equals(item.interactionId())
+            && "chain-call-2".equals(item.capabilityKey())).findFirst().orElse(null);
+    if (capability == null) {
+      return Optional.empty();
+    }
+    var updated = new RequirementCaptureInput.CapabilityInput(capability.interactionId(),
+        capability.capabilityKey(), capability.httpMode(), capability.httpMethod(), capability.path(),
+        capability.topic(), capability.mcpServerId(), triggerId);
+    return Optional.of(new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+        List.of(), List.of(), List.of(updated), List.of(), List.of(), List.of(),
+        List.of(activeQuestion.questionId()), null));
+  }
+
   public record SourceRead(String turnId, int offset, int maxChars) {}
 
   @Tool("Read source evidence from this chat by its supplied turn id. Use an offset and at most 16000 characters.")
@@ -195,10 +278,19 @@ public class RequirementCaptureTools {
     return store.readSourceTurn(ToolSession.resolveConversationId(), source.turnId(), source.offset(), source.maxChars());
   }
 
-  @Tool("Read the complete accepted requirements, resolution state, defaults, and remaining work.")
+  @Tool("""
+      Read the complete accepted requirements, resolution state, defaults, and remaining work.
+      pendingProposal, when present, is the complete rejected candidate with its source/base/attempt and findings.
+      It is not accepted and grants no amendment authority. If no accepted draft exists, correct it using
+      captureRequirementDraft, or copy pendingProposal.token into changes.pendingProposalToken for focused initial repair;
+      otherwise use updateRequirementDraft against the accepted draft.
+      """)
   public String readRequirementDraft() {
-    return traced("readRequirementDraft", () ->
-        view(refreshCatalogBindings(ToolSession.resolveConversationId()), true, false, List.of()));
+    return traced("readRequirementDraft", () -> {
+      String conversationId = ToolSession.resolveConversationId();
+      return view(refreshCatalogBindings(conversationId), true, false, List.of())
+          .withPendingProposal(store.pendingProposal(conversationId).orElse(null));
+    });
   }
 
   private RequirementDraft refreshCatalogBindings(String conversationId) {
@@ -220,19 +312,37 @@ public class RequirementCaptureTools {
   }
 
   @Tool("""
-      Finish the requirement-discovery turn once, after captures and lookups. Use STAY for discussion
-      and CONTINUE only when the author asked to proceed and the saved draft has no missing fields.
+      Finish the requirement-discovery turn once, after captures and lookups. Use DISCUSS only to answer a question about the paused draft without changing it;
+      use STAY for a justified remaining author question and CONTINUE only when the author asked to proceed and the saved draft has no missing fields.
       A partial draft with nextAction RUN_IMPORT may CONTINUE to the upload import stage. Other
       partial drafts refuse CONTINUE. Do not tell the user the draft is ready until
-      CONTINUE is accepted. This does not mutate or approve the accepted draft.
+      CONTINUE is accepted. Each selected native capability needs a positive ANCHOR elementIntent
+      with its interaction ID and type; requestedName may be null when no name was supplied.
+      This does not mutate or approve the accepted draft.
       """)
   public String finishRequirementDiscoveryTurn(
-      @P("STAY for discussion; CONTINUE for an authorized next step")
+      @P("STAY for missing author data; DISCUSS for a question about the draft; CONTINUE for an authorized next step")
           RequirementDiscoveryDirective directive) {
     return traced("finishRequirementDiscoveryTurn", directive, () -> {
       String conversationId = ToolSession.resolveConversationId();
       var rejection = feedbackStore.lastRequirementRejection(conversationId);
-      if (rejection.filter(value -> value.feedback().failureClass() == CaptureFailureClass.IDENTICAL_SPAM).isPresent()) {
+      var ladderStage = rejection.map(value -> value.feedback().ladderStage()).orElse(null);
+      boolean clarificationInternal = ladderStage == RequirementRecoveryLadder.Stage.INTERNAL_FAILURE
+          && rejection.filter(value -> value.issues().stream()
+              .anyMatch(issue -> CaptureFailureClass.clarificationRepresentation(issue.code()))).isPresent();
+      if (clarificationInternal) {
+        store.finishTurn(conversationId, RequirementDiscoveryDirective.STAY);
+        store.recordCaptureRejection(conversationId, INTERNAL_CLARIFICATION_MESSAGE);
+        return view(store.get(conversationId).orElse(null), false, false, List.of(
+            new Issue("CLARIFICATION_ANSWER_NO_PROGRESS", "/draft/openQuestions", null,
+                INTERNAL_CLARIFICATION_MESSAGE),
+            new Issue("REPEATED_REJECTION", "/", null,
+                "Requirement capture stopped after a repeated rejection.")));
+      }
+      boolean ladderHold = ladderStage == RequirementRecoveryLadder.Stage.PROJECTION_REBUILD
+          || ladderStage == RequirementRecoveryLadder.Stage.ASK_AUTHOR
+          || ladderStage == RequirementRecoveryLadder.Stage.INTERNAL_FAILURE;
+      if (rejection.filter(value -> value.feedback().noProgress()).isPresent() || ladderHold) {
         store.finishTurn(conversationId, RequirementDiscoveryDirective.STAY);
         var issues = new ArrayList<>(rejection.orElseThrow().issues().stream()
             .map(issue -> new Issue(issue.code(), issue.path(), issue.entityId(), issue.message())).toList());
@@ -243,15 +353,21 @@ public class RequirementCaptureTools {
       if (directive == null || directive == RequirementDiscoveryDirective.NONE) {
         return view(store.get(conversationId).orElse(null), false, false,
             List.of(new Issue("INVALID_ENUM", "/directive", null,
-                "Use STAY or CONTINUE.")));
+                "Use STAY, DISCUSS, or CONTINUE.")));
       }
       RequirementDraft current = refreshCatalogBindings(conversationId);
-      if (directive == RequirementDiscoveryDirective.CONTINUE) {
-        var preservation = store.validateCurrent(conversationId);
+      if (directive == RequirementDiscoveryDirective.DISCUSS && !store.discussionAllowed(conversationId)) {
+        return view(current, false, false, List.of(new Issue("DISCUSSION_NOT_AUTHORIZED", "/directive", null,
+            "Complete the producer work. DISCUSS requires a new author question about a paused draft.")));
+      }
+      if (directive != RequirementDiscoveryDirective.DISCUSS) {
+        var preservation = store.validateForContinuation(conversationId);
         if (!preservation.isEmpty()) {
           store.finishTurn(conversationId, RequirementDiscoveryDirective.STAY);
           return view(current, false, false, preservation);
         }
+      }
+      if (directive == RequirementDiscoveryDirective.CONTINUE) {
         Optional<String> refusal = continueRefusal(current);
         if (refusal.isPresent()) {
           store.finishTurn(conversationId, RequirementDiscoveryDirective.STAY);
@@ -259,6 +375,10 @@ public class RequirementCaptureTools {
               "CONTINUATION_NOT_AUTHORIZED", "/directive", null, refusal.get())));
         }
       }
+      var questions = directive == RequirementDiscoveryDirective.DISCUSS
+          && store.clarificationContext(conversationId, null) == null ? List.<Issue>of()
+          : store.validateAuthorQuestions(conversationId);
+      if (!questions.isEmpty()) return view(current, false, false, questions);
       store.finishTurn(conversationId, directive);
       return view(current, true, false, List.of());
     });
@@ -270,6 +390,8 @@ public class RequirementCaptureTools {
           "CONTINUE refused. No requirement draft is saved. Call captureRequirementDraft with the"
               + " known flow. Do not tell the user the draft is ready.");
     }
+    var consistency = RequirementFailureConsistency.issues(draft);
+    if (!consistency.isEmpty()) return Optional.of(consistency.getFirst().message());
     List<RequirementCaptureProjection.PendingWork> pending = draft.authoredDraft() == null
         ? List.of()
         : RequirementCaptureProjection.pending(
@@ -294,7 +416,7 @@ public class RequirementCaptureTools {
 
   private RequirementCaptureResult publish(
       String conversationId, DraftInput input, RequirementDraft previous, DraftUpdate changes, List<Issue> editIssues) {
-    if (input == null) return reject(conversationId, null, previous, editIssues);
+    if (input == null) return reject(conversationId, previous, editIssues);
     Issue folderIssue = input.settings() == null ? null : ambiguousFolder(input, previous,
         previous == null ? "/draft/settings/targetFolderPath" : "/changes/settings/targetFolderPath");
     if (folderIssue != null && editIssues.isEmpty()) return view(previous, false, false, List.of(folderIssue));
@@ -311,43 +433,166 @@ public class RequirementCaptureTools {
         && input.capabilities() != null && input.capabilities().stream().allMatch(Objects::nonNull)
         ? targetResolver.resolve(input) : new RequirementTargetResolver.Resolution(Map.of(), List.of());
     issues.addAll(targetResolution.issues());
-    if (!issues.isEmpty()) return reject(conversationId, input, previous, issues.stream().distinct().toList());
-    List<CatalogBindingHint> bindings =
-        legacyBindingAdapter.canonicalBindings(input, previous, conversationId);
-    RequirementDraft draft = RequirementCaptureProjection.toDraft(
-        input, previous, bindings,
-        legacyBindingAdapter.sourceSkillVersion(conversationId),
-        legacyBindingAdapter.sourceSkillHash(conversationId), targetResolution.targetIds());
+    issues.addAll(validatePolicyApplicability(input, issues));
     var repair = ProductCapabilityCaptureContext.binding(conversationId)
         .filter(binding -> binding.mode() == ProductCapabilityCaptureContext.Mode.DISCOVERY
-            && binding.approvedDraft() != null && binding.requirementRepairPaths().isEmpty());
-    if (repair.isPresent()
-        && !org.qubership.integration.platform.ai.productpipeline.create.RequirementDiscoveryCapability
-            .preservesMappingRepair(repair.get().mappingRepairPaths(), repair.get().approvedDraft(), draft)) {
-      // Rejected content outside the repair scope must not become protected repair facts.
-      return reject(conversationId, null, previous, List.of(new Issue("REPAIR_FACT_LOSS", "/draft", null,
-          "Change only the rejected mapping field paths. Preserve the selected draft's facts, flow, and settings.")));
+            && binding.approvedDraft() != null && binding.sourceRestoration() == null
+            && store.activeRequirementRepairPaths(conversationId).isEmpty());
+    var scopeIssues = repair.map(binding -> org.qubership.integration.platform.ai.productpipeline.create.RequirementDiscoveryCapability
+        .mappingRepairIssues(binding.mappingRepairPaths(), binding.missingMappingTargets(),
+            binding.approvedDraft().authoredDraft(), input)).orElse(List.of());
+    issues.addAll(scopeIssues);
+    if (!issues.isEmpty()) {
+      return reject(conversationId, previous, issues.stream().distinct().toList());
     }
-    var admissionIssues = store.admitCapture(conversationId, expectedBase, draft, changes,
-        mappingRepairPaths(conversationId));
-    if (!admissionIssues.isEmpty()) {
-      return reject(conversationId, input, previous, admissionIssues);
+    List<CatalogBindingHint> bindings =
+        legacyBindingAdapter.canonicalBindings(input, previous, conversationId);
+    var consistency = RequirementFailureConsistency.issues(input, bindings);
+    if (!consistency.isEmpty()) {
+      return view(previous, false, false, withPreservedFacts(consistency, previous));
+    }
+    DraftInput admitted = input;
+    RequirementDraft draft = RequirementCaptureProjection.toDraft(
+        admitted, previous, bindings,
+        legacyBindingAdapter.sourceSkillVersion(conversationId),
+        legacyBindingAdapter.sourceSkillHash(conversationId), targetResolution.targetIds());
+    var clarification = store.clarificationContext(conversationId, changes);
+    var validCandidate = validDispositionCandidates(input, clarification);
+    var admission = store.admitCaptureDecision(conversationId, expectedBase, draft, changes,
+        mappingRepairPaths(conversationId), clarification, validCandidate);
+    if (!admission.issues().isEmpty()) {
+      var restored = store.restoreProtectedCandidate(conversationId, admitted, bindings, admission.issues());
+      if (restored != null) {
+        var preservedValues = store.copyRejectedCaptureValues(conversationId);
+        store.noteNamedModeCorrection(conversationId, restored, bindings);
+        var restoredDraft = RequirementCaptureProjection.toDraft(
+            restored, previous, bindings,
+            legacyBindingAdapter.sourceSkillVersion(conversationId),
+            legacyBindingAdapter.sourceSkillHash(conversationId), targetResolution.targetIds());
+        var retry = store.admitCaptureDecision(conversationId, expectedBase, restoredDraft, changes,
+            mappingRepairPaths(conversationId), clarification, validCandidate);
+        if (retry.issues().isEmpty()) {
+          admitted = restored;
+          draft = restoredDraft;
+          admission = retry;
+        } else {
+          store.replaceRejectedCaptureValues(conversationId, preservedValues);
+        }
+      }
+    }
+    if (!admission.issues().isEmpty()) {
+      acceptedClarifications.remove(conversationId);
+      if (admission.clarificationFailure() != null) {
+        clarificationFailures.put(conversationId, admission.clarificationFailure());
+      } else {
+        clarificationFailures.remove(conversationId);
+      }
+      return reject(conversationId, previous, admission.issues(), admission.strategy());
+    }
+    clarificationFailures.remove(conversationId);
+    if (clarification != null && clarification.offer() != null) {
+      acceptedClarifications.put(conversationId, clarification);
+    } else {
+      acceptedClarifications.remove(conversationId);
     }
     store.recordCaptureAttempt(conversationId, true);
     feedbackStore.clearRequirement(conversationId);
     store.markCaptured(conversationId);
     ProductCapabilityCaptureContext.offerDraft(draft);
+    if (admission.awaitingSourceApproval()) {
+      return view(draft, true, true, List.of()).withNextAction(RequirementCaptureResult.NextAction.AWAIT_APPROVAL);
+    }
     return view(draft, true, !Objects.equals(expectedBase,
         store.latestRevision(conversationId).map(value -> value.reference()).orElse(null)), List.of());
   }
 
-  private RequirementCaptureResult reject(String conversationId, DraftInput input,
-      RequirementDraft previous, List<Issue> findings) {
+  private RequirementCaptureResult reject(String conversationId, RequirementDraft previous, List<Issue> findings) {
+    return reject(conversationId, previous, findings, null);
+  }
+
+  private RequirementCaptureResult reject(String conversationId,
+      RequirementDraft previous, List<Issue> findings, RequirementRepairPolicy.Strategy strategy) {
     var issues = findings.stream().distinct().toList();
-    if (input != null && issues.stream().noneMatch(issue -> "POLICY_RESPONSE_REQUIRED".equals(issue.code()))) {
-      store.rememberRejectedCapture(conversationId, input, issues);
+    var result = view(previous, false, false,
+        withPreservedFacts(issues, previous));
+    if (strategy == RequirementRepairPolicy.Strategy.PROJECTION_REBUILD
+        && result.nextAction() == RequirementCaptureResult.NextAction.REPAIR_CAPTURE) {
+      return result.withNextAction(RequirementCaptureResult.NextAction.PROJECTION_REBUILD);
     }
-    return view(previous, false, false, withPreservedFacts(issues, previous, store.rejectedCaptureFacts(conversationId)));
+    return result;
+  }
+
+  private List<Issue> validatePolicyApplicability(DraftInput input, List<Issue> nativeIssues) {
+    if (input.facts() == null) return List.of();
+    var findings = new ArrayList<Issue>();
+    for (int i = 0; i < input.facts().size(); i++) {
+      var fact = input.facts().get(i);
+      if (fact == null || fact.policyConflict() == null
+          || !org.qubership.integration.platform.ai.qipknowledge.validation.CompilerSecurityValidator.EXTERNAL_RBAC_POLICY
+              .equals(fact.policyConflict().policyId())) continue;
+      String owner = fact.interactionIds() != null && fact.interactionIds().size() == 1
+          ? fact.interactionIds().getFirst() : null;
+      var anchors = input.facts().stream().filter(Objects::nonNull)
+          .filter(value -> owner != null && value.polarity() == RequirementCaptureInput.Polarity.POSITIVE
+              && value.interactionIds() != null && value.interactionIds().contains(owner))
+          .filter(value -> value.elementIntent() != null && owner != null
+              && owner.equals(value.elementIntent().ownerInteractionId())
+              && owner.equals(value.elementIntent().elementRef())
+              && "http-trigger".equals(value.elementIntent().elementType())
+              && value.elementIntent().placement() == RequirementElementIntent.Placement.ANCHOR).toList();
+      boolean checked = owner != null && input.flow() != null && input.flow().interactions() != null
+          && input.flow().interactions().stream().filter(Objects::nonNull)
+              .filter(value -> owner.equals(value.interactionId())).count() == 1
+          && input.flow().interactions().stream().filter(Objects::nonNull).anyMatch(value ->
+              owner.equals(value.interactionId())
+                  && value.direction() == org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction.INBOUND)
+          && input.capabilities() != null && input.capabilities().stream().filter(Objects::nonNull)
+              .filter(value -> owner.equals(value.interactionId())).count() == 1
+          && input.capabilities().stream().filter(Objects::nonNull).anyMatch(value ->
+              owner.equals(value.interactionId()) && "http-trigger".equals(value.capabilityKey()))
+          && elementSchemas != null && elementSchemas.hasElementSchema("http-trigger")
+          && elementSchemas.allowedPatchPropertyKeys("http-trigger").contains("externalRoute");
+      for (int dependency = 0; dependency < input.facts().size(); dependency++) {
+        var value = input.facts().get(dependency);
+        if (value == null || value.elementIntent() == null || owner == null
+            || !owner.equals(value.elementIntent().elementRef())) continue;
+        String stable = "/draft/facts/" + value.sourceFactId() + "/elementIntent";
+        String indexed = "/draft/facts/" + dependency + "/elementIntent";
+        checked &= nativeIssues.stream().noneMatch(issue -> issue.path().equals(stable)
+            || issue.path().startsWith(stable + "/") || issue.path().equals(indexed)
+            || issue.path().startsWith(indexed + "/"));
+      }
+      var observed = new ArrayList<String>();
+      var values = new java.util.HashSet<Boolean>();
+      for (var anchor : anchors) {
+        var properties = anchor.elementIntent().requestedProperties();
+        if (properties == null) { checked = false; continue; }
+        var flags = properties.stream().filter(Objects::nonNull)
+            .filter(property -> "externalRoute".equals(property.key())).toList();
+        if (flags.size() > 1) checked = false;
+        for (var flag : flags) {
+          observed.add(flag.value());
+          if (elementSchemas == null) { checked = false; continue; }
+          var coerced = elementSchemas.coercePatchPropertyValue("http-trigger", "externalRoute", flag.value());
+          if (!(coerced instanceof Boolean value)
+              || elementSchemas.validateCapturePropertyValue("http-trigger", "externalRoute",
+                  mapper.valueToTree(coerced)).isPresent()) {
+            checked = false;
+          } else values.add(value);
+        }
+      }
+      if (checked && values.equals(java.util.Set.of(true))) continue;
+      findings.add(new Issue("INVALID_POLICY_CONFLICT", "/draft/facts/" + fact.sourceFactId() + "/policyConflict",
+          fact.sourceFactId(), (checked && values.equals(java.util.Set.of(false))
+              ? "The external-route RBAC recommendation does not apply to this internal route. "
+              : "The external-route RBAC recommendation has no proven native applicability. ")
+              + "Its condition requires a valid positive http-trigger ANCHOR on the same owner with explicit externalRoute=true."
+              + " Observed externalRoute values: " + mapper.valueToTree(observed)
+              + ". Review the saved requirements and capture the actual exposure before offering this policy choice."
+              + " Correct only the invalid policy metadata and its question; preserve the fact text, targets, names,"
+              + " properties, literals, and every other requirement. Do not choose a policy answer automatically."));
+    }
+    return findings;
   }
 
   private List<Issue> validateElementEvidence(String conversationId, DraftInput input, RequirementDraft previous) {
@@ -362,6 +607,13 @@ public class RequirementCaptureTools {
               == org.qubership.integration.platform.ai.chat.conversation.ConversationMessage.Role.USER)
           .map(turn -> turn.message().content()).collect(Collectors.joining("\n"));
     }
+    var source = conversations == null
+        ? new AuthorSourceEvidence.Packet(store.writeAuthority(conversationId).sourceGeneration(),
+            authorText == null ? List.of() : List.of(new AuthorSourceEvidence.Input(
+                store.writeAuthority(conversationId).sourceTurnId(), authorText)))
+        : AuthorSourceEvidence.packet(conversations.archive().read(conversationId));
+    var bodyOwners = input.facts().stream().filter(Objects::nonNull).map(FactInput::elementIntent)
+        .filter(Objects::nonNull).toList();
     for (FactInput fact : input.facts()) {
       if (fact == null || fact.text() == null) {
         continue;
@@ -410,9 +662,37 @@ public class RequirementCaptureTools {
                 mapper.valueToTree(elementSchemas.coercePatchPropertyValue(
                     intent.elementType(), property.key(), property.value())))
                 .ifPresent(error -> issues.add(new Issue("INVALID_REQUESTED_PROPERTY", propertyPath,
-                    fact.sourceFactId(), error)));
+                    fact.sourceFactId(), error
+                        + ". The tool's property value remains a string. Keep runtime strings verbatim;"
+                        + " encode runtime arrays and objects as JSON text inside that string. Preserve the"
+                        + " author-supplied content while correcting its representation. Current runtime schema: "
+                        + elementSchemas.describeElementProperty(intent.elementType(), property.key()))));
           }
         }
+      }
+      if (RequirementBodySources.ownsBody(intent, "script")) {
+        var authority = RequirementBodySources.resolve(intent, bodyOwners, source);
+        if (authority.error() != null) {
+          issues.add(new Issue("BODY_SOURCE_UNPROVEN", path + "/bodyBinding", fact.sourceFactId(), authority.error()));
+        } else {
+          if (!Objects.equals(authority.binding(), intent.bodyBinding())) {
+            issues.add(new Issue(intent.bodyBinding() == null ? "BODY_BINDING_REQUIRED" : "BODY_SOURCE_MISMATCH",
+                path + "/bodyBinding", fact.sourceFactId(),
+                "Native source classification differs from bodyBinding. Retain the fact and other configuration;"
+                    + " copy this source-derived binding: " + mapper.valueToTree(authority.binding())
+                    + ". Generated candidates guide generation and cannot overwrite a validated compiler body."));
+          }
+          if (authority.body() != null && intent.requestedProperties().stream().noneMatch(property ->
+              property != null && "script".equals(property.key()) && authority.body().equals(property.value()))) {
+            issues.add(new Issue("BODY_SOURCE_MISMATCH", path + "/requestedProperties/script", fact.sourceFactId(),
+                "Copy the complete source code value without trimming or rewriting any characters."
+                    + " The source-derived binding is " + mapper.valueToTree(authority.binding())
+                    + "; the exact native script value is " + mapper.valueToTree(authority.body()) + "."));
+          }
+        }
+      } else if (intent.bodyBinding() != null) {
+        issues.add(new Issue("BODY_SOURCE_MISMATCH", path + "/bodyBinding", fact.sourceFactId(),
+            "This element does not own the native script body identified by bodyBinding."));
       }
       boolean unchanged = previous != null && previous.authoredDraft() != null
           && previous.authoredDraft().facts().stream().anyMatch(prior ->
@@ -451,7 +731,7 @@ public class RequirementCaptureTools {
         }
         for (int i = 0; i < literals.size(); i++) {
           String literal = literals.get(i);
-          if (literal == null || literal.isBlank() || !authorText.contains(literal)) {
+          if (literal == null || literal.isBlank() || !authorContainsLiteral(authorText, literal)) {
             String field = i < intent.exactValues().size() ? "/exactValues/" + i : "/requestedName";
             issues.add(new Issue("ELEMENT_LITERAL_SOURCE_MISMATCH", path + field, fact.sourceFactId(),
                 literal == null || literal.isBlank()
@@ -462,7 +742,39 @@ public class RequirementCaptureTools {
         }
       }
     }
+    if (RequirementCaptureEditor.validate(input).isEmpty()) {
+    for (var fact : RequirementCaptureProjection.facts(input)) {
+      var unbound = org.qubership.integration.platform.ai.qipknowledge.validation.RequiredLiteralBindings.unbound(
+          fact, RequirementCaptureProjection.facts(input), RequirementCaptureProjection.flow(input).interactions());
+      if (!unbound.isEmpty()) issues.add(new Issue("UNBOUND_REQUIRED_LITERAL",
+          "/draft/facts/" + fact.sourceFactId() + "/elementIntent/requestedProperties", fact.sourceFactId(),
+          "Required literals at /draft/facts/" + fact.sourceFactId() + "/elementIntent/exactValues lack an implementation binding: "
+              + mapper.valueToTree(unbound) + ". Bind each runtime literal to a writable property or an owned executable artifact."
+              + " A catalog system or operation name belongs on the interaction participant or operation."
+              + " Do not copy it into an integration id property."
+              + (elementSchemas == null ? "" : " Current writable property keys for " + fact.elementIntent().elementType()
+                  + ": " + writablePropertyKeys(fact.elementIntent().elementType())
+                  + ". Use describeElementProperty for the selected property's current value schema.")
+              + " Use the saved author source; preserve the fact, exactValues, and existing values."
+              + " Names, descriptions, unrelated nodes, and comments cannot implement runtime values."));
+    }
+    }
     return issues;
+  }
+
+  private java.util.SortedSet<String> writablePropertyKeys(String elementType) {
+    var keys = new java.util.TreeSet<>(elementSchemas.allowedPatchPropertyKeys(elementType));
+    keys.removeIf(key -> key.endsWith("Id") && key.startsWith("integration")
+        || "chain-call-2".equals(elementType) && "elementId".equals(key));
+    return keys;
+  }
+
+  private static boolean authorContainsLiteral(String authorText, String literal) {
+    return authorText.contains(literal) || authorText.contains(jsonEscaped(literal));
+  }
+
+  private static String jsonEscaped(String literal) {
+    return literal.replace("\\", "\\\\").replace("\"", "\\\"");
   }
 
   private RequirementCaptureResult view(
@@ -479,22 +791,49 @@ public class RequirementCaptureTools {
         : uploadedSpecs.pendingInteractionIds(ToolSession.resolveConversationId(), draft);
   }
 
-  private List<Issue> withPreservedFacts(List<Issue> issues, RequirementDraft accepted, List<FactInput> facts) {
+  private List<Issue> withPreservedFacts(List<Issue> issues, RequirementDraft accepted) {
+    if (accepted == null || accepted.authoredDraft() == null) {
+      return issues;
+    }
     return issues.stream().map(issue -> new Issue(
         issue.code(), issue.path(), issue.entityId(), issue.message()
             + " Accepted fact records: "
-            + mapper.valueToTree(accepted == null || accepted.authoredDraft() == null ? List.of()
-                : accepted.authoredDraft().facts().stream()
-                    .filter(fact -> Objects.equals(fact.sourceFactId(), issue.entityId())).toList())
-            + ". Validated fields from rejected inputs: "
-            + mapper.valueToTree(facts.stream()
+            + mapper.valueToTree(accepted.authoredDraft().facts().stream()
                 .filter(fact -> Objects.equals(fact.sourceFactId(), issue.entityId())).toList())
-            + ". Rejected-input records are partial preservation constraints, not replacement records."
-            + " Null does not instruct you to clear an accepted value. Retain accepted values and validated"
-            + " pending fields; correct only reported invalid fields or explicitly authorized amendments."
+            + ". Null does not instruct you to clear an accepted value. Retain accepted values;"
+            + " correct only reported invalid fields or explicitly authorized amendments."
             + " During automatic repair, keep accepted elementIntent unchanged. Add extra source-backed settings through addFacts"
             + " on the same elementRef, rather than updating its accepted fact."))
         .toList();
+  }
+
+  private java.util.function.Predicate<String> validDispositionCandidates(
+      DraftInput input, RequirementDraftStore.ClarificationAdmissionContext clarification) {
+    if (elementSchemas == null || input == null || clarification == null
+        || clarification.pinnedQuestion() == null || clarification.pinnedQuestion().evidence() == null) {
+      return value -> false;
+    }
+    String interaction = clarification.pinnedQuestion().evidence().interactionId();
+    String property = clarification.pinnedQuestion().evidence().propertyKey();
+    var facts = input.facts() == null ? List.<FactInput>of() : input.facts();
+    var capabilities = input.capabilities() == null ? List.<RequirementCaptureInput.CapabilityInput>of()
+        : input.capabilities();
+    String type = facts.stream().map(FactInput::elementIntent)
+        .filter(intent -> intent != null && interaction.equals(intent.elementRef()))
+        .map(RequirementElementIntent::elementType)
+        .filter(Objects::nonNull)
+        .findFirst()
+        .orElseGet(() -> capabilities.stream()
+            .filter(capability -> interaction.equals(capability.interactionId()))
+            .map(RequirementCaptureInput.CapabilityInput::capabilityKey)
+            .filter(Objects::nonNull)
+            .findFirst()
+            .orElse(null));
+    if (type == null) {
+      return value -> false;
+    }
+    return value -> elementSchemas.validateCapturePropertyValue(
+        type, property, com.fasterxml.jackson.databind.node.TextNode.valueOf(value)).isEmpty();
   }
 
   private java.util.Map<String, java.util.Set<String>> mappingRepairPaths(String conversationId) {
@@ -503,9 +842,10 @@ public class RequirementCaptureTools {
         .map(ProductCapabilityCaptureContext.Binding::mappingRepairPaths).orElse(java.util.Map.of());
   }
 
-  private RequirementCaptureResult recordOutcome(String toolName, Object arguments, RequirementCaptureResult result) {
+  private RequirementCaptureResult recordOutcome(String toolName, Object arguments, RequirementCaptureResult result,
+      DraftInput resolvedCandidate, org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference selectedAttempt) {
     String conversationId = ToolSession.resolveConversationId();
-    store.recordCaptureOutcome(conversationId, toolName, arguments, result);
+    store.recordCaptureOutcome(conversationId, toolName, arguments, result, resolvedCandidate, selectedAttempt);
     if ("finishRequirementDiscoveryTurn".equals(toolName) && result.issues().stream()
         .anyMatch(issue -> "REPEATED_REJECTION".equals(issue.code()))) {
       return result;
@@ -514,19 +854,10 @@ public class RequirementCaptureTools {
         .noneMatch(issue -> "CONTINUATION_NOT_AUTHORIZED".equals(issue.code()))) {
       store.recordCaptureAttempt(conversationId, false);
       String scope = store.captureMutationScope(conversationId);
-      boolean repeated = outcomeGateway.repeatedRequirementIssue(
+      outcomeGateway.repeatedRequirementIssue(
           conversationId, scope, result.issues().stream()
               .map(issue -> new CaptureToolOutcomeGateway.TypedIssue(
                   issue.code(), issue.path(), issue.message(), issue.entityId())).toList());
-      if (repeated) {
-        store.finishTurn(conversationId, RequirementDiscoveryDirective.STAY);
-        List<RequirementCaptureResult.CaptureIssue> terminal = new ArrayList<>(result.issues());
-        terminal.add(new RequirementCaptureResult.CaptureIssue("REPEATED_REJECTION", "/", null, null,
-            "The same requirement issue was rejected again. Stop automatic repair."));
-        return new RequirementCaptureResult(false, result.changed(), result.revision(), result.readiness(),
-            RequirementCaptureResult.NextAction.STOP, List.copyOf(terminal), result.pendingWork(), result.draft(),
-            result.resolutions(), result.defaults());
-      }
     }
     return result;
   }
@@ -545,11 +876,52 @@ public class RequirementCaptureTools {
         false, false, List.of(issue)));
   }
 
+  private RequirementCaptureResult escalateRepeatedCandidate(String conversationId, String toolName, Object arguments,
+      List<RequirementCaptureResult.CaptureIssue> issues, RequirementRecoveryLadder.Stage stage,
+      DraftInput resolvedCandidate, Reference selectedAttempt) {
+    var editorIssues = issues.stream()
+        .map(issue -> new Issue(issue.code(), issue.path(), issue.entityId(), issue.message(),
+            issue.details() == null ? List.of() : issue.details().relatedEntityIds()))
+        .toList();
+    var action = switch (stage) {
+      case PROJECTION_REBUILD -> RequirementCaptureResult.NextAction.PROJECTION_REBUILD;
+      case ASK_AUTHOR -> RequirementCaptureResult.NextAction.ASK_USER;
+      case INTERNAL_FAILURE -> RequirementCaptureResult.NextAction.STOP;
+      case FOCUSED_REPAIR -> RequirementCaptureResult.NextAction.REPAIR_CAPTURE;
+    };
+    var result = view(store.get(conversationId).orElse(null), false, false, editorIssues).withNextAction(action);
+    store.recordCaptureAttempt(conversationId, false);
+    outcomeGateway.repeatedRequirementIssue(conversationId, store.captureMutationScope(conversationId),
+        issues.stream().map(issue -> new CaptureToolOutcomeGateway.TypedIssue(
+            issue.code(), issue.path(), issue.message(), issue.entityId())).toList(),
+        stage);
+    store.recordCaptureOutcome(conversationId, toolName, arguments, result, resolvedCandidate, selectedAttempt,
+        RequirementRepairPolicy.Strategy.valueOf(stage.name()));
+    if (stage == RequirementRecoveryLadder.Stage.PROJECTION_REBUILD) {
+      store.rebuildPendingProjection(conversationId);
+    }
+    return result;
+  }
+
+  private static RequirementRecoveryLadder.Stage ladderStage(RequirementRepairPolicy.Strategy strategy) {
+    return switch (strategy) {
+      case FOCUSED_REPAIR -> RequirementRecoveryLadder.Stage.FOCUSED_REPAIR;
+      case PROJECTION_REBUILD -> RequirementRecoveryLadder.Stage.PROJECTION_REBUILD;
+      case ASK_AUTHOR -> RequirementRecoveryLadder.Stage.ASK_AUTHOR;
+      case INTERNAL_FAILURE -> RequirementRecoveryLadder.Stage.INTERNAL_FAILURE;
+    };
+  }
+
   private String traced(String toolName, Supplier<RequirementCaptureResult> action) {
     return traced(toolName, null, action);
   }
 
   private String traced(String toolName, Object arguments, Supplier<RequirementCaptureResult> action) {
+    return traced(toolName, arguments, pending -> action.get());
+  }
+
+  private String traced(String toolName, Object arguments,
+      java.util.function.Function<EditResult, RequirementCaptureResult> action) {
     String conversationId = ToolSession.resolveConversationId();
     long started = System.currentTimeMillis();
     ToolTraceLog.logToolInvoke(LOG, toolName, conversationId, "structured arguments");
@@ -557,12 +929,37 @@ public class RequirementCaptureTools {
       RequirementCaptureResult result;
       result = store.withWriteAuthority(conversationId, () -> {
         store.captureMutationScope(conversationId);
-        var repeated = List.of("captureRequirementDraft", "updateRequirementDraft").contains(toolName)
-            && feedbackStore.lastRequirementRejection(conversationId).isPresent()
-            ? store.rejectedProposal(conversationId, toolName, arguments) : java.util.Optional.<RequirementDraftStore.RequirementCaptureAttempt>empty();
-        if (repeated.isPresent()) {
+        var initial = arguments instanceof DraftUpdate update && update.pendingProposalToken() != null
+            ? store.pendingInitialUpdate(conversationId, update) : null;
+        EditResult pending = initial == null ? null : initial.edit();
+        var selectedAttempt = initial == null ? null : initial.attempt();
+        DraftInput candidate = pending != null ? pending.candidate()
+            : arguments instanceof DraftInput draft ? draft : null;
+        DraftInput resolvedCandidate = pending == null ? null : pending.candidate();
+        var captureTool = List.of("captureRequirementDraft", "updateRequirementDraft").contains(toolName);
+        var identical = captureTool
+            && (feedbackStore.lastRequirementRejection(conversationId).isPresent()
+                || feedbackStore.fingerprintStore().softCreditsUsed(conversationId) > 0)
+            ? store.identicalRejections(conversationId, toolName, arguments, candidate) : List.<RequirementDraftStore.RequirementCaptureAttempt>of();
+        boolean afterRebuild = captureTool && store.latestProjectionRebuild(conversationId);
+        var matches = !afterRebuild || !identical.isEmpty() ? identical
+            : store.identicalRejections(conversationId, toolName, arguments, candidate, false);
+        if (matches.size() >= 2 || afterRebuild && !matches.isEmpty()) {
+          var codes = matches.getFirst().issues().stream()
+              .map(RequirementCaptureResult.CaptureIssue::code).toList();
+          var current = feedbackStore.lastRequirementRejection(conversationId)
+              .map(rejection -> rejection.feedback().ladderStage())
+              .filter(java.util.Objects::nonNull)
+              .orElseGet(() -> store.latestRecoveryStrategy(conversationId)
+                  .map(RequirementCaptureTools::ladderStage)
+                  .orElse(RequirementRecoveryLadder.Stage.FOCUSED_REPAIR));
+          var next = RequirementRecoveryLadder.advance(current, codes, true);
+          if (next != current) {
+            return escalateRepeatedCandidate(conversationId, toolName, arguments, matches.getFirst().issues(),
+                next, resolvedCandidate, selectedAttempt);
+          }
           store.finishTurn(conversationId, RequirementDiscoveryDirective.STAY);
-          var issues = new ArrayList<>(repeated.orElseThrow().issues());
+          var issues = new ArrayList<>(matches.getFirst().issues());
           issues.add(new RequirementCaptureResult.CaptureIssue("REPAIR_NO_PROGRESS", "/", null, null,
               "The same proposal was rejected under the current source, base, and repair authority. Submit a different correction."));
           var rejected = view(store.get(conversationId).orElse(null), false, false,
@@ -571,27 +968,174 @@ public class RequirementCaptureTools {
           feedbackStore.recordClassifiedRequirementFailure(conversationId,
               org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind.VALIDATION,
               CaptureFailureClass.IDENTICAL_SPAM, false, "REPAIR_NO_PROGRESS",
-              repeated.orElseThrow().issues().stream().map(issue -> new CaptureToolOutcomeGateway.TypedIssue(
+              issues.stream().map(issue -> new CaptureToolOutcomeGateway.TypedIssue(
                   issue.code(), issue.path(), issue.message(), issue.entityId())).toList(), true);
           var stopped = new RequirementCaptureResult(false, false, rejected.revision(), rejected.readiness(),
               RequirementCaptureResult.NextAction.STOP, rejected.issues(), rejected.pendingWork(), rejected.draft(),
               rejected.resolutions(), rejected.defaults());
-          store.recordCaptureOutcome(conversationId, toolName, arguments, stopped);
+          store.recordCaptureOutcome(conversationId, toolName, arguments, stopped, resolvedCandidate, selectedAttempt);
           return stopped;
         }
-        return recordOutcome(toolName, arguments, action.get());
+        var priorStage = feedbackStore.lastRequirementRejection(conversationId)
+            .map(rejection -> rejection.feedback().ladderStage()).orElse(null);
+        var produced = action.apply(pending);
+        var outcome = recordOutcome(toolName, arguments, produced, resolvedCandidate, selectedAttempt);
+        outcome = recoverClarification(conversationId, toolName, arguments, outcome, priorStage,
+            resolvedCandidate, selectedAttempt);
+        if (identical.size() == 1 && !outcome.accepted()) {
+          var noticed = new ArrayList<>(outcome.issues());
+          String open = outcome.issues().stream().map(RequirementCaptureResult.CaptureIssue::message)
+              .filter(message -> message != null && !message.isBlank()).findFirst()
+              .orElse("The previous rejection still applies.");
+          noticed.add(new RequirementCaptureResult.CaptureIssue("UNCHANGED_PROPOSAL", "/", null, null,
+              "This proposal is unchanged. " + open
+                  + " Change the rejected field. Sending this same proposal again ends the correction."));
+          var repeatedAction = outcome.nextAction() == RequirementCaptureResult.NextAction.PROJECTION_REBUILD
+              ? RequirementCaptureResult.NextAction.PROJECTION_REBUILD
+              : RequirementCaptureResult.NextAction.REPAIR_CAPTURE;
+          outcome = new RequirementCaptureResult(outcome.accepted(), outcome.changed(), outcome.revision(),
+              outcome.readiness(), repeatedAction, List.copyOf(noticed),
+              outcome.pendingWork(), outcome.draft(), outcome.resolutions(), outcome.defaults());
+        }
+        return outcome;
       });
+      result = result.withRepairConstraints(store.repairConstraints(conversationId));
+      if (recoveryControl != null && "captureRequirementDraft".equals(toolName) && arguments instanceof DraftInput draft) {
+        recoveryControl.requirementOutcome(conversationId, draft, result);
+      }
       String encoded = encode(result);
       String summary = "accepted=" + result.accepted() + " changed=" + result.changed()
           + " readiness=" + result.readiness() + " issues="
           + result.issues().stream().map(RequirementCaptureResult.CaptureIssue::code).toList();
       ToolTraceLog.logToolComplete(
           LOG, toolName, conversationId, System.currentTimeMillis() - started, summary);
+      // shortcut: only identical persisted proposals terminate; changed candidates need a semantic progress proof.
+      if (List.of("captureRequirementDraft", "updateRequirementDraft").contains(toolName)
+          && result.issues().stream().anyMatch(issue -> "REPAIR_NO_PROGRESS".equals(issue.code()))) {
+        var rejection = feedbackStore.lastRequirementRejection(conversationId).orElseThrow();
+        var feedback = rejection.feedback();
+        var rejected = store.rejectedCaptureRevision(conversationId).orElseThrow();
+        throw new CaptureNoProgressException("REPAIR_NO_PROGRESS: " + rejection.issues().stream()
+            .map(issue -> issue.code() + " " + issue.path() + ": " + issue.message())
+            .collect(Collectors.joining("\n")),
+            new CaptureFailureEvidence(feedback, result.revision(), rejected.reference(),
+                store.validateForContinuation(conversationId).stream().map(issue ->
+                    new org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding(
+                        issue.code(), issue.message(), true, null, issue.entityId(),
+                        CaptureToolOutcomeGateway.logicalRequirementPath(issue.path()))).toList()));
+      }
       return encoded;
     } catch (RuntimeException error) {
       ToolTraceLog.logToolFailed(
           LOG, toolName, conversationId, System.currentTimeMillis() - started, error);
       throw error;
     }
+  }
+
+  private RequirementCaptureResult recoverClarification(String conversationId, String toolName, Object arguments,
+      RequirementCaptureResult outcome, RequirementRecoveryLadder.Stage priorStage, DraftInput resolvedCandidate,
+      Reference selectedAttempt) {
+    var key = clarificationFailures.remove(conversationId);
+    if (outcome.accepted() || key == null) {
+      if (outcome.accepted()) {
+        recordAcceptedClarification(conversationId, outcome);
+      }
+      return outcome;
+    }
+    var codes = outcome.issues().stream().map(RequirementCaptureResult.CaptureIssue::code).toList();
+    boolean repeated = feedbackStore.repeatedClarificationFailure(conversationId, key);
+    var recorded = feedbackStore.recordClarificationFailure(conversationId, "requirement-discovery", key,
+        outcome.issues().stream().map(issue -> new CaptureToolOutcomeGateway.TypedIssue(
+            issue.code(), issue.path(), issue.message(), issue.entityId())).toList());
+    var current = priorStage == null ? RequirementRecoveryLadder.Stage.FOCUSED_REPAIR : priorStage;
+    var next = RequirementRecoveryLadder.advance(current, codes, repeated);
+    recordClarificationTelemetry(conversationId, key, clarificationOutcomeCode(next, repeated), next, recorded,
+        outcome);
+    if (!repeated || next == current) {
+      return outcome;
+    }
+    var shown = next == RequirementRecoveryLadder.Stage.INTERNAL_FAILURE
+        ? List.of(internalClarificationIssue()) : outcome.issues();
+    if (next == RequirementRecoveryLadder.Stage.INTERNAL_FAILURE) {
+      store.recordCaptureRejection(conversationId, INTERNAL_CLARIFICATION_MESSAGE);
+    }
+    return escalateRepeatedCandidate(conversationId, toolName, arguments, shown, next, resolvedCandidate,
+        selectedAttempt);
+  }
+
+  private void recordAcceptedClarification(String conversationId, RequirementCaptureResult outcome) {
+    var context = acceptedClarifications.remove(conversationId);
+    if (recoveryTelemetry == null || context == null || context.offer() == null || context.pinnedQuestion() == null) {
+      return;
+    }
+    var answer = store.latestClarificationAnswer(conversationId).orElse(null);
+    if (answer == null || !answer.offerId().equals(context.offer().offerId()) || answer.disposition() == null) {
+      return;
+    }
+    var evidence = context.pinnedQuestion().evidence();
+    recoveryTelemetry.recordClarificationOutcome(
+        new org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryOutcomeTelemetry.ClarificationOutcome(
+            store.activeRunId(conversationId), referenceToken(context.offer().draftReference()),
+            context.pinnedQuestion().questionId(), context.answerTurnId(),
+            evidence == null ? "" : evidence.interactionId(), evidence == null ? "" : evidence.propertyKey(),
+            acceptedOutcomeCode(answer.disposition()), "", "", referenceToken(outcome.revision())));
+  }
+
+  private void recordClarificationTelemetry(String conversationId,
+      CaptureAttemptFeedbackStore.ClarificationFailureKey key, String outcomeCode,
+      RequirementRecoveryLadder.Stage stage, org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedback recorded,
+      RequirementCaptureResult outcome) {
+    if (recoveryTelemetry == null) {
+      return;
+    }
+    var context = store.clarificationContext(conversationId, null);
+    String questionId = context == null || context.pinnedQuestion() == null
+        ? "" : context.pinnedQuestion().questionId();
+    var draftReference = context == null || context.offer() == null
+        ? referenceToken(outcome.revision()) : referenceToken(context.offer().draftReference());
+    recoveryTelemetry.recordClarificationOutcome(
+        new org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryOutcomeTelemetry.ClarificationOutcome(
+            store.activeRunId(conversationId), draftReference, questionId, key.answerTurnId(), key.interactionId(),
+            key.propertyKey(), outcomeCode, stage == null ? "" : stage.name(), evidenceToken(recorded),
+            referenceToken(outcome.revision())));
+  }
+
+  private static String clarificationOutcomeCode(RequirementRecoveryLadder.Stage next, boolean repeated) {
+    if (!repeated || next == RequirementRecoveryLadder.Stage.FOCUSED_REPAIR) {
+      return "NO_PROGRESS";
+    }
+    if (next == RequirementRecoveryLadder.Stage.PROJECTION_REBUILD) {
+      return "PROJECTION_REBUILD";
+    }
+    if (next == RequirementRecoveryLadder.Stage.INTERNAL_FAILURE) {
+      return "INTERNAL_FAILURE";
+    }
+    return "NO_PROGRESS";
+  }
+
+  private static String acceptedOutcomeCode(
+      org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Disposition disposition) {
+    return switch (disposition) {
+      case ANSWER -> "SUCCESS";
+      case AMBIGUOUS -> "AMBIGUOUS";
+      case NON_ANSWER -> "NON_ANSWER";
+    };
+  }
+
+  private static RequirementCaptureResult.CaptureIssue internalClarificationIssue() {
+    return new RequirementCaptureResult.CaptureIssue("CLARIFICATION_ANSWER_NO_PROGRESS", "/draft/openQuestions",
+        null, null, INTERNAL_CLARIFICATION_MESSAGE);
+  }
+
+  private static String referenceToken(Reference reference) {
+    return reference == null ? "" : reference.artifactId() + ":" + reference.contentHash();
+  }
+
+  private static String evidenceToken(
+      org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedback feedback) {
+    if (feedback == null || feedback.evidenceReference() == null) {
+      return "";
+    }
+    return referenceToken(feedback.evidenceReference());
   }
 }

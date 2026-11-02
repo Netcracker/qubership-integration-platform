@@ -8,6 +8,8 @@ import static org.mockito.Mockito.when;
 
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.junit.TestProfile;
+import org.qubership.integration.platform.ai.compiler.artifact.TestArtifactBlobStoreProducer;
 import io.smallrye.mutiny.Multi;
 import jakarta.inject.Inject;
 import java.util.List;
@@ -34,6 +36,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.facade.Start
  * run.
  */
 @QuarkusTest
+@TestProfile(TestArtifactBlobStoreProducer.Profile.class)
 class A2aGeneratedDesignE2EIT {
 
   private static final String BRIEF_HASH = "1".repeat(64);

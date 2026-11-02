@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.llm.agent;
 
+import dev.langchain4j.model.chat.request.ChatRequestParameters;
 import dev.langchain4j.service.UserMessage;
 import io.quarkiverse.langchain4j.RegisterAiService;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -219,6 +220,11 @@ userSummary has no stage ids; state what failed and what must change in the arti
 by the evidence. Attribute a defect to the requirements only when the context establishes a missing \
 or contradictory requirement. A rejected output alone does not establish a brief defect. \
 BRIEF_CONTRACT identifies accepted input rejected by a deterministic check before generation. \
+MISSING_REQUIRED_SCRIPT_LITERAL compares an owned script with the fact's elementIntent.exactValues. \
+Compare both the recorded value and script with authorInputs before choosing the faulty producer. \
+If saved source proves the recorded value incorrect, propose a scoped elementIntent.exactValues \
+correction citing that source. If the source confirms it, repair the script. Preserve all required \
+characters and unrelated exact values; never clear a requirement merely to pass validation. \
 There is no rejected output for that failure. Compare the affected fact and field with authorInputs; \
 prepare REVISE_BRIEF corrections supported by the source, preserving unrelated requirements and \
 confirmed choices. A parallel flow with a generated successor between sibling branches can be \
@@ -245,5 +251,6 @@ evidence, return UNCLASSIFIED and PARK. A design-planning CONTRACT_FAILURE such 
 mappingIntentId token or missing trigger step is a DERIVATION_DEFECT of DESIGN_PLAN_REPORT: \
 REGENERATE_ARTIFACT. Do not REVISE_BRIEF for a planner report format or coverage error.
 """)
-  RecoveryDecision recover(String responseLocale, String recoveryContextJson);
+  RecoveryDecision recover(
+      String responseLocale, String recoveryContextJson, ChatRequestParameters requestParameters);
 }

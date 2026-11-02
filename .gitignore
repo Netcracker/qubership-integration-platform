@@ -34,9 +34,15 @@ apm_modules/
 
 # Private skills, addons, and certified knowledge package supplied out of band
 integration-platform-skills/
+/.private/
 
 # Local design notes, plans, and specs
 docs/
+
+# Local A2A experiments
+/tools/a2a-lab/
+/scripts/a2a-lab.sh
+/infrastructure/docker/docker-compose.a2a-lab.yml
 
 # Local agent skill mirrors
 .cursor/skills/ai-service-e2e/

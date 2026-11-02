@@ -1,15 +1,20 @@
 package org.qubership.integration.platform.ai.compiler.capture;
 
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.ToolExecutionResultMessage;
+import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.store.memory.chat.ChatMemoryStore;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import org.jboss.logging.Logger;
 
@@ -32,6 +37,9 @@ import org.jboss.logging.Logger;
 public class ChatMemorySanitizer {
 
   private static final Logger LOG = Logger.getLogger(ChatMemorySanitizer.class);
+  private static final ObjectMapper HISTORY_JSON = new ObjectMapper()
+      .enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
+      .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
 
   /** Default filler for true tool-argument parse failures. */
   static final String DANGLING_RESULT_TEXT =
@@ -54,6 +62,75 @@ public class ChatMemorySanitizer {
   /** Starts a producer from explicit inputs without its previous tool exchange. */
   public void clear(String memoryId) {
     store.deleteMessages(memoryId);
+  }
+
+  /** Encodes rejected malformed calls for transport without changing raw responses or stored memory. */
+  public static ChatRequest repairRejectedArguments(ChatRequest request) {
+    List<ChatMessage> messages = request.messages();
+    List<ChatMessage> repaired = null;
+    for (int i = 0; i < messages.size(); i++) {
+      if (!(messages.get(i) instanceof AiMessage ai) || !ai.hasToolExecutionRequests()) {
+        continue;
+      }
+      List<ToolExecutionRequest> calls = new ArrayList<>(ai.toolExecutionRequests());
+      boolean changed = false;
+      for (int c = 0; c < calls.size(); c++) {
+        ToolExecutionRequest call = calls.get(c);
+        if (call.id() == null || call.id().isBlank() || call.arguments() == null
+            || ai.toolExecutionRequests().stream().filter(other -> Objects.equals(other.id(), call.id())).count() != 1) {
+          continue;
+        }
+        List<ToolExecutionResultMessage> results = new ArrayList<>();
+        for (int j = i + 1; j < messages.size()
+            && messages.get(j) instanceof ToolExecutionResultMessage result; j++) {
+          if (Objects.equals(result.id(), call.id())) {
+            results.add(result);
+          }
+        }
+        if (results.size() != 1 || !Objects.equals(results.getFirst().toolName(), call.name())
+            || !invalidJsonFeedback(results.getFirst().text())
+            || !malformedJson(call.arguments())) {
+          continue;
+        }
+        var envelope = HISTORY_JSON.createObjectNode();
+        envelope.putObject("rejectedToolCall").put("status", "REJECTED").put("reason", "INVALID_JSON")
+            .put("rawArguments", call.arguments());
+        calls.set(c, call.toBuilder().arguments(envelope.toString()).build());
+        changed = true;
+      }
+      if (changed) {
+        if (repaired == null) repaired = new ArrayList<>(messages);
+        repaired.set(i, ai.toBuilder().toolExecutionRequests(calls).build());
+      }
+    }
+    return repaired == null ? request : request.toBuilder().messages(repaired).build();
+  }
+
+  private static boolean invalidJsonFeedback(String text) {
+    if (text == null) return false;
+    if (text.startsWith("INVALID_JSON ")) return true;
+    try {
+      var result = HISTORY_JSON.readTree(text);
+      if (result == null) return false;
+      if (result.isTextual()) return result.asText().startsWith("INVALID_JSON ");
+      if (result.path("accepted").isBoolean() && !result.path("accepted").asBoolean()) {
+        for (var issue : result.path("issues")) {
+          if ("INVALID_JSON".equals(issue.path("code").asText())) return true;
+        }
+      }
+    } catch (java.io.IOException ordinaryText) {
+      // Other tool failures do not authorize changing historical arguments.
+    }
+    return false;
+  }
+
+  private static boolean malformedJson(String arguments) {
+    try {
+      var value = HISTORY_JSON.readTree(arguments);
+      return value == null || value.isMissingNode();
+    } catch (java.io.IOException malformed) {
+      return true;
+    }
   }
 
   /**

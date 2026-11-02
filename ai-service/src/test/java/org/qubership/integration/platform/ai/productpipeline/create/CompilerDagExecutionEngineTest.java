@@ -152,6 +152,45 @@ class CompilerDagExecutionEngineTest {
   }
 
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+  void assemblySeedsExactSourceBodiesAndPreservesCompilerBodiesOverImplementationHints(boolean literal) {
+    String conversation = "body-authority-assembly-" + literal;
+    String body = "  exchange.in.body = 'author result'  \n\n";
+    var dag = dagWithMandatoryValidation();
+    stubAssemblyAndValidator(dag);
+    var binding = new org.qubership.integration.platform.ai.plan.RequirementBodyBinding(
+        literal ? org.qubership.integration.platform.ai.plan.RequirementBodyBinding.Authority.VERBATIM_SOURCE_BODY
+            : org.qubership.integration.platform.ai.plan.RequirementBodyBinding.Authority.GENERATED_CANDIDATE,
+        "script-1", "script", org.qubership.integration.platform.ai.plan.RequirementBodyBinding.NativeBodyKind.GROOVY_SCRIPT,
+        "source-generation", "source-turn", literal ? 0 : null, literal ? body.length() : null,
+        literal ? org.qubership.integration.platform.ai.plan.RequirementBodyBinding.Encoding.RAW : null);
+    var intent = new org.qubership.integration.platform.ai.plan.RequirementElementIntent("script-1", "script",
+        org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.LOCAL_NODE,
+        "trigger", null, "trigger", null, null,
+        List.of(new PlanProperty("script", literal ? body : "generated implementation hint")),
+        List.of("author result"), binding);
+    var brief = brief().withFacts(List.of(new RequirementFact("prepare-body", RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.BEHAVIOR, "", "Return author result.", "", "", "", "", "", "",
+        List.of("trigger"), null, intent)));
+    var graph = new ChainPlanGraph("1.0", graphForAssembly().chain(), List.of(graphForAssembly().nodes().getFirst(),
+        new ChainPlanNode("script-1", "script", "Prepare", null, null,
+            literal ? List.of() : List.of(new PlanProperty("script", body)))),
+        List.of(new ChainPlanEdge("e1", "trigger", "script-1", null)));
+    var revision = simpleRevision();
+    var seed = CompilerExecutionSeed.forCreate(conversation, brief, revision, graph, List.of());
+    var request = new CompilerDagExecutionRequest("body-run", conversation, manifestFor(dag), brief,
+        revision, dag, List.of(), List.of(), seed, null);
+
+    var result = engine.execute(request, (id, status) -> {}).await().indefinitely();
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, result.outcomeClass());
+    var assembled = result.graph().nodes().stream().filter(node -> "script-1".equals(node.nodeId())).findFirst().orElseThrow();
+    assertEquals(body, assembled.properties().stream().filter(property -> "script".equals(property.key()))
+        .findFirst().orElseThrow().value());
+    assertTrue(CompilerQualityValidator.validateApprovedValues(result.graph(), brief).isEmpty());
+  }
+
   private InMemorySkillWorkspaceStore workspaceStore;
   private SkillExecutorRegistry skillRegistry;
   private CompilerNodeExecutionAdapterRegistry javaAdapterRegistry;
@@ -191,6 +230,69 @@ class CompilerDagExecutionEngineTest {
             packRepository,
             graphAssemblyService,
             validationPipeline);
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+  void failedMandatoryGraphOwnerCannotInheritAnotherOwnersAcceptedPatch(boolean repeatedRead) {
+    String conversation = "mandatory-patch-failure";
+    var template = dagWithScriptGenerator();
+    var first = new ResolvedCompilerNode("first-owner", "Implementation", "GEN-FIRST",
+        List.of("CHAIN_PLAN_GRAPH"), List.of("CHAIN_PLAN_GRAPH", "GRAPH_PATCH"), List.of(),
+        "captureGraphPatch", List.of(), List.of(), true, List.of(), 0, 0, true,
+        CompilerNodeExecutionMode.LLM_SKILL, null,
+        new GraphPatchOwnershipPolicy(false, false, Set.of(), Set.of(), Map.of("http-trigger", Set.of("contextPath"))));
+    var second = new ResolvedCompilerNode("cip-script-generator", "Implementation", "GEN-SECOND",
+        List.of("CHAIN_PLAN_GRAPH"), List.of("CHAIN_PLAN_GRAPH", "GRAPH_PATCH"), List.of("first-owner"),
+        "captureGraphPatch", List.of(), List.of(), true, List.of(), 1, 0, true,
+        CompilerNodeExecutionMode.LLM_SKILL, null,
+        new GraphPatchOwnershipPolicy(false, false, Set.of(), Set.of(), Map.of("script", Set.of("script"))));
+    var nodes = new ArrayList<ResolvedCompilerNode>();
+    nodes.add(first);
+    nodes.add(second);
+    nodes.addAll(template.nodes().subList(1, template.nodes().size()));
+    var dag = new ResolvedCompilerDag(nodes, List.of(), "mandatory-patch-failure");
+    var patch = new GraphPatch("accepted-first", "first-owner", List.of(), List.of(),
+        List.of(new PropertyPatch(GraphPatchOperation.UPDATE, "trigger", new PlanProperty("contextPath", "/accepted-progress"))),
+        List.of(), List.of(), "Retain accepted progress");
+    var firstExecutor = mock(SkillExecutor.class);
+    when(firstExecutor.run(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+        .thenReturn(Uni.createFrom().item(SkillExecutionResult.completed(List.of(
+            SkillArtifact.of(SkillArtifactType.GRAPH_PATCH, "first-owner", new SkillArtifactPayload.GraphPatchPayload(patch))), "accepted")));
+    when(skillRegistry.require("first-owner")).thenReturn(firstExecutor);
+    var failedExecutor = mock(SkillExecutor.class);
+    when(failedExecutor.run(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+        .thenReturn(repeatedRead ? Uni.createFrom().failure(
+            new org.qubership.integration.platform.ai.llm.ratelimit.ReadNoProgressException("cip-script-generator"))
+            : Uni.createFrom().item(new SkillExecutionResult(
+            org.qubership.integration.platform.ai.skill.executor.SkillRunStatus.FAILED, List.of(), "Invalid JSON at /arguments", false)));
+    when(skillRegistry.require("cip-script-generator")).thenReturn(failedExecutor);
+    stubAssemblyAndValidator(dag);
+    workspaceStore.putArtifact(conversation, SkillArtifact.of(SkillArtifactType.CHAIN_PLAN_GRAPH,
+        "seed", new SkillArtifactPayload.ChainPlanGraphPayload(graphForAssembly())));
+    seedStructure(conversation);
+    var seed = new CompilerExecutionSeed(conversation, false, "Preserve accepted progress", List.of(
+        SkillArtifact.of(SkillArtifactType.CHAIN_PLAN_GRAPH, "seed", new SkillArtifactPayload.ChainPlanGraphPayload(graphForAssembly())),
+        SkillArtifact.of(SkillArtifactType.CHAIN_STRUCTURE, "seed", new SkillArtifactPayload.ChainStructurePayload(
+            new ChainStructure(graphForAssembly(), List.of(), List.of())))), Set.of());
+    var request = new CompilerDagExecutionRequest("run-1", conversation, manifestFor(dag), brief(), null,
+        dag, List.of(), List.of(), seed);
+
+    var failure = assertThrows(CompilerDagExecutionFailure.class,
+        () -> engine.execute(request, (id, status) -> {}).await().indefinitely());
+    assertTrue(failure.getMessage().contains("cip-script-generator"), failure.getMessage());
+    var partial = failure.rejectedProgress();
+    assertNotNull(partial, "The native failure must carry durable rejected progress to the adapter.");
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, partial.outcomeClass());
+    assertEquals(List.of("first-owner"), partial.executedSkillIds());
+    assertEquals(1, partial.patchLedger().orderedReferences().size());
+    assertNull(partial.assemblyResult());
+    assertNull(partial.validationBundle());
+    assertTrue(partial.degradationFindings().stream().anyMatch(PlanValidationFinding::blocker));
+    assertTrue(workspaceStore.getOrCreate(conversation).get(SkillArtifactType.CHAIN_PLAN_GRAPH)
+        .map(value -> ((SkillArtifactPayload.ChainPlanGraphPayload) value.payload()).graph())
+        .orElseThrow().nodes().getFirst().properties().contains(new PlanProperty("contextPath", "/accepted-progress")));
+    verify(javaAdapterRegistry, never()).require("graph-assembly");
   }
 
   @Test

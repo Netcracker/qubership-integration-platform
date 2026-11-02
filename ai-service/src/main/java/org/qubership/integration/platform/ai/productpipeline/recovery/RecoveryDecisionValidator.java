@@ -1,6 +1,8 @@
 package org.qubership.integration.platform.ai.productpipeline.recovery;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -14,6 +16,8 @@ import org.qubership.integration.platform.ai.productpipeline.capability.Recovery
 
 /** Validates a structured recovery decision against the recovery context. */
 public final class RecoveryDecisionValidator {
+
+  private static final ObjectMapper REFERENCE_MAPPER = new ObjectMapper();
 
   private static final Set<String> GENERATED_CONTRACT_CAUSES = Set.of(
       RecoveryCauseCode.UNKNOWN_PROPERTY.name(),
@@ -64,7 +68,7 @@ public final class RecoveryDecisionValidator {
     validateAllowedAction(decision, findings);
     validateEvidenceRefs(decision, context, findings);
     validateFaultArtifactRef(decision, context, findings);
-    validateActionSpecificRules(decision, evidence, findings);
+    validateActionSpecificRules(decision, context, findings);
     if (decision.action() == RecoveryAction.REVISE_BRIEF && context.approvedBrief() != null) {
       for (var change : decision.proposedBriefChanges()) {
         if (change.authorDecisionRequired()) {
@@ -169,21 +173,36 @@ public final class RecoveryDecisionValidator {
     Reference fault = decision.faultArtifactRef();
     if (decision.action() == RecoveryAction.PARK) {
       if (fault != null && !knownArtifactRefs(context).contains(fault)) {
-        findings.add("Fault artifact reference is not present in the recovery context.");
+        findings.add(faultArtifactRefFinding("is not present in the recovery context", fault, context));
       }
       return;
     }
     if (fault == null) {
-      findings.add("Fault artifact reference is required for action " + decision.action() + ".");
+      findings.add(faultArtifactRefFinding("is required for action " + decision.action(), fault, context));
       return;
     }
     if (!knownArtifactRefs(context).contains(fault)) {
-      findings.add("Fault artifact reference is not present in the recovery context.");
+      findings.add(faultArtifactRefFinding("is not present in the recovery context", fault, context));
     }
   }
 
-  private static Set<Reference> knownArtifactRefs(RecoveryContext context) {
+  private static String faultArtifactRefFinding(String reason, Reference rejected, RecoveryContext context) {
+    List<Reference> known = knownArtifactRefs(context).stream()
+        .sorted(Comparator.comparing((Reference ref) -> ref.kind().name())
+            .thenComparing(Reference::artifactId).thenComparing(Reference::contentHash))
+        .toList();
+    return "faultArtifactRef " + reason + ". Rejected value: " + REFERENCE_MAPPER.valueToTree(rejected)
+        + ". Current known references for faultArtifactRef membership: " + REFERENCE_MAPPER.valueToTree(known)
+        + ". Action and strategy constraints still apply to these references. For a generated-output defect,"
+        + " use the current producer reference in evidence.rejectedArtifactRefs. Nested capture-attempt, feedback,"
+        + " and history references are diagnostic evidence, not fault targets unless also listed here.";
+  }
+
+  static Set<Reference> knownArtifactRefs(RecoveryContext context) {
     RecoveryEvidence evidence = context.evidence();
+    if (evidence == null) {
+      return Set.of();
+    }
     Set<Reference> refs = new HashSet<>();
     if (evidence.approvedBriefRef() != null) {
       refs.add(evidence.approvedBriefRef());
@@ -199,13 +218,15 @@ public final class RecoveryDecisionValidator {
   }
 
   private static void validateActionSpecificRules(
-      RecoveryDecision decision, RecoveryEvidence evidence, List<String> findings) {
+      RecoveryDecision decision, RecoveryContext context, List<String> findings) {
+    RecoveryEvidence evidence = context.evidence();
     Reference fault = decision.faultArtifactRef();
     Reference approvedBrief = evidence.approvedBriefRef();
 
     if (evidence.observedCauseCode() != null
         && GENERATED_CONTRACT_CAUSES.contains(evidence.observedCauseCode())
-        && decision.action() != RecoveryAction.REGENERATE_ARTIFACT) {
+        && decision.action() != RecoveryAction.REGENERATE_ARTIFACT
+        && !sourceLiteralCorrection(decision, context)) {
       findings.add(decision.action() + " is not allowed for observed cause " + evidence.observedCauseCode()
           + ". Repair the generated artifact from the saved requirements; the runtime owns recovery limits.");
     }
@@ -246,130 +267,50 @@ public final class RecoveryDecisionValidator {
     }
   }
 
+  private static boolean sourceLiteralCorrection(RecoveryDecision decision, RecoveryContext context) {
+    return RecoveryCauseCode.MISSING_REQUIRED_PROPERTY.name().equals(context.evidence().observedCauseCode())
+        && decision.action() == RecoveryAction.REVISE_BRIEF && context.approvedBrief() != null
+        && context.authorInputs().stream().anyMatch(input -> decision.evidenceRefs().contains(input.inputId()))
+        && !decision.proposedBriefChanges().isEmpty()
+        && decision.proposedBriefChanges().stream().allMatch(change -> change != null && !change.authorDecisionRequired()
+            && change.field() != null && change.sourceFactId() != null
+            && Set.of("elementIntent.exactValues", "/elementIntent/exactValues").contains(change.field())
+            && context.evidence().findings().stream().anyMatch(finding ->
+                "MISSING_REQUIRED_SCRIPT_LITERAL".equals(finding.code())
+                    && change.sourceFactId().equals(finding.nodeId()))
+            && context.approvedBrief().facts().stream().anyMatch(fact ->
+                change.sourceFactId().equals(fact.sourceFactId()) && fact.elementIntent() != null
+                    && !fact.elementIntent().exactValues().isEmpty()));
+  }
+
   private static void validateUserSummary(RecoveryDecision decision, List<String> findings) {
     rejectStageIds(decision.userSummary(), "userSummary", findings);
   }
 
   private static void validateAuthorQuestion(
       AuthorQuestionEvidence question, RecoveryContext context, List<String> findings) {
-    if (question == null || question.kind() == null || question.interactionId() == null
-        || question.interactionId().isBlank() || question.propertyKey() == null || question.propertyKey().isBlank()) {
-      findings.add("ASK_USER requires a scoped authorQuestionEvidence with interactionId, propertyKey and kind.");
-      return;
-    }
-    Set<String> inputIds = new HashSet<>();
-    context.authorInputs().forEach(input -> inputIds.add(input.inputId()));
-    if (inputIds.isEmpty() || !inputIds.equals(new HashSet<>(question.reviewedInputIds()))) {
-      findings.add("ASK_USER requires review of every saved author input. Missing source review cannot prove absence.");
-    }
     var brief = context.approvedBrief();
-    List<RequirementFact> scoped = brief == null ? List.of()
-        : java.util.stream.Stream.concat(brief.facts().stream(), brief.requirements().stream()).distinct()
-        .filter(fact -> fact.polarity() == RequirementFactPolarity.POSITIVE)
-        .filter(fact -> fact.targetsInteraction(question.interactionId())
-            || fact.elementIntent() != null && question.interactionId().equals(fact.elementIntent().elementRef()))
-        .toList();
-    boolean knownScope = !scoped.isEmpty() || brief != null && brief.flow() != null
-        && brief.flow().interactions().stream().anyMatch(interaction ->
-            question.interactionId().equals(interaction.interactionId()));
-    if (!knownScope) {
-      findings.add("ASK_USER must target an interaction or element in the saved requirements.");
+    var facts = brief == null ? List.<RequirementFact>of() : java.util.stream.Stream.concat(
+        brief.facts().stream(), brief.requirements().stream()).distinct().toList();
+    AuthorQuestionAdmission.validate(question, facts, brief == null ? null : brief.flow(),
+        brief == null ? List.of() : brief.catalogBindings(),
+        context.authorInputs().stream().map(input -> input.inputId()).collect(java.util.stream.Collectors.toSet()),
+        context.evidence().findings().stream().filter(finding -> question != null
+            && java.util.Objects.equals(question.interactionId(), finding.nodeId()))
+            .flatMap(finding -> finding.schemaDefaults().keySet().stream()).collect(java.util.stream.Collectors.toSet()),
+        false, findings);
+    if (question == null) { return; }
+    if (question.kind() == AuthorQuestionEvidence.Kind.POLICY_CHOICE
+        && (!RecoveryCauseCode.SECURITY_POLICY.name().equals(context.evidence().observedCauseCode())
+            || context.evidence().findings().stream().noneMatch(finding ->
+                "security-policy-choice".equals(finding.code())
+                    && question.interactionId().equals(finding.nodeId())))) {
+      findings.add("ASK_USER requires the unresolved policy rule and owner identified by the finding; preserve confirmed choices.");
     }
-    Set<String> values = new HashSet<>();
-    scoped.forEach(fact -> values.addAll(suppliedValues(fact, question.propertyKey())));
-    Set<String> confirmedChoices = new HashSet<>();
-    scoped.stream().map(RequirementFact::policyConflict)
-        .filter(policy -> policy != null && question.propertyKey().equals(policy.propertyKey())
-            && policy.decision() != null && policy.selectedValue() != null)
-        .forEach(policy -> confirmedChoices.add(policy.selectedValue()));
-    if (!confirmedChoices.isEmpty()) {
-      values.clear();
-      values.addAll(confirmedChoices);
+    if (question.kind() == AuthorQuestionEvidence.Kind.CATALOG_CHOICE
+        && !RecoveryCauseCode.CATALOG_RESOLUTION.name().equals(context.evidence().observedCauseCode())) {
+      findings.add("ASK_USER requires an unresolved catalog choice. Reuse the approved binding.");
     }
-    if (brief != null) {
-      brief.catalogBindings().stream().filter(binding -> question.interactionId().equals(binding.interactionId()))
-          .forEach(binding -> {
-            String value = switch (question.propertyKey()) {
-              case "systemId", "integrationSystemId" -> binding.systemId();
-              case "specificationGroupId", "integrationSpecificationGroupId" -> binding.specificationGroupId();
-              case "specificationId", "integrationSpecificationId" -> binding.specificationId();
-              case "integrationOperationId" -> binding.integrationOperationId();
-              case "httpMethod", "httpMethodRestrict", "method", "integrationOperationMethod" -> binding.method();
-              case "path", "integrationOperationPath" -> binding.path();
-              default -> "";
-            };
-            if (value != null && !value.isBlank()) {
-              values.add(value);
-            }
-          });
-    }
-    if (question.kind() == AuthorQuestionEvidence.Kind.MISSING_VALUE) {
-      boolean hasDefault = context.evidence().findings().stream().anyMatch(finding ->
-          question.interactionId().equals(finding.nodeId())
-              && finding.schemaDefaults().containsKey(question.propertyKey()));
-      if (!values.isEmpty() || hasDefault) {
-        findings.add("ASK_USER cannot request a supplied value or schema default. Repair the producer from saved input.");
-      } else {
-        findings.add(SOURCE_RECONCILIATION_REQUIRED
-            + ": The source owner must check saved author messages before a missing projected value can be asked again.");
-      }
-    } else if (question.kind() == AuthorQuestionEvidence.Kind.CONFLICTING_VALUES && values.size() < 2) {
-      findings.add("ASK_USER requires conflicting saved values for the same interaction and property.");
-    } else if (question.kind() == AuthorQuestionEvidence.Kind.POLICY_CHOICE) {
-      boolean matchingFinding = RecoveryCauseCode.SECURITY_POLICY.name().equals(context.evidence().observedCauseCode())
-          && "accessControlType".equals(question.propertyKey()) && context.evidence().findings().stream().anyMatch(finding ->
-              "security-policy-choice".equals(finding.code()) && question.interactionId().equals(finding.nodeId()));
-      var policies = scoped.stream().map(RequirementFact::policyConflict)
-          .filter(conflict -> conflict != null && question.propertyKey().equals(conflict.propertyKey())
-              && org.qubership.integration.platform.ai.qipknowledge.validation.CompilerSecurityValidator.EXTERNAL_RBAC_POLICY
-                  .equals(conflict.policyId())).toList();
-      boolean unresolved = policies.stream().anyMatch(conflict -> conflict.decision() == null);
-      boolean resolved = policies.stream().anyMatch(conflict -> conflict.decision() != null);
-      if (!matchingFinding || !unresolved || resolved) {
-        findings.add("ASK_USER requires the unresolved policy rule and owner identified by the finding; preserve confirmed choices.");
-      }
-    } else if (question.kind() == AuthorQuestionEvidence.Kind.CATALOG_CHOICE) {
-      if (!RecoveryCauseCode.CATALOG_RESOLUTION.name().equals(context.evidence().observedCauseCode())
-          || brief != null && brief.catalogBindings().stream()
-              .anyMatch(binding -> question.interactionId().equals(binding.interactionId()))) {
-        findings.add("ASK_USER requires an unresolved catalog choice. Reuse the approved binding.");
-      }
-    }
-  }
-
-  private static Set<String> suppliedValues(RequirementFact fact, String key) {
-    RequirementPolicyConflict policy = fact.policyConflict();
-    if (policy != null && key.equals(policy.propertyKey()) && policy.decision() != null
-        && policy.selectedValue() != null) {
-      return Set.of(policy.selectedValue());
-    }
-    Set<String> values = new HashSet<>();
-    if (policy != null && key.equals(policy.propertyKey()) && policy.requestedValue() != null
-        && !policy.requestedValue().isBlank()) {
-      values.add(policy.requestedValue());
-    }
-    String value = switch (key) {
-      case "httpMethod", "httpMethodRestrict" -> fact.httpMethod();
-      case "path", "contextPath" -> fact.path();
-      case "topic" -> fact.topic();
-      case "participant" -> fact.participant();
-      case "operation" -> fact.operation();
-      default -> "";
-    };
-    if (!value.isBlank()) {
-      values.add(value);
-    }
-    if (fact.elementIntent() != null && fact.elementIntent().requestedProperties() != null) {
-      fact.elementIntent().requestedProperties().stream()
-          .filter(property -> property != null && key.equals(property.key())
-              && property.value() != null && !property.value().isBlank())
-          .forEach(property -> values.add(property.value()));
-    }
-    if (fact.elementIntent() != null && ("name".equals(key) || "requestedName".equals(key))
-        && fact.elementIntent().requestedName() != null && !fact.elementIntent().requestedName().isBlank()) {
-      values.add(fact.elementIntent().requestedName());
-    }
-    return values;
   }
 
   private static void rejectStageIds(String text, String field, List<String> findings) {

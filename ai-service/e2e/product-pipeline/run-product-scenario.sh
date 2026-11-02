@@ -3,6 +3,7 @@
 set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${DIR}/../testing-paths.sh"
 SCRIPTS_DIR="$(cd "${DIR}/scripts" && pwd)"
 
 SCENARIO_ID=""
@@ -11,13 +12,17 @@ BASE_URL=""
 EVALUATOR_URL=""
 REPORT_PATH=""
 TRANSPORT="chat"
+SCENARIOS_FILE="${QIP_SKILLS_TESTING_ROOT}/product-pipeline/scenarios.json"
+INITIAL_CONVERSATION_ID="-"
+STRICT_RECOVERY=0
 
 usage() {
     cat >&2 << 'EOF'
 Usage: run-product-scenario.sh \
   --scenario <id> --rep <n> \
   --base-url <url> --evaluator-url <url> \
-  --report <path> [--transport chat|a2a]
+  --report <path> [--transport chat|a2a] [--scenarios-file <path>] \
+  [--conversation-id <id>] [--strict-recovery]
 
 --transport picks how turns are sent. Both transports drive the same scenario to the same
 durable terminal state and assert the same evidence, so a divergence names the transport.
@@ -27,6 +32,18 @@ EOF
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --scenarios-file)
+            SCENARIOS_FILE="${2:?}"
+            shift 2
+            ;;
+        --conversation-id)
+            INITIAL_CONVERSATION_ID="${2:?}"
+            shift 2
+            ;;
+        --strict-recovery)
+            STRICT_RECOVERY=1
+            shift
+            ;;
         --scenario)
             SCENARIO_ID="${2:?}"
             shift 2
@@ -68,7 +85,6 @@ case "${TRANSPORT}" in
         exit 2
         ;;
 esac
-SCENARIOS_FILE="${DIR}/scenarios.json"
 [[ -f "${SCENARIOS_FILE}" ]] || {
     echo "FAIL: missing scenarios.json" >&2
     exit 1
@@ -79,7 +95,9 @@ jq -e --arg s "${SCENARIO_ID}" '.[$s]' "${SCENARIOS_FILE}" > /dev/null ||
         exit 1
     }
 
-prompt="$(jq -r --arg s "${SCENARIO_ID}" '.[$s].prompt // empty' "${SCENARIOS_FILE}")"
+# A sentinel keeps command substitution from removing the prompt's final newlines.
+prompt="$(jq -j --arg s "${SCENARIO_ID}" '.[$s].prompt // empty' "${SCENARIOS_FILE}" && printf '.')"
+prompt="${prompt%.}"
 expected_state="$(jq -r --arg s "${SCENARIO_ID}" '.[$s].terminalState // empty' "${SCENARIOS_FILE}")"
 expects_approval="$(jq -r --arg s "${SCENARIO_ID}" '.[$s].expectsApproval // true' "${SCENARIOS_FILE}")"
 expects_implement="$(jq -r --arg s "${SCENARIO_ID}" '.[$s].expectsImplement // false' "${SCENARIOS_FILE}")"
@@ -114,6 +132,20 @@ recovery_fault_stages_json="$(jq -c --arg s "${SCENARIO_ID}" \
 recovery_owner_stages_json="$(jq -c --arg s "${SCENARIO_ID}" \
     '.[$s].recovery.ownerStages // (if .[$s].recovery.ownerStage then [.[$s].recovery.ownerStage] else [] end)' \
     "${SCENARIOS_FILE}")"
+if [[ "${STRICT_RECOVERY}" == "1" ]]; then
+    [[ "${TRANSPORT}" == "chat" && "${INITIAL_CONVERSATION_ID}" != "-" ]] || {
+        echo "FAIL: strict recovery requires chat and an owned conversation ID" >&2
+        exit 2
+    }
+    jq -e --arg s "${SCENARIO_ID}" '
+      (.[$s].discoveryAnswers // [] | length) == 0
+      and (.[$s].designInputAnswers // [] | length) == 0
+      and (.[$s].recovery // {} | length) == 0
+    ' "${SCENARIOS_FILE}" > /dev/null || {
+        echo "FAIL: strict recovery refuses scripted repair assistance" >&2
+        exit 2
+    }
+fi
 catalog_url="${E2E_CATALOG_URL:-http://localhost:8091}"
 pipeline="$(jq -r --arg s "${SCENARIO_ID}" '.[$s].pipeline // empty' "${SCENARIOS_FILE}")"
 [[ "${pipeline}" == "create-chain-v1" ]] ||
@@ -331,7 +363,8 @@ command -v jq > /dev/null
 source "${SCRIPTS_DIR}/lib.sh"
 
 export E2E_BASE_URL="${BASE_URL}"
-conversation_id="-"
+conversation_id="${INITIAL_CONVERSATION_ID}"
+printf '%s\n' "${conversation_id}" > "${run_dir}/conversation-id.txt"
 sse_dir="${run_dir}/sse"
 mkdir -p "${sse_dir}"
 implement_sent=0
@@ -343,12 +376,36 @@ recovery_pre_materialization_clean=0
 uploaded_spec_object_keys_json='[]'
 uploaded_spec_system_types_json='{}'
 uploaded_spec_uploads_json='[]'
+control_answer_sent=0
+control_question=""
 
 send_turn() {
     local label="$1"
     local text="$2"
     local structured="${3:-}"
     local decision="${4:-}"
+    if [[ "${STRICT_RECOVERY}" == "1" ]]; then
+        python3 - "${run_dir}/interactions.jsonl" "${label}" "${text}" "${decision}" "${control_question}" \
+            "${latest_wait_reason:-}" "${stage_id:-}" "${chat_card:-}" << 'PY'
+import json
+import sys
+path, label, text, decision, question, gate, stage, card_json = sys.argv[1:]
+entry = {"kind": "initial" if label == "01-prompt" else "clarification", "text": text}
+if decision:
+    data = json.loads(decision)
+    if data.get("action") not in {"approve", "approve-and-create", "create-chain", "yes", "no", "continue-to-planning"}:
+        raise SystemExit("Forbidden recovery action")
+    entry = {"kind": "decision", "gate": gate, **data}
+elif label != "01-prompt":
+    if not label.startswith("control-answer-") or not question:
+        raise SystemExit("Undeclared repair assistance")
+    entry["question"] = question
+    entry["stageId"] = stage
+    entry["questionRevision"] = json.loads(card_json)["revision"]
+with open(path, "a") as stream:
+    stream.write(json.dumps(entry) + "\n")
+PY
+    fi
     if [[ "${TRANSPORT}" == "a2a" ]]; then
         local out_json="${sse_dir}/${label}.json"
         conversation_id="$(
@@ -413,7 +470,7 @@ while IFS= read -r uploaded_spec; do
             echo "FAIL: uploaded specification fixture must be non-blank" >&2
             exit 1
         }
-    uploaded_spec_path="${DIR}/${uploaded_spec_fixture}"
+    uploaded_spec_path="$(dirname "${SCENARIOS_FILE}")/${uploaded_spec_fixture}"
     [[ -f "${uploaded_spec_path}" ]] ||
         {
             echo "FAIL: uploaded specification fixture not found: ${uploaded_spec_path}" >&2
@@ -513,7 +570,7 @@ while ((SECONDS < deadline)); do
     ((.committedArtifactKinds // []) | map(select(. == "IMPLEMENTATION_PLAN" or . == "PLAN_VALIDATION_RESULT")) | length) as $n
     | if $n > 0 then "1" else "0" end
   ' <<< "${evidence}")"
-    if [[ "${current_state}" == "RUNNING" &&
+    if [[ "${STRICT_RECOVERY}" != "1" && "${current_state}" == "RUNNING" &&
         ("${stage_id}" == "planning" || "${stage_id}" == "design-planning") &&
         "${attempt_outcome}" == "RUNNING" &&
         "${has_plan_kind}" == "0" ]]; then
@@ -644,6 +701,13 @@ while ((SECONDS < deadline)); do
             send_turn "approve-$(date +%s)" "" "" "${chat_approve_decision}"
             continue
         fi
+        if [[ "${STRICT_RECOVERY}" == "1" && "${stage_id}" == "requirement-discovery" &&
+            "${latest_wait_reason}" == "__GATE:requirement-draft-ready__"* ]] &&
+            jq -e '.actions | index("continue-to-planning") != null' <<< "${chat_card}" > /dev/null; then
+            continue_decision="$(jq -c '{action:"continue-to-planning", revision}' <<< "${chat_card}")"
+            send_turn "continue-to-planning-$(date +%s)" "" "" "${continue_decision}"
+            continue
+        fi
         if [[ "${latest_wait_reason}" == *"__GATE:ids-path-choice__"* && "${TRANSPORT}" == "chat" ]]; then
             case "${design_input_choice}" in
                 "Generate full IDS") ids_action="yes" ;;
@@ -665,6 +729,28 @@ while ((SECONDS < deadline)); do
             continue
         fi
         # The IDS choice can arrive during discovery, before design-input starts.
+        if [[ "${STRICT_RECOVERY}" == "1" ]]; then
+            control_question="$(jq -r '.question // empty' <<< "${chat_card}")"
+            control_answer="$(
+                python3 - "${SCENARIOS_FILE}" "${SCENARIO_ID}" "${control_question}" "${control_answer_sent}" \
+                    "${run_dir}/strict-failure.json" "$(jq -r '.kind // empty' <<< "${chat_card}")" << 'PY'
+import json
+import re
+import sys
+path, identity, question, sent, failure_path, kind = sys.argv[1:]
+control = json.load(open(path))[identity].get("clarification")
+if kind != "clarify" or sent != "0" or not control or not re.search(control["questionPattern"], question, re.I):
+    reason = "Unexpected question in a strict recovery case: " + question
+    with open(failure_path, "w") as stream:
+        json.dump({"reason": reason, "question": question, "kind": kind}, stream)
+    raise SystemExit(reason)
+print(control["answer"])
+PY
+            )" || exit 1
+            send_turn "control-answer-$(date +%s)" "${control_answer}"
+            control_answer_sent=1
+            continue
+        fi
         if [[ "${stage_id}" == "design-input" || "${latest_wait_reason}" == *"__GATE:ids-path-choice__"* ]]; then
             # design-input asks the IDS question first and can follow up, for example for data-mapping
             # intents. Answer the follow-ups from designInputAnswers rather than calling a second

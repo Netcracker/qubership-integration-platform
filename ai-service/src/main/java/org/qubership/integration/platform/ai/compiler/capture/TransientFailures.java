@@ -1,6 +1,8 @@
 package org.qubership.integration.platform.ai.compiler.capture;
 
 import dev.langchain4j.exception.RateLimitException;
+import dev.langchain4j.exception.HttpException;
+import dev.langchain4j.exception.InternalServerException;
 import jakarta.ws.rs.WebApplicationException;
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
@@ -9,12 +11,15 @@ import java.security.cert.CertificateException;
 import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.SSLPeerUnverifiedException;
 import org.qubership.integration.platform.ai.llm.ratelimit.RateLimitTurnBudgetExhaustedException;
+import org.qubership.integration.platform.ai.llm.ratelimit.TransientErrorClassifier;
 
 /**
  * Detects transport and rate-limit failures that may succeed on a later pipeline attempt, and
  * environment restrictions that will not.
  */
 public final class TransientFailures {
+
+  private static final TransientErrorClassifier PROVIDER_FAILURES = new TransientErrorClassifier();
 
   /** User-facing summary when TLS or trust material blocked the request. */
   public static final String ENVIRONMENT_SUMMARY =
@@ -24,6 +29,11 @@ public final class TransientFailures {
 
   public static boolean isTransient(Throwable error) {
     for (Throwable current = error; current != null; current = current.getCause()) {
+      if ((current instanceof HttpException || current instanceof InternalServerException)
+          && !isPermanentEnvironment(error)
+          && PROVIDER_FAILURES.isTransient(current)) {
+        return true;
+      }
       if (current instanceof ConnectException
           || current instanceof SocketTimeoutException
           || current instanceof HttpTimeoutException

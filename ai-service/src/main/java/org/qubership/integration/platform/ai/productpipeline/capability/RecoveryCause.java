@@ -6,6 +6,8 @@ import java.util.Locale;
 import java.util.Optional;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedback;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
+import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationResult;
 
 /**
@@ -14,7 +16,14 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValida
  */
 public record RecoveryCause(
     RecoveryCauseCode causeCode, List<PlanValidationFinding> findings, String requestedFact,
-    boolean noProgress, CaptureFailureEvidence captureFailure) {
+    boolean noProgress, CaptureFailureEvidence captureFailure,
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool.SourceReview sourceReview) {
+
+  public RecoveryCause(RecoveryCauseCode causeCode, List<PlanValidationFinding> findings, String requestedFact,
+      boolean noProgress, CaptureFailureEvidence captureFailure) {
+    this(causeCode, findings, requestedFact, noProgress, captureFailure, null);
+  }
 
   public RecoveryCause(RecoveryCauseCode causeCode, List<PlanValidationFinding> findings, String requestedFact, boolean noProgress) {
     this(causeCode, findings, requestedFact, noProgress, null);
@@ -33,9 +42,18 @@ public record RecoveryCause(
   public static RecoveryCause captureFailure(
       CaptureAttemptFeedback feedback,
       List<PlanValidationFinding> nativeFindings, CaptureFailureEvidence evidence) {
-    var findings = nativeFindings.isEmpty()
-        ? List.of(new PlanValidationFinding("CAPTURE_" + feedback.kind(), feedback.summary(), true))
-        : nativeFindings;
+    boolean requirementCapture = evidence != null && evidence.rejectedCandidate() != null
+        && evidence.rejectedCandidate().kind() == Kind.REQUIREMENT_CAPTURE_ATTEMPT;
+    var findings = nativeFindings.isEmpty() ? feedback.issues().stream().map(issue -> new PlanValidationFinding(
+        issue.code(), issue.path() + ": " + issue.message(), true, null,
+        requirementCapture && (issue.entityId() == null || issue.entityId().isBlank()) ? "requirement-draft" : issue.entityId(),
+        requirementCapture ? CaptureToolOutcomeGateway.logicalRequirementPath(issue.path()) : issue.path())).toList() : nativeFindings;
+    if (feedback.noProgress()) {
+      findings = findings.stream().filter(finding -> !"REPAIR_NO_PROGRESS".equals(finding.code())).toList();
+    }
+    if (findings.isEmpty()) findings = List.of(new PlanValidationFinding("CAPTURE_" + feedback.kind(),
+        org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprints
+            .stripNativeParserDetails(feedback.summary()), true));
     return new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, findings, "", feedback.noProgress(),
         evidence == null ? new CaptureFailureEvidence(feedback, null, feedback.evidenceReference(), List.of()) : evidence);
   }
@@ -258,10 +276,10 @@ public record RecoveryCause(
     return switch (normalized) {
       case "UNKNOWN_PROPERTY", "else.condition", "else.priority" ->
           RecoveryCauseCode.UNKNOWN_PROPERTY;
-      case "MISSING_REQUIRED_PROPERTY" -> RecoveryCauseCode.MISSING_REQUIRED_PROPERTY;
+      case "MISSING_REQUIRED_PROPERTY", "MISSING_REQUIRED_SCRIPT_LITERAL" -> RecoveryCauseCode.MISSING_REQUIRED_PROPERTY;
       case "GRAPH_STRUCTURE" -> RecoveryCauseCode.GRAPH_STRUCTURE;
       case "MISSING_BRIEF_FACTS" -> RecoveryCauseCode.MISSING_BRIEF_FACTS;
-      case "BRIEF_CONTRACT" -> RecoveryCauseCode.BRIEF_CONTRACT;
+      case "BRIEF_CONTRACT", "UNBOUND_REQUIRED_LITERAL" -> RecoveryCauseCode.BRIEF_CONTRACT;
       case "CATALOG_RESOLUTION" -> RecoveryCauseCode.CATALOG_RESOLUTION;
       case "MAPPING_CONTRACT",
               "MAPPING_UNKNOWN_TARGET",

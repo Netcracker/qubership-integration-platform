@@ -10,7 +10,7 @@ package org.qubership.integration.platform.ai.compiler.capture.policy;
 public enum CaptureFailureClass {
   /** Fixable in-turn; first fail soft, then IDENTICAL_SPAM on the same rejection. Outer ≤ 1. */
   CORRECTABLE,
-  /** The same rejection after a soft credit; CVE ends the inner turn. No outer. */
+  /** The same rejection after a soft credit; CVE ends the inner turn and forbids targeted correction. */
   IDENTICAL_SPAM,
   /** Not fixable by the same skill (ownership, wrong route, …). No soft; outer = 0. */
   PERMANENT,
@@ -19,5 +19,10 @@ public enum CaptureFailureClass {
   /** Duplicate accept terminator (ADR 0001). */
   DUPLICATE,
   /** Framework tool-arguments failure channel; never blind outer. */
-  TOOL_ARGUMENTS
+  TOOL_ARGUMENTS;
+
+  /** True when the code is a clarification finding repaired by changing the pinned target. */
+  public static boolean clarificationRepresentation(String code) {
+    return "CLARIFICATION_ANSWER_NO_PROGRESS".equals(code) || "UNAPPLIED_AUTHOR_ANSWER".equals(code);
+  }
 }

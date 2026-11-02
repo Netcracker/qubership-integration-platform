@@ -279,7 +279,10 @@ function k8sSetup(): TargetSetup {
       ...k8sProjects(brokers),
       ...(brokers ? [...brokerProjects(["brokers", "brokers-micro"]), ...microBrokerProjects()] : []),
     ],
-    absent: brokers ? [] : brokersAbsent([...brokerProjects(), ...microBrokerProjects()]),
+    absent: [
+      { name: "env: specs/env/ai-recovery-lifecycle.spec.ts", reason: "owned Compose AI-service lifecycle" },
+      ...(brokers ? [] : brokersAbsent([...brokerProjects(), ...microBrokerProjects()])),
+    ],
   };
 }
 

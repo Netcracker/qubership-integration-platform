@@ -8,6 +8,7 @@ import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import dev.langchain4j.model.chat.request.ChatRequestParameters;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.smallrye.mutiny.Multi;
@@ -149,7 +150,8 @@ class DesignInputRecoveryTest {
         new TerminalPolicy("design-input", "PLAN_APPROVED"), List.of("analysis-cap", design.capabilityId()));
     var agent = mock(FailureNarrativeAgent.class);
     AtomicInteger diagnosisCalls = new AtomicInteger();
-    when(agent.recover(anyString(), anyString())).thenAnswer(invocation -> {
+    when(agent.recover(anyString(), anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class))).thenAnswer(invocation -> {
       diagnosisCalls.incrementAndGet();
       var context = mapper.readTree((String) invocation.getArgument(1));
       var briefRef = mapper.treeToValue(context.path("evidence").path("approvedBriefRef"),
@@ -367,13 +369,14 @@ class DesignInputRecoveryTest {
     var agent = mock(FailureNarrativeAgent.class);
     var fake = FakeFailureNarrativeAgent.narrates("unused");
     fake.recoverRegenerates(Kind.CHAIN_SEMANTIC_REVISION, "Repair the generated topology.");
-    when(agent.recover(anyString(), anyString()))
+    when(agent.recover(anyString(), anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class)))
         .thenAnswer(
             invocation -> {
               if (decisionMode.equals("missing")) {
                 return null;
               }
-              var decision = fake.recover(invocation.getArgument(0), invocation.getArgument(1));
+              var decision = fake.recover(invocation.getArgument(0), invocation.getArgument(1), invocation.getArgument(2));
               if (decisionMode.equals("regenerate") || decisionMode.equals("zero-budget")) {
                 return decision;
               }

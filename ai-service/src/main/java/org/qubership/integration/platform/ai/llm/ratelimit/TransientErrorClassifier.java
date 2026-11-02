@@ -18,6 +18,12 @@ public final class TransientErrorClassifier {
 
   public boolean isTransient(Throwable t) {
     for (Throwable current = t; current != null; current = current.getCause()) {
+      if (current instanceof HttpException http) {
+        if (http.statusCode() < 500) return false;
+        break;
+      }
+    }
+    for (Throwable current = t; current != null; current = current.getCause()) {
       if (current instanceof HttpException http && isRetryableStatus(http.statusCode())) {
         return true;
       }

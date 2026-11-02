@@ -12,6 +12,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.skills.RockySkills;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
 import org.qubership.integration.platform.ai.plan.ImplementationPlan;
@@ -40,6 +41,7 @@ import org.qubership.integration.platform.ai.productpipeline.runtime.StartOrResu
 import org.qubership.integration.platform.ai.productpipeline.runtime.RestartCheckpoint;
 import org.qubership.integration.platform.ai.productpipeline.runtime.RestartRunCommand;
 import org.qubership.integration.platform.ai.productpipeline.runtime.StaleApprovalException;
+import org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
@@ -55,6 +57,9 @@ import org.qubership.integration.platform.ai.productpipeline.store.StageStatus;
  */
 @ApplicationScoped
 public class CreateChainApplicationFacade {
+
+  @jakarta.inject.Inject
+  RockySkills rockySkills = new RockySkills();
 
   private static final Logger LOG =
       Logger.getLogger(CreateChainApplicationFacade.class);
@@ -145,6 +150,7 @@ public class CreateChainApplicationFacade {
 
   /** Starts or resumes create-chain for {@code taskId} (== conversationId). */
   public Multi<CreateChainEvent> start(StartCreateChainCommand command) {
+    rockySkills.requireAvailable();
     Objects.requireNonNull(command, "command");
     String taskId = command.taskId();
     selectionService.selectOrCreate(taskId, command.requirementText());
@@ -199,6 +205,7 @@ public class CreateChainApplicationFacade {
 
   /** Continues the same durable run with clarification input. */
   public Multi<CreateChainEvent> continueWithInput(ContinueCreateChainCommand command) {
+    rockySkills.requireAvailable();
     Objects.requireNonNull(command, "command");
     String taskId = command.taskId();
     selectionService.selectOrCreate(taskId);
@@ -221,7 +228,8 @@ public class CreateChainApplicationFacade {
       });
     }
     return continueExisting(
-        taskId, command.clarificationText(), command.commandId(), command.origin());
+        taskId, command.clarificationText(), command.commandId(), command.origin(),
+        command.clarificationOfferId());
   }
 
   public Optional<String> pendingRepairOffer(String taskId, long revision) {
@@ -248,6 +256,7 @@ public class CreateChainApplicationFacade {
 
   /** Creates a derived run and resumes it from the selected durable checkpoint. */
   public Multi<CreateChainEvent> restart(RestartCreateChainCommand command) {
+    rockySkills.requireAvailable();
     Objects.requireNonNull(command, "command");
     String taskId = command.taskId();
     ProductPipelineRunDocument active =
@@ -329,6 +338,7 @@ public class CreateChainApplicationFacade {
 
   /** Approves the current expected artifact or recovers a blocked implementation gate. */
   public ApproveCreateChainOutcome approve(ApproveCreateChainArtifactCommand command) {
+    rockySkills.requireAvailable();
     Objects.requireNonNull(command, "command");
     String taskId = command.taskId();
     ProductPipelineRunDocument doc =
@@ -340,6 +350,10 @@ public class CreateChainApplicationFacade {
     // Durable evidence first: a retry after a crash carries the caller's original revision, which
     // is now stale, but the command already applied and must not be re-validated.
     if (approveAlreadyApplied(doc, command)) {
+      List<CreateChainEvent> events = sourceRestorationAlreadyApplied(doc, command)
+          ? collect(replayApproval(doc, command)) : List.of();
+      doc = runStore.loadByConversation(taskId).orElseThrow();
+      status = doc.run().status();
       if (status == RunStatus.WAITING_FOR_IMPLEMENT) {
         ApproveCreateChainOutcome gate =
             autoImplement(taskId, doc, new ArrayList<>(), command.commandId());
@@ -348,7 +362,7 @@ public class CreateChainApplicationFacade {
         }
         doc = runStore.loadByConversation(taskId).orElseThrow();
       }
-      return new ApproveCreateChainOutcome.Accepted(List.of(), snapshotOf(taskId, doc));
+      return new ApproveCreateChainOutcome.Accepted(events, snapshotOf(taskId, doc));
     }
     if (status == RunStatus.WAITING_FOR_IMPLEMENT) {
       return recoverImplementation(taskId, doc, command);
@@ -411,12 +425,12 @@ public class CreateChainApplicationFacade {
     }
   }
 
-
   /**
    * Validates an approve command without starting pipeline work. Empty means the command may
    * stream; a present value is a typed rejection.
    */
   public Optional<ApproveCreateChainOutcome> validateApprove(ApproveCreateChainArtifactCommand command) {
+    rockySkills.requireAvailable();
     Objects.requireNonNull(command, "command");
     String taskId = command.taskId();
     ProductPipelineRunDocument doc =
@@ -498,6 +512,7 @@ public class CreateChainApplicationFacade {
    * second runtime approval.
    */
   public Multi<CreateChainEvent> streamApprove(ApproveCreateChainArtifactCommand command) {
+    rockySkills.requireAvailable();
     Objects.requireNonNull(command, "command");
     String taskId = command.taskId();
     ProductPipelineRunDocument doc =
@@ -536,6 +551,7 @@ public class CreateChainApplicationFacade {
    * #streamApprove} it already relies on.
    */
   public Multi<CreateChainEvent> streamApproveOnly(ApproveCreateChainArtifactCommand command) {
+    rockySkills.requireAvailable();
     Objects.requireNonNull(command, "command");
     String taskId = command.taskId();
     ProductPipelineRunDocument doc =
@@ -586,6 +602,7 @@ public class CreateChainApplicationFacade {
    * stale card cannot create a chain from a plan that was revised in the meantime.
    */
   public Multi<CreateChainEvent> streamCreateChain(String taskId, String planHash, long revision) {
+    rockySkills.requireAvailable();
     Objects.requireNonNull(taskId, "taskId");
     ProductPipelineRunDocument doc =
         runStore
@@ -763,6 +780,31 @@ public class CreateChainApplicationFacade {
     return runStore.loadByConversation(taskId).map(doc -> snapshotOf(taskId, doc));
   }
 
+  /** Offer on the latest requirement wait, or empty when that wait has no offer. */
+  public Optional<ClarificationTransition.Offer> activeClarificationOffer(String taskId) {
+    Objects.requireNonNull(taskId, "taskId");
+    return runStore.loadByConversation(taskId).flatMap(this::latestWaitingOffer);
+  }
+
+  private Optional<ClarificationTransition.Offer> latestWaitingOffer(ProductPipelineRunDocument doc) {
+    ClarificationTransition clarification = null;
+    boolean waiting = false;
+    for (var transition : doc.transitions()) {
+      if (transition.toStatus() == RunStatus.WAITING_FOR_INPUT) {
+        clarification = transition.clarification();
+        waiting = true;
+      }
+    }
+    if (!waiting || clarification == null || clarification.offer() == null) {
+      return Optional.empty();
+    }
+    String gate = PipelineGates.gateOf(latestWaitingForInputReason(doc)).orElse("");
+    if (PipelineGates.withholdsGenericRequirementOffer(gate)) {
+      return Optional.empty();
+    }
+    return Optional.of(clarification.offer());
+  }
+
   public String importApprovalRunId(String taskId) {
     return runStore.loadByConversation(taskId).map(doc -> doc.run().runId())
         .orElseGet(() -> selectionService.plannedRunId(taskId));
@@ -816,13 +858,19 @@ public class CreateChainApplicationFacade {
 
   private Multi<CreateChainEvent> continueExisting(
       String taskId, String text, String commandId, InputOrigin origin) {
+    return continueExisting(taskId, text, commandId, origin, null);
+  }
+
+  private Multi<CreateChainEvent> continueExisting(
+      String taskId, String text, String commandId, InputOrigin origin, String clarificationOfferId) {
     ProductPipelineRunDocument doc =
         runStore
             .loadByConversation(taskId)
             .orElseThrow(() -> new IllegalStateException("no run for taskId " + taskId));
     RunStatus status = doc.run().status();
     if (status == RunStatus.RUNNING && inputAlreadyApplied(taskId, commandId, text)) {
-      return mapSignals(taskId, runtime.acceptInput(acceptInput(doc.run().runId(), text, commandId, origin)));
+      return mapSignals(taskId, runtime.acceptInput(
+          acceptInput(doc.run().runId(), text, commandId, origin, clarificationOfferId)));
     }
     if (status == RunStatus.WAITING_FOR_IMPLEMENT) {
       return Multi.createFrom()
@@ -853,7 +901,7 @@ public class CreateChainApplicationFacade {
     if (status == RunStatus.WAITING_FOR_INPUT || status == RunStatus.WAITING_FOR_APPROVAL) {
       return mapSignals(
           taskId,
-          runtime.acceptInput(acceptInput(doc.run().runId(), text, commandId, origin)));
+          runtime.acceptInput(acceptInput(doc.run().runId(), text, commandId, origin, clarificationOfferId)));
     }
     if (status == RunStatus.RUNNING || status == RunStatus.PLAN_APPROVED) {
       RunManifest activeManifest = manifestOf(doc);
@@ -1142,13 +1190,19 @@ public class CreateChainApplicationFacade {
   /** Builds the {@code accept-input} step of a start or clarification command. */
   private static AcceptInputCommand acceptInput(
       String runId, String text, String commandId, InputOrigin origin) {
+    return acceptInput(runId, text, commandId, origin, null);
+  }
+
+  private static AcceptInputCommand acceptInput(
+      String runId, String text, String commandId, InputOrigin origin, String clarificationOfferId) {
     String safeText = text == null ? "" : text;
     return new AcceptInputCommand(
         runId,
         safeText,
         stepId(commandId, "accept-input"),
         payloadHash(Map.of("text", safeText)),
-        origin);
+        origin,
+        clarificationOfferId);
   }
 
   /**
@@ -1188,9 +1242,20 @@ public class CreateChainApplicationFacade {
    * <p>Checked before staleness validation: after a crash the run revision has moved on, so
    * re-validating a retry against the newer revision would reject a command that already applied.
    */
-  private static boolean approveAlreadyApplied(
+  private boolean approveAlreadyApplied(
       ProductPipelineRunDocument doc, ApproveCreateChainArtifactCommand command) {
-    return doc.appliedCommand(approveStepId(command), approvePayloadHash(command)).isPresent();
+    if (doc.appliedCommand(approveStepId(command), approvePayloadHash(command)).isPresent()) return true;
+    return (command.commandId() == null || command.commandId().isBlank()) && sourceRestorationAlreadyApplied(doc, command);
+  }
+
+  private boolean sourceRestorationAlreadyApplied(
+      ProductPipelineRunDocument doc, ApproveCreateChainArtifactCommand command) {
+    if (CreateChainPublicArtifactTypes.toKind(command.artifactType()).orElse(null) != Kind.REQUIREMENT_BRIEF) return false;
+    return doc.run().stages().stream().flatMap(stage -> stage.candidateReferences().stream())
+        .filter(ref -> ref.kind() == Kind.REQUIREMENT_BRIEF && ref.contentHash().equals(command.artifactHash()))
+        .anyMatch(ref -> draftStore.hasSourceRestorationCandidate(command.taskId(), ref)
+            && org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport
+                .committedBriefApproval(doc, ref, command.revision(), artifactStore).isPresent());
   }
 
   private Multi<CreateChainEvent> replayApproval(
@@ -1338,6 +1403,7 @@ public class CreateChainApplicationFacade {
             .filter(doc -> "uploaded-spec-import".equals(doc.run().currentStageId()))
             .map(doc -> PipelineGates.UPLOADED_SPECS_IMPORT)
             .orElse(""));
+    String offerId = activeClarificationOffer(taskId).map(ClarificationTransition.Offer::offerId).orElse("");
     String prompt = publicPrompt(waitPrompt);
     List<String> missingEvidence = List.of();
     if (prompt.isBlank()) {
@@ -1361,14 +1427,16 @@ public class CreateChainApplicationFacade {
           PipelineGates.recoveryTechnicalDetailsOf(waitPrompt).orElse(""),
           PipelineGates.recoveryRetryDelayMsOf(waitPrompt).orElse(null),
           doc == null ? "" : doc.run().runId(),
-          doc == null ? "" : doc.run().currentStageId());
+          doc == null ? "" : doc.run().currentStageId(),
+          offerId);
     }
     if (PipelineGates.MAPPING_GAP.equals(gateId)) {
       MappingGapWait.View view = MappingGapWait.parse(prompt);
       return new CreateChainPendingAction.Clarify(
-          view.question(), view.missingEdges(), gateId);
+          view.question(), view.missingEdges(), gateId, "", null, "", "", offerId);
     }
-    return new CreateChainPendingAction.Clarify(prompt, missingEvidence, gateId);
+    return new CreateChainPendingAction.Clarify(
+        prompt, missingEvidence, gateId, "", null, "", "", offerId);
   }
 
   private static String latestWaitingForInputReason(ProductPipelineRunDocument doc) {
@@ -1393,7 +1461,6 @@ public class CreateChainApplicationFacade {
     }
     return text;
   }
-
 
   private Optional<CreateChainEvent.ArtifactReady> materializationArtifact(
       String taskId, ProductPipelineRunDocument doc) {

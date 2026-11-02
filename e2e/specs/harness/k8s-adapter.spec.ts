@@ -641,7 +641,9 @@ test.describe("k8s adapter", () => {
       { name: "brokers-micro-seed", dependencies: undefined, teardown: "suite-teardown", engineKind: "micro" },
       { name: "brokers-micro", dependencies: ["brokers-seed", "brokers-micro-seed"], teardown: undefined, engineKind: "micro" },
     ]);
-    expect(setup.absent).toEqual([]);
+    expect(setup.absent).toEqual([
+      { name: "env: specs/env/ai-recovery-lifecycle.spec.ts", reason: "owned Compose AI-service lifecycle" },
+    ]);
     // Only a tagged case stays classic: runtime-micro runs every file of specs/runtime/.
     const runtimeMicro = setup.projects.find((each) => each.name === "runtime-micro");
     expect(runtimeMicro?.grepInvert).toEqual(/@classic-only/);

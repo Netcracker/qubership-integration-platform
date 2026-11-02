@@ -19,6 +19,10 @@ public sealed interface ChatEvent {
 
   String REQUEST_CHANGES_ACTION = "request-changes";
 
+  String KEEP_REQUESTED_ACTION = "keep-requested";
+
+  String USE_RECOMMENDED_ACTION = "use-recommended";
+
   /** Leaves requirement discussion and starts planning from the ready draft. */
   String CONTINUE_TO_PLANNING_ACTION = "continue-to-planning";
 
@@ -434,8 +438,10 @@ public sealed interface ChatEvent {
           null);
     }
     if (pending instanceof PendingAction.Clarify clarify) {
+      String offerId = clarify.clarificationOfferId();
+      String id = offerId == null || offerId.isBlank() ? "clarify:" + revision : offerId;
       return new Decision(
-          "clarify:" + revision,
+          id,
           clarify.action(),
           text,
           null,

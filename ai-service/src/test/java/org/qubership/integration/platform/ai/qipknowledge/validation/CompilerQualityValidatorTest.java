@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.qipknowledge.validation;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -15,6 +16,135 @@ import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.NamingManifest;
 
 class CompilerQualityValidatorTest {
+  @Test
+  void anElementNameDoesNotDischargeTheSameRequiredRuntimeLiteral() {
+    var brief = requiredScriptLiteral("settled", "settled");
+    var named = RequestedElementValues.apply(graph(), brief.facts());
+    assertTrue(CompilerQualityValidator.validateApprovedValues(
+        named.withNodeProperty("script", "script", "exchange.in.body = 'settled'"), brief).isEmpty());
+    var findings = CompilerQualityValidator.validateApprovedValues(
+        named.withNodeProperty("script", "script", "exchange.in.body = 'other'"), brief);
+    assertTrue(findings.stream().anyMatch(issue -> "MISSING_REQUIRED_SCRIPT_LITERAL".equals(issue.findingCode())),
+        findings.toString());
+  }
+
+  @Test
+  void onlyAMissingScriptLiteralKeepsTheRejectedGraph() {
+    var brief = requiredScriptLiteral("receipt-total");
+    var named = RequestedElementValues.apply(graph(), brief.facts());
+    var findings = CompilerQualityValidator.validateApprovedValues(
+        named.withNodeProperty("script", "script", "exchange.in.body = 'other'"), brief);
+
+    assertEquals(List.of("MISSING_REQUIRED_SCRIPT_LITERAL"),
+        findings.stream().map(ValidationIssue::findingCode).toList());
+    assertTrue(CompilerQualityValidator.onlyMissingScriptLiterals(findings));
+    assertFalse(CompilerQualityValidator.onlyMissingScriptLiterals(List.of()));
+    assertFalse(CompilerQualityValidator.onlyMissingScriptLiterals(List.of(
+        findings.getFirst(),
+        new ValidationIssue("other", ValidationSeverity.BLOCKER, "Name differs.",
+            "cip-naming-generator", List.of("script"), List.of(), "Restore the approved name.",
+            "NAME_MISMATCH", "script", "/requestedName"))));
+  }
+
+  @Test
+  void anAssignmentShapedResponseRemainsAnExactExecutableLiteral() {
+    var brief = requiredScriptLiteral("a=b");
+    assertTrue(CompilerQualityValidator.validateApprovedValues(
+        graph().withNodeProperty("script", "script", "exchange.in.body = 'a=b'"), brief).isEmpty());
+    for (String body : List.of("exchange.in.body = 'a=b changed'", "// a=b\nexchange.in.body = 'different'")) {
+      assertTrue(CompilerQualityValidator.validateApprovedValues(
+          graph().withNodeProperty("script", "script", body), brief).stream()
+          .anyMatch(issue -> "MISSING_REQUIRED_SCRIPT_LITERAL".equals(issue.findingCode())), body);
+    }
+  }
+
+  @Test
+  void composedOutputKeepsItsApprovedConstantSeparateFromRuntimeValues() {
+    var brief = requiredScriptLiteral("Record");
+    assertTrue(CompilerQualityValidator.validateApprovedValues(graph().withNodeProperty("script", "script",
+        "exchange.in.body = 'Record' + ' ' + exchange.getProperty('recordId')"), brief).isEmpty());
+    for (String body : List.of("exchange.in.body = 'Record changed'",
+        "exchange.in.body = \"Record ${exchange.getProperty('recordId')}\"")) {
+      assertTrue(CompilerQualityValidator.validateApprovedValues(
+          graph().withNodeProperty("script", "script", body), brief).stream()
+          .anyMatch(issue -> "MISSING_REQUIRED_SCRIPT_LITERAL".equals(issue.findingCode())), body);
+    }
+  }
+
+  @Test
+  void requiredWhitespaceIsPartOfTheExecutableConstant() {
+    var brief = requiredScriptLiteral("Ready ");
+    assertTrue(CompilerQualityValidator.validateApprovedValues(
+        graph().withNodeProperty("script", "script", "exchange.in.body = 'Ready '"), brief).isEmpty());
+    assertTrue(CompilerQualityValidator.validateApprovedValues(
+        graph().withNodeProperty("script", "script", "exchange.in.body = 'Ready'"), brief).stream()
+        .anyMatch(issue -> "MISSING_REQUIRED_SCRIPT_LITERAL".equals(issue.findingCode())));
+  }
+
+  private static org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief requiredScriptLiteral(
+      String literal) {
+    return requiredScriptLiteral(literal, null);
+  }
+
+  private static org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief requiredScriptLiteral(
+      String literal, String name) {
+    var intent = new org.qubership.integration.platform.ai.plan.RequirementElementIntent("script", "script",
+        org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.LOCAL_NODE,
+        "trigger", null, null, name, List.of(), List.of(literal));
+    var fact = new org.qubership.integration.platform.ai.plan.RequirementFact("response",
+        org.qubership.integration.platform.ai.plan.RequirementFactPolarity.POSITIVE,
+        org.qubership.integration.platform.ai.plan.RequirementFactKind.BEHAVIOR, "", "Produce the requested value.",
+        "", "", "", "", "", "", List.of("trigger"), null, intent);
+    return new org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief("goal", List.of(),
+        List.of(), List.of(), List.of(), "").withFacts(List.of(fact));
+  }
+
+  @Test
+  void actualQuoteCharactersRemainRequiredByTheNativeScriptValidator() {
+    var intent = new org.qubership.integration.platform.ai.plan.RequirementElementIntent("script", "script",
+        org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.LOCAL_NODE,
+        "trigger", null, null, null, List.of(), List.of("\"quoted-content\""));
+    var fact = new org.qubership.integration.platform.ai.plan.RequirementFact("quoted-response",
+        org.qubership.integration.platform.ai.plan.RequirementFactPolarity.POSITIVE,
+        org.qubership.integration.platform.ai.plan.RequirementFactKind.BEHAVIOR, "", "Include the quotation marks.",
+        "", "", "", "", "", "", List.of("trigger"), null, intent);
+    var brief = new org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief("goal", List.of(),
+        List.of(), List.of(), List.of(), "").withFacts(List.of(fact));
+    assertFalse(CompilerQualityValidator.validateApprovedValues(
+        graph().withNodeProperty("script", "script", "exchange.in.body = 'quoted-content'"), brief).isEmpty());
+    assertTrue(CompilerQualityValidator.validateApprovedValues(
+        graph().withNodeProperty("script", "script", "exchange.in.body = '\"quoted-content\"'"), brief).isEmpty());
+  }
+
+  @Test
+  void anOwnedScriptLiteralIsCheckedAfterGenerationInsteadOfReopeningRequirements() {
+    var intent = new org.qubership.integration.platform.ai.plan.RequirementElementIntent("script", "script",
+        org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.LOCAL_NODE,
+        "trigger", null, null, null, List.of(), List.of("accepted-body"));
+    var fact = new org.qubership.integration.platform.ai.plan.RequirementFact("reply",
+        org.qubership.integration.platform.ai.plan.RequirementFactPolarity.POSITIVE,
+        org.qubership.integration.platform.ai.plan.RequirementFactKind.BEHAVIOR, "", "Respond with accepted-body.",
+        "", "", "", "", "", "", List.of("trigger"), null, intent);
+    var brief = new org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief("goal", List.of(),
+        List.of(), List.of(), List.of(), "summary", "ref", "source", List.of(fact), List.of());
+    for (String script : List.of("exchange.in.body = 'different'", "// accepted-body\nexchange.in.body = 'different'")) {
+      var candidate = graph().withNodeProperty("script", "script", script);
+      var nodes = new java.util.ArrayList<>(candidate.nodes());
+      nodes.add(new ChainPlanNode("unrelated", "script", "accepted-body", null, null,
+          List.of(new PlanProperty("script", "exchange.in.body = 'accepted-body'"))));
+      candidate = new ChainPlanGraph(candidate.schemaVersion(), candidate.chain(), nodes, candidate.edges());
+      var findings = CompilerQualityValidator.validateApprovedValues(candidate, brief);
+      assertTrue(findings.stream().anyMatch(issue -> "MISSING_REQUIRED_SCRIPT_LITERAL".equals(issue.findingCode())
+          && "/elementIntent/exactValues".equals(issue.fieldPointer())
+          && "reply".equals(issue.originRecordId())), findings.toString());
+    }
+    assertTrue(CompilerQualityValidator.validateApprovedValues(
+        graph().withNodeProperty("script", "script", "exchange.in.body = 'accepted-body'"), brief).isEmpty());
+    assertTrue(org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause.fromFindingCode(
+        "MISSING_REQUIRED_SCRIPT_LITERAL")
+        == org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode.MISSING_REQUIRED_PROPERTY);
+  }
+
 
   @Test
   void approvedInlineHooksCannotBeOmittedOrReplacedByStandaloneScripts() {

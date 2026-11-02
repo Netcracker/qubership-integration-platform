@@ -7,6 +7,10 @@ import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactKind;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polarity;
+import org.qubership.integration.platform.ai.plan.RequirementElementIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
@@ -29,6 +33,27 @@ public final class RequirementFactFixtures {
           + " No API Hub import. No error handling wrapper. No RBAC. No MCP.";
 
   private RequirementFactFixtures() {}
+
+  public static FactInput nativeAnchorFact(String interactionId, String elementType) {
+    return new FactInput("native-" + interactionId, List.of(interactionId), FactKind.PARAMETER, Polarity.POSITIVE,
+        "Use the selected " + elementType + " element.", null, null,
+        new RequirementElementIntent(interactionId, elementType, RequirementElementIntent.Placement.ANCHOR,
+            interactionId, null, null, null, List.of(), List.of()));
+  }
+
+  public static org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput withNativeAnchors(
+      org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput input) {
+    var facts = new ArrayList<>(input.facts());
+    for (var capability : input.capabilities()) {
+      if (facts.stream().map(FactInput::elementIntent).noneMatch(intent -> intent != null
+          && intent.placement() == RequirementElementIntent.Placement.ANCHOR
+          && capability.interactionId().equals(intent.elementRef()))) {
+        facts.add(nativeAnchorFact(capability.interactionId(), capability.capabilityKey()));
+      }
+    }
+    return new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput(
+        input.flow(), facts, input.capabilities(), input.openQuestions(), input.settings());
+  }
 
   public static List<RequirementFact> greetingsFacts() {
     List<RequirementFact> facts = new ArrayList<>();

@@ -264,8 +264,22 @@ class CompilerPipelineIndexBuilderTest {
     if (addonContent == null) {
       throw new IllegalArgumentException("Missing addon content for " + skillId);
     }
-    String updatedAddonContent =
-        addonContent.replaceAll("(?s)  ownership:\\n.*?\\n  capture:", ownershipYaml + "\n  capture:");
+    String updatedAddonContent;
+    if (addonContent.stripLeading().startsWith("{")) {
+      try {
+        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        var runtime = mapper.readTree(addonContent);
+        var ownership = new com.fasterxml.jackson.databind.ObjectMapper(
+            new com.fasterxml.jackson.dataformat.yaml.YAMLFactory()).readTree(ownershipYaml).path("ownership");
+        ((com.fasterxml.jackson.databind.node.ObjectNode) runtime.path("runtime")).set("ownership", ownership);
+        updatedAddonContent = mapper.writeValueAsString(runtime);
+      } catch (java.io.IOException e) {
+        throw new IllegalArgumentException("Cannot replace runtime ownership", e);
+      }
+    } else {
+      updatedAddonContent = addonContent.replaceAll(
+          "(?s)  ownership:\\n.*?\\n  capture:", ownershipYaml + "\n  capture:");
+    }
     Map<String, String> addonContents = new java.util.LinkedHashMap<>(base.addonContentsById());
     addonContents.put(skillId, updatedAddonContent);
     Map<String, String> addonDigests = new java.util.LinkedHashMap<>(base.addonSha256ById());

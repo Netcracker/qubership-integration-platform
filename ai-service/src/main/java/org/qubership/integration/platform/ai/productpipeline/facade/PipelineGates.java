@@ -79,6 +79,12 @@ public final class PipelineGates {
    */
   public static final String STAGE_CLARIFICATION = "stage-clarification";
 
+  /** The author picks one catalog folder when the requested name matches several. */
+  public static final String TARGET_FOLDER_CHOICE = "target-folder-choice";
+
+  /** Recovery asks the author to repair one focused requirement finding. */
+  public static final String REQUIREMENT_RECOVERY_CLARIFICATION = "requirement-recovery-clarification";
+
   /**
    * Validation, domain, or contract halt with a diagnosed owner. Retry and Revise are both on the
    * card; Revise does not overwrite requirements.
@@ -190,7 +196,24 @@ public final class PipelineGates {
         || STAGE_INTERNAL_FAILURE.equals(gateId)
         || STAGE_ESCALATED.equals(gateId)
         || OWNER_CHOICE.equals(gateId)
-        || STAGE_CLARIFICATION.equals(gateId);
+        || admitsAuthoredClarification(gateId);
+  }
+
+  /**
+   * Author text at this wait resumes requirement discovery and is stamped
+   * {@code admittedInputGate}.
+   */
+  public static boolean admitsAuthoredClarification(String gateId) {
+    return STAGE_CLARIFICATION.equals(gateId)
+        || TARGET_FOLDER_CHOICE.equals(gateId)
+        || REQUIREMENT_RECOVERY_CLARIFICATION.equals(gateId);
+  }
+
+  /** An answer at this wait must not be stored as the generic requirement offer. */
+  public static boolean withholdsGenericRequirementOffer(String gateId) {
+    return TARGET_FOLDER_CHOICE.equals(gateId)
+        || REQUIREMENT_RECOVERY_CLARIFICATION.equals(gateId)
+        || IDS_PATH_CHOICE.equals(gateId);
   }
 
   /** True when the wait is a server-owned contextual recovery dialog. */

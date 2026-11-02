@@ -5,12 +5,67 @@ on:
     types: [opened, synchronize, reopened]
     paths:
       - 'ai-service/**'
+      - 'help/docs/**'
+      - 'ui/scripts/**'
+      - 'ui/src/services/documentation/**'
+      - 'ui/package.json'
+      - 'schemas/package.json'
+      - 'vscode-extension/package.json'
+      - 'package.json'
+      - 'package-lock.json'
       - 'schemas/**'
       - 'pom.xml'
+      - '.github/workflows/ai-service-build.yaml'
 
 permissions: {}
 
 jobs:
+  test-system:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+      - name: Set up Java
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          java-version: '21'
+          distribution: temurin
+      - name: Restore the Maven repository
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ runner.os }}-ai-service-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            maven-${{ runner.os }}-ai-service-
+            maven-${{ runner.os }}-
+      - name: Generate serialized clarification evidence
+        env:
+          MAVEN_GITHUB_USERNAME: ${{ github.actor }}
+          MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mvn --batch-mode -s .github/maven-settings.xml -f ai-service/pom.xml \
+            -Dtest=SerializedClarificationFlowTest -Dgpg.skip=true test
+      - name: Test runner and native report adapters
+        env:
+          PYTHONPATH: ai-service/e2e
+        run: python -m unittest discover -s ai-service/e2e/test_system/tests -v
+      - name: Test recovery evidence classifiers
+        run: python -m unittest discover -s ai-service/e2e/product-pipeline -p 'test_*.py'
+      - name: Test evaluator without a provider
+        working-directory: ai-service/e2e/evaluator
+        run: |
+          pip install -e '.[dev]'
+          pytest
+
   build:
     permissions:
       contents: read
@@ -45,4 +100,19 @@ jobs:
           pytest
 
       - name: Verify Dockerfile builds
-        run: docker build -t qip-knowledge-sidecar:ci ai-service/knowledge-sidecar
+        run: docker build -t qip-knowledge-sidecar:ci -f ai-service/knowledge-sidecar/Dockerfile .
+
+      - name: Read documentation from the immutable image
+        run: |
+          docker run --rm --read-only --network none --entrypoint python qip-knowledge-sidecar:ci -c '
+          from pathlib import Path
+          from qip_knowledge_sidecar.documentation import DocumentationStore
+          store = DocumentationStore(Path("/documentation"))
+          manifest = store.manifest()
+          result = store.search(manifest["checksum"], "http trigger", ["http-trigger"], 5)
+          assert result["results"], result
+          page = store.read(manifest["checksum"], result["results"][0]["id"], None, 256)
+          assert page["text"], page
+          assert len(page["text"].encode()) == page["endByte"] - page["startByte"], page
+          print(manifest)
+          '

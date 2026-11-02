@@ -17,10 +17,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Stream;
 
-/** Copies a compiler skill addon pack into build output and writes an addon index. */
+/** Copies runtime definitions into build output; legacy addon packs remain readable. */
 public final class CompilerSkillAddonBuildSupport {
 
   public static final String ADDONS_DIR = "addons";
+  public static final String RUNTIME_DIR = "runtime";
+  public static final String RUNTIME_INDEX_FILE = "skill-index.json";
   public static final String ADDON_INDEX_FILE = "addon-index.json";
 
   private static final ObjectMapper INDEX_MAPPER =
@@ -33,6 +35,38 @@ public final class CompilerSkillAddonBuildSupport {
   private CompilerSkillAddonBuildSupport() {}
 
   public static void materialize(Path addonPackRoot, Path versionOutputDir) throws IOException {
+    if (addonPackRoot != null && Files.isRegularFile(addonPackRoot.resolve("registry.json"))) {
+      Path runtimeDir = versionOutputDir.resolve(RUNTIME_DIR);
+      Path legacyDir = versionOutputDir.resolve(ADDONS_DIR);
+      if (Files.isDirectory(legacyDir)) {
+        try (Stream<Path> files = Files.walk(legacyDir)) {
+          for (Path file : files.sorted(Comparator.reverseOrder()).toList()) {
+            Files.delete(file);
+          }
+        }
+      }
+      if (Files.isDirectory(runtimeDir)) {
+        try (Stream<Path> files = Files.walk(runtimeDir)) {
+          for (Path file : files.sorted(Comparator.reverseOrder()).toList()) {
+            Files.delete(file);
+          }
+        }
+      }
+      copyTree(addonPackRoot, runtimeDir);
+      Map<String, CompilerSkillAddonIndex.CompilerSkillAddonSkillIndex> skills = new LinkedHashMap<>();
+      try (Stream<Path> files = Files.list(runtimeDir.resolve("skills"))) {
+        for (Path file : files.filter(path -> path.toString().endsWith(".json")).sorted().toList()) {
+          String id = file.getFileName().toString().replaceFirst("\\.json$", "");
+          AddonRuntimeMetadata metadata = readRuntimeMetadata(file, id);
+          skills.put(id, new CompilerSkillAddonIndex.CompilerSkillAddonSkillIndex(
+              null, listRelativeFiles(runtimeDir, "examples/" + id, ".json"), metadata));
+        }
+      }
+      INDEX_MAPPER.writerWithDefaultPrettyPrinter().writeValue(
+          runtimeDir.resolve(RUNTIME_INDEX_FILE).toFile(),
+          new CompilerSkillAddonIndex(List.of(), listRelativeFiles(runtimeDir, "global", ".yaml"), skills));
+      return;
+    }
     Path addonsDir = versionOutputDir.resolve(ADDONS_DIR);
     Files.createDirectories(addonsDir);
     if (addonPackRoot == null || !Files.isDirectory(addonPackRoot)) {

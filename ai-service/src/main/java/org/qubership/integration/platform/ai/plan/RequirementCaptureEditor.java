@@ -1,7 +1,9 @@
 package org.qubership.integration.platform.ai.plan;
 
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -27,6 +29,7 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.RetryI
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.TransitionInput;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContract;
+import org.qubership.integration.platform.ai.qipknowledge.validation.CompilerSecurityValidator;
 import org.qubership.integration.platform.ai.schema.ChainElementFamilies;
 
 /** Validates an authored requirement snapshot and applies focused edits without partial writes. */
@@ -34,7 +37,23 @@ public final class RequirementCaptureEditor {
 
   private static final Pattern LOCAL_ID = Pattern.compile("[A-Za-z][A-Za-z0-9_-]{0,63}");
 
-  public record Issue(String code, String path, String entityId, String message) {}
+  public record Issue(
+      String code, String path, String entityId, String message, List<String> relatedEntityIds) {
+    public Issue(String code, String path, String entityId, String message) {
+      this(code, path, entityId, message, List.of());
+    }
+
+    public Issue {
+      relatedEntityIds = copyIds(relatedEntityIds);
+    }
+  }
+
+  private static List<String> copyIds(List<String> ids) {
+    if (ids == null) {
+      return List.of();
+    }
+    return List.copyOf(ids.stream().filter(Objects::nonNull).toList());
+  }
 
   public record EditResult(DraftInput draft, List<Issue> issues, boolean changed, DraftInput candidate) {
     public EditResult(DraftInput draft, List<Issue> issues, boolean changed) {
@@ -46,6 +65,10 @@ public final class RequirementCaptureEditor {
   }
 
   private RequirementCaptureEditor() {}
+
+  static String localIdPattern() {
+    return LOCAL_ID.pattern();
+  }
 
   static boolean validFactId(String id) {
     return id != null && LOCAL_ID.matcher(id).matches();
@@ -76,7 +99,10 @@ public final class RequirementCaptureEditor {
   public static EditResult apply(DraftInput accepted, DraftUpdate update) {
     List<Issue> issues = new ArrayList<>();
     if (accepted == null) {
-      add(issues, "DRAFT_NOT_FOUND", "/changes", null, "Read or initialize the draft first.");
+      add(issues, "DRAFT_NOT_FOUND", "/changes", null,
+          "No accepted requirement draft exists. captureRequirementDraft initializes the draft;"
+              + " updateRequirementDraft requires an accepted base."
+              + " If initialization was rejected, correct the full candidate and call captureRequirementDraft again.");
       return new EditResult(null, List.copyOf(issues), false);
     }
     if (update == null) {
@@ -229,9 +255,9 @@ public final class RequirementCaptureEditor {
     if (!invalidOrder.isEmpty()) {
       var protectedCandidate = new DraftInput(candidate.flow(), factsToPreserve(candidate, invalidOrder),
           candidate.capabilities(), candidate.openQuestions(), candidate.settings());
-      return validateFactPreservation(factsToPreserve(accepted, invalidOrder), protectedCandidate, true, editableMappingPaths);
+      return validateFactPreservation(factsToPreserve(accepted, invalidOrder), protectedCandidate, editableMappingPaths);
     }
-    return validateFactPreservation(accepted.facts(), candidate, true, editableMappingPaths);
+    return validateFactPreservation(accepted.facts(), candidate, editableMappingPaths);
   }
 
   public static List<Issue> validateElementOrder(
@@ -278,9 +304,11 @@ public final class RequirementCaptureEditor {
     for (int i = 0; i < input.facts().size(); i++) {
       FactInput fact = input.facts().get(i);
       String prefix = "/draft/facts/" + i;
+      String stablePrefix = fact == null ? prefix : "/draft/facts/" + fact.sourceFactId();
       List<Issue> factIssues = issues.stream().filter(issue ->
-          (issue.path().equals(prefix) || issue.path().startsWith(prefix + "/"))
-              && !issue.path().equals(prefix + "/sourceFactId")
+          (issue.path().equals(prefix) || issue.path().startsWith(prefix + "/")
+              || issue.path().equals(stablePrefix) || issue.path().startsWith(stablePrefix + "/"))
+              && !issue.path().endsWith("/sourceFactId")
               || Objects.equals(issue.entityId(), fact == null ? null : fact.sourceFactId())
                   && (issue.path().startsWith("/draft/facts/") || issue.path().startsWith("/changes/facts/"))
                   && !issue.path().endsWith("/sourceFactId")).toList();
@@ -299,12 +327,14 @@ public final class RequirementCaptureEditor {
           }
         }
         facts.add(factIssues.isEmpty() ? fact : new FactInput(fact.sourceFactId(), List.copyOf(retainedTargets),
-            factIssues.stream().anyMatch(issue -> issue.path().endsWith("/kind")) ? null : fact.kind(),
+            factIssues.stream().anyMatch(issue -> issue.path().endsWith("/kind")
+                || "MAPPING_TRANSITION_REQUIRED".equals(issue.code())
+                || "MAPPING_FIELDS_REQUIRED".equals(issue.code())) ? null : fact.kind(),
             factIssues.stream().anyMatch(issue -> issue.path().endsWith("/polarity")) ? null : fact.polarity(),
             factIssues.stream().anyMatch(issue -> issue.path().endsWith("/text")) ? null : fact.text(),
             mappingToPreserve(fact.fieldMapping(), factIssues),
             factIssues.stream().anyMatch(issue -> issue.path().contains("/policyConflict")) ? null : fact.policyConflict(),
-            intentToPreserve(fact.elementIntent(), factIssues)));
+            intentToPreserve(fact.elementIntent(), factIssues), fact.evidence()));
       }
     }
     return List.copyOf(facts);
@@ -329,7 +359,8 @@ public final class RequirementCaptureEditor {
       return null;
     }
     Set<String> paths = new HashSet<>();
-    issues.stream().filter(issue -> issue.path().contains("/elementIntent")).forEach(issue -> paths.add(issue.path().substring(issue.path().indexOf("/elementIntent")
+    issues.stream().filter(issue -> !"UNBOUND_REQUIRED_LITERAL".equals(issue.code()))
+        .filter(issue -> issue.path().contains("/elementIntent")).forEach(issue -> paths.add(issue.path().substring(issue.path().indexOf("/elementIntent")
         + "/elementIntent".length())));
     var properties = intent.requestedProperties().stream().filter(property -> property != null
         && property.key() != null && !paths.contains("/requestedProperties")
@@ -344,16 +375,12 @@ public final class RequirementCaptureEditor {
         intent.ownerInteractionId(), paths.contains("/successorElementRef") ? null : intent.successorElementRef(),
         paths.contains("/predecessorElementRef") ? null : intent.predecessorElementRef(),
         paths.contains("/parentElementRef") ? null : intent.parentElementRef(),
-        paths.contains("/requestedName") ? null : intent.requestedName(), properties, values);
+        paths.contains("/requestedName") ? null : intent.requestedName(), properties, values,
+        paths.contains("/bodyBinding") ? null : intent.bodyBinding());
   }
 
   static List<Issue> validateFactPreservation(
-      List<FactInput> originalFacts, DraftInput candidate, boolean saved) {
-    return validateFactPreservation(originalFacts, candidate, saved, Map.of());
-  }
-
-  static List<Issue> validateFactPreservation(
-      List<FactInput> originalFacts, DraftInput candidate, boolean saved, Map<String, Set<String>> editableMappingPaths) {
+      List<FactInput> originalFacts, DraftInput candidate, Map<String, Set<String>> editableMappingPaths) {
     Set<String> interactions = new HashSet<>();
     candidate.flow().interactions().forEach(interaction -> interactions.add(interaction.interactionId()));
     Map<String, FactInput> facts = new HashMap<>();
@@ -375,54 +402,30 @@ public final class RequirementCaptureEditor {
           || (!original.interactionIds().isEmpty() && updated.interactionIds().isEmpty())
           || original.interactionIds().stream().anyMatch(id ->
               interactions.contains(id) && !updated.interactionIds().contains(id))
-          || !preservesElementIntent(original.elementIntent(), updated.elementIntent(), saved)
+          || !Objects.equals(original.elementIntent(), updated.elementIntent())
           || !sameMappingContent(original.fieldMapping(), updated.fieldMapping(), interactions,
-              editableMappingPaths.getOrDefault(original.sourceFactId(), Set.of()), saved)
-          || (saved || original.policyConflict() != null) && !Objects.equals(original.policyConflict() == null ? null : original.policyConflict().unresolved(),
+              editableMappingPaths.getOrDefault(original.sourceFactId(), Set.of()))
+          || !Objects.equals(original.policyConflict() == null ? null : original.policyConflict().unresolved(),
               updated.policyConflict() == null ? null : updated.policyConflict().unresolved())) {
-        add(issues, "REPAIR_FACT_LOSS", (saved ? "/changes" : "/draft")
-                + "/facts/" + original.sourceFactId(),
+        add(issues, "REPAIR_FACT_LOSS", "/changes/facts/" + original.sourceFactId(),
             original.sourceFactId(),
             "Preserve this fact's valid ID, kind, full text, polarity, and mapping values during repair."
                 + " Correct only reported fields; reassign references when removing an incorrect interaction."
                 + " Required fact text: " + original.text()
-                + (saved ? " The accepted draft was retained." : " No draft was saved."));
+                + " The accepted draft was retained.");
       }
     }
     return sorted(issues);
   }
 
-  private static boolean preservesElementIntent(
-      RequirementElementIntent original, RequirementElementIntent updated, boolean saved) {
-    if (saved) {
-      return Objects.equals(original, updated);
-    }
-    // Rejected captures protect validated values while their invalid representation remains repairable.
-    return original == null || updated != null
-        && Objects.equals(original.elementRef(), updated.elementRef())
-        && Objects.equals(original.elementType(), updated.elementType())
-        && original.placement() == updated.placement()
-        && preservesValue(original.ownerInteractionId(), updated.ownerInteractionId())
-        && preservesValue(original.successorElementRef(), updated.successorElementRef())
-        && preservesValue(original.predecessorElementRef(), updated.predecessorElementRef())
-        && preservesValue(original.parentElementRef(), updated.parentElementRef())
-        && preservesValue(original.requestedName(), updated.requestedName())
-        && updated.requestedProperties().containsAll(original.requestedProperties())
-        && updated.exactValues().containsAll(original.exactValues());
-  }
-
-  private static boolean preservesValue(String original, String updated) {
-    return original == null || original.equals(updated);
-  }
-
   private static boolean sameMappingContent(
-      FieldMappingInput original, FieldMappingInput updated, Set<String> interactions, Set<String> editablePaths, boolean saved) {
+      FieldMappingInput original, FieldMappingInput updated, Set<String> interactions, Set<String> editablePaths) {
     if (original == null || updated == null) {
-      return !saved && original == null || original == updated;
+      return original == updated;
     }
-    return (editablePaths.contains("sourcePath") || !saved && original.sourcePath() == null || Objects.equals(original.sourcePath(), updated.sourcePath()))
-        && (editablePaths.contains("targetPath") || !saved && original.targetPath() == null || Objects.equals(original.targetPath(), updated.targetPath()))
-        && (!saved && original.expression() == null || Objects.equals(original.expression(), updated.expression()))
+    return (editablePaths.contains("sourcePath") || Objects.equals(original.sourcePath(), updated.sourcePath()))
+        && (editablePaths.contains("targetPath") || Objects.equals(original.targetPath(), updated.targetPath()))
+        && (editablePaths.contains("expression") || Objects.equals(original.expression(), updated.expression()))
         && (!interactions.contains(original.sourceInteractionId())
             || Objects.equals(original.sourceInteractionId(), updated.sourceInteractionId()))
         && (!interactions.contains(original.targetInteractionId())
@@ -464,20 +467,38 @@ public final class RequirementCaptureEditor {
     for (int i = 0; i < additions.size(); i++) {
       T value = additions.get(i);
       String id = value == null ? null : identity.apply(value);
+      boolean alreadyTouched = touched.contains(id);
       if (id == null || !touched.add(id) || values.putIfAbsent(id, value) != null) {
+        String reason = id == null ? "the identity is null" : alreadyTouched
+            ? "this identity was already added, updated, or removed in this edit"
+            : "this identity already exists in the current draft";
         add(issues, "DUPLICATE_ENTITY", "/changes/" + operationField(family, "add") + "/" + i, id,
-            "questions".equals(family) && values.containsKey(id)
-                ? "Question '" + id + "' already exists. Reuse it or change it through updateQuestions."
+            "Rejected addition identity=" + id + " for " + family + ": " + reason
+                + ". Current " + family + " identities at this edit step: " + values.keySet()
+                + ". Use " + operationField(family, "update")
+                + " to change an existing identity, or omit it when unchanged. Add each new identity once."
+                + ("questions".equals(family) && values.containsKey(id)
+                    ? " Question '" + id + "' already exists. Reuse it or change it through updateQuestions."
                     + " Use STAY while awaiting the author answer; preserve the accepted flow and facts."
-                : "Add a new " + family + " identity once.");
+                    : ""));
       }
     }
     for (int i = 0; i < replacements.size(); i++) {
       T value = replacements.get(i);
       String id = value == null ? null : identity.apply(value);
+      boolean alreadyTouched = touched.contains(id);
       if (id == null || !touched.add(id) || (!upsert && !values.containsKey(id))) {
+        String reason = id == null ? "the identity is null" : alreadyTouched
+            ? "this identity was already added, updated, or removed in this edit"
+            : "this identity is absent from the current draft";
         add(issues, "CONFLICTING_EDIT", "/changes/" + operationField(family, "update") + "/" + i, id,
-            "Update an existing " + family + " identity once.");
+            "Rejected update identity=" + id + " for " + family + ": " + reason
+                + ". Current " + family + " identities at this edit step: " + values.keySet()
+                + ". Read the current draft and update an existing identity once."
+                + ("questions".equals(family) && id != null && !alreadyTouched
+                    ? " Use addQuestions only if this question is still required."
+                        + " Keep unresolved choices open and preserve the accepted flow and facts."
+                    : ""));
       } else {
         values.put(id, value);
       }
@@ -641,6 +662,13 @@ public final class RequirementCaptureEditor {
               "Use one positive CONSTRAINT tied to one interaction, distinct values, a policy ID,"
                   + " a property key, and a question ID.");
         }
+        if (CompilerSecurityValidator.EXTERNAL_RBAC_POLICY.equals(conflict.policyId())
+            && !CompilerSecurityValidator.matchesExternalRbacPolicy(conflict)) {
+          add(issues, "INVALID_POLICY_CONFLICT", path + "/policyConflict", fact.sourceFactId(),
+              "The external HTTP access-control policy recommends RBAC for requested NONE or ABAC."
+                  + " Correct the generated policy metadata. If the author already requested RBAC, remove the"
+                  + " invented conflict and its question; preserve the requested access control and roles.");
+        }
         boolean questionPresent = draft.openQuestions().stream()
             .anyMatch(q -> q != null && Objects.equals(q.questionId(), conflict.questionId())
                 && Objects.equals(q.interactionIds(), fact.interactionIds()));
@@ -667,7 +695,9 @@ public final class RequirementCaptureEditor {
                   + " value retained across a call, keep the save-before-call BEHAVIOR and map each"
                   + " result field on the delivery transition with sourcePath=null and an expression"
                   + " reading the saved original field. Preserve its original source and destination."
-                  + " Do not copy from the call response or add a transition that bypasses the call.");
+                  + " Do not copy from the call response or add a transition that bypasses the call."
+                  + " Local script output without a business transition is BEHAVIOR on its owner,"
+                  + " not a FIELD_MAPPING to an invented interaction or back to the incoming caller.");
         }
         if (!fact.interactionIds().contains(mapping.sourceInteractionId())
             || !fact.interactionIds().contains(mapping.targetInteractionId())) {
@@ -752,6 +782,7 @@ public final class RequirementCaptureEditor {
       }
       checkApplicable(issues, path, capability);
     }
+    issues.addAll(capabilityAnchorConflicts(draft));
     for (FactInput fact : draft.facts()) {
       if (fact == null || fact.elementIntent() == null) continue;
       var intent = fact.elementIntent();
@@ -776,10 +807,41 @@ public final class RequirementCaptureEditor {
     return sorted(issues);
   }
 
+  static List<Issue> capabilityAnchorConflicts(DraftInput draft) {
+    if (draft == null || draft.flow() == null || draft.flow().interactions() == null
+        || draft.facts() == null || draft.capabilities() == null) return List.of();
+    var issues = new ArrayList<Issue>();
+    for (var capability : draft.capabilities()) {
+      if (capability == null || blank(capability.interactionId()) || blank(capability.capabilityKey())) continue;
+      String owner = capability.interactionId();
+      if (draft.flow().interactions().stream().filter(interaction -> interaction != null
+          && owner.equals(interaction.interactionId())).count() != 1) continue;
+      var anchors = draft.facts().stream().filter(fact -> fact != null && fact.polarity() == Polarity.POSITIVE
+          && fact.interactionIds() != null && fact.interactionIds().contains(owner) && fact.elementIntent() != null)
+          .filter(fact -> fact.elementIntent().placement() == RequirementElementIntent.Placement.ANCHOR
+              && owner.equals(fact.elementIntent().elementRef()) && owner.equals(fact.elementIntent().ownerInteractionId())
+              && !blank(fact.elementIntent().elementType())).toList();
+      if (anchors.isEmpty()) continue;
+      var anchor = anchors.getFirst();
+      String type = anchor.elementIntent().elementType();
+      if (anchors.stream().anyMatch(fact -> !type.equals(fact.elementIntent().elementType()))
+          || capability.capabilityKey().equals(type)) continue;
+      add(issues, "CAPABILITY_ANCHOR_CONFLICT", "/draft/capabilities/" + owner + "/capabilityKey", owner,
+          "Native capability '" + capability.capabilityKey() + "' conflicts with positive ANCHOR fact '"
+              + anchor.sourceFactId() + "' of type '" + anchor.elementIntent().elementType() + "' for interaction '"
+              + owner + "'. Reconcile these declarations against the saved author source; do not invent a replacement anchor."
+              + ("service-call".equals(anchor.elementIntent().elementType())
+                  ? " A named catalog service call has no native capability record." : "")
+              + " An already admitted capability can change only through a source-linked amendment to '/capabilities/"
+              + owner + "' citing an exact eligible author quote; the conflict itself grants no amendment authority.");
+    }
+    return List.copyOf(issues);
+  }
+
   private static void validateElementIntents(DraftInput draft, Set<String> interactions,
       Map<String, List<String>> successors, List<Issue> issues) {
     Map<String, List<RequirementElementIntent>> intents = new HashMap<>();
-    String chainName = null;
+    Map<ElementIdentity, List<IndexedIntent>> byIdentity = new HashMap<>();
     for (FactInput fact : draft.facts()) {
       if (fact == null || fact.elementIntent() == null) {
         continue;
@@ -804,8 +866,13 @@ public final class RequirementCaptureEditor {
           && !Objects.equals(intent.elementRef(), intent.ownerInteractionId())
           || intent.placement() == RequirementElementIntent.Placement.LOCAL_NODE
               && interactions.contains(intent.elementRef())) {
-        add(issues, "INVALID_ELEMENT_REFERENCE", path, fact.sourceFactId(),
-            "An anchor uses its interaction ID; a local element uses a separate elementRef.");
+        add(issues, "INVALID_ELEMENT_REFERENCE", path + "/elementRef", fact.sourceFactId(),
+            "Rejected elementRef='" + intent.elementRef() + "' for placement=" + intent.placement()
+                + ", ownerInteractionId='" + intent.ownerInteractionId() + "', and business interaction IDs="
+                + interactions.stream().sorted().toList() + ". "
+                + (intent.placement() == RequirementElementIntent.Placement.ANCHOR
+                    ? "An ANCHOR elementRef must equal its ownerInteractionId."
+                    : "A LOCAL_NODE elementRef must differ from every business interaction ID."));
         continue;
       }
       if ((intent.placement() == RequirementElementIntent.Placement.BEFORE_HOOK
@@ -826,29 +893,11 @@ public final class RequirementCaptureEditor {
         add(issues, "INVALID_ELEMENT_PARENT", path + "/parentElementRef", fact.sourceFactId(),
             "Only a local element may request a containing element; anchors and inline hooks keep their existing owner.");
       }
-      if (chain && conflictingValue(chainName, intent.requestedName())) {
-        add(issues, "CONFLICTING_ELEMENT_INTENT", path, fact.sourceFactId(),
-            "Facts about the chain must agree on its requested name.");
-      }
-      if (chain && intent.requestedName() != null) {
-        chainName = intent.requestedName();
-      }
-      var priors = intents.computeIfAbsent(intent.elementRef(), ignored -> new ArrayList<>());
-      if (priors.stream().anyMatch(prior -> prior.placement() != intent.placement()
-          || !Objects.equals(prior.elementType(), intent.elementType())
-          || !Objects.equals(prior.ownerInteractionId(), intent.ownerInteractionId())
-          || conflictingValue(prior.requestedName(), intent.requestedName())
-          || conflictingValue(prior.successorElementRef(), intent.successorElementRef())
-          || conflictingValue(prior.predecessorElementRef(), intent.predecessorElementRef())
-          || conflictingValue(prior.parentElementRef(), intent.parentElementRef())
-          || prior.requestedProperties().stream().anyMatch(property -> intent.requestedProperties().stream()
-              .anyMatch(other -> property != null && other != null && property.key().equals(other.key())
-                  && !Objects.equals(property.value(), other.value()))))) {
-        add(issues, "CONFLICTING_ELEMENT_INTENT", path, fact.sourceFactId(),
-            "Facts about the same elementRef must agree on type, owner, placement, names, and supplied property values.");
-      }
-      priors.add(intent);
+      byIdentity.computeIfAbsent(ElementIdentity.of(intent), ignored -> new ArrayList<>())
+          .add(new IndexedIntent(fact, path));
+      intents.computeIfAbsent(intent.elementRef(), ignored -> new ArrayList<>()).add(intent);
     }
+    byIdentity.values().forEach(group -> addIdentityConflicts(issues, group));
     for (FactInput fact : draft.facts()) {
       var intent = fact == null ? null : fact.elementIntent();
       if (intent == null) {
@@ -858,15 +907,137 @@ public final class RequirementCaptureEditor {
       var fields = new String[] {"successorElementRef", "predecessorElementRef", "parentElementRef"};
       for (int i = 0; i < refs.length; i++) {
         String ref = refs[i];
-        if (ref != null && (!intents.containsKey(ref) && !interactions.contains(ref)
+        if (ref != null && (!LOCAL_ID.matcher(ref).matches()
+            || !intents.containsKey(ref) && !interactions.contains(ref)
             || ref.equals(intent.elementRef()))) {
           add(issues, "UNKNOWN_ELEMENT_REFERENCE", "/draft/facts/" + fact.sourceFactId()
               + "/elementIntent/" + fields[i], fact.sourceFactId(),
-              "Relative placement must name another accepted elementRef or business interaction.");
+              "Relative placement must name another accepted elementRef or business interaction."
+                  + referenceContext(draft, interactions, intents, intent.elementRef(), fields[i], ref));
         }
       }
       checkElementOrder(issues, intent, fact.sourceFactId(), interactions, successors);
     }
+  }
+
+  private static String referenceContext(DraftInput draft, Set<String> interactions,
+      Map<String, List<RequirementElementIntent>> intents, String currentElement, String field, String rejected) {
+    var ids = java.util.stream.Stream.concat(interactions.stream(), intents.keySet().stream())
+        .filter(RequirementCaptureEditor::validFactId).filter(id -> !id.equals(currentElement))
+        .distinct().sorted().toList();
+    var canonicalIds = JsonNodeFactory.instance.arrayNode();
+    ids.forEach(canonicalIds::add);
+    var declarations = JsonNodeFactory.instance.arrayNode();
+    draft.facts().stream().filter(fact -> fact != null && fact.elementIntent() != null
+        && ids.contains(fact.elementIntent().elementRef()))
+        .sorted(Comparator.comparing((FactInput fact) -> fact.elementIntent().elementRef())
+            .thenComparing(FactInput::sourceFactId, Comparator.nullsFirst(Comparator.naturalOrder())))
+        .forEach(fact -> declarations.addObject().put("sourceFactId", fact.sourceFactId())
+            .put("elementRef", fact.elementIntent().elementRef())
+            .put("requestedName", fact.elementIntent().requestedName())
+            .put("ownerInteractionId", fact.elementIntent().ownerInteractionId()));
+    return " Rejected " + field + "=" + JsonNodeFactory.instance.textNode(rejected)
+        + ". Canonical IDs recognized by this check: " + canonicalIds
+        + ". Candidate element declarations: " + declarations
+        + ". requestedName is display text, not a reference alias. Use canonical IDs in reference fields."
+        + " These declarations are diagnostic context; other owner and order checks still apply.";
+  }
+
+  private record IndexedIntent(FactInput fact, String path) {}
+
+  private static void addIdentityConflicts(List<Issue> issues, List<IndexedIntent> group) {
+    int count = group.size();
+    var parent = new int[count];
+    for (int index = 0; index < count; index++) {
+      parent[index] = index;
+    }
+    for (int left = 0; left < count; left++) {
+      for (int right = left + 1; right < count; right++) {
+        if (elementIntentConflicts(group.get(left).fact().elementIntent(), group.get(right).fact().elementIntent())) {
+          int leftRoot = find(parent, left);
+          int rightRoot = find(parent, right);
+          if (leftRoot != rightRoot) {
+            parent[rightRoot] = leftRoot;
+          }
+        }
+      }
+    }
+    var components = new HashMap<Integer, List<Integer>>();
+    for (int index = 0; index < count; index++) {
+      components.computeIfAbsent(find(parent, index), ignored -> new ArrayList<>()).add(index);
+    }
+    for (var component : components.values()) {
+      if (component.size() < 2) {
+        continue;
+      }
+      var relatedEntityIds = component.stream()
+          .map(index -> group.get(index).fact().sourceFactId())
+          .filter(Objects::nonNull)
+          .sorted()
+          .toList();
+      var relatedPaths = component.stream().map(index -> group.get(index).path()).sorted().toList();
+      String message = conflictMessage(group, component);
+      for (int index : component) {
+        IndexedIntent item = group.get(index);
+        var finding = new RequirementFinding(
+            "CONFLICTING_ELEMENT_INTENT", item.path(), item.fact().sourceFactId(),
+            relatedPaths, relatedEntityIds, List.of(), message);
+        issues.add(new Issue(
+            finding.code(), finding.path(), finding.entityId(), finding.message(), finding.relatedEntityIds()));
+      }
+    }
+  }
+
+  private static int find(int[] parent, int index) {
+    while (parent[index] != index) {
+      index = parent[index];
+    }
+    return index;
+  }
+
+  private static String conflictMessage(List<IndexedIntent> group, List<Integer> component) {
+    boolean chain = group.get(component.getFirst()).fact().elementIntent().placement()
+        == RequirementElementIntent.Placement.CHAIN;
+    boolean nameConflict = false;
+    boolean otherConflict = false;
+    for (int left = 0; left < component.size(); left++) {
+      for (int right = left + 1; right < component.size(); right++) {
+        var prior = group.get(component.get(left)).fact().elementIntent();
+        var intent = group.get(component.get(right)).fact().elementIntent();
+        if (conflictingValue(prior.requestedName(), intent.requestedName())) {
+          nameConflict = true;
+        }
+        if (elementIntentConflictsExceptName(prior, intent)) {
+          otherConflict = true;
+        }
+      }
+    }
+    if (chain && nameConflict && !otherConflict) {
+      return "Facts about the chain must agree on its requested name.";
+    }
+    return "Facts about the same elementRef must agree on type, owner, placement, names, and supplied property values.";
+  }
+
+  private static boolean elementIntentConflicts(RequirementElementIntent prior, RequirementElementIntent intent) {
+    return elementIntentConflictsExceptName(prior, intent)
+        || conflictingValue(prior.requestedName(), intent.requestedName());
+  }
+
+  private static boolean elementIntentConflictsExceptName(
+      RequirementElementIntent prior, RequirementElementIntent intent) {
+    return prior.placement() != intent.placement()
+        || !Objects.equals(prior.elementType(), intent.elementType())
+        || !Objects.equals(prior.ownerInteractionId(), intent.ownerInteractionId())
+        || conflictingValue(prior.successorElementRef(), intent.successorElementRef())
+        || conflictingValue(prior.predecessorElementRef(), intent.predecessorElementRef())
+        || conflictingValue(prior.parentElementRef(), intent.parentElementRef())
+        || propertyValuesConflict(prior, intent);
+  }
+
+  private static boolean propertyValuesConflict(RequirementElementIntent prior, RequirementElementIntent intent) {
+    return prior.requestedProperties().stream().anyMatch(property -> intent.requestedProperties().stream()
+        .anyMatch(other -> property != null && other != null && property.key().equals(other.key())
+            && !Objects.equals(property.value(), other.value())));
   }
 
   private static boolean conflictingValue(String left, String right) {
@@ -976,7 +1147,8 @@ public final class RequirementCaptureEditor {
   private static void checkId(List<Issue> issues, String id, String path) {
     if (id == null || !LOCAL_ID.matcher(id).matches()) {
       add(issues, "INVALID_VALUE", path, null,
-          "Use a local ID beginning with a letter and at most 64 characters.");
+          "Use a local ID matching " + LOCAL_ID.pattern()
+              + ": start with an ASCII letter, then use letters, digits, underscores, or hyphens.");
     }
   }
 

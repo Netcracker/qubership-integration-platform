@@ -20,4 +20,9 @@ public interface GatherRequirementsAgent {
   @dev.langchain4j.service.SystemMessage(fromResource = "prompts/gather-requirements-system.md")
   Multi<String> chat(@MemoryId String conversationId, @UserMessage String userMessage,
       dev.langchain4j.invocation.InvocationParameters invocationParameters);
+
+  @dev.langchain4j.service.SystemMessage(fromResource = "prompts/gather-requirements-system.md")
+  Multi<String> chat(@MemoryId String conversationId, @UserMessage String userMessage,
+      dev.langchain4j.invocation.InvocationParameters invocationParameters,
+      dev.langchain4j.model.chat.request.ChatRequestParameters requestParameters);
 }
