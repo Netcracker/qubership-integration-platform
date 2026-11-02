@@ -769,8 +769,8 @@ export class Catalog {
    * rows with the ids it sent.
    */
   async deployChains(chainIds: string[], domains: string[], options: RequestTimeout = {}): Promise<BulkDeploymentRow[]> {
-    const response = await this.raw("post", "/v1/cr/deploy-chains", { chainIds, domains }, options);
-    if (!response.ok()) await fail(response, "POST", `${this.base}/v1/cr/deploy-chains`);
+    const response = await this.raw("post", "/v2/catalog/chains/deployments/bulk", { chainIds, domains }, options);
+    if (!response.ok()) await fail(response, "POST", `${this.base}/v2/catalog/chains/deployments/bulk`);
     return (await response.json()) as BulkDeploymentRow[];
   }
 

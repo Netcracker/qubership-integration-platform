@@ -25,7 +25,6 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Deployment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ChainRepository;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentRequest;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentResponse;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentSnapshotAction;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentStatus;
@@ -153,20 +152,7 @@ class BulkDeploymentServiceTest {
         return deployment;
     }
 
-    private static BulkDeploymentRequest bulkRequest(List<String> chainIds, String... domains) {
-        return BulkDeploymentRequest.builder()
-                .domains(List.of(domains))
-                .chainIds(chainIds)
-                .build();
-    }
-
     private List<BulkDeploymentResponse> deployChains(DeployWithSnapshotCreationRequest request) {
-        List<BulkDeploymentResponse> result = new ArrayList<>();
-        service.deployChains(request, result::add);
-        return result;
-    }
-
-    private List<BulkDeploymentResponse> deployChains(BulkDeploymentRequest request) {
         List<BulkDeploymentResponse> result = new ArrayList<>();
         service.deployChains(request, result::add);
         return result;
@@ -459,7 +445,7 @@ class BulkDeploymentServiceTest {
         doThrow(new EntityExistsException(conflictMessage))
                 .when(deploymentService).checkTriggers(eq("classic-domain"), eq("s-b"), eq("chain-B"), any());
 
-        List<BulkDeploymentResponse> result = deployChains(bulkRequest(List.of("chain-A", "chain-B"), "classic-domain"));
+        List<BulkDeploymentResponse> result = deployChains(bulkDeployRequest(List.of("chain-A", "chain-B"), "classic-domain"));
 
         assertThat(result)
                 .extracting(BulkDeploymentResponse::getChainId, BulkDeploymentResponse::getStatus)
@@ -534,7 +520,7 @@ class BulkDeploymentServiceTest {
         Snapshot snapshot = snapshot("s1", chain);
         when(deploymentService.provideSnapshots(any(), any(), any())).thenReturn(Map.of("chain-1", snapshot));
 
-        List<BulkDeploymentResponse> result = deployChains(bulkRequest(List.of("chain-1"), "micro-domain"));
+        List<BulkDeploymentResponse> result = deployChains(bulkDeployRequest(List.of("chain-1"), "micro-domain"));
 
         assertThat(result)
                 .extracting(BulkDeploymentResponse::getStatus, response -> response.getDomain().getType())
