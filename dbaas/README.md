@@ -31,9 +31,9 @@ of the Core Operator resources.
 | --- | --- | --- |
 | `NAMESPACE` | none | Namespace the resources are created in. Required. |
 | `API_DBAAS_ADDRESS` | `http://dbaas-aggregator.dbaas:8080` | Address of dbaas-aggregator. The second segment of its host is the namespace of the DBaaS Operator, written to `spec.operatorNamespace`. |
-| `CATALOG_SERVICE_NAME` | `qip-runtime-catalog` | Microservice that owns the runtime-catalog database. |
-| `ENGINE_SERVICE_NAME` | `qip-engine` | Microservice that owns the engine databases. |
-| `SESSIONS_MANAGEMENT_SERVICE_NAME` | `qip-sessions-management` | Service granted `admin` on the engine OpenSearch database. |
+| `CATALOG_SERVICE_NAME` | `cip-runtime-catalog` | Microservice that owns the runtime-catalog database. |
+| `ENGINE_SERVICE_NAME` | `cip-engine` | Microservice that owns the engine databases. |
+| `SESSIONS_MANAGEMENT_SERVICE_NAME` | `cip-sessions-management` | Service granted `admin` on the engine OpenSearch database. |
 | `STREAMING_PLATFORM_SERVICE_NAME` | empty | Service granted `admin` and `ism` on the engine OpenSearch database. Leave it empty to omit the grant. |
 | `SYSTEMS_CATALOG_SERVICE_NAME` | empty | Legacy systems-catalog service granted `admin` on the runtime-catalog databases. Leave it empty to omit the grant. |
 
