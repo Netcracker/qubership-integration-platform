@@ -100,7 +100,7 @@ export const ActionLogSidebar: React.FC<ActionLogSidebarProps> = ({
           title: (groupKey) => `${groupKey}`,
         }}
         itemRender={(item) => (
-          <Row wrap={false}>
+          <Row wrap={false} gutter={4}>
             <Col span={8}>{item.key}</Col>
             <Col>{item.value}</Col>
           </Row>
