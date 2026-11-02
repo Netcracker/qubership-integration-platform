@@ -7,10 +7,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.cr.BulkDeploymentService;
 import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainResourceBuildService;
 import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainService;
-import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.DeployWithSnapshotCreationRequest;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildRequest;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceDeployRequest;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -50,17 +48,6 @@ public class CustomResourceController {
         log.debug("Request to build a CR for snapshots: {}", request.getSnapshotIds());
         return microDomainService.verifyMicroDomainEnabled(() ->
                 microDomainResourceBuildService.buildResources(request, false).yaml());
-    }
-
-    @PostMapping("/deploy-chains")
-    @Operation(description = "Deploy with creation of snapshots as Camel-K Integration resource")
-    @Deprecated(since = "2026.4")
-    public ResponseEntity<List<BulkDeploymentResponse>> deployChains(
-            @Valid @RequestBody DeployWithSnapshotCreationRequest request
-    ) {
-        List<BulkDeploymentResponse> result = new ArrayList<>();
-        bulkDeploymentService.deployChains(request, result::add);
-        return ResponseEntity.ok(result);
     }
 
     @PostMapping("/deploy")

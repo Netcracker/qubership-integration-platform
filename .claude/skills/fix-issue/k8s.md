@@ -34,7 +34,7 @@ Seed chains through the catalog as on Compose, then deploy them to a micro domai
 run token, so no other session's domain changes under you:
 
 ```bash
-curl -s -X POST localhost:30091/v1/cr/deploy-chains -H 'Content-Type: application/json' \
+curl -s -X POST localhost:30091/v2/catalog/chains/deployments/bulk -H 'Content-Type: application/json' \
   -d '{"chainIds":["<id>"],"domains":["r<N>"]}'
 curl -s -X DELETE localhost:30091/v1/cr/r<N>            # at the end: Integration, Service, ConfigMaps, routes
 ```

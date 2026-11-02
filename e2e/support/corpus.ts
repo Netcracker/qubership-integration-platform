@@ -410,7 +410,7 @@ export async function deployToMicroDomain(catalog: Catalog, domain: string, chai
   });
   expect(
     rows.map((row) => `${row.chainId} ${row.status}${row.errorMessage ? `: ${row.errorMessage}` : ""}`).sort(),
-    "deploy-chains drops an unknown id silently, so every chain needs one CREATED row",
+    "v2 /bulk drops an unknown id silently, so every chain needs one CREATED row",
   ).toEqual(chains.map((each) => `${each.id} CREATED`).sort());
 }
 
@@ -751,7 +751,7 @@ function microDomainName(run: string): string {
 }
 
 /**
- * How long the micro routes get to answer after `deploy-chains`: the operator creates the pod, and
+ * How long the micro routes get to answer after `v2 /bulk`: the operator creates the pod, and
  * the engine loads every chain before it serves one.
  *
  * Measured on Docker Desktop's Kubernetes: 63 to 73 s for the 48 chains, in the seed's log line.

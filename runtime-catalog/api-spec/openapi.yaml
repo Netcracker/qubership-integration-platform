@@ -20,6 +20,8 @@ tags:
   name: actions-log-export-controller
 - description: Bulk Deployment Controller
   name: bulk-deployment-controller
+- description: Bulk Deployment Controller V2
+  name: bulk-deployment-controller-v-2
 - description: Chain Controller
   name: chain-controller
 - description: Chain Design Controller
@@ -3348,28 +3350,6 @@ paths:
           description: OK
       tags:
       - custom-resource-controller
-  /v1/cr/deploy-chains:
-    post:
-      deprecated: true
-      description: Deploy with creation of snapshots as Camel-K Integration resource
-      operationId: deployChains
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/DeployWithSnapshotCreationRequest"
-        required: true
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/BulkDeploymentResponse"
-          description: OK
-      tags:
-      - custom-resource-controller
   /v1/cr/{name}:
     delete:
       deprecated: true
@@ -5261,6 +5241,27 @@ paths:
           description: OK
       tags:
       - actions-log-controller-v2
+  /v2/catalog/chains/deployments/bulk:
+    post:
+      description: Deploy with creation of snapshots as Camel-K Integration resource
+      operationId: deployChains
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeployWithSnapshotCreationRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BulkDeploymentResponse"
+          description: OK
+      tags:
+      - bulk-deployment-controller-v-2
   /v2/catalog/snapshots/bulk-delete:
     post:
       description: Bulk delete snapshots
@@ -6296,21 +6297,6 @@ components:
             type: string
             minLength: 1
             pattern: "^[-._a-zA-Z0-9]+$"
-        microDomains:
-          type: array
-          description: Names to create as micro domains. An undiscovered name absent
-            from this list is deployed as a classic domain; a listed name the catalog
-            discovers as CLASSIC is reported as a failed deployment
-          items:
-            type: string
-            minLength: 1
-            pattern: "^[-._a-zA-Z0-9]+$"
-        mode:
-          type: string
-          description: Deploy mode
-          enum:
-          - REWRITE
-          - APPEND
         snapshotAction:
           type: string
           description: Which snapshot should be taken during bulk deploy

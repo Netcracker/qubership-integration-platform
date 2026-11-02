@@ -16,7 +16,6 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Deployment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ChainRepository;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentRequest;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentResponse;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentSnapshotAction;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentStatus;
@@ -73,43 +72,6 @@ public class BulkDeploymentService {
     public void deployChains(DeployWithSnapshotCreationRequest request, Consumer<BulkDeploymentResponse> resultConsumer) {
         forClassicAndMicroDomains(request.getDomains(), (classicDomainNames, microDomainNames) -> {
             Collection<Snapshot> snapshots = getSnapshots(request.getChainIds(), request.getSnapshotAction(), resultConsumer);
-            List<Deployment> replacedDeployments = findReplacedDeployments(classicDomainNames.stream()
-                .collect(Collectors.toMap(Function.identity(), domain -> snapshots, (first, second) -> first)));
-            List<BulkDeploymentResponse> deployResponses = new ArrayList<>();
-            deploySnapshots(snapshots, classicDomainNames, microDomainNames, request.getMode(),
-                replacedDeployments, deployResponses::add);
-            recheckCreatedDeployments(snapshots, replacedDeployments, deployResponses);
-            deployResponses.forEach(resultConsumer);
-        });
-    }
-
-    @Transactional
-    public void deployChains(BulkDeploymentRequest request, Consumer<BulkDeploymentResponse> resultConsumer) {
-        Collection<String> chainIds = request.getChainIds() == null || request.getChainIds().isEmpty()
-            ? chainRepository.findAll().stream().map(Chain::getId).toList()
-            : request.getChainIds();
-        List<String> declaredMicro = nonNull(request.getMicroDomains()) ? request.getMicroDomains() : List.of();
-        Map<String, DomainType> discovered = discoveredDomainTypes();
-        List<String> contradicted = request.getDomains().stream()
-            .filter(name -> declaredMicro.contains(name) && discovered.containsKey(name)
-                && discovered.get(name) != DomainType.MICRO)
-            .toList();
-        Map<DomainType, List<String>> domainByType = request.getDomains().stream()
-            .filter(name -> !contradicted.contains(name))
-            .collect(Collectors.groupingBy(name -> declaredMicro.contains(name)
-                || discovered.get(name) == DomainType.MICRO
-                ? DomainType.MICRO
-                : DomainType.CLASSIC));
-        runForClassicAndMicro(domainByType, (classicDomainNames, microDomainNames) -> {
-            Collection<Snapshot> snapshots = getSnapshots(chainIds, request.getSnapshotAction(), resultConsumer);
-            contradicted.forEach(name -> buildResponseForSnapshots(
-                    snapshots,
-                    name,
-                    discovered.get(name),
-                    BulkDeploymentStatus.FAILED_DEPLOY,
-                    String.format("Domain %s is discovered as %s, the request declares %s",
-                        name, discovered.get(name), DomainType.MICRO))
-                .forEach(resultConsumer));
             List<Deployment> replacedDeployments = findReplacedDeployments(classicDomainNames.stream()
                 .collect(Collectors.toMap(Function.identity(), domain -> snapshots, (first, second) -> first)));
             List<BulkDeploymentResponse> deployResponses = new ArrayList<>();

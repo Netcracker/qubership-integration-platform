@@ -2055,7 +2055,7 @@ export class RestApi implements Api {
     request: BulkDeploymentRequest,
   ): Promise<BulkDeploymentResult[]> => {
     const response = await this.instance.post<BulkDeploymentResult[]>(
-      `${this.v1()}/catalog/chains/deployments/bulk`,
+      `${this.v2()}/catalog/chains/deployments/bulk`,
       request,
     );
     return response.data;
