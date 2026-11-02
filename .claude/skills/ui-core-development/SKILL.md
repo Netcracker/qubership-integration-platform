@@ -162,6 +162,10 @@ const { isDark, isVSCodeWebview, palette } = useVSCodeTheme();
 - `palette` for resolved VS Code colors, with the browser fallbacks applied when a variable is
   absent.
 
+Outside a component, detect the webview with `isVsCodeWebview()` from `misc/isVsCodeWebview.ts`,
+which checks that `acquireVsCodeApi` is a function. The protocol is `vscode-webview:` on desktop
+and `http:` or `https:` in VS Code for the web.
+
 The hook also returns `isHighContrast`, `colors`, and `fonts`, which come from the theme the host
 sends, so in the browser they keep their defaults and `isHighContrast` is `false`. Code that has to
 detect high contrast in both runtimes reads `data-theme` on `:root`, as `hooks/useMonacoTheme.ts`
