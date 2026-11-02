@@ -37,6 +37,35 @@ class HttpTriggerCaptureToolTest {
     MDC.remove(CompilerSkillMdc.CAPABILITY_ID);
   }
 
+  @Test void aDifferentEndpointDefectAfterACorrectionStillAllowsARepairTurn() {
+    var feedback = new CaptureAttemptFeedbackStore();
+    var tool = new HttpTriggerCaptureTool(null, new CaptureSession(), feedback,
+        new ObjectMapper().findAndRegisterModules());
+    HttpTriggerCaptureAdapterTest.binding();
+
+    tool.capture(new HttpTriggerCapture(List.of(
+        new HttpTriggerCapture.Endpoint("http-entry", "ghost", false))), CONVERSATION);
+    var missingRoute = assertDoesNotThrow(() -> tool.capture(new HttpTriggerCapture(List.of(
+        new HttpTriggerCapture.Endpoint("http-entry", "http-trigger-1", null))), CONVERSATION));
+
+    assertEquals("MISSING_FIELD /capture/endpoints/0/externalRoute",
+        missingRoute.issues().getFirst().code() + " " + missingRoute.issues().getFirst().path());
+    assertTrue(feedback.lastPlanFailure(CONVERSATION).orElseThrow().outerAllowed());
+  }
+
+  @Test void theSameEndpointDefectWithAnotherValueEndsTheRepairLoop() {
+    var feedback = new CaptureAttemptFeedbackStore();
+    var tool = new HttpTriggerCaptureTool(null, new CaptureSession(), feedback,
+        new ObjectMapper().findAndRegisterModules());
+    HttpTriggerCaptureAdapterTest.binding();
+
+    tool.capture(new HttpTriggerCapture(List.of(
+        new HttpTriggerCapture.Endpoint("http-entry", "ghost", false))), CONVERSATION);
+
+    assertThrows(CaptureValidationException.class, () -> tool.capture(new HttpTriggerCapture(List.of(
+        new HttpTriggerCapture.Endpoint("http-entry", "phantom", false))), CONVERSATION));
+  }
+
   @Test void distinctArgumentFieldsDoNotShareRejectionCredit() {
     var mapper = new ObjectMapper().findAndRegisterModules();
     var feedback = new CaptureAttemptFeedbackStore();
@@ -128,7 +157,7 @@ class HttpTriggerCaptureToolTest {
         new HttpTriggerCapture.Endpoint("http-entry", "http-trigger-1", false)));
 
     var rejected = tool.capture(proposal, CONVERSATION);
-    assertEquals("CAPTURE_SHAPE_INVALID", rejected.issues().getFirst().code());
+    assertEquals("UNKNOWN_NODE", rejected.issues().getFirst().code());
     var history = artifacts.history(sessions.current(CONVERSATION).orElseThrow().compilationId(),
         CompilationArtifacts.Kind.CAPTURE_ATTEMPT_FEEDBACK);
     assertEquals(1, history.size());

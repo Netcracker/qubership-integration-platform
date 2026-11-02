@@ -1,8 +1,10 @@
 package org.qubership.integration.platform.ai.compiler;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.model.chat.request.json.JsonArraySchema;
 import dev.langchain4j.model.chat.request.json.JsonBooleanSchema;
@@ -18,6 +20,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.qubership.integration.platform.ai.compiler.artifact.ArtifactBlobStore;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import jakarta.inject.Inject;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -92,6 +95,21 @@ class HttpTriggerCaptureSchemaTest {
     assertTrue(execute("""
         {"capture":{"endpoints":[],"endpoints":[]}}
         """).contains("DUPLICATE_JSON_KEY"));
+  }
+
+  @Test
+  void generatedBoundaryReportsEveryArgumentIssueInOneResult() throws Exception {
+    HttpTriggerCaptureAdapterTest.binding();
+    ToolSession.bind(CONVERSATION);
+
+    var result = new ObjectMapper().readTree(execute("""
+        {"capture":{"endpoints":[{"roleId":"http-entry","semanticNodeId":"http-trigger-1"}],"properties":[]}}
+        """));
+
+    List<String> issues = new ArrayList<>();
+    result.path("issues").forEach(issue -> issues.add(issue.path("code").asText() + " " + issue.path("path").asText()));
+    assertEquals(List.of(
+        "MISSING_FIELD /capture/endpoints/0/externalRoute", "UNEXPECTED_FIELD /capture/properties"), issues);
   }
 
   @Test

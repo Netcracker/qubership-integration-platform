@@ -81,6 +81,8 @@ public class HttpTriggerCaptureTool {
     try {
       String result = configuredTool.captureConfiguredTriggerSet(adapter.adapt(capture, binding));
       return rejected("TRIGGER_VALIDATION", "/endpoints", result, false);
+    } catch (HttpTriggerCaptureAdapter.Rejection rejection) {
+      return reject(conversationId, rejection.issues());
     } catch (IllegalArgumentException error) {
       return reject(conversationId, "CAPTURE_SHAPE_INVALID", "/endpoints", error.getMessage());
     } finally {
@@ -96,22 +98,33 @@ public class HttpTriggerCaptureTool {
   }
 
   public String rejectArguments(String conversationId, StructuredCaptureArguments.Issue issue) {
-    if (conversationId != null && captureSession.isPresent(
-        CaptureKey.conversation(CaptureSlot.CONFIGURED_TRIGGER_SET, conversationId))) {
-      return encode(rejected("DUPLICATE_CAPTURE", "/", "HTTP triggers already captured.", true));
-    }
-    return encode(reject(conversationId, issue.code(), issue.path(), issue.message(), approvedEntity(conversationId, issue, null)));
+    return rejectArguments(conversationId, List.of(issue), null, false);
   }
 
   public String rejectArguments(String conversationId, StructuredCaptureArguments.Issue issue,
       dev.langchain4j.agent.tool.ToolExecutionRequest request) {
-    feedbackStore.beginRejectedProposal(conversationId, CompilerGraphPatchTool.resolveCapabilityId(),
-        "captureHttpTriggers", request == null ? null : request.arguments(), request == null ? null : request.id());
+    return rejectArguments(conversationId, List.of(issue), request);
+  }
+
+  public String rejectArguments(String conversationId, List<StructuredCaptureArguments.Issue> issues,
+      dev.langchain4j.agent.tool.ToolExecutionRequest request) {
+    return rejectArguments(conversationId, issues, request, true);
+  }
+
+  private String rejectArguments(String conversationId, List<StructuredCaptureArguments.Issue> issues,
+      dev.langchain4j.agent.tool.ToolExecutionRequest request, boolean retainProposal) {
+    if (retainProposal) {
+      feedbackStore.beginRejectedProposal(conversationId, CompilerGraphPatchTool.resolveCapabilityId(),
+          "captureHttpTriggers", request == null ? null : request.arguments(), request == null ? null : request.id());
+    }
     if (conversationId != null && captureSession.isPresent(
         CaptureKey.conversation(CaptureSlot.CONFIGURED_TRIGGER_SET, conversationId))) {
       return encode(rejected("DUPLICATE_CAPTURE", "/", "HTTP triggers already captured.", true));
     }
-    return encode(reject(conversationId, issue.code(), issue.path(), issue.message(), approvedEntity(conversationId, issue, request)));
+    return encode(reject(conversationId, issues.stream()
+        .map(issue -> new CaptureToolOutcomeGateway.TypedIssue(issue.code(), issue.path(), issue.message(),
+            approvedEntity(conversationId, issue, request)))
+        .toList()));
   }
 
   private String approvedEntity(String conversationId, StructuredCaptureArguments.Issue issue,
@@ -138,26 +151,28 @@ public class HttpTriggerCaptureTool {
   }
 
   private Result reject(String conversationId, String code, String path, String message) {
-    return reject(conversationId, code, path, message, null);
+    return reject(conversationId, List.of(new CaptureToolOutcomeGateway.TypedIssue(code, path, message)));
   }
 
-  private Result reject(String conversationId, String code, String path, String message, String entity) {
+  private Result reject(String conversationId, List<CaptureToolOutcomeGateway.TypedIssue> issues) {
     var binding = HttpTriggerCaptureSession.get(conversationId).orElse(null);
     if (binding == null) {
       return rejected("CAPTURE_SESSION_NOT_FOUND", "/", "No active HTTP trigger capture.", true);
     }
-    message += " Approved roleIds: " + binding.skeleton().entryPointRoleIds()
+    String trailer = "\nApproved roleIds: " + binding.skeleton().entryPointRoleIds()
         + "; approved semanticNodeIds: " + binding.revision().entryPoints().stream()
             .map(org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint::triggerNodeId).toList()
         + ". Copy these identifiers exactly; paths and labels are not identifiers. externalRoute must be a JSON boolean.";
     var gateway = outcomeGateway == null
         ? new CaptureToolOutcomeGateway(feedbackStore.fingerprintStore(), feedbackStore) : outcomeGateway;
     gateway.onTypedPlanFailure(
-        conversationId, CompilerGraphPatchTool.resolveCapabilityId(), "captureHttpTriggers",
-        new CaptureToolOutcomeGateway.TypedIssue(code, path, message, entity));
-    return new Result(false, false, "REPAIR_CAPTURE", List.of(new Issue(code, path, message)), message,
-        feedbackStore.lastPlanFailure(conversationId).map(
-            org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedback::evidenceReference).orElse(null));
+        conversationId, CompilerGraphPatchTool.resolveCapabilityId(), "captureHttpTriggers", issues, trailer);
+    var saved = feedbackStore.lastPlanFailure(conversationId);
+    return new Result(false, false, "REPAIR_CAPTURE",
+        issues.stream().map(issue -> new Issue(issue.code(), issue.path(), issue.message())).toList(),
+        saved.map(org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedback::summary).orElse(""),
+        saved.map(org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedback::evidenceReference)
+            .orElse(null));
   }
 
   private static Result rejected(String code, String path, String message, boolean terminal) {
