@@ -116,7 +116,7 @@ test.describe("/v1/cr custom resources", { tag: ["@catalog", "@engine", "@slow"]
           .toEqual([405, 404]);
       });
 
-      await test.step("DELETE /v1/cr/{name} removes the Integration and its ConfigMaps", async () => {
+      await test.step("DELETE /v1/catalog/domains/{domainName} removes the Integration and its ConfigMaps", async () => {
         await catalog.deleteCustomResource(domain);
         deployed = false;
         expect(await integration(resource)).toBeNull();

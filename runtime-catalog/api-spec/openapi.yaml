@@ -3350,22 +3350,6 @@ paths:
           description: OK
       tags:
       - custom-resource-controller
-  /v1/cr/{name}:
-    delete:
-      deprecated: true
-      description: Delete Camel-K Integration resource
-      operationId: deleteResource
-      parameters:
-      - in: path
-        name: name
-        required: true
-        schema:
-          type: string
-      responses:
-        "200":
-          description: OK
-      tags:
-      - custom-resource-controller
   /v1/design-generator/chains/{chainId}:
     get:
       deprecated: true

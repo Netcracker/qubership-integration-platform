@@ -116,11 +116,10 @@ public class EngineController {
     @Operation(description = "Delete Camel-K Integration resource of the domain")
     ResponseEntity<Void> deleteDomain(@PathVariable @Parameter(description = "Engine domain name") String domainName) {
         log.info("Request to delete engine domain {}", domainName);
-        if (!domainProperties.getMicro().isEnabled()) {
-            throw new DomainTypeDisabledException(DomainType.MICRO);
-        }
-        microDomainService.delete(domainName);
-        return ResponseEntity.noContent().build();
+        return microDomainService.verifyMicroDomainEnabled(() -> {
+            microDomainService.delete(domainName);
+            return ResponseEntity.noContent().build();
+        });
     }
 
     @GetMapping("/{domainName}/deployments/count")

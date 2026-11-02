@@ -61,15 +61,4 @@ public class CustomResourceController {
             return ResponseEntity.ok().build();
         });
     }
-
-    @DeleteMapping("/{name}")
-    @Operation(description = "Delete Camel-K Integration resource")
-    @Deprecated(since = "2026.4")
-    public ResponseEntity<Void> deleteResource(@PathVariable String name) {
-        log.debug("Request to delete a Camel-K custom resource with name {}", name);
-        return microDomainService.verifyMicroDomainEnabled(() -> {
-            microDomainService.delete(name);
-            return ResponseEntity.ok().build();
-        });
-    }
 }
