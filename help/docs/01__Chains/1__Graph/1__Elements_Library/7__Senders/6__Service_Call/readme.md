@@ -231,4 +231,4 @@ The tab is responsible for configuring common Service call parameters.
 
 ---
 - Header ```Authorization``` will be removed by the system before sending the message to the Kafka or RabbitMQ services.
-- For GraphQL calls, the outgoing request body cannot be overridden through the **Prepare request** tab. The body is strictly constructed from **Query**, **Operation Name**, and **Variables JSON** on the **Endpoint** tab.
+- For GraphQL calls, the outgoing request body cannot be overridden through the **Prepare request** tab. The body is constructed from **Query**, **Operation Name**, and **Variables JSON** on the **Endpoint** tab. If **Variables JSON** is empty, the request takes its variables from the `CamelGraphQLVariables` header of the exchange, which an earlier element or a script on the **Prepare request** tab can set.

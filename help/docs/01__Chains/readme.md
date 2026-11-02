@@ -162,7 +162,7 @@ This tab contains all chains that are going to be imported.
 
 The first element is a switcher **"Validate By Hash"**. This option can reduce the import time by comparing the hash of each chain. If the hash matches, the system skips importing that chain.
 
-> ℹ️ Importing a service whose active environment parameters (any of them) differ from the stored ones resets the hash of every chain that uses the service and marks those chains with the "Unsaved changes" label.
+> ℹ️ Importing a service whose active environment parameters (any of them) differ from the stored ones resets the hash of every chain that uses the service and marks those chains with the "Unsaved changes" label. A chain that already has this label, for example after an import with the **None** action, keeps its hash, so **Validate By Hash** can still skip it on the next import.
 
 Under this option there is a table of chains with the following parameters:
 * Name - name of the imported chain. If a chain with the same ID already exists in the system, a ![diff](img/diff.svg) icon appears next to the name — click it to open the **Chain compare** dialog and preview the differences between the existing chain and the version being imported before proceeding with the import;

@@ -52,4 +52,4 @@ query getVehicle {
 
 ## Constraints
 
-- The outgoing request body cannot be overridden in the Exchange as it is strictly constructed from **Query**, **Operation Name**, and **Variables JSON** on the **Parameters** tab.
+- The outgoing request body cannot be overridden in the Exchange as it is constructed from **Query**, **Operation Name**, and **Variables JSON** on the **Parameters** tab. If **Variables JSON** is empty, the request takes its variables from the `CamelGraphQLVariables` header of the exchange, which an earlier element can set.
