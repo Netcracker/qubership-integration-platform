@@ -104,8 +104,8 @@ test.describe("/v1/cr custom resources", { tag: ["@catalog", "@engine", "@slow"]
         expect(answer.headers()[MARKER_HEADER]).toBe("kept");
       });
 
-      await test.step("DELETE /v1/cr/{name}/{snapshotId} removes one chain and keeps the other", async () => {
-        await catalog.deleteSnapshotFromCustomResource(domain, droppedSnapshot.id);
+      await test.step("DELETE /v1/catalog/chains/{chainId}/deployments/{deploymentId} removes one chain and keeps the other", async () => {
+        await catalog.undeploy(dropped.id, `${domain}-${droppedSnapshot.id}`);
         expect(await configMaps(`cip-domain=${domain},${SNAPSHOT_LABEL}=${k8sName(droppedSnapshot.id)}`)).toEqual([]);
         expect(await configMaps(`cip-domain=${domain},${SNAPSHOT_LABEL}=${k8sName(keptSnapshot.id)}`)).toHaveLength(1);
         await expect
