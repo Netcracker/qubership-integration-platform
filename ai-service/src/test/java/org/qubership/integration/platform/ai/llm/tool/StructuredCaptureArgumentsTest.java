@@ -14,6 +14,7 @@ import dev.langchain4j.model.chat.request.json.JsonNullSchema;
 import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
 import dev.langchain4j.model.chat.request.json.JsonStringSchema;
 import io.quarkiverse.langchain4j.runtime.tool.ToolMethodCreateInfo;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class StructuredCaptureArgumentsTest {
@@ -147,6 +148,20 @@ class StructuredCaptureArgumentsTest {
         .build(), method, mapper);
     assertEquals("INVALID_TYPE", result.issue().code());
     assertEquals("/capture/propertyPatches/0/scalarValue", result.issue().path());
+  }
+
+  @Test
+  void reportsEveryIssueAndKeepsTheFirstOneForSingleIssueCallers() {
+    var result = inspect("""
+        {"capture":{"operations":[{"nodeId":"script-1","invented":true},{"elementType":"script"}]}}
+        """);
+
+    assertEquals(List.of(
+            "MISSING_FIELD /capture/operations/0/elementType",
+            "UNEXPECTED_FIELD /capture/operations/0/invented",
+            "MISSING_FIELD /capture/operations/1/nodeId"),
+        result.issues().stream().map(issue -> issue.code() + " " + issue.path()).toList());
+    assertEquals(result.issues().getFirst(), result.issue());
   }
 
   private StructuredCaptureArguments.Result inspect(String arguments) {
