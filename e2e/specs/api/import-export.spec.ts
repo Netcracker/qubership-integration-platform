@@ -2,8 +2,8 @@
  * Export and import in the format the platform ships today.
  *
  * Every case here is a round trip — export, delete, import the original bytes, compare — because
- * that is the only shape in which an import proves anything. Two rules of `e2e/AGENTS.md` exist for
- * this file and both are load-bearing:
+ * that is the only shape in which an import proves anything. Two rules of `e2e-spec-authoring`
+ * exist for this file and both are load-bearing:
  *
  * - **Delete before importing.** An import over a live id is an update, so "the chain is present
  *   afterwards" passes whether the import created it, updated it, or did nothing at all. The
@@ -188,13 +188,13 @@ test.describe("chain and service export and import", { tag: ["@catalog"] }, () =
       await entryText(await catalog.exportChains([chain.id]), entry),
     );
 
-    // Export-all is deliberately not read here, and the rule that says so is `e2e/AGENTS.md` rule 2:
-    // a spec that needs a global view does not belong in `specs/api/`. The exporter lists every chain
-    // and then resolves each one's folder, so a folder a parallel worker deletes in between makes the
-    // whole request answer **500 `EntityNotFoundException: Unable to find … Folder with id …`** —
-    // measured under a full `--project=api` run, 3 of 120 calls answered that way. There is no
-    // version of the call scoped to this case's own entities, and a retry around it waits on nothing
-    // but the other workers. It is owed a single-worker project.
+    // Export-all is deliberately not read here, and the rule that says so is `e2e-spec-authoring`
+    // rule 2: a spec that needs a global view does not belong in `specs/api/`. The exporter lists
+    // every chain and then resolves each one's folder, so a folder a parallel worker deletes in
+    // between makes the whole request answer **500 `EntityNotFoundException: Unable to find …
+    // Folder with id …`** — measured under a full `--project=api` run, 3 of 120 calls answered that
+    // way. There is no version of the call scoped to this case's own entities, and a retry around it
+    // waits on nothing but the other workers. It is owed a single-worker project.
   });
 
   test("an ignore instruction keeps the chain from being imported", async ({ catalog, folder, run }) => {

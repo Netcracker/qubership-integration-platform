@@ -35,8 +35,7 @@ reproduces what the real code does. This skill covers what a case at each level 
 
 Two suites write `src/web/test/golden/`, and the `e2e` instruction says how the end-to-end suite imports it. Regenerate
 a golden in the suite that writes it, in the same commit as the change to what the extension writes, and run
-`e2e/specs/api/extension-output.spec.ts` too. On a cluster whose istiod lacks `PILOT_ENABLE_ALPHA_GATEWAY_API=true`, run
-that spec with `E2E_PROVISION=never`.
+`e2e/specs/api/extension-output.spec.ts` too.
 
 - **Top level:** level-2 specs compare bytes. Copy the text a failing comparison reports into the file. The
   `require.context` in `harness.ts` is non-recursive, so `golden/import/` never reaches the level-2 bundle.

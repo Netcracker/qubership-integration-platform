@@ -18,13 +18,20 @@ git -C "$WT" ls-remote origin fix/<N>-<slug>   # compare with git -C "$WT" rev-p
 
 A push during a network fault returned success and moved nothing; the `ls-remote` is the check.
 
-Before every push after the first, confirm the pull request is still open. A maintainer can
-merge it mid-run, and a push then recreates the deleted branch, after which an edit changes the
-merged pull request:
+Before every push after the first, confirm the pull request is still open and read its
+`mergeable_state`; at gate 6, `scripts/wait-checks.sh` reads it and fails on `dirty`. A maintainer
+can merge the pull request mid-run, and a push then recreates the deleted branch, after which an
+edit changes the merged pull request. On `dirty`, merge `origin/main`, re-run the criteria the
+merge can reach, and push:
 
 ```bash
 gh pr view <PR> -R Netcracker/qubership-integration-platform --json state --jq .state   # OPEN
+gh api repos/{owner}/{repo}/pulls/<PR> --jq .mergeable_state   # dirty: merge main
+git -C "$WT" fetch origin main && git -C "$WT" merge origin/main
 ```
+
+`unknown` means GitHub has not computed it yet; ask again a few seconds later. `behind` does not
+block the merge, because the `main` ruleset requires no up-to-date branch.
 
 ## Attach images
 
@@ -44,7 +51,15 @@ tag.
 ## Open the pull request
 
 ```bash
-gh pr create --base main --head fix/<N>-<slug> --title "<title>" --body-file "$TMP/body.md"
+gh pr create --base main --head fix/<N>-<slug> --title "<title>" --body-file "$TMP/body.md"   # --draft for a draft
+```
+
+To turn an open pull request into a draft, or back, go through GraphQL:
+
+```bash
+PR_ID=$(gh pr view <PR> --json id --jq .id)
+gh api graphql -f id="$PR_ID" -f query='mutation($id:ID!){convertPullRequestToDraft(input:{pullRequestId:$id}){pullRequest{isDraft}}}'
+gh api graphql -f id="$PR_ID" -f query='mutation($id:ID!){markPullRequestReadyForReview(input:{pullRequestId:$id}){pullRequest{isDraft}}}'
 ```
 
 `Closes #<N>` goes in the body. `pr-linked-issue` reads GitHub's `closingIssuesReferences`,
@@ -65,8 +80,26 @@ gh api -X PATCH repos/{owner}/{repo}/pulls/<PR> -F body=@"$TMP/body.md"
 gh pr view <PR> --json body --jq '.body' | tail -3
 gh api -X POST repos/{owner}/{repo}/issues/<PR>/labels -f "labels[]=ai:processed"
 gh api -X POST repos/{owner}/{repo}/issues/<N>/labels -f "labels[]=ai:processed"
-gh api -X DELETE repos/{owner}/{repo}/issues/<N>/labels/ai%3Aneeds-human   # a resumed run
+gh api -X DELETE repos/{owner}/{repo}/issues/<N>/labels/ai%3Aneeds-human    # a resumed run
+gh api -X DELETE repos/{owner}/{repo}/issues/<PR>/labels/ai%3Aneeds-human   # and on the pull request
+gh api -X PATCH repos/{owner}/{repo}/issues/<N> -F body=@"$TMP/issue.md"     # a finding joins the issue
 ```
+
+## File an issue
+
+Assign a finding filed on the way to the person who asked for the run, and add `ready-for-agent`
+only when they ask for it (an issue filed for the run to work gets it at gate 0). `--label bug`
+sets only the label, so set the issue type `Bug` as well, then add the issue to the board with the
+`item-add` command under "Move the issue on the board".
+
+```bash
+URL=$(gh issue create -R Netcracker/qubership-integration-platform --assignee <requester> --label bug \
+  --title "<symptom>" --body-file "$TMP/new-issue.md")
+ID=$(gh issue view "$URL" --json id --jq .id)
+gh api graphql -f id="$ID" -f query='mutation($id:ID!){updateIssue(input:{id:$id, issueTypeId:"IT_kwDOBQbhhM4A4iql"}){issue{issueType{name}}}}'
+```
+
+The token cannot list the organization's issue types; `IT_kwDOBQbhhM4A4iql` is `Bug`.
 
 ## Move the issue on the board
 
@@ -85,6 +118,16 @@ gh project item-edit --project-id PVT_kwDOBQbhhM4Axo_H --id "$ITEM" \
 The token needs the `project` scope. Check it at gate 0 with `gh auth status`; if the scope is
 missing, ask the user to run `gh auth refresh -s project` at the very end, once, and say in the
 report that the board was not updated.
+
+## Review comments
+
+```bash
+gh api --paginate repos/{owner}/{repo}/pulls/<PR>/comments --jq '.[] | "\(.id)\t\(.user.login)\t\(.path):\(.line)\t\(.body)"'
+gh api --paginate repos/{owner}/{repo}/pulls/<PR>/reviews --jq '.[] | "\(.id)\t\(.user.login)\t\(.state)\t\(.body)"'
+gh api -X POST repos/{owner}/{repo}/pulls/<PR>/comments/<comment-id>/replies -F body=@"$TMP/reply.md"
+gh api -X POST repos/{owner}/{repo}/issues/<PR>/comments -F body=@"$TMP/reply.md"   # a review body has no thread
+gh api -X DELETE repos/{owner}/{repo}/issues/<PR>/labels/ai%3Areviewed
+```
 
 ## Comment the run report
 

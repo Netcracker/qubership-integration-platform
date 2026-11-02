@@ -1,8 +1,8 @@
 # The browser layer
 
-`specs/ui/` drives Chromium through nginx on 8080, against the production bundle `ui-server`
-serves on 4200. A case covers what only a browser shows: layout, computed styles, focus, a screen
-redrawn with no reload, a screen that throws. A fact the API can assert belongs in `specs/api/`,
+`specs/ui/` drives Chromium through the proxy, on 8080 on Compose and 30080 on `k8s`, against the
+production bundle `ui-server` serves on 4200. A case covers what only a browser shows: layout,
+computed styles, focus, a screen redrawn with no reload, a screen that throws. A fact the API can assert belongs in `specs/api/`,
 and a fact jsdom renders the same way belongs in Jest under `ui/tests/`. Data is created through
 the API and read in the browser; a case whose subject is the creation flow says so in its spec
 header. No `toHaveScreenshot()`: a golden image needs a baseline per platform.

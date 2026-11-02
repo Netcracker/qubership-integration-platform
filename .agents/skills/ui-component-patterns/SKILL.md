@@ -12,12 +12,12 @@ local variant of one of these is the most common thing a reviewer sends back.
 
 - Use the Ant Design `Table`, with an explicit record generic on both the table and its columns.
 - In a flex container, add the `flex-table` class.
-- Editable cells use the `InlineEdit` component. Its edit commits on **Enter** only: the antd `Form`
-  inside it is rendered with `component={false}`, so the `onBlur` it passes has no element to attach
-  to and clicking away discards the edit. `onFinish` also toggles twice, so the cell stays open after
-  a commit. Every consumer in the workspace inherits both, so document the Enter-only behavior for
-  users rather than working around it per call site, and fix `src/components/InlineEdit.tsx` if the
-  behavior has to change.
+- Editable cells use the `InlineEdit` component (`src/components/InlineEdit.tsx`). It submits its
+  form when focus leaves the editor, and the editors in `src/components/table/`, such as
+  `TextValueEdit`, submit it on **Enter**. The cell closes after a successful submit and stays open
+  when `onSubmit` throws or its promise rejects. `values` is compared by content, so a caller that
+  passes a new object on every render keeps what the user typed. Change the component rather than
+  working around it per call site; `tests/components/InlineEdit.test.tsx` covers each of these.
 - Text search reuses `normalizeSearchTerm` and `matchesByFields` from
   `src/components/table/tableSearch.ts` instead of a local filter.
 - Building a search haystack over mixed types, do not use `filter(Boolean)` — it drops valid `0` and
@@ -74,16 +74,15 @@ bundle into every Jest suite that reaches the editor, and those suites fail with
 
 ## Modals
 
-- Always go through `useModalContext()`. Do not render an Ant Design `<Modal>` conditionally in TSX.
-- Open with `showModal({ component: <YourModal /> })` from the parent; close with
-  `closeContainingModal()`.
+- Open a modal through the modal context. Do not render an Ant Design `<Modal>` conditionally in TSX.
+- Open with `showModal({ component: <YourModal /> })`, taken from `useModalsContext()`
+  (`src/Modals.tsx`). Inside the modal, close it with `closeContainingModal()` from
+  `useModalContext()` (`src/ModalContextProvider.tsx`), which returns nothing else.
 - Modal components live under `src/components/modal/`.
-- Confirmation dialogs use `confirmAndRun` from `src/misc/confirm-utils.ts`. It takes an options
-  object — `{ title, onOk, content?, okText?, okType?, okButtonProps?, ... }` — and wraps
-  `modal.confirm`. Returning a promise from `onOk` keeps the dialog in its loading state until the
-  action settles, which is what you want for a destructive call.
+- Confirmation dialogs use `confirmAndRun`; the `ui-api-and-utilities` skill describes it.
 - Take `Upload.Dragger` off the root `antd` import. `antd/es/upload/Dragger` is untranspiled ESM and
-  breaks the Jest run; `src/components/modal/ImportSessions.tsx` still imports it that way.
+  breaks the Jest run. `grep -rn "antd/es/upload/Dragger" ui/src` finds the files that still import it
+  that way.
 - A create modal for a testing entity is built on `CreateTestingEntityModal`
   (`src/components/modal/testing/`), which owns the footer wiring, the saving state, the element
   preselect and the failure notification. Pass the entity's own nouns, its element predicate, and one
@@ -100,8 +99,8 @@ audit section. Reuse the item builders beside it — `idItem`, `chainItem`, `ele
 ## Unsaved-changes blockers on editor pages
 
 An editor page that guards navigation keeps its dirty flag in a **ref**, not in state, and reads that
-ref from the `useBlocker` predicate; see `src/pages/testing/TestCasePage.tsx` and
-`src/pages/testing/EndpointMockPage.tsx`. The predicate also exempts navigations that stay under the
+ref from the `useBlocker` predicate. `useTestingEntityEditor` (`src/hooks/testing/`) does this for
+`TestCasePage` and `EndpointMockPage`. Its predicate also exempts navigations that stay under the
 editor's own path, so switching sub-tabs does not prompt.
 
 Do not reach for `src/components/services/useUnsavedChangesWithModal.tsx` here. It reads a state
@@ -128,16 +127,18 @@ Two kinds of form:
 
 ## Icons
 
-- Reach for `@ant-design/icons` first; use `lucide-react` or `react-icons` only for an icon that
-  library lacks.
-- Element (kamelet) icons are SVG assets in `src/assets/`, served through `IconProvider`
-  (`src/icons/`).
+- Use `@ant-design/icons`. It is the only icon library the UI depends on, so an icon from another
+  library needs a decision to add that dependency.
+- Element (kamelet) icons are entries in `elementIcons` in `src/icons/IconDefenitions.tsx`, keyed by
+  element type, and `IconProvider` serves them. Each entry is an `@ant-design/icons` component except
+  `mcp-trigger`, which is the raw SVG of `src/assets/mcp.svg`.
 - Render through `OverridableIcon` so a runtime override can replace the icon:
 
 ```tsx
 <OverridableIcon name={data.elementType as IconName} style={{ fontSize: 16 }} />
 ```
 
-`IconProvider` merges three sources in order: common Ant Design icons, custom element icons, then
-runtime overrides from app config. An override may be a React component or an SVG string; SVG
-strings are normalized so hardcoded colors become `currentColor` and the icon follows the theme.
+`IconProvider` merges three sources in order: `commonIcons`, `elementIcons`, then runtime overrides
+from app config. An override is an `IconSource`: a React component, a React element, or an SVG
+string. A monochrome SVG, as an element or a string, is normalized so its hardcoded color becomes
+`currentColor` and the icon follows the theme; a multicolor one keeps its colors.
