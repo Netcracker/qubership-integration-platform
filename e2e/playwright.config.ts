@@ -271,6 +271,7 @@ export default defineConfig<PlaywrightTestOptions, PlaywrightWorkerOptions & Sui
     ["list"],
     process.env.CI ? ["blob"] : ["html", { outputFolder: "playwright-report", open: "never" }],
     ["json", { outputFile: "test-results/report.json" }],
+    process.env.GITHUB_ACTIONS ? ["github"] : ["null"],
   ],
   use: {
     // Off the one table every addressed service is read from, so a port that moves moves once.
