@@ -14,6 +14,7 @@ To avoid extreme space consumptions and be able to follow customer-specific rete
 - Snapshots
 - Context Records
 - Idempotency Records
+- Import Sessions
 
 Settings must be specified for configuring either via Consul or via Environment parameters. Please refer to the specialized section below for parameters details.
 
@@ -91,6 +92,16 @@ Cloud integration Platform allows to configure proper retention logic for idempo
 | Environment Parameter               | Consul Param                                 | CIP Microservice                  | Mandatory | Default Value  | Description                                   | Sample                                             |
 |:------------------------------------|:---------------------------------------------|:----------------------------------|:----------|:---------------|:----------------------------------------------|:---------------------------------------------------|
 | IDEMPOTENCY\_RECORDS\_CLEANUP\_CRON | qip.idempotency.expired-records-cleanup-cron | cloud-integration-platform-engine | O         | 0 0 0 ? \* SAT | When to run idempotency records cleanup task. | **Run at 10:00 each Friday**: ```0 0 10 ? * SAT``` |
+
+### Import Sessions Retention
+
+Cloud integration Platform stores the metadata of each import session, such as its progress and result, in the catalog database. The **Entity ID** of the **Import** record that a chain import adds to the [Audit](../../03__Admin_Tools/3__Audit/readme.md) log is the ID of that session. Retention is controlled via next parameter, that shall be specified at the time of deployment:
+
+| Environment Parameter          | CIP Microservice                   | Mandatory | Default Value  | Description                                                                                                                     | Sample                     |
+|:-------------------------------|:-----------------------------------|:----------|:---------------|:--------------------------------------------------------------------------------------------------------------------------------|:---------------------------|
+| IMPORT\_LOG\_LIFETIME\_MINUTES | cloud-integration-platform-catalog | O         | 10080 (7 days) | Time in minutes that import session metadata is stored. Sessions older than this value are deleted when the next import starts. | **Three days**: ```4320``` |
+
+> ℹ️ **Note:** Once a session is deleted, its ID stays in the Audit log, but the import result for that ID is no longer available. Before this setting was introduced, the lifetime was fixed at 300 minutes (5 hours).
 
 ## Process Initialization
 
