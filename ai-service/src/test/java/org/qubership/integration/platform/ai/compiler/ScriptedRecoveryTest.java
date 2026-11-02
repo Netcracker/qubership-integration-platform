@@ -141,8 +141,8 @@ class ScriptedRecoveryTest {
         Arguments.of("missing-field", VALID.replace(",\"externalRoute\":false", ""), "externalRoute"),
         Arguments.of("unknown-field", VALID.replace("\"endpoints\":", "\"properties\":[],\"endpoints\":"), "properties"),
         Arguments.of("duplicate-key", VALID.replace("\"endpoints\":", "\"endpoints\":[],\"endpoints\":"), "DUPLICATE_JSON_KEY"),
-        Arguments.of("unknown-reference", VALID.replace("http-trigger-1", "absent-node"), "approved targets"),
-        Arguments.of("incomplete-set", "{\"capture\":{\"endpoints\":[]}}", "every approved HTTP trigger"));
+        Arguments.of("unknown-reference", VALID.replace("http-trigger-1", "absent-node"), "is not an approved semanticNodeId"),
+        Arguments.of("incomplete-set", "{\"capture\":{\"endpoints\":[]}}", "Send one endpoint for each of"));
   }
 
   @ParameterizedTest(name = "{0}")
@@ -160,7 +160,7 @@ class ScriptedRecoveryTest {
   void aSecondDefectCanBeRepairedWithoutLosingTheFirstCorrection() {
     install(Turn.tool("wrong-type", this::expectInitial, TOOL, VALID.replace(":false", ":\"false\"")),
         Turn.tool("bad-reference", expectRejection("externalRoute"), TOOL, VALID.replace("http-trigger-1", "absent")),
-        Turn.tool("corrected", expectRejection("approved targets"), TOOL, VALID));
+        Turn.tool("corrected", expectRejection("is not an approved semanticNodeId"), TOOL, VALID));
 
     assertConsumed(run());
     script.assertComplete();
@@ -181,14 +181,14 @@ class ScriptedRecoveryTest {
     List<Turn> turns = new ArrayList<>();
     turns.add(Turn.tool("bad-reference", this::expectInitial, TOOL, VALID.replace("http-trigger-1", "absent-0")));
     for (int index = 1; index < 2; index++) {
-      turns.add(Turn.tool("same-defect-" + index, expectRejection("approved targets"), TOOL,
+      turns.add(Turn.tool("same-defect-" + index, expectRejection("is not an approved semanticNodeId"), TOOL,
           VALID.replace("http-trigger-1", "absent-" + index)));
     }
     install(turns.toArray(Turn[]::new));
 
     assertEquals(SkillRunStatus.FAILED, run().status());
     assertFalse(captures.isPresent(captureKey()));
-    assertTrue(feedback.lastPlanFailure(conversation).orElseThrow().summary().contains("approved targets"));
+    assertTrue(feedback.lastPlanFailure(conversation).orElseThrow().summary().contains("is not an approved semanticNodeId"));
     assertEquals(originalGraph, ((SkillArtifactPayload.ChainPlanGraphPayload)
         workspace.get(SkillArtifactType.CHAIN_PLAN_GRAPH).orElseThrow().payload()).graph());
     assertEquals(2, script.requests().size());
@@ -213,7 +213,7 @@ class ScriptedRecoveryTest {
         Turn.failure("unavailable", this::expectInitial,
             new InternalServerException("Service Unavailable", new HttpException(503, "Service Unavailable"))),
         Turn.tool("bad-reference", this::expectInitial, TOOL, VALID.replace("http-trigger-1", "absent")),
-        Turn.tool("corrected", expectRejection("approved targets"), TOOL, VALID));
+        Turn.tool("corrected", expectRejection("is not an approved semanticNodeId"), TOOL, VALID));
 
     assertConsumed(run());
     assertEquals(List.of(1, 2), waits);
