@@ -45,11 +45,11 @@ class HttpTriggerCaptureToolTest {
 
     tool.capture(new HttpTriggerCapture(List.of(
         new HttpTriggerCapture.Endpoint("http-entry", "ghost", false))), CONVERSATION);
-    var missingRoute = assertDoesNotThrow(() -> tool.capture(new HttpTriggerCapture(List.of(
-        new HttpTriggerCapture.Endpoint("http-entry", "http-trigger-1", null))), CONVERSATION));
+    var unknownRole = assertDoesNotThrow(() -> tool.capture(new HttpTriggerCapture(List.of(
+        new HttpTriggerCapture.Endpoint("other-role", "http-trigger-1", false))), CONVERSATION));
 
-    assertEquals("MISSING_FIELD /capture/endpoints/0/externalRoute",
-        missingRoute.issues().getFirst().code() + " " + missingRoute.issues().getFirst().path());
+    assertEquals("UNKNOWN_ROLE /capture/endpoints/0/roleId",
+        unknownRole.issues().getFirst().code() + " " + unknownRole.issues().getFirst().path());
     assertTrue(feedback.lastPlanFailure(CONVERSATION).orElseThrow().outerAllowed());
   }
 
@@ -64,6 +64,65 @@ class HttpTriggerCaptureToolTest {
 
     assertThrows(CaptureValidationException.class, () -> tool.capture(new HttpTriggerCapture(List.of(
         new HttpTriggerCapture.Endpoint("http-entry", "phantom", false))), CONVERSATION));
+  }
+
+  @Test void aReorderedResubmissionOfTheSameTwoTriggerDefectsEndsTheRepairLoop() {
+    var feedback = new CaptureAttemptFeedbackStore();
+    var tool = new HttpTriggerCaptureTool(null, new CaptureSession(), feedback,
+        new ObjectMapper().findAndRegisterModules());
+    HttpTriggerCaptureAdapterTest.twoTriggerBinding();
+
+    tool.capture(new HttpTriggerCapture(List.of(
+        new HttpTriggerCapture.Endpoint("role-a", "ghost-a", false),
+        new HttpTriggerCapture.Endpoint("role-b", "ghost-b", false))), CONVERSATION);
+
+    assertThrows(CaptureValidationException.class, () -> tool.capture(new HttpTriggerCapture(List.of(
+        new HttpTriggerCapture.Endpoint("role-b", "ghost-b", false),
+        new HttpTriggerCapture.Endpoint("role-a", "ghost-a", false))), CONVERSATION));
+  }
+
+  @Test void aBindingWithoutAnApprovedPathIsReportedAtTheGenericShapePointer() {
+    var tool = new HttpTriggerCaptureTool(null, new CaptureSession(), new CaptureAttemptFeedbackStore(),
+        new ObjectMapper().findAndRegisterModules());
+    HttpTriggerCaptureAdapterTest.binding("");
+
+    var result = tool.capture(new HttpTriggerCapture(List.of(
+        new HttpTriggerCapture.Endpoint("http-entry", "http-trigger-1", false))), CONVERSATION);
+
+    assertEquals("CAPTURE_SHAPE_INVALID /capture/endpoints",
+        result.issues().getFirst().code() + " " + result.issues().getFirst().path());
+  }
+
+  @Test void aCompilerRejectionOfTheProjectedTriggersIsRootedAtTheCaptureEndpoints() {
+    var configured = org.mockito.Mockito.mock(ConfiguredTriggerSetCaptureTool.class);
+    org.mockito.Mockito.when(configured.captureConfiguredTriggerSet(org.mockito.ArgumentMatchers.any()))
+        .thenReturn("The projected trigger set is invalid.");
+    var tool = new HttpTriggerCaptureTool(configured, new CaptureSession(), new CaptureAttemptFeedbackStore(),
+        new ObjectMapper().findAndRegisterModules());
+    HttpTriggerCaptureAdapterTest.binding();
+
+    var result = tool.capture(new HttpTriggerCapture(List.of(
+        new HttpTriggerCapture.Endpoint("http-entry", "http-trigger-1", false))), CONVERSATION);
+
+    assertEquals("TRIGGER_VALIDATION /capture/endpoints",
+        result.issues().getFirst().code() + " " + result.issues().getFirst().path());
+  }
+
+  @Test void aRejectionWithSeveralIssuesIsRecordedWholeBehindOneTrailer() {
+    var feedback = new CaptureAttemptFeedbackStore();
+    var tool = new HttpTriggerCaptureTool(null, new CaptureSession(), feedback,
+        new ObjectMapper().findAndRegisterModules());
+    HttpTriggerCaptureAdapterTest.binding();
+
+    var result = tool.capture(new HttpTriggerCapture(List.of(
+        new HttpTriggerCapture.Endpoint("http-entry", "ghost", null))), CONVERSATION);
+
+    assertEquals(1, result.message().split("Approved roleIds", -1).length - 1, result.message());
+    assertEquals(List.of(
+            "UNKNOWN_NODE /capture/endpoints/0/semanticNodeId",
+            "MISSING_FIELD /capture/endpoints/0/externalRoute"),
+        feedback.lastPlanFailure(CONVERSATION).orElseThrow().issues().stream()
+            .map(issue -> issue.code() + " " + issue.path()).toList());
   }
 
   @Test void distinctArgumentFieldsDoNotShareRejectionCredit() {

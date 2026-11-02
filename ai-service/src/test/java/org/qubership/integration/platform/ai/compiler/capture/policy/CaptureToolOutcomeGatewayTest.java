@@ -375,4 +375,16 @@ class CaptureToolOutcomeGatewayTest {
         "chat", "trigger", "captureHttpTriggers", List.of(movedRoute, renamedGhost), ""));
     assertFalse(feedbackStore.lastPlanFailure("chat").orElseThrow().outerAllowed());
   }
+
+  @Test
+  void aTypedRejectionThatRepeatsAnIssueIsNewAfterARejectionThatHadItOnce() {
+    var ghost = new CaptureToolOutcomeGateway.TypedIssue(
+        "UNKNOWN_NODE", "/capture/endpoints/0/semanticNodeId", "'ghost' is not approved.", "a");
+    gateway.onTypedPlanFailure("chat", "trigger", "captureHttpTriggers", List.of(ghost), "");
+
+    gateway.onTypedPlanFailure("chat", "trigger", "captureHttpTriggers", List.of(ghost, ghost), "");
+
+    assertEquals(CaptureFailureClass.CORRECTABLE,
+        feedbackStore.lastPlanFailure("chat").orElseThrow().failureClass());
+  }
 }

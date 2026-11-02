@@ -151,6 +151,28 @@ class StructuredCaptureArgumentsTest {
   }
 
   @Test
+  void aNullableArrayReportsEveryIssueOfTheArrayAlternative() {
+    var item = JsonObjectSchema.builder().addStringProperty("nodeId").addStringProperty("elementType")
+        .required("nodeId", "elementType").build();
+    var capture = JsonObjectSchema.builder().addProperty("operations",
+        JsonAnyOfSchema.builder().anyOf(JsonArraySchema.builder().items(item).build(), new JsonNullSchema()).build())
+        .build();
+    var method = new ToolMethodCreateInfo("capture", "invoker",
+        ToolSpecification.builder().name("capture")
+            .parameters(JsonObjectSchema.builder().addProperty("capture", capture).required("capture").build())
+            .build(), "mapper", ToolMethodCreateInfo.ExecutionModel.BLOCKING,
+        ReturnBehavior.TO_LLM, null, null);
+
+    var result = StructuredCaptureArguments.inspect(ToolExecutionRequest.builder().id("call-1").name("capture")
+        .arguments("{\"capture\":{\"operations\":[{}]}}").build(), method, mapper);
+
+    assertEquals(List.of(
+            "MISSING_FIELD /capture/operations/0/nodeId",
+            "MISSING_FIELD /capture/operations/0/elementType"),
+        result.issues().stream().map(issue -> issue.code() + " " + issue.path()).toList());
+  }
+
+  @Test
   void reportsEveryIssueAndKeepsTheFirstOneForSingleIssueCallers() {
     var result = inspect("""
         {"capture":{"operations":[{"nodeId":"script-1","invented":true},{"elementType":"script"}]}}
