@@ -11,7 +11,9 @@
  * goes on with the next chain. An unparsable chain cannot serve: `listChainExportTargets` parses
  * every chain with no catch, so one such chain stops the export before the webview opens.
  *
- * Shown failing, each by an edit in `vscode-extension/src/web/response/apiRouter.ts`:
+ * Shown failing, each by an edit in `vscode-extension/src/web/response/apiRouter.ts` run alone:
+ * - `startup` answering `{}`, with no export operation: the webview never showed `Export
+ *   completed` in either case;
  * - `saveExportedImage` not writing the file: the explorer listed no PNG, and the second case's
  *   blocked write did not fail;
  * - `exportImagesProgress` throwing: no image was saved, so neither case found its summary, and the
@@ -21,36 +23,39 @@
  * - `exportImagesItemWarning` showing no warning: the empty chain's notification never appeared;
  * - `exportImagesItemFailed` showing no error: the failed chain's notification never appeared.
  */
-import { test, expect } from "../../support/vscode-guard.js";
+import { test, expect, extensionHostErrors, withAnyStack } from "../../support/vscode-guard.js";
 import type { VsCodePage } from "../../pages/VsCodePage.js";
-import { VSCODE_PORT } from "../../support/vscode-server.js";
+import {
+  CALLEE_CHAIN_ID,
+  CALLER_CHAIN_ID,
+  CHECKPOINT_CHAIN_ID,
+  EMPTY_CHAIN_ID,
+  GRAPHQL_CHAIN_ID,
+  MOCHA_CHAIN_ID,
+  MOCHA_V2_CHAIN_ID,
+  SERVICES_CHAIN_ID,
+} from "../../support/vscode-workspace.js";
 
 const COMMAND = "CIP: Export All Chain Graphs as PNG";
 const OPEN_LABEL = "Select output folder";
 const PROGRESS = "Exporting chain PNG files";
 
-const EMPTY_CHAIN = "e2e20006-0000-4000-8000-000000000001";
 /** The callee chain, whose PNG `exports/` holds a folder in place of. */
-const BLOCKED_CHAIN = "e2e20003-0000-4000-8000-000000000001";
+const BLOCKED_CHAIN = CALLEE_CHAIN_ID;
 /** Every chain of the workspace with an element, in the order the export takes them. */
-const DRAWN_CHAINS = [
-  "1419390b-7423-4fab-853f-67c653e16a86",
-  "e2e20001-0000-4000-8000-000000000001",
-  "e2e20002-0000-4000-8000-000000000001",
-  BLOCKED_CHAIN,
-  "e2e20004-0000-4000-8000-000000000001",
-  "e2e20005-0000-4000-8000-000000000001",
-  "e2e20008-0000-4000-8000-000000000001",
-];
+const DRAWN_CHAINS = [MOCHA_CHAIN_ID, MOCHA_V2_CHAIN_ID, CALLER_CHAIN_ID, BLOCKED_CHAIN, SERVICES_CHAIN_ID, GRAPHQL_CHAIN_ID, CHECKPOINT_CHAIN_ID];
 
-/** The workspace file the blocked write targets, and what the extension logs for it. */
+/**
+ * The workspace file the blocked write targets, and what the extension logs for it. The stack names
+ * a line of the workbench's file system extension, which changes with the VS Code build.
+ */
 const BLOCKED_URI = `vscode-test-web://mount/exports/${BLOCKED_CHAIN}.png`;
-const BLOCKED_ERROR = `EntryIsADirectory (FileSystemError): ${BLOCKED_URI}\n\tat MemFileSystemProvider.writeFile (http://localhost:${VSCODE_PORT}/static/extensions/fs/dist/fsExtensionMain.js#vscode-extension:71:44)`;
+const BLOCKED_ERROR = `EntryIsADirectory (FileSystemError): ${BLOCKED_URI}`;
+/** The workbench logs every error notification. */
+const BLOCKED_NOTIFICATION = `Chain "${BLOCKED_CHAIN}": ${BLOCKED_URI}`;
 const BLOCKED_ERRORS = [
-  `%c  ERR color: #f33 [Extension Host] Failed to fetch data for CIP Extension API ${BLOCKED_ERROR}`,
-  `%c[Extension Host] %cFailed to fetch data for CIP Extension API color: blue color:  ${BLOCKED_ERROR}`,
-  // The workbench logs every error notification.
-  `Chain "${BLOCKED_CHAIN}": ${BLOCKED_URI}`,
+  ...extensionHostErrors("Failed to fetch data for CIP Extension API", BLOCKED_ERROR).map(withAnyStack),
+  BLOCKED_NOTIFICATION,
 ];
 
 /** Runs the export into `folder` and waits for its summary in the webview. */
@@ -80,7 +85,11 @@ test.describe("export images", () => {
     await exportInto(vscode, "/");
 
     await expect(vscode.webview.getByText("7 of 8 image file(s) exported. 1 empty chain(s) skipped.", { exact: true })).toBeVisible();
-    await expect(vscode.notifications.getByText(`Chain "${EMPTY_CHAIN}" is empty. No image file was created.`, { exact: true })).toBeVisible();
+    await expect(vscode.notifications.getByText(`Chain "${EMPTY_CHAIN_ID}" is empty. No image file was created.`, { exact: true })).toBeVisible();
+    // The explorer can list the last PNGs after the export reports its end. A row added under the
+    // pointer, which rests on the PNG just clicked, brings up that PNG's hover over the next one, so
+    // the clicks wait until every PNG is listed.
+    await expect(vscode.page.getByRole("treeitem", { name: /\.png$/ })).toHaveCount(DRAWN_CHAINS.length);
     for (const chainId of DRAWN_CHAINS) await expectImage(vscode, "/", chainId);
     expect(messages.answered()).toEqual(
       expect.arrayContaining(["saveExportedImage", "exportImagesProgress", "exportImagesItemWarning", "exportImagesComplete"]),
@@ -93,7 +102,7 @@ test.describe("export images", () => {
     await exportInto(vscode, "/exports/");
 
     await expect(vscode.webview.getByText("6 of 8 image file(s) exported. 1 empty chain(s) skipped. 1 failed.", { exact: true })).toBeVisible();
-    await expect(vscode.notifications.getByText(BLOCKED_ERRORS[2], { exact: true })).toBeVisible();
+    await expect(vscode.notifications.getByText(BLOCKED_NOTIFICATION, { exact: true })).toBeVisible();
     // The chains after the failed one are written too.
     for (const chainId of DRAWN_CHAINS.slice(DRAWN_CHAINS.indexOf(BLOCKED_CHAIN) + 1)) await expectImage(vscode, "/exports/", chainId);
     expect(messages.answered()).toContain("exportImagesItemFailed");

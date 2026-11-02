@@ -24,14 +24,15 @@ export interface MessageEntry {
 /** The reason every handler with no sender in `ui/src` carries; the harness reads its prefix. */
 export const NO_UI_SENDER = "no UI sender";
 
-const R_1214 = "#1214: the extension has no handler, so the UI receives an answer with no payload";
-
 const covered = (message: string): MessageEntry => ({ message, status: "covered" });
 const notCovered = (reason: string, ...messages: string[]): MessageEntry[] =>
   messages.map((message) => ({ message, status: "not-covered", reason }));
+const unhandled = (reason: string, ...messages: string[]): MessageEntry[] =>
+  messages.map((message) => ({ message, status: "unhandled", reason }));
 
 export const messageRegistry: MessageEntry[] = [
-  // specs/vscode/smoke.spec.ts
+  // specs/vscode/smoke.spec.ts; the cases that turn red without `startup` and `getLibrary` are in
+  // export-images.spec.ts and chain-editor.spec.ts.
   covered("startup"),
   covered("navigate"),
   covered("getChain"),
@@ -48,14 +49,10 @@ export const messageRegistry: MessageEntry[] = [
   covered("ungroupElements"),
   covered("cloneElements"),
   covered("transferElement"),
-  {
-    message: "getConnections",
-    status: "not-covered",
-    reason: "no screen calls api.getConnections: the chain editor reads the dependencies from getChain",
-  },
-  // `openChainInNewTab` and `navigateInNewTab` count only through `sentMessage`: the extension posts no answer.
+  ...notCovered("no screen calls api.getConnections: the chain editor reads the dependencies from getChain", "getConnections"),
   covered("findChainByElementId"),
   covered("getElementsByType"),
+  // `openChainInNewTab` and `navigateInNewTab` count only through `sentMessage`: the extension posts no answer.
   covered("openChainInNewTab"),
   covered("navigateInNewTab"),
 
@@ -79,6 +76,7 @@ export const messageRegistry: MessageEntry[] = [
   covered("getOperationInfo"),
   covered("getContextServices"),
   covered("getMcpServices"),
+  covered("getSpecificationModelSource"),
 
   // specs/vscode/chain-diff.spec.ts; `navigateComparedDocumentInNewTab` counts only through `sentMessage`.
   covered("comparedDocumentsRequest"),
@@ -90,6 +88,9 @@ export const messageRegistry: MessageEntry[] = [
   covered("exportImagesComplete"),
   covered("exportImagesItemFailed"),
   covered("exportImagesItemWarning"),
+  // The extension answers both with nothing: they are for the extensions built on this one.
+  covered("exportImagesStarted"),
+  covered("exportImagesItemDone"),
 
   // specs/vscode/service-editor.spec.ts
   covered("updateService"),
@@ -107,11 +108,10 @@ export const messageRegistry: MessageEntry[] = [
   covered("getImportSpecificationResult"),
   covered("getSpecApiFiles"),
   covered("readSpecificationFileContent"),
-  {
-    message: "createService",
-    status: "not-covered",
-    reason: "no screen of the extension calls api.createService: the services list that does is not among the extension's routes, and the cip.createService command writes the file itself",
-  },
+  ...notCovered(
+    "no screen of the extension calls api.createService: the services list that does is not among the extension's routes, and the cip.createService command writes the file itself",
+    "createService",
+  ),
   ...notCovered(
     "no screen calls the api method: the service editor moves between its tables with its own router",
     "navigateToSpecifications",
@@ -124,20 +124,10 @@ export const messageRegistry: MessageEntry[] = [
   covered("getMcpService"),
   covered("updateMcpService"),
 
-  {
-    message: "exportImagesDone",
-    status: "not-covered",
-    reason: `${NO_UI_SENDER}: the UI reports the end of an export with exportImagesComplete, which shares the handler`,
-  },
-  {
-    message: "listChainExportTargets",
-    status: "not-covered",
-    reason: `${NO_UI_SENDER}: the extension calls it itself when an export starts (extension.ts)`,
-  },
+  ...notCovered(`${NO_UI_SENDER}: the UI reports the end of an export with exportImagesComplete, which shares the handler`, "exportImagesDone"),
+  ...notCovered(`${NO_UI_SENDER}: the extension calls it itself when an export starts (extension.ts)`, "listChainExportTargets"),
 
-  ...["importSystems", "createContextService", "getSpecificationModelSource", "exportImagesStarted", "exportImagesItemDone"].map(
-    (message): MessageEntry => ({ message, status: "unhandled", reason: R_1214 }),
-  ),
+  ...unhandled("no case in apiRouter.ts, since an answer with no payload would report the import or the create as a success; no screen the extension renders calls it", "importSystems", "createContextService"),
 ];
 
 /** Rows that repeat a type or lack a required reason. */
@@ -252,18 +242,15 @@ export function recordedMessages(report: JsonReport): Set<string> {
 /**
  * The message registry against the run. Empty means they agree.
  *
- * A whole run is read unless `only` is set, in which case the run has to be narrowed to exactly
- * `--project=vscode`. A `covered` row no passing test recorded fails, and so does a `not-covered`
+ * With `only`, the run has to be narrowed to exactly `--project=vscode`; without it, `reconcile.mjs`
+ * reads a whole run only. A `covered` row no passing test recorded fails, and so does a `not-covered`
  * row one did, or a recorded type with no row. A type recorded for an `unhandled` row is ignored:
  * the extension answers it with no payload and no error, which proves nothing.
  */
-export function reconcileMessages(report: JsonReport, entries: readonly MessageEntry[] = messageRegistry, { only = false } = {}): string[] {
+export function reconcileMessages(report: JsonReport, entries: readonly MessageEntry[] = messageRegistry, only = false): string[] {
   const filters = runFilters(report);
   if (only && !VSCODE_PROJECT_FILTERS.some((allowed) => allowed.join(" ") === filters.join(" "))) {
     return [`the run was narrowed by \`${filters.join(" ") || "nothing"}\`: --only=vscode-messages reads a run of --project=vscode`];
-  }
-  if (!only && filters.length > 0) {
-    return [`the run was narrowed by \`${filters.join(" ")}\`: reconciliation reads a whole run or none`];
   }
 
   const problems: string[] = [];

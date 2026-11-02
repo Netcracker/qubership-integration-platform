@@ -250,13 +250,15 @@ function projectsSection(run, report) {
 
 /** @param {Coverage} coverage */
 function coverageSection(coverage) {
-  const { elements, operations } = coverage;
+  const { elements, operations, messages } = coverage;
   const rows = [
     ["Element registry rows in scope", `${elements.covered} of ${elements.inScope} covered`],
     ["Element rows out of scope on this target", String(elements.outOfScope)],
     ["Element rows shared", String(elements.shared)],
     ["API operations covered", `${operations.covered} of ${operations.total}`],
     ["API operations reached", `${operations.reached} of ${operations.total}`],
+    ["VS Code message types covered", `${messages.covered} of ${messages.handled} handled`],
+    ["VS Code message types unhandled", String(messages.unhandled)],
     ["Reconciliation problems", String(coverage.problems)],
   ];
   return `<h2>Coverage on ${escapeHtml(coverage.target)}</h2>${table(["Measure", "Value"], rows, [1])}`;

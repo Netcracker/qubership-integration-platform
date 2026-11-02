@@ -42,6 +42,10 @@ npm test -- --testNamePattern="should parse"
 `eslint`, `prettier`, and `jest` resolve config from the working directory — run them from `ui/`,
 not from the repository root, where `eslint` fails with a migration-guide error instead of linting.
 
+A pull request that changes `ui/` also runs the `vscode` job of `.github/workflows/e2e-pr.yaml`,
+about 10 minutes, since the VS Code extension embeds the UI library. Run it before pushing with
+`cd e2e && npm test -- --project=vscode`: it needs no stack, and it never takes `--no-deps`.
+
 Keep your own changes clean of lint and format issues. Pre-existing violations in files outside your
 change stay as they are unless the user asks for them.
 

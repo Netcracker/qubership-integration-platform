@@ -10,7 +10,7 @@
  * its tables with its own router rather than through `navigateToSpecifications` or
  * `navigateToOperations`.
  *
- * Shown failing, each by an edit in `vscode-extension/src/web/response/`:
+ * Shown failing, each by an edit in `vscode-extension/src/web/response/` run alone:
  * - `getSpecificationModel` answering `[]`: every case that opens a group found no specification;
  * - `getOperationInfo` answering `{}`: the details dialog showed no specification;
  * - `updateService` skipping its write: the file read timed out on the old name;
@@ -23,6 +23,8 @@
  *   guard caught the extension host's error;
  * - `importSpecificationGroup` and `importSpecification` each throwing, and
  *   `getImportSpecificationResult` never reporting done: the import dialog stayed open;
+ * - the import writing no specification file (`SpecificationImportService`): the group showed no
+ *   `1.0.0` row, since the tables read the files the extension wrote;
  * - `updateApiSpecificationGroup` and `updateSpecificationModel` each skipping its write: the row
  *   never showed the label;
  * - `deprecateModel` skipping its write: the status stayed `In use`, in both cases that deprecate;
@@ -34,14 +36,21 @@ import { load } from "js-yaml";
 import { test, expect } from "../../support/vscode-guard.js";
 import { TableView } from "../../pages/TableView.js";
 import type { VsCodePage } from "../../pages/VsCodePage.js";
-import type { MessageRecorder } from "../../support/vscode-messages.js";
-import { fixturePath, serviceFile } from "../../support/vscode-workspace.js";
+import { addTag } from "../../support/pick-option.js";
+import {
+  fixturePath,
+  parseService,
+  serviceFile,
+  specificationFile,
+  specificationGroupFile,
+  type ServiceFile,
+} from "../../support/vscode-workspace.js";
 
 /** The mocha workspace's internal service: one group, `orders`, with one specification, `1.0.0`. */
 const INTERNAL_ID = "3b2e9742-139c-4750-bb76-adaf1cc9e3f0";
 const INTERNAL = serviceFile(INTERNAL_ID);
-const GROUP_FILE = `services/${INTERNAL_ID}/${INTERNAL_ID}-orders.specification-group.cip.yaml`;
-const SPEC_FILE = `services/${INTERNAL_ID}/${INTERNAL_ID}-orders-1.0.0.specification.cip.yaml`;
+const GROUP_FILE = specificationGroupFile(INTERNAL_ID, "orders");
+const SPEC_FILE = specificationFile(INTERNAL_ID, "orders", "1.0.0");
 
 /** An external service with one environment and no specification. Only an external service offers Add Environment. */
 const EXTERNAL = serviceFile("e2e2000a-0000-4000-8000-000000000001");
@@ -52,16 +61,6 @@ const WIDGETS_V2 = fixturePath("apis/widgets-v2.openapi.yaml");
 /** Column headers, whose names carry their resize handles. */
 const LABELS = "Labels Resize column";
 const STATUS = "Status Resize column";
-
-interface ServiceFile {
-  name: string;
-  content: {
-    description?: string;
-    labels?: string[];
-    activeEnvironmentId?: string;
-    environments: { name: string; address: string }[];
-  };
-}
 
 interface SpecificationFile {
   content: { labels?: string[]; deprecated?: boolean };
@@ -103,15 +102,14 @@ test.describe("service editor", () => {
     await webview.getByRole("textbox", { name: "* Name" }).fill("vsc-renamed-service");
     await webview.getByRole("textbox", { name: "Description" }).fill("set in VS Code");
     const labels = webview.getByRole("combobox", { name: "Labels" });
-    await labels.fill("e2e-label");
-    await labels.press("Enter");
+    await addTag(webview, labels, "e2e-label");
     // The tag list stays open over the Save button.
     await labels.press("Escape");
     const save = webview.getByRole("button", { name: "Save" });
     await save.click();
     await expect(save).toBeDisabled();
 
-    const service = load(await vscode.readAsText((text) => (load(text) as ServiceFile).name === "vsc-renamed-service")) as ServiceFile;
+    const service = parseService(await vscode.readAsText((text) => parseService(text).name === "vsc-renamed-service"));
     expect({ name: service.name, description: service.content.description, labels: service.content.labels }).toEqual({
       name: "vsc-renamed-service",
       description: "set in VS Code",
@@ -129,25 +127,26 @@ test.describe("service editor", () => {
 
     await webview.getByRole("button", { name: "Add Environment" }).click();
     const added = webview.getByRole("dialog", { name: "Add Environment" });
+    await added.getByRole("textbox", { name: "Name" }).fill("e2e-added");
     await added.getByRole("textbox", { name: "* Address" }).fill("http://e2e-added.invalid");
     await added.getByRole("button", { name: "Save" }).click();
     await expect(added).toBeHidden();
-    await expect(table.row("New Environment")).toContainText("http://e2e-added.invalid");
+    await expect(table.row("e2e-added")).toContainText("http://e2e-added.invalid");
 
-    await table.row("New Environment").getByRole("button", { name: "New Environment" }).click();
+    await table.row("e2e-added").getByRole("button", { name: "e2e-added" }).click();
     const edited = webview.getByRole("dialog", { name: "Edit Environment" });
     await edited.getByRole("textbox", { name: "* Address" }).fill("http://e2e-edited.invalid");
     await edited.getByRole("button", { name: "Save" }).click();
     await expect(edited).toBeHidden();
-    await expect(table.row("New Environment")).toContainText("http://e2e-edited.invalid");
+    await expect(table.row("e2e-added")).toContainText("http://e2e-edited.invalid");
 
     await table.row("primary").getByTestId("environments-delete").click();
     await webview.getByRole("dialog", { name: "Are you sure you want to delete this Environment?" }).getByRole("button", { name: "OK" }).click();
     await expect(table.row("primary")).toHaveCount(0);
 
-    const environments = (each: ServiceFile) => each.content.environments.map(({ name, address }) => ({ name, address }));
-    const service = load(await vscode.readAsText((text) => environments(load(text) as ServiceFile).length === 1)) as ServiceFile;
-    expect(environments(service)).toEqual([{ name: "New Environment", address: "http://e2e-edited.invalid" }]);
+    const environments = (each: ServiceFile) => (each.content.environments ?? []).map(({ name, address }) => ({ name, address }));
+    const service = parseService(await vscode.readAsText((text) => environments(parseService(text)).length === 1));
+    expect(environments(service)).toEqual([{ name: "e2e-added", address: "http://e2e-edited.invalid" }]);
     // The deleted environment was the active one.
     expect(service.content.activeEnvironmentId).toBe("");
     expect(messages.answered()).toEqual(expect.arrayContaining(["createEnvironment", "updateEnvironment", "deleteEnvironment"]));
@@ -197,10 +196,13 @@ test.describe("service editor", () => {
     const table = new TableView(webview);
     await webview.getByRole("tab", { name: "API Specifications" }).click();
 
-    await addLabel(vscode, messages, await table.cell(table.row("orders"), LABELS), "e2e-group");
+    await addLabel(vscode, await table.cell(table.row("orders"), LABELS), "e2e-group");
     await table.row("orders").getByText("orders", { exact: true }).click();
     const spec = table.row("1.0.0");
-    await addLabel(vscode, messages, await table.cell(spec, LABELS), "e2e-spec");
+    // The group table has Labels one column further left, so the cell is looked up only once the
+    // specification table shows.
+    await expect(spec).toBeVisible();
+    await addLabel(vscode, await table.cell(spec, LABELS), "e2e-spec");
     await expect(await table.cell(spec, STATUS)).toHaveText("In use");
     await runRowAction(vscode, spec, "Deprecate", "Deprecate this specification?");
     await expect(await table.cell(spec, STATUS)).toHaveText("Deprecated");
@@ -236,22 +238,12 @@ test.describe("service editor", () => {
   });
 });
 
-/**
- * Adds `label` in a row's inline labels editor, which Enter saves, and waits for the row to show it.
- * The open editor takes its values again from the table on every redraw, and an answer from the
- * extension redraws the page, so the editor opens only once every request has its answer.
- *
- * Enter adds the typed label through the select's option list, which mounts in a hidden popup some
- * time after the first key. An Enter before that saves the labels without the new one (2 of 12
- * runs on 2026-10-28), so Enter waits for the list's hidden accessible option.
- */
-async function addLabel(vscode: VsCodePage, messages: MessageRecorder, cell: Locator, label: string): Promise<void> {
-  await expect.poll(() => messages.unanswered(), { message: "every request of the webview is answered" }).toEqual([]);
+/** Adds `label` in a row's inline labels editor, which Enter saves, and waits for the row to show it. */
+async function addLabel(vscode: VsCodePage, cell: Locator, label: string): Promise<void> {
   await cell.getByRole("button").click();
-  await expect(cell.getByRole("combobox")).toBeFocused();
-  await vscode.page.keyboard.type(label);
-  await expect(vscode.webview.getByRole("option", { name: label, exact: true, includeHidden: true })).toBeAttached();
-  await vscode.page.keyboard.press("Enter");
+  const select = cell.getByRole("combobox");
+  await expect(select).toBeFocused();
+  await addTag(vscode.webview, select, label);
   await expect(cell.getByRole("button", { name: label, exact: true })).toBeVisible();
 }
 

@@ -128,6 +128,19 @@ test.describe("run email", () => {
       expect(retryOf(engine.retry).test(tagged("engine", "@engine"))).toBe(true);
       expect(retryOf(catalog.retry).test(tagged("runtime-catalog", "@catalog"))).toBe(true);
     });
+
+    // vscode-server has to build and start the workbench before the case can run.
+    test("keeps the dependencies of a project that needs no stack", () => {
+      const report = reportOf({ "vscode-server": [], vscode: ["vscode-server"], api: [] }, [
+        file("vscode/editor.spec.ts", [failing("vscode", "opens", "Error: no")]),
+        file("api/case.spec.ts", [failing("api", "answers", "Error: no")]),
+      ]);
+      report.config.projects[1].metadata = { ...report.config.projects[1].metadata, stack: false } as never;
+      const [vscode, api] = emailOf({ report, env: ENV }).failed;
+
+      expect(vscode.retry).toBe(`npm run test:k8s -- --project=vscode specs/vscode/case.spec.ts:7 -g "opens"`);
+      expect(api.retry).toBe(`npm run test:k8s -- --project=api --no-deps specs/api/case.spec.ts:7 -g "answers"`);
+    });
   });
 
   // The message Playwright repeats after the first line is dropped too.
@@ -285,7 +298,7 @@ test.describe("run email", () => {
   // The run page and the step summary run without FAILED_STEP, so the coverage file alone decides.
   test("fails a passed run when reconciliation found a problem", () => {
     const green = reportOf({ api: [] }, [file("api/a.spec.ts", [passing("api")])]);
-    const coverage = { target: "k8s", elements: { covered: 204, inScope: 300, outOfScope: 136, shared: 3 }, operations: { total: 303, reached: 301, covered: 301 }, problems: 2 };
+    const coverage = { target: "k8s", elements: { covered: 204, inScope: 300, outOfScope: 136, shared: 3 }, operations: { total: 303, reached: 301, covered: 301 }, messages: { covered: 61, handled: 67, unhandled: 5 }, problems: 2 };
     for (const env of [ENV, { ...ENV, FAILED_STEP: "Reconcile the coverage registry" }]) {
       const run = emailOf({ report: green, lastRun: { status: "passed" }, coverage, env });
       expect([run.tone, run.title]).toEqual(["failed", "E2E nightly failed"]);

@@ -90,7 +90,7 @@ import {
 import { Api } from "../api.ts";
 import { DiffDocumentType } from "../../components/chains/diff/DiffDocumentContext.tsx";
 import { EntityFilterModel } from "../../components/table/filter/filterTypes.ts";
-import { isVsCodeWebview } from "../../utils/isVsCodeWebview.ts";
+import { isVsCodeWebview } from "../../misc/isVsCodeWebview.ts";
 
 export const NAVIGATE_EVENT = "navigate";
 export const STARTUP_EVENT = "startup";

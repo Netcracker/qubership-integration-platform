@@ -1,7 +1,7 @@
 import * as monaco from "monaco-editor";
 
 import { configureMonacoLoader } from "./monaco-loader-config";
-import { isVsCodeWebview } from "./utils/isVsCodeWebview";
+import { isVsCodeWebview } from "./misc/isVsCodeWebview";
 import {
   getMonacoWorkerBasePath,
   setMonacoWorkerBasePath,

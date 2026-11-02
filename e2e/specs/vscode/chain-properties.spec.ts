@@ -5,25 +5,30 @@
  * In VS Code the Properties tab carries a Group field, which Apply saves through `moveChain` as the
  * chain's `metaInfo.group` before `updateChain` writes the rest.
  *
- * Deleting the first masked field leaves it in the file: `deleteMaskedFields` in `chainApiModify.ts`
- * tests the found index with `if (index)`, which is false for index 0. The UI drops the row anyway,
- * so the field comes back when the chain is opened again (#1222). The pinned case carries it, and the
- * other case deletes the second of two fields.
+ * Deleting the first masked field used to leave it in the file, because `deleteMaskedFields` in
+ * `chainApiModify.ts` tested the found index with `if (index)`, which is false for index 0 (#1222).
+ * One case deletes the only field, at index 0, and the other deletes the second of two fields.
  *
- * Shown failing, each by an edit in `vscode-extension/src/web/response/chainApiModify.ts`:
+ * Shown failing, each by an edit in `vscode-extension/src/web/response/` run alone:
  * - `updateChain` skipping `writeMainChain`: the file read timed out on the old name;
  * - `changeFolder` skipping `writeMainChain`: the group was missing from the written file;
  * - `updateMaskedField` skipping `writeMainChain`: the file held a field with an empty name;
- * - `if (index >= 0)` in `deleteMaskedFields`, the fix: the pinned case passed, so `test.fail()`
- *   turned it red.
+ * - `getMaskedFields` answering no fields: the reopened Masking tab listed none;
+ * - `createMaskedField` skipping `writeMainChain`: both masked-field cases lost the row, and the
+ *   guard caught `Masked Field not found`;
+ * - `deleteMaskedFields` skipping `writeMainChain`: the file read timed out on two fields;
+ * - an undeclared `console.error` in the first-field case while it carried `test.fail()`: the guard
+ *   turned it red, and with the guard no longer clearing `expectedStatus` the same error passed as
+ *   the expected failure;
+ * - `deleteMaskedFields` before the #1222 fix: the first-field case found `e2eOnly` in the file.
  */
 import type { FrameLocator } from "@playwright/test";
 import { test, expect } from "../../support/vscode-guard.js";
 import { TableView } from "../../pages/TableView.js";
-import { outsideTheDefect } from "../../support/known-defect.js";
-import { chainFile, parseChain } from "../../support/vscode-workspace.js";
+import { addTag } from "../../support/pick-option.js";
+import { chainFile, MOCHA_CHAIN_ID, parseChain } from "../../support/vscode-workspace.js";
 
-const CHAIN = chainFile("1419390b-7423-4fab-853f-67c653e16a86");
+const CHAIN = chainFile(MOCHA_CHAIN_ID);
 
 /** A field of the Properties form by its label, which antd names with a trailing colon and, when required, a leading `* `. */
 const field = (webview: FrameLocator, role: "textbox" | "combobox", label: string) =>
@@ -43,9 +48,7 @@ test.describe("chain properties", () => {
     await name.fill("vsc-fixture-chain-renamed");
     await field(webview, "textbox", "Group").fill("e2e/moved");
     await field(webview, "textbox", "Description").fill("set in VS Code");
-    const labels = field(webview, "combobox", "Labels");
-    await labels.fill("e2e-label");
-    await labels.press("Enter");
+    await addTag(webview, field(webview, "combobox", "Labels"), "e2e-label");
     const apply = webview.getByRole("button", { name: /Apply$/ });
     await apply.click();
     await expect(apply).toBeDisabled();
@@ -76,27 +79,28 @@ test.describe("chain properties", () => {
     await expect.poll(() => messages.answered()).toContain("deleteMaskedFields");
 
     expect(maskedNames(await vscode.readAsText((each) => maskedNames(each).length === 1))).toEqual(["e2eFirst"]);
+    // Opened again, the tab lists what getMaskedFields reads from the file.
+    await vscode.reopenWith("CIP Chain File Visual Editor");
+    await webview.getByRole("tab", { name: "Masking", exact: true }).click();
+    await expect(table.row("e2eFirst")).toBeVisible();
+    await expect(table.rows).toHaveCount(1);
     expect(messages.answered()).toEqual(expect.arrayContaining(["getMaskedFields", "createMaskedField", "updateMaskedField"]));
   });
 
   test("a deleted first masked field leaves the chain file", async ({ vscode, messages }) => {
-    test.fail(true, "#1222: deleteMaskedFields tests the found index with `if (index)`, which skips index 0");
-    const text = await outsideTheDefect("adding a masked field, deleting it, and reading the chain file", async () => {
-      await vscode.open();
-      await vscode.openFile(CHAIN);
-      const { webview } = vscode;
-      const table = new TableView(webview);
-      await webview.getByRole("tab", { name: "Masking", exact: true }).click();
-      await expect(webview.getByText("No masked fields")).toBeVisible();
-      await addMaskedField(webview, table, "e2eOnly");
-      await table.row("e2eOnly").getByRole("checkbox").check();
-      await webview.getByTestId("masking-delete").click();
-      await expect(webview.getByText("No masked fields")).toBeVisible();
-      await expect.poll(() => messages.answered()).toContain("deleteMaskedFields");
-      // Every write is in before the text editor opens, so it reads the file the delete left.
-      return await vscode.readAsText();
-    });
-    expect(maskedNames(text)).toEqual([]);
+    await vscode.open();
+    await vscode.openFile(CHAIN);
+    const { webview } = vscode;
+    const table = new TableView(webview);
+    await webview.getByRole("tab", { name: "Masking", exact: true }).click();
+    await expect(webview.getByText("No masked fields")).toBeVisible();
+    await addMaskedField(webview, table, "e2eOnly");
+    await table.row("e2eOnly").getByRole("checkbox").check();
+    await webview.getByTestId("masking-delete").click();
+    await expect(webview.getByText("No masked fields")).toBeVisible();
+    await expect.poll(() => messages.answered()).toContain("deleteMaskedFields");
+    // Every write is in before the text editor opens, so it reads the file the delete left.
+    expect(maskedNames(await vscode.readAsText((each) => parseChain(each).id === MOCHA_CHAIN_ID))).toEqual([]);
   });
 });
 

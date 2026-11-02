@@ -281,10 +281,16 @@ test.describe("run summary", () => {
   });
 
   test("shows the coverage reconcile wrote and its verdict", () => {
-    const coverage = { target: "k8s", elements: { covered: 204, inScope: 300, outOfScope: 136, shared: 3 }, operations: { total: 303, reached: 301, covered: 301 }, problems: 0 };
+    const coverage = {
+      target: "k8s",
+      elements: { covered: 204, inScope: 300, outOfScope: 136, shared: 3 },
+      operations: { total: 303, reached: 301, covered: 301 },
+      messages: { covered: 61, handled: 67, unhandled: 5 },
+      problems: 0,
+    };
     expect(summaryMarkdown({ coverage })).toContain(
       "<details><summary>Coverage</summary>\n\nElements: 204 of 300 registry rows in scope covered on k8s (136 out of scope, 3 shared). " +
-        "API operations: 301 of 303 covered, 301 reached. Reconciliation passed.",
+        "API operations: 301 of 303 covered, 301 reached. VS Code messages: 61 of 67 handled message types covered, 5 unhandled. Reconciliation passed.",
     );
     expect(summaryMarkdown({ coverage: { ...coverage, problems: 2 } })).toContain("Reconciliation found 2 problems; the reconcile step lists them.");
   });
@@ -330,7 +336,7 @@ test.describe("run summary", () => {
     expect(bare).toContain("- <b>a live exchange is killed only after its termination is confirmed</b> in <code>ui</code>: Error:");
   });
 
-  // A passed pin in a project that needs no stack stays a failure.
+  // A passed pin in a suite check stays a failure, and one in a product project that needs no stack is a pin.
 
   test("lists a passed test.fail() case as a pin to remove", () => {
     const { report } = readRun("green");
@@ -339,20 +345,22 @@ test.describe("run summary", () => {
     const struckPin = { ...spec.tests[0], projectName: "api", status: "expected", annotations: [{ type: "fail" }], results: [{ status: "failed", errors: [] }] };
     // notTheKnownDefect fails a pinned case for real.
     const realFailure = { ...struckPin, status: "unexpected", results: [{ status: "failed", errors: [{ message: "Error: a new failure" }] }] };
-    report.config.projects = [{ name: "schema", metadata: { stack: false } }];
-    report.stats.unexpected = 4;
+    report.config.projects = [{ name: "schema", metadata: { stack: false, group: "suite" } }, { name: "vscode", metadata: { stack: false } }];
+    report.stats.unexpected = 5;
     report.suites[0].specs.push(
       { ...spec, title: "a", line: 8, tests: [passedPin("runtime-micro", "the micro engine drops it")] },
       { ...spec, title: "b", line: 9, tests: [passedPin("api")] },
       { ...spec, title: "c", line: 10, tests: [passedPin("schema")] },
       { ...spec, title: "d", line: 11, tests: [struckPin] },
       { ...spec, title: "e", line: 12, tests: [realFailure] },
+      { ...spec, title: "f", line: 13, tests: [passedPin("vscode", "#1225 the labels are not saved")] },
     );
     const summary = summaryMarkdown({ report });
-    expect(summary).toContain("Product cases: 944 passed, 2 failed, 2 pins to remove.");
+    expect(summary).toContain("Product cases: 942 passed, 1 failed, 3 pins to remove. Suite checks: 2 passed, 1 failed.");
     expect(summary).toContain("### Pins to remove\n\nEach `test.fail()` case below passed");
     expect(summary).toContain(`| runtime-micro | \`${spec.file}:8\` | a | the micro engine drops it |`);
     expect(summary).toContain(`| api | \`${spec.file}:9\` | b |  |`);
+    expect(summary).toContain(`| vscode | \`${spec.file}:13\` | f | #1225 the labels are not saved |`);
     expect(runOf({ report }).failed.map((each) => each.title)).toEqual(["c", "e"]);
     expect(summary).not.toContain("Known defects");
   });

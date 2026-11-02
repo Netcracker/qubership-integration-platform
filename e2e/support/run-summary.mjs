@@ -33,7 +33,10 @@ export const METASPACE_ATTACHMENT = "metaspace";
  * @typedef {import("./run-model.mjs").FailedCase} FailedCase
  * @typedef {import("./run-model.mjs").LastRun} LastRun
  * @typedef {{ workers?: number, provision?: { durationMs?: number }, startedAt?: string, target?: string, commit?: { sha?: string, branch?: string }, absent?: { name: string, reason: string }[] }} Stack
- * @typedef {{ target: string, elements: { covered: number, inScope: number, outOfScope: number, shared: number }, operations: { total: number, reached: number, covered: number }, problems: number }} Coverage
+ * @typedef {{
+ *   target: string, elements: { covered: number, inScope: number, outOfScope: number, shared: number },
+ *   operations: { total: number, reached: number, covered: number }, messages: { covered: number, handled: number, unhandled: number }, problems: number
+ * }} Coverage
  * @typedef {{ role: string, memoryBytes: number, cpuPercent: number, samples: number, band: { memoryBytes: number, cpuPercent: number } }} PeakReading
  * @typedef {{ role: string, usedBytes: number, maxBytes: number, band: number }} MetaspaceReading
  * @typedef {{ report?: Report, lastRun?: LastRun, stack?: Stack, coverage?: Coverage, history?: Outcomes[], env?: Record<string, string | undefined> }} SummaryInput
@@ -214,7 +217,7 @@ function trendSection(run) {
 
 /** @param {Coverage} coverage */
 function coverageSection(coverage) {
-  const { elements, operations } = coverage;
+  const { elements, operations, messages } = coverage;
   const verdict =
     coverage.problems === 0
       ? "Reconciliation passed."
@@ -223,7 +226,8 @@ function coverageSection(coverage) {
     "Coverage",
     `Elements: ${elements.covered} of ${elements.inScope} registry rows in scope covered on ${coverage.target}` +
       ` (${elements.outOfScope} out of scope, ${elements.shared} shared). ` +
-      `API operations: ${operations.covered} of ${operations.total} covered, ${operations.reached} reached. ${verdict}`,
+      `API operations: ${operations.covered} of ${operations.total} covered, ${operations.reached} reached. ` +
+      `VS Code messages: ${messages.covered} of ${messages.handled} handled message types covered, ${messages.unhandled} unhandled. ${verdict}`,
   );
 }
 

@@ -9,6 +9,7 @@
  * `@playwright/test` rather than `support/fixtures.ts`, whose automatic fixtures need the stack.
  */
 import { test as base, expect } from "@playwright/test";
+import { escapeRegExp } from "../fixtures/templating.js";
 import { VsCodePage } from "../pages/VsCodePage.js";
 import { VSCODE_PORT } from "./vscode-server.js";
 import { annotateMessage, recordMessages, type MessageRecorder } from "./vscode-messages.js";
@@ -48,16 +49,29 @@ const matches = (expected: ExpectedError, message: string) => (typeof expected =
  * The pattern of `message` followed by its stack trace, whose line numbers in `extension.js` change
  * with every build of the extension.
  */
-export const withAnyStack = (message: string) => new RegExp(`^${message.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\n\\tat `);
+export const withAnyStack = (message: string) => new RegExp(`^${escapeRegExp(message)}\\n\\tat `);
+
+/**
+ * The two lines the workbench prints for one error the extension host logs: `message`, the text the
+ * extension passes, followed by `error`, the error it passes with it.
+ */
+export const extensionHostErrors = (message: string, error: string) => [
+  `%c  ERR color: #f33 [Extension Host] ${message} ${error}`,
+  `%c[Extension Host] %c${message} color: blue color:  ${error}`,
+];
 
 /**
  * What fails the case: every problem neither allowed nor expected, and every expected message that
  * never arrived. An expected message matches exactly, or its pattern matches, and absorbs each
- * repeat of itself.
+ * repeat of itself. A message in `permitted` passes the same way, and its absence fails nothing.
  */
-export function guardFailures(problems: readonly VsCodeProblem[], expected: readonly ExpectedError[]): string[] {
+export function guardFailures(
+  problems: readonly VsCodeProblem[],
+  expected: readonly ExpectedError[],
+  permitted: readonly ExpectedError[] = [],
+): string[] {
   const unexpected = problems
-    .filter((each) => !allowed(each) && !expected.some((message) => matches(message, each.message)))
+    .filter((each) => !allowed(each) && ![...expected, ...permitted].some((message) => matches(message, each.message)))
     .map((each) => (each.source === "pageerror" ? `uncaught ${each.message}` : `console.error${each.url ? ` at ${each.url}` : ""}: ${each.message}`));
   const missing = expected
     .filter((message) => !problems.some((each) => matches(message, each.message)))
@@ -65,30 +79,32 @@ export function guardFailures(problems: readonly VsCodeProblem[], expected: read
   return [...unexpected, ...missing];
 }
 
-/** The experiment service the workbench of the pinned build asks for its assignments. */
-export const EXPERIMENT_SERVICE = "https://default.exp-tas.com/**";
+/** Whether `url` is on this machine: the workbench on `localhost` and each webview on a `*.localhost` origin of its own. */
+export const isLocal = (url: URL) => url.hostname === "localhost" || url.hostname.endsWith(".localhost");
 
 interface VsCodeFixtures {
   vscode: VsCodePage;
   /** Declares an error the case meets, by its exact message or a pattern, so that the guard lets it through. */
   expectConsoleError: (message: ExpectedError) => void;
+  /** Lets an error through that the case meets only sometimes, so its absence fails nothing. */
+  allowConsoleError: (message: ExpectedError) => void;
   messages: MessageRecorder;
   /** Waits until a webview sent a request of `type`, and counts the type for the case. */
   sentMessage: (type: string) => Promise<void>;
   expectedErrors: ExpectedError[];
+  allowedErrors: ExpectedError[];
   vscodeGuard: void;
-  experimentService: void;
+  offsiteAnswers: void;
 }
 
 export const test = base.extend<VsCodeFixtures>({
-  // The workbench asks the experiment service on the internet for its assignments some time after
-  // the load. Once its preflight answer carried no CORS header, and the page logged two
-  // console.error lines (2026-10-28). An empty answer keeps every case off the network.
-  experimentService: [
+  // The workbench asks services on the internet for its experiment assignments and for the chat and
+  // Marketplace manifests. A request that fails logs a console.error (on 2026-10-28
+  // main.vscode-cdn.net closed the connection), so every request to another host gets an empty
+  // answer, which the workbench reports with a warning at most.
+  offsiteAnswers: [
     async ({ context }, use) => {
-      await context.route(EXPERIMENT_SERVICE, (route) =>
-        route.fulfill({ json: { Configs: [], AssignmentContext: "" }, headers: { "access-control-allow-origin": "*" } }),
-      );
+      await context.route((url) => !isLocal(url), (route) => route.fulfill({ body: "", headers: { "access-control-allow-origin": "*" } }));
       await use();
     },
     { auto: true },
@@ -111,6 +127,12 @@ export const test = base.extend<VsCodeFixtures>({
   expectConsoleError: async ({ expectedErrors }, use) => {
     await use((message) => expectedErrors.push(message));
   },
+  allowedErrors: async ({}, use) => {
+    await use([]);
+  },
+  allowConsoleError: async ({ allowedErrors }, use) => {
+    await use((message) => allowedErrors.push(message));
+  },
   sentMessage: async ({ messages }, use, testInfo) => {
     await use(async (type) => {
       await expect.poll(() => messages.sent(type), { message: `a webview sends ${type}` }).toBe(true);
@@ -118,14 +140,14 @@ export const test = base.extend<VsCodeFixtures>({
     });
   },
   vscodeGuard: [
-    async ({ page, expectedErrors }, use, testInfo) => {
+    async ({ page, expectedErrors, allowedErrors }, use, testInfo) => {
       const problems: VsCodeProblem[] = [];
       page.on("pageerror", (error) => problems.push({ source: "pageerror", message: error.message }));
       page.on("console", (message) => {
         if (message.type() === "error") problems.push({ source: "console", message: message.text(), url: message.location().url || undefined });
       });
       await use();
-      const failures = guardFailures(problems, expectedErrors);
+      const failures = guardFailures(problems, expectedErrors, allowedErrors);
       if (failures.length === 0) return;
       // A `test.fail()` case pins one defect, and a problem the guard caught is not that defect.
       testInfo.expectedStatus = "passed";

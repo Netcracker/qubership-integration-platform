@@ -81,16 +81,16 @@ test.describe("vscode messages", () => {
       receive({ requestId: "r3", type: "getSpecificationModelSource", payload: undefined });
       receive({ type: "theme-update", payload: {} });
       expect(reported).toEqual([
-        { direction: "received", type: "getChain", requestId: "r1", error: false, payload: true },
-        { direction: "received", type: "getLibrary", requestId: "r2", error: true, payload: false },
-        { direction: "received", type: "getSpecificationModelSource", requestId: "r3", error: false, payload: false },
+        { direction: "received", type: "getChain", requestId: "r1", error: false },
+        { direction: "received", type: "getLibrary", requestId: "r2", error: true },
+        { direction: "received", type: "getSpecificationModelSource", requestId: "r3", error: false },
       ]);
     });
   });
 
   test.describe("pairing", () => {
     const sent = (type: string, requestId: string): BridgeMessage => ({ direction: "sent", type, requestId });
-    const answer = (type: string, requestId: string, error = false, payload = true): BridgeMessage => ({ direction: "received", type, requestId, error, payload });
+    const answer = (type: string, requestId: string, error = false): BridgeMessage => ({ direction: "received", type, requestId, error });
 
     test("an answer without an error marks its request's type", () => {
       const recorder = new MessageRecorder();
@@ -102,31 +102,6 @@ test.describe("vscode messages", () => {
       expect(recorder.answered()).toEqual(["getChain"]);
       expect(recorder.sent("getLibrary")).toBe(true);
       expect(recorder.sent("getElements")).toBe(false);
-    });
-
-    test("an answer with no payload is told apart", () => {
-      const recorder = new MessageRecorder();
-      recorder.record(sent("getSpecificationModelSource", "r1"));
-      recorder.record(sent("getChain", "r2"));
-      recorder.record(sent("getLibrary", "r3"));
-      recorder.record(answer("getSpecificationModelSource", "r1", false, false));
-      recorder.record(answer("getChain", "r2"));
-      recorder.record(answer("getLibrary", "r3", true, false));
-      expect(recorder.answeredWithoutPayload("getSpecificationModelSource")).toBe(true);
-      expect(recorder.answeredWithoutPayload("getChain")).toBe(false);
-      // An error is an answer of its own kind.
-      expect(recorder.answeredWithoutPayload("getLibrary")).toBe(false);
-    });
-
-    test("a request stays unanswered until any answer to it arrives", () => {
-      const recorder = new MessageRecorder();
-      recorder.record(sent("getService", "r1"));
-      recorder.record(sent("getService", "r2"));
-      recorder.record(sent("getLibrary", "r3"));
-      expect(recorder.unanswered()).toEqual(["getService", "getService", "getLibrary"]);
-      recorder.record(answer("getService", "r2"));
-      recorder.record(answer("getLibrary", "r3", true));
-      expect(recorder.unanswered()).toEqual(["getService"]);
     });
 
     test("comparedDocumentsResponse answers comparedDocumentsRequest", () => {
@@ -149,7 +124,7 @@ test.describe("vscode messages", () => {
       const recorder = new MessageRecorder();
       for (const [index, type] of ["getChain", ...EFFECT_ONLY_TYPES].entries()) {
         recorder.record({ direction: "sent", type, requestId: `r${index}` });
-        recorder.record({ direction: "received", type, requestId: `r${index}`, error: false, payload: true });
+        recorder.record({ direction: "received", type, requestId: `r${index}`, error: false });
       }
       expect(recorder.covered()).toEqual(["getChain"]);
     });
@@ -185,7 +160,7 @@ test.describe("vscode messages", () => {
 
     test("the extension parser reads two handlers", () => {
       const handled = handledTypes(apiRouter, chainDiffEditor);
-      expect(handled).toHaveLength(67);
+      expect(handled).toHaveLength(70);
       expect(handled).toEqual(expect.arrayContaining(["startup", "listChainExportTargets", "comparedDocumentsRequest", "navigateComparedDocumentInNewTab"]));
       // The second `switch` in apiRouter.ts switches on a file type, after getApiResponse ends.
       const router = `export async function getApiResponse(m) {\n  switch (m.type) {\n    case "getChain":\n      return 1;\n  }\n}\nfunction other(t) {\n  switch (t) {\n    case "boolean":\n  }\n}\n`;
@@ -213,7 +188,7 @@ test.describe("vscode messages", () => {
       expect(types).toEqual(expect.arrayContaining(["startup", "navigate", "comparedDocumentsRequest", "exportImagesItemWarning", "getSpecificationModelSource"]));
       expect(sourceDrift(messageRegistry, handledTypes(apiRouter, chainDiffEditor), types)).toEqual([]);
       expect(messageRegistry.filter((entry) => entry.status === "unhandled").map((entry) => entry.message).sort()).toEqual(
-        ["createContextService", "exportImagesItemDone", "exportImagesStarted", "getSpecificationModelSource", "importSystems"],
+        ["createContextService", "importSystems"],
       );
     });
 
@@ -273,15 +248,15 @@ test.describe("vscode messages", () => {
     test("the options are read apart from the report path", () => {
       expect(reconcileArgs([])).toEqual({});
       expect(reconcileArgs(["test-results/report.json"])).toEqual({ report: "test-results/report.json" });
-      expect(reconcileArgs(["--only=vscode-messages", "r.json"])).toEqual({ only: "vscode-messages", report: "r.json" });
-      expect(reconcileArgs(["r.json", "--only=vscode-messages"])).toEqual({ only: "vscode-messages", report: "r.json" });
+      expect(reconcileArgs(["--only=vscode-messages", "r.json"])).toEqual({ onlyMessages: true, report: "r.json" });
+      expect(reconcileArgs(["r.json", "--only=vscode-messages"])).toEqual({ onlyMessages: true, report: "r.json" });
       expect(reconcileArgs(["--only=elements"]).error).toMatch(/unknown option --only=elements/);
       expect(reconcileArgs(["--verbose"]).error).toMatch(/unknown option --verbose/);
     });
 
     test("a covered row a passing test recorded agrees", () => {
-      expect(reconcileMessages(vscodeRun([{ recorded: ["getChain"] }]), rows, { only: true })).toEqual([]);
-      expect(reconcileMessages(run(["--project", "vscode"], [{ recorded: ["getChain"] }]), rows, { only: true })).toEqual([]);
+      expect(reconcileMessages(vscodeRun([{ recorded: ["getChain"] }]), rows, true)).toEqual([]);
+      expect(reconcileMessages(run(["--project", "vscode"], [{ recorded: ["getChain"] }]), rows, true)).toEqual([]);
     });
 
     test("a whole run reconciles without the option", () => {
@@ -291,42 +266,38 @@ test.describe("vscode messages", () => {
 
     test("--only=vscode-messages accepts exactly --project=vscode", () => {
       for (const args of [[], ["--project=ui"], ["--project=vscode", "--project=ui"], ["--project=vscode", "-g", "smoke"], ["specs/vscode/smoke.spec.ts"]]) {
-        expect(reconcileMessages(run(args, [{ recorded: ["getChain"] }]), rows, { only: true })).toEqual([
+        expect(reconcileMessages(run(args, [{ recorded: ["getChain"] }]), rows, true)).toEqual([
           expect.stringMatching(/^the run was narrowed by `.*`: --only=vscode-messages reads a run of --project=vscode$/),
         ]);
       }
       // A non-selecting option leaves the run at --project=vscode.
-      expect(reconcileMessages(run(["--project=vscode", "--workers=1"], [{ recorded: ["getChain"] }]), rows, { only: true })).toEqual([]);
-    });
-
-    test("a narrowed run without the option is refused", () => {
-      expect(reconcileMessages(vscodeRun([{ recorded: ["getChain"] }]), rows)).toEqual([
-        "the run was narrowed by `--project=vscode`: reconciliation reads a whole run or none",
-      ]);
+      expect(reconcileMessages(run(["--project=vscode", "--workers=1"], [{ recorded: ["getChain"] }]), rows, true)).toEqual([]);
+      // The PR workflow's vscode job runs it so.
+      expect(reconcileMessages(run(["--project=vscode", "--max-failures=1"], [{ recorded: ["getChain"] }]), rows, true)).toEqual([]);
     });
 
     test("a covered row no passing test recorded fails", () => {
       const failed = vscodeRun([{ recorded: ["getChain"], status: "unexpected" }]);
       const pinned = vscodeRun([{ recorded: ["getChain"], expectedStatus: "failed" }]);
       for (const report of [vscodeRun([]), failed, pinned]) {
-        expect(reconcileMessages(report, rows, { only: true })).toEqual(["getChain: marked covered, but no passing test recorded it"]);
+        expect(reconcileMessages(report, rows, true)).toEqual(["getChain: marked covered, but no passing test recorded it"]);
       }
     });
 
     test("a not-covered row a passing test recorded fails", () => {
-      expect(reconcileMessages(vscodeRun([{ recorded: ["getChain", "getLibrary"] }]), rows, { only: true })).toEqual([
+      expect(reconcileMessages(vscodeRun([{ recorded: ["getChain", "getLibrary"] }]), rows, true)).toEqual([
         "getLibrary: marked not-covered, but a passing test recorded it",
       ]);
     });
 
     test("a recorded type with no row fails", () => {
-      expect(reconcileMessages(vscodeRun([{ recorded: ["getChain", "brandNew"] }]), rows, { only: true })).toEqual([
+      expect(reconcileMessages(vscodeRun([{ recorded: ["getChain", "brandNew"] }]), rows, true)).toEqual([
         "brandNew was recorded, but it is not a message row",
       ]);
     });
 
     test("an answer recorded for an unhandled row is ignored", () => {
-      expect(reconcileMessages(vscodeRun([{ recorded: ["getChain", "importSystems"] }]), rows, { only: true })).toEqual([]);
+      expect(reconcileMessages(vscodeRun([{ recorded: ["getChain", "importSystems"] }]), rows, true)).toEqual([]);
     });
   });
 });
