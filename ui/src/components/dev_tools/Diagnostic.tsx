@@ -89,7 +89,9 @@ export const Diagnostic: React.FC = () => {
   const [searchString, setSearchString] = useState<string>("");
   const { filters, filterButton } = useDiagnosticValidationFilters();
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
-  const [selectedValidation, setSelectedValidation] = useState<DiagnosticValidation | undefined>();
+  const [selectedValidation, setSelectedValidation] = useState<
+    DiagnosticValidation | undefined
+  >();
 
   const columns: ColumnsTypeWithSettings<DiagnosticValidationTableItem> = [
     {
@@ -115,9 +117,9 @@ export const Diagnostic: React.FC = () => {
                   />
                 )}
                 <a
-                onClick={() => {
+                  onClick={() => {
                     setSelectedValidation(diagnosticValidation);
-                  setIsSidebarOpen(true);
+                    setIsSidebarOpen(true);
                   }}
                 >
                   {diagnosticValidation.title}
