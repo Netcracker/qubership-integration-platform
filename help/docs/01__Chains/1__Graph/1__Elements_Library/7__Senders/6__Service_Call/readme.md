@@ -231,4 +231,4 @@ The tab is responsible for configuring common Service call parameters.
 
 ---
 - Header ```Authorization``` will be removed by the system before sending the message to the Kafka or RabbitMQ services.
-- For GraphQL calls, the outgoing request body cannot be overridden through the **Prepare request** tab. The body is constructed from **Query**, **Operation Name**, and **Variables JSON** on the **Endpoint** tab. Use **Variables JSON** to pass operation variables, including values from the exchange; setting them in the exchange by other means is not supported.
+- For GraphQL calls, the outgoing request body cannot be overridden through the **Prepare request** tab. The body is constructed from **Query**, **Operation Name**, and **Variables JSON** on the **Endpoint** tab.

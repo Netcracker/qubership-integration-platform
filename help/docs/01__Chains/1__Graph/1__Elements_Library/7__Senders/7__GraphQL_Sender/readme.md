@@ -52,4 +52,4 @@ query getVehicle {
 
 ## Constraints
 
-- The outgoing request body is constructed from **Query**, **Operation Name**, and **Variables JSON** on the **Parameters** tab. Use **Variables JSON** to pass operation variables, including values from the exchange; setting them in the exchange by other means is not supported.
+- The outgoing request body cannot be overridden through the previous elements, it is constructed from **Query**, **Operation Name**, and **Variables JSON** on the **Parameters** tab.
