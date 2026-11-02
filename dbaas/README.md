@@ -1,6 +1,6 @@
-# qip-dbaas
+# cip-dbaas
 
-The `qip-dbaas` chart declares the databases that QIP services use and the access other services get to them. The
+The `cip-dbaas` chart declares the databases that QIP services use and the access other services get to them. The
 [DBaaS Operator](https://github.com/Netcracker/qubership-dbaas/blob/main/dbaas-operator/docs/DBaaS%20Operator.md)
 reconciles these resources and forwards them to dbaas-aggregator, which creates the databases and grants the roles.
 
@@ -46,7 +46,7 @@ status to that resource.
 Render the Helm templates and check the output before you install:
 
 ```bash
-helm template qip-dbaas dbaas --set NAMESPACE=<namespace> --set API_DBAAS_ADDRESS=<aggregator-address>
+helm template cip-dbaas dbaas --set NAMESPACE=<namespace> --set API_DBAAS_ADDRESS=<aggregator-address>
 ```
 
 ## Check the result
