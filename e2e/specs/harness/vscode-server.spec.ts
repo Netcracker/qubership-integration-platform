@@ -18,6 +18,7 @@ import {
   SERVER_ARGS,
   serverCommand,
   staleBuilds,
+  vscodeBuildStates,
   UI_LIB_INPUTS,
   UI_LIB_OUTPUT,
   VSCODE_COMMIT,
@@ -39,9 +40,8 @@ function tempDir(prefix: string): string {
 }
 
 /**
- * A repository tree holding every input and output, at 100 s and 200 s, with `changes` applied on
- * top: a number sets that path's mtime in seconds, `null` leaves it out. A path whose name holds a
- * dot is a file, any other path a directory holding one file.
+ * A repository tree with saved build fingerprints. Inputs above 200 s are edited after the
+ * fingerprints are saved; `null` omits an output. A name with a dot is a file, otherwise a directory.
  */
 function repoTree(changes: Record<string, number | null>): string {
   const root = tempDir("e2e-vscode-server-");
@@ -55,6 +55,15 @@ function repoTree(changes: Record<string, number | null>): string {
     const file = path.basename(relative).includes(".") ? path.join(root, relative) : path.join(root, relative, "file");
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, "");
+    fs.utimesSync(file, seconds, seconds);
+  }
+  const states = vscodeBuildStates(root);
+  if (mtimes[OUTPUTS[0]] !== null) states.uiLib.record(states.uiLib.fingerprint());
+  if (mtimes[OUTPUTS[1]] !== null) states.extension.record(states.extension.fingerprint());
+  for (const [relative, seconds] of Object.entries(changes)) {
+    if (seconds === null || seconds <= 200) continue;
+    const file = path.basename(relative).includes(".") ? path.join(root, relative) : path.join(root, relative, "file");
+    fs.writeFileSync(file, String(seconds));
     fs.utimesSync(file, seconds, seconds);
   }
   return root;
@@ -113,13 +122,14 @@ test.describe("vscode-server", () => {
     }
   });
 
-  test("every input exists or is the output of an earlier build", () => {
+  test("required inputs exist or come from an earlier build", () => {
     const built = [...SCHEMA_OUTPUTS.map((each) => path.join("schemas", each)), path.join("ui", "dist-lib")];
-    const tracked = [...UI_LIB, ...EXTENSION].filter((each) => !built.includes(each));
+    const optional = ["ui/.env.local", "ui/.env.production", "ui/.env.production.local"];
+    const tracked = [...UI_LIB, ...EXTENSION].filter((each) => !built.includes(each) && !optional.includes(each));
     expect(tracked.filter((each) => !fs.existsSync(path.join(repoRoot(), each)))).toEqual([]);
   });
 
-  test("current when both outputs are newer than their inputs", async () => {
+  test("current when both builds recorded their inputs", async () => {
     expect(await staleBuilds(repoTree({}))).toEqual({ uiLib: false, extension: false });
   });
 
@@ -144,5 +154,40 @@ test.describe("vscode-server", () => {
       uiLib: false,
       extension: true,
     });
+  });
+
+  test("deleting a source invalidates its build", async () => {
+    for (const dir of ["ui", "vscode-extension"]) {
+      const root = repoTree({ [`${dir}/src/removed.ts`]: 100 });
+      expect(await staleBuilds(root)).toEqual({ uiLib: false, extension: false });
+      fs.rmSync(path.join(root, dir, "src/removed.ts"));
+      expect(await staleBuilds(root), dir).toEqual({ uiLib: dir === "ui", extension: true });
+    }
+  });
+
+  test("compiler configuration invalidates its build", async () => {
+    for (const dir of ["ui", "vscode-extension"]) {
+      const root = repoTree({ [`${dir}/tsconfig.json`]: 100 });
+      expect(await staleBuilds(root)).toEqual({ uiLib: false, extension: false });
+      fs.writeFileSync(path.join(root, dir, "tsconfig.json"), "changed");
+      expect(await staleBuilds(root), dir).toEqual({ uiLib: dir === "ui", extension: true });
+    }
+  });
+
+  test("adding a source with an old mtime invalidates its build", async () => {
+    for (const dir of ["ui", "vscode-extension"]) {
+      const root = repoTree({});
+      const file = path.join(root, dir, "src/added.ts");
+      fs.writeFileSync(file, "new source");
+      fs.utimesSync(file, 100, 100);
+      expect(await staleBuilds(root), dir).toEqual({ uiLib: dir === "ui", extension: true });
+    }
+  });
+
+  test("touching inputs leaves both builds current", async () => {
+    const root = repoTree({});
+    fs.utimesSync(path.join(root, "ui/src/file"), 300, 300);
+    fs.utimesSync(path.join(root, "vscode-extension/src/file"), 300, 300);
+    expect(await staleBuilds(root)).toEqual({ uiLib: false, extension: false });
   });
 });

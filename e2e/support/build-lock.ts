@@ -1,113 +1,135 @@
 /**
- * A lock file that keeps the UI bundle build of `ui-server` and the UI library and extension builds
- * of `vscode-server` from running at the same time. On a 4-core CI runner, beside the seed and the
- * cluster, the three builds at once pushed the `vscode-server` setup past its 10-minute timeout.
+ * Serializes the UI bundle, UI library, and extension builds. The UI bundle goes first when
+ * `globalSetup` reserves the lock for `ui-server` in the runner's name.
  *
- * The file records the holder's pid, and a waiter removes it once that pid has exited. The bundle
- * goes first, because the `ui` project waits on it: when `ui-server` will build it, `globalSetup`
- * reserves the lock for `ui-server` in the runner's name before any worker starts, and the
- * `ui-server` setup takes the reservation over.
+ * A directory holds a uniquely named owner file. A waiter removes only the dead owner's entry;
+ * rmdir then either removes the empty directory or leaves a new owner's nonempty directory alone.
  */
+import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { processAlive } from "./run.js";
-import { readStateFile } from "./state-file.js";
 
 /** Outside `test-results/`, which Playwright clears at the start of a run. */
-export const BUILD_LOCK_FILE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".e2e-build.lock");
+export const BUILD_LOCK_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".e2e-build.lock.d");
 
 export const BUNDLE_HOLDER = "ui-server";
 
-export interface BuildLockRecord {
+interface Owner {
   holder: string;
   pid: number;
+  entry: string;
 }
 
 export class BuildLock {
   constructor(
-    readonly file = BUILD_LOCK_FILE,
-    /** The process that holds the lock while its build runs. */
+    readonly file = BUILD_LOCK_DIR,
     readonly pid = process.pid,
-    /** The Playwright runner of this run, which reserves the lock; the setups run in its workers. */
     readonly runner = process.ppid,
     readonly pollMs = 500,
   ) {}
 
-  /**
-   * Creates the lock file holding `record`, or returns `false` when it exists. A complete staging
-   * file is linked to the lock path, so a reader never sees it half written.
-   */
-  private create(record: BuildLockRecord): boolean {
-    const staging = `${this.file}.${this.pid}.tmp`;
-    fs.writeFileSync(staging, JSON.stringify(record));
+  private entry(): string {
+    return `${this.pid}.${randomUUID()}.json`;
+  }
+
+  private staging(entry: string): string {
+    return `${this.file}.${entry}.tmp`;
+  }
+
+  private create(holder: string, entry: string): boolean {
+    const staging = this.staging(entry);
+    fs.mkdirSync(staging, { recursive: true });
+    fs.writeFileSync(path.join(staging, entry), JSON.stringify({ holder }));
     try {
-      fs.linkSync(staging, this.file);
+      // The directory is already nonempty when it becomes visible at the lock path.
+      fs.renameSync(staging, this.file);
       return true;
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "EEXIST") return false;
+      if (["EEXIST", "ENOTEMPTY"].includes((error as NodeJS.ErrnoException).code ?? "")) return false;
       throw error;
     }
   }
 
-  private read(): BuildLockRecord | null {
-    return readStateFile<BuildLockRecord>(this.file);
-  }
-
-  /**
-   * Holds the lock for `holder` until that setup takes it over or drops it. Called in the runner,
-   * whose pid is then `pid`.
-   */
-  reserve(holder: string): boolean {
+  private read(): Owner | null {
     try {
-      return this.create({ holder, pid: this.pid });
-    } finally {
-      fs.rmSync(`${this.file}.${this.pid}.tmp`, { force: true });
+      for (const entry of fs.readdirSync(this.file)) {
+        try {
+          const record = JSON.parse(fs.readFileSync(path.join(this.file, entry), "utf-8")) as { holder: string };
+          // Renaming the entry transfers a reservation to its worker atomically.
+          return { holder: record.holder, pid: Number(entry.split(".")[0]), entry };
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        }
+      }
+      return null;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+      throw error;
     }
   }
 
-  /** Removes the reservation for `holder`, which then builds nothing. */
-  dropReservation(holder: string): void {
-    const record = this.read();
-    if (record?.holder === holder && record.pid === this.runner) fs.rmSync(this.file, { force: true });
+  private release(entry: string): void {
+    fs.rmSync(path.join(this.file, entry), { force: true });
+    try {
+      fs.rmdirSync(this.file);
+    } catch (error) {
+      if (!["ENOENT", "ENOTEMPTY", "EEXIST"].includes((error as NodeJS.ErrnoException).code ?? "")) throw error;
+    }
   }
 
-  /** Runs `body` while holding the lock, after any other holder has released it or exited. */
+  reserve(holder: string): boolean {
+    const entry = this.entry();
+    try {
+      return this.create(holder, entry);
+    } finally {
+      fs.rmSync(this.staging(entry), { recursive: true, force: true });
+    }
+  }
+
+  dropReservation(holder: string): void {
+    const record = this.read();
+    if (record?.holder === holder && record.pid === this.runner) this.release(record.entry);
+  }
+
   async run<T>(holder: string, body: () => Promise<T>): Promise<T> {
-    await this.acquire(holder);
+    const entry = await this.acquire(holder);
     try {
       return await body();
     } finally {
-      if (this.read()?.pid === this.pid) fs.rmSync(this.file, { force: true });
+      this.release(entry);
     }
   }
 
-  private async acquire(holder: string): Promise<void> {
-    const mine = { holder, pid: this.pid };
-    const staging = `${this.file}.${this.pid}.tmp`;
+  private async acquire(holder: string): Promise<string> {
+    const entry = this.entry();
     let waitingFor = "";
     try {
       for (;;) {
-        if (this.create(mine)) return;
+        if (this.create(holder, entry)) return entry;
         const record = this.read();
-        // Released between the two calls.
-        if (!record && !fs.existsSync(this.file)) continue;
-        if (record?.holder === holder && record.pid === this.runner) {
-          // The reservation is ours: a rename replaces it with our own record in one step.
-          fs.renameSync(staging, this.file);
-          return;
+        if (!record) continue;
+        if (record.holder === holder && record.pid === this.runner) {
+          try {
+            fs.renameSync(path.join(this.file, record.entry), path.join(this.file, entry));
+            return entry;
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+            throw error;
+          }
         }
-        if (record && !processAlive(record.pid)) {
-          fs.rmSync(this.file, { force: true });
+        if (!processAlive(record.pid)) {
+          this.release(record.entry);
           continue;
         }
-        const current = record ? `${record.holder} (pid ${record.pid})` : `an unreadable ${this.file}`;
+        const current = `${record.holder} (pid ${record.pid})`;
         if (current !== waitingFor) console.log(`[build-lock] ${holder} waits for ${current}`);
         waitingFor = current;
         await new Promise((resolve) => setTimeout(resolve, this.pollMs));
       }
     } finally {
-      fs.rmSync(staging, { force: true });
+      fs.rmSync(this.staging(entry), { recursive: true, force: true });
     }
   }
 }

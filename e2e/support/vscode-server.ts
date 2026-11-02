@@ -10,8 +10,9 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { httpStatus, newestMtimeMs, repoRoot, runToCompletion } from "../env/host.js";
+import { httpStatus, repoRoot, runToCompletion } from "../env/host.js";
 import { BuildLock } from "./build-lock.js";
+import { BuildState } from "./build-state.js";
 import { groupAlive, RecordedServer } from "./process-group.js";
 import { readUntil } from "./poll.js";
 
@@ -38,16 +39,23 @@ export const SERVER_LOG = path.resolve(HERE, "..", ".e2e-vscode-server.log");
 export const UI_LIB_INPUTS = [
   "src",
   ".env",
+  ".env.local",
+  ".env.production",
+  ".env.production.local",
   "package.json",
   "vite.config.lib.bundled.mts",
+  "tsconfig.json",
   "tsconfig.lib.json",
+  "global-definitions.d.ts",
+  "vite-env.d.ts",
   "../schemas/dist",
+  "../package.json",
   "../package-lock.json",
 ];
 
 /**
- * Written into `ui/dist-lib` after the suite's two library builds, and read as the time of those
- * builds. Other builds write `dist-lib` too: `build:lib` empties it and leaves no bundled file.
+ * Records the inputs of the suite's two library builds. `build:lib` empties `dist-lib`, so a
+ * library built that way has no marker and is rebuilt.
  */
 export const UI_LIB_OUTPUT = "dist-lib/.e2e-build";
 
@@ -61,33 +69,36 @@ export const EXTENSION_INPUTS = [
   "src",
   "package.json",
   "webpack.config.js",
+  "tsconfig.json",
   "media",
   "../ui/dist-lib",
   "../schemas/dist",
   "../schemas/assets",
+  "../schemas/src/main/resources/conf-model",
+  "../package.json",
+  "../package-lock.json",
 ];
 
 /**
- * Written into `vscode-extension/dist` after the suite's `compile-web`, and read as the time of that
- * build. Webpack leaves an asset whose content has not changed unwritten, so the mtimes in `dist`
- * stay older than a rebuilt `ui/dist-lib` that came out the same.
+ * Records the inputs of the suite's `compile-web`. Webpack can leave an unchanged asset unwritten,
+ * so its mtime cannot identify the inputs of the last successful build.
  */
 export const EXTENSION_OUTPUT = "dist/.e2e-build";
 
 const EXTENSION_BUILD = ["run", "compile-web", "-w", "@netcracker/qip-vscode-extension"];
 
-/** Whether `output` is missing or older than the newest of `inputs`, all relative to `dir`. */
-async function outputIsStale(dir: string, inputs: string[], output: string): Promise<boolean> {
-  const built = await newestMtimeMs(dir, [output]);
-  return built === 0 || (await newestMtimeMs(dir, inputs)) > built;
+export function vscodeBuildStates(root = repoRoot()): { uiLib: BuildState; extension: BuildState } {
+  return {
+    uiLib: new BuildState(path.join(root, "ui"), UI_LIB_INPUTS, UI_LIB_OUTPUT),
+    extension: new BuildState(path.join(root, "vscode-extension"), EXTENSION_INPUTS, EXTENSION_OUTPUT),
+  };
 }
 
 /** Which of the two builds the setup runs, judged before either of them. */
 export async function staleBuilds(root = repoRoot()): Promise<{ uiLib: boolean; extension: boolean }> {
-  const uiLib = await outputIsStale(path.join(root, "ui"), UI_LIB_INPUTS, UI_LIB_OUTPUT);
-  // A rebuilt library is an input of the extension, newer than its marker once built.
-  const extension =
-    uiLib || (await outputIsStale(path.join(root, "vscode-extension"), EXTENSION_INPUTS, EXTENSION_OUTPUT));
+  const states = vscodeBuildStates(root);
+  const uiLib = await states.uiLib.isStale();
+  const extension = uiLib || (await states.extension.isStale());
   return { uiLib, extension };
 }
 
@@ -129,14 +140,17 @@ async function buildStale(): Promise<string[]> {
   const built: string[] = [];
   if (!uiLib && !extension) return built;
   await new BuildLock().run("vscode-server", async () => {
+    const states = vscodeBuildStates();
     if (uiLib) {
+      const fingerprint = states.uiLib.fingerprint();
       for (const args of UI_LIB_BUILDS) await runToCompletion("npm", args, repoRoot(), process.env);
-      fs.writeFileSync(path.join(repoRoot(), "ui", UI_LIB_OUTPUT), "");
+      states.uiLib.record(fingerprint);
       built.push("the UI library");
     }
     if (extension) {
+      const fingerprint = states.extension.fingerprint();
       await runToCompletion("npm", EXTENSION_BUILD, repoRoot(), process.env);
-      fs.writeFileSync(path.join(repoRoot(), "vscode-extension", EXTENSION_OUTPUT), "");
+      states.extension.record(fingerprint);
       built.push("the extension");
     }
   });

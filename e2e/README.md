@@ -49,8 +49,8 @@ npx playwright install chromium
 Then run `npm install` at the repository root as well, because the `ui-server` project builds and
 serves the UI bundle itself. It rebuilds the production bundle when it is stale, starts
 `vite preview` on port 4200, and stops it at the end of the run; nginx on 8080 sends every request
-outside `/api/` to that port. Before it, the `schemas-build` project builds `schemas/` when
-`schemas/src/main` is newer than `schemas/assets`, `types`, or `dist`, because the UI imports
+outside `/api/` to that port. Before it, the `schemas-build` project builds `schemas/` when its
+sources, compiler configuration, or dependencies change, or an output is missing, because the UI imports
 `schemas/dist` and `npm install` does not create it. The rebuild of the bundle takes about 75
 seconds: `npm run build --ignore-scripts -w @netcracker/qip-ui` with `VITE_PRODUCTION_MODE=false`,
 where `--ignore-scripts` skips the `prebuild` that would build the schemas again. The bundle is
@@ -71,12 +71,12 @@ pinned VS Code build, a 54 MB archive, into the gitignored `vscode-extension/.vs
 it needs network access. [The `vscode` project](#the-vscode-project) covers the rest.
 
 The two setups build one at a time: the bundle build of `ui-server` and the library and extension
-builds of `vscode-server` each hold the lockfile `e2e/.e2e-build.lock`. Run together beside the
+builds of `vscode-server` each hold the lock directory `e2e/.e2e-build.lock.d`. Run together beside the
 seed, they pushed the `vscode-server` setup past its 10-minute timeout on a 4-core CI runner.
 Starting and waiting for the servers needs no lock. When the run includes `ui-server` and the
 bundle is stale, `globalSetup` reserves the lock for `ui-server` before any worker starts, so the
-bundle that the `ui` project waits on builds first. A setup that waits on a lock whose holder pid
-has exited removes it and goes on.
+bundle that the `ui` project waits on builds first. A waiter removes only the dead owner's uniquely
+named entry, then removes the directory if it is empty. A new owner's entry keeps the directory in place.
 
 `schema`, `harness`, `api`, `tooling`, `runtime`, `runtime-micro`, `runtime-micro-redeploy`, `k8s`,
 `brokers`, and `brokers-micro` run with no browser installed. `env`, `global`, `global-micro`,
@@ -129,9 +129,9 @@ target its `Env`, its provisioner, and the projects only it declares:
 | --- | --- | --- |
 | `schema`, `harness`, `api`, `tooling`, `ui`, `env`, `global` | yes | yes |
 | `seed`, `seed-teardown` | the corpus, deployed to the classic engine | the same |
-| `schemas-build` | build `schemas/` when its sources are newer, with no stack | the same |
+| `schemas-build` | build `schemas/` when its inputs change, with no stack | the same |
 | `ui-server`, `ui-server-teardown` | build and serve the UI bundle on 4200, then stop it | the same |
-| `vscode-server`, `vscode-server-teardown` | build the UI library and the extension when their inputs are newer, serve VS Code for the web on 3917, then stop it, with no stack | the same |
+| `vscode-server`, `vscode-server-teardown` | build the UI library and the extension when their inputs change, serve VS Code for the web on 3917, then stop it, with no stack | the same |
 | `vscode` | the extension's editors in VS Code for the web on 3917, one worker, with no stack | the same |
 | `runtime` | `specs/runtime/` against the classic engine | the same |
 | `suite-teardown` | the teardowns of `seed-micro`, `brokers-seed`, and `brokers-micro-seed`, after `global` | the same |
@@ -463,19 +463,20 @@ topology, which only the teardown of the run that created it removes (see "Broke
 `specs/vscode/` drives the extension's editors in VS Code for the web. Three projects run in a
 chain, none of them needs a stack, and provisioning skips a selection of only these:
 
-- `schemas-build` builds `schemas/` when `schemas/src/main` is newer than `schemas/assets`, `types`,
-  or `dist`. `ui-server` depends on it too.
+- `schemas-build` records a hash of the paths and contents under `schemas/src/main`, the schema
+  manifest and TypeScript config, and the root manifest and lockfile in `schemas/dist/.e2e-build`.
+  It rebuilds when those inputs change, or `assets`, `types`, `dist`, or the marker is missing.
+  `ui-server` depends on it too.
 - `vscode-server` rebuilds what is stale, then serves the workbench on 3917. The UI library is
-  stale when the marker `ui/dist-lib/.e2e-build`, which the setup writes after its two library
-  builds, is missing or older than what the library is built from (`ui/src`, `ui/.env`,
-  `ui/package.json`, the library's Vite and TypeScript configs, `schemas/dist`, and the root
-  lockfile), and `build:lib:bundled` and `build:lib:types` rebuild it. `build:lib` empties
-  `ui/dist-lib`, the marker included, and leaves no bundled file. The extension is stale when
-  the library was rebuilt, or when one of `vscode-extension/src`, `package.json`,
-  `webpack.config.js`, `media`, `ui/dist-lib`, `schemas/dist`, and `schemas/assets` is newer than
-  the marker `vscode-extension/dist/.e2e-build`, which the setup writes after `compile-web`. The
-  files in `dist` cannot date the build, because webpack leaves an unchanged asset unwritten. The server
-  logs to `e2e/.e2e-vscode-server.log`, and `vscode-server-teardown` stops it.
+  built by `build:lib:bundled` and `build:lib:types`, then records its input hash in
+  `ui/dist-lib/.e2e-build`. Its inputs include `ui/src`, production `.env` files, manifests, the
+  library's Vite and TypeScript configs, declaration files, `schemas/dist`, and the root lockfile.
+  The extension records its input hash in `vscode-extension/dist/.e2e-build` after `compile-web`.
+  Its inputs include its sources, manifest, TypeScript and webpack configs, `media`, `ui/dist-lib`,
+  schema outputs and document schemas, and the root manifest and lockfile. Either build is stale
+  when its marker is missing or its inputs differ, including an added or deleted file; a library
+  rebuild also rebuilds the extension. Touching an unchanged file keeps both builds current.
+  The server logs to `e2e/.e2e-vscode-server.log`, and `vscode-server-teardown` stops it.
 - `vscode` runs the cases on one worker, each in a browser context of its own. The workspace is
   `fixtures/vscode/workspace/`. The server mounts it read-only and the workbench keeps every write
   in memory, so each case starts from the committed files and a run leaves them unchanged.
@@ -503,7 +504,7 @@ extension's own integration suite keeps following the latest insiders build.
 
 **A mutation check** (rule 17 of the `e2e-spec-authoring` skill) edits the extension under
 `vscode-extension/src/web/response/`, or the UI under `ui/src/`, and runs the spec file with its
-dependencies. `vscode-server` finds the edited source newer than its output and rebuilds: a UI edit
+dependencies. `vscode-server` finds that the input hash changed and rebuilds: a UI edit
 runs both library builds and then `compile-web`, and an extension edit runs `compile-web` alone.
 The next page loads the new bundle. Undo the edit and run the file again: the setup rebuilds once
 more, and the case passes.
@@ -974,7 +975,7 @@ specs/
   brokers/      kafka, rabbitmq, pub/sub and sftp, called and asserted
   global/       reads over the whole platform or over state it shares, one worker, after env
   schemas-build/
-                builds schemas/ when its sources are newer
+                builds schemas/ when its inputs change
   ui-server/    builds and serves the UI bundle on 4200, then stops it
   vscode-server/
                 builds the UI library and the extension, serves VS Code for the web on 3917,

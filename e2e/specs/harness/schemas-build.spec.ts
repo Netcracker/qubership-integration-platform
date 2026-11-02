@@ -1,28 +1,30 @@
-/**
- * The `schemas-build` setup's freshness check, and the `ui-server` build that relies on it to have
- * built the schemas.
- */
+/** The schemas build's inputs, saved fingerprint, and generated outputs. */
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test, expect } from "@playwright/test";
 import { repoRoot } from "../../env/host.js";
-import { schemasAreStale, SCHEMA_OUTPUTS } from "../../support/schemas-build.js";
+import { schemasAreStale, schemasBuildState, SCHEMA_INPUTS, SCHEMA_MARKER, SCHEMA_OUTPUTS } from "../../support/schemas-build.js";
 import { BUNDLE_INPUTS } from "../../support/ui-server.js";
 
-/** The trees a case made, removed after it. */
 const made: string[] = [];
 
-/** A `schemas/` tree with one file per source and output directory, each with the given mtime in seconds. */
-function schemasTree(mtimes: Record<string, number>): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "e2e-schemas-"));
-  made.push(dir);
-  for (const [relative, seconds] of Object.entries(mtimes)) {
-    const file = path.join(dir, relative, "file");
+function schemasTree(): string {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "e2e-schemas-"));
+  made.push(root);
+  const dir = path.join(root, "schemas");
+  for (const input of SCHEMA_INPUTS) {
+    const file = path.join(dir, input === "src/main" ? "src/main/file" : input);
     fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, "");
-    fs.utimesSync(file, seconds, seconds);
+    fs.writeFileSync(file, "original");
+    fs.utimesSync(file, 100, 100);
   }
+  for (const output of SCHEMA_OUTPUTS) {
+    fs.mkdirSync(path.join(dir, output), { recursive: true });
+    fs.writeFileSync(path.join(dir, output, "file"), "output");
+  }
+  const state = schemasBuildState(dir);
+  state.record(state.fingerprint());
   return dir;
 }
 
@@ -37,22 +39,31 @@ test.describe("schemas-build", () => {
     expect(written.sort()).toEqual([...SCHEMA_OUTPUTS].sort());
   });
 
-  test("current when every output is newer than the sources", async () => {
-    expect(await schemasAreStale(schemasTree({ "src/main": 100, assets: 200, types: 200, dist: 200 }))).toBe(false);
+  test("current when the build recorded the same inputs", async () => {
+    expect(await schemasAreStale(schemasTree())).toBe(false);
   });
 
-  test("stale when one output is older than the sources", async () => {
-    for (const output of SCHEMA_OUTPUTS) {
-      const mtimes = { "src/main": 300, assets: 400, types: 400, dist: 400, [output]: 200 };
-      expect(await schemasAreStale(schemasTree(mtimes)), output).toBe(true);
+  test("an edit with its old mtime invalidates the build", async () => {
+    const dir = schemasTree();
+    const file = path.join(dir, "src/main/file");
+    fs.writeFileSync(file, "changed");
+    fs.utimesSync(file, 100, 100);
+    expect(await schemasAreStale(dir)).toBe(true);
+  });
+
+  test("stale when one output or the build marker is missing", async () => {
+    for (const output of [...SCHEMA_OUTPUTS, SCHEMA_MARKER]) {
+      const dir = schemasTree();
+      fs.rmSync(path.join(dir, output), { recursive: true });
+      expect(await schemasAreStale(dir), output).toBe(true);
     }
   });
 
-  test("stale when one output is missing", async () => {
-    for (const output of SCHEMA_OUTPUTS) {
-      const mtimes: Record<string, number> = { "src/main": 100, assets: 200, types: 200, dist: 200 };
-      delete mtimes[output];
-      expect(await schemasAreStale(schemasTree(mtimes)), output).toBe(true);
+  test("stale when an output directory is empty", async () => {
+    for (const output of ["assets", "types"]) {
+      const dir = schemasTree();
+      fs.rmSync(path.join(dir, output, "file"));
+      expect(await schemasAreStale(dir), output).toBe(true);
     }
   });
 
@@ -63,7 +74,37 @@ test.describe("schemas-build", () => {
     };
     expect(scripts.prebuild).toBe("npm run build --workspace @netcracker/qip-schemas");
     expect(scripts.build).toMatch(/^npm run fetch-docs && /);
-    // A schema change still rebuilds the bundle.
     expect(BUNDLE_INPUTS).toContain("../schemas/src/main");
+  });
+
+  test("deleting a schema source invalidates the build", async () => {
+    const dir = schemasTree();
+    expect(await schemasAreStale(dir)).toBe(false);
+    fs.rmSync(path.join(dir, "src/main/file"));
+    expect(await schemasAreStale(dir)).toBe(true);
+  });
+
+  test("the dependency lockfile invalidates the schemas", async () => {
+    const dir = schemasTree();
+    expect(await schemasAreStale(dir)).toBe(false);
+    fs.writeFileSync(path.join(dir, "../package-lock.json"), "changed");
+    expect(await schemasAreStale(dir)).toBe(true);
+  });
+
+  test("manifests and compiler configuration invalidate the schemas", async () => {
+    for (const input of ["package.json", "tsconfig.json", "../package.json"]) {
+      const dir = schemasTree();
+      fs.writeFileSync(path.join(dir, input), "changed");
+      expect(await schemasAreStale(dir), input).toBe(true);
+    }
+  });
+
+  test("adding a source invalidates the build, touching one does not", async () => {
+    const dir = schemasTree();
+    fs.utimesSync(path.join(dir, "src/main/file"), 300, 300);
+    expect(await schemasAreStale(dir)).toBe(false);
+    fs.writeFileSync(path.join(dir, "src/main/added"), "new source");
+    fs.utimesSync(path.join(dir, "src/main/added"), 100, 100);
+    expect(await schemasAreStale(dir)).toBe(true);
   });
 });

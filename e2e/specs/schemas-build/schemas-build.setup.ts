@@ -1,5 +1,5 @@
 /**
- * Builds `schemas/` when its sources are newer than its outputs, before `ui-server` bundles the UI.
+ * Builds `schemas/` when its inputs change, before `ui-server` bundles the UI.
  *
  * Collected by `testMatch: /.*\.setup\.ts$/` on the `schemas-build` project, for the reason the
  * `seed` project gives: a setup project that collects zero tests satisfies its dependents.

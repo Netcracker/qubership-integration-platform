@@ -10,8 +10,10 @@
  */
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
+import path from "node:path";
 import { test, expect } from "@playwright/test";
-import { BuildLock, BUNDLE_HOLDER, type BuildLockRecord } from "../../support/build-lock.js";
+import { repoRoot } from "../../env/host.js";
+import { BuildLock, BUNDLE_HOLDER } from "../../support/build-lock.js";
 import { reserveBundleBuild } from "../../support/ui-server.js";
 
 const POLL_MS = 20;
@@ -56,21 +58,96 @@ test.describe("build lock", () => {
     await Promise.all([first.run("ui-server", build(events, "first")), second.run("vscode-server", build(events, "second"))]);
     const inTurn = (one: string, other: string) => [`${one} start`, `${one} end`, `${other} start`, `${other} end`];
     expect([inTurn("first", "second"), inTurn("second", "first")]).toContainEqual(events);
-    expect(fs.existsSync(file), "the last holder removes the lock file").toBe(false);
+    expect(fs.existsSync(file), "the last holder removes the lock directory").toBe(false);
 
     // The holder may be another process.
-    fs.writeFileSync(file, JSON.stringify({ holder: "vscode-server", pid: sleeper.pid! } satisfies BuildLockRecord));
+    expect(new BuildLock(file, sleeper.pid!, NO_RUNNER, POLL_MS).reserve("vscode-server")).toBe(true);
     const waiting = first.run("ui-server", async () => {});
     expect(await within(waiting, 300)).toBe("pending");
-    fs.rmSync(file);
+    fs.rmSync(file, { recursive: true });
     await waiting;
   });
 
   test("a lock left by an exited process is reclaimed", async () => {
     const exited = spawnSync(process.execPath, ["-e", ""]).pid;
-    fs.writeFileSync(file, JSON.stringify({ holder: "vscode-server", pid: exited } satisfies BuildLockRecord));
+    expect(new BuildLock(file, exited, NO_RUNNER, POLL_MS).reserve("vscode-server")).toBe(true);
     const lock = new BuildLock(file, process.pid, NO_RUNNER, POLL_MS);
     expect(await within(lock.run("ui-server", async () => {}), 2_000)).toBe("settled");
+  });
+
+  test("two processes reclaiming the same lock never overlap", async () => {
+    const exited = spawnSync(process.execPath, ["-e", ""]).pid;
+    expect(new BuildLock(file, exited, NO_RUNNER, POLL_MS).reserve("abandoned")).toBe(true);
+    const source = `
+      import fs from "node:fs";
+      import { registerHooks } from "node:module";
+      import { pathToFileURL } from "node:url";
+      registerHooks({ resolve(specifier, context, next) {
+        try { return next(specifier, context); }
+        catch (error) {
+          if (specifier.endsWith(".js")) return next(specifier.slice(0, -3) + ".ts", context);
+          throw error;
+        }
+      } });
+      const { BuildLock } = await import(pathToFileURL(process.argv[1]).href);
+      const [file, deadPid, prefix] = process.argv.slice(2);
+      const pause = () => new Promise(resolve => setTimeout(resolve, 10));
+      const signal = name => fs.writeFileSync(prefix + "." + name, "");
+      const exists = name => fs.existsSync(prefix + "." + name);
+      const originalKill = process.kill;
+      let stopped = false;
+      process.kill = function(pid, value) {
+        try { return originalKill.call(process, pid, value); }
+        catch (error) {
+          if (pid === Number(deadPid) && value === 0 && !stopped) {
+            stopped = true;
+            signal("read");
+            while (!exists("recover")) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
+          }
+          throw error;
+        }
+      };
+      console.log = () => signal("waiting");
+      await new BuildLock(file, process.pid, 0, 10).run("contender", async () => {
+        signal("entered");
+        while (!exists("finish")) await pause();
+      });
+    `;
+    const children: ChildProcess[] = [];
+    const start = (name: string) => {
+      const prefix = test.info().outputPath(name);
+      const child = spawn(process.execPath, ["--experimental-transform-types", "--input-type=module", "-e", source,
+        path.join(repoRoot(), "e2e/support/build-lock.ts"), file, String(exited), prefix], { stdio: "pipe" });
+      children.push(child);
+      let stderr = "";
+      child.stderr!.on("data", (chunk) => { stderr += String(chunk); });
+      const exists = (name: string) => fs.existsSync(`${prefix}.${name}`);
+      return {
+        child,
+        exists,
+        signal: (name: string) => fs.writeFileSync(`${prefix}.${name}`, ""),
+        wait: (name: string) => expect.poll(() => exists(name) ? "ready" : child.exitCode === null ? "pending" : stderr).toBe("ready"),
+        done: new Promise((resolve) => child.on("exit", resolve)),
+      };
+    };
+    try {
+      const first = start("first");
+      const second = start("second");
+      await Promise.all([first.wait("read"), second.wait("read")]);
+      first.signal("recover");
+      await first.wait("entered");
+      second.signal("recover");
+      await expect.poll(() => second.exists("waiting") || second.exists("entered")).toBe(true);
+      expect(second.exists("entered"), "the second reclaimer waits for the new owner").toBe(false);
+      first.signal("finish");
+      expect(await first.done).toBe(0);
+      await second.wait("entered");
+      second.signal("finish");
+      expect(await second.done).toBe(0);
+      expect(fs.existsSync(file)).toBe(false);
+    } finally {
+      for (const child of children) if (child.exitCode === null) child.kill("SIGKILL");
+    }
   });
 
   test("the reserved bundle builds first, or a drop frees the lock", async () => {
@@ -101,6 +178,6 @@ test.describe("build lock", () => {
     expect(await reserveBundleBuild(["schemas-build", "ui-server", "vscode-server"], lock, fresh)).toBe(false);
     expect(fs.existsSync(file)).toBe(false);
     expect(await reserveBundleBuild(["schemas-build", "ui-server", "vscode-server"], lock, stale)).toBe(true);
-    expect(JSON.parse(fs.readFileSync(file, "utf-8"))).toEqual({ holder: BUNDLE_HOLDER, pid: process.pid });
+    expect(fs.readdirSync(file)).toHaveLength(1);
   });
 });

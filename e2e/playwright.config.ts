@@ -155,7 +155,7 @@ const suite: SuiteProject[] = [
     dependencies: ["api", "runtime", "ui"],
   },
   {
-    // Builds `schemas/` when its sources are newer than its outputs, and `ui-server` bundles what it
+    // Builds `schemas/` when its inputs change, and `ui-server` bundles what it
     // built. It reads and writes files only, so it needs no stack.
     name: "schemas-build",
     metadata: { stack: false, group: "setup" },
