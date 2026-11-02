@@ -6,9 +6,9 @@
         "hooks": [
           {
             "type": "command",
-            "statusMessage": "Recording agent telemetry",
             "command": "ai-agent-telemetry ingest --agent=claude",
-            "timeout": 30
+            "timeout": 30,
+            "statusMessage": "Recording agent telemetry"
           }
         ]
       },
@@ -17,14 +17,24 @@
         "hooks": [
           {
             "type": "command",
+            "statusMessage": "Recording agent telemetry",
             "command": "ai-agent-telemetry ingest --agent=claude",
-            "timeout": 30,
-            "statusMessage": "Recording agent telemetry"
+            "timeout": 30
           }
         ]
       }
     ],
     "UserPromptExpansion": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ai-agent-telemetry ingest --agent=claude",
+            "timeout": 30,
+            "statusMessage": "Recording agent telemetry"
+          }
+        ]
+      },
       {
         "matcher": "*",
         "hooks": [
@@ -35,16 +45,6 @@
             "timeout": 30
           }
         ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "ai-agent-telemetry ingest --agent=claude",
-            "timeout": 30,
-            "statusMessage": "Recording agent telemetry"
-          }
-        ]
       }
     ],
     "PostToolUse": [
@@ -53,9 +53,9 @@
         "hooks": [
           {
             "type": "command",
-            "statusMessage": "Recording agent telemetry",
             "command": "ai-agent-telemetry ingest --agent=claude",
-            "timeout": 30
+            "timeout": 30,
+            "statusMessage": "Recording agent telemetry"
           }
         ]
       },
@@ -64,9 +64,9 @@
         "hooks": [
           {
             "type": "command",
+            "statusMessage": "Recording agent telemetry",
             "command": "ai-agent-telemetry ingest --agent=claude",
-            "timeout": 30,
-            "statusMessage": "Recording agent telemetry"
+            "timeout": 30
           }
         ]
       }
@@ -77,9 +77,9 @@
         "hooks": [
           {
             "type": "command",
-            "statusMessage": "Recording agent telemetry",
             "command": "ai-agent-telemetry ingest --agent=claude",
-            "timeout": 30
+            "timeout": 30,
+            "statusMessage": "Recording agent telemetry"
           }
         ]
       },
@@ -88,9 +88,9 @@
         "hooks": [
           {
             "type": "command",
+            "statusMessage": "Recording agent telemetry",
             "command": "ai-agent-telemetry ingest --agent=claude",
-            "timeout": 30,
-            "statusMessage": "Recording agent telemetry"
+            "timeout": 30
           }
         ]
       }

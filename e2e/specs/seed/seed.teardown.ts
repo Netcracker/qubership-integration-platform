@@ -10,11 +10,18 @@ import { test } from "../../support/fixtures.js";
 import { CORPUS_STATE_FILE, readCorpusState, teardownCorpus } from "../../support/corpus.js";
 import fs from "node:fs";
 
-test("the fixture corpus is removed", { tag: ["@catalog"] }, async ({ catalog }) => {
+test("the fixture corpus is removed", { tag: ["@catalog"] }, async ({ catalog, run }) => {
   if (!fs.existsSync(CORPUS_STATE_FILE)) {
     console.log("[seed] no corpus state to tear down");
     return;
   }
   const corpus = readCorpusState();
+  if (corpus.run !== run) {
+    console.log(
+      `[seed] ${CORPUS_STATE_FILE} names run ${corpus.run}, not this run (${run}): ` +
+        `its corpus is left for its own run to clear`,
+    );
+    return;
+  }
   await teardownCorpus(catalog, corpus);
 });

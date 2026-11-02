@@ -5,9 +5,9 @@
         "hooks": [
           {
             "type": "command",
-            "statusMessage": "Recording agent telemetry",
             "command": "ai-agent-telemetry ingest --agent=codex",
-            "timeout": 30
+            "timeout": 30,
+            "statusMessage": "Recording agent telemetry"
           }
         ]
       },
@@ -15,12 +15,11 @@
         "hooks": [
           {
             "type": "command",
+            "statusMessage": "Recording agent telemetry",
             "command": "ai-agent-telemetry ingest --agent=codex",
-            "timeout": 30,
-            "statusMessage": "Recording agent telemetry"
+            "timeout": 30
           }
-        ],
-        "_apm_source": "ai-agent-telemetry"
+        ]
       }
     ],
     "PostToolUse": [
@@ -29,9 +28,9 @@
         "hooks": [
           {
             "type": "command",
-            "statusMessage": "Recording agent telemetry",
             "command": "ai-agent-telemetry ingest --agent=codex",
-            "timeout": 30
+            "timeout": 30,
+            "statusMessage": "Recording agent telemetry"
           }
         ]
       },
@@ -40,12 +39,11 @@
         "hooks": [
           {
             "type": "command",
+            "statusMessage": "Recording agent telemetry",
             "command": "ai-agent-telemetry ingest --agent=codex",
-            "timeout": 30,
-            "statusMessage": "Recording agent telemetry"
+            "timeout": 30
           }
-        ],
-        "_apm_source": "ai-agent-telemetry"
+        ]
       }
     ]
   }

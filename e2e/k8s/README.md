@@ -61,6 +61,16 @@ suite builds with `docker build` runs with no loading step. It publishes a LoadB
 port on the host and a NodePort not at all, so on this context the suite sets each service's
 `loadBalancerPort` in the chart, which adds a LoadBalancer Service on the same fixed port.
 
+On a workstation running Docker Desktop, three limits apply. Its built-in cluster cannot start
+Kubernetes 1.37, so a 1.37 cluster there is a kind cluster. A Docker Desktop restart or update
+deletes the `kind` network, and the node then does not start, so create the cluster again. A full
+run at 8 workers can run the Docker Desktop VM out of memory, so run by phases with
+`E2E_WORKERS=4`: `api`, `runtime`, and `k8s` with `E2E_KEEP=1`, then `global` against that corpus
+with `--no-deps` and `E2E_SWEEP=never`, then `env`, `runtime-micro`, and `ui`, each on its own.
+`global` and `env` never run side by side, because `env` restarts the catalog.
+`specs/env/process-envelope.spec.ts` fails in such a partial run, because its sampler takes one
+reading per service there.
+
 **kind.** The script maps the nine ports when it creates `kind-qip`. A kind cluster created another
 way needs the same `extraPortMappings` on its control-plane node, each `containerPort` equal to its
 `hostPort`. kind fixes the mappings at creation, so a `kind-qip` created before the broker ports

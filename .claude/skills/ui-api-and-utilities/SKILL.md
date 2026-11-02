@@ -20,9 +20,12 @@ src/api/apiTypes.ts         — every business type
 Import that singleton (`import { api } from ".../api/api.ts"`) and let it pick the transport —
 never instantiate `RestApi` or `VSCodeExtensionApi` yourself, or the code breaks in the webview.
 
-Adding a method means adding it to the `Api` interface **and** to both implementations. The VS Code
-side turns method names into webview message types, so a rename there is a protocol change, not a
-refactor.
+Adding a method means adding it to the `Api` interface **and** to both implementations. A
+`VSCodeExtensionApi` method sends a webview message whose type is a string literal, by convention the
+method name (`sendMessageToExtension("getChain", payload)`). That string has to match the `case` the
+extension dispatches on in `vscode-extension/src/web/response/apiRouter.ts`, so renaming it is a
+protocol change, not a refactor. Many methods have no extension counterpart and throw
+`Method <name> not implemented.`; such a stub is acceptable when the extension lacks the feature.
 
 ## Types
 
@@ -36,9 +39,11 @@ refactor.
 
 ## Errors
 
-`RestApi` converts Axios failures into `RestApiError`, carrying the response code and body. Extract
-what you show the user through `src/misc/error-utils.ts` rather than reading `error.message`
-directly — the useful text is usually in the response body.
+`RestApi` converts Axios failures into `RestApiError`, carrying the response code and body. When the
+body is an `ErrorResponse`, it copies the body's `errorMessage` into the error's message; for any
+other body the message is usually empty. Read the text you show the user with
+`getErrorMessage(error, fallback)` from `src/misc/error-utils.ts`. It returns the fallback only when
+the error has no string `message`, so an empty message comes back empty.
 
 ## Utilities
 
@@ -47,22 +52,29 @@ Check `src/misc/` before writing a helper. The ones worth knowing:
 | File | Use for |
 |---|---|
 | `confirm-utils.ts` | `confirmAndRun()` — wrap a destructive action in a confirm dialog |
-| `error-utils.ts` | human-readable message out of `RestApiError` / `Error` |
-| `format-utils.ts`, `date-utils.ts` | date and file-size formatting, timestamp math |
-| `download-utils.ts`, `file-utils.ts` | download a Blob, read and validate an uploaded file |
-| `json-helper.ts` | JSON parse/serialize that does not throw |
-| `tree-utils.ts` | folder and chain tree traversal |
+| `error-utils.ts` | `getErrorMessage()` — the message of a `RestApiError` or an `Error`, or a fallback |
+| `format-utils.ts`, `date-utils.ts` | timestamp, date, and duration formatting; Dayjs and epoch-millisecond conversion |
+| `download-utils.ts` | download a `File`, merge ZIP archives, build a `File` from a response |
+| `file-utils.ts` | `getFileExtension()` and `removeExtension()` on a file name |
+| `json-helper.ts` | `parseJson()`, which throws on invalid JSON and with a `TypeError` when a guard rejects the result; `parseJsonOrDefault()`, which returns the default instead |
+| `tree-utils.ts` | `traverseElementsDepthFirst()`, a depth-first walk over any tree linked by `children` |
 | `clipboard-util.ts` | copy to clipboard |
 | `log-export-utils.ts` | export logs to Excel (exceljs) |
 | `entity-filter-utils.ts`, `group-utils.ts`, `selection-utils.ts` | list filtering, grouping, selection state |
 | `chain-graph-utils.ts`, `chain-graph-swimlane-utils.ts` | chain graph geometry and swimlane layout |
 | `element-code-utils.ts`, `used-properties-analyzer.ts` | element code view, property usage analysis |
 | `protocol-utils.ts`, `operations-utils.ts` | service protocol and operation helpers |
-| `antd-app.ts` | the `modal` / `notification` instances bound to the antd App context |
+| `antd-app.ts` | the `message` and `modal` instances bound to the antd App context |
 
-`antd-app.ts` matters more than it looks: Ant Design's static `Modal.confirm` and `notification`
-APIs sit outside the React tree and lose theme context. Everything imperative goes through the
-instances exported there — which is what `confirmAndRun` and `useNotificationService` already do.
+`antd-app.ts` matters more than it looks: Ant Design's static `Modal` and `message` methods render
+outside the React tree and lose theme context. Imperative modal and message calls go through the
+instances exported there. Notifications take another path: `useNotificationService` reads the
+instance that `EventNotification` creates with `notification.useNotification()` and provides through
+`NotificationApiContext`.
+
+`confirmAndRun` takes an options object, `{ title, onOk, content?, okText?, okType?, okButtonProps?,
+... }`, and wraps `modal.confirm` from `antd-app.ts`. Returning a promise from `onOk` keeps the
+dialog in its loading state until the action settles, which is what you want for a destructive call.
 
 Two of them read innocently and are not:
 

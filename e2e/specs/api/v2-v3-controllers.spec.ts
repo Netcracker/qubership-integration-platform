@@ -40,7 +40,7 @@
  * **Secrets are the one residue this suite may not create.** `SecretControllerV2` has create and
  * template and no delete, so a secret named after a run is permanent — and the local store is a
  * `ConcurrentHashMap` in the catalog process, which the `env` project's restart wipes, so it is
- * permanent for the length of a stack rather than of a repository. `e2e/AGENTS.md` states the
+ * permanent for the length of a stack rather than of a repository. `e2e-spec-authoring` states the
  * exemption in its residue section; `secretsCarryingRunToken` in `support/fixtures.ts` is the
  * reading, the case below is where it goes red, and `globalTeardown` prints the same reading for a
  * run this file is not part of.

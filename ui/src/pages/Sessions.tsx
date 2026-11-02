@@ -108,6 +108,8 @@ export const Sessions: React.FC<SessionsProps> = ({
   const { filters, filterButton } = useSessionsFilter(chainId);
   const notificationService = useNotificationService();
   const tableWrapperRef = useRef<HTMLDivElement>(null);
+  // A filter, a search, or a refresh can start a load while another is in flight. Only the newest may write.
+  const requestGenerationRef = useRef(0);
   const [isOpensearchKafkaEnabled, setIsOpensearchKafkaEnabled] =
     useState<boolean>(false);
 
@@ -201,6 +203,8 @@ export const Sessions: React.FC<SessionsProps> = ({
   const fetchSessions = useCallback(
     async (initialOffset: number) => {
       const isInitialLoad = initialOffset === 0;
+      const generation = ++requestGenerationRef.current;
+      const isCurrent = () => generation === requestGenerationRef.current;
       setIsLoading(true);
       try {
         const pagesToFetch = isInitialLoad ? INITIAL_PAGE_COUNT : 1;
@@ -247,6 +251,7 @@ export const Sessions: React.FC<SessionsProps> = ({
           ...s,
           checkpoints: checkpointsById.get(s.id),
         }));
+        if (!isCurrent()) return;
 
         setSessions((prev) =>
           isInitialLoad ? withCheckpoints : [...prev, ...withCheckpoints],
@@ -254,10 +259,11 @@ export const Sessions: React.FC<SessionsProps> = ({
         setOffset(currentOffset);
         setAllSessionsLoaded(reachedEnd);
       } catch (error) {
+        if (!isCurrent()) return;
         notificationService.requestFailed("Failed to fetch sessions", error);
         setAllSessionsLoaded(true);
       } finally {
-        setIsLoading(false);
+        if (isCurrent()) setIsLoading(false);
       }
     },
     [chainId, filterAndSearchRequest, notificationService],
@@ -459,9 +465,15 @@ export const Sessions: React.FC<SessionsProps> = ({
     sentinel.style.height = "1px";
     root.appendChild(sentinel);
 
+    // The load effect below runs after this one, so a filter or search that starts a load leaves this offset
+    // behind. The observer can still fire after that, and its append must not supersede the new load.
+    const generation = requestGenerationRef.current;
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
+        if (
+          generation === requestGenerationRef.current &&
+          entries.some((entry) => entry.isIntersecting)
+        ) {
           void fetchSessions(offset);
         }
       },
