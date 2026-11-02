@@ -36,12 +36,14 @@ public class DBaaSResourcesBuilder implements ResourceBuilder<List<Snapshot>> {
         private String domainLabel;
         private String domainName;
         private String name;
+        private String integrationName;
         private String dbaasOperatorNamespace;
         private String cloudServiceName;
     }
 
     private final Handlebars templates;
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> cloudServiceNamingStrategy;
+    private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy;
     private final K8sNameValidator k8sNameValidator;
 
     @Autowired
@@ -52,10 +54,14 @@ public class DBaaSResourcesBuilder implements ResourceBuilder<List<Snapshot>> {
         @Qualifier("cloudServiceNamingStrategy")
         NamingStrategy<ResourceBuildContext<List<Snapshot>>> cloudServiceNamingStrategy,
 
+        @Qualifier("integrationResourceNamingStrategy")
+        NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy,
+
         K8sNameValidator k8sNameValidator
     ) {
         this.templates = templates;
         this.cloudServiceNamingStrategy = cloudServiceNamingStrategy;
+        this.integrationResourceNamingStrategy = integrationResourceNamingStrategy;
         this.k8sNameValidator = k8sNameValidator;
     }
 
@@ -86,6 +92,7 @@ public class DBaaSResourcesBuilder implements ResourceBuilder<List<Snapshot>> {
             .domainLabel(domainLabel)
             .domainName(k8sNameValidator.validate(context.getBuildInfo().getOptions().getName()))
             .name(k8sNameValidator.validate(cloudServiceNamingStrategy.getName(context) + "-" + dbName))
+            .integrationName(integrationResourceNamingStrategy.getName(context))
             .cloudServiceName(cloudServiceNamingStrategy.getName(context))
             .dbaasOperatorNamespace(context.getBuildInfo().getOptions().getDbaas().getOperatorNamespace())
             .build();

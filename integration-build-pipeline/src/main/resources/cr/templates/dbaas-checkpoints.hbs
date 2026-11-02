@@ -5,6 +5,7 @@ metadata:
   name: {{name}}
   labels:
     {{domainLabel}}: {{domainName}}
+    camel.apache.org/integration: {{integrationName}}
     deployer.cleanup/allow: "true"
 spec:
   operatorNamespace: "{{dbaasOperatorNamespace}}"
