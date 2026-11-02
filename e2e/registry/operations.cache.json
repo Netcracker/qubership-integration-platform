@@ -19,7 +19,6 @@
       "DELETE /v1/chains/{chainId}/masking/field/{fieldId}",
       "DELETE /v1/chains/{chainId}/properties/logging",
       "DELETE /v1/common-variables",
-      "DELETE /v1/cr/{name}",
       "DELETE /v1/detailed-design/templates",
       "DELETE /v1/folders/{folderId}",
       "DELETE /v1/models/{modelId}",

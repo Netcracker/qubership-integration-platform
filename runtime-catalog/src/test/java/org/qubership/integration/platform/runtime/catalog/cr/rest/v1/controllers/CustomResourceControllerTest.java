@@ -130,14 +130,4 @@ class CustomResourceControllerTest {
                 .isInstanceOf(DomainTypeDisabledException.class);
         verifyNoInteractions(bulkDeploymentService);
     }
-
-    @Test
-    void deleteResourceDeletesTheNamedResource() {
-        microDomainEnabled(true);
-
-        ResponseEntity<Void> response = controller.deleteResource("orders");
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        verify(microDomainService).delete("orders");
-    }
 }

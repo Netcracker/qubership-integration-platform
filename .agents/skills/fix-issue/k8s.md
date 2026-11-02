@@ -36,7 +36,7 @@ run token, so no other session's domain changes under you:
 ```bash
 curl -s -X POST localhost:30091/v2/catalog/chains/deployments/bulk -H 'Content-Type: application/json' \
   -d '{"chainIds":["<id>"],"domains":["r<N>"]}'
-curl -s -X DELETE localhost:30091/v1/cr/r<N>            # at the end: Integration, Service, ConfigMaps, routes
+curl -s -X DELETE localhost:30091/v1/catalog/domains/r<N>    # at the end: Integration, Service, ConfigMaps, routes
 ```
 
 To run the branch, build the image with the profile the chart supports (`e2e/k8s/README.md`
