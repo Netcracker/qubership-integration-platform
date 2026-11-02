@@ -19,6 +19,7 @@ import {
 } from "@playwright/test";
 import { proxyUrl, serviceUrl } from "./env/containers.js";
 import { target } from "./env/target.js";
+import { VSCODE_PORT } from "./support/vscode-server.js";
 import {
   targetSetup,
   type SuiteProject,
@@ -151,12 +152,21 @@ const suite: SuiteProject[] = [
     dependencies: ["api", "runtime", "ui"],
   },
   {
+    // Builds `schemas/` when its sources are newer than its outputs, and `ui-server` bundles what it
+    // built. It reads and writes files only, so it needs no stack.
+    name: "schemas-build",
+    metadata: { stack: false, group: "setup" },
+    testDir: "./specs/schemas-build",
+    testMatch: /.*\.setup\.ts$/,
+  },
+  {
     // Serves the UI bundle on 4200, where nginx sends every request outside `/api/`, and stops it
     // again through its `teardown`. `testMatch` is not optional, for the reason `seed`'s is not.
     name: "ui-server",
     metadata: { group: "setup" },
     testDir: "./specs/ui-server",
     testMatch: /.*\.setup\.ts$/,
+    dependencies: ["schemas-build"],
     teardown: "ui-server-teardown",
   },
   {
@@ -164,6 +174,41 @@ const suite: SuiteProject[] = [
     metadata: { group: "setup" },
     testDir: "./specs/ui-server",
     testMatch: /.*\.teardown\.ts$/,
+  },
+  {
+    // Builds the UI library and the extension when their inputs are newer, then serves VS Code for
+    // the web on 3917 with the extension and `fixtures/vscode/workspace/`. No stack, like
+    // `schemas-build`, whose output both builds read.
+    name: "vscode-server",
+    metadata: { stack: false, group: "setup" },
+    testDir: "./specs/vscode-server",
+    testMatch: /.*\.setup\.ts$/,
+    dependencies: ["schemas-build"],
+    teardown: "vscode-server-teardown",
+  },
+  {
+    name: "vscode-server-teardown",
+    metadata: { stack: false, group: "setup" },
+    testDir: "./specs/vscode-server",
+    testMatch: /.*\.teardown\.ts$/,
+  },
+  {
+    // The extension's editors inside VS Code for the web on 3917, through `support/vscode-guard.ts`.
+    // One worker: each case starts a workbench and an extension host of its own, in a fresh browser
+    // context. No stack, like the server it depends on.
+    name: "vscode",
+    testDir: "./specs/vscode",
+    workers: 1,
+    metadata: { stack: false },
+    dependencies: ["vscode-server"],
+    use: {
+      // A Windows user agent on every host, so the workbench binds Ctrl rather than Cmd on a Mac.
+      ...devices["Desktop Chrome"],
+      baseURL: `http://localhost:${VSCODE_PORT}`,
+      viewport: { width: 1600, height: 900 },
+      // `VsCodePage.readAsText` copies a file's text and reads it back in the top frame.
+      permissions: ["clipboard-read", "clipboard-write"],
+    },
   },
   {
     // The browser layer: Chromium only, through nginx on 8080. `seed` holds the corpus open until

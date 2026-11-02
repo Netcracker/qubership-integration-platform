@@ -1,0 +1,7 @@
+---
+id: "3b2e9742-139c-4750-bb76-adaf1cc9e3f0-orders"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/specification-group"
+name: "orders"
+content:
+  synchronization: false
+  parentId: "3b2e9742-139c-4750-bb76-adaf1cc9e3f0"
