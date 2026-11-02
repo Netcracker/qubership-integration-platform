@@ -26,7 +26,7 @@ There are 2 options to configure the Implemented Service:
 Table with Implemented services is accessible by navigating to **Services** → **Implemented** tab. Next columns and elements are available for the table:
 
 - **Name** - clickable name of the service or specification group. When clicked, system navigates to respective entity.
-- **Protocol** - service's integration protocol. Possible values: **_http, soap, kafka, amqp, GraphQL, gRPC_**. Value for this parameter will be propagated from the firstly imported API specification. There is no ability to upload API specifications with another protocol after that.
+- **Protocol** - service's integration protocol. **_HTTP_** is the only supported protocol for Implemented Services.
 - **Status** - API Specification status. Possible values:
   - 🔵 _**New**_ - initial state of API specification, uploaded manually or imported by service discovery.
   - 🟢 _**In Use**_ - status indicates that API Specification is utilized within at least one chain.
@@ -174,7 +174,7 @@ At the top of the table the following options are available:
 - **To Specifications** - returns to the list of specifications in the current group.
 - **Search field** - filters operations by name, method, or path. Search is case-insensitive, and every space-separated term must match. For example, `GET /users` matches operations containing both terms.
 
-  > ℹ️ **Note:** In the Web UI, `%` matches any number of characters and `_` matches one character. The VS Code Extension treats both as literal characters.
+  > ℹ️ In the Web UI, `%` matches any number of characters and `_` matches one character. The VS Code Extension treats both as literal characters.
 
 - ![cloud-download](img/cloud-download.svg) - export specification (available only for <ins>Web UI</ins>).
 - ![setting](img/setting.svg) **Column settings** - changes column visibility and order. The **Name** column remains visible and first. Use **Reset** to restore the default settings.
@@ -297,14 +297,6 @@ During the import, system follows next logic:
 - Otherwise, if entities, that are being imported, don't exist, they are going to be created with the next specifics:
   - For all new services system will increment standard UUID, so it is possible to operate with it in order to maintain services uniqueness.
   - For **Swagger** system will build specification version from "version" parameter in specification file.
-
-> ⚠️ **Warning:** When importing **grpc** services, it is absolutely required to have protobuf files properly
-> structured within the archive, according to the native logic, described in public
-> **Protocol Buffers Documentation Language Guide (proto 3)**. Following this logic, protobuf files must be placed
-> to the folders, fully corresponding to the path, described in **"import"** statements of the files.
-> For example, when protobuf file **proto_1** has a statement
-> "_**import test/proto/types/active/proto_2.proto**_", it means that **proto_2** file must be placed
-> to "_**test/proto/types/active/**_" folder in the archive.
 
 When import is completed, system displays import result table with the following columns:
 
