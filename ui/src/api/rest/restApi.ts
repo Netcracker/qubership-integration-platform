@@ -860,12 +860,9 @@ export class RestApi implements Api {
     return response.data;
   };
 
-  deleteDeployment = async (
-    chainId: string,
-    deploymentId: string,
-  ): Promise<void> => {
+  deleteDeployment = async (deploymentId: string): Promise<void> => {
     await this.instance.delete(
-      `${this.v1()}/catalog/chains/${chainId}/deployments/${deploymentId}`,
+      `${this.v1()}/catalog/chains/chainId/deployments/${deploymentId}`,
     );
   };
 

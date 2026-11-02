@@ -10,6 +10,7 @@ import org.qubership.integration.platform.camelk.naming.validation.K8sNameValida
 import org.qubership.integration.platform.camelk.naming.validation.K8sNameVerifier;
 import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
 import org.qubership.integration.platform.chain.model.Snapshot;
+import org.qubership.integration.platform.runtime.catalog.configuration.DomainProperties;
 import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationConfigurationSerdes;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.GenericCustomResources;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.KubeCustomObject;
@@ -60,7 +61,8 @@ class MicroDomainServiceHttpRouteTest {
                 mock(IntegrationServiceCatalog.class),
                 false,
                 engineRoutesNamingStrategy,
-                new K8sNameValidator()
+                new K8sNameValidator(),
+                mock(DomainProperties.class)
         );
         microDomainService.domainLabel = "cip.domain";
         microDomainService.bgVersionLabel = "cip.bgVersion";

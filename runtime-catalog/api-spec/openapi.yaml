@@ -3386,27 +3386,6 @@ paths:
           description: OK
       tags:
       - custom-resource-controller
-  /v1/cr/{name}/{snapshotId}:
-    delete:
-      deprecated: true
-      description: Delete integration chain snapshot from Camel-K resource
-      operationId: deleteSnapshotFromResource
-      parameters:
-      - in: path
-        name: name
-        required: true
-        schema:
-          type: string
-      - in: path
-        name: snapshotId
-        required: true
-        schema:
-          type: string
-      responses:
-        "200":
-          description: OK
-      tags:
-      - custom-resource-controller
   /v1/design-generator/chains/{chainId}:
     get:
       deprecated: true
