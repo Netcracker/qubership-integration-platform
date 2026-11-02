@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.compiler;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.List;
@@ -50,6 +51,37 @@ class HttpTriggerCaptureAdapterTest {
     assertThrows(IllegalArgumentException.class,
         () -> adapter.adapt(new HttpTriggerCapture(List.of(
             new HttpTriggerCapture.Endpoint("http-entry", "http-trigger-1", null))), binding));
+  }
+
+  @Test
+  void reportsEveryEndpointDefectWithItsCodeAndRejectedValue() {
+    var binding = binding();
+    var adapter = new HttpTriggerCaptureAdapter();
+
+    var unknown = assertThrows(HttpTriggerCaptureAdapter.Rejection.class, () -> adapter.adapt(
+        new HttpTriggerCapture(List.of(
+            new HttpTriggerCapture.Endpoint("http-entry", "ghost", null),
+            new HttpTriggerCapture.Endpoint("other-role", "http-trigger-1", false))), binding));
+    var reused = assertThrows(HttpTriggerCaptureAdapter.Rejection.class, () -> adapter.adapt(
+        new HttpTriggerCapture(List.of(
+            new HttpTriggerCapture.Endpoint("http-entry", "http-trigger-1", false),
+            new HttpTriggerCapture.Endpoint("http-entry", "http-trigger-1", true))), binding));
+
+    assertEquals(List.of(
+            "ENDPOINT_COUNT /capture/endpoints",
+            "UNKNOWN_NODE /capture/endpoints/0/semanticNodeId",
+            "MISSING_FIELD /capture/endpoints/0/externalRoute",
+            "UNKNOWN_ROLE /capture/endpoints/1/roleId"),
+        unknown.issues().stream().map(issue -> issue.code() + " " + issue.path()).toList());
+    assertEquals("'ghost' is not an approved semanticNodeId. Use one of: http-trigger-1.",
+        unknown.issues().get(1).message());
+    assertEquals("http-entry", unknown.issues().get(1).entityId());
+    assertNull(unknown.issues().get(3).entityId());
+    assertEquals(List.of(
+            "ENDPOINT_COUNT /capture/endpoints",
+            "REUSED_ROLE /capture/endpoints/1/roleId",
+            "REUSED_NODE /capture/endpoints/1/semanticNodeId"),
+        reused.issues().stream().map(issue -> issue.code() + " " + issue.path()).toList());
   }
 
   static HttpTriggerCaptureSession.Binding binding() {

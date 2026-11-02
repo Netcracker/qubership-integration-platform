@@ -6,6 +6,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway.TypedIssue;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
@@ -39,27 +41,59 @@ final class HttpTriggerCaptureAdapter {
       }
       byNodeId.put(entry.triggerNodeId(), requirement);
     }
+    List<String> roles = binding.skeleton().entryPointRoleIds();
+    List<String> nodes = byNodeId.keySet().stream().sorted().toList();
+    List<TypedIssue> issues = new ArrayList<>();
     if (capture.endpoints().size() != byNodeId.size()) {
-      throw new IllegalArgumentException(
-          "Capture must cover every approved HTTP trigger exactly once.");
+      issues.add(new TypedIssue("ENDPOINT_COUNT", "/capture/endpoints",
+          "Received " + capture.endpoints().size() + " endpoints for " + byNodeId.size()
+              + " approved HTTP triggers. Send one endpoint for each of: " + String.join(", ", nodes) + "."));
     }
-    Set<String> allowedRoles = Set.copyOf(binding.skeleton().entryPointRoleIds());
     Set<String> usedRoles = new HashSet<>();
     Set<String> usedNodes = new HashSet<>();
     List<ConfiguredTrigger> triggers = new ArrayList<>();
     List<String> factIds = new ArrayList<>();
-    for (HttpTriggerCapture.Endpoint endpoint : capture.endpoints()) {
-      if (endpoint == null || endpoint.roleId() == null || endpoint.externalRoute() == null
-          || !allowedRoles.contains(endpoint.roleId())
-          || !usedRoles.add(endpoint.roleId())
-          || !byNodeId.containsKey(endpoint.semanticNodeId())
-          || !usedNodes.add(endpoint.semanticNodeId())) {
-        throw new IllegalArgumentException(
-            "HTTP trigger role, node id, and externalRoute must match approved targets exactly.");
+    for (int index = 0; index < capture.endpoints().size(); index++) {
+      HttpTriggerCapture.Endpoint endpoint = capture.endpoints().get(index);
+      String at = "/capture/endpoints/" + index;
+      if (endpoint == null) {
+        issues.add(new TypedIssue("MISSING_FIELD", at, "Send an endpoint object."));
+        continue;
       }
-      RequirementEntryPoint requirement = byNodeId.get(endpoint.semanticNodeId());
+      String role = endpoint.roleId();
+      // The skeleton's list can be immutable, and List.of().contains(null) throws.
+      String entity = role != null && roles.contains(role) ? role : null;
+      int before = issues.size();
+      if (role == null) {
+        issues.add(new TypedIssue("MISSING_FIELD", at + "/roleId", "Include this field.", entity));
+      } else if (entity == null) {
+        issues.add(new TypedIssue("UNKNOWN_ROLE", at + "/roleId",
+            "'" + role + "' is not an approved roleId. Use one of: " + String.join(", ", roles) + ".", entity));
+      } else if (!usedRoles.add(role)) {
+        issues.add(new TypedIssue("REUSED_ROLE", at + "/roleId",
+            "'" + role + "' is already used by another endpoint. Use each roleId once.", entity));
+      }
+      String node = endpoint.semanticNodeId();
+      if (node == null) {
+        issues.add(new TypedIssue("MISSING_FIELD", at + "/semanticNodeId", "Include this field.", entity));
+      } else if (!byNodeId.containsKey(node)) {
+        issues.add(new TypedIssue("UNKNOWN_NODE", at + "/semanticNodeId",
+            "'" + node + "' is not an approved semanticNodeId. Use one of: " + String.join(", ", nodes) + ".",
+            entity));
+      } else if (!usedNodes.add(node)) {
+        issues.add(new TypedIssue("REUSED_NODE", at + "/semanticNodeId",
+            "'" + node + "' is already used by another endpoint. Use each semanticNodeId once.", entity));
+      }
+      if (endpoint.externalRoute() == null) {
+        issues.add(new TypedIssue("MISSING_FIELD", at + "/externalRoute",
+            "Set externalRoute to true or false.", entity));
+      }
+      if (issues.size() > before) {
+        continue;
+      }
+      RequirementEntryPoint requirement = byNodeId.get(node);
       triggers.add(new ConfiguredTrigger(
-          endpoint.roleId(), endpoint.semanticNodeId(), "http-trigger",
+          role, node, "http-trigger",
           requirement.httpMethod() + " " + requirement.path(),
           List.of(
               new PlanProperty("contextPath", requirement.path()),
@@ -69,6 +103,23 @@ final class HttpTriggerCaptureAdapter {
         factIds.add(requirement.sourceFactId());
       }
     }
+    if (!issues.isEmpty()) {
+      throw new Rejection(issues);
+    }
     return new ConfiguredTriggerSet(1, triggers, factIds.stream().distinct().toList(), List.of());
+  }
+
+  /** Every endpoint defect of one capture, so the model can correct them in one call. */
+  static final class Rejection extends IllegalArgumentException {
+    private final transient List<TypedIssue> issues;
+
+    Rejection(List<TypedIssue> issues) {
+      super(issues.stream().map(TypedIssue::message).collect(Collectors.joining("\n")));
+      this.issues = List.copyOf(issues);
+    }
+
+    List<TypedIssue> issues() {
+      return issues;
+    }
   }
 }
