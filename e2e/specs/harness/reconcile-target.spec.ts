@@ -1,6 +1,6 @@
 /**
  * Reconciliation per target: a registry row that names a target is read only against a run on it,
- * and a run reconciles only when nothing narrowed it.
+ * and a run reconciles only when nothing narrowed it, unless `--partial` reads it as a lane.
  *
  * The `k8s` and `seed-micro` projects exist only on Kubernetes, so a Compose run leaves rows
  * unproven that a cluster run proves. The report records its target in `config.metadata`, and
@@ -75,6 +75,13 @@ function runOn(
       },
     ],
   };
+}
+
+/** A run on k8s narrowed by `filter`, as a pull request lane makes one. */
+function laneRun(filter: string[], covers: string[], reached: string[], projects?: string[]): JsonReport {
+  const report = runOn("k8s", covers, reached, projects);
+  report.config = { ...report.config, argv: ["/usr/bin/node", "node_modules/.bin/playwright", "test", ...filter] };
+  return report;
 }
 
 /** A report of a run invoked with the given arguments, with no resolved project list. */
@@ -183,6 +190,67 @@ test.describe("reconcile per target", () => {
       expect(runFilters(runOn("compose", [], [], COMMON_PROJECTS))).toEqual(["E2E_BROKERS=0"]);
       expect(reconcile(runOn("compose", ["condition"], [], COMMON_PROJECTS), [bothRow])).toEqual([
         "the run was narrowed by `E2E_BROKERS=0`: reconciliation reads a whole run or none",
+      ]);
+    });
+  });
+
+  test.describe("--partial", () => {
+    const partial = { partial: true };
+    const scriptRow: RegistryEntry = { family: "script", kind: "element", status: "covered", tags: ["@engine"] };
+    const laneOperations: OperationClaim[] = [
+      { key: "catalog GET /v1/chains", status: "covered" },
+      { key: "catalog GET /v1/folders", status: "covered" },
+      { key: "catalog GET /v1/snapshots", status: "reached" },
+    ];
+    const notReached: OperationClaim = { key: "catalog DELETE /v1/sessions", status: "not-reached" };
+    const lane = ["--project=api", "--project=runtime"];
+
+    test("a narrowed run passes, and is refused without it", () => {
+      const run = laneRun(lane, ["condition"], ["catalog GET /v1/chains"]);
+      expect(reconcile(run, [bothRow], [operations[0]], partial)).toEqual([]);
+      expect(reconcile(run, [bothRow], [operations[0]])).toEqual([
+        "the run was narrowed by `--project=api --project=runtime`: reconciliation reads a whole run or none",
+      ]);
+
+      const noBrokers = runOn("compose", ["condition"], ["catalog GET /v1/chains"], COMMON_PROJECTS);
+      expect(reconcile(noBrokers, [bothRow], [operations[0]], partial)).toEqual([]);
+      expect(reconcile(noBrokers, [bothRow], [operations[0]])).toEqual([
+        "the run was narrowed by `E2E_BROKERS=0`: reconciliation reads a whole run or none",
+      ]);
+    });
+
+    test("skips covered and reached rows the run did not prove", () => {
+      const run = runOn("k8s", ["condition"], ["catalog GET /v1/chains"]);
+      expect(reconcile(run, [bothRow, scriptRow], laneOperations, partial)).toEqual([]);
+      expect(reconcile(run, [bothRow, scriptRow], laneOperations)).toEqual([
+        "script: marked covered, but no passing test declares it",
+        "catalog GET /v1/folders: marked covered, but no passing test reached it",
+        expect.stringMatching(/^catalog GET \/v1\/snapshots: marked reached, but no passing test reached it\./),
+      ]);
+    });
+
+    test("a declaration of no row or without its tag fails", () => {
+      expect(reconcile(runOn("k8s", ["condition", "no-such-element"], []), [bothRow], [], partial)).toEqual([
+        "specs/runtime/condition.spec.ts › a spec declares no-such-element, which is not a registry row",
+      ]);
+      const catalogRow: RegistryEntry = { ...bothRow, tags: ["@catalog"] };
+      expect(reconcile(runOn("k8s", ["condition"], []), [catalogRow], [], partial)).toEqual([
+        "specs/runtime/condition.spec.ts › a spec declares condition, which is tagged @catalog; the spec carries @engine",
+      ]);
+    });
+
+    test("an untagged case fails", () => {
+      const run = runOn("k8s", [], []);
+      run.suites![0].specs![0].tags = [];
+      expect(reconcile(run, [], [], partial)).toEqual([
+        expect.stringMatching(/^specs\/runtime\/condition\.spec\.ts › a spec: no component tag/),
+      ]);
+    });
+
+    test("a not-reached operation the run reached fails", () => {
+      const run = runOn("k8s", [], ["catalog GET /v1/chains", "catalog DELETE /v1/sessions"]);
+      expect(reconcile(run, [], [operations[0], notReached], partial)).toEqual([
+        "catalog DELETE /v1/sessions: marked not-reached, but a passing test reached it",
       ]);
     });
   });

@@ -184,5 +184,4 @@ dependencies. `vscode-server` finds the source newer than its output and rebuild
 `build:lib:bundled` and `build:lib:types` into `ui/dist-lib` and then `compile-web`, and an extension
 edit runs `compile-web` alone, about 17 s. The next page loads the new bundle. Undo the edit itself
 and run the file again to see it green. A filed defect a case meets is pinned with `test.fail()`
-and its issue number, or worked around with a comment naming it, as `ChainGraphPage.openElement`
-waits for the focus move of #1236 before a case touches a field.
+and its issue number, or worked around with a comment naming it.

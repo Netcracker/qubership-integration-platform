@@ -58,10 +58,6 @@ const EXTERNAL = serviceFile("e2e2000a-0000-4000-8000-000000000001");
 /** The second version of the API contract's document: 2.0.0, with `listWidgets` only. */
 const WIDGETS_V2 = fixturePath("apis/widgets-v2.openapi.yaml");
 
-/** Column headers, whose names carry their resize handles. */
-const LABELS = "Labels Resize column";
-const STATUS = "Status Resize column";
-
 interface SpecificationFile {
   content: { labels?: string[]; deprecated?: boolean };
 }
@@ -196,16 +192,16 @@ test.describe("service editor", () => {
     const table = new TableView(webview);
     await webview.getByRole("tab", { name: "API Specifications" }).click();
 
-    await addLabel(vscode, await table.cell(table.row("orders"), LABELS), "e2e-group");
+    await addLabel(vscode, await table.cell(table.row("orders"), "Labels"), "e2e-group");
     await table.row("orders").getByText("orders", { exact: true }).click();
     const spec = table.row("1.0.0");
     // The group table has Labels one column further left, so the cell is looked up only once the
     // specification table shows.
     await expect(spec).toBeVisible();
-    await addLabel(vscode, await table.cell(spec, LABELS), "e2e-spec");
-    await expect(await table.cell(spec, STATUS)).toHaveText("In use");
+    await addLabel(vscode, await table.cell(spec, "Labels"), "e2e-spec");
+    await expect(await table.cell(spec, "Status")).toHaveText("In use");
     await runRowAction(vscode, spec, "Deprecate", "Deprecate this specification?");
-    await expect(await table.cell(spec, STATUS)).toHaveText("Deprecated");
+    await expect(await table.cell(spec, "Status")).toHaveText("Deprecated");
 
     const group = await readYaml<SpecificationFile>(vscode, GROUP_FILE, (each) => each.content.labels !== undefined);
     expect(group.content.labels).toEqual(["e2e-group"]);
@@ -224,7 +220,7 @@ test.describe("service editor", () => {
 
     const spec = table.row("1.0.0");
     await runRowAction(vscode, spec, "Deprecate", "Deprecate this specification?");
-    await expect(await table.cell(spec, STATUS)).toHaveText("Deprecated");
+    await expect(await table.cell(spec, "Status")).toHaveText("Deprecated");
     await runRowAction(vscode, spec, "Delete", "Delete this specification?");
     await expect(vscode.notifications).toContainText('Specification "1.0.0" has been deleted successfully!');
     await expect(spec).toHaveCount(0);

@@ -553,6 +553,7 @@ defaults below are the Compose ports; on `k8s` they are the fixed host ports fro
 | `E2E_ELEMENT_SCHEMA_DIR`  | the tracked schemas                  | Points the coverage checks at another element-schema tree, which is how they are proved to still go red. |
 | `E2E_VSCODE_COMMIT`       | `VSCODE_COMMIT` in `support/vscode-server.ts` | The VS Code insiders build `vscode-server` serves, by its commit (see [The `vscode` project](#the-vscode-project)). |
 | `E2E_BROKERS`             | unset, meaning `1`                   | `0` drops `brokers-seed`, `brokers`, and `brokers-restart` from the run, and `brokers-micro-seed` and `brokers-micro` on `k8s`, for a faster local pass: Compose starts no broker overlay, and on `k8s` the release is installed without the brokers. |
+| `E2E_BUILD`               | unset, meaning `all`                 | On `k8s`, the images built from the checkout: a comma list of `runtime-catalog`, `engine`, `sessions-management`, `testing-service`, and `micro-engine`, or `all`, or `none`. Every other image runs as its published `:latest` from GHCR, and the run header names each by the digest its pod runs. `all` beside other names is still `all`, `none` beside them adds nothing, and an unknown name fails the run. A run that selects a micro project fails unless the list builds `micro-engine`: the published micro image is a `prod` build the chart cannot start. On Docker Desktop, `docker pull` those `:latest` images first, because the node runs whatever copy the host already holds. |
 | `CIP_TARGET`              | `compose`                            | `k8s` runs the suite against the local cluster in the current kube-context (see [Targets](#targets)). Any other value fails the run at config load. |
 | `CIP_REPO_ROOT`           | the parent directory                 | The repository root everything else is resolved against.                             |
 | `CIP_COMPOSE_FILE`        | `infrastructure/docker/docker-compose.yml`  | The compose file provisioning drives on the Compose target.                          |
@@ -649,13 +650,8 @@ A known divergence is pinned with `test.fail()` and a comment naming the defect,
 green while the defect stands. `grep -rn "test\.fail(" specs/` lists them. A pinned case
 turns red the day its defect is fixed, and that is the signal to remove the annotation.
 
-The `vscode` cases meet this filed defect, and the workaround names its issue:
-
-| Issue | Defect | In the suite |
-| --- | --- | --- |
-| #1236 | The element form moves focus to its root after its open animation, which closes a select the user already opened. | `ChainGraphPage.openElement` waits for that move |
-
-A fix removes its pin or its declaration, since the case that then passes is the regression case.
+A fix removes the defect's pin, or the `expectConsoleError` call that declares its error, since the
+case that then passes is the regression case.
 A handler added for an `unhandled` type also changes its row, and
 `specs/harness/vscode-messages.spec.ts` fails until the row matches the code: a handled row when
 the extension answers the type, and no row when the UI stops sending it.

@@ -252,6 +252,10 @@ test.describe("vscode messages", () => {
       expect(reconcileArgs(["r.json", "--only=vscode-messages"])).toEqual({ onlyMessages: true, report: "r.json" });
       expect(reconcileArgs(["--only=elements"]).error).toMatch(/unknown option --only=elements/);
       expect(reconcileArgs(["--verbose"]).error).toMatch(/unknown option --verbose/);
+      expect(reconcileArgs(["--partial", "r.json"])).toEqual({ partial: true, report: "r.json" });
+      expect(reconcileArgs(["--partial", "--only=vscode-messages"]).error).toBe(
+        "--partial and --only=vscode-messages read different registries: pass one of them",
+      );
     });
 
     test("a covered row a passing test recorded agrees", () => {
