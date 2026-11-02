@@ -26,7 +26,6 @@ import { StatusTag } from "../labels/StatusTag.tsx";
 import { InlineEdit } from "../InlineEdit.tsx";
 import { SelectEdit } from "../table/SelectEdit.tsx";
 import { TextValueEdit } from "../table/TextValueEdit.tsx";
-import inlineEditStyles from "../InlineEdit.module.css";
 import { TableToolbar } from "../table/TableToolbar.tsx";
 import { AdminToolsHeader } from "./AdminToolsHeader.tsx";
 import {
@@ -146,7 +145,6 @@ function stopInlineEditActivation(
 
 function renderOverriddenByViewer(
   row: InstructionRow,
-  showEditIcon = false,
 ): React.ReactNode {
   const value = row.overriddenByName ?? row.overriddenById ?? PLACEHOLDER;
   const href = getOverriddenByHref(row);
@@ -165,9 +163,6 @@ function renderOverriddenByViewer(
         </a>
       ) : (
         value
-      )}
-      {showEditIcon && (
-        <OverridableIcon name="edit" className={inlineEditStyles.inlineIcon} />
       )}
     </span>
   );
@@ -602,10 +597,6 @@ export const ImportInstructions: React.FC = () => {
                       ? ImportInstructionAction.OVERRIDE
                       : row.action,
                   )}
-                  <OverridableIcon
-                    name="edit"
-                    className={inlineEditStyles.inlineIcon}
-                  />
                 </span>
               }
               onSubmit={async ({ action }) => {
@@ -643,7 +634,7 @@ export const ImportInstructions: React.FC = () => {
               }}
               initialActive={pendingOverrideRowKey === row.key}
               editor={<TextValueEdit name="overriddenBy" rules={[]} />}
-              viewer={renderOverriddenByViewer(row, true)}
+              viewer={renderOverriddenByViewer(row)}
               onSubmit={async ({ overriddenBy }) => {
                 setPendingOverrideRowKey(null);
                 const target = overriddenBy?.trim();
