@@ -80,7 +80,7 @@ public class HttpTriggerCaptureTool {
         "captureHttpTriggers", capture);
     try {
       String result = configuredTool.captureConfiguredTriggerSet(adapter.adapt(capture, binding));
-      return rejected("TRIGGER_VALIDATION", "/endpoints", result, false);
+      return rejected("TRIGGER_VALIDATION", "/capture/endpoints", result, false);
     } catch (HttpTriggerCaptureAdapter.Rejection rejection) {
       return reject(conversationId, rejection.issues());
     } catch (IllegalArgumentException error) {

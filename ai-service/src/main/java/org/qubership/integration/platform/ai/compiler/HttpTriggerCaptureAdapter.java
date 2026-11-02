@@ -46,8 +46,9 @@ final class HttpTriggerCaptureAdapter {
     List<TypedIssue> issues = new ArrayList<>();
     if (capture.endpoints().size() != byNodeId.size()) {
       issues.add(new TypedIssue("ENDPOINT_COUNT", "/capture/endpoints",
-          "Received " + capture.endpoints().size() + " endpoints for " + byNodeId.size()
-              + " approved HTTP triggers. Send one endpoint for each of: " + String.join(", ", nodes) + "."));
+          "The endpoint count does not match the approved HTTP triggers (received "
+              + capture.endpoints().size() + ", approved " + byNodeId.size()
+              + "). Send one endpoint for each of: " + String.join(", ", nodes) + "."));
     }
     Set<String> usedRoles = new HashSet<>();
     Set<String> usedNodes = new HashSet<>();
