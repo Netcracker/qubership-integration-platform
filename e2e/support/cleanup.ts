@@ -14,7 +14,7 @@
  */
 import { expect, test } from "@playwright/test";
 import type { Catalog } from "./catalog.js";
-import { DEPLOY_TIMEOUT, type DeployedChain } from "./corpus.js";
+import { DEPLOY_TIMEOUT, waitForDeployed, waitForRoutes, type DeployedChain } from "./corpus.js";
 import { readUntil } from "./poll.js";
 import { callToken } from "./run.js";
 import { CORRELATION_HEADER, SESSION_TIMEOUT, type Sessions } from "./sessions.js";
@@ -290,4 +290,12 @@ export async function waitForRecording(env: Env, sessions: Sessions, chain: Depl
     },
     recorded: async (marker) => (await sessions.attemptByExternalId(marker, false)).session !== null,
   });
+}
+
+/** Snapshots `chain` and deploys it to the classic domain, then waits for its status, its route, and a recorded call. */
+export async function deployAndRecord(catalog: Catalog, env: Env, sessions: Sessions, chain: DeployedChain): Promise<void> {
+  await catalog.deploy(chain.id, (await catalog.createSnapshot(chain.id)).id);
+  await waitForDeployed(catalog, [chain]);
+  await waitForRoutes(env, [chain]);
+  await waitForRecording(env, sessions, chain);
 }

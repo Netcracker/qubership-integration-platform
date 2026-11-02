@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from "@jest/globals";
 import "@testing-library/jest-dom";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { ConfigProvider } from "antd";
 import { StatusTag } from "../../../src/components/labels/StatusTag.tsx";
 import {
@@ -50,14 +50,21 @@ describe("StatusTag", () => {
     expect(screen.getByText("Updated")).toBeInTheDocument();
   });
 
-  it("renders tooltip when message is provided", () => {
+  it("shows the message in a tooltip at the requested placement", async () => {
     render(
       <StatusTag
         status={BulkDeploymentStatus.FAILED_DEPLOY}
         message="Some error"
+        placement="bottom"
       />,
     );
-    expect(screen.getByText("Failed deploy")).toBeInTheDocument();
+
+    fireEvent.mouseEnter(screen.getByText("Failed deploy"));
+
+    const message = await screen.findByText("Some error");
+    expect(message.closest(".ant-tooltip")).toHaveClass(
+      "ant-tooltip-placement-bottom",
+    );
   });
 
   it("renders tag without tooltip when message is absent", () => {

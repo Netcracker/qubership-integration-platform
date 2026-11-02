@@ -157,6 +157,7 @@ export const ElementsLibrarySidebar = ({
           <div className={styles.sidebarSearchArea}>
             <SidebarSearch
               items={allItems.current}
+              placeholder="Search elements..."
               onSearch={handleSearch}
               onClear={() => {
                 setItems(allItems.current);

@@ -191,6 +191,369 @@ describe("AsyncApiSpecificationParser — backend parity", () => {
     );
   });
 
+  describe("AsyncAPI 3.0 schemas stored as the backend stores them", () => {
+    // The backend's AsyncapiSpecificationParserSchemaTest reads the same documents.
+    const JSON_SCHEMA = "application/schema+json;version=draft-07";
+    const AVRO_SCHEMA = {
+      schemaFormat: "application/vnd.apache.avro;version=1.9.0",
+      schema: {
+        type: "record",
+        name: "Order",
+        fields: [{ name: "id", type: "string" }],
+      },
+    };
+    const CLOSED_OBJECT = {
+      type: "object",
+      additionalProperties: false,
+      properties: { id: { type: "string" } },
+    };
+    const INTEGER_ENUM = { type: "integer", enum: [1, 2, 3] };
+    const CLOSED_REF = { $ref: "#/components/schemas/Closed/schema" };
+    const DEPENDENT_LITERAL = {
+      type: "object",
+      properties: { trigger: { type: "string" } },
+      dependencies: {
+        trigger: {
+          properties: {
+            marker: { const: { $ref: "#/components/schemas/Dependent" } },
+          },
+        },
+      },
+    };
+    const CLOSED_SCHEMAS = {
+      schemas: { Closed: { schemaFormat: JSON_SCHEMA, schema: CLOSED_OBJECT } },
+    };
+
+    function document(messages: unknown, components: unknown = {}): string {
+      return JSON.stringify({
+        asyncapi: "3.0.0",
+        info: { title: "Orders", version: "1.0.0" },
+        servers: { local: { host: "localhost:9092", protocol: "kafka" } },
+        channels: { orders: { address: "orders", messages } },
+        operations: {
+          receiveOrder: {
+            action: "receive",
+            channel: { $ref: "#/channels/orders" },
+          },
+        },
+        components,
+      });
+    }
+
+    async function storedSchemas(
+      content: string,
+    ): Promise<Record<string, unknown>> {
+      const data =
+        await AsyncApiSpecificationParser.parseAsyncApiContent(content);
+      const [operation] =
+        AsyncApiSpecificationParser.createOperationsFromAsyncApi(
+          data,
+          "spec-1",
+        );
+      return Object.fromEntries(
+        Object.entries(operation.responseSchemas).map(
+          ([key, schema]: [string, any]) => {
+            const { $id, $schema, ...rest } = schema;
+            return [key, rest];
+          },
+        ),
+      );
+    }
+
+    it.each([
+      [
+        "an AsyncAPI schema",
+        document({
+          order: {
+            payload: {
+              schemaFormat: "application/vnd.aai.asyncapi+json;version=3.0.0",
+              schema: CLOSED_OBJECT,
+            },
+          },
+        }),
+        { payload: { ...CLOSED_OBJECT, definitions: {} } },
+      ],
+      [
+        "a JSON Schema in a component message",
+        document(
+          { order: { $ref: "#/components/messages/Multi" } },
+          {
+            messages: {
+              Multi: {
+                payload: {
+                  schemaFormat: "application/schema+yaml;version=draft-07",
+                  schema: INTEGER_ENUM,
+                },
+              },
+            },
+          },
+        ),
+        { Multi: { ...INTEGER_ENUM, definitions: {} } },
+      ],
+      [
+        "a JSON Schema in a channel with two messages",
+        document({
+          order: {
+            payload: { schemaFormat: JSON_SCHEMA, schema: CLOSED_OBJECT },
+          },
+          other: { payload: INTEGER_ENUM },
+        }),
+        {
+          payload_0: { ...CLOSED_OBJECT, definitions: {} },
+          payload_1: { ...INTEGER_ENUM, definitions: {} },
+        },
+      ],
+      [
+        "a boolean schema",
+        document({
+          order: { payload: { schemaFormat: JSON_SCHEMA, schema: true } },
+        }),
+        { payload: { definitions: {} } },
+      ],
+      [
+        "an Avro payload",
+        document({ order: { payload: AVRO_SCHEMA } }),
+        { payload: { definitions: {} } },
+      ],
+      [
+        "a JSON Schema component",
+        document(
+          { order: { payload: { $ref: "#/components/schemas/Closed" } } },
+          CLOSED_SCHEMAS,
+        ),
+        { payload: { ...CLOSED_OBJECT, definitions: {} } },
+      ],
+      [
+        "a schema with a schemaFormat keyword and no schema",
+        document(
+          { order: { payload: { $ref: "#/components/schemas/Noted" } } },
+          { schemas: { Noted: { type: "object", schemaFormat: "note" } } },
+        ),
+        { payload: { type: "object", schemaFormat: "note", definitions: {} } },
+      ],
+      [
+        "a reference into a multi-format component",
+        document(
+          {
+            order: { payload: { $ref: "#/components/schemas/Closed/schema" } },
+          },
+          CLOSED_SCHEMAS,
+        ),
+        { payload: { ...CLOSED_OBJECT, definitions: {} } },
+      ],
+      [
+        "a component message with a reference into a multi-format component",
+        document(
+          { order: { $ref: "#/components/messages/Order" } },
+          {
+            messages: {
+              Order: {
+                payload: { $ref: "#/components/schemas/Closed/schema" },
+              },
+            },
+            ...CLOSED_SCHEMAS,
+          },
+        ),
+        { Order: { ...CLOSED_OBJECT, definitions: {} } },
+      ],
+      [
+        "a component schema with a reference into a multi-format component",
+        document(
+          { order: { payload: { $ref: "#/components/schemas/Wrapper" } } },
+          {
+            schemas: {
+              Wrapper: { type: "object", properties: { closed: CLOSED_REF } },
+              ...CLOSED_SCHEMAS.schemas,
+            },
+          },
+        ),
+        {
+          payload: {
+            type: "object",
+            properties: { closed: { $ref: "#/definitions/Closed" } },
+            definitions: { Closed: CLOSED_OBJECT },
+          },
+        },
+      ],
+      [
+        "a nested reference into a multi-format component",
+        document(
+          {
+            order: {
+              payload: {
+                type: "object",
+                properties: {
+                  closed: { $ref: "#/components/schemas/Closed/schema" },
+                },
+              },
+            },
+          },
+          CLOSED_SCHEMAS,
+        ),
+        {
+          payload: {
+            type: "object",
+            properties: { closed: { $ref: "#/definitions/Closed" } },
+            definitions: { Closed: CLOSED_OBJECT },
+          },
+        },
+      ],
+      [
+        "a reference below the schema of a multi-format component",
+        document(
+          {
+            order: {
+              payload: {
+                $ref: "#/components/schemas/Closed/schema/properties/id",
+              },
+            },
+          },
+          CLOSED_SCHEMAS,
+        ),
+        { payload: { type: "string", definitions: {} } },
+      ],
+      [
+        "a reference into a multi-format message payload",
+        document(
+          {
+            order: {
+              payload: { $ref: "#/components/messages/Multi/payload/schema" },
+            },
+          },
+          {
+            messages: {
+              Multi: {
+                payload: { schemaFormat: JSON_SCHEMA, schema: INTEGER_ENUM },
+              },
+            },
+          },
+        ),
+        { payload: { ...INTEGER_ENUM, definitions: {} } },
+      ],
+      [
+        "a reference from a property named like a keyword",
+        document(
+          {
+            order: {
+              payload: { type: "object", properties: { default: CLOSED_REF } },
+            },
+          },
+          CLOSED_SCHEMAS,
+        ),
+        {
+          payload: {
+            type: "object",
+            properties: { default: { $ref: "#/definitions/Closed" } },
+            definitions: { Closed: CLOSED_OBJECT },
+          },
+        },
+      ],
+      [
+        "a reference under dependencies",
+        document(
+          {
+            order: {
+              payload: {
+                type: "object",
+                properties: { a: { type: "string" } },
+                dependencies: {
+                  a: { $ref: "#/components/schemas/Dependent" },
+                  c: {
+                    properties: {
+                      d: { $ref: "#/components/schemas/Dependent" },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          { schemas: { Dependent: { type: "object", required: ["b"] } } },
+        ),
+        {
+          payload: {
+            type: "object",
+            properties: { a: { type: "string" } },
+            dependencies: {
+              a: { $ref: "#/definitions/Dependent" },
+              c: { properties: { d: { $ref: "#/definitions/Dependent" } } },
+            },
+            definitions: { Dependent: { type: "object", required: ["b"] } },
+          },
+        },
+      ],
+      [
+        "an array with dependencies",
+        document(
+          {
+            order: {
+              payload: {
+                type: "array",
+                items: { $ref: "#/components/schemas/Dependent" },
+                dependencies: { a: ["b"] },
+              },
+            },
+          },
+          { schemas: { Dependent: { type: "object", required: ["b"] } } },
+        ),
+        {
+          payload: {
+            type: "array",
+            items: { $ref: "#/definitions/Dependent" },
+            dependencies: { a: ["b"] },
+            definitions: { Dependent: { type: "object", required: ["b"] } },
+          },
+        },
+      ],
+      [
+        "a reference-shaped literal under dependencies",
+        document(
+          { order: { payload: DEPENDENT_LITERAL } },
+          { schemas: { Dependent: { type: "object", required: ["b"] } } },
+        ),
+        { payload: { ...DEPENDENT_LITERAL, definitions: {} } },
+      ],
+      [
+        "a chain of message aliases",
+        document(
+          { order: { $ref: "#/components/messages/Chained" } },
+          {
+            messages: {
+              Chained: { $ref: "#/components/messages/Middle" },
+              Middle: { $ref: "#/components/messages/Alias" },
+              Alias: { $ref: "#/components/messages/Order" },
+              Order: { payload: INTEGER_ENUM },
+            },
+          },
+        ),
+        { Chained: { ...INTEGER_ENUM, definitions: {} } },
+      ],
+      [
+        "an Avro component",
+        document(
+          { order: { payload: { $ref: "#/components/schemas/Order" } } },
+          { schemas: { Order: AVRO_SCHEMA } },
+        ),
+        { payload: { definitions: {} } },
+      ],
+    ])("stores %s as the backend does", async (_name, content, expected) => {
+      expect(await storedSchemas(content)).toEqual(expected);
+    });
+
+    it("imports a cycle of message aliases", async () => {
+      const content = document(
+        { order: { $ref: "#/components/messages/First" } },
+        {
+          messages: {
+            First: { $ref: "#/components/messages/Second" },
+            Second: { $ref: "#/components/messages/Third" },
+            Third: { $ref: "#/components/messages/Second" },
+          },
+        },
+      );
+      await expect(storedSchemas(content)).resolves.toBeDefined();
+    }, 10000);
+  });
+
   // These fixtures intentionally omit a protocol marker (servers/x-protocol);
   // they exercise normalizer-only behavior (message refs, missing channels).
   const PROTOCOL_LESS = new Set([

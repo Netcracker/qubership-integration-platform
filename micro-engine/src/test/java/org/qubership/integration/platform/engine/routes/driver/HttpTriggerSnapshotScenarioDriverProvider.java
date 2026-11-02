@@ -356,7 +356,7 @@ class HttpTriggerSnapshotScenarioDriverProvider implements SnapshotScenarioDrive
             Exchange result = new DefaultExchange(camelContext);
             Exchange internalExchange = routedExchange.get();
             if (internalExchange != null) {
-                internalExchange.getProperties().forEach(result::setProperty);
+                internalExchange.getAllProperties().forEach(result::setProperty);
                 result.setException(internalExchange.getException());
                 SnapshotExchangeHeaders.capture(result, internalExchange);
             }

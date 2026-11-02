@@ -1,0 +1,38 @@
+---
+id: "e2e00048-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-http-trigger-system-type-implemented"
+description: "Its trigger implements the one operation of the seeded IMPLEMENTED service, so it serves the operation's path rather than a contextPath of its own."
+content:
+  labels: []
+  elements:
+  - id: "e2e00048-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      systemType: "IMPLEMENTED"
+      integrationSystemId: "e2e00036-0000-4000-8000-000000000001"
+      integrationSpecificationGroupId: "e2e00036-0000-4000-8000-000000000001-implemented"
+      integrationSpecificationId: "e2e00036-0000-4000-8000-000000000001-implemented-1.0.0"
+      integrationOperationId: "e2e00036-0000-4000-8000-000000000001-implemented-1.0.0-e2eImplemented"
+      integrationOperationPath: "/e2e-{{RUN}}-system-type-implemented/operation"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e00048-0000-4000-8000-000000000003"
+    name: "Header Modification"
+    type: "header-modification"
+    properties:
+      headerModificationToAdd:
+        e2e-marker: "implemented"
+      headerModificationToRemove: []
+  dependencies:
+  - from: "e2e00048-0000-4000-8000-000000000002"
+    to: "e2e00048-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

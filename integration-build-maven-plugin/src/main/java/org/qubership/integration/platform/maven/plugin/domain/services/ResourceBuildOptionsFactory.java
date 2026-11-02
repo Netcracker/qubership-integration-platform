@@ -2,6 +2,7 @@ package org.qubership.integration.platform.maven.plugin.domain.services;
 
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.camelk.model.options.ContainerOptions;
+import org.qubership.integration.platform.camelk.model.options.Limits;
 import org.qubership.integration.platform.camelk.model.options.ResourceBuildOptions;
 import org.qubership.integration.platform.maven.plugin.domain.tasks.BuildCRsTaskParameters;
 import org.qubership.integration.platform.maven.plugin.mojos.BuildCRsOptions;
@@ -17,13 +18,17 @@ public class ResourceBuildOptionsFactory {
     private static final String DEFAULT_SECRET_ENABLED_ENV = "DEFAULT_SECRET_ENABLED";
 
     private final String defaultContainerName;
+    private final String defaultLimitMemory;
 
     @Autowired
     public ResourceBuildOptionsFactory(
         @Value("${cip.cr.build.container.image}")
-        String defaultContainerName
+        String defaultContainerName,
+        @Value("${cip.cr.build.container.limit.memory}")
+        String defaultLimitMemory
     ) {
         this.defaultContainerName = defaultContainerName;
+        this.defaultLimitMemory = defaultLimitMemory;
     }
 
     public ResourceBuildOptions createResourceBuildOptions(String domain, BuildCRsTaskParameters parameters) {
@@ -31,6 +36,10 @@ public class ResourceBuildOptionsFactory {
         ContainerOptions.ContainerOptionsBuilder containerOptionsBuilder = options.getContainer().toBuilder();
         if (StringUtils.isBlank(options.getContainer().getImage())) {
             containerOptionsBuilder.image(defaultContainerName);
+        }
+        Limits limit = options.getContainer().getLimit();
+        if (StringUtils.isBlank(limit.getMemory())) {
+            containerOptionsBuilder.limit(limit.toBuilder().memory(defaultLimitMemory).build());
         }
         return ResourceBuildOptions.builder()
             .name(domain)

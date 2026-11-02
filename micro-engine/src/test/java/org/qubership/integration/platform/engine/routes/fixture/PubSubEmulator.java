@@ -11,6 +11,7 @@ import com.google.cloud.pubsub.v1.SubscriptionAdminSettings;
 import com.google.cloud.pubsub.v1.TopicAdminClient;
 import com.google.cloud.pubsub.v1.TopicAdminSettings;
 import com.google.pubsub.v1.AcknowledgeRequest;
+import com.google.pubsub.v1.DeleteSubscriptionRequest;
 import com.google.pubsub.v1.DeleteTopicRequest;
 import com.google.pubsub.v1.PublishRequest;
 import com.google.pubsub.v1.PublishResponse;
@@ -83,9 +84,26 @@ final class PubSubEmulator implements AutoCloseable {
     }
 
     void createTopic(String topic) {
-        topicClient.createTopicCallable().call(Topic.newBuilder().setName(topic).build(), callContext(RPC_TIMEOUT));
+        createTopicWithoutSubscription(topic);
         String subscriptionName = SubscriptionName.of(
                 TopicName.parse(topic).getProject(), "snapshot-" + UUID.randomUUID()).toString();
+        createSubscription(topic, subscriptionName);
+        subscriptionsByTopic.put(topic, subscriptionName);
+    }
+
+    String host() {
+        return container.getHost();
+    }
+
+    int port() {
+        return container.getMappedPort(EMULATOR_PORT);
+    }
+
+    void createTopicWithoutSubscription(String topic) {
+        topicClient.createTopicCallable().call(Topic.newBuilder().setName(topic).build(), callContext(RPC_TIMEOUT));
+    }
+
+    void createSubscription(String topic, String subscriptionName) {
         Subscription subscription = subscriptionClient.createSubscriptionCallable().call(Subscription.newBuilder()
                 .setName(subscriptionName)
                 .setTopic(topic)
@@ -93,7 +111,11 @@ final class PubSubEmulator implements AutoCloseable {
                 .setEnableMessageOrdering(true)
                 .build(), callContext(RPC_TIMEOUT));
         assertTrue(subscription.getEnableMessageOrdering(), "The Pub/Sub subscription must enable message ordering.");
-        subscriptionsByTopic.put(topic, subscriptionName);
+    }
+
+    void deleteSubscription(String subscriptionName) {
+        subscriptionClient.deleteSubscriptionCallable().call(DeleteSubscriptionRequest.newBuilder()
+                .setSubscription(subscriptionName).build(), callContext(RPC_TIMEOUT));
     }
 
     void deleteTopic(String topic) {

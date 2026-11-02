@@ -53,11 +53,9 @@ export function initExternalMonaco(): void {
   }
 }
 
-export function initBundledMonaco(): void {
+export function initBundledMonaco(bundleUrl: string): void {
   configureMonacoLoader({ monaco });
   applyMonacoWebviewCompat(monaco);
-
-  if (typeof document === "undefined") return;
 
   const globalBase =
     typeof window !== "undefined"
@@ -69,18 +67,5 @@ export function initBundledMonaco(): void {
     return;
   }
 
-  const script = document.currentScript as HTMLScriptElement | null;
-  if (!script?.src) return;
-
-  try {
-    const scriptUrl = new URL(script.src);
-    const pathname = scriptUrl.pathname;
-    const lastSlash = pathname.lastIndexOf("/");
-    const basePath =
-      lastSlash === -1 ? "" : pathname.slice(0, Math.max(0, lastSlash));
-    scriptUrl.pathname = `${basePath}/assets/monaco-work`;
-    setDefaultWorkerBasePath(scriptUrl.href);
-  } catch {
-    // Ignore invalid URL and keep current config.
-  }
+  setDefaultWorkerBasePath(new URL("assets/monaco-work", bundleUrl).href);
 }

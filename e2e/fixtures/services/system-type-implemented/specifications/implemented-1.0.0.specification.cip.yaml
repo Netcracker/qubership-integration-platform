@@ -1,0 +1,27 @@
+---
+id: "e2e00036-0000-4000-8000-000000000001-implemented-1.0.0"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/specification"
+name: "1.0.0"
+content:
+  deprecated: false
+  version: "1.0.0"
+  source: "MANUAL"
+  operations:
+  - id: "e2e00036-0000-4000-8000-000000000001-implemented-1.0.0-e2eImplemented"
+    name: "e2eImplemented"
+    method: "POST"
+    path: "/e2e-{{RUN}}-system-type-implemented/operation"
+    specification:
+      responses:
+        "200":
+          description: "ok"
+      operationId: "e2eImplemented"
+    requestSchema: {}
+    responseSchemas:
+      "200": {}
+  specificationSources:
+  - id: "e2e00036-0000-4000-8000-000000000003"
+    name: "implemented.openapi.yaml"
+    fileName: "source-e2e00036-0000-4000-8000-000000000001-implemented-1.0.0/implemented.openapi.yaml"
+    mainSource: true
+  parentId: "e2e00036-0000-4000-8000-000000000001-implemented"

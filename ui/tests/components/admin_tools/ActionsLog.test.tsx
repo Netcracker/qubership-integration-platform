@@ -216,11 +216,10 @@ describe("ActionsLog() ActionsLog method", () => {
       mockExportActionsLogAsExcel.mockClear();
     });
 
-    it("renders the audit title and icon", () => {
-      // Test: The audit title and icon are rendered
+    it("renders the audit title", () => {
+      // Test: The audit title is rendered
       render(<ActionsLog />);
       expect(screen.getByText("Audit")).toBeInTheDocument();
-      expect(screen.getByTestId("icon-audit")).toBeInTheDocument();
     });
 
     it("renders compact search with audit log placeholder", () => {

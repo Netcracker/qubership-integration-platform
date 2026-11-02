@@ -1,3 +1,0 @@
-{{- if .Values.global.qip.testingService.enabled }}
-{{- include "qip-dev.roleService" (dict "app" (printf "%s-testing-service-%s" .Release.Name .Values.global.blueGreenVersion) "nodePort" .Values.nodePort "loadBalancerPort" .Values.loadBalancerPort) }}
-{{- end }}

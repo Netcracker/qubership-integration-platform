@@ -148,8 +148,10 @@ def validate_package(package: Path) -> ValidatedPackage:
     )
     if manifest.get("manifest_schema") != "1.0":
         _fail("KNOWLEDGE_MANIFEST_INVALID", "manifest_schema must be 1.0")
+    product = manifest.get("product")
     if (
-        manifest.get("product") != "CIP"
+        not isinstance(product, str)
+        or not product.strip()
         or manifest.get("runtime_sdk_version") != ">=1.0.0 <2.0"
     ):
         _fail(

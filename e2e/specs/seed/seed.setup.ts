@@ -7,13 +7,28 @@
  * runtime spec then fails for want of a corpus, which reads as a broken runtime spec.
  */
 import { test, expect } from "../../support/fixtures.js";
-import { seedCorpus, writeCorpusState } from "../../support/corpus.js";
+import {
+  corpusChainNames,
+  corpusRequestTimeout,
+  DEPLOY_TIMEOUT,
+  DEPLOY_TIMEOUT_PER_CHAIN,
+  seedCorpus,
+  writeCorpusState,
+} from "../../support/corpus.js";
 import { corpusFixtureNames } from "../../fixtures/templating.js";
 import { writeAxisFixtures } from "../../fixtures/axis-generator.js";
 
-test("the fixture corpus is imported, deployed, and answering", { tag: ["@catalog", "@engine", "@tier1"] }, async ({ catalog, env, run }) => {
-  // The import, the deploy wait that grows with the corpus, and the route wait do not fit in 120 s.
-  test.setTimeout(5 * 60_000);
+const CHAINS = corpusChainNames().length;
+
+/**
+ * The import and the bulk deploy, each a request sized on the corpus, the deploy wait, and the route
+ * wait, plus a minute for the services and the logging properties.
+ */
+const SEED_TIMEOUT =
+  2 * corpusRequestTimeout(CHAINS) + DEPLOY_TIMEOUT + CHAINS * DEPLOY_TIMEOUT_PER_CHAIN + DEPLOY_TIMEOUT + 60_000;
+
+test("the fixture corpus is imported, deployed, and answering", { tag: ["@catalog", "@engine"] }, async ({ catalog, env, run }) => {
+  test.setTimeout(SEED_TIMEOUT);
   // The generated axis chains are written first, so the corpus below is read off a fresh directory.
   await writeAxisFixtures();
   const fixtures = corpusFixtureNames();

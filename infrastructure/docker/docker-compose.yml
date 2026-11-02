@@ -14,7 +14,7 @@ services:
     env_file: "qip-dev.env"
     command:
       [
-        "/opt/java/openjdk/bin/java",
+        "/usr/lib/jvm/java-21-openjdk/bin/java",
         "-Xmx642m",
         "-XX:MetaspaceSize=320m",
         "-XX:MaxMetaspaceSize=320m",
@@ -66,7 +66,7 @@ services:
     # RabbitMQ, Pub/Sub and SFTP in use the engine needs more than 224m, and redeploys add nothing.
     command:
       [
-        "/opt/java/openjdk/bin/java",
+        "/usr/lib/jvm/java-21-openjdk/bin/java",
         "-Xmx832m",
         "-XX:MetaspaceSize=384m",
         "-XX:MaxMetaspaceSize=384m",
@@ -97,6 +97,9 @@ services:
       start_period: 30s
     volumes:
       - ./kafka-ssl/client:/app/cert/defaultsslcertificate
+    # The engine writes the truststore it builds from kafka-ssl/client here, and the root filesystem is read-only.
+    tmpfs:
+      - /app/truststore
     networks:
       default:
         aliases:
@@ -119,7 +122,7 @@ services:
     env_file: "qip-dev.env"
     command:
       [
-        "/opt/java/openjdk/bin/java",
+        "/usr/lib/jvm/java-21-openjdk/bin/java",
         "-Xmx416m",
         "-XX:MetaspaceSize=192m",
         "-XX:MaxMetaspaceSize=192m",

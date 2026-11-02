@@ -175,14 +175,25 @@ describe("Diagnostic", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders Run Diagnostic button as primary with play icon", async () => {
+  it("renders header title with Run Diagnostic button", async () => {
     await renderAndWaitForLoad();
 
-    const button = screen.getByTitle("Run Diagnostic");
-    expect(button).toBeInTheDocument();
     expect(
-      button.querySelector("[data-testid='icon-caretRightFilled']"),
+      screen.getByRole("heading", { name: "Diagnostic" }),
     ).toBeInTheDocument();
+    expect(screen.getByTitle("Run Diagnostic")).toBeInTheDocument();
+  });
+
+  it("renders validation icon next to validation name", async () => {
+    const { container } = await renderAndWaitForLoad([
+      makeValidation({ id: "v1", title: "With Icon" }),
+    ]);
+
+    await waitFor(() => {
+      expect(
+        container.querySelector("[data-testid='icon-barChart']"),
+      ).toBeInTheDocument();
+    });
   });
 
   it("displays alerts count with colored tag for ERROR severity", async () => {
@@ -250,7 +261,7 @@ describe("Diagnostic", () => {
 
     const initialCallCount = mockGetValidations.mock.calls.length;
 
-    const searchInput = screen.getByPlaceholderText("Search validations...");
+    const searchInput = screen.getByPlaceholderText("Search validations");
     fireEvent.change(searchInput, { target: { value: "test query" } });
     fireEvent.keyDown(searchInput, { key: "Enter", code: "Enter" });
 
@@ -576,6 +587,9 @@ describe("Diagnostic", () => {
       const chainLink = container.querySelector("a[href='/chains/c1']");
       expect(chainLink).toBeInTheDocument();
       expect(chainLink!.textContent).toBe("My Chain");
+      expect(
+        container.querySelector("[data-testid='icon-chain']"),
+      ).toBeInTheDocument();
     });
   });
 

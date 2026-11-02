@@ -28,6 +28,7 @@ jest.mock("uuid", () => ({
 const mockApi = api as jest.Mocked<typeof api>;
 const mockNotificationService = {
   requestFailed: jest.fn(),
+  error: jest.fn(),
   errorWithDetails: jest.fn(),
   info: jest.fn(),
   warning: jest.fn(),

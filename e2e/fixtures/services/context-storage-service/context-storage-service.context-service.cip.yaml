@@ -1,0 +1,6 @@
+---
+id: "e2e00034-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/context-service"
+name: "e2e-{{RUN}}-context-storage"
+content:
+  migrations: "[100, 101, 102]"

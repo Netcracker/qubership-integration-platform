@@ -229,7 +229,9 @@ public class BGKafkaConsumerExtendedImpl<K, V> implements BGKafkaConsumerExtende
         var props = new HashMap<>(config.getProperties());
         // override group id to versioned one
         props.put(GROUP_ID_CONFIG, groupId.toString());
-        if (props.get(AUTO_OFFSET_RESET_CONFIG) != null) {
+        boolean nativeOffsetReset = groupId instanceof PlainGroupId
+                && "none".equals(props.get(AUTO_OFFSET_RESET_CONFIG));
+        if (!nativeOffsetReset && props.get(AUTO_OFFSET_RESET_CONFIG) != null) {
             log.warn("`{}' is not suitable with BGKafkaConsumer usage. Please switch to use OffsetSetupStrategy enum. Ignored.", AUTO_OFFSET_RESET_CONFIG);
             props.remove(AUTO_OFFSET_RESET_CONFIG);
         }
@@ -247,6 +249,9 @@ public class BGKafkaConsumerExtendedImpl<K, V> implements BGKafkaConsumerExtende
             @Override
             public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
                 log.debug("Partitions were assigned: {}", partitions);
+                if (nativeOffsetReset) {
+                    return;
+                }
                 log.debug("Start offset alignment process for: {}", groupId);
                 OffsetsManager offsetsManager = new OffsetsManager(config, kafkaConsumer);
                 Map<TopicPartition, OffsetAndMetadata> alignedOffsets = offsetsManager.alignOffset(groupId)

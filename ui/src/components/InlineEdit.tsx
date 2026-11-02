@@ -40,12 +40,15 @@ export function InlineEdit<Values>({
   const [form] = useForm<Values>();
   const [processing, setProcessing] = useState<boolean>(false);
   const [active, setActive] = useState<boolean>(initialActive ?? false);
+  // Callers pass a new values object on every render, so compare it by content.
+  const valuesKey = JSON.stringify(values);
 
   useEffect(() => {
     if (active) {
       form.setFieldsValue(values);
     }
-  }, [values, active, form]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- valuesKey stands for values
+  }, [valuesKey, active, form]);
 
   const toggle = useCallback(() => {
     setActive((prev) => {

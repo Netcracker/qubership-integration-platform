@@ -73,7 +73,11 @@ import {
 } from "../components/table/useColumnSettingsButton.tsx";
 import { useTableDragDrop } from "../hooks/useTableDragDrop.ts";
 import { treeExpandIcon } from "../components/table/TreeExpandIcon.tsx";
-import { useTableConfiguration } from "../components/table/useTableConfiguration.tsx";
+import {
+  EXPAND_COLUMN_WIDTH,
+  SELECTION_COLUMN_WIDTH,
+  useTableConfiguration,
+} from "../components/table/useTableConfiguration.tsx";
 import { tableEmpty } from "../components/table/tableEmpty.tsx";
 import { TableToolbar } from "../components/table/TableToolbar.tsx";
 import commonStyles from "../components/admin_tools/CommonStyle.module.css";
@@ -83,8 +87,6 @@ import { useGenerateDds } from "../hooks/useGenerateDds.tsx";
 import { useCatalogRefresh } from "../hooks/useCatalogRefresh.ts";
 import { isVsCode } from "../api/rest/vscodeExtensionApi.ts";
 
-const CHAINS_EXPAND_COLUMN_WIDTH = 48;
-const CHAINS_SELECTION_COLUMN_WIDTH = 48;
 import { Domain } from "../components/SelectDomains.tsx";
 import { ChainDiffPopup } from "../components/chains/diff/ChainDiffPopup.tsx";
 import { useTableRowExpandCollapse } from "../components/table/useTableRowExpandCollapse.ts";
@@ -1085,7 +1087,11 @@ const Chains = () => {
     { label: "Expand All", key: "expandAll" },
     { label: "Collapse All", key: "collapseAll" },
     { type: "divider" },
-    { label: "Copy Link", key: "copyFolderLink" },
+    {
+      label: "Copy Link",
+      key: "copyFolderLink",
+      require: { folder: ["update"] },
+    },
     { label: "Edit", key: "editFolder", require: { folder: ["update"] } },
     { label: "Export", key: "export", require: { chain: ["export"] } },
     { type: "divider" },
@@ -1100,13 +1106,17 @@ const Chains = () => {
   ];
 
   const chainMenuItems: ProtectedMenuItem[] = [
-    { label: "Copy Link", key: "copyChainLink" },
+    {
+      label: "Copy Link",
+      key: "copyChainLink",
+      require: { chain: ["update"] },
+    },
     { label: "Edit", key: "editChain", require: { chain: ["update"] } },
     { label: "Export", key: "export", require: { chain: ["export"] } },
     {
       label: "Generate DDS",
       key: "generateDDS",
-      require: { chain: ["read"] },
+      require: { chain: ["read"], designTemplate: ["read"] },
     },
     { type: "divider" },
     { label: "Cut", key: "cut", require: { chain: ["delete"] } },
@@ -1287,8 +1297,8 @@ const Chains = () => {
       modifiedWhen: 168,
     },
     {
-      expandColumnWidth: CHAINS_EXPAND_COLUMN_WIDTH,
-      selectionColumnWidth: CHAINS_SELECTION_COLUMN_WIDTH,
+      expandColumnWidth: EXPAND_COLUMN_WIDTH,
+      selectionColumnWidth: SELECTION_COLUMN_WIDTH,
     },
     "chainsTable",
   );
@@ -1339,8 +1349,7 @@ const Chains = () => {
               <CompactSearch
                 value={searchString}
                 onChange={setSearchString}
-                placeholder="Full text search"
-                allowClear
+                placeholder="Search chains and folders..."
                 className={commonStyles["searchField"]}
               />
             </Flex>

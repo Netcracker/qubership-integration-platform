@@ -26,7 +26,10 @@ import {
   ColumnsTypeWithSettings,
   useColumnSettingsBasedOnColumnsType,
 } from "../../table/useColumnSettingsButton.tsx";
-import { useTableConfiguration } from "../../table/useTableConfiguration.tsx";
+import {
+  SELECTION_COLUMN_WIDTH,
+  useTableConfiguration,
+} from "../../table/useTableConfiguration.tsx";
 import { nameLinkStyle } from "../../table/nameLinkStyle.ts";
 import { useFilter } from "../../table/filter/useFilter.tsx";
 import {
@@ -36,8 +39,6 @@ import {
 } from "../../table/filter/filterTypes.ts";
 import { LabelsStringTableFilter } from "../../../hooks/useChainFilter.ts";
 import { ChainColumn } from "../ui/ChainColumn.tsx";
-
-const SELECTION_COLUMN_WIDTH = 48;
 
 export const McpServiceList: React.FC = () => {
   const [systems, setSystems] = useState<MCPSystem[]>([]);

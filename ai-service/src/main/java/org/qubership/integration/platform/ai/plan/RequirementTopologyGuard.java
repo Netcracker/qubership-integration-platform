@@ -4,6 +4,10 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import org.qubership.integration.platform.ai.qipknowledge.pack.ClasspathCipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -23,8 +27,7 @@ import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 @ApplicationScoped
 public class RequirementTopologyGuard {
 
-  public static final String RULE_RESOURCE =
-      "product-pipelines/rules/create-exclusions-v1.yaml";
+  public static final String RULE_RESOURCE = "rules/create-exclusions-v1.yaml";
 
   private static final Map<String, ForbiddenTopology> DEFAULT_CAPABILITY_TOPOLOGY =
       Map.of(
@@ -45,8 +48,16 @@ public class RequirementTopologyGuard {
   private final CreateExclusionsDocument document;
   private final Map<String, ForbiddenTopology> capabilityTopology;
 
+  /** Standalone use (unit tests) with the default classpath knowledge pack. */
   public RequirementTopologyGuard() {
-    this(loadDocument(), DEFAULT_CAPABILITY_TOPOLOGY);
+    this(
+        new ClasspathCipKnowledgePackRepository(
+            new CipKnowledgePackVersion("integration-platform-skills", "integration-platform-skills")));
+  }
+
+  @Inject
+  public RequirementTopologyGuard(CipKnowledgePackRepository packRepository) {
+    this(loadDocument(packRepository), DEFAULT_CAPABILITY_TOPOLOGY);
   }
 
   RequirementTopologyGuard(
@@ -154,22 +165,11 @@ public class RequirementTopologyGuard {
     return keys;
   }
 
-  private static CreateExclusionsDocument loadDocument() {
+  private static CreateExclusionsDocument loadDocument(CipKnowledgePackRepository packRepository) {
     ObjectMapper yaml = new ObjectMapper(new YAMLFactory());
-    try (InputStream in =
-        Thread.currentThread().getContextClassLoader().getResourceAsStream(RULE_RESOURCE)) {
+    try (InputStream in = packRepository.openProductPipelineResource(RULE_RESOURCE)) {
       if (in == null) {
-        // Worktree path for unit tests that do not copy skills resources onto the classpath.
-        try (InputStream fallback =
-            java.nio.file.Files.newInputStream(
-                java.nio.file.Path.of("integration-platform-skills")
-                    .resolve(RULE_RESOURCE)
-                    .toAbsolutePath()
-                    .normalize())) {
-          return yaml.readValue(fallback, CreateExclusionsDocument.class);
-        } catch (IOException ignored) {
-          return new CreateExclusionsDocument(1, "create-exclusions-v1", List.of(), Map.of());
-        }
+        return new CreateExclusionsDocument(1, "create-exclusions-v1", List.of(), Map.of());
       }
       return yaml.readValue(in, CreateExclusionsDocument.class);
     } catch (IOException e) {

@@ -233,15 +233,14 @@ export const ActionsLog: React.FC = () => {
     }
 
     const link = (
-      <Flex vertical={true} gap={4}>
-        <a
-          onClick={() => {
-            window.open(getEntityLink(type, id, parentId, name), "_blank");
-          }}
-        >
-          {displayedName}
-        </a>
-      </Flex>
+      <a
+        onClick={(event) => {
+          event.stopPropagation();
+          window.open(getEntityLink(type, id, parentId, name), "_blank");
+        }}
+      >
+        {displayedName}
+      </a>
     );
 
     return displayedName ? link : "—";
@@ -428,7 +427,6 @@ export const ActionsLog: React.FC = () => {
         onChange: setSearchTerm,
         onSearchConfirm: confirmSearch,
         placeholder: "Search audit log...",
-        allowClear: true,
       }}
       columnSettingsButton={columnSettingsButton}
       filterButton={filterButton}
@@ -457,7 +455,7 @@ export const ActionsLog: React.FC = () => {
 
   return (
     <Flex vertical className={commonStyles["container"]}>
-      <AdminToolsHeader title="Audit" iconName="audit" toolbar={auditToolbar} />
+      <AdminToolsHeader title="Audit" toolbar={auditToolbar} />
       <Flex
         style={{
           flex: "1 1 auto",

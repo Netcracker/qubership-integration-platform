@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder;
+import com.github.tomakehurst.wiremock.core.Options;
 import com.github.tomakehurst.wiremock.http.Fault;
 import com.github.tomakehurst.wiremock.http.trafficlistener.DoNothingWiremockNetworkTrafficListener;
 import com.github.tomakehurst.wiremock.stubbing.Scenario;
@@ -31,7 +32,6 @@ import org.qubership.integration.platform.engine.testutils.ObjectMappers;
 import java.io.IOException;
 import java.net.Socket;
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -40,12 +40,15 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.any;
 import static com.github.tomakehurst.wiremock.client.WireMock.anyUrl;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.options;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.qubership.integration.platform.engine.routes.fixture.HttpSenderSnapshotPayloads.BODY_CHARSET;
+import static org.qubership.integration.platform.engine.routes.fixture.HttpSenderSnapshotPayloads.EXPECTED_REQUEST_BODY_HEX;
 import static org.qubership.integration.platform.engine.routes.support.SnapshotCollections.immutableMap;
 
 class HttpSenderSnapshotFixtureProvider implements SnapshotFixtureProvider {
@@ -58,9 +61,18 @@ class HttpSenderSnapshotFixtureProvider implements SnapshotFixtureProvider {
     private static final String REDIRECTS = "redirects";
     private static final String EXPECTED_REQUESTS = "expectedRequests";
     private static final Set<String> RESPONSE_PROPERTIES = Set.of(EXPECTED_SEND_COUNT, EXPECTED_RESTORED_CONTEXT,
-            EXPECTED_CONNECTION_COUNT, TRANSPORT_FAULT, REDIRECTS, EXPECTED_REQUESTS);
+            EXPECTED_CONNECTION_COUNT, TRANSPORT_FAULT, REDIRECTS, EXPECTED_REQUESTS, BODY_CHARSET, EXPECTED_REQUEST_BODY_HEX);
     private static final ObjectMapper EXPECTED_REQUEST_MAPPER = ObjectMappers.getObjectMapper()
             .setSerializationInclusion(JsonInclude.Include.ALWAYS);
+    private final Function<Options, WireMockServer> serverFactory;
+
+    HttpSenderSnapshotFixtureProvider() {
+        this(WireMockServer::new);
+    }
+
+    HttpSenderSnapshotFixtureProvider(Function<Options, WireMockServer> serverFactory) {
+        this.serverFactory = serverFactory;
+    }
 
     @Override
     public String getId() {
@@ -75,7 +87,7 @@ class HttpSenderSnapshotFixtureProvider implements SnapshotFixtureProvider {
     @Override
     public SnapshotFixture create(String deploymentId, List<SnapshotFixtureBinding> bindings) {
         bindings.forEach(HttpSenderSnapshotFixtureProvider::validateBinding);
-        return new HttpSenderSnapshotFixture(deploymentId, bindings);
+        return new HttpSenderSnapshotFixture(deploymentId, bindings, serverFactory);
     }
 
     private static final class HttpSenderSnapshotFixture implements SnapshotFixture {
@@ -84,11 +96,12 @@ class HttpSenderSnapshotFixtureProvider implements SnapshotFixtureProvider {
         private final Map<String, HttpSenderStub> stubs = new LinkedHashMap<>();
         private final SnapshotContextRuntime runtime;
 
-        private HttpSenderSnapshotFixture(String deploymentId, List<SnapshotFixtureBinding> bindings) {
+        private HttpSenderSnapshotFixture(String deploymentId, List<SnapshotFixtureBinding> bindings,
+                                          Function<Options, WireMockServer> serverFactory) {
             this.deploymentId = deploymentId;
             this.bindings = List.copyOf(bindings);
             this.runtime = new SnapshotContextRuntime(this.bindings, List.of(new HttpSenderSnapshotContextProvider()));
-            this.bindings.forEach(binding -> stubs.put(binding.definition().getId(), new HttpSenderStub(binding)));
+            this.bindings.forEach(binding -> stubs.put(binding.definition().getId(), new HttpSenderStub(binding, serverFactory)));
         }
 
         @Override
@@ -135,7 +148,10 @@ class HttpSenderSnapshotFixtureProvider implements SnapshotFixtureProvider {
                     "setCaughtHttpExceptionContextProcessor", new SetCaughtHttpExceptionContextProcessor(),
                     "throwCaughtExceptionProcessor", new ThrowCaughtExceptionProcessor()
             ));
-            runtime.configure(context, senderRoutes);
+            List<RouteDefinition> entryRoutes = routes.stream()
+                    .filter(route -> route.getInput().getEndpointUri().startsWith("cip-chain:"))
+                    .toList();
+            runtime.configure(context, senderRoutes, entryRoutes);
             for (Map.Entry<RouteDefinition, List<SnapshotFixtureBinding>> entry : bindingsByRoute.entrySet()) {
                 AdviceWith.adviceWith(context, entry.getKey(), false, advice -> {
                     for (SnapshotFixtureBinding binding : entry.getValue()) {
@@ -182,6 +198,8 @@ class HttpSenderSnapshotFixtureProvider implements SnapshotFixtureProvider {
 
     private static final class HttpSenderStub implements AutoCloseable {
         private final SnapshotFixtureBinding binding;
+        private final Function<Options, WireMockServer> serverFactory;
+        private final boolean selected;
         private final ObjectMapper objectMapper = ObjectMappers.getObjectMapper();
         private final List<SenderEntry> senderEntries = new CopyOnWriteArrayList<>();
         private final Map<String, String> destinations = new ConcurrentHashMap<>();
@@ -191,12 +209,18 @@ class HttpSenderSnapshotFixtureProvider implements SnapshotFixtureProvider {
         private int port;
         private int requestBaseline;
 
-        private HttpSenderStub(SnapshotFixtureBinding binding) {
+        private HttpSenderStub(SnapshotFixtureBinding binding, Function<Options, WireMockServer> serverFactory) {
             this.binding = binding;
+            this.serverFactory = serverFactory;
+            this.selected = binding.interactionsByInvocationId().values().stream()
+                    .anyMatch(interaction -> expectedSendCount(interaction) > 0);
         }
 
         private void start() {
-            server = new WireMockServer(options().port(port).bindAddress("127.0.0.1")
+            if (!selected) {
+                return;
+            }
+            server = serverFactory.apply(options().port(port).bindAddress("127.0.0.1")
                     .networkTrafficListener(new DoNothingWiremockNetworkTrafficListener() {
                         @Override
                         public void opened(Socket socket) {
@@ -211,6 +235,9 @@ class HttpSenderSnapshotFixtureProvider implements SnapshotFixtureProvider {
         private void beforeInvocation(SnapshotFixtureInteraction interaction) throws IOException {
             senderEntries.clear();
             destinations.clear();
+            if (server == null) {
+                return;
+            }
             SnapshotFixtureResponse response = interaction.getResponse();
             if (CONNECTION_REFUSED.equals(response.getProperties().get(TRANSPORT_FAULT))) {
                 requestBaseline = server.getAllServeEvents().size();
@@ -223,7 +250,7 @@ class HttpSenderSnapshotFixtureProvider implements SnapshotFixtureProvider {
             requestBaseline = server.getAllServeEvents().size();
             server.resetMappings();
             ResponseDefinitionBuilder responseDefinition = aResponse()
-                    .withStatus(response.getStatus()).withBody(responseBody(response.getBody()));
+                    .withStatus(response.getStatus()).withBody(HttpSenderSnapshotPayloads.responseBody(response));
             if (response.getDelayMillis() != null) {
                 responseDefinition.withFixedDelay(response.getDelayMillis());
             }
@@ -250,6 +277,10 @@ class HttpSenderSnapshotFixtureProvider implements SnapshotFixtureProvider {
         }
 
         private void redirect(Exchange exchange) {
+            if (server == null) {
+                throw new IllegalStateException("HTTP sender fixture '" + binding.definition().getId()
+                        + "' was invoked although the scenario expects no sends.");
+            }
             String destination = exchange.getMessage().getHeader(Exchange.HTTP_URI, String.class);
             URI uri = URI.create(destination);
             destinations.put(exchange.getExchangeId(), destination);
@@ -259,23 +290,16 @@ class HttpSenderSnapshotFixtureProvider implements SnapshotFixtureProvider {
                     baseUrl + (path == null || path.isEmpty() ? "/" : path) + (query == null ? "" : "?" + query));
         }
 
-        private byte[] responseBody(Object body) throws IOException {
-            if (body == null) {
-                return new byte[0];
-            }
-            if (body instanceof String string) {
-                return string.getBytes(StandardCharsets.UTF_8);
-            }
-            return objectMapper.writeValueAsBytes(body);
-        }
-
         private void verify(SnapshotFixtureInteraction interaction, String invocationId) throws IOException {
             String description = "HTTP sender fixture '" + binding.definition().getId() + "' invocation '" + invocationId + "'";
             SnapshotFixtureRequestExpectation expected = interaction.getExpectedRequest();
             Map<String, Object> properties = interaction.getResponse().getProperties();
-            List<LoggedRequest> requests = SnapshotHttpRequests.since(server, requestBaseline);
+            List<LoggedRequest> requests = server == null ? List.of() : SnapshotHttpRequests.since(server, requestBaseline);
             assertEquals(expected.getCount(), requests.size(), description + " received an unexpected number of requests.");
-            assertEquals(properties.getOrDefault(EXPECTED_SEND_COUNT, expected.getCount()),
+            for (LoggedRequest request : requests) {
+                HttpSenderSnapshotPayloads.assertRequestBody(properties, request.getBody(), description);
+            }
+            assertEquals(expectedSendCount(interaction),
                     senderEntries.size(), description + " entered the sender an unexpected number of times.");
             if (properties.containsKey(EXPECTED_CONNECTION_COUNT)) {
                 assertEquals(properties.get(EXPECTED_CONNECTION_COUNT), connectionCount.get(),
@@ -336,6 +360,11 @@ class HttpSenderSnapshotFixtureProvider implements SnapshotFixtureProvider {
         }
     }
 
+    private static int expectedSendCount(SnapshotFixtureInteraction interaction) {
+        return (Integer) interaction.getResponse().getProperties()
+                .getOrDefault(EXPECTED_SEND_COUNT, interaction.getExpectedRequest().getCount());
+    }
+
     private static void validateBinding(SnapshotFixtureBinding binding) {
         binding.interactionsByInvocationId().forEach((invocationId, interaction) -> {
             String description = "HTTP sender fixture '" + binding.definition().getId() + "' invocation '" + invocationId + "'";
@@ -347,6 +376,7 @@ class HttpSenderSnapshotFixtureProvider implements SnapshotFixtureProvider {
                 throw new IllegalArgumentException(description + " has an unsupported response property. Supported properties: "
                         + RESPONSE_PROPERTIES + ".");
             }
+            HttpSenderSnapshotPayloads.validate(interaction.getResponse(), description);
             for (String countProperty : List.of(EXPECTED_SEND_COUNT, EXPECTED_CONNECTION_COUNT)) {
                 if (properties.containsKey(countProperty)
                         && (!(properties.get(countProperty) instanceof Integer count) || count < 0)) {

@@ -60,11 +60,8 @@ public class GrpcProcessorUtils {
         String servicePackage = GrpcUtils.extractServicePackage(fullServiceName);
         String camelCaseMethodName = GrpcUtils.convertMethod2CamelCase(methodName);
 
-        ClassResolver classResolver = getClassResolver(exchange);
-        CamelContext contextWithCustomClassResolver =
-                createContextProxyWithClassResolver(exchange.getContext(), classResolver);
-
-        Class<?> grpcServiceClass = GrpcUtils.constructGrpcImplBaseClass(servicePackage, serviceName, contextWithCustomClassResolver);
+        Class<?> grpcServiceClass = GrpcUtils.constructGrpcImplBaseClass(servicePackage, serviceName,
+                getContextWithChainClassResolver(exchange));
         return Arrays.stream(grpcServiceClass.getMethods())
                 .filter(m -> camelCaseMethodName.equals(m.getName()))
                 .findFirst()
@@ -73,6 +70,10 @@ public class GrpcProcessorUtils {
                             MethodDescriptor.generateFullMethodName(fullServiceName, methodName));
                     return new NoSuchMethodException(message);
                 });
+    }
+
+    public static CamelContext getContextWithChainClassResolver(Exchange exchange) {
+        return createContextProxyWithClassResolver(exchange.getContext(), getClassResolver(exchange));
     }
 
     private static ClassResolver getClassResolver(Exchange exchange) {

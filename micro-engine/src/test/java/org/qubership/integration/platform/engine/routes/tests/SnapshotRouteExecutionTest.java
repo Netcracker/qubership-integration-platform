@@ -48,6 +48,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.StringJoiner;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -105,7 +106,7 @@ abstract class SnapshotRouteExecutionTest {
                 AtomicReference<String> currentExecution = new AtomicReference<>(
                         invocationStageName(scenario, invocation, "setup")
                 );
-                invocationRunner.execute(currentExecution::get, () -> {
+                invocationRunner.execute(invocation.getTimeoutSeconds(), currentExecution::get, () -> {
                     environment.beforeInvocation(invocation);
                     for (int repetition = 1; repetition <= invocation.getRepeat(); repetition++) {
                         currentExecution.set(executionName(scenario, invocation, repetition));
@@ -116,10 +117,11 @@ abstract class SnapshotRouteExecutionTest {
                     currentExecution.set(invocationStageName(scenario, invocation, "verification"));
                     environment.verifyInvocation(invocation);
                     return null;
-                }, environment::abort);
+                }, environment::timeoutDiagnostics, environment::abort);
             }
             LOG.info("Snapshot {}: verifying fixtures.", progressName);
             invocationRunner.execute(
+                    null,
                     () -> "Snapshot scenario '" + scenario.getId() + "' fixture verification",
                     () -> {
                         environment.verifyFixtures();
@@ -133,6 +135,7 @@ abstract class SnapshotRouteExecutionTest {
                         }
                         return null;
                     },
+                    environment::timeoutDiagnostics,
                     environment::abort
             );
             LOG.info("Snapshot {}: closing environment.", progressName);
@@ -398,6 +401,17 @@ abstract class SnapshotRouteExecutionTest {
                 fixture.awaitCompletion();
             }
             fixtures.forEach(SnapshotFixture::verify);
+        }
+
+        private String timeoutDiagnostics() {
+            StringJoiner diagnostics = new StringJoiner("\n");
+            for (SnapshotFixture fixture : fixtures) {
+                String state = fixture.timeoutDiagnostics();
+                if (!state.isBlank()) {
+                    diagnostics.add("Deployment '" + fixture.getDeploymentId() + "': " + state);
+                }
+            }
+            return diagnostics.toString();
         }
 
         private void abort() throws Exception {

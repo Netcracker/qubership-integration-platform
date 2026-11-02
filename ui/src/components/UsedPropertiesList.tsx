@@ -216,7 +216,10 @@ export const UsedPropertiesList: React.FC<UsedPropertiesListProps> = ({
         align="center"
         style={{ flex: 1, minHeight: 0, padding: "24px" }}
       >
-        <Empty description="Properties not found" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+        <Empty
+          description="Properties not found"
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+        />
       </Flex>
     );
   }
@@ -225,6 +228,7 @@ export const UsedPropertiesList: React.FC<UsedPropertiesListProps> = ({
     <Flex vertical className={styles.usedPropertiesTree} gap={4}>
       <SidebarSearch
         items={allItems.current}
+        placeholder="Search properties..."
         onSearch={handleSearch}
         onClear={() => {
           setItems(allItems.current);

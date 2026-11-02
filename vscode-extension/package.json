@@ -3,7 +3,7 @@
   "publisher": "qubership",
   "displayName": "CIP VS Code Extension",
   "description": "Qubership Integration Platform - Visual Studio Code Extension",
-  "version": "1.5.2",
+  "version": "1.6.0",
   "main": "dist/node/index.js",
   "types": "dist/web/index.d.ts",
   "files": [

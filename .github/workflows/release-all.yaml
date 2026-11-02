@@ -163,6 +163,7 @@ jobs:
     needs: prepare
     if: needs.prepare.outputs.release-micro-engine == 'true'
     permissions:
+      actions: read
       contents: write
       packages: write
     # micro-engine publishes to GitHub Packages (private com.netcracker.cloud
@@ -179,6 +180,7 @@ jobs:
     needs: prepare
     if: needs.prepare.outputs.release-integration-build-pipeline == 'true'
     permissions:
+      actions: read
       contents: write
       packages: write
     uses: ./.github/workflows/integration-build-pipeline-release.yaml

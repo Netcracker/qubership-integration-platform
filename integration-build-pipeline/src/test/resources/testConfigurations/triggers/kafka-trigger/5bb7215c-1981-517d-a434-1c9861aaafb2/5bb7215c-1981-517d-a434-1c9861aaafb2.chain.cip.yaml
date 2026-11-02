@@ -1,0 +1,43 @@
+---
+id: 5bb7215c-1981-517d-a434-1c9861aaafb2
+$schema: http://qubership.org/schemas/product/qip/chain
+name: kafka-trigger-idempotency-throw
+content:
+  labels: []
+  elements:
+  - id: 27b2aef8-adde-5635-b546-02be45bfe7e1
+    name: Kafka Trigger throw
+    type: kafka-trigger-2
+    properties:
+      autoOffsetReset: latest
+      brokers: localhost:9092
+      connectionSourceType: manual
+      consumersCount: 1
+      groupId: snapshot-kafka-trigger-idempotency-throw
+      keyDeserializer: org.apache.kafka.common.serialization.StringDeserializer
+      maxPollIntervalMs: 300000
+      maxPollRecords: 500
+      reconnectBackoffMaxMs: 30000
+      saslMechanism: GSSAPI
+      securityProtocol: PLAINTEXT
+      sslProtocol: TLS
+      topics: snapshot.kafka.trigger.idempotency.throw
+      valueDeserializer: org.apache.kafka.common.serialization.StringDeserializer
+      idempotency:
+        enabled: true
+        keyExpiry: 600
+        keyExpression: ${header.businessKey}
+        contextExpression: ${header.businessContext}
+        actionOnDuplicate: throw-exception
+  - id: b4d6565c-f3cb-5db1-9294-8983c8eee305
+    name: Process business record
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: b4d6565c-f3cb-5db1-9294-8983c8eee305.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: 27b2aef8-adde-5635-b546-02be45bfe7e1
+    to: b4d6565c-f3cb-5db1-9294-8983c8eee305
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

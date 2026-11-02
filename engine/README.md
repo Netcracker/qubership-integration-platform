@@ -14,7 +14,7 @@ Engine service uses **Apache Camel** for defining and execution of integration l
 Engine service publishes integration chains deployment state to Consul.
 
 To store recorded sessions of integrated chains execution, the service uses OpenSearch.
-It creates if not exists index in OpenSearch and sets up index rotation policy via [ISM](https://docs.opensearch.org/docs/latest/im-plugin/ism/index/).
+It creates if not exists index in OpenSearch and sets up index rotation policy via [ISM](https://docs.opensearch.org/latest/im-plugin/ism/index/).
 
 ## Installation
 
@@ -82,7 +82,7 @@ Application has 'development' Spring profile to run service locally with minimum
 
 This service relies on the [Runtime Catalog](../runtime-catalog) service.
 It also requires:
-- Consul
+- Consul. At startup the service retries it as long as `spring.cloud.consul.retry` in `application.yml` allows.
 - OpenSearch
 - PostgreSQL
 - Redis (if idempotency support enabled).

@@ -157,8 +157,8 @@ export function selectedProjects(argv: readonly string[]): string[] {
  *
  * Playwright runs `globalSetup` **once per run**, before any project, and has no flag that skips
  * it: measured on 1.62.1, a config declaring three projects produced one invocation. So without
- * this the `schema` project — the registries and the fixtures, read off disk — cannot run where
- * there is no Docker, which is CI. A project declares itself stack-free in
+ * this the `schema` and `harness` projects, which read files off disk, cannot run where there is no
+ * Docker, which is CI. A project declares itself stack-free in
  * `playwright.config.ts` and nowhere else, and a selection is stack-free only when every project in
  * it is: an unrecognised name, or one project of eight that touches the stack, provisions as usual.
  */
@@ -178,7 +178,7 @@ export default async function globalSetup(config: FullConfig): Promise<void> {
   // Before the run token is minted, because everything downstream of it — the sweep, the run
   // manifest, the header, the sampler — addresses a stack this run has none of.
   if (!needsStack(config)) {
-    console.log(`[provision] skipped: ${selectedProjects(config.argv).join(", ")} needs no stack`);
+    console.log(`[provision] skipped: the selected projects need no stack (${selectedProjects(config.argv).join(", ")})`);
     return;
   }
 

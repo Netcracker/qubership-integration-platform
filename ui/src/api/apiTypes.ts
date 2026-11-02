@@ -503,6 +503,7 @@ export type ImportPreview = {
   chains: ChainImportPreview[];
   systems: SystemImportPreview[];
   contextService?: SystemImportPreview[];
+  mcpService?: SystemImportPreview[];
   variables: VariableImportPreview[];
   instructions: GeneralImportInstructions;
 };

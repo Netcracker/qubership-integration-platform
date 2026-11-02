@@ -1,0 +1,15 @@
+---
+id: "e2e00032-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/service"
+name: "e2e-{{RUN}}-service-call-widgets"
+content:
+  activeEnvironmentId: "e2e00032-0000-4000-8000-000000000002"
+  integrationSystemType: "INTERNAL"
+  protocol: "GRAPHQL"
+  environments:
+  - id: "e2e00032-0000-4000-8000-000000000002"
+    name: "widgets"
+    address: "http://localhost:8080/routes/e2e-{{RUN}}-http-echo"
+    sourceType: "MANUAL"
+    labels: []
+  migrations: "[100, 101, 102]"

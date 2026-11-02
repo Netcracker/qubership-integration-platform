@@ -251,11 +251,16 @@ class BaseFileEditorProvider implements CustomTextEditorProvider {
               type: navigateMessage.type,
             };
 
-            response.payload = await getApiResponse(
-              navigateMessage,
-              document.uri,
-              this.context,
-            );
+            try {
+              response.payload = await getApiResponse(
+                navigateMessage,
+                document.uri,
+                this.context,
+              );
+            } catch (e) {
+              console.error("Failed to fetch data for CIP Extension API", e);
+              return;
+            }
 
             panel.webview.postMessage(response);
           }

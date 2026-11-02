@@ -20,6 +20,12 @@ export class TableView {
     return this.page.getByRole("columnheader", { name, exact: true });
   }
 
+  /** The cell of `row` in the column headed `column`, found by the header's place in its row. */
+  async cell(row: Locator, column: string): Promise<Locator> {
+    const index = await this.header(column).evaluate((header) => (header as HTMLTableCellElement).cellIndex);
+    return row.getByRole("cell").nth(index);
+  }
+
   /** Turns the mouse wheel over `over`, which scrolls the table body the way a user does. */
   async wheel(over: Locator, deltaX: number, deltaY: number): Promise<void> {
     await over.hover();

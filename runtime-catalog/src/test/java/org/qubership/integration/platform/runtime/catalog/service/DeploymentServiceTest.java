@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.runtime.catalog.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityExistsException;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.AfterEach;
@@ -28,6 +29,7 @@ import org.qubership.integration.platform.camelk.services.RoutesGetterService;
 import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
 import org.qubership.integration.platform.library.constants.CamelNames;
 import org.qubership.integration.platform.runtime.catalog.configuration.aspect.DeploymentModificationAspectConfiguration;
+import org.qubership.integration.platform.runtime.catalog.consul.ConsulClient;
 import org.qubership.integration.platform.runtime.catalog.consul.ConsulService;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.engine.EngineDeploymentsDTO;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.update.DeploymentUpdate;
@@ -51,6 +53,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -306,6 +309,46 @@ class DeploymentServiceTest {
 
         service.getDeploymentsForDomain("domainA", fullRequest);
         DeploymentService.clearDeploymentsUpdateCache(1L);
+        service.getDeploymentsForDomain("domainA", fullRequest);
+
+        verify(deploymentBuilderService, times(2)).buildDeploymentsUpdate(deployments);
+    }
+
+    @Test
+    void updateDeploymentsTimestampClearsTheCacheBeforeTheKeyChanges() {
+        EngineDeploymentsDTO fullRequest = EngineDeploymentsDTO.builder().excludeDeployments(List.of()).build();
+        List<Deployment> deployments = List.of(new Deployment());
+        List<DeploymentUpdate> updates = List.of(DeploymentUpdate.builder().build());
+        when(deploymentRepository.findAllByDomain("domainA")).thenReturn(deployments);
+        when(deploymentBuilderService.buildDeploymentsUpdate(deployments)).thenReturn(List.of(), updates);
+        service.getDeploymentsForDomain("domainA", fullRequest);
+
+        // The engine requests the update while the catalog writes the key, before the watcher runs.
+        ConsulClient consulClient = mock(ConsulClient.class);
+        AtomicReference<DeploymentsUpdate> engineUpdate = new AtomicReference<>();
+        doAnswer(invocation -> {
+            engineUpdate.set(service.getDeploymentsForDomain("domainA", fullRequest));
+            return null;
+        }).when(consulClient).createOrUpdateKV(any(), any());
+
+        new ConsulService(new ObjectMapper(), consulClient).updateDeploymentsTimestamp();
+
+        assertThat(engineUpdate.get().getUpdate()).isEqualTo(updates);
+    }
+
+    @Test
+    void getDeploymentsForDomainDoesNotCacheAnAnswerBuiltAcrossADeploymentsKeyChange() {
+        EngineDeploymentsDTO fullRequest = EngineDeploymentsDTO.builder().excludeDeployments(List.of()).build();
+        List<Deployment> deployments = List.of(new Deployment());
+        ConsulService consulService = new ConsulService(new ObjectMapper(), mock(ConsulClient.class));
+        when(deploymentRepository.findAllByDomain("domainA")).thenReturn(deployments);
+        when(deploymentBuilderService.buildDeploymentsUpdate(deployments))
+                .thenAnswer(invocation -> {
+                    consulService.updateDeploymentsTimestamp();
+                    return List.of();
+                });
+
+        service.getDeploymentsForDomain("domainA", fullRequest);
         service.getDeploymentsForDomain("domainA", fullRequest);
 
         verify(deploymentBuilderService, times(2)).buildDeploymentsUpdate(deployments);

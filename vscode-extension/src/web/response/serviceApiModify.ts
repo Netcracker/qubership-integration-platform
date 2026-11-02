@@ -43,6 +43,9 @@ export async function updateContextService(
   if (serviceRequest.description !== undefined) {
     service.content.description = serviceRequest.description;
   }
+  if (serviceRequest.labels !== undefined) {
+    service.content.labels = LabelUtils.fromEntityLabels(serviceRequest.labels);
+  }
 
   await writeMainService(serviceFileUri, service);
   const updatedService = await getContextService(serviceFileUri, serviceId);

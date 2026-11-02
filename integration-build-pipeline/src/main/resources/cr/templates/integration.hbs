@@ -182,6 +182,23 @@ spec:
 {{#with container}}
   template:
     spec:
+{{#if ../serviceAccountTokens}}
+      volumes:
+{{#each ../serviceAccountTokens}}
+      - name: {{name}}
+        projected:
+          defaultMode: {{defaultMode}}
+          sources:
+          - serviceAccountToken:
+              path: {{path}}
+{{#if audience}}
+              audience: {{audience}}
+{{/if}}
+{{#if expirationSeconds}}
+              expirationSeconds: {{expirationSeconds}}
+{{/if}}
+{{/each}}
+{{/if}}
       containers:
       - securityContext:
           readOnlyRootFilesystem: {{readOnlyRootFilesystem}}
@@ -193,6 +210,14 @@ spec:
         args:
 {{#each args}}
         - "{{.}}"
+{{/each}}
+{{/if}}
+{{#if ../serviceAccountTokens}}
+        volumeMounts:
+{{#each ../serviceAccountTokens}}
+        - name: {{name}}
+          mountPath: {{mountPath}}
+          readOnly: true
 {{/each}}
 {{/if}}
 {{/with}}

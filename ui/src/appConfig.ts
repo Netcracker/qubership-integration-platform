@@ -1,5 +1,5 @@
 import { resetAiProvider } from "./ai/config.ts";
-import { setAiServiceUrl } from "./ai/appConfig.ts";
+import { setAiServiceEnabled, setAiServiceUrl } from "./ai/appConfig.ts";
 import { setAiServiceUrlOverride } from "./config/aiServiceUrlOverride.ts";
 import { IconOverrides } from "./icons/IconProvider";
 import type { ThemeConfig } from "antd";
@@ -16,6 +16,11 @@ export type UserInfo = {
 export type AppConfig = {
   apiGateway?: string;
   aiServiceUrl?: string;
+  /**
+   * Whether the installation runs the AI service. With false the front end
+   * sends no health check to it and hides the AI assistant. Absent means true.
+   */
+  aiServiceEnabled?: boolean;
   aiAssistantName?: string;
   icons?: IconOverrides;
   cssVariables?: Record<string, string>;
@@ -104,6 +109,14 @@ export function configure(config: Partial<AppConfig>): void {
     setAiServiceUrl(config.aiServiceUrl);
     resetAiProvider();
     overrides.push(`aiServiceUrl: "${oldValue}" -> "${config.aiServiceUrl}"`);
+  }
+  if (config.aiServiceEnabled !== undefined) {
+    const oldValue = appConfigValue.aiServiceEnabled;
+    appConfigValue.aiServiceEnabled = config.aiServiceEnabled;
+    setAiServiceEnabled(config.aiServiceEnabled);
+    overrides.push(
+      `aiServiceEnabled: ${oldValue} -> ${config.aiServiceEnabled}`,
+    );
   }
   if (config.aiAssistantName !== undefined) {
     const oldValue = appConfigValue.aiAssistantName;
@@ -224,6 +237,11 @@ export function loadConfigFromEnv(): Partial<AppConfig> {
   const aiServiceUrl = import.meta.env.VITE_AI_SERVICE_URL;
   if (aiServiceUrl) {
     config.aiServiceUrl = aiServiceUrl;
+  }
+
+  // Only "false" turns it off, so a misspelled value keeps the health check.
+  if (import.meta.env.VITE_AI_SERVICE_ENABLED === "false") {
+    config.aiServiceEnabled = false;
   }
 
   const aiAssistantName = import.meta.env.VITE_AI_ASSISTANT_NAME;

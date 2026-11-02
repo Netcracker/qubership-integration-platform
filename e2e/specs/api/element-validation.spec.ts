@@ -25,7 +25,7 @@
  *   method rather than none.
  * - **An unknown method is accepted and answers `false`.** Spring 6's `HttpMethod` is a class and
  *   not an enum, so `HttpMethod.valueOf("NOTAMETHOD")` mints one instead of failing conversion.
- *   Recorded below as measured behaviour and deliberately not filed: the endpoint has no way to
+ *   Recorded below as measured behavior and deliberately not filed: the endpoint has no way to
  *   reject the token without an allowlist that would date with the Spring version, so there is no
  *   answer this spec could assert instead.
  * - **The path is compared segment by segment, with placeholder names erased.** `PathParser`
@@ -48,153 +48,155 @@ async function deployChain(catalog: Catalog, chain: { id: string }) {
   return { snapshot, deployment: await catalog.deploy(chain.id, snapshot.id) };
 }
 
-test("a path collides only once a chain is deployed on it, and only for that path", { tag: ["@catalog", "@tier1"] }, async ({ catalog, folder, run }) => {
-  const chain = await tokenizedChain(catalog, run, {
-    prefix: "elemval",
-    what: "collide",
-    parentId: folder.id,
-  });
+test.describe("route collisions", { tag: ["@catalog"] }, () => {
+  test("a path collides only once deployed, and only that path", async ({ catalog, folder, run }) => {
+    const chain = await tokenizedChain(catalog, run, {
+      prefix: "elemval",
+      what: "collide",
+      parentId: folder.id,
+    });
 
-  // Before the deploy the trigger exists and the route does not. The join onto `deployments` is
-  // what makes that true, and it is the half a spec that deploys first can never see.
-  expect(await catalog.checkRouteExists(chain.contextPath, ABSENT_UUID)).toBe(false);
-  expect(await catalog.findRouteDeployments(chain.contextPath, ABSENT_UUID)).toEqual([]);
+    // Before the deploy the trigger exists and the route does not. The join onto `deployments` is
+    // what makes that true, and it is the half a spec that deploys first can never see.
+    expect(await catalog.checkRouteExists(chain.contextPath, ABSENT_UUID)).toBe(false);
+    expect(await catalog.findRouteDeployments(chain.contextPath, ABSENT_UUID)).toEqual([]);
 
-  const { snapshot, deployment } = await deployChain(catalog, chain);
+    const { snapshot, deployment } = await deployChain(catalog, chain);
 
-  expect(await catalog.checkRouteExists(chain.contextPath, ABSENT_UUID)).toBe(true);
-  // A path that merely starts with the same text is not a collision: the comparison is over whole
-  // segments, not over a prefix.
-  expect(await catalog.checkRouteExists(`${chain.contextPath}-other`, ABSENT_UUID)).toBe(false);
-
-  // The long form names who is in the way. Every row in the answer is scoped to the URI asked
-  // about, and the URI carries the run token, so this list is this case's own whatever else the
-  // stack has deployed.
-  const rows = await catalog.findRouteDeployments(chain.contextPath, ABSENT_UUID);
-  expect(rows).toHaveLength(1);
-  expect(rows[0]?.path).toBe(chain.contextPath);
-  expect(rows[0]?.deployment).toMatchObject({
-    id: deployment.id,
-    chainId: chain.id,
-    snapshotId: snapshot.id,
-  });
-
-  // And the undeploy takes the collision with it, which is the assertion that proves the two calls
-  // read the deployment rather than the chain.
-  await catalog.undeployAll(chain.id);
-  expect(await catalog.checkRouteExists(chain.contextPath, ABSENT_UUID)).toBe(false);
-  expect(await catalog.findRouteDeployments(chain.contextPath, ABSENT_UUID)).toEqual([]);
-});
-
-test("excludeChainId drops the asking chain out of its own answer", { tag: ["@catalog", "@tier1"] }, async ({ catalog, folder, run }) => {
-  const chain = await tokenizedChain(catalog, run, {
-    prefix: "elemval",
-    what: "exclude",
-    parentId: folder.id,
-  });
-  await deployChain(catalog, chain);
-  try {
-    // The same path, the same instant, and two answers: the parameter is the only difference.
     expect(await catalog.checkRouteExists(chain.contextPath, ABSENT_UUID)).toBe(true);
-    expect(await catalog.checkRouteExists(chain.contextPath, chain.id)).toBe(false);
+    // A path that merely starts with the same text is not a collision: the comparison is over whole
+    // segments, not over a prefix.
+    expect(await catalog.checkRouteExists(`${chain.contextPath}-other`, ABSENT_UUID)).toBe(false);
 
-    expect(await catalog.findRouteDeployments(chain.contextPath, ABSENT_UUID)).toHaveLength(1);
-    expect(await catalog.findRouteDeployments(chain.contextPath, chain.id)).toEqual([]);
-  } finally {
-    // `chain-roles.spec.ts` states the policy in full: the worker folder's cascade reaches the
-    // route anyway, so this is about when the engine stops serving it rather than whether.
-    await catalog.undeployAll(chain.id).catch(() => {});
-  }
-});
-
-test("the collision is scoped by HTTP method, and the flags are not read at all", { tag: ["@catalog", "@tier2"] }, async ({ catalog, folder, run }) => {
-  // `tokenizedChain` restricts the trigger to POST, which is what makes a method scope observable.
-  const chain = await tokenizedChain(catalog, run, {
-    prefix: "elemval",
-    what: "methods",
-    parentId: folder.id,
-  });
-  await deployChain(catalog, chain);
-  const collidesOn = (route: Parameters<Catalog["checkRouteExists"]>[2]) =>
-    catalog.checkRouteExists(chain.contextPath, ABSENT_UUID, route);
-  try {
-    expect(await collidesOn({ httpMethods: ["POST"] })).toBe(true);
-    expect(await collidesOn({ httpMethods: ["GET"] })).toBe(false);
-    // Intersection, not equality: one shared method is a collision.
-    expect(await collidesOn({ httpMethods: ["GET", "POST"] })).toBe(true);
-    // No methods at all is every method, so it collides with a trigger restricted to any one of them.
-    expect(await collidesOn({})).toBe(true);
-
-    // A token no HTTP method has. Spring 6 mints an `HttpMethod` for it rather than refusing the
-    // conversion, so the request is served and answers "no collision" — the measured contract, and
-    // the day it becomes a 400 this line is what says so.
-    expect(await collidesOn({ httpMethods: ["NOTAMETHOD"] })).toBe(false);
-
-    // The trigger was created with `externalRoute: false`. Every combination of the two flags still
-    // answers the same, because `intersects` compares the path and the methods and reads neither.
-    for (const flags of [
-      { isExternalRoute: true },
-      { isExternalRoute: false },
-      { isPrivateRoute: true },
-      { isExternalRoute: false, isPrivateRoute: true },
-    ]) {
-      expect(await collidesOn(flags), `flags ${JSON.stringify(flags)} changed the answer`).toBe(true);
-    }
-  } finally {
-    // `chain-roles.spec.ts` states the policy in full: the worker folder's cascade reaches the
-    // route anyway, so this is about when the engine stops serving it rather than whether.
-    await catalog.undeployAll(chain.id).catch(() => {});
-  }
-});
-
-test("paths are compared segment by segment, with placeholder names erased", { tag: ["@catalog", "@tier2"] }, async ({ catalog, folder, run }) => {
-  const base = tokenized(run, "elemval-placeholder");
-  const chain: DeployableChain = await createDeployableChain(catalog, {
-    name: base,
-    parentId: folder.id,
-    contextPath: `${base}/{bookId}`,
-    marker: "placeholder",
-  });
-  await deployChain(catalog, chain);
-
-  const collidesWith = (uri: string) => catalog.checkRouteExists(uri, ABSENT_UUID);
-  try {
-    expect(await collidesWith(`${base}/{bookId}`)).toBe(true);
-    // The placeholder's *name* is erased, so two triggers naming their variable differently are the
-    // same route. This is the case the check exists for.
-    expect(await collidesWith(`${base}/{somethingElse}`)).toBe(true);
-    // A literal segment is not a placeholder, whatever a live request would do with it.
-    expect(await collidesWith(`${base}/42`)).toBe(false);
-    // Different segment counts are refused before any segment is compared.
-    expect(await collidesWith(base)).toBe(false);
-    expect(await collidesWith(`${base}/{bookId}/pages`)).toBe(false);
-    // Leading and trailing separators are stripped off both sides.
-    expect(await collidesWith(`/${base}/{bookId}/`)).toBe(true);
-
-    // The long form agrees, and reports the trigger's path as the chain declared it.
-    const rows = await catalog.findRouteDeployments(`${base}/{other}`, ABSENT_UUID);
+    // The long form names who is in the way. Every row in the answer is scoped to the URI asked
+    // about, and the URI carries the run token, so this list is this case's own whatever else the
+    // stack has deployed.
+    const rows = await catalog.findRouteDeployments(chain.contextPath, ABSENT_UUID);
     expect(rows).toHaveLength(1);
-    expect(rows[0]?.path).toBe(`${base}/{bookId}`);
-  } finally {
-    // `chain-roles.spec.ts` states the policy in full: the worker folder's cascade reaches the
-    // route anyway, so this is about when the engine stops serving it rather than whether.
-    await catalog.undeployAll(chain.id).catch(() => {});
-  }
-});
+    expect(rows[0]?.path).toBe(chain.contextPath);
+    expect(rows[0]?.deployment).toMatchObject({
+      id: deployment.id,
+      chainId: chain.id,
+      snapshotId: snapshot.id,
+    });
 
-test("both route calls refuse a request missing either required parameter", { tag: ["@catalog", "@tier2"] }, async ({ catalog, run }) => {
-  const uri = tokenized(run, "elemval-required");
+    // And the undeploy takes the collision with it, which is the assertion that proves the two calls
+    // read the deployment rather than the chain.
+    await catalog.undeployAll(chain.id);
+    expect(await catalog.checkRouteExists(chain.contextPath, ABSENT_UUID)).toBe(false);
+    expect(await catalog.findRouteDeployments(chain.contextPath, ABSENT_UUID)).toEqual([]);
+  });
 
-  for (const endpoint of ["routes", "findRouteDeployments"]) {
-    const noChain = await catalog.raw("get", `/v1/catalog/validation/${endpoint}?uri=${uri}`);
-    expect(noChain.status(), `${endpoint} without excludeChainId`).toBe(400);
-    expect(await noChain.text()).toContain("excludeChainId");
+  test("excludeChainId drops the asking chain out of its own answer", async ({ catalog, folder, run }) => {
+    const chain = await tokenizedChain(catalog, run, {
+      prefix: "elemval",
+      what: "exclude",
+      parentId: folder.id,
+    });
+    await deployChain(catalog, chain);
+    try {
+      // The same path, the same instant, and two answers: the parameter is the only difference.
+      expect(await catalog.checkRouteExists(chain.contextPath, ABSENT_UUID)).toBe(true);
+      expect(await catalog.checkRouteExists(chain.contextPath, chain.id)).toBe(false);
 
-    const noUri = await catalog.raw(
-      "get",
-      `/v1/catalog/validation/${endpoint}?excludeChainId=${ABSENT_UUID}`,
-    );
-    expect(noUri.status(), `${endpoint} without uri`).toBe(400);
-    expect(await noUri.text()).toContain("uri");
-  }
+      expect(await catalog.findRouteDeployments(chain.contextPath, ABSENT_UUID)).toHaveLength(1);
+      expect(await catalog.findRouteDeployments(chain.contextPath, chain.id)).toEqual([]);
+    } finally {
+      // `chain-roles.spec.ts` states the policy in full: the worker folder's cascade reaches the
+      // route anyway, so this is about when the engine stops serving it rather than whether.
+      await catalog.undeployAll(chain.id).catch(() => {});
+    }
+  });
+
+  test("a collision is scoped by HTTP method and ignores the flags", async ({ catalog, folder, run }) => {
+    // `tokenizedChain` restricts the trigger to POST, which is what makes a method scope observable.
+    const chain = await tokenizedChain(catalog, run, {
+      prefix: "elemval",
+      what: "methods",
+      parentId: folder.id,
+    });
+    await deployChain(catalog, chain);
+    const collidesOn = (route: Parameters<Catalog["checkRouteExists"]>[2]) =>
+      catalog.checkRouteExists(chain.contextPath, ABSENT_UUID, route);
+    try {
+      expect(await collidesOn({ httpMethods: ["POST"] })).toBe(true);
+      expect(await collidesOn({ httpMethods: ["GET"] })).toBe(false);
+      // Intersection, not equality: one shared method is a collision.
+      expect(await collidesOn({ httpMethods: ["GET", "POST"] })).toBe(true);
+      // No methods at all is every method, so it collides with a trigger restricted to any one of them.
+      expect(await collidesOn({})).toBe(true);
+
+      // A token no HTTP method has. Spring 6 mints an `HttpMethod` for it rather than refusing the
+      // conversion, so the request is served and answers "no collision" — the measured contract, and
+      // the day it becomes a 400 this line is what says so.
+      expect(await collidesOn({ httpMethods: ["NOTAMETHOD"] })).toBe(false);
+
+      // The trigger was created with `externalRoute: false`. Every combination of the two flags still
+      // answers the same, because `intersects` compares the path and the methods and reads neither.
+      for (const flags of [
+        { isExternalRoute: true },
+        { isExternalRoute: false },
+        { isPrivateRoute: true },
+        { isExternalRoute: false, isPrivateRoute: true },
+      ]) {
+        expect(await collidesOn(flags), `flags ${JSON.stringify(flags)} changed the answer`).toBe(true);
+      }
+    } finally {
+      // `chain-roles.spec.ts` states the policy in full: the worker folder's cascade reaches the
+      // route anyway, so this is about when the engine stops serving it rather than whether.
+      await catalog.undeployAll(chain.id).catch(() => {});
+    }
+  });
+
+  test("paths compare by segment, with placeholder names erased", async ({ catalog, folder, run }) => {
+    const base = tokenized(run, "elemval-placeholder");
+    const chain: DeployableChain = await createDeployableChain(catalog, {
+      name: base,
+      parentId: folder.id,
+      contextPath: `${base}/{bookId}`,
+      marker: "placeholder",
+    });
+    await deployChain(catalog, chain);
+
+    const collidesWith = (uri: string) => catalog.checkRouteExists(uri, ABSENT_UUID);
+    try {
+      expect(await collidesWith(`${base}/{bookId}`)).toBe(true);
+      // The placeholder's *name* is erased, so two triggers naming their variable differently are the
+      // same route. This is the case the check exists for.
+      expect(await collidesWith(`${base}/{somethingElse}`)).toBe(true);
+      // A literal segment is not a placeholder, whatever a live request would do with it.
+      expect(await collidesWith(`${base}/42`)).toBe(false);
+      // Different segment counts are refused before any segment is compared.
+      expect(await collidesWith(base)).toBe(false);
+      expect(await collidesWith(`${base}/{bookId}/pages`)).toBe(false);
+      // Leading and trailing separators are stripped off both sides.
+      expect(await collidesWith(`/${base}/{bookId}/`)).toBe(true);
+
+      // The long form agrees, and reports the trigger's path as the chain declared it.
+      const rows = await catalog.findRouteDeployments(`${base}/{other}`, ABSENT_UUID);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.path).toBe(`${base}/{bookId}`);
+    } finally {
+      // `chain-roles.spec.ts` states the policy in full: the worker folder's cascade reaches the
+      // route anyway, so this is about when the engine stops serving it rather than whether.
+      await catalog.undeployAll(chain.id).catch(() => {});
+    }
+  });
+
+  test("both calls refuse a request missing a required parameter", async ({ catalog, run }) => {
+    const uri = tokenized(run, "elemval-required");
+
+    for (const endpoint of ["routes", "findRouteDeployments"]) {
+      const noChain = await catalog.raw("get", `/v1/catalog/validation/${endpoint}?uri=${uri}`);
+      expect(noChain.status(), `${endpoint} without excludeChainId`).toBe(400);
+      expect(await noChain.text()).toContain("excludeChainId");
+
+      const noUri = await catalog.raw(
+        "get",
+        `/v1/catalog/validation/${endpoint}?excludeChainId=${ABSENT_UUID}`,
+      );
+      expect(noUri.status(), `${endpoint} without uri`).toBe(400);
+      expect(await noUri.text()).toContain("uri");
+    }
+  });
 });

@@ -44,7 +44,8 @@ Application has 'development' Spring profile to run service locally with minimum
 ## Dependencies
 
 This service relies on [Runtime Catalog Service](../runtime-catalog), which is used to provide integration chain names.
-It also requires Consul and OpenSearch services.
+It also requires Consul and OpenSearch services. At startup the service retries Consul as long as
+`spring.cloud.consul.retry` in `application.yaml` allows.
 
 ## OpenAPI Specification
 

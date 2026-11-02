@@ -4,7 +4,7 @@
  * both.
  *
  *     npm run release-check
- *     npm run release-check -- --project=schema   # arguments go to `playwright test` only
+ *     npm run release-check -- --project=harness  # arguments go to `playwright test` only
  */
 import { spawnSync } from "node:child_process";
 import path from "node:path";

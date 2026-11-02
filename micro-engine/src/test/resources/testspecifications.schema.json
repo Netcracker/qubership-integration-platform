@@ -638,6 +638,14 @@
           "minimum": 1,
           "default": 1
         },
+        "timeoutSeconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1,
+          "description": "Overrides the shared invocation timeout for setup, all repeats, and verification. Omitted or null values use route.contract.invocation.timeout.seconds, which defaults to 30 seconds."
+        },
         "expectedFailure": {
           "allOf": [
             {

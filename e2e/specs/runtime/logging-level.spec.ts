@@ -7,9 +7,11 @@
  * property that never reached the engine. This file is that diagnosis: when it is red, an empty
  * trace elsewhere has its cause.
  *
- * The chains are built and deployed **inside the spec**, in the worker's own folder, because the
- * shared corpus is read-only by construction — changing one chain's logging level would change it
- * for every other spec running at the same time.
+ * Three seeded chains only this file calls, `logging-level-off`, `-error` and `-debug`, get their
+ * levels here, in place and with no redeploy. Both engines read the logging of every chain from one
+ * Consul prefix and replace their whole map with each read, so the levels are written OFF first and
+ * ERROR last: once a call to the ERROR chain records at ERROR, the OFF write has reached the engine
+ * too. A rerun against a kept corpus writes the same levels again.
  *
  * Measured, and worth knowing before reading the assertions. At `OFF` nothing is queryable at all.
  * At `ERROR` only a call that **failed** leaves anything behind: the session travels to OpenSearch
@@ -17,17 +19,9 @@
  * as invisible as it is at `OFF`. At `DEBUG` every step is there, carrying the body.
  */
 import { test, expect } from "../../support/fixtures.js";
-import {
-  ENGINE_CASE_TIMEOUT,
-  SEED_LOGGING,
-  type SeedChain,
-  waitForDeployed,
-  waitForRoutes,
-} from "../../support/corpus.js";
-import { createScriptChain } from "../../support/deployable.js";
+import { DEPLOY_TIMEOUT, readCorpusState, SEED_LOGGING, seedChain } from "../../support/corpus.js";
 import { callChain, elementNames, trace, type Sessions } from "../../support/sessions.js";
-import { releaseChains, waitForFirstRecording } from "../../support/cleanup.js";
-import type { Catalog, LoggingProperties } from "../../support/catalog.js";
+import type { LoggingProperties } from "../../support/catalog.js";
 
 /** The header the probe script reads to decide whether to throw. */
 const FAIL_HEADER = "e2e-fail";
@@ -41,12 +35,7 @@ const MARKER = "logging-level-marker";
 /** The script element's name, which is what the trace carries and what the assertions read. */
 const PROBE_ELEMENT = "Probe Script";
 
-const PROBE_SCRIPT =
-  `if (exchange.getMessage().getHeader('${FAIL_HEADER}') == 'yes') ` +
-  `throw new IllegalStateException('probe failure'); ` +
-  `exchange.getMessage().setBody('{"probe":"ok"}')`;
-
-/** The three levels this spec deploys a chain at. Bare `string` would admit a typo silently. */
+/** The three levels this spec sets. Bare `string` would admit a typo silently. */
 type ProbeLevel = "OFF" | "ERROR" | "DEBUG";
 
 /**
@@ -54,33 +43,9 @@ type ProbeLevel = "OFF" | "ERROR" | "DEBUG";
  *
  * Spread rather than restated: the seed sets seven fields and every trace assertion in the suite
  * rests on them, so a copy here is a second definition that drifts the first time one of them moves.
- * `maskingEnabled` comes with it and costs nothing — the probe chain declares no masked field.
  */
 function logging(level: ProbeLevel): LoggingProperties {
   return { ...SEED_LOGGING, sessionsLoggingLevel: level };
-}
-
-/** The shared builder with this spec's script in it, at the level under test. */
-async function probeChain(
-  catalog: Catalog,
-  run: string,
-  folderId: string,
-  suffix: string,
-  level: ProbeLevel,
-  built: SeedChain[],
-): Promise<SeedChain> {
-  return await createScriptChain(
-    catalog,
-    run,
-    {
-      what: `log-${suffix}`,
-      parentId: folderId,
-      script: PROBE_SCRIPT,
-      scriptName: PROBE_ELEMENT,
-      logging: logging(level),
-    },
-    built,
-  );
 }
 
 /**
@@ -98,44 +63,31 @@ async function expectNoSession(sessions: Sessions, token: string, what: string):
   expect((await sessions.attemptByExternalId(token)).status, what).toBe(404);
 }
 
-test("the session logging level decides whether a call leaves a trace", { tag: ["@engine", "@sessions", "@catalog", "@tier1"] }, async ({ request, env, sessions, catalog, folder, run }) => {
-  test.setTimeout(ENGINE_CASE_TIMEOUT);
+test.describe("session logging level", { tag: ["@engine", "@sessions", "@catalog"] }, () => {
+  test("the logging level sets which calls leave a trace", async ({ request, env, sessions, catalog }) => {
+    const corpus = readCorpusState();
+    const off = seedChain(corpus, "logging-level-off");
+    const error = seedChain(corpus, "logging-level-error");
+    const debug = seedChain(corpus, "logging-level-debug");
 
-  // Inside the `try`, because the second chain can fail to build after the first one has already
-  // written its Consul key, and the `finally` is the only thing that removes it.
-  const chains: SeedChain[] = [];
-  let bodyFailed = true;
-  try {
-    const off = await probeChain(catalog, run, folder.id, "off", "OFF", chains);
-    const error = await probeChain(catalog, run, folder.id, "error", "ERROR", chains);
-    const debug = await probeChain(catalog, run, folder.id, "debug", "DEBUG", chains);
+    // ERROR last, as the header explains.
+    await catalog.saveLoggingProperties(debug.id, logging("DEBUG"));
+    await catalog.saveLoggingProperties(off.id, logging("OFF"));
+    await catalog.saveLoggingProperties(error.id, logging("ERROR"));
 
-    const snapshots = await Promise.all(chains.map((each) => catalog.createSnapshot(each.id)));
-    for (const [index, chain] of chains.entries()) {
-      await catalog.deploy(chain.id, snapshots[index].id);
-    }
-    await waitForDeployed(catalog, chains);
-    await waitForRoutes(env, chains);
-
-    // The ERROR chain's recording path, proven live before anything is read off it.
-    //
-    // `clean` below is an absence assertion, and a chain deployed in a batch with others can lose
-    // the session of its first call, measured at 2 of 12 calls sent the moment the route answered.
-    // A lost session and a suppressed one read the same, so without this gate a regression that
-    // started recording clean calls at ERROR would still pass.
-    // The warm-up calls fail on purpose: a clean one records nothing at this level by design and
-    // would never satisfy the gate. The OFF chain gets none, for the same reason — nothing it does
-    // records — and what stands in for one there is `silentFailure`, its **second** call.
-    await waitForFirstRecording(error.name, {
-      send: async (marker) => {
-        await callChain(request, env.chainUrl(error.contextPath), {
-          token: marker,
-          headers: { [FAIL_HEADER]: "yes" },
-          data: {},
-        });
-      },
-      recorded: async (marker) => (await sessions.attemptByExternalId(marker, false)).session !== null,
-    });
+    // The ERROR chain at ERROR, proven before anything is read off the three chains, by the level the
+    // session records. Its element list cannot gate: a DEBUG session can be read while only its
+    // failed step is indexed (CI run 38677650288). Each call carries its own token, so a call the
+    // change did not reach yet only costs an interval.
+    await expect
+      .poll(
+        async () => {
+          const failed = await callChain(request, env.chainUrl(error.contextPath), { headers: { [FAIL_HEADER]: "yes" }, data: {} });
+          return (await sessions.byExternalId(failed.token, { elements: 1 })).loggingLevel;
+        },
+        { timeout: DEPLOY_TIMEOUT, message: "the ERROR chain still records a failed call at another level" },
+      )
+      .toBe("ERROR");
 
     // OFF: nothing is queryable, and that holds for a call that failed as much as for one that did
     // not. The failing half is what separates OFF from ERROR, which are otherwise indistinguishable.
@@ -168,7 +120,8 @@ test("the session logging level decides whether a call leaves a trace", { tag: [
     expect(failed.response.status()).toBe(500);
     const failedSession = await sessions.byExternalId(failed.token, { elements: 1 });
     expect(failedSession.executionStatus).toBe("COMPLETED_WITH_ERRORS");
-    expect(elementNames(failedSession)).toContain(PROBE_ELEMENT);
+    expect(failedSession.loggingLevel).toBe("ERROR");
+    expect(elementNames(failedSession)).toEqual([PROBE_ELEMENT]);
 
     // DEBUG with BODY in logPayload: every step, and the body with it.
     const verbose = await callChain(request, env.chainUrl(debug.contextPath), { data: { m: MARKER } });
@@ -186,16 +139,8 @@ test("the session logging level decides whether a call leaves a trace", { tag: [
     // than a proof: under eight workers an engine that had stopped honoring the levels altogether
     // would read the same as one honoring them. The DEBUG session arrived from a later call, so
     // indexing was live over this window, and a token still absent behind it is absent because
-    // nothing was written for it. The gate after the deploy is the other half: the ERROR chain had
-    // already recorded a session of its own before `clean` was sent, so `clean` is not the first
-    // call the batch could have dropped.
+    // nothing was written for it. The gate above is the other half: the ERROR chain had already
+    // recorded a session of its own before `clean` was sent.
     for (const [token, what] of silentTokens) await expectNoSession(sessions, token, what);
-    bodyFailed = false;
-  } finally {
-    // In a `finally`: an assertion above leaves three chains deployed and holding routes for the
-    // rest of the run, and the next spec to fail is not the one that leaked them. The helper
-    // reports what it could not release rather than swallowing it, which is the whole point of the
-    // block — and stays quiet when the body already failed, so it never displaces the finding.
-    await releaseChains(catalog, chains, bodyFailed);
-  }
+  });
 });

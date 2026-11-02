@@ -49,7 +49,7 @@ class HttpProducerPropertiesBuilderTest {
     }
 
     @Test
-    void buildForHttpSenderCopiesTheUriAndKeepsTheReuseFlag() {
+    void buildForHttpSenderCopiesTheUriAndKeepsTheReuseFlagAndMissingM2MFlag() {
         Element element = elementOfType(CamelNames.HTTP_SENDER_COMPONENT);
         Map<String, Object> properties = new HashMap<>();
         properties.put(CamelOptions.URI, "http://service/api");
@@ -58,33 +58,39 @@ class HttpProducerPropertiesBuilderTest {
 
         assertThat(builder.build(element))
                 .containsEntry(CamelNames.OPERATION_PATH_EXCHANGE, "http://service/api")
-                .containsEntry(CamelNames.REUSE_ESTABLISHED_CONN, "false");
+                .containsEntry(CamelNames.REUSE_ESTABLISHED_CONN, "false")
+                .containsEntry(CamelNames.M2M_PROP, "false");
     }
 
     @Test
-    void buildForHttpSenderDefaultsTheReuseFlagWhenMissing() {
+    void buildForHttpSenderDefaultsTheReuseFlagAndM2MFlagWhenMissing() {
         Element element = elementOfType(CamelNames.HTTP_SENDER_COMPONENT);
         when(element.getProperties()).thenReturn(new HashMap<>());
 
         Map<String, String> result = builder.build(element);
 
-        assertThat(result).containsEntry(CamelNames.REUSE_ESTABLISHED_CONN, HttpProducerPropertiesBuilder.REUSE_CONN_DEFAULT_VALUE);
+        assertThat(result)
+                .containsEntry(CamelNames.REUSE_ESTABLISHED_CONN, HttpProducerPropertiesBuilder.REUSE_CONN_DEFAULT_VALUE)
+                .containsEntry(CamelNames.M2M_PROP, "false");
         assertThat(result).doesNotContainKey(CamelNames.OPERATION_PATH_EXCHANGE);
     }
 
     @Test
-    void buildForServiceCallKeepsTheOperationPathAndReuseFlagForHttpProtocol() {
+    void buildForServiceCallKeepsTheOperationPathAndReuseFlagForHttpProtocolAndM2mEnabled() {
         Element element = elementOfType(CamelNames.SERVICE_CALL_COMPONENT);
         Map<String, Object> properties = new HashMap<>();
         properties.put(CamelNames.OPERATION_PROTOCOL_TYPE_PROP, CamelNames.OPERATION_PROTOCOL_TYPE_HTTP);
         properties.put(CamelOptions.OPERATION_PATH, "/api/orders");
         properties.put(CamelNames.SERVICE_CALL_ADDITIONAL_PARAMETERS,
                 Map.of(CamelNames.REUSE_ESTABLISHED_CONN, "false"));
+        properties.put(CamelOptions.AUTHORIZATION_CONFIGURATION,
+                Map.of(CamelOptions.TYPE, "m2m"));
         when(element.getProperties()).thenReturn(properties);
 
         assertThat(builder.build(element))
                 .containsEntry(CamelOptions.OPERATION_PATH, "/api/orders")
-                .containsEntry(CamelNames.REUSE_ESTABLISHED_CONN, "false");
+                .containsEntry(CamelNames.REUSE_ESTABLISHED_CONN, "false")
+                .containsEntry(CamelNames.M2M_PROP, "true");
     }
 
     @Test

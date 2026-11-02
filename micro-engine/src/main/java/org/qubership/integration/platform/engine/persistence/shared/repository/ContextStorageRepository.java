@@ -51,4 +51,36 @@ public class ContextStorageRepository implements PanacheRepositoryBase<ContextSy
     public void deleteByIds(List<String> ids) {
         delete("id in (?1)", ids);
     }
+
+    // The upsert is one statement, so two SETs into the same context neither collide on the unique
+    // constraint nor overwrite each other's key: the second merges into the row the first one locked.
+    // A JSON null value removes its key, as the Java merge it replaces did.
+    public void mergeValue(
+            String id,
+            String value,
+            String contextServiceId,
+            String contextId,
+            Timestamp now,
+            Timestamp expiresAt
+    ) {
+        String sql = """
+            insert into
+                engine.context_system_records as r
+                    (id, value, context_service_id, context_id, created_at, updated_at, expires_at)
+            values (:id, jsonb_strip_nulls(:value ::jsonb), :contextServiceId, :contextId, :now, :now, :expiresAt)
+            on conflict (context_service_id, context_id) do update
+                set
+                    value = jsonb_build_object('context', jsonb_strip_nulls((r.value -> 'context') || (:value ::jsonb -> 'context'))),
+                    updated_at = :now,
+                    expires_at = :expiresAt
+        """;
+        getEntityManager().createNativeQuery(sql)
+                .setParameter("id", id)
+                .setParameter("value", value)
+                .setParameter("contextServiceId", contextServiceId)
+                .setParameter("contextId", contextId)
+                .setParameter("now", now)
+                .setParameter("expiresAt", expiresAt)
+                .executeUpdate();
+    }
 }

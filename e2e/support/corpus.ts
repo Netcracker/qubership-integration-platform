@@ -30,28 +30,33 @@
  *    `DEPLOYED` indefinitely, and even a healthy one serves seconds after the status flips. So the
  *    status poll is followed by a poll of the routes themselves.
  */
-import { expect, test } from "@playwright/test";
+import { expect, test, type APIResponse } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { Catalog, type LoggingProperties } from "./catalog.js";
+import { Catalog, DEFAULT_DOMAIN, type LoggingProperties } from "./catalog.js";
 import {
   assembleCorpus,
   assembleTrees,
   CHAIN_FIXTURE_DIR,
+  chainFixtureNames,
   corpusFixtureNames,
   corpusFixtures,
-  MICRO_FIXTURES,
+  elementsOf,
   microCopy,
+  readFixtureDocument,
   renderFixture,
   SCRIPT_FIXTURE_DIR,
+  SERVICE_FIXTURE_DIR,
+  type DocumentKind,
   type FixtureDocument,
   type RenderedTree,
 } from "../fixtures/templating.js";
-import { renderAxisFixtures } from "../fixtures/axis-generator.js";
-import type { EngineKind, Env } from "../env/index.js";
-import { MICRO_CORPUS_STATE_FILE } from "../env/k8s.js";
-import { noteChain } from "./diagnostics.js";
+import { axisFixtureName, axisFixtures, renderAxisFixtures } from "../fixtures/axis-generator.js";
+import type { Env } from "../env/index.js";
+import type { SuiteWorkerOptions } from "../env/target-setup.js";
+import { MICRO_CORPUS_STATE_FILE, MICRO_REDEPLOY_STATE_FILE } from "../env/k8s.js";
+import { microCaseFailed, noteChain } from "./diagnostics.js";
 import { keepEntities } from "./fixtures.js";
 import { tokenized } from "./run.js";
 import type { EndpointMockReference } from "./testing-service.js";
@@ -83,6 +88,15 @@ export const DEPLOY_TIMEOUT = 60_000;
  */
 export const DEPLOY_TIMEOUT_PER_CHAIN = 1_000;
 
+/**
+ * The timeout of one import or deploy request that carries `chains` chains: the default 30 s plus
+ * 1 s per chain. On CI the corpus and its micro copy, 114 chains each and imported side by side,
+ * took 32 s per import (run 38535157816), and on DD k8s both seed deploys once ran past 30 s.
+ */
+export function corpusRequestTimeout(chains: number): number {
+  return 30_000 + chains * 1_000;
+}
+
 /** `cip.deployments.retry-delay` in the engine's `application.yml`: a parked deployment waits this long. */
 export const RETRY_DELAY = 30_000;
 
@@ -110,7 +124,10 @@ export const ENGINE_CASE_TIMEOUT = 180_000;
 export interface DeployedChain {
   id: string;
   name: string;
-  /** The HTTP trigger's `contextPath`, already carrying the run token. */
+  /**
+   * The HTTP trigger's `contextPath`, or the operation path of a trigger that implements a service,
+   * already carrying the run token; `""` for a chain with no HTTP trigger.
+   */
   contextPath: string;
 }
 
@@ -122,9 +139,39 @@ export interface SeedChain extends DeployedChain {
   elements: Record<string, string>;
 }
 
+/** One imported service fixture, which the corpus chains call. */
+export interface SeededService {
+  /** `service`, `context-service` or `mcp-service`: each kind has an import and a delete of its own. */
+  kind: DocumentKind;
+  id: string;
+  name: string;
+}
+
+/** The import of each service kind. */
+export const SERVICE_IMPORTS: Partial<Record<DocumentKind, string>> = {
+  service: "/v1/import/system",
+  "context-service": "/v1/catalog/context-system/import",
+  "mcp-service": "/v1/catalog/mcp-system/import",
+};
+
+/** Deletes a seeded service through the delete of its kind. */
+export async function deleteService(catalog: Catalog, kind: DocumentKind, id: string): Promise<void> {
+  if (kind === "context-service") await catalog.deleteContextSystem(id);
+  else if (kind === "mcp-service") await catalog.deleteMcpSystem(id);
+  else await catalog.deleteSystem(id);
+}
+
+/** The raw answer of `deleteService`'s delete, for a caller that reads a 404 as a service never imported. */
+export function deleteServiceRaw(catalog: Catalog, kind: DocumentKind, id: string): Promise<APIResponse> {
+  if (kind === "context-service") return catalog.raw("delete", `/v1/catalog/context-system/${id}`);
+  if (kind === "mcp-service") return catalog.raw("delete", `/v1/catalog/mcp-system/${id}`);
+  return catalog.raw("delete", `/v1/systems/${id}`);
+}
+
 export interface SeededCorpus {
   run: string;
   chains: SeedChain[];
+  services: SeededService[];
 }
 
 /**
@@ -146,6 +193,18 @@ export const SEED_LOGGING: LoggingProperties = {
 };
 
 /**
+ * The fixtures the seed deploys with session logging `OFF`. A session at `DEBUG` records the body of
+ * every step, and the 8 MiB bodies of `specs/runtime/large-body.spec.ts` ran the chart's OpenSearch
+ * (512 MiB heap) out of memory, then into a crash loop while it replayed them from its translog.
+ */
+export const UNRECORDED_FIXTURES: ReadonlySet<string> = new Set(["large-body-echo", "script-large-body.yaml"]);
+
+/** The session logging the seed deploys fixture `fixture` with. */
+export function seedLogging(fixture: string): LoggingProperties {
+  return UNRECORDED_FIXTURES.has(fixture) ? { ...SEED_LOGGING, sessionsLoggingLevel: "OFF" } : SEED_LOGGING;
+}
+
+/**
  * The one fixture that deploys with a masked field, and the field it masks.
  *
  * The field is created between the import and the deploy for the same reason the logging level is:
@@ -155,6 +214,9 @@ export const SEED_LOGGING: LoggingProperties = {
  */
 export const MASKED_FIXTURE = "masking";
 export const MASKED_FIELD = "cardNumber";
+
+/** `CamelConstants.MASKING_TEMPLATE` (`CamelConstants.java:40`), copied literally. */
+export const MASKING_MARKER = "******";
 
 /**
  * The one fixture whose element property is a `#{variable}` placeholder, and the common variable
@@ -177,25 +239,6 @@ export function placeholderValue(run: string): string {
   return `resolved-${run}`;
 }
 
-/** A fixture document's element, as much of its shape as `flatten` and its callers read. */
-export interface FixtureElement {
-  id?: unknown;
-  name?: unknown;
-  type?: unknown;
-  properties?: Record<string, unknown>;
-  children?: FixtureElement[];
-}
-
-/** Every element of a fixture document, parents before their children. */
-export function flatten(elements: readonly FixtureElement[]): FixtureElement[] {
-  const flat: FixtureElement[] = [];
-  for (const element of elements) {
-    flat.push(element);
-    if (element.children) flat.push(...flatten(element.children));
-  }
-  return flat;
-}
-
 /**
  * Reads the fixture document for what a spec needs to address the chain it becomes.
  *
@@ -209,13 +252,9 @@ export function flatten(elements: readonly FixtureElement[]): FixtureElement[] {
  * can introduce, and the map it corrupts is what a mock and a trace assertion are keyed on.
  */
 function describe(fixture: string, document: Record<string, unknown>): SeedChain {
-  const content = (document.content ?? {}) as { elements?: FixtureElement[] };
-  const elements = flatten(content.elements ?? []);
+  const elements = elementsOf(document);
   const trigger = elements.find((each) => each.type === "http-trigger");
-  const contextPath = (trigger?.properties?.contextPath as string | undefined) ?? "";
-  if (!contextPath) {
-    throw new Error(`fixture ${fixture} carries no HTTP trigger, so nothing can call it`);
-  }
+  const contextPath = (trigger?.properties?.contextPath ?? trigger?.properties?.integrationOperationPath ?? "") as string;
 
   // A `Map` rather than an object: the keys are fixture-supplied names, and a plain object answers
   // `constructor` and `toString` out of its prototype, which reads as a duplicate that is not one.
@@ -242,23 +281,63 @@ function describe(fixture: string, document: Record<string, unknown>): SeedChain
   };
 }
 
+/** Every service fixture rendered with `run`, by name. */
+export function serviceTrees(run: string): Array<[string, RenderedTree]> {
+  return chainFixtureNames(SERVICE_FIXTURE_DIR).map((name) => [name, renderFixture(SERVICE_FIXTURE_DIR, name, run)]);
+}
+
+/** Imports the services, one archive per kind through that kind's import, and asserts it created each of them. */
+export async function importServices(
+  catalog: Catalog,
+  trees: ReadonlyArray<readonly [string, RenderedTree]>,
+  archiveName: string,
+): Promise<SeededService[]> {
+  const seeded: SeededService[] = [];
+  for (const [kind, path] of Object.entries(SERVICE_IMPORTS) as Array<[DocumentKind, string]>) {
+    const ofKind = trees.filter(([name, tree]) => readFixtureDocument(name, tree).kind === kind);
+    if (ofKind.length === 0) continue;
+    const assembled = await assembleTrees(ofKind);
+    const services = assembled.documents.map((each) => ({
+      kind,
+      id: each.id,
+      name: String(each.document.name),
+    }));
+    const response = await catalog.importArchive(path, assembled.archive, `${kind}-${archiveName}`);
+    expect(response.status(), `${path} answered ${response.status()}: ${await response.text()}`).toBe(200);
+    const rows = (await response.json()) as Array<{ id: string; status: string }>;
+    expect(
+      rows.map((row) => `${row.id} ${row.status}`).sort(),
+      `the delete before the import is what makes every row CREATED: ${JSON.stringify(rows)}`,
+    ).toEqual(services.map((each) => `${each.id} CREATED`).sort());
+    seeded.push(...services);
+  }
+  return seeded;
+}
+
 /**
- * Deletes the chains an assembled corpus declares, imports it, and asserts the import created each
- * of them.
+ * Deletes the chains an assembled corpus declares and the services they call, imports the services
+ * and then the chains, and asserts the imports created each of them.
  */
 async function importCorpus(
   catalog: Catalog,
   assembled: { archive: Buffer; documents: FixtureDocument[] },
   fixtures: readonly string[],
+  services: ReadonlyArray<readonly [string, RenderedTree]>,
   archiveName: string,
-): Promise<SeedChain[]> {
+): Promise<{ chains: SeedChain[]; services: SeededService[] }> {
   const chains = assembled.documents.map((each, index) => describe(fixtures[index], each.document));
 
   // Rule 5 of the spec rules, applied to the seed: the ids are fixed, so an import over yesterday's
   // corpus is an update and every assertion below would hold without anything having been created.
+  // The chains go first, since they call the services.
   for (const chain of chains) await catalog.deleteChain(chain.id).catch(() => {});
+  for (const [name, tree] of services) {
+    const { kind, id } = readFixtureDocument(name, tree);
+    await deleteService(catalog, kind, id).catch(() => {});
+  }
+  const seeded = await importServices(catalog, services, `services-${archiveName}`);
 
-  const response = await catalog.importChains(assembled.archive, archiveName);
+  const response = await catalog.importChains(assembled.archive, archiveName, { timeout: corpusRequestTimeout(chains.length) });
   expect(response.status(), `the corpus import answered ${response.status()}`).toBe(200);
   const imported = (await response.json()) as { chains: Array<{ id: string; status: string }> };
 
@@ -270,7 +349,7 @@ async function importCorpus(
     imported.chains.filter((each) => each.status !== "CREATED"),
     "the delete before the import is what makes every row CREATED",
   ).toEqual([]);
-  return chains;
+  return { chains, services: seeded };
 }
 
 /**
@@ -286,9 +365,15 @@ export async function seedCorpus(
   run: string,
   fixtures: readonly string[] = corpusFixtureNames(),
 ): Promise<SeededCorpus> {
-  const chains = await importCorpus(catalog, await assembleCorpus(fixtures, run), fixtures, `seed-${run}.zip`);
+  const { chains, services } = await importCorpus(
+    catalog,
+    await assembleCorpus(fixtures, run),
+    fixtures,
+    serviceTrees(run),
+    `seed-${run}.zip`,
+  );
 
-  for (const chain of chains) await catalog.saveLoggingProperties(chain.id, SEED_LOGGING);
+  for (const chain of chains) await catalog.saveLoggingProperties(chain.id, seedLogging(chain.fixture));
 
   const masked = chains.find((each) => each.fixture === MASKED_FIXTURE);
   if (masked) await catalog.createMaskedField(masked.id, MASKED_FIELD);
@@ -300,7 +385,7 @@ export async function seedCorpus(
   await waitForDeployed(catalog, chains);
   await waitForRoutes(env, chains);
 
-  return { run, chains };
+  return { run, chains, services };
 }
 
 /** Deploys the whole corpus in one bulk call, which moves Consul's `deployments-update` key once. */
@@ -308,12 +393,25 @@ export async function deployCorpus(catalog: Catalog, chains: readonly SeedChain[
   if (chains.length === 0) {
     throw new Error("deployCorpus was given no chains, so nothing downstream would come up");
   }
-  const { status, rows } = await catalog.bulkDeploy(chains.map((each) => each.id));
+  const { status, rows } = await catalog.bulkDeploy(chains.map((each) => each.id), {
+    timeout: corpusRequestTimeout(chains.length),
+  });
   expect(status, `the corpus deploy answered ${status}: ${JSON.stringify(rows)}`).toBe(200);
   expect(
     rows.filter((row) => row.status !== "CREATED").map((row) => `${row.chainName}: ${row.status}`),
     "a chain the batch could not deploy",
   ).toEqual([]);
+}
+
+/** Deploys `chains` to the micro domain `domain` in one call, and returns once the catalog has accepted every one. */
+export async function deployToMicroDomain(catalog: Catalog, domain: string, chains: readonly DeployedChain[]): Promise<void> {
+  const rows = await catalog.deployChains(chains.map((each) => each.id), [domain], {
+    timeout: corpusRequestTimeout(chains.length),
+  });
+  expect(
+    rows.map((row) => `${row.chainId} ${row.status}${row.errorMessage ? `: ${row.errorMessage}` : ""}`).sort(),
+    "deploy-chains drops an unknown id silently, so every chain needs one CREATED row",
+  ).toEqual(chains.map((each) => `${each.id} CREATED`).sort());
 }
 
 /** Polls until every seeded chain is keyed in the runtime view, failing with the set difference. */
@@ -378,11 +476,14 @@ export async function waitForUndeployed(catalog: Catalog, chains: readonly Deplo
  * whole reading — it separates "deployed" from "serving" without running the chain once. A trigger
  * that does allow `GET` answers **200**, so both count as serving and nothing else does: a 500 or a
  * 401 is a route that is up and broken, and passing it through the gate hands every downstream spec
- * a failure that reads as its own.
+ * a failure that reads as its own. A chain with no HTTP trigger has no route to poll, so the status
+ * poll before this one is its only gate.
  *
  * `timeout` is a parameter because the seed is not the only caller: the restart spec waits for the
  * same routes to come back after the engine has been recreated, and that budget is a different
  * measured number from the one a fresh deploy takes.
+ *
+ * A failure adds what each route still failing answered over the whole wait (`routeHistory`).
  */
 export async function waitForRoutes(
   env: Env,
@@ -390,21 +491,51 @@ export async function waitForRoutes(
   timeout: number = DEPLOY_TIMEOUT,
   message = "seed chains whose route never began to answer",
 ): Promise<void> {
-  await expect
-    .poll(
-      async () => {
-        const missing: string[] = [];
-        for (const chain of chains) {
-          const status = await fetch(env.chainUrl(chain.contextPath), { method: "GET" })
-            .then((response) => response.status)
-            .catch(() => 0);
-          if (status !== 200 && status !== 405) missing.push(`${chain.name} (${status || "no response"})`);
-        }
-        return missing.sort();
-      },
-      { timeout, message },
-    )
-    .toEqual([]);
+  const routed = chains.filter((each) => each.contextPath !== "");
+  const history = new Map<string, number[]>(routed.map((each) => [each.name, []]));
+  let missing: string[] = [];
+  try {
+    await expect
+      .poll(
+        async () => {
+          const failing: string[] = [];
+          for (const chain of routed) {
+            const status = await fetch(env.chainUrl(chain.contextPath), { method: "GET" })
+              .then((response) => response.status)
+              .catch(() => 0);
+            history.get(chain.name)?.push(status);
+            if (status !== 200 && status !== 405) failing.push(chain.name);
+          }
+          // Set once the poll is complete, because the timeout can fire while a poll is in flight.
+          missing = failing;
+          return failing.map((name) => `${name} (${statusName(history.get(name)?.at(-1) ?? 0)})`).sort();
+        },
+        { timeout, message },
+      )
+      .toEqual([]);
+  } catch (cause) {
+    const text = cause instanceof Error ? cause.message : String(cause);
+    throw new Error(`${text}\n\n${routeHistory(history, missing)}`, { cause });
+  }
+}
+
+function statusName(status: number): string {
+  return status === 0 ? "no response" : String(status);
+}
+
+/**
+ * What each of `names` answered over a `waitForRoutes` poll, one route a line: each status with its
+ * count, in the order the statuses first appeared. A route that flips between a serving and a
+ * failing status shows both, where the last poll alone shows only one.
+ */
+export function routeHistory(history: ReadonlyMap<string, readonly number[]>, names: readonly string[]): string {
+  const lines = [...names].sort().map((name) => {
+    const counts = new Map<number, number>();
+    for (const status of history.get(name) ?? []) counts.set(status, (counts.get(status) ?? 0) + 1);
+    const each = [...counts].map(([status, count]) => `${statusName(status)} x${count}`).join(", ");
+    return `${name}: ${each}`;
+  });
+  return [`what each of those routes answered over the wait, by count:`, ...lines].join("\n");
 }
 
 /**
@@ -437,17 +568,52 @@ export function readCorpusState(): SeededCorpus {
 }
 
 /**
- * Drops the classic and the micro state files when the corpus each names belonged to a run that
- * has just been swept.
+ * Drops the classic and the micro state files when the corpus or the domain each names belonged to
+ * a run that has just been swept.
  *
  * Without it the file outlives the chains it points at, and the next `--no-deps` run addresses
- * deleted ids and fails with 404s rather than with "the seed did not run".
+ * deleted ids and fails with 404s rather than with "the seed did not run". The broker state files
+ * stay: the sweep leaves a run's topics, queues, and SFTP tree, and the file is their only record.
  */
 export function discardCorpusStateOf(runs: readonly string[]): void {
-  for (const file of [CORPUS_STATE_FILE, MICRO_CORPUS_STATE_FILE]) {
+  for (const file of [CORPUS_STATE_FILE, MICRO_CORPUS_STATE_FILE, MICRO_REDEPLOY_STATE_FILE]) {
     const corpus = readStateFile<SeededCorpus>(file);
     if (corpus && runs.includes(corpus.run)) fs.rmSync(file, { force: true });
   }
+}
+
+/** The worker options of the current project, which a project sets with `use`. */
+export type ProjectUse = Partial<SuiteWorkerOptions>;
+
+/** The current project's `use`, which the corpus readers default to. */
+export function projectUse(): ProjectUse {
+  return test.info().project.use as ProjectUse;
+}
+
+/** The micro copy a micro project reads, or `undefined` on classic, the default engine kind. */
+function microCopyOf(use: ProjectUse): MicroCorpus | undefined {
+  return use.engineKind === "micro" ? readMicroCorpusState(use.microDomainState) : undefined;
+}
+
+/** The corpus copy a project's engine runs, and the fixture names that copy has to hold. */
+export interface ProjectCorpus {
+  chains: SeedChain[];
+  /** Sorted, to compare with the sorted `fixture` names of `chains`. */
+  fixtures: string[];
+  /** The domain the catalog lists the copy's engine pods under. */
+  domain: string;
+}
+
+/**
+ * The classic corpus, or on a micro project the micro copy its `microDomainState` names, so a spec
+ * that lists the corpus reads the engine kind nowhere else. Both copies hold every corpus fixture.
+ */
+export function projectCorpus(use: ProjectUse = projectUse()): ProjectCorpus {
+  const micro = microCopyOf(use);
+  const fixtures = corpusFixtureNames().sort();
+  return micro
+    ? { chains: micro.chains, fixtures, domain: micro.domain }
+    : { chains: readCorpusState().chains, fixtures, domain: DEFAULT_DOMAIN };
 }
 
 /**
@@ -458,16 +624,10 @@ export function discardCorpusStateOf(runs: readonly string[]): void {
  * anything for that to happen.
  */
 export function seedChain(corpus: SeededCorpus, fixture: string): SeedChain {
-  // The option a project sets with `use: { engineKind }`; a project that sets none runs classic.
-  const engineKind = (test.info().project.use as { engineKind?: EngineKind }).engineKind;
-  const copy = engineKind === "micro" ? readMicroCorpusState() : corpus;
-  const found = copy.chains.find((each) => each.fixture === fixture);
+  const micro = microCopyOf(projectUse());
+  const found = (micro ?? corpus).chains.find((each) => each.fixture === fixture);
   if (!found) {
-    throw new Error(
-      engineKind === "micro"
-        ? `the micro copy holds no chain from fixture ${fixture}: add it to MICRO_FIXTURES`
-        : `the seeded corpus holds no chain from fixture ${fixture}`,
-    );
+    throw new Error(`the ${micro ? "micro copy" : "seeded corpus"} holds no chain from fixture ${fixture}`);
   }
   noteChain({ id: found.id, name: found.name, contextPath: found.contextPath });
   return found;
@@ -526,6 +686,15 @@ async function deleteSeedChains(
   }
 }
 
+/** Deletes the services the corpus chains call, after the chains, and adds a line to `failures` for each one left. */
+async function deleteSeedServices(catalog: Catalog, services: readonly SeededService[], failures: string[]): Promise<void> {
+  for (const service of services) {
+    await deleteService(catalog, service.kind, service.id).catch((cause: unknown) => {
+      failures.push(`the service ${service.name} (${service.id}) was not deleted: ${String(cause)}`);
+    });
+  }
+}
+
 /**
  * Undeploys and deletes the corpus. `E2E_KEEP=1` leaves it and says where it is.
  *
@@ -545,11 +714,13 @@ export async function teardownCorpus(catalog: Catalog, corpus: SeededCorpus): Pr
   if (keepEntities()) {
     console.log(`[keep] ${corpus.chains.length} seed chains left behind for run ${corpus.run}`);
     for (const chain of corpus.chains) console.log(`[keep]   chain ${chain.name} (${chain.id})`);
+    for (const service of corpus.services) console.log(`[keep]   service ${service.name} (${service.id})`);
     return;
   }
 
   const failures: string[] = [];
   await deleteSeedChains(catalog, corpus.chains, failures, { undeployFirst: true });
+  await deleteSeedServices(catalog, corpus.services, failures);
 
   await catalog.deleteCommonVariables([placeholderVariable(corpus.run)]).catch((cause: unknown) => {
     failures.push(`the variable ${placeholderVariable(corpus.run)} was not deleted: ${String(cause)}`);
@@ -605,9 +776,25 @@ export async function fixtureTrees(
   });
 }
 
-/** `MICRO_FIXTURES` rendered with `run` and turned into the micro copy. */
+/**
+ * Every chain fixture of the corpus, the generated axis chains named by the generator rather than
+ * read off `fixtures/axes/`, which `seed` deletes and rewrites while `seed-micro` runs beside it.
+ */
+export function corpusChainNames(): string[] {
+  return [
+    ...corpusFixtureNames([CHAIN_FIXTURE_DIR, SCRIPT_FIXTURE_DIR]),
+    ...axisFixtures.filter((each) => !each.handWritten).map(axisFixtureName),
+  ];
+}
+
+/** Every chain fixture of the corpus, rendered with `run` and turned into the micro copy. */
 export async function microCorpusTrees(run: string): Promise<Array<[string, RenderedTree]>> {
-  return (await fixtureTrees(MICRO_FIXTURES, run)).map(([name, tree]) => [name, microCopy(name, tree)]);
+  return (await fixtureTrees(corpusChainNames(), run)).map(([name, tree]) => [name, microCopy(name, tree)]);
+}
+
+/** Every service fixture rendered with `run` and turned into the micro copy, which the micro chains call. */
+export function microServiceTrees(run: string): Array<[string, RenderedTree]> {
+  return serviceTrees(run).map(([name, tree]) => [name, microCopy(name, tree)]);
 }
 
 /**
@@ -624,28 +811,34 @@ export async function seedMicroCorpus(
 ): Promise<{ corpus: MicroCorpus; readyMs: number }> {
   const trees = await microCorpusTrees(run);
   const fixtures = trees.map(([name]) => name);
-  const chains = await importCorpus(catalog, await assembleTrees(trees), fixtures, `seed-micro-${run}.zip`);
-  const corpus: MicroCorpus = { run, domain: microDomainName(run), chains };
+  const { chains, services } = await importCorpus(
+    catalog,
+    await assembleTrees(trees),
+    fixtures,
+    microServiceTrees(run),
+    `seed-micro-${run}.zip`,
+  );
+  const corpus: MicroCorpus = { run, domain: microDomainName(run), chains, services };
   writeMicroCorpusState(corpus);
 
-  for (const chain of chains) await catalog.saveLoggingProperties(chain.id, SEED_LOGGING);
+  for (const chain of chains) await catalog.saveLoggingProperties(chain.id, seedLogging(chain.fixture));
   // The build compiles the masked fields into the Integration, so the field exists before the deploy.
   const masked = chains.find((each) => each.fixture === MASKED_FIXTURE);
   if (masked) await catalog.createMaskedField(masked.id, MASKED_FIELD);
+  // The micro engine substitutes placeholders once, when the domain loads its routes. `seed` writes
+  // the same variable, and runs in parallel, so this seed cannot rely on it.
+  await catalog.addCommonVariables({ [placeholderVariable(run)]: placeholderValue(run) });
 
   const deployedAt = Date.now();
-  const rows = await catalog.deployChains(chains.map((each) => each.id), [corpus.domain]);
-  expect(
-    rows.map((row) => `${row.chainId} ${row.status}${row.errorMessage ? `: ${row.errorMessage}` : ""}`).sort(),
-    "deploy-chains drops an unknown id silently, so every chain needs one CREATED row",
-  ).toEqual(chains.map((each) => `${each.id} CREATED`).sort());
+  await deployToMicroDomain(catalog, corpus.domain, chains);
 
   await waitForRoutes(
     env,
     chains,
     MICRO_READY_TIMEOUT,
-    `micro chains whose route never began to answer on ${corpus.domain}. If none answers, read the ` +
-      `status of Integration ${corpus.domain} and the camel-k operator log (e2e/k8s/README.md, camel-k)`,
+    `micro chains whose route never began to answer on ${corpus.domain}. The case attaches the pod's ` +
+      `log, its description, and the Integration; if no pod started, read the camel-k operator log ` +
+      `(e2e/k8s/README.md, camel-k)`,
   );
   return { corpus, readyMs: Date.now() - deployedAt };
 }
@@ -655,21 +848,23 @@ function writeMicroCorpusState(corpus: MicroCorpus): void {
   writeStateFile(MICRO_CORPUS_STATE_FILE, corpus);
 }
 
-/** The micro copy, or a failure naming `seed-micro` rather than the spec that asked. */
-export function readMicroCorpusState(): MicroCorpus {
-  const corpus = readStateFile<MicroCorpus>(MICRO_CORPUS_STATE_FILE);
+/** The micro copy `file` records, or a failure naming its seed rather than the spec that asked. */
+export function readMicroCorpusState(file: string = MICRO_CORPUS_STATE_FILE): MicroCorpus {
+  const corpus = readStateFile<MicroCorpus>(file);
   if (!corpus) {
     throw new Error(
-      `no readable micro corpus at ${MICRO_CORPUS_STATE_FILE}: the seed-micro project did not run, ` +
-        `ran no tests, or was killed partway through writing the file`,
+      `no readable micro corpus at ${file}: the seed project that writes it (seed-micro for the ` +
+        `shared domain) did not run, ran no tests, or was killed partway through writing the file`,
     );
   }
   return corpus;
 }
 
 /**
- * Deletes the micro copy's logging properties, then its chains, then its domain. `E2E_KEEP=1`
- * leaves all three.
+ * Deletes the micro copy's logging properties, its chains, the services they call, the placeholder
+ * variable, and then its domain. `E2E_KEEP=1` leaves all five, and so does a failed micro case of
+ * the run (`microCaseFailed`). Deleting the variable `seed` also wrote is harmless: a deployed chain
+ * keeps the value it resolved, and the second delete of a name is a no-op.
  *
  * A chain whose logging properties survived is kept, for the reason `teardownCorpus` keeps one. The
  * domain goes last, with `DELETE /v1/cr/{name}`, and the state file only once nothing failed.
@@ -682,9 +877,17 @@ export async function teardownMicroCorpus(catalog: Catalog, corpus: MicroCorpus)
     );
     return;
   }
+  if (microCaseFailed(corpus.run)) {
+    console.log(`[keep] a micro case of run ${corpus.run} failed, so domain ${corpus.domain} stays for the cluster dump`);
+    return;
+  }
 
   const failures: string[] = [];
   await deleteSeedChains(catalog, corpus.chains, failures, { undeployFirst: false });
+  await deleteSeedServices(catalog, corpus.services, failures);
+  await catalog.deleteCommonVariables([placeholderVariable(corpus.run)]).catch((cause: unknown) => {
+    failures.push(`the variable ${placeholderVariable(corpus.run)} was not deleted: ${String(cause)}`);
+  });
   await catalog.deleteCustomResource(corpus.domain).catch((cause: unknown) => {
     failures.push(`the micro domain ${corpus.domain} was not deleted: ${String(cause)}`);
   });

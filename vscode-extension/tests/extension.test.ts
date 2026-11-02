@@ -92,6 +92,7 @@ jest.mock("../src/web/response/navigationUtils", () => ({
 }));
 
 import { activate } from "../src/web/extension";
+import { getAndClearNavigationStateValue } from "../src/web/response/navigationUtils";
 
 function activateAndGetProvider() {
   activate(buildMockContext());
@@ -184,6 +185,36 @@ describe("extension.ts", () => {
       const posted = calls[calls.length - 1][0];
       expect(posted.requestId).toBe("req-2");
       expect(posted.error).toBeUndefined();
+    });
+  });
+
+  describe("onDidChangeViewState - stored navigation path", () => {
+    const path = "/services/context/c-1/parameters";
+    let onViewStateChange: (e: unknown) => Promise<void>;
+
+    beforeEach(async () => {
+      await openEditorAndGetMessageHandler();
+      onViewStateChange = (mockPanel.onDidChangeViewState.mock.calls as any)[0][0];
+      jest.mocked(getAndClearNavigationStateValue).mockResolvedValue(path as never);
+      mockPostMessage.mockClear();
+    });
+
+    test("posts the path getApiResponse resolves", async () => {
+      mockGetApiResponse.mockResolvedValue(path);
+
+      await onViewStateChange({ webviewPanel: { active: true } });
+
+      expect(mockPostMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "navigate", payload: path }),
+      );
+    });
+
+    test("posts nothing and does not reject when getApiResponse throws", async () => {
+      mockGetApiResponse.mockRejectedValue(new Error("Invalid service file content"));
+
+      await expect(onViewStateChange({ webviewPanel: { active: true } })).resolves.toBeUndefined();
+
+      expect(mockPostMessage).not.toHaveBeenCalled();
     });
   });
 

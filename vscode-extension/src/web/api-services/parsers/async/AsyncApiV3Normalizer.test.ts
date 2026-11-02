@@ -122,4 +122,69 @@ describe("AsyncApiV3Normalizer", () => {
       protocol: "amqp",
     });
   });
+
+  // `schema` fills every position that holds a schema, and `data` every value
+  // that is data.
+  function schemaPositions(schema: () => object, data: () => object) {
+    return {
+      type: "object",
+      properties: {
+        p: schema(),
+        default: schema(),
+        marker: {
+          const: data(),
+          enum: [data()],
+          default: data(),
+          example: data(),
+          examples: [data()],
+          "x-data": data(),
+        },
+      },
+      patternProperties: { "^a": schema() },
+      definitions: { D: schema() },
+      dependencies: { p: schema(), q: ["p"] },
+      additionalProperties: schema(),
+      items: [schema()],
+      additionalItems: schema(),
+      contains: schema(),
+      propertyNames: schema(),
+      not: schema(),
+      if: schema(),
+      then: schema(),
+      else: schema(),
+      allOf: [schema()],
+      anyOf: [schema()],
+      oneOf: [schema()],
+    };
+  }
+
+  it("rewrites references into an unwrapped schema only where a schema is", () => {
+    const into = () => ({ $ref: "#/components/schemas/Closed/schema" });
+    const unwrapped = () => ({ $ref: "#/components/schemas/Closed" });
+    const result = AsyncApiV3Normalizer.normalize({
+      asyncapi: "3.0.0",
+      info: { title: "t", version: "1.0.0" },
+      channels: {
+        ch: {
+          address: "the/topic",
+          messages: { M: { payload: schemaPositions(into, into) } },
+        },
+      },
+      operations: {
+        op: { action: "receive", channel: { $ref: "#/channels/ch" } },
+      },
+      components: {
+        schemas: {
+          Closed: {
+            schemaFormat: "application/schema+json;version=draft-07",
+            schema: { type: "string" },
+          },
+        },
+      },
+    });
+
+    expect(result.channels["the/topic"].subscribe!.message!.payload).toEqual(
+      schemaPositions(unwrapped, into),
+    );
+  });
 });

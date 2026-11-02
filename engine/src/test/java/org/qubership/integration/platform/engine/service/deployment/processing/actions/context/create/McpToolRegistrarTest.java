@@ -6,6 +6,7 @@ import io.modelcontextprotocol.spec.McpSchema;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.apache.camel.ProducerTemplate;
+import org.apache.camel.component.direct.DirectConsumerNotAvailableException;
 import org.apache.camel.impl.DefaultCamelContext;
 import org.apache.camel.spring.SpringCamelContext;
 import org.apache.camel.support.DefaultExchange;
@@ -35,13 +36,15 @@ class McpToolRegistrarTest {
     private static final String OUTPUT_SCHEMA = "{\"type\":\"object\",\"properties\":{\"result\":{\"type\":\"string\"}}}";
 
     private SpringCamelContext context;
+    private McpToolTargets toolTargets;
     private McpToolRegistrar registrar;
 
     @BeforeEach
     void setUp() {
         context = mock(SpringCamelContext.class);
         when(context.getRegistry()).thenReturn(new DefaultRegistry());
-        registrar = new McpToolRegistrar(new ObjectMapper());
+        toolTargets = new McpToolTargets();
+        registrar = new McpToolRegistrar(new ObjectMapper(), toolTargets);
     }
 
     @Test
@@ -154,6 +157,69 @@ class McpToolRegistrarTest {
     }
 
     @Test
+    void callHandlerSendsTheCallToTheServingDeploymentWhenThisContextStoppedFirst() {
+        // Run 40467794883: a redeploy replaced the tool and stopped this context before the call reached the trigger.
+        Exchange stopped = new DefaultExchange(new DefaultCamelContext());
+        stopped.setException(new DirectConsumerNotAvailableException("No consumers available on endpoint", stopped));
+        Exchange served = new DefaultExchange(new DefaultCamelContext());
+        served.getMessage().setBody("{\"called\":\"v2\"}");
+        SpringCamelContext serving = contextAnswering("direct:element-v2", served);
+        toolTargets.publish(TOOL_NAME, new McpToolTargets.Target(serving, "direct:element-v2"));
+
+        McpSchema.CallToolResult callResult = callTool(stopped);
+
+        assertFalse(callResult.isError());
+        assertEquals(List.of(new McpSchema.TextContent("{\"called\":\"v2\"}")), callResult.content());
+    }
+
+    @Test
+    void callHandlerDoesNotRepeatACallThatFailedInsideTheChain() {
+        // A reuse-reference sends to a direct endpoint, which a stopping context fails the same way.
+        Exchange failedInside = new DefaultExchange(new DefaultCamelContext());
+        failedInside.getExchangeExtension().setFromRouteId("trigger-route");
+        failedInside.setException(new DirectConsumerNotAvailableException("No consumers available on endpoint", failedInside));
+        SpringCamelContext serving = contextAnswering("direct:element-v2", new DefaultExchange(new DefaultCamelContext()));
+        toolTargets.publish(TOOL_NAME, new McpToolTargets.Target(serving, "direct:element-v2"));
+
+        McpSchema.CallToolResult callResult = callTool(failedInside);
+
+        assertTrue(callResult.isError());
+        verify(serving, never()).createProducerTemplate();
+    }
+
+    @Test
+    void callHandlerAnswersTheStoppedTriggerWhenNoOtherDeploymentServesTheTool() {
+        Exchange stopped = new DefaultExchange(new DefaultCamelContext());
+        stopped.setException(new DirectConsumerNotAvailableException("No consumers available on endpoint", stopped));
+
+        McpSchema.CallToolResult callResult = callTool(stopped);
+
+        assertTrue(callResult.isError());
+        assertEquals(List.of(new McpSchema.TextContent(stopped.getException().getMessage())), callResult.content());
+    }
+
+    @Test
+    void callHandlerClosesTheProducerTemplateOfEachCall() throws Exception {
+        ProducerTemplate producerTemplate = mock(ProducerTemplate.class);
+        when(context.createProducerTemplate()).thenReturn(producerTemplate);
+        when(producerTemplate.request(eq("direct:" + ELEMENT_ID), any(Processor.class)))
+                .thenReturn(new DefaultExchange(new DefaultCamelContext()));
+        registrar.apply(context, mcpTriggerProperties(null), deploymentInfo());
+
+        preparedTool().callHandler().apply(null, new McpSchema.CallToolRequest(TOOL_NAME, Map.of()));
+
+        verify(producerTemplate).close();
+    }
+
+    @Test
+    void applyPreparesTheTargetTheToolCalls() {
+        registrar.apply(context, mcpTriggerProperties(null), deploymentInfo());
+
+        Map<?, ?> targets = context.getRegistry().lookupByNameAndType(McpToolRegistrar.TOOL_TARGETS, Map.class);
+        assertEquals(Map.of(TOOL_NAME, new McpToolTargets.Target(context, "direct:" + ELEMENT_ID)), targets);
+    }
+
+    @Test
     void executeAppliesOnlyMcpTriggerElements() {
         ElementProperties mcpElement = mcpTriggerProperties(null);
         ElementProperties httpElement = elementProperties("http-trigger");
@@ -196,6 +262,14 @@ class McpToolRegistrarTest {
 
         return preparedTool().callHandler()
                 .apply(null, new McpSchema.CallToolRequest(TOOL_NAME, Map.of("param", "value")));
+    }
+
+    private SpringCamelContext contextAnswering(String endpointUri, Exchange result) {
+        SpringCamelContext other = mock(SpringCamelContext.class);
+        ProducerTemplate producerTemplate = mock(ProducerTemplate.class);
+        when(other.createProducerTemplate()).thenReturn(producerTemplate);
+        when(producerTemplate.request(eq(endpointUri), any(Processor.class))).thenReturn(result);
+        return other;
     }
 
     private ElementProperties elementProperties(String elementType) {

@@ -1,13 +1,12 @@
 import { Table } from "antd";
 import { Alert, Badge, BadgeProps, Button, Flex, Tag, Tooltip } from "antd";
-import { CompactSearch } from "../table/CompactSearch";
 import { tableScroll } from "../table/tableScroll.ts";
 import {
   DiagnosticValidation,
   ValidationSeverity,
   ValidationState,
 } from "../../api/apiTypes";
-import { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { TableRowSelection } from "antd/lib/table/interface";
 import { api } from "../../api/api";
 import { useNotificationService } from "../../hooks/useNotificationService";
@@ -21,11 +20,14 @@ import {
   ColumnsTypeWithSettings,
   useColumnSettingsBasedOnColumnsType,
 } from "../table/useColumnSettingsButton";
-import { useTableConfiguration } from "../table/useTableConfiguration.tsx";
+import {
+  EXPAND_COLUMN_WIDTH,
+  SELECTION_COLUMN_WIDTH,
+  useTableConfiguration,
+} from "../table/useTableConfiguration.tsx";
 import commonStyles from "../admin_tools/CommonStyle.module.css";
-
-const DIAGNOSTIC_EXPAND_COLUMN_WIDTH = 48;
-const DIAGNOSTIC_SELECTION_COLUMN_WIDTH = 48;
+import { AdminToolsHeader } from "../admin_tools/AdminToolsHeader.tsx";
+import { TableToolbar } from "../table/TableToolbar.tsx";
 
 export const VALIDATION_STATE_TO_LABEL: { [key: string]: string } = {
   [ValidationState.OK]: "Finished",
@@ -105,17 +107,25 @@ export const Diagnostic: React.FC = () => {
           const diagnosticValidation = validation as DiagnosticValidation;
           return (
             <Tooltip placement="right" title={validation.description}>
-              <a
-                onClick={() =>
-                  showModal({
-                    component: (
-                      <DiagnosticValidationModal {...diagnosticValidation} />
-                    ),
-                  })
-                }
-              >
-                {diagnosticValidation.title}
-              </a>
+              <span>
+                {validation.icon && (
+                  <OverridableIcon
+                    style={{ marginRight: 8 }}
+                    name={validation.icon}
+                  />
+                )}
+                <a
+                  onClick={() =>
+                    showModal({
+                      component: (
+                        <DiagnosticValidationModal {...diagnosticValidation} />
+                      ),
+                    })
+                  }
+                >
+                  {diagnosticValidation.title}
+                </a>
+              </span>
             </Tooltip>
           );
         } else {
@@ -172,13 +182,14 @@ export const Diagnostic: React.FC = () => {
         const count = record.alertsCount;
         if (count == null) return null;
         if (count === 0) {
-          return isDiagnosticValidation(record) ? <Tag>{count}</Tag> : null;
+          return isDiagnosticValidation(record) ? (
+            <Tag variant={"outlined"}>{count}</Tag>
+          ) : null;
         }
         const color =
           record.severity === ValidationSeverity.ERROR ? "red" : "gold";
-        const bordered = isDiagnosticValidation(record);
         return (
-          <Tag color={color} variant={bordered ? "outlined" : "filled"}>
+          <Tag color={color} variant={"outlined"}>
             {count}
           </Tag>
         );
@@ -227,8 +238,8 @@ export const Diagnostic: React.FC = () => {
       startTime: 180,
     },
     {
-      expandColumnWidth: DIAGNOSTIC_EXPAND_COLUMN_WIDTH,
-      selectionColumnWidth: DIAGNOSTIC_SELECTION_COLUMN_WIDTH,
+      expandColumnWidth: EXPAND_COLUMN_WIDTH,
+      selectionColumnWidth: SELECTION_COLUMN_WIDTH,
     },
     "diagnosticTable",
   );
@@ -286,6 +297,7 @@ export const Diagnostic: React.FC = () => {
             ...validation,
             itemId: validation.id,
             children: validation.alertsCount > 0 ? [] : undefined,
+            icon: "barChart",
             type: "validation",
           };
         },
@@ -335,7 +347,7 @@ export const Diagnostic: React.FC = () => {
             id: element.chainId,
             title: element.chainName,
             type: "chain",
-            icon: "unorderedList",
+            icon: "chain",
             severity: validation.severity,
           });
         }
@@ -349,7 +361,7 @@ export const Diagnostic: React.FC = () => {
           title: element.chainName,
           type: "chain",
           children: [],
-          icon: "unorderedList",
+          icon: "chain",
           severity: validation.severity,
         };
         chainsMap.set(chain.id, chain);
@@ -371,6 +383,7 @@ export const Diagnostic: React.FC = () => {
       ...validation,
       children: [...chainsMap.values()],
       type: "validation",
+      icon: "barChart",
       itemId: validation.id,
     };
   };
@@ -415,40 +428,40 @@ export const Diagnostic: React.FC = () => {
   };
 
   return (
-    <Flex
-      vertical
-      gap={16}
-      // minHeight/minWidth: 0 + overflow: hidden bound the flex-table to the
-      // available height and clip its ~1px sub-pixel rounding, so it can't bubble
-      // up as a stray vertical scrollbar (same containment as TablePageLayout).
-      style={{ height: "100%", minHeight: 0, minWidth: 0, overflow: "hidden" }}
-    >
+    <Flex vertical className={commonStyles.container}>
+      <AdminToolsHeader
+        title="Diagnostic"
+        toolbar={
+          <TableToolbar
+            variant="admin"
+            search={{
+              value: searchString,
+              onChange: setSearchString,
+              placeholder: "Search validations",
+            }}
+            filterButton={filterButton}
+            columnSettingsButton={columnSettingsButton}
+            actions={
+              <>
+                <Button
+                  type="primary"
+                  title="Run Diagnostic"
+                  disabled={diagnosticInProgress || isLoading}
+                  onClick={() => void handleRunValidations()}
+                >
+                  Run Diagnostic
+                </Button>
+              </>
+            }
+          />
+        }
+      />
       <Alert
+        style={{ marginBottom: 16, marginTop: 8 }}
         type="info"
         showIcon
-        message="This menu is only available for testing environment and won't be accessible on production. Data, created via this tab won't be exported with the chains."
+        title="This menu is only available for testing environment and won't be accessible on production. Data, created via this tab won't be exported with the chains."
       />
-      <Flex vertical={false} align="center" gap={8} wrap="wrap">
-        <CompactSearch
-          value={searchString}
-          onChange={setSearchString}
-          placeholder="Search validations..."
-          allowClear
-          className={commonStyles["searchField"]}
-        />
-        {columnSettingsButton}
-        {filterButton}
-        <Button
-          type="primary"
-          icon={<OverridableIcon name="caretRightFilled" />}
-          title="Run Diagnostic"
-          disabled={diagnosticInProgress || isLoading}
-          onClick={() => void handleRunValidations()}
-        >
-          Run Diagnostic
-        </Button>
-      </Flex>
-
       <Table<DiagnosticValidationTableItem>
         size="small"
         className="flex-table"

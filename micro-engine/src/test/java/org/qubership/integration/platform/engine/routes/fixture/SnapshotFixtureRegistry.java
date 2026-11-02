@@ -42,15 +42,19 @@ public class SnapshotFixtureRegistry {
                 new GraphqlHttpSnapshotFixtureProvider(),
                 new CircuitBreakerSnapshotFixtureProvider(),
                 new CheckpointSnapshotFixtureProvider(),
+                new IdempotencySnapshotFixtureProvider(),
                 new FileOutputSnapshotFixtureProvider(),
                 new LogCaptureSnapshotFixtureProvider(),
                 new AsyncFlowSnapshotFixtureProvider(),
                 new ParallelBarrierSnapshotFixtureProvider(),
                 new SplitTimeoutSnapshotFixtureProvider(),
                 new KafkaContainerSnapshotFixtureProvider(),
+                new KafkaTriggerSnapshotFixtureProvider(),
                 new RabbitMqContainerSnapshotFixtureProvider(),
                 new ArtemisJmsContainerSnapshotFixtureProvider(),
-                new PubSubGrpcSnapshotFixtureProvider()
+                new ArtemisJmsTriggerSnapshotFixtureProvider(),
+                new PubSubGrpcSnapshotFixtureProvider(),
+                new PubSubTriggerSnapshotFixtureProvider()
         ));
     }
 

@@ -53,6 +53,7 @@ export const domainNamesRule: Rule = {
 };
 
 export type SelectDomainsProperties = {
+  id?: string;
   value?: Domain[];
   onChange?: (value: Domain[]) => void;
   disabled?: boolean;
@@ -145,6 +146,7 @@ export function useDomainTypes(): {
 }
 
 export const SelectDomains: React.FC<SelectDomainsProperties> = ({
+  id,
   value,
   onChange,
   disabled,
@@ -161,6 +163,7 @@ export const SelectDomains: React.FC<SelectDomainsProperties> = ({
 
   return (
     <Select
+      id={id}
       value={value?.map((domain) => domain.name)}
       loading={!domainTypesLoaded || isDomainsLoading}
       disabled={disabled}

@@ -9,6 +9,7 @@ import "@testing-library/jest-dom";
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 type CapturedSelectProps = {
+  id?: string;
   showSearch?: boolean;
   optionFilterProp?: string;
   filterOption?: (input: string, option?: { value?: string }) => boolean;
@@ -77,6 +78,22 @@ describe("SelectAndNavigateField", () => {
     expect(captured.showSearch).toBe(true);
     expect(captured.optionFilterProp).toBe("labelString");
     expect(captured.filterOption).toBeUndefined();
+  });
+
+  it("should give the select the id its label points at", () => {
+    const { container } = render(
+      <SelectAndNavigateField {...baseProps} id="root_integrationSystemId" />,
+    );
+
+    expect(captured.id).toBe("root_integrationSystemId");
+    expect(container.querySelector("label")?.htmlFor).toBe(captured.id);
+  });
+
+  it("should point the label at the select when the field passes no id", () => {
+    const { container } = render(<SelectAndNavigateField {...baseProps} />);
+
+    expect(captured.id).toBeTruthy();
+    expect(container.querySelector("label")?.htmlFor).toBe(captured.id);
   });
 
   it("should leave search off when neither is given", () => {

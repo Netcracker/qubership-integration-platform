@@ -36,9 +36,10 @@ export const RUN_TOKEN_PATTERN = /^[a-z][a-z0-9]{5}$/;
 /**
  * A token of that shape, fixed, for a spec that needs one without minting it.
  *
- * The `schema` project renders fixtures and reads the manifest with no stack and no `globalSetup`,
- * so it cannot ask for the run's own token. Five specs spelled the same six characters instead. A
- * token this module hands out is one that stays valid the day the alphabet changes.
+ * The `schema` and `harness` projects render fixtures and read the manifest with no stack and no
+ * `globalSetup`, so they cannot ask for the run's own token. Five specs spelled the same six
+ * characters instead. A token this module hands out is one that stays valid the day the alphabet
+ * changes.
  */
 export const EXAMPLE_RUN_TOKEN = "ab12cd";
 

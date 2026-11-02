@@ -1,0 +1,96 @@
+---
+id: ae41c3c6-5b0b-57a6-bb3b-d2943b3920dd
+$schema: http://qubership.org/schemas/product/qip/chain
+name: jms-trigger-topic-redelivery
+content:
+  labels: []
+  elements:
+  - id: f2f235c7-c22d-5969-a449-91d7425baa3c
+    name: JMS Trigger client-first
+    type: jms-trigger
+    properties:
+      acknowledgmentMode: CLIENT_ACKNOWLEDGE
+      initialContextFactory: org.qubership.integration.platform.engine.routes.fixture.SnapshotJmsInitialContextFactory
+      providerUrl: snapshot:jms-trigger
+      connectionFactoryName: jms/BulkQuotationRequest/connectionfactory
+      destinationName: jms/snapshot/topic-redelivery/client
+      destinationType: topic
+      username: snapshot
+      password: snapshot
+  - id: ea63dd35-d215-5522-8b21-d68a22b9da53
+    name: Process client-first-script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: ea63dd35-d215-5522-8b21-d68a22b9da53.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  - id: e88dad76-d9be-5b24-9f2f-7f384fac3647
+    name: JMS Trigger client-second
+    type: jms-trigger
+    properties:
+      acknowledgmentMode: CLIENT_ACKNOWLEDGE
+      initialContextFactory: org.qubership.integration.platform.engine.routes.fixture.SnapshotJmsInitialContextFactory
+      providerUrl: snapshot:jms-trigger
+      connectionFactoryName: jms/BulkQuotationRequest/connectionfactory
+      destinationName: jms/snapshot/topic-redelivery/client
+      destinationType: topic
+      username: snapshot
+      password: snapshot
+  - id: 2b06e8da-bbca-5700-9f46-7331a5da4e77
+    name: Process client-second-script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 2b06e8da-bbca-5700-9f46-7331a5da4e77.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  - id: 0660c038-49e8-5ab6-a442-0f02848f6f4c
+    name: JMS Trigger transacted-first
+    type: jms-trigger
+    properties:
+      acknowledgmentMode: SESSION_TRANSACTED
+      initialContextFactory: org.qubership.integration.platform.engine.routes.fixture.SnapshotJmsInitialContextFactory
+      providerUrl: snapshot:jms-trigger
+      connectionFactoryName: jms/BulkQuotationRequest/connectionfactory
+      destinationName: jms/snapshot/topic-redelivery/transacted
+      destinationType: topic
+      username: snapshot
+      password: snapshot
+  - id: 133d787c-25dd-5979-bebf-81ac13c22b6b
+    name: Process transacted-first-script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 133d787c-25dd-5979-bebf-81ac13c22b6b.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  - id: 595822bb-8aeb-51a6-9a80-fc09d9a6bd9a
+    name: JMS Trigger transacted-second
+    type: jms-trigger
+    properties:
+      acknowledgmentMode: SESSION_TRANSACTED
+      initialContextFactory: org.qubership.integration.platform.engine.routes.fixture.SnapshotJmsInitialContextFactory
+      providerUrl: snapshot:jms-trigger
+      connectionFactoryName: jms/BulkQuotationRequest/connectionfactory
+      destinationName: jms/snapshot/topic-redelivery/transacted
+      destinationType: topic
+      username: snapshot
+      password: snapshot
+  - id: 8c93c753-5f30-57d2-b632-191b686f962f
+    name: Process transacted-second-script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 8c93c753-5f30-57d2-b632-191b686f962f.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: f2f235c7-c22d-5969-a449-91d7425baa3c
+    to: ea63dd35-d215-5522-8b21-d68a22b9da53
+  - from: e88dad76-d9be-5b24-9f2f-7f384fac3647
+    to: 2b06e8da-bbca-5700-9f46-7331a5da4e77
+  - from: 0660c038-49e8-5ab6-a442-0f02848f6f4c
+    to: 133d787c-25dd-5979-bebf-81ac13c22b6b
+  - from: 595822bb-8aeb-51a6-9a80-fc09d9a6bd9a
+    to: 8c93c753-5f30-57d2-b632-191b686f962f
+  deployments:
+  - domain: default
+  deployAction: DEPLOY
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

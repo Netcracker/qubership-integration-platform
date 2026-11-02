@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.engine.service;
 
+import com.netcracker.cloud.bluegreen.api.model.BlueGreenState;
+import com.netcracker.cloud.bluegreen.api.model.State;
 import org.apache.camel.Route;
 import org.apache.camel.component.file.remote.SftpConsumer;
 import org.apache.camel.component.quartz.QuartzEndpoint;
@@ -16,11 +18,13 @@ import org.quartz.*;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 
 import java.lang.reflect.Field;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
+import static org.qubership.integration.platform.engine.testutils.KafkaBlueGreenTestUtils.namespaceVersion;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
@@ -31,9 +35,12 @@ class QuartzSchedulerServiceTest {
     @Mock
     Scheduler scheduler;
 
+    @Mock
+    BlueGreenStateService blueGreenStateService;
+
     @BeforeEach
     void setUp() {
-        service = new QuartzSchedulerService(scheduler);
+        service = createService(State.ACTIVE);
     }
 
     @Test
@@ -132,6 +139,28 @@ class QuartzSchedulerServiceTest {
         inOrder.verify(scheduler).standby();
         inOrder.verify(scheduler).start();
         inOrder.verify(scheduler).resumeAll();
+    }
+
+    @Test
+    void shouldCreateSuspendedSchedulerWhenPodStartsOutsideActive() throws Exception {
+        QuartzSchedulerService candidateService = createService(State.CANDIDATE);
+
+        candidateService.getSchedulerProxy().start();
+
+        verify(scheduler, never()).start();
+    }
+
+    @Test
+    void shouldCreateRunningSchedulerWhenPodStartsActive() throws Exception {
+        service.getSchedulerProxy().start();
+
+        verify(scheduler).start();
+    }
+
+    private QuartzSchedulerService createService(State state) {
+        when(blueGreenStateService.getBlueGreenState())
+                .thenReturn(new BlueGreenState(namespaceVersion(state, 1), OffsetDateTime.parse("2026-06-20T09:00:00Z")));
+        return new QuartzSchedulerService(scheduler, blueGreenStateService);
     }
 
     private QuartzEndpoint quartzEndpointWithTrigger(String triggerName, String groupName) {

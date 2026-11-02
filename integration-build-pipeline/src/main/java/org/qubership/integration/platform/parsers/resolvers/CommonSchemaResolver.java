@@ -46,6 +46,7 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
     private static final String EMPTY_STRING_REPLACEMENT = "";
     private static final String EMPTY_REF = "#/";
     private static final String ADDITIONAL_PROPERTIES_FIELD_NAME = "additionalProperties";
+    private static final String DEPENDENCIES_FIELD_NAME = "dependencies";
 
 
     @Override
@@ -90,8 +91,8 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
                 componentNode.set(payloadField.getKey(), payloadField.getValue());
             }
             componentNode.remove(PAYLOAD_FIELD_NAME);
-            componentNode.remove(HEADERS_FIELD_NAME);
         }
+        componentNode.remove(HEADERS_FIELD_NAME);
     }
 
     protected Map<String, JsonNode> getNestedRefs(ObjectNode schemaNode, JsonNode componentsNode, String modelType, List<String> refList) {
@@ -127,6 +128,8 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
             // Resolve the component the reference names, the same way a property's reference is resolved.
             getSchemaNodeProperties(componentsNode, result, OBJECT_MAPPER.createArrayNode().add(schemaNode), modelType, refList);
         }
+        // Property dependencies apply next to any shape above, so they are walked whichever branch ran.
+        getSchemaNodeProperties(componentsNode, result, schemaNode.get(DEPENDENCIES_FIELD_NAME), modelType, refList);
         return result;
     }
 
@@ -194,6 +197,8 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
 
             if ("asyncapi".equals(modelType)) {
                 convertPayloadToSchemaNode(componentNode);
+                // An $id would make the references inside the component resolve against it instead of the root.
+                componentNode.remove(SCHEMA_ID_NODE_NAME);
             }
 
             result.put(refKeyNew.replace(DEFINITIONS_PREFIX, EMPTY_STRING_REPLACEMENT), componentNode);

@@ -10,12 +10,15 @@ version from the file in the repo, publishes it, tags it `<module>-vX.Y.Z` (the 
 differently, see below), and commits the bumped version back to the branch as `qubership-actions[bot]`.
 The file in the repo holds the last released version and is the source of truth for the next one.
 
-- `release-all.yaml` takes `patch`, `minor`, or `major` and bumps every module except checkstyle by
-  it, each from its own version. The drop tag `v<platform-version>` is the root `pom.xml`
-  `<revision>` bumped the same way.
+- `release-all.yaml` takes `patch`, `minor`, or `major` and bumps every module in `QIP_BOM_MODULES`
+  (`scripts/modules.sh`) by it, each from its own version. That list leaves out checkstyle and
+  ai-service. The drop tag `v<platform-version>` is the root `pom.xml` `<revision>` bumped the
+  same way.
 - A `<module>-release.yaml` dispatch always releases a `patch`, so all modules keep one
   major.minor. A module released alone stays a patch ahead: after an engine hotfix to 1.5.1, the
   next patch wave puts engine on 1.5.2 and the rest on 1.5.1.
+- `checkstyle-release.yaml` and `ai-service-release.yaml`, for the two modules outside the wave,
+  offer `patch`, `minor`, or `major` on dispatch.
 
 ## Per-ecosystem behavior
 

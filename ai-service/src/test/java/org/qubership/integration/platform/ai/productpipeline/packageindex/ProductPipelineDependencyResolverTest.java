@@ -32,7 +32,7 @@ class ProductPipelineDependencyResolverTest {
     IllegalStateException error =
         assertThrows(
             IllegalStateException.class,
-            () -> resolver.resolveClosure(repoRoot, List.of(broken), List.of()));
+            () -> resolver.resolveClosure(packRoot, List.of(broken), List.of()));
     assertTrue(error.getMessage().contains("missing-skill-xyz"));
   }
 
@@ -44,7 +44,7 @@ class ProductPipelineDependencyResolverTest {
         resolver.loadCapabilities(packRoot.resolve("product-pipelines"));
 
     List<DependencyPin> pins =
-        resolver.resolveClosure(repoRoot, capabilities, List.of());
+        resolver.resolveClosure(packRoot, capabilities, List.of());
 
     assertFalse(pins.isEmpty());
     assertTrue(

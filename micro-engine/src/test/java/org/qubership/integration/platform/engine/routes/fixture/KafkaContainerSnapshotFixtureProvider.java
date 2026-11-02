@@ -288,6 +288,11 @@ class KafkaContainerSnapshotFixtureProvider implements SnapshotFixtureProvider {
                     proxy.rotateTlsCertificate(tls.serverContext(plan.tlsCertificate()), !plan.disconnectBeforeProduce());
                     tlsCertificate = plan.tlsCertificate();
                 }
+                if (plan.tlsCertificateOnNextProduce() != null) {
+                    assertNotNull(tls, "Kafka certificate changes require the sasl-ssl security profile.");
+                    proxy.rotateTlsCertificateOnNextProduce(tls.serverContext(plan.tlsCertificateOnNextProduce()));
+                    tlsCertificate = plan.tlsCertificateOnNextProduce();
+                }
                 if ("recover".equals(plan.connectionAction())) {
                     proxy.restore();
                 }
@@ -364,11 +369,14 @@ class KafkaContainerSnapshotFixtureProvider implements SnapshotFixtureProvider {
                             "Kafka did not encounter the planned connection interruption.");
                     // A retry over a rejected certificate fails its handshake before the proxy reads a Produce request.
                     if (!"disconnect".equals(runtime.plan.connectionAction())
-                            && (runtime.plan.tlsCertificate() == null
-                                    || !REJECTED_TLS_CERTIFICATES.contains(runtime.plan.tlsCertificate()))) {
+                            && !REJECTED_TLS_CERTIFICATES.contains(tlsCertificate)) {
                         assertTrue(statistics.produceAttempts() - invocationStatistics.produceAttempts() >= 2,
                                 "Kafka did not retry the interrupted Produce request.");
                     }
+                }
+                if (runtime.plan.tlsCertificateOnNextProduce() != null) {
+                    assertEquals(1, statistics.disconnectedProduceRequests() - invocationStatistics.disconnectedProduceRequests(),
+                            "Kafka did not rotate its TLS certificate on the planned Produce request.");
                 }
                 if (runtime.plan.dropProduceResponses() > 0) {
                     assertEquals(runtime.plan.dropProduceResponses(),
@@ -669,7 +677,7 @@ class KafkaContainerSnapshotFixtureProvider implements SnapshotFixtureProvider {
         Map<String, Object> properties = response.getProperties();
         if (!Set.of("topicAction", "connectionAction", "disconnectBeforeProduce", "dropProduceResponses",
                 "timingOverrides", "topicPartitions", "verifyMetadata", "expectedRecords", "security", "aclAction", "aclPrincipal",
-                "minSuccessfulAuthentications", "minFailedAuthentications", "expectedSendCount", "tlsCertificate",
+                "minSuccessfulAuthentications", "minFailedAuthentications", "expectedSendCount", "tlsCertificate", "tlsCertificateOnNextProduce",
                 "minSuccessfulTlsHandshakes", "minFailedTlsHandshakes", "topicMaxMessageBytes", "increaseTopicPartitionsTo",
                 "expectedProduceAttempts", "synchronous", "producerProperties", "expectedAcks", "expectedCompressionCodec")
                 .containsAll(properties.keySet())) {
@@ -686,11 +694,16 @@ class KafkaContainerSnapshotFixtureProvider implements SnapshotFixtureProvider {
         String aclAction = option(properties, "aclAction", String.class);
         String aclPrincipal = option(properties, "aclPrincipal", String.class);
         String tlsCertificate = option(properties, "tlsCertificate", String.class);
+        String tlsCertificateOnNextProduce = option(properties, "tlsCertificateOnNextProduce", String.class);
         if (security != null && !Set.of("plaintext", "sasl-plain", "sasl-ssl").contains(security)) {
             throw new IllegalArgumentException("Kafka security supports plaintext, sasl-plain, and sasl-ssl.");
         }
         if (tlsCertificate != null && !Set.of("valid", "rotated", "untrusted", "expired", "wrong-hostname").contains(tlsCertificate)) {
             throw new IllegalArgumentException("Kafka tlsCertificate must name a supported test certificate.");
+        }
+        if (tlsCertificateOnNextProduce != null
+                && !Set.of("valid", "rotated", "untrusted", "expired", "wrong-hostname").contains(tlsCertificateOnNextProduce)) {
+            throw new IllegalArgumentException("Kafka tlsCertificateOnNextProduce must name a supported test certificate.");
         }
         if (aclAction != null && !Set.of("allow", "deny").contains(aclAction)) {
             throw new IllegalArgumentException("Kafka aclAction supports allow and deny.");
@@ -751,7 +764,7 @@ class KafkaContainerSnapshotFixtureProvider implements SnapshotFixtureProvider {
                 Boolean.TRUE.equals(option(properties, "verifyMetadata", Boolean.class)), security, aclAction,
                 aclPrincipal == null ? "writer" : aclPrincipal,
                 minimumCount(properties, "minSuccessfulAuthentications"), minimumCount(properties, "minFailedAuthentications"),
-                expectedSendCount, expectedProduceAttempts, tlsCertificate,
+                expectedSendCount, expectedProduceAttempts, tlsCertificate, tlsCertificateOnNextProduce,
                 minimumCount(properties, "minSuccessfulTlsHandshakes"), minimumCount(properties, "minFailedTlsHandshakes"),
                 option(properties, "synchronous", Boolean.class), producerProperties(properties), expectedAcks, expectedCompressionCodec);
     }
@@ -823,6 +836,7 @@ class KafkaContainerSnapshotFixtureProvider implements SnapshotFixtureProvider {
             Integer expectedSendCount,
             Integer expectedProduceAttempts,
             String tlsCertificate,
+            String tlsCertificateOnNextProduce,
             int minSuccessfulTlsHandshakes,
             int minFailedTlsHandshakes,
             Boolean synchronous,

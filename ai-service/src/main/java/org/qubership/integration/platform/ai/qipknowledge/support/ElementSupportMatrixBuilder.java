@@ -29,8 +29,8 @@ import org.qubership.integration.platform.ai.schema.SchemaIfThenBranch;
 public final class ElementSupportMatrixBuilder {
 
   public static final int SCHEMA_VERSION = 1;
-  private static final String RUNTIME_ELEMENTS =
-      "integration-build-pipeline/src/main/resources/elements";
+  private static final String DEFAULT_RUNTIME_ELEMENTS_RELATIVE =
+      "src/main/resources/elements";
 
   public ElementSupportMatrix build(
       Path repoRoot, CompilerPipelineIndex pipelineIndex, CompilerContract contract) {
@@ -268,11 +268,8 @@ public final class ElementSupportMatrixBuilder {
   }
 
   private static Set<String> runtimeDescriptorTypes(Path repoRoot) {
-    if (repoRoot == null) {
-      return Set.of();
-    }
-    Path elementsRoot = repoRoot.resolve(RUNTIME_ELEMENTS);
-    if (!Files.isDirectory(elementsRoot)) {
+    Path elementsRoot = resolveRuntimeElementsRoot(repoRoot);
+    if (elementsRoot == null || !Files.isDirectory(elementsRoot)) {
       return Set.of();
     }
     Set<String> types = new TreeSet<>();
@@ -292,5 +289,16 @@ public final class ElementSupportMatrixBuilder {
   private static boolean hasDescription(Path directory) {
     return Files.isRegularFile(directory.resolve("description.yaml"))
         || Files.isRegularFile(directory.resolve("description.yml"));
+  }
+
+  private static Path resolveRuntimeElementsRoot(Path repoRoot) {
+    String configured = System.getProperty("qip.ai.qipknowledge.element-descriptors-root");
+    if (configured != null && !configured.isBlank()) {
+      return Path.of(configured);
+    }
+    if (repoRoot == null) {
+      return null;
+    }
+    return repoRoot.resolve("integration-build-pipeline").resolve(DEFAULT_RUNTIME_ELEMENTS_RELATIVE);
   }
 }

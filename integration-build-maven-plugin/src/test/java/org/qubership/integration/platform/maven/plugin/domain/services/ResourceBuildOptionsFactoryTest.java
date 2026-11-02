@@ -5,6 +5,7 @@ import org.qubership.integration.platform.camelk.model.options.ContainerOptions;
 import org.qubership.integration.platform.camelk.model.options.HealthOptions;
 import org.qubership.integration.platform.camelk.model.options.IntegrationsConfigurationOptions;
 import org.qubership.integration.platform.camelk.model.options.JvmOptions;
+import org.qubership.integration.platform.camelk.model.options.Limits;
 import org.qubership.integration.platform.camelk.model.options.MonitoringOptions;
 import org.qubership.integration.platform.camelk.model.options.MountOptions;
 import org.qubership.integration.platform.camelk.model.options.ResourceBuildOptions;
@@ -21,12 +22,17 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 class ResourceBuildOptionsFactoryTest {
 
     private static final String DEFAULT_IMAGE = "cip/micro-engine:test";
+    private static final String DEFAULT_LIMIT_MEMORY = "1280Mi";
 
-    private final ResourceBuildOptionsFactory factory = new ResourceBuildOptionsFactory(DEFAULT_IMAGE);
+    private final ResourceBuildOptionsFactory factory =
+        new ResourceBuildOptionsFactory(DEFAULT_IMAGE, DEFAULT_LIMIT_MEMORY);
 
     @Test
     void namesTheResourcesAfterTheDomainAndCarriesTheMojoOptionsOver() {
-        ContainerOptions container = ContainerOptions.builder().image("chosen/image:1").build();
+        ContainerOptions container = ContainerOptions.builder()
+            .image("chosen/image:1")
+            .limit(Limits.builder().memory("2Gi").build())
+            .build();
         HealthOptions health = new HealthOptions();
         JvmOptions jvm = new JvmOptions();
         MonitoringOptions monitoring = new MonitoringOptions();
@@ -137,6 +143,26 @@ class ResourceBuildOptionsFactoryTest {
         assertEquals(DEFAULT_IMAGE, result.getContainer().getImage());
         assertEquals(1000, result.getContainer().getRunAsUser());
         assertFalse(result.getContainer().isReadOnlyRootFilesystem());
+    }
+
+    /** Without a memory limit Camel K applies 512Mi, which the micro-engine JVM does not fit in. */
+    @Test
+    void usesTheConfiguredMemoryLimitWhenTheMojoLeavesItUnset() {
+        ResourceBuildOptions result =
+            factory.createResourceBuildOptions("default", parameters(new BuildCRsOptions()));
+
+        assertEquals(DEFAULT_LIMIT_MEMORY, result.getContainer().getLimit().getMemory());
+    }
+
+    @Test
+    void keepsTheCpuLimitWhenItFillsInTheMemoryLimit() {
+        BuildCRsOptions options = BuildCRsOptions.builder()
+            .container(ContainerOptions.builder().limit(Limits.builder().cpu("1").build()).build())
+            .build();
+
+        ResourceBuildOptions result = factory.createResourceBuildOptions("orders", parameters(options));
+
+        assertEquals(Limits.builder().cpu("1").memory(DEFAULT_LIMIT_MEMORY).build(), result.getContainer().getLimit());
     }
 
     @Test

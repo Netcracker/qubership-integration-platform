@@ -227,10 +227,9 @@ describe("SecuredVariables Component", () => {
   });
 
   describe("Initial Rendering", () => {
-    it("renders the component header with title and icon", () => {
+    it("renders the component header with title", () => {
       render(<SecuredVariables />);
 
-      expect(screen.getByTestId("icon-lock")).toBeInTheDocument();
       expect(screen.getByText("Secured Variables")).toBeInTheDocument();
     });
 

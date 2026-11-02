@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { DataTypeDifferencesView } from "../../../src/components/mapper/DataTypeDifferencesView";
 import { Difference } from "../../../src/mapper/util/compare";
 import "@testing-library/jest-dom";
@@ -76,5 +76,23 @@ describe("DataTypeDifferencesView", () => {
     expect(screen.getByText("another.path")).toBeInTheDocument();
     expect(screen.getAllByText("Added")).toHaveLength(1);
     expect(screen.getByText("Removed")).toBeInTheDocument();
+  });
+
+  it("should show paths in descending order when the Path header is clicked", () => {
+    const differences: Difference[] = ["b", "a", "c"].map((name) => ({
+      path: [name],
+      first: null,
+      second: { type: { name: "string" }, definitions: [] },
+    }));
+    render(<DataTypeDifferencesView differences={differences} />);
+    const paths = () =>
+      screen
+        .getAllByRole("row")
+        .filter((row) => row.hasAttribute("data-row-key"))
+        .map((row) => row.querySelector("td")?.textContent);
+
+    expect(paths()).toEqual(["a", "b", "c"]);
+    fireEvent.click(screen.getByRole("columnheader", { name: "Path" }));
+    expect(paths()).toEqual(["c", "b", "a"]);
   });
 });

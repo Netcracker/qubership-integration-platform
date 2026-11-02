@@ -1,0 +1,1 @@
+{{- include "cip-dev.roleService" (dict "app" (printf "%s-sessions-management-%s" .Release.Name .Values.global.blueGreenVersion) "nodePort" .Values.nodePort "loadBalancerPort" .Values.loadBalancerPort) }}

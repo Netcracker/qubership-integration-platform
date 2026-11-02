@@ -1,0 +1,15 @@
+apiVersion: install.istio.io/v1alpha1
+kind: IstioOperator
+spec:
+  profile: minimal
+  values:
+    pilot:
+      # Off, or the HPA scales istiod to 5 replicas against a 10m request.
+      autoscaleEnabled: false
+      resources:
+        requests: { cpu: 10m, memory: 100Mi }
+    global:
+      proxy:
+        # The minimal default of 100m per sidecar leaves too little of a 4-CPU node for the platform pods.
+        resources:
+          requests: { cpu: 10m, memory: 40Mi }

@@ -100,6 +100,18 @@ class SchedulerProxyTest {
     }
 
     @Test
+    void shouldNotDelegateStartWhenCreatedSuspendedUntilResumed() throws Exception {
+        SchedulerProxy suspendedProxy = new SchedulerProxy(scheduler, true);
+
+        suspendedProxy.start();
+        verify(scheduler, never()).start();
+
+        suspendedProxy.resumeScheduler();
+        verify(scheduler).start();
+        verify(scheduler).resumeAll();
+    }
+
+    @Test
     void shouldNotDelegateStartDelayedWhenSuspended() throws Exception {
         when(scheduler.isInStandbyMode()).thenReturn(false);
 

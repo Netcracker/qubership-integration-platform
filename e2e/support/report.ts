@@ -19,8 +19,8 @@
  * walk and the container table be shared with the registry rather than copied here: a fourth copy
  * of a recursive walk is a fourth place it can stop one level early and report nothing.
  *
- * `COMPONENT_TAGS` stays a parameter rather than an import, so `specs/schema/report.spec.ts` can
- * render the catalog against a tag set it names.
+ * The components stay a parameter rather than an import, so `specs/harness/report.spec.ts` can
+ * render the catalog against a set it names. A component is a tag, or a project of that name.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -56,7 +56,7 @@ export interface ServiceFacts {
   imageCreated: string | null;
 }
 
-/** A project or spec file the run leaves out, and why. */
+/** A project the run leaves out, and why. */
 export interface Absence {
   name: string;
   reason: string;
@@ -356,8 +356,7 @@ function headerSection(header: StackHeader | null, report: JsonReport): string[]
   }
 
   lines.push(
-    `Wall time ${wall}: ${stats.expected ?? 0} passed, ${stats.unexpected ?? 0} failed, ` +
-      `${stats.flaky ?? 0} flaky, ${stats.skipped ?? 0} skipped.`,
+    `Wall time ${wall}: ${stats.expected ?? 0} passed, ${stats.unexpected ?? 0} failed, ${stats.skipped ?? 0} skipped.`,
     "",
   );
   return lines;
@@ -394,12 +393,13 @@ export function renderCatalog(
   const lines: string[] = ["# End-to-end cases", ""];
   lines.push(...headerSection(header, report));
 
+  const inComponent = (row: CaseRow, component: string) => row.tags.includes(component) || row.project === component;
   for (const tag of componentTags) {
-    const tagged = rows.filter((row) => row.tags.includes(tag));
+    const tagged = rows.filter((row) => inComponent(row, tag));
     if (tagged.length === 0) continue;
     const failed = tagged.filter((row) => row.status !== "passed" && row.status !== "skipped");
     lines.push(
-      `## @${tag}`,
+      tagged.some((row) => row.tags.includes(tag)) ? `## @${tag}` : `## ${tag}`,
       "",
       `${tagged.length} case(s), ${failed.length} not passing.`,
       "",
@@ -409,7 +409,7 @@ export function renderCatalog(
   }
 
   const untagged = rows.filter(
-    (row) => !row.tags.some((tag) => componentTags.includes(tag)),
+    (row) => !componentTags.some((tag) => inComponent(row, tag)),
   );
   if (untagged.length > 0) {
     lines.push(

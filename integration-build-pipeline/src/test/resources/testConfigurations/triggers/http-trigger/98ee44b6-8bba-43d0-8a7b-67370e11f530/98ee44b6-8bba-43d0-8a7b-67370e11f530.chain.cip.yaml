@@ -1,7 +1,7 @@
 ---
 id: "98ee44b6-8bba-43d0-8a7b-67370e11f530"
 $schema: "http://qubership.org/schemas/product/qip/chain"
-name: "http-trigger"
+name: "http-trigger-idempotency"
 content:
   labels: []
   elements:
@@ -13,15 +13,17 @@ content:
       allowedContentTypes: []
       chunked: true
       connectTimeout: 120000
-      contextPath: "test"
+      contextPath: "test-w-body"
       externalRoute: true
       handleChainFailureAction: "default"
       handleValidationAction: "default"
       httpBinding: "handlingHttpBinding"
-      httpMethodRestrict: "GET,POST"
+      httpMethodRestrict: "POST"
       idempotency:
-        enabled: false
+        enabled: true
         keyExpiry: 600
+        keyExpression: "${jsonpath('$.id')}"
+        contextExpression: "POST /qip-routes/test-w-body"
         actionOnDuplicate: "ignore"
       killSessionOnTimeout: false
       privateRoute: false
@@ -32,7 +34,7 @@ content:
     type: "script"
     properties:
       exportFileExtension: "groovy"
-      propertiesFilename: "script-e8b645a7-82b5-4fbd-976e-8a0aa33f8fc4.groovy"
+      propertiesFilename: "e8b645a7-82b5-4fbd-976e-8a0aa33f8fc4.element.script.cip.groovy"
       propertiesToExportInSeparateFile: "script"
   dependencies:
   - from: "8b21e4c7-fc5d-47fe-9769-b352ae5aa29e"

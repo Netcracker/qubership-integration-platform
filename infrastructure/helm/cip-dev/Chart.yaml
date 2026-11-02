@@ -1,0 +1,39 @@
+name: cip-k8s-dev
+description: cip dev chart for deploying in k8s
+version: 0.0.1
+apiVersion: v2
+keywords:
+  - cip-k8s-dev
+dependencies:
+  - name: camelk
+    version: 0.0.1
+  - name: consul
+    version: 0.0.1
+  - name: gateways
+    version: 0.0.1
+  - name: general
+    version: 0.0.1
+  - name: kafka
+    version: 0.0.1
+  - name: opensearch
+    version: 0.0.1
+  - name: postgres
+    version: 0.0.1
+  - name: pubsub
+    version: 0.0.1
+  - name: rabbitmq
+    version: 0.0.1
+  - name: sftp
+    version: 0.0.1
+  - name: cip-ai-service
+    version: 0.0.1
+  - name: cip-engine
+    version: 0.0.1
+  - name: cip-runtime-catalog
+    version: 0.0.1
+  - name: cip-sessions-management
+    version: 0.0.1
+  - name: cip-testing-service
+    version: 0.0.1
+  - name: ui
+    version: 0.0.1

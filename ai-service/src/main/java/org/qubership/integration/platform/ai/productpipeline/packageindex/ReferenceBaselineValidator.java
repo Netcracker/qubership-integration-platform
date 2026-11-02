@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.ai.productpipeline.packageindex;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -44,17 +46,22 @@ public final class ReferenceBaselineValidator {
         }
         continue;
       }
-      Path target = resolveKnowledgeTarget(repoRoot, artifact.targetPath(), pin.path());
       if (artifact.targetPath().startsWith("generated/")
           && artifact.disposition() == ReferenceDisposition.TARGET_ONLY) {
         continue;
       }
-      if (!Files.isRegularFile(target)) {
-        errors.add("missing target file for " + pin.dependencyId() + ": " + artifact.targetPath());
-        continue;
-      }
       String expectedHash = artifact.targetSha256();
-      String actual = sha256(target);
+      String actual;
+      if (isClasspathTarget(artifact.targetPath())) {
+        actual = sha256Classpath(readClasspathBytes(classpathResourcePath(artifact.targetPath())));
+      } else {
+        Path target = resolveKnowledgeTarget(repoRoot, artifact.targetPath(), pin.path());
+        if (!Files.isRegularFile(target)) {
+          errors.add("missing target file for " + pin.dependencyId() + ": " + artifact.targetPath());
+          continue;
+        }
+        actual = sha256(target);
+      }
       if (!actual.equalsIgnoreCase(expectedHash)) {
         errors.add(
             "target hash mismatch for "
@@ -93,11 +100,38 @@ public final class ReferenceBaselineValidator {
 
   static String sha256(Path file) {
     try {
-      MessageDigest digest = MessageDigest.getInstance("SHA-256");
-      digest.update(Files.readAllBytes(file));
-      return HexFormat.of().formatHex(digest.digest());
-    } catch (Exception e) {
+      return sha256Classpath(Files.readAllBytes(file));
+    } catch (IOException e) {
       throw new IllegalStateException("cannot hash " + file, e);
+    }
+  }
+
+  private static boolean isClasspathTarget(String targetPath) {
+    return targetPath != null && targetPath.startsWith("classpath:");
+  }
+
+  private static String classpathResourcePath(String targetPath) {
+    String resource = targetPath.substring("classpath:".length());
+    return resource.startsWith("/") ? resource.substring(1) : resource;
+  }
+
+  private static byte[] readClasspathBytes(String resourcePath) {
+    try (InputStream in =
+        ReferenceBaselineValidator.class.getClassLoader().getResourceAsStream(resourcePath)) {
+      if (in == null) {
+        throw new IllegalStateException("missing classpath resource: " + resourcePath);
+      }
+      return in.readAllBytes();
+    } catch (IOException e) {
+      throw new IllegalStateException("cannot read classpath resource: " + resourcePath, e);
+    }
+  }
+
+  private static String sha256Classpath(byte[] bytes) {
+    try {
+      return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
+    } catch (Exception e) {
+      throw new IllegalStateException("SHA-256 unavailable", e);
     }
   }
 }

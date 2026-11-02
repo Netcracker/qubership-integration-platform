@@ -153,6 +153,11 @@ public class TemplateServiceTest {
                         "/testData/output/builder/templates/service_call_graphql_no_before.xml"
                 ),
                 Arguments.of(
+                        "GraphQL Service Call element to an external service",
+                        "/testData/input/builder/templates/service_call_graphql_external.yml",
+                        "/testData/output/builder/templates/service_call_graphql_external.xml"
+                ),
+                Arguments.of(
                         "External HTTP Sender element",
                         "/testData/input/builder/templates/http_sender_external.yml",
                         "/testData/output/builder/templates/http_sender_external.xml"
@@ -416,9 +421,13 @@ public class TemplateServiceTest {
                 "count(//*[@name='CamelGooglePubsubOrderingKey'])", Input.fromString(route).build()));
     }
 
-    @Test
-    void shouldRunRabbitMqSenderProcessorWhenContextPropagationIsDisabled() throws IOException {
-        Element element = readRootElement("/testData/input/builder/templates/rabbitmq_sender_2.yml");
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "/testData/input/builder/templates/rabbitmq_sender_2.yml",
+            "/testData/input/builder/templates/rabbitmq_sender.yml"
+    })
+    void shouldNotDumpRabbitMqContextWhenContextPropagationIsDisabled(String inputPath) throws IOException {
+        Element element = readRootElement(inputPath);
         element.getProperties().put("propagateContext", false);
 
         String route = wrap(templateService.applyTemplate(element));
@@ -427,26 +436,22 @@ public class TemplateServiceTest {
         assertEquals("0", xpath.evaluate(
                 "count(//process[@ref='contextPropagationProcessor'])",
                 Input.fromString(route).build()));
+        assertEquals("0", xpath.evaluate(
+                "count(//process[@ref='rabbitMqSenderProcessor'])",
+                Input.fromString(route).build()));
         assertEquals("1", xpath.evaluate(
-                "count(/route/doTry/process[@ref='rabbitMqSenderProcessor'][following-sibling::toD])",
+                "count(//removeHeader[@name='Authorization'][following-sibling::toD])",
                 Input.fromString(route).build()));
     }
 
-    @ParameterizedTest
-    @NullSource
-    @ValueSource(booleans = true)
-    void shouldPropagateRabbitMqContextWhenPropagationIsEnabledOrUnspecified(Boolean propagateContext) throws IOException {
-        Element element = readRootElement("/testData/input/builder/templates/rabbitmq_sender_2.yml");
-        if (propagateContext == null) {
-            element.getProperties().remove("propagateContext");
-        } else {
-            element.getProperties().put("propagateContext", propagateContext);
-        }
+    @Test
+    void shouldPropagateRabbitMqContextWhenDeprecatedSenderPropagationIsEnabled() throws IOException {
+        Element element = readRootElement("/testData/input/builder/templates/rabbitmq_sender.yml");
 
         String route = wrap(templateService.applyTemplate(element));
 
         assertEquals("1", new JAXPXPathEngine().evaluate(
-                "count(/route/doTry/process[@ref='rabbitMqSenderProcessor'][following-sibling::toD])",
+                "count(//process[@ref='rabbitMqSenderProcessor'][following-sibling::toD])",
                 Input.fromString(route).build()));
     }
 

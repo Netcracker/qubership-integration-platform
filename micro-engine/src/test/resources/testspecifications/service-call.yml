@@ -1,0 +1,64 @@
+# yaml-language-server: $schema=../testspecifications.schema.json
+fixtures:
+  - id: "petstore"
+    provider: "http-service-call"
+    sourceElementId: "ae97ad83-4030-4287-a855-dfa4ba1b4fa8"
+scenarios:
+  - id: "returns-pet"
+    scope: Short
+    endpointUri: "cip-chain:50e02ff9-e6fe-477f-9d11-ac139cfa7b60"
+    body: |-
+      {"must":"not-be-sent"}
+    headers:
+      X-Test-Request: "request-value"
+    expectedBody: |-
+      {"id":1,"name":"doggie","photoUrls":[]}
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      X-Test-Response: "stubbed"
+    interactions:
+      - fixture: "petstore"
+        response:
+          status: 200
+          headers:
+            Content-Type: "application/json"
+            X-Test-Response: "stubbed"
+          body: |-
+            {"id":1,"name":"doggie","photoUrls":[]}
+        expectedRequest:
+          count: 1
+          method: "GET"
+          path: "/pet/1"
+          query: "trace=snapshot"
+          body: null
+          headers:
+            X-Test-Request: "request-value"
+  - id: "retries-server-error-and-maps-response"
+    scope: Short
+    endpointUri: "cip-chain:50e02ff9-e6fe-477f-9d11-ac139cfa7b60"
+    body: |-
+      {"must":"not-be-sent"}
+    headers:
+      X-Test-Request: "request-value"
+    expectedBody: |-
+      {"code":"upstream-error"}
+    expectedHeaders:
+      CamelHttpResponseCode: 500
+      X-Test-Response: "stubbed-error"
+    interactions:
+      - fixture: "petstore"
+        response:
+          status: 500
+          headers:
+            Content-Type: "application/json"
+            X-Test-Response: "stubbed-error"
+          body: |-
+            {"code":"upstream-error"}
+        expectedRequest:
+          count: 2
+          method: "GET"
+          path: "/pet/1"
+          query: "trace=snapshot"
+          body: null
+          headers:
+            X-Test-Request: "request-value"

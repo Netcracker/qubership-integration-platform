@@ -1,7 +1,6 @@
 import { Difference, DifferenceDetails } from "../../mapper/util/compare.ts";
 import React, { ReactNode, useEffect, useState } from "react";
 import { Table, TableProps, Tag, TagProps } from "antd";
-import { SortOrder } from "antd/es/table/interface";
 
 export type DataTypeDifferencesViewProps = {
   differences: Difference[];
@@ -34,19 +33,6 @@ function getDetails(details: DifferenceDetails): string {
   return `${details.feature}: ${details.first} → ${details.second}`;
 }
 
-function compareStrings(
-  s1: string,
-  s2: string,
-  sortOrder: SortOrder | undefined,
-): number {
-  if (sortOrder === "ascend") {
-    return s1.localeCompare(s2);
-  } else if (sortOrder === "descend") {
-    return s2.localeCompare(s1);
-  }
-  return 0;
-}
-
 export const DataTypeDifferencesView: React.FC<
   DataTypeDifferencesViewProps
 > = ({ differences, style }): ReactNode => {
@@ -61,31 +47,24 @@ export const DataTypeDifferencesView: React.FC<
       key: "path",
       title: "Path",
       render: (_value, item) => item.path.join("."),
-      sorter: (a, b, sortOrder) => {
-        const s1 = a.path.join(".");
-        const s2 = b.path.join(".");
-        return compareStrings(s1, s2, sortOrder);
-      },
+      sorter: (a, b) => a.path.join(".").localeCompare(b.path.join(".")),
       defaultSortOrder: "ascend",
     },
     {
       key: "action",
       title: "Action",
       render: (_value, item) => <ChangeAction {...item} />,
-      sorter: (a, b, sortOrder) => {
-        const s1 = getChangeActionText(a);
-        const s2 = getChangeActionText(b);
-        return compareStrings(s1, s2, sortOrder);
-      },
+      sorter: (a, b) =>
+        getChangeActionText(a).localeCompare(getChangeActionText(b)),
     },
     {
       key: "details",
       title: "Details",
       render: (_value, item) => (item.details ? getDetails(item.details) : ""),
-      sorter: (a, b, sortOrder) => {
+      sorter: (a, b) => {
         const s1 = a.details ? getDetails(a.details) : "";
         const s2 = b.details ? getDetails(b.details) : "";
-        return compareStrings(s1, s2, sortOrder);
+        return s1.localeCompare(s2);
       },
     },
   ];

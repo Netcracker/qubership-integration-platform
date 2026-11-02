@@ -1,23 +1,33 @@
 import type { Locator, Page } from "@playwright/test";
+import { pickOption } from "../support/pick-option.js";
 
-export type ChainTab = "snapshots" | "deployments" | "sessions";
+export type ChainTab = "snapshots" | "deployments" | "sessions" | "logging-settings" | "masking" | "properties";
 
-/** The chain page's table tabs at `/chains/:chainId/<tab>`, and the header they share. */
+/** The chain page's tabs at `/chains/:chainId/<tab>`, and the header they share. */
 export class ChainTabsPage {
   readonly page: Page;
   /** The header's tag for the catalog's `unsavedChanges` flag. */
   readonly unsavedChanges: Locator;
   readonly createSnapshot: Locator;
+  /** The Snapshots toolbar's Compare, enabled while exactly two rows are selected. */
+  readonly compareSnapshots: Locator;
   readonly createDeployment: Locator;
   /** The deployment dialog the Deployments toolbar opens. */
   readonly deploymentDialog: Locator;
+  /**
+   * The header's submit button of the Logging and Properties forms. Not an exact name: after a save
+   * antd can leave the hidden loading icon in the button, which then reads `loading Apply`.
+   */
+  readonly apply: Locator;
 
   constructor(page: Page) {
     this.page = page;
     this.unsavedChanges = page.getByTestId("chain-unsaved-changes");
     this.createSnapshot = page.getByTestId("snapshots-create");
+    this.compareSnapshots = page.getByTestId("snapshots-compare");
     this.createDeployment = page.getByTestId("deployments-create");
     this.deploymentDialog = page.getByRole("dialog", { name: "Deployment" });
+    this.apply = page.getByRole("button", { name: /Apply$/ });
   }
 
   /** The search box the tab renders in the chain header. */
@@ -29,12 +39,54 @@ export class ChainTabsPage {
     await this.page.goto(`/chains/${chainId}/${tab}`);
   }
 
-  /** Deploys a snapshot to the dialog's preselected `default` domain. */
+  /** A form field by its label, which antd names with a trailing colon and, when required, a leading `* `. */
+  field(role: "textbox" | "combobox", label: string): Locator {
+    return this.page.getByRole(role, { name: new RegExp(`^(\\* )?${label} :$`) });
+  }
+
+  /** An item of the header's breadcrumb, whose last item is the chain's name. */
+  breadcrumbItem(text: string): Locator {
+    return this.page.getByRole("navigation").getByText(text, { exact: true });
+  }
+
+  /** A tab of the chain page by its label, such as `Graph` or `Properties`. */
+  tab(label: string): Locator {
+    return this.page.getByRole("tab", { name: label, exact: true });
+  }
+
+  /** The row of a snapshot, by the button its name renders as. */
+  snapshotRow(name: string): Locator {
+    return this.page.getByRole("row").filter({ has: this.page.getByRole("button", { name, exact: true }) });
+  }
+
+  /**
+   * Reverts the chain to a snapshot through `Revert to` in the row's actions menu, whose button shows
+   * only while the row is hovered, and the confirmation.
+   */
+  async revertTo(snapshotName: string): Promise<void> {
+    const row = this.snapshotRow(snapshotName);
+    await row.hover();
+    await row.getByTestId("snapshots-row-actions").click();
+    await this.page.getByRole("menuitem", { name: "Revert to", exact: true }).click();
+    await this.page.getByRole("dialog", { name: "Revert to Snapshot" }).getByRole("button", { name: "OK" }).click();
+  }
+
+  /**
+   * Deploys a snapshot to the `default` domain. Since issue #981 the dialog preselects the domains
+   * the chain is deployed to, so a chain with no deployment starts with none and Deploy disabled.
+   */
   async deploy(snapshotName: string): Promise<void> {
     await this.createDeployment.click();
+    // Snapshot first: the Domains dropdown opens over the Snapshot field below it.
     await this.deploymentDialog.getByRole("combobox", { name: "Snapshot" }).click();
-    // antd renders the visible options apart from its listbox, whose options stay hidden.
-    await this.page.getByTitle(snapshotName, { exact: true }).click();
-    await this.deploymentDialog.getByRole("button", { name: "Deploy" }).click();
+    await pickOption(this.page, snapshotName);
+    await this.deploymentDialog.getByRole("combobox", { name: "Domains" }).click();
+    // A multiple select stays open after a pick, so the pick is read off Deploy, which a domain enables.
+    const deploy = this.deploymentDialog.getByRole("button", { name: "Deploy", disabled: false });
+    await pickOption(this.page, "default", deploy);
+    // Escape closes the list without closing the dialog, where Tab would pick the active option
+    // again and so clear it.
+    await this.page.keyboard.press("Escape");
+    await deploy.click();
   }
 }

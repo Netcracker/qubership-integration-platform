@@ -1,0 +1,48 @@
+{{- if .Values.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: sftp
+  name: sftp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sftp
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+      labels:
+        app: sftp
+    spec:
+      containers:
+        - name: sftp
+          image: atmoz/sftp:alpine@sha256:7e439fabeae536fa254340724c042e11999924d906417dbb5c73602ad518813f
+          # With the open-file limit containerd sets, 1073741816, each SFTP session closes descriptors in a loop
+          # for minutes before it answers.
+          command:
+            - sh
+            - -c
+            - ulimit -n 65536 && exec /entrypoint "$@"
+            - entrypoint
+          # User e2e, chrooted at /home/e2e; SFTP forbids writing into a chroot root, so /home/e2e/upload is
+          # the one writable directory.
+          args:
+            - e2e:e2epass:1001:1001:upload
+          ports:
+            - containerPort: 22
+          readinessProbe:
+            tcpSocket:
+              port: 22
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 64Mi
+{{- end }}

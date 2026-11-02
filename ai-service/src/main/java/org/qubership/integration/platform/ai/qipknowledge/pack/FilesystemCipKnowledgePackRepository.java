@@ -1,6 +1,10 @@
 package org.qubership.integration.platform.ai.qipknowledge.pack;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import org.qubership.integration.platform.ai.compiler.catalog.CompilerSkillCatalog;
@@ -95,6 +99,42 @@ public class FilesystemCipKnowledgePackRepository implements CipKnowledgePackRep
   @Override
   public ProductPipelinePackageIndex loadProductPipelinePackageIndex() {
     return load(loader::loadProductPipelinePackageIndex);
+  }
+
+  @Override
+  public List<String> loadProductPipelineProfileResources() {
+    Path index =
+        versionDir().resolve(CipKnowledgePackIndexLoader.PRODUCT_PIPELINE_PROFILES_INDEX_FILE);
+    if (!Files.isRegularFile(index)) {
+      return List.of();
+    }
+    try {
+      return new ObjectMapper()
+          .readValue(Files.readString(index), new TypeReference<List<String>>() {});
+    } catch (IOException e) {
+      throw new IllegalStateException(
+          "Failed to load product pipeline profile index for version "
+              + activeVersion.normalized(),
+          e);
+    }
+  }
+
+  @Override
+  public InputStream openProductPipelineResource(String relativePath) {
+    if (relativePath == null || relativePath.isBlank()) {
+      return null;
+    }
+    String normalized = relativePath.startsWith("/") ? relativePath.substring(1) : relativePath;
+    Path file = versionDir().resolve("product-pipelines").resolve(normalized).normalize();
+    Path pipelinesRoot = versionDir().resolve("product-pipelines").normalize();
+    if (!file.startsWith(pipelinesRoot) || !Files.isRegularFile(file)) {
+      return null;
+    }
+    try {
+      return Files.newInputStream(file);
+    } catch (IOException e) {
+      throw new IllegalStateException("cannot open product pipeline resource: " + relativePath, e);
+    }
   }
 
   private <T> T load(LoaderAction<T> action) {

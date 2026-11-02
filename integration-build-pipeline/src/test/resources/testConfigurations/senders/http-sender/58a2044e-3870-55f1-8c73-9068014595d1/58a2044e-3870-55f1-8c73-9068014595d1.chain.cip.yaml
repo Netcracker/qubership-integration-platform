@@ -1,9 +1,27 @@
 id: 58a2044e-3870-55f1-8c73-9068014595d1
 $schema: http://qubership.org/schemas/product/qip/chain
-name: http-sender-context-literal
+name: http-sender-context
 content:
   labels: []
   elements:
+  - id: 1b6bcbe7-6269-5349-8457-39d8e6f80c30
+    name: Chain trigger
+    type: chain-trigger-2
+    properties:
+      elementId: 1b6bcbe7-6269-5349-8457-39d8e6f80c30
+  - id: d7b260a2-3753-5067-b8df-5d90cf466601
+    name: HTTP sender
+    type: http-sender
+    properties:
+      httpMethod: POST
+      uri: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=context-disabled
+      connectTimeout: 5000
+      isExternalCall: false
+      m2m: false
+      propagateContext: false
+      reuseEstablishedConnection: true
+      overrideContextParams:
+        X-Request-Id: ignored-disabled-override
   - id: 7dc82e6c-742d-54e2-84f8-276856835559
     name: Chain trigger
     type: chain-trigger-2
@@ -23,9 +41,193 @@ content:
       overrideContextParams:
         X-Request-Id: http-literal-override
         Authorization: Bearer literal-context-token
+  - id: 7df71ab2-e6ce-51c9-9cef-fe247dd11697
+    name: Chain trigger
+    type: chain-trigger-2
+    properties:
+      elementId: 7df71ab2-e6ce-51c9-9cef-fe247dd11697
+  - id: 833a0484-35ee-5273-ab86-fcf10cd99c6e
+    name: HTTP sender
+    type: http-sender
+    properties:
+      httpMethod: POST
+      uri: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=context-dynamic
+      connectTimeout: 5000
+      isExternalCall: false
+      m2m: false
+      propagateContext: true
+      reuseEstablishedConnection: true
+      overrideContextParams:
+        X-Request-Id: ${header.OverrideRequestId}
+        Authorization: Bearer ${header.OverrideToken}
+  - id: 7232f625-6d77-5e12-9278-825e1a415716
+    name: Chain trigger
+    type: chain-trigger-2
+    properties:
+      elementId: 7232f625-6d77-5e12-9278-825e1a415716
+  - id: caa4ff99-ec43-5c1a-b9e8-eda5f27896d5
+    name: HTTP sender
+    type: http-sender
+    properties:
+      httpMethod: POST
+      uri: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=correlation-header
+      connectTimeout: 5000
+      isExternalCall: false
+      m2m: false
+      propagateContext: true
+      reuseEstablishedConnection: true
+      correlationIdPosition: Header
+      correlationIdName: X-Correlation-Id
+  - id: b6aac2b6-31c1-558d-84d6-4f6c1bfdb754
+    name: Chain trigger
+    type: chain-trigger-2
+    properties:
+      elementId: b6aac2b6-31c1-558d-84d6-4f6c1bfdb754
+  - id: 449ab4ef-472a-5725-a6ff-6aea37be28d3
+    name: HTTP sender
+    type: http-sender
+    properties:
+      httpMethod: POST
+      uri: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=correlation-body
+      connectTimeout: 5000
+      isExternalCall: false
+      m2m: false
+      propagateContext: true
+      reuseEstablishedConnection: true
+      correlationIdPosition: Body
+      correlationIdName: requestId
+  - id: a6b50175-c0ed-5361-843f-09003ed98a18
+    name: http-sender-sequential-context
+    type: chain-trigger-2
+    properties:
+      elementId: a6b50175-c0ed-5361-843f-09003ed98a18
+  - id: 7986c97c-72b9-5155-b5ed-4c3cda0b0488
+    name: Sequential first sender
+    type: http-sender
+    properties:
+      httpMethod: POST
+      uri: http://snapshot-http.invalid/sequential/first?step=first
+      connectTimeout: 5000
+      isExternalCall: false
+      m2m: false
+      propagateContext: true
+      reuseEstablishedConnection: true
+      overrideContextParams:
+        X-Request-Id: first-hop
+      correlationIdPosition: Header
+      correlationIdName: X-Correlation-Id
+  - id: db50bf0b-2866-53a4-af9b-309b9d149d24
+    name: Sequential second sender
+    type: http-sender
+    properties:
+      httpMethod: PUT
+      uri: http://snapshot-http.invalid/sequential/second?step=second
+      connectTimeout: 5000
+      isExternalCall: false
+      m2m: false
+      propagateContext: true
+      reuseEstablishedConnection: true
+      correlationIdPosition: Body
+      correlationIdName: requestId
+  - id: 966a10d1-2123-5446-96d5-46866bdd0e91
+    name: http-sender-caught-error-fallback
+    type: chain-trigger-2
+    properties:
+      elementId: 966a10d1-2123-5446-96d5-46866bdd0e91
+  - id: 47c56573-ceb4-5af5-afc6-ebfde664009b
+    name: HTTP error recovery
+    type: try-catch-finally-2
+    children:
+    - id: fe7fffa3-b5b5-502a-972a-5d0c6aa1126f
+      name: Try primary sender
+      type: try-2
+      children:
+      - id: 0a8fa39a-912e-553f-b48f-8c2d26dbb79b
+        name: Primary sender
+        type: http-sender
+        properties:
+          httpMethod: POST
+          uri: http://snapshot-http.invalid/recovery/primary?step=primary
+          connectTimeout: 1000
+          isExternalCall: false
+          m2m: false
+          propagateContext: true
+          reuseEstablishedConnection: true
+          overrideContextParams:
+            X-Request-Id: primary-hop
+      - id: fbf701e4-48e2-5ed5-a8bd-41a80cc6443a
+        name: Mark primary completion
+        type: script
+        properties:
+          exportFileExtension: groovy
+          propertiesFilename: fbf701e4-48e2-5ed5-a8bd-41a80cc6443a.element.script.cip.groovy
+          propertiesToExportInSeparateFile: script
+    - id: 6407b760-2e0c-5466-94f7-bfd12c6e1108
+      name: Catch HTTP error
+      type: catch-2
+      children:
+      - id: a2a26d87-d6bc-504f-b6e8-be5f5f140891
+        name: Record HTTP error
+        type: script
+        properties:
+          exportFileExtension: groovy
+          propertiesFilename: a2a26d87-d6bc-504f-b6e8-be5f5f140891.element.script.cip.groovy
+          propertiesToExportInSeparateFile: script
+      - id: 43b3d528-9e48-5f5b-8ae7-296158bcd1d3
+        name: Fallback sender
+        type: http-sender
+        properties:
+          httpMethod: POST
+          uri: http://snapshot-http.invalid/recovery/fallback?step=fallback
+          connectTimeout: 5000
+          isExternalCall: false
+          m2m: false
+          propagateContext: true
+          reuseEstablishedConnection: true
+      properties:
+        exception: org.apache.camel.http.base.HttpOperationFailedException
+        priority: 0
+    - id: 0c4f1c50-bef3-53ea-9f8a-4eb709d98186
+      name: Finally
+      type: finally-2
+      children:
+      - id: 2c56a535-1a31-5b74-bf73-c27e0815fabc
+        name: Count Finally executions
+        type: script
+        properties:
+          exportFileExtension: groovy
+          propertiesFilename: 2c56a535-1a31-5b74-bf73-c27e0815fabc.element.script.cip.groovy
+          propertiesToExportInSeparateFile: script
+  - id: a60c71cf-cc20-51c6-b24b-76d865baefea
+    name: Mark route completion
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: a60c71cf-cc20-51c6-b24b-76d865baefea.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
   dependencies:
+  - from: 1b6bcbe7-6269-5349-8457-39d8e6f80c30
+    to: d7b260a2-3753-5067-b8df-5d90cf466601
   - from: 7dc82e6c-742d-54e2-84f8-276856835559
     to: 559b3eb3-56c3-585e-832b-83344b33531d
+  - from: 7df71ab2-e6ce-51c9-9cef-fe247dd11697
+    to: 833a0484-35ee-5273-ab86-fcf10cd99c6e
+  - from: 7232f625-6d77-5e12-9278-825e1a415716
+    to: caa4ff99-ec43-5c1a-b9e8-eda5f27896d5
+  - from: b6aac2b6-31c1-558d-84d6-4f6c1bfdb754
+    to: 449ab4ef-472a-5725-a6ff-6aea37be28d3
+  - from: a6b50175-c0ed-5361-843f-09003ed98a18
+    to: 7986c97c-72b9-5155-b5ed-4c3cda0b0488
+  - from: 7986c97c-72b9-5155-b5ed-4c3cda0b0488
+    to: db50bf0b-2866-53a4-af9b-309b9d149d24
+  - from: 966a10d1-2123-5446-96d5-46866bdd0e91
+    to: 47c56573-ceb4-5af5-afc6-ebfde664009b
+  - from: 47c56573-ceb4-5af5-afc6-ebfde664009b
+    to: a60c71cf-cc20-51c6-b24b-76d865baefea
+  - from: 0a8fa39a-912e-553f-b48f-8c2d26dbb79b
+    to: fbf701e4-48e2-5ed5-a8bd-41a80cc6443a
+  - from: a2a26d87-d6bc-504f-b6e8-be5f5f140891
+    to: 43b3d528-9e48-5f5b-8ae7-296158bcd1d3
   deployments:
   - domain: default
   deployAction: DEPLOY

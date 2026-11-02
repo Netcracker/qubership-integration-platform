@@ -25,11 +25,13 @@ import { fileURLToPath } from "node:url";
 import { test, expect } from "../../support/fixtures.js";
 import { ROLES } from "../../env/containers.js";
 import {
+  BANDS,
   formatPeaks,
   metaspaceOutsideBand,
   outsideBand,
   readRunResources,
 } from "../../env/resources.js";
+import { METASPACE_ATTACHMENT, PEAKS_ATTACHMENT } from "../../support/run-summary.mjs";
 import type { Env, ProcessEnvelope } from "../../env/index.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -60,70 +62,77 @@ function envelopes(env: Env): Promise<ProcessEnvelope[]> {
   return reading;
 }
 
-test("every service is still the process the run started", { tag: ["@infra", "@tier1"] }, async ({ env }) => {
-  // The ordering the reading below rests on, asserted rather than commented. Playwright collects a
-  // project's files in sorted order, so what keeps this file ahead of the two `env` specs that
-  // restart a service is its name — and a rename, or a sibling added ahead of it, would change what
-  // the assertion at the end of this test means without changing a line of it.
-  expect(
-    fs.readdirSync(HERE).filter((name) => name.endsWith(".spec.ts")).sort()[0],
-    "another env spec now sorts ahead of this one. The env project restarts services on purpose, " +
-      "so the identity reading below would be taken after whatever that spec did to them",
-  ).toBe(THIS_SPEC);
+test.describe("process envelope", { tag: ["@infra"] }, () => {
+  test("every service is still the process the run started", async ({ env }) => {
+    // The ordering the reading below rests on, asserted rather than commented. Playwright collects a
+    // project's files in sorted order, so what keeps this file ahead of the two `env` specs that
+    // restart a service is its name — and a rename, or a sibling added ahead of it, would change what
+    // the assertion at the end of this test means without changing a line of it.
+    expect(
+      fs.readdirSync(HERE).filter((name) => name.endsWith(".spec.ts")).sort()[0],
+      "another env spec now sorts ahead of this one. The env project restarts services on purpose, " +
+        "so the identity reading below would be taken after whatever that spec did to them",
+    ).toBe(THIS_SPEC);
 
-  const baseline = readRunResources()?.baseline ?? [];
-  expect(
-    baseline.map((each) => each.role).sort(),
-    "globalSetup records the envelope of every service before any project runs; without it there " +
-      "is nothing to compare the end of the run against",
-  ).toEqual([...ROLES].sort());
+    const baseline = readRunResources()?.baseline ?? [];
+    expect(
+      baseline.map((each) => each.role).sort(),
+      "globalSetup records the envelope of every service before any project runs; without it there " +
+        "is nothing to compare the end of the run against",
+    ).toEqual([...ROLES].sort());
 
-  // Both halves in one assertion: a container that crashed and was restarted in place keeps its
-  // name and its image and changes exactly these two numbers.
-  expect(
-    (await envelopes(env)).map(identity),
-    "a service that is not the process the run started took the whole run down with it, and every " +
-      "red spec above this one is a consequence rather than a finding — unless an `env` spec that " +
-      "restarts a service ran before this file, in which case the ordering is the finding",
-  ).toEqual(baseline.map(identity));
-});
+    // Both halves in one assertion: a container that crashed and was restarted in place keeps its
+    // name and its image and changes exactly these two numbers.
+    expect(
+      (await envelopes(env)).map(identity),
+      "a service that is not the process the run started took the whole run down with it, and every " +
+        "red spec above this one is a consequence rather than a finding — unless an `env` spec that " +
+        "restarts a service ran before this file, in which case the ordering is the finding",
+    ).toEqual(baseline.map(identity));
+  });
 
-test("no service ended the run against its Metaspace ceiling", { tag: ["@infra", "@tier1"] }, async ({ env }) => {
-  const reported = (await envelopes(env)).filter((each) => each.metaspace !== null);
-  expect(
-    reported.map((each) => each.role).sort(),
-    "the three JVM services report Metaspace; the testing service is Go and reports none",
-  ).toEqual(["engine", "runtime-catalog", "sessions-management"]);
+  test("no service ended the run against its Metaspace ceiling", async ({ env }, testInfo) => {
+    const reported = (await envelopes(env)).filter((each) => each.metaspace !== null);
+    // For the CI step summary, which reads the report rather than the console.
+    const readings = reported.map((each) => ({ role: each.role, ...each.metaspace, band: BANDS[each.role].metaspaceShare }));
+    await testInfo.attach(METASPACE_ATTACHMENT, { body: JSON.stringify(readings), contentType: "application/json" });
+    expect(
+      reported.map((each) => each.role).sort(),
+      "the three JVM services report Metaspace; the testing service is Go and reports none",
+    ).toEqual(["engine", "runtime-catalog", "sessions-management"]);
 
-  for (const each of reported) {
-    const { usedBytes, maxBytes } = each.metaspace as { usedBytes: number; maxBytes: number };
-    console.log(
-      `[metaspace] ${each.role}: ${(usedBytes / 1024 ** 2).toFixed(0)} MiB of ` +
-        `${(maxBytes / 1024 ** 2).toFixed(0)} MiB (${((usedBytes / maxBytes) * 100).toFixed(0)}%)`,
-    );
-  }
+    for (const each of reported) {
+      const { usedBytes, maxBytes } = each.metaspace as { usedBytes: number; maxBytes: number };
+      console.log(
+        `[metaspace] ${each.role}: ${(usedBytes / 1024 ** 2).toFixed(0)} MiB of ` +
+          `${(maxBytes / 1024 ** 2).toFixed(0)} MiB (${((usedBytes / maxBytes) * 100).toFixed(0)}%)`,
+      );
+    }
 
-  expect(metaspaceOutsideBand(reported), "a JVM this close to its ceiling is one import from OOM").toEqual([]);
-});
+    expect(metaspaceOutsideBand(reported), "a JVM this close to its ceiling is one import from OOM").toEqual([]);
+  });
 
-test("no service left its stated resource band", { tag: ["@infra", "@tier1"] }, async ({ env }) => {
-  const peaks = await env.resourcePeaks();
-  expect(
-    peaks.map((each) => each.role).sort(),
-    "the sampler globalSetup started writes a peak per service; an empty reading means the run " +
-      "measured nothing, and a cost nobody measured is a cost nobody notices growing",
-  ).toEqual([...ROLES].sort());
+  test("no service left its stated resource band", async ({ env }, testInfo) => {
+    const peaks = await env.resourcePeaks();
+    const readings = peaks.map((each) => ({ ...each, band: { memoryBytes: BANDS[each.role].memoryBytes, cpuPercent: BANDS[each.role].cpuPercent } }));
+    await testInfo.attach(PEAKS_ATTACHMENT, { body: JSON.stringify(readings), contentType: "application/json" });
+    expect(
+      peaks.map((each) => each.role).sort(),
+      "the sampler globalSetup started writes a peak per service; an empty reading means the run " +
+        "measured nothing, and a cost nobody measured is a cost nobody notices growing",
+    ).toEqual([...ROLES].sort());
 
-  // Both numbers per service and the total, printed rather than only asserted: the band catches a
-  // service that left it, and the reading is what a person compares against the last release.
-  console.log(formatPeaks(peaks));
+    // Both numbers per service and the total, printed rather than only asserted: the band catches a
+    // service that left it, and the reading is what a person compares against the last release.
+    console.log(formatPeaks(peaks));
 
-  // Every peak is sampled from more than one reading, because a peak lasts seconds and a single
-  // `docker stats` at the end of a run reports a stack at rest.
-  expect(
-    peaks.filter((each) => each.samples < 2).map((each) => each.role),
-    "a peak taken from one sample is a reading, not a peak",
-  ).toEqual([]);
+    // Every peak is sampled from more than one reading, because a peak lasts seconds and a single
+    // `docker stats` at the end of a run reports a stack at rest.
+    expect(
+      peaks.filter((each) => each.samples < 2).map((each) => each.role),
+      "a peak taken from one sample is a reading, not a peak",
+    ).toEqual([]);
 
-  expect(outsideBand(peaks), "a service that left its band leaked or spun during the run").toEqual([]);
+    expect(outsideBand(peaks), "a service that left its band leaked or spun during the run").toEqual([]);
+  });
 });

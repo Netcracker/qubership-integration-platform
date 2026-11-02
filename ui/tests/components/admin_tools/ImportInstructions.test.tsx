@@ -234,7 +234,9 @@ describe("ImportInstructions", () => {
     expect(
       await screen.findByRole("button", { name: /add/i }),
     ).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("Search...")).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText("Search import instructions..."),
+    ).toBeInTheDocument();
   });
 
   it("displays chain and variable items from instructions", async () => {
@@ -363,7 +365,9 @@ describe("ImportInstructions", () => {
     expect(screen.getByText("Chain One")).toBeInTheDocument();
     expect(screen.getByText("Var One")).toBeInTheDocument();
 
-    const searchInput = screen.getByPlaceholderText("Search...");
+    const searchInput = screen.getByPlaceholderText(
+      "Search import instructions...",
+    );
     fireEvent.change(searchInput, { target: { value: "chain" } });
 
     expect(screen.getByText("Chain One")).toBeInTheDocument();
@@ -374,7 +378,9 @@ describe("ImportInstructions", () => {
 
     await flushPromises();
     expect(screen.getByText("Chains")).toBeInTheDocument();
-    const searchInput = screen.getByPlaceholderText("Search...");
+    const searchInput = screen.getByPlaceholderText(
+      "Search import instructions...",
+    );
     fireEvent.change(searchInput, { target: { value: "nonexistent-xyz" } });
     expect(screen.queryByText("Chains")).not.toBeInTheDocument();
     expect(screen.queryByText("Common Variables")).not.toBeInTheDocument();

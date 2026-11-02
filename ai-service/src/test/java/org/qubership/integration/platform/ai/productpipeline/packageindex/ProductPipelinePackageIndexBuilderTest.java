@@ -46,7 +46,7 @@ class ProductPipelinePackageIndexBuilderTest {
     List<CapabilityManifest> capabilities =
         resolver.loadCapabilities(packRoot.resolve("product-pipelines"));
     List<DependencyPin> pins =
-        new ArrayList<>(resolver.resolveClosure(repoRoot, capabilities, List.of()));
+        new ArrayList<>(resolver.resolveClosure(packRoot, capabilities, List.of()));
     String first = resolver.closureDigest(pins);
     Collections.reverse(pins);
     String second = resolver.closureDigest(pins);

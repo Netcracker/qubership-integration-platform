@@ -51,3 +51,20 @@ export async function untilListed(catalog: Catalog, chainId: string): Promise<Li
     .toBe(true);
   return found!;
 }
+
+/**
+ * Runs `step`, and adds to its failure what the held call answered: a `heldMs` in the body shows the
+ * exchange was in flight for that long.
+ */
+export async function withHeldAnswer<T>(call: HeldCall, step: () => Promise<T>): Promise<T> {
+  try {
+    return await step();
+  } catch (cause) {
+    const answer = await call.answer.then(
+      async (response) => `${response.status()} ${await response.text()}`,
+      (error: unknown) => `nothing: ${String(error)}`,
+    );
+    const message = cause instanceof Error ? cause.message : String(cause);
+    throw new Error(`${message}\n\nthe held call answered ${answer}`, { cause });
+  }
+}

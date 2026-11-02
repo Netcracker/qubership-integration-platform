@@ -42,6 +42,8 @@ export interface JsonReport {
 }
 
 export interface JsonSuite {
+  /** The file path on a top-level suite, the `describe` title on a nested one. */
+  title?: string;
   suites?: JsonSuite[];
   specs?: JsonSpec[];
 }

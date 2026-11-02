@@ -1,0 +1,45 @@
+---
+id: "e2e10015-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-rabbitmq-trigger-dlq-none"
+description: "The acknowledgeMode NONE twin of rabbitmq-trigger-dlq-auto: same dead-letter setup, same\
+  \ failing http-sender. The broker counts a NONE delivery as acknowledged when it sends it, so the failure\
+  \ neither requeues the message nor dead-letters it."
+content:
+  labels: []
+  elements:
+  - id: "e2e10015-0000-4000-8000-000000000002"
+    name: "RabbitMQ Trigger"
+    type: "rabbitmq-trigger-2"
+    properties:
+      connectionSourceType: "manual"
+      addresses: "rabbitmq:5672"
+      username: "guest"
+      password: "guest"
+      exchange: "e2e-{{RUN}}-rabbitmq-trigger-dlq-none"
+      routingKey: "e2e-{{RUN}}-rabbitmq-trigger-dlq-none"
+      queues: "e2e-{{RUN}}-rabbitmq-trigger-dlq-none"
+      exchangeType: "direct"
+      acknowledgeMode: "NONE"
+      deadLetterExchange: "e2e-{{RUN}}-rabbitmq-trigger-dlq-none-dlx"
+      deadLetterExchangeType: "direct"
+      deadLetterQueue: "e2e-{{RUN}}-rabbitmq-trigger-dlq-none-dlq"
+      deadLetterRoutingKey: "e2e-{{RUN}}-rabbitmq-trigger-dlq-none-dlk"
+      idempotency:
+        enabled: false
+  - id: "e2e10015-0000-4000-8000-000000000003"
+    name: "HTTP Sender"
+    type: "http-sender"
+    properties:
+      uri: "http://e2e-rabbitmq-fail.invalid/boom"
+      httpMethod: "POST"
+      isExternalCall: false
+      m2m: false
+      reuseEstablishedConnection: true
+      propagateContext: false
+      receiveCorrelationId: false
+  dependencies:
+  - from: "e2e10015-0000-4000-8000-000000000002"
+    to: "e2e10015-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

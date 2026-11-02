@@ -39,7 +39,7 @@ even during a test-case run. The UI matches this: a mock can be bound only to an
 | `cip.testing.address` | `TESTING_SERVICE_ADDRESS` | `http://testing-service:8080` | testing service base address; a base path in it is kept, so an ingress-style address works |
 
 - Compose ships mocking on: `TESTING_SERVICE_ENABLED=true` in `infrastructure/docker/engine-dev.env`.
-- Helm ships it off. `global.qip.testingService.engineMockingEnabled` in `infrastructure/helm/qip-dev/values.yaml`
+- Helm ships it off. `global.qip.testingService.engineMockingEnabled` in `infrastructure/helm/cip-dev/values.yaml`
   renders `TESTING_SERVICE_ENABLED` into the engine config map only together with `global.qip.testingService.enabled`,
   so the engine never points at a testing service that is not deployed. The key renders in both cases, because the
   deployment reads it and a missing key leaves the pod in `CreateContainerConfigError`. Runtime Catalog passes the same

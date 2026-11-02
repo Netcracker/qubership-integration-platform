@@ -46,7 +46,6 @@ jest.mock("../../../src/components/table/CompactSearch.tsx", () => ({
       value: string;
       onChange: (v: string) => void;
       placeholder?: string;
-      allowClear?: boolean;
       onClear?: () => void;
       onSearchConfirm?: (v: string) => void;
       className?: string;
@@ -85,7 +84,6 @@ describe("TableToolbar", () => {
           value: "q",
           onChange,
           placeholder: "Find…",
-          allowClear: true,
         }}
         columnSettingsButton={
           <button type="button" data-testid="col-settings">
@@ -117,7 +115,6 @@ describe("TableToolbar", () => {
           onClear,
           onSearchConfirm,
           placeholder: "Search…",
-          allowClear: true,
           className: "extra-search",
           style: { width: 200 },
         }}
@@ -130,7 +127,6 @@ describe("TableToolbar", () => {
     const call = firstCall[0];
     expect(call.value).toBe("hello");
     expect(call.placeholder).toBe("Search…");
-    expect(call.allowClear).toBe(true);
     expect(call.onChange).toBe(onChange);
     expect(call.onClear).toBe(onClear);
     expect(call.onSearchConfirm).toBe(onSearchConfirm);

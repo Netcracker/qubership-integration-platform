@@ -2,9 +2,14 @@ import { getAiServiceUrlOverride } from "../config/aiServiceUrlOverride.ts";
 import { useState, useEffect } from "react";
 
 let aiServiceUrl: string | null = null;
+let aiServiceEnabled = true;
 
 export function setAiServiceUrl(url: string | undefined): void {
   aiServiceUrl = url || null;
+}
+
+export function setAiServiceEnabled(enabled: boolean): void {
+  aiServiceEnabled = enabled;
 }
 
 export function getAiServiceUrl(): string | null {
@@ -37,7 +42,7 @@ export function useIsAiServiceAvailable(): boolean {
 
   useEffect(() => {
     const url = getAiServiceUrl();
-    if (!url) {
+    if (!aiServiceEnabled || !url) {
       setIsAiServiceAvailable(false);
       return;
     }

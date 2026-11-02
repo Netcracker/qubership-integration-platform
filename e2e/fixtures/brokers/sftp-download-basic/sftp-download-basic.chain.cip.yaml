@@ -1,5 +1,5 @@
 ---
-id: "e2e0h003-0000-4000-8000-000000000001"
+id: "e2e0b003-0000-4000-8000-000000000001"
 $schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 name: "e2e-{{RUN}}-sftp-download-basic"
 description: "sftp-download, a pollEnrich mid-chain rather than a trigger. An HTTP call drives it;\
@@ -8,7 +8,7 @@ description: "sftp-download, a pollEnrich mid-chain rather than a trigger. An HT
 content:
   labels: []
   elements:
-  - id: "e2e0h003-0000-4000-8000-000000000002"
+  - id: "e2e0b003-0000-4000-8000-000000000002"
     name: "HTTP Trigger"
     type: "http-trigger"
     properties:
@@ -21,7 +21,7 @@ content:
       handleChainFailureAction: "default"
       correlationId: false
       isExternalContextPath: false
-  - id: "e2e0h003-0000-4000-8000-000000000003"
+  - id: "e2e0b003-0000-4000-8000-000000000003"
     name: "SFTP Download"
     type: "sftp-download"
     properties:
@@ -37,7 +37,7 @@ content:
       useUserKnownHostsFile: false
       sendEmptyMessageWhenIdle: true
       throwExceptionOnConnectFailed: true
-  - id: "e2e0h003-0000-4000-8000-000000000004"
+  - id: "e2e0b003-0000-4000-8000-000000000004"
     name: "Header Modification"
     type: "header-modification"
     properties:
@@ -45,9 +45,9 @@ content:
         e2e-fixture: "{{RUN}}"
       headerModificationToRemove: []
   dependencies:
-  - from: "e2e0h003-0000-4000-8000-000000000002"
-    to: "e2e0h003-0000-4000-8000-000000000003"
-  - from: "e2e0h003-0000-4000-8000-000000000003"
-    to: "e2e0h003-0000-4000-8000-000000000004"
+  - from: "e2e0b003-0000-4000-8000-000000000002"
+    to: "e2e0b003-0000-4000-8000-000000000003"
+  - from: "e2e0b003-0000-4000-8000-000000000003"
+    to: "e2e0b003-0000-4000-8000-000000000004"
   deployAction: "NONE"
   migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

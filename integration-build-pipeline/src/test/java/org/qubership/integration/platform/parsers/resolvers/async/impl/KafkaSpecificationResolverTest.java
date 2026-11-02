@@ -19,6 +19,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -305,8 +306,7 @@ class KafkaSpecificationResolverTest {
     void setUpOperationMessagesWithNullComponents() {
         OperationObject operationObject = new OperationObject();
         Message message = new Message();
-        message.setPayload(new org.qubership.integration.platform.parsers.model.asyncapi.components.SchemaObject());
-        message.getPayload().setType("object");
+        message.setPayload(Map.of("type", "object"));
         operationObject.setMessage(message);
 
         ParsedOperation operation = ParsedOperationImpl.builder().build();

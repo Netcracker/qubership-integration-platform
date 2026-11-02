@@ -11,13 +11,6 @@ import { TableToolbar } from "../../../src/components/table/TableToolbar.tsx";
 jest.mock("../../../src/components/admin_tools/CommonStyle.module.css", () => ({
   header: "common-header",
   title: "common-title",
-  icon: "common-icon",
-}));
-
-jest.mock("../../../src/icons/IconProvider.tsx", () => ({
-  OverridableIcon: ({ name }: { name: string }) => (
-    <span data-testid={`icon-${name}`} data-icon={name} />
-  ),
 }));
 
 jest.mock("../../../src/components/table/CompactSearch.tsx", () => ({
@@ -57,19 +50,16 @@ jest.mock("antd", () => ({
 }));
 
 describe("AdminToolsHeader", () => {
-  it("renders title and OverridableIcon with given iconName", () => {
-    render(<AdminToolsHeader title="Audit" iconName="audit" />);
+  it("renders title", () => {
+    render(<AdminToolsHeader title="Audit" />);
 
     expect(screen.getByRole("heading", { name: /audit/i })).toBeInTheDocument();
-    const icon = screen.getByTestId("icon-audit");
-    expect(icon).toHaveAttribute("data-icon", "audit");
   });
 
   it("renders toolbar to the right of the title in the same header row", () => {
     const { container } = render(
       <AdminToolsHeader
         title="Sessions"
-        iconName="snippets"
         toolbar={
           <TableToolbar
             variant="admin"
@@ -87,9 +77,6 @@ describe("AdminToolsHeader", () => {
     const header = container.querySelector(".common-header");
     expect(header).toBeInTheDocument();
 
-    expect(
-      within(header as HTMLElement).getByTestId("icon-snippets"),
-    ).toBeInTheDocument();
     expect(
       within(header as HTMLElement).getByPlaceholderText("Search sessions..."),
     ).toBeInTheDocument();

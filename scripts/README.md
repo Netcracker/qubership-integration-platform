@@ -4,6 +4,12 @@ Everything the release workflows do to versions, tags, and the drop release live
 `.github/workflows/` supply inputs and credentials; the decisions are in these files, so you can run most of them
 locally to see what a release would do.
 
+Releases of `micro-engine` and `integration-build-pipeline` from `main` wait for the latest `Snapshot Flow Build`
+push run to pass before building or publishing. This check applies to individual releases and those modules within
+`Release All`. A failed, canceled, or missing run blocks their release. Other modules have no Snapshot Flow check;
+the catalog and Maven plugin still depend on a successful library release within a wave. The check uses the latest
+run because release version commits carry `[skip ci]` and have no Snapshot Flow run of their own.
+
 ## The model in four lines
 
 - You pick `patch`, `minor`, or `major`. Nothing anywhere lets you type a version number.

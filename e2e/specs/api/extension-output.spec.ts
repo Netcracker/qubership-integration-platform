@@ -45,6 +45,7 @@ import type { APIResponse } from "@playwright/test";
 import type { Catalog } from "../../support/catalog.js";
 import { test, expect } from "../../support/fixtures.js";
 import { leftBehind } from "../../support/teardown.js";
+import { expectImportedServices } from "../../support/service-import.js";
 import { archiveOf, entryNames, entryText, zipOf } from "../../support/zip.js";
 
 const EXTENSION = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../vscode-extension/src/web/test");
@@ -107,337 +108,332 @@ async function rowsOf(response: APIResponse): Promise<ImportRow[]> {
   return ((Array.isArray(body) ? body : body?.chains) as ImportRow[] | undefined) ?? [];
 }
 
-test("a chain the extension changed imports into the catalog, and the catalog exports the same document", { tag: ["@catalog", "@tier1"] }, async ({ catalog }) => {
-  const script = "54b4728d-7000-4350-b310-c58b792311c5.element.script.cip.groovy";
-  const resource = fs.readFileSync(path.join(EXTENSION, "workspace/chains", CHANGED_CHAIN, "resources", script), "utf8");
-  const archive = await chainArchive(CHANGED_CHAIN, { [script]: resource });
-  const location = `/v1/chains/${CHANGED_CHAIN}`;
-  try {
-    await removeIfPresent(catalog, location, () => catalog.deleteChain(CHANGED_CHAIN));
+test.describe("extension output", { tag: ["@catalog"] }, () => {
+  test("a changed chain imports and exports the same document", async ({ catalog }) => {
+    const script = "54b4728d-7000-4350-b310-c58b792311c5.element.script.cip.groovy";
+    const resource = fs.readFileSync(path.join(EXTENSION, "workspace/chains", CHANGED_CHAIN, "resources", script), "utf8");
+    const archive = await chainArchive(CHANGED_CHAIN, { [script]: resource });
+    const location = `/v1/chains/${CHANGED_CHAIN}`;
+    try {
+      await removeIfPresent(catalog, location, () => catalog.deleteChain(CHANGED_CHAIN));
 
-    const response = await catalog.importChains(archive);
-    expect(response.status(), await response.text()).toBe(200);
-    expect(await rowsOf(response)).toEqual([expect.objectContaining({ id: CHANGED_CHAIN, status: "CREATED" })]);
+      const response = await catalog.importChains(archive);
+      expect(response.status(), await response.text()).toBe(200);
+      expect(await rowsOf(response)).toEqual([expect.objectContaining({ id: CHANGED_CHAIN, status: "CREATED" })]);
 
-    const exported = await catalog.exportChain(CHANGED_CHAIN);
-    const document = yaml.load(await entryText(exported, `chains/${CHANGED_CHAIN}/${CHANGED_CHAIN}.chain.cip.yaml`));
-    expect(document, "the catalog's export of the imported chain").toEqual(yaml.load(goldenText(`${CHANGED_CHAIN}.chain.cip.yaml`)));
-    expect(await entryText(exported, `chains/${CHANGED_CHAIN}/resources/${script}`)).toBe(resource);
-  } finally {
-    await removeIfPresent(catalog, location, () => catalog.deleteChain(CHANGED_CHAIN)).catch(leftBehind(`chain ${CHANGED_CHAIN}`));
+      const exported = await catalog.exportChain(CHANGED_CHAIN);
+      const document = yaml.load(await entryText(exported, `chains/${CHANGED_CHAIN}/${CHANGED_CHAIN}.chain.cip.yaml`));
+      expect(document, "the catalog's export of the imported chain").toEqual(yaml.load(goldenText(`${CHANGED_CHAIN}.chain.cip.yaml`)));
+      expect(await entryText(exported, `chains/${CHANGED_CHAIN}/resources/${script}`)).toBe(resource);
+    } finally {
+      await removeIfPresent(catalog, location, () => catalog.deleteChain(CHANGED_CHAIN)).catch(leftBehind(`chain ${CHANGED_CHAIN}`));
+    }
+  });
+
+  /** The round-tripped service goldens, each with the endpoint that imports it. */
+  const CHANGED_SERVICES = [
+    {
+      title: "a round-tripped context service imports into the catalog",
+      id: CHANGED_CONTEXT,
+      archive: () => serviceArchive(CHANGED_CONTEXT, ".context-service.cip.yaml"),
+      importPath: "/v1/catalog/context-system/import",
+      location: `/v1/catalog/context-system/${CHANGED_CONTEXT}`,
+      remove: (catalog: Catalog) => catalog.deleteContextSystem(CHANGED_CONTEXT),
+    },
+    {
+      title: "a round-tripped MCP service imports into the catalog",
+      id: CHANGED_MCP,
+      archive: () => serviceArchive(CHANGED_MCP, ".mcp-service.cip.yaml"),
+      importPath: "/v1/catalog/mcp-system/import",
+      location: `/v1/catalog/mcp-system/${CHANGED_MCP}`,
+      remove: (catalog: Catalog) => catalog.deleteMcpSystem(CHANGED_MCP),
+    },
+  ];
+
+  for (const each of CHANGED_SERVICES) {
+    test(each.title, async ({ catalog }) => {
+      try {
+        await removeIfPresent(catalog, each.location, () => each.remove(catalog));
+
+        const response = await catalog.importArchive(each.importPath, await each.archive());
+        expect(response.status(), await response.text()).toBe(200);
+        expect(await rowsOf(response)).toEqual([expect.objectContaining({ id: each.id, status: "CREATED" })]);
+      } finally {
+        await removeIfPresent(catalog, each.location, () => each.remove(catalog)).catch(leftBehind(each.location));
+      }
+    });
+  }
+
+  interface Document {
+    id: string;
+    name: string;
+    content: { description?: string };
+  }
+
+  /** The fields of `document` that a migration run on a current file would lose. */
+  function keptFields(document: Document): Record<string, unknown> {
+    const { description } = document.content;
+    return { id: document.id, name: document.name, content: description === undefined ? {} : { description } };
+  }
+
+  /** The files the extension creates, each with the endpoint that imports it and the one that exports it. */
+  const CREATED = [
+    {
+      title: "a created chain imports into the catalog",
+      id: CREATED_CHAIN,
+      entry: `chains/${CREATED_CHAIN}/${CREATED_CHAIN}.chain.cip.yaml`,
+      archive: () => chainArchive(CREATED_CHAIN),
+      importPath: "/v1/catalog/import",
+      location: `/v1/chains/${CREATED_CHAIN}`,
+      remove: (catalog: Catalog) => catalog.deleteChain(CREATED_CHAIN),
+      export: (catalog: Catalog) => catalog.exportChain(CREATED_CHAIN),
+    },
+    {
+      title: "a created external service imports into the catalog",
+      id: EXTERNAL,
+      entry: `services/${EXTERNAL}/${EXTERNAL}.service.cip.yaml`,
+      archive: () => serviceArchive(EXTERNAL, ".service.cip.yaml"),
+      importPath: "/v1/import/system",
+      location: `/v1/systems/${EXTERNAL}`,
+      remove: (catalog: Catalog) => catalog.deleteSystem(EXTERNAL),
+      export: (catalog: Catalog) => catalog.exportSystems([EXTERNAL]),
+    },
+    {
+      title: "a created context service imports into the catalog",
+      id: CONTEXT,
+      entry: `services/${CONTEXT}/${CONTEXT}.context-service.cip.yaml`,
+      archive: () => serviceArchive(CONTEXT, ".context-service.cip.yaml"),
+      importPath: "/v1/catalog/context-system/import",
+      location: `/v1/catalog/context-system/${CONTEXT}`,
+      remove: (catalog: Catalog) => catalog.deleteContextSystem(CONTEXT),
+      export: async (catalog: Catalog) => await archiveOf(await catalog.exportContextSystems([CONTEXT])),
+    },
+    {
+      title: "a created MCP service imports into the catalog",
+      id: MCP,
+      entry: `services/${MCP}/${MCP}.mcp-service.cip.yaml`,
+      archive: () => serviceArchive(MCP, ".mcp-service.cip.yaml"),
+      importPath: "/v1/catalog/mcp-system/import",
+      location: `/v1/catalog/mcp-system/${MCP}`,
+      remove: (catalog: Catalog) => catalog.deleteMcpSystem(MCP),
+      export: (catalog: Catalog) => catalog.exportMcpSystems([MCP]),
+    },
+  ];
+
+  for (const each of CREATED) {
+    test(each.title, async ({ catalog }) => {
+      try {
+        await removeIfPresent(catalog, each.location, () => each.remove(catalog));
+
+        const response = await catalog.importArchive(each.importPath, await each.archive());
+        expect(response.status(), await response.text()).toBe(200);
+        expect(await rowsOf(response)).toEqual([expect.objectContaining({ id: each.id, status: "CREATED" })]);
+
+        const exported = yaml.load(await entryText(await each.export(catalog), each.entry));
+        const written = yaml.load(goldenText(path.basename(each.entry))) as Document;
+        expect(exported, "the catalog's export of the imported file").toMatchObject(keptFields(written));
+      } finally {
+        await removeIfPresent(catalog, each.location, () => each.remove(catalog)).catch(leftBehind(each.location));
+      }
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // The specification imports under golden/import/
+  // ---------------------------------------------------------------------------
+
+  const IMPORT_GOLDEN = path.join(GOLDEN, "import");
+
+  /**
+   * Every file under `dir`, as a `/`-separated path relative to it, sorted. The separator is written
+   * out rather than taken from `path.join`, because these strings become zip entry names and the
+   * export's expected entry names, and a zip entry name is `/`-separated on every platform.
+   */
+  function filesUnder(dir: string, within = ""): string[] {
+    return fs
+      .readdirSync(path.join(dir, within), { withFileTypes: true })
+      .flatMap((entry) => {
+        const relative = within ? `${within}/${entry.name}` : entry.name;
+        return entry.isDirectory() ? filesUnder(dir, relative) : [relative];
+      })
+      .sort();
+  }
+
+  interface GoldenDocument<Content> {
+    id: string;
+    name: string;
+    content: Content;
+  }
+
+  interface GoldenService {
+    integrationSystemType: string;
+    environments: Array<{ id: string; name: string; address: string }>;
+  }
+
+  interface GoldenSpecification {
+    version: string;
+    operations: Array<{ id: string; name: string; method: string }>;
+    specificationSources: Array<{ name: string; fileName: string }>;
+  }
+
+  /** One protocol's golden import: the files the extension wrote into a service folder. */
+  interface ImportGolden {
+    protocol: string;
+    serviceId: string;
+    /** Relative to `golden/import/<protocol>/`; the archive mirrors them under `services/<id>/`. */
+    entries: string[];
+    service: GoldenDocument<GoldenService>;
+    group: GoldenDocument<unknown>;
+    specification: GoldenDocument<GoldenSpecification>;
+  }
+
+  /**
+   * One golden tree, read at module scope: `npx playwright test --list` therefore exercises the walk
+   * and the three yaml reads without a stack.
+   *
+   * The tree must hold exactly one service, one specification-group and one specification document,
+   * which is what an import of one file into one new group writes. A tree that gains a second
+   * specification fails the whole file's collection rather than one case, so split it into a
+   * directory of its own or give this function the second document.
+   */
+  function importGolden(protocol: string): ImportGolden {
+    const directory = path.join(IMPORT_GOLDEN, protocol);
+    const entries = filesUnder(directory);
+    function read<Content>(suffix: string): GoldenDocument<Content> {
+      const names = entries.filter((entry) => entry.endsWith(suffix));
+      if (names.length !== 1) throw new Error(`${directory} holds ${names.length} *${suffix} files, not one: ${names.join(", ")}`);
+      return yaml.load(fs.readFileSync(path.join(directory, names[0]), "utf8")) as GoldenDocument<Content>;
+    }
+    const service = read<GoldenService>(".service.cip.yaml");
+    return {
+      protocol,
+      serviceId: service.id,
+      entries,
+      service,
+      group: read(".specification-group.cip.yaml"),
+      specification: read<GoldenSpecification>(".specification.cip.yaml"),
+    };
+  }
+
+  const IMPORTED = ["soap", "grpc", "graphql", "openapi", "asyncapi"].map(importGolden);
+
+  /**
+   * Each case reads what it expects out of the golden documents rather than out of a list copied
+   * beside them, so a regenerated golden moves this spec with the extension's own suite.
+   *
+   * The cases first ran in CI run 39296968849, and four of the five trees imported as asserted. Until
+   * #1157 the gRPC tree answered 207: the grpc-java plugin annotates the stub it generates with
+   * `javax.annotation.Generated`, and the catalog compiled it against a classpath without that class.
+   *
+   * The export is read for the archive layout and the source bytes, and not compared document by
+   * document against the golden. The extension writes `extendedProtocol` and `specification` into a
+   * service document, and `IntegrationSystemContentDto` declares neither, so the export cannot carry
+   * them back; `@JsonInclude(NON_EMPTY)` on that class and on `SystemModelContentDto` drops
+   * `description: ""`, `labels: []`, and GraphQL's `activeEnvironmentId: ""` as well. The stronger
+   * comparison the chain case above makes would therefore fail on a format difference rather than on
+   * anything either side got wrong.
+   *
+   * The generated request and response schemas, which are the bulk of each golden specification, are
+   * left out for the same reason and are pinned byte for byte at level 1 instead
+   * (`vscode-extension/tests/web/import/`). `GET /v1/operations/{id}/info` answers draft-07 documents
+   * the catalog derived, with a `$schema` and an `$id` the source never had, so an equality against
+   * the golden would assert the catalog's own derivation. Once these cases have run, a reader who
+   * wants the schemas here has `Catalog.operationInfo` and the `specification` fragment on
+   * `GET /v1/operations/{id}`, which is what the extension wrote.
+   */
+  for (const golden of IMPORTED) {
+    test(`an imported ${golden.protocol} specification imports into the catalog`, async ({ catalog }) => {
+      const archive = await zipOf(
+        golden.entries.map((entry) => [
+          `services/${golden.serviceId}/${entry}`,
+          fs.readFileSync(path.join(IMPORT_GOLDEN, golden.protocol, entry), "utf8"),
+        ]),
+      );
+      const location = `/v1/systems/${golden.serviceId}`;
+      try {
+        await removeIfPresent(catalog, location, () => catalog.deleteSystem(golden.serviceId));
+
+        const response = await catalog.importArchive("/v1/import/system", archive, `${golden.protocol}.zip`);
+        // The row before any read: a refused import would otherwise be reported as a service that
+        // holds no specification group. The likeliest refusal is `LIB_COMPILATION_ERROR`:
+        // `SystemExportImportService.enrichAndSaveIntegrationSystem` compiles a library for every new
+        // specification, which shells out to `protoc` and the grpc-java plugin for GRPC and runs the
+        // graphql-java-generator codegen and in-process `javac` for GRAPHQL.
+        await expectImportedServices(response, [{ id: golden.serviceId }], `the import row of the ${golden.protocol} service`);
+
+        const system = await catalog.getSystem(golden.serviceId);
+        expect({ name: system.name, type: system.type }, `the service ${golden.serviceId}`).toEqual({
+          name: golden.service.name,
+          type: golden.service.content.integrationSystemType,
+        });
+
+        const groups = await catalog.listSpecificationGroups(golden.serviceId);
+        expect(
+          groups.map((group) => ({ id: group.id, name: group.name })),
+          `the specification groups of the ${golden.protocol} service`,
+        ).toEqual([{ id: golden.group.id, name: golden.group.name }]);
+
+        const models = await catalog.listModels(golden.group.id);
+        expect(models.map((each) => each.id), `the specifications of ${golden.group.id}`).toEqual([golden.specification.id]);
+
+        // `type` and `format` come back absent: the extension writes neither into the specification
+        // document, and `SystemModelBaseDTO` declares neither.
+        const model = models[0] as unknown as Record<string, unknown>;
+        expect(
+          { name: model.name, version: model.version, type: model.type, format: model.format },
+          `the specification ${golden.specification.id}`,
+        ).toEqual({
+          name: golden.specification.name,
+          version: golden.specification.content.version,
+          type: undefined,
+          format: undefined,
+        });
+
+        // Name and method per operation. The golden's `path` is left out: SOAP writes the empty
+        // string there, and whether the catalog stores an empty string or a null is another subject.
+        const byId = (a: { id: string }, b: { id: string }) => a.id.localeCompare(b.id);
+        const operations = await catalog.listOperations(golden.specification.id);
+        expect(
+          operations.map((operation) => ({ id: operation.id, name: operation.name, method: operation.method })).sort(byId),
+          `the operations of ${golden.specification.id}`,
+        ).toEqual(
+          golden.specification.content.operations
+            .map((operation) => ({ id: operation.id, name: operation.name, method: operation.method }))
+            .sort(byId),
+        );
+
+        // SOAP takes its environment from the WSDL's `soap:address`, gRPC from the fallback candidate,
+        // and OpenAPI and AsyncAPI from their declared server. GraphQL produces none, so this is an
+        // empty list for one tree of the five.
+        const environments = await catalog.listEnvironments(golden.serviceId);
+        expect(
+          environments.map((environment) => ({ id: environment.id, name: environment.name, address: environment.address })),
+          `the environments of the ${golden.protocol} service`,
+        ).toEqual(
+          golden.service.content.environments.map((environment) => ({
+            id: environment.id,
+            name: environment.name,
+            address: environment.address,
+          })),
+        );
+
+        // The source round trip: the reader loads each specification source's text out of the
+        // archive directory, so the export carries `resources/source-<specificationId>/<name>` back
+        // with the bytes the extension copied there.
+        const exported = await catalog.exportSystems([golden.serviceId]);
+        expect(await entryNames(exported), `the entries of the export of the ${golden.protocol} service`).toEqual(
+          golden.entries.map((entry) => `services/${golden.serviceId}/${entry}`).sort(),
+        );
+        for (const source of golden.specification.content.specificationSources) {
+          const entry = `resources/${source.fileName}`;
+          expect(
+            await entryText(exported, `services/${golden.serviceId}/${entry}`),
+            `${source.name} as the export of ${golden.specification.id} carries it`,
+          ).toBe(fs.readFileSync(path.join(IMPORT_GOLDEN, golden.protocol, entry), "utf8"));
+        }
+      } finally {
+        await removeIfPresent(catalog, location, () => catalog.deleteSystem(golden.serviceId)).catch(leftBehind(location));
+      }
+    });
   }
 });
-
-/** The round-tripped service goldens, each with the endpoint that imports it. */
-const CHANGED_SERVICES = [
-  {
-    title: "a context service the extension round-tripped imports into the catalog",
-    id: CHANGED_CONTEXT,
-    archive: () => serviceArchive(CHANGED_CONTEXT, ".context-service.cip.yaml"),
-    importPath: "/v1/catalog/context-system/import",
-    location: `/v1/catalog/context-system/${CHANGED_CONTEXT}`,
-    remove: (catalog: Catalog) => catalog.deleteContextSystem(CHANGED_CONTEXT),
-  },
-  {
-    title: "an MCP service the extension round-tripped imports into the catalog",
-    id: CHANGED_MCP,
-    archive: () => serviceArchive(CHANGED_MCP, ".mcp-service.cip.yaml"),
-    importPath: "/v1/catalog/mcp-system/import",
-    location: `/v1/catalog/mcp-system/${CHANGED_MCP}`,
-    remove: (catalog: Catalog) => catalog.deleteMcpSystem(CHANGED_MCP),
-  },
-];
-
-for (const each of CHANGED_SERVICES) {
-  test(each.title, { tag: ["@catalog", "@tier2"] }, async ({ catalog }) => {
-    try {
-      await removeIfPresent(catalog, each.location, () => each.remove(catalog));
-
-      const response = await catalog.importArchive(each.importPath, await each.archive());
-      expect(response.status(), await response.text()).toBe(200);
-      expect(await rowsOf(response)).toEqual([expect.objectContaining({ id: each.id, status: "CREATED" })]);
-    } finally {
-      await removeIfPresent(catalog, each.location, () => each.remove(catalog)).catch(leftBehind(each.location));
-    }
-  });
-}
-
-interface Document {
-  id: string;
-  name: string;
-  content: { description?: string };
-}
-
-/** The fields of `document` that a migration run on a current file would lose. */
-function keptFields(document: Document): Record<string, unknown> {
-  const { description } = document.content;
-  return { id: document.id, name: document.name, content: description === undefined ? {} : { description } };
-}
-
-/** The files the extension creates, each with the endpoint that imports it and the one that exports it. */
-const CREATED = [
-  {
-    title: "a chain the extension created imports into the catalog",
-    id: CREATED_CHAIN,
-    entry: `chains/${CREATED_CHAIN}/${CREATED_CHAIN}.chain.cip.yaml`,
-    archive: () => chainArchive(CREATED_CHAIN),
-    importPath: "/v1/catalog/import",
-    location: `/v1/chains/${CREATED_CHAIN}`,
-    remove: (catalog: Catalog) => catalog.deleteChain(CREATED_CHAIN),
-    export: (catalog: Catalog) => catalog.exportChain(CREATED_CHAIN),
-  },
-  {
-    title: "an external service the extension created imports into the catalog",
-    id: EXTERNAL,
-    entry: `services/${EXTERNAL}/${EXTERNAL}.service.cip.yaml`,
-    archive: () => serviceArchive(EXTERNAL, ".service.cip.yaml"),
-    importPath: "/v1/import/system",
-    location: `/v1/systems/${EXTERNAL}`,
-    remove: (catalog: Catalog) => catalog.deleteSystem(EXTERNAL),
-    export: (catalog: Catalog) => catalog.exportSystems([EXTERNAL]),
-  },
-  {
-    title: "a context service the extension created imports into the catalog",
-    id: CONTEXT,
-    entry: `services/${CONTEXT}/${CONTEXT}.context-service.cip.yaml`,
-    archive: () => serviceArchive(CONTEXT, ".context-service.cip.yaml"),
-    importPath: "/v1/catalog/context-system/import",
-    location: `/v1/catalog/context-system/${CONTEXT}`,
-    remove: (catalog: Catalog) => catalog.deleteContextSystem(CONTEXT),
-    export: async (catalog: Catalog) => await archiveOf(await catalog.exportContextSystems([CONTEXT])),
-  },
-  {
-    title: "an MCP service the extension created imports into the catalog",
-    id: MCP,
-    entry: `services/${MCP}/${MCP}.mcp-service.cip.yaml`,
-    archive: () => serviceArchive(MCP, ".mcp-service.cip.yaml"),
-    importPath: "/v1/catalog/mcp-system/import",
-    location: `/v1/catalog/mcp-system/${MCP}`,
-    remove: (catalog: Catalog) => catalog.deleteMcpSystem(MCP),
-    export: (catalog: Catalog) => catalog.exportMcpSystems([MCP]),
-  },
-];
-
-for (const each of CREATED) {
-  test(each.title, { tag: ["@catalog", "@tier2"] }, async ({ catalog }) => {
-    try {
-      await removeIfPresent(catalog, each.location, () => each.remove(catalog));
-
-      const response = await catalog.importArchive(each.importPath, await each.archive());
-      expect(response.status(), await response.text()).toBe(200);
-      expect(await rowsOf(response)).toEqual([expect.objectContaining({ id: each.id, status: "CREATED" })]);
-
-      const exported = yaml.load(await entryText(await each.export(catalog), each.entry));
-      const written = yaml.load(goldenText(path.basename(each.entry))) as Document;
-      expect(exported, "the catalog's export of the imported file").toMatchObject(keptFields(written));
-    } finally {
-      await removeIfPresent(catalog, each.location, () => each.remove(catalog)).catch(leftBehind(each.location));
-    }
-  });
-}
-
-// ---------------------------------------------------------------------------
-// The specification imports under golden/import/
-// ---------------------------------------------------------------------------
-
-const IMPORT_GOLDEN = path.join(GOLDEN, "import");
-
-/**
- * Every file under `dir`, as a `/`-separated path relative to it, sorted. The separator is written
- * out rather than taken from `path.join`, because these strings become zip entry names and the
- * export's expected entry names, and a zip entry name is `/`-separated on every platform.
- */
-function filesUnder(dir: string, within = ""): string[] {
-  return fs
-    .readdirSync(path.join(dir, within), { withFileTypes: true })
-    .flatMap((entry) => {
-      const relative = within ? `${within}/${entry.name}` : entry.name;
-      return entry.isDirectory() ? filesUnder(dir, relative) : [relative];
-    })
-    .sort();
-}
-
-interface GoldenDocument<Content> {
-  id: string;
-  name: string;
-  content: Content;
-}
-
-interface GoldenService {
-  integrationSystemType: string;
-  environments: Array<{ id: string; name: string; address: string }>;
-}
-
-interface GoldenSpecification {
-  version: string;
-  operations: Array<{ id: string; name: string; method: string }>;
-  specificationSources: Array<{ name: string; fileName: string }>;
-}
-
-/** One protocol's golden import: the files the extension wrote into a service folder. */
-interface ImportGolden {
-  protocol: string;
-  serviceId: string;
-  /** Relative to `golden/import/<protocol>/`; the archive mirrors them under `services/<id>/`. */
-  entries: string[];
-  service: GoldenDocument<GoldenService>;
-  group: GoldenDocument<unknown>;
-  specification: GoldenDocument<GoldenSpecification>;
-}
-
-/**
- * One golden tree, read at module scope: `npx playwright test --list` therefore exercises the walk
- * and the three yaml reads without a stack.
- *
- * The tree must hold exactly one service, one specification-group and one specification document,
- * which is what an import of one file into one new group writes. A tree that gains a second
- * specification fails the whole file's collection rather than one case, so split it into a
- * directory of its own or give this function the second document.
- */
-function importGolden(protocol: string): ImportGolden {
-  const directory = path.join(IMPORT_GOLDEN, protocol);
-  const entries = filesUnder(directory);
-  function read<Content>(suffix: string): GoldenDocument<Content> {
-    const names = entries.filter((entry) => entry.endsWith(suffix));
-    if (names.length !== 1) throw new Error(`${directory} holds ${names.length} *${suffix} files, not one: ${names.join(", ")}`);
-    return yaml.load(fs.readFileSync(path.join(directory, names[0]), "utf8")) as GoldenDocument<Content>;
-  }
-  const service = read<GoldenService>(".service.cip.yaml");
-  return {
-    protocol,
-    serviceId: service.id,
-    entries,
-    service,
-    group: read(".specification-group.cip.yaml"),
-    specification: read<GoldenSpecification>(".specification.cip.yaml"),
-  };
-}
-
-const IMPORTED = ["soap", "grpc", "graphql", "openapi", "asyncapi"].map(importGolden);
-
-/**
- * Each case reads what it expects out of the golden documents rather than out of a list copied
- * beside them, so a regenerated golden moves this spec with the extension's own suite.
- *
- * **None of the import cases below has ever run.** They were written against a stack that was down,
- * so every assertion in them is unproven, and the first failure to read is a wrong expectation here
- * as readily as a defect in the catalog.
- *
- * The export is read for the archive layout and the source bytes, and not compared document by
- * document against the golden. The extension writes `extendedProtocol` and `specification` into a
- * service document, and `IntegrationSystemContentDto` declares neither, so the export cannot carry
- * them back; `@JsonInclude(NON_EMPTY)` on that class and on `SystemModelContentDto` drops
- * `description: ""`, `labels: []`, and GraphQL's `activeEnvironmentId: ""` as well. The stronger
- * comparison the chain case above makes would therefore fail on a format difference rather than on
- * anything either side got wrong.
- *
- * The generated request and response schemas, which are the bulk of each golden specification, are
- * left out for the same reason and are pinned byte for byte at level 1 instead
- * (`vscode-extension/tests/web/import/`). `GET /v1/operations/{id}/info` answers draft-07 documents
- * the catalog derived, with a `$schema` and an `$id` the source never had, so an equality against
- * the golden would assert the catalog's own derivation. Once these cases have run, a reader who
- * wants the schemas here has `Catalog.operationInfo` and the `specification` fragment on
- * `GET /v1/operations/{id}`, which is what the extension wrote.
- */
-for (const golden of IMPORTED) {
-  test(`the ${golden.protocol} specification the extension imported into a service imports into the catalog`, { tag: ["@catalog", "@tier2"] }, async ({ catalog }) => {
-    const archive = await zipOf(
-      golden.entries.map((entry) => [
-        `services/${golden.serviceId}/${entry}`,
-        fs.readFileSync(path.join(IMPORT_GOLDEN, golden.protocol, entry), "utf8"),
-      ]),
-    );
-    const location = `/v1/systems/${golden.serviceId}`;
-    try {
-      await removeIfPresent(catalog, location, () => catalog.deleteSystem(golden.serviceId));
-
-      const response = await catalog.importArchive("/v1/import/system", archive, `${golden.protocol}.zip`);
-      expect(response.status(), await response.text()).toBe(200);
-      // The row before any read: a refused import would otherwise be reported as a service that
-      // holds no specification group. The likeliest refusal is `LIB_COMPILATION_ERROR`, and it has
-      // never been observed here: `SystemExportImportService.enrichAndSaveIntegrationSystem`
-      // compiles a library for every new specification, which shells out to `protoc` and the
-      // grpc-java plugin for GRPC and runs the graphql-java-generator codegen and in-process
-      // `javac` for GRAPHQL. Nothing under `e2e/fixtures/specifications/` has ever imported a
-      // `.proto`, and `orders.graphql` carries a custom scalar, an enum, input types and non-default
-      // root type names that `widgets.graphql` does not. The OpenAPI tree is the one protocol here
-      // whose compilation path other specs already import documents through.
-      expect(await rowsOf(response), `the import row of the ${golden.protocol} service`).toEqual([
-        expect.objectContaining({ id: golden.serviceId, status: "CREATED" }),
-      ]);
-
-      const system = await catalog.getSystem(golden.serviceId);
-      expect({ name: system.name, type: system.type }, `the service ${golden.serviceId}`).toEqual({
-        name: golden.service.name,
-        type: golden.service.content.integrationSystemType,
-      });
-
-      const groups = await catalog.listSpecificationGroups(golden.serviceId);
-      expect(
-        groups.map((group) => ({ id: group.id, name: group.name })),
-        `the specification groups of the ${golden.protocol} service`,
-      ).toEqual([{ id: golden.group.id, name: golden.group.name }]);
-
-      const models = await catalog.listModels(golden.group.id);
-      expect(models.map((each) => each.id), `the specifications of ${golden.group.id}`).toEqual([golden.specification.id]);
-
-      // `type` and `format` come back absent: the extension writes neither into the specification
-      // document, and `SystemModelBaseDTO` declares neither.
-      const model = models[0] as unknown as Record<string, unknown>;
-      expect(
-        { name: model.name, version: model.version, type: model.type, format: model.format },
-        `the specification ${golden.specification.id}`,
-      ).toEqual({
-        name: golden.specification.name,
-        version: golden.specification.content.version,
-        type: undefined,
-        format: undefined,
-      });
-
-      // Name and method per operation. The golden's `path` is left out: SOAP writes the empty
-      // string there, and whether the catalog stores an empty string or a null is another subject.
-      const byId = (a: { id: string }, b: { id: string }) => a.id.localeCompare(b.id);
-      const operations = await catalog.listOperations(golden.specification.id);
-      expect(
-        operations.map((operation) => ({ id: operation.id, name: operation.name, method: operation.method })).sort(byId),
-        `the operations of ${golden.specification.id}`,
-      ).toEqual(
-        golden.specification.content.operations
-          .map((operation) => ({ id: operation.id, name: operation.name, method: operation.method }))
-          .sort(byId),
-      );
-
-      // SOAP takes its environment from the WSDL's `soap:address`, gRPC from the fallback candidate,
-      // and OpenAPI and AsyncAPI from their declared server. GraphQL produces none, so this is an
-      // empty list for one tree of the five.
-      const environments = await catalog.listEnvironments(golden.serviceId);
-      expect(
-        environments.map((environment) => ({ id: environment.id, name: environment.name, address: environment.address })),
-        `the environments of the ${golden.protocol} service`,
-      ).toEqual(
-        golden.service.content.environments.map((environment) => ({
-          id: environment.id,
-          name: environment.name,
-          address: environment.address,
-        })),
-      );
-
-      // The source round trip: the reader loads each specification source's text out of the
-      // archive directory, so the export carries `resources/source-<specificationId>/<name>` back
-      // with the bytes the extension copied there.
-      const exported = await catalog.exportSystems([golden.serviceId]);
-      expect(await entryNames(exported), `the entries of the export of the ${golden.protocol} service`).toEqual(
-        golden.entries.map((entry) => `services/${golden.serviceId}/${entry}`).sort(),
-      );
-      for (const source of golden.specification.content.specificationSources) {
-        const entry = `resources/${source.fileName}`;
-        expect(
-          await entryText(exported, `services/${golden.serviceId}/${entry}`),
-          `${source.name} as the export of ${golden.specification.id} carries it`,
-        ).toBe(fs.readFileSync(path.join(IMPORT_GOLDEN, golden.protocol, entry), "utf8"));
-      }
-    } finally {
-      await removeIfPresent(catalog, location, () => catalog.deleteSystem(golden.serviceId)).catch(leftBehind(location));
-    }
-  });
-}

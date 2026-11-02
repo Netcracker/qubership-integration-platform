@@ -557,6 +557,10 @@ public class KubeOperator {
         deleteCustomObject(MONITORING_API_GROUP, "v1", SERVICE_MONITORS_PLURAL, name);
     }
 
+    public Optional<KubeCustomObject> getCamelKIntegration(String name) throws KubeApiException {
+        return getCustomObject(CAMEL_API_GROUP, "v1", INTEGRATIONS_PLURAL, name);
+    }
+
     public void deleteCamelKIntegration(String name) throws KubeApiException {
         deleteCustomObject(CAMEL_API_GROUP, "v1", INTEGRATIONS_PLURAL, name);
     }

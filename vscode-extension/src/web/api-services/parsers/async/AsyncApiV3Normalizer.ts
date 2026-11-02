@@ -12,9 +12,34 @@ import { isObject } from "./asyncJsonUtils";
 
 const CHANNELS_REF_PREFIX = "#/channels/";
 const COMPONENTS_MESSAGES_PREFIX = "#/components/messages/";
+const COMPONENTS_SCHEMAS_PREFIX = "#/components/schemas/";
 const MESSAGES_SEGMENT = "/messages/";
 const ACTION_SEND = "send";
 const ACTION_RECEIVE = "receive";
+const SCHEMA_FORMAT_PREFIXES = [
+  "application/vnd.aai.asyncapi",
+  "application/schema+",
+];
+// Draft-07 keywords whose value is a map of names to schemas, a schema or a
+// list of them, and a list of schemas.
+const SCHEMA_MAPS = new Set([
+  "properties",
+  "patternProperties",
+  "definitions",
+  "dependencies",
+]);
+const SCHEMA_VALUES = new Set([
+  "additionalProperties",
+  "items",
+  "additionalItems",
+  "contains",
+  "propertyNames",
+  "not",
+  "if",
+  "then",
+  "else",
+]);
+const SCHEMA_LISTS = new Set(["allOf", "anyOf", "oneOf"]);
 
 type AnyRecord = Record<string, any>;
 
@@ -26,6 +51,8 @@ type AnyRecord = Record<string, any>;
  */
 export class AsyncApiV3Normalizer {
   static normalize(v3: AsyncApiV3Data): AsyncApiData {
+    this.unwrapMultiFormatSchemas(v3);
+
     const channels: Record<string, AsyncApiChannel> = {};
     const v3Channels = v3.channels ?? {};
     const declaredOperations = new Set<AsyncApiOperationObject>();
@@ -83,6 +110,137 @@ export class AsyncApiV3Normalizer {
       servers: this.normalizeServers(v3.servers),
       channels,
     };
+  }
+
+  // A reference into an unwrapped schema, such as
+  // #/components/schemas/Order/schema, is rewritten to the path the schema has
+  // after unwrapping, #/components/schemas/Order.
+  private static unwrapMultiFormatSchemas(v3: AsyncApiV3Data): void {
+    const movedRefs = new Map<string, string>();
+    for (const [key, v3Channel] of Object.entries(v3.channels ?? {})) {
+      this.unwrapMultiFormatPayloads(
+        v3Channel?.messages,
+        CHANNELS_REF_PREFIX + key + MESSAGES_SEGMENT,
+        movedRefs,
+      );
+    }
+    this.unwrapMultiFormatPayloads(
+      v3.components?.messages,
+      COMPONENTS_MESSAGES_PREFIX,
+      movedRefs,
+    );
+    const schemas = v3.components?.schemas;
+    if (isObject(schemas)) {
+      for (const name of Object.keys(schemas)) {
+        if (this.unwrap(schemas, name)) {
+          movedRefs.set(
+            COMPONENTS_SCHEMAS_PREFIX + name + "/schema",
+            COMPONENTS_SCHEMAS_PREFIX + name,
+          );
+        }
+      }
+    }
+    for (const v3Channel of Object.values(v3.channels ?? {})) {
+      this.rewriteMessageRefs(v3Channel?.messages, movedRefs);
+    }
+    this.rewriteMessageRefs(v3.components?.messages, movedRefs);
+    if (isObject(schemas)) {
+      for (const schema of Object.values(schemas)) {
+        this.rewriteSchemaRefs(schema, movedRefs);
+      }
+    }
+  }
+
+  private static unwrapMultiFormatPayloads(
+    messages: unknown,
+    refPrefix: string,
+    movedRefs: Map<string, string>,
+  ): void {
+    if (!isObject(messages)) {
+      return;
+    }
+    for (const [name, message] of Object.entries(messages)) {
+      if (isObject(message) && this.unwrap(message, "payload")) {
+        movedRefs.set(
+          refPrefix + name + "/payload/schema",
+          refPrefix + name + "/payload",
+        );
+      }
+    }
+  }
+
+  private static unwrap(owner: AnyRecord, key: string): boolean {
+    const value = owner[key];
+    const schema = this.fromMultiFormat(value);
+    if (schema === value) {
+      return false;
+    }
+    owner[key] = schema;
+    return true;
+  }
+
+  private static rewriteMessageRefs(
+    messages: unknown,
+    movedRefs: Map<string, string>,
+  ): void {
+    if (!isObject(messages)) {
+      return;
+    }
+    for (const message of Object.values(messages)) {
+      if (isObject(message)) {
+        this.rewriteSchemaRefs(message.payload, movedRefs);
+      }
+    }
+  }
+
+  // Only positions that hold a schema are followed, so data such as const
+  // values, examples, and x- extensions stays as written.
+  private static rewriteSchemaRefs(
+    schema: unknown,
+    movedRefs: Map<string, string>,
+  ): void {
+    if (!isObject(schema)) {
+      return;
+    }
+    const ref = schema.$ref;
+    if (typeof ref === "string") {
+      for (const [from, to] of movedRefs) {
+        if (ref === from || ref.startsWith(from + "/")) {
+          schema.$ref = to + ref.substring(from.length);
+        }
+      }
+    }
+    for (const [keyword, value] of Object.entries(schema)) {
+      if (SCHEMA_MAPS.has(keyword) && isObject(value)) {
+        Object.values(value).forEach((each) =>
+          this.rewriteSchemaRefs(each, movedRefs),
+        );
+      } else if (
+        (SCHEMA_LISTS.has(keyword) || SCHEMA_VALUES.has(keyword)) &&
+        Array.isArray(value)
+      ) {
+        value.forEach((each) => this.rewriteSchemaRefs(each, movedRefs));
+      } else if (SCHEMA_VALUES.has(keyword)) {
+        this.rewriteSchemaRefs(value, movedRefs);
+      }
+    }
+  }
+
+  // A multi-format schema in an AsyncAPI or JSON Schema format becomes the
+  // schema object it holds, and one in any other format, such as Avro, becomes
+  // an empty schema, because the catalog reads no other format.
+  private static fromMultiFormat(schema: unknown): unknown {
+    if (
+      !isObject(schema) ||
+      typeof schema.schemaFormat !== "string" ||
+      !("schema" in schema)
+    ) {
+      return schema;
+    }
+    const known = SCHEMA_FORMAT_PREFIXES.some((prefix) =>
+      schema.schemaFormat.startsWith(prefix),
+    );
+    return known && isObject(schema.schema) ? schema.schema : {};
   }
 
   private static computeChannel(

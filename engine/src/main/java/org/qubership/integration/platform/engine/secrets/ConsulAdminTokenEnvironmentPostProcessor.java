@@ -45,7 +45,6 @@ public class ConsulAdminTokenEnvironmentPostProcessor implements EnvironmentPost
 
     private static final String PROPERTY_SOURCE_NAME = "consulAdminToken";
     private static final String CONSUL_TOKEN_PROPERTY = "consul.token";
-    private static final String CONSUL_ACL_TOKEN_PROPERTY = "spring.cloud.consul.config.acl-token";
 
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
@@ -59,7 +58,6 @@ public class ConsulAdminTokenEnvironmentPostProcessor implements EnvironmentPost
         }
         Map<String, Object> properties = new HashMap<>();
         properties.put(CONSUL_TOKEN_PROPERTY, token);
-        properties.put(CONSUL_ACL_TOKEN_PROPERTY, token);
         environment.getPropertySources().addFirst(new MapPropertySource(PROPERTY_SOURCE_NAME, properties));
     }
 

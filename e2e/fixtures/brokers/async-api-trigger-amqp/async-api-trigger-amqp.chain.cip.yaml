@@ -1,0 +1,38 @@
+---
+id: "e2e0e012-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-async-api-trigger-amqp"
+description: "async-api-trigger on the amqp operation of the async-api-amqp service fixture, consuming the\
+  \ queue the brokers seed binds to the operation's fanout exchange."
+content:
+  labels: []
+  elements:
+  - id: "e2e0e012-0000-4000-8000-000000000002"
+    name: "AsyncAPI Trigger"
+    type: "async-api-trigger"
+    properties:
+      systemType: "EXTERNAL"
+      integrationSystemId: "e2e0e002-0000-4000-8000-000000000001"
+      integrationSpecificationGroupId: "e2e0e002-0000-4000-8000-000000000001-async-api-amqp"
+      integrationSpecificationId: "e2e0e002-0000-4000-8000-000000000001-async-api-amqp-1.0.0"
+      integrationOperationId: "e2e0e002-0000-4000-8000-000000000001-async-api-amqp-1.0.0-e2e-{{RUN}}-async-api-amqp"
+      integrationOperationPath: "e2e-{{RUN}}-async-api-amqp"
+      integrationOperationMethod: "publish"
+      integrationOperationProtocolType: "amqp"
+      integrationOperationAsyncProperties:
+        acknowledgeMode: "AUTO"
+        queues: "e2e-{{RUN}}-async-api-amqp-queue"
+      idempotency:
+        enabled: false
+  - id: "e2e0e012-0000-4000-8000-000000000003"
+    name: "Header Modification"
+    type: "header-modification"
+    properties:
+      headerModificationToAdd:
+        e2e-fixture: "{{RUN}}"
+      headerModificationToRemove: []
+  dependencies:
+  - from: "e2e0e012-0000-4000-8000-000000000002"
+    to: "e2e0e012-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

@@ -291,7 +291,7 @@ const ChainGraphInner: React.FC = () => {
     () => (
       <Flex align="center" gap={4}>
         <ProtectedButton
-          require={{ chain: ["read"] }}
+          require={{ chain: ["read"], designTemplate: ["read"] }}
           tooltipProps={{ title: "Show sequence diagram" }}
           buttonProps={{
             iconName: "diagram",
@@ -301,7 +301,7 @@ const ChainGraphInner: React.FC = () => {
         {!isVsCode && (
           <>
             <ProtectedButton
-              require={{ chain: ["read"] }}
+              require={{ chain: ["read"], designTemplate: ["read"] }}
               tooltipProps={{ title: "Generate DDS" }}
               buttonProps={{
                 iconName: "file",

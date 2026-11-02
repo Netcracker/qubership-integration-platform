@@ -47,72 +47,74 @@ function scriptEntry(chainId: string, elementId: string): string {
   return `chains/${chainId}/resources/${scriptResourceName(elementId)}`;
 }
 
-test("a script exports into its own .groovy file and imports back inline", { tag: ["@catalog", "@tier1"] }, async ({ catalog, run }) => {
-  const fixture = readDocumentFixture(FIXTURE, run, SCRIPT_FIXTURE_DIR);
-  const source = (
-    ((fixture.document.content as Record<string, unknown>).elements as Array<Record<string, unknown>>)
-      .find((element) => element.type === "script")!.properties as Record<string, string>
-  ).script;
+test.describe("script source", { tag: ["@catalog"] }, () => {
+  test("a script exports to a .groovy file and imports back inline", async ({ catalog, run }) => {
+    const fixture = readDocumentFixture(FIXTURE, run, SCRIPT_FIXTURE_DIR);
+    const source = (
+      ((fixture.document.content as Record<string, unknown>).elements as Array<Record<string, unknown>>)
+        .find((element) => element.type === "script")!.properties as Record<string, string>
+    ).script;
 
-  // Residue from a run that died before its teardown would make the first import an update, and
-  // `CREATED` below is the assertion that says the fixture was written rather than matched.
-  await catalog.raw("delete", `/v1/chains/${fixture.id}`);
-  const created = await importChains(catalog, await assembleFixture(FIXTURE, run, SCRIPT_FIXTURE_DIR));
-  expect(created.status).toBe(200);
-  expect(created.body.chains).toEqual([
-    expect.objectContaining({ id: fixture.id, status: "CREATED" }),
-  ]);
-
-  try {
-    const elements = await catalog.listChainElements(fixture.id);
-    const script = elements.find((element) => element.type === "script")!;
-    // The imported element carries the source inline and no file reference at all: the fixture
-    // never shipped one, and nothing on the platform side invents one.
-    expect(script.properties.script).toBe(source);
-    expect(script.properties.propertiesFilename).toBeUndefined();
-
-    const archive = await catalog.exportChains([fixture.id]);
-    // The full paths, not the basenames. A root-layout archive has the same basenames and imports
-    // nothing, so a basename assertion is green over the failure it exists to catch.
-    expect(await entryNames(archive)).toEqual(
-      [chainEntry(fixture.id), scriptEntry(fixture.id, script.id)].sort(),
-    );
-    // The lifted file is the script, byte for byte — not a re-indented or re-quoted copy of it.
-    expect(await entryText(archive, scriptEntry(fixture.id, script.id))).toBe(source);
-
-    const exported = await entryText(archive, chainEntry(fixture.id));
-    expect(exported).toContain(`propertiesFilename: "${scriptResourceName(script.id)}"`);
-    // The source moved rather than being copied. Were it in both places, an import reading the
-    // file back would prove nothing about the file.
-    expect(exported).not.toContain("script: ");
-
-    await catalog.deleteChain(fixture.id);
-    expect(await chainExists(catalog, fixture.id)).toBe(false);
-
-    // The original bytes. Re-zipping an unpacked tree puts the entries at the archive root, which
-    // imports nothing and answers 200.
-    const restored = await importChains(catalog, archive);
-    expect(restored.status).toBe(200);
-    expect(restored.body.chains).toEqual([
+    // Residue from a run that died before its teardown would make the first import an update, and
+    // `CREATED` below is the assertion that says the fixture was written rather than matched.
+    await catalog.raw("delete", `/v1/chains/${fixture.id}`);
+    const created = await importChains(catalog, await assembleFixture(FIXTURE, run, SCRIPT_FIXTURE_DIR));
+    expect(created.status).toBe(200);
+    expect(created.body.chains).toEqual([
       expect.objectContaining({ id: fixture.id, status: "CREATED" }),
     ]);
 
-    const restoredElements = await catalog.listChainElements(fixture.id);
-    const restoredScript = restoredElements.find((element) => element.type === "script")!;
-    expect(restoredScript.id).toBe(script.id);
-    // The round trip's whole claim: the text came back, and it came back inline. The element the
-    // engine would compile is the one the fixture wrote, with the archive's file reference gone.
-    expect(restoredScript.properties.script).toBe(source);
-    expect(restoredScript.properties.propertiesFilename).toBeUndefined();
+    try {
+      const elements = await catalog.listChainElements(fixture.id);
+      const script = elements.find((element) => element.type === "script")!;
+      // The imported element carries the source inline and no file reference at all: the fixture
+      // never shipped one, and nothing on the platform side invents one.
+      expect(script.properties.script).toBe(source);
+      expect(script.properties.propertiesFilename).toBeUndefined();
 
-    // And the layout survives a second export, so the round trip is repeatable rather than a
-    // one-way flattening that happens to read back once.
-    const again = await catalog.exportChains([fixture.id]);
-    expect(await entryNames(again)).toEqual(
-      [chainEntry(fixture.id), scriptEntry(fixture.id, script.id)].sort(),
-    );
-    expect(await entryText(again, scriptEntry(fixture.id, script.id))).toBe(source);
-  } finally {
-    await catalog.raw("delete", `/v1/chains/${fixture.id}`);
-  }
+      const archive = await catalog.exportChains([fixture.id]);
+      // The full paths, not the basenames. A root-layout archive has the same basenames and imports
+      // nothing, so a basename assertion is green over the failure it exists to catch.
+      expect(await entryNames(archive)).toEqual(
+        [chainEntry(fixture.id), scriptEntry(fixture.id, script.id)].sort(),
+      );
+      // The lifted file is the script, byte for byte — not a re-indented or re-quoted copy of it.
+      expect(await entryText(archive, scriptEntry(fixture.id, script.id))).toBe(source);
+
+      const exported = await entryText(archive, chainEntry(fixture.id));
+      expect(exported).toContain(`propertiesFilename: "${scriptResourceName(script.id)}"`);
+      // The source moved rather than being copied. Were it in both places, an import reading the
+      // file back would prove nothing about the file.
+      expect(exported).not.toContain("script: ");
+
+      await catalog.deleteChain(fixture.id);
+      expect(await chainExists(catalog, fixture.id)).toBe(false);
+
+      // The original bytes. Re-zipping an unpacked tree puts the entries at the archive root, which
+      // imports nothing and answers 200.
+      const restored = await importChains(catalog, archive);
+      expect(restored.status).toBe(200);
+      expect(restored.body.chains).toEqual([
+        expect.objectContaining({ id: fixture.id, status: "CREATED" }),
+      ]);
+
+      const restoredElements = await catalog.listChainElements(fixture.id);
+      const restoredScript = restoredElements.find((element) => element.type === "script")!;
+      expect(restoredScript.id).toBe(script.id);
+      // The round trip's whole claim: the text came back, and it came back inline. The element the
+      // engine would compile is the one the fixture wrote, with the archive's file reference gone.
+      expect(restoredScript.properties.script).toBe(source);
+      expect(restoredScript.properties.propertiesFilename).toBeUndefined();
+
+      // And the layout survives a second export, so the round trip is repeatable rather than a
+      // one-way flattening that happens to read back once.
+      const again = await catalog.exportChains([fixture.id]);
+      expect(await entryNames(again)).toEqual(
+        [chainEntry(fixture.id), scriptEntry(fixture.id, script.id)].sort(),
+      );
+      expect(await entryText(again, scriptEntry(fixture.id, script.id))).toBe(source);
+    } finally {
+      await catalog.raw("delete", `/v1/chains/${fixture.id}`);
+    }
+  });
 });

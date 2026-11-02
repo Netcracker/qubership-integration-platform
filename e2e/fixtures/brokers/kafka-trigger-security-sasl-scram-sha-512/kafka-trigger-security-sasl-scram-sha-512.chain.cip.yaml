@@ -1,0 +1,38 @@
+---
+id: "e2e1001f-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-kafka-trigger-security-sasl-scram-sha-512"
+description: "The Kafka trigger over SASL_PLAINTEXT with SCRAM-SHA-512 on the AUTH listener. It consumes from earliest on a topic only the spec publishes to."
+content:
+  labels: []
+  elements:
+  - id: "e2e1001f-0000-4000-8000-000000000002"
+    name: "saslMechanism=SCRAM-SHA-512"
+    type: "kafka-trigger-2"
+    properties:
+      connectionSourceType: "manual"
+      brokers: "kafka:29094"
+      topics: "e2e-{{RUN}}-kafka-trigger-security-sasl-scram-sha-512"
+      securityProtocol: "SASL_PLAINTEXT"
+      saslMechanism: "SCRAM-SHA-512"
+      sslProtocol: "TLS"
+      saslJaasConfig: "org.apache.kafka.common.security.scram.ScramLoginModule required username=e2e password=e2e-secret;"
+      groupId: "e2e-{{RUN}}-kafka-trigger-security-sasl-scram-sha-512"
+      consumerConsistencyMode: "EVENTUAL"
+      autoOffsetReset: "earliest"
+      keyDeserializer: "org.apache.kafka.common.serialization.StringDeserializer"
+      valueDeserializer: "org.apache.kafka.common.serialization.StringDeserializer"
+      idempotency:
+        enabled: false
+  - id: "e2e1001f-0000-4000-8000-000000000003"
+    name: "Header Modification"
+    type: "header-modification"
+    properties:
+      headerModificationToAdd:
+        e2e-fixture: "{{RUN}}"
+      headerModificationToRemove: []
+  dependencies:
+  - from: "e2e1001f-0000-4000-8000-000000000002"
+    to: "e2e1001f-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

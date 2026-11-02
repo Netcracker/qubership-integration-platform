@@ -10,14 +10,16 @@ import { test, expect } from "../../support/fixtures.js";
 import { readCorpusState, seedChain } from "../../support/corpus.js";
 import { covers } from "../../registry/covers.js";
 
-test("each checkpoint compiles a retry route restricted to POST", { tag: ["@catalog", "@tier2"] }, async ({ catalog }) => {
-  covers("checkpoint", "httpMethodRestrict", "POST");
-  const chain = seedChain(readCorpusState(), "checkpoint-retry");
-  const [snapshot] = await catalog.listSnapshots(chain.id);
-  const xml = (await catalog.getSnapshot(chain.id, snapshot.id)).xmlDefinition ?? "";
-  for (const checkpoint of ["First Checkpoint", "Second Checkpoint"]) {
-    expect(xml).toContain(
-      `<from uri="servlet-custom:/chains/${chain.id}/sessions/{checkpointSessionId}/checkpoint-elements/${chain.elements[checkpoint]}/retry?httpMethodRestrict=POST"/>`,
-    );
-  }
+test.describe("checkpoint snapshot", { tag: ["@catalog"] }, () => {
+  test("each checkpoint compiles a retry route restricted to POST", async ({ catalog }) => {
+    covers("checkpoint", "httpMethodRestrict", "POST");
+    const chain = seedChain(readCorpusState(), "checkpoint-retry");
+    const [snapshot] = await catalog.listSnapshots(chain.id);
+    const xml = (await catalog.getSnapshot(chain.id, snapshot.id)).xmlDefinition ?? "";
+    for (const checkpoint of ["First Checkpoint", "Second Checkpoint"]) {
+      expect(xml).toContain(
+        `<from uri="servlet-custom:/chains/${chain.id}/sessions/{checkpointSessionId}/checkpoint-elements/${chain.elements[checkpoint]}/retry?httpMethodRestrict=POST"/>`,
+      );
+    }
+  });
 });

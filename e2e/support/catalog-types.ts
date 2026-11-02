@@ -38,6 +38,15 @@ export interface FolderSearchItem extends Named {
   parentId?: string;
 }
 
+/**
+ * A row of `GET /v1/folders?openedFolderId=…`. A folder whose content the answer leaves out carries
+ * no `items` key.
+ */
+export interface OpenedFolderItem extends FolderItem {
+  parentId?: string;
+  items?: Array<Named & { parentId?: string }>;
+}
+
 /** What `GET /v1/folders/{id}` answers: the folder plus the items directly inside it. */
 export interface FolderView extends Named {
   parentId?: string;
@@ -56,6 +65,7 @@ export interface FolderView extends Named {
 export interface ChainView extends Named {
   parentId?: string;
   description?: string;
+  labels?: Array<{ name: string; technical?: boolean }>;
   unsavedChanges?: boolean;
   currentSnapshot?: SnapshotView;
   /** Whether an element of a type `PATCH /v1/chains/{id}/migrate` replaces is on the chain. */
@@ -555,6 +565,17 @@ export interface UsedSystem {
   usedSystemModelIds: string[];
 }
 
+/** A chain as the readers of chains by service answer it; `elements` only in the full mode. */
+export interface ChainOfService extends Named {
+  elements?: Array<{ id: string; type: string }>;
+}
+
+/** One row of `GET /v1/chains/{systemId}/specificationGroup`. */
+export interface ChainsOfSpecificationGroup {
+  specificationGroupId: string;
+  chains: ChainOfService[];
+}
+
 /**
  * One element calling a service of the requested type. `service` and `version` are resolved from
  * the ids the element carries, and each is absent when the catalog holds no such row.
@@ -713,7 +734,7 @@ export interface ImportVariablePreview {
 export interface SecretView {
   secretName: string;
   variablesNames: string[];
-  /** The `qip-secured-variables-v2` secret the `/v1` surface addressed. */
+  /** The `cip-secured-variables-v2` secret the `/v1` surface addressed. */
   defaultSecret: boolean;
   /** True for the default secret while `cip.variables.default-secret.enabled` is false. */
   disabled: boolean;
