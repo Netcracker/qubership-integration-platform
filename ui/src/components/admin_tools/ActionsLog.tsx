@@ -1,13 +1,5 @@
 import { ActionLog, EntityType, LogOperation } from "../../api/apiTypes.ts";
-import {
-  Badge,
-  Button,
-  Descriptions,
-  Drawer,
-  Flex,
-  Table,
-  Tooltip,
-} from "antd";
+import { Badge, Button, Flex, Table, Tooltip } from "antd";
 import React, { useMemo, useState } from "react";
 import { useActionLog } from "../../hooks/useActionLog.tsx";
 import {
@@ -34,6 +26,7 @@ import { useTableConfiguration } from "../table/useTableConfiguration.tsx";
 import { TableToolbar } from "../table/TableToolbar.tsx";
 import { AdminToolsHeader } from "./AdminToolsHeader.tsx";
 import { useActionLogFilter } from "../../hooks/useActionLogFilter.ts";
+import { ActionLogSidebar } from "./ActionLogSidebar.tsx";
 
 export enum OperationType {
   READ = "read",
@@ -511,47 +504,13 @@ export const ActionsLog: React.FC = () => {
           </div>
         </Flex>
       </Flex>
-      {currentActionLog && (
-        <Drawer
-          title="Action Details"
-          placement="right"
-          open={openSidebar}
-          closable={{ placement: "end" }}
-          onClose={onClose}
-          getContainer={".page-content"}
-          rootStyle={{ position: "absolute" }}
-        >
-          <Descriptions column={1} size="small" layout="vertical">
-            <Descriptions.Item label="Action Time">
-              {formatTimestamp(currentActionLog.actionTime)}
-            </Descriptions.Item>
-            <Descriptions.Item label="Initiator">
-              {currentActionLog.username}
-            </Descriptions.Item>
-            <Descriptions.Item label="Operation">
-              {capitalize(OperationTypeMap[currentActionLog.operation])}
-            </Descriptions.Item>
-            <Descriptions.Item label="Entity Id">
-              {currentActionLog.entityId}
-            </Descriptions.Item>
-            <Descriptions.Item label="Entity Type">
-              {capitalize(currentActionLog.entityType)}
-            </Descriptions.Item>
-            <Descriptions.Item label="Entity Name">
-              {renderEntityLink(currentActionLog)}
-            </Descriptions.Item>
-            <Descriptions.Item label="Parent Id">
-              {currentActionLog.parentId}
-            </Descriptions.Item>
-            <Descriptions.Item label="Parent Name">
-              {renderParentLink(currentActionLog)}
-            </Descriptions.Item>
-            <Descriptions.Item label="Request Id">
-              {currentActionLog.requestId}
-            </Descriptions.Item>
-          </Descriptions>
-        </Drawer>
-      )}
+      <ActionLogSidebar
+        value={currentActionLog}
+        onClose={onClose}
+        open={openSidebar}
+        entityLinkRenderer={renderEntityLink}
+        parentLinkRenderer={renderParentLink}
+      />
     </Flex>
   );
 };
