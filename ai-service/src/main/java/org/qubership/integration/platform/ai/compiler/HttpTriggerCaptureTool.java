@@ -84,7 +84,7 @@ public class HttpTriggerCaptureTool {
     } catch (HttpTriggerCaptureAdapter.Rejection rejection) {
       return reject(conversationId, rejection.issues());
     } catch (IllegalArgumentException error) {
-      return reject(conversationId, "CAPTURE_SHAPE_INVALID", "/endpoints", error.getMessage());
+      return reject(conversationId, "CAPTURE_SHAPE_INVALID", "/capture/endpoints", error.getMessage());
     } finally {
       if (recoveryControl != null) {
         var accepted = captureSession.get(
