@@ -10,6 +10,7 @@
  * rebuilt, and Helm leaves a Deployment whose tag did not change alone. `E2E_BUILD` narrows the
  * images built from the checkout; every other one runs as its published `:latest` from GHCR.
  */
+import fs from "node:fs";
 import path from "node:path";
 import type { ServiceRole } from "../index.js";
 import { BROKER_PORT, hostPort, OVERLAY_NAMES, proxyPort, proxyUrl, ROLES } from "../containers.js";
@@ -224,6 +225,50 @@ async function kindNetworkGateway(): Promise<string> {
   const gateway = stdout.split(/\s+/).find((each) => /^\d+\.\d+\.\d+\.\d+$/.test(each));
   if (!gateway) throw new Error("The kind Docker network has no IPv4 gateway to reach the host by.");
   return gateway;
+}
+
+// ---------------------------------------------------------------------------
+// The cluster bootstrap
+// ---------------------------------------------------------------------------
+
+/**
+ * Waits for the cluster bootstrap that `_e2e-kind.yaml` starts in the background. The workflow
+ * writes the output of `e2e/k8s/bootstrap-cluster.sh` to `log`, then its exit code to `<log>.exit`.
+ * Exit code 0 prints the log in a collapsed group of the job log; any other code throws with the
+ * log in the message.
+ */
+export async function awaitBootstrap(log: string, intervalMs = 2_000): Promise<void> {
+  const exitFile = `${log}.exit`;
+  const startedAt = Date.now();
+  if (!fs.existsSync(exitFile)) console.log(`[provision] waiting for the cluster bootstrap, which writes ${log}`);
+  while (!fs.existsSync(exitFile)) await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  const code = fs.readFileSync(exitFile, "utf-8").trim();
+  const output = fs.readFileSync(log, "utf-8");
+  if (code !== "0") {
+    throw new Error(`The cluster bootstrap e2e/k8s/bootstrap-cluster.sh exited with ${code}. Its log:\n${output}`);
+  }
+  console.log(`::group::The cluster bootstrap, after ${Math.round((Date.now() - startedAt) / 1000)} s of waiting`);
+  console.log(output);
+  console.log("::endgroup::");
+}
+
+/** The cluster the run installs into, as the steps after the image builds address it. */
+export interface ReadyCluster {
+  choice: ClusterChoice;
+  devServerHost: string;
+}
+
+/**
+ * Checks the prerequisites and reads the cluster kind. With `bootstrapLog`, the bootstrap that
+ * writes it has to finish first, because a cluster still being created fails the first check.
+ */
+export async function readyCluster(bootstrapLog: string | null, run: Kubectl = kubectl): Promise<ReadyCluster> {
+  if (bootstrapLog) await awaitBootstrap(bootstrapLog);
+  await checkPrerequisites(run);
+  const choice = clusterChoice((await run(["config", "current-context"])).trim());
+  const devServerHost = choice.devServerHost ?? (await kindNetworkGateway());
+  console.log(describeChoice(choice, devServerHost));
+  return { choice, devServerHost };
 }
 
 // ---------------------------------------------------------------------------
@@ -506,10 +551,10 @@ export async function provisionK8s(
 
   const build = imagesToBuild();
   checkMicroBuild(build, microProjects);
-  await checkPrerequisites();
-  const choice = clusterChoice((await kubectl(["config", "current-context"])).trim());
-  const devServerHost = choice.devServerHost ?? (await kindNetworkGateway());
-  console.log(describeChoice(choice, devServerHost));
+  // E2E_BOOTSTRAP_LOG names the log of a bootstrap still running, so the cluster is checked after
+  // the image builds, which need no cluster. Otherwise it is checked first, before the long build.
+  const bootstrapLog = process.env.E2E_BOOTSTRAP_LOG || null;
+  let cluster = bootstrapLog ? null : await readyCluster(null);
 
   const root = repoRoot();
   const images = suiteImages();
@@ -532,6 +577,8 @@ export async function provisionK8s(
     await stream("docker", ["build", "-t", reference, path.join(root, image.context)], root);
     report.rebuilt.push(image.name);
   }
+  cluster ??= await readyCluster(bootstrapLog);
+  const { choice, devServerHost } = cluster;
   // kind skips an image the node already holds; k3d imports it again, which costs seconds.
   for (const image of built) await loadImage(choice, `${image.repository}:${tags[image.name]}`, root);
 
