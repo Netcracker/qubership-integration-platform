@@ -73,17 +73,16 @@ export const Deployments: React.FC = () => {
     [deployments, searchTerm, snapshots],
   );
 
-  const deleteDeploymentFromChain = useCallback(
+  const deleteDeployment = useCallback(
     async (deployment: Deployment) => {
-      if (!chainId) return;
       try {
-        await api.deleteDeployment(chainId, deployment.id);
+        await api.deleteDeployment(deployment.id);
         removeDeployment(deployment);
       } catch (error) {
         notificationService.requestFailed("Failed to delete deployment", error);
       }
     },
-    [chainId, removeDeployment, notificationService],
+    [removeDeployment, notificationService],
   );
 
   const columns: TableProps<Deployment>["columns"] = useMemo(
@@ -161,9 +160,7 @@ export const Deployments: React.FC = () => {
                   showModal({
                     component: (
                       <DeleteDeploymentWarningModal
-                        onDelete={() =>
-                          void deleteDeploymentFromChain(deployment)
-                        }
+                        onDelete={() => void deleteDeployment(deployment)}
                       />
                     ),
                   })
@@ -174,7 +171,7 @@ export const Deployments: React.FC = () => {
         ),
       },
     ],
-    [snapshots, deleteDeploymentFromChain, showModal],
+    [snapshots, deleteDeployment, showModal],
   );
 
   const { orderedColumns, columnSettingsButton } =

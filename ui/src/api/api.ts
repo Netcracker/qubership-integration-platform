@@ -206,7 +206,7 @@ export interface Api {
     request: CreateDeploymentRequest,
   ): Promise<Deployment>;
 
-  deleteDeployment(chainId: string, deploymentId: string): Promise<void>;
+  deleteDeployment(deploymentId: string): Promise<void>;
 
   getDomains(): Promise<EngineDomain[]>;
 

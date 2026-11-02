@@ -22,7 +22,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.camelk.model.options.ResourceBuildOptions;
-import org.qubership.integration.platform.runtime.catalog.configuration.DomainProperties;
 import org.qubership.integration.platform.runtime.catalog.cr.BulkDeploymentService;
 import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainResourceBuildService;
 import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainService;
@@ -31,6 +30,7 @@ import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.DeployW
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildRequest;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceDeployRequest;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DomainTypeDisabledException;
+import org.qubership.integration.platform.runtime.catalog.model.domains.DomainType;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentResponse;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentStatus;
 import org.springframework.http.HttpStatus;
@@ -39,6 +39,7 @@ import org.springframework.http.ResponseEntity;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -64,10 +65,6 @@ class CustomResourceControllerTest {
     private MicroDomainResourceBuildService microDomainResourceBuildService;
     @Mock
     private MicroDomainService microDomainService;
-    @Mock
-    private DomainProperties domainProperties;
-    @Mock
-    private DomainProperties.DeployMethodConfiguration microConfiguration;
 
     private CustomResourceController controller;
 
@@ -76,13 +73,17 @@ class CustomResourceControllerTest {
         controller = new CustomResourceController(
                 bulkDeploymentService,
                 microDomainResourceBuildService,
-                microDomainService,
-                domainProperties);
+                microDomainService);
     }
 
     private void microDomainEnabled(boolean enabled) {
-        when(domainProperties.getMicro()).thenReturn(microConfiguration);
-        when(microConfiguration.isEnabled()).thenReturn(enabled);
+        when(microDomainService.verifyMicroDomainEnabled(any())).thenAnswer(invocation -> {
+            Supplier<?> supplier = invocation.getArgument(0);
+            if (enabled) {
+                return supplier.get();
+            }
+            throw new DomainTypeDisabledException(DomainType.MICRO);
+        });
     }
 
     private static ResourceDeployRequest deployRequest(String name) {
@@ -171,15 +172,5 @@ class CustomResourceControllerTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         verify(microDomainService).delete("orders");
-    }
-
-    @Test
-    void deleteSnapshotFromResourceDeletesTheChainSnapshot() {
-        microDomainEnabled(true);
-
-        ResponseEntity<Void> response = controller.deleteSnapshotFromResource("orders", "s1");
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        verify(bulkDeploymentService).deleteChainSnapshot("orders", "s1");
     }
 }

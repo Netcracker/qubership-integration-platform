@@ -234,7 +234,7 @@ describe("Deployments chain header toolbar", () => {
     modal.props.onDelete();
 
     await waitFor(() => {
-      expect(api.deleteDeployment).toHaveBeenCalledWith("chain-1", "dep-1");
+      expect(api.deleteDeployment).toHaveBeenCalledWith("dep-1");
       expect(mockRemoveDeployment).toHaveBeenCalledWith(mockDeployments[0]);
     });
   });

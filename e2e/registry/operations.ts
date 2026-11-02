@@ -442,7 +442,6 @@ export const operationRegistry: OperationEntry[] = [
   { service: "catalog", method: "DELETE", path: "/v1/chains/{chainId}/properties/logging", controller: "logging-properties-controller", status: "covered" },
   { service: "catalog", method: "DELETE", path: "/v1/common-variables", controller: "common-variables-controller", status: "covered" },
   { service: "catalog", method: "DELETE", path: "/v1/cr/{name}", controller: "custom-resource-controller", status: "not-reached", reason: R_DEPRECATED_ALIAS },
-  { service: "catalog", method: "DELETE", path: "/v1/cr/{name}/{snapshotId}", controller: "custom-resource-controller", status: "not-reached", reason: R_DEPRECATED_ALIAS },
   { service: "catalog", method: "DELETE", path: "/v1/detailed-design/templates", controller: "detailed-design-controller", status: "covered" },
   { service: "catalog", method: "DELETE", path: "/v1/folders/{folderId}", controller: "folder-controller", status: "covered" },
   { service: "catalog", method: "DELETE", path: "/v1/models/{modelId}", controller: "system-model-controller", status: "covered" },
