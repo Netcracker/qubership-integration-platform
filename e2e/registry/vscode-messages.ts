@@ -24,14 +24,6 @@ export interface MessageEntry {
 /** The reason every handler with no sender in `ui/src` carries; the harness reads its prefix. */
 export const NO_UI_SENDER = "no UI sender";
 
-const R_GRAPH = "no case edits the chain graph yet";
-const R_PROPERTIES = "no case edits chain or element properties yet";
-const R_FORMS = "no case opens an element form that lists services yet";
-const R_NAVIGATION = "no case navigates between chains yet";
-const R_DIFF = "no case opens the chain diff yet";
-const R_EXPORT = "no case exports images yet";
-const R_SERVICE = "no case opens the service editor yet";
-const R_CONTEXT_MCP = "no case opens the context service or MCP service editor yet";
 const R_1214 = "#1214: the extension has no handler, so the UI receives an answer with no payload";
 
 const covered = (message: string): MessageEntry => ({ message, status: "covered" });
@@ -45,69 +37,92 @@ export const messageRegistry: MessageEntry[] = [
   covered("getChain"),
   covered("getLibrary"),
 
-  ...notCovered(
-    R_GRAPH,
-    "getElements",
-    "getConnections",
-    "getLibraryElementByType",
-    "createElement",
-    "createConnection",
-    "deleteElements",
-    "deleteConnections",
-    "groupElements",
-    "ungroupElements",
-    "cloneElements",
-    "transferElement",
-  ),
-  ...notCovered(
-    R_PROPERTIES,
-    "updateElement",
-    "updateChain",
-    "getMaskedFields",
-    "createMaskedField",
-    "updateMaskedField",
-    "deleteMaskedFields",
-    "getElementsByType",
-  ),
-  ...notCovered(R_FORMS, "getServices", "getEnvironment", "getLatestApiSpecification", "getContextServices", "getMcpServices"),
+  // specs/vscode/chain-editor.spec.ts
+  covered("getElements"),
+  covered("getLibraryElementByType"),
+  covered("createElement"),
+  covered("createConnection"),
+  covered("deleteElements"),
+  covered("deleteConnections"),
+  covered("groupElements"),
+  covered("ungroupElements"),
+  covered("cloneElements"),
+  covered("transferElement"),
+  {
+    message: "getConnections",
+    status: "not-covered",
+    reason: "no screen calls api.getConnections: the chain editor reads the dependencies from getChain",
+  },
   // `openChainInNewTab` and `navigateInNewTab` count only through `sentMessage`: the extension posts no answer.
-  ...notCovered(R_NAVIGATION, "findChainByElementId", "openChainInNewTab", "navigateInNewTab", "moveChain"),
-  ...notCovered(R_DIFF, "comparedDocumentsRequest", "navigateComparedDocumentInNewTab"),
+  covered("findChainByElementId"),
+  covered("getElementsByType"),
+  covered("openChainInNewTab"),
+  covered("navigateInNewTab"),
+
+  // specs/vscode/chain-properties.spec.ts
+  covered("updateChain"),
+  covered("moveChain"),
+  covered("getMaskedFields"),
+  covered("createMaskedField"),
+  covered("updateMaskedField"),
+  covered("deleteMaskedFields"),
+
+  // specs/vscode/element-forms.spec.ts
+  covered("updateElement"),
+  covered("getServices"),
+  covered("getService"),
+  covered("getEnvironments"),
+  covered("getEnvironment"),
+  covered("getApiSpecifications"),
+  covered("getLatestApiSpecification"),
+  covered("getOperations"),
+  covered("getOperationInfo"),
+  covered("getContextServices"),
+  covered("getMcpServices"),
+
+  // specs/vscode/chain-diff.spec.ts; `navigateComparedDocumentInNewTab` counts only through `sentMessage`.
+  covered("comparedDocumentsRequest"),
+  covered("navigateComparedDocumentInNewTab"),
+
+  // specs/vscode/export-images.spec.ts
+  covered("saveExportedImage"),
+  covered("exportImagesProgress"),
+  covered("exportImagesComplete"),
+  covered("exportImagesItemFailed"),
+  covered("exportImagesItemWarning"),
+
+  // specs/vscode/service-editor.spec.ts
+  covered("updateService"),
+  covered("createEnvironment"),
+  covered("updateEnvironment"),
+  covered("deleteEnvironment"),
+  covered("getSpecificationModel"),
+  covered("updateApiSpecificationGroup"),
+  covered("updateSpecificationModel"),
+  covered("deprecateModel"),
+  covered("deleteSpecificationGroup"),
+  covered("deleteSpecificationModel"),
+  covered("importSpecificationGroup"),
+  covered("importSpecification"),
+  covered("getImportSpecificationResult"),
+  covered("getSpecApiFiles"),
+  covered("readSpecificationFileContent"),
+  {
+    message: "createService",
+    status: "not-covered",
+    reason: "no screen of the extension calls api.createService: the services list that does is not among the extension's routes, and the cip.createService command writes the file itself",
+  },
   ...notCovered(
-    R_EXPORT,
-    "saveExportedImage",
-    "exportImagesProgress",
-    "exportImagesComplete",
-    "exportImagesItemFailed",
-    "exportImagesItemWarning",
-  ),
-  ...notCovered(
-    R_SERVICE,
-    "getService",
-    "updateService",
-    "createService",
-    "getEnvironments",
-    "createEnvironment",
-    "updateEnvironment",
-    "deleteEnvironment",
-    "getApiSpecifications",
-    "getOperations",
-    "getOperationInfo",
-    "getSpecificationModel",
-    "updateApiSpecificationGroup",
-    "updateSpecificationModel",
-    "deprecateModel",
-    "deleteSpecificationGroup",
-    "deleteSpecificationModel",
-    "importSpecificationGroup",
-    "importSpecification",
-    "getImportSpecificationResult",
-    "getSpecApiFiles",
-    "readSpecificationFileContent",
-    "navigateToOperations",
+    "no screen calls the api method: the service editor moves between its tables with its own router",
     "navigateToSpecifications",
+    "navigateToOperations",
   ),
-  ...notCovered(R_CONTEXT_MCP, "getContextService", "updateContextService", "getMcpService", "updateMcpService"),
+
+  // specs/vscode/context-mcp-editors.spec.ts
+  covered("getContextService"),
+  covered("updateContextService"),
+  covered("getMcpService"),
+  covered("updateMcpService"),
 
   {
     message: "exportImagesDone",
