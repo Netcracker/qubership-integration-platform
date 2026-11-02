@@ -1,13 +1,13 @@
 /**
  * `DELETE /v1/sessions` — the bare form, which removes every session in OpenSearch.
  *
- * One operation, one file, and `e2e/AGENTS.md` rule 2 is what puts it here rather than beside the
- * rest of the sessions surface in `specs/api/sessions-api.spec.ts`. `SessionService.deleteAllSessions`
- * is a delete by query with `MatchAllQuery` and no predicate at all — not a chain, not a caller, not
- * a run token — so it takes every worker's traces and every previous run's with them. A parallel
- * project cannot hold it, and neither can a project that runs before one: `global` declares
- * `api`, `runtime` and `env`, so by the time this file runs, every spec that asserts over a session
- * has finished asserting.
+ * One operation, one file, and `e2e-spec-authoring` rule 2 is what puts it here rather than beside
+ * the rest of the sessions surface in `specs/api/sessions-api.spec.ts`.
+ * `SessionService.deleteAllSessions` is a delete by query with `MatchAllQuery` and no predicate at
+ * all — not a chain, not a caller, not a run token — so it takes every worker's traces and every
+ * previous run's with them. A parallel project cannot hold it, and neither can a project that runs
+ * before one: `global` declares `api`, `runtime` and `env`, so by the time this file runs, every
+ * spec that asserts over a session has finished asserting.
  *
  * The three sibling deletes are **not** here. `POST /v1/sessions/bulk-delete` takes an explicit id
  * list and `DELETE /v1/sessions/chains/{chainId}` and `DELETE /v1/sessions/chains?chainIds=…` take

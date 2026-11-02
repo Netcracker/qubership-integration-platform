@@ -1,6 +1,6 @@
 ---
 name: fix-issue
-description: Take a GitHub issue labeled ready-for-agent, fix it end to end against the running local stack, and deliver a branch, a pull request, an evidence report, and an autonomy label. Works for any module (ui, runtime-catalog, engine, micro-engine, integration-build-pipeline, vscode-extension, schemas, infrastructure). Use when asked to work an issue by number or URL, or to run the autonomous issue pipeline.
+description: Take a GitHub issue labeled ready-for-agent, fix it end to end against the running local stack, and deliver a branch, a pull request, an evidence report, and an autonomy label. Works for any module (ui, runtime-catalog, sessions-management, engine, micro-engine, integration-build-pipeline, vscode-extension, schemas, testing-service, infrastructure). Use when asked to work an issue by number or URL, or to run the autonomous issue pipeline.
 ---
 
 # Working a GitHub issue end-to-end
@@ -11,7 +11,7 @@ the label is a function of the gate reached, never of how the work felt.
 | Gate | Name | Stopping here means |
 |---|---|---|
 | 0 | Intake | the issue is not ready, or the branch cannot be made |
-| 1 | Contract | no criterion a human would recognize, or the fix needs a decision that is not yours |
+| 1 | Contract | no criterion a human would recognize, or a decision that is not yours goes unanswered |
 | 2 | Reproduce | the defect does not appear |
 | 3 | Fix | the change would break a stop rule |
 | 4 | Verify | a criterion or a static check is red |
@@ -23,10 +23,9 @@ A stop at any gate: `ai:needs-human`, the full report on the issue, and an offer
 finish the work together. A stop after gate 3 commits the work on the run's branch without
 pushing it and names the branch in the report. Green checks at gate 6: `ai:processed`.
 
-Run silently and ask nothing until the run ends. When a person decides something along the way
-(picks an option after a stop, changes the shape, points at a gap), the run carries on and the
-report records the decision. Every run ends with a report and a label, including a resumed run,
-a reworked fix, and a run a person stepped into.
+Run silently and ask nothing until the run ends, except the one question rule 7 allows; record
+any human decision under **Assisted**. Every run ends with a report and a label, including a
+resumed run, a reworked fix, and a run a person stepped into.
 
 Companion files, read when the gate names them:
 
@@ -38,8 +37,8 @@ Companion files, read when the gate names them:
 
 ## The labels
 
-`ai:processed` records the outcome: the pull request reached green checks. What a person
-decided on the way is recorded in the report under **Assisted**, not in the label. A person,
+`ai:processed` records the outcome: the pull request reached green checks, with or without a
+person's help. A person,
 never you, adds `human:ai-failed` to an issue already marked `ai:processed` when the delivered
 work does not do the job, so the difference between the two counts results. If the issue
 carries `human:ai-failed`, every review comment on the earlier pull request becomes a hard
@@ -56,7 +55,8 @@ gh auth status                                  # needs the project scope for th
 Continue only when the issue carries `ready-for-agent` and no open pull request references it.
 A request to run the skill is not the label: on an unlabeled issue, stop and say so, without
 adding the label yourself. An issue you file on the user's request gets `ready-for-agent` from
-you at creation.
+you at creation. When the issue needs the cluster, ask for the cluster permission now, once, as
+`k8s.md` says.
 
 Work in a worktree on a fresh branch from `origin/main`, and leave the user's checkout alone:
 it is usually dirty, and another run may be using it.
@@ -100,10 +100,8 @@ gets rationalized, and a falsifiable criterion cannot be.
 - **Bring in the twins.** Grep for the same code in the other of `engine` and `micro-engine` and
   in sibling modules. A path with the same root cause that the product reaches joins the
   contract and is measured like the named one; a finding on another subject goes to the report.
-- **Name the product path to the bad state.** A UI form, the product's own export and import, or
-  a real deployment. A state only a hand-made API write produces, such as a boolean property
-  `PATCH`ed in as the string `"false"`, is not a defect: stop under rule 8 and say how you
-  reached it.
+- **Name the product path to the bad state** (`cip-working-agreements`); without one, stop
+  under rule 8.
 
 ### The shape of the fix
 
@@ -117,13 +115,19 @@ in two places: a backend
 flag with the UI that reads it beats a UI fan-out of N requests. Use the pattern the codebase
 already has for the same need before inventing one. A new type, mapper, shared handler, or
 shared configuration the contract does not require means more than one shape is defensible:
-stop under rule 7.
+ask under rule 7.
+
+Back the shape with the documentation of the library or platform it uses, or with common
+practice, and cite it in the report. A setting meant for development, such as an alpha feature
+flag or an experimental channel, does not go on a production path. A fix in shared code that has
+run in production for years stays targeted, even where a deeper rewrite would be more correct:
+the deeper rewrite goes to an issue of its own, with measurements against `main`.
 
 ## Gate 2: reproduce, beside a healthy peer
 
 Nothing is fixed until it has been seen broken. Bring the stack up as `stack.md` says, seed it
 through the product's own shapes with a unique run token, and capture "before" now, ahead of
-any edit.
+any edit. `verification.md` gives the reproduction for each module.
 
 | Module | Reproduction | Healthy peer |
 |---|---|---|
@@ -133,6 +137,7 @@ any edit.
 | integration-build-pipeline | a golden pair in `TemplateServiceTest`, then a new snapshot on the stack | an element whose template renders correctly |
 | vscode-extension | real exports run through the code under test; Jest as reproduction | the protocol or shape that works |
 | schemas | `ajv` against real documents from the catalog | a sibling schema |
+| testing-service | the API on `:8095` before and after, then a Go test case | the sibling endpoint or entity type |
 | infrastructure | throwaway container beside the stack, `helm template` before and after | the neighboring service |
 
 **Look at the pixels.** `opacity`, `visibility`, and `color` read normal on an element
@@ -148,13 +153,14 @@ and attach every line to a criterion number; remove a line that belongs to none.
 sibling service has it"), analogy ("postgres sets the same value"), and foresight ("a future
 caller might need it") never justify a line, configuration and test helpers included.
 
-A defect pinned in the end-to-end suite is part of the fix. `grep -rn "#<N>\b" e2e/specs
-e2e/support` finds the `test.fail()` case that pins it. Remove the annotation; the case passing
-becomes your "after".
+A defect pinned in the end-to-end suite is part of the fix: the `e2e-decision` instruction says
+how to find the `test.fail()` case that pins it. Remove the annotation; the case passing becomes
+your "after".
 
-A generated file in the diff is a public contract change. `runtime-catalog/api-spec/openapi.yaml`
-is rewritten by `OpenApiSpecGeneratorTest` and checked in CI; name it first under **For the
-reviewer**.
+A generated file in the diff is a public contract change. `api-spec/openapi.yaml` in
+`runtime-catalog`, `engine`, and `sessions-management` is rewritten by each module's
+`OpenApiSpecGeneratorTest`, and the `ensure-openapi-spec` job fails when it is stale; name it
+first under **For the reviewer**.
 
 ## Gate 4: verify
 
@@ -176,6 +182,8 @@ Two attempts at a red criterion, then stop.
 
 ## Gate 4.5: review
 
+Fix confirmed findings without asking.
+
 Spawn read-only reviewers on the green diff, one lens each: **correctness and regression risk**,
 **simplification**, **conventions**. Three for a diff under about five files, more for larger
 ones. Give each the issue, the contract, the diff, and the worktree path, and nothing of your
@@ -187,7 +195,7 @@ without polling; drafting the pull request body meanwhile is fine. Then sort the
 - **A reproduced regression** returns the run to gate 4.
 - **A finding about the shape** (the codebase does this differently, a flag would replace N
   requests, a helper already exists) means gate 1 got the shape wrong. Go back to gate 1, or
-  stop under rule 7. It is never a note for the reviewer.
+  ask under rule 7. It is never a note for the reviewer.
 - **A line that can go** goes, if every criterion stays green without it.
 - **Anything else** is reproduced or dropped. Lenses produce confident, specific, wrong claims.
 
@@ -200,35 +208,49 @@ finding in round two means the change is not understood: stop.
 ## Gate 5: deliver
 
 Commit with a Conventional Commits subject that names the issue, adding only the files the run
-touched, push, and open the pull request **ready for review**. The commands, and the ways each
-one fails silently, are in `delivery.md`.
+touched, push, and open the pull request **ready for review**. Open it as a draft instead when the
+user asks for one or a rule 7 question is still open. The commands, and the ways each one fails
+silently, are in `delivery.md`.
 
-The description is not the run report; it has a different reader. **Title:** the symptom in
-the reporter's words, naming the screen or the endpoint. **Body** in four short sections:
+The description is not the run report; it has a different reader. Write the commit message and
+the description as the `change-description-authoring` and `english-developer-style` skills say.
+**Title:** `fix(<module>): <symptom in the reporter's words>`, naming the screen or the endpoint,
+which `pr-lint-title.yaml` accepts. **Body** under the headings **Why**, **What**, **How to
+verify**, and **For the reviewer**, with these additions:
 
-- **Why**: what a user sees and how they reach it, in plain words, then the before and after
-  evidence.
-- **What**: a handful of one-line bullets, with the blast radius of any shared component.
-- **How to verify**: steps in the running application, then the commands, then the end-to-end
-  decision: the regression case, or the reason from the `e2e-decision` instruction that the fix
-  needs none.
-- **For the reviewer**: only what needs a decision. A generated file that changed, a test whose
-  expectation moved, behavior reaching call sites outside the issue, the shape decision and the
-  alternatives it beat.
+- **Why** carries the before and after evidence.
+- **How to verify** ends with the end-to-end decision: the regression case with the target and
+  the command it passed under (rule 23 of `e2e-spec-authoring`), or the reason from the
+  `e2e-decision` instruction that the fix needs none.
+- **For the reviewer** holds only what needs a decision: a generated file that changed, a test
+  whose expectation moved, behavior reaching call sites outside the issue, the shape decision and
+  the alternatives it beat.
+- `Closes #<N>` goes in the body (`delivery.md`).
 
-Move the issue to **In review** on the board, then post the run report on the issue. Before any
-later push, confirm the pull request is still open; `delivery.md` says why.
+Move the issue to **In review** on the board, then post the run report on the issue.
+
+A reproduced finding with the same root cause joins the contract (gate 1); file any other as
+`delivery.md`, File an issue, says.
 
 ## Gate 6: the checks, before the label
 
 The label waits for CI. Green is the conclusion of every workflow run and every external check
 on the head commit, which `scripts/wait-checks.sh` reports (`delivery.md`). A failed job goes
-through the `ci-fix` skill, a Sonar finding through `sonar-triage`.
+through the `ci-fix` skill, a Sonar finding through `sonar-triage`. A pull request in conflict
+with `main` is not green; check it as `delivery.md`, Commit and push, says.
 
 Green: `ai:processed` on the issue and on the pull request, including after a resumed run, which
-also removes `ai:needs-human`. Red
+also removes `ai:needs-human` from both. Red
 after two attempts, or red for a reason outside the change: `ai:needs-human`, naming the check
 and the reason.
+
+## After gate 6: review comments
+
+When reviews arrive on the pull request, read every inline comment and every review body
+(`delivery.md`, Review comments). Sort each one as gate 4.5 sorts a finding, and reply in its
+thread with the outcome: the commit that fixes it, the measurement that refutes it, or the
+question it raises under rule 7. Fix and push, run gate 6 again, then remove `ai:reviewed` from
+the pull request. The report records each reviewer decision under **Assisted**.
 
 ## Stop rules
 
@@ -237,17 +259,16 @@ Stop and label `ai:needs-human` when any of these is true:
 1. the issue lacks `ready-for-agent` and you did not file it on the user's request, or a pull
    request already addresses it;
 2. a defect has no criterion a human would recognize;
-3. the fix would change a Flyway migration, or change what a JSON schema accepts for documents
-   that already exist (a new optional keyword such as `readOnly` is not that);
+3. the fix would change a migration already on `main`, or change what a JSON schema accepts for
+   documents that already exist (a new optional keyword such as `readOnly` is not that);
 4. the fix would change a public API contract in a way that breaks an existing caller;
 5. the defect does not reproduce;
 6. a criterion is still red after two attempts;
 7. **the fix requires choosing between defensible shapes**: save-on-blur or discard-on-blur; a
    backend flag or a UI fan-out; an annotation on a shared model, a request type of its own, or
-   a mapper setting. The same holds for a fix that **widens a failure**: when a broken setting of
-   one chain or connector would fail engine startup, and with it every chain on the pod (eager
-   initialization, a constructor call, `@PostConstruct`). Present the options with measurements
-   and stop;
+   a mapper setting. The same holds for a fix that **widens a failure**, as "Failures and
+   restarts" in the `engine` and `micro-engine` instructions describes. Ask one question with the
+   options and their measurements, carry on with the answer, and stop only when nobody answers;
 8. the defect is not worth what the fix costs: unreachable through the product, years in
    production, or fixable only through a shared model. Say what it would cost and let the owner
    close the issue.
@@ -268,11 +289,12 @@ The issue comment, and on a stop the only thing the run leaves behind.
 5. **Change**: files touched, one line each, and why.
 6. **Gates**: pass or fail per gate, including the CI checks by name.
 7. **Left undone**, in three separate lists: **reproduced by me** (with the command), **read in
-   the code, not reproduced**, and **limits of my own change**. Then the exact question for the
-   human, and the state of the stack if it differs from how you found it.
+   the code, not reproduced**, each with the reason it was not run, and **limits of my own
+   change**. Then the exact question for the human, and the state of the stack if it differs from
+   how you found it.
 
-Section 7 is mandatory even on a clean run. In chat, not in the report, offer to file each
-reproduced item as an issue, after checking that the product reaches it.
+Section 7 is mandatory even on a clean run. A finding reaches the user as a defect only after it
+is reproduced on the stack; until then it stays under **read in the code**.
 
 ## Maintaining this skill
 

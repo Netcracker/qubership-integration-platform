@@ -31,23 +31,21 @@ corpus, residue, and frozen fixtures, and its `browser.md` holds the rules for `
 ```bash
 npm run check-types          # type-check
 npm test -- --project=schema --project=harness  # the specs that need no stack
-npm test -- --project=<name> --no-deps -g "…"  # one case, against a corpus kept with E2E_KEEP=1
+E2E_SWEEP=never npm test -- --project=<name> --no-deps -g "…"  # one case, against a kept corpus (README "Reproducing one case")
 npm test; npm run reconcile  # a full run, then the registries checked against it
 npx playwright test --list   # count the cases and the projects; starts nothing
 ```
 
-`--no-deps` belongs on every `--grep` and every file path: a filter selects tests and never
-dependency projects, so without it one tagged `env` case drags `api`, `runtime`, `seed`,
-`seed-teardown`, and `tooling` in whole. Every runtime case reruns against a kept corpus; a case that
-cannot is a case to fix, not to document.
+Put `--no-deps` on every `--grep` and every file path; `e2e/README.md` says why. Every runtime case
+reruns against a kept corpus; a case that cannot is a case to fix, not to document.
 
 The VS Code extension's integration tests are a sibling suite with their own runner, not Playwright
 specs. A case that needs the `vscode` API goes under `vscode-extension/src/web/test/suite/`, never
 under `specs/`. The suites meet on `vscode-extension/src/web/test/golden/`, which
-`specs/api/extension-output.spec.ts` imports into the catalog, and two suites write it: the eight
-files at its top level come from the extension's own integration suite, and the twenty-one under
-`golden/import/` from the Jest cases in `vscode-extension/tests/web/import/`, which the integration
-bundle never loads. Regenerate a golden in the suite that writes it.
+`specs/api/extension-output.spec.ts` imports into the catalog, and two suites write it: the files at
+its top level come from the extension's own integration suite, and the ones under `golden/import/`
+from the Jest cases in `vscode-extension/tests/web/import/`, which the integration bundle never
+loads. Regenerate a golden in the suite that writes it.
 
 ### CI
 
@@ -70,25 +68,26 @@ a test by its describe path and title joined with ` › `, count the product, se
 project groups apart, mark each failed test as new, intermittent, or still failing from the
 `e2e-outcomes` artifacts of earlier runs on the branch, which `support/run-history.mjs` reads, and
 list a `test.fail()` case that passed apart, as a pin to remove. The email gives each failed test
-the command that reruns it alone.
-The summary also reads `coverage.json`, which `npm run reconcile` writes, and the `resource-peaks`
-and `metaspace` attachments of `specs/env/process-envelope.spec.ts`.
+the command that reruns it alone. The summary also reads `coverage.json`, which
+`npm run reconcile` writes, and the `resource-peaks` and `metaspace` attachments of
+`specs/env/process-envelope.spec.ts`.
 
 ### Provisioning
 
-`npx playwright test` brings the stack to this checkout before any project starts. It starts what is
-missing or unhealthy, rebuilds a service whose sources changed since its image was built,
-and never recreates a running container that is already current, because a developer may be
-debugging on the same stack.
+`npx playwright test` brings the stack to this checkout before any project starts. The
+"Provisioning" section of `e2e/README.md` lists what it does and what it prints; a change to the
+provisioner keeps the rules below.
 
+- **A running container that is already current is never recreated**, because a developer may be
+  debugging on the same stack.
 - **Rebuilding takes two commands.** The service Dockerfiles copy a jar the host already built
   (`runtime-catalog/Dockerfile:24`), so `mvn install` runs first and `docker compose up -d --build`
   second. `--build` on its own repackages whatever sits in `target/` and compiles no Java.
-- **Configuration recreates rather than rebuilds.** A change to `infrastructure/docker/docker-compose.yml`
-  or to an env file a service reads is compared against the **container's** creation time rather
-  than the image's, and answered with `up -d --force-recreate`; the report names the two apart. A
-  change under `infrastructure/docker/nginx/` is read by a proxy reload instead, since that directory is
-  bind-mounted.
+- **Configuration recreates rather than rebuilds.** A change to
+  `infrastructure/docker/docker-compose.yml` or to an env file a service reads is compared against
+  the **container's** creation time rather than the image's, and answered with
+  `up -d --force-recreate`. A change under `infrastructure/docker/nginx/` is read by a proxy reload
+  instead, since that directory is bind-mounted.
 - **Every created or recreated container is followed by `Env.reloadProxy()`.** nginx resolves
   `proxy_pass http://engine:8080` once, at config load, with no `resolver` in scope, so a recreated
   backend leaves the proxy pointing at an address Docker has since handed to another container.
@@ -112,6 +111,9 @@ own sources, and runs
 change the suite needs goes in the chart as an optional value with a default that renders what it
 rendered before, and `e2e/k8s/values.e2e.yaml` sets it.
 
+On Docker Desktop, three limits apply to a local cluster; the "Cluster" section of
+`e2e/k8s/README.md` lists them.
+
 **On Compose, provisioning does not start the broker overlays.** `Env.ensureOverlay(overlay)` brings
 one up, composed with the base file under the same project name, when the `brokers-seed` project
 needs it, and leaves a healthy overlay alone. On `k8s` the release installs the brokers as `cip-dev`
@@ -131,6 +133,12 @@ e2e/
                          compose.ts and k8s.ts (the two Envs), provision.ts (the globalSetup),
                          containers.ts (host ports per target, the broker ones included),
                          overlays.ts (the broker readiness probes both Envs share)
+  env/provision/         compose.ts and k8s.ts (each target's provisioner), common.ts (what
+                         both share)
+  support/               the fixtures, the service clients, the corpus and broker seeds, the
+                         sweep, the page guard, and the run report, summary, and email
+  fixtures/              the chains, services, specifications, and archives the specs import,
+                         and the axis generator
   k8s/                   the chart values for cip-e2e, the cluster bootstrap script, and the page
                          that installs a cluster
   registry/              what the suite claims to cover, read off the tracked schemas
@@ -148,7 +156,7 @@ e2e/
   specs/global/          reads over the whole platform, or over state it shares; one
                          worker, after api, runtime, env and ui
   specs/ui-server/       builds and serves the UI bundle on 4200, then stops it
-  specs/ui/              the browser layer, Chromium through nginx on 8080; imports `test`
+  specs/ui/              the browser layer, Chromium through the proxy; imports `test`
                          from support/page-guard.ts, which fails a case on a page error
   specs/seed-micro/      k8s only: the micro copy of the corpus, on a micro domain of the run
   specs/brokers-micro-seed/
@@ -183,10 +191,10 @@ One Postgres and one engine serve every worker, so specs split their data two wa
 - **Mutable and per worker.** Anything a spec creates. Chains and folders go under a per-worker
   folder; deleting the folder cascades. Entities with no folder carry the run token in their name.
 
-**Size a deploy poll on about 5 s.** `TasksScheduler.java:130` is `@Scheduled(fixedDelay = 2500)`,
-but the body blocks inside `ConsulService.waitForDeploymentsUpdate()` for up to 20 s
-(`ConsulService.java:50`), and Consul returns the moment the KV index moves. Measured over 15
-deploys, the pickup took a median of 2.165 s and a maximum of 3.113 s, so 2.5 s is too short and
+**Size a deploy poll on about 5 s.** The `TasksScheduler` method that reads deployment updates is
+`@Scheduled(fixedDelay = 2500)`, but its body blocks inside
+`ConsulService.waitForDeploymentsUpdate()` for up to 20 s (`WAIT_TIMEOUT_STRING`), and Consul
+returns the moment the KV index moves. Measured over 15 deploys, the pickup took a median of 2.165 s and a maximum of 3.113 s, so 2.5 s is too short and
 20 s over-provisions sixfold.
 
 ### Reading a failure
