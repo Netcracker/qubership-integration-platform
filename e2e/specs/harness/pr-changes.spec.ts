@@ -96,6 +96,7 @@ const KIND_ENTRY_POINTS = [
   "env/provision.ts",
   "support/fixtures.ts",
   "support/lanes.mjs",
+  "support/email-recipients.mjs",
   "registry/reconcile.mjs",
   "support/run-summary.mjs",
   "support/run-page.mjs",

@@ -243,8 +243,8 @@ the console output only, and the command does not run `npm run reconcile`.
 
 `.github/workflows/e2e-k8s.yaml` runs the full suite on a kind cluster, nightly on `main` and on
 manual dispatch from the Actions tab. The dispatch input `workers` sets `E2E_WORKERS`; left empty,
-the run uses the nightly value. The dispatch input `email`, on by default, makes a manual run send
-the run email as well.
+the run uses the nightly value. The dispatch input `email-to` takes comma-separated addresses, and a
+manual run mails the run email to those addresses only; left empty, the default, it sends no email.
 
 Each project belongs to one of three groups, which every count below keeps apart. Product projects
 run the product's cases. Setup and teardown projects seed, build, serve, or remove what the product
@@ -311,10 +311,13 @@ needs unpacking:
 An unzipped artifact takes its name from the file, and a second upload under one name fails, so the
 run number and the attempt are part of each file name.
 
-Every nightly run, passed or failed, mails a report to the addresses in the repository variable
-`EMAIL_TO`, which the email step needs. `support/run-email.mjs` writes it. The subject opens with
-the verdict, such as `E2E nightly failed: 1 new, 1 still failing in api (main @ 7a393a8)`, and the
-inbox preview line holds the verdict sentence. The message is 600 px wide and names every status in
+Every scheduled run, passed or failed, mails a report to the addresses in the repository variable
+`EMAIL_TO`. `support/run-email.mjs` writes it. The addresses reach `_e2e-kind.yaml` as a secret,
+and `support/email-recipients.mjs` masks each one in the log before the setup steps run. It fails
+the job when an entry is not an address, which needs one `@`, no spaces, and a dot in its domain.
+The subject opens with the verdict, such as
+`E2E nightly failed: 1 new, 1 still failing in api (main @ 7a393a8)`, and the inbox preview line
+holds the verdict sentence. The message is 600 px wide and names every status in
 words beside its color. It holds the verdict and how the failures compare with the previous run, the
 product counts with a line for setup and teardown and one for suite checks, and links to the run,
 the run page, the HTML report, the report with traces, the run artifacts, the cluster dump, and the

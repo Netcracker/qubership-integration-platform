@@ -33,11 +33,6 @@ on:
         required: false
         type: string
         default: "4"
-      email:
-        description: Email the run to vars.EMAIL_TO; ignored under pull-request
-        required: false
-        type: boolean
-        default: false
       timeout-minutes:
         description: The job timeout
         required: false
@@ -56,6 +51,9 @@ on:
     secrets:
       EMAIL_PASSWORD:
         description: The SMTP password of vars.EMAIL_FROM
+        required: false
+      EMAIL_TO:
+        description: Comma-separated addresses to email the run to; empty sends no email, and pull-request sends none
         required: false
 
 permissions: {}
@@ -79,6 +77,14 @@ jobs:
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
+
+      # Masks each address before any later step can print one, and fails here on a malformed
+      # entry. First after the checkout, so a run that fails while setting up still sends its email.
+      - name: Read the email recipients
+        id: recipients
+        env:
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+        run: node e2e/support/email-recipients.mjs
 
       - name: Set up Java
         id: java
@@ -369,12 +375,13 @@ jobs:
           path: ${{ runner.temp }}/cluster/
           retention-days: 14
 
-      # Every run is mailed, a green one too. On a failed run the subject names the failed tests, or
-      # else the first global error, or else the step that failed first, which the jobs API names.
+      # Every run with recipients is mailed, a green one too. On a failed run the subject names the
+      # failed tests, or else the first global error, or else the step that failed first, which the
+      # jobs API names.
       # Without a checkout there is no script to write the email.
       - name: Write the run email
         id: email
-        if: ${{ always() && inputs.email && !inputs.pull-request }}
+        if: ${{ always() && steps.recipients.outputs.to != '' && !inputs.pull-request }}
         env:
           JOB_STATUS: ${{ job.status }}
           GH_TOKEN: ${{ github.token }}
@@ -402,8 +409,8 @@ jobs:
           EMAIL_FROM: ${{ vars.EMAIL_FROM }}
           EMAIL_USERNAME: ${{ vars.EMAIL_FROM }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
-          EMAIL_TO: ${{ vars.EMAIL_TO }}
         with:
+          to: ${{ steps.recipients.outputs.to }}
           subject: ${{ steps.email.outputs.subject }}
           body: file://${{ github.workspace }}/e2e/test-results/email.txt
           html-body: file://${{ github.workspace }}/e2e/test-results/email.html
