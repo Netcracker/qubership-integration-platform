@@ -259,15 +259,28 @@ public class CaptureToolOutcomeGateway {
 
   /** Uses the same failure policy with typed, source-scoped defect identity. */
   public void onTypedPlanFailure(String conversationId, String capabilityId, String toolName, TypedIssue issue) {
-    String logicalPath = logicalRequirementPath(issue.path());
+    onTypedPlanFailure(conversationId, capabilityId, toolName, List.of(issue), "");
+  }
+
+  /**
+   * Records every issue of one rejection. Its identity is the sorted multiset of issue identities, so a reordered
+   * or reworded rejection repeats an earlier one, while a smaller or different set does not.
+   */
+  public void onTypedPlanFailure(String conversationId, String capabilityId, String toolName,
+      List<TypedIssue> issues, String trailer) {
+    List<String> identities = issues.stream()
+        .map(issue -> issue.code() + ":" + logicalRequirementPath(issue.path()) + ":"
+            + (issue.entityId() == null ? "" : issue.entityId()))
+        .sorted().toList();
     String fingerprint = fingerprintStore.fingerprint(toolName, capabilityId,
-        List.of(feedbackStore.inputScope(conversationId, capabilityId), issue.code(), logicalPath,
-            issue.entityId() == null ? "" : issue.entityId()));
-    String message = issue.code() + " " + issue.path() + ": " + issue.message();
+        List.of(feedbackStore.inputScope(conversationId, capabilityId), identities));
+    String message = issues.stream()
+        .map(issue -> issue.code() + " " + issue.path() + ": " + issue.message())
+        .collect(java.util.stream.Collectors.joining("\n")) + trailer;
     var decision = policy.decide(CaptureFailureClass.CORRECTABLE,
         CaptureAttemptState.forFingerprint(fingerprintStore.softCreditUsed(conversationId, fingerprint)), message);
     feedbackStore.recordTypedPlanFailure(conversationId, capabilityId, CaptureFailureKind.VALIDATION,
-        decision.failureClass(), decision.outerAllowed(), message, List.of(issue));
+        decision.failureClass(), decision.outerAllowed(), message, issues);
     recordMetrics(decision, capabilityId, toolName);
     if (decision.softToolResult()) { fingerprintStore.consumeSoftCredit(conversationId, fingerprint); }
     if (decision.throwCve()) { throw new CaptureValidationException(cveMessage(decision)); }

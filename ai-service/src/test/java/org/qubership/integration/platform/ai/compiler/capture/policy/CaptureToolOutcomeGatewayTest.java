@@ -351,4 +351,28 @@ class CaptureToolOutcomeGatewayTest {
         feedbackStore.lastRequirementFailure("conv-1").orElseThrow().failureClass());
     assertFalse(gateway.repeatedRequirementIssue("conv-1", "scope-2", remaining));
   }
+
+  @Test
+  void aTypedPlanRejectionIsIdentifiedByItsWholeIssueSet() {
+    var ghost = new CaptureToolOutcomeGateway.TypedIssue(
+        "UNKNOWN_NODE", "/capture/endpoints/0/semanticNodeId", "'ghost' is not approved.", "a");
+    var route = new CaptureToolOutcomeGateway.TypedIssue(
+        "MISSING_FIELD", "/capture/endpoints/1/externalRoute", "Set it.", "b");
+    gateway.onTypedPlanFailure("chat", "trigger", "captureHttpTriggers", List.of(ghost, route), "\nApproved.");
+    assertEquals("UNKNOWN_NODE /capture/endpoints/0/semanticNodeId: 'ghost' is not approved.\n"
+            + "MISSING_FIELD /capture/endpoints/1/externalRoute: Set it.\nApproved.",
+        feedbackStore.lastPlanFailure("chat").orElseThrow().summary());
+
+    gateway.onTypedPlanFailure("chat", "trigger", "captureHttpTriggers", List.of(route), "");
+    gateway.onTypedPlanFailure("chat", "trigger", "captureHttpTriggers", List.of(ghost), "");
+    assertTrue(feedbackStore.lastPlanFailure("chat").orElseThrow().outerAllowed());
+
+    var movedRoute = new CaptureToolOutcomeGateway.TypedIssue(
+        "MISSING_FIELD", "/capture/endpoints/0/externalRoute", "Reworded.", "b");
+    var renamedGhost = new CaptureToolOutcomeGateway.TypedIssue(
+        "UNKNOWN_NODE", "/capture/endpoints/1/semanticNodeId", "'phantom' is not approved.", "a");
+    assertThrows(CaptureValidationException.class, () -> gateway.onTypedPlanFailure(
+        "chat", "trigger", "captureHttpTriggers", List.of(movedRoute, renamedGhost), ""));
+    assertFalse(feedbackStore.lastPlanFailure("chat").orElseThrow().outerAllowed());
+  }
 }
