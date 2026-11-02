@@ -5,6 +5,7 @@ import com.github.jknack.handlebars.Handlebars;
 import com.github.jknack.handlebars.Template;
 import lombok.Builder;
 import lombok.Data;
+import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.camelk.model.ResourceBuildContext;
 import org.qubership.integration.platform.camelk.model.ResourceBuilder;
 import org.qubership.integration.platform.camelk.model.options.DBaaSOperatorType;
@@ -19,6 +20,8 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Map;
+
+import static org.qubership.integration.platform.camelk.naming.validation.K8sNames.K8S_RESOURCE_NAME_LENGTH_LIMIT;
 
 @Component
 public class DBaaSResourcesBuilder implements ResourceBuilder<List<Snapshot>> {
@@ -88,12 +91,17 @@ public class DBaaSResourcesBuilder implements ResourceBuilder<List<Snapshot>> {
     }
 
     private TemplateData buildTemplateData(ResourceBuildContext<List<Snapshot>> context, String dbName) {
+        String cloudServiceName = cloudServiceNamingStrategy.getName(context);
+        String suffix = "-" + dbName;
+        // Reserve room for the full suffix before truncating, so a long cloud service name cannot
+        // cut into it and give both databases the same resource name.
+        String base = StringUtils.truncate(cloudServiceName, K8S_RESOURCE_NAME_LENGTH_LIMIT - suffix.length());
         return TemplateData.builder()
             .domainLabel(domainLabel)
             .domainName(k8sNameValidator.validate(context.getBuildInfo().getOptions().getName()))
-            .name(k8sNameValidator.validate(cloudServiceNamingStrategy.getName(context) + "-" + dbName))
+            .name(k8sNameValidator.validate(base + suffix))
             .integrationName(integrationResourceNamingStrategy.getName(context))
-            .cloudServiceName(cloudServiceNamingStrategy.getName(context))
+            .cloudServiceName(cloudServiceName)
             .dbaasOperatorNamespace(context.getBuildInfo().getOptions().getDbaas().getOperatorNamespace())
             .build();
     }
