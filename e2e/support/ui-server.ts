@@ -11,6 +11,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { newestMtimeMs, repoRoot, runToCompletion } from "../env/host.js";
+import { BuildLock, BUNDLE_HOLDER } from "./build-lock.js";
 import { groupAlive, RecordedServer } from "./process-group.js";
 import { readUntil } from "./poll.js";
 
@@ -89,7 +90,7 @@ const MARKER_TEXT = Object.entries(BUILD_ENV)
  * Whether `ui/dist` is missing, was built outside the suite or with other variables, or is older
  * than its inputs.
  */
-async function bundleIsStale(): Promise<boolean> {
+export async function bundleIsStale(): Promise<boolean> {
   const built = await newestMtimeMs(uiDir(), [BUILD_MARKER]);
   if (built === 0) return true;
   if (fs.readFileSync(path.resolve(uiDir(), BUILD_MARKER), "utf-8") !== MARKER_TEXT) return true;
@@ -109,6 +110,18 @@ async function buildBundle(): Promise<void> {
     ...BUILD_ENV,
   });
   fs.writeFileSync(path.resolve(uiDir(), BUILD_MARKER), MARKER_TEXT);
+}
+
+/**
+ * Reserves the build lock for the bundle when the run reaches `ui-server` and the bundle is stale,
+ * so the `vscode-server` builds wait for it. Called in `globalSetup`, before any worker starts.
+ */
+export async function reserveBundleBuild(
+  projects: string[],
+  lock = new BuildLock(),
+  stale: () => Promise<boolean> = bundleIsStale,
+): Promise<boolean> {
+  return projects.includes(BUNDLE_HOLDER) && (await stale()) && lock.reserve(BUNDLE_HOLDER);
 }
 
 /** Starts `vite preview` in its own process group, so the teardown can stop npm and vite together. */
@@ -145,6 +158,15 @@ async function waitForPort(pid: number, budgetMs: number): Promise<boolean> {
  * `stopUiServer`.
  */
 export async function ensureUiServer(): Promise<{ pid: number | null; built: boolean }> {
+  try {
+    return await serveBundle();
+  } finally {
+    // A setup that built nothing lets the `vscode-server` builds go.
+    new BuildLock().dropReservation(BUNDLE_HOLDER);
+  }
+}
+
+async function serveBundle(): Promise<{ pid: number | null; built: boolean }> {
   const owner = server.otherLiveOwner();
   if (owner !== null) {
     throw new Error(
@@ -156,7 +178,7 @@ export async function ensureUiServer(): Promise<{ pid: number | null; built: boo
   if (await answers(UI_PORT)) return { pid: null, built: false };
   const built = await bundleIsStale();
   if (built) {
-    await buildBundle().catch((cause: unknown) => {
+    await new BuildLock().run(BUNDLE_HOLDER, buildBundle).catch((cause: unknown) => {
       throw new Error(`nothing answers on port ${UI_PORT}: the UI bundle did not build. ${String(cause)}`);
     });
   }

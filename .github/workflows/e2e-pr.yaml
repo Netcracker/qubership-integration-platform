@@ -1,7 +1,8 @@
 ---
 
 # The e2e checks of a pull request. `stack-free` runs on every one; `changes` reads the paths the
-# pull request changes, and each job after it runs only when its paths changed.
+# pull request changes, and each job after it runs only when its paths changed. `kind-result` runs
+# on every pull request and fails when a kind job failed.
 # No `paths` filter: the projects read trees outside `e2e/`, and a required check that never starts
 # blocks the merge, where a skipped job counts as passed.
 
@@ -57,13 +58,11 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
-      pull-requests: read
     outputs:
       vscode: ${{ steps.paths.outputs.vscode }}
       classic: ${{ steps.paths.outputs.classic }}
       micro: ${{ steps.paths.outputs.micro }}
       ui: ${{ steps.paths.outputs.ui }}
-      build: ${{ steps.paths.outputs.build }}
     defaults:
       run:
         working-directory: e2e
@@ -82,20 +81,8 @@ jobs:
         with:
           node-version: '22.x'
 
-      # Read now rather than from the event, so "Re-run all jobs" after adding the label sees it.
-      - name: Read the rebuild label
-        id: labels
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR: ${{ github.event.pull_request.number }}
-        run: |
-          rebuild=$(gh pr view "$PR" -R "$GITHUB_REPOSITORY" --json labels --jq 'any(.labels[]; .name == "e2e-rebuild")')
-          echo "rebuild=$rebuild" >> "$GITHUB_OUTPUT"
-
       - name: Decide which jobs run
         id: paths
-        env:
-          E2E_REBUILD: ${{ steps.labels.outputs.rebuild }}
         # --no-renames lists a moved file under its old path too, which may be a watched one.
         run: git diff --name-only --no-renames HEAD^1 HEAD | node support/pr-changes.mjs | tee -a "$GITHUB_OUTPUT"
 
@@ -199,3 +186,78 @@ jobs:
             --status completed --limit 1 --json conclusion,createdAt,url \
             --jq '.[] | "[\(.conclusion)](\(.url)) on \(.createdAt[:10])"') || nightly=""
           echo "Last nightly run on \`main\`: ${nightly:-none found}" >> "$GITHUB_STEP_SUMMARY"
+
+  # The lane's projects are in e2e/support/lanes.mjs. Every image a lane runs is built from the
+  # checkout, since the GHCR images lag main until a release. Only the micro lane runs micro-engine,
+  # so the other lanes leave it out of `build`.
+
+  # On CI, provisioning takes about 6 minutes and the classic cases about 10, so both timeouts leave
+  # twice that.
+  classic:
+    needs: changes
+    if: needs.changes.outputs.classic == 'true'
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+    uses: ./.github/workflows/_e2e-kind.yaml
+    with:
+      name: classic
+      lane: classic
+      build: runtime-catalog,engine,sessions-management,testing-service
+      pull-request: true
+      timeout-minutes: 60
+      global-timeout: 45
+
+  # The one lane that runs micro-engine, so it builds every image. On CI, provisioning takes about
+  # 8 minutes and the micro cases about 10, so both timeouts leave twice that.
+  micro:
+    needs: changes
+    if: needs.changes.outputs.micro == 'true'
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+    uses: ./.github/workflows/_e2e-kind.yaml
+    with:
+      name: micro
+      lane: micro
+      pull-request: true
+      timeout-minutes: 60
+      global-timeout: 45
+
+  # Provisioning takes about 6 minutes, the seed about 3 beside the UI bundle build, and the ui
+  # cases about 5 on 4 workers, so both timeouts leave twice that.
+  ui:
+    needs: changes
+    if: needs.changes.outputs.ui == 'true'
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+    uses: ./.github/workflows/_e2e-kind.yaml
+    with:
+      name: ui
+      lane: ui
+      build: runtime-catalog,engine,sessions-management,testing-service
+      brokers: false
+      pull-request: true
+      timeout-minutes: 45
+      global-timeout: 30
+
+  # The one required check for the kind jobs: a caller job's own check is named after the job when
+  # skipped and after the called job when run, so neither can be required. `changes` is here too,
+  # because its failure skips every kind job.
+  kind-result:
+    name: Kind jobs
+    needs: [changes, classic, micro, ui]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check the results
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Results: $RESULTS"
+          case " $RESULTS " in *" failure "* | *" cancelled "*) exit 1 ;; esac
