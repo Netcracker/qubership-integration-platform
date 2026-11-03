@@ -1285,14 +1285,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         // A brief defect is in the author's requirements, so rerunning this stage cannot correct it: the author edits
         // them in the stage that produced the committed requirement draft.
         if (cause.isKnownBriefDefect() && !catalogHasBeenWritten(doc.run().runId())) {
-          // The ledger refuses the author's reopen at the ceiling, while a Retry raises it.
-          if (recoveryLedger.perRunCeilingReached(doc.transitions())) {
-            return waitGuardedRecovery(
-                doc, stage, refs, HaltRecoveryGuard.RUN_RECOVERY_CEILING, cause, evidence, emitted);
-          }
-          Revision draft = committedArtifactRevision(doc, Kind.REQUIREMENT_DRAFT);
-          return waitEditableBriefRecovery(doc, stage, refs, cause, evidence,
-              draft == null || draft.provenance() == null ? "" : draft.provenance().stageId(), emitted);
+          return waitEditableBriefRecovery(doc, stage, refs, cause, evidence, committedDraftOwner(doc), emitted);
         }
         Optional<StageExecutionResult> regeneration = cause.isKnownBriefDefect()
             ? Optional.empty() : cleanRegeneration(doc, stage, refs, budgetCause, emitted);
@@ -3332,6 +3325,13 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         .orElse("");
   }
 
+  /**
+   * Waits on the Edit requirements card for a defect in the approved brief, owned by {@code ownerStageId} or, when it
+   * is blank, by the brief producer of {@code stage}. The ledger refuses an author's reopen of the current stage once
+   * it was approved, so such an owner gives way to the stage that produced the committed requirement draft. With no
+   * owner left, the card offers End run only. At the run's recovery ceiling, where the ledger refuses every author
+   * reopen, the run waits on the repeated-failure card instead, whose Retry creation raises the ceiling.
+   */
   private StageExecutionResult waitEditableBriefRecovery(
       ProductPipelineRunDocument doc,
       ProfileStage stage,
@@ -3340,9 +3340,17 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       String evidence,
       String ownerStageId,
       List<PipelineSignal> emitted) {
+    if (recoveryLedger.perRunCeilingReached(doc.transitions())) {
+      return waitGuardedRecovery(
+          doc, stage, refs, HaltRecoveryGuard.RUN_RECOVERY_CEILING, cause, evidence, emitted);
+    }
     String owner = ownerStageId == null ? "" : ownerStageId;
     if (owner.isBlank()) {
       owner = briefOwnerStageId(doc, stage);
+    }
+    if (owner.equals(stage.stageId()) && !isCurrentUnapprovedOwner(doc, owner)) {
+      String draftOwner = committedDraftOwner(doc);
+      owner = draftOwner.equals(stage.stageId()) ? "" : draftOwner;
     }
     if (!owner.isBlank()) {
       putRunAttribute(
@@ -3361,6 +3369,11 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         null,
         owner.isBlank() ? HaltRecoveryGuard.BLANK_OR_UNAPPROVED_OWNER.name() : null,
         emitted);
+  }
+
+  private String committedDraftOwner(ProductPipelineRunDocument doc) {
+    Revision draft = committedArtifactRevision(doc, Kind.REQUIREMENT_DRAFT);
+    return draft == null || draft.provenance() == null ? "" : draft.provenance().stageId();
   }
 
   static String exhaustedBriefRecoverySummary(RecoveryCause cause) {
