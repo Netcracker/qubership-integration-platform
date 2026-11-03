@@ -170,6 +170,9 @@ cip:
   variables:
     default-secret:
       enabled: ${DEFAULT_SECRET_ENABLED:false}
+    secrets-role:
+      name: cip-secured-variables-reader # Role that grants the engines get on the secured variables secrets; must match kubernetes.secrets-role.name of the engine
+      sync-delay: 60000 # milliseconds between two checks of the Role against the secured variables secrets
   deploy:
     classic:
       enabled: ${CLASSIC_DEPLOY_ENABLED:true}

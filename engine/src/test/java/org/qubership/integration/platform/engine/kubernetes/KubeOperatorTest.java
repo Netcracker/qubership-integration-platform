@@ -4,8 +4,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kubernetes.client.openapi.ApiException;
 import io.kubernetes.client.openapi.apis.CoreV1Api;
 import io.kubernetes.client.openapi.apis.CustomObjectsApi;
+import io.kubernetes.client.openapi.apis.RbacAuthorizationV1Api;
 import io.kubernetes.client.openapi.models.V1DeleteOptions;
 import io.kubernetes.client.openapi.models.V1ObjectMeta;
+import io.kubernetes.client.openapi.models.V1PolicyRule;
+import io.kubernetes.client.openapi.models.V1Role;
+import io.kubernetes.client.openapi.models.V1Secret;
 import okhttp3.Call;
 import okhttp3.MediaType;
 import okhttp3.Protocol;
@@ -32,15 +36,84 @@ class KubeOperatorTest {
     private static final String NAMESPACE = "cip";
     private static final String PLURAL = "httproutes";
     private static final String NAME = "engine-service-chain-public-routes";
+    private static final String ROLE_NAME = "cip-engine-secrets-role";
 
+    private CoreV1Api coreApi;
     private CustomObjectsApi customObjectsApi;
+    private RbacAuthorizationV1Api rbacApi;
     private KubeOperator kubeOperator;
 
     @BeforeEach
     void setUp() {
-        CoreV1Api coreApi = mock(CoreV1Api.class);
+        coreApi = mock(CoreV1Api.class);
         customObjectsApi = mock(CustomObjectsApi.class);
-        kubeOperator = new KubeOperator(new ObjectMapper(), coreApi, customObjectsApi, NAMESPACE, false);
+        rbacApi = mock(RbacAuthorizationV1Api.class);
+        kubeOperator = new KubeOperator(new ObjectMapper(), coreApi, customObjectsApi, rbacApi, NAMESPACE, false);
+    }
+
+    @Test
+    void getSecretsFromRoleReadsEachSecretListedInTheRolesResourceNames() throws ApiException {
+        stubRole(roleWithSecretRule(List.of("get"), "secret-a", "secret-b"));
+        stubSecret("secret-a", Map.of("key-a", "value-a".getBytes()));
+        stubSecret("secret-b", Map.of("key-b", "value-b".getBytes()));
+
+        Map<String, Map<String, String>> secrets = kubeOperator.getSecretsFromRole(ROLE_NAME);
+
+        assertEquals(Map.of("key-a", "value-a"), secrets.get("secret-a"));
+        assertEquals(Map.of("key-b", "value-b"), secrets.get("secret-b"));
+    }
+
+    @Test
+    void getSecretsFromRoleIgnoresRulesForOtherResourcesOrVerbs() throws ApiException {
+        V1PolicyRule configMapRule = new V1PolicyRule()
+                .resources(List.of("configmaps"))
+                .resourceNames(List.of("unrelated-configmap"))
+                .verbs(List.of("get"));
+        V1PolicyRule secretsListRule = new V1PolicyRule()
+                .resources(List.of("secrets"))
+                .resourceNames(List.of("unrelated-secret"))
+                .verbs(List.of("list"));
+        stubRole(new V1Role().rules(List.of(configMapRule, secretsListRule)));
+
+        Map<String, Map<String, String>> secrets = kubeOperator.getSecretsFromRole(ROLE_NAME);
+
+        assertTrue(secrets.isEmpty());
+        verify(coreApi, never()).readNamespacedSecret(any(), any());
+    }
+
+    @Test
+    void getSecretsFromRoleReturnsEmptyWhenRoleNotFound() throws ApiException {
+        stubRoleFailure(new ApiException(404, "Not Found"));
+
+        Map<String, Map<String, String>> secrets = kubeOperator.getSecretsFromRole(ROLE_NAME);
+
+        assertTrue(secrets.isEmpty());
+    }
+
+    @Test
+    void getSecretsFromRoleThrowsKubeApiExceptionOnOtherRoleFailure() throws ApiException {
+        stubRoleFailure(new ApiException(403, "Forbidden"));
+
+        assertThrows(KubeApiException.class, () -> kubeOperator.getSecretsFromRole(ROLE_NAME));
+    }
+
+    @Test
+    void getSecretsFromRoleSkipsMissingSecretAndKeepsTheOthers() throws ApiException {
+        stubRole(roleWithSecretRule(List.of("get"), "missing-secret", "secret-b"));
+        stubSecretFailure("missing-secret", new ApiException(404, "Not Found"));
+        stubSecret("secret-b", Map.of("key-b", "value-b".getBytes()));
+
+        Map<String, Map<String, String>> secrets = kubeOperator.getSecretsFromRole(ROLE_NAME);
+
+        assertEquals(Map.of("secret-b", Map.of("key-b", "value-b")), secrets);
+    }
+
+    @Test
+    void getSecretsFromRoleThrowsKubeApiExceptionWhenSecretReadFailsWithOtherError() throws ApiException {
+        stubRole(roleWithSecretRule(List.of("get"), "secret-a"));
+        stubSecretFailure("secret-a", new ApiException(500, "Internal Server Error"));
+
+        assertThrows(KubeApiException.class, () -> kubeOperator.getSecretsFromRole(ROLE_NAME));
     }
 
     @Test
@@ -259,6 +332,43 @@ class KubeOperatorTest {
                         .metadata(metadata)
                         .build())
                 .build();
+    }
+
+    private V1Role roleWithSecretRule(List<String> verbs, String... resourceNames) {
+        V1PolicyRule rule = new V1PolicyRule()
+                .apiGroups(List.of(""))
+                .resources(List.of("secrets"))
+                .resourceNames(List.of(resourceNames))
+                .verbs(verbs);
+        return new V1Role().rules(List.of(rule));
+    }
+
+    private void stubRole(V1Role role) throws ApiException {
+        RbacAuthorizationV1Api.APIreadNamespacedRoleRequest readRoleRequest =
+                mock(RbacAuthorizationV1Api.APIreadNamespacedRoleRequest.class);
+        when(rbacApi.readNamespacedRole(ROLE_NAME, NAMESPACE)).thenReturn(readRoleRequest);
+        when(readRoleRequest.execute()).thenReturn(role);
+    }
+
+    private void stubRoleFailure(ApiException exception) throws ApiException {
+        RbacAuthorizationV1Api.APIreadNamespacedRoleRequest readRoleRequest =
+                mock(RbacAuthorizationV1Api.APIreadNamespacedRoleRequest.class);
+        when(rbacApi.readNamespacedRole(ROLE_NAME, NAMESPACE)).thenReturn(readRoleRequest);
+        when(readRoleRequest.execute()).thenThrow(exception);
+    }
+
+    private void stubSecret(String name, Map<String, byte[]> data) throws ApiException {
+        CoreV1Api.APIreadNamespacedSecretRequest readSecretRequest =
+                mock(CoreV1Api.APIreadNamespacedSecretRequest.class);
+        when(coreApi.readNamespacedSecret(name, NAMESPACE)).thenReturn(readSecretRequest);
+        when(readSecretRequest.execute()).thenReturn(new V1Secret().data(data));
+    }
+
+    private void stubSecretFailure(String name, ApiException exception) throws ApiException {
+        CoreV1Api.APIreadNamespacedSecretRequest readSecretRequest =
+                mock(CoreV1Api.APIreadNamespacedSecretRequest.class);
+        when(coreApi.readNamespacedSecret(name, NAMESPACE)).thenReturn(readSecretRequest);
+        when(readSecretRequest.execute()).thenThrow(exception);
     }
 
     private void stubGet(int code, String body) throws Exception {

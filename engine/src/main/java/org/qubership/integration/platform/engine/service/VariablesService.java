@@ -18,7 +18,6 @@ package org.qubership.integration.platform.engine.service;
 
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.text.StringEscapeUtils;
 import org.apache.commons.text.StringSubstitutor;
 import org.jetbrains.annotations.NotNull;
@@ -51,7 +50,7 @@ import static java.util.Objects.nonNull;
 @Component
 public class VariablesService {
     private final String kubeSecretV2Name;
-    private final Pair<String, String> kubeSecretsLabel;
+    private final String secretsRoleName;
     private final boolean defaultSecretEnabled;
     private static final Pattern VARIABLE_PATTERN = Pattern.compile("#\\{[a-zA-Z0-9:._-]+\\}");
     private static final String SECRET_VARIABLE_SEPARATOR = ":";
@@ -77,14 +76,14 @@ public class VariablesService {
     public VariablesService(ApplicationEventPublisher applicationEventPublisher,
                             KubeOperator operator,
                             NamespaceProvider namespaceProvider,
-                            @Value("${kubernetes.variables-secret.label}") String kubeSecretsLabel,
                             @Value("${kubernetes.variables-secret.name}") String kubeSecretV2Name,
+                            @Value("${kubernetes.secrets-role.name}") String secretsRoleName,
                             @Value("${cip.variables.default-secret.enabled:false}") boolean defaultSecretEnabled) {
         this.applicationEventPublisher = applicationEventPublisher;
         this.operator = operator;
         this.namespaceProvider = namespaceProvider;
         this.kubeSecretV2Name = kubeSecretV2Name;
-        this.kubeSecretsLabel = Pair.of(kubeSecretsLabel, "secured");
+        this.secretsRoleName = secretsRoleName;
         this.defaultSecretEnabled = defaultSecretEnabled;
     }
 
@@ -165,8 +164,8 @@ public class VariablesService {
     private Map<String, String> pollSecuredVariables() {
         Map<String, String> securedVariables = new ConcurrentHashMap<>();
         try {
-            for (Map.Entry<String, Map<String, String>> secretEntry : operator.getAllSecretsWithLabel(
-                kubeSecretsLabel).entrySet()) {
+            for (Map.Entry<String, Map<String, String>> secretEntry : operator.getSecretsFromRole(
+                secretsRoleName).entrySet()) {
                 String secretName = secretEntry.getKey();
                 if (!defaultSecretEnabled && kubeSecretV2Name.equals(secretName)) {
                     continue;

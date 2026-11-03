@@ -25,12 +25,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
+import org.mockito.InOrder;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.runtime.catalog.configuration.MapperAutoConfiguration;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SecretNotFoundException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiNotFoundException;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.secret.KubeSecretOperator;
+import org.qubership.integration.platform.runtime.catalog.kubernetes.secret.SecuredSecretsRoleSynchronizer;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
@@ -77,6 +79,9 @@ public class K8sSecretServiceTest {
     @MockitoBean
     ActionsLogService actionLogger;
 
+    @MockitoBean
+    SecuredSecretsRoleSynchronizer secretsRoleSynchronizer;
+
     @Captor
     private ArgumentCaptor<ActionLog> actionLogCaptor;
 
@@ -102,6 +107,26 @@ public class K8sSecretServiceTest {
         secretService.createSecret(SECRET_NAME);
         verify(operator, times(1)).createSecret(
                 eq(SECRET_NAME), eq(Pair.of(SECRET_LABEL_NAME, "secured")), isNull());
+    }
+
+    @DisplayName("Should sync the secured variables Role after creating a secret")
+    @Test
+    void shouldSyncSecretsRoleAfterCreatingSecret() {
+        secretService.createSecret(SECRET_NAME);
+
+        InOrder inOrder = inOrder(operator, secretsRoleSynchronizer);
+        inOrder.verify(operator).createSecret(eq(SECRET_NAME), any(), isNull());
+        inOrder.verify(secretsRoleSynchronizer).syncSecretsRole();
+    }
+
+    @DisplayName("Should not sync the secured variables Role when the secret already exists")
+    @Test
+    void shouldNotSyncSecretsRoleWhenSecretExists() {
+        doReturn(new V1Secret()).when(operator).getSecretObjectByName(SECRET_NAME);
+
+        secretService.createSecret(SECRET_NAME);
+
+        verify(secretsRoleSynchronizer, never()).syncSecretsRole();
     }
 
     @DisplayName("Should log action for secret when creating a secret")
