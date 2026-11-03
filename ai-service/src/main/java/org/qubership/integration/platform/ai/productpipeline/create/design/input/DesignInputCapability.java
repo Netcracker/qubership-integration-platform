@@ -284,7 +284,38 @@ public class DesignInputCapability implements StageCapability {
         null);
   }
 
+  /**
+   * Runs one design turn and returns the text it ended with: the model's closing text, the capture
+   * result when a capture ends the turn, or the limit error when the turn runs out of tool calls.
+   * The caller reads the outcome from the design binding in every case.
+   */
   private String runDesignAgent(String conversationId, String prompt) {
+    try {
+      return streamDesignAgent(conversationId, prompt);
+    } catch (RuntimeException error) {
+      String ended = endedCapture(error);
+      if (ended != null) {
+        return ended;
+      }
+      // Every call the limit counted was a rejection the binding recorded, so the last one is
+      // this turn's outcome, as it is for a turn that ends after a single rejection.
+      if (error.getMessage() != null && error.getMessage().contains("sequential tool executions")) {
+        return error.getMessage();
+      }
+      throw error;
+    }
+  }
+
+  private static String endedCapture(Throwable error) {
+    for (Throwable current = error; current != null; current = current.getCause()) {
+      if (current instanceof org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException ended) {
+        return ended.getMessage();
+      }
+    }
+    return null;
+  }
+
+  private String streamDesignAgent(String conversationId, String prompt) {
     // Quarkus LangChain4j treats @UserMessage as a Qute template. Mapping snippets such as
     // {subRequestType} must be escaped or render fails before the design agent can capture.
     String safePrompt = QuteUserMessageEscaping.escapeForAiServiceUserMessage(prompt);
@@ -293,7 +324,6 @@ public class DesignInputCapability implements StageCapability {
     if (designRunner != null) {
       stream = designRunner.apply(conversationId, safePrompt);
     } else if (designAgent != null) {
-      // Capture returns directly so only the stage ledger can authorize another model attempt.
       return designAgent.chat(conversationId, QuteUserMessageEscaping.escapeForAiServiceUserMessage(
           new RockySkills()
               .instructions("cip-conf-semantic-design") + "\n\n" + prompt));

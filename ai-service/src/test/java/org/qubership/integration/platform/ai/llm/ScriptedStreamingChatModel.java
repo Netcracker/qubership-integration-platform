@@ -64,6 +64,30 @@ public final class ScriptedStreamingChatModel implements StreamingChatModel {
     turn.emit().accept(handler);
   }
 
+  /** Serves the same script to a blocking agent: the turn's error is thrown, its response returned. */
+  public ChatResponse respond(ChatRequest request) {
+    var response = new java.util.concurrent.atomic.AtomicReference<ChatResponse>();
+    var error = new java.util.concurrent.atomic.AtomicReference<Throwable>();
+    chat(request, new StreamingChatResponseHandler() {
+      @Override
+      public void onCompleteResponse(ChatResponse completeResponse) {
+        response.set(completeResponse);
+      }
+
+      @Override
+      public void onError(Throwable failure) {
+        error.set(failure);
+      }
+    });
+    if (error.get() instanceof RuntimeException failure) {
+      throw failure;
+    }
+    if (error.get() != null) {
+      throw new IllegalStateException(error.get());
+    }
+    return response.get();
+  }
+
   public synchronized List<ChatRequest> requests() {
     return List.copyOf(requests);
   }

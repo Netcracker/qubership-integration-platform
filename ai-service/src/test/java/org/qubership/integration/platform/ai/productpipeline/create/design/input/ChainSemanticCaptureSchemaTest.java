@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.productpipeline.create.design.inpu
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -20,6 +21,7 @@ import jakarta.inject.Inject;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext;
@@ -124,7 +126,9 @@ class ChainSemanticCaptureSchemaTest {
             .replace(
                 "\"nodeId\": \"op-shared\"",
                 "\"nodeId\": \"op-shared\", \"sourceFactIds\": [\"fact-script\"]");
-    String result = execute(arguments);
+    String result =
+        assertThrows(CaptureValidationException.class, () -> execute(arguments))
+            .getMessage();
     assertTrue(result.contains(ChainSemanticCaptureTool.CAPTURED_MESSAGE), result);
     assertTrue(ProductCapabilityCaptureContext.semanticCandidate().isPresent());
   }
@@ -143,7 +147,10 @@ class ChainSemanticCaptureSchemaTest {
     ((ObjectNode) arguments)
         .put(parameterName(), arguments.get(parameterName()).toString());
 
-    String result = executeThroughFactory(mapper.writeValueAsString(arguments));
+    String serialized = mapper.writeValueAsString(arguments);
+    String result =
+        assertThrows(CaptureValidationException.class, () -> executeThroughFactory(serialized))
+            .getMessage();
 
     assertTrue(result.contains(ChainSemanticCaptureTool.CAPTURED_MESSAGE), result);
   }

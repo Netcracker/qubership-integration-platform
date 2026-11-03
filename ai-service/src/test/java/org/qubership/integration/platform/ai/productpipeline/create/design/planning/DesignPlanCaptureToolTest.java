@@ -32,7 +32,8 @@ class DesignPlanCaptureToolTest {
     assertTrue(tool.captureDesignPlan(invalid).contains("Unknown planning target"));
     assertThrows(org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException.class,
         () -> tool.captureDesignPlan(invalid));
-    assertTrue(tool.captureDesignPlan(DesignPlanTestFixtures.validCapture("Trigger", "Call")).contains("HANDOFF"));
+    String accepted = endedTurn(() -> tool.captureDesignPlan(DesignPlanTestFixtures.validCapture("Trigger", "Call")));
+    assertTrue(accepted.contains("HANDOFF"), accepted);
   }
 
   @Test
@@ -40,11 +41,11 @@ class DesignPlanCaptureToolTest {
     DesignPlanCaptureSession.Binding binding = bind("conversation-a", "2026.1");
     ToolSession.bind("conversation-a");
 
-    assertTrue(tool.captureDesignPlan(DesignPlanTestFixtures.validCapture("Trigger", "Call"))
-        .contains("\"nextAction\":\"HANDOFF\""));
+    String accepted = endedTurn(() -> tool.captureDesignPlan(DesignPlanTestFixtures.validCapture("Trigger", "Call")));
+    assertTrue(accepted.contains("\"nextAction\":\"HANDOFF\""), accepted);
     assertEquals("2026.1", binding.candidate().get().apiRelease());
-    assertTrue(tool.captureDesignPlan(DesignPlanTestFixtures.validCapture("Other", "Other"))
-        .contains("\"code\":\"DUPLICATE_CAPTURE\""));
+    String duplicate = endedTurn(() -> tool.captureDesignPlan(DesignPlanTestFixtures.validCapture("Other", "Other")));
+    assertTrue(duplicate.contains("\"code\":\"DUPLICATE_CAPTURE\""), duplicate);
   }
 
   @Test
@@ -60,8 +61,8 @@ class DesignPlanCaptureToolTest {
     assertTrue(rejection.contains("Unknown planning target"), rejection);
     assertTrue(rejection.contains("\"nextAction\":\"REPAIR_CAPTURE\""), rejection);
     assertNull(binding.candidate().get());
-    assertTrue(tool.captureDesignPlan(DesignPlanTestFixtures.validCapture("Trigger", "Call"))
-        .contains("\"nextAction\":\"HANDOFF\""));
+    String accepted = endedTurn(() -> tool.captureDesignPlan(DesignPlanTestFixtures.validCapture("Trigger", "Call")));
+    assertTrue(accepted.contains("\"nextAction\":\"HANDOFF\""), accepted);
     assertNotNull(binding.candidate().get());
   }
 
@@ -71,9 +72,9 @@ class DesignPlanCaptureToolTest {
     DesignPlanCaptureSession.Binding second = bind("conversation-b", "2027.1");
 
     ToolSession.bind("conversation-a");
-    tool.captureDesignPlan(DesignPlanTestFixtures.validCapture("A", "A"));
+    endedTurn(() -> tool.captureDesignPlan(DesignPlanTestFixtures.validCapture("A", "A")));
     ToolSession.bind("conversation-b");
-    tool.captureDesignPlan(DesignPlanTestFixtures.validCapture("B", "B"));
+    endedTurn(() -> tool.captureDesignPlan(DesignPlanTestFixtures.validCapture("B", "B")));
 
     assertEquals("2026.1", first.candidate().get().apiRelease());
     assertEquals("2027.1", second.candidate().get().apiRelease());
@@ -90,5 +91,12 @@ class DesignPlanCaptureToolTest {
         apiRelease,
         DesignPlanTestFixtures.brief(),
         DesignPlanTestFixtures.planningPin(revision));
+  }
+
+  /** Runs a call that must end the model's tool loop and returns the capture result it ended with. */
+  private static String endedTurn(org.junit.jupiter.api.function.Executable call) {
+    return assertThrows(
+        org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException.class, call)
+        .getMessage();
   }
 }

@@ -2,7 +2,6 @@ package org.qubership.integration.platform.ai.productpipeline.create.design.inpu
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import dev.langchain4j.agent.tool.ReturnBehavior;
 import dev.langchain4j.agent.tool.Tool;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -132,9 +131,7 @@ public class ChainSemanticCaptureTool {
       Every scoped edge also names its regionId and the branch or handler where applicable.
       For a region, fill its owner and
       branch/body entry fields from the actual topology; a regionId alone is insufficient.
-      Submit one candidate per runtime attempt, then finish the turn. If rejected, return
-      the findings; the runtime supplies them on a bounded regeneration attempt.""",
-      returnBehavior = ReturnBehavior.IMMEDIATE)
+      If the tool rejects the capture, correct every listed issue and call the tool again.""")
   public String captureChainSemanticRevision(ChainSemanticCapture capture) {
     long startMs = System.currentTimeMillis();
     String conversationId = ToolSession.resolveConversationId();
@@ -152,10 +149,17 @@ public class ChainSemanticCaptureTool {
         } catch (IllegalArgumentException rejectedOriginal) { return false; }
       });
     }
-    String result = encode(capture(capture, conversationId));
+    CaptureResult outcome = capture(capture, conversationId);
+    String result = encode(outcome);
     if (recoveryControl != null) recoveryControl.semanticOutcome(conversationId, capture, result);
     ToolTraceLog.logToolComplete(
         LOG, TOOL_NAME, conversationId, System.currentTimeMillis() - startMs, result);
+    // A correctable rejection goes back to the model as the tool result so it can call again in
+    // this turn. An accepted or terminal outcome ends the tool loop, and the caller harvests the
+    // binding without waiting for the model to close the turn.
+    if (outcome.accepted() || "STOP".equals(outcome.nextAction())) {
+      throw new org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException(result);
+    }
     return result;
   }
 

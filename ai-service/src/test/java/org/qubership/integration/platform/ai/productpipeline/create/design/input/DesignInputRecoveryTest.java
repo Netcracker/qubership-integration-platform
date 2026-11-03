@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.productpipeline.create.design.inpu
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.mock;
@@ -20,6 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
@@ -284,14 +286,17 @@ class DesignInputRecoveryTest {
                 assertTrue(prompt.contains("Raw rejected output is retained in the halt evidence and is excluded"), prompt);
                 assertTrue(prompt.contains("Allowed operation elementType values:"), prompt);
               }
-              String result =
-                  tool.captureChainSemanticRevision(
-                      call == 1 || repeatFailure ? rejected : repaired);
+              if (call > 1 && !repeatFailure) {
+                // An accepted capture ends the turn; the exception leaves the runner as it leaves the agent.
+                var accepted = assertThrows(CaptureValidationException.class,
+                    () -> tool.captureChainSemanticRevision(repaired));
+                assertTrue(accepted.getMessage().contains("revision captured"), accepted.getMessage());
+                throw accepted;
+              }
+              String result = tool.captureChainSemanticRevision(rejected);
               if (call == 1) {
                 assertTrue(result.contains("is missing a region"), result);
                 assertTrue(result.contains("generic-barrier"), result);
-              } else if (!repeatFailure) {
-                assertTrue(result.contains("revision captured"), result);
               }
               return Multi.createFrom().item(result);
             },

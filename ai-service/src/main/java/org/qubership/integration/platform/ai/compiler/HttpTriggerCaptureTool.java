@@ -2,7 +2,6 @@ package org.qubership.integration.platform.ai.compiler;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import dev.langchain4j.agent.tool.ReturnBehavior;
 import dev.langchain4j.agent.tool.Tool;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -55,8 +54,8 @@ public class HttpTriggerCaptureTool {
           Capture one route exposure choice for every approved HTTP trigger. Copy roleId and
           semanticNodeId exactly from the prompt. externalRoute is a JSON boolean, never a
           string. Do not send paths, methods, labels, properties, or catalog identifiers; the
-          server projects those from approved requirements. Call once, then finish.""",
-      returnBehavior = ReturnBehavior.IMMEDIATE)
+          server projects those from approved requirements. If the tool rejects the capture,
+          correct every listed issue and call the tool again.""")
   public String captureHttpTriggers(HttpTriggerCapture capture) {
     String conversationId = CompilerGraphPatchTool.resolveConversationId();
     return encode(capture(capture, conversationId));

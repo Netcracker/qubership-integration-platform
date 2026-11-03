@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.compiler;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -34,15 +35,19 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.TestArtifactBlobStoreProducer;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureKey;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSession;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSlot;
 import org.qubership.integration.platform.ai.configuration.AppConfig;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorLoader;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorTestSupport;
 import org.qubership.integration.platform.ai.llm.ScriptedStreamingChatModel;
 import org.qubership.integration.platform.ai.llm.ScriptedStreamingChatModel.Turn;
 import org.qubership.integration.platform.ai.llm.ratelimit.RateLimitAwareChatModel;
+import org.qubership.integration.platform.ai.llm.ratelimit.RateLimitChatModel;
 import org.qubership.integration.platform.ai.llm.ratelimit.RateLimitAwareStreamingChatModel;
 import org.qubership.integration.platform.ai.llm.ratelimit.RateLimitErrorClassifier;
 import org.qubership.integration.platform.ai.llm.ratelimit.RateLimitStreamingChatModel;
@@ -54,6 +59,15 @@ import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
+import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
+import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCaptureFixtures;
+import org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCaptureTool;
+import org.qubership.integration.platform.ai.productpipeline.create.design.input.DesignInputCapability;
+import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
 import org.qubership.integration.platform.ai.qipknowledge.CipKnowledgePackFixturePaths;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeSidecarApi;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.DefaultKnowledgeContextProvider;
@@ -69,7 +83,10 @@ import org.qubership.integration.platform.ai.skill.workspace.SkillArtifact;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactPayload;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
 
-/** Uses the native compiler, tool argument mapper, capture policy, schema service, and graph consumer. */
+/**
+ * Uses the native compiler, tool argument mapper, capture policy, schema service, and graph consumer. The
+ * design-input cases run the stage on its blocking agent with the same scripted model.
+ */
 @QuarkusTest
 @TestProfile(TestArtifactBlobStoreProducer.Profile.class)
 class ScriptedRecoveryTest {
@@ -80,6 +97,9 @@ class ScriptedRecoveryTest {
       """;
 
   @InjectMock RateLimitStreamingChatModel provider;
+  @InjectMock RateLimitChatModel blockingProvider;
+  @Inject DesignInputCapability designInput;
+  @Inject dev.langchain4j.store.memory.chat.ChatMemoryStore chatMemory;
   @InjectMock SidecarKnowledgeClient knowledge;
   @InjectMock DefaultKnowledgeContextProvider knowledgeContext;
   @Inject CompilerSkillRuntime runtime;
@@ -197,6 +217,73 @@ class ScriptedRecoveryTest {
     script.assertComplete();
   }
 
+  /**
+   * The tool result carries the rejection back to the model, and the model's next call in the same turn is
+   * accepted. An outer repair would add a second user message to the request that delivers the rejection.
+   */
+  @Test
+  void aWrongRoleIsCorrectedInsideTheTurnThatSentIt() {
+    install(Turn.tool("wrong-role", this::expectInitial, TOOL, VALID.replace("http-entry", "absent-role")),
+        Turn.tool("corrected", expectRejection("absent-role"), TOOL, VALID));
+
+    assertConsumed(run());
+    script.assertComplete();
+    assertInstanceOf(ToolExecutionResultMessage.class, script.requests().getLast().messages().getLast());
+    assertEquals(1, userMessages(script.requests().getLast()));
+  }
+
+  /**
+   * Design-input runs a blocking agent, so its tool loop is exercised through the stage rather than the compiler
+   * runtime. The rejected graph and its correction are one provider turn, and the stage harvests the accepted
+   * revision.
+   */
+  @Test
+  void aRejectedDesignGraphIsCorrectedInsideTheTurnThatSentIt() throws Exception {
+    install(Turn.tool("ghost-edge", request -> assertEquals(1, userMessages(request)),
+            ChainSemanticCaptureTool.TOOL_NAME, designArguments("""
+                [{"sourceNodeId":"http-in","targetNodeId":"op-shared"},
+                 {"sourceNodeId":"op-shared","targetNodeId":"ghost-call"}]""")),
+        Turn.tool("corrected", request -> {
+          assertInstanceOf(ToolExecutionResultMessage.class, request.messages().getLast());
+          assertTrue(((ToolExecutionResultMessage) request.messages().getLast()).text().contains("ghost-call"),
+              () -> request.messages().getLast().toString());
+          assertEquals(1, userMessages(request));
+        }, ChainSemanticCaptureTool.TOOL_NAME, designArguments(null)));
+
+    StageOutcome outcome = runDesignInput();
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, outcome.outcomeClass(), outcome.message());
+    assertTrue(outcome.candidates().stream().anyMatch(candidate -> candidate.kind() == Kind.CHAIN_SEMANTIC_REVISION),
+        () -> "candidates: " + outcome.candidates());
+    script.assertComplete();
+    // The blocking agent stores a turn only when it completes, so the turn the accepted capture
+    // ended leaves no unanswered tool call in the memory the chat conversation shares.
+    assertEquals(List.of(), chatMemory.getMessages(conversation));
+  }
+
+  /**
+   * A turn spends its six tool calls on distinct rejected graphs. The stage reports the last rejection as a
+   * contract failure, the outcome a single rejected capture has, rather than the framework's limit error.
+   */
+  @Test
+  void aDesignTurnThatRunsOutOfToolCallsReportsItsLastRejection() throws Exception {
+    // Six calls run; the seventh response asks for a call the limit refuses to execute.
+    List<Turn> turns = new ArrayList<>();
+    for (int index = 1; index <= 7; index++) {
+      turns.add(Turn.tool("ghost-" + index, request -> { }, ChainSemanticCaptureTool.TOOL_NAME,
+          designArguments("""
+              [{"sourceNodeId":"http-in","targetNodeId":"op-shared"},
+               {"sourceNodeId":"op-shared","targetNodeId":"ghost-%d"}]""".formatted(index))));
+    }
+    install(turns.toArray(Turn[]::new));
+
+    StageOutcome outcome = runDesignInput();
+
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, outcome.outcomeClass(), outcome.message());
+    assertTrue(outcome.message().contains("ghost-6"), outcome.message());
+    script.assertComplete();
+  }
+
   @Test
   void aSuccessStatementWithoutCaptureDoesNotCompleteTheCompilerStep() {
     install(Turn.text("claim", this::expectInitial, "Everything is repaired and valid."));
@@ -278,6 +365,48 @@ class ScriptedRecoveryTest {
         assertTrue(delivered.contains(rejection.summary()), delivered);
       }
     };
+  }
+
+  /** Runs design-input once on the blocking agent, with the scripted model and a permissive catalog. */
+  private StageOutcome runDesignInput() {
+    when(blockingProvider.chat(any(ChatRequest.class)))
+        .thenAnswer(call -> script.respond(call.getArgument(0)));
+    // The capture preflight loads a runtime descriptor for every element type from the catalog.
+    var descriptors = org.mockito.Mockito.mock(CatalogElementDescriptorLoader.class);
+    CatalogElementDescriptorTestSupport.stubPermissive(descriptors);
+    io.quarkus.test.junit.QuarkusMock.installMockForType(descriptors, CatalogElementDescriptorLoader.class);
+    return designInput.execute(designContext()).collect().asList()
+        .await().atMost(Duration.ofSeconds(20)).stream()
+        .filter(CapabilitySignal.Completed.class::isInstance).map(CapabilitySignal.Completed.class::cast)
+        .findFirst().orElseThrow().outcome();
+  }
+
+  private static long userMessages(ChatRequest request) {
+    return request.messages().stream().filter(UserMessage.class::isInstance).count();
+  }
+
+  private static String designArguments(String edges) throws Exception {
+    var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+    var capture = mapper.valueToTree(ChainSemanticCaptureFixtures.linearCapture());
+    var tree = (com.fasterxml.jackson.databind.node.ObjectNode) capture;
+    if (edges != null) {
+      tree.set("edges", mapper.readTree(edges));
+    }
+    for (var edge : tree.path("edges")) {
+      ((com.fasterxml.jackson.databind.node.ObjectNode) edge).put("routeKind", "SEQUENCE");
+    }
+    return mapper.writeValueAsString(java.util.Map.of("capture", tree));
+  }
+
+  private StageExecutionContext designContext() {
+    return new StageExecutionContext("run-" + conversation, conversation, DesignInputCapability.CAPABILITY_ID,
+        "exec-1", "attempt-1",
+        new ProductPipelineProfile(1, "fixture", "2", List.of(), List.of(), null, List.of()),
+        new RunManifest("run-" + conversation, null, List.of(), "product", "fixture", "2", "sha", "baseline",
+            "bsha", List.of(), "csha", null, "24.4", List.of(), null),
+        List.of(),
+        java.util.Map.of("userText", "Create the orders chain.",
+            "requirementBrief", ChainSemanticCaptureFixtures.approvedBrief()));
   }
 
   private static String userText(ChatRequest request) {

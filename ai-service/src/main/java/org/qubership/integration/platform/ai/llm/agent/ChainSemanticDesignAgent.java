@@ -12,7 +12,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.input
  */
 @RegisterAiService(
     tools = {ChainSemanticCaptureTool.class},
-    maxSequentialToolInvocations = 4)
+    maxSequentialToolInvocations = 6)
 @ApplicationScoped
 public interface ChainSemanticDesignAgent {
 

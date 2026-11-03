@@ -23,7 +23,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 
 /** Shared design-input fixtures: one approved brief and the captures that project onto it. */
-final class ChainSemanticCaptureFixtures {
+public final class ChainSemanticCaptureFixtures {
 
   static final String MAPPING_INTENT_ID = "map-body";
 
@@ -33,7 +33,7 @@ final class ChainSemanticCaptureFixtures {
   private ChainSemanticCaptureFixtures() {}
 
   /** HTTP trigger, one script step, one outbound call. No mapping. */
-  static RequirementBrief approvedBrief() {
+  public static RequirementBrief approvedBrief() {
     return new RequirementBrief(
         "Orders",
         List.of("HTTP POST /orders"),
@@ -175,7 +175,7 @@ final class ChainSemanticCaptureFixtures {
         List.of());
   }
 
-  static ChainSemanticCapture linearCapture() {
+  public static ChainSemanticCapture linearCapture() {
     return capture(null);
   }
 

@@ -8,7 +8,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import org.qubership.integration.platform.ai.compiler.HttpTriggerCaptureTool;
 
 /** Dedicated HTTP trigger capture agent with a restricted input schema. */
-@RegisterAiService(tools = {HttpTriggerCaptureTool.class}, maxSequentialToolInvocations = 3)
+@RegisterAiService(tools = {HttpTriggerCaptureTool.class}, maxSequentialToolInvocations = 6)
 @ApplicationScoped
 public interface HttpTriggerCaptureAgent {
 
