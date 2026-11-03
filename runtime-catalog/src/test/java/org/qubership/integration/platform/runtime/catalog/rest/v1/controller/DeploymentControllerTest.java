@@ -148,10 +148,10 @@ class DeploymentControllerTest {
     @Test
     void createRejectsARequestWhoseDeclaredTypeDisagreesWithDiscovery() {
         when(bulkDeploymentService.discoverDomainType(DOMAIN)).thenReturn(Optional.of(DomainType.MICRO));
+        DeploymentRequest request = DeploymentRequest.builder().domain(DOMAIN).snapshotId(SNAPSHOT_ID)
+                .domainType(DomainType.CLASSIC).build();
 
-        assertThatThrownBy(() -> controller.create(CHAIN_ID,
-                DeploymentRequest.builder().domain(DOMAIN).snapshotId(SNAPSHOT_ID)
-                        .domainType(DomainType.CLASSIC).build()))
+        assertThatThrownBy(() -> controller.create(CHAIN_ID, request))
                 .isInstanceOf(DeploymentProcessingException.class)
                 .hasMessageContaining("is discovered as MICRO");
 
@@ -256,10 +256,10 @@ class DeploymentControllerTest {
     void createIsRejectedWhenMicroDomainDisabled() {
         microDomainEnabled(false);
         when(bulkDeploymentService.discoverDomainType(DOMAIN)).thenReturn(Optional.empty());
+        DeploymentRequest request = DeploymentRequest.builder().domain(DOMAIN).snapshotId(SNAPSHOT_ID)
+                .domainType(DomainType.MICRO).build();
 
-        assertThatThrownBy(() -> controller.create(CHAIN_ID,
-                DeploymentRequest.builder().domain(DOMAIN).snapshotId(SNAPSHOT_ID)
-                        .domainType(DomainType.MICRO).build()))
+        assertThatThrownBy(() -> controller.create(CHAIN_ID, request))
                 .isInstanceOf(DomainTypeDisabledException.class);
         verify(bulkDeploymentService, never()).deployResource(any());
         verifyNoInteractions(snapshotService, chainFinderService);
