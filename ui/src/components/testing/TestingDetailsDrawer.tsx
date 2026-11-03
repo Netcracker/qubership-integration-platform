@@ -23,7 +23,7 @@ export const DetailsLink: React.FC<{
 
 export function idItem(id: string): DescriptionsItemType {
   return {
-    label: "Id",
+    label: "ID",
     children: (
       <Typography.Text copyable style={{ wordBreak: "break-all" }}>
         {id}

@@ -46,7 +46,7 @@ export const ActionLogSidebar: React.FC<ActionLogSidebarProps> = ({
         ),
       },
       {
-        key: "Entity Id",
+        key: "Entity ID",
         value: formatOptional(value?.entityId),
       },
       {
@@ -60,7 +60,7 @@ export const ActionLogSidebar: React.FC<ActionLogSidebarProps> = ({
         value: value ? entityLinkRenderer(value) : PLACEHOLDER,
       },
       {
-        key: "Parent Id",
+        key: "Parent ID",
         value: formatOptional(value?.parentId),
       },
       {
@@ -68,7 +68,7 @@ export const ActionLogSidebar: React.FC<ActionLogSidebarProps> = ({
         value: value ? parentLinkRenderer(value) : PLACEHOLDER,
       },
       {
-        key: "Request Id",
+        key: "Request ID",
         value: formatOptional(value?.requestId),
       },
     ],

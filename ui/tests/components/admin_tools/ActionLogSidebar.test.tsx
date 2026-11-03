@@ -85,13 +85,13 @@ describe("ActionLogSidebar", () => {
     expect(screen.getByText("alice")).toBeInTheDocument();
     expect(screen.getByText("Operation")).toBeInTheDocument();
     expect(screen.getByText("Create or update")).toBeInTheDocument();
-    expect(screen.getByText("Entity Id")).toBeInTheDocument();
+    expect(screen.getByText("Entity ID")).toBeInTheDocument();
     expect(screen.getByText("e1")).toBeInTheDocument();
     expect(screen.getByText("Entity Type")).toBeInTheDocument();
     expect(screen.getByText("Chain runtime properties")).toBeInTheDocument();
-    expect(screen.getByText("Parent Id")).toBeInTheDocument();
+    expect(screen.getByText("Parent ID")).toBeInTheDocument();
     expect(screen.getByText("p1")).toBeInTheDocument();
-    expect(screen.getByText("Request Id")).toBeInTheDocument();
+    expect(screen.getByText("Request ID")).toBeInTheDocument();
     expect(screen.getByText("r1")).toBeInTheDocument();
   });
 

@@ -97,7 +97,7 @@ describe("TestingDetailsDrawer", () => {
   it("should label the id and offer it for copying", async () => {
     await renderDrawer([[idItem("case-1")]]);
 
-    expect(screen.getByText("Id")).toBeInTheDocument();
+    expect(screen.getByText("ID")).toBeInTheDocument();
     expect(screen.getByText("case-1")).toBeInTheDocument();
     expect(document.querySelector(".ant-typography-copy")).toBeInTheDocument();
   });
@@ -144,7 +144,7 @@ describe("TestingDetailsDrawer", () => {
       />,
     );
 
-    expect(screen.queryByText("Id")).not.toBeInTheDocument();
+    expect(screen.queryByText("ID")).not.toBeInTheDocument();
   });
 
   it("should navigate to the chain when the chain link is clicked", async () => {
