@@ -117,7 +117,8 @@ Decided: a `CORRECTABLE` rejection keeps the turn open. The soft result carries 
 tool's answer, and the tool description asks it to correct each listed issue and call the tool again. The turn ends
 in three ways only. An accepted capture throws the `ACCEPTED` terminator, as `CompilerGraphPatchTool` does, and the
 caller harvests the binding. `IDENTICAL_SPAM` still throws a CVE: the repeated proposal on the planning and HTTP
-tools, and on design-input the third identical proposal, which answers `REPAIR_NO_PROGRESS`. On design-input and
+tools, and on design-input the third repeat of a rejected proposal, which answers `REPAIR_NO_PROGRESS`. On
+design-input and
 planning, a validated capture whose result says `STOP` throws as well; a tool-argument refusal stays a tool result.
 `maxSequentialToolInvocations = 6` bounds one turn on all three agents. A design-input turn that reaches that limit
 reports its last rejection, as a turn that ends after one rejection does. On the streaming HTTP agent `IMMEDIATE`
