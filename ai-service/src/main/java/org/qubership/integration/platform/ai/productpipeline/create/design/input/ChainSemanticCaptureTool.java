@@ -211,7 +211,7 @@ public class ChainSemanticCaptureTool {
       validator.validate(revision, contract, brief);
     } catch (org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException repeated) {
       String summary = feedbackStore.lastPlanFailure(conversationId).orElseThrow().summary();
-      boolean terminal = feedbackStore.identicalFailureCount(conversationId, "design-input") >= 2;
+      boolean terminal = feedbackStore.identicalFailureCount(conversationId, "design-input") >= 3;
       if (!terminal) {
         ProductCapabilityCaptureContext.offerSemanticRejection(binding, summary, false);
         return rejected("UNCHANGED_PROPOSAL", "/capture",

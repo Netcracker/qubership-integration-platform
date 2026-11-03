@@ -156,6 +156,26 @@ class CaptureToolOutcomeGatewayTest {
   }
 
   @Test
+  void theSameRuleOnAnotherNodeIsANewRejection() {
+    Object args = Map.of("scripts", java.util.List.of());
+    String first = "Mapping 'a-OUTPUT-to-b-REQUEST' has no adjacent mapper-2 or script node.";
+    String sameRuleOtherNode = "Mapping 'c-OUTPUT-to-d-REQUEST' has no adjacent mapper-2 or script node.";
+
+    gateway.onFailure(CaptureFeedbackChannel.PATCH, "conv-1", "cap-1", CaptureFailureKind.VALIDATION,
+        CaptureFailureClass.CORRECTABLE, "repairScriptBodies", args, first);
+    gateway.onFailure(CaptureFeedbackChannel.PATCH, "conv-1", "cap-1", CaptureFailureKind.VALIDATION,
+        CaptureFailureClass.CORRECTABLE, "repairScriptBodies", args, sameRuleOtherNode);
+
+    assertEquals(CaptureFailureClass.CORRECTABLE,
+        feedbackStore.lastPatchFailure("conv-1", "cap-1").orElseThrow().failureClass());
+    assertThrows(CaptureValidationException.class, () -> gateway.onFailure(CaptureFeedbackChannel.PATCH,
+        "conv-1", "cap-1", CaptureFailureKind.VALIDATION, CaptureFailureClass.CORRECTABLE,
+        "repairScriptBodies", args, sameRuleOtherNode));
+    assertEquals(CaptureFailureClass.IDENTICAL_SPAM,
+        feedbackStore.lastPatchFailure("conv-1", "cap-1").orElseThrow().failureClass());
+  }
+
+  @Test
   void rationaleOnlyChangeDoesNotGrantSecondSoft() {
     Object firstArgs = Map.of("scripts", java.util.List.of(), "rationale", "a");
     Object secondArgs = Map.of("scripts", java.util.List.of(), "rationale", "b");
@@ -235,7 +255,7 @@ class CaptureToolOutcomeGatewayTest {
                     CaptureFailureClass.CORRECTABLE,
                     "captureChainStructure",
                     Map.of("graph", Map.of("nodes", java.util.List.of("a", "b", "c", "d", "e"))),
-                    "structure capture removed existing node 'b978e8ff'"));
+                    "structure capture removed existing node 'cc0b0f34'"));
 
     assertTrue(cve.getMessage().contains("Repeated capture validation failure"));
     assertEquals(

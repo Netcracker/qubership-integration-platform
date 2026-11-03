@@ -84,7 +84,10 @@ class ChainSemanticCaptureToolTest {
     String noticed = tool.captureChainSemanticRevision(invalid);
     assertTrue(noticed.contains("UNCHANGED_PROPOSAL"), noticed);
     assertTrue(noticed.contains("REPAIR_CAPTURE"), noticed);
-    assertTrue(tool.captureChainSemanticRevision(invalid).contains("REPAIR_NO_PROGRESS"));
+    String stillNoticed = tool.captureChainSemanticRevision(invalid);
+    assertTrue(stillNoticed.contains("UNCHANGED_PROPOSAL"), stillNoticed);
+    String ended = tool.captureChainSemanticRevision(invalid);
+    assertTrue(ended.contains("REPAIR_NO_PROGRESS"), ended);
     assertTrue(ProductCapabilityCaptureContext.semanticCandidate().isEmpty());
     assertTrue(tool.captureChainSemanticRevision(capture).contains("HANDOFF"));
   }

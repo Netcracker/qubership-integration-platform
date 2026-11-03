@@ -35,8 +35,6 @@ public final class ToolCallFingerprints {
   private static final JsonFactory JSON_FACTORY = new JsonFactory();
   private static final ObjectMapper FALLBACK_MAPPER = new ObjectMapper();
 
-  private static final Pattern QUOTED_VALUE = Pattern.compile("'[^']*'");
-  private static final Pattern BRACKETED_VALUE = Pattern.compile("\\[[^\\]]*\\]");
   private static final Pattern UUID_VALUE =
       Pattern.compile(
           "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
@@ -55,8 +53,9 @@ public final class ToolCallFingerprints {
    * escalates. Keying it on the normalized complaint spends one credit per distinct defect, which
    * is what the budget is for.
    *
-   * <p>Quoted native node and field identities retain separate credit. Incidental whitespace,
-   * casing outside identities, and unquoted request UUIDs do not create a new occurrence.
+   * <p>Quoted and bracketed values are part of the identity: the same rule broken on another node
+   * or mapping is a new defect with its own credit. Only UUIDs are masked, because the service
+   * mints them per attempt. Incidental whitespace and casing do not create a new occurrence.
    */
   public static String failureFingerprint(String tool, String capability, String message) {
     if (tool == null || tool.isBlank()) {
@@ -111,15 +110,16 @@ public final class ToolCallFingerprints {
         .replaceAll(" ");
   }
 
-  /** Normalizes rejection text to recognize the same failure across attempts. */
+  /**
+   * Normalizes rejection text to recognize the same failure across attempts, keeping the quoted and
+   * bracketed values that name what is wrong.
+   */
   public static String failureSignature(String message) {
     if (message == null || message.isBlank()) {
       return "";
     }
     String normalized = stripNativeParserDetails(message).strip().toLowerCase(Locale.ROOT);
     normalized = UUID_VALUE.matcher(normalized).replaceAll("<id>");
-    normalized = QUOTED_VALUE.matcher(normalized).replaceAll("<id>");
-    normalized = BRACKETED_VALUE.matcher(normalized).replaceAll("<ids>");
     return WHITESPACE.matcher(normalized).replaceAll(" ").strip();
   }
 

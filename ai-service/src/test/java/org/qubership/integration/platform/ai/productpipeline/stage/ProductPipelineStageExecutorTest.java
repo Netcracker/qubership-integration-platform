@@ -2651,7 +2651,7 @@ class ProductPipelineStageExecutorTest {
               String message =
                   calls.incrementAndGet() == 1
                       ? "invalid node 'first' [route-a]"
-                      : "INVALID   NODE 'second' [route-b]";
+                      : "INVALID   NODE 'first' [route-a]";
               return Multi.createFrom()
                   .item(
                       new CapabilitySignal.Completed(
