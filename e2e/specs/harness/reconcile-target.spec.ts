@@ -33,7 +33,7 @@ const composeRow: RegistryEntry = {
 
 const operations: OperationClaim[] = [
   { key: "catalog GET /v1/chains", status: "covered" },
-  { key: "catalog POST /v1/cr", status: "covered", target: "k8s" },
+  { key: "catalog DELETE /v1/catalog/domains/{domainName}", status: "covered", target: "k8s" },
 ];
 
 /** A whole run on `target`: one passing test making the given declarations and calls. */
@@ -86,7 +86,7 @@ function invokedAs(...argv: string[]): JsonReport {
 
 test.describe("reconcile per target", () => {
   test("a Compose-only row fails only a Compose run without it", () => {
-    const k8sRun = runOn("k8s", ["condition"], ["catalog GET /v1/chains", "catalog POST /v1/cr"]);
+    const k8sRun = runOn("k8s", ["condition"], ["catalog GET /v1/chains", "catalog DELETE /v1/catalog/domains/{domainName}"]);
     expect(reconcile(k8sRun, [bothRow, composeRow], operations)).toEqual([]);
 
     const composeRun = runOn("compose", ["condition"], ["catalog GET /v1/chains"]);
@@ -99,19 +99,19 @@ test.describe("reconcile per target", () => {
   test("a k8s-only operation fails only a k8s run without it", () => {
     expect(reconcileOperations(runOn("compose", [], ["catalog GET /v1/chains"]), operations)).toEqual([]);
     expect(reconcileOperations(runOn("k8s", [], ["catalog GET /v1/chains"]), operations)).toEqual([
-      "catalog POST /v1/cr: marked covered, but no passing test reached it",
+      "catalog DELETE /v1/catalog/domains/{domainName}: marked covered, but no passing test reached it",
     ]);
   });
 
   test("a row proven on the other target is reported, not counted", () => {
-    const k8sRun = runOn("k8s", ["condition", "compose-only-element"], ["catalog GET /v1/chains", "catalog POST /v1/cr"]);
+    const k8sRun = runOn("k8s", ["condition", "compose-only-element"], ["catalog GET /v1/chains", "catalog DELETE /v1/catalog/domains/{domainName}"]);
     expect(reconcile(k8sRun, [bothRow, composeRow], operations)).toEqual([
       "specs/runtime/condition.spec.ts › a spec declares compose-only-element, a row of the compose target, in a run on k8s",
     ]);
 
-    const composeRun = runOn("compose", ["condition", "compose-only-element"], ["catalog GET /v1/chains", "catalog POST /v1/cr"]);
+    const composeRun = runOn("compose", ["condition", "compose-only-element"], ["catalog GET /v1/chains", "catalog DELETE /v1/catalog/domains/{domainName}"]);
     expect(reconcileOperations(composeRun, operations)).toEqual([
-      "catalog POST /v1/cr was reached on compose, but its row names the k8s target",
+      "catalog DELETE /v1/catalog/domains/{domainName} was reached on compose, but its row names the k8s target",
     ]);
   });
 
@@ -131,7 +131,7 @@ test.describe("reconcile per target", () => {
     const shared: RegistryEntry = { ...outOfScope, value: "b", scope: "shared", reason: "proven on another family", target: "k8s" };
     const rows = [bothRow, behaviorRow, k8sBehavior, outOfScope, shared];
     const k8sRun = (...labels: string[]) =>
-      runOn("k8s", ["condition", ...labels.map((label) => `condition::behavior="${label}"`)], ["catalog GET /v1/chains", "catalog POST /v1/cr"]);
+      runOn("k8s", ["condition", ...labels.map((label) => `condition::behavior="${label}"`)], ["catalog GET /v1/chains", "catalog DELETE /v1/catalog/domains/{domainName}"]);
 
     expect(reconcile(k8sRun("nested", "nested-micro"), rows, operations)).toEqual([]);
     expect(reconcile(k8sRun("nested"), rows, operations)).toEqual([

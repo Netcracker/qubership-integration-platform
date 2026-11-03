@@ -81,6 +81,7 @@ import type {
   DiagramMode,
   DiscoveredServiceView,
   DiscoveryResult,
+  DomainType,
   ElementWithChainName,
   EngineDeploymentView,
   EngineDomainView,
@@ -653,6 +654,7 @@ export class Catalog {
     snapshotId: string,
     domain: string = DEFAULT_DOMAIN,
     mode: CustomResourceMode = "REWRITE",
+    domainType?: DomainType,
   ): Promise<DeploymentView> {
     if (!snapshotId) {
       throw new Error(
@@ -661,7 +663,7 @@ export class Catalog {
           `500 "The given id must not be null".`,
       );
     }
-    return this.call("post", `/v1/catalog/chains/${chainId}/deployments`, { snapshotId, domain, mode });
+    return this.call("post", `/v1/catalog/chains/${chainId}/deployments`, { snapshotId, domain, mode, domainType });
   }
 
   /** The chain's deployment rows, each carrying the engine-reported `runtime.states` per host. */
@@ -777,18 +779,6 @@ export class Catalog {
   /** Deletes a micro domain: its Integration, Service, ConfigMaps, and HTTPRoutes. */
   async deleteCustomResource(name: string): Promise<void> {
     await this.call("delete", `/v1/catalog/domains/${encodeURIComponent(name)}`);
-  }
-
-  /**
-   * The Kubernetes resources a micro domain `name` would run the snapshots in, as multi-document
-   * YAML. Nothing is written to the cluster. The build takes only the options sent, so the
-   * Integration's image is empty, where a deploy fills it from the catalog's configuration.
-   */
-  async buildCustomResources(name: string, snapshotIds: string[]): Promise<string> {
-    const path = "/v1/cr";
-    const response = await this.send("post", path, { data: { options: { name }, snapshotIds } });
-    if (!response.ok()) await fail(response, "POST", `${this.base}${path}`);
-    return await response.text();
   }
 
   // -------------------------------------------------------------------------

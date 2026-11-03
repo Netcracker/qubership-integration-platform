@@ -251,4 +251,17 @@ class DeploymentControllerTest {
                 .isInstanceOf(DomainTypeDisabledException.class);
         verify(bulkDeploymentService, never()).deleteChainSnapshot(any(), any());
     }
+
+    @Test
+    void createIsRejectedWhenMicroDomainDisabled() {
+        microDomainEnabled(false);
+        when(bulkDeploymentService.discoverDomainType(DOMAIN)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> controller.create(CHAIN_ID,
+                DeploymentRequest.builder().domain(DOMAIN).snapshotId(SNAPSHOT_ID)
+                        .domainType(DomainType.MICRO).build()))
+                .isInstanceOf(DomainTypeDisabledException.class);
+        verify(bulkDeploymentService, never()).deployResource(any());
+        verifyNoInteractions(snapshotService, chainFinderService);
+    }
 }

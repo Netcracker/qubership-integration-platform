@@ -186,8 +186,6 @@
       "POST /v1/common-variables",
       "POST /v1/common-variables/import",
       "POST /v1/common-variables/preview",
-      "POST /v1/cr",
-      "POST /v1/cr/deploy",
       "POST /v1/design-generator/chains/{chainId}",
       "POST /v1/design-generator/chains/{chainId}/snapshots/{snapshotId}",
       "POST /v1/export/system",
