@@ -36,6 +36,9 @@ import org.qubership.integration.platform.ai.productpipeline.capability.Capabili
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
+import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass;
+import org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryFaultInjector;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
@@ -538,6 +541,36 @@ class DesignInputCapabilityTest {
   }
 
   @Test
+  void aProposalTheModelRepeatsIsAContractFailureCarryingTheLastFeedback() {
+    CaptureAttemptFeedbackStore feedbackStore = new CaptureAttemptFeedbackStore();
+    ChainSemanticCaptureTool captureTool = captureTool(feedbackStore);
+    DesignInputCapability capability =
+        new DesignInputCapability(
+            (conversationId, prompt) -> {
+              for (int attempt = 0; attempt < 3; attempt++) {
+                captureTool.captureChainSemanticRevision(
+                    ChainSemanticCaptureFixtures.foreignSourceFactCapture());
+              }
+              return Multi.createFrom().item("ignored agent text after the tool calls");
+            },
+            new DefaultChainSemanticIdsRenderer());
+    capability.captureFeedback = feedbackStore;
+
+    StageOutcome prepared =
+        outcome(
+            capability,
+            context(
+                "design-input",
+                Map.of("requirementBrief", ChainSemanticCaptureFixtures.approvedBrief())));
+
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, prepared.outcomeClass());
+    assertEquals(
+        CaptureFailureClass.IDENTICAL_SPAM,
+        prepared.recoveryCause().captureFailure().feedback().failureClass());
+    assertFalse(prepared.recoveryCause().captureFailure().feedback().outerAllowed());
+  }
+
+  @Test
   void missingRuntimeAddonStopsDesignRegeneration() {
     Map<String, String> addons = ChainSemanticCaptureToolTest.completeAddons();
     addons.remove("cip-design-executor");
@@ -666,6 +699,10 @@ class DesignInputCapabilityTest {
   }
 
   private static ChainSemanticCaptureTool captureTool() {
+    return captureTool(new CaptureAttemptFeedbackStore());
+  }
+
+  private static ChainSemanticCaptureTool captureTool(CaptureAttemptFeedbackStore feedbackStore) {
     CatalogElementDescriptorLoader descriptors = mock(CatalogElementDescriptorLoader.class);
     CatalogElementDescriptorTestSupport.stubPermissive(descriptors);
     CipKnowledgePackRepository pack = mock(CipKnowledgePackRepository.class);
@@ -695,7 +732,9 @@ class DesignInputCapabilityTest {
         new DefaultChainSemanticRevisionValidator(),
         new ClasspathCompilerContractRepository(),
         pack,
-        descriptors);
+        descriptors,
+        new E2eRecoveryFaultInjector("", ""),
+        feedbackStore);
   }
 
   private static StageExecutionContext context(String stageId, Map<String, Object> attributes) {

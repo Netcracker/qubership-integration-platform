@@ -104,7 +104,8 @@ public final class RequirementRecoveryLadder {
   /**
    * Advances a repeated candidate. A repairable representation or semantic ambiguity leaves focused
    * repair for a projection rebuild. The next repeat asks the author only for semantic ambiguity.
-   * A repeated representation after that rebuild is an internal failure. Other findings stay put.
+   * A repeated representation after that rebuild rebuilds again; the stage recovery ledger bounds
+   * the repetition. Other findings stay put.
    */
   public static Stage advance(Stage current, List<String> codes, boolean repeatedCandidate) {
     var stage = current == null ? Stage.FOCUSED_REPAIR : current;
@@ -116,9 +117,6 @@ public final class RequirementRecoveryLadder {
     }
     if (stage == Stage.PROJECTION_REBUILD && asksAuthor(codes)) {
       return Stage.ASK_AUTHOR;
-    }
-    if (stage == Stage.PROJECTION_REBUILD && repairableRepresentation(codes)) {
-      return Stage.INTERNAL_FAILURE;
     }
     return stage;
   }

@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -27,6 +28,7 @@ import org.qubership.integration.platform.ai.llm.scenario.GatherRequirementsProm
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.CapabilityInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftSettings;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactKind;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FlowInput;
@@ -81,9 +83,7 @@ class RequirementRecoveryLadderTest {
       assertEquals("", h.store.rejectedProposalHistory(h.chat));
       h.tools.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY);
       feedback.clearRequirement(h.chat);
-      var stopped = h.capture(invalid);
-      assertEquals(NextAction.STOP, stopped.nextAction());
-      assertFalse(stopped.issues().stream().anyMatch(issue -> "REPAIR_NO_PROGRESS".equals(issue.code())));
+      assertThrows(CaptureNoProgressException.class, () -> h.capture(invalid));
     }
   }
 
@@ -98,9 +98,7 @@ class RequirementRecoveryLadderTest {
       assertEquals(NextAction.PROJECTION_REBUILD, rebuilt.nextAction());
       assertTrue(h.store.rejectedCaptureRevision(h.chat).isEmpty());
 
-      var stopped = assertDoesNotThrow(() -> h.capture(conflict));
-      assertEquals(NextAction.STOP, stopped.nextAction());
-      assertNotEquals(NextAction.ASK_USER, stopped.nextAction());
+      assertThrows(CaptureNoProgressException.class, () -> h.capture(conflict));
     }
   }
 
@@ -118,29 +116,26 @@ class RequirementRecoveryLadderTest {
         RequirementRecoveryLadder.advance(Stage.FOCUSED_REPAIR, List.of("UNBOUND_REQUIRED_LITERAL"), true));
     assertEquals(Stage.FOCUSED_REPAIR,
         RequirementRecoveryLadder.advance(Stage.FOCUSED_REPAIR, List.of("REPAIR_FACT_LOSS"), true));
-    assertEquals(Stage.INTERNAL_FAILURE,
+    assertEquals(Stage.PROJECTION_REBUILD,
         RequirementRecoveryLadder.advance(Stage.PROJECTION_REBUILD, List.of("DUPLICATE_ENTITY"), true));
   }
 
   @Test
-  void duplicateEntityInternalFailureKeepsItsOwnIssue() throws Exception {
+  void aRepeatedDuplicateEntityStopsTheToolCallAndKeepsItsOwnIssue() throws Exception {
     var h = Harness.open();
     var invalid = duplicateGoal();
     try (var ignored = ToolSession.open(h.chat)) {
       h.capture(invalid);
       h.capture(invalid);
       assertEquals(NextAction.PROJECTION_REBUILD, h.capture(invalid).nextAction());
-      var stopped = h.capture(invalid);
-      assertEquals(NextAction.STOP, stopped.nextAction());
-      var duplicate = stopped.issues().stream().filter(issue -> "DUPLICATE_ENTITY".equals(issue.code()))
-          .findFirst().orElseThrow();
+      var stopped = assertThrows(CaptureNoProgressException.class, () -> h.capture(invalid));
 
       var finished = JSON.readValue(h.tools.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY),
           RequirementCaptureResult.class);
       var kept = finished.issues().stream().filter(issue -> "DUPLICATE_ENTITY".equals(issue.code()))
           .findFirst().orElseThrow();
 
-      assertEquals(duplicate.message(), kept.message());
+      assertTrue(stopped.getMessage().contains(kept.message()), stopped.getMessage());
       assertTrue(finished.issues().stream().noneMatch(issue ->
           "CLARIFICATION_ANSWER_NO_PROGRESS".equals(issue.code())), finished.toString());
       assertTrue(finished.issues().stream().noneMatch(issue -> issue.message() != null
@@ -149,7 +144,13 @@ class RequirementRecoveryLadderTest {
   }
 
   @Test
-  void clarificationNoProgressRebuildsThenFailsInternally() {
+  void aRepeatedRepresentationAfterARebuildRebuildsAgain() {
+    assertEquals(Stage.PROJECTION_REBUILD,
+        RequirementRecoveryLadder.advance(Stage.PROJECTION_REBUILD, List.of("UNAPPLIED_AUTHOR_ANSWER"), true));
+  }
+
+  @Test
+  void clarificationNoProgressRebuildsAndKeepsRebuilding() {
     var codes = List.of("CLARIFICATION_ANSWER_NO_PROGRESS", "UNAPPLIED_AUTHOR_ANSWER");
 
     assertEquals(FindingClass.REPAIRABLE_REPRESENTATION,
@@ -159,7 +160,7 @@ class RequirementRecoveryLadderTest {
     assertFalse(RequirementRecoveryLadder.asksAuthor(codes));
     assertEquals(Stage.FOCUSED_REPAIR, RequirementRecoveryLadder.advance(Stage.FOCUSED_REPAIR, codes, false));
     assertEquals(Stage.PROJECTION_REBUILD, RequirementRecoveryLadder.advance(Stage.FOCUSED_REPAIR, codes, true));
-    assertEquals(Stage.INTERNAL_FAILURE, RequirementRecoveryLadder.advance(Stage.PROJECTION_REBUILD, codes, true));
+    assertEquals(Stage.PROJECTION_REBUILD, RequirementRecoveryLadder.advance(Stage.PROJECTION_REBUILD, codes, true));
     assertNotEquals(Stage.ASK_AUTHOR, RequirementRecoveryLadder.advance(Stage.PROJECTION_REBUILD, codes, true));
   }
 
