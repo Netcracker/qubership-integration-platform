@@ -971,3 +971,9 @@ html
     max-height: calc(100dvh - 24px) !important;
   }
 }
+
+.ant-menu-item-selected {
+  .ant-menu-title-content {
+    font-weight: 500 !important;
+  }
+}

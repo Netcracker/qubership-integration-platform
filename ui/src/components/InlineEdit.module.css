@@ -23,77 +23,85 @@
   width: calc(100% + 16px);
 }
 
+:global(.ant-table-cell-row-hover) {
+  > .inlineEditValueWrap {
+    padding: 3px 7px;
+    border: 1px solid var(--ant-color-border, #d9d9d9);
+    border-radius: 2px;
+  }
+}
+
 .inlineEditValueWrap:hover {
   padding: 3px 7px;
   border: 1px solid var(--ant-color-border, #d9d9d9);
   border-radius: 2px;
-}
 
-.inlineIcon {
-  opacity: 0;
-  margin-inline-start: 4px;
-  transition: opacity 0.2s ease;
-}
+  .inlineIcon {
+    opacity: 0;
+    margin-inline-start: 4px;
+    transition: opacity 0.2s ease;
+  }
 
-.inlineEditValueWrap:hover .inlineIcon {
-  opacity: 0.8;
-}
+  .inlineEditValueWrap:hover .inlineIcon {
+    opacity: 0.8;
+  }
 
-/* Holds the editor of a plain inline edit; the offset matches the viewer's. */
-.inlineEditEditorWrap {
-  display: flex;
-  flex-direction: row;
-  width: calc(100% + 16px);
-  min-width: 0;
-  margin-inline: -8px;
-}
+  /* Holds the editor of a plain inline edit; the offset matches the viewer's. */
+  .inlineEditEditorWrap {
+    display: flex;
+    flex-direction: row;
+    width: calc(100% + 16px);
+    min-width: 0;
+    margin-inline: -8px;
+  }
 
-/* antd pads a control by 11px beside its 1px border. Over the cell's own 8px
-   that would set the text 4px in from where the closed cell shows it, so the
-   controls an inline editor holds are padded to the cell instead. */
-.inlineEditEditorWrap :global(.ant-input),
-.inlineEditEditorWrap :global(.ant-input-number-input),
-.inlineEditEditorWrap :global(.ant-select),
-.inlineEditFormWrap :global(.ant-input),
-.inlineEditFormWrap :global(.ant-input-number-input),
-.inlineEditFormWrap :global(.ant-select) {
-  padding-inline: 7px;
-}
+  /* antd pads a control by 11px beside its 1px border. Over the cell's own 8px
+     that would set the text 4px in from where the closed cell shows it, so the
+     controls an inline editor holds are padded to the cell instead. */
+  .inlineEditEditorWrap :global(.ant-input),
+  .inlineEditEditorWrap :global(.ant-input-number-input),
+  .inlineEditEditorWrap :global(.ant-select),
+  .inlineEditFormWrap :global(.ant-input),
+  .inlineEditFormWrap :global(.ant-input-number-input),
+  .inlineEditFormWrap :global(.ant-select) {
+    padding-inline: 7px;
+  }
 
-/* A vertical form lays out every form item it contains in a column, including
-   the one an inline editor renders inside a table cell. There the column
-   collapses to zero height, so an inline editor keeps the horizontal row. */
-.inlineEditEditorWrap :global(.ant-form-item-row) {
-  flex-direction: row;
-}
+  /* A vertical form lays out every form item it contains in a column, including
+     the one an inline editor renders inside a table cell. There the column
+     collapses to zero height, so an inline editor keeps the horizontal row. */
+  .inlineEditEditorWrap :global(.ant-form-item-row) {
+    flex-direction: row;
+  }
 
-.inlineEditEditorWrap > *:first-child {
-  flex: 1;
-  min-width: 0;
-}
+  .inlineEditEditorWrap > *:first-child {
+    flex: 1;
+    min-width: 0;
+  }
 
-.inlineEditFormWrap {
-  display: flex;
-  flex-direction: row;
-  align-items: flex-start;
-  gap: 8px;
-  width: calc(100% + 16px);
-  min-width: 0;
-  border: none;
-  margin: 0;
-  margin-inline: -8px;
-  padding: 0;
-  min-inline-size: unset;
-}
+  .inlineEditFormWrap {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 8px;
+    width: calc(100% + 16px);
+    min-width: 0;
+    border: none;
+    margin: 0;
+    margin-inline: -8px;
+    padding: 0;
+    min-inline-size: unset;
+  }
 
-.inlineEditFormWrap > *:first-child {
-  flex: 1;
-  min-width: 0;
-}
+  .inlineEditFormWrap > *:first-child {
+    flex: 1;
+    min-width: 0;
+  }
 
-.inlineEditButtons {
-  display: flex;
-  flex-direction: row;
-  gap: 4px;
-  margin-top: 2px;
+  .inlineEditButtons {
+    display: flex;
+    flex-direction: row;
+    gap: 4px;
+    margin-top: 2px;
+  }
 }
