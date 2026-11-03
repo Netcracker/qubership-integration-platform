@@ -29,4 +29,11 @@ export class BuildState {
   record(fingerprint: string): void {
     fs.writeFileSync(path.resolve(this.dir, this.marker), fingerprint);
   }
+
+  async build(body: () => Promise<void>): Promise<void> {
+    const fingerprint = this.fingerprint();
+    fs.rmSync(path.resolve(this.dir, this.marker), { force: true });
+    await body();
+    this.record(fingerprint);
+  }
 }

@@ -142,15 +142,13 @@ async function buildStale(): Promise<string[]> {
   await new BuildLock().run("vscode-server", async () => {
     const states = vscodeBuildStates();
     if (uiLib) {
-      const fingerprint = states.uiLib.fingerprint();
-      for (const args of UI_LIB_BUILDS) await runToCompletion("npm", args, repoRoot(), process.env);
-      states.uiLib.record(fingerprint);
+      await states.uiLib.build(async () => {
+        for (const args of UI_LIB_BUILDS) await runToCompletion("npm", args, repoRoot(), process.env);
+      });
       built.push("the UI library");
     }
     if (extension) {
-      const fingerprint = states.extension.fingerprint();
-      await runToCompletion("npm", EXTENSION_BUILD, repoRoot(), process.env);
-      states.extension.record(fingerprint);
+      await states.extension.build(() => runToCompletion("npm", EXTENSION_BUILD, repoRoot(), process.env));
       built.push("the extension");
     }
   });

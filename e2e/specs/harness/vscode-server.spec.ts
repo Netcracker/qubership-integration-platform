@@ -5,6 +5,7 @@
  * Shown failing, each edit alone turning only the case named: `SERVER_ARGS` matching port 3918
  * ("the server runs the pinned build"); the library marker back to all of `ui/dist-lib` ("a missing
  * output rebuilds it").
+ * Shown failing: retaining the old marker makes both failed-build/source-revert cases read as current.
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -189,5 +190,41 @@ test.describe("vscode-server", () => {
     fs.utimesSync(path.join(root, "ui/src/file"), 300, 300);
     fs.utimesSync(path.join(root, "vscode-extension/src/file"), 300, 300);
     expect(await staleBuilds(root)).toEqual({ uiLib: false, extension: false });
+  });
+
+  test("a failed library build stays stale after a source revert", async () => {
+    const root = repoTree({});
+    const states = vscodeBuildStates(root);
+    const source = path.join(root, "ui/src/file");
+    const bundle = path.join(root, "ui/dist-lib/file");
+    fs.writeFileSync(source, "A");
+    fs.writeFileSync(bundle, "A");
+    states.uiLib.record(states.uiLib.fingerprint());
+    states.extension.record(states.extension.fingerprint());
+    fs.writeFileSync(source, "B");
+    await expect(states.uiLib.build(async () => {
+      fs.writeFileSync(bundle, "B");
+      throw new Error("type generation failed");
+    })).rejects.toThrow("type generation failed");
+    fs.writeFileSync(source, "A");
+    expect(await staleBuilds(root)).toEqual({ uiLib: true, extension: true });
+    await states.uiLib.build(async () => { fs.writeFileSync(bundle, fs.readFileSync(source)); });
+    const embedded = path.join(root, "vscode-extension/dist/embedded.js");
+    await states.extension.build(async () => { fs.copyFileSync(bundle, embedded); });
+    expect(fs.readFileSync(embedded, "utf-8")).toBe("A");
+    expect(await staleBuilds(root)).toEqual({ uiLib: false, extension: false });
+  });
+
+  test("a failed extension build stays stale after a source revert", async () => {
+    const root = repoTree({});
+    const state = vscodeBuildStates(root).extension;
+    const source = path.join(root, "vscode-extension/src/file");
+    fs.writeFileSync(source, "B");
+    await expect(state.build(async () => {
+      fs.writeFileSync(path.join(root, "vscode-extension/dist/extension.js"), "B");
+      throw new Error("webpack failed");
+    })).rejects.toThrow("webpack failed");
+    fs.writeFileSync(source, "");
+    expect(await staleBuilds(root)).toEqual({ uiLib: false, extension: true });
   });
 });
