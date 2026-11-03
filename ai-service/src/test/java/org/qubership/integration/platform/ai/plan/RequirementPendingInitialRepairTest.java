@@ -157,9 +157,8 @@ class RequirementPendingInitialRepairTest {
     assertNotEquals(initial, latest);
     var rebuilt = h.call("updateRequirementDraft", Map.of("changes", h.changes(original.facts(), latest)));
     assertEquals("PROJECTION_REBUILD", rebuilt.path("nextAction").asText());
-    var stopped = h.call("captureRequirementDraft", Map.of("draft", original));
-    assertEquals("STOP", stopped.path("nextAction").asText());
-    assertNotEquals("ASK_USER", stopped.path("nextAction").asText());
+    assertThrows(org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException.class,
+        () -> h.call("captureRequirementDraft", Map.of("draft", original)));
     assertEquals(credits, h.fingerprints.softCreditsUsed(h.chat));
     assertEquals(scope, h.store.captureMutationScope(h.chat));
     assertTrue(h.store.get(h.chat).isEmpty());

@@ -981,7 +981,7 @@ class RequirementCaptureToolsTest {
   }
 
   @Test
-  void theSameTargetProjectionRepeatsIntoRebuildThenInternalFailure() throws Exception {
+  void theSameTargetProjectionKeepsRebuildingAfterTheFirstRebuild() throws Exception {
     var setup = pinnedUriQuestion("same-projection", "Use https://example.com/tasks");
     var telemetry = new org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryOutcomeTelemetry();
     setup.harness().tools().recoveryTelemetry = telemetry;
@@ -1005,15 +1005,12 @@ class RequirementCaptureToolsTest {
       assertTrue(first.issues().stream().anyMatch(issue -> "CLARIFICATION_ANSWER_NO_PROGRESS".equals(issue.code())),
           first.toString());
       assertEquals(NextAction.PROJECTION_REBUILD, second.nextAction(), second.toString());
-      assertEquals(NextAction.STOP, third.nextAction(), third.toString());
+      assertEquals(NextAction.PROJECTION_REBUILD, third.nextAction(), third.toString());
       assertNotEquals(NextAction.ASK_USER, third.nextAction());
-      assertTrue(third.issues().stream().noneMatch(issue -> issue.message() != null
-          && (issue.message().contains("Which URI?") || issue.message().contains("admitted answer")
-              || issue.message().contains("pinned target"))), third.toString());
       assertEquals(before, setup.harness().store().latestRevision(setup.chat()).orElseThrow().reference());
       assertEquals("Which URI?", setup.harness().store().get(setup.chat()).orElseThrow()
           .authoredDraft().openQuestions().getFirst().text());
-      assertEquals(List.of("NO_PROGRESS", "PROJECTION_REBUILD", "INTERNAL_FAILURE"),
+      assertEquals(List.of("NO_PROGRESS", "PROJECTION_REBUILD", "PROJECTION_REBUILD"),
           telemetry.clarificationOutcomes().stream()
               .map(org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryOutcomeTelemetry
                   .ClarificationOutcome::outcomeCode).toList());

@@ -1051,7 +1051,8 @@ public class RequirementCaptureTools {
     var next = RequirementRecoveryLadder.advance(current, codes, repeated);
     recordClarificationTelemetry(conversationId, key, clarificationOutcomeCode(next, repeated), next, recorded,
         outcome);
-    if (!repeated || next == current) {
+    // A repeat after a rebuild rebuilds again; the stage ledger bounds the repetition.
+    if (!repeated || (next == current && current != RequirementRecoveryLadder.Stage.PROJECTION_REBUILD)) {
       return outcome;
     }
     var shown = next == RequirementRecoveryLadder.Stage.INTERNAL_FAILURE
