@@ -1,41 +1,29 @@
 /**
- * The micro-domain flow: a domain built through `/v1/cr`, then deployed, trimmed to one chain, and
- * deleted through the catalog controllers.
+ * The micro-domain lifecycle: a domain created by a chain-scoped deployment create, then trimmed to
+ * one chain, and deleted through the catalog controllers.
  *
- * `seed-micro` reaches `POST /v1/catalog/chains/deployments/bulk` only. This case drives the build,
- * the bulk deploy that creates the domain, the single deployment that re-adds a chain, the snapshot
- * removal, and the domain delete, and reads their effect off the cluster: the YAML the build answers,
- * the Integration and the ConfigMaps a deploy writes, and what a delete leaves behind. The two
- * chains are built in the worker folder; the micro domain is named with the run token, so the sweep
- * finds one this case failed to delete.
+ * `seed-micro` reaches `POST /v1/catalog/chains/deployments/bulk` only. This case drives the two
+ * deployment creates that build the domain and add the second chain, the snapshot removal, and the
+ * domain delete, and reads their effect off the cluster: the Integration and the ConfigMaps a deploy
+ * writes, the routes that answer, and what a delete leaves behind. The two chains are built in the
+ * worker folder; the micro domain is named with the run token, so the sweep finds one this case
+ * failed to delete.
  */
 import type { APIRequestContext } from "@playwright/test";
-import yaml from "js-yaml";
 import { test, expect } from "../../support/fixtures.js";
 import { MICRO_READY_TIMEOUT } from "../../support/corpus.js";
 import { createDeployableChain, MARKER_HEADER, type DeployableChain } from "../../support/deployable.js";
-import {
-  configMaps,
-  integration,
-  k8sName,
-  microChainUrl,
-  microServiceOf,
-  type KubeObject,
-} from "../../support/kube.js";
+import { configMaps, integration, k8sName, microChainUrl, microServiceOf } from "../../support/kube.js";
 import { tokenized } from "../../support/run.js";
 
-/** Four micro pod starts at most, each measured at 60 to 75 s, and the build and the deletes. */
+/** Four micro pod starts at most, each measured at 60 to 75 s, and the deployment creates and the deletes. */
 const CASE_TIMEOUT = 600_000;
 
 /** How long the garbage collector gets to remove the ConfigMaps of a deleted Integration. */
 const GC_TIMEOUT = 60_000;
 
-/** The label the build puts on a chain's source ConfigMap, holding the snapshot id through `k8sName`. */
+/** The label a deploy puts on a chain's source ConfigMap, holding the snapshot id through `k8sName`. */
 const SNAPSHOT_LABEL = "org.qubership.integration.platform/snapshotId";
-
-interface BuiltDocument extends KubeObject {
-  kind: string;
-}
 
 /** What a GET of the chain answers: 405 while the POST-only route is live, 404 once it is gone. */
 async function routeStatus(request: APIRequestContext, domain: string, chain: DeployableChain): Promise<number> {
@@ -45,8 +33,8 @@ async function routeStatus(request: APIRequestContext, domain: string, chain: De
     .catch(() => 0);
 }
 
-test.describe("/v1/cr custom resources", { tag: ["@catalog", "@engine", "@slow"] }, () => {
-  test("builds, deploys, trims, and deletes a micro domain", async ({ catalog, folder, run, request }) => {
+test.describe("micro domain lifecycle", { tag: ["@catalog", "@engine", "@slow"] }, () => {
+  test("deploys, trims, and deletes a micro domain", async ({ catalog, folder, run, request }) => {
     test.setTimeout(CASE_TIMEOUT);
     const domain = tokenized(run, "cr");
     const resource = microServiceOf(domain);
@@ -62,35 +50,12 @@ test.describe("/v1/cr custom resources", { tag: ["@catalog", "@engine", "@slow"]
     const dropped = await chain("dropped");
     const keptSnapshot = await catalog.createSnapshot(kept.id);
     const droppedSnapshot = await catalog.createSnapshot(dropped.id);
-    const snapshotIds = [keptSnapshot.id, droppedSnapshot.id];
-
-    await test.step("POST /v1/cr answers the resources and writes none of them", async () => {
-      const documents = yaml
-        .loadAll(await catalog.buildCustomResources(domain, snapshotIds))
-        .filter((each): each is BuiltDocument => each !== null && typeof each === "object");
-      const named = documents.map((each) => `${each.kind} ${each.metadata.name}`);
-      expect(named).toEqual(
-        expect.arrayContaining([
-          `Integration ${resource}`,
-          `Service ${resource}`,
-          `HTTPRoute ${resource}-routes`,
-          `ConfigMap ${resource}-src-cfg`,
-        ]),
-      );
-      const sources = documents
-        .filter((each) => each.kind === "ConfigMap" && each.metadata.labels?.[SNAPSHOT_LABEL])
-        .map((each) => each.metadata.labels?.[SNAPSHOT_LABEL]);
-      expect(sources.sort()).toEqual(snapshotIds.map(k8sName).sort());
-      for (const each of documents) expect(each.metadata.labels?.["cip-domain"], `${each.kind} ${each.metadata.name}`).toBe(domain);
-
-      expect(await integration(resource)).toBeNull();
-      expect(await configMaps(`cip-domain=${domain}`)).toEqual([]);
-    });
 
     let deployed = false;
     try {
-      await test.step("POST /v1/cr/deploy runs both chains on the domain", async () => {
-        await catalog.deployCustomResource(domain, snapshotIds);
+      await test.step("POST /v1/catalog/chains/{chainId}/deployments runs both chains on the domain", async () => {
+        await catalog.deploy(kept.id, keptSnapshot.id, domain, "REWRITE", "MICRO");
+        await catalog.deploy(dropped.id, droppedSnapshot.id, domain, "APPEND", "MICRO");
         deployed = true;
         expect(await integration(resource)).not.toBeNull();
         await expect

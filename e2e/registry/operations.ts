@@ -307,7 +307,6 @@ export function operationClaims(
 // The seed
 // ---------------------------------------------------------------------------
 
-const R_DEPRECATED_ALIAS = "deprecated alias of a catalog route; no case calls it";
 // Measured 500 on both against the running stack: no MaaS agent is reachable (maas.agent.url
 // resolves empty; MAAS_AGENT_URL is unset in every compose env file). The declarative pair needs no
 // agent at all and is covered instead.
@@ -608,8 +607,6 @@ export const operationRegistry: OperationEntry[] = [
   { service: "catalog", method: "POST", path: "/v1/common-variables", controller: "common-variables-controller", status: "covered" },
   { service: "catalog", method: "POST", path: "/v1/common-variables/import", controller: "common-variables-controller", status: "covered" },
   { service: "catalog", method: "POST", path: "/v1/common-variables/preview", controller: "common-variables-controller", status: "covered" },
-  { service: "catalog", method: "POST", path: "/v1/cr", controller: "custom-resource-controller", status: "covered", target: "k8s" },
-  { service: "catalog", method: "POST", path: "/v1/cr/deploy", controller: "custom-resource-controller", status: "not-reached", reason: R_DEPRECATED_ALIAS },
   { service: "catalog", method: "POST", path: "/v1/design-generator/chains/{chainId}", controller: "chain-design-controller", status: "covered" },
   { service: "catalog", method: "POST", path: "/v1/design-generator/chains/{chainId}/snapshots/{snapshotId}", controller: "chain-design-controller", status: "covered" },
   { service: "catalog", method: "POST", path: "/v1/export/system", controller: "system-export-import-controller", status: "covered" },
