@@ -6441,6 +6441,54 @@ class ProductPipelineStageExecutorTest {
    */
   @Test
   void aRepeatedSourceDefectWithNoSafeCorrectionOffersEditRequirementsThatReopensTheDraftOwner() {
+    var source = repeatedSourceDefect(new RecoveryAttemptLedger(new RecoveryAttemptLedger.Limits(1, 2, 12, 1)));
+    assertEquals(PipelineGates.RECOVERY_REVISE_BRIEF, PipelineGates.gateOf(source.card().prompt()).orElseThrow(),
+        source.card().prompt());
+    assertEquals(List.of(ChatEvent.EDIT_REQUIREMENTS_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
+        cardActions(source.card().prompt()));
+
+    source.runtime().recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.REVISE_ACTION, "edit-click", "edit-hash",
+        InputOrigin.TRUSTED)).collect().asList().await().indefinitely();
+
+    String reason = requireRun().transitions().getLast().reason();
+    assertTrue(reason.startsWith(RecoveryAttemptLedger.AUTHOR_REOPEN_REASON_PREFIX + source.draftOwner()), reason);
+    assertEquals(RunStatus.RUNNING, requireRun().run().status());
+    assertEquals(source.draftOwner(), requireRun().run().currentStageId());
+  }
+
+  /**
+   * At the run's recovery ceiling, which the automatic reopen of the draft owner spends here, the same source defect
+   * shows the repeated-failure card with Retry creation, because the ledger refuses the author's reopen at the
+   * ceiling. A trusted Retry raises the ceiling and runs the analysis again. The run used to show Edit requirements,
+   * whose click the ledger refused.
+   */
+  @Test
+  void aRepeatedSourceDefectAtTheRecoveryCeilingOffersRetryCreationThatResumesTheAnalysis() {
+    var source = repeatedSourceDefect(new RecoveryAttemptLedger(new RecoveryAttemptLedger.Limits(1, 2, 1, 1)));
+    assertEquals(PipelineGates.RECOVERY_REPEATED, PipelineGates.gateOf(source.card().prompt()).orElseThrow(),
+        source.card().prompt());
+    assertEquals(HaltRecoveryGuard.RUN_RECOVERY_CEILING.name(),
+        PipelineGates.guardOf(source.card().prompt()).orElse(""), source.card().prompt());
+    assertEquals(List.of(ChatEvent.RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
+        cardActions(source.card().prompt()));
+
+    source.runtime().recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.RETRY_ACTION, "retry-click",
+        "retry-hash", InputOrigin.TRUSTED)).collect().asList().await().indefinitely();
+
+    assertEquals(RunStatus.RUNNING, requireRun().run().status());
+    assertEquals("requirement-analysis", requireRun().run().currentStageId());
+    String reason = requireRun().transitions().getLast().reason();
+    assertTrue(reason.startsWith(RecoveryAttemptLedger.GRANT_TARGETED_REASON_PREFIX), reason);
+  }
+
+  private record RepeatedSourceDefect(CreateChainTestOrchestrator runtime, String draftOwner,
+      StageDecision.WaitForInput card) { }
+
+  /**
+   * Runs a draft owner and an analysis that reports the same source defect twice: the first report reopens the draft
+   * owner, which returns the same draft, and the second leaves the analysis waiting on its card.
+   */
+  private RepeatedSourceDefect repeatedSourceDefect(RecoveryAttemptLedger ledger) {
     var original = sourceWordingDraft(false, false);
     var draftType = new ArtifactTypeRef("requirement-draft", 1);
     var briefType = new ArtifactTypeRef("requirement-brief", 1);
@@ -6465,7 +6513,7 @@ class ProductPipelineStageExecutorTest {
         ? sourceWordingReview(original, "generation", "Initial source comparison.", List.of("script", "ids"))
         : sourceWordingReview(original, "different-generation", "Different explanation and attempt.",
             List.of("script", "ids"))));
-    var runtime = newRuntime(profile, discovery, analysis, planningAlwaysCandidate());
+    var runtime = newRuntime(new FailureNarrative(), ledger, null, discovery, analysis, planningAlwaysCandidate());
     var drafts = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.plan.RequirementDraftStore.class);
     org.mockito.Mockito.when(drafts.get(CONVERSATION)).thenReturn(java.util.Optional.of(original));
     org.mockito.Mockito.when(drafts.hasSourceRestorationCandidate(org.mockito.ArgumentMatchers.eq(CONVERSATION),
@@ -6477,18 +6525,9 @@ class ProductPipelineStageExecutorTest {
     assertInstanceOf(StageDecision.ReopenProducer.class, reopen.decision(), () -> reopen.decision().toString());
     applyLifecycle(runtime, reopen);
     applyLifecycle(runtime, execute(runtime, owner.stageId()));
-    var wait = assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "requirement-analysis").decision());
-    assertEquals(PipelineGates.RECOVERY_REVISE_BRIEF, PipelineGates.gateOf(wait.prompt()).orElseThrow(), wait.prompt());
-    assertEquals(List.of(ChatEvent.EDIT_REQUIREMENTS_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
-        cardActions(wait.prompt()));
-
-    runtime.recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.REVISE_ACTION, "edit-click", "edit-hash",
-        InputOrigin.TRUSTED)).collect().asList().await().indefinitely();
-
-    String reason = requireRun().transitions().getLast().reason();
-    assertTrue(reason.startsWith(RecoveryAttemptLedger.AUTHOR_REOPEN_REASON_PREFIX + owner.stageId()), reason);
-    assertEquals(RunStatus.RUNNING, requireRun().run().status());
-    assertEquals(owner.stageId(), requireRun().run().currentStageId());
+    var decision = execute(runtime, "requirement-analysis").decision();
+    return new RepeatedSourceDefect(runtime, owner.stageId(),
+        assertInstanceOf(StageDecision.WaitForInput.class, decision, decision::toString));
   }
 
   private static RequirementDraft sourceWordingDraft(boolean scriptRestored, boolean idsRestored) {

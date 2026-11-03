@@ -1285,6 +1285,11 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         // A brief defect is in the author's requirements, so rerunning this stage cannot correct it: the author edits
         // them in the stage that produced the committed requirement draft.
         if (cause.isKnownBriefDefect() && !catalogHasBeenWritten(doc.run().runId())) {
+          // The ledger refuses the author's reopen at the ceiling, while a Retry raises it.
+          if (recoveryLedger.perRunCeilingReached(doc.transitions())) {
+            return waitGuardedRecovery(
+                doc, stage, refs, HaltRecoveryGuard.RUN_RECOVERY_CEILING, cause, evidence, emitted);
+          }
           Revision draft = committedArtifactRevision(doc, Kind.REQUIREMENT_DRAFT);
           return waitEditableBriefRecovery(doc, stage, refs, cause, evidence,
               draft == null || draft.provenance() == null ? "" : draft.provenance().stageId(), emitted);
