@@ -1605,9 +1605,12 @@ class ProductPipelineStageExecutorTest {
     }
   }
 
-  /** Nothing classified the throwable, so it is an internal defect the author cannot repair. */
+  /**
+   * The second unclassified exception on a stage is an internal defect the author cannot repair.
+   * The first one is retried automatically and shows no card.
+   */
   @Test
-  void aCapabilityThatFailsItsStreamHaltsAsAnInternalFailureInsteadOfThrowing() {
+  void aCapabilityThatFailsItsStreamTwiceHaltsAsAnInternalFailureInsteadOfThrowing() {
     StageCapability failing =
         capability(
             "fail-cap",
@@ -1616,6 +1619,7 @@ class ProductPipelineStageExecutorTest {
     CreateChainTestOrchestrator runtime = newRuntime(profile, failing);
     startAndRecordInput(runtime, profile);
 
+    assertInstanceOf(StageDecision.Retry.class, execute(runtime, "work").decision());
     StageExecutionResult result = execute(runtime, "work");
 
     StageDecision.WaitForInput wait =
@@ -1646,8 +1650,34 @@ class ProductPipelineStageExecutorTest {
     assertEquals("work", latest.stageId());
     assertEquals(StageStatus.WAITING_FOR_INPUT, latest.outcome());
     assertEquals(
-        1,
+        2,
         doc.attempts().stream().filter(attempt -> attempt.outcome() == StageStatus.FAILED).count());
+  }
+
+  @Test
+  void aCapabilityThatFailsItsStreamOnceRetriesTheStageAndCompletesWithoutACard() {
+    AtomicInteger calls = new AtomicInteger();
+    StageCapability flaky =
+        capability(
+            "flaky-cap",
+            context ->
+                calls.incrementAndGet() == 1
+                    ? Multi.createFrom().failure(new IllegalStateException("catalog lookup broke"))
+                    : Multi.createFrom().item(
+                        new CapabilitySignal.Completed(
+                            StageOutcome.of(StageOutcomeClass.SUCCEEDED, "recovered"))));
+    ProductPipelineProfile profile = retryProfile("work", "flaky-cap", new RetryPolicy(0, 5_000L));
+    CreateChainTestOrchestrator runtime = newRuntime(profile, flaky);
+    startAndRecordInput(runtime, profile);
+
+    StageDecision.Retry retry =
+        assertInstanceOf(StageDecision.Retry.class, execute(runtime, "work").decision());
+    applyLifecycle(runtime, execute(runtime, "work"));
+
+    assertEquals("work", retry.stageId());
+    assertTrue(retry.technicalRetry());
+    assertEquals(2, calls.get());
+    assertEquals(StageStatus.SUCCEEDED, snapshot(requireRun(), "work").status());
   }
 
   /** Retry re-enters the same defect, so the internal-failure card offers no Retry. */
@@ -1710,6 +1740,7 @@ class ProductPipelineStageExecutorTest {
     CreateChainTestOrchestrator runtime = newRuntime(profile, failing);
     startAndRecordInput(runtime, profile);
 
+    assertInstanceOf(StageDecision.Retry.class, execute(runtime, "work").decision());
     StageDecision.WaitForInput wait =
         assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "work").decision());
 
@@ -1754,6 +1785,7 @@ class ProductPipelineStageExecutorTest {
     startAndRecordInput(runtime, profile);
     approveAnalysis(runtime);
 
+    assertInstanceOf(StageDecision.Retry.class, execute(runtime, "planning").decision());
     StageDecision.WaitForInput wait =
         assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "planning").decision());
 
@@ -1788,6 +1820,7 @@ class ProductPipelineStageExecutorTest {
     approveStage(runtime, "analysis");
     approveStage(runtime, "design");
 
+    assertInstanceOf(StageDecision.Retry.class, execute(runtime, "planning").decision());
     StageDecision.WaitForInput wait =
         assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "planning").decision());
 
@@ -2266,6 +2299,27 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
+  void aStreamFailedWithBadToolArgumentsRetriesOnceEvenWhenTheStageAllowsNoTechnicalRetry() {
+    StageCapability failing =
+        capability(
+            "fail-cap",
+            context ->
+                Multi.createFrom()
+                    .failure(
+                        new ToolArgumentsException("cannot parse tool arguments", (Throwable) null)));
+    ProductPipelineProfile profile = retryProfile("work", "fail-cap", new RetryPolicy(0, 25L));
+    CreateChainTestOrchestrator runtime = newRuntime(profile, failing);
+    startAndRecordInput(runtime, profile);
+
+    assertInstanceOf(StageDecision.Retry.class, execute(runtime, "work").decision());
+    StageDecision.WaitForInput wait =
+        assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "work").decision());
+
+    assertEquals(
+        PipelineGates.RECOVERY_RETRY_TECHNICAL, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+  }
+
+  @Test
   void aStreamFailedWithConnectionRefusedRetriesThenWaitsWhenTheBudgetIsSpent() {
     StageCapability failing =
         capability(
@@ -2368,7 +2422,7 @@ class ProductPipelineStageExecutorTest {
 
   @ParameterizedTest
   @ValueSource(ints = {400, 401, 403, 404, 422, 500})
-  void nonTransientProviderStatusDoesNotEnterTheAutomaticRetryLoop(int status) {
+  void nonTransientProviderStatusRetriesOnceBeforeTheInternalCard(int status) {
     var calls = new AtomicInteger();
     var failing = capability("provider-cap", context -> {
       if (context.attributeAsString("userText") == null) {
@@ -2385,7 +2439,7 @@ class ProductPipelineStageExecutorTest {
     runtime.startOrResume(new StartOrResumeCommand(CONVERSATION, RUN_ID, profile, manifest(profile)))
         .collect().asList().await().indefinitely();
 
-    assertEquals(1, calls.get());
+    assertEquals(2, calls.get());
     assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
     assertEquals(PipelineGates.RECOVERY_INTERNAL,
         PipelineGates.gateOf(requireRun().transitions().getLast().reason()).orElseThrow());
@@ -2393,7 +2447,7 @@ class ProductPipelineStageExecutorTest {
 
   @ParameterizedTest
   @ValueSource(strings = {"contract", "http", "tls", "tls-provider"})
-  void quotedConnectionTextCannotTurnNonTransientStageFailuresIntoRetries(String kind) {
+  void quotedConnectionTextCannotTurnNonTransientStageFailuresIntoTransientRetries(String kind) {
     Throwable failure = switch (kind) {
       case "contract" -> new IllegalStateException("The contract quotes connection reset.");
       case "http" -> new dev.langchain4j.exception.InternalServerException("Provider rejected request",
@@ -2417,7 +2471,7 @@ class ProductPipelineStageExecutorTest {
     runtime.startOrResume(new StartOrResumeCommand(CONVERSATION, RUN_ID, profile, manifest(profile)))
         .collect().asList().await().indefinitely();
 
-    assertEquals(1, calls.get());
+    assertEquals(kind.startsWith("tls") ? 1 : 2, calls.get());
     assertEquals(kind.startsWith("tls") ? PipelineGates.RECOVERY_ENVIRONMENT : PipelineGates.RECOVERY_INTERNAL,
         PipelineGates.gateOf(requireRun().transitions().getLast().reason()).orElseThrow());
   }

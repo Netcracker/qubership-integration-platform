@@ -524,8 +524,11 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
                   "capability threw: runId=%s, stageId=%s",
                   runId,
                   stage.stageId());
-              recordNonRetryableEscapedFailure(requireRun(runId), failure);
-              return List.<CapabilitySignal>of(new CapabilitySignal.Completed(outcomeOf(failure)));
+              StageOutcome outcome = retryableOrInternalOutcomeOf(runId, stage.stageId(), failure);
+              if (!isUnclassifiedExceptionRetry(outcome)) {
+                recordNonRetryableEscapedFailure(requireRun(runId), failure);
+              }
+              return List.<CapabilitySignal>of(new CapabilitySignal.Completed(outcome));
             })
         .map(signals -> {
           settlePendingRecoveryAttempt(runId, stage, requestsBefore);
@@ -582,6 +585,40 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     return StageOutcome.of(
         StageOutcomeClass.INTERNAL_FAILURE,
         message == null || message.isBlank() ? String.valueOf(failure) : message);
+  }
+
+  /**
+   * Classifies a throwable that ended a capability stream. An exception nothing recognized is
+   * retried once, which records the failed attempt here so that a storage failure while recording
+   * surfaces together with the exception. It becomes an internal failure when the stage already
+   * has a technical retry, and when the run has written to the catalog, where a rerun could write
+   * twice.
+   */
+  private StageOutcome retryableOrInternalOutcomeOf(String runId, String stageId, Throwable failure) {
+    StageOutcome outcome = outcomeOf(failure);
+    if (outcome.outcomeClass() != StageOutcomeClass.INTERNAL_FAILURE
+        || StageOutcome.captureFailure(failure).isPresent()
+        || catalogHasBeenWritten(runId)) {
+      return outcome;
+    }
+    ProductPipelineRunDocument doc = requireRun(runId);
+    int used = ProductPipelineRunSupport.consecutiveTechnicalRetries(
+        runId, doc.attempts(), doc.transitions()).getOrDefault(stageRetryKey(runId, stageId), 0);
+    if (used >= 1) {
+      return outcome;
+    }
+    recordRetryableFailure(doc, outcome.message());
+    return StageOutcome.of(
+        StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE,
+        outcome.message(),
+        new RecoveryCause(RecoveryCauseCode.TECHNICAL_RETRY_EXHAUSTED,
+            List.of(new PlanValidationFinding(UNCLASSIFIED_EXCEPTION_FINDING, outcome.message(), true)), ""));
+  }
+
+  private static boolean isUnclassifiedExceptionRetry(StageOutcome outcome) {
+    return outcome.recoveryCause() != null
+        && outcome.recoveryCause().findings().stream()
+            .anyMatch(finding -> UNCLASSIFIED_EXCEPTION_FINDING.equals(finding.code()));
   }
 
   private static String failureMessage(Throwable failure) {
@@ -838,12 +875,24 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         String key = stageRetryKey(runId, stage.stageId());
         int used = ProductPipelineRunSupport.consecutiveTechnicalRetries(
             runId, doc.attempts(), doc.transitions()).getOrDefault(key, 0);
+        if (isUnclassifiedExceptionRetry(outcome)) {
+          // The failed attempt was recorded when the exception was caught, and `used` counts it.
+          technicalRetriesByStage.put(key, used);
+          yield new StageExecutionResult(
+              new StageDecision.Retry(
+                  stage.stageId(), Duration.ofMillis(Math.max(stage.retry().defaultDelayMs(), 0L)), true),
+              emitted);
+        }
         recordRetryableFailure(doc, outcome.message());
         doc = requireRun(doc.run().runId());
         int max = stage.retry().maxTechnicalRetries();
         if (outcome.recoveryCause() != null && outcome.recoveryCause().findings().stream()
             .anyMatch(finding -> "LLM_CONTEXT_OVERFLOW".equals(finding.code()))) {
           max = 1;
+        }
+        if (outcome.recoveryCause() != null && outcome.recoveryCause().findings().stream()
+            .anyMatch(finding -> "INVALID_TOOL_ARGUMENTS".equals(finding.code()))) {
+          max = Math.max(max, 1);
         }
         long delayMs =
             outcome.retryDelayMs() != null
@@ -4190,6 +4239,9 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       throw new IllegalStateException("SHA-256 unavailable", e);
     }
   }
+
+  /** Finding code that marks a retryable outcome standing in for an exception nothing classified. */
+  private static final String UNCLASSIFIED_EXCEPTION_FINDING = "UNCLASSIFIED_EXCEPTION";
 
   private static String stageRetryKey(String runId, String stageId) {
     return runId + ":" + stageId;
