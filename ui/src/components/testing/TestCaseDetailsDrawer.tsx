@@ -1,15 +1,15 @@
 import React from "react";
 import { TestCaseView } from "../../api/apiTypes.ts";
-import { EMPTY } from "./testingAudit.tsx";
 import { isTestCaseReady } from "./testCases.ts";
 import { EnabledTag, ReadinessTag } from "./TestingTags.tsx";
 import {
   auditSection,
   chainItem,
+  DetailsSidebar,
   elementItem,
   idItem,
-  TestingDetailsDrawer,
-} from "./TestingDetailsDrawer.tsx";
+  renderOptional,
+} from "../DetailsSidebar.tsx";
 
 export type TestCaseDetailsDrawerProps = {
   testCase: TestCaseView | null;
@@ -30,55 +30,59 @@ export const TestCaseDetailsDrawer: React.FC<TestCaseDetailsDrawerProps> = ({
   const elementId = testCase?.triggerReference?.elementId;
 
   return (
-    <TestingDetailsDrawer
+    <DetailsSidebar
       title="Test Case Details"
       open={open}
       onClose={onClose}
-      sections={
-        !testCase
-          ? []
-          : [
-              {
-                title: "general info",
-                items: [
-                  idItem(testCase.id),
-                  { label: "Name", children: testCase.name || EMPTY },
-                  {
-                    label: "Description",
-                    children: testCase.description || EMPTY,
-                  },
-                ],
-              },
-              {
-                title: "endpoint",
-                items: [
-                  chainItem(chainId, chainName),
-                  elementItem("Trigger", chainId, elementId, elementName),
-                ],
-              },
-              {
-                title: "status",
-                items: [
-                  {
-                    label: "Enabled",
-                    children: <EnabledTag enabled={testCase.enabled} />,
-                  },
-                  {
-                    label: "Readiness",
-                    children: (
-                      <ReadinessTag ready={isTestCaseReady(testCase)} />
-                    ),
-                  },
-                  { label: "Rules", children: testCase.validationRuleCount },
-                  {
-                    label: "Active rules",
-                    children: testCase.enabledRuleCount,
-                  },
-                ],
-              },
-              auditSection(testCase),
-            ]
-      }
+      sections={[
+        {
+          key: "general-info",
+          title: "general info",
+          items: [
+            idItem(testCase?.id),
+            { label: "Name", value: renderOptional(testCase?.name) },
+            {
+              label: "Description",
+              value: renderOptional(testCase?.description),
+            },
+          ],
+        },
+        {
+          key: "endpoint",
+          title: "endpoint",
+          items: [
+            chainItem(chainId, chainName),
+            elementItem("Trigger", chainId, elementId, elementName),
+          ],
+        },
+        {
+          key: "status",
+          title: "status",
+          items: [
+            {
+              label: "Enabled",
+              value: renderOptional(testCase?.enabled, (v) => (
+                <EnabledTag enabled={v} />
+              )),
+            },
+            {
+              label: "Readiness",
+              value: renderOptional(testCase, (v) => (
+                <ReadinessTag ready={isTestCaseReady(v)} />
+              )),
+            },
+            {
+              label: "Rules",
+              value: renderOptional(testCase?.validationRuleCount),
+            },
+            {
+              label: "Active Rules",
+              value: renderOptional(testCase?.enabledRuleCount),
+            },
+          ],
+        },
+        auditSection(testCase),
+      ]}
     />
   );
 };

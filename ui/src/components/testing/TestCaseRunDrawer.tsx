@@ -1,15 +1,16 @@
 import React from "react";
-import { Typography } from "antd";
 import { TestCaseRunView } from "../../api/apiTypes.ts";
 import { formatTimestamp } from "../../misc/format-utils.ts";
-import { EMPTY } from "./testingAudit.tsx";
 import { RunStatusTag } from "./TestingTags.tsx";
 import {
   chainItem,
   DetailsLink,
+  DetailsSidebar,
   idItem,
-  TestingDetailsDrawer,
-} from "./TestingDetailsDrawer.tsx";
+  IdText,
+  Placeholder,
+  renderOptional,
+} from "../DetailsSidebar.tsx";
 
 export type TestCaseRunDrawerProps = {
   run: TestCaseRunView | null;
@@ -30,16 +31,12 @@ function sessionCell(
   sessionPath: string | undefined,
 ): React.ReactNode {
   if (!sessionId) {
-    return EMPTY;
+    return <Placeholder />;
   }
   if (sessionPath) {
     return <DetailsLink to={sessionPath}>{sessionId}</DetailsLink>;
   }
-  return (
-    <Typography.Text style={{ wordBreak: "break-all" }}>
-      {sessionId}
-    </Typography.Text>
-  );
+  return <IdText value={sessionId} />;
 }
 
 export const TestCaseRunDrawer: React.FC<TestCaseRunDrawerProps> = ({
@@ -51,66 +48,62 @@ export const TestCaseRunDrawer: React.FC<TestCaseRunDrawerProps> = ({
   open,
   onClose,
 }) => (
-  <TestingDetailsDrawer
+  <DetailsSidebar
     title="Test Case Run Details"
     open={open}
     onClose={onClose}
-    sections={
-      !run
-        ? []
-        : [
-            {
-              title: "general info",
-              items: [
-                idItem(run.id),
-                {
-                  label: "Test case",
-                  children:
-                    run.testCaseName && testCasePath ? (
-                      <DetailsLink to={testCasePath}>
-                        {run.testCaseName}
-                      </DetailsLink>
-                    ) : (
-                      (run.testCaseName ?? EMPTY)
-                    ),
-                },
-                {
-                  label: "Description",
-                  children: run.testCaseDescription || EMPTY,
-                },
-                chainItem(run.chainId, chainName),
-              ],
-            },
-            {
-              title: "Status",
-              items: [
-                {
-                  label: "Status",
-                  children: <RunStatusTag status={run.status} />,
-                },
-                {
-                  label: "Start",
-                  children: run.start ? formatTimestamp(run.start) : EMPTY,
-                },
-                {
-                  label: "Finish",
-                  children: run.finish ? formatTimestamp(run.finish) : EMPTY,
-                },
-                {
-                  label: "Errors",
-                  children: errorsPath ? (
-                    <DetailsLink to={errorsPath}>{run.errors}</DetailsLink>
-                  ) : (
-                    run.errors
-                  ),
-                },
-                {
-                  label: "Session",
-                  children: sessionCell(run.sessionId, sessionPath),
-                },
-              ],
-            },
-          ]
-    }
+    sections={[
+      {
+        key: "general-info",
+        title: "general info",
+        items: [
+          idItem(run?.id),
+          {
+            label: "Test case",
+            value:
+              run?.testCaseName && testCasePath ? (
+                <DetailsLink to={testCasePath}>{run?.testCaseName}</DetailsLink>
+              ) : (
+                (run?.testCaseName ?? <Placeholder />)
+              ),
+          },
+          {
+            label: "Description",
+            value: renderOptional(run?.testCaseDescription),
+          },
+          chainItem(run?.chainId, chainName),
+        ],
+      },
+      {
+        key: "status",
+        title: "Status",
+        items: [
+          {
+            label: "Status",
+            value: renderOptional(run?.status, (v) => (
+              <RunStatusTag status={v} />
+            )),
+          },
+          {
+            label: "Start",
+            value: renderOptional(run?.start, formatTimestamp),
+          },
+          {
+            label: "Finish",
+            value: renderOptional(run?.finish, formatTimestamp),
+          },
+          {
+            label: "Errors",
+            value: renderOptional(run?.errors, (v) =>
+              errorsPath ? <DetailsLink to={errorsPath}>{v}</DetailsLink> : v,
+            ),
+          },
+          {
+            label: "Session",
+            value: sessionCell(run?.sessionId, sessionPath),
+          },
+        ],
+      },
+    ]}
   />
 );

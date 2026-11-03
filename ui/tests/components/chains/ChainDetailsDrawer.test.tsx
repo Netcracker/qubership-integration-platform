@@ -487,7 +487,7 @@ describe("ChainDetailsDrawer", () => {
       );
       await waitFor(() => expect(mockGetLoggingSettings).toHaveBeenCalled());
       // Session log details row should be the dash placeholder
-      expect(screen.getByText("Session log details")).toBeInTheDocument();
+      expect(screen.getByText("Session Log Details")).toBeInTheDocument();
       // At least one dash is rendered for the missing field
       expect(screen.getAllByText("—").length).toBeGreaterThan(0);
       expect(screen.queryByText("Full")).not.toBeInTheDocument();

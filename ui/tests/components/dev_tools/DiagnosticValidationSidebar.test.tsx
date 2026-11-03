@@ -154,11 +154,12 @@ describe("DiagnosticValidationSidebar", () => {
     expect(within(table).getByText("strict")).toBeInTheDocument();
   });
 
-  it("should render an empty drawer when no validation is selected", () => {
+  it("should render placeholders when no validation is selected", () => {
     renderSidebar(undefined);
 
     expect(screen.getByText("Validation Details")).toBeInTheDocument();
-    expect(screen.queryByText("ID")).toBeNull();
+    expect(screen.getByText("ID")).toBeInTheDocument();
+    expect(screen.getAllByText("—")).toHaveLength(7);
   });
 
   it("should call onClose when the close button is clicked", () => {

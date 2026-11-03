@@ -1,5 +1,5 @@
 import React, { ReactNode, useMemo } from "react";
-import { Col, Drawer, Listy, Row, Table, Tag } from "antd";
+import { Table, Tag } from "antd";
 import {
   DiagnosticValidation,
   ValidationImplementationType,
@@ -9,6 +9,7 @@ import {
   buildKeyValuePairsFromObject,
   KeyValuePair,
 } from "../../misc/key-value-text-util.ts";
+import { DetailsSidebar, renderOptional } from "../DetailsSidebar.tsx";
 
 export type DiagnosticValidationSidebarProps = {
   value?: DiagnosticValidation;
@@ -16,141 +17,125 @@ export type DiagnosticValidationSidebarProps = {
   onClose: () => void;
 };
 
-type ValidationPropertyKey = keyof DiagnosticValidation;
+const implementationTypeLabels: Record<
+  ValidationImplementationType,
+  ReactNode
+> = {
+  BUILT_IN: "Built-in",
+  PLUGIN: "Custom",
+};
 
-type ValidationPropertyRecord = {
-  key: ValidationPropertyKey;
-  value: unknown;
+const severityColors: Record<ValidationSeverity, string> = {
+  [ValidationSeverity.WARNING]: "gold",
+  [ValidationSeverity.ERROR]: "red",
+};
+
+const severityLabels: Record<ValidationSeverity, ReactNode> = {
+  [ValidationSeverity.WARNING]: "Warning",
+  [ValidationSeverity.ERROR]: "Error",
 };
 
 export const DiagnosticValidationSidebar: React.FC<
   DiagnosticValidationSidebarProps
 > = ({ value, open, onClose }): ReactNode => {
-  const labels: Partial<Record<ValidationPropertyKey, ReactNode>> = useMemo(
-    () => ({
-      id: "ID",
-      title: "Name",
-      description: "Description",
-      suggestion: "Hint",
-      implementationType: "Source",
-      severity: "Severity",
-      alertsCount: "Alerts",
-      properties: "Parameters",
-    }),
-    [],
+  const sections = useMemo(
+    () => [
+      {
+        key: "general-info",
+        title: "general info",
+        items: [
+          {
+            label: "ID",
+            value: renderOptional(value?.id),
+          },
+          {
+            label: "Name",
+            value: renderOptional(value?.title),
+          },
+          {
+            label: "Description",
+            value: renderOptional(value?.description),
+          },
+          {
+            label: "Hint",
+            value: renderOptional(value?.suggestion),
+          },
+          {
+            label: "Source",
+            value: renderOptional(
+              value?.implementationType,
+              (v) => implementationTypeLabels[v],
+            ),
+          },
+          {
+            label: "Severity",
+            value: renderOptional(value?.severity, (v) => (
+              <Tag color={severityColors[v]} variant={"outlined"}>
+                {severityLabels[v]}
+              </Tag>
+            )),
+          },
+          {
+            label: "Alerts",
+            value: renderOptional(value?.alertsCount),
+          },
+        ],
+      },
+      {
+        key: "parameters",
+        title: "parameters",
+        items: [
+          {
+            label: "Parameters",
+            showLabel: false,
+            value: (
+              <Table<KeyValuePair>
+                className={"details-sidebar-kv-table"}
+                size="small"
+                sticky={true}
+                pagination={false}
+                columns={[
+                  {
+                    key: "key",
+                    dataIndex: "key",
+                    title: "Key",
+                    sorter: (a, b) => b.key.localeCompare(a.key),
+                  },
+                  {
+                    key: "value",
+                    dataIndex: "value",
+                    title: "Value",
+                    sorter: (a, b) => b.key.localeCompare(a.key),
+                  },
+                ]}
+                rowKey={"key"}
+                dataSource={buildKeyValuePairsFromObject(
+                  value?.properties ?? {},
+                )}
+              />
+            ),
+          },
+        ],
+      },
+    ],
+    [
+      value?.alertsCount,
+      value?.description,
+      value?.id,
+      value?.implementationType,
+      value?.properties,
+      value?.severity,
+      value?.suggestion,
+      value?.title,
+    ],
   );
 
-  const implementationTypeLabels: Record<
-    ValidationImplementationType,
-    ReactNode
-  > = {
-    BUILT_IN: "Built-in",
-    PLUGIN: "Custom",
-  };
-
-  const severityColors: Record<ValidationSeverity, string> = {
-    [ValidationSeverity.WARNING]: "gold",
-    [ValidationSeverity.ERROR]: "red",
-  };
-
-  const severityLabels: Record<ValidationSeverity, ReactNode> = {
-    [ValidationSeverity.WARNING]: "Warning",
-    [ValidationSeverity.ERROR]: "Error",
-  };
-
-  const valueRenderers: Partial<
-    Record<ValidationPropertyKey, (value: unknown) => ReactNode>
-  > = {
-    implementationType: (value) =>
-      implementationTypeLabels[value as ValidationImplementationType],
-    severity: (value) => (
-      <Tag
-        color={severityColors[value as ValidationSeverity]}
-        variant={"outlined"}
-      >
-        {severityLabels[value as ValidationSeverity]}
-      </Tag>
-    ),
-    properties: (value) => {
-      const parameters: KeyValuePair[] = buildKeyValuePairsFromObject(
-        value as DiagnosticValidation["properties"],
-      );
-      return (
-        <Table<KeyValuePair>
-          className={"details-sidebar-kv-table"}
-          size="small"
-          sticky={true}
-          pagination={false}
-          columns={[
-            {
-              key: "key",
-              dataIndex: "key",
-              title: "Key",
-              sorter: (a, b) => b.key.localeCompare(a.key),
-            },
-            {
-              key: "value",
-              dataIndex: "value",
-              title: "Value",
-              sorter: (a, b) => b.key.localeCompare(a.key),
-            },
-          ]}
-          rowKey={"key"}
-          dataSource={parameters}
-        />
-      );
-    },
-  };
-
-  const items = useMemo(() => {
-    return value
-      ? Object.entries(value)
-          .map(
-            ([key, val]) => ({ key, value: val }) as ValidationPropertyRecord,
-          )
-          .filter((item) => !!labels[item.key])
-      : [];
-  }, [labels, value]);
-
   return (
-    <Drawer
-      title="Validation Details"
-      placement="right"
-      size={350}
+    <DetailsSidebar
+      title={"Validation Details"}
       open={open}
       onClose={onClose}
-      destroyOnHidden
-      closable={{ placement: "end" }}
-      getContainer={".page-content"}
-      rootStyle={{ position: "absolute" }}
-      classNames={{ body: "details-sidebar-body" }}
-    >
-      <Listy<ValidationPropertyRecord>
-        classNames={{
-          groupHeader: "details-sidebar-properties-group",
-        }}
-        style={{ height: "100%" }}
-        items={items}
-        rowKey={"key"}
-        group={{
-          key: (item) =>
-            item.key === "properties" ? "parameters" : "general info",
-          title: (groupKey) => `${groupKey}`,
-        }}
-        itemRender={(item) =>
-          item.key === "properties" ? (
-            valueRenderers[item.key]!(item.value)
-          ) : (
-            <Row wrap={false}>
-              <Col span={8}>{labels[item.key]}</Col>
-              <Col>
-                {(valueRenderers[item.key] ?? ((v) => String(v)))(item.value)}
-              </Col>
-            </Row>
-          )
-        }
-        sticky
-      />
-    </Drawer>
+      sections={sections}
+    />
   );
 };

@@ -1,13 +1,11 @@
 import { ActionLog } from "../../api/apiTypes.ts";
 import React, { ReactNode, useMemo } from "react";
-import { Col, Drawer, Listy, Row } from "antd";
 import {
   capitalize,
-  formatOptional,
   formatSnakeCased,
   formatTimestamp,
-  PLACEHOLDER,
 } from "../../misc/format-utils.ts";
+import { DetailsSidebar, renderOptional } from "../DetailsSidebar.tsx";
 
 export type ActionLogSidebarProps = {
   value: ActionLog | null | undefined;
@@ -17,11 +15,6 @@ export type ActionLogSidebarProps = {
   parentLinkRenderer: (v: ActionLog) => ReactNode;
 };
 
-type SidebarItem = {
-  key: ReactNode;
-  value: ReactNode;
-};
-
 export const ActionLogSidebar: React.FC<ActionLogSidebarProps> = ({
   value,
   open,
@@ -29,84 +22,64 @@ export const ActionLogSidebar: React.FC<ActionLogSidebarProps> = ({
   entityLinkRenderer,
   parentLinkRenderer,
 }): ReactNode => {
-  const items = useMemo(
+  const sections = useMemo(
     () => [
       {
-        key: "Action Time",
-        value: formatTimestamp(value?.actionTime),
-      },
-      {
-        key: "Initiator",
-        value: formatOptional(value?.username),
-      },
-      {
-        key: "Operation",
-        value: formatOptional(value?.operation, (v) =>
-          formatSnakeCased(capitalize(v)),
-        ),
-      },
-      {
-        key: "Entity ID",
-        value: formatOptional(value?.entityId),
-      },
-      {
-        key: "Entity Type",
-        value: formatOptional(value?.entityType, (v) =>
-          formatSnakeCased(capitalize(v)),
-        ),
-      },
-      {
-        key: "Entity Name",
-        value: value ? entityLinkRenderer(value) : PLACEHOLDER,
-      },
-      {
-        key: "Parent ID",
-        value: formatOptional(value?.parentId),
-      },
-      {
-        key: "Parent Name",
-        value: value ? parentLinkRenderer(value) : PLACEHOLDER,
-      },
-      {
-        key: "Request ID",
-        value: formatOptional(value?.requestId),
+        key: "general-info",
+        title: "general info",
+        items: [
+          {
+            label: "Action Time",
+            value: renderOptional(value?.actionTime, formatTimestamp),
+          },
+          {
+            label: "Initiator",
+            value: renderOptional(value?.username),
+          },
+          {
+            label: "Operation",
+            value: renderOptional(value?.operation, (v) =>
+              formatSnakeCased(capitalize(v)),
+            ),
+          },
+          {
+            label: "Entity ID",
+            value: renderOptional(value?.entityId),
+          },
+          {
+            label: "Entity Type",
+            value: renderOptional(value?.entityType, (v) =>
+              formatSnakeCased(capitalize(v)),
+            ),
+          },
+          {
+            label: "Entity Name",
+            value: renderOptional(value, entityLinkRenderer),
+          },
+          {
+            label: "Parent ID",
+            value: renderOptional(value?.parentId),
+          },
+          {
+            label: "Parent Name",
+            value: renderOptional(value, parentLinkRenderer),
+          },
+          {
+            label: "Request ID",
+            value: renderOptional(value?.requestId),
+          },
+        ],
       },
     ],
     [value, entityLinkRenderer, parentLinkRenderer],
   );
 
   return (
-    <Drawer
-      title="Action Details"
-      placement="right"
-      size={350}
+    <DetailsSidebar
+      title={"Action Details"}
       open={open}
       onClose={onClose}
-      destroyOnHidden
-      closable={{ placement: "end" }}
-      getContainer={".page-content"}
-      rootStyle={{ position: "absolute" }}
-      classNames={{ body: "details-sidebar-body" }}
-    >
-      <Listy<SidebarItem>
-        classNames={{
-          groupHeader: "details-sidebar-properties-group",
-        }}
-        style={{ height: "100%" }}
-        items={items}
-        rowKey={"key"}
-        group={{
-          key: () => "general info",
-          title: (groupKey) => `${groupKey}`,
-        }}
-        itemRender={(item) => (
-          <Row wrap={false} gutter={4}>
-            <Col span={8}>{item.key}</Col>
-            <Col>{item.value}</Col>
-          </Row>
-        )}
-        sticky
-      />
-    </Drawer>
+      sections={sections}
+    />
   );
 };
