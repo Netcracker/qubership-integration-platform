@@ -177,6 +177,36 @@ class ChatEventActionsCaptureTest {
             "design-execution", "", HaltRecoveryGuard.OWNER_ALREADY_REOPENED.name())));
   }
 
+  /** A brief defect no stage owns leaves Edit requirements nothing to reopen, so its card offers End run only. */
+  @Test
+  void aBriefDefectCardWithNoOwnerOffersOnlyEndRun() {
+    assertEquals(
+        List.of(PipelineGates.STOP_WITH_REPORT_ACTION),
+        ChatEvent.actionsForClarify(new CreateChainPendingAction.Clarify(
+            "The requirements need correction.", List.of(), PipelineGates.RECOVERY_REVISE_BRIEF, "", null, "run-1",
+            "requirement-analysis", "", HaltRecoveryGuard.BLANK_OR_UNAPPROVED_OWNER.name())));
+  }
+
+  /** At the run's recovery ceiling a Rebuild plan click reruns the plan without the budget Retry creation grants. */
+  @Test
+  void aPlanCardAtTheRecoveryCeilingOffersRetryCreationWithoutRebuildPlan() {
+    assertEquals(
+        List.of(ChatEvent.RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
+        ChatEvent.actionsForClarify(new CreateChainPendingAction.Clarify(
+            "The plan cannot be used.", List.of(), PipelineGates.RECOVERY_REBUILD_PLAN, "", null, "run-1",
+            "design-planning", "", HaltRecoveryGuard.RUN_RECOVERY_CEILING.name())));
+  }
+
+  /** The author's reopen of the plan still works once only the automatic reopens are spent. */
+  @Test
+  void aPlanCardWithAutomaticReopensSpentKeepsRebuildPlan() {
+    assertEquals(
+        List.of(ChatEvent.REBUILD_PLAN_ACTION, ChatEvent.RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
+        ChatEvent.actionsForClarify(new CreateChainPendingAction.Clarify(
+            "The plan cannot be used.", List.of(), PipelineGates.RECOVERY_REBUILD_PLAN, "", null, "run-1",
+            "design-execution", "", HaltRecoveryGuard.MAX_CAUSAL_REOPENS.name())));
+  }
+
   private static CreateChainPendingAction.Clarify repeatedFailureCardWithGuard(HaltRecoveryGuard guard) {
     return new CreateChainPendingAction.Clarify(
         guard.cardSentence(), List.of(), PipelineGates.RECOVERY_REPEATED, "", null, "run-1", "design-execution", "",

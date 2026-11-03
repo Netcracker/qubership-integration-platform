@@ -832,21 +832,26 @@ public sealed interface ChatEvent {
 
   /**
    * The action the card's guard says cannot work, or {@code null}. Retry creation reruns a stage, and no rerun can
-   * undo a chain the catalog already holds. On the Rebuild plan card, a plan this run already reopened refuses the
-   * author's reopen, while Retry creation still returns to it. On any other guarded card, Retry creation reruns the
-   * current stage, which cannot correct a defect owned by an earlier stage that the ledger will not reopen.
+   * undo a chain the catalog already holds. On the Rebuild plan card, the ledger refuses the author's reopen of a plan
+   * this run already reopened for the defect, or once the recovery ceiling is spent, while Retry creation still
+   * returns to the plan. On the Edit requirements card, a defect no stage owns leaves nothing to reopen. On any other
+   * card, a guard naming an earlier owner the ledger will not reopen leaves Retry creation rerunning the current
+   * stage, which cannot correct that owner's defect.
    */
   private static String refusedAction(PendingAction.Clarify clarify) {
     String guard = clarify.guard();
     if (HaltRecoveryGuard.CATALOG_ALREADY_WRITTEN.name().equals(guard)) {
       return RETRY_CREATION_ACTION;
     }
-    boolean upstreamRefused = HaltRecoveryGuard.OWNER_ALREADY_REOPENED.name().equals(guard)
-        || HaltRecoveryGuard.MAX_CAUSAL_REOPENS.name().equals(guard);
-    if (!upstreamRefused) {
-      return null;
+    if (PipelineGates.RECOVERY_REBUILD_PLAN.equals(clarify.gateId())) {
+      return HaltRecoveryGuard.OWNER_ALREADY_REOPENED.name().equals(guard)
+          || HaltRecoveryGuard.RUN_RECOVERY_CEILING.name().equals(guard) ? REBUILD_PLAN_ACTION : null;
     }
-    return PipelineGates.RECOVERY_REBUILD_PLAN.equals(clarify.gateId()) ? REBUILD_PLAN_ACTION : RETRY_CREATION_ACTION;
+    if (PipelineGates.RECOVERY_REVISE_BRIEF.equals(clarify.gateId())) {
+      return HaltRecoveryGuard.BLANK_OR_UNAPPROVED_OWNER.name().equals(guard) ? EDIT_REQUIREMENTS_ACTION : null;
+    }
+    return HaltRecoveryGuard.OWNER_ALREADY_REOPENED.name().equals(guard)
+        || HaltRecoveryGuard.MAX_CAUSAL_REOPENS.name().equals(guard) ? RETRY_CREATION_ACTION : null;
   }
 
   /** True for an internal blank wait that must not become an empty decision card. */

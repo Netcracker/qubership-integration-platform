@@ -130,16 +130,17 @@ stores a blocking turn only when it completes, so the ended turn leaves nothing 
 repair `CompilerSkillRuntime` already runs before each turn.
 
 The clean-regeneration permission of ADR 0008 is part of this record. A repeated correctable capture ends local
-repetition and refuses another targeted correction, but it may spend an unspent clean regeneration from the existing
-input, subject to the run ledger and the usual eligibility checks. ADR 0008 is superseded by this amendment.
+repetition and spends an unspent clean regeneration from the existing input before any other correction, subject to
+the run ledger and the usual eligibility checks. ADR 0008 is superseded by this amendment.
 
 The runner's budget is no longer the last word on repair turns. The stage executor grants another automatic
 correction, and rebuilds the design or the plan, while the run stays below `qip.ai.create.recovery-attempt-ceiling`
 (12 by default). A capture rejection takes the same ladder: once a repeated rejection has spent its clean
-regenerations, the executor grants another correction instead of showing a card. A Retry on a model-error card grants
-a fresh budget of two targeted corrections and two clean regenerations. Three limits bound the loop together: six tool calls bound a turn, the run ceiling bounds repairs,
-clean rebuilds, and reopens, and `qip.ai.llm.max-requests-per-run` bounds the model calls of the whole run. Keeping
-the turn open therefore adds no unbounded path.
+regenerations, the executor grants another correction, a targeted turn followed by fresh clean regenerations,
+instead of showing a card. A Retry on a model-error card grants a fresh budget of two targeted corrections and two
+clean regenerations. Three limits bound the loop together: six tool calls bound a turn, the run ceiling bounds
+repairs, clean rebuilds, and reopens, and `qip.ai.llm.max-requests-per-run` bounds the model calls of the whole run.
+Keeping the turn open therefore adds no unbounded path.
 
 Rejection identity splits in two. The capture fingerprint keeps named values and masks only UUIDs, so a rejection on
 node A and one on node B are two defects, each with its own soft credit. The stage-level halt identity, which also keys

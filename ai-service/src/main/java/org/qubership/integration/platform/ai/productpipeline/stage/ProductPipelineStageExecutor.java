@@ -1282,7 +1282,13 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       body = diagnosis.cardBody(evidence);
       if (diagnosis.ambiguous() || diagnosis.owner().isEmpty()) {
         putRunAttribute(doc.run().runId(), ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR, "");
-        // A brief defect is in the author's requirements, so regenerating this stage's output cannot correct it.
+        // A brief defect is in the author's requirements, so rerunning this stage cannot correct it: the author edits
+        // them in the stage that produced the committed requirement draft.
+        if (cause.isKnownBriefDefect() && !catalogHasBeenWritten(doc.run().runId())) {
+          Revision draft = committedArtifactRevision(doc, Kind.REQUIREMENT_DRAFT);
+          return waitEditableBriefRecovery(doc, stage, refs, cause, evidence,
+              draft == null || draft.provenance() == null ? "" : draft.provenance().stageId(), emitted);
+        }
         Optional<StageExecutionResult> regeneration = cause.isKnownBriefDefect()
             ? Optional.empty() : cleanRegeneration(doc, stage, refs, budgetCause, emitted);
         if (regeneration.isPresent()) {
@@ -1744,6 +1750,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         return rebuildCurrentStage(doc, stage, refs, budgetCause, storedEvidence, emitted);
       }
       if ("design-planning".equals(stage.stageId())) {
+        // The run reaches this card only at its recovery ceiling, where a Rebuild plan click would rerun the plan
+        // without the fresh budget Retry creation grants.
         return waitContextualRecovery(
             doc,
             stage,
@@ -1756,6 +1764,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
                 runId,
                 PROGRESS_NONE),
             null,
+            HaltRecoveryGuard.RUN_RECOVERY_CEILING.name(),
             emitted);
       }
       if ("design-input".equals(stage.stageId())) {
@@ -1993,9 +2002,9 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
 
   /**
    * Regenerates the current design-input or design-planning stage from its saved inputs in a clean model turn and
-   * retries it, which is the rerun a Rebuild design or Rebuild plan click causes. When the defect's clean
-   * regenerations are spent, it grants another correction instead. Either way the committed reason counts toward
-   * the run's recovery ceiling, so the caller checks {@link RecoveryAttemptLedger#perRunCeilingReached} first.
+   * retries it. When the defect's clean regenerations are spent, it grants another correction instead. Either way the
+   * committed reason counts toward the run's recovery ceiling, so the caller checks
+   * {@link RecoveryAttemptLedger#perRunCeilingReached} first.
    *
    * @param budgetCause the defect both the clean regeneration and the grant are keyed to
    * @param evidence the recovery evidence the clean turn starts from
@@ -3237,6 +3246,10 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     if (recoveryLedger.ownerAlreadyReopened(doc.transitions(), key, legacy)) {
       return HaltRecoveryGuard.OWNER_ALREADY_REOPENED;
     }
+    // An author's Retry raises a positive ceiling, after which the reopen goes through; a zero ceiling stays spent.
+    if (recoveryLedger.limits().perRunCeiling() > 0 && recoveryLedger.perRunCeilingReached(doc.transitions())) {
+      return HaltRecoveryGuard.RUN_RECOVERY_CEILING;
+    }
     return HaltRecoveryGuard.MAX_CAUSAL_REOPENS;
   }
 
@@ -3332,6 +3345,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     }
     String findings = cause == null ? "" : cause.formattedFindings();
     String diagnostic = findings.isBlank() ? evidence : findings;
+    // With no owner, the ledger refuses an Edit requirements click, so the guard leaves the card with End run.
     return waitContextualRecovery(
         doc,
         stage,
@@ -3340,6 +3354,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         exhaustedBriefRecoverySummary(cause),
         terminalRecoveryDetails(diagnostic, evidence, doc.run().runId(), PROGRESS_NONE),
         null,
+        owner.isBlank() ? HaltRecoveryGuard.BLANK_OR_UNAPPROVED_OWNER.name() : null,
         emitted);
   }
 

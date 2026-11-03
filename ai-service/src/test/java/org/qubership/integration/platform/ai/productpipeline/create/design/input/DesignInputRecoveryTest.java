@@ -535,11 +535,13 @@ class DesignInputRecoveryTest {
   }
 
   /**
-   * A trusted Retry on the Rebuild design card shown at the recovery ceiling resumes the run and runs the design
-   * again. Retry is that card's only rebuild action, because it also grants the fresh budget.
+   * A trusted Retry on the Rebuild design card shown at the recovery ceiling resumes the run and grants the design a
+   * fresh budget of two targeted corrections and two clean regenerations: four more turns before the card returns.
+   * Retry is that card's only rebuild action, because it is the one that grants the budget. A Retry on the earlier
+   * capture-validator card bought a single turn.
    */
   @org.junit.jupiter.api.Test
-  void aRetryOnTheCardAtTheRecoveryCeilingRunsTheDesignAgain() {
+  void aRetryOnTheCardAtTheRecoveryCeilingGrantsTheDesignAFreshBudget() {
     var run = repeatedRejectionRun();
     run.executeUntilWait();
     int callsAtTheCard = run.calls().get();
@@ -549,10 +551,11 @@ class DesignInputRecoveryTest {
         .collect().asList().await().indefinitely();
     assertEquals(org.qubership.integration.platform.ai.productpipeline.store.RunStatus.RUNNING,
         run.runs().load(RUN).orElseThrow().run().status());
-    var retried = run.support().stageExecutor().execute(RUN, "design-input").await().indefinitely();
+    var wait = run.executeUntilWait();
 
-    assertInstanceOf(StageDecision.Retry.class, retried.decision(), () -> retried.decision().toString());
-    assertEquals(callsAtTheCard + 1, run.calls().get());
+    assertEquals(PipelineGates.RECOVERY_REBUILD_DESIGN, PipelineGates.gateOf(wait.prompt()).orElseThrow(),
+        wait.prompt());
+    assertEquals(callsAtTheCard + 2 * RecoveryAttemptLedger.ADDITIONAL_ATTEMPTS_PER_STRATEGY, run.calls().get());
   }
 
   private record RepeatedRejectionRun(ProductPipelineRunStore runs, ProductPipelineRunSupport support,
