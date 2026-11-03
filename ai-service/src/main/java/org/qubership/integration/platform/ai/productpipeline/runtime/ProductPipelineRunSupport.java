@@ -1778,6 +1778,9 @@ public final class ProductPipelineRunSupport {
                 return reemitHaltCard(doc);
               }
               recordRecoverySelection(command.runId(), haltGate, command.text());
+              if (retryClick && grantsFreshBudgetOnRetry(haltGate)) {
+                return retryWithFreshBudget(doc, command, haltGate);
+              }
               if (haltCardClick
                   && PipelineGates.isTerminalRecoveryGate(haltGate)) {
                 return reemitHaltCard(doc);
@@ -1902,6 +1905,73 @@ public final class ProductPipelineRunSupport {
                   command.commandPayloadHash());
               return Multi.createFrom().empty();
             });
+  }
+
+  private static boolean grantsFreshBudgetOnRetry(String gate) {
+    return PipelineGates.RECOVERY_REPEATED.equals(gate)
+        || PipelineGates.RECOVERY_UNCLASSIFIED.equals(gate)
+        || PipelineGates.RECOVERY_REBUILD_DESIGN.equals(gate)
+        || PipelineGates.RECOVERY_REBUILD_PLAN.equals(gate);
+  }
+
+  /**
+   * Records the grant a trusted Continue repair records and runs the failing stage again, which is what a trusted
+   * Retry creation click on a card left by a model error does, even when the run's recovery ceiling is spent: the
+   * click is the author's new budget. A Rebuild plan card raised downstream of design-planning moves the run back to
+   * the plan it diagnosed and resets the stages after it. A capture failure is retried in a clean turn, because the
+   * capture validator refuses another targeted correction of the same rejection.
+   *
+   * <p>An untrusted click re-emits the card, and a run whose chain the catalog already holds is refused with
+   * {@link HaltRecoveryGuard#CATALOG_ALREADY_WRITTEN}.
+   */
+  private Multi<PipelineSignal> retryWithFreshBudget(
+      ProductPipelineRunDocument doc, AcceptInputCommand command, String gate) {
+    if (command.origin() != InputOrigin.TRUSTED) {
+      return reemitHaltCard(doc);
+    }
+    if (catalogHasBeenWritten(command.runId())) {
+      return refuseWithGuard(doc, command, HaltRecoveryGuard.CATALOG_ALREADY_WRITTEN);
+    }
+    String current = doc.run().currentStageId();
+    String diagnosed = diagnosedOwnerOf(command.runId());
+    String owner = PipelineGates.RECOVERY_REBUILD_PLAN.equals(gate) && !diagnosed.isBlank()
+        && isEarlierStage(profilesByRun.get(command.runId()), diagnosed, current) ? diagnosed : current;
+    Map<String, Object> attributes =
+        attributesByRun.computeIfAbsent(command.runId(), ignored -> new ConcurrentHashMap<>());
+    RecoveryCause cause = currentRecoveryCause(command.runId());
+    String grant = repairAllowanceGrant(recoveryLedger, doc, owner, cause, attributes);
+    String cleanAttribute = cleanRebuildEvidenceAttribute(owner);
+    Object evidence = attributes.get(RECOVERY_EVIDENCE_REF_ATTR);
+    if (cause.captureFailure() != null && cleanAttribute != null
+        && evidence instanceof String ref && !ref.isBlank()) {
+      attributes.put(cleanAttribute, ref);
+    }
+    try {
+      attributes.put(RECOVERY_PENDING_ATTEMPT_ATTR, HALT_EVIDENCE_JSON.writeValueAsString(
+          Map.of("stageId", owner, "revision", doc.run().runRevision() + 1)));
+    } catch (Exception e) {
+      throw new IllegalStateException("Cannot persist the granted correction intent", e);
+    }
+    if (!owner.equals(current)) {
+      return resetDownstreamAndMoveTo(doc, owner, grant, command);
+    }
+    commitStatus(doc, RunStatus.RUNNING, StageStatus.RUNNING, doc.run().stages(),
+        grant, haltEvidence(attributes, null), command.commandId(), command.commandPayloadHash());
+    return Multi.createFrom().item(new PipelineSignal.Progress(owner, "Retrying with a fresh repair allowance"));
+  }
+
+  /**
+   * Returns the run attribute that selects a clean regeneration of {@code stageId} from saved inputs, or {@code null}
+   * when the stage has no clean regeneration.
+   */
+  public static String cleanRebuildEvidenceAttribute(String stageId) {
+    return switch (stageId == null ? "" : stageId) {
+      case "design-execution", "requirement-discovery", "requirement-analysis" ->
+          PRODUCER_CLEAN_REBUILD_EVIDENCE_REF_ATTR;
+      case "design-input" -> DESIGN_INPUT_CLEAN_REBUILD_EVIDENCE_REF_ATTR;
+      case "design-planning" -> DESIGN_PLAN_CLEAN_REBUILD_EVIDENCE_REF_ATTR;
+      default -> null;
+    };
   }
 
   /**

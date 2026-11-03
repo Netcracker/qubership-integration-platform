@@ -1233,6 +1233,12 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       body = diagnosis.cardBody(evidence);
       if (diagnosis.ambiguous() || diagnosis.owner().isEmpty()) {
         putRunAttribute(doc.run().runId(), ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR, "");
+        // A brief defect is in the author's requirements, so regenerating this stage's output cannot correct it.
+        Optional<StageExecutionResult> regeneration = cause.isKnownBriefDefect()
+            ? Optional.empty() : cleanRegeneration(doc, stage, refs, budgetCause, emitted);
+        if (regeneration.isPresent()) {
+          return regeneration.get();
+        }
         return waitContextualRecovery(
             doc,
             stage,
@@ -1928,6 +1934,70 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         new StageDecision.Retry(stage.stageId(),
             Duration.ofMillis(stage.retry() == null ? 0L : stage.retry().defaultDelayMs())),
         emitted);
+  }
+
+  /**
+   * Regenerates {@code stage} from its saved inputs in a clean model turn and retries it, when the stage has a clean
+   * regeneration, the catalog holds no chain from this run, and the ledger allows a clean regeneration of the defect.
+   * Returns empty otherwise, and the caller shows its card. The clean turn starts from new recovery evidence that
+   * names the stage's rejected outputs.
+   *
+   * @param budgetCause the defect the clean regeneration is keyed to
+   */
+  private Optional<StageExecutionResult> cleanRegeneration(
+      ProductPipelineRunDocument doc,
+      ProfileStage stage,
+      List<Reference> refs,
+      RecoveryCause budgetCause,
+      List<PipelineSignal> emitted) {
+    String runId = doc.run().runId();
+    if (!supportsCleanProducerRebuild(stage.stageId()) || catalogHasBeenWritten(runId)) {
+      return Optional.empty();
+    }
+    String artifact = RecoveryAttemptLedger.inputArtifactIdentity(doc, stage.stageId());
+    RecoveryAttemptKey key = recoveryLedger.key(stage.stageId(), budgetCause, artifact, doc.transitions());
+    if (!recoveryLedger.mayCleanRebuild(doc.transitions(), key)) {
+      return Optional.empty();
+    }
+    recordCleanRebuild(doc, stage, refs, key, storeRejectionEvidence(doc, stage, refs, budgetCause, key, artifact));
+    emitted.add(new PipelineSignal.Progress(
+        stage.stageId(), "Regenerating the rejected output from saved inputs in a clean model turn"));
+    return Optional.of(new StageExecutionResult(
+        new StageDecision.Retry(stage.stageId(),
+            Duration.ofMillis(stage.retry() == null ? 0L : stage.retry().defaultDelayMs())),
+        emitted));
+  }
+
+  private Revision storeRejectionEvidence(
+      ProductPipelineRunDocument doc,
+      ProfileStage stage,
+      List<Reference> refs,
+      RecoveryCause budgetCause,
+      RecoveryAttemptKey key,
+      String artifact) {
+    String runId = doc.run().runId();
+    List<Reference> rejected = rejectedArtifactRefs(refs).stream()
+        .filter(ref -> artifactStore.get(runId, ref).isPresent()).toList();
+    Revision brief = committedArtifactRevision(doc, Kind.REQUIREMENT_BRIEF);
+    Revision semantic = committedArtifactRevision(doc, Kind.CHAIN_SEMANTIC_REVISION);
+    String failureId = CanonicalPayloadHash.sha256Hex(Map.of(
+        "stage", stage.stageId(), "rejected", rejected, "inputs", artifact,
+        "defect", key.evidenceIdentity()));
+    Revision stored = artifactStore.append(
+        new AppendCommand(
+            runId,
+            Kind.RECOVERY_EVIDENCE,
+            "1",
+            "product-pipeline-runtime",
+            "1",
+            new RecoveryEvidence(1, failureId, budgetCause.causeCode().name(), stage.stageId(), stage.stageId(),
+                brief == null ? null : brief.reference(), semantic == null ? null : semantic.reference(),
+                rejected, List.of(), null, List.of()),
+            rejected,
+            null,
+            provenance(runId, stage.stageId(), stage.capabilityId())));
+    putRunAttribute(runId, ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR, stored.contentHash());
+    return stored;
   }
 
   private void recordCleanRebuild(
@@ -4083,18 +4153,12 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
   }
 
   private static boolean supportsCleanProducerRebuild(String stageId) {
-    return "requirement-discovery".equals(stageId) || "requirement-analysis".equals(stageId)
-        || "design-input".equals(stageId) || "design-planning".equals(stageId) || "design-execution".equals(stageId);
+    return ProductPipelineRunSupport.cleanRebuildEvidenceAttribute(stageId) != null;
   }
 
   private static String cleanRebuildEvidenceAttribute(String stageId) {
-    if ("design-execution".equals(stageId) || "requirement-discovery".equals(stageId)
-        || "requirement-analysis".equals(stageId)) {
-      return ProductPipelineRunSupport.PRODUCER_CLEAN_REBUILD_EVIDENCE_REF_ATTR;
-    }
-    return "design-input".equals(stageId)
-        ? ProductPipelineRunSupport.DESIGN_INPUT_CLEAN_REBUILD_EVIDENCE_REF_ATTR
-        : ProductPipelineRunSupport.DESIGN_PLAN_CLEAN_REBUILD_EVIDENCE_REF_ATTR;
+    String attribute = ProductPipelineRunSupport.cleanRebuildEvidenceAttribute(stageId);
+    return attribute == null ? ProductPipelineRunSupport.DESIGN_PLAN_CLEAN_REBUILD_EVIDENCE_REF_ATTR : attribute;
   }
 
   private ProductPipelineRunDocument requireRun(String runId) {

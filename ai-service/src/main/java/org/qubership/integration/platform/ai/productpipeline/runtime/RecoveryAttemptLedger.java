@@ -562,7 +562,13 @@ public final class RecoveryAttemptLedger {
     return Math.max(used, memberMinimum);
   }
 
-  /** True when the absolute per-run recovery ceiling is spent. */
+  /**
+   * True when the per-run recovery ceiling is spent.
+   *
+   * <p>The ceiling is the configured one raised by a full fresh budget, two targeted corrections and two clean
+   * regenerations, for every grant the author accepted from a waiting card. A grant the stage executor records while
+   * the stage runs does not raise it.
+   */
   public boolean perRunCeilingReached(List<RunTransition> transitions) {
     return ceilingReached(transitions);
   }
@@ -572,10 +578,15 @@ public final class RecoveryAttemptLedger {
       return true;
     }
     int spent = 0;
+    int authorGrants = 0;
     for (RunTransition transition : dispatchedTransitions(transitions)) {
       String reason = transition == null ? null : transition.reason();
       if (reason == null) {
         continue;
+      }
+      if (reason.startsWith(GRANT_TARGETED_REASON_PREFIX)
+          && transition.fromStatus() == org.qubership.integration.platform.ai.productpipeline.store.RunStatus.WAITING_FOR_INPUT) {
+        authorGrants++;
       }
       if (reason.startsWith(ProductPipelineStageExecutor.PRODUCER_REPAIR_REASON_PREFIX)
           || reason.startsWith(GRANT_TARGETED_REASON_PREFIX)
@@ -585,7 +596,7 @@ public final class RecoveryAttemptLedger {
         spent++;
       }
     }
-    return spent >= limits.perRunCeiling();
+    return spent >= limits.perRunCeiling() + authorGrants * 2 * ADDITIONAL_ATTEMPTS_PER_STRATEGY;
   }
 
   private int correctionEpoch(

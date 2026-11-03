@@ -75,7 +75,7 @@ class ChatEventActionsCaptureTest {
   }
 
   @Test
-  void contextualPlanDefectOffersRebuildPlan() {
+  void contextualPlanDefectOffersRebuildPlanAndRetryCreation() {
     List<String> actions =
         ChatEvent.actionsForClarify(
             new CreateChainPendingAction.Clarify(
@@ -84,11 +84,15 @@ class ChatEventActionsCaptureTest {
                 PipelineGates.RECOVERY_REBUILD_PLAN));
 
     assertEquals(
-        List.of(ChatEvent.REBUILD_PLAN_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION), actions);
+        List.of(
+            ChatEvent.REBUILD_PLAN_ACTION,
+            ChatEvent.RETRY_CREATION_ACTION,
+            PipelineGates.STOP_WITH_REPORT_ACTION),
+        actions);
   }
 
   @Test
-  void contextualDesignDefectOffersRebuildDesign() {
+  void contextualDesignDefectOffersRebuildDesignAndRetryCreation() {
     List<String> actions =
         ChatEvent.actionsForClarify(
             new CreateChainPendingAction.Clarify(
@@ -97,7 +101,11 @@ class ChatEventActionsCaptureTest {
                 PipelineGates.RECOVERY_REBUILD_DESIGN));
 
     assertEquals(
-        List.of(ChatEvent.REBUILD_DESIGN_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION), actions);
+        List.of(
+            ChatEvent.REBUILD_DESIGN_ACTION,
+            ChatEvent.RETRY_CREATION_ACTION,
+            PipelineGates.STOP_WITH_REPORT_ACTION),
+        actions);
   }
 
   @Test
@@ -125,7 +133,7 @@ class ChatEventActionsCaptureTest {
   }
 
   @Test
-  void contextualRepeatedFailureOffersOnlyEndRun() {
+  void contextualRepeatedFailureOffersRetryCreationBeforeEndRun() {
     List<String> actions =
         ChatEvent.actionsForClarify(
             new CreateChainPendingAction.Clarify(
@@ -133,11 +141,12 @@ class ChatEventActionsCaptureTest {
                 List.of(),
                 PipelineGates.RECOVERY_REPEATED));
 
-    assertEquals(List.of(PipelineGates.STOP_WITH_REPORT_ACTION), actions);
+    assertEquals(
+        List.of(ChatEvent.RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION), actions);
   }
 
   @Test
-  void contextualUnclassifiedFailureOffersOnlyEndRun() {
+  void contextualUnclassifiedFailureOffersRetryCreationBeforeEndRun() {
     List<String> actions =
         ChatEvent.actionsForClarify(
             new CreateChainPendingAction.Clarify(
@@ -145,7 +154,8 @@ class ChatEventActionsCaptureTest {
                 List.of(),
                 PipelineGates.RECOVERY_UNCLASSIFIED));
 
-    assertEquals(List.of(PipelineGates.STOP_WITH_REPORT_ACTION), actions);
+    assertEquals(
+        List.of(ChatEvent.RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION), actions);
   }
 
   @Test

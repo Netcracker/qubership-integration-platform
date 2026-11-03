@@ -314,6 +314,29 @@ class ProductPipelineStageExecutorTest {
     assertEquals(1, cleanAttempts());
   }
 
+  /**
+   * A trusted Retry on the card the capture validator raises once the native allowance is spent regenerates the
+   * stage in a clean turn, so the author's click reaches the model even though no automatic correction is left.
+   */
+  @Test
+  void aRetryAfterTheCaptureValidatorRefusedAnotherCorrectionRegeneratesCleanly() {
+    var fixture = nativeCaptureFixture("Invalid property.", 1, repeatClass(), 1, 12, true);
+    var first = execute(fixture.runtime(), "design-execution");
+    assertInstanceOf(StageDecision.Retry.class, first.decision());
+    applyLifecycle(fixture.runtime(), first);
+    var wait = assertInstanceOf(StageDecision.WaitForInput.class,
+        execute(fixture.runtime(), "design-execution").decision());
+    assertEquals(PipelineGates.RECOVERY_REPEATED, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+
+    fixture.runtime().recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.RETRY_ACTION, "retry-click",
+        "retry-hash", InputOrigin.TRUSTED)).collect().asList().await().indefinitely();
+
+    var complete = assertInstanceOf(StageDecision.Complete.class,
+        execute(fixture.runtime(), "design-execution").decision());
+    assertEquals(RunStatus.PLAN_APPROVED, complete.status());
+    assertEquals(List.of(false, true, true), fixture.clean());
+  }
+
   @ParameterizedTest
   @org.junit.jupiter.params.provider.EnumSource(value = org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass.class,
       names = {"PERMANENT", "TOOL_ARGUMENTS", "ACCEPTED", "DUPLICATE"})
@@ -354,6 +377,17 @@ class ProductPipelineStageExecutorTest {
   private NativeCaptureFixture nativeCaptureFixture(String finding, boolean succeeds,
       org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass classification,
       int cleanLimit, int runCeiling, boolean output) {
+    return nativeCaptureFixture(finding, succeeds ? 0 : Integer.MAX_VALUE, classification, cleanLimit, runCeiling,
+        output);
+  }
+
+  /**
+   * Starts a design-execution stage whose every capture is refused with {@code finding}, except that a clean turn
+   * succeeds once {@code failedCleanTurns} earlier clean turns have been refused.
+   */
+  private NativeCaptureFixture nativeCaptureFixture(String finding, int failedCleanTurns,
+      org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass classification,
+      int cleanLimit, int runCeiling, boolean output) {
     var original = analysisThenPlanningThenExecutionProfile();
     var stages = original.stages().stream().map(stage -> "design-execution".equals(stage.stageId())
         ? new ProfileStage(stage.stageId(), stage.capabilityId(), stage.consumes(),
@@ -365,8 +399,9 @@ class ProductPipelineStageExecutorTest {
         List.of(failingServiceCallNode()), List.of());
     var execution = capability("execution-cap", context -> {
       boolean cleanTurn = StageRepairEvidence.isCleanExecutionRebuild(context, StageRepairEvidence.from(context));
+      long earlierCleanTurns = clean.stream().filter(Boolean::booleanValue).count();
       clean.add(cleanTurn);
-      if (cleanTurn && succeeds) {
+      if (cleanTurn && earlierCleanTurns >= failedCleanTurns) {
         return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(
             StageOutcomeClass.SUCCEEDED, List.of(new ArtifactCandidate(Kind.CHAIN_PLAN_GRAPH, graph, List.of())),
             "Generated graph.", null, null)));
@@ -1736,10 +1771,10 @@ class ProductPipelineStageExecutorTest {
 
   /**
    * A contract rejection still diagnoses the current owner. After the automatic semantic repair
-   * spends the budget, Retry is no longer offered.
+   * spends the budget, the card offers Retry creation rather than the stage's own Retry.
    */
   @Test
-  void aContractRejectionKeepsItsClassAndDropsRetryWhenRepairsAreSpent() {
+  void aContractRejectionKeepsItsClassAndOffersRetryCreationWhenRepairsAreSpent() {
     FakeFailureNarrativeAgent agent =
         FakeFailureNarrativeAgent.owner("The reply did not match the contract.", "work");
     StageCapability rejecting =
@@ -1765,7 +1800,7 @@ class ProductPipelineStageExecutorTest {
     assertFalse(
         ChatEvent.actionsForGate(PipelineGates.RECOVERY_REPEATED)
             .contains(PipelineGates.RETRY_ACTION));
-    assertFalse(
+    assertTrue(
         ChatEvent.actionsForGate(PipelineGates.RECOVERY_REPEATED)
             .contains(ChatEvent.RETRY_CREATION_ACTION));
   }
@@ -3047,6 +3082,42 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
+  void anAmbiguousDiagnosisOnTheDesignRegeneratesItCleanly() {
+    StageExecutionResult result = executeDesignInputWithAmbiguousDiagnosis(1);
+
+    assertInstanceOf(StageDecision.Retry.class, result.decision(), () -> result.decision().toString());
+    assertEquals(1, requireRun().transitions().stream()
+        .filter(t -> t.reason() != null && t.reason().startsWith(RecoveryAttemptLedger.CLEAN_REBUILD_REASON_PREFIX))
+        .count());
+  }
+
+  @Test
+  void anAmbiguousDiagnosisOnTheDesignWithNoCleanRegenerationLeftShowsTheUnclassifiedCard() {
+    StageExecutionResult result = executeDesignInputWithAmbiguousDiagnosis(0);
+
+    StageDecision.WaitForInput wait = assertInstanceOf(StageDecision.WaitForInput.class, result.decision());
+    assertEquals(PipelineGates.RECOVERY_UNCLASSIFIED, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+  }
+
+  /**
+   * Runs a design-input stage that fails with a domain failure whose owner the diagnosis cannot name, under a ledger
+   * that allows {@code cleanRebuilds} clean regenerations per defect.
+   */
+  private StageExecutionResult executeDesignInputWithAmbiguousDiagnosis(int cleanRebuilds) {
+    StageCapability designInput = capability("design-input-cap", context -> Multi.createFrom().item(
+        new CapabilitySignal.Completed(StageOutcome.of(
+            StageOutcomeClass.DOMAIN_FAILURE, "The flow has no trigger."))));
+    ProductPipelineProfile profile = analysisThenDesignInputProfile();
+    CreateChainTestOrchestrator runtime = newRuntime(
+        new FailureNarrative(FakeFailureNarrativeAgent.ask("Either the brief or the design could be wrong.")),
+        new RecoveryAttemptLedger(new RecoveryAttemptLedger.Limits(2, 2, 12, cleanRebuilds)),
+        null, analysisCandidate(), designInput);
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+    return execute(runtime, "design-input");
+  }
+
+  @Test
   void aPlanThatMakesNoProgressIsRebuiltWithoutACard() {
     ProductPipelineProfile profile = analysisThenPlanningThenExecutionProfile();
     CreateChainTestOrchestrator runtime = newRuntime(
@@ -3644,7 +3715,7 @@ class ProductPipelineStageExecutorTest {
         PipelineGates.RECOVERY_REPEATED, PipelineGates.gateOf(escalated.prompt()).orElseThrow());
     assertFalse(PipelineGates.dropElementAllowed(escalated.prompt()));
     assertEquals(
-        List.of(PipelineGates.STOP_WITH_REPORT_ACTION),
+        List.of(ChatEvent.RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
         ChatEvent.actionsForGate(PipelineGates.RECOVERY_REPEATED));
   }
 
@@ -3954,7 +4025,7 @@ class ProductPipelineStageExecutorTest {
     assertEquals(
         PipelineGates.RECOVERY_REBUILD_PLAN, PipelineGates.gateOf(wait.prompt()).orElseThrow());
     assertEquals(
-        List.of(ChatEvent.REBUILD_PLAN_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
+        List.of(ChatEvent.REBUILD_PLAN_ACTION, ChatEvent.RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
         ChatEvent.actionsForGate(PipelineGates.RECOVERY_REBUILD_PLAN));
     assertEquals("design-planning", runtime.support().diagnosedOwnerStageId(RUN_ID).orElseThrow());
     assertFalse(wait.prompt().contains("design-planning"), wait.prompt());
@@ -4544,7 +4615,7 @@ class ProductPipelineStageExecutorTest {
         PipelineGates.RECOVERY_UNCLASSIFIED, PipelineGates.gateOf(wait.prompt()).orElseThrow());
     assertTrue(PipelineGates.ownerCandidatesOf(wait.prompt()).isEmpty());
     assertEquals(
-        List.of(PipelineGates.STOP_WITH_REPORT_ACTION),
+        List.of(ChatEvent.RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
         ChatEvent.actionsForGate(PipelineGates.RECOVERY_UNCLASSIFIED));
     assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
     assertEquals("planning", requireRun().run().currentStageId());
@@ -4699,7 +4770,7 @@ class ProductPipelineStageExecutorTest {
         transition.reason().startsWith(ProductPipelineStageExecutor.PRODUCER_REPAIR_REASON_PREFIX)).count());
     if (failures > 3) {
       var exhausted = assertInstanceOf(StageDecision.WaitForInput.class, result.decision());
-      assertFalse(ChatEvent.actionsForGate(PipelineGates.gateOf(exhausted.prompt()).orElseThrow())
+      assertTrue(ChatEvent.actionsForGate(PipelineGates.gateOf(exhausted.prompt()).orElseThrow())
           .contains(ChatEvent.RETRY_CREATION_ACTION));
       assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
       assertEquals(4, materializationCalls.get());
@@ -7871,7 +7942,8 @@ class ProductPipelineStageExecutorTest {
     CreateChainTestOrchestrator runtime =
         newRuntime(
             new FailureNarrative(agent),
-            profile,
+            new RecoveryAttemptLedger(new RecoveryAttemptLedger.Limits(1, 2, 12, 0)),
+            null,
             analysisCandidate(),
             planningAlwaysCandidate(),
             executionUnspecifiedDomainFailure(executionCalls));

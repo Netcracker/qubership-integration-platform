@@ -251,8 +251,7 @@ public class RecoveryOutcomeTelemetry {
       return pipelineAction;
     }
     if (PipelineGates.RETRY_ACTION.equals(pipelineAction)
-        && (PipelineGates.RECOVERY_RETRY_TECHNICAL.equals(gateId)
-            || PipelineGates.RECOVERY_REGENERATE_EXECUTION.equals(gateId))) {
+        && offeredActions(gateId).contains(ChatEvent.RETRY_CREATION_ACTION)) {
       return ChatEvent.RETRY_CREATION_ACTION;
     }
     if (PipelineGates.REVISE_ACTION.equals(pipelineAction)

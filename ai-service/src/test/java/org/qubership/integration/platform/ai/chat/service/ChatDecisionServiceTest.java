@@ -783,6 +783,7 @@ class ChatDecisionServiceTest {
     assertEquals(1, decisions.size());
     assertEquals(
         List.of(
+            ChatEvent.RETRY_CREATION_ACTION,
             PipelineGates.STOP_WITH_REPORT_ACTION,
             ChatEvent.RESTART_FROM_BEGINNING_ACTION,
             ChatEvent.RESTART_FROM_APPROVED_PLAN_ACTION),
@@ -894,7 +895,7 @@ class ChatDecisionServiceTest {
             .orElseThrow();
 
     assertEquals(
-        List.of(ChatEvent.REBUILD_PLAN_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
+        List.of(ChatEvent.REBUILD_PLAN_ACTION, ChatEvent.RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
         decision.actions());
     assertEquals("plan-artifact-defect", decision.recovery().category());
     assertEquals(
@@ -1073,7 +1074,8 @@ class ChatDecisionServiceTest {
             .openDecision("conv-repeated")
             .orElseThrow();
 
-    assertEquals(List.of(PipelineGates.STOP_WITH_REPORT_ACTION), decision.actions());
+    assertEquals(
+        List.of(ChatEvent.RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION), decision.actions());
     assertEquals("repeated-identical-failure", decision.recovery().category());
     assertEquals("The same problem came back", decision.recovery().title());
     assertFalse(decision.actions().contains("work"));

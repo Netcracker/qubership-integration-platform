@@ -130,14 +130,14 @@ class HaltExitGuaranteeMatrixTest {
                 List.of(),
                 PipelineGates.RECOVERY_INTERNAL)));
     assertEquals(
-        List.of(PipelineGates.STOP_WITH_REPORT_ACTION),
+        List.of(ChatEvent.RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
         ChatEvent.actionsForClarify(
             new CreateChainPendingAction.Clarify(
                 "The same problem came back",
                 List.of(),
                 PipelineGates.RECOVERY_REPEATED)));
     assertEquals(
-        List.of(PipelineGates.STOP_WITH_REPORT_ACTION),
+        List.of(ChatEvent.RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
         ChatEvent.actionsForClarify(
             new CreateChainPendingAction.Clarify(
                 "Creation cannot continue",

@@ -706,15 +706,16 @@ public sealed interface ChatEvent {
       case PipelineGates.RECOVERY_REVISE_BRIEF ->
           List.of(EDIT_REQUIREMENTS_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION);
       case PipelineGates.RECOVERY_REBUILD_DESIGN ->
-          List.of(REBUILD_DESIGN_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION);
+          List.of(REBUILD_DESIGN_ACTION, RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION);
       case PipelineGates.RECOVERY_REBUILD_PLAN ->
-          List.of(REBUILD_PLAN_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION);
+          List.of(REBUILD_PLAN_ACTION, RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION);
       case PipelineGates.RECOVERY_REPAIR_ALLOWANCE ->
           List.of(PipelineGates.CONTINUE_REPAIR_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION);
-      case PipelineGates.RECOVERY_ENVIRONMENT,
-              PipelineGates.RECOVERY_INTERNAL,
-              PipelineGates.RECOVERY_REPEATED,
+      case PipelineGates.RECOVERY_REPEATED,
               PipelineGates.RECOVERY_UNCLASSIFIED ->
+          List.of(RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION);
+      case PipelineGates.RECOVERY_ENVIRONMENT,
+              PipelineGates.RECOVERY_INTERNAL ->
           List.of(PipelineGates.STOP_WITH_REPORT_ACTION);
       case PipelineGates.STAGE_REVISE ->
           List.of(PipelineGates.RETRY_ACTION, PipelineGates.REVISE_ACTION);
