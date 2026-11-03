@@ -19,6 +19,7 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedback;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException;
 import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass;
 import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway;
 import org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore;
@@ -28,7 +29,6 @@ import org.qubership.integration.platform.ai.llm.scenario.GatherRequirementsProm
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.CapabilityInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftSettings;
-import org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactKind;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FlowInput;

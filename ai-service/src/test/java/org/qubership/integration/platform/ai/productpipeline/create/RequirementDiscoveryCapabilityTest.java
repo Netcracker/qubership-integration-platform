@@ -1466,6 +1466,31 @@ class RequirementDiscoveryCapabilityTest {
     assertEquals(base, h.store().get("conv-rejected").orElseThrow().authoredDraft());
   }
 
+  @Test
+  void aRepresentationDefectRepeatedAfterARebuildIsAContractFailure() {
+    var h = captureHarness(null);
+    var flow = new FlowInput(List.of(new InteractionInput("entry", Direction.INBOUND, "Client",
+        "POST /tasks", null, null, null)), List.of());
+    var goal = new FactInput("goal", List.of(), FactKind.GOAL, Polarity.POSITIVE, "Submit one task.");
+    var duplicateGoal = new DraftInput(flow, List.of(goal, goal), List.of(), List.of(), new DraftSettings(false, null));
+    var capability = new RequirementDiscoveryCapability(null, h.store(), (chat, text) -> {
+      h.tools().captureRequirementDraft(duplicateGoal);
+      h.tools().captureRequirementDraft(duplicateGoal);
+      h.tools().captureRequirementDraft(duplicateGoal);
+      try {
+        h.tools().captureRequirementDraft(duplicateGoal);
+        return Multi.createFrom().empty();
+      } catch (org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException stopped) {
+        return Multi.createFrom().failure(stopped);
+      }
+    });
+    capability.captureFeedback = h.feedback();
+
+    var outcome = discoveryOutcome(capability);
+
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, outcome.outcomeClass(), outcome.toString());
+  }
+
   @ParameterizedTest
   @ValueSource(strings = {"network", "direct", "wrapped", "synchronous"})
   void captureStopRetainsItsContractClassificationAndNativeEvidence(String kind) {
