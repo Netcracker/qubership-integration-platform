@@ -91,8 +91,8 @@ export const AuthorDetails: React.FC<{ timestamp?: number; user?: User }> = ({
 }) => {
   return timestamp ? (
     <Flex vertical>
-      <span>{formatTimestamp(timestamp)}</span>
-      <span>{formatOptional(user?.username)}</span>
+      <Typography.Text>{formatTimestamp(timestamp)}</Typography.Text>
+      <Typography.Text type={"secondary"}>{formatOptional(user?.username)}</Typography.Text>
     </Flex>
   ) : (
     EMPTY
@@ -159,7 +159,10 @@ export const ChainDetailsDrawer: React.FC<ChainDetailsDrawerProps> = ({
   );
 
   const loggingProperties = pickLoggingProperties(loggingSettings);
-  const logPayload = loggingProperties?.logPayload ?? [];
+  const logPayload = useMemo(
+    () => loggingProperties?.logPayload ?? [],
+    [loggingProperties?.logPayload],
+  );
 
   const items = useMemo(
     () => [
@@ -283,35 +286,15 @@ export const ChainDetailsDrawer: React.FC<ChainDetailsDrawerProps> = ({
       {
         group: "logging settings",
         key: "DPT events",
-        value: (
-          <Tag
-            variant={"outlined"}
-            style={{
-              fontSize: 13,
-              padding: "3px 8px",
-              marginInlineEnd: 0,
-            }}
-            color={loggingProperties?.dptEventsEnabled ? "green" : "default"}
-          >
-            {String(loggingProperties?.dptEventsEnabled ?? false)}
-          </Tag>
+        value: formatOptional(loggingProperties?.dptEventsEnabled, (v) =>
+          capitalize(`${v}`),
         ),
       },
       {
         group: "logging settings",
         key: "Masking",
-        value: (
-          <Tag
-            variant={"outlined"}
-            style={{
-              fontSize: 13,
-              padding: "3px 8px",
-              marginInlineEnd: 0,
-            }}
-            color={loggingProperties?.maskingEnabled ? "green" : "default"}
-          >
-            {String(loggingProperties?.maskingEnabled ?? false)}
-          </Tag>
+        value: formatOptional(loggingProperties?.maskingEnabled, (v) =>
+          capitalize(`${v}`),
         ),
       },
       {
@@ -380,7 +363,11 @@ export const ChainDetailsDrawer: React.FC<ChainDetailsDrawerProps> = ({
                 item.value
               ) : (
                 <Row wrap={false} gutter={4}>
-                  <Col span={8}>{item.key}</Col>
+                  <Col span={8}>
+                    <Typography.Text type="secondary">
+                      {item.key}
+                    </Typography.Text>
+                  </Col>
                   <Col>{item.value}</Col>
                 </Row>
               )
