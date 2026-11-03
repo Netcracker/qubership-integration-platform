@@ -59,53 +59,57 @@ export const TestCaseRunDrawer: React.FC<TestCaseRunDrawerProps> = ({
       !run
         ? []
         : [
-            [
-              idItem(run.id),
-              {
-                label: "Test case",
-                children:
-                  run.testCaseName && testCasePath ? (
-                    <DetailsLink to={testCasePath}>
-                      {run.testCaseName}
-                    </DetailsLink>
+            {
+              title: "general info",
+              items: [
+                idItem(run.id),
+                {
+                  label: "Test case",
+                  children:
+                    run.testCaseName && testCasePath ? (
+                      <DetailsLink to={testCasePath}>
+                        {run.testCaseName}
+                      </DetailsLink>
+                    ) : (
+                      (run.testCaseName ?? EMPTY)
+                    ),
+                },
+                {
+                  label: "Description",
+                  children: run.testCaseDescription || EMPTY,
+                },
+                chainItem(run.chainId, chainName),
+              ],
+            },
+            {
+              title: "Status",
+              items: [
+                {
+                  label: "Status",
+                  children: <RunStatusTag status={run.status} />,
+                },
+                {
+                  label: "Start",
+                  children: run.start ? formatTimestamp(run.start) : EMPTY,
+                },
+                {
+                  label: "Finish",
+                  children: run.finish ? formatTimestamp(run.finish) : EMPTY,
+                },
+                {
+                  label: "Errors",
+                  children: errorsPath ? (
+                    <DetailsLink to={errorsPath}>{run.errors}</DetailsLink>
                   ) : (
-                    (run.testCaseName ?? EMPTY)
+                    run.errors
                   ),
-              },
-              {
-                label: "Description",
-                children: run.testCaseDescription || EMPTY,
-              },
-              chainItem(run.chainId, chainName),
-            ],
-            [
-              {
-                label: "Status",
-                children: <RunStatusTag status={run.status} />,
-              },
-              {
-                label: "Start",
-                children: run.start ? formatTimestamp(run.start) : EMPTY,
-              },
-              {
-                label: "Finish",
-                children: run.finish ? formatTimestamp(run.finish) : EMPTY,
-              },
-              {
-                label: "Errors",
-                children: errorsPath ? (
-                  <DetailsLink to={errorsPath}>{run.errors}</DetailsLink>
-                ) : (
-                  run.errors
-                ),
-              },
-            ],
-            [
-              {
-                label: "Session",
-                children: sessionCell(run.sessionId, sessionPath),
-              },
-            ],
+                },
+                {
+                  label: "Session",
+                  children: sessionCell(run.sessionId, sessionPath),
+                },
+              ],
+            },
           ]
     }
   />

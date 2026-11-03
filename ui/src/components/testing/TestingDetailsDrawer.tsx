@@ -1,12 +1,15 @@
-import React from "react";
-import { Descriptions, Divider, Drawer, Typography } from "antd";
+import React, { ReactNode, useMemo } from "react";
+import { Col, Drawer, Listy, Row, Typography } from "antd";
 import type { DescriptionsItemType } from "antd/es/descriptions";
 import { RowLink } from "../table/RowLink.tsx";
 import { TestingAuditFields } from "../../api/apiTypes.ts";
 import { EMPTY, formatAudit } from "./testingAudit.tsx";
 
 /** The items of a single `Descriptions` block. */
-export type TestingDetailsSection = DescriptionsItemType[];
+export type TestingDetailsSection = {
+  title: React.Key;
+  items: DescriptionsItemType[];
+};
 
 export type TestingDetailsDrawerProps = {
   title: string;
@@ -52,7 +55,7 @@ export function chainItem(
 /**
  * The element the entity is attached to, falling back to the id as `chainItem`
  * does. The label is a parameter because the two entities name it differently:
- * a test case links its trigger, an endpoint mock its endpoint.
+ * a test case links it's trigger, an endpoint mock its endpoint.
  */
 export function elementItem(
   label: string,
@@ -76,46 +79,77 @@ export function elementItem(
 export function auditSection(
   entity: TestingAuditFields,
 ): TestingDetailsSection {
-  return [
-    {
-      label: "Created",
-      children: formatAudit(entity.createdBy, entity.createdAt),
-    },
-    {
-      label: "Updated",
-      children: formatAudit(entity.updatedBy, entity.updatedAt),
-    },
-  ];
+  return {
+    title: "audit",
+    items: [
+      {
+        label: "Created",
+        children: formatAudit(entity.createdBy, entity.createdAt),
+      },
+      {
+        label: "Updated",
+        children: formatAudit(entity.updatedBy, entity.updatedAt),
+      },
+    ],
+  };
 }
+
+type SidebarItem = {
+  group: React.Key;
+  key: ReactNode;
+  value: ReactNode;
+};
 
 export const TestingDetailsDrawer: React.FC<TestingDetailsDrawerProps> = ({
   title,
   sections,
   open,
   onClose,
-}) => (
-  <Drawer
-    title={title}
-    placement="right"
-    size={380}
-    open={open}
-    onClose={onClose}
-    destroyOnHidden
-    closable={{ placement: "end" }}
-    getContainer={".page-content"}
-    rootStyle={{ position: "absolute" }}
-  >
-    {sections.map((items, index) => (
-      <React.Fragment key={index}>
-        {index > 0 && <Divider style={{ margin: "12px 0" }} />}
-        <Descriptions
-          column={1}
-          size="small"
-          layout="vertical"
-          colon={false}
-          items={items}
-        />
-      </React.Fragment>
-    ))}
-  </Drawer>
-);
+}) => {
+  const items = useMemo(
+    () =>
+      sections.flatMap((section) =>
+        section.items.map((i) => ({
+          group: section.title,
+          key: i.label,
+          value: i.children,
+        })),
+      ),
+    [sections],
+  );
+
+  return (
+    <Drawer
+      title={title}
+      placement="right"
+      size={350}
+      open={open}
+      onClose={onClose}
+      destroyOnHidden
+      closable={{ placement: "end" }}
+      getContainer={".page-content"}
+      rootStyle={{ position: "absolute" }}
+      classNames={{ body: "details-sidebar-body" }}
+    >
+      <Listy<SidebarItem>
+        classNames={{
+          groupHeader: "details-sidebar-properties-group",
+        }}
+        style={{ height: "100%" }}
+        items={items}
+        rowKey={"key"}
+        group={{
+          key: (item) => item.group,
+          title: (groupKey) => `${groupKey}`,
+        }}
+        itemRender={(item) => (
+          <Row wrap={false} gutter={4}>
+            <Col span={8}>{item.key}</Col>
+            <Col>{item.value}</Col>
+          </Row>
+        )}
+        sticky
+      />
+    </Drawer>
+  );
+};

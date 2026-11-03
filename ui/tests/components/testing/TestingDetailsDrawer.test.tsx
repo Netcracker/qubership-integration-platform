@@ -28,9 +28,16 @@ const AUDIT: TestingAuditFields = {
   updatedAt: "2026-01-03T03:04:05Z",
 };
 
-const STATUS_SECTION: TestingDetailsSection = [
-  { key: "status", label: "Status", children: "Finished" },
-];
+const STATUS_SECTION: TestingDetailsSection = {
+  title: "status",
+  items: [{ key: "status", label: "Status", children: "Finished" }],
+};
+
+function section(
+  ...items: TestingDetailsSection["items"]
+): TestingDetailsSection {
+  return { title: "general info", items };
+}
 
 const onClose = jest.fn();
 
@@ -54,7 +61,7 @@ beforeEach(() => {
 describe("TestingDetailsDrawer", () => {
   it("should render the audit footer when the drawer supplies an audit section", async () => {
     await renderDrawer([
-      [idItem("case-1")],
+      section(idItem("case-1")),
       STATUS_SECTION,
       auditSection(AUDIT),
     ]);
@@ -66,7 +73,7 @@ describe("TestingDetailsDrawer", () => {
   });
 
   it("should render no audit footer when the drawer supplies none", async () => {
-    await renderDrawer([[idItem("run-1")], STATUS_SECTION]);
+    await renderDrawer([section(idItem("run-1")), STATUS_SECTION]);
 
     expect(screen.getByText("Status")).toBeInTheDocument();
     expect(screen.queryByText("Created")).not.toBeInTheDocument();
@@ -75,7 +82,11 @@ describe("TestingDetailsDrawer", () => {
 
   it("should render no links when no section carries one", async () => {
     await renderDrawer([
-      [idItem("run-1"), { key: "cases", label: "Test cases", children: 7 }],
+      section(idItem("run-1"), {
+        key: "cases",
+        label: "Test cases",
+        children: 7,
+      }),
       auditSection(AUDIT),
     ]);
 
@@ -83,62 +94,63 @@ describe("TestingDetailsDrawer", () => {
     expect(document.querySelectorAll("a")).toHaveLength(0);
   });
 
-  it("should separate the sections it is given with dividers", async () => {
+  it("should head each section with its title", async () => {
     await renderDrawer([
-      [idItem("case-1")],
+      section(idItem("case-1")),
       STATUS_SECTION,
       auditSection(AUDIT),
     ]);
 
-    expect(document.querySelectorAll(".ant-descriptions")).toHaveLength(3);
-    expect(document.querySelectorAll(".ant-divider")).toHaveLength(2);
+    const headers = [
+      ...document.querySelectorAll(".details-sidebar-properties-group"),
+    ].map((header) => header.textContent);
+    expect(headers).toEqual(["general info", "status", "audit"]);
   });
 
   it("should label the id and offer it for copying", async () => {
-    await renderDrawer([[idItem("case-1")]]);
+    await renderDrawer([section(idItem("case-1"))]);
 
     expect(screen.getByText("ID")).toBeInTheDocument();
     expect(screen.getByText("case-1")).toBeInTheDocument();
     expect(document.querySelector(".ant-typography-copy")).toBeInTheDocument();
   });
 
-  // One item per row: a label beside its value would truncate the ids and the
-  // timestamps the drawer is mostly made of.
-  it("should stack every item in a single column", async () => {
+  it("should put every label beside its value", async () => {
     await renderDrawer([
-      [
-        idItem("case-1"),
+      section(
         { key: "status", label: "Status", children: "Finished" },
         { key: "cases", label: "Test cases", children: 7 },
-      ],
+      ),
     ]);
 
-    const rows = [...document.querySelectorAll(".ant-descriptions-row")];
-    expect(rows.length).toBeGreaterThan(0);
-    rows.forEach((row) =>
-      expect(row.querySelectorAll(".ant-descriptions-item")).toHaveLength(1),
+    const row = screen.getByText("Status").closest(".ant-row");
+    expect(row).toHaveTextContent("StatusFinished");
+    expect(screen.getByText("7").closest(".ant-row")).toHaveTextContent(
+      "Test cases7",
     );
   });
 
   it("should close when the close control is used", async () => {
-    await renderDrawer([[idItem("case-1")]]);
+    await renderDrawer([section(idItem("case-1"))]);
 
     fireEvent.click(screen.getByLabelText("Close"));
 
     expect(onClose).toHaveBeenCalled();
   });
 
-  it("should render no blocks when the entity is absent", async () => {
+  it("should render no sections when the entity is absent", async () => {
     await renderDrawer([]);
 
-    expect(document.querySelectorAll(".ant-descriptions")).toHaveLength(0);
+    expect(
+      document.querySelectorAll(".details-sidebar-properties-group"),
+    ).toHaveLength(0);
   });
 
   it("should keep the content out of the document when the drawer is closed", () => {
     render(
       <TestingDetailsDrawer
         title="Test Case Details"
-        sections={[[idItem("case-1")]]}
+        sections={[section(idItem("case-1"))]}
         open={false}
         onClose={jest.fn()}
       />,
@@ -148,7 +160,7 @@ describe("TestingDetailsDrawer", () => {
   });
 
   it("should navigate to the chain when the chain link is clicked", async () => {
-    await renderDrawer([[chainItem("chain-1", "First chain")]]);
+    await renderDrawer([section(chainItem("chain-1", "First chain"))]);
 
     fireEvent.click(screen.getByText("First chain"));
 
@@ -156,13 +168,13 @@ describe("TestingDetailsDrawer", () => {
   });
 
   it("should show the chain id when the chain name has not resolved", async () => {
-    await renderDrawer([[chainItem("chain-1", "")]]);
+    await renderDrawer([section(chainItem("chain-1", ""))]);
 
     expect(screen.getByText("chain-1")).toBeInTheDocument();
   });
 
   it("should show a placeholder when the entity names no chain", async () => {
-    await renderDrawer([[chainItem(null, "First chain")]]);
+    await renderDrawer([section(chainItem(null, "First chain"))]);
 
     expect(screen.getByText("—")).toBeInTheDocument();
     expect(document.querySelectorAll("a")).toHaveLength(0);
@@ -170,7 +182,7 @@ describe("TestingDetailsDrawer", () => {
 
   it("should navigate to the element on the chain graph when the element link is clicked", async () => {
     await renderDrawer([
-      [elementItem("Trigger", "chain-1", "element-1", "HTTP Trigger")],
+      section(elementItem("Trigger", "chain-1", "element-1", "HTTP Trigger")),
     ]);
 
     expect(screen.getByText("Trigger")).toBeInTheDocument();
@@ -182,7 +194,9 @@ describe("TestingDetailsDrawer", () => {
   });
 
   it("should show the element id when the element name has not resolved", async () => {
-    await renderDrawer([[elementItem("Endpoint", "chain-1", "element-1", "")]]);
+    await renderDrawer([
+      section(elementItem("Endpoint", "chain-1", "element-1", "")),
+    ]);
 
     expect(screen.getByText("Endpoint")).toBeInTheDocument();
     expect(screen.getByText("element-1")).toBeInTheDocument();
@@ -190,7 +204,7 @@ describe("TestingDetailsDrawer", () => {
 
   it("should show a placeholder when the entity names no element", async () => {
     await renderDrawer([
-      [elementItem("Trigger", "chain-1", null, "Trigger 1")],
+      section(elementItem("Trigger", "chain-1", null, "Trigger 1")),
     ]);
 
     expect(screen.getByText("—")).toBeInTheDocument();
@@ -199,13 +213,11 @@ describe("TestingDetailsDrawer", () => {
 
   it("should navigate to the route a details link names", async () => {
     await renderDrawer([
-      [
-        {
-          key: "errors",
-          label: "Errors",
-          children: <DetailsLink to="/errors/run-1">3</DetailsLink>,
-        },
-      ],
+      section({
+        key: "errors",
+        label: "Errors",
+        children: <DetailsLink to="/errors/run-1">3</DetailsLink>,
+      }),
     ]);
 
     fireEvent.click(screen.getByText("3"));

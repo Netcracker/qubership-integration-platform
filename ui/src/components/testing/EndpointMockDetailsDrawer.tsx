@@ -35,42 +35,51 @@ export const EndpointMockDetailsDrawer: React.FC<
         !endpointMock
           ? []
           : [
-              [
-                idItem(endpointMock.id),
-                { label: "Name", children: endpointMock.name || EMPTY },
-                {
-                  label: "Description",
-                  children: endpointMock.description || EMPTY,
-                },
-              ],
-              [
-                chainItem(chainId, chainName),
-                elementItem("Endpoint", chainId, elementId, elementName),
-              ],
-              [
-                {
-                  label: "Status",
-                  children: <EnabledTag enabled={endpointMock.enabled} />,
-                },
-                {
-                  label: "Response status",
-                  children: formatMockNumber(
-                    endpointMock.responseSettings?.status,
-                  ),
-                },
-                {
-                  label: "Response delay, ms",
-                  children: formatMockNumber(
-                    endpointMock.responseSettings?.delay,
-                  ),
-                },
-                { label: "Rules", children: matchers.length },
-                {
-                  label: "Active rules",
-                  children: matchers.filter((matcher) => matcher.enabled)
-                    .length,
-                },
-              ],
+              {
+                title: "general info",
+                items: [
+                  idItem(endpointMock.id),
+                  { label: "Name", children: endpointMock.name || EMPTY },
+                  {
+                    label: "Description",
+                    children: endpointMock.description || EMPTY,
+                  },
+                ],
+              },
+              {
+                title: "endpoint",
+                items: [
+                  chainItem(chainId, chainName),
+                  elementItem("Endpoint", chainId, elementId, elementName),
+                ],
+              },
+              {
+                title: "status",
+                items: [
+                  {
+                    label: "Enabled",
+                    children: <EnabledTag enabled={endpointMock.enabled} />,
+                  },
+                  {
+                    label: "Response code",
+                    children: formatMockNumber(
+                      endpointMock.responseSettings?.status,
+                    ),
+                  },
+                  {
+                    label: "Response delay, ms",
+                    children: formatMockNumber(
+                      endpointMock.responseSettings?.delay,
+                    ),
+                  },
+                  { label: "Rules", children: matchers.length },
+                  {
+                    label: "Active rules",
+                    children: matchers.filter((matcher) => matcher.enabled)
+                      .length,
+                  },
+                ],
+              },
               auditSection(endpointMock),
             ]
       }

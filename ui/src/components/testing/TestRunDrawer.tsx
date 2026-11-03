@@ -32,33 +32,34 @@ export const TestRunDrawer: React.FC<TestRunDrawerProps> = ({
       !run
         ? []
         : [
-            [
-              idItem(run.id),
-              {
-                label: "Status",
-                children: <RunStatusTag status={run.status} />,
-              },
-            ],
-            [
-              {
-                label: "Start",
-                children: run.start ? formatTimestamp(run.start) : EMPTY,
-              },
-              {
-                label: "Finish",
-                children: run.finish ? formatTimestamp(run.finish) : EMPTY,
-              },
-              {
-                label: "Test cases",
-                children: caseRunsPath ? (
-                  <DetailsLink to={caseRunsPath}>{run.testCases}</DetailsLink>
-                ) : (
-                  run.testCases
-                ),
-              },
-              // The aggregate counts the cases that failed, not the errors they recorded.
-              { label: "Test cases with errors", children: run.errors },
-            ],
+            { title: "general info", items: [idItem(run.id)] },
+            {
+              title: "status",
+              items: [
+                {
+                  label: "Status",
+                  children: <RunStatusTag status={run.status} />,
+                },
+                {
+                  label: "Start",
+                  children: run.start ? formatTimestamp(run.start) : EMPTY,
+                },
+                {
+                  label: "Finish",
+                  children: run.finish ? formatTimestamp(run.finish) : EMPTY,
+                },
+                {
+                  label: "Test cases",
+                  children: caseRunsPath ? (
+                    <DetailsLink to={caseRunsPath}>{run.testCases}</DetailsLink>
+                  ) : (
+                    run.testCases
+                  ),
+                },
+                // The aggregate counts the cases that failed, not the errors they recorded.
+                { label: "Test cases with errors", children: run.errors },
+              ],
+            },
             auditSection(run),
           ]
     }

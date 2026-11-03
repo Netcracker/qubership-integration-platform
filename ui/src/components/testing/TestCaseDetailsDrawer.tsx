@@ -38,33 +38,44 @@ export const TestCaseDetailsDrawer: React.FC<TestCaseDetailsDrawerProps> = ({
         !testCase
           ? []
           : [
-              [
-                idItem(testCase.id),
-                { label: "Name", children: testCase.name || EMPTY },
-                {
-                  label: "Description",
-                  children: testCase.description || EMPTY,
-                },
-              ],
-              [
-                chainItem(chainId, chainName),
-                elementItem("Trigger", chainId, elementId, elementName),
-              ],
-              [
-                {
-                  label: "Status",
-                  children: <EnabledTag enabled={testCase.enabled} />,
-                },
-                {
-                  label: "Readiness",
-                  children: <ReadinessTag ready={isTestCaseReady(testCase)} />,
-                },
-                { label: "Rules", children: testCase.validationRuleCount },
-                {
-                  label: "Active rules",
-                  children: testCase.enabledRuleCount,
-                },
-              ],
+              {
+                title: "general info",
+                items: [
+                  idItem(testCase.id),
+                  { label: "Name", children: testCase.name || EMPTY },
+                  {
+                    label: "Description",
+                    children: testCase.description || EMPTY,
+                  },
+                ],
+              },
+              {
+                title: "endpoint",
+                items: [
+                  chainItem(chainId, chainName),
+                  elementItem("Trigger", chainId, elementId, elementName),
+                ],
+              },
+              {
+                title: "status",
+                items: [
+                  {
+                    label: "Enabled",
+                    children: <EnabledTag enabled={testCase.enabled} />,
+                  },
+                  {
+                    label: "Readiness",
+                    children: (
+                      <ReadinessTag ready={isTestCaseReady(testCase)} />
+                    ),
+                  },
+                  { label: "Rules", children: testCase.validationRuleCount },
+                  {
+                    label: "Active rules",
+                    children: testCase.enabledRuleCount,
+                  },
+                ],
+              },
               auditSection(testCase),
             ]
       }
