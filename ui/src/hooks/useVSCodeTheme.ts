@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import VSCodeApiSingleton from "../utils/vscodeApi";
+import { isVsCodeWebview } from "../misc/isVsCodeWebview";
 
 interface ThemeData {
   kind: number;
@@ -111,14 +112,13 @@ const detectVSCodeEnvironment = (): boolean => {
   const globalWindow = window as unknown as {
     vscode?: unknown;
     vscodeApi?: unknown;
-    acquireVsCodeApi?: unknown;
   };
 
   if (globalWindow.vscode || globalWindow.vscodeApi) {
     return true;
   }
 
-  return typeof globalWindow.acquireVsCodeApi === "function";
+  return isVsCodeWebview();
 };
 
 function detectInitialIsDark(): boolean {

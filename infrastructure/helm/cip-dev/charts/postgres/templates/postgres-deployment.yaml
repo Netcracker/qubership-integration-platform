@@ -49,6 +49,8 @@ spec:
                 - 127.0.0.1
             periodSeconds: 1
             failureThreshold: 60
+            timeoutSeconds: 5
+          # A checkpoint under load can delay pg_isready past the 1-second default, so restart only after a minute of failed checks.
           livenessProbe:
             exec:
               command:
@@ -56,6 +58,8 @@ spec:
                 - -U
                 - postgres
             periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
           readinessProbe:
             exec:
               command:
@@ -63,6 +67,7 @@ spec:
                 - -U
                 - postgres
             periodSeconds: 10
+            timeoutSeconds: 5
       volumes:
         - name: init-db-script
           configMap:

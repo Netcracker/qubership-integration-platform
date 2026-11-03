@@ -244,7 +244,7 @@ interface PodView {
     phase?: string;
     startTime?: string;
     podIP?: string;
-    containerStatuses?: { name: string; restartCount: number; ready?: boolean }[];
+    containerStatuses?: { name: string; restartCount: number; ready?: boolean; imageID?: string }[];
   };
 }
 
@@ -282,6 +282,12 @@ async function livePodOf(selector: string, run: Kubectl = kubectl): Promise<PodV
 /** The one pod of a role that is not being deleted. */
 function livePod(role: ServiceRole): Promise<PodView> {
   return livePodOf(`app=${deploymentOf(role)}`);
+}
+
+/** The image a role's live pod runs, by the digest its container status reports. */
+export async function podImageId(role: ServiceRole, run: Kubectl = kubectl): Promise<string | null> {
+  const pod = await livePodOf(`app=${deploymentOf(role)}`, run);
+  return pod.status.containerStatuses?.find((each) => each.name === containerOf(role))?.imageID || null;
 }
 
 /**
