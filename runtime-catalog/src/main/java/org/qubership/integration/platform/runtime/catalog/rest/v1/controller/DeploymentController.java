@@ -139,7 +139,8 @@ public class DeploymentController {
                     "Domain %s is discovered as %s, the request declares %s",
                     request.getDomain(), discovered.get(), declared));
         }
-        if (declared == DomainType.MICRO || discovered.filter(type -> type == DomainType.MICRO).isPresent()) {
+        DomainType target = declared != null ? declared : discovered.orElse(DomainType.CLASSIC);
+        if (target == DomainType.MICRO) {
             return microDomainService.verifyMicroDomainEnabled(() -> {
                 Chain chain = chainFinderService.findById(chainId);
                 Snapshot snapshot = snapshotService.findById(request.getSnapshotId());
