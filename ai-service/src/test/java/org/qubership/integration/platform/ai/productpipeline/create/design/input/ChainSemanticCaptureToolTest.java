@@ -80,6 +80,7 @@ class ChainSemanticCaptureToolTest {
         List.of(new CapturedOperation("op-shared", "script", List.of("foreign-fact"))),
         capture.sequenceRegions(), capture.conditionRegions(), capture.splitRegions(), capture.loopRegions(),
         capture.retryRegions(), capture.errorScopeRegions(), capture.edges(), capture.containment());
+    // The first submission is the violation; REPAIR_NO_PROGRESS comes on the third repeat.
     assertTrue(tool.captureChainSemanticRevision(invalid).contains("DESIGN_CONTRACT_VIOLATION"));
     String noticed = tool.captureChainSemanticRevision(invalid);
     assertTrue(noticed.contains("UNCHANGED_PROPOSAL"), noticed);

@@ -26,6 +26,12 @@ import java.util.regex.Pattern;
  * <p>Identity: {@code tool + NUL + capabilityOrEmpty + NUL + sha256Hex(canonicalJson)}.
  * Drops {@code rationale}/{@code explanation}/{@code comment}; sorts object keys; preserves
  * array order; strips string values.
+ *
+ * <p>Two rejection identities exist. {@link #failureFingerprint} keys the capture budget and keeps
+ * quoted and bracketed values, so the same rule on another node earns its own correction.
+ * {@link #failureSignature} keys stage halts, recovery ledger causes, and narrative questions and
+ * masks those values, because a stage failure that carries an attempt-specific value would
+ * otherwise never repeat and never escalate.
  */
 public final class ToolCallFingerprints {
 
@@ -35,6 +41,8 @@ public final class ToolCallFingerprints {
   private static final JsonFactory JSON_FACTORY = new JsonFactory();
   private static final ObjectMapper FALLBACK_MAPPER = new ObjectMapper();
 
+  private static final Pattern QUOTED_VALUE = Pattern.compile("'[^']*'");
+  private static final Pattern BRACKETED_VALUE = Pattern.compile("\\[[^\\]]*\\]");
   private static final Pattern UUID_VALUE =
       Pattern.compile(
           "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
@@ -53,9 +61,11 @@ public final class ToolCallFingerprints {
    * escalates. Keying it on the normalized complaint spends one credit per distinct defect, which
    * is what the budget is for.
    *
-   * <p>Quoted and bracketed values are part of the identity: the same rule broken on another node
+   * <p>Quoted and bracketed values are part of this identity: the same rule broken on another node
    * or mapping is a new defect with its own credit. Only UUIDs are masked, because the service
    * mints them per attempt. Incidental whitespace and casing do not create a new occurrence.
+   * {@link #failureSignature} is the contrasting identity for stage-level failures and masks the
+   * named values too.
    */
   public static String failureFingerprint(String tool, String capability, String message) {
     if (tool == null || tool.isBlank()) {
@@ -71,7 +81,7 @@ public final class ToolCallFingerprints {
     message = stripNativeParserDetails(message).strip();
     String nativeMessage = message.toLowerCase(Locale.ROOT);
     if (!nativeMessage.contains("node '") || !nativeMessage.contains(" property ")) {
-      return failureSignature(message);
+      return namedValueSignature(message);
     }
     String prefix = "";
     String graphPrefix = "Patch produced invalid graph: ";
@@ -111,16 +121,34 @@ public final class ToolCallFingerprints {
   }
 
   /**
-   * Normalizes rejection text to recognize the same failure across attempts, keeping the quoted and
-   * bracketed values that name what is wrong.
+   * Normalizes rejection text to recognize the same failure across attempts, masking quoted and
+   * bracketed values as well as UUIDs.
+   *
+   * <p>This is the identity of a stage-level halt, a recovery ledger cause, and a narrative
+   * question. Those failures carry values that differ on every attempt, so naming them would
+   * grant fresh credit each time and never escalate.
    */
   public static String failureSignature(String message) {
     if (message == null || message.isBlank()) {
       return "";
     }
-    String normalized = stripNativeParserDetails(message).strip().toLowerCase(Locale.ROOT);
-    normalized = UUID_VALUE.matcher(normalized).replaceAll("<id>");
+    String normalized = maskUuids(stripNativeParserDetails(message).strip());
+    normalized = QUOTED_VALUE.matcher(normalized).replaceAll("<id>");
+    normalized = BRACKETED_VALUE.matcher(normalized).replaceAll("<ids>");
     return WHITESPACE.matcher(normalized).replaceAll(" ").strip();
+  }
+
+  /**
+   * Normalizes rejection text for the capture budget: only UUIDs are masked, so a quoted or
+   * bracketed value still tells one rejection from another.
+   */
+  private static String namedValueSignature(String message) {
+    String normalized = maskUuids(stripNativeParserDetails(message).strip());
+    return WHITESPACE.matcher(normalized).replaceAll(" ").strip();
+  }
+
+  private static String maskUuids(String message) {
+    return UUID_VALUE.matcher(message.toLowerCase(Locale.ROOT)).replaceAll("<id>");
   }
 
   /** Keeps parser coordinates out of the existing native syntax-failure budget identity. */

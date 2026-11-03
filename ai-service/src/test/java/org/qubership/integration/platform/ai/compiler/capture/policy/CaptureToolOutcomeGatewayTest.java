@@ -159,18 +159,20 @@ class CaptureToolOutcomeGatewayTest {
   void theSameRuleOnAnotherNodeIsANewRejection() {
     Object args = Map.of("scripts", java.util.List.of());
     String first = "Mapping 'a-OUTPUT-to-b-REQUEST' has no adjacent mapper-2 or script node.";
-    String sameRuleOtherNode = "Mapping 'c-OUTPUT-to-d-REQUEST' has no adjacent mapper-2 or script node.";
+    String otherNode = "Mapping 'c-OUTPUT-to-d-REQUEST' has no adjacent mapper-2 or script node.";
 
-    gateway.onFailure(CaptureFeedbackChannel.PATCH, "conv-1", "cap-1", CaptureFailureKind.VALIDATION,
+    gateway.onFailure(
+        CaptureFeedbackChannel.PATCH, "conv-1", "cap-1", CaptureFailureKind.VALIDATION,
         CaptureFailureClass.CORRECTABLE, "repairScriptBodies", args, first);
-    gateway.onFailure(CaptureFeedbackChannel.PATCH, "conv-1", "cap-1", CaptureFailureKind.VALIDATION,
-        CaptureFailureClass.CORRECTABLE, "repairScriptBodies", args, sameRuleOtherNode);
+    gateway.onFailure(
+        CaptureFeedbackChannel.PATCH, "conv-1", "cap-1", CaptureFailureKind.VALIDATION,
+        CaptureFailureClass.CORRECTABLE, "repairScriptBodies", args, otherNode);
 
     assertEquals(CaptureFailureClass.CORRECTABLE,
         feedbackStore.lastPatchFailure("conv-1", "cap-1").orElseThrow().failureClass());
-    assertThrows(CaptureValidationException.class, () -> gateway.onFailure(CaptureFeedbackChannel.PATCH,
-        "conv-1", "cap-1", CaptureFailureKind.VALIDATION, CaptureFailureClass.CORRECTABLE,
-        "repairScriptBodies", args, sameRuleOtherNode));
+    assertThrows(CaptureValidationException.class, () -> gateway.onFailure(
+        CaptureFeedbackChannel.PATCH, "conv-1", "cap-1", CaptureFailureKind.VALIDATION,
+        CaptureFailureClass.CORRECTABLE, "repairScriptBodies", args, otherNode));
     assertEquals(CaptureFailureClass.IDENTICAL_SPAM,
         feedbackStore.lastPatchFailure("conv-1", "cap-1").orElseThrow().failureClass());
   }
