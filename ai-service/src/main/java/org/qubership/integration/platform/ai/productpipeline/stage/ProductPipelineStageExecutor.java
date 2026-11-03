@@ -1679,15 +1679,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     if (changeStrategy) {
       if (currentRepairTarget && supportsCleanProducerRebuild(stage.stageId())
           && !recoveryLedger.perRunCeilingReached(doc.transitions())) {
-        return waitContextualRecovery(doc, stage, refs, PipelineGates.RECOVERY_REPAIR_ALLOWANCE,
-            (noProgress ? "The latest correction repeated rejected output. Progress is saved. Continue repair grants up to two targeted corrections"
-                : "Automatic corrections for this defect are spent. Continue repair grants up to two targeted corrections")
-                + " and two clean regenerations in this run. Existing request, token, time, and run limits still apply.",
-            terminalRecoveryDetails(findings, evidenceText, runId, PROGRESS_NONE)
-                + " Targeted corrections spent: " + recoveryLedger.repairsUsed(doc.transitions(), recoveryKey, InputOrigin.TRUSTED)
-                + ". Clean regenerations spent: " + recoveryLedger.cleanRebuildsUsed(doc.transitions(), recoveryKey) + "."
-                + HaltRecoveryGuard.remainingLine(recoveryLedger.remaining(doc.transitions(), recoveryKey, InputOrigin.TRUSTED)),
-            null, emitted);
+        return grantAnotherCorrection(doc, stage, refs, budgetCause, emitted);
       }
       if (offersManualBriefEdit(doc, stage, cause)) {
         return waitEditableBriefRecovery(
@@ -1884,6 +1876,27 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       details.append(" progress=").append(progress);
     }
     return details.toString();
+  }
+
+  /**
+   * Records the grant a trusted Continue repair records for {@code cause} and retries the stage with its first
+   * targeted correction. The grant counts toward the run's recovery ceiling, so a caller that checks
+   * {@link RecoveryAttemptLedger#perRunCeilingReached} before each grant stops granting within that ceiling.
+   */
+  private StageExecutionResult grantAnotherCorrection(
+      ProductPipelineRunDocument doc,
+      ProfileStage stage,
+      List<Reference> refs,
+      RecoveryCause cause,
+      List<PipelineSignal> emitted) {
+    String grant = ProductPipelineRunSupport.repairAllowanceGrant(recoveryLedger, doc, stage.stageId(), cause,
+        attributesByRun.computeIfAbsent(doc.run().runId(), ignored -> new java.util.concurrent.ConcurrentHashMap<>()));
+    recordProducerRepairAttempt(doc, stage, refs, grant);
+    emitted.add(new PipelineSignal.Progress(stage.stageId(), "Granting another automatic correction for this defect"));
+    return new StageExecutionResult(
+        new StageDecision.Retry(stage.stageId(),
+            Duration.ofMillis(stage.retry() == null ? 0L : stage.retry().defaultDelayMs())),
+        emitted);
   }
 
   private boolean nativeCaptureRepairAllowed(

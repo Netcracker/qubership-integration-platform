@@ -1238,12 +1238,8 @@ public final class ProductPipelineRunSupport {
       return Multi.createFrom().item(new PipelineSignal.WaitingForInput(doc.run().currentStageId(), paused));
     }
     String owner = doc.run().currentStageId();
-    String artifact = RecoveryAttemptLedger.inputArtifactIdentity(doc, owner);
-    RecoveryAttemptKey key = recoveryLedger.key(owner, repairOfferCause(doc), artifact, doc.transitions());
     Map<String, Object> attributes = attributesByRun.get(command.runId());
-    attributes.remove(DESIGN_INPUT_CLEAN_REBUILD_EVIDENCE_REF_ATTR);
-    attributes.remove(DESIGN_PLAN_CLEAN_REBUILD_EVIDENCE_REF_ATTR);
-    attributes.remove(PRODUCER_CLEAN_REBUILD_EVIDENCE_REF_ATTR);
+    String grant = repairAllowanceGrant(recoveryLedger, doc, owner, repairOfferCause(doc), attributes);
     try {
       attributes.put(RECOVERY_PENDING_ATTEMPT_ATTR, HALT_EVIDENCE_JSON.writeValueAsString(
           Map.of("stageId", owner, "revision", doc.run().runRevision() + 1)));
@@ -1251,9 +1247,30 @@ public final class ProductPipelineRunSupport {
       throw new IllegalStateException("Cannot persist the granted correction intent", e);
     }
     commitStatus(doc, RunStatus.RUNNING, StageStatus.RUNNING, doc.run().stages(),
-        recoveryLedger.recordGrantWithTargetedAttempt(key, artifact), haltEvidence(attributes, null),
+        grant, haltEvidence(attributes, null),
         command.commandId(), command.commandPayloadHash());
     return Multi.createFrom().item(new PipelineSignal.Progress(owner, "Additional repair allowance accepted"));
+  }
+
+  /**
+   * Returns the journal reason that grants a defect two more targeted corrections and two more clean regenerations,
+   * with the first targeted correction dispatched under the same reason.
+   *
+   * <p>The reason counts toward the run's recovery ceiling once it is committed, so the caller commits it as the
+   * transition that resumes {@code ownerStageId}. The clean-rebuild evidence references are removed from
+   * {@code attributes}, so the resumed stage runs the granted targeted correction rather than a clean regeneration.
+   *
+   * @param cause the defect the grant is keyed to, as the stage's recovery budget identifies it
+   * @param attributes the run's mutable attributes, edited in place
+   */
+  public static String repairAllowanceGrant(RecoveryAttemptLedger ledger, ProductPipelineRunDocument doc,
+      String ownerStageId, RecoveryCause cause, Map<String, Object> attributes) {
+    String artifact = RecoveryAttemptLedger.inputArtifactIdentity(doc, ownerStageId);
+    RecoveryAttemptKey key = ledger.key(ownerStageId, cause, artifact, doc.transitions());
+    attributes.remove(DESIGN_INPUT_CLEAN_REBUILD_EVIDENCE_REF_ATTR);
+    attributes.remove(DESIGN_PLAN_CLEAN_REBUILD_EVIDENCE_REF_ATTR);
+    attributes.remove(PRODUCER_CLEAN_REBUILD_EVIDENCE_REF_ATTR);
+    return ledger.recordGrantWithTargetedAttempt(key, artifact);
   }
 
   /**

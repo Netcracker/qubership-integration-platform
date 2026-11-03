@@ -173,8 +173,7 @@ class ProductPipelineStageExecutorTest {
       assertInstanceOf(StageDecision.Retry.class, correction.decision());
       applyLifecycle(runtime, correction);
     }
-    var wait = assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, stageId).decision());
-    assertEquals(PipelineGates.RECOVERY_REPAIR_ALLOWANCE, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertGrantsAnotherCorrection(execute(runtime, stageId));
     assertEquals(5, calls.get());
     assertEquals(RUN_ID, requireRun().run().runId());
   }
@@ -522,7 +521,7 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
-  void repeatedValidatedOutputUsesExistingCleanAndTargetedCreditsBeforePausing() {
+  void repeatedValidatedOutputUsesExistingCleanAndTargetedCreditsBeforeAGrant() {
     var original = analysisThenPlanningThenExecutionProfile();
     var stages = original.stages().stream().map(stage -> "design-execution".equals(stage.stageId())
         ? new ProfileStage(stage.stageId(), stage.capabilityId(), stage.consumes(),
@@ -551,7 +550,7 @@ class ProductPipelineStageExecutorTest {
       assertInstanceOf(StageDecision.Retry.class, result.decision());
       applyLifecycle(runtime, result);
     }
-    assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "design-execution").decision());
+    assertGrantsAnotherCorrection(execute(runtime, "design-execution"));
     assertEquals(List.of(false, false, true, true, false), clean);
     assertEquals(2, requireRun().transitions().stream().filter(t -> t.reason() != null
         && t.reason().startsWith(ProductPipelineStageExecutor.PRODUCER_REPAIR_REASON_PREFIX)).count());
@@ -647,7 +646,16 @@ class ProductPipelineStageExecutorTest {
       assertInstanceOf(StageDecision.Retry.class, clean.decision());
       applyLifecycle(runtime, clean);
     }
-    assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "design-execution").decision());
+    // A resumed run spends the remaining run ceiling on grants before the explicit execution.
+    StageDecision last = execute(runtime, "design-execution").decision();
+    if (restart) {
+      var wait = assertInstanceOf(StageDecision.WaitForInput.class, last);
+      assertEquals(PipelineGates.RECOVERY_REPEATED, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+      assertEquals(HaltRecoveryGuard.MAX_SEMANTIC_REPAIRS.name(), PipelineGates.guardOf(wait.prompt()).orElseThrow());
+    } else {
+      String grant = requireRun().transitions().getLast().reason();
+      assertTrue(grant.startsWith(RecoveryAttemptLedger.GRANT_TARGETED_REASON_PREFIX), grant);
+    }
     assertEquals(StageStatus.SUCCEEDED, snapshot(requireRun(), "requirement-analysis").status());
     assertEquals(StageStatus.SUCCEEDED, snapshot(requireRun(), "design-planning").status());
   }
@@ -2800,7 +2808,7 @@ class ProductPipelineStageExecutorTest {
       assertInstanceOf(StageDecision.Retry.class, result.decision());
       applyLifecycle(runtime, result);
     }
-    assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "design-execution").decision());
+    presentSavedRepairOffer();
     var before = requireRun();
     if ("written".equals(guard)) {
       artifactStore.append(new CompilationArtifacts.AppendCommand(RUN_ID, Kind.CATALOG_CHAIN_SNAPSHOT, "1",
@@ -2816,9 +2824,10 @@ class ProductPipelineStageExecutorTest {
     runtime.support().recordInput(new AcceptInputCommand(RUN_ID, binding, "click", "request",
         "untrusted".equals(guard) ? InputOrigin.UNTRUSTED : InputOrigin.TRUSTED))
         .collect().asList().await().indefinitely();
-    if ("written".equals(guard)) {
+    if ("written".equals(guard) || "ceiling".equals(guard)) {
       assertEquals(before.transitions().size() + 1, requireRun().transitions().size());
-      assertEquals(HaltRecoveryGuard.CATALOG_ALREADY_WRITTEN.name(),
+      assertEquals("written".equals(guard) ? HaltRecoveryGuard.CATALOG_ALREADY_WRITTEN.name()
+              : HaltRecoveryGuard.RUN_RECOVERY_CEILING.name(),
           PipelineGates.guardOf(requireRun().transitions().getLast().reason()).orElseThrow());
       assertFalse(ChatEvent.actionsForGate(PipelineGates.gateOf(requireRun().transitions().getLast().reason()).orElseThrow())
           .contains(PipelineGates.CONTINUE_REPAIR_ACTION));
@@ -2848,7 +2857,7 @@ class ProductPipelineStageExecutorTest {
       assertInstanceOf(StageDecision.Retry.class, result.decision());
       applyLifecycle(runtime, result);
     }
-    execute(runtime, "design-execution");
+    presentSavedRepairOffer();
     String offer = ProductPipelineRunSupport.repairOfferCommand(requireRun());
     var config = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.configuration.AppConfig.class,
         org.mockito.Mockito.RETURNS_DEEP_STUBS);
@@ -2883,7 +2892,7 @@ class ProductPipelineStageExecutorTest {
     assertEquals("presented", telemetry.events().getLast().kind());
     assertEquals(producerIdentity, PipelineGates.haltIdentityOf(
         requireRun().transitions().getLast().reason()).orElseThrow());
-    assertEquals(5, calls.get());
+    assertEquals(4, calls.get());
     assertEquals(0, requireRun().transitions().stream().filter(t -> t.reason().startsWith(RecoveryAttemptLedger.GRANT_REASON_PREFIX)).count());
     assertEquals(1, budget.state(RUN_ID).grants());
 
@@ -2892,7 +2901,7 @@ class ProductPipelineStageExecutorTest {
     assertEquals(RunStatus.RUNNING, requireRun().run().status());
     assertEquals(1, requireRun().transitions().stream().filter(t -> t.reason().startsWith(RecoveryAttemptLedger.GRANT_REASON_PREFIX)).count());
     assertInstanceOf(StageDecision.Retry.class, execute(runtime, "design-execution").decision());
-    assertEquals(6, calls.get());
+    assertEquals(5, calls.get());
   }
 
   @Test
@@ -2912,15 +2921,7 @@ class ProductPipelineStageExecutorTest {
       assertInstanceOf(StageDecision.Retry.class, result.decision());
       applyLifecycle(runtime, result);
     }
-    StageDecision.WaitForInput offer = assertInstanceOf(StageDecision.WaitForInput.class,
-        execute(runtime, "design-execution").decision());
-    assertEquals("recovery-repair-allowance", PipelineGates.gateOf(offer.prompt()).orElseThrow());
-    assertTrue(PipelineGates.strip(offer.prompt()).contains("two targeted corrections"));
-    assertTrue(PipelineGates.strip(offer.prompt()).contains("two clean regenerations"));
-    String details = PipelineGates.recoveryTechnicalDetailsOf(offer.prompt()).orElseThrow();
-    assertTrue(details.contains("Targeted corrections spent: 2."), details);
-    assertTrue(details.contains("Clean regenerations spent: 2."), details);
-    assertFalse(offer.prompt().contains("will not help"));
+    presentSavedRepairOffer();
     String binding = ProductPipelineRunSupport.repairOfferCommand(requireRun());
     int history = requireRun().transitions().size();
     for (String transportId : List.of("click-one", "click-two")) {
@@ -2930,16 +2931,16 @@ class ProductPipelineStageExecutorTest {
     assertEquals(history + 1, requireRun().transitions().size());
     assertEquals(1, requireRun().transitions().stream()
         .filter(t -> t.reason() != null && t.reason().startsWith("repair-grant:")) .count());
-    assertEquals(5, calls.get());
+    assertEquals(4, calls.get());
     assertInstanceOf(StageDecision.Retry.class, execute(runtime, "design-execution").decision());
-    assertEquals(6, calls.get());
+    assertEquals(5, calls.get());
     assertEquals(0, ledger.key("design-execution", RecoveryCause.of(RecoveryCauseCode.CONTRACT_SHAPE),
         RecoveryAttemptLedger.inputArtifactIdentity(requireRun(), "design-execution"),
         requireRun().transitions()).correctionEpoch());
   }
 
   @Test
-  void executionDispatchesTwoTargetedAndTwoCleanCorrectionsBeforePausing() {
+  void executionDispatchesTwoTargetedAndTwoCleanCorrectionsBeforeAGrant() {
     AtomicInteger calls = new AtomicInteger();
     List<Boolean> cleanTurns = new ArrayList<>();
     StageCapability execution = capability("execution-cap", context -> {
@@ -2962,7 +2963,7 @@ class ProductPipelineStageExecutorTest {
       assertInstanceOf(StageDecision.Retry.class, correction.decision(), "Correction " + (attempt + 1));
       applyLifecycle(runtime, correction);
     }
-    assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "design-execution").decision());
+    assertGrantsAnotherCorrection(execute(runtime, "design-execution"));
     assertEquals(5, calls.get());
     assertEquals(List.of(false, false, false, true, true), cleanTurns);
     assertEquals(2, requireRun().transitions().stream()
@@ -2974,47 +2975,62 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
-  void aRepeatedDesignInputFailureUsesOneCleanRebuildBeforeOfferingManualRecovery() {
-    StageCapability designInput =
-        capability(
-            "design-input-cap",
-            context ->
-                Multi.createFrom()
-                    .item(
-                        new CapabilitySignal.Completed(
-                            StageOutcome.of(
-                                StageOutcomeClass.CONTRACT_FAILURE,
-                                "Unknown contract element: quartz-trigger"))));
+  void aSpentDefectAllowanceIsRegrantedWithoutACard() {
+    CreateChainTestOrchestrator runtime = designInputWithSpentCorrections(12);
+
+    StageExecutionResult regrant = execute(runtime, "design-input");
+
+    assertInstanceOf(StageDecision.Retry.class, regrant.decision());
+    assertEquals(List.of(), regrant.signals().stream()
+        .filter(PipelineSignal.WaitingForInput.class::isInstance).toList());
+    assertEquals(List.of("Granting another automatic correction for this defect"), regrant.signals().stream()
+        .filter(PipelineSignal.Progress.class::isInstance).map(PipelineSignal.Progress.class::cast)
+        .map(PipelineSignal.Progress::label).toList());
+    assertEquals(1, requireRun().transitions().stream()
+        .filter(t -> t.reason() != null && t.reason().startsWith(RecoveryAttemptLedger.GRANT_TARGETED_REASON_PREFIX))
+        .count());
+  }
+
+  @Test
+  void aGrantMaySpendTheLastUnitOfTheRecoveryCeiling() {
+    CreateChainTestOrchestrator runtime = designInputWithSpentCorrections(3);
+
+    assertGrantsAnotherCorrection(execute(runtime, "design-input"));
+  }
+
+  @Test
+  void aRunAtItsRecoveryCeilingStillShowsTheCard() {
+    CreateChainTestOrchestrator runtime = designInputWithSpentCorrections(2);
+
+    StageDecision.WaitForInput wait = assertInstanceOf(StageDecision.WaitForInput.class,
+        execute(runtime, "design-input").decision());
+
+    assertEquals(PipelineGates.RECOVERY_REBUILD_DESIGN, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertEquals(0, requireRun().transitions().stream()
+        .filter(t -> t.reason() != null && t.reason().startsWith(RecoveryAttemptLedger.GRANT_REASON_PREFIX))
+        .count());
+  }
+
+  /**
+   * Starts a design-input stage whose one targeted correction and one clean regeneration are spent on the same
+   * rejection, so the next execution meets a defect with no automatic correction left.
+   */
+  private CreateChainTestOrchestrator designInputWithSpentCorrections(int perRunCeiling) {
+    StageCapability designInput = capability("design-input-cap", context -> Multi.createFrom().item(
+        new CapabilitySignal.Completed(StageOutcome.of(
+            StageOutcomeClass.CONTRACT_FAILURE, "Unknown contract element: quartz-trigger"))));
     ProductPipelineProfile profile = analysisThenDesignInputProfile();
-    CreateChainTestOrchestrator runtime =
-        newRuntime(profile, analysisCandidate(), designInput);
+    CreateChainTestOrchestrator runtime = newRuntime(2,
+        new RecoveryAttemptLedger(new RecoveryAttemptLedger.Limits(1, 2, perRunCeiling, 1)),
+        profile, analysisCandidate(), designInput);
     startAndRecordInput(runtime, profile);
     approveStage(runtime, "requirement-analysis");
-
-    StageExecutionResult localRepair = execute(runtime, "design-input");
-    assertInstanceOf(StageDecision.Retry.class, localRepair.decision());
-    applyLifecycle(runtime, localRepair);
-
-    StageExecutionResult cleanRebuild = execute(runtime, "design-input");
-    assertInstanceOf(StageDecision.Retry.class, cleanRebuild.decision());
-    assertTrue(
-        cleanRebuild.signals().stream()
-            .filter(PipelineSignal.Progress.class::isInstance)
-            .map(PipelineSignal.Progress.class::cast)
-            .anyMatch(progress -> progress.label().contains("clean model turn")));
-    applyLifecycle(runtime, cleanRebuild);
-
-    StageDecision.WaitForInput wait =
-        assertInstanceOf(
-            StageDecision.WaitForInput.class,
-            execute(runtime, "design-input").decision());
-
-    assertEquals(
-        PipelineGates.RECOVERY_REPAIR_ALLOWANCE,
-        PipelineGates.gateOf(wait.prompt()).orElseThrow());
-    assertEquals(
-        List.of(PipelineGates.CONTINUE_REPAIR_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
-        ChatEvent.actionsForGate(PipelineGates.RECOVERY_REPAIR_ALLOWANCE));
+    for (int correction = 0; correction < 2; correction++) {
+      StageExecutionResult result = execute(runtime, "design-input");
+      assertInstanceOf(StageDecision.Retry.class, result.decision());
+      applyLifecycle(runtime, result);
+    }
+    return runtime;
   }
 
   @Test
@@ -3044,9 +3060,7 @@ class ProductPipelineStageExecutorTest {
     assertTrue(cleanRebuild.signals().stream().filter(PipelineSignal.Progress.class::isInstance)
         .map(PipelineSignal.Progress.class::cast).anyMatch(progress -> progress.label().contains("clean model turn")));
     applyLifecycle(runtime, cleanRebuild);
-    StageDecision.WaitForInput wait = assertInstanceOf(StageDecision.WaitForInput.class,
-        execute(runtime, "design-input").decision());
-    assertEquals(PipelineGates.RECOVERY_REPAIR_ALLOWANCE, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertGrantsAnotherCorrection(execute(runtime, "design-input"));
     assertEquals(approved, snapshot(requireRun(), "requirement-analysis").approvedArtifactId());
     assertEquals(3, calls.get());
   }
@@ -3283,7 +3297,7 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
-  void aRepeatedPlanningContractFailureUsesOneCleanRebuildBeforeOfferingManualRecovery() {
+  void aRepeatedPlanningContractFailureUsesOneCleanRebuildBeforeAGrant() {
     StageCapability planning =
         capability(
             "planning-cap",
@@ -3317,17 +3331,7 @@ class ProductPipelineStageExecutorTest {
             .anyMatch(progress -> progress.label().contains("clean model turn")));
     applyLifecycle(runtime, cleanRebuild);
 
-    StageDecision.WaitForInput wait =
-        assertInstanceOf(
-            StageDecision.WaitForInput.class,
-            execute(runtime, "design-planning").decision());
-
-    assertEquals(
-        PipelineGates.RECOVERY_REPAIR_ALLOWANCE,
-        PipelineGates.gateOf(wait.prompt()).orElseThrow());
-    assertEquals(
-        List.of(PipelineGates.CONTINUE_REPAIR_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
-        ChatEvent.actionsForGate(PipelineGates.RECOVERY_REPAIR_ALLOWANCE));
+    assertGrantsAnotherCorrection(execute(runtime, "design-planning"));
   }
 
   @Test
@@ -5291,11 +5295,11 @@ class ProductPipelineStageExecutorTest {
             "historical-producer", "1", "sha")));
     approveCurrentStage(runtime, "requirement-analysis");
 
-    StageDecision.WaitForInput wait = waitAfterOptionalSemanticRepair(runtime, "design-input");
+    StageDecision.WaitForInput wait = waitAfterOptionalSemanticRepair(runtime, "design-input", 12);
 
-    assertEquals(3, captureCalls.get());
+    assertEquals(13, captureCalls.get());
     assertEquals(
-        PipelineGates.RECOVERY_REPAIR_ALLOWANCE,
+        PipelineGates.RECOVERY_REBUILD_DESIGN,
         PipelineGates.gateOf(wait.prompt()).orElseThrow());
     assertFalse(
         ChatEvent.actionsForGate(PipelineGates.gateOf(wait.prompt()).orElseThrow())
@@ -5437,11 +5441,11 @@ class ProductPipelineStageExecutorTest {
     startAndRecordInput(runtime, profile);
     approveCurrentStage(runtime, "requirement-analysis");
 
-    StageDecision.WaitForInput wait = waitAfterOptionalSemanticRepair(runtime, "design-input");
+    StageDecision.WaitForInput wait = waitAfterOptionalSemanticRepair(runtime, "design-input", 12);
 
-    assertEquals(3, captureCalls.get());
+    assertEquals(13, captureCalls.get());
     assertEquals(
-        PipelineGates.RECOVERY_REPAIR_ALLOWANCE,
+        PipelineGates.RECOVERY_REBUILD_DESIGN,
         PipelineGates.gateOf(wait.prompt()).orElseThrow());
     assertTrue(PipelineGates.ownerCandidatesOf(wait.prompt()).isEmpty());
     assertFalse(PipelineGates.strip(wait.prompt()).contains("requirement-analysis"));
@@ -5480,8 +5484,12 @@ class ProductPipelineStageExecutorTest {
         newRuntime(new FailureNarrative(agent), profile, analysisCandidate(), designInput);
     startAndRecordInput(runtime, profile);
     approveCurrentStage(runtime, "requirement-analysis");
-    StageDecision.WaitForInput first = waitAfterOptionalSemanticRepair(runtime, "design-input");
-    applyLifecycle(runtime, new StageExecutionResult(first, List.of()));
+    for (int correction = 0; correction < 2; correction++) {
+      StageExecutionResult result = execute(runtime, "design-input");
+      assertInstanceOf(StageDecision.Retry.class, result.decision());
+      applyLifecycle(runtime, result);
+    }
+    presentSavedRepairOffer();
 
     runtime
         .recordInput(new AcceptInputCommand(RUN_ID, ProductPipelineRunSupport.repairOfferCommand(requireRun()),
@@ -5494,7 +5502,7 @@ class ProductPipelineStageExecutorTest {
     assertEquals("design-input", requireRun().run().currentStageId());
     assertEquals(RunStatus.RUNNING, requireRun().run().status());
     assertEquals(StageStatus.RUNNING, snapshot(requireRun(), "design-input").status());
-    assertEquals(3, captureCalls.get());
+    assertEquals(2, captureCalls.get());
   }
 
   @ParameterizedTest
@@ -7093,7 +7101,7 @@ class ProductPipelineStageExecutorTest {
         approvedBriefId, snapshot(requireRun(), "requirement-analysis").approvedArtifactId());
     assertEquals(StageStatus.SUCCEEDED, snapshot(requireRun(), "design-planning").status());
     assertEquals(approvedPlanId, snapshot(requireRun(), "design-planning").approvedArtifactId());
-    assertEquals(3, executionCalls.get());
+    assertEquals(13, executionCalls.get());
   }
 
   @ParameterizedTest
@@ -7160,15 +7168,15 @@ class ProductPipelineStageExecutorTest {
     } else {
       StageDecision.WaitForInput wait = assertInstanceOf(StageDecision.WaitForInput.class, repaired);
       assertEquals(
-          PipelineGates.RECOVERY_REPAIR_ALLOWANCE, PipelineGates.gateOf(wait.prompt()).orElseThrow());
-      assertTrue(PipelineGates.guardOf(wait.prompt()).isEmpty());
+          PipelineGates.RECOVERY_REPEATED, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+      assertEquals(HaltRecoveryGuard.MAX_SEMANTIC_REPAIRS.name(), PipelineGates.guardOf(wait.prompt()).orElseThrow());
       assertTrue(
           PipelineGates.recoveryTechnicalDetailsOf(wait.prompt())
               .orElseThrow()
               .contains("unknown property key 'topic'"));
       assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
     }
-    assertEquals(repairSucceeds ? 2 : 3, executionCalls.get());
+    assertEquals(repairSucceeds ? 2 : 13, executionCalls.get());
     assertTrue(repairError.get().contains("unknown property key 'topic'"));
     assertEquals(StageStatus.SUCCEEDED, snapshot(requireRun(), "requirement-analysis").status());
     assertEquals(approvedBriefId, snapshot(requireRun(), "requirement-analysis").approvedArtifactId());
@@ -7177,7 +7185,7 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
-  void aCaptureContractFailureWithoutFindingsReachesCleanCorrectionBeforePausing() {
+  void aCaptureContractFailureWithoutFindingsReachesCleanCorrectionBeforeAGrant() {
     FakeFailureNarrativeAgent agent =
         FakeFailureNarrativeAgent.owner("", "requirement-analysis");
     AtomicInteger executionCalls = new AtomicInteger();
@@ -7201,19 +7209,9 @@ class ProductPipelineStageExecutorTest {
     assertInstanceOf(StageDecision.Retry.class, clean.decision());
     applyLifecycle(runtime, clean);
 
-    StageDecision.WaitForInput wait =
-        assertInstanceOf(
-            StageDecision.WaitForInput.class, execute(runtime, "design-execution").decision());
-
-    assertEquals(
-        PipelineGates.RECOVERY_REPAIR_ALLOWANCE, PipelineGates.gateOf(wait.prompt()).orElseThrow());
-    assertTrue(PipelineGates.guardOf(wait.prompt()).isEmpty());
-    assertTrue(
-        PipelineGates.recoveryTechnicalDetailsOf(wait.prompt())
-            .orElseThrow()
-            .contains("Cannot deserialize"));
+    assertGrantsAnotherCorrection(execute(runtime, "design-execution"));
     assertEquals("design-execution", requireRun().run().currentStageId());
-    assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
+    assertEquals(RunStatus.RUNNING, requireRun().run().status());
     assertEquals(3, executionCalls.get());
   }
 
@@ -7975,6 +7973,11 @@ class ProductPipelineStageExecutorTest {
    */
   private StageDecision.WaitForInput waitAfterOptionalSemanticRepair(
       CreateChainTestOrchestrator runtime, String stageId) {
+    return waitAfterOptionalSemanticRepair(runtime, stageId, 2);
+  }
+
+  private StageDecision.WaitForInput waitAfterOptionalSemanticRepair(
+      CreateChainTestOrchestrator runtime, String stageId, int maxRetries) {
     StageExecutionResult result = execute(runtime, stageId);
     int retries = 0;
     while (result.decision() instanceof StageDecision.Retry retry) {
@@ -7983,9 +7986,37 @@ class ProductPipelineStageExecutorTest {
       }
       applyLifecycle(runtime, result);
       result = execute(runtime, stageId);
-      assertTrue(++retries <= 2, "recovery exceeded its bounded automatic retries");
+      assertTrue(++retries <= maxRetries, "recovery exceeded its bounded automatic retries");
     }
     return assertInstanceOf(StageDecision.WaitForInput.class, result.decision());
+  }
+
+  /**
+   * Commits a Continue repair offer for the current stage, in the shape a saved run that waits on one holds. The
+   * offer carries the halt evidence of the stage's latest failed attempt, so its binding names that attempt's defect.
+   */
+  private void presentSavedRepairOffer() {
+    ProductPipelineRunDocument doc = requireRun();
+    String stageId = doc.run().currentStageId();
+    String evidence = doc.attempts().stream()
+        .filter(attempt -> stageId.equals(attempt.stageId()) && attempt.failureEvidence() != null)
+        .map(StageAttempt::failureEvidence).reduce((first, second) -> second).orElseThrow();
+    long revision = doc.run().runRevision();
+    runStore.commit(revision, org.qubership.integration.platform.ai.productpipeline.store.LogicalCommit.statusChange(
+        doc.run(), StageStatus.WAITING_FOR_INPUT, doc.run().stages(),
+        new StageAttempt("saved-offer", stageId, revision + 1, StageStatus.WAITING_FOR_INPUT, FIXED, FIXED,
+            List.of(), evidence),
+        new org.qubership.integration.platform.ai.productpipeline.store.RunTransition(revision, revision + 1,
+            doc.run().status(), RunStatus.WAITING_FOR_INPUT, stageId, FIXED,
+            PipelineGates.tag(PipelineGates.RECOVERY_REPAIR_ALLOWANCE,
+                "Automatic corrections for this defect are spent."), null, null)));
+  }
+
+  /** Asserts that the execution grants its spent defect another repair allowance and retries the stage. */
+  private void assertGrantsAnotherCorrection(StageExecutionResult result) {
+    assertInstanceOf(StageDecision.Retry.class, result.decision());
+    String reason = requireRun().transitions().getLast().reason();
+    assertTrue(reason.startsWith(RecoveryAttemptLedger.GRANT_TARGETED_REASON_PREFIX), reason);
   }
 
   private void applyLifecycle(

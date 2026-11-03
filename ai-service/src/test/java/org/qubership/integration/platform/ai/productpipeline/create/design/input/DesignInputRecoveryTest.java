@@ -221,7 +221,7 @@ class DesignInputRecoveryTest {
 
   @ParameterizedTest
   @ValueSource(strings = {"regenerate", "missing"})
-  void repeatedTopologyRejectionOffersRepairAllowanceWithoutBlamingTheBrief(String decisionMode) {
+  void repeatedTopologyRejectionGrantsAnotherCorrectionWithoutBlamingTheBrief(String decisionMode) {
     verifyRecovery(decisionMode, true);
   }
 
@@ -489,10 +489,9 @@ class DesignInputRecoveryTest {
       assertInstanceOf(StageDecision.Retry.class, second.decision());
       support.applyStageLifecycle(RUN, second).collect().asList().await().indefinitely();
       var third = support.stageExecutor().execute(RUN, "design-input").await().indefinitely();
-      var wait = assertInstanceOf(StageDecision.WaitForInput.class, third.decision());
-      assertEquals(
-          PipelineGates.RECOVERY_REPAIR_ALLOWANCE,
-          PipelineGates.gateOf(wait.prompt()).orElseThrow());
+      assertInstanceOf(StageDecision.Retry.class, third.decision());
+      String grant = runs.load(RUN).orElseThrow().transitions().getLast().reason();
+      assertTrue(grant.startsWith(RecoveryAttemptLedger.GRANT_TARGETED_REASON_PREFIX), grant);
       assertTrue(artifacts.latest(RUN, Kind.CHAIN_SEMANTIC_REVISION).isEmpty());
     } else {
       assertInstanceOf(StageDecision.Continue.class, second.decision());

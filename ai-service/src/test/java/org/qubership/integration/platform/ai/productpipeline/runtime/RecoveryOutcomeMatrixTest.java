@@ -246,8 +246,9 @@ class RecoveryOutcomeMatrixTest {
     exhaustAutomaticCorrections(runtime, "design-input");
 
     RecoveryOutcomeTelemetry.Event presented = presented();
-    assertEquals("repair-allowance-required", presented.category());
-    assertEquals(List.of(PipelineGates.CONTINUE_REPAIR_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION), presented.offeredActions());
+    assertEquals("design-artifact-defect", presented.category());
+    assertEquals(List.of(ChatEvent.REBUILD_DESIGN_ACTION,
+        PipelineGates.STOP_WITH_REPORT_ACTION), presented.offeredActions());
     assertFalse(presented.offeredActions().contains("submit"));
     assertFalse(presented.offeredActions().contains("design-input"));
     endRun(runtime);
@@ -257,7 +258,7 @@ class RecoveryOutcomeMatrixTest {
   }
 
   @Test
-  void regeneratableExecutionRetriesBeforeOfferingAuthorActions() {
+  void regeneratableExecutionRetriesToTheRecoveryCeilingBeforeOfferingOnlyStop() {
     FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("unused");
     ProductPipelineProfile profile = analysisThenPlanningThenExecutionProfile();
     CreateChainTestOrchestrator runtime =
@@ -274,8 +275,8 @@ class RecoveryOutcomeMatrixTest {
     exhaustAutomaticCorrections(runtime, "design-execution");
 
     RecoveryOutcomeTelemetry.Event presented = presented();
-    assertEquals("repair-allowance-required", presented.category());
-    assertEquals(List.of(PipelineGates.CONTINUE_REPAIR_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION), presented.offeredActions());
+    assertEquals("repeated-identical-failure", presented.category());
+    assertEquals(List.of(PipelineGates.STOP_WITH_REPORT_ACTION), presented.offeredActions());
     assertFalse(presented.offeredActions().contains("design-execution"));
     endRun(runtime);
     assertEquals(
@@ -469,14 +470,14 @@ class RecoveryOutcomeMatrixTest {
   }
 
   private void exhaustAutomaticCorrections(CreateChainTestOrchestrator runtime, String stageId) {
-    for (int invocation = 0; invocation < 5; invocation++) {
+    for (int invocation = 0; invocation <= RecoveryAttemptLedger.DEFAULT_PER_RUN_CEILING; invocation++) {
       var result = execute(runtime, stageId);
       if (result.decision() instanceof StageDecision.WaitForInput) { return; }
       assertInstanceOf(StageDecision.Retry.class, result.decision());
       assertTrue(telemetry.events().stream().noneMatch(event -> RecoveryOutcomeTelemetry.KIND_PRESENTED.equals(event.kind())));
       runtime.support().applyStageLifecycle(RUN_ID, result).collect().asList().await().indefinitely();
     }
-    org.junit.jupiter.api.Assertions.fail("Repair allowance must pause after the original invocation and four corrections");
+    org.junit.jupiter.api.Assertions.fail("Recovery must pause once the original invocation and the run's recovery ceiling are spent");
   }
 
   private RecoveryOutcomeTelemetry.Event presented() {
