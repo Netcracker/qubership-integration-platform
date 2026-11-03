@@ -12,11 +12,7 @@ import type {
   Deployment,
   Snapshot,
 } from "../../src/api/apiTypes.ts";
-import {
-  DeploymentStatus,
-  DeployMode,
-  DomainType,
-} from "../../src/api/apiTypes.ts";
+import { DeploymentStatus, DomainType } from "../../src/api/apiTypes.ts";
 import type { CreateDeploymentOptions } from "../../src/components/modal/DeploymentCreate.tsx";
 import { formatTimestamp } from "../../src/misc/format-utils.ts";
 import { Deployments } from "../../src/pages/Deployments.tsx";
@@ -489,14 +485,12 @@ describe("Deployments chain header toolbar", () => {
       domain: "classic-domain",
       domainType: DomainType.CLASSIC,
       snapshotId: "snap-x",
-      mode: DeployMode.APPEND,
       suspended: false,
     });
     expect(mockCreateDeployment).toHaveBeenNthCalledWith(2, "chain-1", {
       domain: "micro-domain",
       domainType: DomainType.MICRO,
       snapshotId: "snap-x",
-      mode: DeployMode.APPEND,
       suspended: false,
     });
 

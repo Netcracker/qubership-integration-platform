@@ -409,9 +409,6 @@ export interface BulkDeploymentRow {
   domain: { name: string; replicas: number; type: string };
 }
 
-/** `REWRITE` replaces the chains a micro domain runs; `APPEND` adds to them. */
-export type CustomResourceMode = "REWRITE" | "APPEND";
-
 export type DomainType = "CLASSIC" | "MICRO";
 
 /** One service `POST /v1/systems/discovery` created, as `GET /v1/systems/discovery` lists it. */

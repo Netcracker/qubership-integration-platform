@@ -11,7 +11,6 @@ import { TableProps } from "antd/lib/table";
 import {
   CreateDeploymentRequest,
   Deployment,
-  DeployMode,
   DomainType,
   Snapshot,
 } from "../api/apiTypes.ts";
@@ -220,7 +219,6 @@ export const Deployments: React.FC = () => {
               domain: domain.name,
               domainType: domain.type,
               snapshotId: options.snapshotId,
-              mode: DeployMode.APPEND,
               suspended: false,
             };
             const deployment = await api.createDeployment(chainId, request);

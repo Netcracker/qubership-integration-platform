@@ -287,7 +287,6 @@ export type CreateDeploymentRequest = {
   domain: string;
   domainType?: DomainType;
   snapshotId: string;
-  mode?: DeployMode;
   suspended: boolean;
 };
 

@@ -24,6 +24,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.configuration.DomainProperties;
 import org.qubership.integration.platform.runtime.catalog.cr.BulkDeploymentService;
 import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainService;
+import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.DeployMode;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceDeployRequest;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DeploymentProcessingException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DomainTypeDisabledException;
@@ -151,7 +152,7 @@ public class DeploymentController {
                 bulkDeploymentService.deployResource(ResourceDeployRequest.builder()
                         .name(request.getDomain())
                         .snapshotIds(List.of(snapshot.getId()))
-                        .mode(request.getMode())
+                        .mode(DeployMode.APPEND)
                         .build());
                 return ResponseEntity.ok(deploymentMapper.asMicroResponse(chain.getId(), request.getDomain(), snapshot));
             });
