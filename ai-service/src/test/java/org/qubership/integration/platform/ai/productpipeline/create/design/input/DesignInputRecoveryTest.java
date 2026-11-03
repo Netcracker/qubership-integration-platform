@@ -514,7 +514,128 @@ class DesignInputRecoveryTest {
     assertTrue(artifacts.latest(RUN, Kind.MATERIALIZATION_RESULT).isEmpty());
   }
 
+  /**
+   * A design the model keeps resubmitting with the same rejection is corrected and rebuilt without a card until the
+   * run's recovery ceiling is spent, and only then shows the Rebuild design card. The capture tool and the capability
+   * share one feedback store, as they do in production, so every rejection reaches the executor as a capture failure.
+   * The run used to stop on the capture-validator card after the second model turn, one ceiling unit into the run.
+   */
+  @org.junit.jupiter.api.Test
+  void aCaptureTheModelKeepsRepeatingIsCorrectedWithoutACardUntilTheRecoveryCeiling() {
+    var run = repeatedRejectionRun();
+
+    var wait = run.executeUntilWait();
+
+    assertTrue(new RecoveryAttemptLedger().perRunCeilingReached(run.runs().load(RUN).orElseThrow().transitions()),
+        wait.prompt());
+    assertEquals(PipelineGates.RECOVERY_REBUILD_DESIGN, PipelineGates.gateOf(wait.prompt()).orElseThrow(),
+        wait.prompt());
+    // The first turn, then one turn for each of the twelve corrections the ceiling counts.
+    assertEquals(RecoveryAttemptLedger.DEFAULT_PER_RUN_CEILING + 1, run.calls().get());
+  }
+
+  /** A trusted Retry on the card shown at the recovery ceiling runs the design again. */
+  @org.junit.jupiter.api.Test
+  void aRetryOnTheCardAtTheRecoveryCeilingRunsTheDesignAgain() {
+    var run = repeatedRejectionRun();
+    run.executeUntilWait();
+    int callsAtTheCard = run.calls().get();
+
+    run.runtime().recordInput(new AcceptInputCommand(RUN, PipelineGates.RETRY_ACTION, "retry-click", "retry-hash",
+        org.qubership.integration.platform.ai.productpipeline.runtime.InputOrigin.TRUSTED))
+        .collect().asList().await().indefinitely();
+    var retried = run.support().stageExecutor().execute(RUN, "design-input").await().indefinitely();
+
+    assertInstanceOf(StageDecision.Retry.class, retried.decision(), () -> retried.decision().toString());
+    assertEquals(callsAtTheCard + 1, run.calls().get());
+  }
+
+  private record RepeatedRejectionRun(ProductPipelineRunStore runs, ProductPipelineRunSupport support,
+      CreateChainTestOrchestrator runtime, AtomicInteger calls) {
+    /** Executes design-input, applying each automatic retry, until the stage waits for the author. */
+    StageDecision.WaitForInput executeUntilWait() {
+      for (int execution = 0; execution < 40; execution++) {
+        var result = support.stageExecutor().execute(RUN, "design-input").await().indefinitely();
+        if (!(result.decision() instanceof StageDecision.Retry)) {
+          return assertInstanceOf(StageDecision.WaitForInput.class, result.decision(),
+              () -> result.decision().toString());
+        }
+        support.applyStageLifecycle(RUN, result).collect().asList().await().indefinitely();
+      }
+      throw new AssertionError("design-input retried 40 times without waiting for the author");
+    }
+  }
+
+  /** Starts a run whose design model resubmits the same rejected topology on every turn. */
+  private RepeatedRejectionRun repeatedRejectionRun() {
+    Clock clock = Clock.fixed(Instant.EPOCH, ZoneOffset.UTC);
+    ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    InMemoryArtifactBlobStore blobs = new InMemoryArtifactBlobStore();
+    ProductPipelineArtifactStore artifacts =
+        new ProductPipelineArtifactStore(new CompilationArtifacts(blobs, mapper, clock));
+    ProductPipelineRunStore runs = new ProductPipelineRunStore(blobs, mapper, clock);
+    RequirementBrief brief =
+        MappingGapCoverage.skipUncovered(ChainSemanticCaptureFixtures.rockyBriefWithMapping());
+    ChainSemanticCapture valid = ChainSemanticCaptureFixtures.rockyCapture();
+    List<ChainSemanticCapture.CapturedEdge> edges = new ArrayList<>(valid.edges());
+    edges.add(new ChainSemanticCapture.CapturedEdge(
+        "create-task", "task-result", null, SemanticRouteKind.CATCH_PATH, null, null, "catch-all", null));
+    ChainSemanticCapture rejected = ChainSemanticCaptureFixtures.rockyCapture(valid.operations(), edges);
+    var feedback = new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore();
+    ChainSemanticCaptureTool tool = captureTool(feedback);
+    AtomicInteger calls = new AtomicInteger();
+    DesignInputCapability design = new DesignInputCapability((conversation, prompt) -> {
+      calls.incrementAndGet();
+      return Multi.createFrom().item(tool.captureChainSemanticRevision(rejected));
+    }, new DefaultChainSemanticIdsRenderer());
+    design.captureFeedback = feedback;
+    StageCapability analysis = new StageCapability() {
+      public String capabilityId() { return "analysis-cap"; }
+      public Multi<CapabilitySignal> execute(StageExecutionContext context) {
+        return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(StageOutcomeClass.CANDIDATE,
+            List.of(new ArtifactCandidate(Kind.REQUIREMENT_BRIEF, brief, List.of())), "brief ready", null)));
+      }
+    };
+    ArtifactTypeRef briefType = new ArtifactTypeRef("requirement-brief", 1);
+    ArtifactTypeRef flowType = new ArtifactTypeRef("chain-semantic-revision", 1);
+    ProductPipelineProfile profile = new ProductPipelineProfile(1, "capture-recovery", "1",
+        List.of(new ArtifactTypeRef("user-input", 1)),
+        List.of(
+            new ProfileStage("requirement-analysis", "analysis-cap", List.of(new ArtifactTypeRef("user-input", 1)),
+                List.of(briefType), new ApprovalPolicy(briefType), null, new RetryPolicy(0, 0)),
+            new ProfileStage("design-input", design.capabilityId(), List.of(briefType),
+                List.of(flowType, new ArtifactTypeRef("ids-document", 1)), null, null, new RetryPolicy(0, 0)),
+            new ProfileStage("design-planning", "planning-cap", List.of(flowType), List.of(), null, null,
+                new RetryPolicy(0, 0))),
+        new TerminalPolicy("design-planning", "PLAN_APPROVED"),
+        List.of("analysis-cap", design.capabilityId(), "planning-cap"));
+    RunManifest manifest = new RunManifest(RUN, null, List.of(), "product", profile.profileId(), "1", "sha",
+        "baseline", "sha", List.of(), "sha", null, "24.4", List.of(), null);
+    var agent = FakeFailureNarrativeAgent.narrates("unused")
+        .recoverRegenerates(Kind.CHAIN_SEMANTIC_REVISION, "Repair the generated topology.");
+    ProductPipelineRunSupport support = CreateChainTestOrchestrator.supportBuilder(runs, artifacts,
+            new StageCapabilityRegistry(List.of(analysis, design)), clock)
+        .failureNarrative(new FailureNarrative(agent))
+        .recoveryLedger(new RecoveryAttemptLedger())
+        .build();
+    CreateChainTestOrchestrator runtime = new CreateChainTestOrchestrator(support, runs);
+    runtime.startOrResume(new StartOrResumeCommand("capture-recovery-conversation", RUN, profile, manifest))
+        .collect().asList().await().indefinitely();
+    runtime.recordInput(new AcceptInputCommand(RUN, "approved Rocky request"))
+        .collect().asList().await().indefinitely();
+    var approval = assertInstanceOf(StageDecision.WaitForApproval.class,
+        support.stageExecutor().execute(RUN, "requirement-analysis").await().indefinitely().decision());
+    runtime.recordApprove(new ApproveCommand(RUN, approval.candidate(), runs.load(RUN).orElseThrow().run().runRevision()))
+        .collect().asList().await().indefinitely();
+    return new RepeatedRejectionRun(runs, support, runtime, calls);
+  }
+
   private static ChainSemanticCaptureTool captureTool() {
+    return captureTool(new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore());
+  }
+
+  private static ChainSemanticCaptureTool captureTool(
+      org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore feedback) {
     CatalogElementDescriptorLoader descriptors = mock(CatalogElementDescriptorLoader.class);
     CatalogElementDescriptorTestSupport.stubPermissive(descriptors);
     CipKnowledgePackRepository pack = mock(CipKnowledgePackRepository.class);
@@ -544,6 +665,8 @@ class DesignInputRecoveryTest {
         new DefaultChainSemanticRevisionValidator(),
         new ClasspathCompilerContractRepository(),
         pack,
-        descriptors);
+        descriptors,
+        new org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryFaultInjector("", ""),
+        feedback);
   }
 }

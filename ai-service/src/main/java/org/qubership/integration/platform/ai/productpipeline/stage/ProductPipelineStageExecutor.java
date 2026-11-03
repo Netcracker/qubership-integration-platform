@@ -1131,7 +1131,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       return recoverValidationFailure(
           doc, stage, refs, outcomeClass, cause, findings, evidence, emitted, producerRepairAllowed);
     }
-    if (!nativeCaptureRepairAllowed(doc, stage, budgetCause)) {
+    if (closedCaptureFailure(budgetCause)) {
       return waitContextualRecovery(doc, stage, refs, PipelineGates.RECOVERY_REPEATED,
           "The capture validator has not permitted another correction. Progress is saved.", evidence, null, emitted);
     }
@@ -1599,9 +1599,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       putRunAttribute(runId, ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR, cause.formattedFindings());
       putRunAttribute(runId, ProductPipelineRunSupport.STAGE_ERROR_REQUESTED_FACT_ATTR, question.propertyKey());
     }
-    boolean repeatedNativeCapture = cause.captureFailure() != null && cause.captureFailure().feedback() != null
-        && cause.captureFailure().feedback().failureClass()
-            == org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass.IDENTICAL_SPAM;
+    boolean repeatedNativeCapture = repeatedCapture(cause);
     boolean currentCleanEligible = producerRepairAllowed && repeatedNativeCapture && !rejectedInput
         && ProducerOwnedRecovery.permitsCurrentOutputRecovery(outcomeClass, cause,
             invocationProved, pinnedInputsAvailable, unresolvedChoice, catalogHasBeenWritten(runId));
@@ -1683,10 +1681,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         && (currentProducerFallback || validatedSyntheticOutput || selectedFault != null && artifactStore.get(runId, selectedFault)
             .filter(candidate -> candidate.provenance() != null
                 && stage.stageId().equals(candidate.provenance().stageId())).isPresent());
-    if (!nativeCaptureRepairAllowed(doc, stage, budgetCause)
-        && !(currentCleanEligible && currentRepairTarget && supportsCleanProducerRebuild(stage.stageId())
-            && nativeCaptureSlotAvailable(doc, stage, budgetCause)
-            && recoveryLedger.mayCleanRebuild(doc.transitions(), recoveryKey))) {
+    if (closedCaptureFailure(budgetCause)) {
       return waitContextualRecovery(doc, stage, refs, PipelineGates.RECOVERY_REPEATED,
           "The capture validator has not permitted another correction. Progress is saved.", evidenceText, null, emitted);
     }
@@ -2086,20 +2081,20 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     return new StageExecutionResult(new StageDecision.Retry(ownerStageId, Duration.ZERO), emitted);
   }
 
-  private boolean nativeCaptureRepairAllowed(
-      ProductPipelineRunDocument doc, ProfileStage stage, RecoveryCause cause) {
-    if (cause.captureFailure() == null) return true;
-    if (!ProducerOwnedRecovery.permitsNativeCaptureRepair(cause)) return false;
-    return nativeCaptureSlotAvailable(doc, stage, cause);
+  /**
+   * True for a capture failure that another model turn cannot correct: a permanent or tool-arguments rejection, or
+   * any other class that permits no targeted correction and is not a repeat. A correctable rejection and its repeat
+   * follow the stage's recovery ladder, bounded by the run's recovery ceiling.
+   */
+  private static boolean closedCaptureFailure(RecoveryCause cause) {
+    return cause.captureFailure() != null && !ProducerOwnedRecovery.permitsNativeCaptureRepair(cause)
+        && !repeatedCapture(cause);
   }
 
-  private boolean nativeCaptureSlotAvailable(
-      ProductPipelineRunDocument doc, ProfileStage stage, RecoveryCause cause) {
-    var key = recoveryLedger.key(stage.stageId(), cause,
-        RecoveryAttemptLedger.inputArtifactIdentity(doc, stage.stageId()), doc.transitions());
-    // Native capture permits at most one outer correction, even when the stage has other credits.
-    return recoveryLedger.repairsUsed(doc.transitions(), key, InputOrigin.TRUSTED)
-        + recoveryLedger.cleanRebuildsUsed(doc.transitions(), key) < 1;
+  private static boolean repeatedCapture(RecoveryCause cause) {
+    return cause.captureFailure() != null && cause.captureFailure().feedback() != null
+        && cause.captureFailure().feedback().failureClass()
+            == org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass.IDENTICAL_SPAM;
   }
 
   private StageExecutionResult waitContextualRecovery(

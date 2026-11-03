@@ -12,7 +12,7 @@ import org.qubership.integration.platform.ai.productpipeline.recovery.Requiremen
  * <p>{@link #kind()} remains the wording channel for {@link CaptureRepairMessageBuilder}. {@link
  * #failureClass()} and {@link #outerAllowed()} gate targeted correction. A repeated rejection
  * forbids another targeted correction but may use an available producer-owned clean regeneration.
- * PERMANENT and TOOL_ARGUMENTS forbid automatic capture recovery; CORRECTABLE permits at most one outer attempt.
+ * PERMANENT and TOOL_ARGUMENTS forbid automatic capture recovery; CORRECTABLE permits targeted correction.
  * {@link #fieldHints()} carry actionable nested→top copy guidance when present.
  */
 public record CaptureAttemptFeedback(

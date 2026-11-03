@@ -301,26 +301,25 @@ class ProductPipelineStageExecutorTest {
     assertEquals(1, cleanAttempts());
   }
 
+  /** A repeated capture whose clean regeneration was rejected again is granted another correction. */
   @Test
-  void failedCleanRegenerationConsumesTheNativeAllowance() {
+  void aRepeatedCaptureWhoseCleanRegenerationFailedIsGrantedAnotherCorrection() {
     var fixture = nativeCaptureFixture("Invalid property.", false, repeatClass(), 1, 12);
     var first = execute(fixture.runtime(), "design-execution");
     assertInstanceOf(StageDecision.Retry.class, first.decision());
     applyLifecycle(fixture.runtime(), first);
-    var wait = assertInstanceOf(StageDecision.WaitForInput.class,
-        execute(fixture.runtime(), "design-execution").decision());
-    assertEquals(PipelineGates.RECOVERY_REPEATED, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertGrantsAnotherCorrection(execute(fixture.runtime(), "design-execution"));
     assertEquals(List.of(false, true), fixture.clean());
     assertEquals(1, cleanAttempts());
   }
 
   /**
-   * A trusted Retry on the card the capture validator raises once the native allowance is spent regenerates the
-   * stage in a clean turn, so the author's click reaches the model even though no automatic correction is left.
+   * A trusted Retry on the card a repeated capture shows at the run's recovery ceiling regenerates the stage in a
+   * clean turn, so the author's click reaches the model although the ceiling is spent.
    */
   @Test
-  void aRetryAfterTheCaptureValidatorRefusedAnotherCorrectionRegeneratesCleanly() {
-    var fixture = nativeCaptureFixture("Invalid property.", 1, repeatClass(), 1, 12, true);
+  void aRetryAfterARepeatedCaptureSpentTheRecoveryCeilingRegeneratesCleanly() {
+    var fixture = nativeCaptureFixture("Invalid property.", 1, repeatClass(), 1, 1, true);
     var first = execute(fixture.runtime(), "design-execution");
     assertInstanceOf(StageDecision.Retry.class, first.decision());
     applyLifecycle(fixture.runtime(), first);
@@ -339,7 +338,7 @@ class ProductPipelineStageExecutorTest {
 
   @Test
   void aRetryOnARepeatedFailureCardAfterACatalogWriteIsRefused() {
-    var fixture = nativeCaptureFixture("Invalid property.", 1, repeatClass(), 1, 12, true);
+    var fixture = nativeCaptureFixture("Invalid property.", 1, repeatClass(), 1, 1, true);
     var first = execute(fixture.runtime(), "design-execution");
     applyLifecycle(fixture.runtime(), first);
     var wait = assertInstanceOf(StageDecision.WaitForInput.class,
@@ -377,11 +376,19 @@ class ProductPipelineStageExecutorTest {
     assertEquals(0, cleanAttempts());
   }
 
-  @ParameterizedTest
-  @org.junit.jupiter.params.provider.CsvSource({"0, 12", "1, 0"})
-  void exhaustedRecoveryBudgetDoesNotRegenerate(int cleanLimit, int runCeiling) {
-    var fixture = nativeCaptureFixture("Invalid property.", true, repeatClass(), cleanLimit, runCeiling);
+  @Test
+  void aSpentRecoveryCeilingDoesNotRegenerate() {
+    var fixture = nativeCaptureFixture("Invalid property.", true, repeatClass(), 1, 0);
     assertInstanceOf(StageDecision.WaitForInput.class, execute(fixture.runtime(), "design-execution").decision());
+    assertEquals(List.of(false), fixture.clean());
+    assertEquals(0, cleanAttempts());
+  }
+
+  /** A repeated capture on a stage allowed no clean regeneration is granted another correction instead. */
+  @Test
+  void aRepeatedCaptureWithNoCleanRegenerationAllowedIsGrantedAnotherCorrection() {
+    var fixture = nativeCaptureFixture("Invalid property.", true, repeatClass(), 0, 12);
+    assertGrantsAnotherCorrection(execute(fixture.runtime(), "design-execution"));
     assertEquals(List.of(false), fixture.clean());
     assertEquals(0, cleanAttempts());
   }

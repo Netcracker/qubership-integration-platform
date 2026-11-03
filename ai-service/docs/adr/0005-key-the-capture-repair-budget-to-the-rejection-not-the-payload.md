@@ -135,8 +135,9 @@ input, subject to the run ledger and the usual eligibility checks. ADR 0008 is s
 
 The runner's budget is no longer the last word on repair turns. The stage executor grants another automatic
 correction, and rebuilds the design or the plan, while the run stays below `qip.ai.create.recovery-attempt-ceiling`
-(12 by default). A Retry on a model-error card grants a fresh budget of two targeted corrections and two clean
-regenerations. Three limits bound the loop together: six tool calls bound a turn, the run ceiling bounds repairs,
+(12 by default). A capture rejection takes the same ladder: once a repeated rejection has spent its clean
+regenerations, the executor grants another correction instead of showing a card. A Retry on a model-error card grants
+a fresh budget of two targeted corrections and two clean regenerations. Three limits bound the loop together: six tool calls bound a turn, the run ceiling bounds repairs,
 clean rebuilds, and reopens, and `qip.ai.llm.max-requests-per-run` bounds the model calls of the whole run. Keeping
 the turn open therefore adds no unbounded path.
 

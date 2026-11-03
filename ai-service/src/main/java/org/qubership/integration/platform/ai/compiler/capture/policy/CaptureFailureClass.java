@@ -8,7 +8,7 @@ package org.qubership.integration.platform.ai.compiler.capture.policy;
  * comes back, whatever payload earned it the second time.
  */
 public enum CaptureFailureClass {
-  /** Fixable in-turn; first fail soft, then IDENTICAL_SPAM on the same rejection. Outer ≤ 1. */
+  /** Fixable in-turn; first fail soft, then IDENTICAL_SPAM on the same rejection. */
   CORRECTABLE,
   /** The same rejection after a soft credit; CVE ends the inner turn and forbids targeted correction. */
   IDENTICAL_SPAM,
