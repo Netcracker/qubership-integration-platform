@@ -193,7 +193,7 @@ function k8sProjects(brokers: boolean): SuiteProject[] {
       name: "k8s",
       testDir: "./specs/k8s",
       fullyParallel: true,
-      metadata: { lanes: PROJECT_LANES.k8s },
+      metadata: { lanes: PROJECT_LANES.k8s, requiresMicroEngine: true },
       dependencies: ["seed"],
     },
     {

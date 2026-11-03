@@ -191,7 +191,9 @@ export function runProjects(config: Pick<FullConfig, "argv" | "projects">): Full
 /** The projects of this run that run the micro engine. */
 export function microProjects(config: Pick<FullConfig, "argv" | "projects">): string[] {
   return runProjects(config)
-    .filter((project) => (project.use as { engineKind?: string }).engineKind === "micro")
+    .filter((project) =>
+      project.metadata.requiresMicroEngine === true || (project.use as { engineKind?: string }).engineKind === "micro",
+    )
     .map((project) => project.name);
 }
 

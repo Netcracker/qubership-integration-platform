@@ -5,6 +5,7 @@
  * builds, the refusal of a micro run without the micro engine, the micro-engine build profile, the
  * `kubectl top` parser, the broker overlay methods, the micro engine's address and restart, the
  * edges only the Kubernetes target adds, and the `env` patches a restart sends.
+ * Shown failing: ignoring k8s' micro requirement lets its run pass the check without micro-engine.
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -371,16 +372,22 @@ test.describe("k8s adapter", () => {
       /** The k8s projects, in the shape `FullConfig` carries them, for a command line. */
       const configFor = (...argv: string[]) => {
         const projects = withEnv({ E2E_BROKERS: undefined }, () => suiteProjects(targetSetup("k8s"))).map(
-          (each) => ({ ...each, dependencies: each.dependencies ?? [], use: each.use ?? {} }),
+          (each) => ({ ...each, dependencies: each.dependencies ?? [], use: each.use ?? {}, metadata: each.metadata ?? {} }),
         );
         return { argv: ["node", "playwright", "test", ...argv], projects } as unknown as FullConfig;
       };
       expect(microProjects(configFor("--project=seed"))).toEqual([]);
+      const customResources = microProjects(configFor("--project=k8s"));
+      expect(() => checkMicroBuild(imagesToBuild("none"), customResources)).toThrow("leaves out micro-engine");
+      expect(customResources).toEqual(["k8s"]);
+      expect(() => checkMicroBuild(imagesToBuild("micro-engine"), customResources)).not.toThrow();
+      expect(() => checkMicroBuild(imagesToBuild("none"), microProjects(configFor("--project=seed")))).not.toThrow();
       expect(microProjects(configFor(...laneFlags("classic")))).toEqual([]);
       expect(microProjects(configFor(...laneFlags("ui")))).toEqual([]);
       expect(microProjects(configFor(...laneFlags("micro"))).sort()).toEqual([
         "brokers-micro",
         "brokers-micro-seed",
+        "k8s",
         "runtime-micro",
         "runtime-micro-redeploy",
         "seed-micro",
