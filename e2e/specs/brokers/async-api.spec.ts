@@ -36,6 +36,7 @@
  * The Kafka `async-api-trigger` reads its topic from `earliest`: the consumer group turns Stable
  * before the consumer looks up its offset, so `latest` could skip the message this case publishes
  * right after the seed's consumer wait, and only this case publishes to the topic.
+ * Shown failing: without earliest, the inline-payload case skips its record queued before deployment.
  *
  * **The amqp `acknowledgeMode` reaches the consumer URI through the async properties.**
  * `EnvironmentPropertiesHelper.asyncProperties` merges the element's
@@ -140,7 +141,7 @@ test.describe("async-api", { tag: ["@engine", "@sessions"] }, () => {
                 integrationOperationMethod: operation.method,
                 integrationOperationProtocolType: "kafka",
                 reconnectDelay: 30000,
-                integrationOperationAsyncProperties: { groupId: topic },
+                integrationOperationAsyncProperties: { groupId: topic, autoOffsetReset: "earliest" },
                 idempotency: { enabled: false },
                 after,
               },
@@ -165,12 +166,12 @@ test.describe("async-api", { tag: ["@engine", "@sessions"] }, () => {
             );
 
             const snapshot = await catalog.createSnapshot(chain.id);
+            const valid = callToken("async-api-kafka-inline-ref-valid");
+            await publishKafka(topic, valid, JSON.stringify({ orderId: "1", address: { city: "Rome" } }));
             await catalog.deploy(chain.id, snapshot.id);
             await waitForDeployed(catalog, [chain]);
             await waitForKafkaConsumers([topic]);
 
-            const valid = callToken("async-api-kafka-inline-ref-valid");
-            await publishKafka(topic, valid, JSON.stringify({ orderId: "1", address: { city: "Rome" } }));
             const accepted = await sessions.byExternalId(valid, { elements: 2 });
             expect(accepted.chainId).toBe(chain.id);
             expect(elementNames(accepted)).toEqual(["AsyncAPI Trigger", "Header Modification"]);
