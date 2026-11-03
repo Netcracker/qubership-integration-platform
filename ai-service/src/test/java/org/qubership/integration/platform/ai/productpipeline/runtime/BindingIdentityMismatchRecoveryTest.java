@@ -236,6 +236,11 @@ class BindingIdentityMismatchRecoveryTest {
     assertTrue(
         PipelineGates.strip(prompt).contains(HaltRecoveryGuard.MAX_CAUSAL_REOPENS.cardSentence()),
         prompt);
+    assertEquals(List.of(PipelineGates.STOP_WITH_REPORT_ACTION),
+        org.qubership.integration.platform.ai.chat.ChatEvent.actionsForClarify(
+            new org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction.Clarify(
+                PipelineGates.strip(prompt), List.of(), PipelineGates.gateOf(prompt).orElseThrow(), "", null, "", "",
+                "", PipelineGates.guardOf(prompt).orElse(""))));
     assertEquals(designCallsBefore, designInputCalls.get());
     assertEquals(1, execution.calls.get());
     assertFalse(execution.compilerInvoked.get());

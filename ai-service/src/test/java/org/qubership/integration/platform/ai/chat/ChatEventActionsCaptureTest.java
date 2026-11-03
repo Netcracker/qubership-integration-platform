@@ -92,7 +92,7 @@ class ChatEventActionsCaptureTest {
   }
 
   @Test
-  void contextualDesignDefectOffersRebuildDesignAndRetryCreation() {
+  void contextualDesignDefectOffersRetryCreationWithoutRebuildDesign() {
     List<String> actions =
         ChatEvent.actionsForClarify(
             new CreateChainPendingAction.Clarify(
@@ -100,12 +100,7 @@ class ChatEventActionsCaptureTest {
                 List.of(),
                 PipelineGates.RECOVERY_REBUILD_DESIGN));
 
-    assertEquals(
-        List.of(
-            ChatEvent.REBUILD_DESIGN_ACTION,
-            ChatEvent.RETRY_CREATION_ACTION,
-            PipelineGates.STOP_WITH_REPORT_ACTION),
-        actions);
+    assertEquals(List.of(ChatEvent.RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION), actions);
   }
 
   @Test
@@ -157,6 +152,29 @@ class ChatEventActionsCaptureTest {
     assertEquals(
         List.of(ChatEvent.RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
         ChatEvent.actionsForClarify(repeatedFailureCardWithGuard(HaltRecoveryGuard.RUN_RECOVERY_CEILING)));
+  }
+
+  /**
+   * Retry creation reruns the current stage, which cannot correct a defect owned by an earlier stage the ledger will
+   * not reopen, so a card raised for such a defect offers only End run.
+   */
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.EnumSource(value = HaltRecoveryGuard.class,
+      names = {"OWNER_ALREADY_REOPENED", "MAX_CAUSAL_REOPENS"})
+  void aRepeatedFailureCardRefusingAnEarlierOwnerOffersOnlyEndRun(HaltRecoveryGuard guard) {
+    assertEquals(
+        List.of(PipelineGates.STOP_WITH_REPORT_ACTION),
+        ChatEvent.actionsForClarify(repeatedFailureCardWithGuard(guard)));
+  }
+
+  /** The ledger refuses the author's reopen of a plan the run already reopened, and Retry creation still returns to it. */
+  @Test
+  void aPlanCardForAPlanAlreadyReopenedOffersRetryCreationWithoutRebuildPlan() {
+    assertEquals(
+        List.of(ChatEvent.RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
+        ChatEvent.actionsForClarify(new CreateChainPendingAction.Clarify(
+            "The plan cannot be used.", List.of(), PipelineGates.RECOVERY_REBUILD_PLAN, "", null, "run-1",
+            "design-execution", "", HaltRecoveryGuard.OWNER_ALREADY_REOPENED.name())));
   }
 
   private static CreateChainPendingAction.Clarify repeatedFailureCardWithGuard(HaltRecoveryGuard guard) {

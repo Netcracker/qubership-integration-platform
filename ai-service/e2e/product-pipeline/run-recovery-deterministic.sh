@@ -57,6 +57,7 @@ RECOVERY_TESTS+=",MappingRepairCaptureValidatorTest,ProductRequirementBriefToolT
 RECOVERY_TESTS+=",RequirementCaptureProjectionTest,RequirementFlowValidatorTest,AuthorQuestionAdmissionTest"
 RECOVERY_TESTS+=",SerializedClarificationFlowTest"
 RECOVERY_TESTS+=",ChatEventActionsCaptureTest,DesignPlanCaptureToolTest,ChainSemanticDesignAgentTest"
+RECOVERY_TESTS+=",ChatDecisionServiceTest#aRebuildDesignSubmissionOnTheRebuildDesignCardIsNotForwarded"
 RECOVERY_TESTS+=",ProductPipelineStageExecutorTest#"
 RECOVERY_TESTS+="aCapabilityThatFailsItsStreamOnceRetriesTheStageAndCompletesWithoutACard+"
 RECOVERY_TESTS+="aCapabilityThatFailsItsStreamTwiceHaltsAsAnInternalFailureInsteadOfThrowing+"

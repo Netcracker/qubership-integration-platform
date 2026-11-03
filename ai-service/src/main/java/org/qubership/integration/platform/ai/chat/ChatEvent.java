@@ -706,8 +706,9 @@ public sealed interface ChatEvent {
           List.of(RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION);
       case PipelineGates.RECOVERY_REVISE_BRIEF ->
           List.of(EDIT_REQUIREMENTS_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION);
+      // Retry creation reruns the design with a fresh budget; a Rebuild design click would rerun it without one.
       case PipelineGates.RECOVERY_REBUILD_DESIGN ->
-          List.of(REBUILD_DESIGN_ACTION, RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION);
+          List.of(RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION);
       case PipelineGates.RECOVERY_REBUILD_PLAN ->
           List.of(REBUILD_PLAN_ACTION, RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION);
       case PipelineGates.RECOVERY_REPAIR_ALLOWANCE ->
@@ -824,12 +825,28 @@ public sealed interface ChatEvent {
       return List.of();
     }
     List<String> actions = actionsForGate(clarify.gateId());
-    // Retry creation reruns a stage, and no rerun can undo a chain the catalog already holds.
-    if (actions != null
-        && HaltRecoveryGuard.CATALOG_ALREADY_WRITTEN.name().equals(clarify.guard())) {
-      return actions.stream().filter(action -> !RETRY_CREATION_ACTION.equals(action)).toList();
+    String refused = refusedAction(clarify);
+    return actions == null || refused == null
+        ? actions : actions.stream().filter(action -> !refused.equals(action)).toList();
+  }
+
+  /**
+   * The action the card's guard says cannot work, or {@code null}. Retry creation reruns a stage, and no rerun can
+   * undo a chain the catalog already holds. On the Rebuild plan card, a plan this run already reopened refuses the
+   * author's reopen, while Retry creation still returns to it. On any other guarded card, Retry creation reruns the
+   * current stage, which cannot correct a defect owned by an earlier stage that the ledger will not reopen.
+   */
+  private static String refusedAction(PendingAction.Clarify clarify) {
+    String guard = clarify.guard();
+    if (HaltRecoveryGuard.CATALOG_ALREADY_WRITTEN.name().equals(guard)) {
+      return RETRY_CREATION_ACTION;
     }
-    return actions;
+    boolean upstreamRefused = HaltRecoveryGuard.OWNER_ALREADY_REOPENED.name().equals(guard)
+        || HaltRecoveryGuard.MAX_CAUSAL_REOPENS.name().equals(guard);
+    if (!upstreamRefused) {
+      return null;
+    }
+    return PipelineGates.RECOVERY_REBUILD_PLAN.equals(clarify.gateId()) ? REBUILD_PLAN_ACTION : RETRY_CREATION_ACTION;
   }
 
   /** True for an internal blank wait that must not become an empty decision card. */

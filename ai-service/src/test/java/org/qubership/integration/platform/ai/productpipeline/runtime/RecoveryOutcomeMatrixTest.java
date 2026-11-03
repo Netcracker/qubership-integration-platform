@@ -239,8 +239,8 @@ class RecoveryOutcomeMatrixTest {
   }
 
   /**
-   * After the run has reopened the plan on its own once, the author can no longer reopen it from the Rebuild plan
-   * card, so Retry creation is the card's working way forward: a trusted click moves the run back to design-planning.
+   * After the run has reopened the plan on its own once, the ledger refuses an author reopen of the plan, so the plan
+   * card leaves out Rebuild plan, and its Retry creation moves the run back to design-planning on a trusted click.
    */
   @Test
   void aRetryOnARebuildPlanCardAfterAnAutomaticReopenReturnsToThePlan() {
@@ -263,8 +263,13 @@ class RecoveryOutcomeMatrixTest {
     runtime.support().applyStageLifecycle(RUN_ID, reopen).collect().asList().await().indefinitely();
     approveStage(runtime, "design-planning");
     execute(runtime, "design-execution");
-    assertEquals(PipelineGates.RECOVERY_REBUILD_PLAN, PipelineGates.gateOf(
-        runStore.load(RUN_ID).orElseThrow().transitions().getLast().reason()).orElseThrow());
+    String card = runStore.load(RUN_ID).orElseThrow().transitions().getLast().reason();
+    assertEquals(PipelineGates.RECOVERY_REBUILD_PLAN, PipelineGates.gateOf(card).orElseThrow());
+    assertEquals(List.of(ChatEvent.RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
+        ChatEvent.actionsForClarify(
+            new org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction.Clarify(
+                PipelineGates.strip(card), List.of(), PipelineGates.RECOVERY_REBUILD_PLAN, "", null, "", "", "",
+                PipelineGates.guardOf(card).orElse(""))));
 
     runtime.recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.RETRY_ACTION, "retry-click", "retry-hash",
         InputOrigin.TRUSTED)).collect().asList().await().indefinitely();
@@ -289,8 +294,8 @@ class RecoveryOutcomeMatrixTest {
 
     RecoveryOutcomeTelemetry.Event presented = presented();
     assertEquals("design-artifact-defect", presented.category());
-    assertEquals(List.of(ChatEvent.REBUILD_DESIGN_ACTION, ChatEvent.RETRY_CREATION_ACTION,
-        PipelineGates.STOP_WITH_REPORT_ACTION), presented.offeredActions());
+    assertEquals(List.of(ChatEvent.RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
+        presented.offeredActions());
     assertFalse(presented.offeredActions().contains("submit"));
     assertFalse(presented.offeredActions().contains("design-input"));
     endRun(runtime);

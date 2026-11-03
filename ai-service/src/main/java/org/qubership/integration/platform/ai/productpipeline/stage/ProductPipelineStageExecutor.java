@@ -1842,6 +1842,9 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
           emitted.add(new PipelineSignal.Progress(reopen.producerStageId(), REBUILDING_THE_PLAN));
           return new StageExecutionResult(reopen, emitted);
         }
+        // The guard tells the card that the ledger refuses the author's reopen of a plan this run already reopened.
+        HaltRecoveryGuard refusal =
+            diagnoseAutomaticReopenRefusal(doc, reopen.producerStageId(), cause, evidenceText);
         return waitContextualRecovery(
             doc,
             stage,
@@ -1850,6 +1853,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             recoveryWaitBody(accepted, findings, evidenceText),
             evidenceText,
             null,
+            refusal == HaltRecoveryGuard.OWNER_ALREADY_REOPENED ? refusal.name() : null,
             emitted);
       }
       if (accepted.action() == RecoveryAction.REGENERATE_ARTIFACT) {
@@ -2143,9 +2147,28 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       String evidenceText,
       Long retryDelayMs,
       List<PipelineSignal> emitted) {
+    return waitContextualRecovery(doc, stage, refs, gate, body, evidenceText, retryDelayMs, null, emitted);
+  }
+
+  /**
+   * Waits on a contextual recovery card, as the overload without a guard does, and records {@code guard}, the name of
+   * a {@link HaltRecoveryGuard} or {@code null}, on the wait so the card can leave out the action it refuses.
+   */
+  private StageExecutionResult waitContextualRecovery(
+      ProductPipelineRunDocument doc,
+      ProfileStage stage,
+      List<Reference> refs,
+      String gate,
+      String body,
+      String evidenceText,
+      Long retryDelayMs,
+      String guard,
+      List<PipelineSignal> emitted) {
     String prompt =
-        PipelineGates.tagRecoveryDetails(
-            PipelineGates.retag(gate, body), evidenceText, retryDelayMs);
+        PipelineGates.tagGuard(
+            PipelineGates.tagRecoveryDetails(
+                PipelineGates.retag(gate, body), evidenceText, retryDelayMs),
+            guard);
     String durablePrompt =
         PipelineGates.tagHaltIdentity(
             prompt, ToolCallFingerprints.failureSignature(evidenceText));

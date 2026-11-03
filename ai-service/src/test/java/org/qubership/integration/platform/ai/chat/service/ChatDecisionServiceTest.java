@@ -943,8 +943,9 @@ class ChatDecisionServiceTest {
     assertEquals(PipelineGates.REVISE_ACTION, input.getValue().clarificationText());
   }
 
+  /** A Rebuild design submission on a card that no longer offers it never reaches the run. */
   @Test
-  void semanticRebuildDesignSubmissionMapsToTheInternalReviseCommand() {
+  void aRebuildDesignSubmissionOnTheRebuildDesignCardIsNotForwarded() {
     CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
     when(facade.snapshot("conv-design"))
         .thenReturn(
@@ -975,10 +976,7 @@ class ChatDecisionServiceTest {
         .await()
         .indefinitely();
 
-    ArgumentCaptor<ContinueCreateChainCommand> input =
-        ArgumentCaptor.forClass(ContinueCreateChainCommand.class);
-    verify(facade).continueWithInput(input.capture());
-    assertEquals(PipelineGates.REVISE_ACTION, input.getValue().clarificationText());
+    verify(facade, never()).continueWithInput(any());
   }
 
   @Test
