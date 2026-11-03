@@ -69,7 +69,6 @@ import type {
   ChainsOfSpecificationGroup,
   ContextSystemFilter,
   ContextSystemView,
-  CustomResourceMode,
   DeleteInstructionsRequest,
   DependencyView,
   DeploymentView,
@@ -653,7 +652,6 @@ export class Catalog {
     chainId: string,
     snapshotId: string,
     domain: string = DEFAULT_DOMAIN,
-    mode: CustomResourceMode = "REWRITE",
     domainType?: DomainType,
   ): Promise<DeploymentView> {
     if (!snapshotId) {
@@ -663,7 +661,7 @@ export class Catalog {
           `500 "The given id must not be null".`,
       );
     }
-    return this.call("post", `/v1/catalog/chains/${chainId}/deployments`, { snapshotId, domain, mode, domainType });
+    return this.call("post", `/v1/catalog/chains/${chainId}/deployments`, { snapshotId, domain, domainType });
   }
 
   /** The chain's deployment rows, each carrying the engine-reported `runtime.states` per host. */

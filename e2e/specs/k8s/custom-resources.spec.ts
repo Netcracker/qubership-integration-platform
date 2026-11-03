@@ -54,8 +54,8 @@ test.describe("micro domain lifecycle", { tag: ["@catalog", "@engine", "@slow"] 
     let deployed = false;
     try {
       await test.step("POST /v1/catalog/chains/{chainId}/deployments runs both chains on the domain", async () => {
-        await catalog.deploy(kept.id, keptSnapshot.id, domain, "REWRITE", "MICRO");
-        await catalog.deploy(dropped.id, droppedSnapshot.id, domain, "APPEND", "MICRO");
+        await catalog.deploy(kept.id, keptSnapshot.id, domain, "MICRO");
+        await catalog.deploy(dropped.id, droppedSnapshot.id, domain, "MICRO");
         deployed = true;
         expect(await integration(resource)).not.toBeNull();
         await expect

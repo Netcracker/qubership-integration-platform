@@ -117,7 +117,7 @@ class DeploymentControllerTest {
 
         ResponseEntity<DeploymentResponse> response = controller.create(CHAIN_ID,
                 DeploymentRequest.builder().domain(DOMAIN).snapshotId(SNAPSHOT_ID)
-                        .domainType(DomainType.MICRO).mode(DeployMode.APPEND).build());
+                        .domainType(DomainType.MICRO).build());
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isSameAs(microResponse);
@@ -130,7 +130,7 @@ class DeploymentControllerTest {
     }
 
     @Test
-    void createDeploysToTheMicroDomainWhenTheDomainIsDiscoveredAsMicroWithoutADeclaration() {
+    void createInDiscoveredMicroDomainAppendsAndPreservesOtherSnapshots() {
         microDomainEnabled(true);
         when(bulkDeploymentService.discoverDomainType(DOMAIN)).thenReturn(Optional.of(DomainType.MICRO));
         Snapshot snapshot = snapshotInChain();
@@ -142,7 +142,7 @@ class DeploymentControllerTest {
         ArgumentCaptor<ResourceDeployRequest> sent = ArgumentCaptor.forClass(ResourceDeployRequest.class);
         verify(bulkDeploymentService).deployResource(sent.capture());
         assertThat(sent.getValue().getName()).isEqualTo(DOMAIN);
-        assertThat(sent.getValue().getMode()).isEqualTo(DeployMode.REWRITE);
+        assertThat(sent.getValue().getMode()).isEqualTo(DeployMode.APPEND);
     }
 
     @Test

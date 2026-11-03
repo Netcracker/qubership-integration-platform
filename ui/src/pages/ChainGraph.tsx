@@ -25,11 +25,7 @@ import controlStyles from "../components/graph/ChainGraphViewControls.module.css
 import { LibraryProvider } from "../components/LibraryContext.tsx";
 import { PageWithRightPanel } from "./PageWithRightPanel.tsx";
 import { SaveAndDeploy } from "../components/modal/SaveAndDeploy.tsx";
-import {
-  CreateDeploymentRequest,
-  DeployMode,
-  Element,
-} from "../api/apiTypes.ts";
+import { CreateDeploymentRequest, Element } from "../api/apiTypes.ts";
 import { api } from "../api/api.ts";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import { SequenceDiagram } from "../components/modal/SequenceDiagram.tsx";
@@ -178,7 +174,6 @@ const ChainGraphInner: React.FC = () => {
               domain: domain.name,
               domainType: domain.type,
               snapshotId: snapshot.id,
-              mode: DeployMode.APPEND,
               suspended: false,
             };
             await api.createDeployment(chainId, request);

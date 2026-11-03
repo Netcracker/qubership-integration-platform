@@ -7377,12 +7377,6 @@ components:
           enum:
           - CLASSIC
           - MICRO
-        mode:
-          type: string
-          description: Deploy mode
-          enum:
-          - REWRITE
-          - APPEND
         name:
           type: string
           description: Name
