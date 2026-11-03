@@ -51,6 +51,7 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ProfileStag
 import org.qubership.integration.platform.ai.productpipeline.profile.RetryPolicy;
 import org.qubership.integration.platform.ai.productpipeline.profile.TerminalPolicy;
 import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryOutcomeTelemetry;
+import org.qubership.integration.platform.ai.productpipeline.stage.ProductPipelineStageExecutor;
 import org.qubership.integration.platform.ai.productpipeline.stage.StageDecision;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
@@ -201,13 +202,14 @@ class RecoveryOutcomeMatrixTest {
   }
 
   @Test
-  void planDefectOffersRebuildPlan() {
+  void planDefectWithAutomaticReopensSpentOffersRebuildPlan() {
     FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("unused");
     ProductPipelineProfile profile = analysisThenPlanningThenExecutionProfile();
     CreateChainTestOrchestrator runtime =
         newRuntime(
             new FailureNarrative(agent),
-            profile,
+            new RecoveryAttemptLedger(new RecoveryAttemptLedger.Limits(
+                ProductPipelineStageExecutor.MAX_SEMANTIC_REPAIRS, 0, RecoveryAttemptLedger.DEFAULT_PER_RUN_CEILING)),
             analysisCandidate(),
             planningAlwaysCandidate(),
             executionRejectedPlan());
@@ -503,6 +505,11 @@ class RecoveryOutcomeMatrixTest {
       FailureNarrative narrative,
       ProductPipelineProfile ignoredProfile,
       StageCapability... capabilities) {
+    return newRuntime(narrative, new RecoveryAttemptLedger(RecoveryAttemptLedger.Limits.defaults()), capabilities);
+  }
+
+  private CreateChainTestOrchestrator newRuntime(
+      FailureNarrative narrative, RecoveryAttemptLedger ledger, StageCapability... capabilities) {
     ProductPipelineRunSupport support =
         CreateChainTestOrchestrator.supportBuilder(
                 runStore,
@@ -511,6 +518,7 @@ class RecoveryOutcomeMatrixTest {
                 Clock.fixed(FIXED, ZoneOffset.UTC))
             .failureNarrative(narrative)
             .recoveryTelemetry(telemetry)
+            .recoveryLedger(ledger)
             .build();
     lastRuntime = new CreateChainTestOrchestrator(support, runStore);
     return lastRuntime;

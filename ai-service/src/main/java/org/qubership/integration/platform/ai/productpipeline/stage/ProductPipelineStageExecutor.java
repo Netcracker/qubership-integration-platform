@@ -173,6 +173,10 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
   public static final int MAX_SEMANTIC_REPAIRS = 2;
   public static final String PRODUCER_REPAIR_REASON_PREFIX = "producer-repair:";
 
+  private static final String REBUILDING_THE_DESIGN = "Rebuilding the design from the approved requirements";
+
+  private static final String REBUILDING_THE_PLAN = "Rebuilding the plan from the approved design";
+
   static final String INTERNAL_RECOVERY_SUMMARY =
       "Creation is paused because the service could not complete this step. Your inputs and completed work are saved.";
   static final String REPEATED_RECOVERY_SUMMARY =
@@ -1167,10 +1171,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         && !catalogHasBeenWritten(doc.run().runId())
         && recoveryLedger.mayRepair(doc.transitions(), recoveryLedger.key(recovery.producerStageId(), budgetCause,
             RecoveryAttemptLedger.inputArtifactIdentity(doc, recovery.producerStageId()), doc.transitions()), InputOrigin.TRUSTED)) {
-      return waitContextualRecovery(doc, stage, refs, PipelineGates.RECOVERY_REGENERATE_EXECUTION,
-          "The generated chain still failed validation before publication. Retry creation regenerates it from"
-              + " the approved plan. Your requirements and plan are saved.",
-          terminalRecoveryDetails(findings, evidence, doc.run().runId(), PROGRESS_NONE), null, emitted);
+      return regenerateExecution(doc, recovery.producerStageId(), budgetCause, emitted);
     }
     if (recovery.action() == ProducerOwnedRecovery.Action.REOPEN_UPSTREAM
         && cause.isBindingIdentityMismatch()) {
@@ -1654,16 +1655,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         && supportsCleanProducerRebuild(stage.stageId())
         && !catalogHasBeenWritten(runId)
         && recoveryLedger.mayCleanRebuild(doc.transitions(), recoveryKey)) {
-      putRunAttribute(
-          runId,
-          cleanRebuildEvidenceAttribute(stage.stageId()),
-          storedEvidence.contentHash());
-      recordProducerRepairAttempt(
-          doc,
-          stage,
-          refs,
-          recoveryLedger.recordCleanRebuild(
-              recoveryKey, RecoveryAttemptLedger.inputArtifactIdentity(doc, stage.stageId())));
+      recordCleanRebuild(doc, stage, refs, recoveryKey, storedEvidence);
       emitted.add(
           new PipelineSignal.Progress(
               stage.stageId(), "Regenerating the rejected output from saved inputs in a clean model turn"));
@@ -1690,6 +1682,11 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             runId,
             ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR,
             stage.stageId());
+      }
+      boolean rebuildsCurrentStage =
+          "design-planning".equals(stage.stageId()) || "design-input".equals(stage.stageId());
+      if (rebuildsCurrentStage && !recoveryLedger.perRunCeilingReached(doc.transitions())) {
+        return rebuildCurrentStage(doc, stage, refs, budgetCause, storedEvidence, emitted);
       }
       if ("design-planning".equals(stage.stageId())) {
         return waitContextualRecovery(
@@ -1786,6 +1783,10 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             runId,
             ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR,
             reopen.producerStageId());
+        if (canCausalReopen(doc, reopen.producerStageId(), cause, evidenceText)) {
+          emitted.add(new PipelineSignal.Progress(reopen.producerStageId(), REBUILDING_THE_PLAN));
+          return new StageExecutionResult(reopen, emitted);
+        }
         return waitContextualRecovery(
             doc,
             stage,
@@ -1897,6 +1898,73 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         new StageDecision.Retry(stage.stageId(),
             Duration.ofMillis(stage.retry() == null ? 0L : stage.retry().defaultDelayMs())),
         emitted);
+  }
+
+  /**
+   * Regenerates the current design-input or design-planning stage from its saved inputs in a clean model turn and
+   * retries it, which is the rerun a Rebuild design or Rebuild plan click causes. When the defect's clean
+   * regenerations are spent, it grants another correction instead. Either way the committed reason counts toward
+   * the run's recovery ceiling, so the caller checks {@link RecoveryAttemptLedger#perRunCeilingReached} first.
+   *
+   * @param budgetCause the defect both the clean regeneration and the grant are keyed to
+   * @param evidence the recovery evidence the clean turn starts from
+   */
+  private StageExecutionResult rebuildCurrentStage(
+      ProductPipelineRunDocument doc,
+      ProfileStage stage,
+      List<Reference> refs,
+      RecoveryCause budgetCause,
+      Revision evidence,
+      List<PipelineSignal> emitted) {
+    RecoveryAttemptKey key = recoveryLedger.key(stage.stageId(), budgetCause,
+        RecoveryAttemptLedger.inputArtifactIdentity(doc, stage.stageId()), doc.transitions());
+    if (!recoveryLedger.mayCleanRebuild(doc.transitions(), key)) {
+      return grantAnotherCorrection(doc, stage, refs, budgetCause, emitted);
+    }
+    recordCleanRebuild(doc, stage, refs, key, evidence);
+    emitted.add(new PipelineSignal.Progress(stage.stageId(),
+        "design-input".equals(stage.stageId()) ? REBUILDING_THE_DESIGN : REBUILDING_THE_PLAN));
+    return new StageExecutionResult(
+        new StageDecision.Retry(stage.stageId(),
+            Duration.ofMillis(stage.retry() == null ? 0L : stage.retry().defaultDelayMs())),
+        emitted);
+  }
+
+  private void recordCleanRebuild(
+      ProductPipelineRunDocument doc,
+      ProfileStage stage,
+      List<Reference> refs,
+      RecoveryAttemptKey key,
+      Revision evidence) {
+    putRunAttribute(doc.run().runId(), cleanRebuildEvidenceAttribute(stage.stageId()), evidence.contentHash());
+    recordProducerRepairAttempt(doc, stage, refs,
+        recoveryLedger.recordCleanRebuild(key, RecoveryAttemptLedger.inputArtifactIdentity(doc, stage.stageId())));
+  }
+
+  /**
+   * Moves the run back to {@code ownerStageId}, the stage that generated the rejected chain, and resets every stage
+   * after it, as a Retry creation click does. The move commits a targeted correction of that stage, which counts
+   * toward the run's recovery ceiling.
+   */
+  private StageExecutionResult regenerateExecution(
+      ProductPipelineRunDocument doc, String ownerStageId, RecoveryCause budgetCause, List<PipelineSignal> emitted) {
+    String runId = doc.run().runId();
+    String artifact = RecoveryAttemptLedger.inputArtifactIdentity(doc, ownerStageId);
+    RecoveryAttemptKey key = recoveryLedger.key(ownerStageId, budgetCause, artifact, doc.transitions());
+    runStore.commit(
+        doc.run().runRevision(),
+        ProductPipelineRunSupport.moveCommit(
+            doc,
+            ownerStageId,
+            ProductPipelineRunSupport.downstreamReset(profilesByRun.get(runId), doc.run().stages(), ownerStageId),
+            recoveryLedger.recordRepair(key, artifact),
+            ProductPipelineRunSupport.haltEvidence(attributesByRun.get(runId), null),
+            null,
+            null,
+            clock.instant(),
+            null));
+    emitted.add(new PipelineSignal.Progress(ownerStageId, "Regenerating the chain from the approved plan"));
+    return new StageExecutionResult(new StageDecision.Retry(ownerStageId, Duration.ZERO), emitted);
   }
 
   private boolean nativeCaptureRepairAllowed(

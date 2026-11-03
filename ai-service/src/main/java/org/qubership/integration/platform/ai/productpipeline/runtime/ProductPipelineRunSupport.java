@@ -9,6 +9,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -3044,13 +3045,28 @@ public final class ProductPipelineRunSupport {
       String ownerStageId,
       String reason,
       AcceptInputCommand command) {
-    ProductPipelineProfile profile = profilesByRun.get(doc.run().runId());
+    List<StageSnapshot> updated =
+        downstreamReset(profilesByRun.get(doc.run().runId()), doc.run().stages(), ownerStageId);
+    commitMove(
+        doc, ownerStageId, updated, reason, haltEvidence(attributesByRun.get(command.runId()), null),
+        command.commandId(), command.commandPayloadHash());
+    return Multi.createFrom().empty();
+  }
+
+  /**
+   * Returns {@code stages} with {@code ownerStageId} running again without its approval and every stage after it
+   * pending with no outputs, candidates, or approval. Other stages are returned unchanged.
+   *
+   * @throws IllegalStateException when {@code profile} is null
+   */
+  public static List<StageSnapshot> downstreamReset(
+      ProductPipelineProfile profile, List<StageSnapshot> stages, String ownerStageId) {
     if (profile == null) {
       throw new IllegalStateException("cannot reset downstream: profile is missing");
     }
     Set<String> afterOwner = stageIdsAfter(profile, ownerStageId);
     List<StageSnapshot> updated = new ArrayList<>();
-    for (StageSnapshot snapshot : doc.run().stages()) {
+    for (StageSnapshot snapshot : stages) {
       if (ownerStageId.equals(snapshot.stageId())) {
         updated.add(
             new StageSnapshot(
@@ -3075,10 +3091,7 @@ public final class ProductPipelineRunSupport {
         updated.add(snapshot);
       }
     }
-    commitMove(
-        doc, ownerStageId, updated, reason, haltEvidence(attributesByRun.get(command.runId()), null),
-        command.commandId(), command.commandPayloadHash());
-    return Multi.createFrom().empty();
+    return updated;
   }
 
   private Multi<PipelineSignal> recordOwnerChoice(
@@ -3930,35 +3943,54 @@ public final class ProductPipelineRunSupport {
       String failureEvidence,
       String commandId,
       String commandPayloadHash) {
-    long expected = doc.run().runRevision();
     runStore.commit(
+        doc.run().runRevision(),
+        moveCommit(doc, nextStageId, stages, reason, failureEvidence, commandId, commandPayloadHash,
+            clock.instant(), pendingAnswer(doc)));
+  }
+
+  /**
+   * Returns the commit that moves the run to {@code nextStageId} as RUNNING with {@code stages}, journaled under
+   * {@code reason}. The commit expects the run at its current revision. {@code commandId}, {@code commandPayloadHash},
+   * and {@code pendingAnswer} may be null.
+   */
+  public static LogicalCommit moveCommit(
+      ProductPipelineRunDocument doc,
+      String nextStageId,
+      List<StageSnapshot> stages,
+      String reason,
+      String failureEvidence,
+      String commandId,
+      String commandPayloadHash,
+      Instant at,
+      ClarificationTransition pendingAnswer) {
+    long expected = doc.run().runRevision();
+    return new LogicalCommit(
+        doc.run().runId(),
         expected,
-        new LogicalCommit(
-            doc.run().runId(),
+        RunStatus.RUNNING,
+        nextStageId,
+        stages,
+        new StageAttempt(
+            UUID.randomUUID().toString(),
+            nextStageId,
+            expected + 1L,
+            StageStatus.RUNNING,
+            at,
+            at,
+            List.of(),
+            failureEvidence),
+        new RunTransition(
             expected,
+            expected + 1L,
+            doc.run().status(),
             RunStatus.RUNNING,
             nextStageId,
-            stages,
-            new StageAttempt(
-                UUID.randomUUID().toString(),
-                nextStageId,
-                expected + 1L,
-                StageStatus.RUNNING,
-                clock.instant(),
-                clock.instant(),
-                List.of(),
-                failureEvidence),
-            new RunTransition(
-                expected,
-                expected + 1L,
-                doc.run().status(),
-                RunStatus.RUNNING,
-                nextStageId,
-                clock.instant(),
-                reason,
-                commandId,
-                commandPayloadHash,
-                pendingAnswer(doc))));
+            at,
+            reason,
+            commandId,
+            commandPayloadHash,
+            pendingAnswer));
   }
 
   /**
