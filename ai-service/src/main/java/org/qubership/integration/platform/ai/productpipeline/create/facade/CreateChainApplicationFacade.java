@@ -1428,7 +1428,8 @@ public class CreateChainApplicationFacade {
           PipelineGates.recoveryRetryDelayMsOf(waitPrompt).orElse(null),
           doc == null ? "" : doc.run().runId(),
           doc == null ? "" : doc.run().currentStageId(),
-          offerId);
+          offerId,
+          PipelineGates.guardOf(waitPrompt).orElse(""));
     }
     if (PipelineGates.MAPPING_GAP.equals(gateId)) {
       MappingGapWait.View view = MappingGapWait.parse(prompt);

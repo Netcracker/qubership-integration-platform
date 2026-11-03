@@ -313,7 +313,8 @@ public class ChatDecisionService {
       return pending;
     }
     return new CreateChainPendingAction.Clarify(clarify.reason(), clarify.missingEvidence(), clarify.gateId(),
-        clarify.technicalDetails(), clarify.retryDelayMs(), clarify.runId(), clarify.failedStageId(), "");
+        clarify.technicalDetails(), clarify.retryDelayMs(), clarify.runId(), clarify.failedStageId(), "",
+        clarify.guard());
   }
 
   private Optional<ChatEvent.Decision> catalogVersionDecision(String conversationId, long revision) {

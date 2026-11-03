@@ -337,6 +337,35 @@ class ProductPipelineStageExecutorTest {
     assertEquals(List.of(false, true, true), fixture.clean());
   }
 
+  @Test
+  void aRetryOnARepeatedFailureCardAfterACatalogWriteIsRefused() {
+    var fixture = nativeCaptureFixture("Invalid property.", 1, repeatClass(), 1, 12, true);
+    var first = execute(fixture.runtime(), "design-execution");
+    applyLifecycle(fixture.runtime(), first);
+    var wait = assertInstanceOf(StageDecision.WaitForInput.class,
+        execute(fixture.runtime(), "design-execution").decision());
+    assertEquals(PipelineGates.RECOVERY_REPEATED, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    artifactStore.append(new CompilationArtifacts.AppendCommand(RUN_ID, Kind.CATALOG_CHAIN_SNAPSHOT, "1",
+        "test-materializer", "1", new ChainCatalogFacts("written-chain", "Orders", "", 0, 0, "", List.of(),
+            List.of(), "catalog"), List.of(), null,
+        new org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactProvenance(
+            RUN_ID, "catalog-materialization", "profile", "1", "sha", "test-materializer", "1", "sha")));
+    long grantsBefore = grantTransitions();
+
+    fixture.runtime().recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.RETRY_ACTION, "retry-click",
+        "retry-hash", InputOrigin.TRUSTED)).collect().asList().await().indefinitely();
+
+    assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
+    assertEquals(HaltRecoveryGuard.CATALOG_ALREADY_WRITTEN.name(),
+        PipelineGates.guardOf(requireRun().transitions().getLast().reason()).orElseThrow());
+    assertEquals(grantsBefore, grantTransitions());
+  }
+
+  private long grantTransitions() {
+    return requireRun().transitions().stream().filter(t -> t.reason() != null
+        && t.reason().startsWith(RecoveryAttemptLedger.GRANT_REASON_PREFIX)).count();
+  }
+
   @ParameterizedTest
   @org.junit.jupiter.params.provider.EnumSource(value = org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass.class,
       names = {"PERMANENT", "TOOL_ARGUMENTS", "ACCEPTED", "DUPLICATE"})
@@ -3083,7 +3112,7 @@ class ProductPipelineStageExecutorTest {
 
   @Test
   void anAmbiguousDiagnosisOnTheDesignRegeneratesItCleanly() {
-    StageExecutionResult result = executeDesignInputWithAmbiguousDiagnosis(1);
+    StageExecutionResult result = execute(designInputWithAmbiguousDiagnosis(1), "design-input");
 
     assertInstanceOf(StageDecision.Retry.class, result.decision(), () -> result.decision().toString());
     assertEquals(1, requireRun().transitions().stream()
@@ -3093,17 +3122,33 @@ class ProductPipelineStageExecutorTest {
 
   @Test
   void anAmbiguousDiagnosisOnTheDesignWithNoCleanRegenerationLeftShowsTheUnclassifiedCard() {
-    StageExecutionResult result = executeDesignInputWithAmbiguousDiagnosis(0);
+    StageExecutionResult result = execute(designInputWithAmbiguousDiagnosis(0), "design-input");
 
     StageDecision.WaitForInput wait = assertInstanceOf(StageDecision.WaitForInput.class, result.decision());
     assertEquals(PipelineGates.RECOVERY_UNCLASSIFIED, PipelineGates.gateOf(wait.prompt()).orElseThrow());
   }
 
+  @Test
+  void aRetryOnTheUnclassifiedCardRunsTheDesignAgain() {
+    CreateChainTestOrchestrator runtime = designInputWithAmbiguousDiagnosis(0);
+    execute(runtime, "design-input");
+    assertEquals(PipelineGates.RECOVERY_UNCLASSIFIED,
+        PipelineGates.gateOf(requireRun().transitions().getLast().reason()).orElseThrow());
+
+    runtime.recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.RETRY_ACTION, "retry-click",
+        "retry-hash", InputOrigin.TRUSTED)).collect().asList().await().indefinitely();
+
+    assertEquals(RunStatus.RUNNING, requireRun().run().status());
+    assertEquals("design-input", requireRun().run().currentStageId());
+    assertTrue(requireRun().transitions().getLast().reason()
+        .startsWith(RecoveryAttemptLedger.GRANT_TARGETED_REASON_PREFIX), requireRun().transitions().getLast().reason());
+  }
+
   /**
-   * Runs a design-input stage that fails with a domain failure whose owner the diagnosis cannot name, under a ledger
+   * Starts a design-input stage that fails with a domain failure whose owner the diagnosis cannot name, under a ledger
    * that allows {@code cleanRebuilds} clean regenerations per defect.
    */
-  private StageExecutionResult executeDesignInputWithAmbiguousDiagnosis(int cleanRebuilds) {
+  private CreateChainTestOrchestrator designInputWithAmbiguousDiagnosis(int cleanRebuilds) {
     StageCapability designInput = capability("design-input-cap", context -> Multi.createFrom().item(
         new CapabilitySignal.Completed(StageOutcome.of(
             StageOutcomeClass.DOMAIN_FAILURE, "The flow has no trigger."))));
@@ -3114,7 +3159,7 @@ class ProductPipelineStageExecutorTest {
         null, analysisCandidate(), designInput);
     startAndRecordInput(runtime, profile);
     approveStage(runtime, "requirement-analysis");
-    return execute(runtime, "design-input");
+    return runtime;
   }
 
   @Test

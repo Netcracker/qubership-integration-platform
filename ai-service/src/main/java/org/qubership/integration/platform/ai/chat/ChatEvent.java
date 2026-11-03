@@ -7,6 +7,7 @@ import java.util.Objects;
 import org.qubership.integration.platform.ai.chat.activity.ActivityDisplayLabels;
 import org.qubership.integration.platform.ai.productpipeline.facade.PendingAction;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
+import org.qubership.integration.platform.ai.productpipeline.runtime.HaltRecoveryGuard;
 
 /**
  * One item a {@code ScenarioHandler} emits during a chat turn. Handlers produce typed events only;
@@ -822,7 +823,13 @@ public sealed interface ChatEvent {
         && mappingGapSourceIsMissing(clarify.missingEvidence())) {
       return List.of();
     }
-    return actionsForGate(clarify.gateId());
+    List<String> actions = actionsForGate(clarify.gateId());
+    // Retry creation reruns a stage, and no rerun can undo a chain the catalog already holds.
+    if (actions != null
+        && HaltRecoveryGuard.CATALOG_ALREADY_WRITTEN.name().equals(clarify.guard())) {
+      return actions.stream().filter(action -> !RETRY_CREATION_ACTION.equals(action)).toList();
+    }
+    return actions;
   }
 
   /** True for an internal blank wait that must not become an empty decision card. */

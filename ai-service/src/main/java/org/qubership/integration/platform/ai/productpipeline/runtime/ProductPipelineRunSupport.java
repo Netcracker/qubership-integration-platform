@@ -1944,6 +1944,8 @@ public final class ProductPipelineRunSupport {
     Object evidence = attributes.get(RECOVERY_EVIDENCE_REF_ATTR);
     if (cause.captureFailure() != null && cleanAttribute != null
         && evidence instanceof String ref && !ref.isBlank()) {
+      // The turn is clean, yet the journal records the grant's targeted attempt: a transition carries one reason,
+      // and only the grant reason gives the defect its fresh budget.
       attributes.put(cleanAttribute, ref);
     }
     try {

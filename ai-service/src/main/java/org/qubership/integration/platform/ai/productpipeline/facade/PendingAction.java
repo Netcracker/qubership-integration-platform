@@ -61,5 +61,13 @@ public interface PendingAction {
     default String clarificationOfferId() {
       return "";
     }
+
+    /**
+     * Name of the {@code HaltRecoveryGuard} that refused the last recovery command, or an empty string when the wait
+     * names none.
+     */
+    default String guard() {
+      return "";
+    }
   }
 }

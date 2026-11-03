@@ -146,6 +146,26 @@ class ChatEventActionsCaptureTest {
   }
 
   @Test
+  void aRepeatedFailureCardRefusedBecauseTheCatalogIsWrittenOffersOnlyEndRun() {
+    assertEquals(
+        List.of(PipelineGates.STOP_WITH_REPORT_ACTION),
+        ChatEvent.actionsForClarify(repeatedFailureCardWithGuard(HaltRecoveryGuard.CATALOG_ALREADY_WRITTEN)));
+  }
+
+  @Test
+  void aRepeatedFailureCardRefusedAtTheRecoveryCeilingOffersRetryCreationBeforeEndRun() {
+    assertEquals(
+        List.of(ChatEvent.RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
+        ChatEvent.actionsForClarify(repeatedFailureCardWithGuard(HaltRecoveryGuard.RUN_RECOVERY_CEILING)));
+  }
+
+  private static CreateChainPendingAction.Clarify repeatedFailureCardWithGuard(HaltRecoveryGuard guard) {
+    return new CreateChainPendingAction.Clarify(
+        guard.cardSentence(), List.of(), PipelineGates.RECOVERY_REPEATED, "", null, "run-1", "design-execution", "",
+        guard.name());
+  }
+
+  @Test
   void contextualUnclassifiedFailureOffersRetryCreationBeforeEndRun() {
     List<String> actions =
         ChatEvent.actionsForClarify(

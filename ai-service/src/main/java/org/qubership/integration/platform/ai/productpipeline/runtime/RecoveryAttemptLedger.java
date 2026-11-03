@@ -13,6 +13,7 @@ import org.qubership.integration.platform.ai.productpipeline.capability.Recovery
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
 import org.qubership.integration.platform.ai.productpipeline.stage.ProductPipelineStageExecutor;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
+import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
 import org.qubership.integration.platform.ai.productpipeline.store.RunTransition;
 import org.qubership.integration.platform.ai.productpipeline.store.StageSnapshot;
 
@@ -585,7 +586,7 @@ public final class RecoveryAttemptLedger {
         continue;
       }
       if (reason.startsWith(GRANT_TARGETED_REASON_PREFIX)
-          && transition.fromStatus() == org.qubership.integration.platform.ai.productpipeline.store.RunStatus.WAITING_FOR_INPUT) {
+          && transition.fromStatus() == RunStatus.WAITING_FOR_INPUT) {
         authorGrants++;
       }
       if (reason.startsWith(ProductPipelineStageExecutor.PRODUCER_REPAIR_REASON_PREFIX)
