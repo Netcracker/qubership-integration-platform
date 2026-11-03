@@ -1308,6 +1308,11 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
           doc.run().runId(),
           ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR,
           diagnosedOwner);
+      Optional<StageExecutionResult> repair =
+          repairDiagnosedOwner(doc, stage, refs, outcomeClass, diagnosedOwner, cause, budgetCause, emitted);
+      if (repair.isPresent()) {
+        return repair.get();
+      }
       if (canCausalReopen(doc, diagnosedOwner, cause, evidence)
           || isCurrentUnapprovedOwner(doc, diagnosedOwner)) {
         gate = PipelineGates.STAGE_REVISE;
@@ -1927,6 +1932,38 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       details.append(" progress=").append(progress);
     }
     return details.toString();
+  }
+
+  /**
+   * Retries {@code stage} without a card when the diagnosis attributed its contract failure to the stage itself: with
+   * a targeted correction while the defect has one, and with a grant once they are spent. Returns empty, and the
+   * caller shows its card, for another owner or outcome class, when the catalog already holds a chain from this run,
+   * when the defect is in the approved brief, or when the run's recovery ceiling is spent.
+   *
+   * @param budgetCause the defect the correction and the grant are keyed to
+   */
+  private Optional<StageExecutionResult> repairDiagnosedOwner(
+      ProductPipelineRunDocument doc,
+      ProfileStage stage,
+      List<Reference> refs,
+      StageOutcomeClass outcomeClass,
+      String owner,
+      RecoveryCause cause,
+      RecoveryCause budgetCause,
+      List<PipelineSignal> emitted) {
+    if (outcomeClass != StageOutcomeClass.CONTRACT_FAILURE || !stage.stageId().equals(owner)
+        || catalogHasBeenWritten(doc.run().runId()) || cause.isKnownBriefDefect()
+        || recoveryLedger.perRunCeilingReached(doc.transitions())) {
+      return Optional.empty();
+    }
+    String artifact = RecoveryAttemptLedger.inputArtifactIdentity(doc, stage.stageId());
+    RecoveryAttemptKey key = recoveryLedger.key(stage.stageId(), budgetCause, artifact, doc.transitions());
+    if (!recoveryLedger.mayRepair(doc.transitions(), key, InputOrigin.TRUSTED)) {
+      return Optional.of(grantAnotherCorrection(doc, stage, refs, budgetCause, emitted));
+    }
+    recordProducerRepairAttempt(doc, stage, refs, recoveryLedger.recordRepair(key, artifact));
+    emitted.add(new PipelineSignal.Progress(stage.stageId(), "Repairing rejected output"));
+    return Optional.of(new StageExecutionResult(new StageDecision.Retry(stage.stageId(), Duration.ZERO), emitted));
   }
 
   /**

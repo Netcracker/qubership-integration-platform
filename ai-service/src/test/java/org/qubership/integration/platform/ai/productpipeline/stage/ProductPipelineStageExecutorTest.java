@@ -1839,28 +1839,35 @@ class ProductPipelineStageExecutorTest {
   }
 
   /**
-   * A contract rejection still diagnoses the current owner. After the automatic semantic repair
-   * spends the budget, the card offers Retry creation rather than the stage's own Retry.
+   * A contract rejection still diagnoses the current owner. The stage is repaired without a card until the run's
+   * recovery ceiling is spent, and the card then offers Retry creation rather than the stage's own Retry.
    */
   @Test
   void aContractRejectionKeepsItsClassAndOffersRetryCreationWhenRepairsAreSpent() {
     FakeFailureNarrativeAgent agent =
         FakeFailureNarrativeAgent.owner("The reply did not match the contract.", "work");
+    AtomicInteger calls = new AtomicInteger();
     StageCapability rejecting =
         capability(
             "fail-cap",
-            context ->
-                Multi.createFrom()
-                    .item(
-                        new CapabilitySignal.Completed(
-                            StageOutcome.of(
-                                StageOutcomeClass.CONTRACT_FAILURE, "reply is missing a field"))));
+            context -> {
+              calls.incrementAndGet();
+              return Multi.createFrom()
+                  .item(
+                      new CapabilitySignal.Completed(
+                          StageOutcome.of(
+                              StageOutcomeClass.CONTRACT_FAILURE, "reply is missing a field")));
+            });
     ProductPipelineProfile profile = retryProfile("work", "fail-cap", new RetryPolicy(1, 25L));
     CreateChainTestOrchestrator runtime =
         newRuntime(new FailureNarrative(agent), profile, rejecting);
     startAndRecordInput(runtime, profile);
 
-    StageDecision.WaitForInput wait = waitAfterOptionalSemanticRepair(runtime, "work");
+    StageDecision.WaitForInput wait =
+        waitAfterOptionalSemanticRepair(runtime, "work", RecoveryAttemptLedger.DEFAULT_PER_RUN_CEILING);
+
+    // The first attempt, then one attempt for each of the twelve corrections the ceiling counts.
+    assertEquals(RecoveryAttemptLedger.DEFAULT_PER_RUN_CEILING + 1, calls.get());
 
     assertEquals(PipelineGates.RECOVERY_REPEATED, PipelineGates.gateOf(wait.prompt()).orElseThrow());
     assertEquals(ProductPipelineStageExecutor.REPEATED_RECOVERY_SUMMARY, PipelineGates.strip(wait.prompt()));
@@ -7606,7 +7613,7 @@ class ProductPipelineStageExecutorTest {
         newRuntime(new FailureNarrative(agent), profile, failing);
     startAndRecordInput(runtime, profile);
 
-    StageDecision.WaitForInput wait = waitAfterOptionalSemanticRepair(runtime, "work");
+    StageDecision.WaitForInput wait = waitAfterOptionalSemanticRepair(runtime, "work", RecoveryAttemptLedger.DEFAULT_PER_RUN_CEILING);
     assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
     assertEquals(PipelineGates.RECOVERY_REPEATED, PipelineGates.gateOf(wait.prompt()).orElseThrow());
     assertFalse(
@@ -7647,7 +7654,7 @@ class ProductPipelineStageExecutorTest {
     CreateChainTestOrchestrator runtime =
         newRuntime(new FailureNarrative(agent), profile, failing);
     startAndRecordInput(runtime, profile);
-    waitAfterOptionalSemanticRepair(runtime, "work");
+    waitAfterOptionalSemanticRepair(runtime, "work", RecoveryAttemptLedger.DEFAULT_PER_RUN_CEILING);
     int afterHalt = calls.get();
     SemanticRecoveryState before = runtime.captureSemanticRecoveryState(RUN_ID);
 
