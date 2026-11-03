@@ -2,7 +2,8 @@
 
 ## Status
 
-Proposed
+Superseded by the
+[November 3, 2026 amendment to ADR 0005](0005-key-the-capture-repair-budget-to-the-rejection-not-the-payload.md#amendment-november-3-2026).
 
 ### Date
 
