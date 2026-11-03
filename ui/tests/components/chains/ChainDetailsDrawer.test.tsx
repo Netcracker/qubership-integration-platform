@@ -310,8 +310,8 @@ describe("ChainDetailsDrawer", () => {
     expect(screen.getByText("Info")).toBeInTheDocument();
     expect(screen.getByText("Headers")).toBeInTheDocument();
     expect(screen.getByText("Properties")).toBeInTheDocument();
-    expect(screen.getByText("true")).toBeInTheDocument();
-    expect(screen.getByText("false")).toBeInTheDocument();
+    expect(screen.getByText("True")).toBeInTheDocument();
+    expect(screen.getByText("False")).toBeInTheDocument();
 
     // Timestamps with author
     expect(screen.getByText("ts:1700000000000")).toBeInTheDocument();

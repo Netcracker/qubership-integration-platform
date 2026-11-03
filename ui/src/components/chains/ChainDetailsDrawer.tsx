@@ -286,16 +286,16 @@ export const ChainDetailsDrawer: React.FC<ChainDetailsDrawerProps> = ({
       {
         group: "logging settings",
         key: "DPT events",
-        value: formatOptional(loggingProperties?.dptEventsEnabled, (v) =>
-          capitalize(`${v}`),
-        ),
+        value: loggingProperties
+          ? capitalize(String(loggingProperties.dptEventsEnabled))
+          : PLACEHOLDER,
       },
       {
         group: "logging settings",
         key: "Masking",
-        value: formatOptional(loggingProperties?.maskingEnabled, (v) =>
-          capitalize(`${v}`),
-        ),
+        value: loggingProperties
+          ? capitalize(String(loggingProperties.maskingEnabled))
+          : PLACEHOLDER,
       },
       {
         group: "Audit",
@@ -323,11 +323,7 @@ export const ChainDetailsDrawer: React.FC<ChainDetailsDrawerProps> = ({
       deploymentRows,
       deployments,
       logPayload,
-      loggingProperties?.dptEventsEnabled,
-      loggingProperties?.logLoggingLevel,
-      loggingProperties?.maskingEnabled,
-      loggingProperties?.sessionLogDetails,
-      loggingProperties?.sessionsLoggingLevel,
+      loggingProperties,
       loggingSettings,
     ],
   );
