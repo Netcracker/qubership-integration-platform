@@ -100,7 +100,6 @@ public class DeployChainScenario implements ScenarioHandler {
       MaasTopicsCreatedStore maasTopicsCreatedStore,
       KnownFailureMapper knownFailureMapper,
       PinnedFailureStore pinnedFailureStore,
-      @ConfigProperty(name = "cloud.microservice.namespace") Optional<String> cloudNamespace,
       @ConfigProperty(name = "namespace") Optional<String> helmNamespace) {
     this(
         chainContextExtractor,
@@ -111,7 +110,7 @@ public class DeployChainScenario implements ScenarioHandler {
         pinnedFailureStore,
         DEFAULT_POLL_TIMEOUT_MS,
         DEFAULT_POLL_DELAY_MS,
-        configuredNamespace(cloudNamespace, helmNamespace));
+        configuredNamespace(helmNamespace));
   }
 
   DeployChainScenario(
@@ -166,9 +165,8 @@ public class DeployChainScenario implements ScenarioHandler {
         ? message(conversationId, "catalogTimeout") : failure.safeText();
   }
 
-  private static String configuredNamespace(
-      Optional<String> cloudNamespace, Optional<String> helmNamespace) {
-    return nonBlank(cloudNamespace).orElseGet(() -> nonBlank(helmNamespace).orElse(""));
+  private static String configuredNamespace(Optional<String> helmNamespace) {
+    return nonBlank(helmNamespace).orElse("");
   }
 
   private static Optional<String> nonBlank(Optional<String> value) {

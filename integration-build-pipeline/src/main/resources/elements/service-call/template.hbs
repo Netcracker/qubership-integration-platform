@@ -14,10 +14,10 @@
 <step id="{{identifier}}">
     {{#if-property 'integrationOperationProtocolType' equals='http'}}
         <setProperty name="serviceCallAddress">
-            <simple>{{integrationAddress}}</simple>
+            <simple>{{#if-property 'systemType' equals='EXTERNAL'}}{{gatewayProtocol}}://{{gatewayUrl}}{{externalRoutePath}}{{else}}{{integrationAddress}}{{/if-property}}</simple>
         </setProperty>
         <setProperty name="serviceCallUrl">
-            <simple>{{integrationAddress}}{{escape (integeratePathAndQueryParams)}}</simple>
+            <simple>{{#if-property 'systemType' equals='EXTERNAL'}}{{gatewayProtocol}}://{{gatewayUrl}}{{externalRoutePath}}{{else}}{{integrationAddress}}{{/if-property}}{{escape (integeratePathAndQueryParams)}}</simple>
         </setProperty>
         <setProperty name="serviceCallMethod">
             <simple>{{property "integrationOperationMethod"}}</simple>
@@ -112,7 +112,7 @@
 
     {{#if-property 'integrationOperationProtocolType' equals='graphql'}}
         <setProperty name="serviceCallAddress">
-            <simple>{{integrationAddress}}</simple>
+            <simple>{{#if-property 'systemType' equals='EXTERNAL'}}{{gatewayProtocol}}://{{gatewayUrl}}{{externalRoutePath}}{{else}}{{integrationAddress}}{{/if-property}}</simple>
         </setProperty>
         <setProperty name="serviceCallMethod">
             <simple>{{property "integrationOperationMethod"}}</simple>
@@ -170,7 +170,7 @@
                 {{/if-property}}
 
                 <setProperty name="internalProperty_graphQLEndpointUri">
-                    <simple>graphql-custom:{{integrationAddress}}{{escape (manualQuery
+                    <simple>graphql-custom:{{#if-property 'systemType' equals='EXTERNAL'}}{{gatewayProtocol}}://{{gatewayUrl}}{{externalRoutePath}}{{else}}{{integrationAddress}}{{/if-property}}{{escape (manualQuery
                                                                               operationName=(property 'integrationGqlOperationName')
                                                                               queryHeader=(property 'integrationGqlQueryHeader')
                                                                               variablesHeader=(property 'integrationGqlVariablesHeader')
@@ -303,7 +303,7 @@
 
                     <removeHeader name="Content-Type"/>
 
-                    <toD uri="graphql-custom:{{integrationAddress}}{{escape
+                    <toD uri="graphql-custom:{{#if-property 'systemType' equals='EXTERNAL'}}{{gatewayProtocol}}://{{gatewayUrl}}{{externalRoutePath}}{{else}}{{integrationAddress}}{{/if-property}}{{escape
                             (manualQuery
                                     operationName=(property 'integrationGqlOperationName')
                                     queryHeader=(property 'integrationGqlQueryHeader')

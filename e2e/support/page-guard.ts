@@ -8,33 +8,44 @@
  */
 import type { Page } from "@playwright/test";
 import { test as base } from "./fixtures.js";
-
-/** One thing the guard caught, with the route the page was on when it happened. */
-interface PageProblem {
-  route: string;
-  message: string;
-}
+import { MICRO_CHECKPOINTS, withoutDeletedDomains, type PageProblem } from "./page-problems.js";
 
 function routeOf(page: Page): string {
   const url = new URL(page.url());
   return `${url.pathname}${url.search}`;
 }
 
-/** Arms the guard on `page` and returns what it collects; the list only ever grows. */
-function watchPage(page: Page): PageProblem[] {
+/** How much of a 5xx answer's body a problem quotes. */
+const BODY_CHARS = 300;
+
+/**
+ * Arms the guard on `page` and returns what it collects, and a promise that settles once every 5xx
+ * body it reads has been added to its problem; the list only ever grows.
+ */
+function watchPage(page: Page): { problems: PageProblem[]; bodies: Promise<unknown>[] } {
   const problems: PageProblem[] = [];
-  const record = (message: string) => problems.push({ route: routeOf(page), message });
-  page.on("pageerror", (error) => record(`uncaught ${error.name}: ${error.message}`));
+  const bodies: Promise<unknown>[] = [];
+  const record = (problem: Omit<PageProblem, "route">) => {
+    const recorded = { route: routeOf(page), ...problem };
+    problems.push(recorded);
+    return recorded;
+  };
+  page.on("pageerror", (error) => record({ message: `uncaught ${error.name}: ${error.message}` }));
   page.on("console", (message) => {
-    if (message.type() === "error") record(`console.error: ${message.text()}`);
+    if (message.type() === "error") record({ message: `console.error: ${message.text()}`, url: message.location().url });
   });
   page.on("response", (response) => {
     if (response.status() < 400) return;
     const url = new URL(response.url());
     if (!url.pathname.startsWith("/api/")) return;
-    record(`${response.request().method()} ${url.pathname} answered ${response.status()}`);
+    const domain = response.status() >= 500 ? MICRO_CHECKPOINTS.exec(url.pathname)?.[1] : undefined;
+    const recorded = record({ message: `${response.request().method()} ${url.pathname} answered ${response.status()}`, url: response.url(), domain });
+    // The status alone names no cause, and the service log may have rotated by the time a reader looks.
+    if (response.status() >= 500) {
+      bodies.push(response.text().then((body) => (recorded.message += `: ${body.slice(0, BODY_CHARS)}`), () => undefined));
+    }
   });
-  return problems;
+  return { problems, bodies };
 }
 
 function describeProblems(problems: readonly PageProblem[]): string {
@@ -50,9 +61,11 @@ function describeProblems(problems: readonly PageProblem[]): string {
 
 export const test = base.extend<{ pageGuard: void }>({
   pageGuard: [
-    async ({ page }, use, testInfo) => {
-      const problems = watchPage(page);
+    async ({ page, catalog }, use, testInfo) => {
+      const caught = watchPage(page);
       await use();
+      await Promise.all(caught.bodies);
+      const problems = await withoutDeletedDomains(caught.problems, catalog);
       if (problems.length === 0) return;
       // A `test.fail()` case pins one defect, and a problem the guard caught is not that defect, so
       // the case fails for real rather than as expected.

@@ -75,74 +75,76 @@ function expectReimported(original: Map<string, Envelope>, reexported: Map<strin
   }
 }
 
-test("test cases and endpoint mocks exported as a ZIP import back after a delete", { tag: ["@testing-service", "@tier1"] }, async ({ testingService, run }) => {
-  // Each id is recorded as soon as it exists, so a failed create still removes the rest.
-  const caseIds: string[] = [];
-  const mockIds: string[] = [];
-  try {
-    for (const what of ["a", "b"]) {
-      const created = await testingService.createTestCase({
-        name: tokenized(run, `portable-case-${what}`),
-        enabled: what === "a",
-        trigger: inventedReference(run, `portability-trigger-${what}`),
-        method: "POST",
-        body: `{"case":"${what}"}`,
-        headers: [{ name: "x-e2e-case", value: what }],
-        queryParameters: [{ name: "q", value: what }],
-        rules: [
-          { name: "status", type: "equal", entityType: "status", value: "200" },
-          { name: "header", type: "exist", entityType: "header", entityName: "x-e2e-case", enabled: false },
-        ],
-      });
-      caseIds.push(created.id);
+test.describe("testing-service export and import", { tag: ["@testing-service"] }, () => {
+  test("exported test cases and mocks import back after a delete", async ({ testingService, run }) => {
+    // Each id is recorded as soon as it exists, so a failed create still removes the rest.
+    const caseIds: string[] = [];
+    const mockIds: string[] = [];
+    try {
+      for (const what of ["a", "b"]) {
+        const created = await testingService.createTestCase({
+          name: tokenized(run, `portable-case-${what}`),
+          enabled: what === "a",
+          trigger: inventedReference(run, `portability-trigger-${what}`),
+          method: "POST",
+          body: `{"case":"${what}"}`,
+          headers: [{ name: "x-e2e-case", value: what }],
+          queryParameters: [{ name: "q", value: what }],
+          rules: [
+            { name: "status", type: "equal", entityType: "status", value: "200" },
+            { name: "header", type: "exist", entityType: "header", entityName: "x-e2e-case", enabled: false },
+          ],
+        });
+        caseIds.push(created.id);
+      }
+      for (const what of ["a", "b"]) {
+        const created = await testingService.createMock({
+          name: tokenized(run, `portable-mock-${what}`),
+          reference: inventedReference(run, `portability-endpoint-${what}`),
+          response: { status: 202, body: `mocked ${what}`, headers: [{ name: "X-Mocked", value: what }] },
+          matchers: [{ type: "contain", entityType: "body", value: what }],
+        });
+        mockIds.push(created.id);
+      }
+
+      const casesZip = await testingService.exportTestCases(caseIds);
+      const mocksZip = await testingService.exportMocks(mockIds);
+      const caseEnvelopes = await envelopesOf(casesZip, "TestCase", caseIds);
+      const mockEnvelopes = await envelopesOf(mocksZip, "EndpointMock", mockIds);
+      for (const id of caseIds) {
+        // The read is a view that adds two rule counts; the export carries the test case alone.
+        const { validationRuleCount: _rules, enabledRuleCount: _enabled, ...stored } = await testingService.getTestCase(id);
+        expect(caseEnvelopes.get(id)?.data, "the exported test case is the stored one").toEqual(stored);
+      }
+      for (const id of mockIds) {
+        expect(mockEnvelopes.get(id)?.data, "the exported mock is the stored one").toEqual(await testingService.getMock(id));
+      }
+
+      await testingService.deleteTestCases(caseIds);
+      await testingService.deleteMocks(mockIds);
+      for (const id of caseIds) expect((await testingService.raw("get", `/api/v1/test-cases/${id}`)).status()).toBe(404);
+      for (const id of mockIds) expect((await testingService.raw("get", `/api/v1/endpoint-mocks/${id}`)).status()).toBe(404);
+
+      // An import checks the envelope's type, so an archive of the other kind stores nothing.
+      const crossed = rowsOf(await testingService.importTestCases(mocksZip, "mocks.zip"), "mocks.zip");
+      expect(crossed).toEqual(expectedRows(mockEnvelopes, "error", "wrong entity type: EndpointMock"));
+      const crossedBack = rowsOf(await testingService.importMocks(casesZip, "cases.zip"), "cases.zip");
+      expect(crossedBack).toEqual(expectedRows(caseEnvelopes, "error", "wrong entity type: TestCase"));
+      for (const id of mockIds) expect((await testingService.raw("get", `/api/v1/test-cases/${id}`)).status()).toBe(404);
+      for (const id of caseIds) expect((await testingService.raw("get", `/api/v1/endpoint-mocks/${id}`)).status()).toBe(404);
+
+      expect(rowsOf(await testingService.importTestCases(casesZip, "cases.zip"), "cases.zip")).toEqual(expectedRows(caseEnvelopes, "created"));
+      expect(rowsOf(await testingService.importMocks(mocksZip, "mocks.zip"), "mocks.zip")).toEqual(expectedRows(mockEnvelopes, "created"));
+
+      expectReimported(caseEnvelopes, await envelopesOf(await testingService.exportTestCases(caseIds), "TestCase", caseIds));
+      expectReimported(mockEnvelopes, await envelopesOf(await testingService.exportMocks(mockIds), "EndpointMock", mockIds));
+
+      // The same bytes over entities that exist update them in place.
+      expect(rowsOf(await testingService.importTestCases(casesZip, "cases.zip"), "cases.zip")).toEqual(expectedRows(caseEnvelopes, "updated"));
+      expect(rowsOf(await testingService.importMocks(mocksZip, "mocks.zip"), "mocks.zip")).toEqual(expectedRows(mockEnvelopes, "updated"));
+    } finally {
+      for (const id of caseIds) await testingService.deleteTestCase(id).catch(leftBehind(`test case ${id}`));
+      for (const id of mockIds) await testingService.deleteMock(id).catch(leftBehind(`mock ${id}`));
     }
-    for (const what of ["a", "b"]) {
-      const created = await testingService.createMock({
-        name: tokenized(run, `portable-mock-${what}`),
-        reference: inventedReference(run, `portability-endpoint-${what}`),
-        response: { status: 202, body: `mocked ${what}`, headers: [{ name: "X-Mocked", value: what }] },
-        matchers: [{ type: "contain", entityType: "body", value: what }],
-      });
-      mockIds.push(created.id);
-    }
-
-    const casesZip = await testingService.exportTestCases(caseIds);
-    const mocksZip = await testingService.exportMocks(mockIds);
-    const caseEnvelopes = await envelopesOf(casesZip, "TestCase", caseIds);
-    const mockEnvelopes = await envelopesOf(mocksZip, "EndpointMock", mockIds);
-    for (const id of caseIds) {
-      // The read is a view that adds two rule counts; the export carries the test case alone.
-      const { validationRuleCount: _rules, enabledRuleCount: _enabled, ...stored } = await testingService.getTestCase(id);
-      expect(caseEnvelopes.get(id)?.data, "the exported test case is the stored one").toEqual(stored);
-    }
-    for (const id of mockIds) {
-      expect(mockEnvelopes.get(id)?.data, "the exported mock is the stored one").toEqual(await testingService.getMock(id));
-    }
-
-    await testingService.deleteTestCases(caseIds);
-    await testingService.deleteMocks(mockIds);
-    for (const id of caseIds) expect((await testingService.raw("get", `/api/v1/test-cases/${id}`)).status()).toBe(404);
-    for (const id of mockIds) expect((await testingService.raw("get", `/api/v1/endpoint-mocks/${id}`)).status()).toBe(404);
-
-    // An import checks the envelope's type, so an archive of the other kind stores nothing.
-    const crossed = rowsOf(await testingService.importTestCases(mocksZip, "mocks.zip"), "mocks.zip");
-    expect(crossed).toEqual(expectedRows(mockEnvelopes, "error", "wrong entity type: EndpointMock"));
-    const crossedBack = rowsOf(await testingService.importMocks(casesZip, "cases.zip"), "cases.zip");
-    expect(crossedBack).toEqual(expectedRows(caseEnvelopes, "error", "wrong entity type: TestCase"));
-    for (const id of mockIds) expect((await testingService.raw("get", `/api/v1/test-cases/${id}`)).status()).toBe(404);
-    for (const id of caseIds) expect((await testingService.raw("get", `/api/v1/endpoint-mocks/${id}`)).status()).toBe(404);
-
-    expect(rowsOf(await testingService.importTestCases(casesZip, "cases.zip"), "cases.zip")).toEqual(expectedRows(caseEnvelopes, "created"));
-    expect(rowsOf(await testingService.importMocks(mocksZip, "mocks.zip"), "mocks.zip")).toEqual(expectedRows(mockEnvelopes, "created"));
-
-    expectReimported(caseEnvelopes, await envelopesOf(await testingService.exportTestCases(caseIds), "TestCase", caseIds));
-    expectReimported(mockEnvelopes, await envelopesOf(await testingService.exportMocks(mockIds), "EndpointMock", mockIds));
-
-    // The same bytes over entities that exist update them in place.
-    expect(rowsOf(await testingService.importTestCases(casesZip, "cases.zip"), "cases.zip")).toEqual(expectedRows(caseEnvelopes, "updated"));
-    expect(rowsOf(await testingService.importMocks(mocksZip, "mocks.zip"), "mocks.zip")).toEqual(expectedRows(mockEnvelopes, "updated"));
-  } finally {
-    for (const id of caseIds) await testingService.deleteTestCase(id).catch(leftBehind(`test case ${id}`));
-    for (const id of mockIds) await testingService.deleteMock(id).catch(leftBehind(`mock ${id}`));
-  }
+  });
 });

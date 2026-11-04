@@ -1,1 +1,0 @@
-{{- include "qip-dev.roleService" (dict "app" (printf "%s-engine-%s" .Release.Name .Values.global.blueGreenVersion) "nodePort" .Values.nodePort "loadBalancerPort" .Values.loadBalancerPort "debugPort" true) }}

@@ -1,0 +1,35 @@
+---
+id: "e2e00054-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-large-body-echo"
+description: "The http-echo shape for large bodies: an HTTP trigger and a header modification, so\
+  \ the caller gets back the body it sent. The seed deploys it with session logging OFF, because a\
+  \ session at DEBUG records the body of every step."
+content:
+  labels: []
+  elements:
+  - id: "e2e00054-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-large-body-echo"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e00054-0000-4000-8000-000000000003"
+    name: "Header Modification"
+    type: "header-modification"
+    properties:
+      headerModificationToAdd:
+        e2e-fixture: "{{RUN}}"
+      headerModificationToRemove: []
+  dependencies:
+  - from: "e2e00054-0000-4000-8000-000000000002"
+    to: "e2e00054-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

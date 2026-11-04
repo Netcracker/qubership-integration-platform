@@ -31,18 +31,25 @@ jest.mock("../../src/components/InlineEdit.module.css", () => ({
   default: { inlineEditValueWrap: "inline-edit-value-wrap" },
 }));
 
+function cell(
+  name: string,
+  onSubmit?: (values: { name: string }) => void | Promise<void>,
+) {
+  return (
+    <InlineEdit<{ name: string }>
+      values={{ name }}
+      editor={<TextValueEdit name="name" />}
+      viewer={<span>{name}</span>}
+      onSubmit={onSubmit}
+      initialActive
+    />
+  );
+}
+
 function renderCell(
   onSubmit: (values: { name: string }) => void | Promise<void>,
 ) {
-  return render(
-    <InlineEdit<{ name: string }>
-      values={{ name: "before" }}
-      editor={<TextValueEdit name="name" />}
-      viewer={<span>before</span>}
-      onSubmit={onSubmit}
-      initialActive
-    />,
-  );
+  return render(cell("before", onSubmit));
 }
 
 describe("InlineEdit", () => {
@@ -96,6 +103,32 @@ describe("InlineEdit", () => {
     // the handler was reached at all above.
     fireEvent.focusOut(input, { relatedTarget: document.body });
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+  });
+
+  // Every redraw of the caller passes a new values object. Each one used to put the
+  // stored value back into the open editor and drop what the user had typed (#1226).
+  it("should keep what the user typed when the caller redraws", () => {
+    const { rerender } = render(cell("before"));
+
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "typed" },
+    });
+    rerender(cell("before"));
+
+    expect(screen.getByRole("textbox")).toHaveValue("typed");
+  });
+
+  // A table keyed by row index moves another record under an open editor when a row
+  // above it is deleted, and the editor then submits to that record.
+  it("should show the new value when the caller passes a different one", () => {
+    const { rerender } = render(cell("before"));
+
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "typed" },
+    });
+    rerender(cell("another record"));
+
+    expect(screen.getByRole("textbox")).toHaveValue("another record");
   });
 
   // A rejected save keeps the editor open so the value can be retyped.

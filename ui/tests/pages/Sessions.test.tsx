@@ -31,6 +31,7 @@ import { downloadFile } from "../../src/misc/download-utils.ts";
 import { triggerIntersection } from "../setup/intersection-observer.ts";
 import { useSessionsFilter } from "../../src/hooks/filter/useSessionsFilter.ts";
 import type { EntityFilterModel } from "../../src/components/table/filter/filterTypes.ts";
+import { configure } from "../../src/appConfig.ts";
 
 let capturedConfirmOnOk: (() => void | Promise<void>) | undefined;
 let capturedConfirmContent: unknown;
@@ -467,9 +468,7 @@ describe("Sessions", () => {
     fireEvent.click(within(row).getByRole("checkbox"));
 
     // Click delete
-    fireEvent.click(
-      screen.getByTestId("protected-btn-delete-selected-sessions"),
-    );
+    fireEvent.click(screen.getByTestId("sessions-delete"));
 
     // Confirm
     expect(capturedConfirmOnOk).toBeDefined();
@@ -495,9 +494,7 @@ describe("Sessions", () => {
 
       const headerRow = screen.getAllByRole("row")[0];
       fireEvent.click(within(headerRow).getByRole("checkbox"));
-      fireEvent.click(
-        screen.getByTestId("protected-btn-delete-selected-sessions"),
-      );
+      fireEvent.click(screen.getByTestId("sessions-delete"));
       await act(async () => {
         await capturedConfirmOnOk!();
       });
@@ -529,9 +526,7 @@ describe("Sessions", () => {
         "checkbox",
       ),
     );
-    fireEvent.click(
-      screen.getByTestId("protected-btn-delete-selected-sessions"),
-    );
+    fireEvent.click(screen.getByTestId("sessions-delete"));
     await act(async () => {
       await capturedConfirmOnOk!();
     });
@@ -558,9 +553,7 @@ describe("Sessions", () => {
     fireEvent.click(
       within(screen.getByRole("row", { name: /r1/ })).getByRole("checkbox"),
     );
-    fireEvent.click(
-      screen.getByTestId("protected-btn-delete-selected-sessions"),
-    );
+    fireEvent.click(screen.getByTestId("sessions-delete"));
     await act(async () => {
       await capturedConfirmOnOk!();
     });
@@ -581,9 +574,7 @@ describe("Sessions", () => {
   test("delete does nothing when no rows selected", async () => {
     await renderWithSessions([baseSession({ id: "n1" })]);
 
-    fireEvent.click(
-      screen.getByTestId("protected-btn-delete-selected-sessions"),
-    );
+    fireEvent.click(screen.getByTestId("sessions-delete"));
 
     expect(capturedConfirmOnOk).toBeUndefined();
     expect(mockDeleteSessions).not.toHaveBeenCalled();
@@ -599,9 +590,7 @@ describe("Sessions", () => {
 
     const row = screen.getByRole("row", { name: /f1/i });
     fireEvent.click(within(row).getByRole("checkbox"));
-    fireEvent.click(
-      screen.getByTestId("protected-btn-delete-selected-sessions"),
-    );
+    fireEvent.click(screen.getByTestId("sessions-delete"));
 
     await act(async () => {
       await capturedConfirmOnOk!();
@@ -941,9 +930,11 @@ describe("Sessions", () => {
     fireEvent.click(screen.getByTestId("protected-btn-"));
 
     await waitFor(() => {
-      expect(
-        mockRetrySessionFromCheckpointForMicroDomain,
-      ).toHaveBeenCalledWith("micro-dom", "chain-1", "retry-micro");
+      expect(mockRetrySessionFromCheckpointForMicroDomain).toHaveBeenCalledWith(
+        "micro-dom",
+        "chain-1",
+        "retry-micro",
+      );
     });
     expect(mockRetrySessionFromCheckpoint).not.toHaveBeenCalled();
   });
@@ -1537,6 +1528,164 @@ describe("Sessions", () => {
     expect(mockGetCheckpointSessions).toHaveBeenNthCalledWith(2, ["late-1"]);
   });
 
+  describe("a load superseded by a newer one", () => {
+    type Page = { sessions: Session[]; offset: number };
+
+    function deferred<T>() {
+      let resolve!: (value: T) => void;
+      let reject!: (error: unknown) => void;
+      const promise = new Promise<T>((resolveIt, rejectIt) => {
+        resolve = resolveIt;
+        reject = rejectIt;
+      });
+      return { promise, resolve, reject };
+    }
+
+    const page = (id: string, offset: number): Page => ({
+      sessions: [baseSession({ id })],
+      offset,
+    });
+
+    function search(value: string) {
+      fireEvent.change(screen.getByTestId("search-input"), {
+        target: { value },
+      });
+    }
+
+    test("an initial load that finishes after a search leaves the search's rows", async () => {
+      const unfiltered = deferred<Page>();
+      mockGetSessions
+        .mockResolvedValueOnce(page("unfiltered-row", 1))
+        .mockReturnValueOnce(unfiltered.promise)
+        .mockResolvedValueOnce(page("searched-row", 1))
+        .mockResolvedValueOnce({ sessions: [], offset: 1 });
+
+      renderSessions();
+      await waitFor(() => expect(mockGetSessions).toHaveBeenCalledTimes(2));
+      search("searched");
+      await screen.findByText("searched-row");
+
+      await act(async () => unfiltered.resolve(page("unfiltered-row-2", 2)));
+
+      expect(screen.getByText("searched-row")).toBeInTheDocument();
+      expect(screen.queryByText("unfiltered-row")).not.toBeInTheDocument();
+    });
+
+    test("an initial load that finishes first neither shows its rows nor ends the newer load", async () => {
+      const unfiltered = deferred<Page>();
+      const searched = deferred<Page>();
+      mockGetSessions
+        .mockResolvedValueOnce(page("unfiltered-row", 1))
+        .mockReturnValueOnce(unfiltered.promise)
+        .mockResolvedValueOnce(page("searched-row", 1))
+        .mockReturnValueOnce(searched.promise);
+
+      renderSessions();
+      await waitFor(() => expect(mockGetSessions).toHaveBeenCalledTimes(2));
+      search("searched");
+      await waitFor(() => expect(mockGetSessions).toHaveBeenCalledTimes(4));
+
+      await act(async () => unfiltered.resolve(page("unfiltered-row-2", 2)));
+
+      expect(screen.queryByText("unfiltered-row")).not.toBeInTheDocument();
+      // The sentinel appears once a load ends; this early, it would fetch from the old list's offset.
+      expect(
+        screen.queryByTestId(SESSIONS_LOAD_SENTINEL_TEST_ID),
+      ).not.toBeInTheDocument();
+
+      await act(async () => searched.resolve(page("searched-row-2", 2)));
+
+      expect(screen.getByText("searched-row")).toBeInTheDocument();
+      expect(
+        screen.getByTestId(SESSIONS_LOAD_SENTINEL_TEST_ID),
+      ).toBeInTheDocument();
+    });
+
+    test("a page appended for the previous list stays out of the searched list", async () => {
+      mockGetSessions
+        .mockResolvedValueOnce(page("first-row", 1))
+        .mockResolvedValueOnce(page("second-row", 2));
+      renderSessions();
+      await screen.findByText("first-row");
+
+      const appended = deferred<Page>();
+      mockGetSessions
+        .mockReturnValueOnce(appended.promise)
+        .mockResolvedValueOnce(page("searched-row", 1))
+        .mockResolvedValueOnce({ sessions: [], offset: 1 });
+      fireSentinelIntersection();
+      search("searched");
+      await screen.findByText("searched-row");
+
+      await act(async () => appended.resolve(page("appended-row", 3)));
+
+      expect(screen.getByText("searched-row")).toBeInTheDocument();
+      expect(screen.queryByText("appended-row")).not.toBeInTheDocument();
+    });
+
+    test("a sentinel notification from before a search leaves the search's load in place", async () => {
+      mockGetSessions
+        .mockResolvedValueOnce(page("first-row", 1))
+        .mockResolvedValueOnce(page("second-row", 2));
+      renderSessions();
+      await screen.findByText("first-row");
+
+      mockGetSessions.mockImplementation((_chainId, request, paging) =>
+        Promise.resolve(
+          request.searchString === "searched" && paging.offset === 0
+            ? page("searched-row", 1)
+            : { sessions: [], offset: paging.offset ?? 0 },
+        ),
+      );
+      // A browser can deliver an observer's notification after the observer is disconnected.
+      const callbacks: IntersectionObserverCallback[] = [];
+      const Observer = window.IntersectionObserver;
+      const observerSpy = jest
+        .spyOn(window, "IntersectionObserver")
+        .mockImplementation((callback, options) => {
+          callbacks.push(callback);
+          return new Observer(callback, options);
+        });
+
+      try {
+        search("searched");
+        // The search's commit renders the sentinel once more, with the old list's offset.
+        expect(callbacks).toHaveLength(1);
+        await act(async () => {
+          callbacks[0](
+            [{ isIntersecting: true } as IntersectionObserverEntry],
+            {} as IntersectionObserver,
+          );
+        });
+
+        expect(await screen.findByText("searched-row")).toBeInTheDocument();
+        expect(screen.queryByText("first-row")).not.toBeInTheDocument();
+      } finally {
+        observerSpy.mockRestore();
+      }
+    });
+
+    test("a superseded load that fails neither reports the failure nor ends the new list", async () => {
+      const unfiltered = deferred<Page>();
+      mockGetSessions
+        .mockReturnValueOnce(unfiltered.promise)
+        .mockResolvedValueOnce(page("searched-row", 1))
+        .mockResolvedValueOnce(page("searched-row-2", 2));
+
+      renderSessions();
+      await waitFor(() => expect(mockGetSessions).toHaveBeenCalledTimes(1));
+      search("searched");
+      await screen.findByText("searched-row");
+
+      await act(async () => unfiltered.reject(new Error("Network error")));
+
+      expect(mockNotificationService.requestFailed).not.toHaveBeenCalled();
+      expect(
+        screen.getByTestId(SESSIONS_LOAD_SENTINEL_TEST_ID),
+      ).toBeInTheDocument();
+    });
+  });
+
   describe("toolbar layout variants", () => {
     test("chain-tab registers search and refresh in chain header slot", async () => {
       mockUseParams.mockReturnValue({ chainId: "chain-1" });
@@ -1571,6 +1720,67 @@ describe("Sessions", () => {
       ).not.toBeInTheDocument();
 
       expect(screen.getByTestId("search-input")).toBeInTheDocument();
+    });
+  });
+
+  describe("in-memory sessions alert", () => {
+    const alertText =
+      "In-memory sessions queue is configured in this environment. Please configure kafka sessions streaming.";
+
+    beforeEach(() => {
+      mockUseParams.mockReturnValue({});
+      mockGetSessions.mockResolvedValue({ sessions: [], offset: 0 });
+    });
+
+    afterEach(() => {
+      configure({ opensearchKafkaEnabled: undefined });
+    });
+
+    test("should show the alert when Kafka streaming is not configured", async () => {
+      renderPageWithChainHeader(<Sessions variant="admin-page" />);
+
+      expect(await screen.findByText(alertText)).toBeInTheDocument();
+    });
+
+    test("should show the alert when Kafka streaming is disabled", async () => {
+      configure({ opensearchKafkaEnabled: false });
+
+      renderPageWithChainHeader(<Sessions variant="admin-page" />);
+
+      expect(await screen.findByText(alertText)).toBeInTheDocument();
+    });
+
+    test("should hide the alert when Kafka streaming is enabled", async () => {
+      configure({ opensearchKafkaEnabled: true });
+
+      renderPageWithChainHeader(<Sessions variant="admin-page" />);
+
+      await waitFor(() => {
+        expect(mockGetSessions).toHaveBeenCalled();
+      });
+      expect(screen.queryByText(alertText)).not.toBeInTheDocument();
+    });
+
+    test("should hide the alert when Kafka streaming is enabled after render", async () => {
+      renderPageWithChainHeader(<Sessions variant="admin-page" />);
+      expect(await screen.findByText(alertText)).toBeInTheDocument();
+
+      act(() => {
+        configure({ opensearchKafkaEnabled: true });
+      });
+
+      expect(screen.queryByText(alertText)).not.toBeInTheDocument();
+    });
+
+    test("should not show the alert on the chain tab", async () => {
+      mockUseParams.mockReturnValue({ chainId: "chain-1" });
+
+      renderSessions();
+
+      await waitFor(() => {
+        expect(mockGetSessions).toHaveBeenCalled();
+      });
+      expect(screen.queryByText(alertText)).not.toBeInTheDocument();
     });
   });
 });

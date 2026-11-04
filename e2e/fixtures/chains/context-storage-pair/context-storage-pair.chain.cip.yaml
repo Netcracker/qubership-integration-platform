@@ -1,0 +1,71 @@
+---
+id: "e2e00055-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-context-storage-pair"
+description: "Calls the seeded context service. Two split branches SET e2eKeyA and e2eKeyB under the\
+  \ e2e-context-id header at the same time, each to the e2e-context-value header with its key appended."
+content:
+  labels: []
+  elements:
+  - id: "e2e00055-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-context-storage-pair"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e00055-0000-4000-8000-000000000003"
+    name: "Split"
+    type: "split-2"
+    properties:
+      aggregationStrategy: "chainsAggregationStrategy"
+      stopOnException: true
+      timeout: 0
+    children:
+    - id: "e2e00055-0000-4000-8000-000000000004"
+      name: "Branch A"
+      type: "main-split-element-2"
+      properties:
+        splitName: "e2eKeyA"
+      children:
+      - id: "e2e00055-0000-4000-8000-000000000005"
+        name: "Set Context A"
+        type: "context-storage"
+        properties:
+          contextServiceId: "e2e00034-0000-4000-8000-000000000001"
+          useCorrelationId: false
+          contextId: "${header.e2e-context-id}"
+          operation: "SET"
+          key: "e2eKeyA"
+          value: "${header.e2e-context-value}-e2eKeyA"
+          ttl: 600
+    - id: "e2e00055-0000-4000-8000-000000000006"
+      name: "Branch B"
+      type: "split-element-2"
+      properties:
+        splitName: "e2eKeyB"
+        propagateHeaders: false
+        propagateProperties: false
+      children:
+      - id: "e2e00055-0000-4000-8000-000000000007"
+        name: "Set Context B"
+        type: "context-storage"
+        properties:
+          contextServiceId: "e2e00034-0000-4000-8000-000000000001"
+          useCorrelationId: false
+          contextId: "${header.e2e-context-id}"
+          operation: "SET"
+          key: "e2eKeyB"
+          value: "${header.e2e-context-value}-e2eKeyB"
+          ttl: 600
+  dependencies:
+  - from: "e2e00055-0000-4000-8000-000000000002"
+    to: "e2e00055-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

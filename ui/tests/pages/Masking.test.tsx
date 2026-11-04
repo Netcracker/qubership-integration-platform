@@ -153,12 +153,8 @@ describe("Masking chain header toolbar", () => {
     expect(
       within(slot).getByPlaceholderText("Search masked fields..."),
     ).toBeInTheDocument();
-    expect(
-      within(slot).getByTestId("protected-btn-delete-selected-masked-fields"),
-    ).toBeInTheDocument();
-    expect(
-      within(slot).getByTestId("protected-btn-add-new-masked-field"),
-    ).toBeInTheDocument();
+    expect(within(slot).getByTestId("masking-delete")).toBeInTheDocument();
+    expect(within(slot).getByTestId("masking-create")).toBeInTheDocument();
   });
 
   test("Add new masked field calls api.createMaskedField", async () => {
@@ -167,9 +163,7 @@ describe("Masking chain header toolbar", () => {
     renderMasking();
 
     const slot = await waitFor(() => screen.getByTestId("chain-header-slot"));
-    fireEvent.click(
-      within(slot).getByTestId("protected-btn-add-new-masked-field"),
-    );
+    fireEvent.click(within(slot).getByTestId("masking-create"));
 
     await waitFor(() => {
       expect(createMaskedField).toHaveBeenCalledWith("chain-1", {
@@ -182,9 +176,7 @@ describe("Masking chain header toolbar", () => {
     renderMasking();
 
     const slot = await waitFor(() => screen.getByTestId("chain-header-slot"));
-    expect(
-      within(slot).getByTestId("protected-btn-delete-selected-masked-fields"),
-    ).toBeDisabled();
+    expect(within(slot).getByTestId("masking-delete")).toBeDisabled();
   });
 
   test("Delete enabled after row selection; click calls api.deleteMaskedFields", async () => {
@@ -201,9 +193,7 @@ describe("Masking chain header toolbar", () => {
     });
 
     const slot = await waitFor(() => screen.getByTestId("chain-header-slot"));
-    expect(
-      within(slot).getByTestId("protected-btn-delete-selected-masked-fields"),
-    ).toBeDisabled();
+    expect(within(slot).getByTestId("masking-delete")).toBeDisabled();
 
     const row = screen.getByRole("row", { name: /field-a/i });
     fireEvent.click(within(row).getByRole("checkbox"));
@@ -211,14 +201,14 @@ describe("Masking chain header toolbar", () => {
     await waitFor(() => {
       expect(
         within(screen.getByTestId("chain-header-slot")).getByTestId(
-          "protected-btn-delete-selected-masked-fields",
+          "masking-delete",
         ),
       ).not.toBeDisabled();
     });
 
     fireEvent.click(
       within(screen.getByTestId("chain-header-slot")).getByTestId(
-        "protected-btn-delete-selected-masked-fields",
+        "masking-delete",
       ),
     );
 

@@ -14,7 +14,10 @@ import { downloadFile } from "../misc/download-utils.ts";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import { OverridableIcon } from "../icons/IconProvider.tsx";
 import { buildGraphUrl } from "../misc/session-graph-utils.ts";
-import { useTableConfiguration } from "../components/table/useTableConfiguration.tsx";
+import {
+  EXPAND_COLUMN_WIDTH,
+  useTableConfiguration,
+} from "../components/table/useTableConfiguration.tsx";
 import { tableScroll } from "../components/table/tableScroll.ts";
 import { treeExpandIcon } from "../components/table/TreeExpandIcon.tsx";
 import { ChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
@@ -25,9 +28,6 @@ import {
   matchesByFields,
   normalizeSearchTerm,
 } from "../components/table/tableSearch.ts";
-
-/** rc-table expand column when rows have nested `children`. */
-const SESSION_ELEMENT_EXPAND_COLUMN_WIDTH = 48;
 
 const sessionElementExpandIcon = treeExpandIcon<SessionElement>();
 
@@ -268,7 +268,7 @@ export const SessionPage: React.FC = () => {
       camelName: 160,
     },
     {
-      expandColumnWidth: SESSION_ELEMENT_EXPAND_COLUMN_WIDTH,
+      expandColumnWidth: EXPAND_COLUMN_WIDTH,
     },
     sessionElementsColumnSettingsKey,
   );

@@ -233,15 +233,14 @@ export const ActionsLog: React.FC = () => {
     }
 
     const link = (
-      <Flex vertical={true} gap={4}>
-        <a
-          onClick={() => {
-            window.open(getEntityLink(type, id, parentId, name), "_blank");
-          }}
-        >
-          {displayedName}
-        </a>
-      </Flex>
+      <a
+        onClick={(event) => {
+          event.stopPropagation();
+          window.open(getEntityLink(type, id, parentId, name), "_blank");
+        }}
+      >
+        {displayedName}
+      </a>
     );
 
     return displayedName ? link : "—";

@@ -10,13 +10,13 @@
  * It stays deliberately small: one method per engine operation a spec asserts. The failed-sessions
  * list and the two retries belong to `specs/runtime/checkpoint-retry.spec.ts`.
  *
- * The engine is addressed **directly**, never through nginx. `specs/api/api-prefixes.spec.ts` and
- * `specs/env/restart-resilience.spec.ts` go through the proxy on purpose, because the proxy prefix
- * is what those two assert; a proxied path matches no registry row, so neither records anything and
- * neither should.
+ * The base is `Env.engineUrl()`: the classic engine's own port, or a micro domain's Service behind
+ * the proxy's `/e2e/svc/` location, whose prefix `noteReached` strips. Never nginx's `/api/`
+ * surface: `specs/api/api-prefixes.spec.ts` and `specs/env/restart-resilience.spec.ts` go through it
+ * on purpose, because the proxy prefix is what those two assert; an `/api/` path matches no registry
+ * row, so neither records anything and neither should.
  */
 import type { APIRequestContext, APIResponse } from "@playwright/test";
-import { serviceUrl } from "../env/containers.js";
 import { noteReached } from "../registry/reached.js";
 import { fail } from "./catalog.js";
 
@@ -68,7 +68,7 @@ export class Engine {
   private readonly api: APIRequestContext;
   private readonly base: string;
 
-  constructor(api: APIRequestContext, base: string = serviceUrl("engine")) {
+  constructor(api: APIRequestContext, base: string) {
     this.api = api;
     this.base = base;
   }

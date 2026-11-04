@@ -1,0 +1,18 @@
+{{- if .Values.enabled }}
+# The Compose service name, which the fixtures address.
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: pubsub
+  name: pubsub
+spec:
+  ports:
+    - name: tcp-pubsub
+      port: 8085
+      targetPort: 8085
+  selector:
+    app: pubsub
+---
+{{ include "cip-dev.brokerHostService" (dict "name" "pubsub" "portName" "tcp-pubsub" "targetPort" 8085 "nodePort" .Values.nodePort "loadBalancerPort" .Values.loadBalancerPort) }}
+{{- end }}

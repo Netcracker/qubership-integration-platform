@@ -44,6 +44,6 @@ fails at route-build time.
 ## Deployment
 
 micro-engine is not part of the compose stack. On Kubernetes, Runtime Catalog creates micro-engine domains at runtime
-with the environment in `MICRO_DOMAIN_ENVIRONMENT`. The `qip-dev` chart puts `TESTING_SERVICE_ENABLED` and
+with the environment in `MICRO_DOMAIN_ENVIRONMENT`. The `cip-dev` chart puts `TESTING_SERVICE_ENABLED` and
 `TESTING_SERVICE_ADDRESS` there, read from the engine config map, so a micro domain follows the classic engine's
 switch.

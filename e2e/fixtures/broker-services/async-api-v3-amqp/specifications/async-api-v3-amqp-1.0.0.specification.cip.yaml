@@ -1,0 +1,39 @@
+---
+id: "e2e0e005-0000-4000-8000-000000000001-async-api-v3-amqp-1.0.0"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/specification"
+name: "1.0.0"
+content:
+  deprecated: false
+  version: "1.0.0"
+  source: "MANUAL"
+  operations:
+  - id: "e2e0e005-0000-4000-8000-000000000001-async-api-v3-amqp-1.0.0-e2e-{{RUN}}-async-api-v3-receive"
+    name: "e2e-{{RUN}}-async-api-v3-receive"
+    method: "receive"
+    path: "e2e-{{RUN}}-async-api-v3-receive"
+    specification: {}
+    requestSchema: {}
+    responseSchemas:
+      payload:
+        type: "object"
+        properties:
+          ping:
+            type: "string"
+  - id: "e2e0e005-0000-4000-8000-000000000001-async-api-v3-amqp-1.0.0-e2e-{{RUN}}-async-api-v3-send"
+    name: "e2e-{{RUN}}-async-api-v3-send"
+    method: "send"
+    path: "e2e-{{RUN}}-async-api-v3-send"
+    specification: {}
+    requestSchema: {}
+    responseSchemas:
+      payload:
+        type: "object"
+        properties:
+          ping:
+            type: "string"
+  specificationSources:
+  - id: "e2e0e005-0000-4000-8000-000000000003"
+    name: "async-api-v3-amqp.yaml"
+    fileName: "source-e2e0e005-0000-4000-8000-000000000001-async-api-v3-amqp-1.0.0/async-api-v3-amqp.yaml"
+    mainSource: true
+  parentId: "e2e0e005-0000-4000-8000-000000000001-async-api-v3-amqp"

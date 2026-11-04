@@ -1,0 +1,13 @@
+# The import keeps this file as the source and reads the operation from the specification document,
+# whose path carries the run token.
+openapi: 3.0.3
+info:
+  title: E2E Implemented
+  version: 1.0.0
+paths:
+  /system-type-implemented/operation:
+    post:
+      operationId: e2eImplemented
+      responses:
+        "200":
+          description: ok

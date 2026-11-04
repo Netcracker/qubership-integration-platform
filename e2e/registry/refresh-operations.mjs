@@ -8,7 +8,7 @@
  * **Four documents, two shapes.** The three Java services publish OpenAPI 3 at `/v3/api-docs`; the
  * testing service publishes **Swagger 2.0** at `/api/v1/swagger/doc.json`. Which document a service
  * serves is `operationServices()`, so this script iterates services and never a path: a refresh that read three of the four would drop all 40 testing-service rows out of
- * the cache, and the next `specs/schema/api-coverage.spec.ts` run would then report those rows as
+ * the cache, and the next `specs/harness/api-coverage.spec.ts` run would then report those rows as
  * operations the services no longer serve.
  */
 import fs from "node:fs";

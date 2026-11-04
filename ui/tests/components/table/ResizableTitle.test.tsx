@@ -95,7 +95,7 @@ describe("ResizableTitle", () => {
         </thead>
       </table>,
     );
-    expect(screen.queryByRole("button", { name: /resize column/i })).toBeNull();
+    expect(screen.queryByLabelText(/resize column/i)).toBeNull();
   });
 
   it("does not render resize handle when width is missing or non-positive", () => {
@@ -111,7 +111,7 @@ describe("ResizableTitle", () => {
         </thead>
       </table>,
     );
-    expect(screen.queryByRole("button", { name: /resize column/i })).toBeNull();
+    expect(screen.queryByLabelText(/resize column/i)).toBeNull();
     rerender(
       <table>
         <thead>
@@ -123,7 +123,7 @@ describe("ResizableTitle", () => {
         </thead>
       </table>,
     );
-    expect(screen.queryByRole("button", { name: /resize column/i })).toBeNull();
+    expect(screen.queryByLabelText(/resize column/i)).toBeNull();
   });
 
   it("starts drag and emits onResize on pointer move", () => {
@@ -144,7 +144,7 @@ describe("ResizableTitle", () => {
         </thead>
       </table>,
     );
-    const handle = screen.getByRole("button", { name: /resize column/i });
+    const handle = screen.getByLabelText(/resize column/i);
     fireEvent.pointerDown(handle, {
       button: 0,
       clientX: 100,
@@ -170,6 +170,36 @@ describe("ResizableTitle", () => {
     expect(onResizeStop).toHaveBeenCalled();
   });
 
+  it("should pass the drawn width to onResizeStart when a drag starts", () => {
+    const onResizeStart = jest.fn();
+    render(
+      <table>
+        <thead>
+          <tr>
+            <ResizableTitle
+              width={100}
+              onResizeStart={onResizeStart}
+              onResize={jest.fn()}
+              onResizeStop={jest.fn()}
+            >
+              Col
+            </ResizableTitle>
+          </tr>
+        </thead>
+      </table>,
+    );
+    fireEvent.pointerDown(screen.getByLabelText(/resize column/i), {
+      button: 0,
+      clientX: 100,
+      pointerId: 42,
+      bubbles: true,
+    });
+    expect(onResizeStart).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ size: { width: 200, height: 0 } }),
+    );
+  });
+
   it("ignores pointerup when pointer id does not match active drag", () => {
     const onResize = jest.fn();
     const onResizeStop = jest.fn();
@@ -188,7 +218,7 @@ describe("ResizableTitle", () => {
         </thead>
       </table>,
     );
-    const handle = screen.getByRole("button", { name: /resize column/i });
+    const handle = screen.getByLabelText(/resize column/i);
     fireEvent.pointerDown(handle, {
       button: 0,
       clientX: 100,
@@ -231,7 +261,7 @@ describe("ResizableTitle", () => {
         </thead>
       </table>,
     );
-    const handle = screen.getByRole("button", { name: /resize column/i });
+    const handle = screen.getByLabelText(/resize column/i);
     fireEvent.pointerDown(handle, {
       button: 1,
       clientX: 100,
@@ -269,7 +299,7 @@ describe("ResizableTitle", () => {
         </thead>
       </table>,
     );
-    const handle = screen.getByRole("button", { name: /resize column/i });
+    const handle = screen.getByLabelText(/resize column/i);
     fireEvent.pointerDown(handle, {
       button: 0,
       clientX: 0,
@@ -308,7 +338,7 @@ describe("ResizableTitle", () => {
         </thead>
       </table>,
     );
-    const handle = screen.getByRole("button", { name: /resize column/i });
+    const handle = screen.getByLabelText(/resize column/i);
     fireEvent.click(handle);
     expect(onThClick).not.toHaveBeenCalled();
   });

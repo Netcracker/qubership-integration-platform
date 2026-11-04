@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-postgres
+spec:
+  replicas: 1
+  # A rolling update runs a second server on the same data directory, which corrupts its WAL.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-postgres
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:17.2
+          env:
+            - name: POSTGRES_DB
+              value: {{ coalesce .Values.database .Values.global.postgres.database | default "postgres" }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-postgres-auth
+                  key: password
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-postgres-auth
+                  key: username
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - mountPath: /docker-entrypoint-initdb.d
+              name: init-db-script
+            - mountPath: /var/lib/postgresql/data
+              name: postgres-storage
+          # Checks over TCP: during initdb the entrypoint runs a temporary server that listens only on the Unix socket.
+          startupProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - postgres
+                - -h
+                - 127.0.0.1
+            periodSeconds: 1
+            failureThreshold: 60
+            timeoutSeconds: 5
+          # A checkpoint under load can delay pg_isready past the 1-second default, so restart only after a minute of failed checks.
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - postgres
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - postgres
+            periodSeconds: 10
+            timeoutSeconds: 5
+      volumes:
+        - name: init-db-script
+          configMap:
+            name: {{ .Release.Name }}-init-db-script
+        - name: postgres-storage
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-postgres-pvc

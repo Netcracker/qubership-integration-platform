@@ -2,22 +2,22 @@
  * The `/api/` prefix table, derived from `infrastructure/docker/nginx/routes.conf`.
  *
  * Addressing is two surfaces, not one. The `/api/` surface goes through nginx; chain invocation
- * does not, because no `location` matches `/routes/` or `/qip-routes/` and the request falls
+ * does not, because no `location` matches `/routes/` or `/cip-routes/` and the request falls
  * through to the SPA and answers **200 with `index.html`**. A runtime spec that called a chain
  * through the proxy could not fail. So `Env` exposes two resolvers and this file backs the first.
  *
  * A spec cannot build an `/api/` path by concatenation either. `routes.conf` carries fourteen
  * `location` blocks whose rewrites disagree, so the shape depends on the resource: measured, the
- * form the UI builds — `/api/v1/qip/catalog/{rest}` — reaches `folders`, `chains` and `library` and
+ * form the UI builds — `/api/v1/cip/catalog/{rest}` — reaches `folders`, `chains` and `library` and
  * answers **404** for `systems` and `common-variables`. The general form is the catch-all at
- * `routes.conf:145`, which strips one segment and proxies the rest to the catalog, so
- * `/api/qip` + the service path reaches every catalog endpoint including `/v3/api-docs`.
+ * `routes.conf:148`, which strips one segment and proxies the rest to the catalog, so
+ * `/api/cip` + the service path reaches every catalog endpoint including `/v3/api-docs`.
  *
  * Two irregular shapes are worth knowing rather than deriving:
  *
- * - `routes.conf:46` matches greedily on the **last** `/catalog/`, so `/v1/catalog/runtime-deployments`
- *   is addressed as `/api/v1/qip/catalog/catalog/runtime-deployments` — the segment doubles.
- * - `routes.conf:64` intercepts `v2/snapshots` and rewrites it to `/v2/catalog/snapshots`, which the
+ * - `routes.conf:49` matches greedily on the **last** `/catalog/`, so `/v1/catalog/runtime-deployments`
+ *   is addressed as `/api/v1/cip/catalog/catalog/runtime-deployments` — the segment doubles.
+ * - `routes.conf:67` intercepts `v2/snapshots` and rewrites it to `/v2/catalog/snapshots`, which the
  *   catch-all would not have done.
  *
  * The table matters because the Helm chart keeps a **separately maintained copy** of this config in
@@ -58,117 +58,117 @@ export interface ApiRoute {
  */
 export const API_ROUTES: ApiRoute[] = [
   {
-    line: 19,
+    line: 22,
     role: "runtime-catalog",
-    api: "/api/v1/qip/catalog/chains/00000000-0000-0000-0000-000000000000/deployments",
+    api: "/api/v1/cip/catalog/chains/00000000-0000-0000-0000-000000000000/deployments",
     service: "/v1/catalog/chains/00000000-0000-0000-0000-000000000000/deployments",
     outcome: "proxied",
     note: "chain deployments and snapshots keep the /catalog/ segment on the way through",
   },
   {
-    line: 28,
+    line: 31,
     role: "runtime-catalog",
-    api: "/api/v1/qip/catalog/chains/roles",
+    api: "/api/v1/cip/catalog/chains/roles",
     service: "/v1/catalog/chains/roles",
     outcome: "proxied",
     note: "GET is not mapped, so both surfaces answer 405 application/problem+json",
   },
   {
-    line: 37,
+    line: 40,
     role: "runtime-catalog",
-    api: "/api/v1/qip/catalog/folders",
+    api: "/api/v1/cip/catalog/folders",
     service: "/v1/folders",
     outcome: "proxied",
     note: "the form the UI builds; it strips /catalog/ and covers only six resource families",
   },
   {
-    line: 46,
+    line: 49,
     role: "runtime-catalog",
-    api: "/api/v1/qip/catalog/catalog/runtime-deployments",
+    api: "/api/v1/cip/catalog/catalog/runtime-deployments",
     service: "/v1/catalog/runtime-deployments",
     outcome: "proxied",
     note: "irregular: the greedy match on the last /catalog/ doubles the segment",
   },
   {
-    line: 55,
+    line: 58,
     role: "runtime-catalog",
-    api: "/api/qip/v1/maas-actions/kafka",
+    api: "/api/cip/v1/maas-actions/kafka",
     service: "/v1/maas-actions/kafka",
     outcome: "proxied",
   },
   {
-    line: 64,
+    line: 67,
     role: "runtime-catalog",
-    api: "/api/qip/v2/snapshots/bulk-delete",
+    api: "/api/cip/v2/snapshots/bulk-delete",
     service: "/v2/catalog/snapshots/bulk-delete",
     outcome: "proxied",
     note: "irregular: v2/snapshots is rewritten to /v2/catalog/snapshots, which the catch-all is not",
   },
   {
-    line: 73,
+    line: 76,
     role: "runtime-catalog",
-    api: "/api/v1/qip/variables-management/common-variables",
+    api: "/api/v1/cip/variables-management/common-variables",
     service: "/v1/common-variables",
     outcome: "proxied",
   },
   {
-    line: 82,
+    line: 85,
     role: "runtime-catalog",
-    api: "/api/qip/v1/folders",
+    api: "/api/cip/v1/folders",
     service: "/v1/folders",
     outcome: "proxied",
     note: "same target as line 37 by a different rule; both are live and both are load-bearing",
   },
   {
-    line: 91,
+    line: 94,
     role: "runtime-catalog",
-    api: "/api/qip/v1/import/system",
+    api: "/api/cip/v1/import/system",
     service: "/v1/import/system",
     outcome: "proxied",
     note: "GET on the import endpoint answers 400 on both surfaces",
   },
   {
-    line: 100,
+    line: 103,
     role: "runtime-catalog",
-    api: "/api/v1/qip/systems-catalog/systems",
+    api: "/api/v1/cip/systems-catalog/systems",
     service: "/v1/systems",
     outcome: "proxied",
   },
   {
-    line: 109,
+    line: 112,
     role: "sessions-management",
-    api: "/api/v1/qip/sessions-management/sessions",
+    api: "/api/v1/cip/sessions-management/sessions",
     service: "/v1/sessions",
     outcome: "proxied",
   },
   {
-    line: 118,
+    line: 121,
     role: "engine",
-    api: "/api/v1/qip/engine/live-exchanges",
+    api: "/api/v1/cip/engine/live-exchanges",
     service: "/v1/engine/live-exchanges",
     outcome: "proxied",
     note: "the engine keeps its /engine/ segment on the way through, unlike every other service",
   },
   {
-    line: 130,
+    line: 133,
     role: "testing-service",
-    api: "/api/v1/qip/testing-service/endpoint-mocks/call",
+    api: "/api/v1/cip/testing-service/endpoint-mocks/call",
     service: "/api/v1/endpoint-mocks/call",
     outcome: "blocked",
     note: "the engine calls endpoint mocks from inside the network; the proxy returns 404 on purpose",
   },
   {
-    line: 136,
+    line: 139,
     role: "testing-service",
-    api: "/api/v1/qip/testing-service/swagger/doc.json",
+    api: "/api/v1/cip/testing-service/swagger/doc.json",
     service: "/api/v1/swagger/doc.json",
     outcome: "proxied",
     note: "the testing service serves /api/v1/, so this rule keeps the prefix instead of stripping it",
   },
   {
-    line: 145,
+    line: 148,
     role: "runtime-catalog",
-    api: "/api/qip/v1/systems",
+    api: "/api/cip/v1/systems",
     service: "/v1/systems",
     outcome: "proxied",
     note: "the catch-all, and the only general form: it reaches every catalog path",
@@ -179,24 +179,24 @@ export const API_ROUTES: ApiRoute[] = [
  * Shapes that reach the service directly and 404 through the proxy.
  *
  * They are in the table because the failure is silent otherwise: the UI's form works for the six
- * families at `routes.conf:37` and a spec that generalises from `folders` to `systems` gets a 404
+ * families at `routes.conf:40` and a spec that generalises from `folders` to `systems` gets a 404
  * it will read as the platform's answer.
  */
 export const NOT_PROXIED: Array<{ api: string; service: string; why: string }> = [
   {
-    api: "/api/v1/qip/catalog/systems",
+    api: "/api/v1/cip/catalog/systems",
     service: "/v1/systems",
-    why: "systems is not one of the six families the /catalog/ rule at routes.conf:37 lists",
+    why: "systems is not one of the six families the /catalog/ rule at routes.conf:40 lists",
   },
   {
-    api: "/api/v1/qip/catalog/common-variables",
+    api: "/api/v1/cip/catalog/common-variables",
     service: "/v1/common-variables",
     why: "common-variables is reached through variables-management or the catch-all, not /catalog/",
   },
 ];
 
 /**
- * `/api/` paths that answer 404 because `location /api/` at `routes.conf:158` claims them.
+ * `/api/` paths that answer 404 because `location /api/` at `routes.conf:161` claims them.
  *
  * A prefix location loses to every regex above it and wins only when none matched, so this is the
  * guard against the SPA answering 200 `text/html` for a path no service serves.
@@ -212,15 +212,15 @@ export const UNCLAIMED_API_PATH = "/api/v1/nonsense";
  *
  * The engine serves a deployed chain on **two** prefixes, not one.
  * `CamelServletConfiguration.camelServlet` maps the Camel servlet on both
- * `CAMEL_ROUTES_LEGACY_PREFIX` (`/routes`) and `cip.camel.routes.prefix`, which resolves through
- * `app.prefix` to `/qip-routes`. Measured against a seeded chain on this stack: `POST` answered
- * **200** on `/routes/{contextPath}` and on `/qip-routes/{contextPath}` alike, `GET` answered
+ * `CAMEL_ROUTES_LEGACY_PREFIX` (`/routes`) and `cip.camel.routes.prefix`, which defaults to
+ * `/cip-routes`. Measured against a seeded chain on this stack: `POST` answered
+ * **200** on `/routes/{contextPath}` and on `/cip-routes/{contextPath}` alike, `GET` answered
  * **405** on both while the route was live, and a path no chain owns answered **404** on both. It
  * makes no difference whether the chain declares `externalRoute` — an `externalRoute: false`
- * fixture answers on `/qip-routes` too, so that flag does not decide the prefix.
+ * fixture answers on `/cip-routes` too, so that flag does not decide the prefix.
  *
- * The suite addresses `/routes` because it is a compiled-in constant, where the other form is
- * `app.prefix` interpolated and moves with configuration. Neither ends in a slash, and a trailing
+ * The suite addresses `/routes` because it is a compiled-in constant, where the other form is a
+ * property and moves with configuration. Neither ends in a slash, and a trailing
  * one changes nothing: `/routes/{contextPath}/` answered 200 as well.
  */
 export const CHAIN_ROUTE_PREFIX = "/routes";
@@ -248,21 +248,21 @@ export function apiPath(role: ServiceRole, servicePath: string): string {
     // The catch-all is `^/api/[^/]+/(v\d+)/`, so the version is as load-bearing here as it is for
     // the other three: a catalog path without one matches no `location`, `location /api/` claims it
     // and nginx answers 404. The check above is what keeps a spec from being handed that address.
-    return `/api/qip${path}`;
+    return `/api/cip${path}`;
   }
   if (role === "engine") {
     // The engine's rule rewrites to /$1/engine/$2, so its own paths already carry the segment.
     if (!path.startsWith(`/${version}/engine/`)) {
       throw new Error(`engine paths start with /${version}/engine/, got ${servicePath}`);
     }
-    return `/api/${version}/qip/engine/${path.slice(`/${version}/engine/`.length)}`;
+    return `/api/${version}/cip/engine/${path.slice(`/${version}/engine/`.length)}`;
   }
   if (role === "testing-service") {
     // The testing service serves under /api/ itself, and its rule keeps the prefix.
     if (!path.startsWith(`/api/${version}/`)) {
       throw new Error(`testing-service paths start with /api/${version}/, got ${servicePath}`);
     }
-    return `/api/${version}/qip/testing-service/${path.slice(`/api/${version}/`.length)}`;
+    return `/api/${version}/cip/testing-service/${path.slice(`/api/${version}/`.length)}`;
   }
-  return `/api/${version}/qip/sessions-management/${path.slice(`/${version}/`.length)}`;
+  return `/api/${version}/cip/sessions-management/${path.slice(`/${version}/`.length)}`;
 }

@@ -15,9 +15,10 @@ stack, and as a library that a host application wires into its own server.
 
 ## Run it standalone
 
-The binary needs a reachable PostgreSQL: it creates its schema and applies its migrations before it starts listening,
-and exits with an error if it cannot connect. The local stack in `infrastructure/docker/docker-compose.yml` starts one, along
-with the service itself as `qip-testing-service` on host port 8095.
+The binary needs a reachable PostgreSQL: it creates its schema and applies its migrations before it starts listening.
+At startup it tries to connect once a second for up to 2 minutes, logging each failed attempt, and exits with an error
+if PostgreSQL still does not accept a connection. The local stack in `infrastructure/docker/docker-compose.yml` starts one,
+along with the service itself as `qip-testing-service` on host port 8095.
 
 To run it from the source tree, point the DSN at a database of your own:
 

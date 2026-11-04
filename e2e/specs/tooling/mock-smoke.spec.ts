@@ -34,48 +34,50 @@ const SENDER = "HTTP Sender";
 /** What the real endpoint answers, and what a mock has to be distinguishable from. */
 const REAL_ENDPOINT_MARKER = '"status":"UP"';
 
-test("an endpoint mock answers for a correlated call, and the real endpoint answers without one", { tag: ["@testing-service", "@engine", "@tier1"] }, async ({ env, request, run, testingService }) => {
-  // The fixture's outbound call is an `http-sender` at its defaults, and the second half of this
-  // case is the only place in the suite where one reaches a real endpoint.
-  covers("http-sender");
+test.describe("endpoint mock", { tag: ["@testing-service", "@engine"] }, () => {
+  test("answers a correlated call, not an uncorrelated one", async ({ env, request, run, testingService }) => {
+    // The fixture's outbound call is an `http-sender` at its defaults, and the second half of this
+    // case is the only place in the suite where one reaches a real endpoint.
+    covers("http-sender");
 
-  const chain = seedChain(readCorpusState(), FIXTURE);
-  const elementId = chain.elements[SENDER];
-  expect(elementId, `fixture ${FIXTURE} carries no element named "${SENDER}"`).toBeTruthy();
+    const chain = seedChain(readCorpusState(), FIXTURE);
+    const elementId = chain.elements[SENDER];
+    expect(elementId, `fixture ${FIXTURE} carries no element named "${SENDER}"`).toBeTruthy();
 
-  const reference = { chainId: chain.id, elementId };
-  const name = tokenized(run, "mock");
-  const mock = await testingService.createMock({ name, reference, response: { status: 200, body: '{"mocked":true}' } });
+    const reference = { chainId: chain.id, elementId };
+    const name = tokenized(run, "mock");
+    const mock = await testingService.createMock({ name, reference, response: { status: 200, body: '{"mocked":true}' } });
 
-  try {
-    const mocked = await request.post(env.chainUrl(chain.contextPath), {
-      headers: { "Content-Type": "application/json", [CORRELATION_HEADER]: callToken() },
-      data: { ping: "mocked" },
+    try {
+      const mocked = await request.post(env.chainUrl(chain.contextPath), {
+        headers: { "Content-Type": "application/json", [CORRELATION_HEADER]: callToken() },
+        data: { ping: "mocked" },
+      });
+      expect(mocked.status()).toBe(200);
+      expect(
+        await mocked.text(),
+        "the mock did not answer: the outbound call reached something else",
+      ).toContain('"mocked":true');
+    } finally {
+      // Reported rather than thrown. A delete that throws out of a `finally` replaces whatever the
+      // body was failing on with its own message, and the reading it would have replaced is the one
+      // worth having; the assertion below fails on the same condition anyway, and the run-token sweep
+      // is what removes the mock either way.
+      await testingService.deleteMock(mock.id).catch((cause: unknown) => {
+        console.error(`[teardown] mock ${name} was not deleted: ${String(cause)}`);
+      });
+    }
+
+    expect(await testingService.mocksOn(reference), "the mock outlived its own delete").toEqual([]);
+
+    const live = await request.post(env.chainUrl(chain.contextPath), {
+      headers: { "Content-Type": "application/json" },
+      data: { ping: "live" },
     });
-    expect(mocked.status()).toBe(200);
+    expect(live.status()).toBe(200);
     expect(
-      await mocked.text(),
-      "the mock did not answer: the outbound call reached something else",
-    ).toContain('"mocked":true');
-  } finally {
-    // Reported rather than thrown. A delete that throws out of a `finally` replaces whatever the
-    // body was failing on with its own message, and the reading it would have replaced is the one
-    // worth having; the assertion below fails on the same condition anyway, and the run-token sweep
-    // is what removes the mock either way.
-    await testingService.deleteMock(mock.id).catch((cause: unknown) => {
-      console.error(`[teardown] mock ${name} was not deleted: ${String(cause)}`);
-    });
-  }
-
-  expect(await testingService.mocksOn(reference), "the mock outlived its own delete").toEqual([]);
-
-  const live = await request.post(env.chainUrl(chain.contextPath), {
-    headers: { "Content-Type": "application/json" },
-    data: { ping: "live" },
+      await live.text(),
+      "an uncorrelated call did not reach the real endpoint",
+    ).toContain(REAL_ENDPOINT_MARKER);
   });
-  expect(live.status()).toBe(200);
-  expect(
-    await live.text(),
-    "an uncorrelated call did not reach the real endpoint",
-  ).toContain(REAL_ENDPOINT_MARKER);
 });

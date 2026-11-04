@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.productpipeline.profile;
 
 import java.util.Objects;
+import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineClosureSupport;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineIndex;
 import org.qubership.integration.platform.ai.compiler.pipeline.PipelineCompatibilityReport;
 
@@ -20,10 +21,15 @@ public final class ProductPipelineCompatibilityVerifier {
 
     String profileKey = profile.profileId() + "@" + profile.profileVersion();
     if (!report.compatibleProfileVersions().contains(profileKey)) {
+      String coverageReason =
+          CompilerPipelineClosureSupport.terminalCoverageProblem(profile, activeIndex)
+              .map(reason -> ": " + reason)
+              .orElse("");
       throw new IllegalStateException(
           "Selected product profile "
               + profileKey
-              + " is absent from pipeline compatibility report compatibleProfileVersions");
+              + " is absent from pipeline compatibility report compatibleProfileVersions"
+              + coverageReason);
     }
 
     String activeDigest =

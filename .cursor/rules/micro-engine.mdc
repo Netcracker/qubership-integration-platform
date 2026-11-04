@@ -12,12 +12,11 @@ Stack: Java 21, Quarkus (`quarkus-bom` + `quarkus-camel-bom`), Apache Camel (via
 ### Build and test commands
 
 ```bash
-# Single-module build from repo root (-am pulls parent + checkstyle)
-mvn -pl micro-engine -am package -Dgpg.skip=true
+# Single-module build from repo root (no <parent>, so -am pulls only qip-checkstyle)
+mvn -pl micro-engine -am package
 
-# Building requires GitHub Packages credentials in ~/.m2/settings.xml (server id: github,
-# a PAT with read:packages on maven.pkg.github.com/Netcracker/*) — the private
-# com.netcracker.cloud.* deps (cloud-core, maas-client, dbaas, blue-green) are NOT on Central.
+# The private com.netcracker.cloud.* deps (cloud-core, maas-client, dbaas, blue-green) come from
+# GitHub Packages; the monorepo instruction's branch model section gives the credentials.
 
 # Quarkus dev mode (live reload)
 mvn -pl micro-engine quarkus:dev
@@ -26,17 +25,19 @@ mvn -pl micro-engine quarkus:dev
 java -jar micro-engine/target/quarkus-app/quarkus-run.jar
 
 # Unit tests only (**/*Test.java via surefire)
-mvn -pl micro-engine test -Dgpg.skip=true
+mvn -pl micro-engine test
 
 # Integration tests (**/*IT.java via failsafe; off by default, skipITs=true)
 mvn -pl micro-engine verify -DskipITs=false -Dgpg.skip=true
 # IT profile: quarkus.test.profile=development,no-dbaas,no-m2m
 
 # Checkstyle (qip-checkstyle, maxAllowedViolations=0; runs in `compile` phase)
-mvn -pl micro-engine checkstyle:check -Dgpg.skip=true
+mvn -pl micro-engine checkstyle:check
 ```
 
-The `quarkus-maven-plugin` `build`/`generate-code` goals and `camel-component-maven-plugin` (generates custom-component sources into `target/generated-sources`) are wired into the build lifecycle. The `flatten-maven-plugin` produces `.flattened-pom.xml`. Released to GitHub Packages with the `github` Maven profile (`mvn deploy -P github`) — micro-engine is the platform exception that does not publish to Maven Central; CI fixes the profile to `github`.
+Java unit tests here follow the `java-unit-testing` skill.
+
+The `quarkus-maven-plugin` `build`/`generate-code` goals and `camel-component-maven-plugin` (generates custom-component sources into `target/generated-sources`) are wired into the build lifecycle. The `flatten-maven-plugin` produces `.flattened-pom.xml`. Released to GitHub Packages with the `github` Maven profile (`mvn deploy -P github`); micro-engine and ai-service are the two modules that do not publish to Maven Central, and their release workflows fix the profile to `github`.
 
 ### Architecture
 
@@ -50,13 +51,24 @@ Single Java root package `org.qubership.integration.platform.engine` (artifact a
 - `persistence/` — Hibernate ORM Panache entities (`...persistence.shared.entity`, schema `engine`).
 - Also: `configuration/`, `kafka/`, `jms/`, `maas/`, `kubernetes/`, `controlplane/`, `scheduler/`, `state/`, `registry/`, `interceptors/`, `errorhandling/`, `forms/`, `security/`, `metadata/`, `mapper/`, `model/`, `logging/`, `util/`.
 
-Config: `src/main/resources/application.yml` (+ `application-development.yml`, `application-no-m2m.yml`); Quarkus build profile `development` gates dev-only beans (`@IfBuildProfile("development")`). HTTP on port 8080. Two Flyway migration sets under `db/migration/postgresql/`: `static/` and `configs/` (schema `engine`); dev profile points the checkpoints datasource at `engine_checkpoints_db` and the Quartz scheduler at `engine_qrtz_db`. `Dockerfile` is a layered Quarkus fast-jar image on `alpine/java:21-jdk` (non-root uid 10001, exposes 8080).
+Config: `src/main/resources/application.yml` (+ `application-development.yml`, `application-no-m2m.yml`); Quarkus build profile `development` gates dev-only beans (`@IfBuildProfile("development")`). HTTP on port 8080. Two Flyway migration sets under `db/migration/postgresql/`: `static/` and `configs/` (schema `engine`); dev profile points the checkpoints datasource at `engine_checkpoints_db` and the Quartz scheduler at `engine_qrtz_db`. `Dockerfile` is a layered Quarkus fast-jar image on `ghcr.io/netcracker/qubership-java-base:21-alpine-2.3.7` (non-root uid 10001, exposes 8080).
 
 The image `CMD` runs G1 with the heap at 50% of the pod memory limit (runtime-catalog defaults the limit to
 1280Mi), caps Metaspace at 256m and direct memory at 128m, and exits on `OutOfMemoryError`. It starts no debug
 agent: to debug a domain, set
 `JAVA_TOOL_OPTIONS=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005` in the runtime catalog's
 `MICRO_DOMAIN_ENVIRONMENT`.
+
+### Failures and restarts
+
+A broken connector setting may fail the chains that use it, never the startup of the domain pod and with it every
+other chain on the domain. When a change moves work into bean construction or startup (eager initialization, a
+`@Startup` bean, a constructor call), check what an exception there does to unrelated chains. Widening the scope of a
+failure is the owner's decision: ask before making it.
+
+After a restart, runtime-catalog reports the old deployment status for about two minutes. The previous Consul session
+(`SESSION_TTL = 60`, `SessionBehavior.DELETE` in `ConsulSessionService`) holds the `engines-state` key until Consul
+expires it, so a status read from the catalog in that window is stale.
 
 ### Platform context
 

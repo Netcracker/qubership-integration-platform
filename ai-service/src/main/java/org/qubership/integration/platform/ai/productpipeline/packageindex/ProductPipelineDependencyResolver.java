@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -38,7 +39,8 @@ public final class ProductPipelineDependencyResolver {
   }
 
   public List<DependencyPin> resolveClosure(
-      Path repoRoot, List<CapabilityManifest> capabilities, List<String> dynamicSkills) {
+      Path packRoot, List<CapabilityManifest> capabilities, List<String> dynamicSkills) {
+    Path repoRoot = packRoot.getParent() == null ? packRoot : packRoot.getParent();
     Set<String> skillIds = new LinkedHashSet<>();
     Set<String> addonIds = new LinkedHashSet<>();
     Set<String> ruleIds = new LinkedHashSet<>();
@@ -53,13 +55,13 @@ public final class ProductPipelineDependencyResolver {
 
     List<DependencyPin> pins = new ArrayList<>();
     for (String skillId : skillIds) {
-      pins.add(pinSkill(repoRoot, skillId));
+      pins.add(pinSkill(repoRoot, packRoot, skillId));
     }
     for (String addonId : addonIds) {
-      pins.add(pinAddon(repoRoot, addonId));
+      pins.add(pinAddon(repoRoot, packRoot, addonId));
     }
     for (String ruleId : ruleIds) {
-      pins.add(pinRule(repoRoot, ruleId));
+      pins.add(pinRule(repoRoot, packRoot, ruleId));
     }
     pins.sort(Comparator.comparing(DependencyPin::dependencyId).thenComparing(DependencyPin::kind));
     return List.copyOf(pins);
@@ -103,8 +105,11 @@ public final class ProductPipelineDependencyResolver {
     }
   }
 
-  private DependencyPin pinSkill(Path repoRoot, String skillId) {
-    Path path = repoRoot.resolve("integration-platform-skills/.apm/skills/" + skillId + "/SKILL.md");
+  private static final String PLAN_VALIDATOR_CLASSPATH = "classpath:prompts/roles/plan-validator.md";
+  private static final String PLAN_VALIDATOR_RESOURCE = "prompts/roles/plan-validator.md";
+
+  private DependencyPin pinSkill(Path repoRoot, Path packRoot, String skillId) {
+    Path path = packRoot.resolve(".apm/skills/" + skillId + "/SKILL.md");
     if (Files.isRegularFile(path)) {
       return new DependencyPin(
           skillId,
@@ -115,14 +120,12 @@ public final class ProductPipelineDependencyResolver {
           null);
     }
     if ("plan-validator".equals(skillId)) {
-      Path prompt =
-          repoRoot.resolve("ai-service/src/main/resources/prompts/roles/plan-validator.md");
-      requireFile(prompt, "skill", skillId);
+      byte[] prompt = readClasspathResource(PLAN_VALIDATOR_RESOURCE);
       return new DependencyPin(
           skillId,
           "skill",
-          relativize(repoRoot, prompt),
-          sha256(prompt),
+          PLAN_VALIDATOR_CLASSPATH,
+          sha256Bytes(prompt),
           ReferenceDisposition.TARGET_ONLY,
           "ai-service plan-validator role prompt");
     }
@@ -130,9 +133,8 @@ public final class ProductPipelineDependencyResolver {
     throw new IllegalStateException("unreachable");
   }
 
-  private DependencyPin pinAddon(Path repoRoot, String addonId) {
-    Path path =
-        repoRoot.resolve("integration-platform-skills/addons/skills/" + addonId + ".addon.md");
+  private DependencyPin pinAddon(Path repoRoot, Path packRoot, String addonId) {
+    Path path = packRoot.resolve("addons/skills/" + addonId + ".addon.md");
     requireFile(path, "addon", addonId);
     return new DependencyPin(
         addonId,
@@ -143,9 +145,8 @@ public final class ProductPipelineDependencyResolver {
         "ai-service addon with no reference counterpart");
   }
 
-  private DependencyPin pinRule(Path repoRoot, String ruleId) {
-    Path product =
-        repoRoot.resolve("integration-platform-skills/product-pipelines/rules/" + ruleId + ".yaml");
+  private DependencyPin pinRule(Path repoRoot, Path packRoot, String ruleId) {
+    Path product = packRoot.resolve("product-pipelines/rules/" + ruleId + ".yaml");
     if (Files.isRegularFile(product)) {
       return new DependencyPin(
           ruleId,
@@ -164,10 +165,23 @@ public final class ProductPipelineDependencyResolver {
           ReferenceDisposition.TARGET_ONLY,
           "generated pack index / schema contract");
     }
-    Path path = repoRoot.resolve("integration-platform-skills/.apm/instructions/" + ruleId + ".md");
+    Path path = packRoot.resolve(".apm/instructions/" + ruleId + ".md");
     requireFile(path, "rule", ruleId);
     return new DependencyPin(
         ruleId, "rule", relativize(repoRoot, path), sha256(path), ReferenceDisposition.ADOPTED, null);
+  }
+
+  private static byte[] readClasspathResource(String resourcePath) {
+    String normalized = resourcePath.startsWith("/") ? resourcePath.substring(1) : resourcePath;
+    try (InputStream in =
+        ProductPipelineDependencyResolver.class.getClassLoader().getResourceAsStream(normalized)) {
+      if (in == null) {
+        throw new IllegalStateException("missing classpath resource: " + resourcePath);
+      }
+      return in.readAllBytes();
+    } catch (IOException e) {
+      throw new IllegalStateException("cannot read classpath resource: " + resourcePath, e);
+    }
   }
 
   private static void requireFile(Path path, String kind, String id) {

@@ -11,6 +11,7 @@ import {
   within,
 } from "@testing-library/react";
 import "@testing-library/jest-dom";
+import { Form, Input } from "antd";
 import type { EditorProps } from "@monaco-editor/react";
 import {
   Environment,
@@ -211,6 +212,26 @@ describe("EnvironmentParamsModal", () => {
     expect(await screen.findByText("Name is required")).toBeInTheDocument();
     expect(onSubmit).not.toHaveBeenCalled();
     expect(screen.getByText("Edit Environment")).toBeInTheDocument();
+  });
+
+  // The service's Parameters tab stays mounted behind the dialog, with an unnamed form of its
+  // own. The two forms used to give their Name inputs the same id, so the dialog's Name label
+  // pointed at the tab's input (#1226).
+  it("should label its Name field when another form on the page has one", () => {
+    render(
+      <Form>
+        <Form.Item label="Name" name="name">
+          <Input />
+        </Form.Item>
+      </Form>,
+    );
+    renderModal("http");
+
+    const dialogName = screen
+      .getAllByLabelText("Name")
+      .find((element) => element.closest(".ant-modal"));
+
+    expect(dialogName).toHaveValue("Env 1");
   });
 
   it("should stay open when submit fails", async () => {

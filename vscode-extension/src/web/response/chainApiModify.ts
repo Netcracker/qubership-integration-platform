@@ -1148,7 +1148,7 @@ export async function deleteMaskedFields(
     let index = (chain.content.maskedFields as [])?.findIndex(
       (mf: any) => mf.id === maskedFieldId,
     );
-    if (index) {
+    if (index >= 0) {
       (chain.content.maskedFields as []).splice(index, 1);
     }
   }

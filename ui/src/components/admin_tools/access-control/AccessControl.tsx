@@ -35,7 +35,10 @@ import {
   ColumnsTypeWithSettings,
   useColumnSettingsBasedOnColumnsType,
 } from "../../table/useColumnSettingsButton.tsx";
-import { useTableConfiguration } from "../../table/useTableConfiguration.tsx";
+import {
+  SELECTION_COLUMN_WIDTH,
+  useTableConfiguration,
+} from "../../table/useTableConfiguration.tsx";
 import { matchesByFields } from "../../table/tableSearch.ts";
 import { TableToolbar } from "../../table/TableToolbar.tsx";
 import { AdminToolsHeader } from "../AdminToolsHeader.tsx";
@@ -391,7 +394,7 @@ export const AccessControl: React.FC = () => {
       chain: 190,
       chainStatus: 110,
     },
-    { selectionColumnWidth: 48 },
+    { selectionColumnWidth: SELECTION_COLUMN_WIDTH },
     "accessControlTable",
   );
 
@@ -419,6 +422,7 @@ export const AccessControl: React.FC = () => {
             require={{ deployment: ["create"] }}
             tooltipProps={{ title: "Redeploy", placement: "bottom" }}
             buttonProps={{
+              "data-testid": "access-control-redeploy",
               iconName: "send",
               disabled: redeployButtonDisabled(),
               onClick: () => {
@@ -456,6 +460,7 @@ export const AccessControl: React.FC = () => {
             require={{ chain: ["update"] }}
             tooltipProps={{ title: "Add Roles", placement: "bottom" }}
             buttonProps={{
+              "data-testid": "access-control-add-roles",
               iconName: "plus",
               onClick: () => {
                 if (selectedRowKeys.length === 0) {

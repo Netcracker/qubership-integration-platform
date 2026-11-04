@@ -61,10 +61,12 @@ import type {
   ChainDifferenceRequest,
   ChainElement,
   ChainElementSearch,
+  ChainOfService,
   ChainRolesPage,
   ChainRolesPath,
   ChainRolesUpdate,
   ChainView,
+  ChainsOfSpecificationGroup,
   ContextSystemFilter,
   ContextSystemView,
   CustomResourceMode,
@@ -111,6 +113,7 @@ import type {
   McpSystemView,
   MigratedChainView,
   Named,
+  OpenedFolderItem,
   OperationDetail,
   OperationInfo,
   OperationSchemas,
@@ -149,6 +152,11 @@ function variablesUpload(name: string, buffer: Buffer) {
 /** Copy, move and folder move all take the target as a query parameter, and all treat none as the root. */
 function targetQuery(targetFolderId?: string): string {
   return targetFolderId ? `?targetFolderId=${encodeURIComponent(targetFolderId)}` : "";
+}
+
+/** A request's own timeout, which replaces Playwright's default of 30 s. */
+export interface RequestTimeout {
+  timeout?: number;
 }
 
 /** Throws naming the call and the start of the answer. The engine client throws the same way. */
@@ -216,8 +224,11 @@ export class Catalog {
   }
 
   /** The raw response, for a spec asserting a status or a failure body. */
-  raw(method: string, path: string, data?: unknown): Promise<APIResponse> {
-    return this.send(method, path, data === undefined ? {} : { data: data as object });
+  raw(method: string, path: string, data?: unknown, options: RequestTimeout = {}): Promise<APIResponse> {
+    return this.send(method, path, {
+      ...(data === undefined ? {} : { data: data as object }),
+      ...(options.timeout === undefined ? {} : { timeout: options.timeout }),
+    });
   }
 
   /**
@@ -277,6 +288,14 @@ export class Catalog {
 
   listRootItems(): Promise<Array<Named & { itemType: string }>> {
     return this.call("get", "/v1/folders");
+  }
+
+  /**
+   * The root listing plus the tree down to the opened folder: each folder on the path with its
+   * direct items, the folders beside the path and below it, and the chains directly inside the path.
+   */
+  listRootItemsOpenedAt(openedFolderId: string): Promise<OpenedFolderItem[]> {
+    return this.call("get", `/v1/folders?openedFolderId=${encodeURIComponent(openedFolderId)}`);
   }
 
   /**
@@ -359,6 +378,32 @@ export class Catalog {
   /** The services and specifications the chains' elements reference. */
   usedSystems(chainIds: readonly string[]): Promise<UsedSystem[]> {
     return this.call("get", `/v1/chains/used-systems?chainIds=${chainIds.join(",")}`);
+  }
+
+  /** The chains whose elements name the service, without their elements unless `mode` is not `light`. */
+  chainsOfSystem(systemId: string, mode?: string): Promise<ChainOfService[]> {
+    const query = mode === undefined ? "" : `?mode=${encodeURIComponent(mode)}`;
+    return this.call("get", `/v1/chains/systems/${systemId}${query}`);
+  }
+
+  /** The chains whose elements name the operation. */
+  chainsOfOperation(systemId: string, operationId: string): Promise<ChainOfService[]> {
+    return this.call("get", `/v1/chains/${systemId}/${operationId}`);
+  }
+
+  /** The chains whose elements name the specification. */
+  chainsOfSpecification(systemId: string, modelId: string): Promise<ChainOfService[]> {
+    return this.call("get", `/v1/chains/${systemId}/model/${modelId}`);
+  }
+
+  /** The chains whose elements name the specification group. */
+  chainsOfSpecificationGroup(systemId: string, groupId: string): Promise<ChainOfService[]> {
+    return this.call("get", `/v1/chains/${systemId}/specificationGroup/${groupId}`);
+  }
+
+  /** The chains that name the service, one row per specification group their elements name. */
+  chainsBySpecificationGroup(systemId: string): Promise<ChainsOfSpecificationGroup[]> {
+    return this.call("get", `/v1/chains/${systemId}/specificationGroup`);
   }
 
   /** The element differences between two chains, two snapshots, or a chain and a snapshot. */
@@ -652,13 +697,14 @@ export class Catalog {
    */
   async bulkDeploy(
     chainIds: string[],
-    options: { domains?: string[]; snapshotAction?: BulkSnapshotAction } = {},
+    options: { domains?: string[]; snapshotAction?: BulkSnapshotAction } & RequestTimeout = {},
   ): Promise<{ status: number; rows: BulkDeploymentRow[] }> {
-    const response = await this.raw("post", "/v1/catalog/chains/deployments/bulk", {
+    const body = {
       chainIds,
       domains: options.domains ?? [DEFAULT_DOMAIN],
       snapshotAction: options.snapshotAction ?? "CREATE_NEW",
-    });
+    };
+    const response = await this.raw("post", "/v1/catalog/chains/deployments/bulk", body, options);
     if (response.status() !== 200 && response.status() !== 207) {
       await fail(response, "POST", `${this.base}/v1/catalog/chains/deployments/bulk`);
     }
@@ -720,8 +766,10 @@ export class Catalog {
    * writes no row to `catalog.deployments`, so the answer is the only record of it, and an unknown
    * chain id is dropped from it with no error: a caller compares the rows with the ids it sent.
    */
-  deployChains(chainIds: string[], domains: string[]): Promise<BulkDeploymentRow[]> {
-    return this.call("post", "/v1/cr/deploy-chains", { chainIds, domains });
+  async deployChains(chainIds: string[], domains: string[], options: RequestTimeout = {}): Promise<BulkDeploymentRow[]> {
+    const response = await this.raw("post", "/v1/cr/deploy-chains", { chainIds, domains }, options);
+    if (!response.ok()) await fail(response, "POST", `${this.base}/v1/cr/deploy-chains`);
+    return (await response.json()) as BulkDeploymentRow[];
   }
 
   /** Deletes a micro domain: its Integration, Service, ConfigMaps, and HTTPRoutes. */
@@ -1034,6 +1082,16 @@ export class Catalog {
   }
 
   /**
+   * The same export by POST, as the UI's chain export sends it: multipart form fields, with
+   * `usedSystemModelIds` naming the specifications its chains use.
+   */
+  exportSystemsByPost(ids: readonly string[], usedSystemModelIds?: readonly string[]): Promise<APIResponse> {
+    const multipart: Record<string, string> = { systemIds: ids.join(",") };
+    if (usedSystemModelIds !== undefined) multipart.usedSystemModelIds = usedSystemModelIds.join(",");
+    return this.upload("post", "/v1/export/system", { multipart });
+  }
+
+  /**
    * The chain export, which lives under `/v1/catalog/export` while the service export lives under
    * `/v1/export/system`. The two prefixes are not a typo and neither answers on the other's path.
    */
@@ -1072,9 +1130,10 @@ export class Catalog {
   }
 
   /** `path` is the import endpoint, because services and chains do not share one. */
-  async importArchive(path: string, archive: Buffer, name = "fixture.zip"): Promise<APIResponse> {
+  async importArchive(path: string, archive: Buffer, name = "fixture.zip", options: RequestTimeout = {}): Promise<APIResponse> {
     return await this.send("post", path, {
       multipart: { file: { name, mimeType: "application/zip", buffer: archive } },
+      ...(options.timeout === undefined ? {} : { timeout: options.timeout }),
     });
   }
 
@@ -1085,8 +1144,8 @@ export class Catalog {
    * `chains` array for an archive whose entries sit at the zip root, which is the quiet way an
    * import that imported nothing reports success.
    */
-  importChains(archive: Buffer, name = "chains.zip"): Promise<APIResponse> {
-    return this.importArchive("/v1/catalog/import", archive, name);
+  importChains(archive: Buffer, name = "chains.zip", options: RequestTimeout = {}): Promise<APIResponse> {
+    return this.importArchive("/v1/catalog/import", archive, name, options);
   }
 
   /** What an import would write. Reads the archive and touches nothing. */

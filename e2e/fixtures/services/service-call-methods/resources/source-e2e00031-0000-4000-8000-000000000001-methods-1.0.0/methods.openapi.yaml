@@ -1,0 +1,43 @@
+# The import keeps this file as the source and reads the operations from the specification document,
+# whose paths carry the run token the method echo's route has.
+openapi: 3.0.3
+info:
+  title: E2E Service Call
+  version: 1.0.0
+paths:
+  /method-echo:
+    post:
+      operationId: echoPOST
+      responses:
+        "201":
+          description: created
+    get:
+      operationId: echoGET
+      responses:
+        "201":
+          description: created
+    put:
+      operationId: echoPUT
+      responses:
+        "201":
+          description: created
+    delete:
+      operationId: echoDELETE
+      responses:
+        "201":
+          description: created
+    patch:
+      operationId: echoPATCH
+      responses:
+        "201":
+          description: created
+    head:
+      operationId: echoHEAD
+      responses:
+        "201":
+          description: created
+    options:
+      operationId: echoOPTIONS
+      responses:
+        "201":
+          description: created

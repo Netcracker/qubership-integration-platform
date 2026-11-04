@@ -26,17 +26,18 @@ reproduces what the real code does. This skill covers what a case at each level 
 - The test bundle carries its own copy of the extension's modules. Call `useExtensionModules()` before calling one,
   such as `getApiResponse`. The `vscode` API object is shared, so a stub on `vscode.window` supplies a prompt's answer.
 - A spec sends `getApiResponse` the message the webview would send. The webview-to-router wiring in `enrichWebview`
-  and the webview DOM stay untested.
-- The host is the current insiders build (`--quality insiders`), because `customEditorDiffs` is a proposed API. When
-  the gate fails on the host download, a host measurement, or a chromium launch, follow the comment above the
-  `Run integration tests` step in `.github/workflows/vscode-extension-build.yaml`.
+  and the webview DOM are covered by the end-to-end suite's `vscode` project (`e2e/specs/vscode/`), which drives the
+  editors in VS Code for the web; load the `e2e-spec-authoring` skill before writing a case there.
+- The host is the current insiders build (`--quality insiders`), because `customEditorDiffs` is a proposed API. The
+  `vscode` project pins one insiders build in `e2e/support/vscode-server.ts` instead. When the gate fails on the host
+  download, a host measurement, or a chromium launch, follow the comment above the `Run integration tests` step in
+  `.github/workflows/vscode-extension-build.yaml`.
 
 ## Golden files
 
 Two suites write `src/web/test/golden/`, and the `e2e` instruction says how the end-to-end suite imports it. Regenerate
 a golden in the suite that writes it, in the same commit as the change to what the extension writes, and run
-`e2e/specs/api/extension-output.spec.ts` too. On a cluster whose istiod lacks `PILOT_ENABLE_ALPHA_GATEWAY_API=true`, run
-that spec with `E2E_PROVISION=never`.
+`e2e/specs/api/extension-output.spec.ts` too.
 
 - **Top level:** level-2 specs compare bytes. Copy the text a failing comparison reports into the file. The
   `require.context` in `harness.ts` is non-recursive, so `golden/import/` never reaches the level-2 bundle.

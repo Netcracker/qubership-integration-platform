@@ -1,0 +1,38 @@
+---
+id: "e2e10028-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-kafka-sender-security-ssl-tlsv1-2"
+description: "The Kafka sender over SSL with sslProtocol TLSv1.2 on the TLS listener. An HTTP call drives it, and a spec consumes the topic to find the payload."
+content:
+  labels: []
+  elements:
+  - id: "e2e10028-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-kafka-sender-security-ssl-tlsv1-2"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e10028-0000-4000-8000-000000000003"
+    name: "sslProtocol=TLSv1.2"
+    type: "kafka-sender-2"
+    properties:
+      connectionSourceType: "manual"
+      brokers: "kafka:29095"
+      topics: "e2e-{{RUN}}-kafka-sender-security-ssl-tlsv1-2"
+      securityProtocol: "SSL"
+      saslMechanism: "GSSAPI"
+      sslProtocol: "TLSv1.2"
+      keySerializer: "org.apache.kafka.common.serialization.StringSerializer"
+      valueSerializer: "org.apache.kafka.common.serialization.StringSerializer"
+  dependencies:
+  - from: "e2e10028-0000-4000-8000-000000000002"
+    to: "e2e10028-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

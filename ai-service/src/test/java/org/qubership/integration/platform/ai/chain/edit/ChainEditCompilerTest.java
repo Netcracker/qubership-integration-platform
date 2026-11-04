@@ -1630,6 +1630,7 @@ class ChainEditCompilerTest {
             DeterministicElementSchemaService.createForUnitTests(new ObjectMapper()),
             realValidationPipeline(),
             planner,
+            null,
             null);
 
     intentReply = wrapCapture(TARGET);

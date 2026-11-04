@@ -10,9 +10,7 @@ dependencies:
     - Netcracker/qubership-ai-packages/agent-packages/english-developer-style
     - Netcracker/qubership-ai-packages/agent-packages/codex-review
     - Netcracker/qubership-ai-agent-telemetry/agent-packages/ai-agent-telemetry
-    - path: ./integration-platform-skills
-      skills:
-        - rocky-binding-mapping
+    - Netcracker/qubership-ai-packages/agent-packages/change-description-authoring/.apm/skills/change-description-authoring
 devDependencies:
   apm:
     - Netcracker/qubership-ai-packages/agent-packages/apm-authoring
@@ -21,6 +19,7 @@ includes:
   - .apm/skills/
 compilation:
   exclude:
+    # ai-service reads this private, gitignored package; keep compile out of it.
     - integration-platform-skills/**
     - .claude/**
     - .cursor/**

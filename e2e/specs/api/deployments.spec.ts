@@ -22,9 +22,10 @@
  *   The new context is started before the superseded one is stopped, so no sample answers 404 and
  *   the marker flips partway through. It is not a promise that every sample answers 200: there is
  *   no drain handshake, and a call that resolves a suspended consumer — or that is still executing
- *   when the superseded context stops — answers `500 QIP-0001`, which is indistinguishable from a
- *   chain that threw. The redeploy case tolerates that one answer, bounds how many samples may
- *   carry it, and refuses everything else; issue #845 has the mechanism and the reproduction.
+ *   when the superseded context stops — answers `500 CIP-0001`, which is indistinguishable from a
+ *   chain that threw, or 500 with the request echoed back. The redeploy case tolerates those two
+ *   answers, bounds how many samples may carry them, and refuses everything else; issue #845 has
+ *   the mechanism and the reproduction.
  * - Two **chains** sharing one `contextPath` on one domain both reach `DEPLOYED`, and the last one
  *   deployed owns the route. Camel does not treat it as a route conflict, and the second deployment
  *   never reaches `FAILED`.
@@ -53,8 +54,10 @@ import {
 } from "../../support/deployable.js";
 import { DEPLOY_TIMEOUT } from "../../support/corpus.js";
 import { sleep } from "../../support/poll.js";
+import { isDrainAnswer, type RouteAnswer } from "../../support/drain-answer.js";
 import type { Env } from "../../env/index.js";
 import type { APIRequestContext } from "@playwright/test";
+import { coversBehavior } from "../../registry/covers.js";
 
 /**
  * How long the route may take to change hands while the redeploy case samples it.
@@ -73,8 +76,9 @@ const SAMPLE_PAUSE = 100;
  * The window is tolerated rather than pinned, and a tolerance with no bound on the count is not a
  * measurement: a window that got an order of magnitude wider answers the same document every time,
  * so a filter asking only *which* answers came back stays green through it. This bound keeps the
- * measured number meaningful: 31,890 calls across eight redeploys produced no non-200 at all, and
- * the single live sighting this suite has is one sample.
+ * measured number meaningful: 31,890 calls across eight redeploys produced no non-200 at all. The
+ * suite has seen the window twice since, one sample each time: `500 CIP-0001` in a local full run,
+ * and 500 with the request body echoed back in run 39771885404.
  *
  * Ten is roughly a second of drain at `SAMPLE_PAUSE`, and the switch itself spans between 30 and 45
  * samples on this stack, so the bound is about a quarter of the redeploy. Every full run so far has
@@ -82,29 +86,6 @@ const SAMPLE_PAUSE = 100;
  * a window creeping toward the bound is visible before it crosses it.
  */
 const DRAIN_SAMPLE_LIMIT = 10;
-
-interface RouteAnswer {
-  status: number;
-  marker: string | null;
-  body: string;
-}
-
-/**
- * Whether a sample is the engine's answer for a route that is not serving right now.
- *
- * `CustomErrorController` maps every chain-URI error status except 404 and 405 to `QIP-0001` at
- * HTTP 500, so a suspended consumer's 503 and a genuine chain failure reach the caller as the same
- * document. That is a filed platform defect, and it is why this reads the code out of the body
- * rather than accepting any 500: the status alone would also accept a chain that broke.
- */
-function isDrainAnswer(answer: RouteAnswer): boolean {
-  if (answer.status !== 500) return false;
-  try {
-    return (JSON.parse(answer.body) as { code?: string }).code === "QIP-0001";
-  } catch {
-    return false;
-  }
-}
 
 /**
  * Calls the chain on its route and reads the marker off the response.
@@ -129,6 +110,7 @@ async function callDeployedChain(
     status: response.status(),
     marker: response.headers()[MARKER_HEADER] ?? null,
     body: await response.text(),
+    sent: JSON.stringify(body),
   };
 }
 
@@ -168,332 +150,381 @@ async function deployChain(catalog: Catalog, chain: DeployableChain) {
   return { snapshot, deployment: await catalog.deploy(chain.id, snapshot.id) };
 }
 
-test("a deployed chain is reported by the engine and answers on its route", { tag: ["@catalog", "@engine", "@tier1"] }, async ({ catalog, env, folder, run, request }) => {
-  const chain = await tokenizedChain(catalog, run, {
-    prefix: "deploy",
-    what: "live",
-    parentId: folder.id,
+test.describe("deployments", { tag: ["@catalog"] }, () => {
+  test("the engine reports a deployed chain and serves its route", { tag: ["@engine"] }, async ({ catalog, env, folder, run, request }) => {
+    const chain = await tokenizedChain(catalog, run, {
+      prefix: "deploy",
+      what: "live",
+      parentId: folder.id,
+    });
+
+    const { snapshot, deployment } = await test.step("snapshot and deploy the chain", async () => {
+      const deployed = await deployChain(catalog, chain);
+      expect(deployed.deployment.domain, "the deployment records the domain it was sent to").toBe(DEFAULT_DOMAIN);
+      return deployed;
+    });
+
+    await test.step("the engine reports the deployment", async () => {
+      const reported = await deploymentRowOf(catalog, chain);
+      expect(reported.deploymentInfo).toMatchObject({
+        deploymentId: deployment.id,
+        chainId: chain.id,
+        chainName: chain.name,
+        snapshotId: snapshot.id,
+        snapshotName: "V1",
+      });
+      expect(reported.host, "the engine reports which host serves the chain").toBeTruthy();
+    });
+
+    // The catalog's own row carries the same status, keyed by engine host rather than flat. The row
+    // is named before it is indexed, so a chain the catalog no longer lists fails as a missing id.
+    await test.step("the catalog row carries the same status", async () => {
+      const rows = await catalog.listDeployments(chain.id);
+      expect(rows.map((each) => each.id)).toEqual([deployment.id]);
+      expect(Object.values(rows[0].runtime?.states ?? {}).map((state) => state.status)).toEqual([
+        "DEPLOYED",
+      ]);
+      expect((await catalog.getDeployment(chain.id, deployment.id)).snapshotId).toBe(snapshot.id);
+    });
+
+    // And the route itself, which is the only assertion here the catalog cannot fake. An HTTP
+    // trigger with nothing behind it echoes the request, and the header modification is what marks
+    // which version of the chain answered.
+    await test.step("the route answers with the live marker", async () => {
+      const answer = await callDeployedChain(request, env, chain, { ping: "live" });
+      expect(answer.status).toBe(200);
+      expect(answer.marker).toBe("live");
+      expect(JSON.parse(answer.body)).toEqual({ ping: "live" });
+    });
+
+    await test.step("deployAll deploys the chain to a list of domains and tells the engine", async () => {
+      await catalog.undeployAll(chain.id);
+      // The runtime view lags the undeploy, so the old row has to go before `deploymentRowOf` can
+      // only find the new one.
+      await expect
+        .poll(async () => (await catalog.runtimeDeploymentsOf(chain.id)).length, {
+          timeout: DEPLOY_TIMEOUT,
+          message: `the runtime view still keys ${chain.name} after the undeploy`,
+        })
+        .toBe(0);
+
+      const created = await catalog.deployAll(chain.id, [{ snapshotId: snapshot.id, domain: DEFAULT_DOMAIN }]);
+
+      expect(created).toHaveLength(1);
+      expect(created[0]).toMatchObject({ chainId: chain.id, snapshotId: snapshot.id, domain: DEFAULT_DOMAIN });
+      expect((await catalog.listDeployments(chain.id)).map((each) => each.id)).toEqual([created[0].id]);
+
+      // Like the bulk endpoint, this one tells the engine itself.
+      const redeployed = await deploymentRowOf(catalog, chain);
+      expect(redeployed.deploymentInfo).toMatchObject({ deploymentId: created[0].id, snapshotId: snapshot.id });
+      expect((await callDeployedChain(request, env, chain)).marker).toBe("live");
+
+      expect(await catalog.deployAll(chain.id, []), "an empty list deploys nothing").toEqual([]);
+    });
   });
 
-  const { snapshot, deployment } = await deployChain(catalog, chain);
-  expect(deployment.domain, "the deployment records the domain it was sent to").toBe(DEFAULT_DOMAIN);
+  // Asserted on the route: the catalog drops its row before the engine has acted on the undeploy.
+  test("an undeploy takes the route down to 404", { tag: ["@engine"] }, async ({ catalog, env, folder, run, request }) => {
+    const chain = await tokenizedChain(catalog, run, {
+      prefix: "deploy",
+      what: "undeploy",
+      parentId: folder.id,
+    });
+    const { deployment } = await deployChain(catalog, chain);
+    await deploymentRowOf(catalog, chain);
 
-  const reported = await deploymentRowOf(catalog, chain);
-  expect(reported.deploymentInfo).toMatchObject({
-    deploymentId: deployment.id,
-    chainId: chain.id,
-    chainName: chain.name,
-    snapshotId: snapshot.id,
-    snapshotName: "V1",
-  });
-  expect(reported.host, "the engine reports which host serves the chain").toBeTruthy();
+    // While the route is live a GET is a 405, because the trigger restricts the method. That is the
+    // reading that separates "the route is gone" from "the route is there and refused the verb" —
+    // and a 404 assertion alone cannot tell the two apart.
+    const url = env.chainUrl(chain.contextPath);
+    expect((await request.get(url)).status()).toBe(405);
 
-  // The catalog's own row carries the same status, keyed by engine host rather than flat. The row
-  // is named before it is indexed, so a chain the catalog no longer lists fails as a missing id.
-  const rows = await catalog.listDeployments(chain.id);
-  expect(rows.map((each) => each.id)).toEqual([deployment.id]);
-  expect(Object.values(rows[0].runtime?.states ?? {}).map((state) => state.status)).toEqual([
-    "DEPLOYED",
-  ]);
-  expect((await catalog.getDeployment(chain.id, deployment.id)).snapshotId).toBe(snapshot.id);
+    await catalog.undeploy(chain.id, deployment.id);
+    expect(await catalog.listDeployments(chain.id), "the catalog drops the row at once").toEqual([]);
 
-  // And the route itself, which is the only assertion here the catalog cannot fake. An HTTP
-  // trigger with nothing behind it echoes the request, and the header modification is what marks
-  // which version of the chain answered.
-  const answer = await callDeployedChain(request, env, chain, { ping: "live" });
-  expect(answer.status).toBe(200);
-  expect(answer.marker).toBe("live");
-  expect(JSON.parse(answer.body)).toEqual({ ping: "live" });
-});
+    await expect
+      .poll(async () => (await request.get(url)).status(), {
+        timeout: DEPLOY_TIMEOUT,
+        message: `the route for ${chain.name} still answers after the undeploy`,
+      })
+      .toBe(404);
 
-test("undeploy is asserted by the route rather than by the catalog's record of it", { tag: ["@catalog", "@engine", "@tier1"] }, async ({ catalog, env, folder, run, request }) => {
-  const chain = await tokenizedChain(catalog, run, {
-    prefix: "deploy",
-    what: "undeploy",
-    parentId: folder.id,
-  });
-  const { deployment } = await deployChain(catalog, chain);
-  await deploymentRowOf(catalog, chain);
-
-  // While the route is live a GET is a 405, because the trigger restricts the method. That is the
-  // reading that separates "the route is gone" from "the route is there and refused the verb" —
-  // and a 404 assertion alone cannot tell the two apart.
-  const url = env.chainUrl(chain.contextPath);
-  expect((await request.get(url)).status()).toBe(405);
-
-  await catalog.undeploy(chain.id, deployment.id);
-  expect(await catalog.listDeployments(chain.id), "the catalog drops the row at once").toEqual([]);
-
-  await expect
-    .poll(async () => (await request.get(url)).status(), {
-      timeout: DEPLOY_TIMEOUT,
-      message: `the route for ${chain.name} still answers after the undeploy`,
-    })
-    .toBe(404);
-
-  // The runtime view lags the route it describes, and by seconds: measured, the chain was still
-  // keyed `DEPLOYED` there after the route had already gone 404. `RuntimeDeploymentService` prunes
-  // on what the engine reports back, so this is a poll and never a read.
-  await expect
-    .poll(async () => (await catalog.runtimeDeploymentsOf(chain.id)).length, {
-      timeout: DEPLOY_TIMEOUT,
-      message: `the runtime view still keys ${chain.name} after the undeploy`,
-    })
-    .toBe(0);
-});
-
-test("a redeploy swaps the response and the route never goes missing", { tag: ["@catalog", "@engine", "@tier1"] }, async ({ catalog, env, folder, run, request }) => {
-  const chain = await tokenizedChain(catalog, run, {
-    prefix: "deploy",
-    what: "redeploy",
-    parentId: folder.id,
-    marker: "before",
-  });
-  const { deployment: first } = await deployChain(catalog, chain);
-  await deploymentRowOf(catalog, chain);
-  expect((await callDeployedChain(request, env, chain)).marker).toBe("before");
-
-  await setMarker(catalog, chain, "after");
-  const { deployment: second } = await deployChain(catalog, chain);
-  expect(second.id).not.toBe(first.id);
-
-  // Sample the route across the switch rather than after it. Whether there is a window in which the
-  // route is gone is the contract this case exists to record, and a single call after the fact
-  // cannot see one. Measured: there is none. Of 31,890 calls across eight redeploys, none answered
-  // 404 and none answered anything but 200 — though the assertions below demand only the first of
-  // those, for the reason stated at the second. The pause paces the sampling; see SAMPLE_PAUSE.
-  const samples: RouteAnswer[] = [];
-  const deadline = Date.now() + DEPLOY_TIMEOUT;
-  while (Date.now() < deadline) {
-    const answer = await callDeployedChain(request, env, chain);
-    samples.push(answer);
-    if (answer.marker === "after") break;
-    await sleep(SAMPLE_PAUSE);
-  }
-
-  expect(samples.at(-1)?.marker, "the new response never arrived").toBe("after");
-  // The guard on everything below, and it has to come first: the loop breaks on the first sample
-  // carrying "after", so a switch that landed before the first call leaves `samples` one entry
-  // long, and every reading below is then taken over a single post-switch response. Read off the
-  // first sample that carried a marker rather than off `samples[0]`, because a sample answered from
-  // inside the drain window carries none.
-  expect(
-    samples.map((each) => each.marker).filter((each) => each !== null)[0],
-    "sampling began after the route had already changed hands, so this case measured whatever the " +
-      "timing allowed rather than the switch it claims to span",
-  ).toBe("before");
-
-  // The route stays addressable across the switch, and that is the half the engine does promise:
-  // `IntegrationRuntimeService.update` starts the new context before it stops the superseded one,
-  // both consumers sit in one servlet registry under distinct `servletCustomId` values, and
-  // `matchNewerConsumer` prefers the newer one. A 404 here means the route was gone, which is the
-  // regression this case exists to catch.
-  expect(
-    samples.filter((each) => each.status === 404),
-    "the route disappeared during the redeploy",
-  ).toEqual([]);
-
-  // What the engine does not promise is that every sample answers 200. There is no drain handshake:
-  // a request that resolves the superseded consumer while it is suspended, or that is still
-  // executing when its context stops, answers `500 QIP-0001` — the same body a chain that threw
-  // would produce. Issue #845 has the mechanism and the reproduction. The second of the two paths
-  // it describes is the one that reaches a redeploy: `stopSupersededContext` tears the old context
-  // down under whatever is still executing on it, and `CamelServlet.service` answers that request
-  // 500. This suite has seen it once, against 31,890 redeploy calls that produced no non-200: rare,
-  // not impossible, which is why the window is tolerated here rather than pinned with `test.fail()`.
-  //
-  // Tolerated is not unread. A sample that is neither a 200 nor that one answer fails the case, so
-  // a redeploy that starts answering 502, or 500 with some other code, is still a regression, and
-  // the assertion after this one bounds how much of the redeploy the window may swallow.
-  expect(
-    samples.filter((each) => each.status !== 200 && !isDrainAnswer(each)),
-    "a sample answered something other than the chain and the known drain window",
-  ).toEqual([]);
-
-  // How wide the window was, bounded and recorded. See DRAIN_SAMPLE_LIMIT.
-  const drains = samples.filter(isDrainAnswer);
-  test.info().annotations.push({
-    type: "drain-window",
-    description: `${drains.length} of ${samples.length} samples answered 500 QIP-0001`,
-  });
-  expect(
-    drains.length,
-    `${drains.length} of ${samples.length} samples answered the drain window, which is wider than ` +
-      "the one issue #845 measured — the tolerance is for a window, not for a redeploy " +
-      "that spends most of itself unserved",
-  ).toBeLessThanOrEqual(DRAIN_SAMPLE_LIMIT);
-
-  // Every answered call carries the marker. This is what `not.toContain(null)` used to say, narrowed
-  // to the 200s: the drain answer above carries no marker by construction, and reading it as one
-  // would make this assertion pass on a route that answered nothing but drain windows.
-  expect(
-    samples.filter((each) => each.status === 200 && each.marker === null),
-    "a sample answered 200 without the marker the chain sets",
-  ).toEqual([]);
-
-  // The redeploy replaces rather than adds — but not at the moment of the call. The superseded row
-  // survives until the engine reports which deployments it is actually running and
-  // `RuntimeDeploymentService` prunes the rest, so both rows are visible for a few seconds and a
-  // straight read here fails on roughly every other run.
-  await expect
-    .poll(async () => (await catalog.listDeployments(chain.id)).map((each) => each.id), {
-      timeout: DEPLOY_TIMEOUT,
-      message: `the superseded deployment of ${chain.name} was never pruned`,
-    })
-    .toEqual([second.id]);
-  expect(
-    (await catalog.runtimeDeploymentsOf(chain.id)).map((each) => each.deploymentInfo.deploymentId),
-  ).toEqual([second.id]);
-});
-
-test("a second chain deploying onto a context path another chain holds is refused, and the first keeps the route", { tag: ["@catalog", "@engine", "@tier1"] }, async ({ catalog, env, folder, run, request }) => {
-  const first = await tokenizedChain(catalog, run, {
-    prefix: "deploy",
-    what: "shared-first",
-    parentId: folder.id,
-    marker: "first",
-  });
-  const second = await createDeployableChain(catalog, {
-    name: tokenized(run, "deploy-shared-second"),
-    parentId: folder.id,
-    // The same path as the first chain, deliberately.
-    contextPath: first.contextPath,
-    marker: "second",
+    // The runtime view lags the route it describes, and by seconds: measured, the chain was still
+    // keyed `DEPLOYED` there after the route had already gone 404. `RuntimeDeploymentService` prunes
+    // on what the engine reports back, so this is a poll and never a read.
+    await expect
+      .poll(async () => (await catalog.runtimeDeploymentsOf(chain.id)).length, {
+        timeout: DEPLOY_TIMEOUT,
+        message: `the runtime view still keys ${chain.name} after the undeploy`,
+      })
+      .toBe(0);
   });
 
-  await deployChain(catalog, first);
-  await deploymentRowOf(catalog, first);
-  expect((await callDeployedChain(request, env, first)).marker).toBe("first");
+  test("deleting every deployment of a chain at once stops its route", { tag: ["@engine"] }, async ({ catalog, env, folder, run, request }) => {
+    const chain = await tokenizedChain(catalog, run, {
+      prefix: "deploy",
+      what: "undeploy-all",
+      parentId: folder.id,
+      marker: "undeploy-all",
+    });
+    // One row is all a classic chain can hold: a second snapshot replaces the first, and both targets
+    // serve one classic domain.
+    await deployChain(catalog, chain);
+    await deploymentRowOf(catalog, chain);
+    expect((await callDeployedChain(request, env, chain)).marker).toBe("undeploy-all");
+    // A GET on the live route is a 405, so the 404 below is the route gone rather than the verb refused.
+    const url = env.chainUrl(chain.contextPath);
+    expect((await request.get(url)).status()).toBe(405);
 
-  // Until #840 both chains deployed and the engine servlet silently handed the route to whichever
-  // was deployed last. The deploy check compared external and private routes only, so two internal
-  // triggers on one path in one domain never met. It now compares every trigger of the other chains
-  // in the domain, and the refusal names the chain already holding the path.
-  const snapshot = await catalog.createSnapshot(second.id);
-  const refused = await catalog.raw("post", `/v1/catalog/chains/${second.id}/deployments`, {
-    snapshotId: snapshot.id,
-    domain: DEFAULT_DOMAIN,
-  });
-  expect(refused.status()).toBe(409);
-  expect(
-    ((await refused.json()) as { errorMessage?: string }).errorMessage,
-    "the refusal names the chain that holds the path, not the path",
-  ).toContain(first.name);
+    const deleted = await catalog.raw("delete", `/v1/catalog/chains/${chain.id}/deployments`);
+    expect(deleted.status()).toBe(204);
+    expect(await catalog.listDeployments(chain.id), "the catalog drops every row at once").toEqual([]);
 
-  // Nothing was deployed for the second chain, and the first still owns the route. Mapped rather
-  // than indexed: a chain the runtime view has stopped keying is an empty array, and that reads as
-  // an assertion here instead of as a TypeError.
-  expect(await catalog.listDeployments(second.id)).toEqual([]);
-  expect(
-    (await catalog.runtimeDeploymentsOf(second.id)).map((row) => row.status),
-    "the runtime view of the refused chain",
-  ).toEqual([]);
-  expect(
-    (await catalog.runtimeDeploymentsOf(first.id)).map((row) => row.status),
-    "the runtime view of the first chain",
-  ).toEqual(["DEPLOYED"]);
-  expect((await callDeployedChain(request, env, first)).marker).toBe("first");
-});
-
-test("a snapshot whose triggers collide on one path is refused with 409 naming the path", { tag: ["@catalog", "@tier1"] }, async ({ catalog, folder, run }) => {
-  const chain = await tokenizedChain(catalog, run, {
-    prefix: "deploy",
-    what: "collision",
-    parentId: folder.id,
-  });
-  await addCollidingTrigger(catalog, chain);
-
-  // The collision is not caught at compile time: the snapshot builds.
-  const snapshot = await catalog.createSnapshot(chain.id);
-  expect(snapshot.id).toBeTruthy();
-
-  const refused = await catalog.raw("post", `/v1/catalog/chains/${chain.id}/deployments`, {
-    snapshotId: snapshot.id,
-    domain: DEFAULT_DOMAIN,
-  });
-  expect(refused.status()).toBe(409);
-  const body = (await refused.json()) as { errorMessage?: string; serviceName?: string };
-  expect(body.serviceName).toBe("Catalog");
-  expect(body.errorMessage, "the refusal names the path it refused").toContain(chain.contextPath);
-
-  // And nothing was deployed, which is the half a status code does not say.
-  expect(await catalog.listDeployments(chain.id)).toEqual([]);
-});
-
-test("bulk deploy takes the snapshot itself and reports one row per chain", { tag: ["@catalog", "@engine", "@tier1"] }, async ({ catalog, env, folder, run, request }) => {
-  const one = await tokenizedChain(catalog, run, {
-    prefix: "deploy",
-    what: "bulk-one",
-    parentId: folder.id,
-    marker: "one",
-  });
-  const two = await tokenizedChain(catalog, run, {
-    prefix: "deploy",
-    what: "bulk-two",
-    parentId: folder.id,
-    marker: "two",
+    await expect
+      .poll(async () => (await request.get(url)).status(), {
+        timeout: DEPLOY_TIMEOUT,
+        message: `the route for ${chain.name} still answers after every deployment was deleted`,
+      })
+      .toBe(404);
   });
 
-  const { status, rows } = await catalog.bulkDeploy([one.id, two.id]);
+  test("a redeploy swaps the response and never loses the route", { tag: ["@engine"] }, async ({ catalog, env, folder, run, request }) => {
+    coversBehavior("http-trigger", "redeploy-under-traffic");
+    const chain = await tokenizedChain(catalog, run, {
+      prefix: "deploy",
+      what: "redeploy",
+      parentId: folder.id,
+      marker: "before",
+    });
+    const { deployment: first } = await deployChain(catalog, chain);
+    await deploymentRowOf(catalog, chain);
+    expect((await callDeployedChain(request, env, chain)).marker).toBe("before");
 
-  expect(status, "200 while every row succeeded").toBe(200);
-  expect(rows.map((row) => row.chainId).sort()).toEqual([one.id, two.id].sort());
-  for (const row of rows) {
-    expect(row.status).toBe("CREATED");
-    expect(row.domain.name).toBe(DEFAULT_DOMAIN);
-    expect(row.errorMessage).toBeUndefined();
-  }
+    await setMarker(catalog, chain, "after");
+    const { deployment: second } = await deployChain(catalog, chain);
+    expect(second.id).not.toBe(first.id);
 
-  // The snapshot the bulk call took for itself is a real one.
-  expect((await catalog.listSnapshots(one.id)).map((each) => each.name)).toEqual(["V1"]);
+    // Sample the route across the switch rather than after it. Whether there is a window in which the
+    // route is gone is the contract this case exists to record, and a single call after the fact
+    // cannot see one. Measured: there is none. Of 31,890 calls across eight redeploys, none answered
+    // 404 and none answered anything but 200 — though the assertions below demand only the first of
+    // those, for the reason stated at the second. The pause paces the sampling; see SAMPLE_PAUSE.
+    const samples: RouteAnswer[] = [];
+    const deadline = Date.now() + DEPLOY_TIMEOUT;
+    while (Date.now() < deadline) {
+      const answer = await callDeployedChain(request, env, chain);
+      samples.push(answer);
+      if (answer.marker === "after") break;
+      await sleep(SAMPLE_PAUSE);
+    }
 
-  await deploymentRowOf(catalog, one);
-  await deploymentRowOf(catalog, two);
-  expect((await callDeployedChain(request, env, one)).marker).toBe("one");
-  expect((await callDeployedChain(request, env, two)).marker).toBe("two");
-});
+    expect(samples.at(-1)?.marker, "the new response never arrived").toBe("after");
+    // The guard on everything below, and it has to come first: the loop breaks on the first sample
+    // carrying "after", so a switch that landed before the first call leaves `samples` one entry
+    // long, and every reading below is then taken over a single post-switch response. Read off the
+    // first sample that carried a marker rather than off `samples[0]`, because a sample answered from
+    // inside the drain window carries none.
+    expect(
+      samples.map((each) => each.marker).filter((each) => each !== null)[0],
+      "sampling began after the route had already changed hands, so this case measured whatever the " +
+        "timing allowed rather than the switch it claims to span",
+    ).toBe("before");
 
-test("bulk deploy answers 207 for a chain it could not deploy, and drops an id it cannot find", { tag: ["@catalog", "@tier1"] }, async ({ catalog, folder, run }) => {
-  const chain = await tokenizedChain(catalog, run, {
-    prefix: "deploy",
-    what: "bulk-collision",
-    parentId: folder.id,
+    // The route stays addressable across the switch, and that is the half the engine does promise:
+    // `IntegrationRuntimeService.update` starts the new context before it stops the superseded one,
+    // both consumers sit in one servlet registry under distinct `servletCustomId` values, and
+    // `matchNewerConsumer` prefers the newer one. A 404 here means the route was gone, which is the
+    // regression this case exists to catch.
+    expect(
+      samples.filter((each) => each.status === 404),
+      "the route disappeared during the redeploy",
+    ).toEqual([]);
+
+    // What the engine does not promise is that every sample answers 200. There is no drain handshake:
+    // a request that resolves the superseded consumer while it is suspended, or that is still
+    // executing when its context stops, answers `500 CIP-0001` — the same body a chain that threw
+    // would produce — or 500 with the request echoed back, which
+    // `HandlingHttpBinding.doWriteExceptionResponse` writes for an exchange the stopping context
+    // rejects. Issue #845 has the mechanism and the reproduction. The second of the two paths
+    // it describes is the one that reaches a redeploy: `stopSupersededContext` tears the old context
+    // down under whatever is still executing on it, and `CamelServlet.service` answers that request
+    // 500. Measured, 31,890 redeploy calls produced no non-200, and the suite has seen the window
+    // twice since, one sample each time: `500 CIP-0001` in a local full run, and the echoed request
+    // in run 39771885404. The window is rare but real, so it is tolerated here rather than pinned
+    // with `test.fail()`.
+    //
+    // Tolerated is not unread. A sample that is neither a 200 nor one of those answers fails the case,
+    // so a redeploy that starts answering 502, or 500 with some other code, is still a regression, and
+    // the assertion after this one bounds how much of the redeploy the window may swallow.
+    expect(
+      samples.filter((each) => each.status !== 200 && !isDrainAnswer(each)),
+      "a sample answered something other than the chain and the known drain window",
+    ).toEqual([]);
+
+    // How wide the window was, bounded and recorded. See DRAIN_SAMPLE_LIMIT.
+    const drains = samples.filter(isDrainAnswer);
+    test.info().annotations.push({
+      type: "drain-window",
+      description: `${drains.length} of ${samples.length} samples answered the drain window`,
+    });
+    expect(
+      drains.length,
+      `${drains.length} of ${samples.length} samples answered the drain window, which is wider than ` +
+        "the one issue #845 measured — the tolerance is for a window, not for a redeploy " +
+        "that spends most of itself unserved",
+    ).toBeLessThanOrEqual(DRAIN_SAMPLE_LIMIT);
+
+    // Every answered call carries the marker. This is what `not.toContain(null)` used to say, narrowed
+    // to the 200s: the drain answer above carries no marker by construction, and reading it as one
+    // would make this assertion pass on a route that answered nothing but drain windows.
+    expect(
+      samples.filter((each) => each.status === 200 && each.marker === null),
+      "a sample answered 200 without the marker the chain sets",
+    ).toEqual([]);
+
+    // The redeploy replaces rather than adds — but not at the moment of the call. The superseded row
+    // survives until the engine reports which deployments it is actually running and
+    // `RuntimeDeploymentService` prunes the rest, so both rows are visible for a few seconds and a
+    // straight read here fails on roughly every other run.
+    await expect
+      .poll(async () => (await catalog.listDeployments(chain.id)).map((each) => each.id), {
+        timeout: DEPLOY_TIMEOUT,
+        message: `the superseded deployment of ${chain.name} was never pruned`,
+      })
+      .toEqual([second.id]);
+    expect(
+      (await catalog.runtimeDeploymentsOf(chain.id)).map((each) => each.deploymentInfo.deploymentId),
+    ).toEqual([second.id]);
   });
-  await addCollidingTrigger(catalog, chain);
 
-  const failed = await catalog.bulkDeploy([chain.id]);
-  expect(failed.status, "207 as soon as one row failed").toBe(207);
-  expect(failed.rows).toHaveLength(1);
-  expect(failed.rows[0]).toMatchObject({ chainId: chain.id, status: "FAILED_DEPLOY" });
-  expect(failed.rows[0].errorMessage).toContain(chain.contextPath);
-  expect(await catalog.listDeployments(chain.id)).toEqual([]);
+  // The refusal names the chain holding the path, and that chain keeps the route.
+  test("a second chain on a taken context path is refused", { tag: ["@engine"] }, async ({ catalog, env, folder, run, request }) => {
+    const first = await tokenizedChain(catalog, run, {
+      prefix: "deploy",
+      what: "shared-first",
+      parentId: folder.id,
+      marker: "first",
+    });
+    const second = await createDeployableChain(catalog, {
+      name: tokenized(run, "deploy-shared-second"),
+      parentId: folder.id,
+      // The same path as the first chain, deliberately.
+      contextPath: first.contextPath,
+      marker: "second",
+    });
 
-  // An id nothing answers to is neither an error nor a row: the call answers 200 with an empty
-  // list, so a caller counting rows against ids it sent is the only one who ever finds out.
-  const unknown = await catalog.bulkDeploy([ABSENT_UUID]);
-  expect(unknown.status).toBe(200);
-  expect(unknown.rows).toEqual([]);
-});
+    await deployChain(catalog, first);
+    await deploymentRowOf(catalog, first);
+    expect((await callDeployedChain(request, env, first)).marker).toBe("first");
 
-test("deploying a chain to a list of domains creates the deployment and tells the engine", { tag: ["@catalog", "@engine", "@tier2"] }, async ({ catalog, env, folder, run, request }) => {
-  const chain = await tokenizedChain(catalog, run, {
-    prefix: "deploy",
-    what: "all",
-    parentId: folder.id,
-    marker: "all",
+    // Until #840 both chains deployed and the engine servlet silently handed the route to whichever
+    // was deployed last. The deploy check compared external and private routes only, so two internal
+    // triggers on one path in one domain never met. It now compares every trigger of the other chains
+    // in the domain, and the refusal names the chain already holding the path.
+    const snapshot = await catalog.createSnapshot(second.id);
+    const refused = await catalog.raw("post", `/v1/catalog/chains/${second.id}/deployments`, {
+      snapshotId: snapshot.id,
+      domain: DEFAULT_DOMAIN,
+    });
+    expect(refused.status()).toBe(409);
+    expect(
+      ((await refused.json()) as { errorMessage?: string }).errorMessage,
+      "the refusal names the chain that holds the path, not the path",
+    ).toContain(first.name);
+
+    // Nothing was deployed for the second chain, and the first still owns the route. Mapped rather
+    // than indexed: a chain the runtime view has stopped keying is an empty array, and that reads as
+    // an assertion here instead of as a TypeError.
+    expect(await catalog.listDeployments(second.id)).toEqual([]);
+    expect(
+      (await catalog.runtimeDeploymentsOf(second.id)).map((row) => row.status),
+      "the runtime view of the refused chain",
+    ).toEqual([]);
+    expect(
+      (await catalog.runtimeDeploymentsOf(first.id)).map((row) => row.status),
+      "the runtime view of the first chain",
+    ).toEqual(["DEPLOYED"]);
+    expect((await callDeployedChain(request, env, first)).marker).toBe("first");
   });
-  const snapshot = await catalog.createSnapshot(chain.id);
 
-  const created = await catalog.deployAll(chain.id, [{ snapshotId: snapshot.id, domain: DEFAULT_DOMAIN }]);
+  // The 409 names the path both triggers claim.
+  test("colliding triggers in one snapshot are refused with 409", async ({ catalog, folder, run }) => {
+    const chain = await tokenizedChain(catalog, run, {
+      prefix: "deploy",
+      what: "collision",
+      parentId: folder.id,
+    });
+    await addCollidingTrigger(catalog, chain);
 
-  expect(created).toHaveLength(1);
-  expect(created[0]).toMatchObject({ chainId: chain.id, snapshotId: snapshot.id, domain: DEFAULT_DOMAIN });
-  expect((await catalog.listDeployments(chain.id)).map((each) => each.id)).toEqual([created[0].id]);
+    // The collision is not caught at compile time: the snapshot builds.
+    const snapshot = await catalog.createSnapshot(chain.id);
+    expect(snapshot.id).toBeTruthy();
 
-  // Like the bulk endpoint, this one tells the engine itself.
-  const reported = await deploymentRowOf(catalog, chain);
-  expect(reported.deploymentInfo).toMatchObject({ deploymentId: created[0].id, snapshotId: snapshot.id });
-  expect((await callDeployedChain(request, env, chain)).marker).toBe("all");
+    const refused = await catalog.raw("post", `/v1/catalog/chains/${chain.id}/deployments`, {
+      snapshotId: snapshot.id,
+      domain: DEFAULT_DOMAIN,
+    });
+    expect(refused.status()).toBe(409);
+    const body = (await refused.json()) as { errorMessage?: string; serviceName?: string };
+    expect(body.serviceName).toBe("Catalog");
+    expect(body.errorMessage, "the refusal names the path it refused").toContain(chain.contextPath);
 
-  expect(await catalog.deployAll(chain.id, []), "an empty list deploys nothing").toEqual([]);
+    // And nothing was deployed, which is the half a status code does not say.
+    expect(await catalog.listDeployments(chain.id)).toEqual([]);
+  });
+
+  test("bulk deploy builds the snapshots and reports a row per chain", { tag: ["@engine"] }, async ({ catalog, env, folder, run, request }) => {
+    const one = await tokenizedChain(catalog, run, {
+      prefix: "deploy",
+      what: "bulk-one",
+      parentId: folder.id,
+      marker: "one",
+    });
+    const two = await tokenizedChain(catalog, run, {
+      prefix: "deploy",
+      what: "bulk-two",
+      parentId: folder.id,
+      marker: "two",
+    });
+
+    const { status, rows } = await catalog.bulkDeploy([one.id, two.id]);
+
+    expect(status, "200 while every row succeeded").toBe(200);
+    expect(rows.map((row) => row.chainId).sort()).toEqual([one.id, two.id].sort());
+    for (const row of rows) {
+      expect(row.status).toBe("CREATED");
+      expect(row.domain.name).toBe(DEFAULT_DOMAIN);
+      expect(row.errorMessage).toBeUndefined();
+    }
+
+    // The snapshot the bulk call took for itself is a real one.
+    expect((await catalog.listSnapshots(one.id)).map((each) => each.name)).toEqual(["V1"]);
+
+    await deploymentRowOf(catalog, one);
+    await deploymentRowOf(catalog, two);
+    expect((await callDeployedChain(request, env, one)).marker).toBe("one");
+    expect((await callDeployedChain(request, env, two)).marker).toBe("two");
+  });
+
+  test("bulk deploy answers 207 on a failure and drops unknown ids", async ({ catalog, folder, run }) => {
+    const chain = await tokenizedChain(catalog, run, {
+      prefix: "deploy",
+      what: "bulk-collision",
+      parentId: folder.id,
+    });
+    await addCollidingTrigger(catalog, chain);
+
+    const failed = await catalog.bulkDeploy([chain.id]);
+    expect(failed.status, "207 as soon as one row failed").toBe(207);
+    expect(failed.rows).toHaveLength(1);
+    expect(failed.rows[0]).toMatchObject({ chainId: chain.id, status: "FAILED_DEPLOY" });
+    expect(failed.rows[0].errorMessage).toContain(chain.contextPath);
+    expect(await catalog.listDeployments(chain.id)).toEqual([]);
+
+    // An id nothing answers to is neither an error nor a row: the call answers 200 with an empty
+    // list, so a caller counting rows against ids it sent is the only one who ever finds out.
+    const unknown = await catalog.bulkDeploy([ABSENT_UUID]);
+    expect(unknown.status).toBe(200);
+    expect(unknown.rows).toEqual([]);
+  });
 });

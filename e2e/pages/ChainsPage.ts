@@ -1,4 +1,4 @@
-import type { Locator, Page } from "@playwright/test";
+import type { Download, Locator, Page } from "@playwright/test";
 
 /** The chains list at `/chains`: the folder tree, its full-text search, and the name links. */
 export class ChainsPage {
@@ -41,6 +41,33 @@ export class ChainsPage {
   async create(item: "New Chain" | "New Folder"): Promise<void> {
     await this.page.getByRole("button", { name: "Create" }).click();
     await this.page.getByRole("menuitem", { name: item }).click();
+  }
+
+  /** Exports the selected rows through the options dialog the toolbar opens, and returns the download. */
+  async exportSelected(): Promise<Download> {
+    await this.page.getByTestId("chains-export").click();
+    const dialog = this.page.getByRole("dialog", { name: /^Export Chains?$/ });
+    const downloaded = this.page.waitForEvent("download");
+    await dialog.getByRole("button", { name: "Export", exact: true }).click();
+    return downloaded;
+  }
+
+  /**
+   * Imports an archive through the toolbar's Import dialog: the file, then Next for the preview, then
+   * Import. The dialog picks no folder; the archive names it. Returns the dialog, which ends on the
+   * results.
+   */
+  async importArchive(file: string): Promise<Locator> {
+    await this.page.getByTestId("chains-import").click();
+    const dialog = this.page.getByRole("dialog", { name: "Import" });
+    const chooser = this.page.waitForEvent("filechooser");
+    await dialog.getByText("Click or drag file to this area to upload").click();
+    await (await chooser).setFiles(file);
+    await dialog.getByRole("button", { name: "Next", exact: true }).click();
+    // The same button turns from Next into Import, and it can still carry its loading icon, whose
+    // name then reads `loading Import`.
+    await dialog.getByRole("button", { name: /Import$/ }).click();
+    return dialog;
   }
 
   /** Picks an item from a row's actions menu, whose button shows only while the row is hovered. */

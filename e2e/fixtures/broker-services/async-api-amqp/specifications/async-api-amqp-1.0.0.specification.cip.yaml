@@ -1,0 +1,63 @@
+---
+id: "e2e0e002-0000-4000-8000-000000000001-async-api-amqp-1.0.0"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/specification"
+name: "1.0.0"
+content:
+  deprecated: false
+  version: "1.0.0"
+  source: "MANUAL"
+  operations:
+  - id: "e2e0e002-0000-4000-8000-000000000001-async-api-amqp-1.0.0-e2e-{{RUN}}-async-api-amqp"
+    name: "e2e-{{RUN}}-async-api-amqp"
+    method: "publish"
+    path: "e2e-{{RUN}}-async-api-amqp"
+    specification: {}
+    requestSchema: {}
+    responseSchemas:
+      payload:
+        type: "object"
+        properties:
+          ping:
+            type: "string"
+  - id: "e2e0e002-0000-4000-8000-000000000001-async-api-amqp-1.0.0-e2e-{{RUN}}-async-api-trigger-idempotency-throw-exception"
+    name: "e2e-{{RUN}}-async-api-trigger-idempotency-throw-exception"
+    method: "publish"
+    path: "e2e-{{RUN}}-async-api-trigger-idempotency-throw-exception"
+    specification: {}
+    requestSchema: {}
+    responseSchemas:
+      payload:
+        type: "object"
+  - id: "e2e0e002-0000-4000-8000-000000000001-async-api-amqp-1.0.0-e2e-{{RUN}}-async-api-trigger-ack-auto"
+    name: "e2e-{{RUN}}-async-api-trigger-ack-auto"
+    method: "publish"
+    path: "e2e-{{RUN}}-async-api-trigger-ack-auto"
+    specification: {}
+    requestSchema: {}
+    responseSchemas:
+      payload:
+        type: "object"
+  - id: "e2e0e002-0000-4000-8000-000000000001-async-api-amqp-1.0.0-e2e-{{RUN}}-async-api-trigger-ack-manual"
+    name: "e2e-{{RUN}}-async-api-trigger-ack-manual"
+    method: "publish"
+    path: "e2e-{{RUN}}-async-api-trigger-ack-manual"
+    specification: {}
+    requestSchema: {}
+    responseSchemas:
+      payload:
+        type: "object"
+  - id: "e2e0e002-0000-4000-8000-000000000001-async-api-amqp-1.0.0-e2e-{{RUN}}-async-api-trigger-ack-none"
+    name: "e2e-{{RUN}}-async-api-trigger-ack-none"
+    method: "publish"
+    path: "e2e-{{RUN}}-async-api-trigger-ack-none"
+    specification: {}
+    requestSchema: {}
+    responseSchemas:
+      payload:
+        type: "object"
+  specificationSources:
+  - id: "e2e0e002-0000-4000-8000-000000000003"
+    name: "async-api-amqp.yaml"
+    fileName: "source-e2e0e002-0000-4000-8000-000000000001-async-api-amqp-1.0.0/async-api-amqp.yaml"
+    mainSource: true
+  parentId: "e2e0e002-0000-4000-8000-000000000001-async-api-amqp"

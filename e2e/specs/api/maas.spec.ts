@@ -47,57 +47,57 @@ interface MaasRabbitmqManifest {
   };
 }
 
-test(
-  "POST /v1/maas-actions/kafka/declarative returns a nc.maas.kafka/v1 topic manifest",
-  { tag: ["@catalog", "@tier2"] },
-  async ({ catalog }) => {
-    const classifier = callToken("maas-kafka");
+test.describe("MaaS declarative actions", { tag: ["@catalog"] }, () => {
+  test(
+    "kafka returns a nc.maas.kafka/v1 topic manifest",
+    async ({ catalog }) => {
+      const classifier = callToken("maas-kafka");
 
-    const response = await catalog.raw(
-      "post",
-      `/v1/maas-actions/kafka/declarative?topicClassifierName=${encodeURIComponent(classifier)}`,
-    );
-    expect(response.status()).toBe(200);
-    expect(response.headers()["content-disposition"]).toContain("maas-configuration.yaml");
+      const response = await catalog.raw(
+        "post",
+        `/v1/maas-actions/kafka/declarative?topicClassifierName=${encodeURIComponent(classifier)}`,
+      );
+      expect(response.status()).toBe(200);
+      expect(response.headers()["content-disposition"]).toContain("maas-configuration.yaml");
 
-    const manifest = yaml.load(await response.text()) as MaasKafkaManifest;
-    expect(manifest.apiVersion).toBe("nc.maas.kafka/v1");
-    expect(manifest.kind).toBe("topic");
-    expect(manifest.spec.classifier.name).toBe(classifier);
-    // `MAAS_NAMESPACE_PLACEHOLDER` in `MaasService.java` -- the file is meant to be applied inside
-    // the target namespace, which this endpoint (unlike the agent-backed one) never resolves itself.
-    expect(manifest.spec.classifier.namespace).toBe("${ENV_NAMESPACE}");
-  },
-);
+      const manifest = yaml.load(await response.text()) as MaasKafkaManifest;
+      expect(manifest.apiVersion).toBe("nc.maas.kafka/v1");
+      expect(manifest.kind).toBe("topic");
+      expect(manifest.spec.classifier.name).toBe(classifier);
+      // `MAAS_NAMESPACE_PLACEHOLDER` in `MaasService.java` -- the file is meant to be applied inside
+      // the target namespace, which this endpoint (unlike the agent-backed one) never resolves itself.
+      expect(manifest.spec.classifier.namespace).toBe("${ENV_NAMESPACE}");
+    },
+  );
 
-test(
-  "POST /v1/maas-actions/rabbitmq/declarative answers 200 with the exchange, queue and binding",
-  { tag: ["@catalog", "@tier2"] },
-  async ({ catalog }) => {
-    const vhost = callToken("maas-rmq-vhost");
-    const exchange = callToken("maas-rmq-exchange");
-    const queue = callToken("maas-rmq-queue");
-    const routingKey = callToken("maas-rmq-rk");
+  test(
+    "rabbitmq returns the exchange, queue, and binding",
+    async ({ catalog }) => {
+      const vhost = callToken("maas-rmq-vhost");
+      const exchange = callToken("maas-rmq-exchange");
+      const queue = callToken("maas-rmq-queue");
+      const routingKey = callToken("maas-rmq-rk");
 
-    const response = await catalog.raw(
-      "post",
-      `/v1/maas-actions/rabbitmq/declarative?vhost=${encodeURIComponent(vhost)}` +
-        `&exchange=${encodeURIComponent(exchange)}&queue=${encodeURIComponent(queue)}` +
-        `&routingKey=${encodeURIComponent(routingKey)}`,
-    );
-    expect(response.status()).toBe(200);
-    expect(response.headers()["content-disposition"]).toContain("maas-configuration.yaml");
+      const response = await catalog.raw(
+        "post",
+        `/v1/maas-actions/rabbitmq/declarative?vhost=${encodeURIComponent(vhost)}` +
+          `&exchange=${encodeURIComponent(exchange)}&queue=${encodeURIComponent(queue)}` +
+          `&routingKey=${encodeURIComponent(routingKey)}`,
+      );
+      expect(response.status()).toBe(200);
+      expect(response.headers()["content-disposition"]).toContain("maas-configuration.yaml");
 
-    const manifest = yaml.load(await response.text()) as MaasRabbitmqManifest;
-    expect(manifest.apiVersion).toBe("nc.maas.rabbit/v1");
-    expect(manifest.kind).toBe("vhost");
-    expect(manifest.spec.classifier.name).toBe(vhost);
-    expect(manifest.spec.entities.exchanges).toEqual([
-      { name: exchange, type: "direct", durable: "true", auto_delete: "false" },
-    ]);
-    expect(manifest.spec.entities.queues).toEqual([{ name: queue, durable: "true", auto_delete: "false" }]);
-    expect(manifest.spec.entities.bindings).toEqual([
-      { source: exchange, destination: queue, routing_key: routingKey },
-    ]);
-  },
-);
+      const manifest = yaml.load(await response.text()) as MaasRabbitmqManifest;
+      expect(manifest.apiVersion).toBe("nc.maas.rabbit/v1");
+      expect(manifest.kind).toBe("vhost");
+      expect(manifest.spec.classifier.name).toBe(vhost);
+      expect(manifest.spec.entities.exchanges).toEqual([
+        { name: exchange, type: "direct", durable: "true", auto_delete: "false" },
+      ]);
+      expect(manifest.spec.entities.queues).toEqual([{ name: queue, durable: "true", auto_delete: "false" }]);
+      expect(manifest.spec.entities.bindings).toEqual([
+        { source: exchange, destination: queue, routing_key: routingKey },
+      ]);
+    },
+  );
+});

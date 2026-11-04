@@ -32,3 +32,15 @@ export function target(): Target {
 export function stateFileName(name: string): string {
   return target() === "compose" ? name : name.replace(/^\.e2e-/, ".e2e-k8s-");
 }
+
+/**
+ * Whether the broker projects run, `E2E_BROKERS=0` being the one way to say no.
+ *
+ * On by default: Kafka and RabbitMQ carry more production traffic than any other transport, so a
+ * release run without them does not answer the release question. The flag is for a faster local
+ * run without the brokers. Playwright 1.62 has no per-project `default: false`, so leaving a project
+ * out of a run means leaving it out of the project list.
+ */
+export function brokersEnabled(): boolean {
+  return process.env.E2E_BROKERS !== "0";
+}

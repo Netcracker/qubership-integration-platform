@@ -16,8 +16,8 @@ the parts of the product you use every day, and every other page in the document
 
 ---
 
-| Term                                                      | Meaning                                                                                                                                               |
-|-----------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Term                                                    | Meaning                                                                                                                                               |
+|---------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
 | [Chain](../4__Glossary/readme.md#chain)                 | An integration configuration made of Apache Camel (or customized) modules, intended to perform one particular integration task.                       |
 | [Element](../4__Glossary/readme.md#element)             | A single building block inside a chain — a trigger, a transformation, a sender, a container. You drag elements onto the graph from the library panel. |
 | [Snapshot](../4__Glossary/readme.md#snapshot)           | A chain state captured at a particular moment. Snapshots are what you deploy; a chain cannot be deployed in an intermediate state.                    |

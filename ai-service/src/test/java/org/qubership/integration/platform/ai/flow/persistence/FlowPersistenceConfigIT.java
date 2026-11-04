@@ -20,8 +20,8 @@ class FlowPersistenceConfigIT {
     String properties = Files.readString(applicationProperties(), StandardCharsets.UTF_8);
 
     assertTrue(properties.contains("quarkus.datasource.db-kind=postgresql"));
-    assertTrue(properties.contains("quarkus.flyway.migrate-at-start=true"));
-    assertTrue(properties.contains("quarkus.flyway.locations=classpath:db/migration"));
+    assertTrue(properties.contains("quarkus.flyway.active=false"));
+    assertTrue(properties.contains("quarkus.dbaas.flyway.location=db/migration"));
     assertTrue(properties.contains("%prod.quarkus.datasource.devservices.enabled=false"));
     assertTrue(
         properties.contains("quarkus.hibernate-orm.database.generation=none")

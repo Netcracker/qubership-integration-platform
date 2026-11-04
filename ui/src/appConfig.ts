@@ -1,5 +1,5 @@
 import { resetAiProvider } from "./ai/config.ts";
-import { setAiServiceUrl } from "./ai/appConfig.ts";
+import { setAiServiceEnabled, setAiServiceUrl } from "./ai/appConfig.ts";
 import { setAiServiceUrlOverride } from "./config/aiServiceUrlOverride.ts";
 import { IconOverrides } from "./icons/IconProvider";
 import type { ThemeConfig } from "antd";
@@ -16,12 +16,18 @@ export type UserInfo = {
 export type AppConfig = {
   apiGateway?: string;
   aiServiceUrl?: string;
+  /**
+   * Whether the installation runs the AI service. With false the front end
+   * sends no health check to it and hides the AI assistant. Absent means true.
+   */
+  aiServiceEnabled?: boolean;
   aiAssistantName?: string;
   icons?: IconOverrides;
   cssVariables?: Record<string, string>;
   additionalCss?: string[];
   themeOverrides?: Partial<ThemeConfig>;
   documentationBaseUrl?: string;
+  opensearchKafkaEnabled?: boolean;
   /**
    * Whether this is a live installation. Set on every service of the platform,
    * not on the front end alone, and read here to keep the screens that are
@@ -104,6 +110,14 @@ export function configure(config: Partial<AppConfig>): void {
     setAiServiceUrl(config.aiServiceUrl);
     resetAiProvider();
     overrides.push(`aiServiceUrl: "${oldValue}" -> "${config.aiServiceUrl}"`);
+  }
+  if (config.aiServiceEnabled !== undefined) {
+    const oldValue = appConfigValue.aiServiceEnabled;
+    appConfigValue.aiServiceEnabled = config.aiServiceEnabled;
+    setAiServiceEnabled(config.aiServiceEnabled);
+    overrides.push(
+      `aiServiceEnabled: ${oldValue} -> ${config.aiServiceEnabled}`,
+    );
   }
   if (config.aiAssistantName !== undefined) {
     const oldValue = appConfigValue.aiAssistantName;
@@ -190,6 +204,17 @@ export function configure(config: Partial<AppConfig>): void {
     overrides.push(`onLogout: handler ${config.onLogout ? "set" : "cleared"}`);
   }
 
+  if (
+    "opensearchKafkaEnabled" in config &&
+    appConfigValue.opensearchKafkaEnabled !== config.opensearchKafkaEnabled
+  ) {
+    const oldValue = appConfigValue.opensearchKafkaEnabled;
+    appConfigValue.opensearchKafkaEnabled = config.opensearchKafkaEnabled;
+    overrides.push(
+      `opensearchKafkaEnabled: ${JSON.stringify(oldValue)} -> ${JSON.stringify(config.opensearchKafkaEnabled)}`,
+    );
+  }
+
   if (overrides.length > 0) {
     console.log("[CIP UI Config] Configuration overrides applied:", overrides);
   }
@@ -224,6 +249,11 @@ export function loadConfigFromEnv(): Partial<AppConfig> {
   const aiServiceUrl = import.meta.env.VITE_AI_SERVICE_URL;
   if (aiServiceUrl) {
     config.aiServiceUrl = aiServiceUrl;
+  }
+
+  // Only "false" turns it off, so a misspelled value keeps the health check.
+  if (import.meta.env.VITE_AI_SERVICE_ENABLED === "false") {
+    config.aiServiceEnabled = false;
   }
 
   const aiAssistantName = import.meta.env.VITE_AI_ASSISTANT_NAME;
@@ -271,6 +301,12 @@ export function loadConfigFromEnv(): Partial<AppConfig> {
     | undefined;
   if (productionMode !== undefined && productionMode !== "") {
     config.productionMode = productionMode === "true";
+  }
+
+  const opensearchKafkaEnabled = import.meta.env
+    .VITE_OPENSEARCH_KAFKA_ENABLED as string | undefined;
+  if (opensearchKafkaEnabled !== undefined && opensearchKafkaEnabled !== "") {
+    config.opensearchKafkaEnabled = opensearchKafkaEnabled === "true";
   }
 
   return config;

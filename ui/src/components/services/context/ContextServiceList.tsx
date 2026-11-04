@@ -29,10 +29,11 @@ import {
   useColumnSettingsBasedOnColumnsType,
 } from "../../table/useColumnSettingsButton.tsx";
 import { ChainColumn } from "../ui/ChainColumn.tsx";
-import { useTableConfiguration } from "../../table/useTableConfiguration.tsx";
+import {
+  SELECTION_COLUMN_WIDTH,
+  useTableConfiguration,
+} from "../../table/useTableConfiguration.tsx";
 import { nameLinkStyle } from "../../table/nameLinkStyle.ts";
-
-const SELECTION_COLUMN_WIDTH = 48;
 
 export const ContextServiceList: React.FC = () => {
   const [services, setServices] = useState<ContextSystem[]>([]);

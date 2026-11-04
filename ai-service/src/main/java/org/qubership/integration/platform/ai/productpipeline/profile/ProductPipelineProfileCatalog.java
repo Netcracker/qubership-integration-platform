@@ -28,4 +28,8 @@ public final class ProductPipelineProfileCatalog {
     }
     return profile;
   }
+
+  public boolean supports(String profileId, String profileVersion) {
+    return profiles.containsKey(profileId + "@" + profileVersion);
+  }
 }

@@ -42,7 +42,10 @@ import { SelectEdit } from "../table/SelectEdit.tsx";
 import { StatusTag } from "../labels/StatusTag.tsx";
 import { useNotificationService } from "../../hooks/useNotificationService.tsx";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
-import { useTableConfiguration } from "../table/useTableConfiguration.tsx";
+import {
+  SELECTION_COLUMN_WIDTH,
+  useTableConfiguration,
+} from "../table/useTableConfiguration.tsx";
 import { ChainDiffPopup } from "../chains/diff/ChainDiffPopup.tsx";
 import { useModalsContext } from "../../Modals.tsx";
 import { EngineDomainItem } from "../EngineDomainItem.tsx";
@@ -52,9 +55,6 @@ import {
   resolveDomains,
   useDomainTypes,
 } from "../SelectDomains.tsx";
-
-/** rc-table selection column when `rowSelection` is set; not in `columns`. */
-const IMPORT_PREVIEW_SELECTION_COLUMN_WIDTH = 48;
 
 const NOTHING_TO_IMPORT_MESSAGE =
   "Nothing to import: the archive contains no chains, services, variables, or import instructions. Expected chains/<id>/, services/<id>/, variables/common-variables.yaml, or import-instructions.yaml";
@@ -705,7 +705,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
       id: 280,
     },
     {
-      selectionColumnWidth: IMPORT_PREVIEW_SELECTION_COLUMN_WIDTH,
+      selectionColumnWidth: SELECTION_COLUMN_WIDTH,
     },
   );
 
@@ -721,7 +721,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
       currentValue: 200,
     },
     {
-      selectionColumnWidth: IMPORT_PREVIEW_SELECTION_COLUMN_WIDTH,
+      selectionColumnWidth: SELECTION_COLUMN_WIDTH,
     },
   );
 

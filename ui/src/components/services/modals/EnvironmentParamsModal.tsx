@@ -156,6 +156,7 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
       confirmLoading={isSubmitting}
     >
       <Form<EnvironmentFormData>
+        name="environmentForm"
         className={styles["environment-edit-form"]}
         form={form}
         layout="vertical"
