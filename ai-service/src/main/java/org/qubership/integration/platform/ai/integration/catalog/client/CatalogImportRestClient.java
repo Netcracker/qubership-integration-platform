@@ -30,6 +30,7 @@ import org.jboss.resteasy.reactive.MultipartForm;
  * not JSON.
  */
 @RegisterRestClient(configKey = "catalog-api")
+@RegisterProvider(CatalogBearerTokenFilter.class)
 @RegisterProvider(CatalogOutboundLoggingFilter.class)
 @RegisterProvider(CatalogResponseExceptionMapper.class)
 @Produces(MediaType.APPLICATION_JSON)

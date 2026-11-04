@@ -75,6 +75,7 @@ class A2aFeatureFlagDisabledIT {
         .thenReturn(Multi.createFrom().item(ChatEvent.token("browser still works")));
 
     given()
+            .header("Authorization", "Bearer test-token")
         .contentType(ContentType.JSON)
         .body("{\"message\":\"hello from browser\"}")
         .when()

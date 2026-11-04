@@ -167,6 +167,7 @@ export type StreamingChunkType =
   | "step"
   | "decision"
   | "catalog-changed"
+  | "token-expired"
   | "done"
   | "error";
 

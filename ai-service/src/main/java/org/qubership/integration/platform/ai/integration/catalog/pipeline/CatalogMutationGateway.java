@@ -5,6 +5,7 @@ import io.smallrye.mutiny.infrastructure.Infrastructure;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.chat.UserTokenStore;
 import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 import java.util.function.Supplier;
 import org.qubership.integration.platform.ai.chat.attachment.UploadedSpecAttachment;
@@ -86,8 +87,11 @@ public class CatalogMutationGateway {
     var context = ToolInvocationSink.attachedContext();
     var sessionContext = ToolSession.attachedContext();
     return Uni.createFrom().item(() ->
-        ToolSession.callInBoundContext(sessionContext, () ->
-            ToolInvocationSink.callInBoundContext(context, work)))
+        ToolSession.callInBoundContext(sessionContext, () -> {
+          // Waits here, outside the client's @Timeout, for a renewed token when the user's has expired.
+          UserTokenStore.currentUsable();
+          return ToolInvocationSink.callInBoundContext(context, work);
+        }))
         .runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
   }
 }

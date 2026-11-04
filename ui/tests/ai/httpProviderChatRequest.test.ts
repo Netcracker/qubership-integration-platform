@@ -288,3 +288,40 @@ describe("HttpAiModelProvider streamChat() request body", () => {
     expect(body.scenarioHint).toBeNull();
   });
 });
+
+describe("HttpAiModelProvider token renewal", () => {
+  it("should post the current token to the turn when the server reports an expired token", async () => {
+    const frames = [
+      'event: meta\ndata: {"conversationId":"c-1"}\n\n',
+      'event: step\ndata: {"id":"auth-token","kind":"auth","status":"token_expired"}\n\n',
+      "event: done\ndata: c-1\n\n",
+    ];
+    const reads = frames.map((frame) => ({
+      done: false,
+      value: new TextEncoder().encode(frame),
+    }));
+    const fetchMock = jest
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce({
+        ok: true,
+        body: {
+          getReader: () => ({
+            read: async () => reads.shift() ?? { done: true, value: undefined },
+          }),
+        },
+      } as unknown as Response)
+      .mockResolvedValue({ ok: true } as Response);
+    global.fetch = fetchMock;
+    const chunks: string[] = [];
+
+    await new HttpAiModelProvider("https://ai.example.com").streamChat(
+      { messages: buildMessages() },
+      (chunk) => chunks.push(chunk.type),
+    );
+
+    expect(chunks).toEqual(["meta", "done"]);
+    const renewal = fetchMock.mock.calls[1];
+    expect(renewal[0]).toBe("https://ai.example.com/api/v1/chat/c-1/token");
+    expect((renewal[1] as RequestInit).method).toBe("POST");
+  });
+});

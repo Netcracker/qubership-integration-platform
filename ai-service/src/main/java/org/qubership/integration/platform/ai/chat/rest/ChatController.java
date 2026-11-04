@@ -4,14 +4,18 @@ import io.smallrye.common.annotation.Blocking;
 import io.smallrye.mutiny.Multi;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.ForbiddenException;
+import jakarta.ws.rs.HeaderParam;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import org.jboss.resteasy.reactive.RestStreamElementType;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.UserTokenStore;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
 import org.qubership.integration.platform.ai.chat.service.ChatDecisionService;
 import org.qubership.integration.platform.ai.chat.service.ChatExecutionService;
@@ -34,7 +38,9 @@ public class ChatController {
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.SERVER_SENT_EVENTS)
   @RestStreamElementType(MediaType.TEXT_PLAIN)
-  public Multi<String> chat(ChatRequest request) {
+  public Multi<String> chat(
+      @HeaderParam(HttpHeaders.AUTHORIZATION) String authorization, ChatRequest request) {
+    request.setUserToken(UserTokenStore.requireBearer(authorization));
     return chatExecutionService.streamV1Sse(request);
   }
 
@@ -45,5 +51,16 @@ public class ChatController {
   @Produces(MediaType.APPLICATION_JSON)
   public ChatEvent.Decision openDecision(@PathParam("conversationId") String conversationId) {
     return chatDecisionService.openDecision(conversationId).orElse(null);
+  }
+
+  /** Replaces the token a running turn uses for catalog calls, when the client renewed its own. */
+  @POST
+  @Path("/{conversationId}/token")
+  public void renewToken(
+      @PathParam("conversationId") String conversationId,
+      @HeaderParam(HttpHeaders.AUTHORIZATION) String authorization) {
+    if (!UserTokenStore.renew(conversationId, UserTokenStore.requireBearer(authorization))) {
+      throw new ForbiddenException();
+    }
   }
 }

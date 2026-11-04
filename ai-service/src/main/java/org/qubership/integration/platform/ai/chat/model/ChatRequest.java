@@ -4,6 +4,7 @@ import org.qubership.integration.platform.ai.chat.OpenChainTurnContext;
 import org.qubership.integration.platform.ai.llm.routing.OpenChainTurnPlan;
 import org.qubership.integration.platform.ai.model.ScenarioType;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.util.List;
 
 public class ChatRequest {
@@ -17,6 +18,7 @@ public class ChatRequest {
   private ChatDecisionCommand decision;
   private OpenChainTurnContext openChainTurnContext;
   private OpenChainTurnPlan openChainTurnPlan;
+  private String userToken;
 
   public String getConversationId() { return conversationId; }
   public void setConversationId(String conversationId) { this.conversationId = conversationId; }
@@ -54,4 +56,10 @@ public class ChatRequest {
   public void setOpenChainTurnPlan(OpenChainTurnPlan openChainTurnPlan) {
     this.openChainTurnPlan = openChainTurnPlan;
   }
+
+  /** Bearer token from the HTTP request; never read from the JSON body. */
+  @JsonIgnore
+  public String getUserToken() { return userToken; }
+  @JsonIgnore
+  public void setUserToken(String userToken) { this.userToken = userToken; }
 }

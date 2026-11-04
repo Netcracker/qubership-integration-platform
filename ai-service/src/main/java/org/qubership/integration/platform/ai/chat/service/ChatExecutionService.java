@@ -16,6 +16,7 @@ import org.qubership.integration.platform.ai.chat.ChatMdc;
 import org.qubership.integration.platform.ai.chat.LastAssistantTurn;
 import org.qubership.integration.platform.ai.chat.LastAssistantTurnStore;
 import org.qubership.integration.platform.ai.chat.OpenChainTurnContextFactory;
+import org.qubership.integration.platform.ai.chat.UserTokenStore;
 import org.qubership.integration.platform.ai.chat.activity.LlmRateLimitBackoffSink;
 import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationMessage;
@@ -185,7 +186,21 @@ public class ChatExecutionService {
         request.getConversationId() != null ? request.getConversationId() : UUID.randomUUID().toString();
 
     MDC.put(ChatMdc.CONVERSATION_ID, conversationId);
+    if (request.getUserToken() != null) {
+      UserTokenStore.put(conversationId, request.getUserToken());
+    }
+    try {
+      return startTurn(request, conversationId);
+    } catch (RuntimeException setupFailure) {
+      // onTermination never runs when setup throws, so the token is dropped here.
+      if (request.getUserToken() != null) {
+        UserTokenStore.remove(conversationId, request.getUserToken());
+      }
+      throw setupFailure;
+    }
+  }
 
+  private Multi<String> startTurn(ChatRequest request, String conversationId) {
     var sourceInput = conversationService.archive().beginInput(conversationId,
         request.getMessage(), objectMapper.valueToTree(java.util.Map.of(
             "attachment", request.getAttachment() == null ? "" : request.getAttachment(),
@@ -321,6 +336,7 @@ public class ChatExecutionService {
         .onTermination()
         .invoke(
             (failure, cancelled) -> {
+              UserTokenStore.remove(finalConversationId, request.getUserToken());
               {
                 logAssistantResultIfEnabled(finalConversationId, responseBuffer.toString());
                 boolean current = conversationService.archive().saveAssistant(finalConversationId,

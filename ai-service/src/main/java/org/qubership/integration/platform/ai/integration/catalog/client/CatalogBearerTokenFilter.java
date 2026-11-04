@@ -4,6 +4,7 @@ import jakarta.ws.rs.client.ClientRequestContext;
 import jakarta.ws.rs.client.ClientRequestFilter;
 import jakarta.ws.rs.core.HttpHeaders;
 import org.eclipse.microprofile.config.ConfigProvider;
+import org.qubership.integration.platform.ai.chat.UserTokenStore;
 
 
 public class CatalogBearerTokenFilter implements ClientRequestFilter {
@@ -22,9 +23,13 @@ public class CatalogBearerTokenFilter implements ClientRequestFilter {
 
   @Override
   public void filter(ClientRequestContext requestContext) {
-    if (token == null || requestContext.getHeaders().containsKey(HttpHeaders.AUTHORIZATION)) {
+    if (requestContext.getHeaders().containsKey(HttpHeaders.AUTHORIZATION)) {
       return;
     }
-    requestContext.getHeaders().putSingle(HttpHeaders.AUTHORIZATION, "Bearer " + token);
+    String effective = UserTokenStore.current().orElse(token);
+    if (effective == null) {
+      return;
+    }
+    requestContext.getHeaders().putSingle(HttpHeaders.AUTHORIZATION, "Bearer " + effective);
   }
 }
