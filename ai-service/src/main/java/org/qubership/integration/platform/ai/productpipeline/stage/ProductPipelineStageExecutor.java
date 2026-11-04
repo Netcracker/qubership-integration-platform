@@ -1205,6 +1205,10 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     }
     if (recovery.action() == ProducerOwnedRecovery.Action.REOPEN_UPSTREAM
         && canCausalReopen(doc, recovery.producerStageId(), cause, evidence)) {
+      // A known brief defect reopens its owner once and carries its own contract evidence.
+      if (!cause.isKnownBriefDefect()) {
+        storeReopenEvidence(doc, stage, refs, recovery.producerStageId(), cause, findings, evidence);
+      }
       emitted.add(
           new PipelineSignal.Progress(
               recovery.producerStageId(), "Reopening producer for rejected input"));
@@ -2090,6 +2094,45 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             provenance(runId, stage.stageId(), stage.capabilityId())));
     putRunAttribute(runId, ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR, stored.contentHash());
     return stored;
+  }
+
+  /**
+   * Records the rejection that reopens {@code owner} as recovery evidence the owner produced, so the owner's next turn
+   * reads it in its repair history. A repeated automatic reopen of the same owner for the same defect starts from the
+   * same inputs, and this history of downstream rejections is what differs.
+   */
+  private void storeReopenEvidence(
+      ProductPipelineRunDocument doc,
+      ProfileStage stage,
+      List<Reference> refs,
+      String owner,
+      RecoveryCause cause,
+      String findings,
+      String evidenceText) {
+    String runId = doc.run().runId();
+    List<Reference> rejected = rejectedArtifactRefs(refs).stream()
+        .filter(ref -> artifactStore.get(runId, ref).isPresent()).toList();
+    List<Reference> ownerInputs = currentProducerInputs(runId, owner);
+    List<String> authorIds = authorInputs(doc).stream().map(UserInput::inputId).toList();
+    String failureId = CanonicalPayloadHash.sha256Hex(Map.of(
+        "stage", stage.stageId(), "owner", owner, "rejected", rejected, "revision", doc.run().runRevision(),
+        "defect", ToolCallFingerprints.failureSignature(evidenceText)));
+    Revision brief = committedArtifactRevision(doc, Kind.REQUIREMENT_BRIEF);
+    Revision semantic = committedArtifactRevision(doc, Kind.CHAIN_SEMANTIC_REVISION);
+    artifactStore.append(
+        new AppendCommand(
+            runId,
+            Kind.RECOVERY_EVIDENCE,
+            "1",
+            "product-pipeline-runtime",
+            "1",
+            new RecoveryEvidence(1, failureId, cause.causeCode().name(), stage.stageId(), owner,
+                brief == null ? null : brief.reference(), semantic == null ? null : semantic.reference(), rejected,
+                semanticFindingsFor(runId, rejected, stage.stageId(), failureId, findings, evidenceText, cause),
+                null, List.of(), List.of(), ownerInputs, authorIds, false),
+            rejected,
+            null,
+            provenance(runId, stage.stageId(), stage.capabilityId())));
   }
 
   private void recordCleanRebuild(
@@ -3241,14 +3284,15 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     String artifact = RecoveryAttemptLedger.inputArtifactIdentity(doc, owner);
     RecoveryAttemptKey key = recoveryLedger.key(owner, recoveryBudgetCause(cause, evidence), artifact, doc.transitions());
     String legacy = ToolCallFingerprints.failureSignature(evidence == null ? "" : evidence);
-    if (recoveryLedger.ownerAlreadyReopened(doc.transitions(), key, legacy)) {
-      return HaltRecoveryGuard.OWNER_ALREADY_REOPENED;
+    boolean reopened = recoveryLedger.ownerAlreadyReopened(doc.transitions(), key, legacy);
+    // With automatic reopens left, only the ceiling refused: an author's Retry raises a positive ceiling, after which
+    // the reopen goes through, while a zero ceiling stays spent. A known brief defect gets one automatic reopen.
+    if (recoveryLedger.automaticReopensRemain(doc.transitions(), key, InputOrigin.TRUSTED)
+        && !(reopened && RecoveryCause.isKnownBriefDefect(key.causeCode()))) {
+      return recoveryLedger.limits().perRunCeiling() > 0
+          ? HaltRecoveryGuard.RUN_RECOVERY_CEILING : HaltRecoveryGuard.MAX_CAUSAL_REOPENS;
     }
-    // An author's Retry raises a positive ceiling, after which the reopen goes through; a zero ceiling stays spent.
-    if (recoveryLedger.limits().perRunCeiling() > 0 && recoveryLedger.perRunCeilingReached(doc.transitions())) {
-      return HaltRecoveryGuard.RUN_RECOVERY_CEILING;
-    }
-    return HaltRecoveryGuard.MAX_CAUSAL_REOPENS;
+    return reopened ? HaltRecoveryGuard.OWNER_ALREADY_REOPENED : HaltRecoveryGuard.MAX_CAUSAL_REOPENS;
   }
 
   /**

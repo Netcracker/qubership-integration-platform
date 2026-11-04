@@ -364,14 +364,20 @@ public final class RecoveryAttemptLedger {
   }
 
   /**
-   * True when this is a chain author's correction of a known brief defect. Automatic replay of the
-   * same defect stays blocked by {@link #ownerAlreadyReopened}.
+   * True when this is a chain author's correction of a known brief defect, which an owner that already saw the
+   * defect still accepts.
    */
   public static boolean isAuthorMissingBriefFactsCorrection(
       ReopenInitiator initiator, RecoveryCauseCode causeCode) {
     return initiator == ReopenInitiator.AUTHOR && RecoveryCause.isKnownBriefDefect(causeCode);
   }
 
+  /**
+   * True when {@code key}'s owner may be reopened, below the run's recovery ceiling. An automatic reopen repeats for
+   * the same defect up to {@link Limits#maxCausalReopens}, except for a known brief defect, which the owner sees once
+   * before the author corrects the brief. An author's reopen is refused once the owner was reopened for the defect,
+   * except for a correction of a known brief defect.
+   */
   public boolean mayReopen(
       List<RunTransition> transitions,
       RecoveryAttemptKey key,
@@ -381,13 +387,22 @@ public final class RecoveryAttemptLedger {
     if (key == null || ceilingReached(transitions)) {
       return false;
     }
-    if (ownerAlreadyReopened(transitions, key, legacyFailureSignature)
-        && !isAuthorMissingBriefFactsCorrection(initiator, key.causeCode())) {
+    if (initiator == ReopenInitiator.AUTOMATIC && !RecoveryCause.isKnownBriefDefect(key.causeCode())) {
+      return automaticReopensRemain(transitions, key, origin);
+    }
+    if (initiator == ReopenInitiator.AUTOMATIC && ownerAlreadyReopened(transitions, key, legacyFailureSignature)) {
       return false;
     }
-    if (initiator != ReopenInitiator.AUTOMATIC) {
-      return true;
+    if (initiator == ReopenInitiator.AUTOMATIC) {
+      return automaticReopensRemain(transitions, key, origin);
     }
+    return !ownerAlreadyReopened(transitions, key, legacyFailureSignature)
+        || isAuthorMissingBriefFactsCorrection(initiator, key.causeCode());
+  }
+
+  /** True while {@code key} has used fewer automatic reopens than {@link Limits#maxCausalReopens}. */
+  public boolean automaticReopensRemain(
+      List<RunTransition> transitions, RecoveryAttemptKey key, InputOrigin origin) {
     return automaticReopensUsed(transitions, key, origin) < limits.maxCausalReopens();
   }
 

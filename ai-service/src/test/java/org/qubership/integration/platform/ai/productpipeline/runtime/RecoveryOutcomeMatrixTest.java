@@ -239,8 +239,9 @@ class RecoveryOutcomeMatrixTest {
   }
 
   /**
-   * After the run has reopened the plan on its own once, the ledger refuses an author reopen of the plan, so the plan
-   * card leaves out Rebuild plan, and its Retry creation moves the run back to design-planning on a trusted click.
+   * After the run has reopened the plan on its own until its automatic reopens are spent, the ledger refuses an author
+   * reopen of the plan, so the plan card leaves out Rebuild plan, and its Retry creation moves the run back to
+   * design-planning on a trusted click.
    */
   @Test
   void aRetryOnARebuildPlanCardAfterAnAutomaticReopenReturnsToThePlan() {
@@ -258,11 +259,14 @@ class RecoveryOutcomeMatrixTest {
     approveStage(runtime, "design-planning");
     agent.recoverRegenerates(
         Kind.IMPLEMENTATION_PLAN, "The plan is missing information required to create the chain.");
-    var reopen = execute(runtime, "design-execution");
-    assertInstanceOf(StageDecision.ReopenProducer.class, reopen.decision(), () -> reopen.decision().toString());
-    runtime.support().applyStageLifecycle(RUN_ID, reopen).collect().asList().await().indefinitely();
-    approveStage(runtime, "design-planning");
-    execute(runtime, "design-execution");
+    var result = execute(runtime, "design-execution");
+    for (int reopens = 0; reopens < ProductPipelineRunSupport.MAX_CAUSAL_REOPENS; reopens++) {
+      var decision = result.decision();
+      assertInstanceOf(StageDecision.ReopenProducer.class, decision, decision::toString);
+      runtime.support().applyStageLifecycle(RUN_ID, result).collect().asList().await().indefinitely();
+      approveStage(runtime, "design-planning");
+      result = execute(runtime, "design-execution");
+    }
     String card = runStore.load(RUN_ID).orElseThrow().transitions().getLast().reason();
     assertEquals(PipelineGates.RECOVERY_REBUILD_PLAN, PipelineGates.gateOf(card).orElseThrow());
     assertEquals(List.of(ChatEvent.RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),

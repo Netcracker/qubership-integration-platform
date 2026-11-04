@@ -419,7 +419,8 @@ class RecoveryAttemptLedgerTest {
             ledger.recordReopen(key, RecoveryAttemptLedger.ReopenInitiator.AUTHOR, "brief-a"),
             "analysis"));
     assertEquals(1, ledger.remaining(journal, key, InputOrigin.TRUSTED).causalReopensRemaining());
-    assertFalse(ledger.mayReopen(journal, key, InputOrigin.TRUSTED, RecoveryAttemptLedger.ReopenInitiator.AUTOMATIC, "legacy-sig"));
+    // An owner that already saw the defect is reopened again automatically while the automatic budget lasts.
+    assertTrue(ledger.mayReopen(journal, key, InputOrigin.TRUSTED, RecoveryAttemptLedger.ReopenInitiator.AUTOMATIC, "legacy-sig"));
 
     List<RunTransition> automaticOnly = new ArrayList<>();
     RecoveryAttemptKey fresh = ledger.key("design", UNKNOWN_PROPERTY, "plan-a", automaticOnly);
@@ -436,6 +437,51 @@ class RecoveryAttemptLedgerTest {
         new RecoveryAttemptLedger()
             .remaining(automaticOnly, fresh, InputOrigin.TRUSTED)
             .causalReopensRemaining());
+  }
+
+  /** An automatic reopen of the same owner repeats for the same defect until maxCausalReopens is spent. */
+  @Test
+  void anAutomaticReopenRepeatsForTheSameDefectUntilItsBudgetIsSpent() {
+    RecoveryAttemptLedger twoReopens = new RecoveryAttemptLedger(new RecoveryAttemptLedger.Limits(1, 2, 12));
+    List<RunTransition> journal = new ArrayList<>();
+    RecoveryAttemptKey key = twoReopens.key("design-input", UNKNOWN_PROPERTY, "brief-a", journal);
+    journal.add(transition(
+        twoReopens.recordReopen(key, RecoveryAttemptLedger.ReopenInitiator.AUTOMATIC, "brief-a"), "design-input"));
+    assertTrue(twoReopens.mayReopen(journal, key, InputOrigin.TRUSTED,
+        RecoveryAttemptLedger.ReopenInitiator.AUTOMATIC, ""));
+
+    journal.add(transition(
+        twoReopens.recordReopen(key, RecoveryAttemptLedger.ReopenInitiator.AUTOMATIC, "brief-a"), "design-input"));
+
+    assertFalse(twoReopens.mayReopen(journal, key, InputOrigin.TRUSTED,
+        RecoveryAttemptLedger.ReopenInitiator.AUTOMATIC, ""));
+  }
+
+  /** A known brief defect reopens its owner automatically once, before the author corrects the brief. */
+  @Test
+  void anAutomaticReopenOfAKnownBriefDefectHappensOnce() {
+    RecoveryAttemptLedger twoReopens = new RecoveryAttemptLedger(new RecoveryAttemptLedger.Limits(1, 2, 12));
+    List<RunTransition> journal = new ArrayList<>();
+    RecoveryAttemptKey key = twoReopens.key("analysis", RecoveryCause.of(RecoveryCauseCode.MISSING_BRIEF_FACTS),
+        "input-a", journal);
+    journal.add(transition(
+        twoReopens.recordReopen(key, RecoveryAttemptLedger.ReopenInitiator.AUTOMATIC, "input-a"), "analysis"));
+
+    assertFalse(twoReopens.mayReopen(journal, key, InputOrigin.TRUSTED,
+        RecoveryAttemptLedger.ReopenInitiator.AUTOMATIC, ""));
+  }
+
+  /** An author's reopen of an owner that already saw the defect is refused while automatic reopens remain. */
+  @Test
+  void anAuthorReopenOfAnOwnerThatSawTheDefectIsRefused() {
+    RecoveryAttemptLedger twoReopens = new RecoveryAttemptLedger(new RecoveryAttemptLedger.Limits(1, 2, 12));
+    List<RunTransition> journal = new ArrayList<>();
+    RecoveryAttemptKey key = twoReopens.key("design-input", UNKNOWN_PROPERTY, "brief-a", journal);
+    journal.add(transition(
+        twoReopens.recordReopen(key, RecoveryAttemptLedger.ReopenInitiator.AUTOMATIC, "brief-a"), "design-input"));
+
+    assertFalse(twoReopens.mayReopen(journal, key, InputOrigin.TRUSTED,
+        RecoveryAttemptLedger.ReopenInitiator.AUTHOR, ""));
   }
 
   @Test

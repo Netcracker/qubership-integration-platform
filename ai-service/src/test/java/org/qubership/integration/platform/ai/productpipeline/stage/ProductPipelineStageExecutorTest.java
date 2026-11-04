@@ -4920,6 +4920,91 @@ class ProductPipelineStageExecutorTest {
     assertEquals("design-input", reopen.producerStageId());
   }
 
+  /**
+   * The same graph-structure defect found again after design-execution reopened design-input once reopens it a second
+   * time, and the second design turn reads both downstream rejections in its repair history. The live lang-router
+   * run used to stop on the unclassified card after the first reopen, because an owner was reopened at most once per
+   * defect.
+   */
+  @Test
+  void aGraphStructureDefectThatReturnsAfterAReopenReopensTheDesignAgainWithItsHistory() {
+    List<String> histories = new ArrayList<>();
+    CreateChainTestOrchestrator runtime = graphStructureRun(histories);
+    var first = execute(runtime, "design-execution");
+    assertEquals("design-input", assertInstanceOf(StageDecision.ReopenProducer.class, first.decision(),
+        () -> first.decision().toString()).producerStageId());
+    applyLifecycle(runtime, first);
+    applyLifecycle(runtime, execute(runtime, "design-input"));
+
+    var second = execute(runtime, "design-execution");
+
+    assertEquals("design-input", assertInstanceOf(StageDecision.ReopenProducer.class, second.decision(),
+        () -> second.decision().toString()).producerStageId());
+    applyLifecycle(runtime, second);
+    assertEquals(RunStatus.RUNNING, requireRun().run().status());
+    assertEquals("design-input", requireRun().run().currentStageId());
+    assertEquals(2, requireRun().transitions().stream().filter(t -> t.reason() != null
+        && t.reason().startsWith(RecoveryAttemptLedger.AUTOMATIC_REOPEN_REASON_PREFIX + "design-input")).count());
+    execute(runtime, "design-input");
+    String history = histories.getLast();
+    assertEquals(2, history.split("has 0 child", -1).length - 1, history);
+  }
+
+  /**
+   * Once the defect has used both automatic reopens of design-input, the run stops on a card that still offers
+   * Retry creation.
+   */
+  @Test
+  void aGraphStructureDefectThatSpentItsAutomaticReopensShowsACardWithRetry() {
+    CreateChainTestOrchestrator runtime = graphStructureRun(new ArrayList<>());
+    StageDecision.WaitForInput card = null;
+    for (int executions = 0; executions < 40 && card == null; executions++) {
+      var result = execute(runtime, requireRun().run().currentStageId());
+      if (result.decision() instanceof StageDecision.WaitForInput wait) {
+        card = wait;
+      } else {
+        applyLifecycle(runtime, result);
+      }
+    }
+
+    assertNotNull(card, "the run never stopped on a card");
+    assertEquals(2, requireRun().transitions().stream().filter(t -> t.reason() != null
+        && t.reason().startsWith(RecoveryAttemptLedger.AUTOMATIC_REOPEN_REASON_PREFIX + "design-input")).count());
+    assertTrue(cardActions(card.prompt()).contains(ChatEvent.RETRY_CREATION_ACTION), card.prompt());
+  }
+
+  /**
+   * Starts a run whose design-input succeeds, adding the repair history it was given to {@code histories} on every
+   * turn, and whose design-execution always rejects the design with the same graph-structure finding. Returns the
+   * runtime once design-input has run.
+   */
+  private CreateChainTestOrchestrator graphStructureRun(List<String> histories) {
+    ArtifactTypeRef revision = new ArtifactTypeRef("chain-semantic-revision", 1);
+    StageCapability designInput = capability("design-input-cap", context -> {
+      histories.add(context.attributeAsString(StageRepairEvidence.REPAIR_HISTORY_ATTR));
+      return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(StageOutcomeClass.SUCCEEDED,
+          List.of(new ArtifactCandidate(Kind.CHAIN_SEMANTIC_REVISION, SemanticFixtures.linearOrders(), List.of())),
+          "semantic revision ready", null)));
+    });
+    StageCapability execution = capability("execution-cap", context -> Multi.createFrom().item(
+        new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
+            "condition role if has 0 child; the contract requires at least 1 (cardinality)",
+            RecoveryCause.of(RecoveryCauseCode.GRAPH_STRUCTURE)))));
+    ProductPipelineProfile profile = new ProductPipelineProfile(1, "graph-structure-recovery", "2",
+        List.of(new ArtifactTypeRef("user-input", 1)),
+        List.of(
+            new ProfileStage("design-input", "design-input-cap", List.of(new ArtifactTypeRef("user-input", 1)),
+                List.of(revision), null, null, new RetryPolicy(0, 1L)),
+            new ProfileStage("design-execution", "execution-cap", List.of(revision),
+                List.of(new ArtifactTypeRef("chain-plan-graph", 1)), null, null, new RetryPolicy(0, 1L))),
+        new TerminalPolicy("design-execution", "CHAIN_MATERIALIZED"),
+        List.of("design-input", "design-execution"));
+    CreateChainTestOrchestrator runtime = newRuntime(profile, designInput, execution);
+    startAndRecordInput(runtime, profile);
+    applyLifecycle(runtime, execute(runtime, "design-input"));
+    return runtime;
+  }
+
   @ParameterizedTest
   @org.junit.jupiter.params.provider.CsvSource({"1,false", "2,false", "2,true", "8,false"})
   void preWriteMaterializationContractShapeReopensSucceededDesignExecution(int failures, boolean typedFinding) {
@@ -4963,19 +5048,22 @@ class ProductPipelineStageExecutorTest {
     assertInstanceOf(StageDecision.Continue.class, executionResult.decision());
     applyLifecycle(runtime, executionResult);
 
-    StageExecutionResult failed = execute(runtime, "materialization");
-    StageDecision.ReopenProducer reopen =
-        assertInstanceOf(
-            StageDecision.ReopenProducer.class, failed.decision());
-
-    assertEquals("design-execution", reopen.producerStageId());
-    applyLifecycle(runtime, failed);
-    assertEquals("design-execution", requireRun().run().currentStageId());
-    var repaired = execute(runtime, "design-execution");
-    assertInstanceOf(StageDecision.Continue.class, repaired.decision());
-    applyLifecycle(runtime, repaired);
+    // The defect reopens design-execution automatically up to maxCausalReopens times, then regenerates it.
+    int reopens = Math.min(failures, ProductPipelineRunSupport.MAX_CAUSAL_REOPENS);
     var result = execute(runtime, "materialization");
-    int regenerations = Math.min(failures - 1, 2);
+    for (int attempt = 0; attempt < reopens; attempt++) {
+      var decision = result.decision();
+      StageDecision.ReopenProducer reopen =
+          assertInstanceOf(StageDecision.ReopenProducer.class, decision, decision::toString);
+      assertEquals("design-execution", reopen.producerStageId());
+      applyLifecycle(runtime, result);
+      assertEquals("design-execution", requireRun().run().currentStageId());
+      var repaired = execute(runtime, "design-execution");
+      assertInstanceOf(StageDecision.Continue.class, repaired.decision());
+      applyLifecycle(runtime, repaired);
+      result = execute(runtime, "materialization");
+    }
+    int regenerations = Math.max(0, Math.min(failures - reopens, 2));
     for (int attempt = 0; attempt < regenerations; attempt++) {
       var regenerate = assertInstanceOf(StageDecision.Retry.class, result.decision());
       assertEquals("design-execution", regenerate.stageId());
@@ -4985,7 +5073,7 @@ class ProductPipelineStageExecutorTest {
       assertEquals("design-execution", requireRun().run().currentStageId());
       assertEquals(StageStatus.PENDING, snapshot(requireRun(), "materialization").status());
       assertEquals(List.of("Regenerating the chain from the approved plan"), progressLabels(result));
-      assertEquals(1, requireRun().transitions().stream().filter(transition ->
+      assertEquals(reopens, requireRun().transitions().stream().filter(transition ->
           transition.reason().startsWith(RecoveryAttemptLedger.AUTOMATIC_REOPEN_REASON_PREFIX)).count());
       applyLifecycle(runtime, result);
       applyLifecycle(runtime, execute(runtime, "design-execution"));
@@ -4993,12 +5081,12 @@ class ProductPipelineStageExecutorTest {
     }
     assertEquals(regenerations, requireRun().transitions().stream().filter(transition ->
         transition.reason().startsWith(ProductPipelineStageExecutor.PRODUCER_REPAIR_REASON_PREFIX)).count());
-    if (failures > 3) {
+    if (failures > reopens + regenerations) {
       var exhausted = assertInstanceOf(StageDecision.WaitForInput.class, result.decision());
       assertTrue(ChatEvent.actionsForGate(PipelineGates.gateOf(exhausted.prompt()).orElseThrow())
           .contains(ChatEvent.RETRY_CREATION_ACTION));
       assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
-      assertEquals(4, materializationCalls.get());
+      assertEquals(reopens + regenerations + 1, materializationCalls.get());
       return;
     }
     var complete = assertInstanceOf(StageDecision.Complete.class, result.decision());

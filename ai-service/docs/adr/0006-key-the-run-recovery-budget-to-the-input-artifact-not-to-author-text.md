@@ -41,3 +41,17 @@ whether an owner has seen this defect, not who sent the command.
 This does not supersede ADR 0005. The capture ledger still bounds a turn by the rejection.
 The run ledger bounds a halt by the input artifact. Each layer keys on the thing that is
 stable for the actor it is budgeting.
+
+## Amendment, November 4, 2026
+
+The owner-already-reopened test used to refuse automatic reopens as well. One automatic reopen per owner and defect
+stopped a live run on a card with most of its recovery ceiling unspent: design-execution rejected a design for a
+graph-structure defect, design-input was reopened once, and when the defect returned the run could only halt.
+
+Decided: an automatic reopen of the same owner for the same defect repeats until `maxCausalReopens` (two by default)
+is spent, below `qip.ai.create.recovery-attempt-ceiling`. The owner's inputs are the same on each reopen, so each
+automatic reopen on the route path records the downstream rejection as recovery evidence the owner produced. The
+owner's next turn reads every such rejection in its repair history. A known brief defect still reopens its owner
+automatically once, because the author corrects the brief. The author's reopen keeps the owner-already-reopened
+test, except for the author's correction of a known brief defect. When the automatic reopens are spent, the run
+shows its card, and Retry creation reruns the failing stage with a fresh budget.
