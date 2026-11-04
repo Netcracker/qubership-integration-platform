@@ -1737,7 +1737,11 @@ public class DeployChainScenario implements ScenarioHandler {
     while (true) {
       List<DeploymentDto> listed = safeList(catalogRestClient.listDeployments(chainId));
       DeploymentDto onDomain =
-          listed.stream().filter(item -> isDomain(item, domain)).findFirst().orElse(null);
+          listed.stream()
+              .filter(item -> isDomain(item, domain))
+              .filter(item -> created == null || created.id() == null || created.id().equals(item.id()))
+              .findFirst()
+              .orElse(null);
       if (onDomain != null) {
         observed = onDomain;
         status = catalogStatus(onDomain);
