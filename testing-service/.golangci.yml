@@ -2,7 +2,7 @@
 # schema. CI installs that exact version; a v2 binary will not read this file.
 run:
   timeout: 5m
-  go: "1.22"
+  go: "1.23"
 
 linters:
   enable:
