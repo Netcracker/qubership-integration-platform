@@ -52,10 +52,11 @@ test.describe("micro domain lifecycle", { tag: ["@catalog", "@engine", "@slow"] 
     const droppedSnapshot = await catalog.createSnapshot(dropped.id);
 
     let deployed = false;
+    let droppedDeploymentId = "";
     try {
       await test.step("POST /v1/catalog/chains/{chainId}/deployments runs both chains on the domain", async () => {
         await catalog.deploy(kept.id, keptSnapshot.id, domain, "MICRO");
-        await catalog.deploy(dropped.id, droppedSnapshot.id, domain, "MICRO");
+        droppedDeploymentId = (await catalog.deploy(dropped.id, droppedSnapshot.id, domain, "MICRO")).id;
         deployed = true;
         expect(await integration(resource)).not.toBeNull();
         await expect
@@ -67,6 +68,17 @@ test.describe("micro domain lifecycle", { tag: ["@catalog", "@engine", "@slow"] 
         const answer = await request.post(microChainUrl(domain, kept.contextPath), { data: { cr: run } });
         expect(answer.status()).toBe(200);
         expect(answer.headers()[MARKER_HEADER]).toBe("kept");
+      });
+
+      await test.step("GET /v1/catalog/chains/{chainId}/deployments/{deploymentId} reads the deployed row", async () => {
+        await expect
+          .poll(() => catalog.listDeployments(dropped.id).then((rows) => rows.map((row) => row.id)), {
+            timeout: MICRO_READY_TIMEOUT,
+            message: `the catalog never reported deployment ${droppedDeploymentId}`,
+          })
+          .toContain(droppedDeploymentId);
+        const readBack = await catalog.getDeployment(dropped.id, droppedDeploymentId);
+        expect(readBack.id).toBe(droppedDeploymentId);
       });
 
       await test.step("DELETE /v1/catalog/chains/{chainId}/deployments/{deploymentId} removes one chain and keeps the other", async () => {

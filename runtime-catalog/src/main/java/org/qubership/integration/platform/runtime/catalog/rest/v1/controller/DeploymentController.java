@@ -28,6 +28,7 @@ import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.DeployM
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceDeployRequest;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DeploymentProcessingException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DomainTypeDisabledException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiException;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.RuntimeDeployment;
 import org.qubership.integration.platform.runtime.catalog.model.domains.DomainType;
 import org.qubership.integration.platform.runtime.catalog.model.dto.deployment.DeploymentResponse;
@@ -120,6 +121,16 @@ public class DeploymentController {
     public ResponseEntity<DeploymentResponse> findById(@PathVariable @Parameter(description = "Chain id") String chainId,
                                                        @PathVariable @Parameter(description = "Deployment id") String deploymentId) {
         log.debug("Request to find required deployment {} state in chain {}", chainId, deploymentId);
+        Matcher matcher = DEPLOYMENT_ID.matcher(deploymentId);
+        if (matcher.matches() && matcher.group(1) != null) {
+            return microDomainService.verifyMicroDomainEnabled(() -> runtimeDeploymentService
+                    .getMicroEngineDeployments(chainId).stream()
+                    .filter(deployment -> deployment.getId().equals(deploymentId))
+                    .findFirst()
+                    .map(ResponseEntity::ok)
+                    .orElseThrow(() -> new EntityNotFoundException(
+                            "Deployment with id " + deploymentId + " not found")));
+        }
         return verifyClassicDomainEnabled(() -> {
             Deployment deployment = deploymentService.findById(deploymentId);
             RuntimeDeployment runtimeState = runtimeDeploymentService.getRuntimeDeployment(deploymentId);
@@ -133,7 +144,14 @@ public class DeploymentController {
     public ResponseEntity<DeploymentResponse> create(@PathVariable @Parameter(description = "Chain id") String chainId,
                                                      @RequestBody @Valid @Parameter(description = "Deployment request object") DeploymentRequest request) {
         log.info("Request to create new deployment in chain: {}", chainId);
-        Optional<DomainType> discovered = bulkDeploymentService.discoverDomainType(request.getDomain());
+        Optional<DomainType> discovered;
+        try {
+            discovered = bulkDeploymentService.discoverDomainType(request.getDomain());
+        } catch (KubeApiException discoveryFailure) {
+            log.warn("Domain discovery failed for {}; routing by declaration {} alone",
+                    request.getDomain(), request.getDomainType());
+            discovered = Optional.empty();
+        }
         DomainType declared = request.getDomainType();
         if (discovered.isPresent() && declared != null && discovered.get() != declared) {
             throw new DeploymentProcessingException(String.format(

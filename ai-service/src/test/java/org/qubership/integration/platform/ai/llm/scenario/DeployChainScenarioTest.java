@@ -289,6 +289,50 @@ class DeployChainScenarioTest {
   }
 
   @Test
+  void staleDomainRowDoesNotConfirmReplacementDeployment() {
+    when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
+        .thenReturn(Optional.of(CHAIN_ID));
+    when(catalogRestClient.getChain(CHAIN_ID))
+        .thenReturn(
+            new ChainDto(
+                CHAIN_ID, "demo", "Demo", new CurrentSnapshotDto(SNAPSHOT_ID, "V1"), false));
+    when(catalogRestClient.createDeployment(
+            CHAIN_ID, new CreateDeploymentRequest("default", SNAPSHOT_ID)))
+        .thenReturn(replacementDeployment(NEW_SNAPSHOT_ID));
+    when(catalogRestClient.listDeployments(CHAIN_ID))
+        .thenReturn(List.of())
+        .thenReturn(List.of(deployment("default-" + SNAPSHOT_ID, "default", SNAPSHOT_ID, "DEPLOYED")));
+
+    ChatEvent.Token token = tokenAfterSessionLogging("deploy this chain");
+
+    assertFalse(token.text().contains("DEPLOYED"));
+    assertTrue(token.text().contains("PROCESSING"));
+  }
+
+  @Test
+  void replacementRowWithMatchingIdConfirmsDeployment() {
+    when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
+        .thenReturn(Optional.of(CHAIN_ID));
+    when(catalogRestClient.getChain(CHAIN_ID))
+        .thenReturn(
+            new ChainDto(
+                CHAIN_ID, "demo", "Demo", new CurrentSnapshotDto(SNAPSHOT_ID, "V1"), false));
+    when(catalogRestClient.createDeployment(
+            CHAIN_ID, new CreateDeploymentRequest("default", SNAPSHOT_ID)))
+        .thenReturn(replacementDeployment(NEW_SNAPSHOT_ID));
+    when(catalogRestClient.listDeployments(CHAIN_ID))
+        .thenReturn(List.of())
+        .thenReturn(
+            List.of(
+                deployment(
+                    "default-" + NEW_SNAPSHOT_ID, "default", NEW_SNAPSHOT_ID, "DEPLOYED")));
+
+    ChatEvent.Token token = tokenAfterSessionLogging("deploy this chain");
+
+    assertTrue(token.text().contains("DEPLOYED"));
+  }
+
+  @Test
   void deployCreatesSnapshotWhenUnsavedChangesThenDeploysNewId() {
     when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
         .thenReturn(Optional.of(CHAIN_ID));
@@ -2566,6 +2610,11 @@ class DeployChainScenarioTest {
 
   private static DeploymentDto deploymentOnDefault(String snapshotId, String status) {
     return deployment("dep-1", "default", snapshotId, status);
+  }
+
+  private static DeploymentDto replacementDeployment(String snapshotId) {
+    return new DeploymentDto(
+        "default-" + snapshotId, CHAIN_ID, snapshotId, "V2", "default", null);
   }
 
   private static DeploymentDto deployment(String domain, String snapshotId, String status) {

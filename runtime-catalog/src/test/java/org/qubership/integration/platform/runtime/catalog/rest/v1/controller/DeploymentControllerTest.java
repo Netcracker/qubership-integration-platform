@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.runtime.catalog.rest.v1.controller;
 
+import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -13,6 +14,7 @@ import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.DeployM
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceDeployRequest;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DeploymentProcessingException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DomainTypeDisabledException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiException;
 import org.qubership.integration.platform.runtime.catalog.model.domains.DomainType;
 import org.qubership.integration.platform.runtime.catalog.model.dto.deployment.DeploymentResponse;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
@@ -27,6 +29,7 @@ import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainF
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
 
@@ -192,6 +195,89 @@ class DeploymentControllerTest {
 
         verify(bulkDeploymentService, never()).deployResource(any());
         verifyNoInteractions(microDomainService);
+    }
+
+    @Test
+    void createStillCreatesAClassicDeploymentWhenDiscoveryFails() {
+        classicDomainEnabled(true);
+        when(bulkDeploymentService.discoverDomainType(DOMAIN)).thenThrow(new KubeApiException("kube failure"));
+        DeploymentRequest request = DeploymentRequest.builder().domain(DOMAIN).snapshotId(SNAPSHOT_ID).build();
+        Deployment deployment = new Deployment();
+        when(deploymentMapper.asEntity(request)).thenReturn(deployment);
+        when(deploymentService.create(deployment, CHAIN_ID, SNAPSHOT_ID)).thenReturn(deployment);
+        when(deploymentMapper.asResponse(deployment)).thenReturn(DeploymentResponse.builder().id("classic-1").build());
+
+        ResponseEntity<DeploymentResponse> response = controller.create(CHAIN_ID, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        verify(deploymentService).create(deployment, CHAIN_ID, SNAPSHOT_ID);
+        verify(bulkDeploymentService, never()).deployResource(any());
+        verifyNoInteractions(microDomainService);
+    }
+
+    @Test
+    void createStillCreatesAClassicDeploymentWhenDiscoveryFailsForADeclaredClassicType() {
+        classicDomainEnabled(true);
+        when(bulkDeploymentService.discoverDomainType(DOMAIN)).thenThrow(new KubeApiException("kube failure"));
+        DeploymentRequest request = DeploymentRequest.builder().domain(DOMAIN).snapshotId(SNAPSHOT_ID)
+                .domainType(DomainType.CLASSIC).build();
+        Deployment deployment = new Deployment();
+        when(deploymentMapper.asEntity(request)).thenReturn(deployment);
+        when(deploymentService.create(deployment, CHAIN_ID, SNAPSHOT_ID)).thenReturn(deployment);
+        when(deploymentMapper.asResponse(deployment)).thenReturn(DeploymentResponse.builder().id("classic-1").build());
+
+        ResponseEntity<DeploymentResponse> response = controller.create(CHAIN_ID, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        verify(deploymentService).create(deployment, CHAIN_ID, SNAPSHOT_ID);
+        verifyNoInteractions(microDomainService);
+    }
+
+    @Test
+    void createRoutesToTheMicroBranchWhenDiscoveryFailsAndTypeIsDeclaredMicro() {
+        microDomainEnabled(true);
+        when(bulkDeploymentService.discoverDomainType(DOMAIN)).thenThrow(new KubeApiException("kube failure"));
+        Snapshot snapshot = snapshotInChain();
+        when(deploymentMapper.asMicroResponse(CHAIN_ID, DOMAIN, snapshot))
+                .thenReturn(DeploymentResponse.builder().id(DOMAIN + "-" + SNAPSHOT_ID).build());
+
+        controller.create(CHAIN_ID, DeploymentRequest.builder().domain(DOMAIN).snapshotId(SNAPSHOT_ID)
+                .domainType(DomainType.MICRO).build());
+
+        verify(bulkDeploymentService).deployResource(any());
+        verifyNoInteractions(deploymentService);
+    }
+
+    @Test
+    void findByIdReturnsTheReportedMicroDeployment() {
+        microDomainEnabled(true);
+        DeploymentResponse row = DeploymentResponse.builder().id(DOMAIN + "-" + SNAPSHOT_ID).build();
+        when(runtimeDeploymentService.getMicroEngineDeployments(CHAIN_ID)).thenReturn(List.of(row));
+
+        ResponseEntity<DeploymentResponse> response = controller.findById(CHAIN_ID, DOMAIN + "-" + SNAPSHOT_ID);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isSameAs(row);
+        verifyNoInteractions(deploymentService);
+    }
+
+    @Test
+    void findByIdIsNotFoundWhileTheMicroDeploymentIsUnreported() {
+        microDomainEnabled(true);
+        when(runtimeDeploymentService.getMicroEngineDeployments(CHAIN_ID)).thenReturn(List.of());
+
+        assertThatThrownBy(() -> controller.findById(CHAIN_ID, DOMAIN + "-" + SNAPSHOT_ID))
+                .isInstanceOf(EntityNotFoundException.class);
+        verifyNoInteractions(deploymentService);
+    }
+
+    @Test
+    void findByIdIsRejectedForAMicroIdWhenMicroDomainDisabled() {
+        microDomainEnabled(false);
+
+        assertThatThrownBy(() -> controller.findById(CHAIN_ID, DOMAIN + "-" + SNAPSHOT_ID))
+                .isInstanceOf(DomainTypeDisabledException.class);
+        verifyNoInteractions(deploymentService);
     }
 
     @Test
