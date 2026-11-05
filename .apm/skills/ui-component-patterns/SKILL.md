@@ -129,7 +129,7 @@ Two kinds of form:
 
 - Use `@ant-design/icons`. It is the only icon library the UI depends on, so an icon from another
   library needs a decision to add that dependency.
-- Element (kamelet) icons are entries in `elementIcons` in `src/icons/IconDefenitions.tsx`, keyed by
+- Element (kamelet) icons are entries in `elementIcons` in `src/icons/IconDefinitions.tsx`, keyed by
   element type, and `IconProvider` serves them. Each entry is an `@ant-design/icons` component except
   `mcp-trigger`, which is the raw SVG of `src/assets/mcp.svg`.
 - Render through `OverridableIcon` so a runtime override can replace the icon:
