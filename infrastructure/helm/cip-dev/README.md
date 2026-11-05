@@ -15,7 +15,7 @@ kubectl label namespace cip --overwrite istio-injection- istio.io/dataplane-mode
 
 `istio.yaml` installs istiod, istio-cni, and ztunnel with small resource requests and memory limits
 for a local cluster. It disables istiod autoscaling and installs no default ingress or egress gateway.
-The [e2e mesh budgets](../../../e2e/k8s/README.md#istio) list the values.
+The [end-to-end mesh budgets](../../../e2e/k8s/README.md#istio) list the values.
 
 Enable `gateways.waypoint.enabled` when installing the chart to create the namespace's `waypoint`.
 It defaults to `false` for an existing installation that supplies its own waypoint. A waypoint

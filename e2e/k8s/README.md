@@ -114,7 +114,7 @@ istioctl install -f infrastructure/helm/cip-dev/istio.yaml
 
 The file installs the `ambient` profile: one istiod, plus `istio-cni-node` and `ztunnel` on each
 node. It installs no default ingress or egress gateway. The platform chart creates its four gateways
-and, with `gateways.waypoint.enabled: true` in the e2e values, one namespace waypoint.
+and, with `gateways.waypoint.enabled: true` in the end-to-end values, one namespace waypoint.
 
 The requests leave room on a 4-CPU node for the platform. istiod autoscaling is off:
 
