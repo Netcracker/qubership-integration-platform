@@ -31,7 +31,7 @@ Local builds can use `./mvnw` with the developer's normal Maven settings.
 
 Module build workflows accept manual `cold-cache`, `runner`, and `qualification-pr` inputs. Feature-branch analysis
 requires the matching open PR so SonarCloud applies its PR Quality Gate instead of branch analysis. The dependency cache key includes the
-wrapper identity, Java major, OS, architecture, workload, and POM hash. Main Build owns the verification caches; pull
+wrapper identity, Java major, OS, architecture, workload, and POM hash. Main Build owns the verification caches on main and on trusted manual dispatches; pull
 requests and module qualification runs restore but do not save them. Analysis builds install their reactor outputs
 locally, while Main Build uses `verify` and caches dependencies only.
 

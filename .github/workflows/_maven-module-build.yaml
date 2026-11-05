@@ -108,7 +108,7 @@ jobs:
           fi
 
       - name: Save the Maven repository
-        if: ${{ inputs.use-cache && inputs.save-cache && inputs.sonar-project-key == '' && github.ref == 'refs/heads/main' && steps.maven-cache.outputs.cache-hit != 'true' }}
+        if: ${{ inputs.use-cache && inputs.save-cache && inputs.sonar-project-key == '' && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch') && steps.maven-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.m2/repository
