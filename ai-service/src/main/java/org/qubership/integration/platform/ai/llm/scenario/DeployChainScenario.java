@@ -447,7 +447,13 @@ public class DeployChainScenario implements ScenarioHandler {
         return waitForDomain(conversationId, chainId, namedSnapshot, confirmFirstDeploy, domains);
       }
 
-      return deployResolved(conversationId, chainId, namedSnapshot, domain, confirmFirstDeploy);
+      return deployResolved(
+          conversationId,
+          chainId,
+          namedSnapshot,
+          domain,
+          domainTypeOf(domains, domain),
+          confirmFirstDeploy);
     } catch (RuntimeException e) {
       return knownOrRethrow(e, CatalogOperation.DEPLOY, conversationId, chainId);
     }
@@ -486,7 +492,12 @@ public class DeployChainScenario implements ScenarioHandler {
         return Multi.createFrom().item(ChatEvent.token(unknownSnapshotMessage(conversationId, wait.snapshotId())));
       }
       return deployResolved(
-          conversationId, wait.chainId(), named, matches.get(0), wait.confirmFirstDeploy());
+          conversationId,
+          wait.chainId(),
+          named,
+          matches.get(0),
+          domainTypeOf(domains, matches.get(0)),
+          wait.confirmFirstDeploy());
     } catch (RuntimeException e) {
       CatalogOperation operation =
           wait.undeploy() ? CatalogOperation.UNDEPLOY : CatalogOperation.DEPLOY;
@@ -499,6 +510,7 @@ public class DeployChainScenario implements ScenarioHandler {
       String chainId,
       SnapshotDto namedSnapshot,
       String domain,
+      String domainType,
       boolean confirmFirstDeploy) {
     List<DeploymentDto> existing = catalogRestClient.listDeployments(chainId);
     Optional<DeploymentDto> onDomain =
@@ -517,18 +529,19 @@ public class DeployChainScenario implements ScenarioHandler {
             domain,
             new DeploymentObservation(STATUS_FAILED, current));
       }
-      return offerRedeploy(conversationId, chainId, domain, namedSnapshot, current);
+      return offerRedeploy(conversationId, chainId, domain, domainType, namedSnapshot, current);
     }
     if (confirmFirstDeploy) {
-      return offerFirstDeploy(conversationId, chainId, domain, namedSnapshot);
+      return offerFirstDeploy(conversationId, chainId, domain, domainType, namedSnapshot);
     }
-    return offerSessionLogging(conversationId, chainId, domain, namedSnapshot, null);
+    return offerSessionLogging(conversationId, chainId, domain, domainType, namedSnapshot, null);
   }
 
   private Multi<ChatEvent> offerRedeploy(
       String conversationId,
       String chainId,
       String domain,
+      String domainType,
       SnapshotDto namedSnapshot,
       DeploymentDto existing) {
     String operationId = UUID.randomUUID().toString();
@@ -537,6 +550,7 @@ public class DeployChainScenario implements ScenarioHandler {
         new PendingRedeploy(
             chainId,
             domain,
+            domainType,
             existing.id(),
             operationId,
             namedSnapshot == null ? null : namedSnapshot.id()));
@@ -547,12 +561,21 @@ public class DeployChainScenario implements ScenarioHandler {
   }
 
   private Multi<ChatEvent> offerFirstDeploy(
-      String conversationId, String chainId, String domain, SnapshotDto namedSnapshot) {
+      String conversationId,
+      String chainId,
+      String domain,
+      String domainType,
+      SnapshotDto namedSnapshot) {
     String operationId = UUID.randomUUID().toString();
     pendingRedeployStore.put(
         conversationId,
         new PendingRedeploy(
-            chainId, domain, null, operationId, namedSnapshot == null ? null : namedSnapshot.id()));
+            chainId,
+            domain,
+            domainType,
+            null,
+            operationId,
+            namedSnapshot == null ? null : namedSnapshot.id()));
     return Multi.createFrom()
         .item(ChatEvent.deployDecision(operationId, deployQuestion(conversationId, chainId, domain)));
   }
@@ -561,6 +584,7 @@ public class DeployChainScenario implements ScenarioHandler {
       String conversationId,
       String chainId,
       String domain,
+      String domainType,
       SnapshotDto namedSnapshot,
       String existingDeploymentId) {
     String operationId = UUID.randomUUID().toString();
@@ -569,6 +593,7 @@ public class DeployChainScenario implements ScenarioHandler {
         PendingRedeploy.loggingWait(
             chainId,
             domain,
+            domainType,
             existingDeploymentId,
             operationId,
             namedSnapshot == null ? null : namedSnapshot.id()));
@@ -652,7 +677,12 @@ public class DeployChainScenario implements ScenarioHandler {
         "DEPLOY_CHAIN confirm-deploy conversationId=%s chainId=%s",
         conversationId, confirm.chainId());
     return offerSessionLogging(
-        conversationId, confirm.chainId(), confirm.domain(), pendingSnapshot(confirm), null);
+        conversationId,
+        confirm.chainId(),
+        confirm.domain(),
+        confirm.domainType(),
+        pendingSnapshot(confirm),
+        null);
   }
 
   private Multi<ChatEvent> applyRedeploy(String conversationId, ChatDecisionCommand decision) {
@@ -670,6 +700,7 @@ public class DeployChainScenario implements ScenarioHandler {
         conversationId,
         replace.chainId(),
         replace.domain(),
+        replace.domainType(),
         pendingSnapshot(replace),
         replace.existingDeploymentId());
   }
@@ -713,7 +744,13 @@ public class DeployChainScenario implements ScenarioHandler {
         catalogRestClient.deleteDeployment(wait.chainId(), wait.existingDeploymentId());
       }
       pendingRedeployStore.clear(conversationId);
-      return deploySnapshot(conversationId, wait.chainId(), snapshot, wait.domain());
+      return deploySnapshot(
+          conversationId,
+          wait.chainId(),
+          snapshot,
+          wait.domain(),
+          wait.domainType(),
+          wait.existingDeploymentId());
     } catch (RuntimeException error) {
       return knownOrRethrow(error, CatalogOperation.DEPLOY, conversationId, wait.chainId());
     }
@@ -1060,10 +1097,16 @@ public class DeployChainScenario implements ScenarioHandler {
   }
 
   private Multi<ChatEvent> deploySnapshot(
-      String conversationId, String chainId, SnapshotDto snapshot, String domain) {
+      String conversationId,
+      String chainId,
+      SnapshotDto snapshot,
+      String domain,
+      String domainType,
+      String previousDeploymentId) {
     DeploymentDto created = catalogRestClient.createDeployment(
-        chainId, new CreateDeploymentRequest(domain, snapshot.id()));
-    DeploymentObservation observation = pollDeploymentStatus(chainId, domain, created);
+        chainId, new CreateDeploymentRequest(domain, snapshot.id(), domainType));
+    DeploymentObservation observation =
+        pollDeploymentStatus(chainId, domain, created, previousDeploymentId);
     if (STATUS_DEPLOYED.equals(observation.status()) || STATUS_FAILED.equals(observation.status())) {
       ToolInvocationSink.catalogChanges().ifPresent(changes -> changes.chainChanged(chainId));
     }
@@ -1695,6 +1738,18 @@ public class DeployChainScenario implements ScenarioHandler {
     return matches;
   }
 
+  private static String domainTypeOf(List<DomainDto> domains, String name) {
+    if (domains == null || name == null) {
+      return null;
+    }
+    for (DomainDto domain : domains) {
+      if (domain != null && name.equalsIgnoreCase(domain.name())) {
+        return domain.type() == null || domain.type().isBlank() ? null : domain.type();
+      }
+    }
+    return null;
+  }
+
   private static Optional<String> defaultDomainName(List<DomainDto> domains) {
     if (domains == null) {
       return Optional.empty();
@@ -1730,8 +1785,18 @@ public class DeployChainScenario implements ScenarioHandler {
 
   private DeploymentObservation pollDeploymentStatus(
       String chainId, String domain, DeploymentDto created) {
+    return pollDeploymentStatus(chainId, domain, created, null);
+  }
+
+  private DeploymentObservation pollDeploymentStatus(
+      String chainId, String domain, DeploymentDto created, String previousDeploymentId) {
     DeploymentDto observed = created;
     String status = catalogStatus(observed);
+    boolean replacementWindow =
+        previousDeploymentId != null
+            && created != null
+            && previousDeploymentId.equals(created.id());
+    boolean removalObserved = !replacementWindow;
     long deadlineNanos =
         System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(Math.max(0L, pollTimeoutMillis));
     while (true) {
@@ -1742,7 +1807,9 @@ public class DeployChainScenario implements ScenarioHandler {
               .filter(item -> created == null || created.id() == null || created.id().equals(item.id()))
               .findFirst()
               .orElse(null);
-      if (onDomain != null) {
+      if (onDomain == null) {
+        removalObserved = true;
+      } else if (removalObserved) {
         observed = onDomain;
         status = catalogStatus(onDomain);
       }

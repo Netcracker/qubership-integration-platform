@@ -45,6 +45,7 @@ import org.qubership.integration.platform.runtime.catalog.service.SnapshotServic
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
 import org.qubership.integration.platform.runtime.catalog.util.MapperUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.AuditorAware;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -66,6 +67,8 @@ public abstract class DeploymentMapper {
     private SnapshotService snapshotService;
     @Autowired
     private ChainFinderService chainFinderService;
+    @Autowired
+    private AuditorAware<User> auditor;
 
     @Mapping(source = "snapshot.id", target = "snapshotId")
     @Mapping(source = "chain.id", target = "chainId")
@@ -149,8 +152,8 @@ public abstract class DeploymentMapper {
                 .name(snapshot.getName())
                 .domain(domain)
                 .domainType(DomainType.MICRO)
-                .createdWhen(snapshot.getCreatedWhen() == null ? null : snapshot.getCreatedWhen().getTime())
-                .createdBy(asUser(snapshot.getCreatedBy()))
+                .createdWhen(System.currentTimeMillis())
+                .createdBy(asUser(auditor.getCurrentAuditor().orElse(null)))
                 .runtime(DeploymentRuntime.builder().states(Collections.emptyMap()).build())
                 .build();
     }
