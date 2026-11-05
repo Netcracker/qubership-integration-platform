@@ -112,15 +112,47 @@ From the repository root:
 istioctl install -f infrastructure/helm/cip-dev/istio.yaml
 ```
 
-The file takes the `minimal` profile and lowers the requests to 10m CPU and 100Mi for istiod and to
-10m CPU and 40Mi for each sidecar and gateway pod, because the `minimal` defaults, 500m for istiod
-and 100m per sidecar, reserve CPU that a 4-CPU node needs for the run's own pods. On a cluster with
-the `demo` profile, the same command replaces it and removes the `istio-ingressgateway` and
-`istio-egressgateway` that `demo` installs and nothing in the chart uses.
+The file installs the `ambient` profile: one istiod, plus `istio-cni-node` and `ztunnel` on each
+node. It installs no default ingress or egress gateway. The platform chart creates its four gateways
+and, with `gateways.waypoint.enabled: true` in the e2e values, one namespace waypoint.
+
+The requests leave room on a 4-CPU node for the platform. istiod autoscaling is off:
+
+| Component | CPU request | Memory request | Memory limit |
+| --- | --- | --- | --- |
+| istiod | 10m | 100Mi | 512Mi |
+| CNI, per node | 10m | 64Mi | 256Mi |
+| ztunnel, per node | 10m | 64Mi | 256Mi |
+| Each gateway or waypoint | 10m | 40Mi | 256Mi |
+
+On one node these eight mesh pods request 80m CPU and 428Mi memory and have a combined memory
+limit of 2304Mi. Application pods have no sidecar. These are mesh budgets; the platform, brokers,
+micro domains, Kubernetes, builds, and Playwright need resources too.
 
 The chart's egress routes use `backendRefs` with `kind: Hostname`, which istiod 1.31.1 programs
-with no feature flag set; this page is verified on Istio 1.31 only. The suite labels `cip-e2e` with
-`istio-injection=enabled` before it installs the chart, so every pod starts with a sidecar.
+with no feature flag set; this page is verified on Istio 1.31 only. The suite removes the namespace's
+`istio-injection` label and sets `istio.io/dataplane-mode=ambient` and
+`istio.io/use-waypoint=waypoint` before installing the chart. It waits for the waypoint to be programmed.
+
+When converting an existing sidecar stand, install the ambient profile first. Enroll the namespace,
+create its waypoint, and restart the old injected workloads before running the suite:
+
+```bash
+kubectl label namespace cip-e2e --overwrite istio-injection- istio.io/dataplane-mode=ambient istio.io/use-waypoint=waypoint
+helm upgrade cip infrastructure/helm/cip-dev -n cip-e2e --reuse-values --set gateways.waypoint.enabled=true
+kubectl wait --for=condition=Programmed gateway/waypoint -n cip-e2e --timeout=180s
+kubectl rollout restart deployment -n cip-e2e
+kubectl rollout status daemonset/istio-cni-node -n istio-system
+kubectl rollout status daemonset/ztunnel -n istio-system
+```
+
+Check that the application pods have one container each and that the waypoint is programmed:
+
+```bash
+kubectl get pods -n cip-e2e
+kubectl get gateway waypoint -n cip-e2e
+istioctl ztunnel-config workloads -n istio-system
+```
 
 ## camel-k
 
