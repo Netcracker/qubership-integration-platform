@@ -1,6 +1,7 @@
 import { getAiServiceUrl } from "../../ai/appConfig.ts";
 import { parseDecisionPayload } from "../../ai/modelProviders/sseParsing.ts";
 import type { ChatDecision } from "../../ai/modelProviders/types.ts";
+import { getHeadersForContext } from "../rest/requestHeadersInterceptor.ts";
 
 function baseUrl(): string | null {
   const u = getAiServiceUrl();
@@ -19,7 +20,12 @@ export async function fetchOpenDecision(
 ): Promise<ChatDecision | null> {
   const base = baseUrl();
   if (!base) return null;
-  const res = await fetch(`${base}/api/v1/chat/${conversationId}/decision`);
+  const url = `${base}/api/v1/chat/${conversationId}/decision`;
+  const auth = getHeadersForContext({ url, baseURL: base }).Authorization;
+  const res =
+    typeof auth === "string"
+      ? await fetch(url, { headers: { Authorization: auth } })
+      : await fetch(url);
   if (res.status === 204) return null;
   if (!res.ok) {
     throw new Error(`Failed to fetch open decision: ${res.status}`);
