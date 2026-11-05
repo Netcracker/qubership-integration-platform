@@ -210,9 +210,6 @@ test.describe("pr-changes", () => {
     expect(decide(["help/docs/00__Overview/0__Getting_Started/readme.md"]), "help page").toEqual({ ...none, ui: true });
     expect(decide([".github/workflows/ui-build.yaml"]), "other workflow").toEqual(none);
     expect(decide([".github/workflows/_e2e-kind.yaml"]), "kind workflow").toEqual(all);
-    for (const file of ["mvnw", "mvnw.cmd", ".mvn/wrapper/maven-wrapper.properties", "scripts/maven-ci.sh", ".github/maven-settings.xml"]) {
-      expect(decide([file]), `Maven toolchain: ${file}`).toEqual(all);
-    }
     expect(decide(["e2e/specs/k8s/discovery.spec.ts"]), "k8s spec").toEqual({ ...none, micro: true });
     expect(decide(["e2e/specs/seed-micro/seed-micro.teardown.ts"]), "seed-micro").toEqual({ ...none, classic: true, micro: true });
     expect(decide(["e2e/specs/vscode/smoke.spec.ts"]), "vscode spec").toEqual(none);

@@ -81,9 +81,9 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.m2/repository
-          key: maven-v2-${{ runner.os }}-${{ runner.arch }}-java21-${{ hashFiles('.mvn/wrapper/maven-wrapper.properties') }}-snapshot-${{ inputs.module }}-${{ hashFiles('**/pom.xml') }}
+          key: maven-${{ runner.os }}-${{ hashFiles('.mvn/**') }}-${{ inputs.module }}-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
-            maven-v2-${{ runner.os }}-${{ runner.arch }}-java21-${{ hashFiles('.mvn/wrapper/maven-wrapper.properties') }}-snapshot-${{ inputs.module }}-
+            maven-${{ runner.os }}-${{ hashFiles('.mvn/**') }}-${{ inputs.module }}-
 
       # Pre-install the parent pom so the single-module deploy below resolves it.
       - name: Install qip-monorepo-parent locally

@@ -7,13 +7,10 @@ on:
     types: [opened, synchronize, reopened]
     paths:
       - '.github/workflows/schemas-build.yaml'
-      - '.github/workflows/_maven-module-build.yaml'
       - '.github/maven-settings.xml'
       - '.mvn/**'
-      - 'mvnw'
-      - 'mvnw.cmd'
+      - 'mvnw*'
       - 'scripts/maven-ci.sh'
-      - 'scripts/maven_analysis.py'
       - 'schemas/**'
       - 'package.json'
       - 'package-lock.json'

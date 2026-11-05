@@ -18,10 +18,8 @@ on:
       - '.github/workflows/_maven-module-build.yaml'
       - '.github/maven-settings.xml'
       - '.mvn/**'
-      - 'mvnw'
-      - 'mvnw.cmd'
+      - 'mvnw*'
       - 'scripts/maven-ci.sh'
-      - 'scripts/maven_analysis.py'
       - 'checkstyle/**'
       - 'engine/**'
       - 'micro-engine/**'
@@ -64,11 +62,9 @@ jobs:
     permissions:
       contents: read
       packages: read
-      pull-requests: read
     uses: ./.github/workflows/_maven-module-build.yaml
     with:
       module: ${{ matrix.module }}
-      save-cache: true
 
   # Consolidated npm workspace build. Mirrors the three PR builds in one job:
   # the schemas -> ui -> vscode-extension chain is where cross-workspace

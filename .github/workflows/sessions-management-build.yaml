@@ -1,21 +1,6 @@
 name: Sessions Management Build
 
 on:
-  workflow_dispatch:
-    inputs:
-      cold-cache:
-        type: boolean
-        default: false
-        description: Run without restoring or saving the Maven cache.
-      qualification-pr:
-        type: number
-        default: 0
-        description: PR number for manual analysis on a feature branch.
-      runner:
-        type: choice
-        default: ubuntu-latest
-        options: [ubuntu-latest, ubuntu-24.04, ubuntu-26.04]
-        description: Runner image for toolchain qualification.
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
@@ -23,10 +8,8 @@ on:
       - '.github/workflows/_maven-module-build.yaml'
       - '.github/maven-settings.xml'
       - '.mvn/**'
-      - 'mvnw'
-      - 'mvnw.cmd'
+      - 'mvnw*'
       - 'scripts/maven-ci.sh'
-      - 'scripts/maven_analysis.py'
       - 'sessions-management/**'
       - 'parent/**'
       - 'pom.xml'
@@ -37,13 +20,9 @@ jobs:
   build:
     permissions:
       contents: read
-      packages: read
-      pull-requests: read
+      packages: write
     uses: ./.github/workflows/_maven-module-build.yaml
     with:
-      qualification-pr: ${{ fromJSON(format('{0}', inputs.qualification-pr || 0)) }}
-      use-cache: ${{ github.event_name != 'workflow_dispatch' || !inputs.cold-cache }}
-      runner: ${{ github.event_name == 'workflow_dispatch' && inputs.runner || 'ubuntu-latest' }}
       module: sessions-management
       sonar-project-key: ${{ vars.SONAR_SESSIONS_MANAGEMENT_PROJECT_KEY }}
       ensure-openapi-spec: true

@@ -4,13 +4,10 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
-      - '.github/workflows/_maven-module-build.yaml'
       - '.github/maven-settings.xml'
       - '.mvn/**'
-      - 'mvnw'
-      - 'mvnw.cmd'
+      - 'mvnw*'
       - 'scripts/maven-ci.sh'
-      - 'scripts/maven_analysis.py'
       - '.github/workflows/snapshot-flow-build.yaml'
       - 'integration-build-pipeline/**'
       - 'runtime-catalog/**'
@@ -25,13 +22,10 @@ on:
     branches:
       - main
     paths:
-      - '.github/workflows/_maven-module-build.yaml'
       - '.github/maven-settings.xml'
       - '.mvn/**'
-      - 'mvnw'
-      - 'mvnw.cmd'
+      - 'mvnw*'
       - 'scripts/maven-ci.sh'
-      - 'scripts/maven_analysis.py'
       - '.github/workflows/snapshot-flow-build.yaml'
       - 'integration-build-pipeline/**'
       - 'runtime-catalog/**'
@@ -103,11 +97,11 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.m2/repository
-          key: maven-v2-${{ runner.os }}-${{ runner.arch }}-java21-${{ hashFiles('.mvn/wrapper/maven-wrapper.properties') }}-snapshot-flow-${{ hashFiles('**/pom.xml') }}
+          key: maven-${{ runner.os }}-${{ hashFiles('.mvn/**') }}-snapshot-flow-${{ hashFiles('**/pom.xml') }}
           # Until main has a snapshot-flow cache, start from the runtime-catalog one.
           restore-keys: |
-            maven-v2-${{ runner.os }}-${{ runner.arch }}-java21-${{ hashFiles('.mvn/wrapper/maven-wrapper.properties') }}-snapshot-flow-
-            maven-v2-${{ runner.os }}-${{ runner.arch }}-java21-${{ hashFiles('.mvn/wrapper/maven-wrapper.properties') }}-runtime-catalog-
+            maven-${{ runner.os }}-${{ hashFiles('.mvn/**') }}-snapshot-flow-
+            maven-${{ runner.os }}-${{ hashFiles('.mvn/**') }}-runtime-catalog-
 
       - name: Verify Docker
         run: docker version
