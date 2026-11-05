@@ -23,7 +23,7 @@
   </parent>
   <properties>
     <revision>1.7.0</revision>
-    <changelist>-SNAPSHOT-restr-eng-scrt</changelist>
+    <changelist>-SNAPSHOT</changelist>
 
     <generated-sources>target/generated-sources/java</generated-sources>
     <generated-resources>target/generated-sources/resources</generated-resources>

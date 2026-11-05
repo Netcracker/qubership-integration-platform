@@ -105,7 +105,7 @@ public class SecuredSecretsRoleSynchronizer {
         V1Role role = rbacApi.readNamespacedRole(secretsRoleName, namespace).execute();
         Set<String> secretNames = kubeSecretOperator.getAllSecretsWithLabel(securedLabel).keySet();
         List<V1PolicyRule> currentRules = Optional.ofNullable(role.getRules()).orElse(Collections.emptyList());
-        Optional<List<V1PolicyRule>> newRules = rulesWithSecretNames(currentRules, secretNames);
+        Optional<List<V1PolicyRule>> newRules = replaceSecretNamesInRules(currentRules, secretNames);
         if (newRules.isEmpty()) {
             return;
         }
@@ -122,7 +122,7 @@ public class SecuredSecretsRoleSynchronizer {
      * rule on secrets and {@code secretNames} is not empty, a rule with the {@code get} verb is added.
      * Rules on other resources are kept as they are.
      */
-    static Optional<List<V1PolicyRule>> rulesWithSecretNames(List<V1PolicyRule> rules, Set<String> secretNames) {
+    static Optional<List<V1PolicyRule>> replaceSecretNamesInRules(List<V1PolicyRule> rules, Set<String> secretNames) {
         List<String> sortedNames = secretNames.stream().sorted().toList();
         List<V1PolicyRule> result = new ArrayList<>();
         boolean changed = false;

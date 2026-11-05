@@ -47,67 +47,67 @@ class SecuredSecretsRoleSynchronizerTest {
     }
 
     @Test
-    void rulesWithSecretNamesReplacesTheNamesOfTheSecretsRuleAndKeepsOtherRules() {
+    void replaceSecretNamesInRulesReplacesTheNamesOfTheSecretsRuleAndKeepsOtherRules() {
         V1PolicyRule rolesRule = rolesRule();
         List<V1PolicyRule> rules = List.of(secretsRule("default-secret"), rolesRule);
 
         Optional<List<V1PolicyRule>> result =
-                SecuredSecretsRoleSynchronizer.rulesWithSecretNames(rules, Set.of("second", "default-secret"));
+                SecuredSecretsRoleSynchronizer.replaceSecretNamesInRules(rules, Set.of("second", "default-secret"));
 
         assertTrue(result.isPresent());
         assertEquals(List.of(secretsRule("default-secret", "second"), rolesRule), result.get());
     }
 
     @Test
-    void rulesWithSecretNamesReturnsEmptyWhenTheRuleAlreadyGrantsTheSameNamesInAnotherOrder() {
+    void replaceSecretNamesInRulesReturnsEmptyWhenTheRuleAlreadyGrantsTheSameNamesInAnotherOrder() {
         List<V1PolicyRule> rules = List.of(secretsRule("second", "default-secret"), rolesRule());
 
         Optional<List<V1PolicyRule>> result =
-                SecuredSecretsRoleSynchronizer.rulesWithSecretNames(rules, Set.of("default-secret", "second"));
+                SecuredSecretsRoleSynchronizer.replaceSecretNamesInRules(rules, Set.of("default-secret", "second"));
 
         assertTrue(result.isEmpty());
     }
 
     @Test
-    void rulesWithSecretNamesRemovesTheSecretsRuleWhenNoSecretIsLeft() {
+    void replaceSecretNamesInRulesRemovesTheSecretsRuleWhenNoSecretIsLeft() {
         V1PolicyRule rolesRule = rolesRule();
         List<V1PolicyRule> rules = List.of(secretsRule("default-secret"), rolesRule);
 
-        Optional<List<V1PolicyRule>> result = SecuredSecretsRoleSynchronizer.rulesWithSecretNames(rules, Set.of());
+        Optional<List<V1PolicyRule>> result = SecuredSecretsRoleSynchronizer.replaceSecretNamesInRules(rules, Set.of());
 
         assertTrue(result.isPresent());
         assertEquals(List.of(rolesRule), result.get());
     }
 
     @Test
-    void rulesWithSecretNamesNarrowsASecretsRuleWithoutResourceNames() {
+    void replaceSecretNamesInRulesNarrowsASecretsRuleWithoutResourceNames() {
         List<V1PolicyRule> rules = List.of(new V1PolicyRule()
                 .apiGroups(List.of(""))
                 .resources(List.of("secrets"))
                 .verbs(List.of("get")));
 
         Optional<List<V1PolicyRule>> result =
-                SecuredSecretsRoleSynchronizer.rulesWithSecretNames(rules, Set.of("default-secret"));
+                SecuredSecretsRoleSynchronizer.replaceSecretNamesInRules(rules, Set.of("default-secret"));
 
         assertTrue(result.isPresent());
         assertEquals(List.of(secretsRule("default-secret")), result.get());
     }
 
     @Test
-    void rulesWithSecretNamesAddsASecretsRuleWhenTheRoleHasNone() {
+    void replaceSecretNamesInRulesAddsASecretsRuleWhenTheRoleHasNone() {
         V1PolicyRule rolesRule = rolesRule();
 
         Optional<List<V1PolicyRule>> result =
-                SecuredSecretsRoleSynchronizer.rulesWithSecretNames(List.of(rolesRule), Set.of("default-secret"));
+                SecuredSecretsRoleSynchronizer.replaceSecretNamesInRules(List.of(rolesRule), Set.of("default-secret"));
 
         assertTrue(result.isPresent());
         assertEquals(List.of(rolesRule, secretsRule("default-secret")), result.get());
     }
 
     @Test
-    void rulesWithSecretNamesReturnsEmptyWhenNoSecretsRuleAndNoSecrets() {
+    void replaceSecretNamesInRulesReturnsEmptyWhenNoSecretsRuleAndNoSecrets() {
         Optional<List<V1PolicyRule>> result =
-                SecuredSecretsRoleSynchronizer.rulesWithSecretNames(List.of(rolesRule()), Set.of());
+                SecuredSecretsRoleSynchronizer.replaceSecretNamesInRules(List.of(rolesRule()), Set.of());
 
         assertTrue(result.isEmpty());
     }
