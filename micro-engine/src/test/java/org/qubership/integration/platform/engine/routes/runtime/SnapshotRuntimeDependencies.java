@@ -75,7 +75,7 @@ public class SnapshotRuntimeDependencies {
     @Singleton
     public KubeOperator kubeOperator() {
         KubeOperator operator = mock(KubeOperator.class);
-        when(operator.getAllSecretsWithLabel(any())).thenReturn(Map.of());
+        when(operator.getSecretsFromRole(any())).thenReturn(Map.of());
         return operator;
     }
 

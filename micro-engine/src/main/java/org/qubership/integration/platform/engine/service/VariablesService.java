@@ -22,7 +22,6 @@ import jakarta.inject.Inject;
 import jakarta.inject.Named;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.text.StringEscapeUtils;
 import org.apache.commons.text.StringSubstitutor;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -65,7 +64,7 @@ public class VariablesService {
     private final ApplicationConfiguration applicationConfiguration;
     private final UpdateGetterHelper<Map<String, String>> commonVariablesUpdateGetter;
     private final String kubeSecretV2Name;
-    private final Pair<String, String> kubeSecretsLabel;
+    private final String secretsRoleName;
     private final boolean defaultSecretEnabled;
     private final StartupErrorHandlingConfiguration startupErrorHandlingConfiguration;
 
@@ -74,7 +73,7 @@ public class VariablesService {
             KubeOperator operator,
             ApplicationConfiguration applicationConfiguration,
             @Named("commonVariablesUpdateGetter") UpdateGetterHelper<Map<String, String>> commonVariablesUpdateGetter,
-            @ConfigProperty(name = "kubernetes.variables-secret.label") String kubeSecretsLabel,
+            @ConfigProperty(name = "kubernetes.secrets-role.name") String secretsRoleName,
             @ConfigProperty(name = "kubernetes.variables-secret.name") String kubeSecretV2Name,
             @ConfigProperty(name = "cip.variables.default-secret.enabled", defaultValue = "false")
             boolean defaultSecretEnabled,
@@ -84,7 +83,7 @@ public class VariablesService {
         this.commonVariablesUpdateGetter = commonVariablesUpdateGetter;
         this.applicationConfiguration = applicationConfiguration;
         this.kubeSecretV2Name = kubeSecretV2Name;
-        this.kubeSecretsLabel = Pair.of(kubeSecretsLabel, "secured");
+        this.secretsRoleName = secretsRoleName;
         this.defaultSecretEnabled = defaultSecretEnabled;
         this.startupErrorHandlingConfiguration = startupErrorHandlingConfiguration;
         updateSubstitutors(Collections.emptyMap());
@@ -189,8 +188,8 @@ public class VariablesService {
         log.debug("Updating secured variables");
         Map<String, String> securedVariables = new ConcurrentHashMap<>();
         try {
-            for (Map.Entry<String, Map<String, String>> secretEntry : operator.getAllSecretsWithLabel(
-                kubeSecretsLabel).entrySet()) {
+            for (Map.Entry<String, Map<String, String>> secretEntry : operator.getSecretsFromRole(
+                secretsRoleName).entrySet()) {
                 String secretName = secretEntry.getKey();
                 if (!defaultSecretEnabled && kubeSecretV2Name.equals(secretName)) {
                     continue;
