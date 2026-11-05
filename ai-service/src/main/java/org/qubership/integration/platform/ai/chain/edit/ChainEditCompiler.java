@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.chain.edit;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -56,6 +57,10 @@ import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaSe
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifact;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactPayload;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
+import org.qubership.integration.platform.ai.plan.AuthorSourceEvidence;
+import org.qubership.integration.platform.ai.plan.RequirementBodySources;
+import org.qubership.integration.platform.ai.plan.RequirementElementIntent;
+import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecutionContext.ScriptEditDraft;
 
 /**
  * Prepares one edit of an existing chain, and never writes to the catalog.
@@ -292,6 +297,16 @@ public class ChainEditCompiler {
       String question,
       StructuralBindingContinuation continuation,
       BiConsumer<String, String> skillProgress) {
+    return resumeAfterClarification(request, heldIntent, question, continuation, skillProgress, "");
+  }
+
+  public ChainEditOutcome resumeAfterClarification(
+      ChainEditRequest request,
+      ChainEditIntent heldIntent,
+      String question,
+      StructuralBindingContinuation continuation,
+      BiConsumer<String, String> skillProgress,
+      String heldScriptAuthorSource) {
     rockySkills.requireAvailable();
     BiConsumer<String, String> progress = ChainEditSkillProgress.orNoop(skillProgress);
     if (continuation != null) {
@@ -302,7 +317,10 @@ public class ChainEditCompiler {
               continuation.serviceCallId(),
               request.userRequest(),
               continuation.importRefs());
-      return resumeStructuralBinding(request, heldIntent, resumed, null, progress);
+      ChainEditRequest continuedRequest = heldScriptAuthorSource.isBlank()
+          || RequirementBodySources.hasBodyDeclaration(request.scriptAuthorSource())
+              ? request : request.withScriptAuthorSource(heldScriptAuthorSource);
+      return resumeStructuralBinding(continuedRequest, heldIntent, resumed, null, progress);
     }
     if (heldIntent.requiresStructureStage() && heldIntent.resolved()) {
       return missingStructuralContinuation();
@@ -314,6 +332,18 @@ public class ChainEditCompiler {
             () ->
                 intentResolver.resume(
                     request.imported().graph(), heldIntent, question, request.userRequest()));
+    if (intent.resolved() && (intent.action() == ChainEditAction.CONFIGURE && intent.propertyKeys().contains("script")
+        || intent.action() == ChainEditAction.ADD_ELEMENTS)
+        && (intent.action() == heldIntent.action() || heldIntent.action() == ChainEditAction.UNRESOLVED)
+        && RequirementBodySources.hasBodyDeclaration(heldScriptAuthorSource) && !RequirementBodySources.hasBodyDeclaration(request.scriptAuthorSource())) {
+      String answer = request.userRequest().strip();
+      var selected = request.imported().graph().nodes().stream()
+          .filter(node -> answer.equals(node.nodeId()) || answer.equalsIgnoreCase(node.label())).toList();
+      if (selected.size() != 1 || !intent.targetNodeIds().equals(List.of(selected.getFirst().nodeId()))) {
+        return new ChainEditOutcome.ResolutionFailure("Repeat the Script request with its target and complete source code.");
+      }
+      return fromResolvedIntent(request.withScriptAuthorSource(heldScriptAuthorSource), intent, progress);
+    }
     return fromResolvedIntent(request, intent, progress);
   }
 
@@ -1019,6 +1049,12 @@ public class ChainEditCompiler {
       BiConsumer<String, String> progress) {
     ImportedChainPlan imported = request.imported();
     String runId = request.editRunId();
+    Map<String, ScriptEditDraft> scriptDrafts;
+    try {
+      scriptDrafts = scriptDrafts(request, intent, seedGraph, generatorPlans);
+    } catch (IllegalArgumentException ambiguousSource) {
+      return new ChainEditOutcome.ResolutionFailure(ambiguousSource.getMessage());
+    }
     CompilerExecutionSeed seed =
         CompilerExecutionSeed.forEdit(
                 runId,
@@ -1029,7 +1065,8 @@ public class ChainEditCompiler {
                 bindings,
                 extraPreSatisfiedSkillIds,
                 structuralPlan)
-            .with(targetScopedPlan(generatorPlans));
+            .with(targetScopedPlan(generatorPlans))
+            .withScriptEditDrafts(scriptDrafts);
 
     ResolvedCompilerDag dag;
     try {
@@ -1112,6 +1149,40 @@ public class ChainEditCompiler {
         bindings,
         List.copyOf(executedSkillIds),
         manifest);
+  }
+
+  private static Map<String, ScriptEditDraft> scriptDrafts(
+      ChainEditRequest request, ChainEditIntent intent, ChainPlanGraph graph, List<GeneratorPlan> plans) {
+    if (!intent.resolved() || request.scriptAuthorSource().isBlank()) {
+      return Map.of();
+    }
+    List<RequirementElementIntent> targets = plans.stream()
+        .filter(plan -> "cip-script-generator".equals(plan.skillId()))
+        .flatMap(plan -> plan.targetNodeIds().stream())
+        .distinct()
+        .map(id -> node(graph, id))
+        .filter(Objects::nonNull)
+        .filter(node -> "script".equals(node.type()))
+        .filter(node -> switch (intent.action()) {
+          case CONFIGURE -> intent.propertyKeys().contains("script") && intent.targetNodeIds().contains(node.nodeId());
+          case ADD_ELEMENTS -> node(request.imported().graph(), node.nodeId()) == null;
+          default -> false;
+        })
+        .map(node -> new RequirementElementIntent(node.nodeId(), "script",
+            RequirementElementIntent.Placement.LOCAL_NODE, null, null, null,
+            node.label(), List.of(), List.of()))
+        .toList();
+    var source = new AuthorSourceEvidence.Packet(request.editRunId(),
+        List.of(new AuthorSourceEvidence.Input(request.editRunId(), request.scriptAuthorSource())));
+    Map<String, ScriptEditDraft> drafts = new LinkedHashMap<>();
+    for (var target : targets) {
+      var resolution = RequirementBodySources.resolve(target, targets, source);
+      if (resolution.error() != null) {
+        throw new IllegalArgumentException(resolution.error());
+      }
+      drafts.put(target.elementRef(), new ScriptEditDraft(resolution.body()));
+    }
+    return Map.copyOf(drafts);
   }
 
   /**

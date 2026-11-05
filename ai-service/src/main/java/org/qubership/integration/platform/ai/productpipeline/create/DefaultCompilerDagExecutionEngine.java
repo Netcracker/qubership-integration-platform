@@ -1253,7 +1253,10 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
             ownershipFor(node),
         request.attemptId(),
         ChainEditSkillContext.targetNodeIds(workspace, node.skillId()))
-        .withExistingScriptBodyEdit(ChainEditSkillContext.editsExistingScriptBodies(workspace, node.skillId()));
+        .withExistingScriptBodyEdit(ChainEditSkillContext.editsExistingScriptBodies(workspace, node.skillId()))
+        .withScriptEditDrafts(seed.isolated() && request.requirementBrief() == null
+            && "cip-script-generator".equals(node.skillId()) && "repairScriptBodies".equals(node.captureTool())
+                ? seed.scriptEditDrafts() : Map.of());
   }
 
   private GraphPatchExecutionContext prepareMappingGeneration(

@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.qipknowledge.patch;
 
 import java.util.List;
+import java.util.Map;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
@@ -20,9 +21,13 @@ public record GraphPatchExecutionContext(
     String attemptId,
     List<String> editTargetNodeIds,
     String mappingGenerationContext,
-    boolean editsExistingScriptBodies) {
+    boolean editsExistingScriptBodies,
+    Map<String, ScriptEditDraft> scriptEditDrafts) {
+
+  public record ScriptEditDraft(String suppliedBody) {}
 
   public GraphPatchExecutionContext {
+    scriptEditDrafts = scriptEditDrafts == null ? Map.of() : Map.copyOf(scriptEditDrafts);
     consumedArtifacts = consumedArtifacts == null ? List.of() : List.copyOf(consumedArtifacts);
     ownership = ownership == null ? GraphPatchOwnershipPolicy.denyAll() : ownership;
     editTargetNodeIds = editTargetNodeIds == null ? List.of() : List.copyOf(editTargetNodeIds);
@@ -36,14 +41,21 @@ public record GraphPatchExecutionContext(
       String mappingGenerationContext) {
     this(runId, skillId, requirementDigest, inputGraphDigest, compilerPackageDigest, languageVersion,
         requirementBrief, consumedArtifacts, inputGraph, ownership, attemptId, editTargetNodeIds,
-        mappingGenerationContext, false);
+        mappingGenerationContext, false, Map.of());
   }
 
   public GraphPatchExecutionContext withExistingScriptBodyEdit(boolean enabled) {
     return new GraphPatchExecutionContext(
         runId, skillId, requirementDigest, inputGraphDigest, compilerPackageDigest, languageVersion,
         requirementBrief, consumedArtifacts, inputGraph, ownership, attemptId, editTargetNodeIds,
-        mappingGenerationContext, enabled);
+        mappingGenerationContext, enabled, scriptEditDrafts);
+  }
+
+  public GraphPatchExecutionContext withScriptEditDrafts(Map<String, ScriptEditDraft> drafts) {
+    return new GraphPatchExecutionContext(
+        runId, skillId, requirementDigest, inputGraphDigest, compilerPackageDigest, languageVersion,
+        requirementBrief, consumedArtifacts, inputGraph, ownership, attemptId, editTargetNodeIds,
+        mappingGenerationContext, editsExistingScriptBodies, drafts);
   }
 
   /** Create path and callers with no named edit targets. */
@@ -120,7 +132,8 @@ public record GraphPatchExecutionContext(
         attemptId,
         targetNodeIds,
         mappingGenerationContext,
-        editsExistingScriptBodies);
+        editsExistingScriptBodies,
+        scriptEditDrafts);
   }
 
   public GraphPatchExecutionContext withConsumedArtifacts(
@@ -139,7 +152,8 @@ public record GraphPatchExecutionContext(
         attemptId,
         editTargetNodeIds,
         mappingGenerationContext,
-        editsExistingScriptBodies);
+        editsExistingScriptBodies,
+        scriptEditDrafts);
   }
 
   public GraphPatchExecutionContext withMappingGenerationContext(String mappingContext) {
@@ -157,6 +171,7 @@ public record GraphPatchExecutionContext(
         attemptId,
         editTargetNodeIds,
         mappingContext,
-        editsExistingScriptBodies);
+        editsExistingScriptBodies,
+        scriptEditDrafts);
   }
 }

@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecutionContext.ScriptEditDraft;
 import org.qubership.integration.platform.ai.chat.evidence.EvidenceEmitter;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.compiler.addon.AddonPromptMaterialStripper;
@@ -595,10 +596,36 @@ public class CompilerSkillContextBuilder {
       CompilerSkillInputSnapshot snapshot,
       List<String> requiredNodeIds,
       boolean editsExistingBodies) {
+    return buildScriptRepairMessage(conversationId, document, snapshot, requiredNodeIds, editsExistingBodies, Map.of());
+  }
+
+  public String buildScriptRepairMessage(
+      String conversationId,
+      CompilerSkillDocument document,
+      CompilerSkillInputSnapshot snapshot,
+      List<String> requiredNodeIds,
+      boolean editsExistingBodies,
+      Map<String, ScriptEditDraft> editDrafts) {
+    boolean scopedEditDraft = !editDrafts.isEmpty();
     runtimeEligibility.requirePromptContext(document.capabilityId());
+    Map<String, String> supplied = new LinkedHashMap<>();
+    for (String id : requiredNodeIds) {
+      var draft = editDrafts.get(id);
+      if (draft != null && draft.suppliedBody() != null) {
+        supplied.put(id, draft.suppliedBody());
+      }
+    }
+    String editDraftInstructions = scopedEditDraft
+        ? "Prepare an unapplied edit draft for the listed Script targets. Implement the requested change, "
+            + "retain unrelated behavior, and copy any complete source body from the user exactly. "
+            + "The user reviews the resulting patch before it is applied.\n"
+            + (supplied.isEmpty() ? "" : "Exact supplied bodies by target ID: " + formatJson(supplied) + "\n")
+            + "\n"
+        : "";
 
     if (addonRepository.hasStandaloneSkills()) {
-      StringBuilder prompt = new StringBuilder("Approved requirement interpretation:\n")
+      StringBuilder prompt = new StringBuilder(editDraftInstructions)
+          .append(scopedEditDraft ? "Requested edit:\n" : "Approved requirement interpretation:\n")
           .append(nullToEmpty(snapshot.rawUserRequest())).append("\n\nRequirement brief:\n")
           .append(nullToEmpty(snapshot.requirementBrief())).append("\n\n")
           .append(nullToEmpty(snapshot.mappingGenerationContext())).append("\n\n")
@@ -620,7 +647,7 @@ public class CompilerSkillContextBuilder {
       return QuteUserMessageEscaping.escapeForAiServiceUserMessage(prompt.toString());
     }
     StringBuilder body = new StringBuilder();
-    body.append("Script repair task:\n");
+    body.append("Script repair task:\n").append(editDraftInstructions);
     body.append(
         "You are executing compiler skill '"
             + document.capabilityId()
@@ -645,11 +672,13 @@ public class CompilerSkillContextBuilder {
     }
     if (editsExistingBodies) {
       body.append(nullToEmpty(snapshot.editContext())).append("\n\n");
-      body.append("For each listed target node, use only its frozen native mapping or compiler-derived retention plan")
-          .append(" or its exact currently approved source-bound supplied body. Original bodies are reference evidence,")
-          .append(" not permission to generate a replacement. A supplied-body edit requires its newly approved exact body.")
-          .append(" If the requested edit exceeds that authority, report it as unsupported; do not generate replacement code.")
-          .append(" Return only authorized complete bodies through repairScriptBodies.\n\n");
+      if (!scopedEditDraft) {
+        body.append("For each listed target node, use only its frozen native mapping or compiler-derived retention plan")
+            .append(" or its exact currently approved source-bound supplied body. Original bodies are reference evidence,")
+            .append(" not permission to generate a replacement. A supplied-body edit requires its newly approved exact body.")
+            .append(" If the requested edit exceeds that authority, report it as unsupported; do not generate replacement code.")
+            .append(" Return only authorized complete bodies through repairScriptBodies.\n\n");
+      }
       List<Map<String, String>> originals = new ArrayList<>();
       for (ChainPlanNode node : snapshot.chainPlanGraph().nodes()) {
         if (requiredNodeIds.contains(node.nodeId()) && "script".equals(node.type())) {
@@ -727,12 +756,13 @@ public class CompilerSkillContextBuilder {
           Script execution eligibility:
           Apply the following runtime patterns only within this node's admitted native mapping,
           compiler-derived retention plan, exact currently approved source-bound supplied body,
-          or explicitly listed behavior-owned script task.
+          explicitly listed behavior-owned script task, or scoped unapplied edit draft.
           Patterns and requirement prose do not authorize extra generated code or changes to exact
           supplied bodies or deterministic native emission. Use constants, formulas, and response
           assembly only when the selected task authorizes them.
-          A requested edit alone does not grant authority. Preserve supplied bytes exactly; a
-          supplied-body replacement requires its newly approved exact body.
+          Preserve supplied bytes exactly. For a task with an approved brief, a
+          supplied-body replacement requires its newly approved exact body. For a scoped edit draft, copy the
+          supplied replacement body assigned to its target ID.
 
           Script runtime contract:
           Implement each approved exactValues scalar in its owned script as an executable Groovy

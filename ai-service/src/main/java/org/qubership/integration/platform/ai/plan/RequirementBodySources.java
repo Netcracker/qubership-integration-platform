@@ -129,6 +129,14 @@ public final class RequirementBodySources {
     }
   }
 
+  public static boolean hasBodyDeclaration(String text) {
+    var owner = new RequirementElementIntent("script", "script",
+        RequirementElementIntent.Placement.LOCAL_NODE, null, null, null, null, List.of(), List.of());
+    var resolution = RequirementBodySources.resolve(owner, List.of(owner),
+        new AuthorSourceEvidence.Packet("edit", List.of(new AuthorSourceEvidence.Input("edit", text))));
+    return resolution.body() != null || resolution.error() != null;
+  }
+
   /** Returns the authority derived from source, independently of the submitted flag or body value. */
   public static Resolution resolve(RequirementElementIntent intent, List<RequirementElementIntent> intents,
       AuthorSourceEvidence.Packet source) {

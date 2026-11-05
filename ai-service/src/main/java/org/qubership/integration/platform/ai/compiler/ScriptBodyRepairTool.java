@@ -102,7 +102,7 @@ public class ScriptBodyRepairTool {
   @Tool(
       """
       Submit script bodies only for an admitted native mapping or compiler-derived retention plan,
-      the node's exact source-bound supplied body, or its source-classified approved behavior.
+      the node's exact source-bound supplied body, its source-classified approved behavior, or a scoped edit draft.
       BEHAVIOR facts, provenance, and region membership alone do not authorize generated scripts.
       The native compiler derives retention.
       Preserve supplied bytes exactly. A supplied-body edit requires its newly approved exact body;
@@ -238,7 +238,9 @@ public class ScriptBodyRepairTool {
           conversationId, capabilityId, "Script repair patch failed: " + applied.validationResult().summary());
     }
     try {
-      ScriptExecutionAuthority.requireSupported(context == null ? null : context.requirementBrief(), applied.graph());
+      if (context == null || context.scriptEditDrafts().isEmpty()) {
+        ScriptExecutionAuthority.requireSupported(context == null ? null : context.requirementBrief(), applied.graph());
+      }
     } catch (IllegalArgumentException failure) {
       return recordFailure(conversationId, capabilityId, failure.getMessage());
     }
@@ -428,9 +430,18 @@ public class ScriptBodyRepairTool {
       }
       String intentId = MappingExecutionSite.mappingIntentId(node);
       if (intentId == null || intentId.isBlank()) {
-        if (context == null || ScriptExecutionAuthority.declaredGeneratedBehavior(
-            context.requirementBrief(), entry.targetNodeId()).isEmpty()) {
+        var draft = context == null ? null : context.scriptEditDrafts().get(entry.targetNodeId());
+        if (draft == null && (context == null || ScriptExecutionAuthority.declaredGeneratedBehavior(
+            context.requirementBrief(), entry.targetNodeId()).isEmpty())) {
           if (failure == null) failure = ScriptExecutionAuthority.unsupportedMessage(entry.targetNodeId());
+          continue;
+        }
+        if (draft != null && draft.suppliedBody() != null) {
+          if (!draft.suppliedBody().equals(entry.script())) {
+            if (failure == null) failure = "Supplied script body differs from its edit source: " + entry.targetNodeId();
+          } else {
+            validated.put(entry.targetNodeId(), entry);
+          }
           continue;
         }
         try {

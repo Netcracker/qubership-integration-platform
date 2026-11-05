@@ -161,6 +161,63 @@ class ScriptBodyRepairToolTest {
   }
 
   @Test
+  void editDraftChangesOnlyTheSelectedScriptWithoutACreateBrief() {
+    var base = bindFilledScriptEdit();
+    executionContextStore.set(CONVERSATION_ID, CAPABILITY_ID,
+        new GraphPatchExecutionContext("edit-run", CAPABILITY_ID, "request-digest", "graph-digest", null, null,
+            null, List.of(), base, GraphPatchOwnershipPolicy.denyAll().withAdditionalProperties(
+                java.util.Map.of("script", java.util.Set.of("script"))), "attempt", List.of("validate-siteIds"))
+            .withExistingScriptBodyEdit(true)
+            .withScriptEditDrafts(java.util.Map.of("validate-siteIds",
+                new GraphPatchExecutionContext.ScriptEditDraft(null))));
+    String body = "exchange.in.body = 'Updated greeting'";
+
+    assertThrows(CaptureValidationException.class, () -> tool.repairScriptBodies(
+        new ScriptBodyRepairCapture("edit-draft", List.of(new ScriptBodyEntry("validate-siteIds", body)),
+            "Update the selected greeting")));
+
+    var patch = captureSession.get(CaptureKey.capability(CaptureSlot.SCRIPT_BODY_REPAIR,
+        CONVERSATION_ID, CAPABILITY_ID), GraphPatch.class).orElseThrow();
+    assertEquals(List.of("validate-siteIds"), patch.propertyPatches().stream()
+        .map(property -> property.targetNodeId()).toList());
+    assertEquals(body, patch.propertyPatches().getFirst().property().value());
+    assertEquals(base, planStore.get(CONVERSATION_ID).orElseThrow());
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"supplied-exact", "supplied-changed", "invalid-generated"})
+  void editDraftValidatesTheBodyBeforeAcceptingAPatch(String draftKind) {
+    var base = bindFilledScriptEdit();
+    String original = "  return 42\n";
+    String body = switch (draftKind) {
+      case "supplied-exact" -> original;
+      case "supplied-changed" -> "return 42";
+      default -> "return [";
+    };
+    executionContextStore.set(CONVERSATION_ID, CAPABILITY_ID,
+        new GraphPatchExecutionContext("edit-run", CAPABILITY_ID, "request-digest", "graph-digest", null, null,
+            null, List.of(), base, GraphPatchOwnershipPolicy.denyAll().withAdditionalProperties(
+                java.util.Map.of("script", java.util.Set.of("script"))), "attempt", List.of("validate-siteIds"))
+            .withExistingScriptBodyEdit(true)
+            .withScriptEditDrafts(java.util.Map.of("validate-siteIds",
+                new GraphPatchExecutionContext.ScriptEditDraft(
+                    "invalid-generated".equals(draftKind) ? null : original))));
+    var capture = new ScriptBodyRepairCapture("edit-draft",
+        List.of(new ScriptBodyEntry("validate-siteIds", body)), "Prepare the edit draft");
+    var key = CaptureKey.capability(CaptureSlot.SCRIPT_BODY_REPAIR, CONVERSATION_ID, CAPABILITY_ID);
+    if ("supplied-exact".equals(draftKind)) {
+      assertThrows(CaptureValidationException.class, () -> tool.repairScriptBodies(capture));
+      assertEquals(original, captureSession.get(key, GraphPatch.class).orElseThrow()
+          .propertyPatches().getFirst().property().value());
+    } else {
+      String response = tool.repairScriptBodies(capture);
+      assertTrue(response.contains("supplied-changed".equals(draftKind)
+          ? "differs from its edit source" : "Groovy mapping:"), response);
+      assertTrue(captureSession.get(key, GraphPatch.class).isEmpty());
+    }
+  }
+
+  @Test
   void explicitEditRejectsAnUnselectedScript() {
     bindFilledScriptEdit();
     String result = tool.repairScriptBodies(new ScriptBodyRepairCapture("edit-extra",

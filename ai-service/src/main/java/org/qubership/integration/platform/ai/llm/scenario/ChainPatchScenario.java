@@ -16,6 +16,8 @@ import java.util.UUID;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.chain.edit.ChainEditAction;
+import org.qubership.integration.platform.ai.plan.RequirementBodySources;
 import org.qubership.integration.platform.ai.skills.RockySkills;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditClarificationStore;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditCompiler;
@@ -219,7 +221,21 @@ public class ChainPatchScenario implements ScenarioHandler {
                   request,
                   skillProgress)
               : compileEdit(conversationId, chainId, imported, userMessage, request, skillProgress);
-      return fromCompiler(request, conversationId, chainId, imported, outcome);
+      String source = userMessage;
+      ChainEditIntent continuedIntent = switch (outcome) {
+        case ChainEditOutcome.Clarification clarification -> clarification.heldIntent();
+        case ChainEditOutcome.Escalation escalation -> escalation.intent();
+        default -> null;
+      };
+      if (continuedIntent != null && !RequirementBodySources.hasBodyDeclaration(userMessage)) {
+        source = heldClarification
+            .filter(pending -> pending.heldIntent().action() == continuedIntent.action()
+                || pending.heldIntent().action() == ChainEditAction.UNRESOLVED)
+            .map(ChainEditClarificationStore.PendingClarification::scriptAuthorSource)
+            .filter(RequirementBodySources::hasBodyDeclaration)
+            .orElse(userMessage);
+      }
+      return fromCompiler(request, conversationId, chainId, imported, outcome, source);
     } catch (RuntimeException e) {
       return knownOrRethrow(e, conversationId, chainId);
     }
@@ -255,15 +271,8 @@ public class ChainPatchScenario implements ScenarioHandler {
       BiConsumer<String, String> skillProgress) {
     ChainEditRequest request =
         editRequest(conversationId, chainId, imported, userMessage, chatRequest);
-    return pending.continuation() == null
-        ? editCompiler.resumeAfterClarification(
-            request, pending.heldIntent(), pending.question(), skillProgress)
-        : editCompiler.resumeAfterClarification(
-            request,
-            pending.heldIntent(),
-            pending.question(),
-            pending.continuation(),
-            skillProgress);
+    return editCompiler.resumeAfterClarification(request, pending.heldIntent(), pending.question(),
+        pending.continuation(), skillProgress, pending.scriptAuthorSource());
   }
 
   private Multi<ChatEvent> fromCompiler(
@@ -271,7 +280,8 @@ public class ChainPatchScenario implements ScenarioHandler {
       String conversationId,
       String chainId,
       ImportedChainPlan imported,
-      ChainEditOutcome outcome) {
+      ChainEditOutcome outcome,
+      String scriptAuthorSource) {
     return switch (outcome) {
       case ChainEditOutcome.Proposal proposal ->
           offer(conversationId, chainId, imported, proposal.netPatch());
@@ -283,7 +293,7 @@ public class ChainPatchScenario implements ScenarioHandler {
         clarificationStore.put(
             conversationId,
             new ChainEditClarificationStore.PendingClarification(
-                chainId, heldIntent, question, continuation));
+                chainId, heldIntent, question, continuation, scriptAuthorSource));
         yield message(
             choices.isEmpty()
                 ? question
@@ -292,7 +302,7 @@ public class ChainPatchScenario implements ScenarioHandler {
       case ChainEditOutcome.ResolutionFailure(String text) -> message(text);
       case ChainEditOutcome.NoChange ignored -> answerAsQuestion(request, conversationId);
       case ChainEditOutcome.CompilationFailure(String text) -> message(text);
-      case ChainEditOutcome.Escalation escalation -> escalate(conversationId, chainId, escalation);
+      case ChainEditOutcome.Escalation escalation -> escalate(conversationId, chainId, escalation, scriptAuthorSource);
       case ChainEditOutcome.Unsupported(var action) ->
           message("No compiler skill owns a " + action + " edit, so I did not change anything.");
     };
@@ -305,14 +315,14 @@ public class ChainPatchScenario implements ScenarioHandler {
    * happens if the reader says nothing: the next turn clears the hold and starts over.
    */
   private Multi<ChatEvent> escalate(
-      String conversationId, String chainId, ChainEditOutcome.Escalation escalation) {
+      String conversationId, String chainId, ChainEditOutcome.Escalation escalation, String scriptAuthorSource) {
     String candidateId =
         escalation.refs().packageId() + ":" + escalation.refs().version();
     escalationStore.put(
         conversationId,
         new ChainEditEscalationStore.PendingChainEdit(
             chainId,
-            "",
+            scriptAuthorSource,
             escalation.intent(),
             escalation.refs(),
             candidateId,
@@ -355,7 +365,7 @@ public class ChainPatchScenario implements ScenarioHandler {
                 pendingEdit.refs(),
                 pendingEdit.continuation(),
                 skillProgress);
-    return fromCompiler(chatRequest, conversationId, pendingEdit.chainId(), imported, resumed);
+    return fromCompiler(chatRequest, conversationId, pendingEdit.chainId(), imported, resumed, pendingEdit.userRequest());
   }
 
   private Multi<ChatEvent> answerAsQuestion(ChatRequest request, String conversationId) {
@@ -430,9 +440,10 @@ public class ChainPatchScenario implements ScenarioHandler {
                 + objectMapper.writeValueAsString(proposed.patch())
                 + "\n\nREADER FEEDBACK\n"
                 + comment;
-        ChainEditOutcome outcome = compileEdit(
-            conversationId, proposed.chainId(), current, revisionRequest, request, skillProgress);
-        return fromCompiler(request, conversationId, proposed.chainId(), current, outcome);
+        ChainEditOutcome outcome = editCompiler.compile(
+            editRequest(conversationId, proposed.chainId(), current, revisionRequest, request)
+                .withScriptAuthorSource(comment), skillProgress);
+        return fromCompiler(request, conversationId, proposed.chainId(), current, outcome, comment);
       } catch (JsonProcessingException e) {
         throw new IllegalStateException("Cannot serialize the proposed chain patch for revision", e);
       } catch (RuntimeException e) {

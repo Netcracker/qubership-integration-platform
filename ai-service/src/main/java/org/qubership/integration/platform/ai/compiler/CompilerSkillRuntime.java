@@ -1308,7 +1308,8 @@ public class CompilerSkillRuntime {
           graph != null ? readinessEvaluator.scriptNodesForCapture(graph, context) : List.of();
       return contextBuilder.buildScriptRepairMessage(
           conversationId, document, snapshot, requiredNodeIds,
-          context != null && context.editsExistingScriptBodies());
+          context != null && context.editsExistingScriptBodies(),
+          context == null ? java.util.Map.of() : context.scriptEditDrafts());
     }
     return contextBuilder.buildUserMessage(
         conversationId, document, snapshot, activePlan, route.captureTool());
