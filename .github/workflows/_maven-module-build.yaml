@@ -13,6 +13,18 @@ on:
         required: true
         type: string
         description: "Module directory name (e.g. engine, runtime-catalog)"
+      use-cache:
+        type: boolean
+        default: true
+        description: Restore and save the dependency cache.
+      save-cache:
+        type: boolean
+        default: false
+        description: Save dependencies from the trusted main build.
+      runner:
+        type: string
+        default: ubuntu-latest
+        description: Runner image for toolchain qualification.
       sonar-project-key:
         required: false
         type: string
@@ -52,7 +64,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner }}
     permissions:
       contents: read
       # Read-only: PR builds resolve deps (e.g. qip-checkstyle) from GitHub
@@ -78,14 +90,15 @@ jobs:
       # the cache: a pull request's copy is visible to that pull request alone, and
       # a copy per pull request fills the repository quota.
       - name: Restore the Maven repository
+        if: ${{ inputs.use-cache }}
         id: maven-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.m2/repository
-          key: maven-${{ runner.os }}-${{ inputs.module }}-${{ hashFiles('**/pom.xml') }}
+          key: maven-v2-${{ runner.os }}-${{ runner.arch }}-java21-${{ hashFiles('.mvn/wrapper/maven-wrapper.properties') }}-${{ inputs.module }}-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
-            maven-${{ runner.os }}-${{ inputs.module }}-
-            maven-${{ runner.os }}-
+            maven-v2-${{ runner.os }}-${{ runner.arch }}-java21-${{ hashFiles('.mvn/wrapper/maven-wrapper.properties') }}-${{ inputs.module }}-
+            maven-v2-${{ runner.os }}-${{ runner.arch }}-java21-${{ hashFiles('.mvn/wrapper/maven-wrapper.properties') }}-
 
       - name: Build and verify (no publish)
         env:
@@ -95,12 +108,9 @@ jobs:
           FORCE_UPDATE: ${{ inputs.force-update }}
         run: |
           set -eu
-          # Run from the module dir so Maven reads only this module + parent (via
-          # relativePath), never siblings — micro-engine pulls private
-          # com.netcracker.cloud artifacts this token can't read. Publishes nothing.
           UPDATE_FLAG=""
           if [ "$FORCE_UPDATE" = "true" ]; then UPDATE_FLAG="-U"; fi
-          mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
+          "$GITHUB_WORKSPACE/scripts/maven-ci.sh" \
             verify \
             $UPDATE_FLAG \
             -pl $MODULE_NAME \
@@ -108,7 +118,7 @@ jobs:
             -Dgpg.skip=true
 
       - name: Save the Maven repository
-        if: ${{ github.ref == 'refs/heads/main' && steps.maven-cache.outputs.cache-hit != 'true' }}
+        if: ${{ inputs.use-cache && inputs.save-cache && github.ref == 'refs/heads/main' && steps.maven-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.m2/repository
@@ -135,7 +145,7 @@ jobs:
   sonar:
     needs: build
     if: ${{ inputs.sonar-project-key != '' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner }}
     permissions:
       contents: read
       # Sonar must build the project model before scanning. micro-engine imports
@@ -163,13 +173,14 @@ jobs:
 
       # Restores the cache the build job saves on main.
       - name: Restore the Maven repository
+        if: ${{ inputs.use-cache }}
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.m2/repository
-          key: maven-${{ runner.os }}-${{ inputs.module }}-${{ hashFiles('**/pom.xml') }}
+          key: maven-v2-${{ runner.os }}-${{ runner.arch }}-java21-${{ hashFiles('.mvn/wrapper/maven-wrapper.properties') }}-${{ inputs.module }}-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
-            maven-${{ runner.os }}-${{ inputs.module }}-
-            maven-${{ runner.os }}-
+            maven-v2-${{ runner.os }}-${{ runner.arch }}-java21-${{ hashFiles('.mvn/wrapper/maven-wrapper.properties') }}-${{ inputs.module }}-
+            maven-v2-${{ runner.os }}-${{ runner.arch }}-java21-${{ hashFiles('.mvn/wrapper/maven-wrapper.properties') }}-
 
       - name: Pre-install integration-build-library into .m2
         if: ${{ inputs.preinstall-integration-build-pipeline-library == true }}
@@ -178,7 +189,7 @@ jobs:
           MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eu
-          mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
+          "$GITHUB_WORKSPACE/scripts/maven-ci.sh" \
             -f integration-build-pipeline/pom.xml install \
             -DskipTests -Dgpg.skip=true -Dcheckstyle.skip=true
 
@@ -201,7 +212,7 @@ jobs:
           SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION }}
           SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
         run: |
-          mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
+          "$GITHUB_WORKSPACE/scripts/maven-ci.sh" \
             "org.sonarsource.scanner.maven:sonar-maven-plugin:${SONAR_PLUGIN_VERSION}:sonar" \
             -Dsonar.token="$SONAR_TOKEN" \
             -Dsonar.projectKey="$SONAR_PROJECT_KEY" \
@@ -212,7 +223,7 @@ jobs:
   ensure-openapi-spec:
     needs: build
     if: ${{ inputs.ensure-openapi-spec }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner }}
     permissions:
       contents: read
       packages: read
@@ -231,13 +242,14 @@ jobs:
 
       # Restores the cache the build job saves on main.
       - name: Restore the Maven repository
+        if: ${{ inputs.use-cache }}
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.m2/repository
-          key: maven-${{ runner.os }}-${{ inputs.module }}-${{ hashFiles('**/pom.xml') }}
+          key: maven-v2-${{ runner.os }}-${{ runner.arch }}-java21-${{ hashFiles('.mvn/wrapper/maven-wrapper.properties') }}-${{ inputs.module }}-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
-            maven-${{ runner.os }}-${{ inputs.module }}-
-            maven-${{ runner.os }}-
+            maven-v2-${{ runner.os }}-${{ runner.arch }}-java21-${{ hashFiles('.mvn/wrapper/maven-wrapper.properties') }}-${{ inputs.module }}-
+            maven-v2-${{ runner.os }}-${{ runner.arch }}-java21-${{ hashFiles('.mvn/wrapper/maven-wrapper.properties') }}-
 
       - name: Pre-install integration-build-library into .m2
         if: ${{ inputs.preinstall-integration-build-pipeline-library == true }}
@@ -246,7 +258,7 @@ jobs:
           MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eu
-          mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
+          "$GITHUB_WORKSPACE/scripts/maven-ci.sh" \
             -f integration-build-pipeline/pom.xml install \
             -DskipTests -Dgpg.skip=true -Dcheckstyle.skip=true
 
@@ -259,15 +271,12 @@ jobs:
           FORCE_UPDATE: ${{ inputs.force-update }}
         run: |
           set -eu
-          # Run from the module dir so Maven reads only this module + parent (via
-          # relativePath), never siblings — micro-engine pulls private
-          # com.netcracker.cloud artifacts this token can't read. Publishes nothing.
           UPDATE_FLAG=""
           if [ "$FORCE_UPDATE" = "true" ]; then UPDATE_FLAG="-U"; fi
           if [ "$MAVEN_MODULE_NAME" = "micro-engine" ]; then
-            mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" build $UPDATE_FLAG -Dgpg.skip=true
+            "$GITHUB_WORKSPACE/scripts/maven-ci.sh" build $UPDATE_FLAG -Dgpg.skip=true
           else
-            mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" test $UPDATE_FLAG -Dtest=OpenApiSpecGeneratorTest -DfailIfNoTests=false
+            "$GITHUB_WORKSPACE/scripts/maven-ci.sh" test $UPDATE_FLAG -Dtest=OpenApiSpecGeneratorTest -DfailIfNoTests=false
           fi
       - name: Verify the specifications have no changes
         working-directory: ${{ inputs.module }}

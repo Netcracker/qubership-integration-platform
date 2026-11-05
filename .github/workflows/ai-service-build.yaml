@@ -1,9 +1,28 @@
 name: AI Service Build
 
 on:
+  workflow_dispatch:
+    inputs:
+      cold-cache:
+        type: boolean
+        default: false
+        description: Run without restoring or saving the Maven cache.
+      runner:
+        type: choice
+        default: ubuntu-latest
+        options: [ubuntu-latest, ubuntu-24.04, ubuntu-26.04]
+        description: Runner image for toolchain qualification.
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
+      - '.github/workflows/ai-service-build.yaml'
+      - '.github/workflows/_maven-module-build.yaml'
+      - '.github/maven-settings.xml'
+      - '.mvn/**'
+      - 'mvnw'
+      - 'mvnw.cmd'
+      - 'scripts/maven-ci.sh'
+      - 'scripts/maven_analysis.py'
       - 'ai-service/**'
       - 'schemas/**'
       - 'pom.xml'
@@ -17,6 +36,8 @@ jobs:
       packages: read
     uses: ./.github/workflows/_maven-module-build.yaml
     with:
+      use-cache: ${{ github.event_name != 'workflow_dispatch' || !inputs.cold-cache }}
+      runner: ${{ github.event_name == 'workflow_dispatch' && inputs.runner || 'ubuntu-latest' }}
       module: ai-service
       sonar-project-key: ${{ vars.SONAR_AI_SERVICE_PROJECT_KEY }}
     secrets:

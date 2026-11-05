@@ -100,6 +100,7 @@ export const KIND_RULES = [
     jobs: [],
   },
   { paths: [".github/workflows/e2e-*.yaml", ".github/workflows/_e2e-kind.yaml"], jobs: KIND_JOBS },
+  { paths: [".github/maven-settings.xml", ".mvn/**", "mvnw", "mvnw.cmd", "scripts/maven-ci.sh"], jobs: KIND_JOBS },
   { paths: [".github/workflows/**"], jobs: [] },
   { paths: ["ui/**", "package-lock.json"], jobs: ["ui"] },
   { paths: ["vscode-extension/**"], jobs: [] },

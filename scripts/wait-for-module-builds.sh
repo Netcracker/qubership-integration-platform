@@ -22,17 +22,17 @@ micro_engine_expected=false
 # Keep these patterns aligned with the standalone module workflows.
 while IFS= read -r changed_file; do
     case "$changed_file" in
-        integration-build-pipeline/* | parent/* | pom.xml)
+        integration-build-pipeline/* | parent/* | pom.xml | .github/workflows/_maven-module-build.yaml | .github/maven-settings.xml | .mvn/* | mvnw | mvnw.cmd | scripts/maven-ci.sh | scripts/maven_analysis.py)
             integration_build_pipeline_expected=true
             ;;
     esac
     case "$changed_file" in
-        integration-build-pipeline/* | runtime-catalog/* | parent/* | pom.xml)
+        integration-build-pipeline/* | runtime-catalog/* | parent/* | pom.xml | .github/workflows/_maven-module-build.yaml | .github/maven-settings.xml | .mvn/* | mvnw | mvnw.cmd | scripts/maven-ci.sh | scripts/maven_analysis.py)
             runtime_catalog_expected=true
             ;;
     esac
     case "$changed_file" in
-        micro-engine/* | pom.xml)
+        micro-engine/* | pom.xml | .github/workflows/_maven-module-build.yaml | .github/maven-settings.xml | .mvn/* | mvnw | mvnw.cmd | scripts/maven-ci.sh | scripts/maven_analysis.py)
             micro_engine_expected=true
             ;;
     esac

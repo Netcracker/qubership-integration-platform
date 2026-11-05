@@ -1,4 +1,4 @@
-# Release scripts
+# Build and release scripts
 
 Everything the release workflows do to versions, tags, and the drop release lives here. The workflows in
 `.github/workflows/` supply inputs and credentials; the decisions are in these files, so you can run most of them
@@ -22,6 +22,17 @@ run because release version commits carry `[skip ci]` and have no Snapshot Flow 
   version. Their release moves the pins in the same bump commit. The pins name the last release either way, but
   runtime-catalog appends `${changelist}` to the library pin so a normal build resolves the development coordinate
   from the reactor; `qip-checkstyle` is a plugin dependency and is never in a reactor, so its pin is used as is.
+
+## Maven CI
+
+The root `mvnw` and `mvnw.cmd` pin Maven for local builds and CI. `scripts/maven-ci.sh` selects the same wrapper with
+`.github/maven-settings.xml`, batch mode, and quiet transfer logs. Each calling step supplies its own credentials.
+Local builds can use `./mvnw` with the developer's normal Maven settings.
+
+Module build workflows accept a manual `cold-cache` input and a runner image. The dependency cache key includes the
+wrapper identity, Java major, OS, architecture, workload, and POM hash. Main Build owns the verification caches; pull
+requests and module qualification runs restore but do not save them. Analysis builds install their reactor outputs
+locally, while Main Build uses `verify` and caches dependencies only.
 
 ## The scripts
 

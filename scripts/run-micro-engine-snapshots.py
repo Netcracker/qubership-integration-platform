@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Run the Maven snapshot profile with the selected number of JVM workers."""
+
 # pylint: disable=invalid-name  # Keep the documented CLI filename.
 
 import argparse
@@ -32,7 +33,7 @@ def main():
 
     repo_root = Path(__file__).resolve().parent.parent
     wrapper = repo_root / ("mvnw.cmd" if os.name == "nt" else "mvnw")
-    maven_executable = str(wrapper) if wrapper.is_file() else "mvn"
+    maven_executable = str(repo_root / "scripts/maven-ci.sh") if os.environ.get("CI") == "true" else str(wrapper)
     command = [
         maven_executable,
         "-q",

@@ -1,4 +1,5 @@
 /** What both provisioners share: the empty report they fill, and the Maven install before an image build. */
+import path from "node:path";
 import { repoRoot, stream } from "../host.js";
 import type { ProvisionMode, ProvisionReport } from "../provision.js";
 
@@ -37,5 +38,8 @@ export function mavenArguments(modules: readonly string[], args: readonly string
 /** Installs `modules` and what they depend on, with the output on the terminal. */
 export async function mavenInstall(modules: readonly string[], args: readonly string[] = []): Promise<void> {
   console.log(`[provision] mvn install: ${modules.join(", ")}${args.length ? ` ${args.join(" ")}` : ""}`);
-  await stream("mvn", mavenArguments(modules, args), repoRoot());
+  const executable = process.env.CI === "true"
+    ? "scripts/maven-ci.sh"
+    : process.platform === "win32" ? "mvnw.cmd" : "mvnw";
+  await stream(path.join(repoRoot(), executable), mavenArguments(modules, args), repoRoot());
 }
