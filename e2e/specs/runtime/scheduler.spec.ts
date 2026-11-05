@@ -19,52 +19,9 @@
  */
 import { test, expect } from "../../support/fixtures.js";
 import { readCorpusState, seedChain } from "../../support/corpus.js";
-import {
-  SESSION_TIMEOUT,
-  elementNames,
-  failedElements,
-  hasTrace,
-  isSettled,
-  trace,
-  type RecordedSession,
-  type Sessions,
-} from "../../support/sessions.js";
+import { elementNames, failedElements } from "../../support/sessions.js";
 import { covers } from "../../registry/covers.js";
 import { linesOfChain, logWindowStart, withEngineLines } from "../../support/logs.js";
-
-/**
- * The next settled session of `chainId` that `before` does not carry, with its trace.
- *
- * `Sessions.onlyOf` asserts exactly one match, which is right for a case that causes the one session
- * itself. A cron fires independently of this spec, so between the snapshot and the read more than
- * one fresh session can exist; any one of them proves the same trace shape, so the first fully
- * settled one is enough.
- */
-async function nextFiring(
-  sessions: Sessions,
-  chainId: string,
-  elements: number,
-  before: Set<string>,
-): Promise<RecordedSession> {
-  let found: RecordedSession | undefined;
-  await expect
-    .poll(
-      async () => {
-        const page = await sessions.search({}, { chainId });
-        const fresh = page.sessions.find((each) => !before.has(each.id));
-        if (!fresh) return false;
-        const full = await sessions.session(fresh.id);
-        if (!hasTrace(full) || trace(full).length < elements || !isSettled(full)) {
-          return false;
-        }
-        found = full;
-        return true;
-      },
-      { timeout: SESSION_TIMEOUT },
-    )
-    .toBe(true);
-  return found as RecordedSession;
-}
 
 test.describe("quartz scheduler", { tag: ["@engine", "@sessions"] }, () => {
   test("a cron tick fires quartz-scheduler, found by chain id", async ({ env, sessions }) => {
@@ -74,7 +31,7 @@ test.describe("quartz scheduler", { tag: ["@engine", "@sessions"] }, () => {
     const since = logWindowStart();
     const before = await sessions.idsOf(chain.id);
 
-    const session = await withEngineLines(env, since, `for chain ${chain.id}`, linesOfChain(chain.id), () => nextFiring(sessions, chain.id, 2, before));
+    const session = await withEngineLines(env, since, `for chain ${chain.id}`, linesOfChain(chain.id), () => sessions.nextOf(chain.id, 2, before));
     expect(session.chainId).toBe(chain.id);
     expect(elementNames(session)).toEqual(["Scheduler", "Header Modification"]);
     expect(failedElements(session)).toEqual([]);

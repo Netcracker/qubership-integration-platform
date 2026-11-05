@@ -508,7 +508,11 @@ function ActionMenu<T>({
       trigger={["click"]}
       placement="bottomRight"
     >
-      <Button type="text" icon={<OverridableIcon name="more" />} />
+      <Button
+        type="text"
+        data-testid="services-row-actions"
+        icon={<OverridableIcon name="more" />}
+      />
     </ProtectedDropdown>
   );
 }

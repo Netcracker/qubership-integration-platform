@@ -1,0 +1,71 @@
+---
+id: "e2e20004-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "vsc-fixture-chain-services"
+content:
+  description: "Elements bound to the internal service, the context service, and the MCP service"
+  labels: []
+  elements:
+  - id: "e2e20004-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      accessControlType: "NONE"
+      chunked: true
+      connectTimeout: 120000
+      contextPath: "vsc-fixture-chain-services"
+      externalRoute: true
+      handleChainFailureAction: "default"
+      handleValidationAction: "default"
+      httpBinding: "handlingHttpBinding"
+      httpMethodRestrict: "POST"
+      killSessionOnTimeout: false
+      privateRoute: false
+      rejectRequestIfNonNullBodyGetDelete: true
+  - id: "e2e20004-0000-4000-8000-000000000003"
+    name: "Service Call"
+    type: "service-call"
+    properties:
+      systemType: "INTERNAL"
+      integrationSystemId: "3b2e9742-139c-4750-bb76-adaf1cc9e3f0"
+      integrationSpecificationGroupId: "3b2e9742-139c-4750-bb76-adaf1cc9e3f0-orders"
+      integrationSpecificationId: "3b2e9742-139c-4750-bb76-adaf1cc9e3f0-orders-1.0.0"
+      integrationOperationId: "3b2e9742-139c-4750-bb76-adaf1cc9e3f0-orders-1.0.0-createOrder"
+      integrationOperationPath: "/orders"
+      integrationOperationMethod: "POST"
+      integrationOperationProtocolType: "http"
+      retryCount: 0
+      retryDelay: 5000
+  - id: "e2e20004-0000-4000-8000-000000000004"
+    name: "Get Context"
+    type: "context-storage"
+    properties:
+      contextServiceId: "269327ed-e44d-491e-9f86-4a3010d63108"
+      useCorrelationId: false
+      contextId: "${header.vsc-context-id}"
+      operation: "GET"
+      keys: "vscKey"
+      target: "BODY"
+  - id: "e2e20004-0000-4000-8000-000000000005"
+    name: "MCP Trigger"
+    type: "mcp-trigger"
+    properties:
+      mcpServiceIds:
+      - "0edab1e2-c311-4718-8411-adb16bfa5d54"
+      name: "vsc-fixture-tool"
+      title: "Fixture Tool"
+      description: "Reads the fixture context"
+      inputSchema: "{\"type\": \"object\", \"properties\": {\"ping\": {\"type\": \"string\"}}}"
+      readOnly: true
+      destructive: false
+      idempotent: true
+      openWorld: false
+  dependencies:
+  - from: "e2e20004-0000-4000-8000-000000000002"
+    to: "e2e20004-0000-4000-8000-000000000003"
+  - from: "e2e20004-0000-4000-8000-000000000003"
+    to: "e2e20004-0000-4000-8000-000000000004"
+  - from: "e2e20004-0000-4000-8000-000000000005"
+    to: "e2e20004-0000-4000-8000-000000000004"
+  deployAction: "SNAPSHOT"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

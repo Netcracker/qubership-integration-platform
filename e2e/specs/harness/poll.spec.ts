@@ -3,8 +3,10 @@
  *
  * Shown failing: four edits to `samplesUntil` each turned a case red. They ignored `done`, ignored
  * the deadline, returned only the last reading, and dropped the first.
+ * Shown failing: advancing the clock past the deadline during the first read broke the old sample-count assertion.
  */
 import { test, expect } from "@playwright/test";
+import { mock } from "node:test";
 import { samplesUntil } from "../../support/poll.js";
 
 /** A reader that answers 1, 2, 3, and so on, one number per call. */
@@ -14,6 +16,8 @@ function counter(): () => Promise<number> {
 }
 
 test.describe("samplesUntil", () => {
+  test.afterEach(() => mock.restoreAll());
+
   test("answers every reading up to the first that is done", async () => {
     expect(await samplesUntil(counter(), (value) => value === 3, 5_000, 1)).toEqual([1, 2, 3]);
   });
@@ -23,10 +27,28 @@ test.describe("samplesUntil", () => {
   });
 
   test("answers what it read once the timeout runs out", async () => {
-    const samples = await samplesUntil(counter(), () => false, 200, 50);
-    // 200 ms at one reading per 50 ms is five readings, or six when a timer fires a millisecond early.
-    expect(samples.length).toBeGreaterThan(1);
-    expect(samples.length).toBeLessThanOrEqual(6);
-    expect(samples).toEqual(samples.map((_, index) => index + 1));
+    let now = 0;
+    let readings = 0;
+    mock.method(Date, "now", () => now);
+    const samples = await samplesUntil(async () => {
+      now += 100;
+      expect(++readings, "a read started after the deadline").toBeLessThanOrEqual(2);
+      return readings;
+    }, () => false, 200, 0);
+
+    expect(samples).toEqual([1, 2]);
+  });
+
+  test("returns the first read when it exhausts the timeout", async () => {
+    let now = 0;
+    let readings = 0;
+    mock.method(Date, "now", () => now);
+    const samples = await samplesUntil(async () => {
+      now += 250;
+      expect(++readings, "a read started after the deadline").toBe(1);
+      return readings;
+    }, () => false, 200, 0);
+
+    expect(samples).toEqual([1]);
   });
 });

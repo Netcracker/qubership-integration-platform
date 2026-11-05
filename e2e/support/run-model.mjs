@@ -96,6 +96,7 @@ export function runOf({ report, lastRun, stack, coverage, history = [], env = {}
     const e2eDir = path.dirname(report.config.rootDir);
     const isFixedPin = fixedPinIn(report);
     const group = groupOf(report);
+    const stackless = new Set((report.config.projects ?? []).filter((each) => each.metadata?.stack === false).map((each) => each.name));
     eachTest(report, (spec, test, title) => {
       if (test.status !== "unexpected") return;
       const location = { text: `${spec.file}:${spec.line}`, href: blob(`specs/${spec.file}`, spec.line) };
@@ -115,7 +116,7 @@ export function runOf({ report, lastRun, stack, coverage, history = [], env = {}
         location,
         failedAt: thrown && error?.location ? { text: `${thrown}:${error.location.line}`, href: blob(thrown, error.location.line) } : undefined,
         error: excerpt(error?.message),
-        retry: rerunCommand(target, test.projectName, location.text, title),
+        retry: rerunCommand(target, test.projectName, location.text, title, !stackless.has(test.projectName)),
         history: past,
         novelty: past?.kind ?? (history.length > 0 ? "new" : "unknown"),
         sameCommit: past && past.kind !== "recurring" ? Boolean(sha) && past.previous.sha === sha : undefined,

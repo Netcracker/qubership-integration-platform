@@ -23,7 +23,7 @@ This repository is a **monorepo** that consolidates the previously separate `qub
 | `checkstyle/`          | Shared Checkstyle rules (`qip-checkstyle` artifact)                                           | XML, Maven                                                                  |
 | `help/`                | Documentation consumed by UI and VS Code extension                                            | Markdown                                                                    |
 | `parent/`              | Shared Maven parent POM for Spring Boot modules                                               | Maven                                                                       |
-| `e2e/`                 | End-to-end suite driving the whole local stack, which it provisions itself                    | TypeScript, Playwright                                                      |
+| `e2e/`                 | End-to-end suite: the whole local stack, which it provisions, and the VS Code editors         | TypeScript, Playwright                                                      |
 
 ## Getting started
 
@@ -141,6 +141,7 @@ cd e2e
 npm install
 npm test                                          # the whole suite, about 12 minutes
 npm test -- --project=schema --project=harness    # the product's tracked files and the suite's own code, no stack needed
+npm test -- --project=vscode                      # the VS Code extension's editors in VS Code for the web, no stack needed
 ```
 
 The suite provisions the Compose stack itself: it starts whatever is down, and it rebuilds a service whose sources have outrun the image its container runs. It also builds and serves the UI bundle, so it needs no dev server. See [e2e/README.md](e2e/README.md) for the prerequisites, the flags, and how to read a failure.

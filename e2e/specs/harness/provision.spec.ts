@@ -44,6 +44,7 @@ const NOTHING: ProvisionReport = {
   recreated: [],
   started: [],
   untouched: ["consul", "postgres"],
+  published: [],
   staleSupport: [],
   proxyReloaded: false,
   proxyConfigChanged: false,
@@ -78,6 +79,30 @@ test.describe("provisioning", () => {
       expect(lines).toContain("rebuilt: qip-engine");
       expect(lines).toContain("started: ui-proxy");
       expect(lines).toContain("nginx reloaded");
+    });
+
+    test("names each image run from GHCR by its digest", () => {
+      const digest = `sha256:${"ab".repeat(32)}`;
+      const lines = formatReport({
+        ...NOTHING,
+        published: [
+          {
+            name: "runtime-catalog",
+            image: "ghcr.io/netcracker/qubership-integration-runtime-catalog:latest",
+            imageId: `ghcr.io/netcracker/qubership-integration-runtime-catalog@${digest}`,
+          },
+          {
+            name: "micro-engine",
+            image: "ghcr.io/netcracker/qubership-integration-micro-engine:latest",
+            imageId: null,
+          },
+        ],
+      });
+      expect(lines).toContain(
+        `from GHCR: runtime-catalog ${digest}, ` +
+          "micro-engine ghcr.io/netcracker/qubership-integration-micro-engine:latest (no pod yet)",
+      );
+      expect(formatReport(NOTHING)).not.toContain("GHCR");
     });
 
     test("reports a run where provisioning did nothing", () => {

@@ -136,6 +136,8 @@ export interface RecordedSession {
   externalSessionCipId: string | null;
   executionStatus: ExecutionStatus;
   duration: number;
+  /** Time until the main exchange finished, excluding asynchronous branches that continued after it. */
+  syncDuration: number;
   started: string;
   finished: string;
   domain: string;
@@ -653,6 +655,25 @@ export class Sessions {
   // -------------------------------------------------------------------------
   // Sessions no correlation header finds
   // -------------------------------------------------------------------------
+
+  /** Returns a fresh settled session, including when a newer session is still being indexed. */
+  async nextOf(chainId: string, elements: number, before: ReadonlySet<string>): Promise<RecordedSession> {
+    let found: RecordedSession | undefined;
+    await expect
+      .poll(async () => {
+        const page = await this.search({}, { chainId });
+        for (const fresh of page.sessions) {
+          if (before.has(fresh.id)) continue;
+          const full = await this.session(fresh.id);
+          if (!hasTrace(full) || trace(full).length < elements || !isSettled(full)) continue;
+          found = full;
+          return true;
+        }
+        return false;
+      }, { timeout: SESSION_TIMEOUT })
+      .toBe(true);
+    return found as RecordedSession;
+  }
 
   /**
    * The one settled session of `chainId` that `filter` keeps, with its trace.
