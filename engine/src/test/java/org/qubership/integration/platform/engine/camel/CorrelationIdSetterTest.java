@@ -82,6 +82,18 @@ class CorrelationIdSetterTest {
         assertEquals("null", exchange.getMessage().getBody());
     }
 
+    @Test
+    void leavesTheCorrelationIdUnsetWhenTheBodyHasNoMatchingField() {
+        exchange.setProperty(CORRELATION_ID_POSITION, "body");
+        String payload = "{\"other-field\":\"value\"}";
+        exchange.getMessage().setBody(payload);
+
+        setter.setCorrelationId(exchange);
+
+        assertNull(exchange.getProperty(CORRELATION_ID));
+        assertEquals(payload, exchange.getMessage().getBody());
+    }
+
     @ParameterizedTest
     @NullAndEmptySource
     void leavesTheCorrelationIdAsIsWhenTheBodyIsEmpty(String payload) {

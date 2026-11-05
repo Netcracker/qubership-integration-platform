@@ -111,6 +111,21 @@ class SftpConsumerLifecycleStrategyTest {
         verify(originalHandler).handleException("download failed", exchange, failure);
     }
 
+    @Test
+    void shouldPreserveOtherReservationsWhenCustomKeyIsAbsent() {
+        endpoint.setIdempotentKey(context.resolveLanguage("simple").createExpression("${header.businessKey}"));
+        repository.add(file.getAbsoluteFilePath());
+        IdempotentRepository observedRepository = spy(repository);
+        endpoint.setIdempotentRepository(observedRepository);
+        GenericFileOperationFailedException failure = new GenericFileOperationFailedException("Cannot retrieve file");
+
+        consumer.getExceptionHandler().handleException("download failed", exchange, failure);
+
+        assertTrue(repository.contains(file.getAbsoluteFilePath()));
+        verifyNoInteractions(observedRepository);
+        verify(originalHandler).handleException("download failed", exchange, failure);
+    }
+
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
     void shouldKeepReservationForNativeCompletionWhenBodyWasDownloaded(boolean streamed) {

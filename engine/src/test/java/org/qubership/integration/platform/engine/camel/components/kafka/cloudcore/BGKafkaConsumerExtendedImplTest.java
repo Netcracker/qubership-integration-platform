@@ -395,6 +395,23 @@ class BGKafkaConsumerExtendedImplTest {
     }
 
     @Test
+    void shouldLeaveOffsetResetAbsentForVersionedGroupWhenItIsNotConfigured() {
+        AtomicReference<Map<String, Object>> capturedProperties = new AtomicReference<>();
+        BlueGreenState state = candidateState();
+        when(kafkaConsumer.poll(Duration.ZERO)).thenReturn(ConsumerRecords.empty());
+        consumer = newConsumer(state, Map.of(GROUP_ID_CONFIG, GROUP_ID), props -> {
+            capturedProperties.set(new HashMap<>(props));
+            return kafkaConsumer;
+        });
+
+        assertTrue(consumer.poll(Duration.ZERO).isEmpty());
+
+        assertFalse(capturedProperties.get().containsKey(AUTO_OFFSET_RESET_CONFIG));
+        assertEquals(new VersionedGroupId(GROUP_ID, state.getCurrent().getVersion(), State.CANDIDATE,
+                State.ACTIVE, UPDATE_TIME).toString(), capturedProperties.get().get(GROUP_ID_CONFIG));
+    }
+
+    @Test
     void shouldSeekAlignedOffsetsOnlyForAssignedPartitions() {
         TopicPartition otherPartition = new TopicPartition(TOPIC, 1);
         Map<TopicPartition, OffsetAndMetadata> offsets = Map.of(
