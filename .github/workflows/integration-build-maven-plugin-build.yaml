@@ -42,6 +42,5 @@ jobs:
       runner: ${{ github.event_name == 'workflow_dispatch' && inputs.runner || 'ubuntu-latest' }}
       module: integration-build-maven-plugin
       sonar-project-key: ${{ vars.SONAR_INTEGRATION_BUILD_MAVEN_PLUGIN_PROJECT_KEY }}
-      preinstall-integration-build-pipeline-library: true
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

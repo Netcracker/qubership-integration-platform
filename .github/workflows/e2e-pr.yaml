@@ -44,6 +44,10 @@ jobs:
       - name: Install e2e dependencies
         run: npm ci
 
+      - name: Check Maven analysis transfer
+        working-directory: .
+        run: python3 -m unittest discover -s scripts/tests
+
       - name: Check types
         run: npm run check-types
 

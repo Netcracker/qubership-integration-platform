@@ -1,9 +1,4 @@
 ---
-# Reusable PR build workflow for a Maven module.
-#
-# To block PR merge on red Sonar Quality Gate, mark the `sonar` job
-# as a required status check in the branch protection rule.
-
 name: Maven Module Build (reusable)
 
 on:
@@ -12,7 +7,19 @@ on:
       module:
         required: true
         type: string
-        description: "Module directory name (e.g. engine, runtime-catalog)"
+        description: Module directory name.
+      sonar-project-key:
+        type: string
+        default: ""
+        description: Sonar project key. Leave empty to skip analysis.
+      force-update:
+        type: boolean
+        default: false
+        description: Recheck external SNAPSHOT dependencies during the build.
+      ensure-openapi-spec:
+        type: boolean
+        default: false
+        description: Compare the generated OpenAPI specification with Git.
       use-cache:
         type: boolean
         default: true
@@ -25,35 +32,10 @@ on:
         type: string
         default: ubuntu-latest
         description: Runner image for toolchain qualification.
-      sonar-project-key:
-        required: false
-        type: string
-        default: ""
-        description: "Sonar project key for this module. Leave empty to skip the Sonar scan."
-      force-update:
-        required: false
-        type: boolean
-        default: false
-        description: >-
-          Pass -U so Maven re-checks snapshots and cached misses instead of
-          trusting the restored ~/.m2. Enable for micro-engine: its
-          com.netcracker.cloud BOMs import 1.0.0-SNAPSHOT BOMs from GitHub Packages.
-      ensure-openapi-spec:
-        required: false
-        type: boolean
-        default: false
-        description: Ensure that OpenAPI specification files are up-to-date.
-      preinstall-integration-build-pipeline-library:
-        required: false
-        type: boolean
-        default: false
-        description: >-
-          Install the integration-build-pipeline library into the local .m2
-          before building when execute sonar analysis. Required for consumers (runtime-catalog).
     secrets:
       SONAR_TOKEN:
         required: false
-        description: "SonarCloud token. Required when sonar-project-key is set."
+        description: SonarCloud token for analysis.
 
 concurrency:
   group: ${{ github.workflow }}-${{ inputs.module }}-${{ github.ref }}
@@ -67,9 +49,6 @@ jobs:
     runs-on: ${{ inputs.runner }}
     permissions:
       contents: read
-      # Read-only: PR builds resolve deps (e.g. qip-checkstyle) from GitHub
-      # Packages but publish nothing. SNAPSHOTs are released on demand via the
-      # snapshot-publish workflow.
       packages: read
     steps:
       - name: Checkout
@@ -81,17 +60,11 @@ jobs:
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
           java-version: "21"
-          distribution: "temurin"
-          # GitHub Packages credentials live in .github/maven-settings.xml (passed via -s).
+          distribution: temurin
 
-      # Every release rewrites the poms in a [skip ci] commit, so an exact pom-hash
-      # key would always miss; the module prefix gives a warm start, and any module's
-      # cache covers a module Main Build does not build on its own. Only main saves
-      # the cache: a pull request's copy is visible to that pull request alone, and
-      # a copy per pull request fills the repository quota.
       - name: Restore the Maven repository
-        if: ${{ inputs.use-cache }}
         id: maven-cache
+        if: ${{ inputs.use-cache }}
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.m2/repository
@@ -106,19 +79,32 @@ jobs:
           MAVEN_GITHUB_USERNAME: ${{ github.actor }}
           MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
           FORCE_UPDATE: ${{ inputs.force-update }}
+          OPENAPI_CHECK: ${{ inputs.ensure-openapi-spec }}
+          SONAR_PROJECT_KEY: ${{ inputs.sonar-project-key }}
+          MAVEN_ANALYSIS_MODULE: ${{ inputs.module }}
+          MAVEN_ANALYSIS_DIRECTORY: ${{ runner.temp }}/${{ inputs.module }}-analysis
         run: |
           set -eu
-          UPDATE_FLAG=""
-          if [ "$FORCE_UPDATE" = "true" ]; then UPDATE_FLAG="-U"; fi
-          "$GITHUB_WORKSPACE/scripts/maven-ci.sh" \
-            verify \
-            $UPDATE_FLAG \
-            -pl $MODULE_NAME \
-            -am \
-            -Dgpg.skip=true
+          if [ "$OPENAPI_CHECK" = true ]; then
+            rm -f -- "$MODULE_NAME/api-spec/openapi.yaml"
+          fi
+          update_args=()
+          if [ "$FORCE_UPDATE" = true ]; then update_args=(-U); fi
+          build_goal=verify
+          if [ -n "$SONAR_PROJECT_KEY" ]; then build_goal=install; fi
+          "$GITHUB_WORKSPACE/scripts/maven-ci.sh" "$build_goal" "${update_args[@]}" \
+            -pl "$MODULE_NAME" -am -Dgpg.skip=true
+          if [ -n "$SONAR_PROJECT_KEY" ]; then
+            # shellcheck disable=SC2016 # Maven expands the project expressions.
+            "$GITHUB_WORKSPACE/scripts/maven-ci.sh" -pl "$MODULE_NAME" -am \
+              org.codehaus.mojo:exec-maven-plugin:3.5.0:exec \
+              "-Dexec.executable=$GITHUB_WORKSPACE/scripts/maven_analysis.py" \
+              '-Dexec.args=export "${project.groupId}" "${project.artifactId}" "${project.version}" "${project.packaging}" "${project.build.directory}/${project.build.finalName}.${project.artifact.artifactHandler.extension}" "${project.file}"'
+            python3 scripts/maven_analysis.py seal
+          fi
 
       - name: Save the Maven repository
-        if: ${{ inputs.use-cache && inputs.save-cache && github.ref == 'refs/heads/main' && steps.maven-cache.outputs.cache-hit != 'true' }}
+        if: ${{ inputs.use-cache && inputs.save-cache && inputs.sonar-project-key == '' && github.ref == 'refs/heads/main' && steps.maven-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.m2/repository
@@ -128,18 +114,19 @@ jobs:
         if: ${{ inputs.sonar-project-key != '' }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: ${{ inputs.module }}-target
-          # Sonar only needs compiled classes, generated sources, and the
-          # JaCoCo / Surefire reports — not the shaded -exec.jar (~200 MB).
-          path: |
-            ${{ inputs.module }}/target/classes
-            ${{ inputs.module }}/target/test-classes
-            ${{ inputs.module }}/target/generated-sources
-            ${{ inputs.module }}/target/generated-test-sources
-            ${{ inputs.module }}/target/site
-            ${{ inputs.module }}/target/surefire-reports
-            ${{ inputs.module }}/target/jacoco.exec
-          if-no-files-found: ignore
+          name: ${{ inputs.module }}-analysis
+          path: ${{ runner.temp }}/${{ inputs.module }}-analysis
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Upload generated OpenAPI
+        if: ${{ inputs.ensure-openapi-spec }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ${{ inputs.module }}-openapi
+          path: ${{ inputs.module }}/api-spec/openapi.yaml
+          if-no-files-found: error
           retention-days: 1
 
   sonar:
@@ -148,17 +135,11 @@ jobs:
     runs-on: ${{ inputs.runner }}
     permissions:
       contents: read
-      # Sonar must build the project model before scanning. micro-engine imports
-      # private com.netcracker.cloud BOMs (dependencyManagement, scope=import)
-      # that have to be resolved from GitHub Packages just to read its POM.
-      # Other modules' only private dep (qip-checkstyle) is a plugin dependency
-      # the sonar-only run never triggers, so this is a no-op for them.
       packages: read
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
-          # Sonar uses git blame for new-code detection.
           fetch-depth: 0
           persist-credentials: false
 
@@ -166,12 +147,8 @@ jobs:
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
           java-version: "21"
-          distribution: "temurin"
-          # GitHub Packages credentials live in .github/maven-settings.xml (passed via -s),
-          # mirroring the build job — micro-engine needs the private BOMs to assemble
-          # its effective POM.
+          distribution: temurin
 
-      # Restores the cache the build job saves on main.
       - name: Restore the Maven repository
         if: ${{ inputs.use-cache }}
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -182,28 +159,22 @@ jobs:
             maven-v2-${{ runner.os }}-${{ runner.arch }}-java21-${{ hashFiles('.mvn/wrapper/maven-wrapper.properties') }}-${{ inputs.module }}-
             maven-v2-${{ runner.os }}-${{ runner.arch }}-java21-${{ hashFiles('.mvn/wrapper/maven-wrapper.properties') }}-
 
-      - name: Pre-install integration-build-library into .m2
-        if: ${{ inputs.preinstall-integration-build-pipeline-library == true }}
-        env:
-          MAVEN_GITHUB_USERNAME: ${{ github.actor }}
-          MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -eu
-          "$GITHUB_WORKSPACE/scripts/maven-ci.sh" \
-            -f integration-build-pipeline/pom.xml install \
-            -DskipTests -Dgpg.skip=true -Dcheckstyle.skip=true
-
       - name: Download Sonar inputs
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
-          name: ${{ inputs.module }}-target
-          path: ${{ inputs.module }}/target
+          name: ${{ inputs.module }}-analysis
+          path: ${{ runner.temp }}/${{ inputs.module }}-analysis
+
+      - name: Restore reactor artifacts and analysis inputs
+        env:
+          MAVEN_GITHUB_USERNAME: ${{ github.actor }}
+          MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          MAVEN_ANALYSIS_DIRECTORY: ${{ runner.temp }}/${{ inputs.module }}-analysis
+        run: python3 scripts/maven_analysis.py restore
 
       - name: Sonar scan (blocks on red Quality Gate)
         working-directory: ${{ inputs.module }}
         env:
-          # GitHub Packages creds for the github server in .github/maven-settings.xml —
-          # needed to resolve micro-engine's private BOM imports while building the model.
           MAVEN_GITHUB_USERNAME: ${{ github.actor }}
           MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -226,58 +197,18 @@ jobs:
     runs-on: ${{ inputs.runner }}
     permissions:
       contents: read
-      packages: read
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
 
-      - name: Set up Java
-        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+      - name: Download generated OpenAPI
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
-          java-version: "21"
-          distribution: "temurin"
-          # GitHub Packages credentials live in .github/maven-settings.xml (passed via -s).
+          name: ${{ inputs.module }}-openapi
+          path: ${{ inputs.module }}/api-spec
 
-      # Restores the cache the build job saves on main.
-      - name: Restore the Maven repository
-        if: ${{ inputs.use-cache }}
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.m2/repository
-          key: maven-v2-${{ runner.os }}-${{ runner.arch }}-java21-${{ hashFiles('.mvn/wrapper/maven-wrapper.properties') }}-${{ inputs.module }}-${{ hashFiles('**/pom.xml') }}
-          restore-keys: |
-            maven-v2-${{ runner.os }}-${{ runner.arch }}-java21-${{ hashFiles('.mvn/wrapper/maven-wrapper.properties') }}-${{ inputs.module }}-
-            maven-v2-${{ runner.os }}-${{ runner.arch }}-java21-${{ hashFiles('.mvn/wrapper/maven-wrapper.properties') }}-
-
-      - name: Pre-install integration-build-library into .m2
-        if: ${{ inputs.preinstall-integration-build-pipeline-library == true }}
-        env:
-          MAVEN_GITHUB_USERNAME: ${{ github.actor }}
-          MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -eu
-          "$GITHUB_WORKSPACE/scripts/maven-ci.sh" \
-            -f integration-build-pipeline/pom.xml install \
-            -DskipTests -Dgpg.skip=true -Dcheckstyle.skip=true
-
-      - name: Update OpenAPI specifications
-        working-directory: ${{ inputs.module }}
-        env:
-          MAVEN_MODULE_NAME: ${{ inputs.module }}
-          MAVEN_GITHUB_USERNAME: ${{ github.actor }}
-          MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-          FORCE_UPDATE: ${{ inputs.force-update }}
-        run: |
-          set -eu
-          UPDATE_FLAG=""
-          if [ "$FORCE_UPDATE" = "true" ]; then UPDATE_FLAG="-U"; fi
-          if [ "$MAVEN_MODULE_NAME" = "micro-engine" ]; then
-            "$GITHUB_WORKSPACE/scripts/maven-ci.sh" build $UPDATE_FLAG -Dgpg.skip=true
-          else
-            "$GITHUB_WORKSPACE/scripts/maven-ci.sh" test $UPDATE_FLAG -Dtest=OpenApiSpecGeneratorTest -DfailIfNoTests=false
-          fi
       - name: Verify the specifications have no changes
         working-directory: ${{ inputs.module }}
         run: |
@@ -285,6 +216,5 @@ jobs:
             echo "Error: The OpenAPI specifications are out-of-date:"
             git status api-spec
             exit 1
-          else
-          echo "OpenAPI specifications are up-to-date."
           fi
+          echo "OpenAPI specifications are up-to-date."
