@@ -41,7 +41,7 @@ jobs:
       pull-requests: read
     uses: ./.github/workflows/_maven-module-build.yaml
     with:
-      qualification-pr: ${{ inputs.qualification-pr || 0 }}
+      qualification-pr: ${{ fromJSON(format('{0}', inputs.qualification-pr || 0)) }}
       use-cache: ${{ github.event_name != 'workflow_dispatch' || !inputs.cold-cache }}
       runner: ${{ github.event_name == 'workflow_dispatch' && inputs.runner || 'ubuntu-latest' }}
       module: ai-service
