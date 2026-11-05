@@ -10,6 +10,8 @@
  * missing nodes; `navigate` answering nothing left the editor with no graph. The guard itself: a
  * `console.error`, a scheduled throw in the content frame, and a throw at the start of the
  * extension's `activate` each turned the case red.
+ * Shown failing: the bundled build's default `base: "/"` made the stylesheet's font load fail
+ * with a 404 from `/assets/`, outside the extension directory.
  */
 import { test, expect } from "../../support/vscode-guard.js";
 import { ChainGraphPage } from "../../pages/ChainGraphPage.js";
@@ -26,5 +28,20 @@ test.describe("smoke", () => {
     await expect(graph.node(SCRIPT)).toContainText("Script");
     await expect(graph.edge(HTTP_TRIGGER, SCRIPT)).toBeAttached();
     await expect.poll(() => messages.answered()).toContain("getChain");
+  });
+
+  test("the webview loads the fonts declared by its stylesheet", async ({ vscode }) => {
+    await vscode.open();
+    await vscode.openFile(chainFile(MOCHA_CHAIN_ID));
+    await expect(new ChainGraphPage(vscode.webview).nodes).toHaveCount(2);
+
+    const fonts = await vscode.webview.locator("body").evaluate(async () => {
+      const faces = [...document.fonts];
+      await Promise.all(faces.map((face) => face.load()));
+      return faces.map((face) => ({ family: face.family, status: face.status }));
+    });
+
+    expect(fonts.length).toBeGreaterThan(0);
+    for (const font of fonts) expect(font.status, font.family).toBe("loaded");
   });
 });
