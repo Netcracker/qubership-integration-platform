@@ -46,7 +46,8 @@ public final class AuthorSourceEvidence {
   public static Optional<Input> authorInput(ConversationArchive.Turn turn) {
     var decision = turn.metadata() == null ? null : turn.metadata().get("resolvedDecision");
     String action = decision == null ? "" : decision.path("action").asText("");
-    if (ChatEvent.APPROVE_ACTION.equals(action) || ChatEvent.APPROVE_AND_CREATE_ACTION.equals(action)) {
+    if (ChatEvent.APPROVE_ACTION.equals(action) || ChatEvent.APPROVE_AND_CREATE_ACTION.equals(action)
+        || ChatEvent.isImportAction(action)) {
       String comment = decision.path("comment").asText("");
       return comment.isBlank() ? Optional.empty() : Optional.of(new Input(turn.id(), comment));
     }

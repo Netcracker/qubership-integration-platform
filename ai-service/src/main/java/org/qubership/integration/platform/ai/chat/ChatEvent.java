@@ -52,6 +52,8 @@ public sealed interface ChatEvent {
   String UPLOADED_IMPORT_EXTERNAL_MARKER =
       "Import the uploaded specification as an external service";
 
+  String UPLOADED_IMPORT_CONFIRMED_MARKER = "Import the uploaded specifications";
+
   static boolean isImportAction(String action) {
     return IMPORT_ACTION.equals(action)
         || IMPORT_INTERNAL_ACTION.equals(action)
@@ -78,7 +80,8 @@ public sealed interface ChatEvent {
         || stripped.startsWith("Answered ")
         || stripped.startsWith(IMPORT_MARKER)
         || stripped.startsWith(UPLOADED_IMPORT_MARKER)
-        || stripped.startsWith(UPLOADED_IMPORT_EXTERNAL_MARKER);
+        || stripped.startsWith(UPLOADED_IMPORT_EXTERNAL_MARKER)
+        || stripped.startsWith(UPLOADED_IMPORT_CONFIRMED_MARKER);
   }
 
   /** Writes a proposed change into a chain the user already has: irreversible, so never a model's. */

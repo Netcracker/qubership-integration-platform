@@ -95,7 +95,7 @@ class RequirementSourceReviewProviderTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"catalog-operation-version", "implementation-plan"})
+  @ValueSource(strings = {"catalog-operation-version", "implementation-plan", "uploaded-specs-import-proposal"})
   void protocolApprovalCannotCreateASourceOmissionOrRemoveTheSelectedBinding(String artifactType) throws Exception {
     String chat = "analysis-approval-source-" + UUID.randomUUID();
     var author = append(chat, ALGORITHM);
@@ -333,14 +333,16 @@ class RequirementSourceReviewProviderTest {
   private org.qubership.integration.platform.ai.chat.conversation.ConversationArchive.Input appendApproval(
       String chat, String artifactType, String comment) {
     var command = new org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand();
-    command.setAction("approve");
+    boolean uploaded = "uploaded-specs-import-proposal".equals(artifactType);
+    command.setAction(uploaded ? "import-specification" : "approve");
+    if (uploaded) command.setSpecSystemTypes(Map.of("orders.yaml", "EXTERNAL"));
     command.setArtifactType(artifactType);
     command.setArtifactHash("confirmed-choice");
     command.setComment(comment);
     var input = conversations.archive().beginInput(chat, "", null);
-    conversations.archive().resolveInput(chat, input,
-        org.qubership.integration.platform.ai.chat.service.ChatDecisionService.transcriptMarker(command),
-        json.valueToTree(command));
+    String marker = uploaded ? "Import the uploaded specification as an internal service"
+        : org.qubership.integration.platform.ai.chat.service.ChatDecisionService.transcriptMarker(command);
+    conversations.archive().resolveInput(chat, input, marker, json.valueToTree(command));
     return input;
   }
 

@@ -455,6 +455,15 @@ public class ChatDecisionService {
     return "";
   }
 
+  private static String importTranscriptMarker(ChatDecisionCommand command) {
+    boolean uploaded = UploadedSpecsApprovalHandler.ARTIFACT_TYPE.equals(command.getArtifactType());
+    if (uploaded && (ChatEvent.IMPORT_ACTION.equals(command.getAction())
+        || command.getSpecSystemTypes() != null && !command.getSpecSystemTypes().isEmpty())) {
+      return ChatEvent.UPLOADED_IMPORT_CONFIRMED_MARKER;
+    }
+    return ChatEvent.importTranscriptMarker(command.getAction(), uploaded);
+  }
+
   public static String transcriptMarker(ChatDecisionCommand command) {
     return transcriptMarker(command, null);
   }
@@ -486,9 +495,7 @@ public class ChatDecisionService {
           case ChatEvent.CANCEL_UNDEPLOY_ACTION -> "Leave the live deployment in place";
           case ChatEvent.IMPORT_ACTION, ChatEvent.IMPORT_INTERNAL_ACTION,
                   ChatEvent.IMPORT_EXTERNAL_ACTION ->
-              ChatEvent.importTranscriptMarker(
-                  command.getAction(),
-                  UploadedSpecsApprovalHandler.ARTIFACT_TYPE.equals(command.getArtifactType()));
+              importTranscriptMarker(command);
           case ChatEvent.RETRY_CREATION_ACTION -> "Retry chain creation";
           case ChatEvent.EDIT_REQUIREMENTS_ACTION -> "Edit the requirements";
           case ChatEvent.REBUILD_DESIGN_ACTION -> "Rebuild the design";

@@ -16,6 +16,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
+import org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool.SourceReview;
+import org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceOmission;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
@@ -42,6 +44,58 @@ class RecoveryAttemptLedgerTest {
           "");
 
   private final RecoveryAttemptLedger ledger = new RecoveryAttemptLedger(new RecoveryAttemptLedger.Limits(1, 2, 12, 1));
+
+  @Test
+  void rewordedSourceOmissionCannotSpendAnotherRepairForTheSameQuote() {
+    var first = sourceOmission("turn-a", "Use external routing", "The routing choice is missing.");
+    var reworded = sourceOmission("turn-a", "Use external routing", "The draft omitted the external route.");
+    var differentQuote = sourceOmission("turn-a", "Keep the timeout", "The draft omitted the timeout.");
+    var differentTurn = sourceOmission("turn-b", "Use external routing", "The routing choice is missing.");
+    var key = ledger.key("analysis", first, "draft-a", List.of());
+    var journal = List.of(transition(ledger.recordRepair(key, "draft-a"), "analysis"));
+
+    assertEquals(key, ledger.key("analysis", reworded, "draft-a", journal));
+    assertFalse(ledger.mayRepair(journal, ledger.key("analysis", reworded, "draft-a", journal), InputOrigin.TRUSTED),
+        journal.toString());
+    assertNotEquals(key.evidenceIdentity(), ledger.key("analysis", differentQuote, "draft-a", journal).evidenceIdentity());
+    assertNotEquals(key.evidenceIdentity(), ledger.key("analysis", differentTurn, "draft-a", journal).evidenceIdentity());
+  }
+
+  @Test
+  void aMixedReviewKeepsRepairCreditForADifferentQuoteAndAnUnrelatedFinding() {
+    var first = sourceOmission("turn-a", "Use external routing", "The route is missing.");
+    var reworded = sourceOmission("turn-a", "Use external routing", "The draft omitted the route.");
+    var different = sourceOmission("turn-a", "Keep the timeout", "The timeout is missing.");
+    var unrelated = new PlanValidationFinding("INVALID_METHOD", "Invalid HTTP method", true, null,
+        "entry", "/method");
+    var unrelatedCause = new RecoveryCause(RecoveryCauseCode.MISSING_BRIEF_FACTS, List.of(unrelated), "");
+    var mixed = new RecoveryCause(RecoveryCauseCode.MISSING_BRIEF_FACTS,
+        List.of(reworded.findings().getFirst(), different.findings().getFirst(), unrelated), "", false, null,
+        new SourceReview("generation", "source-hash", "draft-hash",
+            List.of(reworded.sourceReview().omissions().getFirst(), different.sourceReview().omissions().getFirst())));
+    var journal = new ArrayList<RunTransition>();
+    journal.add(transition(ledger.recordRepair(ledger.key("analysis", first, "draft-a", journal), "draft-a"),
+        "analysis"));
+
+    for (var remaining : List.of(different, unrelatedCause, mixed)) {
+      assertEquals(1, ledger.remaining(journal, ledger.key("analysis", remaining, "draft-a", journal),
+          InputOrigin.TRUSTED).semanticRepairsRemaining(), remaining.toString());
+    }
+    var mixedKey = ledger.key("analysis", mixed, "draft-a", journal);
+    journal.add(transition(ledger.recordRepair(mixedKey, "draft-a"), "analysis"));
+
+    for (var spent : List.of(reworded, different, unrelatedCause)) {
+      assertEquals(0, ledger.remaining(journal, ledger.key("analysis", spent, "draft-a", journal),
+          InputOrigin.TRUSTED).semanticRepairsRemaining(), spent.toString());
+    }
+  }
+
+  private static RecoveryCause sourceOmission(String turn, String quote, String explanation) {
+    return new RecoveryCause(RecoveryCauseCode.MISSING_BRIEF_FACTS,
+        List.of(new PlanValidationFinding("MISSING_BRIEF_FACTS", explanation, true)), "", false, null,
+        new SourceReview("generation", "source-hash", "draft-hash",
+            List.of(new SourceOmission(turn, quote, explanation))));
+  }
 
   @ParameterizedTest
   @ValueSource(strings = {"repair", "clean-rebuild"})

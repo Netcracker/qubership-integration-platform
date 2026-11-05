@@ -1447,6 +1447,17 @@ class ChatDecisionServiceTest {
   }
 
   @Test
+  void uploadedImportWithPerFileChoicesUsesANeutralTranscriptMarker() {
+    var decision = command(ChatEvent.IMPORT_ACTION, UploadedSpecsApprovalHandler.ARTIFACT_TYPE, "hash", null);
+    decision.setSpecSystemTypes(Map.of("orders.yaml", "EXTERNAL", "inventory.yaml", "INTERNAL"));
+
+    String marker = ChatDecisionService.transcriptMarker(decision);
+
+    assertEquals("Import the uploaded specifications", marker);
+    assertTrue(ChatEvent.isSyntheticDecisionTurn(marker), marker);
+  }
+
+  @Test
   void rememberImportChoiceWritesExternalOnTheDraft() {
     RequirementDraftStore drafts = new RequirementDraftStore();
     drafts.put("conv-1", new RequirementDraft(false, "GeoSite").withImportIntent(true));

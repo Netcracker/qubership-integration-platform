@@ -8,6 +8,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.TreeMap;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
+import org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceDiscrepancyKind;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
@@ -144,11 +145,32 @@ public final class RecoveryAttemptLedger {
   public static String evidenceIdentity(RecoveryCause cause) {
     RecoveryCause typed = cause == null ? RecoveryCause.of(RecoveryCauseCode.VALIDATION_BLOCKER) : cause;
     StringBuilder canonical = new StringBuilder();
-    for (String identity : typed.findings().stream().map(RecoveryAttemptLedger::findingIdentity).sorted().toList()) {
+    for (String identity : budgetFindings(typed).stream().map(RecoveryAttemptLedger::findingIdentity).sorted().toList()) {
       canonical.append(identity).append('\n');
     }
     canonical.append(FIELD).append(nvl(typed.requestedFact()));
     return sha256Hex(canonical.toString());
+  }
+
+  private static List<PlanValidationFinding> budgetFindings(RecoveryCause cause) {
+    var review = cause.sourceReview();
+    if (review == null || cause.findings().stream().noneMatch(RecoveryAttemptLedger::isSourceOmission)) {
+      return cause.findings();
+    }
+    var omissions = review.omissions().stream()
+        .filter(report -> report.kind() == SourceDiscrepancyKind.OMITTED_REQUIREMENT)
+        .map(report -> new PlanValidationFinding("MISSING_BRIEF_FACTS", "", true, null,
+            report.sourceTurnId(), "/sourceQuote/" + sha256Hex(report.quote())))
+        .distinct().toList();
+    if (omissions.isEmpty()) return cause.findings();
+    List<PlanValidationFinding> findings = new ArrayList<>(omissions);
+    cause.findings().stream().filter(finding -> !isSourceOmission(finding)).forEach(findings::add);
+    return findings;
+  }
+
+  private static boolean isSourceOmission(PlanValidationFinding finding) {
+    return finding.blocker() && "MISSING_BRIEF_FACTS".equals(finding.code())
+        && finding.originRecordId().isBlank() && finding.fieldPointer().isBlank();
   }
 
   private static String findingIdentity(PlanValidationFinding finding) {
@@ -205,9 +227,10 @@ public final class RecoveryAttemptLedger {
         correctionEpoch(
             transitions, ownerStageId, typed.causeCode(), evidenceId, inputArtifactIdentity);
     var findingKeys = new TreeMap<String, RecoveryAttemptKey>();
-    if (!typed.findings().isEmpty()) {
-      List<PlanValidationFinding> blockers = typed.findings().stream().filter(PlanValidationFinding::blocker).toList();
-      for (PlanValidationFinding finding : blockers.isEmpty() ? typed.findings() : blockers) {
+    List<PlanValidationFinding> findings = budgetFindings(typed);
+    if (!findings.isEmpty()) {
+      List<PlanValidationFinding> blockers = findings.stream().filter(PlanValidationFinding::blocker).toList();
+      for (PlanValidationFinding finding : blockers.isEmpty() ? findings : blockers) {
         String identity = FINDING_ID_PREFIX
             + evidenceIdentity(new RecoveryCause(typed.causeCode(), List.of(finding), typed.requestedFact()));
         RecoveryCauseCode memberCause = RecoveryCauseCode.VALIDATION_BLOCKER;

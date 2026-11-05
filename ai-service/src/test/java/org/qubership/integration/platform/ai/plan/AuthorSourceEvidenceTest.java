@@ -56,6 +56,12 @@ class AuthorSourceEvidenceTest {
         Arguments.of("approve", "catalog-operation-version", "", List.of("Approved catalog-operation-version manually-authored")),
         Arguments.of("approve", "implementation-plan", "  ", List.of("Approved catalog-operation-version manually-authored")),
         Arguments.of("approve-and-create", "implementation-plan", "", List.of("Approved catalog-operation-version manually-authored")),
+        Arguments.of("import-specification", "uploaded-specs-import-proposal", "Use the confirmed API.", List.of(
+            "Approved catalog-operation-version manually-authored", "Use the confirmed API.")),
+        Arguments.of("import-specification-external", "uploaded-specs-import-proposal", "", List.of(
+            "Approved catalog-operation-version manually-authored")),
+        Arguments.of("import-specification-internal", "uploaded-specs-import-proposal", "", List.of(
+            "Approved catalog-operation-version manually-authored")),
         Arguments.of("approve", "catalog-operation-version", "  Keep \"1.0.0\" selected.\n", List.of(
             "Approved catalog-operation-version manually-authored", "  Keep \"1.0.0\" selected.\n")),
         Arguments.of("approve", "implementation-plan", "Keep the exact business condition.", List.of(
@@ -111,6 +117,26 @@ class AuthorSourceEvidenceTest {
         org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(AuthorSourceEvidence.packet(document)));
     assertEquals(List.of(new AuthorSourceEvidence.Input("prior-approval", comment)),
         AuthorSourceEvidence.authoredPacket(document).inputs());
+  }
+
+  @Test
+  void archivedImportMarkerDoesNotCreateAnAuthoredRequirement() {
+    var metadata = new ObjectMapper().createObjectNode();
+    var decision = metadata.putObject("resolvedDecision");
+    decision.put("action", "import-specification").putObject("specSystemTypes").put("orders.yaml", "EXTERNAL");
+    var marker = "Import the uploaded specification as an internal service";
+    var imported = new org.qubership.integration.platform.ai.chat.conversation.ConversationArchive.Turn(
+        "import-approval", ConversationMessage.user(marker), "", metadata, "READY", null);
+    var authored = new org.qubership.integration.platform.ai.chat.conversation.ConversationArchive.Turn(
+        "authored-message", ConversationMessage.user(marker), marker, null, "READY", null);
+    var document = new org.qubership.integration.platform.ai.chat.conversation.ConversationArchive.Document(
+        1, "existing-generation", List.of(imported, authored),
+        List.of(imported.id(), authored.id()), List.of(), List.of());
+
+    assertEquals(List.of(new AuthorSourceEvidence.Input(authored.id(), marker)),
+        AuthorSourceEvidence.authoredPacket(document).inputs());
+    assertEquals(List.of(new AuthorSourceEvidence.Input(imported.id(), marker),
+        new AuthorSourceEvidence.Input(authored.id(), marker)), AuthorSourceEvidence.packet(document).inputs());
   }
 
   @ParameterizedTest
