@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.plan.mapping;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -8,10 +9,16 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import groovy.lang.Binding;
 import groovy.lang.GroovyShell;
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.apache.camel.converter.stream.InputStreamCache;
+import org.apache.camel.impl.DefaultCamelContext;
+import org.apache.camel.support.DefaultExchange;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
@@ -465,6 +472,65 @@ class DirectFieldMappingScriptTest {
     assertEquals(source, exchange.in.body);
   }
 
+  @Test
+  void shouldCopyJsonFromCamelMessageRepresentations() throws Exception {
+    String json = "{\"title\":\"Caf\u00e9\"}";
+    byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
+    var plans = prepare(List.of(requestIntent));
+    try (var camel = new DefaultCamelContext()) {
+      camel.start();
+      for (Object body : List.of(Map.of("title", "Caf\u00e9"), json, new ByteArrayInputStream(bytes),
+          new InputStreamCache(bytes))) {
+        var exchange = new DefaultExchange(camel);
+        exchange.getMessage().setBody(body);
+
+        execute(requestIntent, event, request, plans, exchange);
+
+        try (var outbound = exchange.getMessage().getMandatoryBody(InputStream.class)) {
+          assertEquals(Map.of("Subject", "Caf\u00e9"), JSON.readValue(outbound, Map.class),
+              body.getClass().getSimpleName());
+        }
+      }
+    }
+  }
+
+  @Test
+  void shouldKeepAStreamBodyReadableAfterSavingItsField() throws Exception {
+    ChainPlanGraph graph = CopyRetentionStructurePhase.place(responseGraph(), List.of(resultIntent),
+        (ref, port) -> DefaultMappingBoundarySchemaResolver.semanticNodeId(revision(), ref, port));
+    var plans = CopyMappingPlanner.prepare(revision(), List.of(resultIntent), resolver, List.of(), Map.of(), graph);
+    var origin = origin("onTaskStart", MappingPort.OUTPUT, "processInstanceId");
+    var save = plans.get(CopyMappingPlanner.retentionSiteId(origin));
+    String script = DirectFieldMappingScript.saveOnly(save).script();
+    SecureGroovyMappingCompiler.compile(script);
+    String json = "{\"processInstanceId\":\"before-call\"}";
+    try (var camel = new DefaultCamelContext()) {
+      camel.start();
+      var exchange = new DefaultExchange(camel);
+      exchange.getMessage().setBody(new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8)));
+
+      new GroovyShell(new Binding(Map.of("exchange", exchange))).evaluate(script);
+
+      assertEquals(json, exchange.getMessage().getBody(String.class));
+      assertEquals("{\"value\":\"before-call\"}", exchange.getProperty(CopyMappingPlanner.contextId(origin)));
+    }
+  }
+
+  @Test
+  void shouldRejectAJsonArrayInAStream() throws Exception {
+    var plans = prepare(List.of(requestIntent));
+    try (var camel = new DefaultCamelContext()) {
+      camel.start();
+      var exchange = new DefaultExchange(camel);
+      exchange.getMessage().setBody(new InputStreamCache("[1]".getBytes(StandardCharsets.UTF_8)));
+
+      var failure = assertThrows(IllegalArgumentException.class,
+          () -> execute(requestIntent, event, request, plans, exchange));
+
+      assertEquals("Expected a JSON object body", failure.getMessage());
+    }
+  }
+
   private static ChainPlanGraph responseGraph() {
     return new ChainPlanGraph("1.0", null,
         List.of(new ChainPlanNode("node-in", "async-api-trigger", "input", null, null, List.of()),
@@ -482,12 +548,17 @@ class DirectFieldMappingScriptTest {
   }
 
   private static Object execute(MappingIntent intent, MappingSchemaSide source, MappingSchemaSide target,
-      Map<String, CopyMappingPlan> plans, Exchange exchange) {
+      Map<String, CopyMappingPlan> plans, Object exchange) {
     MappingEnvelope envelope = envelope(source, target).withMappingIntentId(intent.mappingIntentId())
         .withVerifiedCopyPlan(plans.get(intent.mappingIntentId()));
     DirectFieldMappingScript.Generated generated = DirectFieldMappingScript.from(intent, envelope).orElseThrow();
     SecureGroovyMappingCompiler.compile(generated.script());
-    return new GroovyShell(new Binding(Map.of("exchange", exchange))).evaluate(generated.script());
+    Object result = new GroovyShell(new Binding(Map.of("exchange", exchange))).evaluate(generated.script());
+    try {
+      return JSON.readValue(assertInstanceOf(String.class, result), Map.class);
+    } catch (com.fasterxml.jackson.core.JsonProcessingException invalid) {
+      throw new AssertionError("COPY did not produce a JSON object: " + result, invalid);
+    }
   }
 
   private MappingSchemaSide side(String owner, MappingPort port, String digest, String schema) throws Exception {

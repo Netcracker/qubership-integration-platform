@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -182,6 +183,9 @@ class ProductChainMaterializerTest {
           mapper.readValue(mapper.writeValueAsBytes(checkpoint), MaterializationCheckpoint.class);
       assertEquals(owners, materializer.resume(inputs, persisted).materializationMap());
     }
+    verify(catalog).resolveOrCreateChain(RUN_ID, "demo-chain", "Demo", null);
+    verify(catalog).applyGraph(any(), eq(inputs.graph()), any());
+    verifyNoMoreInteractions(catalog);
   }
 
   @Test

@@ -110,6 +110,10 @@ import org.qubership.integration.platform.ai.storage.S3Service;
 public final class ProductPipelineRunSupport {
 
   public static final String ADMITTED_INPUT_GATE_ATTR = "admittedInputGate";
+  public static final String CATALOG_RECHECK_REASON = "recheck catalog read-back";
+  public static final String CATALOG_RECHECK_ATTR = "catalogRecheckOnly";
+  public static final String CATALOG_RECHECK_PROMPT =
+      "The chain has been saved. Resolve the Catalog issue, then retry verification of the existing chain.";
   public static final String ADMITTED_INPUT_REVISION_ATTR = "admittedInputRevision";
   /** Offer id the accepted requirement answer returned. Chain-call admission may write only that offer. */
   public static final String ADMITTED_CLARIFICATION_OFFER_ATTR = "admittedClarificationOfferId";
@@ -1760,6 +1764,19 @@ public final class ProductPipelineRunSupport {
     return false;
   }
 
+  public static String catalogRecheckPrompt(ProductPipelineArtifactStore artifacts, ProductPipelineRunDocument doc,
+      String prompt) {
+    if ("materialization".equals(doc.run().currentStageId())
+        && PipelineGates.RECOVERY_REPEATED.equals(PipelineGates.gateOf(prompt).orElse(""))
+        && HaltRecoveryGuard.CATALOG_ALREADY_WRITTEN.name().equals(PipelineGates.guardOf(prompt).orElse(""))
+        && artifacts.materializationCheckpoint(doc.run().runId()).filter(checkpoint -> checkpoint.canReadBack()).isPresent()) {
+      return PipelineGates.tagRecoveryDetails(
+          PipelineGates.tag(PipelineGates.RECOVERY_CATALOG_RECHECK, CATALOG_RECHECK_PROMPT),
+          PipelineGates.recoveryTechnicalDetailsOf(prompt).orElse(""), null);
+    }
+    return prompt;
+  }
+
   /** Applies author input to the existing waiting stage. */
   private Multi<PipelineSignal> acceptTypedInput(
       ProductPipelineRunDocument doc, AcceptInputCommand command) {
@@ -1771,6 +1788,19 @@ public final class ProductPipelineRunSupport {
               boolean reviseClick = PipelineGates.REVISE_ACTION.equals(haltAction);
               boolean haltCardClick = retryClick || reviseClick;
               String haltGate = PipelineGates.gateOf(latestWaitingForInputPrompt(doc)).orElse("");
+              String recheckPrompt = catalogRecheckPrompt(artifactStore, doc, latestWaitingForInputPrompt(doc));
+              if (PipelineGates.RECOVERY_CATALOG_RECHECK.equals(PipelineGates.gateOf(recheckPrompt).orElse(""))) {
+                if (!retryClick || command.origin() != InputOrigin.TRUSTED
+                    || !"materialization".equals(doc.run().currentStageId())
+                    || artifactStore.materializationCheckpoint(doc.run().runId())
+                        .filter(checkpoint -> checkpoint.canReadBack()).isEmpty()) {
+                  return Multi.createFrom().item(new PipelineSignal.WaitingForInput(doc.run().currentStageId(), recheckPrompt));
+                }
+                recordRecoverySelection(command.runId(), PipelineGates.RECOVERY_CATALOG_RECHECK, command.text());
+                commitStatus(doc, RunStatus.RUNNING, StageStatus.RUNNING, doc.run().stages(), CATALOG_RECHECK_REASON,
+                    null, command.commandId(), command.commandPayloadHash());
+                return Multi.createFrom().empty();
+              }
               boolean resourceGrant = retryClick && llmBudget != null
                   && llmBudget.state(command.runId()).refusal() != null
                   && PipelineGates.RECOVERY_RETRY_TECHNICAL.equals(haltGate);

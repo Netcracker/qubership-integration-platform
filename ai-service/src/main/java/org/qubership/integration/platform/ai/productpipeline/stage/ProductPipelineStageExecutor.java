@@ -497,6 +497,11 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
           new RunTransition(revision, revision + 1, RunStatus.RUNNING, RunStatus.RUNNING,
               stage.stageId(), clock.instant(), "analysis attempt started")));
     }
+    if ("materialization".equals(stage.stageId()) && !doc.transitions().isEmpty()
+        && ProductPipelineRunSupport.CATALOG_RECHECK_REASON.equals(doc.transitions().getLast().reason())) {
+      attributes = new HashMap<>(attributes);
+      attributes.put(ProductPipelineRunSupport.CATALOG_RECHECK_ATTR, true);
+    }
     StageExecutionContext context =
         new StageExecutionContext(
             runId,
@@ -1482,6 +1487,11 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       List<PipelineSignal> emitted,
       boolean producerRepairAllowed) {
     String runId = doc.run().runId();
+    if ("materialization".equals(stage.stageId())
+        && artifactStore.materializationCheckpoint(runId).filter(checkpoint -> checkpoint.canReadBack()).isPresent()) {
+      return waitContextualRecovery(doc, stage, refs, PipelineGates.RECOVERY_CATALOG_RECHECK,
+          ProductPipelineRunSupport.CATALOG_RECHECK_PROMPT, evidenceText, null, emitted);
+    }
     if (catalogHasBeenWritten(runId)) {
       return waitGuardedRecovery(doc, stage, refs, HaltRecoveryGuard.CATALOG_ALREADY_WRITTEN,
           cause, evidenceText, emitted);

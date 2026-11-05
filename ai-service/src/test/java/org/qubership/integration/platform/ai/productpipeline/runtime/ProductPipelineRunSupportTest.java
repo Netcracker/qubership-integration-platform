@@ -36,6 +36,7 @@ import org.qubership.integration.platform.ai.chat.conversation.ConversationServi
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationSessions;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
+import org.qubership.integration.platform.ai.integration.catalog.materialize.MaterializationMap;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.CapabilityInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftSettings;
@@ -64,6 +65,8 @@ import org.qubership.integration.platform.ai.productpipeline.create.facade.Creat
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction;
 import org.qubership.integration.platform.ai.productpipeline.create.orchestration.CreateChainOrchestrator;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
+import org.qubership.integration.platform.ai.productpipeline.materialization.MaterializationCheckpoint;
+import org.qubership.integration.platform.ai.productpipeline.materialization.MaterializationPhase;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProfileStage;
 import org.qubership.integration.platform.ai.productpipeline.profile.RetryPolicy;
 import org.qubership.integration.platform.ai.productpipeline.profile.TerminalPolicy;
@@ -596,6 +599,62 @@ class ProductPipelineRunSupportTest {
   }
 
   @Test
+  void shouldResumeTheWrittenChainFromALegacyReconcileWait() {
+    var harness = new OfferHarness();
+    String runId = "written-run";
+    String conversationId = "written-conversation";
+    var checkpoint = new MaterializationCheckpoint(1, runId, "chain-1", MaterializationPhase.RECONCILE,
+        new MaterializationMap("chain-1", Map.of("trigger", "element-1"), Map.of(), Map.of()), null, Map.of());
+    harness.artifacts.append(new CompilationArtifacts.AppendCommand(runId,
+        CompilationArtifacts.Kind.MATERIALIZATION_CHECKPOINT, "1", "materialization", "1",
+        checkpoint, List.of(), null));
+    String prompt = PipelineGates.tagGuard(PipelineGates.tag(PipelineGates.RECOVERY_REPEATED, "Catalog differs."),
+        HaltRecoveryGuard.CATALOG_ALREADY_WRITTEN.name());
+    var waiting = harness.wait(runId, conversationId, "materialization", "materialization", prompt);
+    var action = assertInstanceOf(CreateChainPendingAction.Clarify.class,
+        harness.facade().snapshot(conversationId).orElseThrow().pendingAction());
+    var decision = assertInstanceOf(ChatEvent.Decision.class,
+        ChatEvent.decision(action, waiting.run().runRevision(), action.reason(), ChatEvent.actionsForClarify(action)));
+
+    assertTrue(decision.actions().contains(ChatEvent.RETRY_CREATION_ACTION), decision.toString());
+    var command = new AcceptInputCommand(runId, PipelineGates.RETRY_ACTION, "recheck-command", "recheck-hash",
+        InputOrigin.TRUSTED);
+    var restarted = harness.freshSupport();
+    restarted.restoreForExternalWorkflow(harness.command(runId, conversationId, waiting))
+        .collect().asList().await().indefinitely();
+    restarted.recordInput(command).collect().asList().await().indefinitely();
+    var resumed = harness.runStore.load(runId).orElseThrow();
+    assertEquals(RunStatus.RUNNING, resumed.run().status());
+    assertEquals("materialization", resumed.run().currentStageId());
+    restarted.recordInput(command).collect().asList().await().indefinitely();
+    assertEquals(resumed.run().runRevision(), harness.runStore.load(runId).orElseThrow().run().runRevision());
+  }
+
+  @Test
+  void shouldKeepTheLegacyGuardWhenCatalogDeliveryIsUncertain() {
+    var harness = new OfferHarness();
+    String runId = "partial-write";
+    String conversationId = "partial-conversation";
+    var checkpoint = new MaterializationCheckpoint(1, runId, "chain-1", MaterializationPhase.CHAIN,
+        new MaterializationMap("chain-1", Map.of("trigger", "element-1"), Map.of(), Map.of()), "script", Map.of());
+    harness.artifacts.append(new CompilationArtifacts.AppendCommand(runId,
+        CompilationArtifacts.Kind.MATERIALIZATION_CHECKPOINT, "1", "materialization", "1",
+        checkpoint, List.of(), null));
+    String prompt = PipelineGates.tagGuard(PipelineGates.tag(PipelineGates.RECOVERY_REPEATED, "Catalog delivery unknown."),
+        HaltRecoveryGuard.CATALOG_ALREADY_WRITTEN.name());
+    var waiting = harness.wait(runId, conversationId, "materialization", "materialization", prompt);
+    var action = assertInstanceOf(CreateChainPendingAction.Clarify.class,
+        harness.facade().snapshot(conversationId).orElseThrow().pendingAction());
+
+    var decision = assertInstanceOf(ChatEvent.Decision.class,
+        ChatEvent.decision(action, waiting.run().runRevision(), action.reason(), ChatEvent.actionsForClarify(action)));
+    assertFalse(decision.actions().contains(ChatEvent.RETRY_CREATION_ACTION), decision.toString());
+    harness.support().recordInput(new AcceptInputCommand(runId, PipelineGates.RETRY_ACTION,
+        "invalid-recheck", "invalid-recheck-hash", InputOrigin.TRUSTED)).collect().asList().await().indefinitely();
+    assertEquals(waiting.run().runRevision(), harness.runStore.load(runId).orElseThrow().run().runRevision());
+  }
+
+  @Test
   void specializedClarificationAnswersAdmitTheirGate() {
     for (String gate : List.of(
         PipelineGates.TARGET_FOLDER_CHOICE, PipelineGates.REQUIREMENT_RECOVERY_CLARIFICATION)) {
@@ -827,6 +886,7 @@ class ProductPipelineRunSupportTest {
           mock(CreateChainOrchestrator.class),
           runStore,
           new ProductPipelineProfileCatalog(profiles),
+          artifactStore,
           drafts);
     }
 
@@ -836,7 +896,8 @@ class ProductPipelineRunSupportTest {
               artifactStore,
               new StageCapabilityRegistry(List.of(
                   promptCapability("requirement-discovery"),
-                  promptCapability("design-execution"))),
+                  promptCapability("design-execution"),
+                  promptCapability("materialization"))),
               FIXED_CLOCK)
           .build()
           .withConversations(conversations)

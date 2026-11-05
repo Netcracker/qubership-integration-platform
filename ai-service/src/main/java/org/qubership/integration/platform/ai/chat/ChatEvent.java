@@ -705,7 +705,8 @@ public sealed interface ChatEvent {
       case PipelineGates.MAPPING_GAP -> MAPPING_GAP_ACTIONS;
       case PipelineGates.STAGE_RETRY -> List.of(PipelineGates.RETRY_ACTION);
       case PipelineGates.RECOVERY_RETRY_TECHNICAL,
-              PipelineGates.RECOVERY_REGENERATE_EXECUTION ->
+              PipelineGates.RECOVERY_REGENERATE_EXECUTION,
+              PipelineGates.RECOVERY_CATALOG_RECHECK ->
           List.of(RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION);
       case PipelineGates.RECOVERY_REVISE_BRIEF ->
           List.of(EDIT_REQUIREMENTS_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION);
@@ -738,6 +739,7 @@ public sealed interface ChatEvent {
       return null;
     }
     return switch (gateId) {
+      case PipelineGates.RECOVERY_CATALOG_RECHECK -> "catalog-read-back";
       case PipelineGates.RECOVERY_RETRY_TECHNICAL -> "temporary-technical-failure";
       case PipelineGates.RECOVERY_REGENERATE_EXECUTION -> "regeneratable-execution-failure";
       case PipelineGates.RECOVERY_REVISE_BRIEF -> "requirement-brief-defect";
@@ -761,6 +763,10 @@ public sealed interface ChatEvent {
     String title;
     String preservedWork;
     switch (gate) {
+      case PipelineGates.RECOVERY_CATALOG_RECHECK -> {
+        title = "Catalog verification paused";
+        preservedWork = "The existing chain and its approved plan are saved.";
+      }
       case PipelineGates.RECOVERY_RETRY_TECHNICAL -> {
         title = "Creation paused temporarily";
         preservedWork = "Your requirements and saved progress remain available.";

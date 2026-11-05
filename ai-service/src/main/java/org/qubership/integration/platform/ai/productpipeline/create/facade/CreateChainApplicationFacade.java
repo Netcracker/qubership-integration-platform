@@ -12,6 +12,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
 import org.qubership.integration.platform.ai.skills.RockySkills;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
@@ -1420,16 +1421,18 @@ public class CreateChainApplicationFacade {
     }
     if (PipelineGates.isContextualRecoveryGate(gateId)) {
       ProductPipelineRunDocument doc = runStore.loadByConversation(taskId).orElse(null);
+      String recoveryPrompt = doc == null ? waitPrompt
+          : ProductPipelineRunSupport.catalogRecheckPrompt(artifactStore, doc, waitPrompt);
       return new CreateChainPendingAction.Clarify(
-          prompt,
+          Objects.equals(recoveryPrompt, waitPrompt) ? prompt : publicPrompt(recoveryPrompt),
           missingEvidence,
-          gateId,
-          PipelineGates.recoveryTechnicalDetailsOf(waitPrompt).orElse(""),
-          PipelineGates.recoveryRetryDelayMsOf(waitPrompt).orElse(null),
+          PipelineGates.gateOf(recoveryPrompt).orElse(gateId),
+          PipelineGates.recoveryTechnicalDetailsOf(recoveryPrompt).orElse(""),
+          PipelineGates.recoveryRetryDelayMsOf(recoveryPrompt).orElse(null),
           doc == null ? "" : doc.run().runId(),
           doc == null ? "" : doc.run().currentStageId(),
           offerId,
-          PipelineGates.guardOf(waitPrompt).orElse(""));
+          PipelineGates.guardOf(recoveryPrompt).orElse(""));
     }
     if (PipelineGates.MAPPING_GAP.equals(gateId)) {
       MappingGapWait.View view = MappingGapWait.parse(prompt);

@@ -18,10 +18,7 @@ public final class DirectFieldMappingScript {
     if (plan == null || plan.reads().isEmpty() || plan.reads().size() != intent.rules().size()) {
       throw new IllegalArgumentException("Mapping COPY requires a verified origin plan; recapture and approve the mapping");
     }
-    StringBuilder script = new StringBuilder("import groovy.json.JsonSlurper\nimport groovy.json.JsonOutput\n"
-        + "def source = exchange.in.body\n"
-        + "if (source instanceof String) source = new JsonSlurper().parseText(source)\n"
-        + "if (!(source instanceof Map)) throw new IllegalArgumentException('Expected a JSON object body')\n");
+    StringBuilder script = readJsonObject(false);
     for (CopyMappingPlan.Save save : plan.saves()) {
       if (!save.fromOutput()) appendSave(script, save, "source");
     }
@@ -60,7 +57,7 @@ public final class DirectFieldMappingScript {
     for (CopyMappingPlan.Save save : plan.saves()) {
       if (save.fromOutput()) appendSave(script, save, "result");
     }
-    script.append("exchange.in.body = result\nreturn exchange.in.body\n");
+    script.append("exchange.in.body = JsonOutput.toJson(result)\nreturn exchange.in.body\n");
     return Optional.of(new Generated(script.toString(), coverage));
   }
 
@@ -69,13 +66,30 @@ public final class DirectFieldMappingScript {
         || plan.saves().stream().anyMatch(CopyMappingPlan.Save::fromOutput)) {
       throw new IllegalArgumentException("A retention-only site requires its frozen save plan");
     }
-    StringBuilder script = new StringBuilder("import groovy.json.JsonSlurper\nimport groovy.json.JsonOutput\n"
-        + "def source = exchange.in.body\n"
-        + "if (source instanceof String) source = new JsonSlurper().parseText(source)\n"
-        + "if (!(source instanceof Map)) throw new IllegalArgumentException('Expected a JSON object body')\n");
+    StringBuilder script = readJsonObject(true);
     for (CopyMappingPlan.Save save : plan.saves()) appendSave(script, save, "source");
     script.append("return exchange.in.body\n");
     return new Generated(script.toString(), List.of());
+  }
+
+  private static StringBuilder readJsonObject(boolean preserveBody) {
+    var script = new StringBuilder("""
+        import groovy.json.JsonSlurper
+        import groovy.json.JsonOutput
+        def source = exchange.in.body
+        def bodyText = null
+        if (source instanceof String) {
+          source = new JsonSlurper().parseText(source)
+        } else if (source != null && !(source instanceof Map)) {
+          bodyText = exchange.in.getBody(String.class)
+          if (bodyText != null) source = new JsonSlurper().parseText(bodyText)
+        }
+        if (!(source instanceof Map)) throw new IllegalArgumentException('Expected a JSON object body')
+        """);
+    if (preserveBody) {
+      script.append("if (bodyText != null) exchange.in.body = bodyText\n");
+    }
+    return script;
   }
 
   private static void appendSave(StringBuilder script, CopyMappingPlan.Save save, String source) {

@@ -44,6 +44,7 @@ public final class PipelineGates {
   public static final String STAGE_RETRY = "stage-retry";
 
   /** A temporary dependency failure for which another create attempt can change the outcome. */
+  public static final String RECOVERY_CATALOG_RECHECK = "recovery-catalog-recheck";
   public static final String RECOVERY_RETRY_TECHNICAL = "recovery-retry-technical";
 
   /** A failed execution output that can be regenerated from the approved inputs. */
@@ -218,7 +219,8 @@ public final class PipelineGates {
 
   /** True when the wait is a server-owned contextual recovery dialog. */
   public static boolean isContextualRecoveryGate(String gateId) {
-    return RECOVERY_RETRY_TECHNICAL.equals(gateId)
+    return RECOVERY_CATALOG_RECHECK.equals(gateId)
+        || RECOVERY_RETRY_TECHNICAL.equals(gateId)
         || RECOVERY_REGENERATE_EXECUTION.equals(gateId)
         || RECOVERY_REVISE_BRIEF.equals(gateId)
         || RECOVERY_REBUILD_DESIGN.equals(gateId)

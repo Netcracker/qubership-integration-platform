@@ -51,6 +51,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryFaultInjector;
 import org.qubership.integration.platform.ai.productpipeline.recovery.SupersededBriefLineageGuard;
+import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.patch.CanonicalGraphDigest;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ApprovedHttpEndpointValidator;
@@ -170,7 +171,16 @@ public class MaterializationCapability implements StageCapability {
           "Legacy create-chain@1 materialization is unsupported. Recapture the requirements and approve a new create-chain@2 plan before catalog writes.",
           RecoveryCause.of(RecoveryCauseCode.CONTRACT_SHAPE))));
     }
-    if (resolved.v2()) {
+    MaterializationCheckpoint checkpoint = artifactStore.materializationCheckpoint(context.runId()).orElse(null);
+    boolean readBack = checkpoint != null && checkpoint.canReadBack()
+        && resolved.graph().nodes().stream().allMatch(node ->
+            checkpoint.materializationMap().nodeIdToElementId().containsKey(node.nodeId()));
+    if (!readBack && Boolean.TRUE.equals(context.attributes().get(ProductPipelineRunSupport.CATALOG_RECHECK_ATTR))) {
+      return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
+          "The Catalog checkpoint does not identify every element in the approved graph.",
+          RecoveryCause.of(RecoveryCauseCode.CONTRACT_SHAPE))));
+    }
+    if (!readBack) {
       try {
         var approvedPlan = artifactStore.get(context.runId(), resolved.implementationPlanRef()).orElseThrow();
         var briefRef = SupersededBriefLineageGuard
@@ -247,7 +257,7 @@ public class MaterializationCapability implements StageCapability {
                         SkillActivitySupport.bindWorker(CAPABILITY_ID, turnEmit, context.conversationId());
                         try {
                           return SkillActivitySupport.wrapTerminal(
-                              CAPABILITY_ID, completeMaterialization(context, resolved));
+                              CAPABILITY_ID, completeMaterialization(context, resolved, checkpoint));
                         } finally {
                           org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink.flushCatalogChanges();
                           SkillActivitySupport.unbindWorker(turnEmit);
@@ -260,7 +270,7 @@ public class MaterializationCapability implements StageCapability {
   }
 
   private List<CapabilitySignal> completeMaterialization(
-      StageExecutionContext context, ResolvedInputs resolved) {
+      StageExecutionContext context, ResolvedInputs resolved, MaterializationCheckpoint checkpoint) {
     if (resolved.error() != null) {
       return List.of(
           new CapabilitySignal.Completed(
@@ -272,7 +282,6 @@ public class MaterializationCapability implements StageCapability {
             resolved.graph(),
             resolved.runManifest(),
             resolved.graphAssemblyResult().graphDigest());
-    MaterializationCheckpoint checkpoint = latestCheckpoint(context.runId());
     MaterializationResult core = materializer.resume(inputs, checkpoint);
     ChainCatalogFacts facts = factsService.load(core.chainId());
     MaterializationResult reconciledCore = materializer.markReconciled(inputs, core);
@@ -756,13 +765,6 @@ public class MaterializationCapability implements StageCapability {
       }
     }
     return null;
-  }
-
-  private MaterializationCheckpoint latestCheckpoint(String runId) {
-    return artifactStore
-        .latest(runId, Kind.MATERIALIZATION_CHECKPOINT)
-        .map(revision -> artifactStore.payload(revision, MaterializationCheckpoint.class))
-        .orElse(null);
   }
 
   private Optional<Reference> findSchemaV2Approval(String runId, List<Reference> refs) {

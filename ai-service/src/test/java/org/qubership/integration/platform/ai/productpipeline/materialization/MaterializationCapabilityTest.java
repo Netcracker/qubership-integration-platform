@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -25,6 +26,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFactsService;
 import org.qubership.integration.platform.ai.chain.reconcile.ChainReconcileService;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillContextBuilder;
@@ -1310,8 +1314,9 @@ class MaterializationCapabilityTest {
     assertEquals(StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass());
   }
 
-  @Test
-  void v2SuccessfulReadbackMovesExecutorCheckpointToComplete() {
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void v2SuccessfulReadbackMovesExecutorCheckpointToComplete(boolean recheck) {
     PreparedV2Inputs prepared = appendHappyPathV2Inputs();
     appendWaitingCheckpoint(prepared.approvalRef(), prepared);
     StageExecutionContext context =
@@ -1339,7 +1344,17 @@ class MaterializationCapabilityTest {
             readBack.materializationMap(),
             prepared.request().graphDigest(),
             MaterializationPhase.COMPLETE);
-    when(materializer.resume(any(), any())).thenReturn(readBack);
+    MaterializationCheckpoint written = recheck
+        ? new MaterializationCheckpoint(1, RUN_ID, readBack.chainId(), MaterializationPhase.RECONCILE,
+            readBack.materializationMap(), null, Map.of())
+        : null;
+    if (recheck) {
+      append(Kind.MATERIALIZATION_CHECKPOINT, "1", written, List.of());
+      context = new StageExecutionContext(context.runId(), context.conversationId(), context.stageId(),
+          context.executionKey(), context.attemptId(), context.profile(), context.runManifest(),
+          context.inputRefs(), Map.of(ProductPipelineRunSupport.CATALOG_RECHECK_ATTR, true));
+    }
+    when(materializer.resume(any(), eq(written))).thenReturn(readBack);
     when(materializer.markReconciled(any(), any())).thenReturn(reconciled);
     when(materializer.markComplete(any(), any())).thenReturn(complete);
     when(factsService.load("catalog-chain-1"))
@@ -1374,6 +1389,7 @@ class MaterializationCapabilityTest {
             .map(revision -> artifactStore.payload(revision, DesignExecutionCheckpoint.class))
             .orElseThrow();
     assertEquals(DesignExecutionPhase.COMPLETE, checkpoint.phase());
+    verify(materializer).resume(any(), eq(written));
   }
 
   private PreparedInputs appendHappyPathInputs() {

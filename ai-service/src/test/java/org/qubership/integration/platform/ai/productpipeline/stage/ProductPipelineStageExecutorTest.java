@@ -5272,6 +5272,44 @@ class ProductPipelineStageExecutorTest {
     assertTrue(runtime.support().latestCatalogChainSnapshot(RUN_ID).isPresent());
   }
 
+  @Test
+  void shouldRetryOnlyReadBackAfterCatalogVerificationFails() {
+    var calls = new AtomicInteger();
+    var brief = new ArtifactTypeRef("requirement-brief", 1);
+    var materialization = capability("materialization-cap", context -> {
+      if (calls.getAndIncrement() == 0) {
+        var checkpoint = new org.qubership.integration.platform.ai.productpipeline.materialization.MaterializationCheckpoint(
+            1, RUN_ID, "catalog-chain-1",
+            org.qubership.integration.platform.ai.productpipeline.materialization.MaterializationPhase.RECONCILE,
+            new org.qubership.integration.platform.ai.integration.catalog.materialize.MaterializationMap(
+                "catalog-chain-1", Map.of("trigger", "el-1"), Map.of(), Map.of()), null, Map.of());
+        artifactStore.append(new CompilationArtifacts.AppendCommand(RUN_ID, Kind.MATERIALIZATION_CHECKPOINT,
+            "1", "materialization-cap", "1", checkpoint, List.of(), null,
+            artifactStore.latest(RUN_ID, Kind.REQUIREMENT_BRIEF).orElseThrow().provenance()));
+        return Multi.createFrom().item(new CapabilitySignal.Completed(
+            StageOutcome.of(StageOutcomeClass.VALIDATION_FAILURE, "Catalog read-back differs from the approved graph.")));
+      }
+      assertEquals(true, context.attributes().get(ProductPipelineRunSupport.CATALOG_RECHECK_ATTR));
+      return Multi.createFrom().item(new CapabilitySignal.Completed(
+          StageOutcome.of(StageOutcomeClass.VALIDATION_FAILURE, "Catalog read-back still differs from the approved graph.")));
+    });
+    var profile = analysisThenMaterializationProfile(brief);
+    var runtime = newRuntime(new FailureNarrative(FakeFailureNarrativeAgent.owner("The brief is wrong.", "analysis")),
+        profile, analysisCandidate(), materialization);
+    startAndRecordInput(runtime, profile);
+    approveCurrentStage(runtime, "analysis");
+
+    var wait = assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "materialization").decision());
+    assertEquals(PipelineGates.RECOVERY_CATALOG_RECHECK, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    runtime.recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.RETRY_ACTION, "read-back-retry", "read-back-hash",
+        InputOrigin.TRUSTED)).collect().asList().await().indefinitely();
+
+    var secondWait = assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "materialization").decision());
+    assertEquals(PipelineGates.RECOVERY_CATALOG_RECHECK, PipelineGates.gateOf(secondWait.prompt()).orElseThrow());
+    assertEquals(2, calls.get());
+    assertEquals("materialization", requireRun().run().currentStageId());
+  }
+
   @ParameterizedTest
   @ValueSource(strings = {"snapshot", "checkpoint"})
   void catalogWriteBlocksCausalReopenAndRetryRepeatsMaterialization(String writeEvidence) {
