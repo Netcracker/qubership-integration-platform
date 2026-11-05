@@ -730,6 +730,32 @@ class DefaultChainSemanticRevisionValidatorTest {
   }
 
   @Test
+  void acceptsSourceClassifiedBehaviorForItsOwnScript() {
+    var revision = SemanticFixtures.linearOrdersWithCompleteTask();
+    String nodeId = SemanticFixtures.COMPLETE_TASK_NODE_ID;
+    var fact = org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures.generatedBehavior(
+        nodeId, "Return Hello world");
+    var brief = briefFrom(revision).withFacts(List.of(fact));
+
+    assertDoesNotThrow(() -> validator.validate(
+        org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures.attachSuppliedFacts(revision, brief),
+        CONTRACT, brief));
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"wrong-node", "missing-provenance"})
+  void rejectsApprovedBehaviorOutsideItsOwningScript(String mismatch) {
+    var revision = SemanticFixtures.linearOrdersWithCompleteTask();
+    String nodeId = "wrong-node".equals(mismatch) ? "unrelated-script" : SemanticFixtures.COMPLETE_TASK_NODE_ID;
+    var fact = org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures.generatedBehavior(
+        nodeId, "Return Hello world");
+    var brief = briefFrom(revision).withFacts(List.of(fact));
+
+    var error = assertThrows(IllegalArgumentException.class, () -> validator.validate(revision, CONTRACT, brief));
+    assertTrue(error.getMessage().contains("no executable authority"), error.getMessage());
+  }
+
+  @Test
   void suppliedBodyAuthorizesItsBodylessSemanticShell() {
     var revision = SemanticFixtures.linearOrdersWithCompleteTask();
     var brief = briefFrom(revision).withFacts(List.of(

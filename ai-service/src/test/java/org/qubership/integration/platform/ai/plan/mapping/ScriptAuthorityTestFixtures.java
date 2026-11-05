@@ -11,6 +11,16 @@ import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 public final class ScriptAuthorityTestFixtures {
   private ScriptAuthorityTestFixtures() {}
 
+  public static RequirementFact generatedBehavior(String nodeId, String behavior) {
+    var binding = new RequirementBodyBinding(RequirementBodyBinding.Authority.GENERATED_CANDIDATE,
+        nodeId, "script", RequirementBodyBinding.NativeBodyKind.GROOVY_SCRIPT,
+        "fixture-generation", "author-turn", null, null, null);
+    var intent = new RequirementElementIntent(nodeId, "script", RequirementElementIntent.Placement.LOCAL_NODE,
+        "firstTask", null, null, null, null, List.of(), List.of(), binding);
+    return new RequirementFact("behavior-" + nodeId, RequirementFactPolarity.POSITIVE, RequirementFactKind.BEHAVIOR,
+        "", behavior, "", "", "", "", "", "", List.of("firstTask"), null, intent);
+  }
+
   public static RequirementFact suppliedFact(String nodeId, String body) {
     return bodyFact(nodeId, body, RequirementBodyBinding.Authority.VERBATIM_SOURCE_BODY, 0, body.length());
   }

@@ -252,6 +252,30 @@ class ScriptBodyRepairToolTest {
     assertEquals(graph, planStore.get(CONVERSATION_ID).orElseThrow());
   }
 
+  @Test
+  void capturesBodyGeneratedForAnApprovedBehavior() {
+    var base = graphWithMissingScripts();
+    planStore.put(CONVERSATION_ID, base);
+    var supplied = suppliedBrief("return 1", "return 2");
+    var facts = List.of(
+        org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures.generatedBehavior(
+            "validate-siteIds", "Return Hello world"),
+        supplied.facts().getLast());
+    executionContextStore.set(CONVERSATION_ID, CAPABILITY_ID,
+        new GraphPatchExecutionContext("create-run", CAPABILITY_ID, null, null, null, null,
+            supplied.withFacts(facts), List.of(), base, GraphPatchOwnershipPolicy.denyAll(),
+            "attempt", List.of("validate-siteIds", "append-found-row")));
+    String body = "exchange.in.body = 'Hello world'";
+    assertThrows(CaptureValidationException.class, () -> tool.repairScriptBodies(
+        new ScriptBodyRepairCapture("greeting-body", List.of(new ScriptBodyEntry("validate-siteIds", body),
+            new ScriptBodyEntry("append-found-row", "return 2")), "Implement the approved greeting")));
+    var patch = captureSession.get(CaptureKey.capability(CaptureSlot.SCRIPT_BODY_REPAIR,
+        CONVERSATION_ID, CAPABILITY_ID), GraphPatch.class).orElseThrow();
+    assertEquals(body, patch.propertyPatches().stream()
+        .filter(property -> "validate-siteIds".equals(property.targetNodeId()))
+        .findFirst().orElseThrow().property().value());
+  }
+
   private static RequirementBrief suppliedBrief(String first, String second) {
     return new RequirementBrief("Supplied scripts", List.of(), List.of(), List.of(), List.of(), "summary")
         .withFacts(List.of(

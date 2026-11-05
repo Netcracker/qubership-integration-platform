@@ -1052,7 +1052,9 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
       if (boundIntents.size() == 1) {
         continue;
       }
-      if (ScriptExecutionAuthority.declaredSuppliedBody(brief, operation.nodeId()).isEmpty()) {
+      if (ScriptExecutionAuthority.declaredSuppliedBody(brief, operation.nodeId()).isEmpty()
+          && ScriptExecutionAuthority.declaredGeneratedBehavior(brief, operation.nodeId())
+              .filter(fact -> operation.provenance().sourceFactIds().contains(fact.sourceFactId())).isEmpty()) {
         errors.add(ScriptExecutionAuthority.unsupportedMessage(operation.nodeId()));
       }
     }

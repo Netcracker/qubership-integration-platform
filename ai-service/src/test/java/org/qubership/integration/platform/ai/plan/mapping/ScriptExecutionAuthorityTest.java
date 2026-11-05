@@ -85,6 +85,26 @@ class ScriptExecutionAuthorityTest {
         JSON.treeToValue(brief, RequirementBrief.class), "initializer"), "defect=" + defect);
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {"missingBinding", "blankTurn", "foreignOwner", "sourceOffsets", "literalBody"})
+  void rejectsInvalidGeneratedBehaviorAuthority(String defect) throws Exception {
+    ObjectNode brief = JSON.valueToTree(brief().withFacts(List.of(
+        ScriptAuthorityTestFixtures.generatedBehavior("initializer", "Return Hello world"))));
+    ObjectNode intent = (ObjectNode) brief.withArray("facts").get(0).path("elementIntent");
+    ObjectNode binding = (ObjectNode) intent.path("bodyBinding");
+    switch (defect) {
+      case "missingBinding" -> intent.putNull("bodyBinding");
+      case "blankTurn" -> binding.put("sourceTurnId", " ");
+      case "foreignOwner" -> binding.put("elementRef", "another-script");
+      case "sourceOffsets" -> binding.put("startOffset", 0);
+      case "literalBody" -> intent.withArray("requestedProperties").addObject().put("key", "script").put("value", "return 1");
+      default -> throw new AssertionError(defect);
+    }
+
+    assertEquals(Optional.empty(), ScriptExecutionAuthority.declaredGeneratedBehavior(
+        JSON.treeToValue(brief, RequirementBrief.class), "initializer"), defect);
+  }
+
   private static ObjectNode duplicateBrief() {
     return JSON.valueToTree(brief().withFacts(
         ScriptAuthorityTestFixtures.suppliedFactsWithSupplementaryMetadata("initializer", BODY)));

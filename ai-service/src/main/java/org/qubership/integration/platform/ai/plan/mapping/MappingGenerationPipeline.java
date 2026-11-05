@@ -226,8 +226,7 @@ public class MappingGenerationPipeline {
   }
 
   /**
-   * Blank script shells this skill must fill: mapping-owned sites for its intents, compiler-owned
-   * retention sites. Supplied bodies require no generation.
+   * Finds blank shells for typed mappings, compiler-derived retention, and approved script behavior.
    */
   public List<String> requiredBlankScriptNodeIds(
       String skillId, ChainSemanticRevision revision, ChainPlanGraph graph) {
@@ -253,7 +252,10 @@ public class MappingGenerationPipeline {
       if (node == null || !"script".equals(node.type())) {
         continue;
       }
-      if (CopyMappingPlanner.nativeRetentionSite(node) && isBlankScriptNode(graph, node.nodeId())) {
+      if ((CopyMappingPlanner.nativeRetentionSite(node)
+          || context != null && ScriptExecutionAuthority.declaredGeneratedBehavior(
+              context.requirementBrief(), node.nodeId()).isPresent())
+          && isBlankScriptNode(graph, node.nodeId())) {
         blanks.add(node.nodeId());
         continue;
       }

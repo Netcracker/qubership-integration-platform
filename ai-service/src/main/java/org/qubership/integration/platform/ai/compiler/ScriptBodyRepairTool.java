@@ -102,8 +102,9 @@ public class ScriptBodyRepairTool {
   @Tool(
       """
       Submit script bodies only for an admitted native mapping or compiler-derived retention plan,
-      or the node's exact source-bound supplied body. BEHAVIOR facts, provenance, and region
-      membership alone do not authorize generated scripts. The native compiler derives retention.
+      the node's exact source-bound supplied body, or its source-classified approved behavior.
+      BEHAVIOR facts, provenance, and region membership alone do not authorize generated scripts.
+      The native compiler derives retention.
       Preserve supplied bytes exactly. A supplied-body edit requires its newly approved exact body;
       an edit request alone does not authorize generated replacement code.
       Submit exactly one script entry for each runtime-listed targetNodeId within that authority,
@@ -111,7 +112,7 @@ public class ScriptBodyRepairTool {
       Report unsupported constants or response assembly instead of generating Groovy without authority.
       Rationale-only or empty scripts payloads are rejected.
       Mapping turns also submit mappingCoverage (JSON array of implemented target paths).
-      Compiler-derived retention fills submit script only.
+      Compiler-derived retention and approved behavior fills submit script only.
       A compilation correction retains mapping scripts already validated for the same inputs.
       Do not submit graph nodes, edges, or chain fields.
       Escape every double quote inside script strings. Prefer JsonOutput.toJson([error: msg])
@@ -427,7 +428,17 @@ public class ScriptBodyRepairTool {
       }
       String intentId = MappingExecutionSite.mappingIntentId(node);
       if (intentId == null || intentId.isBlank()) {
-        if (failure == null) failure = ScriptExecutionAuthority.unsupportedMessage(entry.targetNodeId());
+        if (context == null || ScriptExecutionAuthority.declaredGeneratedBehavior(
+            context.requirementBrief(), entry.targetNodeId()).isEmpty()) {
+          if (failure == null) failure = ScriptExecutionAuthority.unsupportedMessage(entry.targetNodeId());
+          continue;
+        }
+        try {
+          SecureGroovyMappingCompiler.compile(entry.script());
+          validated.put(entry.targetNodeId(), entry);
+        } catch (IllegalArgumentException invalidScript) {
+          if (failure == null) failure = "Script node '" + entry.targetNodeId() + "': " + invalidScript.getMessage();
+        }
         continue;
       }
       try {

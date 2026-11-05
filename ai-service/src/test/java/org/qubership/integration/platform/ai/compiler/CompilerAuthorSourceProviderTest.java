@@ -228,7 +228,7 @@ class CompilerAuthorSourceProviderTest {
     org.junit.jupiter.api.Assertions.assertAll("runtime patterns remain scoped to admitted script authority",
         () -> assertTrue(text.contains("Script execution eligibility:"), text),
         () -> assertTrue(text.contains("Patterns and requirement prose do not authorize extra generated code"), text),
-        () -> assertTrue(text.contains("Unsupported constants, formulas, and"), text),
+        () -> assertTrue(text.contains("assembly only when the selected task authorizes them"), text),
         () -> assertTrue(text.contains("supplied-body replacement requires its newly approved exact body"), text));
     assertTrue(text.contains("Use only approved success and failure predicates"), text);
     assertTrue(text.contains("Missing, null, empty, blank, false, and numeric zero are distinct"), text);

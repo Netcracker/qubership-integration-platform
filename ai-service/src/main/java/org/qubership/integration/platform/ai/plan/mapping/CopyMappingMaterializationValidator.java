@@ -52,6 +52,21 @@ public class CopyMappingMaterializationValidator {
   public void validate(String runId, RequirementBrief brief,
       ChainSemanticRevision semantic, ChainPlanGraph graph) {
     ScriptExecutionAuthority.requireSupported(brief, graph);
+    if (brief != null) {
+      for (var fact : brief.facts()) {
+        var intent = fact.elementIntent();
+        if (intent == null || ScriptExecutionAuthority.declaredGeneratedBehavior(brief, intent.elementRef())
+            .filter(fact::equals).isEmpty()) continue;
+        var bodies = graph.nodes().stream()
+            .filter(node -> intent.elementRef().equals(node.nodeId()) && "script".equals(node.type()))
+            .flatMap(node -> node.properties().stream())
+            .filter(property -> "script".equals(property.key())).toList();
+        if (bodies.size() != 1 || bodies.getFirst().value() == null || bodies.getFirst().value().isBlank()) {
+          throw new IllegalArgumentException("Missing executable body for approved script " + intent.elementRef());
+        }
+        SecureGroovyMappingCompiler.compile(bodies.getFirst().value());
+      }
+    }
     List<MappingIntent> ordinary = ordinaryMappings(brief, graph);
     if (ordinary.isEmpty()) {
       if (graph.nodes().stream().anyMatch(CopyMappingPlanner::nativeRetentionSite)) {

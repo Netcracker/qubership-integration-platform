@@ -244,6 +244,13 @@ public final class DesignPlanContractValidator {
         }
       }
     }
+    for (SemanticNode node : revision.nodes()) {
+      if (node instanceof SemanticNode.Operation operation && "script".equals(operation.elementType())
+          && ScriptExecutionAuthority.declaredGeneratedBehavior(brief, node.nodeId())
+              .filter(fact -> node.provenance().sourceFactIds().contains(fact.sourceFactId())).isPresent()) {
+        owners.put(new TargetKey(TargetKind.ELEMENT_NODE, node.nodeId()), DesignPlanProjector.SCRIPT_GENERATOR_SKILL_ID);
+      }
+    }
     for (MappingIntent intent : ScriptExecutionAuthority.mappingsRequiringGeneration(revision, brief)) {
       MappingMechanism mechanism = MappingMechanismSelector.select(intent)
           .orElseThrow(() -> new PlannerContractException(

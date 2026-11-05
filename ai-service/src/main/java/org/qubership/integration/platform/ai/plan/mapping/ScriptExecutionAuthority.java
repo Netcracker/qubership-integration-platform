@@ -6,6 +6,9 @@ import java.util.Map;
 import java.util.Optional;
 import org.qubership.integration.platform.ai.plan.RequirementBodyBinding;
 import org.qubership.integration.platform.ai.plan.RequirementBodySources;
+import org.qubership.integration.platform.ai.plan.RequirementElementIntent;
+import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
@@ -55,6 +58,38 @@ public final class ScriptExecutionAuthority {
     return Optional.ofNullable(agreedBody);
   }
 
+  public static Optional<RequirementFact> declaredGeneratedBehavior(RequirementBrief brief, String nodeId) {
+    if (brief == null || nodeId == null) return Optional.empty();
+    var facts = brief.facts().stream()
+        .filter(fact -> fact.polarity() == RequirementFactPolarity.POSITIVE)
+        .filter(fact -> RequirementBodySources.ownsBody(fact.elementIntent(), "script")
+            && nodeId.equals(fact.elementIntent().elementRef()))
+        .toList();
+    if (facts.size() != 1) return Optional.empty();
+    var fact = facts.getFirst();
+    var intent = fact.elementIntent();
+    if (fact.kind() != RequirementFactKind.BEHAVIOR || fact.text().isBlank()
+        || intent.placement() != RequirementElementIntent.Placement.LOCAL_NODE
+        || intent.ownerInteractionId() == null || !fact.interactionIds().contains(intent.ownerInteractionId())
+        || intent.requestedProperties() == null
+        || intent.requestedProperties().stream().anyMatch(property -> property == null || "script".equals(property.key()))) {
+      return Optional.empty();
+    }
+    try {
+      RequirementBodySources.requireBinding(intent);
+    } catch (IllegalArgumentException unproven) {
+      return Optional.empty();
+    }
+    var binding = intent.bodyBinding();
+    if (binding.authority() != RequirementBodyBinding.Authority.GENERATED_CANDIDATE
+        || binding.sourceGeneration() == null || binding.sourceGeneration().isBlank()
+        || binding.sourceTurnId() == null || binding.sourceTurnId().isBlank()
+        || binding.startOffset() != null || binding.endOffset() != null || binding.encoding() != null) {
+      return Optional.empty();
+    }
+    return Optional.of(fact);
+  }
+
   public static List<MappingIntent> mappingsRequiringGeneration(
       ChainSemanticRevision revision, RequirementBrief brief) {
     Map<String, SemanticNode> nodes = new LinkedHashMap<>();
@@ -87,7 +122,8 @@ public final class ScriptExecutionAuthority {
         }
         continue;
       }
-      if (!mapping && !hasVerbatimBody(brief, node)) {
+      if (!mapping && !hasVerbatimBody(brief, node)
+          && declaredGeneratedBehavior(brief, node.nodeId()).isEmpty()) {
         throw new IllegalArgumentException(unsupportedMessage(node.nodeId()));
       }
       if (declaredSuppliedBody(brief, node.nodeId()).isPresent() && !hasVerbatimBody(brief, node)) {
@@ -108,7 +144,7 @@ public final class ScriptExecutionAuthority {
   }
 
   public static String unsupportedMessage(String nodeId) {
-    return "Capture a supported field mapping or supply an exact script body with source evidence for script node '"
+    return "Bind approved behavior, a supported field mapping, or an exact source-backed body to script node '"
         + nodeId + "'. This script has no executable authority.";
   }
 }

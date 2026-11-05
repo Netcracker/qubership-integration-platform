@@ -33,6 +33,7 @@ import org.qubership.integration.platform.ai.plan.mapping.envelope.MappingEnvelo
 import org.qubership.integration.platform.ai.plan.mapping.schema.JsonSchemaMappingContractFactory;
 import org.qubership.integration.platform.ai.plan.mapping.schema.MappingSchemaSide;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.mapping.ScriptExecutionAuthority;
 import org.qubership.integration.platform.ai.plan.AuthorSourceEvidence;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
@@ -306,8 +307,7 @@ public class CompilerSkillContextBuilder {
   }
 
   /**
-   * Prompt overlay for admitted native mapping and compiler-derived retention script tasks.
-   * Behavior facts provide requirement context and do not authorize additional generated code.
+   * Renders the approved requirements for the targeted script bodies.
    */
   public String renderBehaviorScriptGenerationContext(
       RequirementBrief brief,
@@ -332,9 +332,15 @@ public class CompilerSkillContextBuilder {
     section.append("Approved requirement context:\n");
     appendBehaviorFacts(section, brief, ids, revision);
     section.append('\n');
+    for (String nodeId : ids) {
+      ScriptExecutionAuthority.declaredGeneratedBehavior(brief, nodeId).ifPresent(fact ->
+          section.append("Behavior-owned script generation for ").append(nodeId)
+              .append(": ").append(fact.text()).append('\n'));
+    }
     section.append(
-        "Use only the frozen native mapping or compiler-derived retention plan for these nodes. "
-            + "Requirement context does not authorize extra generated behavior, constants, or response assembly. "
+        "Use only the frozen native mapping or compiler-derived retention plan for mapping or retention nodes. "
+            + "For a behavior-owned node, generate only its approved behavior. "
+            + "Unbound requirement text does not authorize extra generated behavior. "
             + "Preserve exact source-bound supplied bodies. Do not add nodes or edges or invent a MappingIntent.");
     return section.toString();
   }
@@ -720,10 +726,11 @@ public class CompilerSkillContextBuilder {
 
           Script execution eligibility:
           Apply the following runtime patterns only within this node's admitted native mapping,
-          compiler-derived retention plan, or exact currently approved source-bound supplied body.
+          compiler-derived retention plan, exact currently approved source-bound supplied body,
+          or explicitly listed behavior-owned script task.
           Patterns and requirement prose do not authorize extra generated code or changes to exact
-          supplied bodies or deterministic native emission. Unsupported constants, formulas, and
-          response assembly remain blocked; report them instead of generating a fallback script.
+          supplied bodies or deterministic native emission. Use constants, formulas, and response
+          assembly only when the selected task authorizes them.
           A requested edit alone does not grant authority. Preserve supplied bytes exactly; a
           supplied-body replacement requires its newly approved exact body.
 

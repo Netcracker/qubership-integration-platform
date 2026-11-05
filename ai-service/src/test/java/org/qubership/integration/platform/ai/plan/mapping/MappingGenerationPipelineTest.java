@@ -493,6 +493,23 @@ class MappingGenerationPipelineTest {
   }
 
   @Test
+  void schedulesTheApprovedBehaviorShellWithoutMappingIntents() {
+    var graph = completeTaskGraph();
+    var revision = SemanticFixtures.linearOrdersWithCompleteTask();
+    String nodeId = SemanticFixtures.COMPLETE_TASK_NODE_ID;
+    var brief = completeTaskBrief().withFacts(List.of(
+        ScriptAuthorityTestFixtures.generatedBehavior(nodeId, "Return Hello world")));
+
+    var prepared = pipeline.prepare(COMPILATION_ID, SCRIPT_SKILL, revision, List.of(),
+        completeTaskContext(graph, brief));
+
+    assertFalse(prepared.blocked(), prepared.blockedMessage());
+    assertEquals(List.of(nodeId), prepared.context().editTargetNodeIds());
+    assertTrue(prepared.mappingGenerationContext().contains("Behavior-owned script generation for " + nodeId + ": Return Hello world"),
+        prepared.mappingGenerationContext());
+  }
+
+  @Test
   void typedCopyShellRemainsRequiredUntilItsBodyIsFilled() {
     var intent = identityOrderId();
     var graph = new ChainPlanGraph("1.0", new ChainSection("id", "Orders"), List.of(

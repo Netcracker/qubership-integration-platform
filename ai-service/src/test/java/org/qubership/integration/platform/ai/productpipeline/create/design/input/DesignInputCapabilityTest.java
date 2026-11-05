@@ -310,7 +310,7 @@ class DesignInputCapabilityTest {
     org.junit.jupiter.api.Assertions.assertAll("script authority in rendered design instructions",
         () -> assertTrue(prompt.contains("Every script needs its own admitted typed mapping"), prompt),
         () -> assertTrue(prompt.contains("exact source-bound supplied body"), prompt),
-        () -> assertTrue(prompt.contains("report the unsupported requirement instead of generating"), prompt),
+        () -> assertTrue(prompt.contains("GENERATED_CANDIDATE binding for that node"), prompt),
         () -> assertTrue(prompt.contains("native compiler derives context retention"), prompt),
         () -> assertFalse(prompt.contains("or an ErrorScope requires a script"), prompt),
         () -> assertFalse(prompt.contains("is a behavior-owned script"), prompt));

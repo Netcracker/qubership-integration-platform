@@ -440,13 +440,12 @@ public class DesignInputCapability implements StageCapability {
          on every earlier edge through internal processing nodes. Field-mapping\
          shells use elementType script. Do not mint a mapping id and do not reuse a\
          sourceFactId as mappingIntentId. Every script needs its own admitted typed mapping or\
-         exact source-bound supplied body. BEHAVIOR facts, provenance, and region membership\
-         alone do not authorize generated scripts. A skipped mapping hop stays a direct edge\
+         exact source-bound supplied body or an approved BEHAVIOR fact with a source-classified\
+         GENERATED_CANDIDATE binding for that node. A skipped mapping hop stays a direct edge\
          unless a script has that authority. Preserve every positive BEHAVIOR fact on its\
          implementing node or anchor. Constants such as commandType=completeTask and response\
-         assembly remain requirements; if the admitted mapping cannot implement them and no\
-         exact supplied body exists, report the unsupported requirement instead of generating\
-         Groovy. The native compiler derives context retention from admitted mapping origins;\
+         assembly remain requirements. Attach them to the authorized Script that implements them.\
+         The native compiler derives context retention from admitted mapping origins;\
          do not combine extra parsing, constants, or manual retention into a mapping script.\
          Keep supplied bodies exact and preserve their approved execution placement. Native\
          non-script operations and control-flow regions retain their approved structure.\

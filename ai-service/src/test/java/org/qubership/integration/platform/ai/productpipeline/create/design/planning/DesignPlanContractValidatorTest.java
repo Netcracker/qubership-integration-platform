@@ -77,6 +77,33 @@ class DesignPlanContractValidatorTest {
   }
 
   @Test
+  void requiresTheScriptGeneratorForApprovedBehavior() {
+    var fixture = completeFixture();
+    var generated = org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures
+        .generatedBehavior("script-behavior", "Return Hello world");
+    var nodes = fixture.revision().nodes().stream().map(node -> "script-behavior".equals(node.nodeId())
+        ? new SemanticNode.Operation(node.nodeId(), "script", new SemanticProvenance(List.of(generated.sourceFactId())))
+        : node).toList();
+    var original = fixture.revision();
+    var revision = new ChainSemanticRevision(original.schemaVersion(), original.revisionId(), original.chainIdentity(),
+        original.compilerContractVersion(), original.entryPoints(), nodes, original.regions(),
+        original.executionEdges(), original.containment(), original.mappingIntents(), original.constraints(),
+        original.assumptions(), original.citations());
+    var facts = new ArrayList<>(fixture.brief().facts());
+    facts.removeIf(fact -> fact.elementIntent() != null && "script-behavior".equals(fact.elementIntent().elementRef()));
+    facts.add(generated);
+    var brief = fixture.brief().withFacts(facts);
+    var steps = new ArrayList<>(fixture.contract().steps());
+    steps.add(step("generate-behavior", "cip-script-generator", TargetKind.ELEMENT_NODE, "script-behavior"));
+    var contract = contract(revision, steps);
+    var report = new DesignPlanReportRenderer().render(contract);
+    var plan = new DesignPlanProjector().project(contract, report, revision, fixture.pin(), brief);
+
+    assertEquals(List.of("cip-script-generator"), plan.steps().stream()
+        .filter(step -> "generate-behavior".equals(step.stepId())).findFirst().orElseThrow().owningSkillIds());
+  }
+
+  @Test
   void suppliedScriptDoesNotBecomeAGeneratorTarget() {
     var fixture = completeFixture();
     var steps = new ArrayList<>(fixture.contract().steps());

@@ -266,6 +266,32 @@ class MaterializationCapabilityTest {
     assertEquals(java.util.Optional.empty(), artifactStore.latest(RUN_ID, Kind.MATERIALIZATION_RESULT));
   }
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"missing-node", "blank-body", "invalid-groovy"})
+  void approvedGeneratedScriptMustHaveAnExecutableBodyBeforeCatalogWrite(String defect) throws Exception {
+    var fixture = mappingFixture(false, false, false);
+    var brief = fixture.brief().withMappingIntents(List.of()).withFacts(List.of(
+        org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures
+            .generatedBehavior("script-1", "Return Hello world")));
+    var graph = new ChainPlanGraph(fixture.graph().schemaVersion(), fixture.graph().chain(),
+        fixture.graph().nodes().stream()
+            .filter(node -> !("missing-node".equals(defect) && "script-1".equals(node.nodeId())))
+            .map(node -> "script-1".equals(node.nodeId())
+                ? new ChainPlanNode(node.nodeId(), node.type(), node.label(), null, null, List.of(
+                    new org.qubership.integration.platform.ai.plan.model.PlanProperty(
+                        "script", "blank-body".equals(defect) ? "" : "return [")))
+                : node).toList(), fixture.graph().edges());
+    capability.copyMappings = new org.qubership.integration.platform.ai.plan.mapping.CopyMappingMaterializationValidator(
+        compilationArtifacts);
+    var prepared = appendHappyPathV2Inputs(brief, fixture.semantic(), graph);
+    var outcome = completed(capability.execute(v2Context(prepared, prepared.requestRef(), prepared.bundleRef()))).outcome();
+
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, outcome.outcomeClass(), outcome.message());
+    assertTrue(outcome.message().contains("invalid-groovy".equals(defect)
+        ? "Groovy mapping:" : "Missing executable body for approved script script-1"), outcome.message());
+    verify(materializer, never()).resume(any(), any());
+  }
+
   @Test
   void exactSuppliedOnlyScriptReachesTheWriteBoundaryWithoutMappings(
       @org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws Exception {
