@@ -82,10 +82,10 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.m2/repository
-          key: maven-${{ runner.os }}-${{ hashFiles('.mvn/**') }}-${{ inputs.module }}-${{ hashFiles('**/pom.xml') }}
+          key: maven-${{ runner.os }}-${{ inputs.module }}-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
-            maven-${{ runner.os }}-${{ hashFiles('.mvn/**') }}-${{ inputs.module }}-
-            maven-${{ runner.os }}-${{ hashFiles('.mvn/**') }}-
+            maven-${{ runner.os }}-${{ inputs.module }}-
+            maven-${{ runner.os }}-
 
       - name: Build and verify (no publish)
         env:
@@ -101,7 +101,8 @@ jobs:
           fi
           update_args=()
           if [ "$FORCE_UPDATE" = true ]; then update_args=(-U); fi
-          "$GITHUB_WORKSPACE/scripts/maven-ci.sh" verify "${update_args[@]}" \
+          mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
+            verify "${update_args[@]}" \
             -pl "$MODULE_NAME" -am -Dgpg.skip=true
 
       - name: Save the Maven repository
@@ -172,10 +173,10 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.m2/repository
-          key: maven-${{ runner.os }}-${{ hashFiles('.mvn/**') }}-${{ inputs.module }}-${{ hashFiles('**/pom.xml') }}
+          key: maven-${{ runner.os }}-${{ inputs.module }}-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
-            maven-${{ runner.os }}-${{ hashFiles('.mvn/**') }}-${{ inputs.module }}-
-            maven-${{ runner.os }}-${{ hashFiles('.mvn/**') }}-
+            maven-${{ runner.os }}-${{ inputs.module }}-
+            maven-${{ runner.os }}-
 
       - name: Pre-install integration-build-library into .m2
         if: ${{ inputs.preinstall-integration-build-pipeline-library == true }}
@@ -184,7 +185,7 @@ jobs:
           MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eu
-          "$GITHUB_WORKSPACE/scripts/maven-ci.sh" \
+          mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
             -f integration-build-pipeline/pom.xml install \
             -DskipTests -Dgpg.skip=true -Dcheckstyle.skip=true
 
@@ -207,7 +208,7 @@ jobs:
           SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION }}
           SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
         run: |
-          "$GITHUB_WORKSPACE/scripts/maven-ci.sh" \
+          mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
             "org.sonarsource.scanner.maven:sonar-maven-plugin:${SONAR_PLUGIN_VERSION}:sonar" \
             -Dsonar.token="$SONAR_TOKEN" \
             -Dsonar.projectKey="$SONAR_PROJECT_KEY" \

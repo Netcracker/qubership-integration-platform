@@ -5,9 +5,6 @@ on:
     types: [opened, synchronize, reopened]
     paths:
       - '.github/maven-settings.xml'
-      - '.mvn/**'
-      - 'mvnw*'
-      - 'scripts/maven-ci.sh'
       - '.github/workflows/snapshot-flow-build.yaml'
       - 'integration-build-pipeline/**'
       - 'runtime-catalog/**'
@@ -23,9 +20,6 @@ on:
       - main
     paths:
       - '.github/maven-settings.xml'
-      - '.mvn/**'
-      - 'mvnw*'
-      - 'scripts/maven-ci.sh'
       - '.github/workflows/snapshot-flow-build.yaml'
       - 'integration-build-pipeline/**'
       - 'runtime-catalog/**'
@@ -97,11 +91,11 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.m2/repository
-          key: maven-${{ runner.os }}-${{ hashFiles('.mvn/**') }}-snapshot-flow-${{ hashFiles('**/pom.xml') }}
+          key: maven-${{ runner.os }}-snapshot-flow-${{ hashFiles('**/pom.xml') }}
           # Until main has a snapshot-flow cache, start from the runtime-catalog one.
           restore-keys: |
-            maven-${{ runner.os }}-${{ hashFiles('.mvn/**') }}-snapshot-flow-
-            maven-${{ runner.os }}-${{ hashFiles('.mvn/**') }}-runtime-catalog-
+            maven-${{ runner.os }}-snapshot-flow-
+            maven-${{ runner.os }}-runtime-catalog-
 
       - name: Verify Docker
         run: docker version
@@ -114,6 +108,7 @@ jobs:
           ROOT_LOG_LEVEL: WARN
         run: |
           bash scripts/test-micro-engine-snapshots.sh \
+            -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
             '-Dquarkus.log.category."org.apache.camel.processor.errorhandler.DefaultErrorHandler".level=OFF'
 
       - name: Save the Maven repository

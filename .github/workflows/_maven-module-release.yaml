@@ -197,9 +197,9 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.m2/repository
-          key: maven-${{ runner.os }}-${{ hashFiles('.mvn/**') }}-${{ inputs.module }}-${{ hashFiles('**/pom.xml') }}
+          key: maven-${{ runner.os }}-${{ inputs.module }}-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
-            maven-${{ runner.os }}-${{ hashFiles('.mvn/**') }}-${{ inputs.module }}-
+            maven-${{ runner.os }}-${{ inputs.module }}-
 
       # Pre-install the parent pom (deploy needs it; `-pl parent -N` is broken).
       - name: Install qip-monorepo-parent locally
@@ -207,8 +207,7 @@ jobs:
         env:
           MAVEN_GITHUB_USERNAME: ${{ github.actor }}
           MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          "$GITHUB_WORKSPACE/scripts/maven-ci.sh" -f parent/pom.xml install -N -DskipTests
+        run: mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" -f parent/pom.xml install -N -DskipTests
 
       - name: Build and deploy module
         if: ${{ needs.check-version.outputs.recover != 'true' }}
@@ -232,7 +231,8 @@ jobs:
           # -Drevision publishes the computed version; -Dchangelist= strips
           # -SNAPSHOT from this module's version and from its library pin alike.
           # shellcheck disable=SC2086
-          "$GITHUB_WORKSPACE/scripts/maven-ci.sh" deploy \
+          mvn --batch-mode deploy \
+            -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
             -pl $MODULE_NAME \
             -P "$MVN_PROFILE" \
             -Drevision="$RELEASE_VERSION" \

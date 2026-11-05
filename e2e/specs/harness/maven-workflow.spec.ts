@@ -21,10 +21,6 @@ const DIRECTORY = path.join(repoRoot(), ".github/workflows");
 const SHARED = [
   ".github/workflows/_maven-module-build.yaml",
   ".github/maven-settings.xml",
-  ".mvn/wrapper/maven-wrapper.properties",
-  "mvnw",
-  "mvnw.cmd",
-  "scripts/maven-ci.sh",
 ];
 
 const workflows = () => fs.readdirSync(DIRECTORY).filter((name) => name.endsWith(".yaml")).map((name) => ({
@@ -53,14 +49,14 @@ test.describe("Maven workflow selection", () => {
     expect(command).toBeTruthy();
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "maven-openapi-"));
     try {
-      fs.mkdirSync(path.join(directory, "scripts"));
+      fs.mkdirSync(path.join(directory, "bin"));
       fs.mkdirSync(path.join(directory, "service/api-spec"), { recursive: true });
       const output = path.join(directory, "service/api-spec/openapi.yaml");
       fs.writeFileSync(output, "committed specification");
-      fs.writeFileSync(path.join(directory, "scripts/maven-ci.sh"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+      fs.writeFileSync(path.join(directory, "bin/mvn"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
       const result = spawnSync("bash", ["-eu", "-c", command!], {
         cwd: directory,
-        env: { ...process.env, GITHUB_WORKSPACE: directory, MODULE_NAME: "service", FORCE_UPDATE: "false", OPENAPI_CHECK: "true" },
+        env: { ...process.env, PATH: `${path.join(directory, "bin")}:${process.env.PATH}`, GITHUB_WORKSPACE: directory, MODULE_NAME: "service", FORCE_UPDATE: "false", OPENAPI_CHECK: "true" },
         encoding: "utf-8",
       });
       expect(result.status, result.stderr).toBe(0);

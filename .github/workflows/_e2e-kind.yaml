@@ -100,10 +100,10 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.m2/repository
-          key: maven-${{ runner.os }}-${{ hashFiles('.mvn/**') }}-snapshot-flow-${{ hashFiles('**/pom.xml') }}
+          key: maven-${{ runner.os }}-snapshot-flow-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
-            maven-${{ runner.os }}-${{ hashFiles('.mvn/**') }}-snapshot-flow-
-            maven-${{ runner.os }}-${{ hashFiles('.mvn/**') }}-runtime-catalog-
+            maven-${{ runner.os }}-snapshot-flow-
+            maven-${{ runner.os }}-runtime-catalog-
 
       - name: Set up Node.js
         id: node
@@ -152,7 +152,7 @@ jobs:
           istioctl version --remote=false
           kubectl version --client
           helm version
-          "$GITHUB_WORKSPACE/scripts/maven-ci.sh" --version
+          mvn -v
 
       # Runs alongside the next steps and the suite's image builds. The exit code is written to a file
       # after the log is complete, and the provisioner waits for that file before its first cluster call.
@@ -182,6 +182,7 @@ jobs:
 
       # E2E_SAMPLE_MAX_MS bounds the resource sampler and, as --global-timeout, the suite.
       # At the global timeout the reporters still write; a job cancel gives them about 7.5 s.
+      # MAVEN_ARGS needs Maven 3.9 or later.
       - name: Run the suite
         id: suite
         working-directory: e2e
@@ -194,6 +195,7 @@ jobs:
           PROJECTS: ${{ steps.lane.outputs.projects }}
           PULL_REQUEST: ${{ inputs.pull-request }}
           E2E_BOOTSTRAP_LOG: ${{ env.BOOTSTRAP_LOG }}
+          MAVEN_ARGS: -B -s ${{ github.workspace }}/.github/maven-settings.xml
           MAVEN_GITHUB_USERNAME: ${{ github.actor }}
           MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: |

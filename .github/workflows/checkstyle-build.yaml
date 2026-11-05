@@ -7,9 +7,6 @@ on:
       - '.github/workflows/checkstyle-build.yaml'
       - '.github/workflows/_maven-module-build.yaml'
       - '.github/maven-settings.xml'
-      - '.mvn/**'
-      - 'mvnw*'
-      - 'scripts/maven-ci.sh'
       - 'checkstyle/**'
       - 'pom.xml'
 

@@ -43,7 +43,3 @@ indent_size = 2
 
 [Makefile]
 indent_style = tab
-
-[mvnw.cmd]
-end_of_line = crlf
-indent_size = 2

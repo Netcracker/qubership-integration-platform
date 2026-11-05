@@ -81,17 +81,16 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.m2/repository
-          key: maven-${{ runner.os }}-${{ hashFiles('.mvn/**') }}-${{ inputs.module }}-${{ hashFiles('**/pom.xml') }}
+          key: maven-${{ runner.os }}-${{ inputs.module }}-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
-            maven-${{ runner.os }}-${{ hashFiles('.mvn/**') }}-${{ inputs.module }}-
+            maven-${{ runner.os }}-${{ inputs.module }}-
 
       # Pre-install the parent pom so the single-module deploy below resolves it.
       - name: Install qip-monorepo-parent locally
         env:
           MAVEN_GITHUB_USERNAME: ${{ github.actor }}
           MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          "$GITHUB_WORKSPACE/scripts/maven-ci.sh" -f parent/pom.xml install -N -DskipTests
+        run: mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" -f parent/pom.xml install -N -DskipTests
 
       # runtime-catalog and the Maven plugin pin integration-build-pipeline at its
       # development coordinate, and the deploy below builds one module with no
@@ -104,7 +103,7 @@ jobs:
           MAVEN_GITHUB_USERNAME: ${{ github.actor }}
           MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          "$GITHUB_WORKSPACE/scripts/maven-ci.sh" \
+          mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
             -f integration-build-pipeline/pom.xml deploy -Pgithub \
             -Dmaven.test.skip=true -Dmaven.javadoc.skip=true \
             -Dgpg.skip=true -Dcheckstyle.skip=true
@@ -121,4 +120,4 @@ jobs:
           # (no -Drevision / -Dchangelist=) → publishes the current X.Y.Z-SNAPSHOT.
           # -Pgithub deactivates the activeByDefault `central` profile and targets
           # maven.pkg.github.com; GPG is skipped for GitHub Packages.
-          "$GITHUB_WORKSPACE/scripts/maven-ci.sh" deploy -Pgithub -Dgpg.skip=true
+          mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" deploy -Pgithub -Dgpg.skip=true

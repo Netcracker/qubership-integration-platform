@@ -6,11 +6,6 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
-      - '.github/workflows/schemas-build.yaml'
-      - '.github/maven-settings.xml'
-      - '.mvn/**'
-      - 'mvnw*'
-      - 'scripts/maven-ci.sh'
       - 'schemas/**'
       - 'package.json'
       - 'package-lock.json'
@@ -42,10 +37,7 @@ jobs:
 
       - name: Maven verify
         working-directory: schemas
-        env:
-          MAVEN_GITHUB_USERNAME: ${{ github.actor }}
-          MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-        run: '"$GITHUB_WORKSPACE/scripts/maven-ci.sh" verify -Dgpg.skip=true'
+        run: mvn --batch-mode verify -Dgpg.skip=true
 
   npm-build:
     runs-on: ubuntu-latest
