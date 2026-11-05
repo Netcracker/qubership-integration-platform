@@ -184,7 +184,7 @@ public class MaterializationCapability implements StageCapability {
         if (copyMappings == null) {
           throw new IllegalStateException("Script execution validation is required before materialization.");
         }
-        copyMappings.validate(context.runId(), brief, semantic, resolved.graph());
+        copyMappings.validate(context.conversationId(), brief, semantic, resolved.graph());
         var ordinary = org.qubership.integration.platform.ai.plan.mapping.CopyMappingMaterializationValidator
             .ordinaryMappings(brief, resolved.graph());
         if (!ordinary.isEmpty()) {

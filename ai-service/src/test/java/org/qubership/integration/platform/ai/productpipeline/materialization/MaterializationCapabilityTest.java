@@ -27,6 +27,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFactsService;
 import org.qubership.integration.platform.ai.chain.reconcile.ChainReconcileService;
+import org.qubership.integration.platform.ai.compiler.CompilerSkillContextBuilder;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
@@ -35,6 +36,12 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.MaterializationMap;
 import org.qubership.integration.platform.ai.plan.ImplementationPlan;
+import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.RequirementFactKind;
+import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
+import org.qubership.integration.platform.ai.plan.mapping.DirectFieldMappingScript;
+import org.qubership.integration.platform.ai.plan.mapping.MappingGenerationPipeline;
+import org.qubership.integration.platform.ai.plan.mapping.envelope.MappingEnvelope;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
@@ -66,6 +73,8 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipe
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileParser;
 import org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryFaultInjector;
 import org.qubership.integration.platform.ai.qipknowledge.patch.CanonicalGraphDigest;
+import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecutionContext;
+import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwnershipPolicy;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
 
 @ExtendWith(MockitoExtension.class)
@@ -73,6 +82,7 @@ class MaterializationCapabilityTest {
 
   private static final Instant FIXED = Instant.parse("2026-07-24T00:00:00Z");
   private static final String RUN_ID = "run-materialization-capability-1";
+  private static final String CONVERSATION_ID = "conv-1";
 
   @Mock private ProductChainMaterializer materializer;
   @Mock private ChainCatalogFactsService factsService;
@@ -126,6 +136,43 @@ class MaterializationCapabilityTest {
     parkBeforeWrites(directory);
     var subscription = capability.execute(v2Context(prepared, prepared.requestRef(), prepared.bundleRef()))
         .subscribe().with(signal -> org.junit.jupiter.api.Assertions.fail("Verified input should park before catalog writes: " + signal));
+    try {
+      assertTrue(java.nio.file.Files.exists(directory.resolve("checkpoint.json")),
+          () -> "Expected checkpoint at " + directory.resolve("checkpoint.json"));
+      verify(materializer, never()).resume(any(), any());
+    } finally {
+      subscription.cancel();
+    }
+  }
+
+  @Test
+  void shouldGenerateAndValidateCopyFromTheApprovedCustomRequestSchema(
+      @org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws Exception {
+    var fixture = mappingFixture(true, false, false, true);
+    capability.copySchemas = fixture.schemas();
+    var skill = MappingGenerationPipeline.SCRIPT_GENERATOR;
+    var shell = fixture.graph().withNodeProperty("script-1", "script", "");
+    var context = new GraphPatchExecutionContext(CONVERSATION_ID, skill, "requirements", "graph", "compiler", "24.4",
+        fixture.brief(), List.of(), shell, GraphPatchOwnershipPolicy.denyAll(), "");
+    var promptRenderer = mock(CompilerSkillContextBuilder.class);
+    when(promptRenderer.renderBehaviorScriptGenerationContext(any(), any(), any(), any())).thenReturn("");
+    var generation = new MappingGenerationPipeline(compilationArtifacts, new ObjectMapper(), promptRenderer);
+
+    var generated = generation.prepare(CONVERSATION_ID, skill, fixture.semantic(), List.of(), context);
+
+    assertFalse(generated.blocked(), generated.blockedMessage());
+    assertEquals(1, generated.envelopeRefs().size(), generated.envelopeRefs().toString());
+    var envelope = compilationArtifacts.payload(
+        compilationArtifacts.get(CONVERSATION_ID, generated.envelopeRefs().getFirst()).orElseThrow(), MappingEnvelope.class);
+    var mapping = fixture.brief().mappingIntents().getFirst();
+    assertEquals("b4e9050f8405c335ff1c5661fd13587d67811bb7fd15c6d8c3434c94bca7193b",
+        envelope.verifiedCopyPlan().reads().getFirst().schemaDigest());
+    var script = DirectFieldMappingScript.from(mapping, envelope).orElseThrow().script();
+    var graph = shell.withNodeProperty("script-1", "script", script);
+    var prepared = appendHappyPathV2Inputs(fixture.brief(), fixture.semantic(), graph);
+    parkBeforeWrites(directory);
+    var subscription = capability.execute(v2Context(prepared, prepared.requestRef(), prepared.bundleRef()))
+        .subscribe().with(signal -> org.junit.jupiter.api.Assertions.fail("Verified COPY should park before writes: " + signal));
     try {
       assertTrue(java.nio.file.Files.exists(directory.resolve("checkpoint.json")),
           () -> "Expected checkpoint at " + directory.resolve("checkpoint.json"));
@@ -404,6 +451,11 @@ class MaterializationCapabilityTest {
   }
 
   private MappingFixture mappingFixture(boolean verified, boolean supplied, boolean altered) throws Exception {
+    return mappingFixture(verified, supplied, altered, false);
+  }
+
+  private MappingFixture mappingFixture(boolean verified, boolean supplied, boolean altered,
+      boolean customEntry) throws Exception {
     var mapper = new ObjectMapper();
     var sourceJson = mapper.readTree("""
         {"type":"object","properties":{"processInstanceId":{"type":"string"}}}
@@ -411,7 +463,8 @@ class MaterializationCapabilityTest {
     var targetJson = mapper.readTree("""
         {"type":"object","properties":{"processId":{"type":"string"}}}
         """);
-    String sourceHash = "d500736bdb6f43ad64a1bd56f2626820982dc705d8d6265f0262e0dcc14ab157";
+    String sourceHash = customEntry ? "b4e9050f8405c335ff1c5661fd13587d67811bb7fd15c6d8c3434c94bca7193b"
+        : "d500736bdb6f43ad64a1bd56f2626820982dc705d8d6265f0262e0dcc14ab157";
     String targetHash = "a33b43fecff4d5a99f5a198a5cb5dd35950ad0c971893e2857015e0a166cbbfa";
     var origin = new org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource.Message(
         "approved-entry", org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort.OUTPUT, "$.processInstanceId");
@@ -436,13 +489,23 @@ class MaterializationCapabilityTest {
               sourceHash, targetHash, null, false)), List.of());
       var envelope = new org.qubership.integration.platform.ai.plan.mapping.envelope.JsonSchemaMessageSchemaFactory(mapper)
           .fromSides(sourceSide, targetSide).withMappingIntentId("copy").withVerifiedCopyPlan(plan);
-      append(Kind.MAPPING_SCHEMA_SIDE, "1", sourceSide, List.of());
-      append(Kind.MAPPING_SCHEMA_SIDE, "1", targetSide, List.of());
-      append(Kind.MAPPING_ENVELOPE, "1", envelope, List.of());
+      appendMappingEvidence(Kind.MAPPING_SCHEMA_SIDE, targetSide);
+      if (!customEntry) {
+        appendMappingEvidence(Kind.MAPPING_SCHEMA_SIDE, sourceSide);
+        appendMappingEvidence(Kind.MAPPING_ENVELOPE, envelope);
+      }
       body = org.qubership.integration.platform.ai.plan.mapping.DirectFieldMappingScript.from(mapping, envelope).orElseThrow().script();
     }
     if (altered) body = "exchange.in.body = [processId: 'invented']";
     List<org.qubership.integration.platform.ai.plan.RequirementFact> facts = List.of();
+    if (customEntry) {
+      facts = List.of(
+          new RequirementFact("route", RequirementFactPolarity.POSITIVE, RequirementFactKind.CAPABILITY,
+              "http-trigger", "Accept a request.", "Source", "GET /approved", null, "GET", "/approved",
+              null, List.of("approved-entry")),
+          new RequirementFact("input-schema", RequirementFactPolarity.POSITIVE, RequirementFactKind.MESSAGE_SCHEMA,
+              "", sourceJson.toString(), null, null, null, null, null, null, List.of("approved-entry")));
+    }
     if (supplied) {
       var binding = new org.qubership.integration.platform.ai.plan.RequirementBodyBinding(
           org.qubership.integration.platform.ai.plan.RequirementBodyBinding.Authority.VERBATIM_SOURCE_BODY,
@@ -468,7 +531,8 @@ class MaterializationCapabilityTest {
             new org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction("target",
                 org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction.OUTBOUND, "Target", "POST /target", "")),
             List.of(new org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition("approved-entry", "target"))))
-        .withCatalogBindings(List.of(mappingBinding("approved-entry", "op-entry"), mappingBinding("target", "op-target")));
+        .withCatalogBindings(customEntry ? List.of(mappingBinding("target", "op-target"))
+            : List.of(mappingBinding("approved-entry", "op-entry"), mappingBinding("target", "op-target")));
     var semantic = new org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision(
         "chain-semantic-revision/v1", "semantic", "demo-chain", "1",
         List.of(new org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint(
@@ -496,6 +560,11 @@ class MaterializationCapabilityTest {
             "op-target", Map.of("application/json", targetJson), Map.of()));
     return new MappingFixture(brief, semantic, graph,
         new org.qubership.integration.platform.ai.plan.BriefCopyMappingValidator(new ReadOnlyMappingSchemas(operations), mapper));
+  }
+
+  private void appendMappingEvidence(Kind kind, Object payload) {
+    compilationArtifacts.append(new AppendCommand(
+        CONVERSATION_ID, kind, "1", "compiler-fixture", "1", payload, List.of(), null));
   }
 
   private static org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint mappingBinding(String id, String operation) {
@@ -1389,7 +1458,7 @@ class MaterializationCapabilityTest {
   private StageExecutionContext contextWith(PreparedInputs prepared, Reference approvalRef) {
     return new StageExecutionContext(
         RUN_ID,
-        "conv-1",
+        CONVERSATION_ID,
         "materialization",
         RUN_ID,
         "attempt-1",
@@ -1696,7 +1765,7 @@ class MaterializationCapabilityTest {
       PreparedV2Inputs prepared, Reference requestRef, Reference bundleRef) {
     return new StageExecutionContext(
         RUN_ID,
-        "conv-1",
+        CONVERSATION_ID,
         "materialization",
         RUN_ID,
         "attempt-1",

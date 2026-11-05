@@ -651,6 +651,13 @@ public class RequirementDraftStore {
         java.util.Set.of(), java.util.Map.of(), fact -> false);
   }
 
+  List<RequirementCaptureEditor.Issue> validateMessageSchemaEvidence(String conversationId,
+      RequirementCaptureInput.DraftInput input, RequirementDraft previous) {
+    if (input.facts() == null || input.facts().stream().noneMatch(fact -> fact != null
+        && fact.kind() == RequirementCaptureInput.FactKind.MESSAGE_SCHEMA)) return List.of();
+    return MessageSchemaContract.validateEvidence(input, previous, sourceEvidence(conversationId).authored());
+  }
+
   public List<RequirementCaptureEditor.Issue> validateForContinuation(String conversationId) {
     var issues = new ArrayList<>(validateCurrent(conversationId));
     var current = get(conversationId).orElse(null);

@@ -116,6 +116,7 @@ public final class RequirementCaptureInput {
     GOAL,
     PARAMETER,
     FIELD_MAPPING,
+    MESSAGE_SCHEMA,
     BEHAVIOR,
     CONSTRAINT,
     VISIBILITY,

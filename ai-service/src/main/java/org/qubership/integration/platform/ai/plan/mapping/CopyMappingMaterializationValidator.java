@@ -49,7 +49,7 @@ public class CopyMappingMaterializationValidator {
     return List.copyOf(ordinary);
   }
 
-  public void validate(String runId, RequirementBrief brief,
+  public void validate(String compilationId, RequirementBrief brief,
       ChainSemanticRevision semantic, ChainPlanGraph graph) {
     ScriptExecutionAuthority.requireSupported(brief, graph);
     if (brief != null) {
@@ -82,7 +82,7 @@ public class CopyMappingMaterializationValidator {
       }
     }
     DefaultMappingBoundarySchemaResolver resolver =
-        new DefaultMappingBoundarySchemaResolver(artifacts, runId, triggerOwners);
+        new DefaultMappingBoundarySchemaResolver(artifacts, compilationId, triggerOwners, brief);
     Map<String, MappingSchemaSide> outputs = new LinkedHashMap<>();
     for (MappingIntent intent : ordinary) {
       MappingSchemaSide target = resolver.resolve(semantic, List.of(), intent, outputs).target();
@@ -96,7 +96,7 @@ public class CopyMappingMaterializationValidator {
         semantic, ordinary, resolver, List.of(), outputs, graph);
     ScriptExecutionAuthority.requireRetentionOwners(graph, expected);
     Map<String, MappingEnvelope> envelopes = new LinkedHashMap<>();
-    for (var revision : artifacts.history(runId, Kind.MAPPING_ENVELOPE)) {
+    for (var revision : artifacts.history(compilationId, Kind.MAPPING_ENVELOPE)) {
       MappingEnvelope envelope = artifacts.payload(revision, MappingEnvelope.class);
       if (envelope.mappingIntentId() != null) envelopes.put(envelope.mappingIntentId(), envelope);
     }

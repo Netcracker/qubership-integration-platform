@@ -106,7 +106,8 @@ public class MappingGenerationPipeline {
       return readyWithScriptContext(context, behaviorContext, requiredBlanks);
     }
     DefaultMappingBoundarySchemaResolver resolver =
-        new DefaultMappingBoundarySchemaResolver(artifacts, compilationId);
+        new DefaultMappingBoundarySchemaResolver(artifacts, compilationId, Map.of(),
+            context == null ? null : context.requirementBrief());
     JsonSchemaMessageSchemaFactory envelopeFactory =
         new JsonSchemaMessageSchemaFactory(objectMapper);
     Map<String, MappingSchemaSide> outputSchemasByTransformNodeId = new LinkedHashMap<>();

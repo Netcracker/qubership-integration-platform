@@ -697,6 +697,9 @@ public final class RequirementCaptureEditor {
               "Keep the scoped question open until the user answers; remove it when recording the response.");
         }
       }
+      if (fact.kind() == FactKind.MESSAGE_SCHEMA) {
+        MessageSchemaContract.validateFact(draft, fact, path, issues);
+      }
       if (fact.kind() == RequirementCaptureInput.FactKind.FIELD_MAPPING) {
         var mapping = fact.fieldMapping();
         if (mapping == null) {
@@ -732,9 +735,13 @@ public final class RequirementCaptureEditor {
             add(issues, "MAPPING_VALUE_UNSUPPORTED", path + "/fieldMapping/value", fact.sourceFactId(),
                 "This capture supports COPY from a message with an explicit origin.");
           } else if (blank(message.interactionId()) || !ids.contains(message.interactionId())
-              || message.port() == null || blank(message.path())) {
+              || blank(message.path())) {
             add(issues, "MAPPING_ORIGIN_REQUIRED", path + "/fieldMapping/value/source", fact.sourceFactId(),
-                "Provide a known source interaction, port and field path.");
+                "Provide a known source interaction and field path.");
+          } else if (message.port() == null && byId.get(message.interactionId()).direction() != Direction.INBOUND
+              && !message.interactionId().equals(mapping.sourceInteractionId())) {
+            add(issues, "MAPPING_ORIGIN_REQUIRED", path + "/fieldMapping/value/source/port", fact.sourceFactId(),
+                "Specify whether the value comes from the earlier call's request or response.");
           }
         }
         if (mapping.missingSourcePolicy() != null

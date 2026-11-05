@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.plan;
 
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -14,6 +15,7 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftI
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftSettings;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactKind;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FieldMappingInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FlowInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.HttpMethod;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.HttpMode;
@@ -22,11 +24,112 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polari
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.QuestionInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.RetryInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.TransitionInput;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingValue;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementEntryPoint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 
 class RequirementCaptureProjectionTest {
+
+  @Test
+  void shouldResolveCustomTriggerOutputAndAskForItsSchemaBeforePlanning() {
+    var copy = new FactInput("copy-order", List.of("http-entry", "call"), FactKind.FIELD_MAPPING,
+        Polarity.POSITIVE, "Copy customer to customerId.",
+        new FieldMappingInput("http-entry", null, "call", "$.customerId", null,
+            new MappingValue.Copy(new MappingSource.Message("http-entry", MappingPort.REQUEST, "$.customer"))));
+    var input = new DraftInput(new FlowInput(List.of(
+        new InteractionInput("http-entry", Direction.INBOUND, "Caller", "POST /orders", null, null, null),
+        new InteractionInput("call", Direction.OUTBOUND, "Orders", "create", null, null, null)),
+        List.of(new TransitionInput("http-entry", "call"))),
+        List.of(copy, new FactInput("goal", List.of(), FactKind.GOAL, Polarity.POSITIVE, "Create an order.")),
+        List.of(new CapabilityInput("http-entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.POST,
+            "/orders", null, null, null)), List.of(), new DraftSettings(false, null));
+
+    var admitted = RequirementCaptureProjection.withCopyPolicies(input);
+
+    assertAll(
+        () -> assertEquals(new MappingValue.Copy(new MappingSource.Message(
+            "http-entry", MappingPort.OUTPUT, "$.customer")), admitted.facts().getFirst().fieldMapping().value()),
+        () -> assertEquals(List.of("http-entry"), RequirementCaptureProjection.pending(admitted, List.of()).stream()
+            .filter(work -> "COPY_INPUT_SCHEMA_REQUIRED".equals(work.code()))
+            .map(RequirementCaptureProjection.PendingWork::interactionId).toList()));
+  }
+
+
+  @Test
+  void shouldRequireAnExactAuthorQuoteForTheRequestSchema() {
+    String schema = """
+        {"type":"object","properties":{"client":{"type":"string"}}}
+        """.strip();
+    var input = kafkaDraft(List.of(new FactInput("request-schema", List.of("http-entry"),
+        FactKind.MESSAGE_SCHEMA, Polarity.POSITIVE, schema, null, null, null,
+        new RequirementCaptureInput.ClaimEvidenceInput("input", schema))));
+    var supplied = new AuthorSourceEvidence.Packet("current",
+        List.of(new AuthorSourceEvidence.Input("input", "The request schema is " + schema)));
+    var sample = new AuthorSourceEvidence.Packet("current",
+        List.of(new AuthorSourceEvidence.Input("input", "{\"client\":\"Alice\"}")));
+
+    assertAll(
+        () -> assertEquals(List.of(), MessageSchemaContract.validateEvidence(input, null, supplied)),
+        () -> assertEquals(List.of("MESSAGE_SCHEMA_SOURCE_REQUIRED"),
+            MessageSchemaContract.validateEvidence(input, null, sample).stream()
+                .map(RequirementCaptureEditor.Issue::code).toList()));
+  }
+
+  @Test
+  void shouldPreserveExplicitEarlierOutboundPortsAndRejectAnUnspecifiedPort() {
+    var source = new InteractionInput("lookup", Direction.OUTBOUND, "Lookup", "read", null, null, null);
+    var placement = new InteractionInput("enrich", Direction.OUTBOUND, "Enrichment", "read", null, null, null);
+    var target = new InteractionInput("write", Direction.OUTBOUND, "Orders", "create", null, null, null);
+    var entry = new InteractionInput("entry", Direction.INBOUND, "Caller", "POST /orders", null, null, null);
+    var flow = new FlowInput(List.of(entry, source, placement, target), List.of(
+        new TransitionInput("entry", "lookup"), new TransitionInput("lookup", "enrich"),
+        new TransitionInput("enrich", "write")));
+    for (MappingPort port : new MappingPort[] {MappingPort.REQUEST, MappingPort.RESPONSE, null}) {
+      var origin = new MappingSource.Message("lookup", port, "$.customer");
+      var rule = new FactInput("copy-order", List.of("enrich", "write"), FactKind.FIELD_MAPPING,
+          Polarity.POSITIVE, "Copy the earlier lookup's customer field.",
+          new FieldMappingInput("enrich", null, "write", "$.customerId", null, new MappingValue.Copy(origin)));
+      var input = new DraftInput(flow, List.of(rule), List.of(), List.of(), new DraftSettings(false, null));
+
+      var validation = RequirementCaptureEditor.initialize(input);
+      var projected = RequirementCaptureProjection.withCopyPolicies(input);
+
+      assertAll(
+          () -> assertEquals(port == null ? List.of("copy-order") : List.of(), validation.issues().stream()
+              .filter(issue -> "MAPPING_ORIGIN_REQUIRED".equals(issue.code()))
+              .map(RequirementCaptureEditor.Issue::entityId).toList(), "origin " + origin),
+          () -> assertEquals(new MappingValue.Copy(origin), projected.facts().getFirst().fieldMapping().value()));
+    }
+  }
+
+  @Test
+  void shouldRequireAnUnambiguousMethodAndPathWhenSeveralRoutesCanOwnTheSchema() {
+    String schema = "{\"type\":\"object\",\"properties\":{}}";
+    var base = kafkaDraft(List.of());
+    var capabilities = List.of(
+        new CapabilityInput("orders", "http-trigger", HttpMode.CUSTOM, HttpMethod.POST,
+            "/orders", null, null, null),
+        new CapabilityInput("orders-v2", "http-trigger", HttpMode.CUSTOM, HttpMethod.POST,
+            "/orders-v2", null, null, null),
+        new CapabilityInput("orders-update", "http-trigger", HttpMode.CUSTOM, HttpMethod.PUT,
+            "/orders", null, null, null));
+
+    for (String route : List.of("POST /orders", "POST /orders-v2", "PUT /orders", "POST /orders and PUT /orders")) {
+      String quote = route + " " + schema;
+      var fact = new FactInput("request-schema", List.of("orders"), FactKind.MESSAGE_SCHEMA, Polarity.POSITIVE,
+          schema, null, null, null, new RequirementCaptureInput.ClaimEvidenceInput("input", quote));
+      var input = new DraftInput(base.flow(), List.of(fact), capabilities, List.of(), base.settings());
+      var source = new AuthorSourceEvidence.Packet("current",
+          List.of(new AuthorSourceEvidence.Input("input", quote)));
+
+      assertEquals("POST /orders".equals(route) ? List.of() : List.of("MESSAGE_SCHEMA_SOURCE_REQUIRED"),
+          MessageSchemaContract.validateEvidence(input, null, source).stream()
+              .map(RequirementCaptureEditor.Issue::code).toList(), route);
+    }
+  }
 
   @Test
   void inlineResponseMayContinueIntoAnAuthoredLocalNode() {

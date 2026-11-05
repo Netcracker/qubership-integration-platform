@@ -96,6 +96,45 @@ class BriefCopyMappingValidatorTest {
     assertEquals(List.of(), validator.validateApproved(approved));
   }
 
+  @Test
+  void shouldPinCustomRequestSchemaWithoutACatalogBindingForTheTrigger() throws Exception {
+    var validator = validator(SOURCE, TARGET);
+    var custom = customEntryBrief(SOURCE);
+    var result = validator.validateAndPin(custom);
+    var rule = result.brief().mappingIntents().getFirst().rules().getFirst();
+    assertAll(
+        () -> assertEquals(List.of(), result.issues()),
+        () -> assertEquals("a33b43fecff4d5a99f5a198a5cb5dd35950ad0c971893e2857015e0a166cbbfa",
+            rule.schemaPins().get("target")),
+        () -> assertEquals(List.of(), validator.validateApproved(result.brief())));
+  }
+
+  @Test
+  void shouldRequireSchemaEvidenceForACustomTriggerAndRejectAnIncompatibleSchema() throws Exception {
+    var validator = validator(SOURCE, TARGET);
+    var custom = customEntryBrief(SOURCE);
+    var noSchema = custom.withFacts(List.of(custom.facts().getFirst()));
+    var mismatch = customEntryBrief("""
+        {"type":"object","properties":{"processInstanceId":{"type":"integer"}}}
+        """);
+    assertAll(
+        () -> assertEquals(List.of("COPY needs a confirmed request body JSON Schema for entry"),
+            validator.validateAndPin(noSchema).issues().stream().map(ProductRequirementBriefTool.Issue::message).toList()),
+        () -> assertEquals(List.of("Mapping origin is unresolved: COPY source and target types are incompatible"),
+            validator.validateAndPin(mismatch).issues().stream().map(ProductRequirementBriefTool.Issue::message).toList()));
+  }
+
+  private static RequirementBrief customEntryBrief(String schema) {
+    var endpoint = new RequirementFact("route", RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.CAPABILITY, "http-trigger", "Accept an event.",
+        "Caller", "POST /events", null, "POST", "/events", null, List.of("entry"));
+    var contract = new RequirementFact("request-schema", RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.MESSAGE_SCHEMA, "", schema,
+        null, null, null, null, null, null, List.of("entry"));
+    return brief("entry", MappingPort.OUTPUT, "$.processInstanceId")
+        .withFacts(List.of(endpoint, contract)).withCatalogBindings(List.of(binding("result")));
+  }
+
   private static BriefCopyMappingValidator validator(String source, String target) throws Exception {
     var maps = Map.of("op-entry", new OperationSchemaMaps("op-entry",
             Map.of("application/json", JSON.readTree(source)), Map.of()),

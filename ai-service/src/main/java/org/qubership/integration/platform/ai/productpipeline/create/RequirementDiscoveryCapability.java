@@ -847,6 +847,14 @@ public class RequirementDiscoveryCapability implements StageCapability {
     if (directive == RequirementDiscoveryDirective.DISCUSS && legacyProjectedQuestion(draft)) {
       return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, ""));
     }
+    var mappingPending = captureTools == null
+        ? List.<RequirementCaptureProjection.PendingWork>of() : captureTools.mappingPending(draft);
+    if (!mappingPending.isEmpty()) {
+      var findings = mappingPending.stream().map(work ->
+          new PlanValidationFinding(work.code(), work.message(), true)).toList();
+      return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
+          mappingPending.getFirst().message(), RecoveryCause.mappingContract(findings)));
+    }
     if (shouldOfferIds(context, draft)) {
       return idsChoiceOutcome();
     }

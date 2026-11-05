@@ -11,6 +11,8 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingValue;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementEntryPoint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
@@ -40,11 +42,25 @@ public final class RequirementBriefProjector {
               ? new MappingIntentRule(mapping.sourcePath(), mapping.targetPath(), mapping.expression())
               : new MappingIntentRule("", List.of(),
                   org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContract.canonicalPath(mapping.targetPath()),
-                  mapping.value(), null, null)
+                  resolveCopyOrigin(mapping.value(), draft.flow(), mapping.sourceInteractionId()), null, null)
                   .withMissingSourcePolicy(mapping.missingSourcePolicy()))
               .withRequirementIds(List.of(fact.sourceFactId()))), null));
     }
     return List.copyOf(mappings);
+  }
+
+  static MappingValue resolveCopyOrigin(MappingValue value, RequirementFlow flow, String placement) {
+    if (!(value instanceof MappingValue.Copy copy) || !(copy.source() instanceof MappingSource.Message origin)) {
+      return value;
+    }
+    Direction direction = flow.interaction(origin.interactionId()).map(Interaction::direction).orElse(null);
+    if (direction == Direction.INBOUND) {
+      return new MappingValue.Copy(new MappingSource.Message(origin.interactionId(), MappingPort.OUTPUT, origin.path()));
+    }
+    if (direction == Direction.OUTBOUND && origin.port() == null && origin.interactionId().equals(placement)) {
+      return new MappingValue.Copy(new MappingSource.Message(origin.interactionId(), MappingPort.RESPONSE, origin.path()));
+    }
+    return value;
   }
 
   public static RequirementBrief project(RequirementBrief brief) {

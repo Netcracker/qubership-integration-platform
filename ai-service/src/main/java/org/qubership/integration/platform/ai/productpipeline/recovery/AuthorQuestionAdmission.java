@@ -196,6 +196,8 @@ public final class AuthorQuestionAdmission {
       case "topic" -> fact.topic();
       case "participant" -> fact.participant();
       case "operation" -> fact.operation();
+      case "requestSchema" -> fact.kind() == org.qubership.integration.platform.ai.plan.RequirementFactKind.MESSAGE_SCHEMA
+          ? fact.text() : "";
       default -> "";
     };
     if (value != null && !value.isBlank()) values.add(value);

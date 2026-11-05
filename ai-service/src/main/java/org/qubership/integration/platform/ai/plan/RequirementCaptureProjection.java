@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.plan;
 
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingValue;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -34,12 +35,13 @@ public final class RequirementCaptureProjection {
   private RequirementCaptureProjection() {}
 
   public static DraftInput withCopyPolicies(DraftInput input) {
+    RequirementFlow flow = flow(input);
     List<FactInput> facts = input.facts().stream().map(fact -> {
       var mapping = fact.fieldMapping();
       if (mapping == null || mapping.value() == null) return fact;
       var pinned = new RequirementCaptureInput.FieldMappingInput(mapping.sourceInteractionId(),
           mapping.sourcePath(), mapping.targetInteractionId(), mapping.targetPath(), mapping.expression(),
-          mapping.value(), "ERROR");
+          RequirementBriefProjector.resolveCopyOrigin(mapping.value(), flow, mapping.sourceInteractionId()), "ERROR");
       return new FactInput(fact.sourceFactId(), fact.interactionIds(), fact.kind(), fact.polarity(),
           fact.text(), pinned, fact.policyConflict(), fact.elementIntent(), fact.evidence());
     }).toList();
@@ -258,6 +260,21 @@ public final class RequirementCaptureProjection {
                 "Import the uploaded API specifications before binding the operation for " + interaction.participant() + ".")
             : new PendingWork("OPERATION_LOOKUP_REQUIRED", id, null,
                 "Resolve the catalog operation for " + interaction.participant() + "."));
+      }
+    }
+    Set<String> schemaOwners = new HashSet<>();
+    for (FactInput fact : input.facts()) {
+      if (fact.fieldMapping() == null || !(fact.fieldMapping().value() instanceof MappingValue.Copy copy)
+          || !(copy.source() instanceof MappingSource.Message origin)) continue;
+      CapabilityInput owner = capabilities.get(origin.interactionId());
+      if (!MessageSchemaContract.customHttp(owner) || !schemaOwners.add(owner.interactionId())) continue;
+      boolean supplied = input.facts().stream().anyMatch(candidate ->
+          candidate.kind() == RequirementCaptureInput.FactKind.MESSAGE_SCHEMA
+              && candidate.interactionIds().equals(List.of(owner.interactionId())));
+      if (!supplied) {
+        pending.add(new PendingWork("COPY_INPUT_SCHEMA_REQUIRED", owner.interactionId(), null,
+            "Provide the JSON Schema for the request body of " + owner.httpMethod() + " " + owner.path()
+                + ". Use propertyKey=requestSchema for this question."));
       }
     }
     if (!hasInbound && !input.flow().interactions().isEmpty()) {

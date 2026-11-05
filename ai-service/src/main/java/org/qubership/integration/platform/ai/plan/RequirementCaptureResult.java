@@ -130,6 +130,13 @@ public record RequirementCaptureResult(
       RequirementDraft acceptedDraft, Reference revision, boolean accepted, boolean changed,
       List<RequirementCaptureEditor.Issue> editorIssues, RequirementDiscoveryDirective directive,
       Set<String> uploadedSpecInteractions) {
+    return view(acceptedDraft, revision, accepted, changed, editorIssues, directive, uploadedSpecInteractions, List.of());
+  }
+
+  static RequirementCaptureResult view(
+      RequirementDraft acceptedDraft, Reference revision, boolean accepted, boolean changed,
+      List<RequirementCaptureEditor.Issue> editorIssues, RequirementDiscoveryDirective directive,
+      Set<String> uploadedSpecInteractions, List<RequirementCaptureProjection.PendingWork> mappingPending) {
     DraftInput draft = acceptedDraft == null ? null : acceptedDraft.authoredDraft();
     List<CaptureIssue> issues = editorIssues.stream()
         .map(issue -> new CaptureIssue(
@@ -144,10 +151,11 @@ public record RequirementCaptureResult(
               "DRAFT_CONTENT_REQUIRED", null, null, "No requirement draft has been saved.")),
           null, List.of(), List.of());
     }
-    List<RequirementCaptureProjection.PendingWork> pending =
+    List<RequirementCaptureProjection.PendingWork> pending = new java.util.ArrayList<>(
         RequirementCaptureProjection.pending(draft, acceptedDraft.catalogBindings(),
-            RequirementCaptureProjection.resolvedTargets(acceptedDraft), uploadedSpecInteractions);
-    Readiness readiness = acceptedDraft.readyForPlan() ? Readiness.READY : Readiness.PARTIAL;
+            RequirementCaptureProjection.resolvedTargets(acceptedDraft), uploadedSpecInteractions));
+    pending.addAll(mappingPending);
+    Readiness readiness = acceptedDraft.readyForPlan() && pending.isEmpty() ? Readiness.READY : Readiness.PARTIAL;
     NextAction action = nextAction(issues, pending, readiness, draft, directive);
     if (action == NextAction.COMPLETE_DRAFT && !acceptedDraft.openQuestions().isEmpty()) {
       action = NextAction.ASK_USER;
@@ -200,7 +208,8 @@ public record RequirementCaptureResult(
     if (pending.stream().anyMatch(work -> work.code().endsWith("LOOKUP_REQUIRED"))) {
       return NextAction.LOOKUP;
     }
-    if (pending.stream().anyMatch(work -> "BUSINESS_CHOICE_REQUIRED".equals(work.code()))) {
+    if (pending.stream().anyMatch(work -> Set.of("BUSINESS_CHOICE_REQUIRED", "COPY_INPUT_SCHEMA_REQUIRED")
+        .contains(work.code()))) {
       return NextAction.ASK_USER;
     }
     return pending.isEmpty() ? NextAction.DISCUSS : NextAction.COMPLETE_DRAFT;

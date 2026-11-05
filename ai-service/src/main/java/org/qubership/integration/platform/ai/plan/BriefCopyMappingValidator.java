@@ -45,6 +45,20 @@ public class BriefCopyMappingValidator {
     return validateAndPin(brief, schemas::load);
   }
 
+  public List<RequirementCaptureProjection.PendingWork> pending(RequirementDraft draft) {
+    if (draft == null || !draft.readyForPlan()) return List.of();
+    List<MappingIntent> intents = RequirementBriefProjector.authoredMappings(draft).stream()
+        .filter(intent -> intent.rules().stream().anyMatch(rule -> rule.value() instanceof MappingValue.Copy))
+        .toList();
+    if (intents.isEmpty()) return List.of();
+    var brief = new RequirementBrief("", List.of(), List.of(), List.of(), List.of(), "",
+        null, "", draft.facts(), intents).withFlow(draft.flow()).withCatalogBindings(draft.catalogBindings());
+    return validateAndPin(RequirementBriefProjector.canonicalizeMappingIntents(brief)).issues().stream()
+        .map(issue -> new RequirementCaptureProjection.PendingWork(issue.code(), null, null,
+            issue.path() + " " + issue.message()))
+        .toList();
+  }
+
   private Result validateAndPin(RequirementBrief brief, Function<String, OperationSchemaMaps> load) {
     Map<String, OperationSchemaMaps> operationSnapshots = new HashMap<>();
     Function<String, OperationSchemaMaps> snapshot = id -> operationSnapshots.computeIfAbsent(id, load);
@@ -115,6 +129,15 @@ public class BriefCopyMappingValidator {
     }
     List<CatalogBindingHint> bindings = brief.catalogBindings().stream()
         .filter(binding -> interactionId.equals(binding.interactionId())).toList();
+    if (bindings.isEmpty() && inbound
+        && RequirementFlowValidator.catalogLookupAction(interaction, brief.facts())
+            == RequirementFlowValidator.LookupAction.SKIP) {
+      MappingSchemaSide side = MessageSchemaContract.requestSchema(brief.facts(), interactionId)
+          .orElseThrow(() -> new IllegalArgumentException(
+              "COPY needs a confirmed request body JSON Schema for " + interactionId));
+      resolved.put(key, side);
+      return side;
+    }
     if (bindings.size() != 1) {
       throw new IllegalArgumentException("COPY needs one confirmed catalog binding for " + interactionId);
     }

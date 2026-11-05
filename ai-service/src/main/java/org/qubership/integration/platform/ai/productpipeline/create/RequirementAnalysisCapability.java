@@ -39,6 +39,9 @@ import org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValida
 import org.qubership.integration.platform.ai.plan.RequirementBriefProjector;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
+import org.qubership.integration.platform.ai.plan.BriefCopyMappingValidator;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureProjection.PendingWork;
+import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool.SourceReview;
 import org.qubership.integration.platform.ai.plan.mapping.MappingMechanismSelector;
@@ -83,6 +86,8 @@ public class RequirementAnalysisCapability implements StageCapability {
 
   @jakarta.inject.Inject
   org.qubership.integration.platform.ai.productpipeline.knowledge.DocumentationTools documentation;
+
+  @Inject BriefCopyMappingValidator copyMappings;
 
   private final KnowledgeClient knowledgeClient;
   private final KnowledgeContextProvider knowledgeContextProvider;
@@ -330,7 +335,16 @@ public class RequirementAnalysisCapability implements StageCapability {
         .voidItem()
         .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
         .onItem()
-        .transformToMulti(ignored -> continueAfterKnowledge(context, prepared, authority));
+        .transformToMulti(ignored -> {
+          List<PendingWork> pending = copyMappings == null ? List.of() : copyMappings.pending(prepared);
+          if (!pending.isEmpty()) {
+            var findings = pending.stream()
+                .map(work -> new PlanValidationFinding(work.code(), work.message(), true)).toList();
+            return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(
+                StageOutcomeClass.CONTRACT_FAILURE, pending.getFirst().message(), RecoveryCause.mappingContract(findings))));
+          }
+          return continueAfterKnowledge(context, prepared, authority);
+        });
   }
 
   /**

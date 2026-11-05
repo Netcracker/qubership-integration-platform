@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.plan.mapping.schema;
 
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -21,6 +22,9 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
+import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.RequirementFactKind;
+import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge;
@@ -31,6 +35,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 
 class MappingBoundarySchemaResolverTest {
 
@@ -150,6 +155,23 @@ class MappingBoundarySchemaResolverTest {
     assertEquals(MappingPort.OUTPUT, sides.source().direction());
     assertEquals(MappingPort.REQUEST, sides.target().direction());
     assertEquals("application/json", sides.target().mediaType());
+  }
+
+  @Test
+  void shouldResolveApprovedRequestSchemaForTheTriggerWithoutAnOperationBinding() {
+    var fact = new RequirementFact("input-schema", RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.MESSAGE_SCHEMA, "", orderSchema.toString(),
+        null, null, null, null, null, null, List.of("trigger-http"));
+    var brief = new RequirementBrief("Copy order ID", List.of(), List.of(), List.of(), List.of(), "")
+        .withFacts(List.of(fact));
+    var approved = new DefaultMappingBoundarySchemaResolver(artifacts, COMPILATION_ID, Map.of(), brief);
+    var side = approved.resolveOrigin(SemanticFixtures.linearOrders(), List.of(),
+        "trigger-http", MappingPort.OUTPUT, Map.of());
+
+    assertAll(
+        () -> assertEquals(orderSchema, side.schema()),
+        () -> assertEquals("requirement:input-schema", side.provenance()),
+        () -> assertEquals(MappingPort.OUTPUT, side.direction()));
   }
 
   @Test

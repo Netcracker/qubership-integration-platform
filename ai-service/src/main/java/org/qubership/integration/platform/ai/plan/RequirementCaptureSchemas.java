@@ -143,7 +143,11 @@ public final class RequirementCaptureSchemas {
       JsonObjectSchema source = JsonObjectSchema.builder().additionalProperties(false)
           .addProperty("kind", JsonEnumSchema.builder().enumValues("MESSAGE").build())
           .addProperty("interactionId", new JsonStringSchema())
-          .addProperty("port", JsonEnumSchema.builder().enumValues("OUTPUT", "REQUEST", "RESPONSE").build())
+          .addProperty("port", JsonAnyOfSchema.builder().anyOf(
+              JsonEnumSchema.builder().enumValues("OUTPUT", "REQUEST", "RESPONSE").build(), new JsonNullSchema())
+              .description("Use null when the server can derive the port from the current hop or inbound trigger."
+                  + " For an earlier outbound call, specify REQUEST or RESPONSE.")
+              .build())
           .addProperty("path", new JsonStringSchema())
           .required("kind", "interactionId", "port", "path").build();
       return JsonObjectSchema.builder().additionalProperties(false)

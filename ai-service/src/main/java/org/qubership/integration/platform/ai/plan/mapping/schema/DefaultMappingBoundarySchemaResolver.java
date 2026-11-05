@@ -8,12 +8,14 @@ import java.util.Objects;
 import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
+import org.qubership.integration.platform.ai.plan.MessageSchemaContract;
 import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 
 public class DefaultMappingBoundarySchemaResolver implements MappingBoundarySchemaResolver {
 
@@ -22,6 +24,7 @@ public class DefaultMappingBoundarySchemaResolver implements MappingBoundarySche
   private final CompilationArtifacts artifacts;
   private final String compilationId;
   private final Map<String, String> catalogTriggerOwners;
+  private final RequirementBrief brief;
 
   public DefaultMappingBoundarySchemaResolver(
       CompilationArtifacts artifacts, String compilationId) {
@@ -30,7 +33,13 @@ public class DefaultMappingBoundarySchemaResolver implements MappingBoundarySche
 
   public DefaultMappingBoundarySchemaResolver(CompilationArtifacts artifacts, String compilationId,
       Map<String, String> catalogTriggerOwners) {
+    this(artifacts, compilationId, catalogTriggerOwners, null);
+  }
+
+  public DefaultMappingBoundarySchemaResolver(CompilationArtifacts artifacts, String compilationId,
+      Map<String, String> catalogTriggerOwners, RequirementBrief brief) {
     this.catalogTriggerOwners = Map.copyOf(catalogTriggerOwners);
+    this.brief = brief;
     this.artifacts = Objects.requireNonNull(artifacts, "artifacts");
     if (compilationId == null || compilationId.isBlank()) {
       throw new IllegalArgumentException("compilationId is required");
@@ -120,6 +129,10 @@ public class DefaultMappingBoundarySchemaResolver implements MappingBoundarySche
         return selectUnique(
             persisted, binding.serviceCallId(), MappingPort.REQUEST, resultDirection);
       }
+    }
+    if (brief != null) {
+      var approved = MessageSchemaContract.requestSchema(brief.facts(), trigger.interactionId());
+      if (approved.isPresent()) return approved.orElseThrow();
     }
     return selectUnique(persisted, trigger.nodeId(), MappingPort.OUTPUT, resultDirection);
   }

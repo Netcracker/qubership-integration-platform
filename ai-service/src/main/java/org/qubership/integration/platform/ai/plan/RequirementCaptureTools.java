@@ -48,6 +48,7 @@ public class RequirementCaptureTools {
   private final CatalogFolders catalogFolders;
   private final UploadedSpecOperations uploadedSpecs;
   @Inject org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService elementSchemas;
+  @Inject BriefCopyMappingValidator copyMappings;
   @Inject org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryTestControl recoveryControl;
   @Inject org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryOutcomeTelemetry recoveryTelemetry;
   private final java.util.concurrent.ConcurrentMap<String, CaptureAttemptFeedbackStore.ClarificationFailureKey>
@@ -402,6 +403,7 @@ public class RequirementCaptureTools {
             draft.authoredDraft(),
             draft.catalogBindings(),
             RequirementCaptureProjection.resolvedTargets(draft), uploadedSpecInteractions(draft));
+    if (pending.isEmpty()) pending = mappingPending(draft);
     if (draft.readyForPlan() && pending.isEmpty()
         || RequirementCaptureProjection.onlyUploadedSpecImportsRemain(pending)) {
       return Optional.empty();
@@ -433,6 +435,7 @@ public class RequirementCaptureTools {
           store.currentAuthorText(conversationId).orElse(null), previous == null ? "/draft" : "/changes"));
     }
     issues.addAll(validateElementEvidence(conversationId, input, previous));
+    issues.addAll(store.validateMessageSchemaEvidence(conversationId, input, previous));
     RequirementTargetResolver.Resolution targetResolution = targetResolver != null && input.flow() != null
         && input.flow().interactions() != null && input.flow().interactions().stream().allMatch(Objects::nonNull)
         && input.capabilities() != null && input.capabilities().stream().allMatch(Objects::nonNull)
@@ -788,7 +791,11 @@ public class RequirementCaptureTools {
         .map(revision -> revision.reference()).orElse(null);
     return RequirementCaptureResult.view(
         draft, reference, accepted, changed, issues, store.turnDirective(ToolSession.resolveConversationId()),
-        uploadedSpecInteractions(draft));
+        uploadedSpecInteractions(draft), mappingPending(draft));
+  }
+
+  public List<RequirementCaptureProjection.PendingWork> mappingPending(RequirementDraft draft) {
+    return copyMappings == null ? List.of() : copyMappings.pending(draft);
   }
 
   private java.util.Set<String> uploadedSpecInteractions(RequirementDraft draft) {

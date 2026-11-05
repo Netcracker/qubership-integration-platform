@@ -209,7 +209,8 @@ public final class RequirementBriefCoverageValidator {
                   mapping.value() != null
                       ? MappingContract.canonicalPath(rule.targetPath()).equals(
                           MappingContract.canonicalPath(mapping.targetPath()))
-                          && Objects.equals(mapping.value(), rule.value())
+                          && Objects.equals(RequirementBriefProjector.resolveCopyOrigin(
+                              mapping.value(), brief.flow(), mapping.sourceInteractionId()), rule.value())
                           && Objects.equals(mapping.missingSourcePolicy(), rule.missingSourcePolicy())
                       : MappingContract.canonicalPath(rule.targetPath()).equals(
                           MappingContract.canonicalPath(mapping.targetPath()))

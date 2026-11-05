@@ -253,6 +253,12 @@ public class GatherRequirementsPromptBuilder {
             Source occurrence alone does not establish a runtime constant. Preserve complete literals
             containing '=' or spaces, such as a required response body "a=b". Do not invent a business
             interaction for local script output or remove its behavior requirements.
+          - For COPY from a custom HTTP trigger, use OUTPUT. When pending work includes COPY_INPUT_SCHEMA_REQUIRED,
+            ask for that route's request body JSON Schema with propertyKey=requestSchema. If the user supplied it,
+            add a positive MESSAGE_SCHEMA fact scoped to the trigger. Copy the exact JSON Schema into text and cite
+            its user turn and exact quote in evidence. For multiple triggers, the quote must name the method
+            and path for this schema. Close the question in the same update. Never derive the input schema
+            from field names, sample values, or the destination API.
             """);
     if (policyChoices != null) {
       var paths = policyChoices.pendingAmendmentPaths(conversationId);
