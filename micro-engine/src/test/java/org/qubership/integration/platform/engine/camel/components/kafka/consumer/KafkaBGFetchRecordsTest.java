@@ -9,6 +9,7 @@ import org.apache.camel.component.kafka.PollOnError;
 import org.apache.camel.spi.ExceptionHandler;
 import org.apache.camel.support.BridgeExceptionHandlerToErrorHandler;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.errors.SslAuthenticationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
@@ -163,6 +164,63 @@ class KafkaBGFetchRecordsTest {
 
         verify(bridge).handleException(failure);
         verify(consumer, never()).close();
+    }
+
+    @Test
+    void shouldKeepPollingWithoutCommittingWhenAuthenticationFailsAfterARecord() throws Exception {
+        AtomicBoolean runAllowed = new AtomicBoolean(true);
+        KafkaBGFetchRecords fetchRecords = fetchRecords(TOPIC, PollOnError.ERROR_HANDLER);
+        CommitMarker marker = commitMarker(TOPIC_PARTITION, 8L);
+        SslAuthenticationException failure = new SslAuthenticationException("TLS certificate was rejected");
+        Exchange exchange = MockExchanges.defaultExchange();
+        stubRunnable(runAllowed);
+        stubEndpoint();
+        stubConsumerFactory(TOPIC);
+        when(endpoint.getConfiguration()).thenReturn(configuration);
+        when(kafkaConsumer.createExchange(false)).thenReturn(exchange);
+        when(kafkaConsumer.getProcessor()).thenReturn(processor);
+        when(consumer.poll(Duration.ofMillis(25L)))
+                .thenReturn(Optional.of(new RecordsBatch<>(
+                        List.of(record(TOPIC, 0, 7L, "key-a", "value-a", marker)), marker)))
+                .thenThrow(failure)
+                .thenAnswer(invocation -> {
+                    runAllowed.set(false);
+                    return Optional.empty();
+                });
+
+        fetchRecords.run();
+
+        verify(consumer, times(3)).poll(Duration.ofMillis(25L));
+        verify(processor).process(exchange);
+        verify(bridge).handleException(failure);
+        verify(consumer, never()).commitSync(any(CommitMarker.class));
+        verify(consumer, never()).commitSync(any(CommitMarker.class), any(Duration.class));
+        verify(consumer).close();
+    }
+
+    @Test
+    void shouldCommitFailedRecordWhenExchangeCreationFails() {
+        AtomicBoolean runAllowed = new AtomicBoolean(true);
+        KafkaBGFetchRecords fetchRecords = fetchRecords(TOPIC, PollOnError.ERROR_HANDLER);
+        CommitMarker marker = commitMarker(TOPIC_PARTITION, 8L);
+        IllegalStateException failure = new IllegalStateException("Exchange creation failed");
+        stubRunnable(runAllowed);
+        stubEndpoint();
+        stubConsumerFactory(TOPIC);
+        when(endpoint.getConfiguration()).thenReturn(configuration);
+        when(kafkaConsumer.getProcessor()).thenReturn(processor);
+        when(kafkaConsumer.createExchange(false)).thenThrow(failure);
+        when(consumer.poll(Duration.ofMillis(25L))).thenAnswer(invocation -> {
+            runAllowed.set(false);
+            return Optional.of(new RecordsBatch<>(
+                    List.of(record(TOPIC, 0, 7L, "key-a", "value-a", marker)), marker));
+        });
+
+        fetchRecords.run();
+
+        verify(bridge).handleException(failure);
+        verify(consumer).commitSync(marker, Duration.ofMillis(50L));
+        verify(consumer).close();
     }
 
     @Test

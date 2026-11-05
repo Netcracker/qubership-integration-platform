@@ -71,6 +71,17 @@ class CorrelationIdSetterTest {
         assertNull(exchange.getProperty(CORRELATION_ID));
     }
 
+    @Test
+    void shouldPreserveBodyAndLeaveCorrelationUnsetWhenJsonBodyIsNull() {
+        exchange.setProperty(CORRELATION_ID_POSITION, "body");
+        exchange.getMessage().setBody("null");
+
+        setter.setCorrelationId(exchange);
+
+        assertNull(exchange.getProperty(CORRELATION_ID));
+        assertEquals("null", exchange.getMessage().getBody());
+    }
+
     @ParameterizedTest
     @NullAndEmptySource
     void leavesTheCorrelationIdAsIsWhenTheBodyIsEmpty(String payload) {

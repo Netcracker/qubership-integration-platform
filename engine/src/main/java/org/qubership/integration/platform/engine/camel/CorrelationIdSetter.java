@@ -78,7 +78,7 @@ public class CorrelationIdSetter {
         }
         try {
             Map<String, Object> body = objectMapper.readValue(payload, HashMap.class);
-            if (body.containsKey(correlationIdName)) {
+            if (body != null && body.containsKey(correlationIdName)) {
                 String correlationId = String.valueOf(body.get(correlationIdName));
                 exchange.setProperty(CORRELATION_ID, correlationId);
                 if (StringUtils.isNotBlank(correlationId)) {
