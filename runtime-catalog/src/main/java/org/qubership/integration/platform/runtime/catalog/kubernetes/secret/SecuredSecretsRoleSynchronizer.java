@@ -18,8 +18,8 @@ import java.util.*;
  * Keeps the {@code resourceNames} of the shared secured variables Role equal to the names of the
  * secured variables secrets. Every scheduled run lists the secrets and compares them with the Role,
  * so the runs also write the Role at startup, retry a failed write, pick up secrets created or
- * deleted outside the catalog, and restore names that a Helm upgrade or an ArgoCD sync of the
- * catalog chart has reset. {@link K8sSecretService} runs the sync right after it creates a secret,
+ * deleted outside the catalog, and restore rules that someone else has changed. The catalog chart
+ * declares the Role without rules, so a Helm or ArgoCD sync leaves them alone. {@link K8sSecretService} runs the sync right after it creates a secret,
  * so that the engines can read the new secret without waiting for the next run.
  */
 @Slf4j

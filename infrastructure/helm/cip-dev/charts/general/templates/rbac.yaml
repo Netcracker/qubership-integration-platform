@@ -38,21 +38,12 @@ rules:
     resourceNames: ["cip-secured-variables-reader"]
     verbs: ["get", "update"]
 ---
-# The engine reads the secured variables secret names from this Role, and the catalog keeps the
-# resourceNames of its secrets rule in sync with the labeled secrets.
+# The engine reads the secured variables secret names from this Role, and the catalog writes its
+# rules. The manifest has no rules key, so a helm upgrade leaves the rules the catalog wrote.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: cip-secured-variables-reader
-rules:
-  - apiGroups: [""]
-    resources: ["secrets"]
-    resourceNames: ["cip-secured-variables-v2"]
-    verbs: ["get"]
-  - apiGroups: ["rbac.authorization.k8s.io"]
-    resources: ["roles"]
-    resourceNames: ["cip-secured-variables-reader"]
-    verbs: ["get"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
