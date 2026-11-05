@@ -78,7 +78,7 @@ public class DocumentationTools {
     body.append("Search excerpts and incomplete pages are not complete evidence. Read the indicated continuation "
         + "when needed. Copy each returned documentation `url` verbatim; do not add a scheme or host. For exact "
         + "lists, copy every method/path pair literally; do not normalize, merge, or deduplicate entries, including "
-        + "paths that differ only by a leading `/`. Keep private knowledge citations separate. Manuals describe expected "
+        + "paths that differ only by a leading `/`. Keep knowledge-object citations separate. Manuals describe expected "
         + "behavior, not this environment's state, and do not authorize changing approved requirements.\n");
     return body.toString();
   }

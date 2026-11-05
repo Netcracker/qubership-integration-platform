@@ -54,8 +54,7 @@ class DesignPlanContractValidatorTest {
           Map.entry("error", "cip-error-handling-generator"),
           Map.entry("reuse-block", "cip-composition-generator"),
           Map.entry("reuse-ref", "cip-composition-generator"),
-          Map.entry("send-kafka", "cip-service-call-generator"),
-          Map.entry("script-behavior", "cip-script-generator"));
+          Map.entry("send-kafka", "cip-service-call-generator"));
 
   @Test
   void fileTransferOwnerIsFileOperationsGenerator() {
@@ -73,10 +72,17 @@ class DesignPlanContractValidatorTest {
   void validatesEverySupportedSemanticTargetKindWithItsExactOwner() {
     Fixture fixture = completeFixture();
 
-    assertTrue(
-        validator
-            .findings(fixture.contract(), fixture.revision(), fixture.brief(), fixture.pin())
-            .isEmpty());
+    assertEquals(List.of(), validator.findings(
+        fixture.contract(), fixture.revision(), fixture.brief(), fixture.pin()));
+  }
+
+  @Test
+  void suppliedScriptDoesNotBecomeAGeneratorTarget() {
+    var fixture = completeFixture();
+    var steps = new ArrayList<>(fixture.contract().steps());
+    steps.add(step("supplied-script-generator", "cip-script-generator", TargetKind.BEHAVIOR_NODE, "script-behavior"));
+    assertFinding(contract(fixture.revision(), steps), fixture,
+        DesignPlanContractFinding.Code.UNKNOWN_TARGET, TargetKind.BEHAVIOR_NODE, "script-behavior");
   }
 
   @Test
@@ -476,7 +482,7 @@ class DesignPlanContractValidatorTest {
     List<SemanticNode> nodes = new ArrayList<>(base.nodes());
     nodes.add(
         new SemanticNode.Operation(
-            "script-behavior", "script", new SemanticProvenance(List.of("fact-behavior"))));
+            "script-behavior", "script", new SemanticProvenance(List.of("supplied-script-behavior"))));
     nodes.add(
         new SemanticNode.Operation(
             "reuse-block", "reuse", new SemanticProvenance(List.of())));
@@ -522,7 +528,11 @@ class DesignPlanContractValidatorTest {
             base.constraints(),
             base.assumptions(),
             base.citations());
-    RequirementBrief brief = DesignPlanTestFixtures.brief().withMappingIntents(base.mappingIntents());
+    var baseBrief = DesignPlanTestFixtures.brief().withMappingIntents(base.mappingIntents());
+    var facts = new ArrayList<>(baseBrief.facts());
+    facts.add(org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures
+        .suppliedFact("script-behavior", "return null"));
+    RequirementBrief brief = baseBrief.withFacts(facts);
     CompilerRunPin pin =
         DesignPlanTestFixtures.pinWithSkills(
             revision,
@@ -557,9 +567,6 @@ class DesignPlanContractValidatorTest {
     }
     if ("map-init".equals(targetId)) {
       return TargetKind.MAPPING_INTENT;
-    }
-    if ("script-behavior".equals(targetId)) {
-      return TargetKind.BEHAVIOR_NODE;
     }
     if ("reuse-block".equals(targetId) || "reuse-ref".equals(targetId)) {
       return TargetKind.ELEMENT_NODE;

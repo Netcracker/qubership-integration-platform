@@ -206,10 +206,15 @@ public final class RequirementBriefCoverageValidator {
           intent.sourceRef().equals(mapping.sourceInteractionId())
               && intent.targetRef().equals(mapping.targetInteractionId())
               && intent.rules().stream().anyMatch(rule ->
-                  MappingContract.canonicalPath(rule.targetPath()).equals(
-                      MappingContract.canonicalPath(mapping.targetPath()))
-                      || rule.status() == MappingRuleStatus.USER_DEFINED
-                          && rule.requirementIds().contains(fact.sourceFactId())));
+                  mapping.value() != null
+                      ? MappingContract.canonicalPath(rule.targetPath()).equals(
+                          MappingContract.canonicalPath(mapping.targetPath()))
+                          && Objects.equals(mapping.value(), rule.value())
+                          && Objects.equals(mapping.missingSourcePolicy(), rule.missingSourcePolicy())
+                      : MappingContract.canonicalPath(rule.targetPath()).equals(
+                          MappingContract.canonicalPath(mapping.targetPath()))
+                          || rule.status() == MappingRuleStatus.USER_DEFINED
+                              && rule.requirementIds().contains(fact.sourceFactId())));
       if (!realized) {
         return Optional.of("Requirement brief omitted the supplied mapping for sourceFactId="
             + fact.sourceFactId() + ", targetPath=" + mapping.targetPath());

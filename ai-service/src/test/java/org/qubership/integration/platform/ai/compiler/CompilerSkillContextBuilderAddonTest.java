@@ -550,8 +550,26 @@ class CompilerSkillContextBuilderAddonTest {
     }
     assertTrue(message.contains("action: CONFIGURE"));
     assertTrue(message.contains("Add the current date"));
+    org.junit.jupiter.api.Assertions.assertAll("edit request preserves script authority",
+        () -> assertTrue(message.contains("Original bodies are reference evidence"), message),
+        () -> assertTrue(message.contains("A supplied-body edit requires its newly approved exact body"), message),
+        () -> assertTrue(message.contains("report it as unsupported; do not generate replacement code"), message),
+        () -> assertFalse(message.contains("as the basis for the requested change. Preserve unrelated logic"), message));
     assertTrue(message.contains("Required script node IDs"));
     assertFalse(message.contains("PRIVATE_UNSELECTED"));
+  }
+
+  @Test
+  void nativeScriptContextDoesNotAuthorizeExtraBehaviorGeneration() {
+    String context = contextBuilder.renderBehaviorScriptGenerationContext(
+        null, java.util.List.of("script-1"), graphWithScriptNode(""), null);
+
+    org.junit.jupiter.api.Assertions.assertAll("native script task instructions",
+        () -> assertTrue(context.contains("Native script tasks:"), context),
+        () -> assertTrue(context.contains("frozen native mapping or compiler-derived retention plan"), context),
+        () -> assertTrue(context.contains("does not authorize extra generated behavior"), context),
+        () -> assertTrue(context.contains("Preserve exact source-bound supplied bodies"), context),
+        () -> assertFalse(context.contains("Behavior-owned script generation"), context));
   }
 
   @Test

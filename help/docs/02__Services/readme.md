@@ -59,7 +59,6 @@ API Specification statuses details:
 In the Web UI, an OpenAPI or AsyncAPI file can be attached to a Rocky chat with a request to import
 the specification. The import card confirms the files and their service types. This task imports
 specifications without creating a chain.
-This standalone import remains available when the private `rocky-skills` package is not installed.
 
 Rocky reuses an existing specification when its parsed content matches the attachment, excluding
 `info.title`. Changing only the title does not create another service, specification group, or
@@ -67,10 +66,6 @@ specification version. A changed version or API definition is handled as a diffe
 
 When several files are submitted, the result identifies each imported, reused, or failed file.
 A partial import reports the failures and keeps the successfully imported specifications in the catalog.
-
-For chain creation, Rocky uses the same import pipeline for attached specifications that are needed
-and binds operations to their catalog IDs before planning. Operations from other services remain
-available through catalog search. If a required import fails, chain creation pauses for correction.
 
 ## Data Storage
 

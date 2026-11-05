@@ -701,7 +701,7 @@ while ((SECONDS < deadline)); do
             send_turn "approve-$(date +%s)" "" "" "${chat_approve_decision}"
             continue
         fi
-        if [[ "${STRICT_RECOVERY}" == "1" && "${stage_id}" == "requirement-discovery" &&
+        if [[ "${stage_id}" == "requirement-discovery" &&
             "${latest_wait_reason}" == "__GATE:requirement-draft-ready__"* ]] &&
             jq -e '.actions | index("continue-to-planning") != null' <<< "${chat_card}" > /dev/null; then
             continue_decision="$(jq -c '{action:"continue-to-planning", revision}' <<< "${chat_card}")"
@@ -727,6 +727,11 @@ while ((SECONDS < deadline)); do
             send_turn "ids-choice-$(date +%s)" "" "" "${ids_decision}"
             design_input_sent=1
             continue
+        fi
+        if [[ "${latest_wait_reason}" == *"__GATE:recovery-"* ]] ||
+            jq -e '.recovery != null' <<< "${chat_card}" > /dev/null; then
+            echo "FAIL: recovery requires an explicit action; preserving pending card for ${SCENARIO_ID}" >&2
+            break
         fi
         # The IDS choice can arrive during discovery, before design-input starts.
         if [[ "${STRICT_RECOVERY}" == "1" ]]; then

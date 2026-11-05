@@ -70,7 +70,14 @@ public class GatherRequirementsPromptBuilder {
     Set<String> uploadedInteractions = uploadedSpecs == null ? Set.of()
         : uploadedSpecs.pendingInteractionIds(conversationId, draft.orElse(null));
     boolean standalone = addonRepository != null && addonRepository.hasStandaloneSkills();
-    String mandatory = currentDraftBlock(draft)
+    String mandatory = "<service-runtime-catalog-contract>\n"
+        + "This host contract takes precedence over conflicting skill lookup instructions. "
+        + "No APIHub or no MCP does not mean no runtime catalog. "
+        + "A prohibition on APIHub restricts APIHub search and import only. "
+        + "If an explicit no-catalog requirement conflicts with a requested catalog-backed interaction, ask one focused question."
+        + catalogFollowUpGuidance(conversationId)
+        + "\n</service-runtime-catalog-contract>\n"
+        + currentDraftBlock(draft)
         + nativeRepairScopeBlock(conversationId)
         + incompleteDraftBlock(draft, uploadedInteractions)
         + lastCaptureRejectionBlock(conversationId, draft)
@@ -157,7 +164,7 @@ public class GatherRequirementsPromptBuilder {
           result delivery, set INLINE_RESPONSE on the producing call; null propagates and skips
           that delivery on failure. Keep the delivery call's own failureMode null by default.
           Read the accepted view after lookups. searchCatalogSystems does not bind an
-          interaction.%s Reply in the
+          interaction. Reply in the
           pinned response locale %s. This
           locale is authoritative; do not infer another language from conversation history or
           embedded text.
@@ -170,7 +177,6 @@ public class GatherRequirementsPromptBuilder {
                   document.packVersion().normalized(),
                   document.sourcePath(),
                   document.markdown(),
-                  catalogFollowUpGuidance(conversationId),
                   normalizedLocale(responseLocale),
                   addonBlock(),
                   mandatory);
@@ -221,6 +227,8 @@ public class GatherRequirementsPromptBuilder {
         .append("not its parent fact, elementIntent, or requestedProperties list. After native admission accepts the ")
         .append("selection, its source amendments are consumed: do not repeat them with later addFacts. Additional ")
         .append("source-backed facts use amendments: [].\n")
+        .append("Facts naming or configuring an existing Service Call use ANCHOR with elementRef=ownerInteractionId. ")
+        .append("Attach the requested name and properties to that anchor. Give separate scripts their own LOCAL_NODE.\n")
         .append("Capture each explicit name in requestedName on its owning elementIntent, including entry triggers ")
         .append("and calls with ANCHOR placement even when they have no requestedProperties. ")
         .append("The interaction participant identifies the other party; it does not name the trigger or call. ")
@@ -289,11 +297,12 @@ public class GatherRequirementsPromptBuilder {
     if (!uploaded.isBlank()) {
       return uploaded;
     }
-    return " After the draft is stored, call resolveApiOperation only for catalog-backed"
-        + " interactions (implemented-service HTTP triggers, async-api-trigger, and outbound"
-        + " calls with no native capability). Native triggers"
-        + " and direct elements (for example sftp-trigger-2, sftp-upload, mail-sender,"
-        + " kafka-sender-2, and jms-sender) skip the catalog; capture their capability entry with"
+    return " After the draft is stored, call resolveApiOperation only for catalog-backed outbound interactions"
+        + " with no native capability, implemented-service HTTP triggers, and async-api-trigger."
+        + " async-api-trigger requires a catalog binding even though it is a native trigger."
+        + " Direct native entries, including chain-trigger-2, and direct elements"
+        + " (for example sftp-trigger-2, sftp-upload, mail-sender, kafka-sender-2, and jms-sender)"
+        + " skip operation lookup; capture their capability entry with"
         + " method, path, topic,"
         + " or URI when applicable. Custom HTTP uses httpMode=CUSTOM with a path; no"
         + " catalog. Implemented service HTTP uses httpMode=CATALOG with participant set"
@@ -304,7 +313,8 @@ public class GatherRequirementsPromptBuilder {
         + " Ambiguous HTTP or outbound"
         + " needs one question; do not search. mcp-trigger skips catalog lookup; capture"
         + " participant and optional operation, and do not call resolveApiOperation for it."
-        + " Do not search the catalog or API Hub for direct elements.";
+        + " Do not search the catalog or API Hub for direct elements."
+        + " A native-only flow with no catalog-backed interactions performs no operation lookup.";
   }
 
   /**

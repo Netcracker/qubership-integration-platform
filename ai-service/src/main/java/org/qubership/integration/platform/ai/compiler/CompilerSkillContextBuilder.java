@@ -306,8 +306,8 @@ public class CompilerSkillContextBuilder {
   }
 
   /**
-   * Prompt overlay for behavior-owned script shells that have no {@code MappingIntent}. Empty
-   * mapping intents still require this section when those shells need a body.
+   * Prompt overlay for admitted native mapping and compiler-derived retention script tasks.
+   * Behavior facts provide requirement context and do not authorize additional generated code.
    */
   public String renderBehaviorScriptGenerationContext(
       RequirementBrief brief,
@@ -316,7 +316,7 @@ public class CompilerSkillContextBuilder {
       ChainSemanticRevision revision) {
     List<String> ids = nodeIds == null ? List.of() : nodeIds;
     StringBuilder section = new StringBuilder();
-    section.append("Behavior-owned script generation:\n\n");
+    section.append("Native script tasks:\n\n");
     section.append("Required script node ids:\n");
     if (ids.isEmpty()) {
       section.append("- none\n");
@@ -329,12 +329,13 @@ public class CompilerSkillContextBuilder {
     section.append("Element roles:\n");
     appendBehaviorRoles(section, ids, graph);
     section.append('\n');
-    section.append("Approved behavior facts:\n");
+    section.append("Approved requirement context:\n");
     appendBehaviorFacts(section, brief, ids, revision);
     section.append('\n');
     section.append(
-        "Fill the existing script property on those nodes. Do not add nodes or edges. "
-            + "Do not invent a MappingIntent.");
+        "Use only the frozen native mapping or compiler-derived retention plan for these nodes. "
+            + "Requirement context does not authorize extra generated behavior, constants, or response assembly. "
+            + "Preserve exact source-bound supplied bodies. Do not add nodes or edges or invent a MappingIntent.");
     return section.toString();
   }
 
@@ -638,10 +639,11 @@ public class CompilerSkillContextBuilder {
     }
     if (editsExistingBodies) {
       body.append(nullToEmpty(snapshot.editContext())).append("\n\n");
-      body.append("Update the existing script bodies for the listed target node IDs. Use each original body")
-          .append(" as the basis for the requested change. Preserve unrelated logic. Return the complete")
-          .append(" updated body for each listed ID through repairScriptBodies. Change only the selected")
-          .append(" scripts and the requested behavior.\n\n");
+      body.append("For each listed target node, use only its frozen native mapping or compiler-derived retention plan")
+          .append(" or its exact currently approved source-bound supplied body. Original bodies are reference evidence,")
+          .append(" not permission to generate a replacement. A supplied-body edit requires its newly approved exact body.")
+          .append(" If the requested edit exceeds that authority, report it as unsupported; do not generate replacement code.")
+          .append(" Return only authorized complete bodies through repairScriptBodies.\n\n");
       List<Map<String, String>> originals = new ArrayList<>();
       for (ChainPlanNode node : snapshot.chainPlanGraph().nodes()) {
         if (requiredNodeIds.contains(node.nodeId()) && "script".equals(node.type())) {
@@ -715,6 +717,15 @@ public class CompilerSkillContextBuilder {
     }
     if ("cip-script-generator".equals(document.capabilityId())) {
       body.append("""
+
+          Script execution eligibility:
+          Apply the following runtime patterns only within this node's admitted native mapping,
+          compiler-derived retention plan, or exact currently approved source-bound supplied body.
+          Patterns and requirement prose do not authorize extra generated code or changes to exact
+          supplied bodies or deterministic native emission. Unsupported constants, formulas, and
+          response assembly remain blocked; report them instead of generating a fallback script.
+          A requested edit alone does not grant authority. Preserve supplied bytes exactly; a
+          supplied-body replacement requires its newly approved exact body.
 
           Script runtime contract:
           Implement each approved exactValues scalar in its owned script as an executable Groovy

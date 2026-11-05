@@ -33,10 +33,8 @@ Use `run` instead of `start` for a foreground process with a nonzero exit status
 Use `--store <directory>` before the subcommand to select a different history directory. Runs in the same
 workspace serialize because Maven reports and the running stack are shared.
 
-The service agent entry is [cip-tool-ai-service-tests](skills/cip-tool-ai-service-tests/SKILL.md).
-The chain entry is `testing/skills/cip-tool-chain-eval/SKILL.md` in the separate skills bundle.
-Install the intended entry in your development agent's skill search path, or ask the agent to read that source file.
-Neither belongs in the generation agent's context.
+For agent-driven service tests, load [cip-tool-ai-service-tests](skills/cip-tool-ai-service-tests/SKILL.md)
+into your development agent.
 
 ## Profiles and boundaries
 
@@ -45,17 +43,17 @@ Neither belongs in the generation agent's context.
 | `core-regression`           | Service       | No  | Runner, imports, conversations, presentation, and recovery mechanisms                     |
 | `service-full`              | Service       | No  | Full Java suite, knowledge sidecar, evaluator, and runner tests                           |
 | `runner-self-test`          | Service       | No  | Runner and HTTP report contracts                                                          |
-| `chain-offline`             | Skills bundle | No  | Corpus, generic driver, planner/executor, and golden comparison contracts                 |
-| `chain-acceptance`          | Skills bundle | Yes | Existing product assertions and catalog readback                                          |
-| `planner`                   | Skills bundle | Yes | Isolated planner contract                                                                 |
-| `executor`                  | Skills bundle | Yes | Executor contract over saved planner input                                                |
-| `generators`                | Skills bundle | Yes | Accepted element goldens and catalog readback; proposals cannot pass                      |
-| `recovery`                  | Skills bundle | Yes | Native fault, feedback, budget, and consumer proof at the case's declared boundary        |
-| `recovery-acceptance-check` | Skills bundle | No  | Prepared candidate, source, image, schema, settings, and proof-tool readiness             |
-| `recovery-acceptance`       | Skills bundle | Yes | Registered recovery components and separate full product cases on Kimi, ordinary, or both |
+| `chain-offline`             | Fixtures      | No  | Corpus, generic driver, planner/executor, and golden comparison contracts                 |
+| `chain-acceptance`          | Fixtures      | Yes | Existing product assertions and catalog readback                                          |
+| `planner`                   | Fixtures      | Yes | Isolated planner contract                                                                 |
+| `executor`                  | Fixtures      | Yes | Executor contract over saved planner input                                                |
+| `generators`                | Fixtures      | Yes | Accepted element goldens and catalog readback; proposals cannot pass                      |
+| `recovery`                  | Fixtures      | Yes | Native fault, feedback, budget, and consumer proof at the case's declared boundary        |
+| `recovery-acceptance-check` | Fixtures      | No  | Prepared candidate, source, image, schema, settings, and proof-tool readiness             |
+| `recovery-acceptance`       | Fixtures      | Yes | Registered recovery components and separate full product cases on Kimi, ordinary, or both |
 
 Live profiles run the core regression gate first. Selecting a live suite retains its profile's mandatory gates.
-A failed, blocked, or unexecuted gate prevents dependent model work. Missing packages leave service profiles available
+A failed, blocked, or unexecuted gate prevents dependent model work. Missing fixtures leave service profiles available
 and report chain profiles as `BLOCKED`. Missing dependencies also produce `BLOCKED`; missing or empty required reports
 produce `ERROR`. Neither is a passing result.
 
@@ -116,19 +114,14 @@ A native failure or missing proof cannot pass because the command exited success
 
 ## Ownership and distribution
 
-The service manifest is [suites.json](suites.json). The external manifest is
-`.private/rocky-skills/testing/suites.json`, using contract `qip-ai-tests/v1`. It can refer to service gates.
-`--package <directory>` selects another installation; existing shell drivers also honor `QIP_SKILLS_TESTING_ROOT`.
-The bundle records its target skills version. A version mismatch blocks its profiles.
-
-For the customer layout, extract the testing archive under `integration-platform-skills/rocky-skills/` and pass
-that package root explicitly. The archive contains `testing/`; do not extract it inside another `testing/` directory.
-See the [package layout and installation guide](../README.md#skills-and-chain-tests) for the runtime/knowledge pair,
-Python dependencies, and the development-agent skill entries.
+The service manifest is [suites.json](suites.json). To load acceptance fixtures, pass the directory containing
+`testing/suites.json` with `--package`. The manifest uses the `qip-ai-tests/v1` contract and can refer to service
+gates. Shell drivers also honor `QIP_SKILLS_TESTING_ROOT`, which points directly to `testing/`.
+If the suite manifest pins a version, provide the matching version in `manifest.json` at the fixture root.
 
 ```bash
-python3 ai-service/e2e/run.py --package integration-platform-skills/rocky-skills catalog
-python3 ai-service/e2e/run.py --package integration-platform-skills/rocky-skills run chain-offline
+python3 ai-service/e2e/run.py --package /path/to/acceptance-fixtures catalog
+python3 ai-service/e2e/run.py --package /path/to/acceptance-fixtures run chain-offline
 ```
 
 The service suite `evaluator-python` checks the service evaluator. The bundle suite `chain-evaluator-python`
@@ -142,9 +135,7 @@ mechanism tests use their own small fixture sets under `src/test/resources/execu
 `src/test/resources/work-checkpoint-contract`; the recovery classifier has a service-owned archived trace.
 Changes to those fixtures test service contracts and do not change the external acceptance corpus.
 
-The testing directory is outside runtime skill discovery and the POM's runtime resource include patterns.
-Do not add it to the runtime manifest or model prompts. The existing `with-rocky-skills` runtime distribution is unchanged.
-Ship `testing/` as a separate development archive and extract it under the intended skills package root.
+Keep the testing directory outside runtime resources and model prompts.
 
 ## Evidence and diagnosis
 

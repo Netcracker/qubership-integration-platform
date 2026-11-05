@@ -6,6 +6,7 @@ import org.qubership.integration.platform.ai.plan.RequirementBriefProjector;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
+import org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCapture.CapturedEdge;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCapture.CapturedEntryPoint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCapture.CapturedOperation;
@@ -34,9 +35,13 @@ public final class ChainSemanticCaptureFixtures {
 
   /** HTTP trigger, one script step, one outbound call. No mapping. */
   public static RequirementBrief approvedBrief() {
+    return approvedBrief("op-shared");
+  }
+
+  static RequirementBrief approvedBrief(String scriptNodeId) {
     return new RequirementBrief(
         "Orders",
-        List.of("HTTP POST /orders"),
+        List.of("HTTP POST /orders", "exchange.message.body = [orderId: exchange.message.body.id]"),
         List.of("Reject an order without a customer id"),
         List.of("The Orders API is reachable"),
         List.of(),
@@ -68,12 +73,7 @@ public final class ChainSemanticCaptureFixtures {
                 "",
                 "",
                 "call-1"),
-            new RequirementFact(
-                "fact-script",
-                RequirementFactPolarity.POSITIVE,
-                RequirementFactKind.BEHAVIOR,
-                "",
-                "Prepare the request payload")),
+            suppliedScriptFact(scriptNodeId, "exchange.message.body = [orderId: exchange.message.body.id]")),
         List.of(
             new RequirementEntryPoint(
                 "http-in", "trigger-1", "http-trigger", "", "POST", "/orders", "createOrder")),
@@ -82,6 +82,12 @@ public final class ChainSemanticCaptureFixtures {
                 "call-1", "fact-call", "Orders API", "getOrder", catalogBinding())),
         List.of(),
         List.of());
+  }
+
+  static RequirementFact suppliedScriptFact(String nodeId, String body) {
+    var supplied = ScriptAuthorityTestFixtures.suppliedFact(nodeId, body);
+    return new RequirementFact("fact-script", supplied.polarity(), supplied.kind(), "", body,
+        "", "", "", "", "", "", List.of(), null, supplied.elementIntent());
   }
 
   /** Resolved catalog binding for the brief's only service call. */
@@ -291,7 +297,7 @@ public final class ChainSemanticCaptureFixtures {
     Instant observedAt = Instant.parse("2026-08-27T12:00:00Z");
     return new RequirementBrief(
             "OM to Salesforce WFM",
-            List.of(),
+            List.of("exchange.message.body = [commandType: 'completeTask']"),
             List.of(),
             List.of(),
             List.of(),
@@ -299,12 +305,7 @@ public final class ChainSemanticCaptureFixtures {
             "ref",
             "draft",
             List.of(
-                new RequirementFact(
-                    "fact-script",
-                    RequirementFactPolarity.POSITIVE,
-                    RequirementFactKind.BEHAVIOR,
-                    "",
-                    "Respond with commandType=completeTask")),
+                suppliedScriptFact("mapper-1", "exchange.message.body = [commandType: 'completeTask']")),
             List.of())
         .withFlow(rockyFlow())
         .withCatalogBindings(

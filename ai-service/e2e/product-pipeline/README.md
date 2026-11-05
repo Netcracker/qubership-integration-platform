@@ -1,7 +1,7 @@
 # Product-pipeline quality gate
 
-Use [the shared runner](../test-system.md) for agent and UI runs. Live cases and fixtures are supplied
-by `.private/rocky-skills/testing/product-pipeline`; the scripts here read that development bundle.
+Use [the shared runner](../test-system.md) for agent and UI runs. The scripts read live cases and fixtures from
+`$QIP_SKILLS_TESTING_ROOT/product-pipeline`.
 
 This harness verifies CREATE and COMPARE_AND_PATCH against one certified knowledge package. It has
 no FULL/SLIM runtime selection.
@@ -231,10 +231,13 @@ python3 ai-service/e2e/product-pipeline/recovery_campaign.py run --cases ai-serv
 
 ## Live gate
 
+Set `QIP_SKILLS_TESTING_ROOT` to the acceptance fixtures. Build an AI service that supports chain creation
+and editing before running the gate, or point the runner at a deployment that already supports these actions.
+
 ```bash
 ai-service/e2e/product-pipeline/run-quality-gate.sh \
   --runs 1 \
-  --knowledge-package .private/rocky-knowledge \
+  --knowledge-package /path/to/certified-knowledge \
   --report-dir /tmp/ai-service-create-gate \
   --base-url http://localhost:8094
 ```
@@ -260,7 +263,7 @@ Run only that recovery scenario:
 ai-service/e2e/product-pipeline/run-quality-gate.sh \
   --scenario product-create-chain-recovery-revise-plan \
   --runs 1 \
-  --knowledge-package .private/rocky-knowledge \
+  --knowledge-package /path/to/certified-knowledge \
   --report-dir /tmp/ai-service-recovery-gate \
   --base-url http://localhost:8094
 ```
@@ -275,7 +278,7 @@ so the live run keeps one recovery-fault prefix. Drive it in isolation:
 ai-service/e2e/product-pipeline/run-quality-gate.sh \
   --scenario product-create-chain-recovery-exhausted-halt \
   --runs 1 \
-  --knowledge-package .private/rocky-knowledge \
+  --knowledge-package /path/to/certified-knowledge \
   --report-dir /tmp/ai-service-exhaust-gate \
   --base-url http://localhost:8094
 ```

@@ -5,19 +5,23 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.Map;
 import org.eclipse.microprofile.health.HealthCheckResponse;
 import org.junit.jupiter.api.Test;
 
 class KnowledgeSidecarReadinessCheckTest {
 
   @Test
-  void publicModeRequiresDocumentationButDoesNotReadPrivatePackage() {
+  void publicModeReportsOnlyTheDocumentationChecksum() {
     var api = mock(KnowledgeSidecarApi.class);
+    String checksum = "sha256:" + "a".repeat(64);
     when(api.documentationManifest()).thenReturn(new KnowledgeSidecarApi.DocumentationManifestDto(
-        1, "sha256:" + "a".repeat(64), 1, 1));
+        1, checksum, 1, 1));
     var check = new KnowledgeSidecarReadinessCheck(api);
     check.rockySkills = mock(org.qubership.integration.platform.ai.skills.RockySkills.class);
-    assertEquals(HealthCheckResponse.Status.UP, check.call().getStatus());
+    var response = check.call();
+    assertEquals(HealthCheckResponse.Status.UP, response.getStatus());
+    assertEquals(Map.of("documentationChecksum", checksum), response.getData().orElseThrow());
     org.mockito.Mockito.verify(api, org.mockito.Mockito.never()).activePackage();
   }
 

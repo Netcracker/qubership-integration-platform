@@ -18,6 +18,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
@@ -1573,11 +1574,13 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         && firstNativeDiscoveryCorrection(doc, stage, outcomeClass, cause, budgetCause, invocation, draftEvidence);
     boolean projectionRebuild = cause.captureFailure() != null && cause.captureFailure().feedback() != null
         && cause.captureFailure().feedback().ladderStage() == RequirementRecoveryLadder.Stage.PROJECTION_REBUILD;
+    boolean unfinishedDiscovery = producerRepairAllowed && currentRepairEligible
+        && unfinishedDiscoveryWork(doc, stage, cause);
     // Input contract checks identify brief defects before capture; rejected output stays with its producer.
     AcceptedRecovery acceptedRecovery = projectionRebuild
         ? new AcceptedRecovery(captureRegenerateDecision(draftEvidence,
             "Capture the requirements again from the author evidence and the semantic baseline."), draftEvidence)
-        : nativeFirstCorrection || "design-input".equals(stage.stageId())
+        : nativeFirstCorrection || unfinishedDiscovery || "design-input".equals(stage.stageId())
             && cause.causeCode() != RecoveryCauseCode.MISSING_BRIEF_FACTS
             && cause.causeCode() != RecoveryCauseCode.BRIEF_CONTRACT
             ? new AcceptedRecovery(
@@ -1620,13 +1623,14 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         && acceptedRecovery.diagnosisStatus() == RecoveryStatus.READY && accepted != null
         && accepted.action() == RecoveryAction.REGENERATE_ARTIFACT && accepted.faultArtifactRef() != null
         && rejectedRefs.size() == 1 && accepted.faultArtifactRef().equals(rejectedRefs.getFirst());
-    boolean currentProducerFallback = currentRepairEligible && (accepted == null
+    boolean currentProducerEligible = currentRepairEligible || currentCleanEligible;
+    boolean currentProducerFallback = unfinishedDiscovery || currentProducerEligible && (accepted == null
         || accepted.action() == RecoveryAction.PARK);
     if (accepted != null && accepted.action() == RecoveryAction.REGENERATE_ARTIFACT
         && accepted.faultArtifactRef() != null && artifactStore.get(runId, accepted.faultArtifactRef()).isEmpty()
         && !validatedSyntheticOutput) {
-      currentProducerFallback = currentRepairEligible;
-      if (!currentRepairEligible) { accepted = null; }
+      currentProducerFallback = currentProducerEligible;
+      if (!currentProducerEligible) { accepted = null; }
     }
     if (currentProducerFallback) {
       accepted = captureRegenerateDecision(recoveryEvidence, findings.isBlank() ? evidenceText : findings);
@@ -2269,6 +2273,26 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     return stage == RequirementRecoveryLadder.Stage.PROJECTION_REBUILD
         || stage == RequirementRecoveryLadder.Stage.ASK_AUTHOR
         || stage == RequirementRecoveryLadder.Stage.INTERNAL_FAILURE;
+  }
+
+  private boolean unfinishedDiscoveryWork(ProductPipelineRunDocument doc, ProfileStage stage, RecoveryCause cause) {
+    if (!"requirement-discovery".equals(stage.capabilityId()) || requirementDrafts == null
+        || cause.captureFailure() != null || cause.findings().isEmpty()) return false;
+    String chat = doc.run().conversationId();
+    var draft = requirementDrafts.get(chat).orElse(null);
+    if (draft == null || draft.authoredDraft() == null || draft.readyForPlan() || draft.hasPendingImport()
+        || !draft.openQuestions().isEmpty() || !requirementDrafts.validateForContinuation(chat).isEmpty()) return false;
+    var view = org.qubership.integration.platform.ai.plan.RequirementCaptureResult.view(draft,
+        requirementDrafts.latestRevision(chat).map(Revision::reference).orElse(null), true, false, List.of(),
+        requirementDrafts.turnDirective(chat));
+    var action = view.nextAction();
+    if (action != org.qubership.integration.platform.ai.plan.RequirementCaptureResult.NextAction.LOOKUP
+        && action != org.qubership.integration.platform.ai.plan.RequirementCaptureResult.NextAction.COMPLETE_DRAFT) return false;
+    return view.pendingWork().size() == cause.findings().size() && view.pendingWork().stream().allMatch(work ->
+        cause.findings().stream().anyMatch(finding -> work.code().equals(finding.code())
+            && Objects.equals(work.interactionId() == null ? "requirement-draft" : work.interactionId(), finding.originRecordId())
+            && Objects.equals(work.interactionId() == null ? "/draft" : "/interactions/" + work.interactionId(),
+                finding.fieldPointer())));
   }
 
   private boolean firstNativeDiscoveryCorrection(ProductPipelineRunDocument doc, ProfileStage stage,
@@ -3111,12 +3135,20 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
 
   private List<RepairHistory.Attempt> repairHistory(String runId, String producer,
       List<Reference> inputs, List<String> authorIds) {
+    Set<String> approvalIds = conversations == null ? Set.of()
+        : conversations.archive().read(requireRun(runId).run().conversationId()).activeTurns().stream()
+            .filter(turn -> turn.message().role()
+                == org.qubership.integration.platform.ai.chat.conversation.ConversationMessage.Role.USER)
+            .filter(turn -> org.qubership.integration.platform.ai.plan.AuthorSourceEvidence.authorInput(turn).isEmpty())
+            .map(turn -> turn.id()).collect(java.util.stream.Collectors.toSet());
+    List<String> sourceIds = authorIds.stream().filter(id -> !approvalIds.contains(id)).toList();
     return artifactStore.history(runId, Kind.RECOVERY_EVIDENCE).stream()
         .filter(revision -> {
           var evidence = artifactStore.payload(revision, RecoveryEvidence.class);
           return (producer.equals(evidence.producerStageId())
               || evidence.producerStageId().isBlank() && producer.equals(evidence.observingStageId()))
-              && inputs.equals(evidence.producerInputs()) && authorIds.equals(evidence.authorInputIds());
+              && inputs.equals(evidence.producerInputs())
+              && sourceIds.equals(evidence.authorInputIds().stream().filter(id -> !approvalIds.contains(id)).toList());
         }).map(revision -> {
           var evidence = artifactStore.payload(revision, RecoveryEvidence.class);
           Object proposal = evidence.observingStageId().equals(producer)
@@ -3600,7 +3632,11 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             draft.authoredDraft().facts().stream().filter(fact -> fact.fieldMapping() != null)
                 .filter(fact -> {
                   var mapping = fact.fieldMapping();
-                  var rule = new MappingIntentRule(mapping.sourcePath(), mapping.targetPath(), mapping.expression());
+                  var rule = mapping.value() == null
+                      ? new MappingIntentRule(mapping.sourcePath(), mapping.targetPath(), mapping.expression())
+                      : new MappingIntentRule("", List.of(), mapping.targetPath(), mapping.value(),
+                          org.qubership.integration.platform.ai.qipknowledge.artifact.MappingCondition.always(),
+                          org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus.PROPOSED);
                   return details.sourceRef().equals(mapping.sourceInteractionId())
                       && details.targetRef().equals(mapping.targetInteractionId())
                       && details.sourcePath().equals(MappingContract.canonicalPath(rule.sourcePath()))

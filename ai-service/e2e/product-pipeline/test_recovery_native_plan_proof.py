@@ -179,7 +179,7 @@ def fixture():
         + encoded({**evidence_history, "projectionId": "evidence-projection"})
         + "</repair-history>\n"
         "\nRebuild the topology so this rejection cannot recur. Preserve the approved element"
-        " placements. Call captureChainSemanticRevision once.\n"
+        " placements.\n"
         "<repair-history>"
         + encoded({**history, "projectionId": "native-projection"})
         + "</repair-history>\n"
@@ -424,6 +424,17 @@ class NativePlanProofTest(unittest.TestCase):  # pylint: disable=too-many-public
             ],
         )
         self.assertEqual(before, self.evidence)
+
+    def test_archived_repair_prompt_with_single_call_instruction_still_proves_recovery(self):
+        self.text(
+            lambda text: text.replace(
+                " placements.\n<repair-history>",
+                " placements. Call captureChainSemanticRevision once.\n<repair-history>",
+            )
+        )
+        errors, proof = self.verify()
+        self.assertEqual([], errors)
+        self.assertEqual(reference(self.graph), proof["graphRef"])
 
     def test_declared_missing_and_null_list_defaults_match_native_dto(self):
         response = self.evidence["providerBoundary"][1]

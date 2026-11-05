@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.plan.mapping.ScriptExecutionAuthority;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
 import org.qubership.integration.platform.ai.logging.AiTraceLog;
@@ -36,7 +37,6 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanReport;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
-import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.DefaultChainSemanticRevisionValidator;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticRegion;
@@ -607,11 +607,11 @@ public class DesignPlanningCapability implements StageCapability {
       }
     }
 
-    if (revision.mappingBodies(brief).isEmpty()) {
+    if (ScriptExecutionAuthority.mappingsRequiringGeneration(revision, brief).isEmpty()) {
       text.append("\nMapping intents: none\n");
     } else {
       text.append("\nMapping intents:\n");
-      for (MappingIntent mapping : revision.mappingBodies(brief)) {
+      for (MappingIntent mapping : ScriptExecutionAuthority.mappingsRequiringGeneration(revision, brief)) {
         text.append("- targetKind=MAPPING_INTENT targetId=")
             .append(mapping.mappingIntentId())
             .append(" producer=");
@@ -624,18 +624,6 @@ public class DesignPlanningCapability implements StageCapability {
             .append(" -> ")
             .append(mapping.targetRef())
             .append('\n');
-      }
-    }
-    List<String> behaviorOwned =
-        DefaultChainSemanticRevisionValidator.behaviorOwnedScriptNodeIds(revision);
-    text.append("\nBehavior-owned script nodes:\n");
-    if (behaviorOwned.isEmpty()) {
-      text.append("- none\n");
-    } else {
-      for (String nodeId : behaviorOwned) {
-        text.append("- targetKind=BEHAVIOR_NODE targetId=")
-            .append(nodeId)
-            .append(" producer=cip-script-generator\n");
       }
     }
     for (String constraint : revision.constraints()) {

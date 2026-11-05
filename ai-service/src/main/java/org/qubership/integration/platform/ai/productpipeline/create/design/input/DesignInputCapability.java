@@ -432,31 +432,30 @@ public class DesignInputCapability implements StageCapability {
     prompt.append(
         """
 
-        Call captureChainSemanticRevision once. Copy sourceFactIds from the brief, taking the\
+        Submit the topology with captureChainSemanticRevision. If it returns REPAIR_CAPTURE,\
+         correct the listed issues and call it again. Copy sourceFactIds from the brief, taking the\
          value after each matching `=` sign. Copy mappingIntentId the same way when Mapping\
          intents include a mappingIntentId= token; otherwise omit it on every edge. Place each\
          mappingIntentId on exactly one edge entering its target external interaction. Omit it\
          on every earlier edge through internal processing nodes. Field-mapping\
          shells use elementType script. Do not mint a mapping id and do not reuse a\
-         sourceFactId as mappingIntentId. A skipped mapping hop stays a direct edge unless an\
-         approved positive BEHAVIOR fact or an ErrorScope requires a script. Every positive\
-         BEHAVIOR fact must appear in one semantic node's sourceFactIds. A constant response,\
-         such as commandType=completeTask, or an assembled response is a behavior-owned script\
-         after the producing call and before the outbound result delivery. For an inbound\
-         HTTP response with no delivery interaction, place it after the final call. INLINE_RESPONSE\
-         puts success and failure field facts on that response script; do not create an error scope\
-         or skip the producing call. Combine consecutive input parsing, context retention, and\
-         request mapping in one script on the same branch and in the same error scope. Save original\
-         values to exchange properties before replacing the body with the request. Put all behavior\
-         and field-mapping sourceFactIds on that script. Different fact kinds do not require\
-         separate nodes. Keep separate scripts only for explicitly requested separate steps or\
-         when a service call, branch, loop, retry, or error-scope boundary separates the work.\
+         sourceFactId as mappingIntentId. Every script needs its own admitted typed mapping or\
+         exact source-bound supplied body. BEHAVIOR facts, provenance, and region membership\
+         alone do not authorize generated scripts. A skipped mapping hop stays a direct edge\
+         unless a script has that authority. Preserve every positive BEHAVIOR fact on its\
+         implementing node or anchor. Constants such as commandType=completeTask and response\
+         assembly remain requirements; if the admitted mapping cannot implement them and no\
+         exact supplied body exists, report the unsupported requirement instead of generating\
+         Groovy. The native compiler derives context retention from admitted mapping origins;\
+         do not combine extra parsing, constants, or manual retention into a mapping script.\
+         Keep supplied bodies exact and preserve their approved execution placement. Native\
+         non-script operations and control-flow regions retain their approved structure.\
          External interaction anchors are server-owned.\
          Reference these node ids from edges. To attach extra sourceFactIds to an existing\
          anchor, list its exact nodeId and elementType under operations. This only extends\
          provenance; it never creates or replaces an interaction. Attach event and call behavior\
-         facts to their anchors. Keep parsing, retention, field mappings, response constants,\
-         and error payload assembly on their implementing processing nodes. Preserve\
+         facts to their anchors. Keep admitted mappings and supplied script requirements on\
+         their implementing processing nodes. Preserve\
          every approved business transition. You may insert internal processing nodes between\
          its source and target, but you may not reverse, omit, or add an external interaction\
          transition. Do not mint occurrence ids. The server derives the revision id, every edge\
@@ -515,7 +514,7 @@ public class DesignInputCapability implements StageCapability {
     }
     extra.append(
         "\nRebuild the topology so this rejection cannot recur. Preserve the approved element"
-            + " placements. Call captureChainSemanticRevision once.");
+            + " placements.");
     return extra.toString();
   }
 

@@ -49,56 +49,31 @@ import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwners
 class ScriptBodyRepairToolTest {
 
   @Test
-  void mappingBatchRecoveryKeepsAValidatedResponseWhileRepairingTheRequest() {
+  void legacyMappingBatchCannotInstallAPartialResponseBeforeRecapture() {
     ChainPlanGraph base = bindMappingBatch("attempt-1");
     String failure = tool.repairScriptBodies(mappingBatch("bad-request", rejectedDateScript(), responseScript()));
-    assertTrue(failure.contains("Groovy mapping:"), failure);
+    assertTrue(failure.contains("verified origin plan"), failure);
     assertTrue(captureSession.get(CaptureKey.capability(CaptureSlot.SCRIPT_BODY_REPAIR,
         CONVERSATION_ID, CAPABILITY_ID), GraphPatch.class).isEmpty());
     assertEquals(base, planStore.get(CONVERSATION_ID).orElseThrow());
-
-    assertThrows(CaptureValidationException.class, () -> tool.repairScriptBodies(
-        mappingBatch("fixed-request", "exchange.in.body = [result: 'request']", successOnlyResponseScript())));
-    GraphPatch patch = captureSession.get(CaptureKey.capability(CaptureSlot.SCRIPT_BODY_REPAIR,
-        CONVERSATION_ID, CAPABILITY_ID), GraphPatch.class).orElseThrow();
-    String response = patch.propertyPatches().stream()
-        .filter(item -> "response".equals(item.targetNodeId()) && "script".equals(item.property().key()))
-        .findFirst().orElseThrow().property().value();
-    assertEquals(responseScript().trim(), response);
-    assertEquals(base, planStore.get(CONVERSATION_ID).orElseThrow());
-    for (var scenario : List.of(new Object[] {201, "{\"id\":\"task-1\",\"errors\":[]}", false},
-        new Object[] {400, "[{\"message\":\"Rejected\"}]", true},
-        new Object[] {503, "Unavailable", true},
-        new Object[] {200, "{\"success\":false,\"errors\":[{\"message\":\"Rejected\"}]}", true})) {
-      var exchange = new MappingExchange((Integer) scenario[0], scenario[1]);
-      var result = (java.util.Map<?, ?>) new groovy.lang.GroovyShell(
-          new groovy.lang.Binding(java.util.Map.of("exchange", exchange))).evaluate(response);
-      assertEquals("completeTask", result.get("commandType"));
-      assertEquals("exec-1", result.get("executionId"));
-      assertEquals(scenario[2], result.containsKey("error"), result.toString());
-      if ((Boolean) scenario[2]) {
-        assertEquals("SALESFORCE_TASK_CREATE_ERROR", ((java.util.Map<?, ?>) result.get("error")).get("code"));
-      }
-    }
   }
 
   @org.junit.jupiter.params.ParameterizedTest
   @org.junit.jupiter.params.provider.ValueSource(strings = {"attempt", "contract"})
-  void mappingBatchRecoveryDoesNotReuseValidatedBodiesAfterInputsChange(String change) {
+  void changingAttemptOrContextCannotAuthorizeLegacyMapping(String change) {
     bindMappingBatch("attempt-1");
-    assertTrue(tool.repairScriptBodies(mappingBatch("bad-request", rejectedDateScript(), responseScript()))
-        .contains("Groovy mapping:"));
-    bindMappingBatch("attempt".equals(change) ? "attempt-2" : "attempt-1");
+    tool.repairScriptBodies(mappingBatch("bad-request", rejectedDateScript(), responseScript()));
+    ChainPlanGraph base = bindMappingBatch("attempt".equals(change) ? "attempt-2" : "attempt-1");
     if ("contract".equals(change)) {
       executionContextStore.set(CONVERSATION_ID, CAPABILITY_ID, executionContextStore
           .get(CONVERSATION_ID, CAPABILITY_ID).orElseThrow().withMappingGenerationContext("Revised mapping contract"));
     }
-    assertThrows(CaptureValidationException.class, () -> tool.repairScriptBodies(
-        mappingBatch("new-attempt", "exchange.in.body = [result: 'request']", successOnlyResponseScript())));
-    GraphPatch patch = captureSession.get(CaptureKey.capability(CaptureSlot.SCRIPT_BODY_REPAIR,
-        CONVERSATION_ID, CAPABILITY_ID), GraphPatch.class).orElseThrow();
-    assertTrue(patch.propertyPatches().stream().anyMatch(item -> "response".equals(item.targetNodeId())
-        && "script".equals(item.property().key()) && successOnlyResponseScript().equals(item.property().value())));
+    String failure = tool.repairScriptBodies(
+        mappingBatch("new-attempt", "exchange.in.body = [result: 'request']", successOnlyResponseScript()));
+    assertTrue(failure.contains("verified origin plan"), failure);
+    assertEquals(java.util.Optional.empty(), captureSession.get(CaptureKey.capability(CaptureSlot.SCRIPT_BODY_REPAIR,
+        CONVERSATION_ID, CAPABILITY_ID), GraphPatch.class));
+    assertEquals(base, planStore.get(CONVERSATION_ID).orElseThrow());
   }
 
   private ChainPlanGraph bindMappingBatch(String attemptId) {
@@ -209,11 +184,79 @@ class ScriptBodyRepairToolTest {
             ? new ChainPlanNode(node.nodeId(), node.type(), node.label(), node.parentNodeId(), node.order(),
                 List.of(new PlanProperty("script", "validate-siteIds".equals(node.nodeId())
                     ? "return 1" : "return 'untouched'"))) : node).toList(), fixture.edges());
+    planStore.put(CONVERSATION_ID, base);
     executionContextStore.set(CONVERSATION_ID, CAPABILITY_ID,
-        new GraphPatchExecutionContext("edit-run", CAPABILITY_ID, null, null, null, null, null,
+        new GraphPatchExecutionContext("edit-run", CAPABILITY_ID, null, null, null, null,
+            suppliedBrief("return 2", "return 'untouched'"),
             List.of(), base, GraphPatchOwnershipPolicy.denyAll(), "attempt", List.of("validate-siteIds"))
             .withExistingScriptBodyEdit(true));
     return base;
+  }
+
+  @Test
+  void suppliedRepairRejectsChangedBytesBeforeCapturingAPatch() {
+    var original = bindFilledScriptEdit();
+    var base = original.withNodeProperty("validate-siteIds", "script", "return 2");
+    planStore.put(CONVERSATION_ID, base);
+    executionContextStore.set(CONVERSATION_ID, CAPABILITY_ID,
+        new GraphPatchExecutionContext("edit-run", CAPABILITY_ID, null, null, null, null,
+            suppliedBrief("return 2", "return 'untouched'"), List.of(), base,
+            GraphPatchOwnershipPolicy.denyAll(), "tampered", List.of("validate-siteIds"))
+            .withExistingScriptBodyEdit(true));
+    String result = tool.repairScriptBodies(new ScriptBodyRepairCapture("tampered-supplied",
+        List.of(new ScriptBodyEntry("validate-siteIds", "return 999")), "Edit the supplied body"));
+    assertTrue(result.contains("differs from its approved source"), result);
+    assertEquals(java.util.Optional.empty(), captureSession.get(
+        CaptureKey.capability(CaptureSlot.SCRIPT_BODY_REPAIR, CONVERSATION_ID, CAPABILITY_ID), GraphPatch.class));
+    assertEquals(base, planStore.get(CONVERSATION_ID).orElseThrow());
+  }
+
+  @Test
+  void suppliedRepairPreservesLeadingAndTrailingWhitespaceExactly() {
+    var base = bindFilledScriptEdit();
+    String body = "  return 2\n\n";
+    var context = executionContextStore.get(CONVERSATION_ID, CAPABILITY_ID).orElseThrow();
+    executionContextStore.set(CONVERSATION_ID, CAPABILITY_ID,
+        new GraphPatchExecutionContext(context.runId(), context.skillId(), null, null, null, null,
+            suppliedBrief(body, "return 'untouched'"), List.of(), base,
+            GraphPatchOwnershipPolicy.denyAll(), "whitespace", List.of("validate-siteIds"))
+            .withExistingScriptBodyEdit(true));
+    assertThrows(CaptureValidationException.class, () -> tool.repairScriptBodies(
+        new ScriptBodyRepairCapture("exact-supplied", List.of(new ScriptBodyEntry("validate-siteIds", body)),
+            "Install the approved supplied body")));
+    var patch = captureSession.get(CaptureKey.capability(CaptureSlot.SCRIPT_BODY_REPAIR,
+        CONVERSATION_ID, CAPABILITY_ID), GraphPatch.class).orElseThrow();
+    assertEquals(body, patch.propertyPatches().getFirst().property().value());
+    assertEquals(body, new GraphPatchApplier().apply(base, patch).graph().nodes().get(1).properties().getFirst().value());
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+  void unownedBlankAndFilledScriptRepairsCannotCaptureAPatch(boolean filled) {
+    var graph = graphWithMissingScripts();
+    if (filled) graph = new ChainPlanGraph(graph.schemaVersion(), graph.chain(), graph.nodes().stream()
+        .map(node -> "script".equals(node.type()) ? new ChainPlanNode(node.nodeId(), node.type(), node.label(),
+            node.parentNodeId(), node.order(), List.of(new PlanProperty("script", "return 0"))) : node).toList(), graph.edges());
+    planStore.put(CONVERSATION_ID, graph);
+    executionContextStore.set(CONVERSATION_ID, CAPABILITY_ID,
+        new GraphPatchExecutionContext("unowned", CAPABILITY_ID, null, null, null, null,
+            new RequirementBrief("Unowned scripts", List.of(), List.of(), List.of(), List.of(), "summary"),
+            List.of(), graph, GraphPatchOwnershipPolicy.denyAll(), "attempt", List.of("validate-siteIds", "append-found-row"))
+            .withExistingScriptBodyEdit(filled));
+    String result = tool.repairScriptBodies(new ScriptBodyRepairCapture("unowned-body", List.of(
+        new ScriptBodyEntry("validate-siteIds", "return 1"),
+        new ScriptBodyEntry("append-found-row", "return 2")), "Fill scripts"));
+    assertTrue(result.contains("authority"), result);
+    assertEquals(java.util.Optional.empty(), captureSession.get(CaptureKey.capability(
+        CaptureSlot.SCRIPT_BODY_REPAIR, CONVERSATION_ID, CAPABILITY_ID), GraphPatch.class));
+    assertEquals(graph, planStore.get(CONVERSATION_ID).orElseThrow());
+  }
+
+  private static RequirementBrief suppliedBrief(String first, String second) {
+    return new RequirementBrief("Supplied scripts", List.of(), List.of(), List.of(), List.of(), "summary")
+        .withFacts(List.of(
+            org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures.suppliedFact("validate-siteIds", first),
+            org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures.suppliedFact("append-found-row", second)));
   }
 
   private static final String CONVERSATION_ID = "script-repair-conv";
@@ -250,6 +293,10 @@ class ScriptBodyRepairToolTest {
             feedbackStore,
             executionContextStore,
             compilationArtifacts);
+    executionContextStore.set(CONVERSATION_ID, CAPABILITY_ID,
+        new GraphPatchExecutionContext("supplied-run", CAPABILITY_ID, null, null, null, null,
+            suppliedBrief("const ids = exchange.body.siteIds;", "exchange.body.rows.push(exchange.body.item);"),
+            List.of(), graphWithMissingScripts(), GraphPatchOwnershipPolicy.denyAll(), "attempt-1"));
     MDC.put(ChatMdc.CONVERSATION_ID, CONVERSATION_ID);
     MDC.put(CompilerSkillMdc.CAPABILITY_ID, CAPABILITY_ID);
   }
@@ -354,7 +401,8 @@ class ScriptBodyRepairToolTest {
 
   @Test
   void repairsOnlyScriptsInTheActiveEditPlan() {
-    ChainPlanGraph graph = graphWithMissingScripts();
+    ChainPlanGraph graph = graphWithMissingScripts()
+        .withNodeProperty("validate-siteIds", "script", "const ids = exchange.body.siteIds;");
     planStore.put(CONVERSATION_ID, graph);
     executionContextStore.set(
         CONVERSATION_ID,
@@ -366,7 +414,7 @@ class ScriptBodyRepairToolTest {
             null,
             null,
             null,
-            null,
+            suppliedBrief("const ids = exchange.body.siteIds;", "exchange.body.rows.push(exchange.body.item);"),
             List.of(),
             graph,
             GraphPatchOwnershipPolicy.denyAll(),
@@ -426,8 +474,8 @@ class ScriptBodyRepairToolTest {
                     new ScriptBodyRepairCapture(
                         "script-repair-2",
                         List.of(
-                            new ScriptBodyEntry("validate-siteIds", "overwrite body"),
-                            new ScriptBodyEntry("append-found-row", "overwrite other")),
+                            new ScriptBodyEntry("validate-siteIds", "const ids = exchange.body.siteIds;"),
+                            new ScriptBodyEntry("append-found-row", "exchange.body.rows.push(exchange.body.item);")),
                         "Duplicate repair")));
 
     assertTrue(ex.getMessage().contains("already captured"));
@@ -548,7 +596,7 @@ class ScriptBodyRepairToolTest {
   }
 
   @Test
-  void mappingGrabScriptFailsClosed() {
+  void legacyGrabScriptFailsBeforeAnyModelBodyCanBeAccepted() {
     bindMappingScriptRepair();
 
     String result =
@@ -562,7 +610,7 @@ class ScriptBodyRepairToolTest {
                         List.of("$.orderId"))),
                 "Fill mapping script"));
 
-    assertTrue(result.contains("Groovy mapping:"));
+    assertTrue(result.contains("verified origin plan"), result);
     assertTrue(
         captureSession
             .get(
@@ -573,7 +621,7 @@ class ScriptBodyRepairToolTest {
   }
 
   @Test
-  void mappingMissingCoverageFailsClosed() {
+  void legacyMissingCoverageCannotBypassOriginAdmission() {
     bindMappingScriptRepair();
 
     String result =
@@ -585,7 +633,7 @@ class ScriptBodyRepairToolTest {
                         "transform-map-init", "target['orderId'] = source['orderId']\n")),
                 "Fill mapping script"));
 
-    assertTrue(result.contains("Mapping parity:"));
+    assertTrue(result.contains("verified origin plan"), result);
     assertTrue(
         captureSession
             .get(
@@ -596,48 +644,97 @@ class ScriptBodyRepairToolTest {
   }
 
   @Test
-  void mappingIdentityScriptWithCoveragePasses() {
+  void legacyIdentityCoverageCannotSubstituteForConfirmedOrigins() {
     bindMappingScriptRepair();
+    ChainPlanGraph base = planStore.get(CONVERSATION_ID).orElseThrow();
+    String failure = tool.repairScriptBodies(new ScriptBodyRepairCapture("script-map-ok",
+        List.of(new ScriptBodyEntry("transform-map-init", "target['orderId'] = source['orderId']",
+            List.of("$.orderId"))), "Fill mapping script"));
+    assertTrue(failure.contains("verified origin plan"), failure);
+    assertEquals(java.util.Optional.empty(), captureSession.get(CaptureKey.capability(CaptureSlot.SCRIPT_BODY_REPAIR,
+        CONVERSATION_ID, CAPABILITY_ID), GraphPatch.class));
+    assertEquals(base, planStore.get(CONVERSATION_ID).orElseThrow());
+  }
 
-    CaptureValidationException terminal =
-        assertThrows(
-            CaptureValidationException.class,
-            () ->
-                tool.repairScriptBodies(
-                    new ScriptBodyRepairCapture(
-                        "script-map-ok",
-                        List.of(
-                            new ScriptBodyEntry(
-                                "transform-map-init",
-                                "target['orderId'] = source['orderId']\n",
-                                List.of("$.orderId"))),
-                        "Fill mapping script")));
+  @Test
+  void pipelineAndRepairUseTheFrozenSaveOnlyPlanAfterBodyReplacement() throws Exception {
+    var origin = new org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource.Message(
+        "entry", MappingPort.OUTPUT, "$.processInstanceId");
+    var rule = new MappingIntentRule("pid", List.of("fact-pid"), "$.processId",
+        new org.qubership.integration.platform.ai.qipknowledge.artifact.MappingValue.Copy(origin),
+        org.qubership.integration.platform.ai.qipknowledge.artifact.MappingCondition.always(), MappingRuleStatus.PROPOSED)
+        .withMissingSourcePolicy("ERROR").withSchemaPins(java.util.Map.of("source", "event-hash", "target", "result-hash"));
+    var intent = new MappingIntent("result-map", "call", MappingPort.RESPONSE,
+        "result", MappingPort.REQUEST, List.of(rule), "SCRIPT");
+    var brief = new RequirementBrief("Retain origin", List.of(), List.of(), List.of(), List.of(), "summary")
+        .withMappingIntents(List.of(intent));
+    var semantic = new org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision(
+        "chain-semantic-revision/v1", "revision", "chain", "1", List.of(),
+        List.of(new org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode.Trigger(
+                "entry", "async-api-trigger", null),
+            new org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode.ServiceCall(
+                "call", "call", "create", null),
+            new org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode.ServiceCall(
+                "result", "result", "send", null)), List.of(),
+        List.of(new org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge(
+                "first", "entry", "call", null, null, null),
+            new org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge(
+                "next", "call", "result", null, null, null)),
+        List.of(), List.of(), List.of(), List.of(), List.of());
+    var graph = new ChainPlanGraph("1.0", new ChainSection("chain", "chain"),
+        List.of(new ChainPlanNode("entry", "async-api-trigger", "entry", null, null, List.of()),
+            new ChainPlanNode("call", "service-call", "call", null, null, List.of()),
+            new ChainPlanNode("response", "script", "response", null, null,
+                List.of(new PlanProperty("mappingIntentId", "result-map"))),
+            new ChainPlanNode("result", "service-call", "result", null, null, List.of())),
+        List.of(new ChainPlanEdge("first", "entry", "call", null),
+            new ChainPlanEdge("before-result", "call", "response", null),
+            new ChainPlanEdge("after-result", "response", "result", null)));
+    graph = org.qubership.integration.platform.ai.plan.mapping.CopyRetentionStructurePhase.place(
+        graph, List.of(intent), (ref, port) -> ref);
+    for (var side : List.of(
+        new MappingSchemaSide("1", "entry", null, MappingPort.OUTPUT, "application/json", null,
+            "event-hash", "test", MAPPER.readTree("{\"type\":\"object\",\"properties\":{\"processInstanceId\":{\"type\":\"string\"}}}")),
+        new MappingSchemaSide("1", "call", null, MappingPort.RESPONSE, "application/json", null,
+            "call-hash", "test", MAPPER.readTree("{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"string\"}}}")),
+        new MappingSchemaSide("1", "result", null, MappingPort.REQUEST, "application/json", null,
+            "result-hash", "test", MAPPER.readTree("{\"type\":\"object\",\"properties\":{\"processId\":{\"type\":\"string\"}}}")))) {
+      compilationArtifacts.append(new CompilationArtifacts.AppendCommand(CONVERSATION_ID,
+          CompilationArtifacts.Kind.MAPPING_SCHEMA_SIDE, "1", "test", "1", side, List.of(), null));
+    }
+    var builder = mock(CompilerSkillContextBuilder.class, invocation ->
+        invocation.getMethod().getReturnType() == String.class ? "" : org.mockito.Answers.RETURNS_DEFAULTS.answer(invocation));
+    var pipeline = new org.qubership.integration.platform.ai.plan.mapping.MappingGenerationPipeline(
+        compilationArtifacts, MAPPER, builder);
+    var context = new GraphPatchExecutionContext("run", "cip-script-generator", null, null, null, null,
+        brief, List.of(), graph, GraphPatchOwnershipPolicy.denyAll(), "attempt");
+    var prepared = pipeline.prepare(CONVERSATION_ID, "cip-script-generator", semantic, List.of(), context);
+    assertFalse(prepared.blocked(), prepared.blockedMessage());
+    assertEquals(2, prepared.envelopeRefs().size());
+    planStore.put(CONVERSATION_ID, graph);
+    executionContextStore.set(CONVERSATION_ID, CAPABILITY_ID, prepared.context());
+    String saveId = org.qubership.integration.platform.ai.plan.mapping.CopyMappingPlanner.retentionSiteId(origin);
+    assertThrows(CaptureValidationException.class, () -> tool.repairScriptBodies(new ScriptBodyRepairCapture(
+        "frozen-copy", List.of(new ScriptBodyEntry(saveId, "throw new RuntimeException('untrusted')"),
+            new ScriptBodyEntry("response", "exchange.in.body = [processId:'WRONG']", List.of("$.processId"))),
+        "Fill save and response")));
+    GraphPatch patch = captureSession.get(CaptureKey.capability(CaptureSlot.SCRIPT_BODY_REPAIR,
+        CONVERSATION_ID, CAPABILITY_ID), GraphPatch.class).orElseThrow();
+    var bodies = patch.propertyPatches().stream().filter(item -> "script".equals(item.property().key()))
+        .collect(java.util.stream.Collectors.toMap(item -> item.targetNodeId(), item -> item.property().value()));
+    RetainingExchange exchange = new RetainingExchange(java.util.Map.of("processInstanceId", "ORIGINAL"));
+    var shell = new groovy.lang.GroovyShell(new groovy.lang.Binding(java.util.Map.of("exchange", exchange)));
+    shell.evaluate(bodies.get(saveId));
+    exchange.in.body = java.util.Map.of("processInstanceId", "WRONG_RESPONSE");
+    assertEquals(java.util.Map.of("processId", "ORIGINAL"), shell.evaluate(bodies.get("response")));
+    assertEquals(graph, planStore.get(CONVERSATION_ID).orElseThrow());
+  }
 
-    assertTrue(terminal.getMessage().contains("Script body repair patch captured"));
-    GraphPatch patch =
-        captureSession
-            .get(
-                CaptureKey.capability(
-                    CaptureSlot.SCRIPT_BODY_REPAIR, CONVERSATION_ID, CAPABILITY_ID),
-                GraphPatch.class)
-            .orElseThrow();
-    assertTrue(
-        patch.propertyPatches().stream()
-            .anyMatch(propertyPatch -> "script".equals(propertyPatch.property().key())));
-    assertTrue(
-        patch.propertyPatches().stream()
-            .anyMatch(
-                propertyPatch -> "mappingCoverage".equals(propertyPatch.property().key())));
-    assertTrue(
-        patch.propertyPatches().stream()
-            .allMatch(
-                propertyPatch ->
-                    "script".equals(propertyPatch.property().key())
-                        || "mappingCoverage".equals(propertyPatch.property().key())));
-    assertEquals(
-        "map-init",
-        MappingExecutionSite.mappingIntentId(
-            graphWithMappingScript().nodes().getFirst()));
+  public static final class RetainingExchange extends MappingExchange {
+    private final java.util.Map<String, Object> retained = new java.util.LinkedHashMap<>();
+    RetainingExchange(Object body) { super(200, body); }
+    public void setProperty(String key, Object value) { retained.put(key, value); }
+    public Object getProperty(String key) { return retained.get(key); }
   }
 
   @Test
@@ -671,44 +768,27 @@ class ScriptBodyRepairToolTest {
             .orElseThrow()
             .property()
             .value();
-    assertTrue(script.contains("exchange.in.body = ['orderId': source['orderId']]"));
+    var source = new java.util.LinkedHashMap<String, Object>(); source.put("orderId", "ORIGINAL");
+    assertEquals(java.util.Map.of("orderId", "ORIGINAL"), new groovy.lang.GroovyShell(
+        new groovy.lang.Binding(java.util.Map.of("exchange", new MappingExchange(200, source)))).evaluate(script));
     assertFalse(script.contains("headers"));
   }
 
   @Test
-  void directBodyCopyProjectsWhenHttpSchemasAreUnknown() throws Exception {
+  void unknownHttpSchemasCannotAuthorizeNativeBodyProjection() throws Exception {
     bindDirectMappingRepair(true);
-
-    assertThrows(
-        CaptureValidationException.class,
-        () ->
-            tool.repairScriptBodies(
-                new ScriptBodyRepairCapture(
-                    "direct-copy-unknown",
-                    List.of(
-                        new ScriptBodyEntry(
-                            "transform-map-init",
-                            "exchange.in.headers.put('orderId', exchange.in.body.orderId)",
-                            List.of("$.orderId"))),
-                    "Map the approved body field")));
-
-    GraphPatch patch =
-        captureSession
-            .get(
-                CaptureKey.capability(
-                    CaptureSlot.SCRIPT_BODY_REPAIR, CONVERSATION_ID, CAPABILITY_ID),
-                GraphPatch.class)
-            .orElseThrow();
-    assertTrue(
-        patch.propertyPatches().stream()
-            .anyMatch(
-                property ->
-                    "script".equals(property.property().key())
-                        && property.property().value().contains("exchange.in.body = ['orderId'")));
+    ChainPlanGraph base = planStore.get(CONVERSATION_ID).orElseThrow();
+    String failure = tool.repairScriptBodies(new ScriptBodyRepairCapture("direct-copy-unknown",
+        List.of(new ScriptBodyEntry("transform-map-init", "exchange.in.body = [:]", List.of("$.orderId"))),
+        "Map the body field"));
+    assertTrue(failure.contains("verified origin plan"), failure);
+    assertEquals(java.util.Optional.empty(), captureSession.get(CaptureKey.capability(CaptureSlot.SCRIPT_BODY_REPAIR,
+        CONVERSATION_ID, CAPABILITY_ID), GraphPatch.class));
+    assertEquals(base, planStore.get(CONVERSATION_ID).orElseThrow());
   }
 
   @Test
-  void mappingRepairRejectsUnexpectedCoverageWithoutMutatingTheContract() {
+  void legacyUnexpectedCoverageCannotMutateTheContract() {
     bindMappingScriptRepair();
 
     String result =
@@ -722,7 +802,7 @@ class ScriptBodyRepairToolTest {
                         List.of("$.orderId", "$.extra"))),
                 "Fill mapping script"));
 
-    assertTrue(result.contains("unexpected"));
+    assertTrue(result.contains("verified origin plan"), result);
     assertTrue(
         captureSession
             .get(
@@ -737,47 +817,20 @@ class ScriptBodyRepairToolTest {
   }
 
   @Test
-  void mappingRepairReplacesScriptAndCoverageWithoutMutatingSiteOwnership() {
+  void legacyMappingRepairCannotMutateSiteOwnership() {
     bindMappingScriptRepair();
-
-    assertThrows(
-        CaptureValidationException.class,
-        () ->
-            tool.repairScriptBodies(
-                new ScriptBodyRepairCapture(
-                    "script-map-replace",
-                    List.of(
-                        new ScriptBodyEntry(
-                            "transform-map-init",
-                            "target['orderId'] = source['orderId']\n",
-                            List.of("$.orderId"))),
-                    "Replace mapping script")));
-
-    GraphPatch patch =
-        captureSession
-            .get(
-                CaptureKey.capability(
-                    CaptureSlot.SCRIPT_BODY_REPAIR, CONVERSATION_ID, CAPABILITY_ID),
-                GraphPatch.class)
-            .orElseThrow();
-    assertTrue(patch.nodePatches().isEmpty());
-    assertTrue(patch.edgePatches().isEmpty());
-    assertTrue(
-        patch.propertyPatches().stream()
-            .allMatch(
-                propertyPatch ->
-                    "script".equals(propertyPatch.property().key())
-                        || "mappingCoverage".equals(propertyPatch.property().key())));
-    assertTrue(
-        planStore.get(CONVERSATION_ID).orElseThrow().nodes().stream()
-            .anyMatch(
-                node ->
-                    "transform-map-init".equals(node.nodeId())
-                        && "map-init".equals(MappingExecutionSite.mappingIntentId(node))));
+    ChainPlanGraph base = planStore.get(CONVERSATION_ID).orElseThrow();
+    String failure = tool.repairScriptBodies(new ScriptBodyRepairCapture("script-map-replace",
+        List.of(new ScriptBodyEntry("transform-map-init", "target['orderId'] = source['orderId']",
+            List.of("$.orderId"))), "Replace mapping script"));
+    assertTrue(failure.contains("verified origin plan"), failure);
+    assertEquals(base, planStore.get(CONVERSATION_ID).orElseThrow());
+    assertEquals(java.util.Optional.empty(), captureSession.get(CaptureKey.capability(CaptureSlot.SCRIPT_BODY_REPAIR,
+        CONVERSATION_ID, CAPABILITY_ID), GraphPatch.class));
   }
 
   @Test
-  void mappingRepairRejectsUnexpectedCoverageWithoutChangingTheIntent() {
+  void legacyUnexpectedCoverageCannotChangeTheIntent() {
     bindMappingScriptRepair();
 
     String result =
@@ -791,7 +844,7 @@ class ScriptBodyRepairToolTest {
                         List.of("$.orderId", "$.extra"))),
                 "Extra coverage"));
 
-    assertTrue(result.contains("unexpected="));
+    assertTrue(result.contains("verified origin plan"), result);
     assertTrue(
         captureSession
             .get(
@@ -805,85 +858,20 @@ class ScriptBodyRepairToolTest {
             planStore.get(CONVERSATION_ID).orElseThrow().nodes().getFirst()));
   }
 
-  @Test
-  void requestHopRepairStripsResponseKeepPathsFromStoredCoverage() throws Exception {
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+  void nestedLegacyRequestCannotBypassOriginAdmissionWithCoverage(boolean includeSubject) throws Exception {
     bindRequestHopMappingRepair();
-
-    CaptureValidationException terminal =
-        assertThrows(
-            CaptureValidationException.class,
-            () ->
-                tool.repairScriptBodies(
-                    new ScriptBodyRepairCapture(
-                        "script-request-hop",
-                        List.of(
-                            new ScriptBodyEntry(
-                                "transform-create-task",
-                                requestHopScript(),
-                                List.of(
-                                    "Subject",
-                                    "Description",
-                                    "$.response.executionId",
-                                    "$.response.orderId"))),
-                        "Fill request hop mapping")));
-
-    assertTrue(terminal.getMessage().contains("Script body repair patch captured"));
-    GraphPatch patch =
-        captureSession
-            .get(
-                CaptureKey.capability(
-                    CaptureSlot.SCRIPT_BODY_REPAIR, CONVERSATION_ID, CAPABILITY_ID),
-                GraphPatch.class)
-            .orElseThrow();
-    String coverageJson =
-        patch.propertyPatches().stream()
-            .filter(
-                propertyPatch ->
-                    MappingExecutionSite.MAPPING_COVERAGE_PROPERTY.equals(
-                        propertyPatch.property().key()))
-            .findFirst()
-            .orElseThrow()
-            .property()
-            .value();
-    assertTrue(coverageJson.contains("Subject"));
-    assertTrue(coverageJson.contains("Description"));
-    assertFalse(coverageJson.contains("$.response"));
-    String script =
-        patch.propertyPatches().stream()
-            .filter(propertyPatch -> "script".equals(propertyPatch.property().key()))
-            .findFirst()
-            .orElseThrow()
-            .property()
-            .value();
-    assertTrue(script.contains("response.executionId"));
-    assertTrue(script.contains("response.orderId"));
-  }
-
-  @Test
-  void requestHopRepairStillReportsMissingHopBodyField() throws Exception {
-    bindRequestHopMappingRepair();
-
-    String result =
-        tool.repairScriptBodies(
-            new ScriptBodyRepairCapture(
-                "script-request-hop-missing",
-                List.of(
-                    new ScriptBodyEntry(
-                        "transform-create-task",
-                        requestHopScript(),
-                        List.of("Description", "$.response.executionId", "$.response.orderId"))),
-                "Fill request hop mapping"));
-
-    assertTrue(result.contains("missing="));
-    assertTrue(result.contains("Subject"));
-    assertFalse(result.contains("$.response"));
-    assertTrue(
-        captureSession
-            .get(
-                CaptureKey.capability(
-                    CaptureSlot.SCRIPT_BODY_REPAIR, CONVERSATION_ID, CAPABILITY_ID),
-                GraphPatch.class)
-            .isEmpty());
+    ChainPlanGraph base = planStore.get(CONVERSATION_ID).orElseThrow();
+    List<String> coverage = includeSubject
+        ? List.of("Subject", "Description", "$.response.executionId", "$.response.orderId")
+        : List.of("Description", "$.response.executionId", "$.response.orderId");
+    String failure = tool.repairScriptBodies(new ScriptBodyRepairCapture("script-request-hop",
+        List.of(new ScriptBodyEntry("transform-create-task", requestHopScript(), coverage)), "Fill request mapping"));
+    assertTrue(failure.contains("verified origin plan"), failure);
+    assertEquals(java.util.Optional.empty(), captureSession.get(CaptureKey.capability(CaptureSlot.SCRIPT_BODY_REPAIR,
+        CONVERSATION_ID, CAPABILITY_ID), GraphPatch.class));
+    assertEquals(base, planStore.get(CONVERSATION_ID).orElseThrow());
   }
 
   private void bindMappingScriptRepair() {
@@ -927,6 +915,13 @@ class ScriptBodyRepairToolTest {
                     "1", "call-1", "op", MappingPort.REQUEST, "application/json", null,
                     "target-hash", "test", body))
             .withMappingIntentId("map-init");
+    if (!unknownSchema) {
+      var origin = new org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource.Message(
+          "trigger-http", MappingPort.OUTPUT, "$.orderId");
+      envelope = envelope.withVerifiedCopyPlan(new org.qubership.integration.platform.ai.plan.mapping.CopyMappingPlan(
+          List.of(new org.qubership.integration.platform.ai.plan.mapping.CopyMappingPlan.Read("order-id", "orderId",
+              origin, "source-hash", "target-hash", null, false)), List.of()));
+    }
     CompilationArtifacts.Revision revision =
         compilationArtifacts.append(
             new CompilationArtifacts.AppendCommand(
@@ -949,11 +944,22 @@ class ScriptBodyRepairToolTest {
             null,
             null,
             null,
-            identityMappingBrief(),
+            unknownSchema ? identityMappingBrief() : typedIdentityMappingBrief(),
             List.of(revision.reference()),
             graph,
             GraphPatchOwnershipPolicy.denyAll(),
             "attempt-1"));
+  }
+
+  private static RequirementBrief typedIdentityMappingBrief() {
+    var origin = new org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource.Message(
+        "trigger-http", MappingPort.OUTPUT, "$.orderId");
+    var rule = new MappingIntentRule("order-id", List.of("fact-order"), "$.orderId",
+        new org.qubership.integration.platform.ai.qipknowledge.artifact.MappingValue.Copy(origin),
+        org.qubership.integration.platform.ai.qipknowledge.artifact.MappingCondition.always(), MappingRuleStatus.USER_DEFINED)
+        .withMissingSourcePolicy("ERROR").withSchemaPins(java.util.Map.of("source", "source-hash", "target", "target-hash"));
+    return identityMappingBrief().withMappingIntents(List.of(new MappingIntent("map-init", "trigger-http",
+        MappingPort.OUTPUT, "call-1", MappingPort.REQUEST, List.of(rule), "SCRIPT")));
   }
 
   private static RequirementBrief identityMappingBrief() {

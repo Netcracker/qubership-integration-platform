@@ -73,6 +73,7 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polari
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.TransitionInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureResult.NextAction;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
+import org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition;
 import org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 
@@ -742,6 +743,255 @@ class RequirementCaptureToolsTest {
           ? org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Disposition.AMBIGUOUS
           : org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Disposition.ANSWER,
           disposition);
+    }
+  }
+
+  @Test
+  void anExplicitDeliveryAnswerProjectsItsCapabilityAndPreservesQueuedQuestions() throws Exception {
+    var setup = pinnedDeliveryQuestion("delivery-answer", "Use chain-trigger-2 for internal invocation.");
+    var mapper = setup.mapper();
+    var restored = setup.harness();
+    String chat = setup.chat();
+    var answer = setup.answer();
+    try (var ignored = ToolSession.open(chat)) {
+      var anchor = nativeAnchorFact("entry", "chain-trigger-2");
+      var evidenced = new FactInput(anchor.sourceFactId(), anchor.interactionIds(), anchor.kind(), anchor.polarity(),
+          anchor.text(), null, null, anchor.elementIntent(),
+          new ClaimEvidenceInput(answer.turnId(), "Use chain-trigger-2 for internal invocation."));
+      var update = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(evidenced), List.of(),
+          List.of(), List.of(new CapabilityInput("entry", "chain-trigger-2", null, null, null, null, null, null)),
+          List.of(), List.of(), List.of(), List.of("delivery"), null, List.of(), null, null);
+
+      var applied = mapper.readValue(restored.tools().updateRequirementDraft(update), RequirementCaptureResult.class);
+
+      assertTrue(applied.accepted(), applied.toString());
+      var saved = restored.store().get(chat).orElseThrow();
+      assertEquals("chain-trigger-2", saved.authoredDraft().capabilities().getFirst().capabilityKey());
+      assertEquals(List.of(setup.queued()), saved.authoredDraft().openQuestions());
+      assertEquals(ClarificationTransition.Disposition.ANSWER,
+          restored.store().latestClarificationAnswer(chat).orElseThrow().disposition());
+      assertEquals(List.of(), restored.store().validateAuthorQuestions(chat));
+    }
+  }
+
+  @Test
+  void anExplicitHttpModeAnswerProjectsItsModeAndPreservesQueuedQuestions() throws Exception {
+    var setup = pinnedDeliveryQuestion("http-mode-answer", "Use CUSTOM mode.", "httpMode");
+    try (var ignored = ToolSession.open(setup.chat())) {
+      var update = questionUpdate(List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM,
+          null, null, null, null, null)), List.of(), List.of("delivery"), null);
+
+      var applied = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(update),
+          RequirementCaptureResult.class);
+
+      assertTrue(applied.accepted(), applied.toString());
+      var saved = setup.harness().store().get(setup.chat()).orElseThrow();
+      assertEquals(HttpMode.CUSTOM, saved.authoredDraft().capabilities().getFirst().httpMode());
+      assertEquals(List.of(setup.queued()), saved.authoredDraft().openQuestions());
+      assertEquals(ClarificationTransition.Disposition.ANSWER,
+          setup.harness().store().latestClarificationAnswer(setup.chat()).orElseThrow().disposition());
+    }
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.EnumSource(value = ClarificationTransition.Disposition.class,
+      names = {"AMBIGUOUS", "NON_ANSWER"})
+  void anUnresolvedDeliveryAnswerKeepsTheTransportUnselected(
+      ClarificationTransition.Disposition disposition)
+      throws Exception {
+    boolean ambiguous = disposition == ClarificationTransition.Disposition.AMBIGUOUS;
+    String reply = ambiguous ? "Use chain-trigger-2 or kafka-trigger-2." : "I have not chosen the transport.";
+    var setup = pinnedDeliveryQuestion("unresolved-delivery-" + disposition, reply);
+    var evidenceKind = ambiguous
+        ? AuthorQuestionEvidence.Kind.AMBIGUOUS_ANSWER
+        : AuthorQuestionEvidence.Kind.MISSING_VALUE;
+    var candidates = ambiguous ? List.of("chain-trigger-2", "kafka-trigger-2") : List.<String>of();
+    var ambiguity = ambiguous
+        ? new AuthorQuestionEvidence.AmbiguityEvidence(
+            setup.answer().turnId(), reply, candidates) : null;
+    var reviewed = new RequirementCaptureInput.QuestionInput("delivery", List.of("entry"),
+        ambiguous ? "Should another chain invoke it, or should it consume Kafka?" : "How does the payload reach this chain?",
+        new AuthorQuestionEvidence("entry", "capabilityKey",
+            evidenceKind, List.of(setup.firstTurnId(), setup.answer().turnId()), ambiguity));
+    var input = new RequirementCaptureInput.ClarificationDispositionInput("delivery", disposition,
+        setup.answer().turnId(), reply, candidates);
+    setup.harness().tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+        .createForUnitTests(setup.mapper());
+    try (var ignored = ToolSession.open(setup.chat())) {
+      var opened = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(
+          questionUpdate(List.of(), List.of(), List.of(), null)), RequirementCaptureResult.class);
+      assertFalse(opened.accepted(), opened.toString());
+      var result = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(
+          questionUpdate(List.of(), List.of(reviewed), List.of(), input)), RequirementCaptureResult.class);
+
+      assertTrue(result.accepted(), result.toString());
+      var saved = setup.harness().store().get(setup.chat()).orElseThrow();
+      assertEquals(List.of(), saved.authoredDraft().capabilities());
+      assertEquals(List.of("delivery", "participant"), saved.authoredDraft().openQuestions().stream()
+          .map(RequirementCaptureInput.QuestionInput::questionId).toList());
+      assertEquals(disposition, setup.harness().store().latestClarificationAnswer(setup.chat()).orElseThrow().disposition());
+      assertFalse(saved.readyForPlan(), saved.toString());
+    }
+  }
+
+  @Test
+  void anAmbiguousHttpModeAnswerKeepsTheModeUnselected() throws Exception {
+    String reply = "Use CUSTOM or CATALOG mode.";
+    var setup = pinnedDeliveryQuestion("ambiguous-http-mode", reply, "httpMode");
+    var candidates = List.of("CUSTOM", "CATALOG");
+    var reviewed = new RequirementCaptureInput.QuestionInput("delivery", List.of("entry"),
+        "Should the HTTP trigger use its own endpoint or a catalog operation?",
+        new AuthorQuestionEvidence("entry", "httpMode", AuthorQuestionEvidence.Kind.AMBIGUOUS_ANSWER,
+            List.of(setup.firstTurnId(), setup.answer().turnId()),
+            new AuthorQuestionEvidence.AmbiguityEvidence(setup.answer().turnId(), reply, candidates)));
+    var input = new RequirementCaptureInput.ClarificationDispositionInput("delivery",
+        ClarificationTransition.Disposition.AMBIGUOUS, setup.answer().turnId(), reply, candidates);
+    setup.harness().tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+        .createForUnitTests(setup.mapper());
+    try (var ignored = ToolSession.open(setup.chat())) {
+      var opened = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(
+          questionUpdate(List.of(), List.of(), List.of(), null)), RequirementCaptureResult.class);
+      assertFalse(opened.accepted(), opened.toString());
+
+      var result = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(
+          questionUpdate(List.of(), List.of(reviewed), List.of(), input)), RequirementCaptureResult.class);
+
+      assertTrue(result.accepted(), result.toString());
+      var saved = setup.harness().store().get(setup.chat()).orElseThrow();
+      assertEquals("http-trigger", saved.authoredDraft().capabilities().getFirst().capabilityKey());
+      assertNull(saved.authoredDraft().capabilities().getFirst().httpMode());
+      assertEquals(List.of("delivery", "participant"), saved.authoredDraft().openQuestions().stream()
+          .map(RequirementCaptureInput.QuestionInput::questionId).toList());
+      assertEquals(ClarificationTransition.Disposition.AMBIGUOUS,
+          setup.harness().store().latestClarificationAnswer(setup.chat()).orElseThrow().disposition());
+    }
+  }
+
+  @Test
+  void aStaleDeliveryDispositionCannotChangeThePinnedDraft() throws Exception {
+    String reply = "Use chain-trigger-2 or kafka-trigger-2.";
+    var setup = pinnedDeliveryQuestion("stale-delivery", reply);
+    var candidates = List.of("chain-trigger-2", "kafka-trigger-2");
+    var reviewed = new RequirementCaptureInput.QuestionInput("delivery", List.of("entry"),
+        "Should another chain invoke it, or should it consume Kafka?",
+        new AuthorQuestionEvidence("entry", "capabilityKey", AuthorQuestionEvidence.Kind.AMBIGUOUS_ANSWER,
+            List.of(setup.firstTurnId(), setup.answer().turnId()),
+            new AuthorQuestionEvidence.AmbiguityEvidence(setup.answer().turnId(), reply, candidates)));
+    var stale = new RequirementCaptureInput.ClarificationDispositionInput("delivery",
+        ClarificationTransition.Disposition.AMBIGUOUS, setup.firstTurnId(), reply, candidates);
+    setup.harness().tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+        .createForUnitTests(setup.mapper());
+    try (var ignored = ToolSession.open(setup.chat())) {
+      var opened = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(
+          questionUpdate(List.of(), List.of(), List.of(), null)), RequirementCaptureResult.class);
+      assertFalse(opened.accepted(), opened.toString());
+      var before = setup.harness().store().get(setup.chat()).orElseThrow();
+
+      var rejected = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(
+          questionUpdate(List.of(), List.of(reviewed), List.of(), stale)), RequirementCaptureResult.class);
+
+      assertFalse(rejected.accepted(), rejected.toString());
+      assertEquals(List.of("AMBIGUOUS_DISPOSITION_INVALID"),
+          rejected.issues().stream().map(RequirementCaptureResult.CaptureIssue::code).toList());
+      assertEquals(before, setup.harness().store().get(setup.chat()).orElseThrow());
+      assertEquals(java.util.Optional.empty(), setup.harness().store().latestClarificationAnswer(setup.chat()));
+    }
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @ValueSource(strings = {"http-sender", "sds-trigger", "unknown-trigger"})
+  void aDeliveryAmbiguityCannotOfferAnUnsupportedEntry(String invalid) throws Exception {
+    rejectsUnsupportedDeliveryChoice("capabilityKey", "chain-trigger-2", invalid);
+  }
+
+  @Test
+  void anHttpModeAmbiguityCannotOfferAnUnknownMode() throws Exception {
+    rejectsUnsupportedDeliveryChoice("httpMode", "CUSTOM", "INVENTED");
+  }
+
+  private static void rejectsUnsupportedDeliveryChoice(String propertyKey, String valid, String invalid) throws Exception {
+    String reply = "Use " + valid + " or " + invalid + ".";
+    var setup = pinnedDeliveryQuestion("invalid-delivery-" + invalid, reply, propertyKey);
+    var candidates = List.of(valid, invalid);
+    var reviewed = new RequirementCaptureInput.QuestionInput("delivery", List.of("entry"),
+        "Which of these transports should deliver the payload?",
+        new AuthorQuestionEvidence("entry", propertyKey, AuthorQuestionEvidence.Kind.AMBIGUOUS_ANSWER,
+            List.of(setup.firstTurnId(), setup.answer().turnId()),
+            new AuthorQuestionEvidence.AmbiguityEvidence(setup.answer().turnId(), reply, candidates)));
+    var input = new RequirementCaptureInput.ClarificationDispositionInput("delivery",
+        ClarificationTransition.Disposition.AMBIGUOUS, setup.answer().turnId(), reply, candidates);
+    setup.harness().tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+        .createForUnitTests(setup.mapper());
+    try (var ignored = ToolSession.open(setup.chat())) {
+      var opened = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(
+          questionUpdate(List.of(), List.of(), List.of(), null)), RequirementCaptureResult.class);
+      assertFalse(opened.accepted(), opened.toString());
+      var before = setup.harness().store().get(setup.chat()).orElseThrow();
+
+      var rejected = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(
+          questionUpdate(List.of(), List.of(reviewed), List.of(), input)), RequirementCaptureResult.class);
+
+      assertFalse(rejected.accepted(), rejected.toString());
+      assertEquals(List.of("AMBIGUOUS_DISPOSITION_INVALID"),
+          rejected.issues().stream().map(RequirementCaptureResult.CaptureIssue::code).toList());
+      assertEquals(before, setup.harness().store().get(setup.chat()).orElseThrow());
+    }
+  }
+
+  private record DeliveryQuestionSetup(ObjectMapper mapper, Harness harness, String chat, String firstTurnId,
+      ConversationArchive.Input answer, RequirementCaptureInput.QuestionInput question,
+      RequirementCaptureInput.QuestionInput queued) {}
+
+  private static DeliveryQuestionSetup pinnedDeliveryQuestion(String name, String reply) throws Exception {
+    return pinnedDeliveryQuestion(name, reply, "capabilityKey");
+  }
+
+  private static DeliveryQuestionSetup pinnedDeliveryQuestion(String name, String reply, String choiceProperty)
+      throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var archive = new ConversationArchive(blobs, mapper);
+    var conversations = mock(ConversationService.class);
+    when(conversations.archive()).thenReturn(archive);
+    String chat = name;
+    boolean httpMode = "httpMode".equals(choiceProperty);
+    String text = httpMode
+        ? "Accept the payload. Use http-trigger. The httpMode and participant are not selected. Proceed without IDS."
+        : "Accept the payload. The delivery and participant are not selected. Proceed without IDS.";
+    var source = archive.beginInput(chat, text, null);
+    archive.resolveInput(chat, source, text);
+    var h = persistentHarness(blobs, mapper, conversations, chat);
+    h.store().beginTurn(chat, text);
+    var asked = new RequirementCaptureInput.QuestionInput("delivery", List.of("entry"),
+        httpMode ? "Should HTTP use a custom endpoint or a catalog operation?" : "How does the payload reach this chain?",
+        new AuthorQuestionEvidence("entry", choiceProperty,
+            AuthorQuestionEvidence.Kind.MISSING_VALUE,
+            List.of(source.turnId())));
+    var queued = new RequirementCaptureInput.QuestionInput("participant", List.of("entry"), "Who sends the payload?",
+        new AuthorQuestionEvidence("entry", "participant",
+            AuthorQuestionEvidence.Kind.MISSING_VALUE,
+            List.of(source.turnId())));
+    var input = new DraftInput(new FlowInput(List.of(
+        new InteractionInput("entry", Direction.INBOUND, null, null, null, null, null)), List.of()),
+        httpMode ? List.of(new FactInput("goal", List.of("entry"), FactKind.GOAL, Polarity.POSITIVE, "Accept the payload."),
+            nativeAnchorFact("entry", "http-trigger"))
+            : List.of(new FactInput("goal", List.of("entry"), FactKind.GOAL, Polarity.POSITIVE, "Accept the payload.")),
+        httpMode ? List.of(new CapabilityInput("entry", "http-trigger", null, null, null, null, null, null)) : List.of(),
+        List.of(asked, queued), new DraftSettings(false, null));
+    try (var ignored = ToolSession.open(chat)) {
+      h.tools().readRequirementSource(new RequirementCaptureTools.SourceRead(source.turnId(), 0, 16000));
+      var captured = mapper.readValue(h.tools().captureRequirementDraft(input), RequirementCaptureResult.class);
+      assertTrue(captured.accepted(), captured.toString());
+      var waiting = mapper.readValue(h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY),
+          RequirementCaptureResult.class);
+      assertTrue(waiting.accepted(), waiting.toString());
+      var answer = pinAnswer(blobs, mapper, archive, h, chat, reply);
+      var restored = persistentHarness(blobs, mapper, conversations, chat);
+      restored.store().useRunJournal(new org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore(
+          blobs, mapper, Clock.systemUTC()));
+      restored.store().beginTurn(chat, reply);
+      restored.tools().readRequirementSource(new RequirementCaptureTools.SourceRead(answer.turnId(), 0, 16000));
+      return new DeliveryQuestionSetup(mapper, restored, chat, source.turnId(), answer, asked, queued);
     }
   }
 

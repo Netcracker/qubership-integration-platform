@@ -30,8 +30,6 @@ Source links in an answer open the corresponding pages in the product help.
 For example, ask how an HTTP Trigger restricts access or how a Service Call handles a response.
 Rocky also has access to element property schemas for configuration details.
 
-Documentation consultations are available without the private `rocky-skills` package.
-AI creation and editing of chains require that package. Manual editing in the graph remains available.
 Long sections can be read in parts. When the documentation is unavailable or does not answer the question,
 Rocky is instructed to state that limitation. A manual describes expected behavior; it does not establish
 whether a chain is deployed or healthy in the current environment.

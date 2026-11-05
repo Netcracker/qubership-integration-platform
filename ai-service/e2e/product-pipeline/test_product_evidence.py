@@ -1,9 +1,115 @@
 import copy
 import json
+import runpy
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+
+build_report = runpy.run_path(
+    str(Path(__file__).with_name("build-report-from-evidence.py"))
+)["build_report"]
+
+
+class ProductEvidenceReportTest(unittest.TestCase):
+    def evidence(self):
+        package = {
+            "packageKey": "fixture@1.0.0",
+            "knowledgeVersion": "1.0.0",
+            "schemaVersion": "1.0.0",
+            "packageChecksum": "sha256:fixture",
+            "certificationStatus": "CERTIFIED",
+            "certificationDigest": "sha256:certificate",
+        }
+        return {
+            "runId": "run",
+            "currentState": "CHAIN_MATERIALIZED",
+            "runManifest": {
+                "runtimeSelection": "product",
+                "profileId": "create-chain",
+                "profileVersion": "2",
+                "knowledgePackage": package,
+            },
+            "knowledgeContext": {
+                "packageRef": package,
+                "objectIds": [],
+                "contentChars": 0,
+            },
+            "attempts": [
+                {
+                    "runRevision": revision,
+                    "outcome": outcome,
+                    "outputs": [
+                        {"kind": "PLAN_VALIDATION_RESULT", "artifactId": artifact_id}
+                    ],
+                }
+                for revision, outcome, artifact_id in (
+                    (23, "FAILED", "rejected"),
+                    (27, "SUCCEEDED", "accepted"),
+                )
+            ],
+            "decodedArtifacts": {
+                "PLAN_VALIDATION_RESULT#rejected": {
+                    "findings": [{"code": "MISSING_PROPERTY", "blocker": True}]
+                },
+                "PLAN_VALIDATION_RESULT#accepted": {"findings": []},
+            },
+        }
+
+    def report(self, evidence):
+        return build_report(
+            evidence,
+            scenario_id="product-create-chain-dual-trigger-greetings",
+            rep=1,
+            required_facts=[],
+            forbidden_facts=[],
+            expected_terminal_state="CHAIN_MATERIALIZED",
+        )
+
+    def test_reports_repaired_validation_independently_of_history_order(self):
+        for reverse_attempts in (False, True):
+            for reverse_decoded in (False, True):
+                with self.subTest(
+                    reverse_attempts=reverse_attempts, reverse_decoded=reverse_decoded
+                ):
+                    evidence = self.evidence()
+                    if reverse_attempts:
+                        evidence["attempts"].reverse()
+                    if reverse_decoded:
+                        evidence["decodedArtifacts"] = dict(
+                            reversed(list(evidence["decodedArtifacts"].items()))
+                        )
+                    report = self.report(evidence)
+                    self.assertEqual("PASS", report["validationVerdict"])
+                    self.assertEqual([], report["validationFindings"])
+
+    def test_reports_a_later_failed_validation(self):
+        evidence = self.evidence()
+        evidence["attempts"][0]["runRevision"] = 29
+        self.assertEqual("FAIL", self.report(evidence)["validationVerdict"])
+
+    def test_rejects_missing_current_validation_payload(self):
+        evidence = self.evidence()
+        del evidence["decodedArtifacts"]["PLAN_VALIDATION_RESULT#accepted"]
+        with self.assertRaisesRegex(ValueError, "missing PLAN_VALIDATION_RESULT"):
+            self.report(evidence)
+
+    def test_rejects_conflicting_validation_references_at_the_same_revision(self):
+        evidence = self.evidence()
+        evidence["attempts"][0]["runRevision"] = 27
+        with self.assertRaisesRegex(ValueError, "conflicting.*PLAN_VALIDATION_RESULT"):
+            self.report(evidence)
+
+    def test_duplicate_output_references_select_the_same_validation(self):
+        evidence = self.evidence()
+        evidence["attempts"].append(copy.deepcopy(evidence["attempts"][-1]))
+        self.assertEqual("PASS", self.report(evidence)["validationVerdict"])
+
+    def test_reports_validation_without_attempt_output_references(self):
+        evidence = self.evidence()
+        evidence["attempts"] = []
+        evidence["decodedArtifacts"].pop("PLAN_VALIDATION_RESULT#rejected")
+        self.assertEqual("PASS", self.report(evidence)["validationVerdict"])
 
 
 class ProductEvidenceTest(unittest.TestCase):

@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.plan;
 
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingValue;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import dev.langchain4j.agent.tool.ToolSpecification;
@@ -138,10 +139,23 @@ public final class RequirementCaptureSchemas {
     if (!(type instanceof Class<?> clazz)) {
       throw new IllegalArgumentException("Unsupported capture field type: " + type);
     }
+    if (clazz == MappingValue.class) {
+      JsonObjectSchema source = JsonObjectSchema.builder().additionalProperties(false)
+          .addProperty("kind", JsonEnumSchema.builder().enumValues("MESSAGE").build())
+          .addProperty("interactionId", new JsonStringSchema())
+          .addProperty("port", JsonEnumSchema.builder().enumValues("OUTPUT", "REQUEST", "RESPONSE").build())
+          .addProperty("path", new JsonStringSchema())
+          .required("kind", "interactionId", "port", "path").build();
+      return JsonObjectSchema.builder().additionalProperties(false)
+          .addProperty("operation", JsonEnumSchema.builder().enumValues("COPY").build())
+          .addProperty("source", source).required("operation", "source").build();
+    }
     if (clazz.isRecord()) {
       JsonObjectSchema.Builder object = JsonObjectSchema.builder().additionalProperties(false);
       List<String> required = new ArrayList<>();
       for (RecordComponent component : clazz.getRecordComponents()) {
+        if (clazz == RequirementCaptureInput.FieldMappingInput.class
+            && component.getName().equals("missingSourcePolicy")) continue;
         JsonSchemaElement field = schema(component.getGenericType(), component.getName());
         NullableCaptureValue nullable = component.getAnnotation(NullableCaptureValue.class);
         if (nullable != null) {

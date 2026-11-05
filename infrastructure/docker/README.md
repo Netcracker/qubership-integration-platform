@@ -59,13 +59,9 @@ The runtime image contains the prepared corpus and full-text index and runs with
 Public documentation is available through `/v1/documentation/manifest`,
 `/v1/documentation/search`, and `/v1/documentation/read` on the sidecar.
 The manifest also serves as the Compose readiness probe for public documentation.
-The AI service requires this corpus in both public and full modes.
-A private knowledge package is additionally required when private Rocky skills are installed.
+The AI service requires this corpus.
 
-The public corpus is included in the image at `/documentation`; `QIP_DOCUMENTATION_PATH` selects its location.
-The existing private knowledge mount and `QIP_KNOWLEDGE_HOST_PATH` remain separate.
-A public deployment does not need a private knowledge package. It supports documentation consultations,
-while AI creation and editing remain unavailable without private skills.
+The image includes the corpus at `/documentation`. Set `QIP_DOCUMENTATION_PATH` to change its location.
 Rebuild the sidecar image after changing the manuals so that its source links match the UI documentation.
 
 ## Contribution

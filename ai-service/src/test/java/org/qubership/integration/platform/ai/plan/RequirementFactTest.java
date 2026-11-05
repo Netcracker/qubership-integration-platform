@@ -3,12 +3,40 @@ package org.qubership.integration.platform.ai.plan;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 class RequirementFactTest {
 
   private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+
+  @Test
+  void aLegacyHttpFactRemainsByteCompatibleWithoutInventingAMode() throws Exception {
+    String legacy;
+    try (var input = getClass().getResourceAsStream("/requirements/legacy-http-fact.json")) {
+      legacy = new String(input.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    var restored = mapper.readValue(legacy, RequirementFact.class);
+
+    assertNull(restored.httpMode());
+    assertEquals(legacy, mapper.writeValueAsString(restored));
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.EnumSource(RequirementCaptureInput.HttpMode.class)
+  void aSelectedHttpModeSurvivesSerializationAndKindProjection(RequirementCaptureInput.HttpMode mode) throws Exception {
+    var json = mapper.createObjectNode().put("sourceFactId", "entry").put("polarity", "POSITIVE")
+        .put("kind", "CAPABILITY").put("capabilityKey", "http-trigger").put("text", "Accept the payload.")
+        .put("httpMode", mode.name());
+
+    var restored = mapper.readValue(mapper.writeValueAsString(mapper.treeToValue(json, RequirementFact.class)),
+        RequirementFact.class);
+
+    assertEquals(mode, restored.httpMode());
+    assertEquals(mode, restored.withKind(RequirementFactKind.ENDPOINT).httpMode());
+  }
 
   @Test
   void bindsNamedIdentityFieldsWithoutReadingText() throws Exception {

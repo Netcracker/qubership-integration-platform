@@ -145,7 +145,10 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
     for (ResolvedServiceCallBinding binding : bindings) {
       graph = ServiceCallCatalogIdentity.upsert(graph, binding);
     }
-    return graph;
+    return org.qubership.integration.platform.ai.plan.mapping.CopyRetentionStructurePhase.placeApproved(
+        graph, brief, (ref, port) ->
+            org.qubership.integration.platform.ai.plan.mapping.schema.DefaultMappingBoundarySchemaResolver
+                .semanticNodeId(revision, ref, port));
   }
 
   private ChainPlanNode toPlanNode(

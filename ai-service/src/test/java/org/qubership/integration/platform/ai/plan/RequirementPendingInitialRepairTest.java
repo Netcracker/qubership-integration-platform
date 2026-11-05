@@ -141,6 +141,234 @@ class RequirementPendingInitialRepairTest {
     assertEquals(base, h.store.latestRevision(h.chat));
   }
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"current-store", "reloaded-store"})
+  void rejectedAcceptedDraftUpdateKeepsEvidenceWithoutAdvertisingAnInitialRepairToken(String readState)
+      throws Exception {
+    var h = new Harness(new InMemoryArtifactBlobStore());
+    assertTrue(h.call("captureRequirementDraft", Map.of("draft", input("entry")))
+        .path("accepted").asBoolean(), "readState=" + readState);
+    var accepted = h.store.latestRevision(h.chat).orElseThrow();
+    var rejectedCandidate = input("missing-owner");
+    var rejectedChanges = h.changes(rejectedCandidate.facts(),
+        com.fasterxml.jackson.databind.node.NullNode.getInstance());
+    var rejected = h.call("updateRequirementDraft", Map.of("changes", rejectedChanges));
+    assertFalse(rejected.path("accepted").asBoolean(), "readState=" + readState + ": " + rejected);
+    var attempt = h.artifacts.latest(h.sessions.active(h.chat),
+        CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_ATTEMPT).orElseThrow();
+    var storedAttempt = h.artifacts.payload(attempt, RequirementDraftStore.RequirementCaptureAttempt.class);
+    var source = h.json.valueToTree(h.archive.read(h.chat));
+    var reader = "reloaded-store".equals(readState) ? new Harness(h.blobs, h.chat, false) : h;
+
+    var view = reader.call("readRequirementDraft", Map.of());
+    var pending = view.path("pendingProposal");
+
+    assertAll("readState=" + readState,
+        () -> assertEquals(h.json.valueToTree(rejectedCandidate), pending.path("draft")),
+        () -> assertEquals(h.json.valueToTree(attempt.reference()), pending.path("attempt")),
+        () -> assertEquals(h.json.valueToTree(accepted.reference()), pending.path("base")),
+        () -> assertEquals("updateRequirementDraft", pending.path("toolName").asText()),
+        () -> assertEquals(rejected.path("issues"), pending.path("issues")),
+        () -> assertEquals(storedAttempt.sourceGeneration(), pending.path("sourceGeneration").asText()),
+        () -> assertEquals(storedAttempt.sourceTurnId(), pending.path("sourceTurnId").asText()),
+        () -> assertFalse(pending.has("token"), "Initial-only token must be absent from accepted-draft updates."),
+        () -> assertEquals(accepted, reader.store.latestRevision(h.chat).orElseThrow()),
+        () -> assertEquals(attempt, reader.artifacts.latest(reader.sessions.active(h.chat),
+            CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_ATTEMPT).orElseThrow()),
+        () -> assertEquals(source, reader.json.valueToTree(reader.archive.read(h.chat))));
+  }
+
+  @Test
+  void oldInitialTokenRefusalDirectsTheCallerToUpdateTheAcceptedDraftWithoutAToken() throws Exception {
+    var h = new Harness(new InMemoryArtifactBlobStore());
+    h.call("captureRequirementDraft", Map.of("draft", input("missing-owner")));
+    var oldToken = h.call("readRequirementDraft", Map.of()).path("pendingProposal").path("token").deepCopy();
+    assertTrue(h.call("updateRequirementDraft", Map.of("changes", h.changes(input("entry").facts(), oldToken)))
+        .path("accepted").asBoolean());
+    var accepted = h.store.latestRevision(h.chat).orElseThrow();
+    var acceptedDraft = h.store.get(h.chat).orElseThrow();
+    var rejected = h.call("updateRequirementDraft", Map.of("changes", h.changes(input("missing-owner").facts(),
+        com.fasterxml.jackson.databind.node.NullNode.getInstance())));
+    assertFalse(rejected.path("accepted").asBoolean(), rejected.toString());
+    var rejectedAttempt = h.artifacts.latest(h.sessions.active(h.chat),
+        CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_ATTEMPT).orElseThrow();
+
+    var refusal = h.call("updateRequirementDraft", Map.of("changes", h.changes(input("entry").facts(), oldToken)));
+    var issue = refusal.path("issues").get(0);
+    String guidance = issue.path("message").asText();
+
+    assertAll("Initial token submitted with an accepted base",
+        () -> assertFalse(refusal.path("accepted").asBoolean(), refusal.toString()),
+        () -> assertEquals("PENDING_PROPOSAL_NOT_CURRENT", issue.path("code").asText()),
+        () -> assertTrue(guidance.contains("pendingProposalToken"), guidance),
+        () -> assertTrue(guidance.toLowerCase(java.util.Locale.ROOT).contains("omit"), guidance),
+        () -> assertTrue(guidance.contains("null"), guidance),
+        () -> assertTrue(guidance.toLowerCase(java.util.Locale.ROOT).contains("accepted draft"), guidance),
+        () -> assertFalse(guidance.contains("Use the exact current rejected initial"), guidance),
+        () -> assertEquals(accepted, h.store.latestRevision(h.chat).orElseThrow()),
+        () -> assertEquals(acceptedDraft, h.store.get(h.chat).orElseThrow()),
+        () -> assertEquals(rejectedAttempt,
+            h.artifacts.get(rejectedAttempt.compilationId(), rejectedAttempt.reference()).orElseThrow()));
+  }
+
+  @Test
+  void shouldRepairRejectedCallAliasThroughPendingProposal() throws Exception {
+    var h = callHarness();
+    var original = callDraft("task-alias", "task", "Task dispatch", false);
+    var refused = h.call("captureRequirementDraft", Map.of("draft", original));
+    assertEquals(List.of("BUSINESS_ANCHOR_REQUIRED"), refused.path("issues").findValuesAsText("code"));
+    var pending = h.call("readRequirementDraft", Map.of()).path("pendingProposal");
+    assertEquals(h.json.valueToTree(original), pending.path("draft"));
+    var corrected = callDraft("task", "task", "Task dispatch", false);
+    var result = h.call("updateRequirementDraft", Map.of("changes", h.changes(
+        List.of(corrected.facts().getLast()), pending.path("token"))));
+    assertTrue(result.path("accepted").asBoolean(), result.toString());
+    assertEquals(corrected, h.store.get(h.chat).orElseThrow().authoredDraft());
+  }
+
+  @Test
+  void shouldRecoverPersistedCallAliasWithoutGrantingOtherChanges() throws Exception {
+    var h = callHarness();
+    var original = linkedCallDraft(h, "task-alias", "Task dispatch");
+    h.store.put(h.chat, RequirementCaptureProjection.toDraft(original, null, List.of(), "test", "test"));
+    var restored = new Harness(h.blobs, h.chat, false);
+    var continued = restored.call("finishRequirementDiscoveryTurn", Map.of("directive", "CONTINUE"));
+    assertTrue(continued.path("issues").findValuesAsText("code").contains("BUSINESS_ANCHOR_REQUIRED"),
+        continued.toString());
+    var unchanged = restored.call("updateRequirementDraft", Map.of("changes",
+        restored.changes(List.of(), restored.json.nullNode())));
+    var messages = unchanged.path("issues").findValuesAsText("message");
+    assertTrue(messages.stream().anyMatch(message -> message.contains("Preserve the saved evidence")),
+        unchanged.toString());
+    assertTrue(messages.stream().filter(message -> message.contains("keep accepted elementIntent unchanged"))
+        .allMatch(message -> message.contains("outside authorized repair paths")), unchanged.toString());
+    var injected = linkedCallDraft(h, "task", "Alternate dispatch");
+    var denied = restored.call("updateRequirementDraft", Map.of("changes", restored.changes(
+        injected.facts(), restored.json.nullNode())));
+    assertFalse(denied.path("accepted").asBoolean(), denied.toString());
+    assertEquals(original, restored.store.get(h.chat).orElseThrow().authoredDraft());
+    var corrected = linkedCallDraft(h, "task", "Task dispatch");
+    var call = corrected.facts().getLast();
+    var withoutEvidence = new FactInput(call.sourceFactId(), call.interactionIds(), call.kind(), call.polarity(),
+        call.text(), null, null, call.elementIntent());
+    var withExtraTarget = new FactInput(call.sourceFactId(), List.of("task", "entry"), call.kind(), call.polarity(),
+        call.text(), null, null, call.elementIntent(), call.evidence());
+    for (var mutated : List.of(withoutEvidence, withExtraTarget)) {
+      var updates = new java.util.ArrayList<>(corrected.facts());
+      updates.set(updates.size() - 1, mutated);
+      var rejected = restored.call("updateRequirementDraft", Map.of("changes", restored.changes(
+          updates, restored.json.nullNode())));
+      assertTrue(rejected.path("issues").findValuesAsText("code").contains("REPAIR_FACT_LOSS"),
+          rejected.toString());
+      assertEquals(original, restored.store.get(h.chat).orElseThrow().authoredDraft());
+    }
+    var repaired = restored.call("updateRequirementDraft", Map.of("changes", restored.changes(
+        corrected.facts(), restored.json.nullNode())));
+    assertTrue(repaired.path("accepted").asBoolean(), repaired.toString());
+    assertEquals(corrected, restored.store.get(h.chat).orElseThrow().authoredDraft());
+    assertEquals(List.of(), restored.store.validateForContinuation(h.chat));
+  }
+
+  @Test
+  void shouldRebuildProjectionWhenTheCallAliasRepeats() throws Exception {
+    var h = callHarness();
+    var arguments = Map.of("draft", callDraft("task-alias", "task", "Task dispatch", false));
+    var refused = h.call("captureRequirementDraft", arguments);
+    assertEquals(List.of("BUSINESS_ANCHOR_REQUIRED"), refused.path("issues").findValuesAsText("code"));
+    int credits = h.fingerprints.softCreditsUsed(h.chat);
+    h.call("captureRequirementDraft", arguments);
+    var repeated = h.call("captureRequirementDraft", arguments);
+    assertEquals("PROJECTION_REBUILD", repeated.path("nextAction").asText(), repeated.toString());
+    assertEquals(credits, h.fingerprints.softCreditsUsed(h.chat));
+    assertTrue(h.store.get(h.chat).isEmpty(), repeated.toString());
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.NullSource
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"unknown-owner", "entry"})
+  void shouldReportOnlyTheOwnerProblemWhenCallOwnerIsInvalid(String owner) throws Exception {
+    var h = callHarness();
+    var refused = h.call("captureRequirementDraft", Map.of("draft", callDraft("task-alias", owner,
+        "Task dispatch", false)));
+    assertEquals(List.of("INVALID_ELEMENT_OWNER"), refused.path("issues").findValuesAsText("code"),
+        refused.toString());
+  }
+
+  @Test
+  void shouldRepairCallWithoutRetargetingAnAliasSharedWithAHook() throws Exception {
+    var h = callHarness();
+    var bad = linkedCallDraft(h, "task-alias", "Task dispatch");
+    var entry = bad.facts().getFirst();
+    var hook = new FactInput("hook", List.of("task"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+        "Log the result.", null, null, new RequirementElementIntent("task-alias", "script",
+            RequirementElementIntent.Placement.AFTER_HOOK, "task", null, null, null, List.of(), List.of()));
+    var original = new DraftInput(bad.flow(), List.of(entry, hook, bad.facts().getLast()),
+        bad.capabilities(), bad.openQuestions(), bad.settings());
+    h.store.put(h.chat, RequirementCaptureProjection.toDraft(original, null, List.of(), "test", "test"));
+    var restored = new Harness(h.blobs, h.chat, false);
+    var corrected = linkedCallDraft(h, "task", "Task dispatch");
+    var fixed = corrected.facts().getLast();
+    var rejected = restored.call("updateRequirementDraft", Map.of("changes", restored.changes(
+        List.of(corrected.facts().getFirst(), fixed), restored.json.nullNode())));
+    assertAll(
+        () -> assertFalse(rejected.path("accepted").asBoolean(), rejected::toString),
+        () -> assertEquals(List.of("REPAIR_FACT_LOSS"), rejected.path("issues").findValuesAsText("code")),
+        () -> assertEquals(List.of("/changes/facts/" + entry.sourceFactId()),
+            rejected.path("issues").findValuesAsText("path")),
+        () -> assertEquals(original, restored.store.get(h.chat).orElseThrow().authoredDraft()));
+
+    var result = restored.call("updateRequirementDraft", Map.of("changes", restored.changes(
+        List.of(fixed), restored.json.nullNode())));
+    assertTrue(result.path("accepted").asBoolean(), result.toString());
+    assertEquals(List.of(entry, hook, fixed), restored.store.get(h.chat).orElseThrow().authoredDraft().facts());
+  }
+
+  private static DraftInput linkedCallDraft(Harness h, String ref, String name) {
+    var base = callDraft(ref, "task", name, true);
+    var entry = base.facts().getFirst();
+    var linkedEntry = new FactInput(entry.sourceFactId(), entry.interactionIds(), entry.kind(), entry.polarity(),
+        entry.text(), null, null, new RequirementElementIntent("entry", "http-trigger",
+            RequirementElementIntent.Placement.ANCHOR, "entry", ref, null, null, List.of(), List.of()));
+    var call = base.facts().getLast();
+    var configured = new FactInput(call.sourceFactId(), call.interactionIds(), call.kind(), call.polarity(),
+        call.text(), null, null, new RequirementElementIntent(ref, "service-call", call.elementIntent().placement(),
+            "task", null, null, name,
+            List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty("retryCount", "1")), List.of()),
+        new ClaimEvidenceInput(ConversationArchive.latestInputId(h.archive.read(h.chat)), call.text()));
+    return new DraftInput(base.flow(), List.of(linkedEntry, base.facts().get(1), configured),
+        base.capabilities(), base.openQuestions(), base.settings());
+  }
+
+  private static Harness callHarness() {
+    var h = new Harness(new InMemoryArtifactBlobStore());
+    String source = "Receive POST /focused with externalRoute=false." + "\nCreate a Salesforce task with the call named Task dispatch. Alternate dispatch is another name. Retry once. "
+        + "Log the result. Proceed without IDS.";
+    var input = h.archive.beginInput(h.chat, source, null);
+    h.archive.resolveInput(h.chat, input, source);
+    h.store.beginTurn(h.chat, source);
+    return h;
+  }
+
+  private static DraftInput callDraft(String ref, String owner, String name, boolean linked) {
+    var base = input("entry");
+    var flow = new FlowInput(List.of(base.flow().interactions().getFirst(),
+        new InteractionInput("task", Direction.OUTBOUND, "Salesforce", "createTask", null, null, null)),
+        List.of(new TransitionInput("entry", "task")));
+    var facts = new java.util.ArrayList<FactInput>();
+    facts.add(base.facts().getFirst());
+    if (linked) {
+      facts.add(new FactInput("audit", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+          "Log the result.", null, null, new RequirementElementIntent("audit", "log-record",
+              RequirementElementIntent.Placement.LOCAL_NODE, "entry", null, ref, null, List.of(), List.of())));
+    }
+    facts.add(new FactInput("call-name", List.of("task"), FactKind.PARAMETER, Polarity.POSITIVE,
+        "Create a Salesforce task with the call named Task dispatch.", null, null,
+        new RequirementElementIntent(ref, "service-call", ref.equals(owner)
+            ? RequirementElementIntent.Placement.ANCHOR : RequirementElementIntent.Placement.LOCAL_NODE,
+            owner, null, null, name, List.of(), List.of())));
+    return new DraftInput(flow, facts, base.capabilities(), base.openQuestions(), base.settings());
+  }
+
   @Test
   void repeatedResolvedCandidateCannotRenewCreditByChangingToolOrToken() throws Exception {
     var h = new Harness(new InMemoryArtifactBlobStore());
@@ -221,7 +449,42 @@ class RequirementPendingInitialRepairTest {
   }
 
   @Test
-  void schemaKeepsEveryLegacyRequiredFieldAndTheNewTokenIsOptionalNullable() {
+  void providerDescribesTypedCopyOriginAndExposesItsRequiredSourceFields() {
+    var h = new Harness(new InMemoryArtifactBlobStore());
+    var spec = h.provider.toolSpecificationByName("captureRequirementDraft");
+    String description = spec.description();
+    assertAll("Typed COPY provider contract",
+        () -> assertTrue(description.contains("fieldMapping.value"), description),
+        () -> assertTrue(description.contains("source.interactionId"), description),
+        () -> assertTrue(description.contains("source.port"), description),
+        () -> assertTrue(description.contains("source.path"), description),
+        () -> assertTrue(description.contains("compiler derives retention"), description),
+        () -> assertFalse(description.contains("Retain earlier event fields through BEHAVIOR"), description),
+        () -> assertFalse(description.contains("expression explicitly reading the saved original field"), description));
+    var draft = assertInstanceOf(dev.langchain4j.model.chat.request.json.JsonObjectSchema.class,
+        spec.parameters().properties().get("draft"));
+    var facts = assertInstanceOf(dev.langchain4j.model.chat.request.json.JsonArraySchema.class,
+        draft.properties().get("facts"));
+    var fact = assertInstanceOf(dev.langchain4j.model.chat.request.json.JsonObjectSchema.class, facts.items());
+    var nullableMapping = assertInstanceOf(dev.langchain4j.model.chat.request.json.JsonAnyOfSchema.class,
+        fact.properties().get("fieldMapping"));
+    var mapping = assertInstanceOf(dev.langchain4j.model.chat.request.json.JsonObjectSchema.class,
+        nullableMapping.anyOf().getFirst());
+    var nullableValue = assertInstanceOf(dev.langchain4j.model.chat.request.json.JsonAnyOfSchema.class,
+        mapping.properties().get("value"));
+    var value = assertInstanceOf(dev.langchain4j.model.chat.request.json.JsonObjectSchema.class,
+        nullableValue.anyOf().getFirst());
+    var source = assertInstanceOf(dev.langchain4j.model.chat.request.json.JsonObjectSchema.class,
+        value.properties().get("source"));
+    assertAll("Typed COPY provider schema",
+        () -> assertEquals(List.of("operation", "source"), value.required()),
+        () -> assertEquals(List.of("kind", "interactionId", "port", "path"), source.required()),
+        () -> assertFalse(mapping.required().contains("value"), mapping.required().toString()),
+        () -> assertFalse(mapping.properties().containsKey("missingSourcePolicy"), mapping.properties().toString()));
+  }
+
+  @Test
+  void schemaKeepsLegacyRequiredFieldsWithOptionalTokensAndTypedMappingValue() {
     var h = new Harness(new InMemoryArtifactBlobStore());
     var changes = assertInstanceOf(dev.langchain4j.model.chat.request.json.JsonObjectSchema.class,
         h.provider.toolSpecificationByName("updateRequirementDraft").parameters().properties().get("changes"));
@@ -260,6 +523,10 @@ class RequirementPendingInitialRepairTest {
         keys.remove("clarificationDisposition");
       }
       var required = java.util.Set.copyOf(object.required());
+      if (keys.containsAll(java.util.Set.of("sourceInteractionId", "targetInteractionId", "targetPath", "value"))) {
+        assertFalse(required.contains("value"), "Legacy field mappings may omit the typed value.");
+        keys.remove("value");
+      }
       if (!required.contains("evidence")) keys.remove("evidence");
       if (!required.contains("ambiguity")) keys.remove("ambiguity");
       assertEquals(keys, required);

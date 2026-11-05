@@ -189,6 +189,8 @@ public final class AuthorQuestionAdmission {
     if (policy != null && key.equals(policy.propertyKey()) && policy.requestedValue() != null
         && !policy.requestedValue().isBlank()) values.add(policy.requestedValue());
     String value = switch (key) {
+      case "capabilityKey" -> fact.capabilityKey();
+      case "httpMode" -> fact.httpMode() == null ? "" : fact.httpMode().name();
       case "httpMethod", "httpMethodRestrict" -> fact.httpMethod();
       case "path", "contextPath" -> fact.path();
       case "topic" -> fact.topic();

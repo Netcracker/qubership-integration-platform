@@ -1,6 +1,6 @@
 # Design-planner evaluation
 
-The cases and input documents ship under `.private/rocky-skills/testing/planner-eval`.
+The runner reads cases and input documents from `$QIP_SKILLS_TESTING_ROOT/planner-eval`.
 Use [the shared runner](../test-system.md) profile `planner` for agent and UI runs.
 
 Run `cip-design-planner` without the preceding CREATE stages or catalog writes. Each run retains

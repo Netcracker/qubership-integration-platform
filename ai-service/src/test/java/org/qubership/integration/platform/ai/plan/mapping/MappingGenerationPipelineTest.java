@@ -128,7 +128,7 @@ class MappingGenerationPipelineTest {
   }
 
   @Test
-  void prepareContinuesWhenPersistedSideIsAbsent() {
+  void missingSchemaEvidenceBlocksUnverifiedMapping() {
     MappingIntent intent =
         new MappingIntent(
             "map-init",
@@ -148,12 +148,13 @@ class MappingGenerationPipelineTest {
             List.of(binding()),
             sampleContext(List.of(), List.of(intent)));
 
-    assertFalse(prepared.blocked(), prepared.blockedMessage());
+    assertTrue(prepared.blocked(), "Unverified mapping must not reach a generator");
     assertTrue(artifacts.history(COMPILATION_ID, Kind.MAPPING_SCHEMA_SIDE).isEmpty());
+    assertEquals(List.of(), artifacts.history(COMPILATION_ID, Kind.MAPPING_ENVELOPE));
   }
 
   @Test
-  void propertyLessPersistedSchemaDoesNotBlockAsUnknownTarget() throws Exception {
+  void openSchemaWithoutKnownOperandTypesCannotAuthorizeGeneration() throws Exception {
     JsonNode emptyObject = MAPPER.readTree("{\"type\": \"object\"}");
     persistSide("trigger-http", MappingPort.OUTPUT, emptyObject);
     persistSide("call-1", MappingPort.REQUEST, emptyObject);
@@ -176,13 +177,9 @@ class MappingGenerationPipelineTest {
             List.of(binding()),
             sampleContext(List.of(), List.of(intent)));
 
-    assertFalse(prepared.blocked(), prepared.blockedMessage());
-    assertTrue(
-        prepared.findings().stream()
-            .noneMatch(
-                finding ->
-                    "MAPPING_UNKNOWN_TARGET".equals(finding.code())
-                        || "MAPPING_MISSING_REQUIRED_TARGET".equals(finding.code())));
+    assertTrue(prepared.blocked(), "An open schema does not prove a COPY origin or type");
+    assertEquals("MAPPING_UNRESOLVED_SOURCE", prepared.findings().getFirst().code());
+    assertEquals(List.of(), artifacts.history(COMPILATION_ID, Kind.MAPPING_ENVELOPE));
   }
 
   @Test
@@ -341,7 +338,7 @@ class MappingGenerationPipelineTest {
   }
 
   @Test
-  void chainedScriptOutputPreservesPriorTargetSchemaBySiteNodeId() throws Exception {
+  void disconnectedLegacyMappingCannotFreezeAnEnvelopeBatch() throws Exception {
     JsonNode looseOrder =
         MAPPER.readTree(
             """
@@ -406,18 +403,13 @@ class MappingGenerationPipelineTest {
                 binding("node-call-b", "call-b", "op-b")),
             context);
 
-    assertFalse(prepared.blocked(), prepared.blockedMessage());
-    assertEquals(2, prepared.envelopeRefs().size());
-    MappingEnvelope first = loadEnvelope(prepared.envelopeRefs().getFirst());
-    MappingEnvelope second = loadEnvelope(prepared.envelopeRefs().get(1));
-    assertEquals("map-first", first.mappingIntentId());
-    assertEquals("map-second", second.mappingIntentId());
-    assertEquals(first.target(), second.source());
-    assertEquals(first.idToPath(), second.idToPath());
+    assertTrue(prepared.blocked(), "Disconnected execution cannot establish COPY availability");
+    assertEquals(List.of(), prepared.envelopeRefs());
+    assertEquals(List.of(), artifacts.history(COMPILATION_ID, Kind.MAPPING_ENVELOPE));
   }
 
   @Test
-  void scriptEchoOfOffHopProcessIdDoesNotBlockScriptGenerator() throws Exception {
+  void legacyOffHopProcessIdCannotReachTheScriptGenerator() throws Exception {
     JsonNode salesforceResponse =
         MAPPER.readTree(
             """
@@ -461,12 +453,8 @@ class MappingGenerationPipelineTest {
                 binding("node-call-b", "call-b", "op-b")),
             sampleContext(List.of(), List.of(intent)));
 
-    assertFalse(prepared.blocked(), prepared.blockedMessage());
-    assertTrue(prepared.mappingGenerationContext().contains("Replace the complete script body"));
-    assertTrue(
-        prepared
-            .mappingGenerationContext()
-            .contains("Successful Groovy compilation is not semantic equivalence"));
+    assertTrue(prepared.blocked(), "An off-hop path without a confirmed origin cannot become a script");
+    assertEquals(List.of(), artifacts.history(COMPILATION_ID, Kind.MAPPING_ENVELOPE));
   }
 
   @Test
@@ -496,27 +484,57 @@ class MappingGenerationPipelineTest {
   }
 
   @Test
-  void emptyIntentsWithCompleteTaskRendersBehaviorContext() {
-    ChainSemanticRevision revision = SemanticFixtures.linearOrdersWithCompleteTask();
-    assertTrue(revision.mappingIntents().isEmpty());
-    GraphPatchExecutionContext context =
-        completeTaskContext(completeTaskGraph(), completeTaskBrief());
+  void emptyIntentsCannotGenerateAnUnqualifiedBehaviorScript() {
+    var prepared = pipeline.prepare(COMPILATION_ID, SCRIPT_SKILL,
+        SemanticFixtures.linearOrdersWithCompleteTask(), List.of(),
+        completeTaskContext(completeTaskGraph(), completeTaskBrief()));
+    assertTrue(prepared.blocked(), prepared.blockedMessage());
+    assertEquals(List.of(), prepared.envelopeRefs());
+  }
 
-    MappingGenerationPipeline.Result prepared =
-        pipeline.prepare(COMPILATION_ID, SCRIPT_SKILL, revision, List.of(), context);
+  @Test
+  void typedCopyShellRemainsRequiredUntilItsBodyIsFilled() {
+    var intent = identityOrderId();
+    var graph = new ChainPlanGraph("1.0", new ChainSection("id", "Orders"), List.of(
+        new ChainPlanNode("typed-copy", "script", "Copy", null, 1,
+            List.of(new PlanProperty("mappingIntentId", intent.mappingIntentId())))), List.of());
+    var brief = new RequirementBrief("Typed copy", List.of(), List.of(), List.of(), List.of(), "summary")
+        .withMappingIntents(List.of(intent));
+    var context = completeTaskContext(graph, brief);
+    assertEquals(List.of("typed-copy"), pipeline.requiredBlankScriptNodeIds(
+        SCRIPT_SKILL, revisionWith(intent), graph, context));
+    assertEquals(List.of(), pipeline.requiredBlankScriptNodeIds(SCRIPT_SKILL, revisionWith(intent),
+        graph.withNodeProperty("typed-copy", "script", "return 1"), context));
+  }
 
+  @Test
+  void admittedCopyDoesNotAuthorizeAnExtraScriptDuringGeneration() {
+    var mapping = identityOrderId();
+    var graph = new ChainPlanGraph("1.0", new ChainSection("id", "Orders"), List.of(
+        new ChainPlanNode("typed-copy", "script", "Copy", null, 1,
+            List.of(new PlanProperty("mappingIntentId", mapping.mappingIntentId()))),
+        new ChainPlanNode("extra-script", "script", "Extra", null, 2,
+            List.of(new PlanProperty("script", "exchange.in.body = [invented:true]")))), List.of());
+    var brief = new RequirementBrief("Typed copy", List.of(), List.of(), List.of(), List.of(), "summary")
+        .withMappingIntents(List.of(mapping));
+    var prepared = pipeline.prepare(COMPILATION_ID, SCRIPT_SKILL, revisionWith(mapping), List.of(binding()),
+        completeTaskContext(graph, brief));
+    assertTrue(prepared.blocked(), prepared.blockedMessage());
+    assertTrue(prepared.blockedMessage().contains("extra-script"), prepared.blockedMessage());
+    assertEquals(List.of(), prepared.envelopeRefs());
+  }
+
+  @Test
+  void suppliedOnlyScriptNeedsNoGeneratedBody() {
+    var brief = completeTaskBrief().withFacts(List.of(ScriptAuthorityTestFixtures.suppliedFact(
+        SemanticFixtures.COMPLETE_TASK_NODE_ID, "  return 1\n")));
+    var prepared = pipeline.prepare(COMPILATION_ID, SCRIPT_SKILL,
+        SemanticFixtures.linearOrdersWithCompleteTask(), List.of(),
+        completeTaskContext(org.qubership.integration.platform.ai.qipknowledge.validation.RequestedElementValues
+            .seedBodies(completeTaskGraph(), brief.facts()), brief));
     assertFalse(prepared.blocked(), prepared.blockedMessage());
-    String rendered = prepared.mappingGenerationContext();
-    assertFalse(rendered.isBlank(), "empty mapping intents must not skip behavior script context");
-    assertTrue(rendered.contains(SemanticFixtures.COMPLETE_TASK_NODE_ID), rendered);
-    assertTrue(rendered.contains("commandType=completeTask"), rendered);
-    assertTrue(rendered.contains("script"), rendered);
-    assertFalse(rendered.contains("mappingIntentId:"), rendered);
-    assertTrue(
-        prepared.context().editTargetNodeIds().contains(SemanticFixtures.COMPLETE_TASK_NODE_ID),
-        prepared.context().editTargetNodeIds().toString());
-    assertTrue(revision.mappingIntents().isEmpty());
-    assertTrue(prepared.envelopeRefs().isEmpty());
+    assertEquals(List.of(), prepared.envelopeRefs());
+    assertEquals(List.of(), prepared.context().editTargetNodeIds());
   }
 
   @Test
@@ -535,7 +553,7 @@ class MappingGenerationPipelineTest {
   }
 
   @Test
-  void prepareReadsMappingBodiesFromTheBriefWhenRevisionListIsEmpty() {
+  void unverifiedBriefMappingStillBlocksWhenRevisionMappingListIsEmpty() {
     MappingIntent intent =
         new MappingIntent(
             "map-init",
@@ -557,8 +575,8 @@ class MappingGenerationPipelineTest {
             sampleContext(List.of(), List.of(intent)));
 
     assertTrue(revision.mappingIntents().isEmpty());
-    assertFalse(prepared.blocked(), prepared.blockedMessage());
-    assertFalse(prepared.mappingGenerationContext().isBlank());
+    assertTrue(prepared.blocked(), "The brief remains authoritative even when revision bodies are empty");
+    assertEquals(List.of(), artifacts.history(COMPILATION_ID, Kind.MAPPING_ENVELOPE));
   }
 
   @Test
@@ -643,8 +661,13 @@ class MappingGenerationPipelineTest {
         "node-call",
         MappingPort.REQUEST,
         List.of(
-            new MappingIntentRule(
-                "$.orderId", "$.orderId", null, MappingRuleStatus.USER_DEFINED)));
+            new MappingIntentRule("copy-order", List.of("fact-order"), "$.orderId",
+                new org.qubership.integration.platform.ai.qipknowledge.artifact.MappingValue.Copy(
+                    new org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource.Message(
+                        "trigger-http", MappingPort.OUTPUT, "$.orderId")),
+                org.qubership.integration.platform.ai.qipknowledge.artifact.MappingCondition.always(),
+                MappingRuleStatus.USER_DEFINED).withMissingSourcePolicy("ERROR")
+                .withSchemaPins(Map.of("source", "sha-test", "target", "sha-test"))));
   }
 
   private static ChainSemanticRevision revisionWith(MappingIntent intent) {

@@ -76,7 +76,10 @@ public class ProductRequirementBriefTool {
   public record Result(
       boolean accepted, boolean changed, String nextAction, List<Issue> issues, String message) {}
 
-  /** A verified source quotation is evidence for diagnosis, never permission to amend requirements. */
+  /**
+   * A verified source quotation is evidence for diagnosis, never permission to amend requirements.
+   * The source hash pins complete source identities, including approval controls omitted from authored prose.
+   */
   public record SourceReview(String generation, String sourceHash, String draftHash,
       List<RequirementAnalysisCapture.SourceOmission> omissions) {
     public SourceReview(String generation, List<RequirementAnalysisCapture.SourceOmission> omissions) {
@@ -94,6 +97,7 @@ public class ProductRequirementBriefTool {
   private final E2eRecoveryFaultInjector recoveryFaultInjector;
   private final CaptureToolOutcomeGateway outcomeGateway;
   private org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations;
+  private BriefCopyMappingValidator copyMappingValidator;
 
   @Inject
   ProductRequirementBriefTool(
@@ -102,10 +106,20 @@ public class ProductRequirementBriefTool {
       ObjectMapper mapper,
       E2eRecoveryFaultInjector recoveryFaultInjector,
       CaptureToolOutcomeGateway outcomeGateway,
-      org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations) {
+      org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations,
+      BriefCopyMappingValidator copyMappingValidator) {
     this(captureSession, feedbackStore, new RequirementBriefCoverageValidator(), mapper,
         recoveryFaultInjector, outcomeGateway);
     this.conversations = conversations;
+    this.copyMappingValidator = copyMappingValidator;
+  }
+
+  ProductRequirementBriefTool(
+      CaptureSession captureSession, CaptureAttemptFeedbackStore feedbackStore,
+      ObjectMapper mapper, E2eRecoveryFaultInjector recoveryFaultInjector,
+      CaptureToolOutcomeGateway outcomeGateway,
+      org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations) {
+    this(captureSession, feedbackStore, mapper, recoveryFaultInjector, outcomeGateway, conversations, null);
   }
 
   ProductRequirementBriefTool(
@@ -278,6 +292,45 @@ public class ProductRequirementBriefTool {
           .withCatalogBindings(approved.catalogBindings())
           .withTargetFolderPath(targetFolderPath(approved));
       brief = RequirementBriefProjector.project(brief);
+      boolean messageCopy = false;
+      for (int mappingIndex = 0; mappingIndex < brief.mappingIntents().size(); mappingIndex++) {
+        var intent = brief.mappingIntents().get(mappingIndex);
+        for (int ruleIndex = 0; ruleIndex < intent.rules().size(); ruleIndex++) {
+          var rule = intent.rules().get(ruleIndex);
+          if (!(rule.value() instanceof org.qubership.integration.platform.ai.qipknowledge.artifact.MappingValue.Copy copyValue)
+              || !(copyValue.source() instanceof org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource.Message)
+                  && !(copyValue.source() instanceof org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource.Constant)) {
+            return repair(binding, capture, "MAPPING_VALUE_UNSUPPORTED",
+                "/mappingIntents/" + mappingIndex + "/rules/" + ruleIndex + "/value",
+                "This mapping needs explicit operands before brief approval. Preserve its requirement and recapture it;"
+                    + " do not replace unresolved sources with an expression or an implicit CUSTOM mapping.");
+          }
+          if (rule.value() instanceof org.qubership.integration.platform.ai.qipknowledge.artifact.MappingValue.Copy copy
+              && copy.source() instanceof org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource.Message origin) {
+            messageCopy = true;
+            if (blank(origin.interactionId()) || origin.port() == null || blank(origin.path())
+                || !"ERROR".equals(rule.missingSourcePolicy())) {
+              return repair(binding, capture, "MAPPING_ORIGIN_REQUIRED",
+                  "/mappingIntents/" + mappingIndex + "/rules/" + ruleIndex + "/value/source",
+                  "Recapture this COPY with its original interaction, port and path before brief approval.");
+            }
+          }
+        }
+      }
+      boolean typedMapping = messageCopy || approved.authoredDraft() != null && approved.authoredDraft().facts().stream()
+          .anyMatch(fact -> fact.fieldMapping() != null && fact.fieldMapping().value() != null);
+      if (typedMapping) {
+        if (copyMappingValidator == null) {
+          return repair(binding, capture, "MAPPING_SCHEMA_REQUIRED", "/mappingIntents",
+              "Typed mapping needs verified source and target schemas before approval.");
+        }
+        var checkedMapping = copyMappingValidator.validateAndPin(brief);
+        if (!checkedMapping.issues().isEmpty()) {
+          var issue = checkedMapping.issues().getFirst();
+          return repair(binding, capture, issue.code(), issue.path(), issue.message());
+        }
+        brief = checkedMapping.brief();
+      }
       String coverageError = coverageValidator.validate(approved, brief).orElse(null);
       if (coverageError != null) {
         return repair(binding, capture, "BRIEF_COVERAGE", "/", coverageError);
@@ -308,9 +361,10 @@ public class ProductRequirementBriefTool {
 
   private Result reviewSource(Binding binding, RequirementAnalysisCapture capture,
       AuthorSourceEvidence.Packet source) {
-    if (source == null || conversations == null
+    var document = conversations == null ? null : conversations.archive().read(binding.conversationId());
+    if (source == null || document == null
         || !java.util.Objects.equals(binding.resetGeneration(), source.generation())
-        || !source.equals(AuthorSourceEvidence.packet(conversations.archive().read(binding.conversationId())))) {
+        || !source.equals(AuthorSourceEvidence.authoredPacket(document))) {
       return repair(binding, capture, "SOURCE_REVIEW_NOT_BOUND", "/sourceOmissions",
           "Use the saved author evidence from this analysis invocation.");
     }
@@ -346,7 +400,7 @@ public class ProductRequirementBriefTool {
       }
     }
     SourceReview review = new SourceReview(source.generation(),
-        org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(source),
+        org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(AuthorSourceEvidence.packet(document)),
         org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(binding.approvedDraft()),
         capture.sourceOmissions());
     binding.captureTerminal().set(true);

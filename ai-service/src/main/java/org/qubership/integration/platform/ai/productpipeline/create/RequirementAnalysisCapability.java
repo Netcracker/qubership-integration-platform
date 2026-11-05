@@ -437,7 +437,7 @@ public class RequirementAnalysisCapability implements StageCapability {
     try {
       agentStream =
           ToolSession.propagateBinding(toolSessionContext,
-              runAnalyzer(context, approved, binding, AuthorSourceEvidence.packet(authority), sourceReview));
+              runAnalyzer(context, approved, binding, AuthorSourceEvidence.authoredPacket(authority), sourceReview));
     } catch (KnowledgeClientException e) {
       ProductCapabilityCaptureContext.unbind(binding);
       ToolSession.clear();
@@ -915,6 +915,7 @@ public class RequirementAnalysisCapability implements StageCapability {
     appendNamedField(sb, "operation", fact.operation());
     appendNamedField(sb, "topic", fact.topic());
     appendNamedField(sb, "httpMethod", fact.httpMethod());
+    appendNamedField(sb, "httpMode", fact.httpMode() == null ? null : fact.httpMode().name());
     appendNamedField(sb, "path", fact.path());
   }
 

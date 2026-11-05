@@ -62,7 +62,7 @@ class DefaultChainSemanticGraphCompilerTest {
   @Test
   void projectsConditionReconvergenceThroughTheContainerOwner() {
     ChainSemanticRevision revision = withoutContainment(conditionRevision());
-    ChainPlanGraph graph = compiler.compile(revision, CONTRACT, List.of());
+    ChainPlanGraph graph = compileSuppliedShells(revision, CONTRACT, List.of());
 
     assertEquals(
         Set.of(
@@ -101,7 +101,7 @@ class DefaultChainSemanticGraphCompilerTest {
   void reusesConcreteIfBranchEntryInsteadOfGeneratingNestedIfShell() {
     ChainSemanticRevision revision = conditionRevisionWithConcreteIfEntry();
 
-    ChainPlanGraph graph = compiler.compile(revision, CONTRACT, List.of());
+    ChainPlanGraph graph = compileSuppliedShells(revision, CONTRACT, List.of());
 
     assertEquals(1, graph.nodes().stream().filter(node -> "if".equals(node.type())).count());
     assertEquals("condition-1", node(graph, "existing-if").parentNodeId());
@@ -115,7 +115,7 @@ class DefaultChainSemanticGraphCompilerTest {
 
   @Test
   void compilesAsyncApiTrigger() {
-    ChainPlanGraph graph = compiler.compile(asyncApiTriggerRevision(), CONTRACT, List.of());
+    ChainPlanGraph graph = compileSuppliedShells(asyncApiTriggerRevision(), CONTRACT, List.of());
 
     assertEquals("async-api-trigger", node(graph, "trigger-async").type());
   }
@@ -137,7 +137,7 @@ class DefaultChainSemanticGraphCompilerTest {
             List.of(),
             List.of());
 
-    ChainPlanGraph graph = compiler.compile(revision, CONTRACT, List.of());
+    ChainPlanGraph graph = compileSuppliedShells(revision, CONTRACT, List.of());
 
     assertEquals("chain-trigger-2", node(graph, "trigger-chain").type());
     assertTrue(new ChainPlanGraphValidator(schemaService).validate(graph).isEmpty());
@@ -158,7 +158,7 @@ class DefaultChainSemanticGraphCompilerTest {
             List.of(),
             List.of());
 
-    ChainPlanGraph graph = compiler.compile(revision, CONTRACT, List.of());
+    ChainPlanGraph graph = compileSuppliedShells(revision, CONTRACT, List.of());
 
     assertEquals("chain-call-2", node(graph, "call-other").type());
     assertNull(property(node(graph, "call-other"), "elementId"));
@@ -188,7 +188,7 @@ class DefaultChainSemanticGraphCompilerTest {
             List.of(new SemanticContainment("reuse-container", "reuse-body", "body")),
             List.of());
 
-    ChainPlanGraph graph = compiler.compile(revision, CONTRACT, List.of());
+    ChainPlanGraph graph = compileSuppliedShells(revision, CONTRACT, List.of());
 
     assertEquals("reuse", node(graph, "reuse-container").type());
     assertEquals("reuse-container", node(graph, "reuse-body").parentNodeId());
@@ -201,7 +201,7 @@ class DefaultChainSemanticGraphCompilerTest {
     ResolvedServiceCallBinding consume =
         kafkaBinding("trigger-async", "consume-om", "task.wfms_createWorkOrder.start", "wfms", "g-1");
     ChainPlanGraph graph =
-        compiler.compile(asyncApiTriggerRevision(), CONTRACT, List.of(consume));
+        compileSuppliedShells(asyncApiTriggerRevision(), CONTRACT, List.of(consume));
 
     ChainPlanNode trigger = node(graph, "trigger-async");
     assertEquals("async-api-trigger", trigger.type());
@@ -218,7 +218,7 @@ class DefaultChainSemanticGraphCompilerTest {
 
   @Test
   void compilesEveryEntryPointWithoutPickingTheFirst() {
-    ChainPlanGraph graph = compiler.compile(twoEntryRevision(), CONTRACT, List.of());
+    ChainPlanGraph graph = compileSuppliedShells(twoEntryRevision(), CONTRACT, List.of());
 
     assertEquals(
         Set.of("trigger-http", "trigger-kafka", "op-shared"),
@@ -255,7 +255,7 @@ class DefaultChainSemanticGraphCompilerTest {
             List.of(),
             List.of());
 
-    ChainPlanGraph graph = compiler.compile(revision, CONTRACT, List.of());
+    ChainPlanGraph graph = compileSuppliedShells(revision, CONTRACT, List.of());
 
     ChainPlanNode sender = node(graph, "send-kafka");
     assertEquals("kafka-sender-2", sender.type());
@@ -313,7 +313,7 @@ class DefaultChainSemanticGraphCompilerTest {
                 List.of()),
             List.of(binding)).withTargetFolderPath("/Campaign/Folder");
 
-    ChainPlanGraph graph = compiler.compile(conditionRevision(), CONTRACT, List.of(), brief);
+    ChainPlanGraph graph = compileSuppliedShells(conditionRevision(), CONTRACT, List.of(), brief);
 
     assertEquals("/Campaign/Folder", graph.chain().folderPath());
     ChainPlanNode trigger = node(graph, "trigger-http");
@@ -354,7 +354,7 @@ class DefaultChainSemanticGraphCompilerTest {
                 List.of()),
             List.of());
 
-    ChainPlanGraph graph = compiler.compile(conditionRevision(), CONTRACT, List.of(), brief);
+    ChainPlanGraph graph = compileSuppliedShells(conditionRevision(), CONTRACT, List.of(), brief);
 
     ChainPlanNode trigger = node(graph, "trigger-http");
     assertEquals("/orders", property(trigger, "contextPath"));
@@ -364,7 +364,7 @@ class DefaultChainSemanticGraphCompilerTest {
   @Test
   void purePassThroughCompilesToDirectEdgeWithoutScriptOrMapper() {
     ChainPlanGraph graph =
-        compiler.compile(
+        compileSuppliedShells(
             SemanticFixtures.linearOrders(), CONTRACT, List.of(ordersCallBinding()));
 
     assertEquals(
@@ -379,9 +379,9 @@ class DefaultChainSemanticGraphCompilerTest {
   }
 
   @Test
-  void completeTaskKeepsBehaviorOwnedScriptWithoutMappingIntentId() {
+  void suppliedCompleteTaskShellHasNoMappingIntentId() {
     ChainPlanGraph graph =
-        compiler.compile(
+        compileSuppliedShells(
             SemanticFixtures.linearOrdersWithCompleteTask(),
             CONTRACT,
             List.of(ordersCallBinding()));
@@ -397,7 +397,7 @@ class DefaultChainSemanticGraphCompilerTest {
   @Test
   void compilesOneBranchAsyncSplitWithRegionScope() {
     ChainSemanticRevision revision = asyncSplitOneBranchRevision();
-    ChainPlanGraph graph = compiler.compile(revision, CONTRACT, List.of(binding("call-notify")));
+    ChainPlanGraph graph = compileSuppliedShells(revision, CONTRACT, List.of(binding("call-notify")));
 
     assertEquals("split-async-2", node(graph, "split-async-1").type());
     assertEquals("async-split-element-2", node(graph, "split-async-1-branch-notify").type());
@@ -413,7 +413,7 @@ class DefaultChainSemanticGraphCompilerTest {
   @Test
   void compilesSynchronousSplitBranchShell() {
     ChainSemanticRevision revision = syncSplitOneBranchRevision();
-    ChainPlanGraph graph = compiler.compile(revision, CONTRACT, List.of());
+    ChainPlanGraph graph = compileSuppliedShells(revision, CONTRACT, List.of());
 
     assertEquals("main-split-element-2", node(graph, "split-1-branch-work").type());
     assertEquals("split-1", node(graph, "split-1-branch-work").parentNodeId());
@@ -428,7 +428,7 @@ class DefaultChainSemanticGraphCompilerTest {
   void compilesParallelSplitBranchesWithoutSequentialSiblingEdges() {
     for (SplitMode mode : SplitMode.values()) {
       ChainSemanticRevision revision = splitTwoBranchRevision(mode);
-      ChainPlanGraph graph = compiler.compile(revision, CONTRACT, List.of());
+      ChainPlanGraph graph = compileSuppliedShells(revision, CONTRACT, List.of());
 
       List<String> errors = new ChainPlanGraphValidator(schemaService).validate(graph);
 
@@ -439,7 +439,7 @@ class DefaultChainSemanticGraphCompilerTest {
   @Test
   void projectsExactlyOneMainBranchForSynchronousSplit() {
     ChainPlanGraph graph =
-        compiler.compile(splitTwoBranchRevision(SplitMode.SYNC), CONTRACT, List.of());
+        compileSuppliedShells(splitTwoBranchRevision(SplitMode.SYNC), CONTRACT, List.of());
 
     assertEquals("main-split-element-2", node(graph, "split-1-branch-audit").type());
     assertEquals("split-element-2", node(graph, "split-1-branch-fulfillment").type());
@@ -457,7 +457,7 @@ class DefaultChainSemanticGraphCompilerTest {
             split.branches(), split.reconvergenceNodeId(), "fulfillment")),
         base.executionEdges(), base.containment(), base.mappingIntents());
 
-    ChainPlanGraph graph = compiler.compile(revision, CONTRACT, List.of());
+    ChainPlanGraph graph = compileSuppliedShells(revision, CONTRACT, List.of());
 
     assertEquals("split-element-2", node(graph, "split-1-branch-audit").type());
     assertEquals("main-split-element-2", node(graph, "split-1-branch-fulfillment").type());
@@ -518,7 +518,7 @@ class DefaultChainSemanticGraphCompilerTest {
 
   @Test
   void compilesLoopScopeWithoutBackEdge() {
-    ChainPlanGraph graph = compiler.compile(loopRevision(LoopMode.COPY), CONTRACT, List.of());
+    ChainPlanGraph graph = compileSuppliedShells(loopRevision(LoopMode.COPY), CONTRACT, List.of());
 
     assertEquals("loop-2", node(graph, "loop-1").type());
     assertEquals("items", property(node(graph, "loop-1"), "expression"));
@@ -540,7 +540,7 @@ class DefaultChainSemanticGraphCompilerTest {
 
   @Test
   void writesExclusiveDoWhileLoopMode() {
-    ChainPlanGraph graph = compiler.compile(loopRevision(LoopMode.DO_WHILE), CONTRACT, List.of());
+    ChainPlanGraph graph = compileSuppliedShells(loopRevision(LoopMode.DO_WHILE), CONTRACT, List.of());
 
     assertEquals("true", property(node(graph, "loop-1"), "doWhile"));
     assertNull(property(node(graph, "loop-1"), "copy"));
@@ -549,9 +549,9 @@ class DefaultChainSemanticGraphCompilerTest {
   @Test
   void usesSchemaLoopLimitUnlessAnExplicitLimitIsProvided() {
     ChainPlanGraph defaultGraph =
-        compiler.compile(loopRevision(LoopMode.DO_WHILE, null), CONTRACT, List.of());
+        compileSuppliedShells(loopRevision(LoopMode.DO_WHILE, null), CONTRACT, List.of());
     ChainPlanGraph explicitGraph =
-        compiler.compile(loopRevision(LoopMode.DO_WHILE, 25), CONTRACT, List.of());
+        compileSuppliedShells(loopRevision(LoopMode.DO_WHILE, 25), CONTRACT, List.of());
 
     assertEquals("1500", property(node(defaultGraph, "loop-1"), "maxLoopIteration"));
     assertEquals("25", property(node(explicitGraph, "loop-1"), "maxLoopIteration"));
@@ -562,7 +562,7 @@ class DefaultChainSemanticGraphCompilerTest {
   @Test
   void writesRetryPropertiesOnTheOwner() {
     ChainPlanGraph graph =
-        compiler.compile(retryRevision(), CONTRACT, List.of(binding("call-1")));
+        compileSuppliedShells(retryRevision(), CONTRACT, List.of(binding("call-1")));
 
     ChainPlanNode owner = node(graph, "call-1");
     assertEquals("3", property(owner, "retryCount"));
@@ -572,7 +572,7 @@ class DefaultChainSemanticGraphCompilerTest {
 
   @Test
   void compilesErrorHandlersWithCatchContainment() {
-    ChainPlanGraph graph = compiler.compile(errorScopeRevision(), CONTRACT, List.of());
+    ChainPlanGraph graph = compileSuppliedShells(errorScopeRevision(), CONTRACT, List.of());
 
     assertEquals("try-catch-finally-2", node(graph, "try-catch-1").type());
     assertEquals("try-2", node(graph, "try-catch-1-try").type());
@@ -606,7 +606,7 @@ class DefaultChainSemanticGraphCompilerTest {
   @Test
   void validatesProjectedErrorScopeWithoutExplicitContainment() {
     ChainSemanticRevision revision = withoutContainment(errorScopeRevision());
-    ChainPlanGraph graph = compiler.compile(revision, CONTRACT, List.of());
+    ChainPlanGraph graph = compileSuppliedShells(revision, CONTRACT, List.of());
 
     new ChainPlanGraphValidator(schemaService).validate(graph, CONTRACT, revision);
   }
@@ -628,7 +628,7 @@ class DefaultChainSemanticGraphCompilerTest {
         base.chainIdentity(), base.compilerContractVersion(), base.entryPoints(), nodes, base.regions(),
         edges, base.containment(), base.mappingIntents(), base.constraints(), base.assumptions(), base.citations());
 
-    ChainPlanGraph graph = compiler.compile(candidate, CONTRACT, List.of(binding("try-body")));
+    ChainPlanGraph graph = compileSuppliedShells(candidate, CONTRACT, List.of(binding("try-body")));
 
     assertEquals("try-catch-1-try", node(graph, "try-body").parentNodeId());
     assertNull(node(graph, "after-scope").parentNodeId());
@@ -659,7 +659,7 @@ class DefaultChainSemanticGraphCompilerTest {
         base.chainIdentity(), base.compilerContractVersion(), base.entryPoints(), nodes, regions,
         edges, base.containment(), base.mappingIntents(), base.constraints(), base.assumptions(), base.citations());
 
-    ChainPlanGraph graph = compiler.compile(candidate, CONTRACT, List.of(binding("after-loop")));
+    ChainPlanGraph graph = compileSuppliedShells(candidate, CONTRACT, List.of(binding("after-loop")));
 
     assertEquals("try-body", node(graph, "loop-work").parentNodeId());
     assertEquals("try-catch-1-try", node(graph, "after-loop").parentNodeId());
@@ -669,7 +669,7 @@ class DefaultChainSemanticGraphCompilerTest {
 
   @Test
   void stampsExceptionAndPriorityWhenHandlerEntryIsCatch2() {
-    ChainPlanGraph graph = compiler.compile(errorScopeRevision("catch-2"), CONTRACT, List.of());
+    ChainPlanGraph graph = compileSuppliedShells(errorScopeRevision("catch-2"), CONTRACT, List.of());
 
     ChainPlanNode catchEntry = node(graph, "catch-body");
     assertEquals("catch-2", catchEntry.type());
@@ -681,7 +681,7 @@ class DefaultChainSemanticGraphCompilerTest {
   void parentsExplicitCatchWithoutContainment() {
     ChainSemanticRevision revision =
         withoutContainment(withExplicitCatchScript(errorScopeRevision("catch-2")));
-    ChainPlanGraph graph = compiler.compile(revision, CONTRACT, List.of());
+    ChainPlanGraph graph = compileSuppliedShells(revision, CONTRACT, List.of());
 
     assertEquals("try-catch-1", node(graph, "catch-body").parentNodeId());
     assertEquals("catch-body", node(graph, "catch-script").parentNodeId());
@@ -770,7 +770,7 @@ class DefaultChainSemanticGraphCompilerTest {
             .withMappingIntents(linearMappedRevision().mappingIntents());
 
     ChainPlanGraph graph =
-        compiler.compile(revision, CONTRACT, List.of(binding("call-1")), brief);
+        compileSuppliedShells(revision, CONTRACT, List.of(binding("call-1")), brief);
 
     assertTrue(revision.mappingIntents().isEmpty());
     assertEquals("map-body", MappingExecutionSite.mappingIntentId(node(graph, "op-shared")));
@@ -1439,6 +1439,43 @@ class DefaultChainSemanticGraphCompilerTest {
         revision.constraints(),
         revision.assumptions(),
         revision.citations());
+  }
+
+  private ChainPlanGraph compileSuppliedShells(ChainSemanticRevision revision, CompilerContract contract,
+      List<ResolvedServiceCallBinding> bindings) {
+    return compileSuppliedShells(revision, contract, bindings,
+        new RequirementBrief("Structural fixture", List.of(), List.of(), List.of(), List.of(), "summary"));
+  }
+
+  private ChainPlanGraph compileSuppliedShells(ChainSemanticRevision revision, CompilerContract contract,
+      List<ResolvedServiceCallBinding> bindings, RequirementBrief brief) {
+    var facts = new ArrayList<>(brief.facts());
+    for (var candidate : revision.nodes()) {
+      if (candidate instanceof SemanticNode.Operation operation && "script".equals(operation.elementType())
+          && facts.stream().noneMatch(fact -> fact.elementIntent() != null
+              && candidate.nodeId().equals(fact.elementIntent().elementRef()))) {
+        facts.add(org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures
+            .suppliedFact(candidate.nodeId(), "return null"));
+      }
+    }
+    var supplied = brief.withFacts(facts);
+    return compiler.compile(org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures
+        .attachSuppliedFacts(revision, supplied), contract, bindings, supplied);
+  }
+
+  @Test
+  void suppliedOnlySemanticShellCompilesAndSeedsExactAuthorBytes() {
+    var revision = SemanticFixtures.linearOrdersWithCompleteTask();
+    String body = "  exchange.in.body = [commandType:'completeTask']\n\n";
+    var brief = new RequirementBrief("Supplied completion", List.of(), List.of(), List.of(), List.of(), "summary")
+        .withFacts(List.of(org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures
+            .suppliedFact(SemanticFixtures.COMPLETE_TASK_NODE_ID, body)));
+    var shell = compiler.compile(org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures
+        .attachSuppliedFacts(revision, brief), CONTRACT, List.of(ordersCallBinding()), brief);
+    var seeded = org.qubership.integration.platform.ai.qipknowledge.validation.RequestedElementValues
+        .seedBodies(shell, brief.facts());
+    assertEquals(body, property(node(seeded, SemanticFixtures.COMPLETE_TASK_NODE_ID), "script"));
+    assertNull(MappingExecutionSite.mappingIntentId(node(seeded, SemanticFixtures.COMPLETE_TASK_NODE_ID)));
   }
 
   private ChainPlanGraph compileMapped(

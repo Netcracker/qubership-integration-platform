@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -45,7 +46,7 @@ class Catalog:
         self.suites: dict[str, dict] = {}
         self.sources: list[dict] = []
         self._load(self.root / "ai-service/e2e/suites.json", "service")
-        self.package_error = "Install the skills testing bundle to run this profile."
+        self.package_error = "Acceptance fixtures are required for this profile."
         manifest = self.package / "testing/suites.json"
         if manifest.is_file():
             try:
@@ -59,12 +60,14 @@ class Catalog:
                     self.package / "manifest.json"
                 ).get("version"):
                     raise ValueError(
-                        "The testing bundle targets a different skills package version"
+                        "The acceptance fixtures target a different runtime version"
                     )
                 self._load(manifest, "skills")
                 self.package_error = ""
             except (ValueError, OSError, KeyError, TypeError) as exc:
-                self.package_error = f"Cannot load the skills testing bundle: {exc}"
+                prefix = f"{self.package}{os.sep}"
+                detail = str(exc).replace(prefix, "").replace(repr(prefix)[1:-1], "")
+                self.package_error = f"Cannot load the acceptance fixtures: {detail}"
 
     def _load(self, path: Path, owner: str):
         document = read_json(path)

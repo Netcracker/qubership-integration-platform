@@ -61,7 +61,7 @@ class DefaultChainSemanticRevisionValidatorTest {
     assertTrue(error.getMessage().contains("cannot contain its owner"), error.getMessage());
     var corrected = copy(revision, revision.entryPoints(), revision.nodes(), List.of(),
         revision.executionEdges(), revision.containment(), revision.mappingIntents());
-    assertDoesNotThrow(() -> validator.validate(corrected, CONTRACT));
+    assertDoesNotThrow(() -> validate(corrected));
   }
 
 
@@ -97,9 +97,13 @@ class DefaultChainSemanticRevisionValidatorTest {
     }).toList();
     ChainSemanticRevision candidate = copy(base, base.entryPoints(), nodes, base.regions(),
         base.executionEdges(), List.of(), base.mappingIntents());
-    RequirementBrief brief = briefWithFact(splitConfigurationFact());
+    var facts = new ArrayList<>(briefFrom(candidate).facts());
+    facts.add(splitConfigurationFact());
+    RequirementBrief brief = briefWithFact(splitConfigurationFact()).withFacts(facts);
 
-    assertDoesNotThrow(() -> validator.validate(candidate, CONTRACT, brief));
+    assertDoesNotThrow(() -> validator.validate(
+        org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures.attachSuppliedFacts(candidate, brief),
+        CONTRACT, brief));
   }
 
   @ParameterizedTest
@@ -666,7 +670,7 @@ class DefaultChainSemanticRevisionValidatorTest {
         assertThrows(
             IllegalArgumentException.class,
             () -> validate(revisionWithOrphanScript()));
-    assertTrue(error.getMessage().contains("orphan script: orphan-script"), error.getMessage());
+    assertTrue(error.getMessage().contains("orphan-script"), error.getMessage());
   }
 
   @Test
@@ -685,7 +689,7 @@ class DefaultChainSemanticRevisionValidatorTest {
   }
 
   @Test
-  void acceptsBehaviorOwnedScriptWithPositiveBehaviorProvenance() {
+  void rejectsScriptWithOnlyPositiveBehaviorProvenance() {
     RequirementBrief brief =
         briefWithFact(
             new RequirementFact(
@@ -694,7 +698,7 @@ class DefaultChainSemanticRevisionValidatorTest {
                 RequirementFactKind.BEHAVIOR,
                 "",
                 "Respond with commandType=completeTask"));
-    assertDoesNotThrow(
+    assertThrows(IllegalArgumentException.class,
         () -> validator.validate(SemanticFixtures.linearOrdersWithCompleteTask(), CONTRACT, brief));
   }
 
@@ -714,12 +718,45 @@ class DefaultChainSemanticRevisionValidatorTest {
             () ->
                 validator.validate(
                     SemanticFixtures.linearOrdersWithCompleteTask(), CONTRACT, brief));
-    assertTrue(error.getMessage().contains("orphan script:"), error.getMessage());
+    assertTrue(error.getMessage().contains("no executable authority"), error.getMessage());
   }
 
   @Test
-  void acceptsErrorHandlingScriptInApprovedRegion() {
-    assertDoesNotThrow(() -> validate(errorScopeRevision("catch-all")));
+  void rejectsErrorHandlingScriptsWithOnlyRegionMembership() {
+    var revision = errorScopeRevision("catch-all");
+    assertThrows(IllegalArgumentException.class,
+        () -> validator.validate(revision, CONTRACT, new RequirementBrief(
+            "Orders", List.of(), List.of(), List.of(), List.of(), "summary")));
+  }
+
+  @Test
+  void suppliedBodyAuthorizesItsBodylessSemanticShell() {
+    var revision = SemanticFixtures.linearOrdersWithCompleteTask();
+    var brief = briefFrom(revision).withFacts(List.of(
+        org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures.suppliedFact(
+            SemanticFixtures.COMPLETE_TASK_NODE_ID, "  exchange.in.body = [commandType:'completeTask']\n")));
+    assertDoesNotThrow(() -> validator.validate(
+        org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures.attachSuppliedFacts(revision, brief),
+        CONTRACT, brief));
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"generated-candidate", "foreign-node", "invalid-range"})
+  void unsupportedBodyBindingsDoNotAuthorizeSemanticShells(String partition) {
+    var revision = SemanticFixtures.linearOrdersWithCompleteTask();
+    String body = "return 1";
+    var fact = org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures.bodyFact(
+        "foreign-node".equals(partition) ? "another-script" : SemanticFixtures.COMPLETE_TASK_NODE_ID,
+        body, "generated-candidate".equals(partition)
+            ? org.qubership.integration.platform.ai.plan.RequirementBodyBinding.Authority.GENERATED_CANDIDATE
+            : org.qubership.integration.platform.ai.plan.RequirementBodyBinding.Authority.VERBATIM_SOURCE_BODY,
+        "invalid-range".equals(partition) ? -1 : 0, body.length());
+    var brief = briefFrom(revision).withFacts(List.of(fact));
+    var failure = assertThrows(IllegalArgumentException.class,
+        () -> validator.validate(
+            org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures.attachSuppliedFacts(revision, brief),
+            CONTRACT, brief));
+    assertTrue(failure.getMessage().contains("no executable authority"), failure.getMessage());
   }
 
   @Test
@@ -914,12 +951,19 @@ class DefaultChainSemanticRevisionValidatorTest {
   }
 
   private void validate(ChainSemanticRevision revision) {
-    validator.validate(revision, CONTRACT, briefFrom(revision));
+    var brief = briefFrom(revision);
+    validator.validate(org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures
+        .attachSuppliedFacts(revision, brief), CONTRACT, brief);
   }
 
   private static RequirementBrief briefFrom(ChainSemanticRevision revision) {
     return new RequirementBrief("Orders", List.of(), List.of(), List.of(), List.of(), "summary")
-        .withMappingIntents(revision.mappingIntents());
+        .withMappingIntents(revision.mappingIntents()).withFacts(revision.nodes().stream()
+            .filter(node -> node instanceof SemanticNode.Operation operation && "script".equals(operation.elementType())
+                && !List.of("orphan-script", "op-shared").contains(node.nodeId()))
+            .map(node -> org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures
+                .suppliedFact(node.nodeId(), "return null"))
+            .toList());
   }
 
   private static RequirementBrief briefWithFact(RequirementFact fact) {

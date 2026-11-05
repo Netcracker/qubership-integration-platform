@@ -103,6 +103,10 @@ public class ChainSemanticCaptureTool {
 
   @Tool(value = """
       Capture the chain topology for this design-input turn.
+      Every script needs its own admitted typed mapping or exact source-bound supplied body.
+      BEHAVIOR facts, provenance, and region membership alone do not authorize generated scripts.
+      The native compiler derives retention from admitted mapping origins. Report unsupported
+      constants or response assembly instead of generating Groovy without that authority.
       Split branches are metadata in splitRegions. Their entryNodeId and exitNodeIds refer to
       executable work. The server creates branch containers. A requested Split with three Script
       branches uses one split-2 owner, three script operations, and three branch metadata entries.

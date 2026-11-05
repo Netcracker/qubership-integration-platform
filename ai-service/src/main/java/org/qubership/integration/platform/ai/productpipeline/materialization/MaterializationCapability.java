@@ -75,6 +75,8 @@ public class MaterializationCapability implements StageCapability {
   private final E2eRecoveryFaultInjector recoveryFaultInjector;
 
   @Inject org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryTestControl recoveryControl;
+  @Inject org.qubership.integration.platform.ai.plan.mapping.CopyMappingMaterializationValidator copyMappings;
+  @Inject org.qubership.integration.platform.ai.plan.BriefCopyMappingValidator copySchemas;
 
   @Inject
   public MaterializationCapability(
@@ -162,6 +164,12 @@ public class MaterializationCapability implements StageCapability {
               new CapabilitySignal.Completed(
                   StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE, resolved.error())));
     }
+    if (!resolved.v2()) {
+      return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(
+          StageOutcomeClass.CONTRACT_FAILURE,
+          "Legacy create-chain@1 materialization is unsupported. Recapture the requirements and approve a new create-chain@2 plan before catalog writes.",
+          RecoveryCause.of(RecoveryCauseCode.CONTRACT_SHAPE))));
+    }
     if (resolved.v2()) {
       try {
         var approvedPlan = artifactStore.get(context.runId(), resolved.implementationPlanRef()).orElseThrow();
@@ -171,11 +179,24 @@ public class MaterializationCapability implements StageCapability {
         var semanticRef = SupersededBriefLineageGuard
             .originatingRevision(artifactStore, context.runId(), approvedPlan, Kind.CHAIN_SEMANTIC_REVISION)
             .orElseThrow(() -> new IllegalStateException("Approved plan has no semantic revision lineage."));
-        var issues = ApprovedHttpEndpointValidator.validate(
-            resolved.graph(),
-            artifactStore.payload(briefRef, RequirementBrief.class),
-            artifactStore.payload(semanticRef,
-                ChainSemanticRevision.class));
+        var brief = artifactStore.payload(briefRef, RequirementBrief.class);
+        var semantic = artifactStore.payload(semanticRef, ChainSemanticRevision.class);
+        if (copyMappings == null) {
+          throw new IllegalStateException("Script execution validation is required before materialization.");
+        }
+        copyMappings.validate(context.runId(), brief, semantic, resolved.graph());
+        var ordinary = org.qubership.integration.platform.ai.plan.mapping.CopyMappingMaterializationValidator
+            .ordinaryMappings(brief, resolved.graph());
+        if (!ordinary.isEmpty()) {
+          if (copySchemas == null) {
+            throw new IllegalStateException("Approved mapping schemas must be revalidated before materialization.");
+          }
+          var schemaIssues = copySchemas.validateApproved(brief.withMappingIntents(ordinary));
+          if (!schemaIssues.isEmpty()) {
+            throw new IllegalArgumentException(schemaIssues.getFirst().message());
+          }
+        }
+        var issues = ApprovedHttpEndpointValidator.validate(resolved.graph(), brief, semantic);
         if (!issues.isEmpty()) {
           var validation = CompilerPlanningRunner
               .buildValidationResult(new ValidationResult(

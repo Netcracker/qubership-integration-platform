@@ -32,6 +32,7 @@ public final class RequirementRecoveryLadder {
 
   private static final Set<String> REPRESENTATION = Set.of(
       "INVALID_ELEMENT_INTENT",
+      "BUSINESS_ANCHOR_REQUIRED",
       "INVALID_ELEMENT_OWNER",
       "INVALID_ELEMENT_REFERENCE",
       "INVALID_ELEMENT_PARENT",

@@ -67,7 +67,7 @@ function displayRun(run) {
     Created: run.createdAt,
     "Service commit": run.service.commit,
     "Working changes": run.service.diffSha256 || "unavailable",
-    "Skills package": run.skillsPackage?.version || "not installed",
+    "Acceptance runtime version": run.skillsPackage?.version || "unspecified",
     Model: run.settings.model || "unspecified",
     Environment: run.settings.base_url,
     "Parent run": run.parentRunId || "—",

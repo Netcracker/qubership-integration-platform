@@ -384,7 +384,8 @@ class ChainSemanticCaptureToolTest {
   void duplicateCaptureFailsAndKeepsTheFirstCandidate() {
     ChainSemanticCaptureTool tool = tool(completePack());
     bindDesign(ChainSemanticCaptureFixtures.approvedBrief());
-    endedTurn(() -> tool.captureChainSemanticRevision(ChainSemanticCaptureFixtures.linearCapture()));
+    String first = endedTurn(() -> tool.captureChainSemanticRevision(ChainSemanticCaptureFixtures.linearCapture()));
+    assertTrue(first.contains("HANDOFF"), first);
     String duplicate =
         endedTurn(() -> tool.captureChainSemanticRevision(ChainSemanticCaptureFixtures.linearCapture()));
     assertTrue(duplicate.contains("already captured"), duplicate);
@@ -540,9 +541,11 @@ class ChainSemanticCaptureToolTest {
   }
 
   /** Runs a call that must end the model's tool loop and returns the capture result it ended with. */
-  private static String endedTurn(org.junit.jupiter.api.function.Executable call) {
+  private static String endedTurn(java.util.function.Supplier<String> call) {
+    AtomicReference<String> result = new AtomicReference<>();
     return assertThrows(
-        org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException.class, call)
+        org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException.class,
+        () -> result.set(call.get()), () -> "Capture result: " + result.get())
         .getMessage();
   }
 }

@@ -408,6 +408,52 @@ class RequirementDiscoveryCapabilityTest {
   }
 
   @Test
+  void unknownDeliveryQuestionSurvivesReloadWithoutInventingAnEntry() throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var conversations = new ConversationService();
+    var h = captureHarness(null, conversations);
+    String chat = "unknown-delivery";
+    String sourceText = "Accept an incoming task-start JSON payload. I have not chosen how it reaches the chain. Proceed without IDS.";
+    var source = conversations.archive().beginInput(chat, sourceText, null);
+    conversations.archive().resolveInput(chat, source, sourceText);
+    var question = new QuestionInput("delivery", List.of("entry"), "How does the payload reach this chain?",
+        new AuthorQuestionEvidence("entry", "capabilityKey", AuthorQuestionEvidence.Kind.MISSING_VALUE,
+            List.of(source.turnId())));
+    var input = new DraftInput(new FlowInput(List.of(
+        new InteractionInput("entry", Direction.INBOUND, null, null, null, null, null)), List.of()),
+        List.of(new FactInput("goal", List.of("entry"), FactKind.GOAL, Polarity.POSITIVE,
+            "Accept an incoming task-start JSON payload.", null, null, null,
+            new ClaimEvidenceInput(source.turnId(), "Accept an incoming task-start JSON payload."))),
+        List.of(), List.of(question), new DraftSettings(false, null));
+    var captured = new AtomicReference<String>();
+    var capability = new RequirementDiscoveryCapability(null, h.store(), null, (conversation, text) -> {
+      h.tools().readRequirementSource(
+          new org.qubership.integration.platform.ai.plan.RequirementCaptureTools.SourceRead(source.turnId(), 0, 16000));
+      captured.set(h.tools().captureRequirementDraft(input));
+      h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY);
+      return Multi.createFrom().empty();
+    }, conversations);
+    capability.captureFeedback = h.feedback();
+
+    var outcome = capability.execute(new StageExecutionContext("delivery-run", chat, "requirement-discovery",
+        "execution", "attempt", null, null, List.of(), Map.of("userText", sourceText)))
+        .collect().asList().await().indefinitely().stream().filter(CapabilitySignal.Completed.class::isInstance)
+        .map(CapabilitySignal.Completed.class::cast).findFirst().orElseThrow().outcome();
+    var reloaded = new RequirementDraftStore(h.artifacts(), h.sessions(), conversations);
+    var saved = reloaded.get(chat).orElseThrow();
+
+    assertTrue(mapper.readTree(captured.get()).path("accepted").asBoolean(), captured.get());
+    assertEquals(StageOutcomeClass.NEEDS_INPUT, outcome.outcomeClass(), outcome.toString());
+    assertEquals(PipelineGates.STAGE_CLARIFICATION, PipelineGates.gateOf(outcome.message()).orElseThrow());
+    assertEquals(List.of(question), saved.authoredDraft().openQuestions());
+    assertEquals(List.of(), saved.authoredDraft().capabilities());
+    assertNull(saved.authoredDraft().flow().interactions().getFirst().participant());
+    assertNull(saved.authoredDraft().flow().interactions().getFirst().operation());
+    assertFalse(saved.readyForPlan(), saved.toString());
+    assertEquals(List.of(), reloaded.validateAuthorQuestions(chat));
+  }
+
+  @Test
   void reloadedDerivedQuestionsCannotBypassTheAuthorQuestionBoundary() {
     var mapper = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
     var blobs = new org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore();
@@ -757,6 +803,82 @@ class RequirementDiscoveryCapabilityTest {
     assertEquals(2, outcome.recoveryCause().findings().size());
     assertTrue(signals.stream().noneMatch(CapabilitySignal.Message.class::isInstance));
   }
+
+  @Test
+  void pendingCatalogVersionReachesTheExistingClarificationGateAfterReload() {
+    var fixture = catalogVersionDiscovery();
+    var outcome = fixture.capability().execute(new StageExecutionContext("version-run", "version-chat",
+        "requirement-discovery", "execution", "attempt", null, null, List.of(),
+        Map.of("userText", "Create a Salesforce task.")))
+        .collect().asList().await().indefinitely().stream().filter(CapabilitySignal.Completed.class::isInstance)
+        .map(CapabilitySignal.Completed.class::cast).findFirst().orElseThrow().outcome();
+
+    assertEquals(StageOutcomeClass.NEEDS_INPUT, outcome.outcomeClass(), outcome.toString());
+    assertEquals(PipelineGates.STAGE_CLARIFICATION, PipelineGates.gateOf(outcome.message()).orElseThrow());
+    var pending = fixture.selections().pending("version-chat").orElseThrow();
+    var card = fixture.selections().decision(pending, 7, "Use version 2.0.0?");
+    assertEquals("catalog-operation-version", card.artifactType());
+    var confirmed = fixture.selections().confirm("version-chat", pending);
+    assertEquals("new-op", confirmed.integrationOperationId());
+    assertEquals(Optional.empty(), fixture.selections().pending("version-chat"));
+    assertEquals(confirmed, fixture.selections().confirmed("version-chat", pending.proposal().interaction()).orElseThrow());
+  }
+
+  @Test
+  void dismissedCatalogVersionDoesNotTurnProducerWorkIntoAnAuthorWait() {
+    var fixture = catalogVersionDiscovery();
+    fixture.selections().dismiss("version-chat", fixture.selections().pending("version-chat").orElseThrow());
+    var outcome = fixture.capability().execute(new StageExecutionContext("version-run", "version-chat",
+        "requirement-discovery", "execution", "attempt", null, null, List.of(),
+        Map.of("userText", "Create a Salesforce task.")))
+        .collect().asList().await().indefinitely().stream().filter(CapabilitySignal.Completed.class::isInstance)
+        .map(CapabilitySignal.Completed.class::cast).findFirst().orElseThrow().outcome();
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, outcome.outcomeClass());
+    assertEquals(List.of("OPERATION_LOOKUP_REQUIRED"), outcome.recoveryCause().findings().stream()
+        .map(finding -> finding.code()).toList());
+  }
+
+  private static CatalogVersionDiscovery catalogVersionDiscovery() {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var store = new RequirementDraftStore(new CompilationArtifacts(blobs, mapper, Clock.systemUTC()),
+        new CompilationSessions(blobs, mapper, Clock.systemUTC()));
+    var authored = new DraftInput(new FlowInput(List.of(
+        new InteractionInput("entry", Direction.INBOUND, "Caller", "POST /tasks", null, null, null),
+        new InteractionInput("task", Direction.OUTBOUND, "Salesforce WFM", "createTask", null, null, null)),
+        List.of(new TransitionInput("entry", "task"))),
+        List.of(new FactInput("goal", List.of(), FactKind.GOAL, Polarity.POSITIVE, "Create a Salesforce task.")),
+        List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.POST, "/tasks", null, null, null)),
+        List.of(), new DraftSettings(null, null));
+    store.put("version-chat", org.qubership.integration.platform.ai.plan.RequirementCaptureProjection.toDraft(
+        authored, null, List.of(), "1", "hash"));
+    var finder = mock(org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogSystemFinder.class);
+    var catalog = mock(CatalogSystemReadTool.class);
+    when(finder.narrow(any())).thenReturn(new org.qubership.integration.platform.ai.integration.catalog.lookup
+        .CatalogSystemFinder.Narrowed.Systems(List.of(new CatalogRestClient.SystemDto("sf", "Salesforce WFM", "EXTERNAL", "http"))));
+    when(catalog.getApiSpecifications("sf")).thenReturn(List.of(
+        new CatalogRestClient.SpecificationDto("old", "1.0.0", "group", "sf", "1.0.0"),
+        new CatalogRestClient.SpecificationDto("new", "2.0.0", "group", "sf", "2.0.0")));
+    when(catalog.listCatalogOperations("old", "sf", null)).thenReturn(List.of(
+        new CatalogRestClient.OperationDto("old-op", "createTask", "POST", "/tasks", "old")));
+    when(catalog.listCatalogOperations("new", "sf", null)).thenReturn(List.of(
+        new CatalogRestClient.OperationDto("new-op", "createTask", "POST", "/tasks", "new")));
+    var lookup = new org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogOperationLookup(finder, catalog);
+    var result = assertInstanceOf(org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogLookupResult.Ambiguous.class,
+        lookup.resolve(new org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogQuery(
+            "Salesforce WFM", null, "http", null, null, "createTask", null)));
+    var selections = new org.qubership.integration.platform.ai.chat.decision.CatalogVersionSelection(
+        blobs, mapper, store, new org.qubership.integration.platform.ai.plan.ConversationApiResolutions());
+    selections.propose("version-chat", store.get("version-chat").orElseThrow().flow().interactions().get(1), result.candidates());
+    var restored = new org.qubership.integration.platform.ai.chat.decision.CatalogVersionSelection(
+        blobs, mapper, store, new org.qubership.integration.platform.ai.plan.ConversationApiResolutions());
+    var capability = new RequirementDiscoveryCapability(null, store, (chat, text) -> Multi.createFrom().empty());
+    capability.versionSelections = restored;
+    return new CatalogVersionDiscovery(capability, restored);
+  }
+
+  private record CatalogVersionDiscovery(RequirementDiscoveryCapability capability,
+      org.qubership.integration.platform.ai.chat.decision.CatalogVersionSelection selections) {}
 
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
@@ -1415,15 +1537,16 @@ class RequirementDiscoveryCapabilityTest {
       org.qubership.integration.platform.ai.chain.folder.CatalogFolders folders, ConversationService conversations) {
     var mapper = new ObjectMapper().findAndRegisterModules();
     var blobs = new InMemoryArtifactBlobStore();
-    var store = new RequirementDraftStore(new CompilationArtifacts(blobs, mapper, Clock.systemUTC()),
-        new CompilationSessions(blobs, mapper, Clock.systemUTC()), conversations);
+    var artifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
+    var sessions = new CompilationSessions(blobs, mapper, Clock.systemUTC());
+    var store = new RequirementDraftStore(artifacts, sessions, conversations);
     var adapter = mock(RequirementDraftTool.class);
     var fingerprints = new org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore(mapper);
     var feedback = new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore(fingerprints);
     var tools = new org.qubership.integration.platform.ai.plan.RequirementCaptureTools(store, adapter, mapper,
         new org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway(fingerprints, feedback),
         feedback, null, folders, null, conversations);
-    return new CaptureHarness(store, feedback, tools);
+    return new CaptureHarness(store, feedback, tools, artifacts, sessions);
   }
 
   @ParameterizedTest
@@ -1534,7 +1657,8 @@ class RequirementDiscoveryCapabilityTest {
 
   private record CaptureHarness(RequirementDraftStore store,
       org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore feedback,
-      org.qubership.integration.platform.ai.plan.RequirementCaptureTools tools) {}
+      org.qubership.integration.platform.ai.plan.RequirementCaptureTools tools,
+      CompilationArtifacts artifacts, CompilationSessions sessions) {}
 
   private static StageOutcome discoveryOutcome(RequirementDiscoveryCapability capability) {
     return discoveryOutcome(capability, null);

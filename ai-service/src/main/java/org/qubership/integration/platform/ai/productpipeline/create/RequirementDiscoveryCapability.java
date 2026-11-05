@@ -88,6 +88,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
   @Inject FailureNarrative failureNarrative;
   @Inject TargetFolderChoiceResolver targetFolderChoices;
   @Inject RequirementCaptureTools captureTools;
+  @Inject org.qubership.integration.platform.ai.chat.decision.CatalogVersionSelection versionSelections;
 
   /** Lets a cross-package test supply the capture tools the container would inject. */
   public void setCaptureTools(RequirementCaptureTools tools) {
@@ -857,6 +858,11 @@ public class RequirementDiscoveryCapability implements StageCapability {
             RequirementCaptureProjection.resolvedTargets(draft), uploadedInteractions);
     boolean onlyUploadedImports = draft.authoredDraft() == null
         ? !uploadedInteractions.isEmpty() : RequirementCaptureProjection.onlyUploadedSpecImportsRemain(pending);
+    if (versionSelections != null && versionSelections.pending(conversationId).isPresent()) {
+      return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT,
+          PipelineGates.tag(PipelineGates.STAGE_CLARIFICATION,
+              "Confirm the catalog operation version before continuing.")));
+    }
     if (!draft.readyForPlan() && !draft.hasPendingImport() && !onlyUploadedImports
         && draft.openQuestions().isEmpty()) {
       var findings = pending.stream().map(work -> new PlanValidationFinding(work.code(), work.message(), true,

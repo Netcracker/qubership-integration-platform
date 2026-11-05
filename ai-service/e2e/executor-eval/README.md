@@ -1,6 +1,6 @@
 # Executor evaluation harness
 
-The cases, typed inputs, and saved planner responses ship under `.private/rocky-skills/testing/executor-eval`.
+The runner reads cases, typed inputs, and saved planner responses from `$QIP_SKILLS_TESTING_ROOT/executor-eval`.
 Use [the shared runner](../test-system.md) profile `executor` for agent and UI runs.
 
 This harness replays a saved `cip-design-planner` response through the production compiler

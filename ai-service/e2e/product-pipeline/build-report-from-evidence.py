@@ -31,6 +31,26 @@ def _first_decoded(decoded: dict[str, Any], kind_prefix: str) -> Any | None:
     return None
 
 
+def _latest_attempt_decoded(
+    decoded: dict[str, Any], attempts: list[dict[str, Any]], kind: str
+) -> Any | None:
+    references = [
+        (attempt.get("runRevision", 0), output["artifactId"])
+        for attempt in attempts
+        for output in attempt.get("outputs", [])
+        if output.get("kind") == kind
+    ]
+    if not references:
+        return _first_decoded(decoded, kind)
+    revision = max(revision for revision, _ in references)
+    artifact_ids = {
+        artifact_id for at, artifact_id in references if at == revision
+    }
+    if len(artifact_ids) != 1:
+        raise ValueError(f"conflicting {kind} output references at revision {revision}")
+    return decoded.get(f"{kind}#{artifact_ids.pop()}")
+
+
 def _http_endpoint_parts(fact: str) -> tuple[str, str] | None:
     match = _HTTP_ENDPOINT_FACT_RE.match(fact.strip())
     if not match:
@@ -357,7 +377,7 @@ def build_report(
         raise ValueError("transitions must be an array")
 
     plan = _first_decoded(decoded, "IMPLEMENTATION_PLAN")
-    validation = _first_decoded(decoded, "PLAN_VALIDATION_RESULT")
+    validation = _latest_attempt_decoded(decoded, attempts, "PLAN_VALIDATION_RESULT")
     approval = _first_decoded(decoded, "APPROVAL_RECORD")
     requirement = _first_decoded(decoded, "REQUIREMENT_BRIEF")
     requirement_facts = _fact_texts(requirement)

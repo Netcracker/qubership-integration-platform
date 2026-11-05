@@ -21,9 +21,16 @@ public class DefaultMappingBoundarySchemaResolver implements MappingBoundarySche
 
   private final CompilationArtifacts artifacts;
   private final String compilationId;
+  private final Map<String, String> catalogTriggerOwners;
 
   public DefaultMappingBoundarySchemaResolver(
       CompilationArtifacts artifacts, String compilationId) {
+    this(artifacts, compilationId, Map.of());
+  }
+
+  public DefaultMappingBoundarySchemaResolver(CompilationArtifacts artifacts, String compilationId,
+      Map<String, String> catalogTriggerOwners) {
+    this.catalogTriggerOwners = Map.copyOf(catalogTriggerOwners);
     this.artifacts = Objects.requireNonNull(artifacts, "artifacts");
     if (compilationId == null || compilationId.isBlank()) {
       throw new IllegalArgumentException("compilationId is required");
@@ -62,6 +69,27 @@ public class DefaultMappingBoundarySchemaResolver implements MappingBoundarySche
     return new MappingBoundarySchemas(source, target);
   }
 
+  public MappingSchemaSide resolveOrigin(
+      ChainSemanticRevision revision, List<ResolvedServiceCallBinding> bindings,
+      String ref, MappingPort port, Map<String, MappingSchemaSide> outputs) {
+    if (port == null) {
+      throw new IllegalArgumentException("Mapping origin port is required");
+    }
+    SemanticNode node = findNode(revision, ref, port);
+    if (node instanceof SemanticNode.Trigger && port != MappingPort.OUTPUT) {
+      throw new IllegalArgumentException("Trigger origin requires OUTPUT");
+    }
+    if (node instanceof SemanticNode.ServiceCall && port == MappingPort.OUTPUT) {
+      throw new IllegalArgumentException("Service origin requires REQUEST or RESPONSE");
+    }
+    return resolveSide(revision, bindings == null ? List.of() : bindings, persistedSides(),
+        outputs == null ? Map.of() : outputs, ref, port);
+  }
+
+  public static String semanticNodeId(ChainSemanticRevision revision, String ref, MappingPort port) {
+    return findNode(revision, ref, port).nodeId();
+  }
+
   private MappingSchemaSide resolveSide(
       ChainSemanticRevision revision,
       List<ResolvedServiceCallBinding> bindings,
@@ -84,6 +112,9 @@ public class DefaultMappingBoundarySchemaResolver implements MappingBoundarySche
       List<ResolvedServiceCallBinding> bindings,
       List<MappingSchemaSide> persisted,
       MappingPort resultDirection) {
+    if (catalogTriggerOwners.containsKey(trigger.nodeId())) {
+      return selectUnique(persisted, catalogTriggerOwners.get(trigger.nodeId()), MappingPort.REQUEST, resultDirection);
+    }
     for (ResolvedServiceCallBinding binding : bindings) {
       if (trigger.nodeId().equals(binding.targetNodeId())) {
         return selectUnique(
@@ -159,6 +190,9 @@ public class DefaultMappingBoundarySchemaResolver implements MappingBoundarySche
               + ": "
               + String.join(", ", types));
     }
+    if (matching.stream().map(MappingSchemaSide::sha256).distinct().count() != 1) {
+      throw new IllegalStateException("Conflicting schema digests for " + ownerId + " " + persistDirection);
+    }
     MappingSchemaSide chosen = matching.getFirst();
     if (chosen.direction() == resultDirection) {
       return chosen;
@@ -186,6 +220,9 @@ public class DefaultMappingBoundarySchemaResolver implements MappingBoundarySche
       }
     }
     for (SemanticNode node : revision.nodes()) {
+      if (node instanceof SemanticNode.Trigger trigger && ref.equals(trigger.interactionId())) {
+        return node;
+      }
       if (node instanceof SemanticNode.ServiceCall call && ref.equals(call.serviceCallId())) {
         return call;
       }

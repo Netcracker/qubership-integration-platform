@@ -43,11 +43,12 @@
     "assumptions": [],
     "citations": [],
     "summary": "One HTTP trigger, two service calls, and three scripts in sequence.",
+    "approvedDraftText": "exchange.setProperty('request', exchange.message.body)\nexchange.message.body = [orderId: exchange.message.body.id]\nexchange.message.body = [reserved: true]",
     "facts": [
       {"sourceFactId": "endpoint-fact", "polarity": "POSITIVE", "kind": "ENDPOINT", "capabilityKey": "http-trigger", "text": "Expose POST /orders.", "httpMethod": "POST", "path": "/orders"},
-      {"sourceFactId": "init-fact", "polarity": "POSITIVE", "kind": "BEHAVIOR", "capabilityKey": "script", "text": "Initialize the request."},
-      {"sourceFactId": "inventory-map-fact", "polarity": "POSITIVE", "kind": "BEHAVIOR", "capabilityKey": "script", "text": "Convert the order result into an inventory reservation request."},
-      {"sourceFactId": "response-fact", "polarity": "POSITIVE", "kind": "BEHAVIOR", "capabilityKey": "script", "text": "Build the HTTP response."}
+      {"sourceFactId": "init-fact", "polarity": "POSITIVE", "kind": "BEHAVIOR", "capabilityKey": "script", "text": "Initialize the request.", "elementIntent": {"elementRef": "init-script", "elementType": "script", "placement": "LOCAL_NODE", "requestedProperties": [{"key": "script", "value": "exchange.setProperty('request', exchange.message.body)"}], "bodyBinding": {"authority": "VERBATIM_SOURCE_BODY", "elementRef": "init-script", "propertyKey": "script", "bodyKind": "GROOVY_SCRIPT", "sourceGeneration": "fixture-generation", "sourceTurnId": "author-turn", "startOffset": 0, "endOffset": 54, "encoding": "RAW"}}},
+      {"sourceFactId": "inventory-map-fact", "polarity": "POSITIVE", "kind": "BEHAVIOR", "capabilityKey": "script", "text": "Convert the order result into an inventory reservation request.", "elementIntent": {"elementRef": "inventory-map-script", "elementType": "script", "placement": "LOCAL_NODE", "requestedProperties": [{"key": "script", "value": "exchange.message.body = [orderId: exchange.message.body.id]"}], "bodyBinding": {"authority": "VERBATIM_SOURCE_BODY", "elementRef": "inventory-map-script", "propertyKey": "script", "bodyKind": "GROOVY_SCRIPT", "sourceGeneration": "fixture-generation", "sourceTurnId": "author-turn", "startOffset": 55, "endOffset": 114, "encoding": "RAW"}}},
+      {"sourceFactId": "response-fact", "polarity": "POSITIVE", "kind": "BEHAVIOR", "capabilityKey": "script", "text": "Build the HTTP response.", "elementIntent": {"elementRef": "response-script", "elementType": "script", "placement": "LOCAL_NODE", "requestedProperties": [{"key": "script", "value": "exchange.message.body = [reserved: true]"}], "bodyBinding": {"authority": "VERBATIM_SOURCE_BODY", "elementRef": "response-script", "propertyKey": "script", "bodyKind": "GROOVY_SCRIPT", "sourceGeneration": "fixture-generation", "sourceTurnId": "author-turn", "startOffset": 115, "endOffset": 155, "encoding": "RAW"}}}
     ],
     "entryPoints": [
       {

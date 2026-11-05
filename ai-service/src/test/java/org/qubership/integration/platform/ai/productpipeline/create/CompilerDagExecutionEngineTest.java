@@ -1162,50 +1162,44 @@ class CompilerDagExecutionEngineTest {
   }
 
   @Test
-  void emptyMappingIntentsFillCompleteTaskScriptBodyWithoutInventingIntent() {
-    String conversationId = "conv-complete-task-fill";
-    ResolvedCompilerDag dag = dagWithScriptGenerator();
-    when(skillRegistry.require("cip-script-generator"))
-        .thenReturn(new FillingCompleteTaskScriptExecutor());
-    stubAssemblyAndValidator(dag);
-    DefaultCompilerDagExecutionEngine mapped = engineWithMappingPipeline();
-
-    CompilerDagExecutionResult result = executeCompleteTaskDag(mapped, conversationId, dag);
-
-    assertEquals(StageOutcomeClass.SUCCEEDED, result.outcomeClass());
-    ChainPlanNode script =
-        result.graph().nodes().stream()
-            .filter(node -> SemanticFixtures.COMPLETE_TASK_NODE_ID.equals(node.nodeId()))
-            .findFirst()
-            .orElseThrow();
-    assertEquals("script", script.type());
-    assertTrue(
-        script.properties().stream()
-            .anyMatch(
-                property ->
-                    "script".equals(property.key())
-                        && property.value() != null
-                        && !property.value().isBlank()));
-    assertTrue(SemanticFixtures.linearOrdersWithCompleteTask().mappingIntents().isEmpty());
-    assertEquals(1, result.patchLedger().orderedReferences().size());
+  void emptyMappingIntentsRejectUnqualifiedBehaviorBeforeCallingTheGenerator() {
+    String conversationId = "conv-complete-task-unowned";
+    var executor = mock(SkillExecutor.class);
+    when(skillRegistry.require("cip-script-generator")).thenReturn(executor);
+    var mapped = engineWithMappingPipeline();
+    var failure = assertThrows(org.qubership.integration.platform.ai.plan.mapping.MappingContractBlockedException.class,
+        () -> executeCompleteTaskDag(mapped, conversationId, dagWithScriptGenerator()));
+    assertEquals(List.of("SCRIPT_AUTHORITY_UNSUPPORTED"), failure.findings().stream()
+        .map(PlanValidationFinding::code).toList());
+    verify(executor, never()).run(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
   }
 
   @Test
-  void emptyPatchFailsWhenCompleteTaskScriptBodyStaysBlank() {
-    String conversationId = "conv-complete-task-empty-patch";
-    ResolvedCompilerDag dag = dagWithScriptGenerator();
-    when(skillRegistry.require("cip-script-generator"))
-        .thenReturn(new EmptyPatchScriptExecutor());
+  void suppliedOnlyBodyIsSeededExactlyWithoutAScriptGenerator() {
+    String conversationId = "conv-complete-task-supplied";
+    String body = "  exchange.in.body = [commandType:'completeTask']\n\n";
+    var template = dagWithScriptGenerator();
+    var dag = new ResolvedCompilerDag(template.nodes().stream()
+        .filter(node -> !"cip-script-generator".equals(node.skillId()))
+        .map(node -> new ResolvedCompilerNode(node.skillId(), node.compilerPhase(), node.generatorId(),
+            node.consumes(), node.produces(), node.dependsOn().stream()
+                .filter(id -> !"cip-script-generator".equals(id)).toList(), node.captureTool(),
+            node.applicabilitySignals(), node.readinessSignals(), node.runtimeReady(),
+            node.runtimeReadinessFindings(), node.topologicalLevel(), node.stableTieBreaker(),
+            node.mandatory(), node.executionMode(), node.adapterId(), node.ownership())).toList(),
+        List.of(), "dag-supplied-only");
     stubAssemblyAndValidator(dag);
-    DefaultCompilerDagExecutionEngine mapped = engineWithMappingPipeline();
-
-    IllegalStateException thrown =
-        assertThrows(
-            IllegalStateException.class,
-            () -> executeCompleteTaskDag(mapped, conversationId, dag));
-    assertTrue(
-        thrown.getMessage().contains(SemanticFixtures.COMPLETE_TASK_NODE_ID), thrown.getMessage());
-    assertTrue(thrown.getMessage().contains("without script bodies"), thrown.getMessage());
+    var brief = completeTaskBrief().withFacts(List.of(
+        org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures
+            .suppliedFact(SemanticFixtures.COMPLETE_TASK_NODE_ID, body)));
+    var result = executeCompleteTaskDag(engineWithMappingPipeline(), conversationId, dag, brief);
+    assertEquals(StageOutcomeClass.SUCCEEDED, result.outcomeClass());
+    var script = result.graph().nodes().stream()
+        .filter(node -> SemanticFixtures.COMPLETE_TASK_NODE_ID.equals(node.nodeId())).findFirst().orElseThrow();
+    assertEquals(body, script.properties().stream().filter(property -> "script".equals(property.key()))
+        .findFirst().orElseThrow().value());
+    assertEquals(List.of(), result.patchLedger().orderedReferences());
+    verify(skillRegistry, never()).require("cip-script-generator");
   }
 
   private CompilerDagExecutionResult executeDag(String conversationId, ResolvedCompilerDag dag) {
@@ -1299,7 +1293,12 @@ class CompilerDagExecutionEngineTest {
       DefaultCompilerDagExecutionEngine mapped,
       String conversationId,
       ResolvedCompilerDag dag) {
-    RequirementBrief completeTaskBrief = completeTaskBrief();
+    return executeCompleteTaskDag(mapped, conversationId, dag, completeTaskBrief());
+  }
+
+  private CompilerDagExecutionResult executeCompleteTaskDag(
+      DefaultCompilerDagExecutionEngine mapped, String conversationId, ResolvedCompilerDag dag,
+      RequirementBrief completeTaskBrief) {
     ChainSemanticRevision revision = SemanticFixtures.linearOrdersWithCompleteTask();
     ChainPlanGraph graph = completeTaskGraph();
     CompilerExecutionSeed seed =

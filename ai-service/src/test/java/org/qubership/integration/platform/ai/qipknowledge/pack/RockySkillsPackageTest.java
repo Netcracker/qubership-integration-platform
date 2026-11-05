@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.mock;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -92,11 +93,29 @@ class RockySkillsPackageTest {
     var manifest = JSON.readTree(PACK.resolve("manifest.json").toFile());
     var provenance = JSON.readTree(PACK.resolveSibling("rocky-skills-maintenance").resolve("provenance.json").toFile());
     assertEquals(27, provenance.path("ccsAdaptations").size());
+    Path revisionsPath = PACK.resolveSibling("rocky-skills-maintenance")
+        .resolve("approved-prompt-revisions.json");
+    JsonNode revisions = Files.isRegularFile(revisionsPath)
+        ? JSON.readTree(revisionsPath.toFile()) : JSON.createObjectNode();
+    if (Files.isRegularFile(revisionsPath)) {
+      assertEquals(1, revisions.path("schemaVersion").asInt(), "prompt revision schema");
+      assertEquals(manifest.path("version"), revisions.path("packageVersion"), "prompt revision package");
+    }
+    var usedRevisions = new HashSet<String>();
     for (var id : manifest.path("activePromptIds")) {
       String source = "skills/" + id.asText() + "/SKILL.md";
-      assertEquals(provenance.path("files").path(source).path("sha256"),
-          manifest.path("files").path(source).path("sha256"), source);
+      String expected = provenance.path("files").path(source).path("sha256").asText();
+      JsonNode revision = revisions.path("files").path(source);
+      if (!revision.isMissingNode()) {
+        assertEquals(expected, revision.path("oldSha256").asText(), source + " extraction hash");
+        expected = revision.path("newSha256").asText();
+        usedRevisions.add(source);
+      }
+      assertEquals(expected, manifest.path("files").path(source).path("sha256").asText(), source);
     }
+    var listedRevisions = new HashSet<String>();
+    revisions.path("files").fieldNames().forEachRemaining(listedRevisions::add);
+    assertEquals(listedRevisions, usedRevisions, "approved revisions must name active prompts");
     var repository = new FilesystemCipKnowledgePackRepository(output, CipKnowledgePackVersion.fromPath(PACK));
     var metadata = CompilerSkillAddonRepository.forFilesystem(
         output, CipKnowledgePackVersion.fromPath(PACK), getClass().getClassLoader());
@@ -112,7 +131,9 @@ class RockySkillsPackageTest {
     for (var idNode : manifest.path("activePromptIds")) {
       String id = idNode.asText();
       if (id.startsWith("cip-conf-")) continue;
-      assertFalse(metadata.loadForSkill(id).hasContent(), id);
+      var addonContext = metadata.loadForSkill(id);
+      assertNull(addonContext.skillAddon(), id);
+      assertEquals(List.of(), addonContext.globalDocuments(), id);
       var definition = JSON.readTree(PACK.resolve("runtime/skills/" + id + ".json").toFile());
       assertEquals(JSON.treeToValue(definition.path("runtime"),
           org.qubership.integration.platform.ai.compiler.addon.AddonRuntimeMetadata.class),

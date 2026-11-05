@@ -74,7 +74,7 @@ class ChainSemanticMappingPlacementInvestigationTest {
     ChainSemanticCapture merged = ChainSemanticCaptureFixtures.rockyCapture(
         List.of(
             new CapturedOperation("map-start", "script", List.of("retain-input")),
-            new CapturedOperation("map-result", "script", List.of("fact-script"))),
+            new CapturedOperation("mapper-1", "script", List.of("fact-script"))),
         capture(false).edges());
 
     var revision = adapter.adapt(merged, "run-combined-retention", approved, CONTRACT);
@@ -169,7 +169,7 @@ class ChainSemanticMappingPlacementInvestigationTest {
     return ChainSemanticCaptureFixtures.rockyCapture(
         List.of(
             new CapturedOperation("map-start", "script", List.of()),
-            new CapturedOperation("map-result", "script", List.of("fact-script"))),
+            new CapturedOperation("mapper-1", "script", List.of("fact-script"))),
         List.of(
             new CapturedEdge("task-start", "map-start", null, null, null, null, null, null),
             new CapturedEdge(
@@ -181,9 +181,9 @@ class ChainSemanticMappingPlacementInvestigationTest {
                 null,
                 null,
                 firstMappingId),
-            new CapturedEdge("create-task", "map-result", null, null, null, null, null, null),
+            new CapturedEdge("create-task", "mapper-1", null, null, null, null, null, null),
             new CapturedEdge(
-                "map-result",
+                "mapper-1",
                 "task-result",
                 null,
                 null,

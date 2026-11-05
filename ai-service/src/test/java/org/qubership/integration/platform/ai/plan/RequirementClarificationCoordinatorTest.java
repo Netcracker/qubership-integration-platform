@@ -120,6 +120,41 @@ class RequirementClarificationCoordinatorTest {
         List.of(projection.path("requestedValues").get(0).asText()));
   }
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"http-trigger", "chain-trigger-2", "kafka-trigger-2", "async-api-trigger"})
+  void deliveryChoiceProjectionPreservesTheSelectedCapability(String capabilityKey) {
+    var asked = question("delivery", "How does the payload reach this chain?",
+        AuthorQuestionEvidence.Kind.MISSING_VALUE, "entry", "capabilityKey");
+
+    var projection = selectedEntryProjection(asked,
+        new CapabilityInput("entry", capabilityKey, null, null, null, null, null, null));
+
+    assertEquals(List.of(capabilityKey),
+        new com.fasterxml.jackson.databind.ObjectMapper().convertValue(projection.path("requestedValues"), List.class));
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.EnumSource(RequirementCaptureInput.HttpMode.class)
+  void httpDeliveryProjectionPreservesTheSelectedMode(RequirementCaptureInput.HttpMode mode) {
+    var asked = question("http-mode", "Should HTTP use a custom endpoint or a catalog operation?",
+        AuthorQuestionEvidence.Kind.MISSING_VALUE, "entry", "httpMode");
+
+    var projection = selectedEntryProjection(asked,
+        new CapabilityInput("entry", "http-trigger", mode, null, null, null, null, null));
+
+    assertEquals(List.of(mode.name()),
+        new com.fasterxml.jackson.databind.ObjectMapper().convertValue(projection.path("requestedValues"), List.class));
+  }
+
+  private com.fasterxml.jackson.databind.JsonNode selectedEntryProjection(QuestionInput question,
+      CapabilityInput capability) {
+    var input = new DraftInput(new FlowInput(List.of(
+        new InteractionInput("entry", Direction.INBOUND, null, null, null, null, null)), List.of()),
+        List.of(new FactInput("goal", List.of("entry"), FactKind.GOAL, Polarity.POSITIVE, "Accept the payload.")),
+        List.of(capability), List.of(question), new DraftSettings(false, null));
+    return coordinator.targetProjection(RequirementCaptureProjection.toDraft(input, null, List.of(), "1", "hash"), question);
+  }
+
   @Test
   void chainCallCatalogChoiceProjectsTargetReferenceAndResolvedTarget() {
     var asked = question("chain-target", "Which catalog chain should the call use?", AuthorQuestionEvidence.Kind.CATALOG_CHOICE, "child",

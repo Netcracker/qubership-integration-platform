@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.plan;
 
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingValue;
 import java.util.List;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFailureMode;
@@ -52,7 +53,8 @@ public final class RequirementCaptureInput {
       @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
       @com.fasterxml.jackson.annotation.JsonProperty(required = false)
       @NullableCaptureValue(description = "Required for a new claim: sourceTurnId and an exact quote from that user turn."
-          + " Omit it when the claim is already in the saved semantic baseline or when replaying a legacy accepted fact.")
+          + " Omit it when the claim is already in the saved semantic baseline or when replaying a legacy accepted fact."
+          + " During business anchor repair, retain any evidence already recorded on the accepted fact.")
           ClaimEvidenceInput evidence) {
 
     public FactInput(
@@ -86,11 +88,29 @@ public final class RequirementCaptureInput {
 
   public record FieldMappingInput(
       String sourceInteractionId,
-      @NullableCaptureValue(description = "One source field path, never a field list. Use null and"
-          + " describe the inputs in expression for computed values or retained context.") String sourcePath,
+      @NullableCaptureValue(description = "Legacy source field path. Use null with typed value; retained context"
+          + " keeps its original interaction, port and path in value.source.") String sourcePath,
       String targetInteractionId,
       String targetPath,
-      @NullableCaptureValue String expression) {}
+      @NullableCaptureValue String expression,
+      @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+      @com.fasterxml.jackson.annotation.JsonProperty(required = false)
+      @NullableCaptureValue(description = "COPY value with its exact interaction, port, and source path; null for legacy content.")
+          MappingValue value,
+      @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+      @com.fasterxml.jackson.annotation.JsonProperty(required = false)
+          String missingSourcePolicy) {
+    public FieldMappingInput(String sourceInteractionId, String sourcePath, String targetInteractionId,
+        String targetPath, String expression) {
+      this(sourceInteractionId, sourcePath, targetInteractionId, targetPath, expression, null, null);
+    }
+
+    public FieldMappingInput(String sourceInteractionId, String sourcePath, String targetInteractionId,
+        String targetPath, String expression,
+        MappingValue value) {
+      this(sourceInteractionId, sourcePath, targetInteractionId, targetPath, expression, value, null);
+    }
+  }
 
   public enum FactKind {
     GOAL,

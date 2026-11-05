@@ -58,6 +58,7 @@ class ApprovedMappingFeedbackProviderTest {
   @InjectMock RateLimitStreamingChatModel provider;
   @InjectMock SidecarKnowledgeClient knowledge;
   @InjectMock DefaultKnowledgeContextProvider knowledgeContext;
+  @InjectMock org.qubership.integration.platform.ai.plan.mapping.schema.OperationSchemaLoader schemas;
 
   @ParameterizedTest
   @CsvSource({"true,false", "false,false", "true,true", "false,true"})
@@ -67,8 +68,17 @@ class ApprovedMappingFeedbackProviderTest {
     String source = "Receive POST /parcels and deliver the retained original parcel as Receipt.";
     var input = conversations.archive().beginInput(chat, source, null);
     conversations.archive().resolveInput(chat, input, source);
-    var approved = ApprovedMappingCanonicalTest.draft(null, "Receipt",
-        "Read the retained original parcel from ingress");
+    var approved = typedParcelDraft();
+    if (corrected) {
+      when(schemas.load(anyString())).thenAnswer(call -> {
+        String operation = call.getArgument(0);
+        String body = operation.equals("op-ingress")
+            ? "{\"type\":\"object\",\"properties\":{\"parcel\":{\"type\":\"string\"}}}"
+            : "{\"type\":\"object\",\"properties\":{\"Receipt\":{\"type\":\"string\"}}}";
+        return new org.qubership.integration.platform.ai.plan.mapping.schema.OperationSchemaMaps(operation,
+            Map.of("application/json", json.readTree(body)), Map.of());
+      });
+    }
     var approvedReference = artifacts.append(new AppendCommand(sessions.active(chat),
         CompilationArtifacts.Kind.REQUIREMENT_DRAFT, "2", "approved-mapping-fixture", "1",
         approved, List.of(), null)).reference();
@@ -151,8 +161,10 @@ class ApprovedMappingFeedbackProviderTest {
     if (corrected) {
       RequirementBrief brief = (RequirementBrief) outcome.candidates().getFirst().payload();
       assertEquals(approvedReference.artifactId(), brief.approvedDraftReference());
-      assertEquals(RequirementBriefProjector.authoredMappings(approved).getFirst().rules(),
-          brief.mappingIntents().getFirst().rules());
+      var expectedRules = RequirementBriefProjector.authoredMappings(approved).getFirst().rules().stream()
+          .map(rule -> rule.withSchemaPins(Map.of(
+              "source", "d54b534da90e548785e3d8f693215888913bff38b7104392d5df2a14df1dacc2", "target", "5b88e4ed0e39942168c6bf6d34bb221318305e43f648ae1b1e26822351d0958e"))).toList();
+      assertEquals(expectedRules, brief.mappingIntents().getFirst().rules());
       receipt.set("acceptedBrief", json.valueToTree(brief));
     } else {
       var terminal = outcome.recoveryCause().captureFailure().feedback();
@@ -172,4 +184,29 @@ class ApprovedMappingFeedbackProviderTest {
         ? (large ? "provider-next-request-large.json" : "provider-next-request.json")
         : (large ? "provider-native-false-large.json" : "provider-native-false.json")).toFile(), receipt);
   }
+  private static RequirementDraft typedParcelDraft() {
+    var base = ApprovedMappingCanonicalTest.draft(null, "Receipt", "Read the retained original parcel from ingress")
+        .authoredDraft();
+    var facts = base.facts().stream().map(fact -> fact.fieldMapping() == null ? fact
+        : new RequirementCaptureInput.FactInput(fact.sourceFactId(), fact.interactionIds(), fact.kind(), fact.polarity(),
+            "Read the retained original parcel from ingress", new RequirementCaptureInput.FieldMappingInput(
+                "ingress", null, "delivery", "$.Receipt", null,
+                new org.qubership.integration.platform.ai.qipknowledge.artifact.MappingValue.Copy(
+                    new org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource.Message("ingress",
+                        org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort.OUTPUT, "$.parcel"))))).toList();
+    var input = new RequirementCaptureInput.DraftInput(base.flow(), facts,
+        List.of(new RequirementCaptureInput.CapabilityInput("ingress", "http-trigger", RequirementCaptureInput.HttpMode.CATALOG,
+            RequirementCaptureInput.HttpMethod.POST, null, null, null, null)), base.openQuestions(), base.settings());
+    var bindings = List.of(parcelBinding("ingress", "/parcels"), parcelBinding("delivery", "/receipts"));
+    return RequirementCaptureProjection.toDraft(RequirementCaptureProjection.withCopyPolicies(input), null,
+        bindings, "1", null);
+  }
+
+  private static org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint parcelBinding(
+      String id, String path) {
+    return new org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint("3", id, id,
+        "POST " + path, "system", "group", "spec", "op-" + id, "HTTP", "POST", path, "1",
+        java.time.Instant.EPOCH, "catalog-evidence");
+  }
+
 }

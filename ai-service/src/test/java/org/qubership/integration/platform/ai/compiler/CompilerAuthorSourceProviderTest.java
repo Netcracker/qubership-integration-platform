@@ -44,6 +44,11 @@ import org.qubership.integration.platform.ai.llm.ScriptedStreamingChatModel.Turn
 import org.qubership.integration.platform.ai.llm.ratelimit.RateLimitStreamingChatModel;
 import org.qubership.integration.platform.ai.plan.AuthorSourceEvidence;
 import org.qubership.integration.platform.ai.plan.ChainPlanStore;
+import org.qubership.integration.platform.ai.plan.RequirementBodySources;
+import org.qubership.integration.platform.ai.plan.RequirementElementIntent;
+import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.RequirementFactKind;
+import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
@@ -98,7 +103,7 @@ class CompilerAuthorSourceProviderTest {
       def rows = payload instanceof Map && payload.items instanceof Collection ? payload.items : []
       def selected = rows.findAll { row -> row instanceof Map && row.active == true && row.count instanceof Number && row.count > 0 }
       exchange.message.body = [count: selected.size(), ids: selected.collect { it.id }]
-      """;
+      """.strip();
 
   @Inject ObjectMapper json;
   @Inject CompilerSkillRuntime runtime;
@@ -149,6 +154,14 @@ class CompilerAuthorSourceProviderTest {
         Turn.tool("blank-body", request -> {
           assertSource(request, source);
           assertSourceOwnedPredicates(request);
+          String description = request.parameters().toolSpecifications().stream()
+              .filter(tool -> "repairScriptBodies".equals(tool.name()))
+              .map(tool -> tool.description()).findFirst().orElseThrow();
+          org.junit.jupiter.api.Assertions.assertAll("registered script repair authority instructions",
+              () -> assertTrue(description.contains("admitted native mapping or compiler-derived retention plan"), description),
+              () -> assertTrue(description.contains("exact source-bound supplied body"), description),
+              () -> assertTrue(description.contains("A supplied-body edit requires its newly approved exact body"), description),
+              () -> assertTrue(description.contains("alone do not authorize generated scripts"), description));
         }, "repairScriptBodies", capture("")),
         Turn.tool("correct-body", request -> {
           assertSource(request, source);
@@ -212,6 +225,11 @@ class CompilerAuthorSourceProviderTest {
   private static void assertSourceOwnedPredicates(ChatRequest request) {
     String text = request.messages().stream().filter(UserMessage.class::isInstance).map(UserMessage.class::cast)
         .map(UserMessage::singleText).reduce("", (first, next) -> first + "\n" + next);
+    org.junit.jupiter.api.Assertions.assertAll("runtime patterns remain scoped to admitted script authority",
+        () -> assertTrue(text.contains("Script execution eligibility:"), text),
+        () -> assertTrue(text.contains("Patterns and requirement prose do not authorize extra generated code"), text),
+        () -> assertTrue(text.contains("Unsupported constants, formulas, and"), text),
+        () -> assertTrue(text.contains("supplied-body replacement requires its newly approved exact body"), text));
     assertTrue(text.contains("Use only approved success and failure predicates"), text);
     assertTrue(text.contains("Missing, null, empty, blank, false, and numeric zero are distinct"), text);
     assertTrue(text.contains("Whitespace-only strings are truthy"), text);
@@ -241,13 +259,15 @@ class CompilerAuthorSourceProviderTest {
     assertEquals(source, conversations.archive().read(chat));
   }
 
-  private ConversationArchive.Document source() {
+  private ConversationArchive.Document source() throws Exception {
     var archive = conversations.archive();
     var old = archive.beginInput(chat, "OBSOLETE_GENERATION_ALGORITHM", null);
     archive.resolveInput(chat, old, "OBSOLETE_GENERATION_ALGORITHM");
     conversations.clearMessages(chat);
-    var original = archive.beginInput(chat, ALGORITHM, null);
-    archive.resolveInput(chat, original, ALGORITHM);
+    String authorInput = ALGORITHM + "\nUse the supplied filtering configuration:\n"
+        + json.writeValueAsString(Map.of("elementRef", "filter", "script", SCRIPT));
+    var original = archive.beginInput(chat, authorInput, null);
+    archive.resolveInput(chat, original, authorInput);
     archive.consume(chat, original.generation(), List.of(original.turnId()), "approved-draft");
     conversations.addMessage(chat, ConversationMessage.assistant("ASSISTANT_ONLY_UNAPPROVED_REWRITE"));
     var clarification = archive.beginInput(chat, CLARIFICATION, null);
@@ -277,7 +297,9 @@ class CompilerAuthorSourceProviderTest {
     try {
       JsonNode packet = json.readTree(json.createParser(text.substring(text.indexOf("{\"generation\""))));
       assertEquals(json.valueToTree(AuthorSourceEvidence.packet(source)), packet);
-      assertEquals(ALGORITHM, packet.path("inputs").get(0).path("text").asText());
+      assertEquals(ALGORITHM + "\nUse the supplied filtering configuration:\n"
+          + json.writeValueAsString(Map.of("elementRef", "filter", "script", SCRIPT)),
+          packet.path("inputs").get(0).path("text").asText());
       assertEquals(CLARIFICATION, packet.path("inputs").get(1).path("text").asText());
       assertTrue(ALGORITHM.length() > 1_000);
     } catch (Exception failure) {
@@ -304,8 +326,22 @@ class CompilerAuthorSourceProviderTest {
     return bound;
   }
 
-  private static RequirementBrief brief() {
-    return new RequirementBrief(INTERPRETATION, List.of(), List.of(), List.of(), List.of(), "Approved brief summary.");
+  private RequirementBrief brief() {
+    var intent = new RequirementElementIntent(
+        "filter", "script", RequirementElementIntent.Placement.LOCAL_NODE,
+        null, null, null, null, null, List.of(new PlanProperty("script", SCRIPT)), List.of(), null);
+    var resolution = RequirementBodySources.resolve(
+        intent, List.of(intent), AuthorSourceEvidence.packet(conversations.archive().read(chat)));
+    assertEquals(SCRIPT, resolution.body(), resolution.error());
+    intent = new RequirementElementIntent(
+        intent.elementRef(), intent.elementType(), intent.placement(), null, null, null, null, null,
+        intent.requestedProperties(), List.of(), resolution.binding());
+    var fact = new RequirementFact("supplied-filter",
+        RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.BEHAVIOR,
+        "", "Use the supplied filtering script", "", "", "", "", "", "", List.of(), null, intent);
+    return new RequirementBrief(INTERPRETATION, List.of(), List.of(), List.of(), List.of(), "Approved brief summary.")
+        .withFacts(List.of(fact));
   }
 
   private static ChainPlanGraph graph(boolean filled) {

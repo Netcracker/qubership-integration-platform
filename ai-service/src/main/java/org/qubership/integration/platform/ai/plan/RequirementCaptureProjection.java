@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.plan;
 
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingValue;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayDeque;
@@ -31,6 +32,19 @@ public final class RequirementCaptureProjection {
   public record AppliedDefault(String code, String interactionId, String message) {}
 
   private RequirementCaptureProjection() {}
+
+  public static DraftInput withCopyPolicies(DraftInput input) {
+    List<FactInput> facts = input.facts().stream().map(fact -> {
+      var mapping = fact.fieldMapping();
+      if (mapping == null || mapping.value() == null) return fact;
+      var pinned = new RequirementCaptureInput.FieldMappingInput(mapping.sourceInteractionId(),
+          mapping.sourcePath(), mapping.targetInteractionId(), mapping.targetPath(), mapping.expression(),
+          mapping.value(), "ERROR");
+      return new FactInput(fact.sourceFactId(), fact.interactionIds(), fact.kind(), fact.polarity(),
+          fact.text(), pinned, fact.policyConflict(), fact.elementIntent(), fact.evidence());
+    }).toList();
+    return new DraftInput(input.flow(), facts, input.capabilities(), input.openQuestions(), input.settings());
+  }
 
   public static RequirementFlow flow(DraftInput input) {
     return new RequirementFlow(
@@ -84,7 +98,7 @@ public final class RequirementCaptureProjection {
           "Use " + capability.capabilityKey() + " for " + owner.participant() + ".",
           owner.participant(), operation,
           capability.topic(), capability.httpMethod() == null ? null : capability.httpMethod().name(),
-          path, "", List.of(capability.interactionId())));
+          path, "", List.of(capability.interactionId()), null, null, capability.httpMode()));
     }
     for (InteractionInput interaction : input.flow().interactions()) {
       if (interaction.retryPolicy() == null || interaction.retryPolicy().retryCount() == null) {
@@ -363,15 +377,24 @@ public final class RequirementCaptureProjection {
       if (fact.kind() == RequirementCaptureInput.FactKind.FIELD_MAPPING
           && fact.fieldMapping() != null) {
         var mapping = fact.fieldMapping();
-        text.append(" [field mapping: ")
-            .append(labels.getOrDefault(mapping.sourceInteractionId(), mapping.sourceInteractionId()))
-            .append('.')
-            .append(blank(mapping.sourcePath()) ? "expression" : mapping.sourcePath())
-            .append(" -> ")
+        text.append(" [field mapping: ");
+        if (mapping.value() != null) {
+          text.append(MappingValue.describe(mapping.value()));
+        } else {
+          text.append(labels.getOrDefault(mapping.sourceInteractionId(), mapping.sourceInteractionId()))
+              .append('.').append(blank(mapping.sourcePath()) ? "expression" : mapping.sourcePath());
+        }
+        text.append(" -> ")
             .append(labels.getOrDefault(mapping.targetInteractionId(), mapping.targetInteractionId()))
-            .append('.')
-            .append(mapping.targetPath())
-            .append(']');
+            .append('.').append(mapping.targetPath());
+        if (mapping.value() != null) {
+          text.append("; placement ").append(mapping.sourceInteractionId())
+              .append(" -> ").append(mapping.targetInteractionId());
+        }
+        if (mapping.missingSourcePolicy() != null) {
+          text.append("; missing=").append(mapping.missingSourcePolicy());
+        }
+        text.append(']');
       }
       if (!fact.interactionIds().isEmpty()) {
         text.append(" (for ").append(fact.interactionIds().stream()

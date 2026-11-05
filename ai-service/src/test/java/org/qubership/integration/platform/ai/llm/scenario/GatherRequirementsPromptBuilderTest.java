@@ -72,6 +72,7 @@ class GatherRequirementsPromptBuilderTest {
 
     assertTrue(input.contains("HTTP trigger named Intake"), input);
     assertTrue(input.contains("each explicit name"), input);
+    assertTrue(input.contains("existing Service Call use ANCHOR with elementRef=ownerInteractionId"), input);
     assertTrue(input.contains("ANCHOR"), input);
     assertTrue(input.contains("participant"), input);
     assertTrue(input.contains("requestedName"), input);
@@ -135,6 +136,49 @@ class GatherRequirementsPromptBuilderTest {
         org.junit.jupiter.params.provider.Arguments.of(false, true),
         org.junit.jupiter.params.provider.Arguments.of(true, false),
         org.junit.jupiter.params.provider.Arguments.of(true, true));
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.MethodSource("runtimeModes")
+  void nativeCatalogContractReachesEveryPromptMode(boolean documentUnavailable, boolean standalone) {
+    when(addonRepository.hasStandaloneSkills()).thenReturn(standalone);
+    if (documentUnavailable) {
+      when(skillDocumentService.loadByCapabilityId(RequirementDraftTool.SOURCE_SKILL_ID))
+          .thenThrow(new IllegalStateException("skill unavailable"));
+    }
+    String source = "Receive a named catalog event and call a named catalog operation. No APIHub or MCP.";
+
+    String input = builder.wrap("catalog-contract", source, "en");
+
+    org.junit.jupiter.api.Assertions.assertAll(
+        () -> assertTrue(input.contains(source), input),
+        () -> assertTrue(input.contains("<service-runtime-catalog-contract>"), input),
+        () -> assertTrue(input.contains("This host contract takes precedence over conflicting skill lookup instructions"), input),
+        () -> assertTrue(input.contains("async-api-trigger requires a catalog binding"), input),
+        () -> assertTrue(input.contains("catalog-backed outbound interactions"), input),
+        () -> assertTrue(input.contains("No APIHub or no MCP does not mean no runtime catalog"), input),
+        () -> assertTrue(input.contains("A prohibition on APIHub restricts APIHub search and import only"), input),
+        () -> assertFalse(input.contains("Native triggers and direct elements"), input));
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.MethodSource("runtimeModes")
+  void nativeOnlyFlowsKeepTheirNoLookupContract(boolean documentUnavailable, boolean standalone) {
+    when(addonRepository.hasStandaloneSkills()).thenReturn(standalone);
+    if (documentUnavailable) {
+      when(skillDocumentService.loadByCapabilityId(RequirementDraftTool.SOURCE_SKILL_ID))
+          .thenThrow(new IllegalStateException("skill unavailable"));
+    }
+    String source = "Use an internal chain entry and a script response. No service calls or catalog binding.";
+
+    String input = builder.wrap("native-only-contract", source, "en");
+
+    org.junit.jupiter.api.Assertions.assertAll(
+        () -> assertTrue(input.contains(source), input),
+        () -> assertTrue(input.contains("Direct native entries, including chain-trigger-2"), input),
+        () -> assertTrue(input.contains("Custom HTTP uses httpMode=CUSTOM with a path; no catalog"), input),
+        () -> assertTrue(input.contains("A native-only flow with no catalog-backed interactions performs no operation lookup"), input),
+        () -> assertTrue(input.contains("If an explicit no-catalog requirement conflicts with a requested catalog-backed interaction, ask one focused question"), input));
   }
 
   @Test
@@ -204,7 +248,7 @@ class GatherRequirementsPromptBuilderTest {
     assertTrue(input.contains("Capture known requirements before catalog lookup"), input);
     assertTrue(input.contains("searchCatalogSystems does not bind"));
     assertTrue(input.contains("After the draft is stored"), input);
-    assertTrue(input.contains("only for catalog-backed interactions"), input);
+    assertTrue(input.contains("only for catalog-backed outbound interactions"), input);
     assertTrue(input.contains("do not invent a sender key"), input);
     assertTrue(input.contains("sftp-trigger-2"), input);
     assertTrue(input.contains("sftp-upload"), input);
@@ -214,7 +258,7 @@ class GatherRequirementsPromptBuilderTest {
     assertFalse(input.contains("not supported in create-chain"), input);
     assertTrue(input.contains("Custom HTTP"), input);
     assertTrue(input.contains("Implemented service HTTP"), input);
-    assertTrue(input.contains("Native triggers and direct elements"), input);
+    assertTrue(input.contains("Direct native entries, including chain-trigger-2"), input);
     assertTrue(input.contains("save the known interactions and facts as a partial"), input);
     assertFalse(input.contains("after you pick a catalog operation"), input);
     assertFalse(input.contains("with serviceCallId"), input);
@@ -250,8 +294,14 @@ class GatherRequirementsPromptBuilderTest {
     }
   }
 
-  @Test
-  void wrapTellsTheAgentNotToSearchApiHubWhenUploadedSpecsAreApproved() {
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.MethodSource("runtimeModes")
+  void wrapTellsTheAgentNotToSearchApiHubWhenUploadedSpecsAreApproved(boolean documentUnavailable, boolean standalone) {
+    when(addonRepository.hasStandaloneSkills()).thenReturn(standalone);
+    if (documentUnavailable) {
+      when(skillDocumentService.loadByCapabilityId(RequirementDraftTool.SOURCE_SKILL_ID))
+          .thenThrow(new IllegalStateException("skill unavailable"));
+    }
     ConversationService conversations = new ConversationService();
     conversations.registerAllowedAttachmentKeys(
         "conv-1", List.of("sessions/conv/salesforce-wfm.json"));

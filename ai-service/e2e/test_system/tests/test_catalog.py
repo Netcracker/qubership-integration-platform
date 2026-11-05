@@ -27,10 +27,13 @@ class CatalogTest(unittest.TestCase):
         }
         (directory / "suites.json").write_text(json.dumps(self.document))
 
-    def test_missing_package_is_visible_and_does_not_disable_core(self):
+    def test_missing_fixtures_block_acceptance_and_leave_core_available(self):
         catalog = Catalog(self.root)
         self.assertIsNone(catalog.plan("core-regression")["blocked"])
-        self.assertTrue(catalog.plan("chain-acceptance")["blocked"])
+        self.assertEqual(
+            "Acceptance fixtures are required for this profile.",
+            catalog.plan("chain-acceptance")["blocked"],
+        )
         self.assertFalse(
             next(p for p in catalog.describe()["profiles"] if p["id"] == "recovery")[
                 "available"
@@ -80,6 +83,16 @@ class CatalogTest(unittest.TestCase):
         catalog = Catalog(self.root)
         self.assertNotIn("chain-one", catalog.suites)
         self.assertTrue(catalog.plan("chain-acceptance")["blocked"])
+
+    def test_missing_runtime_manifest_reports_a_relative_path(self):
+        package = self.root / r"checkout\name" / ".private/rocky-skills"
+        directory = package / "testing"
+        directory.mkdir(parents=True)
+        (directory / "suites.json").write_text(json.dumps({"skillsPackageVersion": "1.0"}))
+
+        reason = Catalog(self.root, package=package).plan("chain-acceptance")["blocked"]
+
+        self.assertIn("'manifest.json'", reason)
 
     def test_selecting_a_live_suite_preserves_all_profile_gates(self):
         self.document["suites"][0]["gate"] = True

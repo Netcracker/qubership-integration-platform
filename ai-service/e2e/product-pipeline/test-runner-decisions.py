@@ -54,6 +54,7 @@ class RunnerDecisionTest(unittest.TestCase):
         changed_plan=True,
         owner="design-planning",
         confirm_rebuild=True,
+        initial_cards=None,
     ):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -69,6 +70,13 @@ class RunnerDecisionTest(unittest.TestCase):
                     6,
                     ["yes", "no"],
                     reason="__GATE:ids-path-choice__Show IDS?",
+                ),
+                waiting(
+                    "requirement-discovery",
+                    "WAITING_FOR_INPUT",
+                    7,
+                    ["continue-to-planning"],
+                    reason="__GATE:requirement-draft-ready__Requirements draft saved. Continue to planning when ready.",
                 ),
                 waiting(
                     "requirement-analysis",
@@ -154,11 +162,16 @@ class RunnerDecisionTest(unittest.TestCase):
                     },
                 },
             ]
-            states[4]["evidence"]["attempts"][0][
+            states[5]["evidence"]["attempts"][0][
                 "failureEvidence"
             ] = "E2E recovery fault: unknown planner owner"
             if not confirm_rebuild:
-                del states[4]
+                del states[5]
+            if initial_cards is not None:
+                states = [
+                    *initial_cards,
+                    {"decision": None, "evidence": {"currentState": "FAILED"}},
+                ]
             (root / "states.json").write_text(json.dumps(states))
             result = subprocess.run(
                 [
@@ -199,6 +212,7 @@ class RunnerDecisionTest(unittest.TestCase):
         self.assertEqual(
             [
                 {"action": "yes", "revision": 6},
+                {"action": "continue-to-planning", "revision": 7},
                 {
                     "action": "approve",
                     "revision": 9,
@@ -237,6 +251,38 @@ class RunnerDecisionTest(unittest.TestCase):
             "does not prove every automatic recovery and materialization", error
         )
         self.assertFalse(recovery)
+
+    def test_design_recovery_cards_do_not_receive_an_ids_answer(self):
+        for recovery_card in (True, False):
+            with self.subTest(recovery_card=recovery_card):
+                card = waiting(
+                    "design-input",
+                    "WAITING_FOR_INPUT",
+                    42,
+                    ["retry-creation", "stop-with-report"] if recovery_card else [],
+                    reason=(
+                        "__GATE:recovery-rebuild-design__CAPTURE_VALIDATION: ELEMENT_INTENT_ORDER"
+                        if recovery_card else "Show IDS?"
+                    ),
+                )
+                if recovery_card:
+                    card["decision"]["recovery"] = {"category": "design-artifact-defect"}
+                cards = [card]
+                if not recovery_card:
+                    cards.append(waiting(
+                        "design-input", "WAITING_FOR_INPUT", 43, [],
+                        reason="How should edge data be mapped?",
+                    ))
+                turns, error, _ = self.run_fixture(initial_cards=cards)
+                self.assertEqual(1 if recovery_card else 3, len(turns), error)
+                if recovery_card:
+                    self.assertIn("preserving pending card", error)
+                else:
+                    self.assertEqual("Generate full IDS", turns[1]["message"])
+                    self.assertEqual(
+                        "Pass the data through unchanged. No field mapping and no transformation on any edge.",
+                        turns[2]["message"],
+                    )
 
     def test_reopening_without_changing_the_rejected_plan_still_fails(self):
         _, error, recovery = self.run_fixture(changed_plan=False)

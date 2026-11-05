@@ -34,13 +34,13 @@ class ApprovedMappingCanonicalTest {
 
   @ParameterizedTest
   @CsvSource({"Receipt,$.Receipt", "$.Receipt,Receipt", "Receipt,Receipt", "$.Receipt,$.Receipt"})
-  void acceptsOnlyTheTargetRepresentationDifference(String approvedTarget, String proposedTarget) {
+  void targetRepresentationMatchesBeforeLegacyCopyRequiresRecapture(String approvedTarget, String proposedTarget) {
     var approved = draft("$.parcel", approvedTarget, null);
     ProductCapabilityCaptureContext.bindAnalysis("run", CHAT, approved, candidate::set);
     var result = tool.capture(capture("ingress", "delivery", "$.parcel", proposedTarget, null), CHAT);
-    assertTrue(result.accepted(), result.toString());
-    assertEquals(RequirementBriefProjector.authoredMappings(approved).getFirst().rules(),
-        ((RequirementBrief) candidate.get()).mappingIntents().getFirst().rules());
+    assertFalse(result.accepted(), result.toString());
+    assertEquals("MAPPING_ORIGIN_REQUIRED", result.issues().getFirst().code());
+    assertEquals(null, candidate.get());
   }
 
   @ParameterizedTest

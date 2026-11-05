@@ -168,7 +168,8 @@ done < <(jq -c --arg s "$SCENARIO" '.[$s].catalog.distinctProperties[]? // empty
 while IFS= read -r row; do
     [[ -n "$row" ]] || continue
     container_type="$(jq -r '.containerType' <<< "$row")"
-    child_type="$(jq -r '.childType // empty' <<< "$row")"
+    # childType is one type or a list of types that all count toward minChildren.
+    child_types_json="$(jq -c '.childType // [] | if type == "array" then . else [.] end' <<< "$row")"
     min_children="$(jq -r '.minChildren // 1' <<< "$row")"
     must_types_json="$(jq -c '.mustHaveChildTypes // []' <<< "$row")"
     matched=false
@@ -195,10 +196,10 @@ while IFS= read -r row; do
             fi
             continue
         fi
-        if [[ -n "$child_type" && "$child_type" != "null" ]]; then
+        if [[ "$child_types_json" != "[]" ]]; then
             # -n: do not consume the container_id process-substitution stdin
-            count="$(jq -nr --argjson children "$children" --arg t "$child_type" '
-        [$children[] | select(.type? == $t)] | length
+            count="$(jq -nr --argjson children "$children" --argjson types "$child_types_json" '
+        [$children[] | select(.type? as $x | $types | index($x))] | length
       ')"
             if ((count >= min_children)); then
                 matched=true

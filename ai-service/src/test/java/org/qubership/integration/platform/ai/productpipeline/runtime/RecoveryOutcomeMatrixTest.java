@@ -3,6 +3,9 @@ package org.qubership.integration.platform.ai.productpipeline.runtime;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -11,6 +14,7 @@ import io.smallrye.mutiny.Multi;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -38,6 +42,7 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageCap
 import org.qubership.integration.platform.ai.productpipeline.capability.StageCapabilityRegistry;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
 import org.qubership.integration.platform.ai.productpipeline.create.FailureNarrative;
 import org.qubership.integration.platform.ai.productpipeline.create.FakeFailureNarrativeAgent;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
@@ -241,19 +246,35 @@ class RecoveryOutcomeMatrixTest {
   /**
    * After the run has reopened the plan on its own until its automatic reopens are spent, the ledger refuses an author
    * reopen of the plan, so the plan card leaves out Rebuild plan, and its Retry creation moves the run back to
-   * design-planning on a trusted click.
+   * design-planning on a trusted click. The replacement plan can be approved and execution can finish.
    */
   @Test
-  void aRetryOnARebuildPlanCardAfterAnAutomaticReopenReturnsToThePlan() {
+  void aRetryOnARebuildPlanCardExecutesTheReplacementPlan() {
     FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("unused");
-    ProductPipelineProfile profile = analysisThenPlanningThenExecutionProfile();
+    ProductPipelineProfile base = analysisThenPlanningThenExecutionProfile();
+    ProductPipelineProfile profile = new ProductPipelineProfile(base.schemaVersion(), base.profileId(), "2",
+        base.runInputs(), base.stages(), base.terminal(), base.dependencyRoots());
+    AtomicInteger planningCalls = new AtomicInteger();
+    AtomicInteger executionCalls = new AtomicInteger();
+    StageCapability planner = capability("planning-cap", context -> {
+      planningCalls.incrementAndGet();
+      return planningAlwaysCandidate().execute(context);
+    });
+    StageCapability execution = capability("execution-cap", context -> {
+      if (executionCalls.incrementAndGet() <= ProductPipelineRunSupport.MAX_CAUSAL_REOPENS + 1) {
+        return executionRejectedPlan().execute(context);
+      }
+      return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(StageOutcomeClass.SUCCEEDED,
+          List.of(new ArtifactCandidate(Kind.PLAN_VALIDATION_RESULT, new PlanValidationResult(List.of()), List.of())),
+          "execution accepted", null)));
+    });
     CreateChainTestOrchestrator runtime =
         newRuntime(
             new FailureNarrative(agent),
             profile,
             analysisCandidate(),
-            planningAlwaysCandidate(),
-            executionRejectedPlan());
+            planner,
+            execution);
     startAndRecordInput(runtime, profile);
     approveStage(runtime, "requirement-analysis");
     approveStage(runtime, "design-planning");
@@ -275,11 +296,65 @@ class RecoveryOutcomeMatrixTest {
                 PipelineGates.strip(card), List.of(), PipelineGates.RECOVERY_REBUILD_PLAN, "", null, "", "", "",
                 PipelineGates.guardOf(card).orElse(""))));
 
+    assertEquals(ProductPipelineRunSupport.MAX_CAUSAL_REOPENS + 1, planningCalls.get());
+    assertEquals(ProductPipelineRunSupport.MAX_CAUSAL_REOPENS + 1, executionCalls.get());
+
     runtime.recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.RETRY_ACTION, "retry-click", "retry-hash",
         InputOrigin.TRUSTED)).collect().asList().await().indefinitely();
 
     assertEquals(RunStatus.RUNNING, runStore.load(RUN_ID).orElseThrow().run().status());
     assertEquals("design-planning", runStore.load(RUN_ID).orElseThrow().run().currentStageId());
+    String grant = runStore.load(RUN_ID).orElseThrow().transitions().getLast().reason();
+    assertTrue(grant.startsWith("repair-grant:targeted:design-planning"), grant);
+    approveStage(runtime, "design-planning");
+    var completed = execute(runtime, "design-execution");
+    assertInstanceOf(StageDecision.Complete.class, completed.decision());
+    assertEquals(RunStatus.PLAN_APPROVED, runStore.load(RUN_ID).orElseThrow().run().status());
+    assertEquals(ProductPipelineRunSupport.MAX_CAUSAL_REOPENS + 2, planningCalls.get());
+    assertEquals(ProductPipelineRunSupport.MAX_CAUSAL_REOPENS + 2, executionCalls.get());
+  }
+
+  @Test
+  void anAutomaticallyReopenedPlanReadsEveryExecutionRejection() throws Exception {
+    FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("unused");
+    ProductPipelineProfile base = analysisThenPlanningThenExecutionProfile();
+    ProductPipelineProfile profile = new ProductPipelineProfile(base.schemaVersion(), base.profileId(), "2",
+        base.runInputs(), base.stages(), base.terminal(), base.dependencyRoots());
+    List<String> histories = new ArrayList<>();
+    StageCapability planner = capability("planning-cap", context -> {
+      histories.add(context.attributeAsString(StageRepairEvidence.REPAIR_HISTORY_ATTR));
+      return planningAlwaysCandidate().execute(context);
+    });
+    CreateChainTestOrchestrator runtime = newRuntime(
+        new FailureNarrative(agent), profile, analysisCandidate(), planner, executionRejectedPlan());
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+    approveStage(runtime, "design-planning");
+    agent.recoverRegenerates(Kind.IMPLEMENTATION_PLAN, "The plan cannot be executed.");
+
+    var rejection = execute(runtime, "design-execution");
+    assertInstanceOf(StageDecision.ReopenProducer.class, rejection.decision());
+    runtime.support().applyStageLifecycle(RUN_ID, rejection).collect().asList().await().indefinitely();
+    approveStage(runtime, "design-planning");
+    var repeatedRejection = execute(runtime, "design-execution");
+    assertInstanceOf(StageDecision.ReopenProducer.class, repeatedRejection.decision());
+    runtime.support().applyStageLifecycle(RUN_ID, repeatedRejection).collect().asList().await().indefinitely();
+    approveStage(runtime, "design-planning");
+
+    assertEquals(3, histories.size());
+    assertNull(histories.get(0));
+    assertNotNull(histories.get(1), histories::toString);
+    assertNotNull(histories.get(2), histories::toString);
+    ObjectMapper mapper = new ObjectMapper();
+    var repairAttempts = mapper.readTree(histories.get(1)).path("attempts");
+    var repeatedRepairAttempts = mapper.readTree(histories.get(2)).path("attempts");
+    assertEquals(1, repairAttempts.size(), repairAttempts::toString);
+    assertEquals(2, repeatedRepairAttempts.size(), repeatedRepairAttempts::toString);
+    assertEquals("design-planning", repeatedRepairAttempts.path(0).path("producerStageId").asText());
+    assertEquals("design-planning", repeatedRepairAttempts.path(1).path("producerStageId").asText());
+    assertEquals(repairAttempts.path(0).path("failureId"), repeatedRepairAttempts.path(0).path("failureId"));
+    assertNotEquals(repeatedRepairAttempts.path(0).path("failureId"),
+        repeatedRepairAttempts.path(1).path("failureId"));
   }
 
   @Test

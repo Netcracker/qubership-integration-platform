@@ -57,12 +57,12 @@ class ScenarioRouterPublicModeTest {
 
   @ParameterizedTest
   @EnumSource(value = ScenarioType.class, names = {"CREATE_CHAIN_PLAN", "IMPLEMENT_CHAIN", "COMPARE_AND_PATCH"})
-  void generationIsRefusedBeforeAnyPrivateRunOrHandler(ScenarioType type) {
+  void chainCreationAndEditingReturnThePublicAvailabilityMessage(ScenarioType type) {
     var router = router();
     var request = new ChatRequest();
     request.setScenarioHint(type);
     var events = router.route(request, "old-create-conversation").collect().asList().await().indefinitely();
-    assertEquals(List.of(ChatEvent.token(RockySkills.UNAVAILABLE)), events);
+    assertEquals(List.of(ChatEvent.token("Chain creation and editing are unavailable in Rocky.")), events);
     verifyNoInteractions(handler, selection, create);
   }
 

@@ -27,8 +27,8 @@ Use `UNKNOWN`, `HYPOTHESIS`, or `CONFIRMED`; confirmation requires saved evidenc
 Append the diagnosis with `python3 ai-service/e2e/run.py diagnose <run-id> <failure-id> failure --file <file>`.
 Use target `recovery` for the separate explanation of why recovery failed. Previous diagnoses and verdicts are preserved.
 
-Chain acceptance, planner/executor, and live recovery belong to the separately installed skills testing bundle.
-Use its test skill for those profiles. Missing bundles are reported as `BLOCKED`.
+Chain acceptance, planner and executor evaluations, and live recovery require acceptance fixtures.
+The runner reports `BLOCKED` when the fixtures are missing.
 
 ## Prepared Kimi recovery acceptance
 

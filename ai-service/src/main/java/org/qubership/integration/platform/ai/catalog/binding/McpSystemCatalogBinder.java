@@ -412,7 +412,7 @@ public class McpSystemCatalogBinder {
         path,
         fact.serviceCallId(),
         fact.interactionIds(),
-        fact.policyConflict(), fact.elementIntent());
+        fact.policyConflict(), fact.elementIntent(), fact.httpMode());
   }
 
   private static String pickerQuestion(List<CatalogMcpSystemDto> matches) {

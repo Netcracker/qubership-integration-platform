@@ -237,6 +237,25 @@ class RequirementRevisionAdmissionTest {
   }
 
   @Test
+  void aPaddedApprovalCommentCanBeAdmittedAndRestoredWithoutChangingRawSource() throws Exception {
+    String quote = "  Use a QIP script element.\n";
+    var fixture = sourceCorrectionFixture(true, "winner", false, quote);
+    var h = fixture.h();
+    var before = h.archive.read(h.chat);
+    var source = before.activeTurns().stream().filter(turn -> turn.metadata() != null
+        && quote.equals(turn.metadata().path("resolvedDecision").path("comment").asText())).findFirst().orElseThrow();
+    assertFalse(source.message().content().contains(quote), source.message().content());
+    assertEquals(quote, fixture.accepted().authoredDraft().facts().getFirst().evidence().quote());
+
+    h.store.promoteSourceRestoration(h.chat, fixture.brief());
+
+    assertEquals(fixture.candidate(), h.store.get(h.chat).orElseThrow());
+    assertEquals(quote, h.store.get(h.chat).orElseThrow().authoredDraft().facts().getFirst().text());
+    assertEquals(quote, h.store.semanticBaseline(h.chat).orElseThrow().claims().getFirst().text());
+    assertEquals(before, h.archive.read(h.chat));
+  }
+
+  @Test
   void oneSourceCorrectionCanRestoreEveryReportedFactAtomically() throws Exception {
     var fixture = sourceCorrectionFixture(true, "winner", true);
     var h = fixture.h();
@@ -287,22 +306,41 @@ class RequirementRevisionAdmissionTest {
   }
 
   private static SourceCorrectionFixture sourceCorrectionFixture(boolean committed, String approvalInput, boolean batch) throws Exception {
+    return sourceCorrectionFixture(committed, approvalInput, batch, null);
+  }
+
+  private static SourceCorrectionFixture sourceCorrectionFixture(boolean committed, String approvalInput, boolean batch,
+      String authoredComment) throws Exception {
     var h = new Harness();
     RequirementDraft accepted;
     RequirementDraft candidate;
     String runId = "source-run";
     try (var ignored = ToolSession.open(h.chat)) {
-      String quote = "Use a QIP script element.";
-      var input = h.begin("Receive POST /tasks. " + quote
-          + (batch ? " Do not use APIHub. Use IDS." : " Proceed without IDS."));
+      String quote = authoredComment == null ? "Use a QIP script element." : authoredComment;
+      var input = h.begin(authoredComment == null ? "Receive POST /tasks. " + quote
+          + (batch ? " Do not use APIHub. Use IDS." : " Proceed without IDS.") : "Receive POST /tasks. Proceed without IDS.");
+      var endpointInput = input;
+      if (authoredComment != null) {
+        var decision = new ChatDecisionCommand();
+        decision.setAction(ChatEvent.APPROVE_ACTION);
+        decision.setArtifactType("catalog-operation-version");
+        decision.setArtifactHash("earlier-catalog-choice");
+        decision.setComment(authoredComment);
+        String marker = ChatDecisionService.transcriptMarker(decision);
+        input = h.archive.beginInput(h.chat, "", null);
+        h.archive.resolveInput(h.chat, input, marker, h.mapper.valueToTree(decision));
+        h.store.beginTurn(h.chat, marker);
+      }
       var facts = new ArrayList<FactInput>();
       facts.add(fact("script", "Use a QIP script element with Groovy.", input.turnId(), quote));
       if (batch) {
         facts.add(new FactInput("external-discovery", List.of(), FactKind.CONSTRAINT, Polarity.NEGATIVE,
             "Do not use APIHub or IDS.", null, null, null, new ClaimEvidenceInput(input.turnId(), "Do not use APIHub.")));
-        facts.add(fact("keep", "Receive POST /tasks.", input.turnId(), "Receive POST /tasks."));
+        facts.add(fact("keep", "Receive POST /tasks.", endpointInput.turnId(), "Receive POST /tasks."));
       }
       var original = httpDraft(facts);
+      if (authoredComment != null) original = new DraftInput(original.flow(), original.facts(), original.capabilities(),
+          original.openQuestions(), new DraftSettings(null, null));
       if (batch) original = new DraftInput(original.flow(), original.facts(), original.capabilities(),
           original.openQuestions(), new DraftSettings(true, null));
       var captured = h.capture(original);

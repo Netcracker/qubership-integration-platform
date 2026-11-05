@@ -1674,7 +1674,7 @@ public class RequirementDraftTool {
         fact.topic(),
         fact.httpMethod(),
         fact.path(),
-        fact.serviceCallId(), fact.interactionIds(), fact.policyConflict(), fact.elementIntent());
+        fact.serviceCallId(), fact.interactionIds(), fact.policyConflict(), fact.elementIntent(), fact.httpMode());
   }
 
   private static String rejectTopologyFacts(List<RequirementFact> facts) {

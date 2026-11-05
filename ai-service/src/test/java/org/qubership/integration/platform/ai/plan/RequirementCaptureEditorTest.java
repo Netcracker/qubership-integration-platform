@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.ai.plan;
 
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingValue;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -22,6 +24,248 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureResult.Captu
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 
 class RequirementCaptureEditorTest {
+
+  @Test
+  void preservesTypedOriginAndPolicyThroughDraftReload() throws Exception {
+    var input = typedDraft(new MappingSource.Message(
+        "start", org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort.OUTPUT, "$.processInstanceId"),
+        null, null);
+    assertEquals(List.of(), RequirementCaptureEditor.validate(input));
+    var pinned = RequirementCaptureProjection.withCopyPolicies(input);
+    var draft = RequirementCaptureProjection.toDraft(pinned, null, List.of(), "test", "hash", java.util.Map.of());
+    var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+    var reloaded = mapper.readValue(mapper.writeValueAsBytes(draft), RequirementDraft.class);
+    var rule = RequirementBriefProjector.authoredMappings(reloaded).getFirst().rules().getFirst();
+    assertEquals(new MappingSource.Message(
+        "start", org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort.OUTPUT,
+        "$.processInstanceId"), rule.sources().getFirst());
+    assertEquals("ERROR", rule.missingSourcePolicy());
+    assertEquals("$.processId", rule.targetPath());
+    assertTrue(reloaded.assembledText().contains("start/OUTPUT:$.processInstanceId"), reloaded.assembledText());
+    assertTrue(reloaded.assembledText().contains("missing=ERROR"), reloaded.assembledText());
+  }
+
+  @Test
+  void rejectsTypedCopyWithoutACompleteKnownOrigin() {
+    var input = typedDraft(new MappingSource.Message(
+        "not-an-interaction", null, "$.processInstanceId"), null, null);
+    assertEquals(List.of("MAPPING_ORIGIN_REQUIRED"), RequirementCaptureEditor.validate(input).stream()
+        .map(RequirementCaptureEditor.Issue::code).toList());
+  }
+
+  @Test
+  void rejectsIndependentLegacyExpressionBesideTypedCopy() {
+    var input = typedDraft(new MappingSource.Message(
+        "start", org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort.OUTPUT,
+        "$.processInstanceId"), null, "Read the current response processId");
+    assertEquals(List.of("MAPPING_REPRESENTATION_CONFLICT"), RequirementCaptureEditor.validate(input).stream()
+        .map(RequirementCaptureEditor.Issue::code).toList());
+  }
+
+  @Test
+  void readsLegacyMappingWithoutInventingOriginOrPolicy() throws Exception {
+    String json = """
+        {"sourceInteractionId":"start","sourcePath":"name","targetInteractionId":"create-task",
+         "targetPath":"Subject","expression":null}
+        """;
+    var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+    var mapping = mapper.readValue(json, RequirementCaptureInput.FieldMappingInput.class);
+    org.junit.jupiter.api.Assertions.assertNull(mapping.value());
+    org.junit.jupiter.api.Assertions.assertNull(mapping.missingSourcePolicy());
+    assertEquals(mapper.readTree(json), mapper.readTree(mapper.writeValueAsBytes(mapping)));
+  }
+
+  @Test
+  void rejectsCallerSelectedMissingSourcePolicy() {
+    var input = typedDraft(new MappingSource.Message("start",
+        org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort.OUTPUT,
+        "$.processInstanceId"), null, null);
+    var fact = input.facts().getFirst();
+    var mapping = fact.fieldMapping();
+    var unsupported = new RequirementCaptureInput.FieldMappingInput(mapping.sourceInteractionId(),
+        mapping.sourcePath(), mapping.targetInteractionId(), mapping.targetPath(), mapping.expression(),
+        mapping.value(), "OMIT");
+    var modified = new FactInput(fact.sourceFactId(), fact.interactionIds(), fact.kind(), fact.polarity(),
+        fact.text(), unsupported);
+    var candidate = new DraftInput(input.flow(), List.of(modified), input.capabilities(), input.openQuestions(), input.settings());
+    assertEquals(List.of("MAPPING_POLICY_INVALID"), RequirementCaptureEditor.validate(candidate).stream()
+        .map(RequirementCaptureEditor.Issue::code).toList());
+  }
+
+  @Test
+  void toolSchemaExposesCopyOriginWithoutServerOwnedPolicy() {
+    var root = RequirementCaptureSchemas.parameters("mapping", RequirementCaptureInput.FieldMappingInput.class);
+    var mapping = (dev.langchain4j.model.chat.request.json.JsonObjectSchema) root.properties().get("mapping");
+    assertFalse(mapping.properties().containsKey("missingSourcePolicy"), () -> "Mapping properties: " + mapping.properties());
+    assertFalse(mapping.required().contains("value"), () -> "Required mapping fields: " + mapping.required());
+    var nullable = (dev.langchain4j.model.chat.request.json.JsonAnyOfSchema) mapping.properties().get("value");
+    var value = (dev.langchain4j.model.chat.request.json.JsonObjectSchema) nullable.anyOf().getFirst();
+    var source = (dev.langchain4j.model.chat.request.json.JsonObjectSchema) value.properties().get("source");
+    assertEquals(List.of("kind", "interactionId", "port", "path"), source.required());
+  }
+
+  @Test
+  void legacyMappingWireMayOmitTheNewTypedValue() {
+    var result = inspectMappingWire("""
+        {"mapping":{"sourceInteractionId":"entry","sourcePath":"$.receipt","targetInteractionId":"delivery",
+          "targetPath":"$.receipt","expression":null}}
+        """);
+    assertEquals(List.of(), result.issues());
+  }
+
+  @Test
+  void typedMappingWireStillRequiresTheSourcePort() {
+    var result = inspectMappingWire("""
+        {"mapping":{"sourceInteractionId":"entry","sourcePath":null,"targetInteractionId":"delivery",
+          "targetPath":"$.receipt","expression":null,"value":{"operation":"COPY",
+            "source":{"kind":"MESSAGE","interactionId":"entry","path":"$.receipt"}}}}
+        """);
+    assertEquals("MISSING_FIELD", result.issue().code());
+    assertEquals("/mapping/value/source/port", result.issue().path());
+  }
+
+  private static org.qubership.integration.platform.ai.llm.tool.StructuredCaptureArguments.Result inspectMappingWire(
+      String arguments) {
+    var spec = dev.langchain4j.agent.tool.ToolSpecification.builder().name("mappingWire")
+        .parameters(RequirementCaptureSchemas.parameters("mapping", RequirementCaptureInput.FieldMappingInput.class)).build();
+    var method = new io.quarkiverse.langchain4j.runtime.tool.ToolMethodCreateInfo("mappingWire", "invoker", spec,
+        "mapper", io.quarkiverse.langchain4j.runtime.tool.ToolMethodCreateInfo.ExecutionModel.BLOCKING,
+        dev.langchain4j.agent.tool.ReturnBehavior.TO_LLM, null, null);
+    var request = dev.langchain4j.agent.tool.ToolExecutionRequest.builder().id("wire-test").name("mappingWire")
+        .arguments(arguments).build();
+    return org.qubership.integration.platform.ai.llm.tool.StructuredCaptureArguments.inspect(request, method,
+        new com.fasterxml.jackson.databind.ObjectMapper());
+  }
+
+  private static DraftInput typedDraft(
+      MappingSource.Message source,
+      String legacyPath, String legacyExpression) {
+    var base = initial();
+    var interactions = new java.util.ArrayList<>(base.flow().interactions());
+    interactions.add(new InteractionInput("task-result", Direction.OUTBOUND, "OM", "onTaskResult", null, null, null));
+    var transitions = new java.util.ArrayList<>(base.flow().transitions());
+    transitions.add(new TransitionInput("create-task", "task-result"));
+    var mapping = new RequirementCaptureInput.FieldMappingInput("create-task", legacyPath, "task-result",
+        "$.processId", legacyExpression,
+        new MappingValue.Copy(source));
+    var fact = new FactInput("typed-mapping", List.of("create-task", "task-result"), FactKind.FIELD_MAPPING,
+        Polarity.POSITIVE, "Copy the incoming processInstanceId to the result processId.", mapping);
+    return new DraftInput(new FlowInput(interactions, transitions), List.of(fact), base.capabilities(),
+        base.openQuestions(), base.settings());
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.CsvSource({
+      "firstTask, firstTaskCall", "firstTask, unrelated-node", "secondTask, secondTaskCall",
+      "thirdTask, thirdTaskCall", "thirdTask, firstTaskCall"})
+  void rejectsLocalServiceCallIdentityBeforeAcceptance(String owner, String alias) {
+    var draft = callNameDraft(owner, alias, RequirementElementIntent.Placement.LOCAL_NODE, Polarity.POSITIVE);
+    var result = RequirementCaptureEditor.initialize(draft);
+    assertEquals(List.of("BUSINESS_ANCHOR_REQUIRED"), result.issues().stream()
+        .map(RequirementCaptureEditor.Issue::code).toList());
+    var issue = result.issues().getFirst();
+    org.junit.jupiter.api.Assertions.assertAll(
+        () -> assertFalse(result.changed(), result.toString()),
+        () -> assertEquals("call-name", issue.entityId()),
+        () -> assertEquals("/draft/facts/call-name/elementIntent", issue.path()),
+        () -> assertTrue(issue.message().contains(owner), issue.message()),
+        () -> assertTrue(issue.message().contains("ANCHOR"), issue.message()),
+        () -> assertEquals(List.of("Name the task Requested task."),
+            RequirementCaptureEditor.factsToPreserve(draft, result.issues()).stream().map(FactInput::text).toList()));
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"firstTask", "secondTask", "thirdTask"})
+  void acceptsCallNameOnItsBusinessAnchor(String owner) {
+    var draft = callNameDraft(owner, owner, RequirementElementIntent.Placement.ANCHOR, Polarity.POSITIVE);
+    var result = RequirementCaptureEditor.initialize(draft);
+    org.junit.jupiter.api.Assertions.assertAll(
+        () -> assertEquals(List.of(), result.issues()),
+        () -> assertEquals(draft, result.draft()),
+        () -> assertEquals("Requested task", result.draft().facts().getLast().elementIntent().requestedName()));
+  }
+
+  @Test
+  void rejectsInjectedLocalCallUpdateWithoutChangingAcceptedFacts() {
+    var accepted = callNameDraft("firstTask", "firstTask", RequirementElementIntent.Placement.ANCHOR,
+        Polarity.POSITIVE);
+    var injected = callNameDraft("firstTask", "arbitrary-node", RequirementElementIntent.Placement.LOCAL_NODE,
+        Polarity.POSITIVE);
+    var result = RequirementCaptureEditor.apply(accepted,
+        update(List.of(), List.of(injected.facts().getLast()), List.of()));
+    org.junit.jupiter.api.Assertions.assertAll(
+        () -> assertEquals(List.of("BUSINESS_ANCHOR_REQUIRED"), result.issues().stream()
+            .map(RequirementCaptureEditor.Issue::code).toList()),
+        () -> assertEquals(accepted, result.draft()),
+        () -> assertEquals(injected, result.candidate()),
+        () -> assertFalse(result.changed(), result.toString()));
+  }
+
+  @Test
+  void rejectsReloadedLocalCallIdentityAndAcceptsItsExplicitCorrection() throws Exception {
+    var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+    var invalid = callNameDraft("firstTask", "firstTaskCall", RequirementElementIntent.Placement.LOCAL_NODE,
+        Polarity.POSITIVE);
+    var reloaded = mapper.readValue(mapper.writeValueAsBytes(invalid), DraftInput.class);
+    var rejected = RequirementCaptureEditor.apply(reloaded, update(List.of(), List.of(), List.of()));
+    var corrected = callNameDraft("firstTask", "firstTask", RequirementElementIntent.Placement.ANCHOR,
+        Polarity.POSITIVE);
+    var repaired = RequirementCaptureEditor.apply(reloaded,
+        update(List.of(), List.of(corrected.facts().getLast()), List.of()));
+    org.junit.jupiter.api.Assertions.assertAll(
+        () -> assertEquals(List.of("BUSINESS_ANCHOR_REQUIRED"), rejected.issues().stream()
+            .map(RequirementCaptureEditor.Issue::code).toList()),
+        () -> assertEquals(reloaded, rejected.draft()),
+        () -> assertEquals(List.of(), repaired.issues()),
+        () -> assertEquals(corrected, repaired.draft()));
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.CsvSource({"firstTask, firstTaskCall", "firstTask, secondTask"})
+  void rejectsCallAnchorWhoseReferenceDiffersFromItsOwner(String owner, String ref) {
+    var draft = callNameDraft(owner, ref, RequirementElementIntent.Placement.ANCHOR, Polarity.POSITIVE);
+    assertEquals(List.of("INVALID_ELEMENT_REFERENCE"), RequirementCaptureEditor.validate(draft).stream()
+        .map(RequirementCaptureEditor.Issue::code).toList());
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.EnumSource(value = RequirementElementIntent.Placement.class,
+      names = {"LOCAL_NODE", "BEFORE_HOOK", "AFTER_HOOK"})
+  void acceptsSeparateLocalScriptAndInlineHooksOnACall(RequirementElementIntent.Placement placement) {
+    var base = callNameDraft("firstTask", "firstTask", RequirementElementIntent.Placement.ANCHOR,
+        Polarity.POSITIVE);
+    var script = new FactInput("local-script", List.of("firstTask"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+        "Run the requested script.", null, null,
+        new RequirementElementIntent("prepare", "script", placement, "firstTask",
+            null, null, null, List.of(), List.of()));
+    var facts = new java.util.ArrayList<>(base.facts());
+    facts.add(script);
+    var draft = new DraftInput(base.flow(), facts, base.capabilities(), base.openQuestions(), base.settings());
+    assertEquals(List.of(), RequirementCaptureEditor.validate(draft));
+  }
+
+  @Test
+  void localCallProhibitionDoesNotRequireMaterializingAnAnchor() {
+    var draft = callNameDraft("firstTask", "forbidden-call", RequirementElementIntent.Placement.LOCAL_NODE,
+        Polarity.NEGATIVE);
+    assertEquals(List.of(), RequirementCaptureEditor.validate(draft));
+  }
+
+  private static DraftInput callNameDraft(String owner, String ref, RequirementElementIntent.Placement placement,
+      Polarity polarity) {
+    var interactions = List.of(
+        new InteractionInput("start", Direction.INBOUND, "OM", "onTaskStart", null, null, null),
+        new InteractionInput("firstTask", Direction.OUTBOUND, "Salesforce", "createTask", null, null, null),
+        new InteractionInput("secondTask", Direction.OUTBOUND, "Salesforce", "createTask", null, null, null),
+        new InteractionInput("thirdTask", Direction.OUTBOUND, "Salesforce", "createTask", null, null, null));
+    var fact = new FactInput("call-name", List.of(owner), FactKind.PARAMETER, polarity,
+        polarity == Polarity.POSITIVE ? "Name the task Requested task." : "Do not add the forbidden call.",
+        null, null, new RequirementElementIntent(ref, "service-call", placement, owner,
+            null, null, "Requested task", List.of(), List.of()));
+    return new DraftInput(new FlowInput(interactions, List.of(new TransitionInput("start", "firstTask"),
+        new TransitionInput("firstTask", "secondTask"), new TransitionInput("secondTask", "thirdTask"))),
+        List.of(fact), initial().capabilities(), List.of(), initial().settings());
+  }
 
   @Test
   void nativeAnchorRequiresItsMatchingCapabilityWhileCatalogCallsRemainValid() {
@@ -229,6 +473,54 @@ class RequirementCaptureEditorTest {
           new TransitionInput("store", "notify"))), List.of(fact), capabilities, List.of(), base.settings());
       assertTrue(RequirementCaptureEditor.initialize(indirect).accepted());
     }
+  }
+
+  @Test
+  void aConditionBranchCannotRequireItsContainingConditionAsASuccessor() {
+    var draft = conditionBranchDraft("condition", "route-condition", null);
+    var rejected = RequirementCaptureEditor.initialize(draft);
+    assertFalse(rejected.accepted(), rejected.issues().toString());
+    var issue = rejected.issues().stream().filter(value -> value.code().equals("ELEMENT_FLOW_ORDER_MISMATCH"))
+        .findFirst().orElseThrow();
+    assertEquals("/draft/facts/else-script/elementIntent/successorElementRef", issue.path());
+    assertEquals("else-script", issue.entityId());
+    var projected = RequirementCaptureEditor.validateElementOrder(RequirementCaptureProjection.flow(draft),
+        RequirementCaptureProjection.facts(draft, java.util.Map.of()));
+    assertEquals(List.of(issue), projected);
+    var corrected = conditionBranchDraft("condition", null, null);
+    var correction = RequirementCaptureEditor.initialize(corrected);
+    assertTrue(correction.accepted(), correction.issues()::toString);
+    assertEquals(List.of(), RequirementCaptureEditor.validateFactPreservation(draft, corrected));
+  }
+
+  @Test
+  void localOrderOutsideTheBackwardConditionParentRemainsValid() {
+    for (var draft : List.of(conditionBranchDraft("condition", null, null),
+        conditionBranchDraft("condition", null, "route-condition"),
+        conditionBranchDraft("condition", "if-script", null),
+        conditionBranchDraft("loop-2", "route-condition", null))) {
+      var result = RequirementCaptureEditor.initialize(draft);
+      assertTrue(result.accepted(), result.issues().toString());
+      assertEquals(List.of(), RequirementCaptureEditor.validateElementOrder(RequirementCaptureProjection.flow(draft),
+          RequirementCaptureProjection.facts(draft, java.util.Map.of())), draft::toString);
+    }
+  }
+
+  private static DraftInput conditionBranchDraft(String parentType, String successor, String predecessor) {
+    var base = initial();
+    var parent = new RequirementElementIntent("route-condition", parentType,
+        RequirementElementIntent.Placement.LOCAL_NODE, "start", null, null, null, List.of(), List.of());
+    var sibling = new RequirementElementIntent("if-script", "script", RequirementElementIntent.Placement.LOCAL_NODE,
+        "start", null, "route-condition", "route-condition", null, List.of(), List.of("even minute"));
+    var child = new RequirementElementIntent("else-script", "script", RequirementElementIntent.Placement.LOCAL_NODE,
+        "start", successor, predecessor, "route-condition", null, List.of(), List.of("odd minute"));
+    var facts = List.of(new FactInput("route-config", List.of("start"), FactKind.ROUTING, Polarity.POSITIVE,
+        "Use a condition with if/else routing.", null, null, parent),
+        new FactInput("if-script", List.of("start"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+            "Under the if branch, return plain text \"even minute\".", null, null, sibling),
+        new FactInput("else-script", List.of("start"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+            "Under the else branch, use a script that returns plain text \"odd minute\".", null, null, child));
+    return new DraftInput(base.flow(), facts, base.capabilities(), List.of(), base.settings());
   }
 
   @Test

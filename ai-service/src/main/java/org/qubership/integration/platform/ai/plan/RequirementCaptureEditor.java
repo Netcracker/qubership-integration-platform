@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.ai.plan;
 
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingValue;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -269,17 +271,29 @@ public final class RequirementCaptureEditor {
     Map<String, List<String>> successors = new HashMap<>();
     flow.transitions().forEach(transition -> successors.computeIfAbsent(
         transition.sourceInteractionId(), ignored -> new ArrayList<>()).add(transition.targetInteractionId()));
+    Map<String, List<RequirementElementIntent>> intents = facts.stream().map(RequirementFact::elementIntent)
+        .filter(Objects::nonNull).collect(java.util.stream.Collectors.groupingBy(RequirementElementIntent::elementRef));
     List<Issue> issues = new ArrayList<>();
     for (RequirementFact fact : facts) {
       if (fact.elementIntent() != null) {
-        checkElementOrder(issues, fact.elementIntent(), fact.sourceFactId(), interactions, successors);
+        checkElementOrder(issues, fact.elementIntent(), fact.sourceFactId(), interactions, successors, intents);
       }
     }
     return List.copyOf(issues);
   }
 
   private static void checkElementOrder(List<Issue> issues, RequirementElementIntent intent, String factId,
-      Set<String> interactions, Map<String, List<String>> successors) {
+      Set<String> interactions, Map<String, List<String>> successors,
+      Map<String, List<RequirementElementIntent>> intents) {
+    if (intent.placement() == RequirementElementIntent.Placement.LOCAL_NODE
+        && intent.parentElementRef() != null && intent.parentElementRef().equals(intent.successorElementRef())
+        && intents.getOrDefault(intent.parentElementRef(), List.of()).stream()
+            .anyMatch(parent -> "condition".equals(parent.elementType()))) {
+      add(issues, "ELEMENT_FLOW_ORDER_MISMATCH",
+          "/draft/facts/" + factId + "/elementIntent/successorElementRef", factId,
+          "An element inside a condition branch cannot execute before its containing condition. "
+              + "Remove the successor reference to the condition; preserve the branch behavior and parent.");
+    }
     if (intent.placement() != RequirementElementIntent.Placement.ANCHOR
         || !interactions.contains(intent.elementRef())) { return; }
     var refs = new String[] {intent.successorElementRef(), intent.predecessorElementRef()};
@@ -350,7 +364,9 @@ public final class RequirementCaptureEditor {
         paths.contains("/sourcePath") ? null : mapping.sourcePath(),
         paths.contains("/targetInteractionId") ? null : mapping.targetInteractionId(),
         paths.contains("/targetPath") ? null : mapping.targetPath(),
-        paths.contains("/expression") ? null : mapping.expression());
+        paths.contains("/expression") ? null : mapping.expression(),
+        paths.stream().anyMatch(path -> path.startsWith("/value")) ? null : mapping.value(),
+        paths.contains("/missingSourcePolicy") ? null : mapping.missingSourcePolicy());
   }
 
   private static RequirementElementIntent intentToPreserve(RequirementElementIntent intent, List<Issue> issues) {
@@ -426,6 +442,10 @@ public final class RequirementCaptureEditor {
     return (editablePaths.contains("sourcePath") || Objects.equals(original.sourcePath(), updated.sourcePath()))
         && (editablePaths.contains("targetPath") || Objects.equals(original.targetPath(), updated.targetPath()))
         && (editablePaths.contains("expression") || Objects.equals(original.expression(), updated.expression()))
+        && (editablePaths.stream().anyMatch(path -> path.startsWith("value"))
+            || Objects.equals(original.value(), updated.value()))
+        && (updated.missingSourcePolicy() == null
+            || Objects.equals(original.missingSourcePolicy(), updated.missingSourcePolicy()))
         && (!interactions.contains(original.sourceInteractionId())
             || Objects.equals(original.sourceInteractionId(), updated.sourceInteractionId()))
         && (!interactions.contains(original.targetInteractionId())
@@ -691,10 +711,8 @@ public final class RequirementCaptureEditor {
                 mapping.sourceInteractionId(), mapping.targetInteractionId()))) {
           add(issues, "MAPPING_TRANSITION_REQUIRED", path + "/fieldMapping",
               fact.sourceFactId(),
-              "Use one approved direct flow transition for this field mapping. For an earlier event"
-                  + " value retained across a call, keep the save-before-call BEHAVIOR and map each"
-                  + " result field on the delivery transition with sourcePath=null and an expression"
-                  + " reading the saved original field. Preserve its original source and destination."
+              "Use one approved direct flow transition as execution placement. For an earlier event"
+                  + " value, put its actual interaction, port and path in value.source."
                   + " Do not copy from the call response or add a transition that bypasses the call."
                   + " Local script output without a business transition is BEHAVIOR on its owner,"
                   + " not a FIELD_MAPPING to an invented interaction or back to the incoming caller.");
@@ -704,7 +722,27 @@ public final class RequirementCaptureEditor {
           add(issues, "MAPPING_TARGETS_REQUIRED", path + "/interactionIds",
               fact.sourceFactId(), "Target the source and destination interactions of this mapping.");
         }
-        if (blank(mapping.targetPath()) || blank(mapping.sourcePath())
+        if (mapping.value() != null) {
+          if (!blank(mapping.sourcePath()) || !blank(mapping.expression())) {
+            add(issues, "MAPPING_REPRESENTATION_CONFLICT", path + "/fieldMapping", fact.sourceFactId(),
+                "Use typed value without sourcePath or expression.");
+          }
+          if (!(mapping.value() instanceof MappingValue.Copy copy)
+              || !(copy.source() instanceof MappingSource.Message message)) {
+            add(issues, "MAPPING_VALUE_UNSUPPORTED", path + "/fieldMapping/value", fact.sourceFactId(),
+                "This capture supports COPY from a message with an explicit origin.");
+          } else if (blank(message.interactionId()) || !ids.contains(message.interactionId())
+              || message.port() == null || blank(message.path())) {
+            add(issues, "MAPPING_ORIGIN_REQUIRED", path + "/fieldMapping/value/source", fact.sourceFactId(),
+                "Provide a known source interaction, port and field path.");
+          }
+        }
+        if (mapping.missingSourcePolicy() != null
+            && (mapping.value() == null || !"ERROR".equals(mapping.missingSourcePolicy()))) {
+          add(issues, "MAPPING_POLICY_INVALID", path + "/fieldMapping/missingSourcePolicy", fact.sourceFactId(),
+              "Missing-source policy is server-owned and must be ERROR on a typed COPY.");
+        }
+        if (blank(mapping.targetPath()) || mapping.value() == null && blank(mapping.sourcePath())
             && blank(mapping.expression())) {
           add(issues, "MAPPING_FIELD_REQUIRED", path + "/fieldMapping",
               fact.sourceFactId(), "Provide a target field and a source field or expression.");
@@ -838,6 +876,12 @@ public final class RequirementCaptureEditor {
     return List.copyOf(issues);
   }
 
+  static boolean isLocalServiceCall(FactInput fact) {
+    var intent = fact.elementIntent();
+    return fact.polarity() == Polarity.POSITIVE && intent != null && "service-call".equals(intent.elementType())
+        && intent.placement() == RequirementElementIntent.Placement.LOCAL_NODE;
+  }
+
   private static void validateElementIntents(DraftInput draft, Set<String> interactions,
       Map<String, List<String>> successors, List<Issue> issues) {
     Map<String, List<RequirementElementIntent>> intents = new HashMap<>();
@@ -856,11 +900,22 @@ public final class RequirementCaptureEditor {
         continue;
       }
       boolean chain = intent.placement() == RequirementElementIntent.Placement.CHAIN;
-      if (chain ? !"chain".equals(intent.elementType())
-          : !interactions.contains(intent.ownerInteractionId())
-              || !fact.interactionIds().contains(intent.ownerInteractionId())) {
+      boolean validOwner = !chain && interactions.contains(intent.ownerInteractionId())
+          && fact.interactionIds() != null && fact.interactionIds().contains(intent.ownerInteractionId());
+      if (chain ? !"chain".equals(intent.elementType()) : !validOwner) {
         add(issues, "INVALID_ELEMENT_OWNER", path, fact.sourceFactId(),
-            "Chain intent uses elementType=chain. Other intent must target its owning business interaction.");
+            chain ? "Use elementType=chain for CHAIN placement."
+                : "Set ownerInteractionId to an existing business interaction listed in this fact's interactionIds.");
+      }
+      if (isLocalServiceCall(fact)) {
+        if (validOwner) {
+          add(issues, "BUSINESS_ANCHOR_REQUIRED", path, fact.sourceFactId(),
+              "Service call '" + intent.ownerInteractionId() + "' already has a business anchor. "
+                  + "Preserve this fact and requested name. Use placement=ANCHOR and elementRef='"
+                  + intent.ownerInteractionId() + "' with the same ownerInteractionId. "
+                  + "Update references to this element to the same ID.");
+        }
+        continue;
       }
       if (intent.placement() == RequirementElementIntent.Placement.ANCHOR
           && !Objects.equals(intent.elementRef(), intent.ownerInteractionId())
@@ -916,7 +971,7 @@ public final class RequirementCaptureEditor {
                   + referenceContext(draft, interactions, intents, intent.elementRef(), fields[i], ref));
         }
       }
-      checkElementOrder(issues, intent, fact.sourceFactId(), interactions, successors);
+      checkElementOrder(issues, intent, fact.sourceFactId(), interactions, successors, intents);
     }
   }
 

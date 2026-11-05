@@ -95,6 +95,72 @@ class RequirementSourceReviewProviderTest {
   }
 
   @ParameterizedTest
+  @ValueSource(strings = {"catalog-operation-version", "implementation-plan"})
+  void protocolApprovalCannotCreateASourceOmissionOrRemoveTheSelectedBinding(String artifactType) throws Exception {
+    String chat = "analysis-approval-source-" + UUID.randomUUID();
+    var author = append(chat, ALGORITHM);
+    var approval = appendApproval(chat, artifactType, "");
+    String marker = conversations.archive().read(chat).activeTurns().getLast().message().content();
+    var before = conversations.archive().read(chat);
+    var selected = RequirementFactFixtures.greetingsApprovedDraft();
+    var inbound = selected.flow().interactions().getFirst();
+    var flow = new RequirementFlow(List.of(inbound,
+        new RequirementFlow.Interaction("invoke", RequirementFlow.Direction.OUTBOUND,
+            "Inventory", "reserve", "Reserve inventory.")),
+        List.of(new RequirementFlow.Transition(inbound.interactionId(), "invoke")));
+    var binding = new CatalogBindingHint("3", "invoke", "invoke", "reserve", "inventory", "group",
+        "inventory-1.0.0", "inventory-1.0.0-reserve", "http", "POST", "/reserve", "catalog", Instant.EPOCH, "test");
+    var approved = selected.withFlow(flow).withBoundInteraction("invoke", binding);
+    var script = new ScriptedStreamingChatModel(
+        Turn.tool("invalid-protocol-source-report", request -> assertSelectedModes(request, flow),
+            "captureRequirementBrief", arguments(List.of(new RequirementAnalysisCapture.SourceOmission(
+                approval.turnId(), marker, "The approved version is missing from the draft.")))),
+        Turn.tool("correct-protocol-source-report", request -> {
+          String text = userText(request);
+          assertTrue(text.contains("SOURCE_TURN_NOT_FOUND"), text);
+          var packet = authorPacket(text);
+          assertEquals(List.of(author.turnId()), java.util.stream.StreamSupport.stream(
+              packet.path("inputs").spliterator(), false).map(input -> input.path("sourceTurnId").asText()).toList());
+          assertNull(ProductCapabilityCaptureContext.binding(chat).orElseThrow().briefCandidate().get());
+        }, "captureRequirementBrief", arguments(List.of())));
+
+    StageOutcome outcome = execute(chat, script, approved);
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, outcome.outcomeClass(), outcome.toString());
+    var brief = (org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief)
+        outcome.candidates().getFirst().payload();
+    assertEquals(List.of(binding), brief.catalogBindings());
+    assertEquals(before, conversations.archive().read(chat));
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void aRealCommentOrMarkerLookingUserTextStillSupportsSourceReview(boolean typedComment) throws Exception {
+    String chat = "analysis-real-approval-source-" + UUID.randomUUID();
+    append(chat, ALGORITHM);
+    String text = "Approved catalog-operation-version is a business requirement supplied by the author.";
+    var source = typedComment ? appendApproval(chat, "catalog-operation-version", text) : append(chat, text);
+    appendApproval(chat, "implementation-plan", "");
+    var script = new ScriptedStreamingChatModel(Turn.tool("real-author-source-report", request -> {
+      var packet = authorPacket(userText(request));
+      var quote = packet.path("inputs").get(1);
+      assertEquals(source.turnId(), quote.path("sourceTurnId").asText());
+      assertEquals(text, quote.path("text").asText());
+    }, "captureRequirementBrief", arguments(List.of(new RequirementAnalysisCapture.SourceOmission(
+        source.turnId(), text, "The selected draft omits this real author requirement.")))));
+
+    StageOutcome outcome = execute(chat, script);
+
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, outcome.outcomeClass(), outcome.toString());
+    assertEquals(RecoveryCauseCode.MISSING_BRIEF_FACTS, outcome.recoveryCause().causeCode());
+    assertEquals(text, outcome.recoveryCause().sourceReview().omissions().getFirst().quote());
+    assertEquals(source.turnId(), outcome.recoveryCause().sourceReview().omissions().getFirst().sourceTurnId());
+    assertEquals(org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(
+        org.qubership.integration.platform.ai.plan.AuthorSourceEvidence.packet(conversations.archive().read(chat))),
+        outcome.recoveryCause().sourceReview().sourceHash());
+  }
+
+  @ParameterizedTest
   @ValueSource(booleans = {false, true})
   void quotedOmissionStopsBriefCreationWithoutGrantingSourceRepairAuthority(boolean legacyWire) throws Exception {
     String chat = "analysis-source-omission-" + UUID.randomUUID();
@@ -261,6 +327,20 @@ class RequirementSourceReviewProviderTest {
       String chat, String text) {
     var input = conversations.archive().beginInput(chat, text, null);
     conversations.archive().resolveInput(chat, input, text);
+    return input;
+  }
+
+  private org.qubership.integration.platform.ai.chat.conversation.ConversationArchive.Input appendApproval(
+      String chat, String artifactType, String comment) {
+    var command = new org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand();
+    command.setAction("approve");
+    command.setArtifactType(artifactType);
+    command.setArtifactHash("confirmed-choice");
+    command.setComment(comment);
+    var input = conversations.archive().beginInput(chat, "", null);
+    conversations.archive().resolveInput(chat, input,
+        org.qubership.integration.platform.ai.chat.service.ChatDecisionService.transcriptMarker(command),
+        json.valueToTree(command));
     return input;
   }
 

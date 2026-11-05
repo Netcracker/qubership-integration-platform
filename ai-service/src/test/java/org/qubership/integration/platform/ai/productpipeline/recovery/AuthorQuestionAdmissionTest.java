@@ -41,6 +41,43 @@ class AuthorQuestionAdmissionTest {
     assertTrue(findings.isEmpty(), findings.toString());
   }
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"http-trigger", "chain-trigger-2", "kafka-trigger-2", "async-api-trigger"})
+  void aSelectedDeliveryCapabilityCannotBeAskedAsMissing(String capabilityKey) {
+    var fact = new org.qubership.integration.platform.ai.plan.RequirementFact("entry",
+        org.qubership.integration.platform.ai.plan.RequirementFactPolarity.POSITIVE,
+        org.qubership.integration.platform.ai.plan.RequirementFactKind.CAPABILITY, capabilityKey, "Accept the payload.");
+    var findings = new ArrayList<String>();
+
+    AuthorQuestionAdmission.validate(new AuthorQuestionEvidence("entry", "capabilityKey",
+        AuthorQuestionEvidence.Kind.MISSING_VALUE, List.of("source")), List.of(fact), RequirementFlow.EMPTY,
+        List.of(), Set.of("source"), Set.of(), true, findings);
+
+    assertEquals(1, findings.size(), findings.toString());
+    assertTrue(findings.getFirst().contains("supplied value"), findings.toString());
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.EnumSource(org.qubership.integration.platform.ai.plan.RequirementCaptureInput.HttpMode.class)
+  void aSelectedHttpModeCannotBeAskedAsMissing(
+      org.qubership.integration.platform.ai.plan.RequirementCaptureInput.HttpMode mode) {
+    var input = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput(
+        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FlowInput(List.of(
+            new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.InteractionInput("entry",
+                RequirementFlow.Direction.INBOUND, null, null, null, null, null)), List.of()),
+        List.of(), List.of(new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.CapabilityInput(
+            "entry", "http-trigger", mode, null, null, null, null, null)), List.of(),
+        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftSettings(false, null));
+    var facts = org.qubership.integration.platform.ai.plan.RequirementCaptureProjection.facts(input, java.util.Map.of());
+    var findings = new ArrayList<String>();
+
+    AuthorQuestionAdmission.validate(new AuthorQuestionEvidence("entry", "httpMode",
+        AuthorQuestionEvidence.Kind.MISSING_VALUE, List.of("source")), facts, RequirementFlow.EMPTY,
+        List.of(), Set.of("source"), Set.of(), true, findings);
+
+    assertEquals(1, findings.size(), findings.toString());
+  }
+
   @Test
   void ambiguityRequiresThePinnedTurnQuoteAndTwoDistinctCandidates() {
     String answer = "Use either https://one.example or https://two.example";

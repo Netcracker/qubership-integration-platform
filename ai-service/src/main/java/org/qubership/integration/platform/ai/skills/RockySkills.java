@@ -12,11 +12,11 @@ import java.util.HexFormat;
 import java.util.Map;
 import java.util.Set;
 
-/** Enables CREATE and EDIT only when their complete private instruction package is installed. */
+/** Loads the instructions required to enable chain creation and editing. */
 @ApplicationScoped
 public class RockySkills {
   public static final String UNAVAILABLE =
-      "CREATE and EDIT require the private rocky-skills package. Other Rocky features remain available.";
+      "Chain creation and editing are unavailable in Rocky.";
   private static final String ROOT = "META-INF/rocky-skills/";
   private static final Set<String> REQUIRED = Set.of(
       "brainstorming", "cip-chain-edit-planner", "cip-conf-requirement-analysis", "cip-conf-semantic-design");

@@ -24,6 +24,7 @@ import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCall
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.plan.RequirementFlowValidator.LookupAction;
+import org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
@@ -57,7 +58,7 @@ class CreateChainTriggerSenderPipelineMatrixTest {
 
   private static final String INBOUND_ID = "entry-1";
   private static final String OUTBOUND_ID = "send-1";
-  private static final String SCRIPT_FACT_ID = "fact-script";
+  private static final String SCRIPT_FACT_ID = "supplied-op-script";
   private final ObjectMapper objectMapper = new ObjectMapper();
   private final DeterministicElementSchemaService schemaService =
       DeterministicElementSchemaService.createForUnitTests(objectMapper);
@@ -228,12 +229,8 @@ class CreateChainTriggerSenderPipelineMatrixTest {
             List.of());
     RequirementFact triggerFact = capabilityFact(INBOUND_ID, triggerType, "Start with " + triggerType);
     RequirementFact scriptFact =
-        new RequirementFact(
-            SCRIPT_FACT_ID,
-            RequirementFactPolarity.POSITIVE,
-            RequirementFactKind.BEHAVIOR,
-            "",
-            "Prepare the response");
+        ScriptAuthorityTestFixtures.suppliedFact(
+            "op-script", "exchange.message.body = 'accepted'");
     RequirementBrief brief =
         brief(
             flow,
@@ -298,12 +295,8 @@ class CreateChainTriggerSenderPipelineMatrixTest {
             "POST",
             "/orders");
     RequirementFact scriptFact =
-        new RequirementFact(
-            SCRIPT_FACT_ID,
-            RequirementFactPolarity.POSITIVE,
-            RequirementFactKind.BEHAVIOR,
-            "",
-            "Prepare the response");
+        ScriptAuthorityTestFixtures.suppliedFact(
+            "op-script", "exchange.message.body = 'accepted'");
     return brief(
         flow,
         List.of(triggerFact, scriptFact),
@@ -337,12 +330,8 @@ class CreateChainTriggerSenderPipelineMatrixTest {
             "GET",
             "");
     RequirementFact scriptFact =
-        new RequirementFact(
-            SCRIPT_FACT_ID,
-            RequirementFactPolarity.POSITIVE,
-            RequirementFactKind.BEHAVIOR,
-            "",
-            "Prepare the response");
+        ScriptAuthorityTestFixtures.suppliedFact(
+            "op-script", "exchange.message.body = 'accepted'");
     return brief(
         flow,
         List.of(triggerFact, scriptFact),
@@ -385,12 +374,8 @@ class CreateChainTriggerSenderPipelineMatrixTest {
             "",
             "consume-om");
     RequirementFact scriptFact =
-        new RequirementFact(
-            SCRIPT_FACT_ID,
-            RequirementFactPolarity.POSITIVE,
-            RequirementFactKind.BEHAVIOR,
-            "",
-            "Prepare the response");
+        ScriptAuthorityTestFixtures.suppliedFact(
+            "op-script", "exchange.message.body = 'accepted'");
     return brief(
         flow,
         List.of(consumeFact, scriptFact),
@@ -644,7 +629,7 @@ class CreateChainTriggerSenderPipelineMatrixTest {
         List.of(),
         "Matrix chain",
         "draft-1",
-        "draft",
+        "exchange.message.body = 'accepted'",
         facts,
         entryPoints,
         serviceCalls,

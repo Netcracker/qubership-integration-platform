@@ -7,7 +7,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationMessage;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 
@@ -45,6 +49,79 @@ class AuthorSourceEvidenceTest {
     assertTrue(original.length() > 2_000);
     assertEquals(packet, AuthorSourceEvidence.packet(document), "Rendering must not mutate durable source or consumption.");
     assertEquals(document, archive.read(chat));
+  }
+
+  static Stream<Arguments> approvalSources() {
+    return Stream.of(
+        Arguments.of("approve", "catalog-operation-version", "", List.of("Approved catalog-operation-version manually-authored")),
+        Arguments.of("approve", "implementation-plan", "  ", List.of("Approved catalog-operation-version manually-authored")),
+        Arguments.of("approve-and-create", "implementation-plan", "", List.of("Approved catalog-operation-version manually-authored")),
+        Arguments.of("approve", "catalog-operation-version", "  Keep \"1.0.0\" selected.\n", List.of(
+            "Approved catalog-operation-version manually-authored", "  Keep \"1.0.0\" selected.\n")),
+        Arguments.of("approve", "implementation-plan", "Keep the exact business condition.", List.of(
+            "Approved catalog-operation-version manually-authored", "Keep the exact business condition.")));
+  }
+
+  @ParameterizedTest
+  @MethodSource("approvalSources")
+  void approvalProtocolDoesNotBecomeAuthoredRequirements(
+      String action, String artifactType, String comment, List<String> expectedText) {
+    var conversations = new ConversationService();
+    var archive = conversations.archive();
+    String chat = "approval-source";
+    String authored = "Approved catalog-operation-version manually-authored";
+    var ordinary = archive.beginInput(chat, authored, null);
+    archive.resolveInput(chat, ordinary, authored);
+    var command = new org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand();
+    command.setAction(action);
+    command.setArtifactType(artifactType);
+    command.setArtifactHash("confirmed-artifact");
+    command.setComment(comment);
+    var approval = archive.beginInput(chat, "", null);
+    archive.resolveInput(chat, approval,
+        org.qubership.integration.platform.ai.chat.service.ChatDecisionService.transcriptMarker(command),
+        new ObjectMapper().valueToTree(command));
+    var document = archive.read(chat);
+
+    assertEquals(expectedText, AuthorSourceEvidence.authoredPacket(document).inputs().stream()
+        .map(AuthorSourceEvidence.Input::text).toList());
+    assertEquals(List.of(ordinary.turnId(), approval.turnId()), AuthorSourceEvidence.packet(document).inputs().stream()
+        .map(AuthorSourceEvidence.Input::sourceTurnId).toList());
+    assertEquals(document, archive.read(chat));
+    assertEquals(approval.turnId(),
+        org.qubership.integration.platform.ai.chat.conversation.ConversationArchive.latestInputId(document));
+    assertEquals(document.generation(), AuthorSourceEvidence.packet(document).generation());
+  }
+
+  @Test
+  void anExistingArchiveRetainsItsPreupgradeCompletePacketAndHash() {
+    String comment = "  Keep \"1.0.0\" selected.\n";
+    String archivedText = "Approved catalog-operation-version confirmed-artifact\n\nKeep \"1.0.0\" selected.";
+    var metadata = new ObjectMapper().createObjectNode();
+    metadata.putObject("resolvedDecision").put("action", "approve").put("comment", comment);
+    var turn = new org.qubership.integration.platform.ai.chat.conversation.ConversationArchive.Turn(
+        "prior-approval", ConversationMessage.user(archivedText), "", metadata, "READY", null);
+    var document = new org.qubership.integration.platform.ai.chat.conversation.ConversationArchive.Document(
+        1, "existing-generation", List.of(turn), List.of("prior-approval"), List.of(), List.of());
+    var previousPacket = new AuthorSourceEvidence.Packet("existing-generation", List.of(
+        new AuthorSourceEvidence.Input("prior-approval", archivedText)));
+
+    assertEquals(previousPacket, AuthorSourceEvidence.packet(document));
+    assertEquals("62808d9ce54ffe9da6f43ce98575c716531ea1266916ee6aa87da507402e04b5",
+        org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(AuthorSourceEvidence.packet(document)));
+    assertEquals(List.of(new AuthorSourceEvidence.Input("prior-approval", comment)),
+        AuthorSourceEvidence.authoredPacket(document).inputs());
+  }
+
+  @ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"", "  "})
+  void emptyOrdinaryAuthorTurnsRemainSourceEvidence(String authored) {
+    var archive = new ConversationService().archive();
+    var input = archive.beginInput("empty-author-source", authored, null);
+    archive.resolveInput("empty-author-source", input, authored);
+
+    assertEquals(List.of(new AuthorSourceEvidence.Input(input.turnId(), authored)),
+        AuthorSourceEvidence.packet(archive.read("empty-author-source")).inputs());
   }
 
   @Test

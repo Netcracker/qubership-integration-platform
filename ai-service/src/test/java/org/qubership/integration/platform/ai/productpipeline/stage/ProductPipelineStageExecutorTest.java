@@ -248,8 +248,9 @@ class ProductPipelineStageExecutorTest {
     assertEquals(1, cleanAttempts());
   }
 
-  @Test
-  void repeatedDiscoveryCaptureWithoutCandidateRegeneratesFromSavedInput() {
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void repeatedDiscoveryCaptureWithoutCandidateRegeneratesFromSavedInput(boolean validDiagnosis) {
     var input = new ArtifactTypeRef("user-input", 1);
     var profile = new ProductPipelineProfile(1, "discovery-repeat", "1", List.of(input), List.of(
         new ProfileStage("preparation", "preparation-cap", List.of(input), List.of(), null, null, new RetryPolicy(0, 0L)),
@@ -284,8 +285,8 @@ class ProductPipelineStageExecutorTest {
           "Missing field.", RecoveryCause.captureFailure(store.lastPlanFailure(CONVERSATION).orElseThrow(),
               List.of(new PlanValidationFinding("CONTRACT_SHAPE", "Missing field.", true)), null))));
     });
-    var agent = FakeFailureNarrativeAgent.narrates("Missing field.")
-        .recoverRegenerates(Kind.REQUIREMENT_DRAFT, "Regenerate the requirements.");
+    var agent = FakeFailureNarrativeAgent.narrates("Missing field.");
+    if (validDiagnosis) agent.recoverRegenerates(Kind.REQUIREMENT_DRAFT, "Regenerate the requirements.");
     var runtime = newRuntime(new FailureNarrative(agent), profile, preparation, discovery);
     runtime.startOrResume(new StartOrResumeCommand(CONVERSATION, RUN_ID, profile, manifest(profile)))
         .collect().asList().await().indefinitely();
@@ -299,6 +300,67 @@ class ProductPipelineStageExecutorTest {
     assertInstanceOf(StageDecision.Complete.class, execute(runtime, "requirement-discovery").decision());
     assertEquals(List.of(false, true), clean);
     assertEquals(1, cleanAttempts());
+  }
+
+  @ParameterizedTest
+  @org.junit.jupiter.params.provider.CsvSource({"matching,true", "code,false", "origin,false", "pointer,false"})
+  void partialDiscoveryContinuesWithoutDiagnosisOnlyForItsSavedPendingWork(
+      String changedField, boolean matchesSavedWork) {
+    var store = new org.qubership.integration.platform.ai.plan.RequirementDraftStore();
+    var authored = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput(
+        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FlowInput(List.of(
+            new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.InteractionInput("call",
+                org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction.OUTBOUND,
+                "Inventory", "getInventory", null, null, null)), List.of()),
+        List.of(new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput("goal", List.of("call"),
+            org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactKind.GOAL,
+            org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polarity.POSITIVE, "Read inventory.")),
+        List.of(), List.of(), new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftSettings(false, null));
+    var partial = org.qubership.integration.platform.ai.plan.RequirementCaptureProjection.toDraft(
+        authored, null, List.of(), "1", "hash");
+    var calls = new AtomicInteger();
+    var discovery = new org.qubership.integration.platform.ai.productpipeline.create.RequirementDiscoveryCapability(
+        null, store, (chat, text) -> {
+          if (calls.incrementAndGet() == 1) store.put(chat, partial);
+          assertEquals(partial, store.get(chat).orElseThrow());
+          store.markCaptured(chat);
+          store.finishTurn(chat, org.qubership.integration.platform.ai.plan.RequirementDiscoveryDirective.CONTINUE);
+          return Multi.createFrom().empty();
+        }, null);
+    var observed = capability("requirement-discovery", context -> discovery.execute(context).onItem().transform(signal -> {
+      if (signal instanceof CapabilitySignal.Completed completed) {
+        var findings = completed.outcome().recoveryCause().findings().stream().map(finding ->
+            new PlanValidationFinding("code".equals(changedField) ? "OTHER_PENDING_WORK" : finding.code(),
+                finding.message(), finding.blocker(), finding.mappingDetails(),
+                "origin".equals(changedField) ? "other" : finding.originRecordId(),
+                "pointer".equals(changedField) ? "/interactions/other" : finding.fieldPointer())).toList();
+        return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
+            completed.outcome().message(), new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, findings, "")));
+      }
+      return signal;
+    }));
+    var input = new ArtifactTypeRef("user-input", 1);
+    var profile = new ProductPipelineProfile(1, "partial-discovery", "2", List.of(input), List.of(
+        new ProfileStage("requirement-discovery", "requirement-discovery", List.of(input),
+            List.of(new ArtifactTypeRef("requirement-draft", 1)), null, null, new RetryPolicy(0, 0L))),
+        new TerminalPolicy("requirement-discovery", "PLAN_APPROVED"), List.of("requirement-discovery"));
+    var agent = FakeFailureNarrativeAgent.narrates("Continue saved work.");
+    var runtime = newRuntime(new FailureNarrative(agent), profile, observed);
+    runtime.support().withNativeRequirementCapture(store, null);
+    startAndRecordInput(runtime, profile);
+
+    var first = execute(runtime, "requirement-discovery");
+    assertInstanceOf(StageDecision.Retry.class, first.decision());
+    applyLifecycle(runtime, first);
+    var second = execute(runtime, "requirement-discovery");
+    assertInstanceOf(StageDecision.Retry.class, second.decision());
+    applyLifecycle(runtime, second);
+    assertInstanceOf(StageDecision.Retry.class, execute(runtime, "requirement-discovery").decision());
+    assertEquals(3, calls.get());
+    assertEquals(partial, store.get(CONVERSATION).orElseThrow());
+    assertEquals(matchesSavedWork, agent.lastRecoveryContextJson.get() == null);
+    assertEquals(2, requireRun().transitions().stream().filter(transition -> transition.reason() != null
+        && transition.reason().startsWith(RecoveryAttemptLedger.SETTLED_ATTEMPT_REASON_PREFIX)).count());
   }
 
   /**
@@ -338,8 +400,8 @@ class ProductPipelineStageExecutorTest {
           "Missing field.", RecoveryCause.captureFailure(store.lastPlanFailure(CONVERSATION).orElseThrow(),
               List.of(new PlanValidationFinding("CONTRACT_SHAPE", "Missing field.", true)), null))));
     });
-    var agent = FakeFailureNarrativeAgent.narrates("Missing field.")
-        .recoverRegenerates(Kind.REQUIREMENT_DRAFT, "Regenerate the requirements.");
+    var agent = FakeFailureNarrativeAgent.narrates("Missing field.");
+    agent.recoverRegenerates(Kind.REQUIREMENT_DRAFT, "Regenerate the requirements.");
     var runtime = newRuntime(new FailureNarrative(agent), new RecoveryAttemptLedger(), null, preparation, discovery);
     runtime.startOrResume(new StartOrResumeCommand(CONVERSATION, RUN_ID, profile, manifest(profile)))
         .collect().asList().await().indefinitely();
@@ -542,8 +604,8 @@ class ProductPipelineStageExecutorTest {
 
   @ParameterizedTest
   @org.junit.jupiter.params.provider.EnumSource(value = org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass.class,
-      names = {"IDENTICAL_SPAM", "PERMANENT", "TOOL_ARGUMENTS", "ACCEPTED", "DUPLICATE"})
-  void nativeCaptureDenialWithoutValidDiagnosisParks(
+      names = {"PERMANENT", "TOOL_ARGUMENTS", "ACCEPTED", "DUPLICATE"})
+  void closedNativeCaptureWithoutValidDiagnosisParks(
       org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass failureClass) {
     var clean = new ArrayList<Boolean>();
     var pinnedInputs = new AtomicReference<List<Reference>>();
@@ -597,8 +659,9 @@ class ProductPipelineStageExecutorTest {
   }
 
   @ParameterizedTest
-  @ValueSource(ints = {0, 1, 2})
-  void permittedNativeCaptureSpendsOneOuterCorrectionWithoutUsingExtraStageCredits(int cleanLimit) {
+  @org.junit.jupiter.params.provider.CsvSource({"0,0,1", "1,1,0", "2,1,0"})
+  void permittedNativeCaptureSwitchesStrategyAfterItsOuterCorrection(
+      int cleanLimit, int expectedCleanReservations, int expectedGrantReservations) {
     var original = analysisThenPlanningThenExecutionProfile();
     var stages = original.stages().stream().map(stage -> "design-execution".equals(stage.stageId())
         ? new ProfileStage(stage.stageId(), stage.capabilityId(), stage.consumes(),
@@ -642,8 +705,7 @@ class ProductPipelineStageExecutorTest {
     assertInstanceOf(StageDecision.Retry.class, first.decision());
     applyLifecycle(runtime, first);
     var second = execute(runtime, "design-execution");
-    var wait = assertInstanceOf(StageDecision.WaitForInput.class, second.decision());
-    assertEquals(PipelineGates.RECOVERY_REPEATED, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertInstanceOf(StageDecision.Retry.class, second.decision());
     assertEquals(List.of(false, false), clean);
     var evidence = artifactStore.payload(artifactStore.latest(RUN_ID, Kind.RECOVERY_EVIDENCE).orElseThrow(),
         RecoveryEvidence.class);
@@ -651,9 +713,9 @@ class ProductPipelineStageExecutorTest {
     assertFalse(evidence.captureFailure().feedback().outerAllowed());
     assertEquals(1, requireRun().transitions().stream().filter(t -> t.reason() != null
         && t.reason().startsWith(ProductPipelineStageExecutor.PRODUCER_REPAIR_REASON_PREFIX)).count());
-    assertEquals(0, requireRun().transitions().stream().filter(t -> t.reason() != null
-        && (t.reason().startsWith(RecoveryAttemptLedger.CLEAN_REBUILD_REASON_PREFIX)
-            || t.reason().startsWith(RecoveryAttemptLedger.GRANT_REASON_PREFIX))).count());
+    assertEquals(expectedCleanReservations, cleanAttempts());
+    assertEquals(expectedGrantReservations, requireRun().transitions().stream().filter(t -> t.reason() != null
+        && t.reason().startsWith(RecoveryAttemptLedger.GRANT_REASON_PREFIX)).count());
   }
 
   @Test
@@ -4950,6 +5012,47 @@ class ProductPipelineStageExecutorTest {
     assertEquals(2, history.split("has 0 child", -1).length - 1, history);
   }
 
+  @ParameterizedTest
+  @org.junit.jupiter.params.provider.CsvSource({
+      "approve,false,'',2",
+      "approve-and-create,false,'',2",
+      "approve,true,'',1",
+      "approve,false,Change the path to /orders-v2,1"
+  })
+  void planApprovalsPreserveReopenHistoryUnlessTheAuthorChangesRequirements(
+      String action, boolean newAuthorInput, String comment, int expectedRejections) {
+    List<String> histories = new ArrayList<>();
+    var runtime = graphStructureRun(histories, true);
+    var archive = attachAuthorSources(runtime, "Create the orders integration");
+    var mapper = new ObjectMapper();
+    var approval = archive.beginInput(CONVERSATION, "Approve", null);
+    archive.resolveInput(CONVERSATION, approval, "Approve", mapper.valueToTree(
+        Map.of("action", action, "comment", "")));
+    approveStage(runtime, "design-planning");
+    var first = execute(runtime, "design-execution");
+    assertEquals("design-input", assertInstanceOf(StageDecision.ReopenProducer.class, first.decision(),
+        () -> first.decision().toString()).producerStageId());
+    applyLifecycle(runtime, first);
+    applyLifecycle(runtime, execute(runtime, "design-input"));
+
+    var nextApproval = archive.beginInput(CONVERSATION, "Approve", null);
+    archive.resolveInput(CONVERSATION, nextApproval, "Approve", mapper.valueToTree(
+        Map.of("action", action, "comment", comment)));
+    approveStage(runtime, "design-planning");
+    if (newAuthorInput) {
+      var correction = archive.beginInput(CONVERSATION, "Change the path to /orders-v2", null);
+      archive.resolveInput(CONVERSATION, correction, "Change the path to /orders-v2");
+    }
+    var second = execute(runtime, "design-execution");
+    assertEquals("design-input", assertInstanceOf(StageDecision.ReopenProducer.class, second.decision(),
+        () -> second.decision().toString()).producerStageId());
+    applyLifecycle(runtime, second);
+    execute(runtime, "design-input");
+
+    String history = histories.getLast();
+    assertEquals(expectedRejections, history.split("has 0 child", -1).length - 1, history);
+  }
+
   /**
    * Once the defect has used both automatic reopens of design-input, the run stops on a card that still offers
    * Retry creation.
@@ -4979,6 +5082,10 @@ class ProductPipelineStageExecutorTest {
    * runtime once design-input has run.
    */
   private CreateChainTestOrchestrator graphStructureRun(List<String> histories) {
+    return graphStructureRun(histories, false);
+  }
+
+  private CreateChainTestOrchestrator graphStructureRun(List<String> histories, boolean planApproval) {
     ArtifactTypeRef revision = new ArtifactTypeRef("chain-semantic-revision", 1);
     StageCapability designInput = capability("design-input-cap", context -> {
       histories.add(context.attributeAsString(StageRepairEvidence.REPAIR_HISTORY_ATTR));
@@ -4990,16 +5097,22 @@ class ProductPipelineStageExecutorTest {
         new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
             "condition role if has 0 child; the contract requires at least 1 (cardinality)",
             RecoveryCause.of(RecoveryCauseCode.GRAPH_STRUCTURE)))));
+    var plan = new ArtifactTypeRef("implementation-plan", 1);
+    List<ProfileStage> stages = new ArrayList<>();
+    stages.add(new ProfileStage("design-input", "design-input-cap", List.of(new ArtifactTypeRef("user-input", 1)),
+        List.of(revision), null, null, new RetryPolicy(0, 1L)));
+    if (planApproval) {
+      stages.add(new ProfileStage("design-planning", "planning-cap", List.of(revision), List.of(plan),
+          new ApprovalPolicy(plan), null, new RetryPolicy(0, 1L)));
+    }
+    stages.add(new ProfileStage("design-execution", "execution-cap",
+        planApproval ? List.of(revision, plan) : List.of(revision),
+        List.of(new ArtifactTypeRef("chain-plan-graph", 1)), null, null, new RetryPolicy(0, 1L)));
     ProductPipelineProfile profile = new ProductPipelineProfile(1, "graph-structure-recovery", "2",
-        List.of(new ArtifactTypeRef("user-input", 1)),
-        List.of(
-            new ProfileStage("design-input", "design-input-cap", List.of(new ArtifactTypeRef("user-input", 1)),
-                List.of(revision), null, null, new RetryPolicy(0, 1L)),
-            new ProfileStage("design-execution", "execution-cap", List.of(revision),
-                List.of(new ArtifactTypeRef("chain-plan-graph", 1)), null, null, new RetryPolicy(0, 1L))),
+        List.of(new ArtifactTypeRef("user-input", 1)), stages,
         new TerminalPolicy("design-execution", "CHAIN_MATERIALIZED"),
-        List.of("design-input", "design-execution"));
-    CreateChainTestOrchestrator runtime = newRuntime(profile, designInput, execution);
+        stages.stream().map(ProfileStage::stageId).toList());
+    CreateChainTestOrchestrator runtime = newRuntime(profile, designInput, planningAlwaysCandidate(), execution);
     startAndRecordInput(runtime, profile);
     applyLifecycle(runtime, execute(runtime, "design-input"));
     return runtime;
@@ -7544,7 +7657,8 @@ class ProductPipelineStageExecutorTest {
     return narrative;
   }
 
-  private static void attachAuthorSources(CreateChainTestOrchestrator runtime, String... texts) {
+  private static org.qubership.integration.platform.ai.chat.conversation.ConversationArchive attachAuthorSources(
+      CreateChainTestOrchestrator runtime, String... texts) {
     var archive = new org.qubership.integration.platform.ai.chat.conversation.ConversationArchive(
         new InMemoryArtifactBlobStore(), new ObjectMapper().findAndRegisterModules());
     for (String text : texts) {
@@ -7554,6 +7668,7 @@ class ProductPipelineStageExecutorTest {
     var conversations = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.chat.conversation.ConversationService.class);
     org.mockito.Mockito.when(conversations.archive()).thenReturn(archive);
     ((ProductPipelineStageExecutor) runtime.stageExecutor()).withConversations(conversations);
+    return archive;
   }
 
   @Test

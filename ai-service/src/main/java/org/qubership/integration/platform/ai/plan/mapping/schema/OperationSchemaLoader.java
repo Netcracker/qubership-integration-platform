@@ -5,6 +5,11 @@ public interface OperationSchemaLoader {
 
   OperationSchemaMaps load(String operationId);
 
+  /** Returns the current catalog snapshot; caching adapters must refresh their stored value. */
+  default OperationSchemaMaps loadFresh(String operationId) {
+    return load(operationId);
+  }
+
   MappingSchemaSide persistRequest(
       String compilationId, String serviceCallId, String operationId, String contentType);
 

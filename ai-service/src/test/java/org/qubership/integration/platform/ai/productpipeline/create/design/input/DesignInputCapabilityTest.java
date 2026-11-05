@@ -175,7 +175,7 @@ class DesignInputCapabilityTest {
                     "ignored agent prose after the tool call",
                     "requirementBrief",
                     ChainSemanticCaptureFixtures.approvedBrief())));
-    assertEquals(StageOutcomeClass.SUCCEEDED, prepared.outcomeClass());
+    assertEquals(StageOutcomeClass.SUCCEEDED, prepared.outcomeClass(), prepared.message());
     assertEquals(Set.of(Kind.CHAIN_SEMANTIC_REVISION, Kind.IDS_DOCUMENT), kinds(prepared));
     ChainSemanticRevision revision = semanticPayload(prepared);
     IdsDocument ids = idsPayload(prepared);
@@ -246,7 +246,7 @@ class DesignInputCapabilityTest {
         outcome(
             capturingCapability(),
             context("design-input", Map.of("requirementBrief", brief)));
-    assertEquals(StageOutcomeClass.SUCCEEDED, prepared.outcomeClass());
+    assertEquals(StageOutcomeClass.SUCCEEDED, prepared.outcomeClass(), prepared.message());
     assertEquals(
         Set.of(Kind.CHAIN_SEMANTIC_REVISION, Kind.IDS_DOCUMENT), kinds(prepared));
     String markdown = idsPayload(prepared).markdown();
@@ -307,6 +307,13 @@ class DesignInputCapabilityTest {
     assertTrue(prompt.contains("nodeId=http-in"), prompt);
     assertTrue(prompt.contains("nodeId=call-1"), prompt);
     assertTrue(prompt.contains("commandType=completeTask"), prompt);
+    org.junit.jupiter.api.Assertions.assertAll("script authority in rendered design instructions",
+        () -> assertTrue(prompt.contains("Every script needs its own admitted typed mapping"), prompt),
+        () -> assertTrue(prompt.contains("exact source-bound supplied body"), prompt),
+        () -> assertTrue(prompt.contains("report the unsupported requirement instead of generating"), prompt),
+        () -> assertTrue(prompt.contains("native compiler derives context retention"), prompt),
+        () -> assertFalse(prompt.contains("or an ErrorScope requires a script"), prompt),
+        () -> assertFalse(prompt.contains("is a behavior-owned script"), prompt));
     assertTrue(prompt.contains("Do not mint a mapping id"), prompt);
     assertTrue(prompt.contains("reuse container is a standalone subtree"), prompt);
     assertTrue(prompt.contains("role=body"), prompt);
@@ -432,6 +439,7 @@ class DesignInputCapabilityTest {
                 Map.of(
                     "requirementBrief",
                     ChainSemanticCaptureFixtures.approvedBrief())));
+    assertEquals(StageOutcomeClass.SUCCEEDED, prepared.outcomeClass(), prepared.message());
     ChainSemanticRevision stored = semanticPayload(prepared);
     IdsDocument ids = idsPayload(prepared);
     String digest = CanonicalPayloadHash.sha256Hex(stored);
@@ -460,6 +468,7 @@ class DesignInputCapabilityTest {
                 Map.of(
                     "requirementBrief",
                     ChainSemanticCaptureFixtures.approvedBrief())));
+    assertEquals(StageOutcomeClass.SUCCEEDED, prepared.outcomeClass(), prepared.message());
     ChainSemanticRevision stored = semanticPayload(prepared);
     String digest = CanonicalPayloadHash.sha256Hex(stored);
     IdsDocument edited =
@@ -621,6 +630,9 @@ class DesignInputCapabilityTest {
     assertTrue(prompt.contains("Treat onTaskResult as a Kafka produce, not a trigger"));
     assertTrue(prompt.contains("Rebuild the topology so this rejection cannot recur"));
     assertTrue(prompt.contains("Preserve the approved element placements"));
+    assertTrue(prompt.contains(
+        "If it returns REPAIR_CAPTURE, correct the listed issues and call it again."), prompt);
+    assertFalse(prompt.contains("Call captureChainSemanticRevision once."), prompt);
     assertTrue(prompt.contains("Preserve every approved branch decision and outcome"), prompt);
     assertFalse(prompt.contains("OM to Salesforce WFM original request"));
   }

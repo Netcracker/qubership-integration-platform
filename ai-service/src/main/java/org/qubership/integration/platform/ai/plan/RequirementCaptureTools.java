@@ -32,6 +32,7 @@ import org.qubership.integration.platform.ai.productpipeline.recovery.Requiremen
 import org.qubership.integration.platform.ai.productpipeline.capability.CaptureFailureEvidence;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.logging.ToolTraceLog;
+import org.qubership.integration.platform.ai.schema.ChainElementFamilies;
 
 /** Model-facing requirement tools backed by one accepted server-owned draft. */
 @ApplicationScoped
@@ -128,11 +129,12 @@ public class RequirementCaptureTools {
       A new claim requires evidence: sourceTurnId and an exact quote from that user turn.
       The quote must be an exact substring of the named turn. A fact already in the saved
       semantic baseline, and a legacy accepted fact, may omit the quote.
-      For a field adaptation across a direct transition, record one FIELD_MAPPING fact per target
-      field. Include both endpoints in interactionIds and exact field paths in fieldMapping.
-      Retain earlier event fields through BEHAVIOR naming their source and save-before-call timing.
-      Also map every result field on its adjacent delivery transition with sourcePath null and an
-      expression explicitly reading the saved original field. Do not copy it from the call response.
+      For a field adaptation, record one FIELD_MAPPING fact per target field. The adjacent execution
+      transition is fieldMapping.sourceInteractionId to fieldMapping.targetInteractionId; include both in interactionIds.
+      For COPY, set fieldMapping.value.operation to COPY and value.source.kind to MESSAGE.
+      Set source.interactionId, source.port, and source.path to the exact original message field,
+      including an earlier event when that is the author-approved source. Keep sourcePath and expression null with value.
+      The compiler derives retention before body replacement from the typed origin and execution transition.
       Named catalog outbound operations have no native capability entry; resolve them after capture.
       When nextAction is RUN_IMPORT, finish with CONTINUE to import uploaded specs before binding.
       Capture explicit HTTP trigger accessControlType and roles in ANCHOR elementIntent requestedProperties.
@@ -180,6 +182,8 @@ public class RequirementCaptureTools {
       Deleting or changing claim text or polarity requires a new source-linked amendment.
       Kind, interaction IDs, mapping, element placement, and exact values stay fixed on an
       accepted draft unless an amendment or a server repair path covers that change.
+      When correcting BUSINESS_ANCHOR_REQUIRED, keep the saved evidence and interactionIds.
+      Use the reported anchor ID for the placement correction and affected references.
       A new author message permits only its explicit amendments. For each changed accepted
       value, supply amendments with path, sourceTurnId, and the exact quote authorizing that change.
       Paths use stable IDs, such as /facts/goal/text, /facts/goal for removal, /capabilities/entry/path,
@@ -415,8 +419,9 @@ public class RequirementCaptureTools {
   }
 
   private RequirementCaptureResult publish(
-      String conversationId, DraftInput input, RequirementDraft previous, DraftUpdate changes, List<Issue> editIssues) {
-    if (input == null) return reject(conversationId, previous, editIssues);
+      String conversationId, DraftInput rawInput, RequirementDraft previous, DraftUpdate changes, List<Issue> editIssues) {
+    if (rawInput == null) return reject(conversationId, previous, editIssues);
+    DraftInput input = editIssues.isEmpty() ? RequirementCaptureProjection.withCopyPolicies(rawInput) : rawInput;
     Issue folderIssue = input.settings() == null ? null : ambiguousFolder(input, previous,
         previous == null ? "/draft/settings/targetFolderPath" : "/changes/settings/targetFolderPath");
     if (folderIssue != null && editIssues.isEmpty()) return view(previous, false, false, List.of(folderIssue));
@@ -451,7 +456,7 @@ public class RequirementCaptureTools {
     if (!consistency.isEmpty()) {
       return view(previous, false, false, withPreservedFacts(consistency, previous));
     }
-    DraftInput admitted = input;
+    DraftInput admitted = RequirementCaptureProjection.withCopyPolicies(input);
     RequirementDraft draft = RequirementCaptureProjection.toDraft(
         admitted, previous, bindings,
         legacyBindingAdapter.sourceSkillVersion(conversationId),
@@ -802,8 +807,10 @@ public class RequirementCaptureTools {
                 .filter(fact -> Objects.equals(fact.sourceFactId(), issue.entityId())).toList())
             + ". Null does not instruct you to clear an accepted value. Retain accepted values;"
             + " correct only reported invalid fields or explicitly authorized amendments."
-            + " During automatic repair, keep accepted elementIntent unchanged. Add extra source-backed settings through addFacts"
-            + " on the same elementRef, rather than updating its accepted fact."))
+            + ("BUSINESS_ANCHOR_REQUIRED".equals(issue.code())
+                ? " Preserve the saved evidence, interaction IDs, and other accepted values during anchor repair."
+                : " During automatic repair, keep accepted elementIntent unchanged outside authorized repair paths."
+                    + " Add extra source-backed settings through addFacts on the same elementRef.")))
         .toList();
   }
 
@@ -815,6 +822,28 @@ public class RequirementCaptureTools {
     }
     String interaction = clarification.pinnedQuestion().evidence().interactionId();
     String property = clarification.pinnedQuestion().evidence().propertyKey();
+    if ("httpMode".equals(property)) {
+      boolean httpTrigger = input.capabilities().stream().anyMatch(capability ->
+          interaction.equals(capability.interactionId()) && "http-trigger".equals(capability.capabilityKey()));
+      return value -> httpTrigger && java.util.Arrays.stream(RequirementCaptureInput.HttpMode.values())
+          .anyMatch(mode -> mode.name().equals(value));
+    }
+    if ("capabilityKey".equals(property)) {
+      var direction = input.flow().interactions().stream()
+          .filter(candidate -> interaction.equals(candidate.interactionId()))
+          .map(RequirementCaptureInput.InteractionInput::direction).filter(Objects::nonNull).findFirst().orElse(null);
+      return value -> {
+        boolean inbound = direction == org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction.INBOUND;
+        boolean supported = inbound
+            ? ChainElementFamilies.TRIGGERS.contains(value)
+            : direction != null && (ChainElementFamilies.SENDERS.contains(value)
+                || ChainElementFamilies.FILE_TRANSFER.contains(value)
+                || "chain-call-2".equals(value));
+        return supported && elementSchemas.hasElementSchema(value)
+            && ("chain-call-2".equals(value) || ChainElementFamilies.bindingMode(value)
+                != ChainElementFamilies.BindingMode.UNSUPPORTED_IN_CREATE);
+      };
+    }
     var facts = input.facts() == null ? List.<FactInput>of() : input.facts();
     var capabilities = input.capabilities() == null ? List.<RequirementCaptureInput.CapabilityInput>of()
         : input.capabilities();

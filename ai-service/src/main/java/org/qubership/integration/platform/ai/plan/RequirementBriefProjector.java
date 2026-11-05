@@ -36,7 +36,12 @@ public final class RequirementBriefProjector {
       var mapping = fact.fieldMapping();
       if (mapping == null) throw new IllegalArgumentException("Approved field mapping lacks structured fields.");
       mappings.add(new MappingIntent("", mapping.sourceInteractionId(), null, mapping.targetInteractionId(), null,
-          List.of(new MappingIntentRule(mapping.sourcePath(), mapping.targetPath(), mapping.expression())
+          List.of((mapping.value() == null
+              ? new MappingIntentRule(mapping.sourcePath(), mapping.targetPath(), mapping.expression())
+              : new MappingIntentRule("", List.of(),
+                  org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContract.canonicalPath(mapping.targetPath()),
+                  mapping.value(), null, null)
+                  .withMissingSourcePolicy(mapping.missingSourcePolicy()))
               .withRequirementIds(List.of(fact.sourceFactId()))), null));
     }
     return List.copyOf(mappings);
@@ -313,7 +318,8 @@ public final class RequirementBriefProjector {
         + '\0'
         + rule.targetPath()
         + '\0'
-        + (rule.expression() == null ? "" : rule.expression());
+        + (rule.expression() == null ? "" : rule.expression())
+        + '\0' + rule.value() + '\0' + rule.missingSourcePolicy();
   }
 
   private static Set<String> targetPathTokens(MappingIntent intent) {

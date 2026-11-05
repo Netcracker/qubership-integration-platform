@@ -8,7 +8,7 @@ import org.eclipse.microprofile.health.HealthCheckResponse;
 import org.eclipse.microprofile.health.Readiness;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 
-/** Requires public documentation and, when skills are installed, certified private knowledge. */
+/** Checks the documentation and knowledge required by the enabled features. */
 @Readiness
 @ApplicationScoped
 public class KnowledgeSidecarReadinessCheck implements HealthCheck {
@@ -29,8 +29,7 @@ public class KnowledgeSidecarReadinessCheck implements HealthCheck {
       var documentation = new SidecarKnowledgeClient(api).documentationManifest();
       if (!rockySkills.available()) {
         return HealthCheckResponse.named("knowledge-sidecar").up()
-            .withData("documentationChecksum", documentation.checksum())
-            .withData("privateKnowledgeRequired", false).build();
+            .withData("documentationChecksum", documentation.checksum()).build();
       }
       KnowledgeSidecarApi.HealthDto ready = api.ready();
       if (ready == null || !"ok".equalsIgnoreCase(ready.status())) {

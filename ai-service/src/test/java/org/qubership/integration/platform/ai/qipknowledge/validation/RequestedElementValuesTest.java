@@ -149,6 +149,26 @@ class RequestedElementValuesTest {
     assertEquals("Chain name: Http sender", graph.chain().name());
   }
 
+  @Test
+  void conflictingExplicitNamesRemainRejectedForTheSameSuppliedBody() {
+    var facts = org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures
+        .suppliedFactsWithSupplementaryMetadata("prepare", "return 'author'");
+    var original = facts.getLast().elementIntent();
+    var conflicting = new RequirementElementIntent(original.elementRef(), original.elementType(), original.placement(),
+        original.ownerInteractionId(), original.successorElementRef(), original.predecessorElementRef(),
+        original.parentElementRef(), "Conflicting name", original.requestedProperties(), original.exactValues(),
+        original.bodyBinding());
+    var brief = new org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief(
+        "Use the supplied body", List.of(), List.of(), List.of(), List.of(), "")
+        .withFacts(List.of(facts.getFirst(), fact("conflicting-name", conflicting)));
+
+    assertEquals(java.util.Optional.of("return 'author'"),
+        org.qubership.integration.platform.ai.plan.mapping.ScriptExecutionAuthority.declaredSuppliedBody(brief, "prepare"));
+    assertThrows(IllegalArgumentException.class, () -> RequestedElementValues.names(brief.facts()));
+    assertEquals("prepare", brief.facts().getFirst().elementIntent().requestedName());
+    assertEquals("Conflicting name", brief.facts().getLast().elementIntent().requestedName());
+  }
+
   private static RequirementFact fact(String id, RequirementElementIntent intent) {
     return new RequirementFact(id, RequirementFactPolarity.POSITIVE, RequirementFactKind.PARAMETER,
         "", "Explicit author values", "", "", "", "", "", "",

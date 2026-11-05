@@ -621,6 +621,8 @@ final class RequirementRevisionAdmission {
       candidate.facts().stream().filter(fact -> fact.policyConflict() != null
           && fact.policyConflict().decision() != null && canAnswer.test(fact))
           .forEach(fact -> allowed.add("/facts/" + fact.sourceFactId() + "/policyConflict"));
+      var anchorRepairs = callAnchorRepairPaths(base, candidate);
+      allowed.addAll(anchorRepairs);
       var expected = amended(base, candidate, allowed);
       issues.addAll(RequirementCaptureEditor.validatePolicyResponses(base, candidate, canAnswer).stream()
           .filter(issue -> !supersedesAnswer(base, candidate, authorPaths, issue.entityId())).toList());
@@ -642,6 +644,20 @@ final class RequirementRevisionAdmission {
         }
       }
       issues.addAll(RequirementCaptureEditor.validateFactPreservation(expected, candidate, mappingPaths));
+      if (!anchorRepairs.isEmpty()) {
+        var proposed = candidate.facts().stream().collect(java.util.stream.Collectors.toMap(
+            FactInput::sourceFactId, Function.identity()));
+        for (var fact : expected.facts()) {
+          String prefix = "/facts/" + fact.sourceFactId() + "/elementIntent/";
+          if (anchorRepairs.stream().noneMatch(path -> path.startsWith(prefix))) continue;
+          var updated = proposed.get(fact.sourceFactId());
+          if (updated != null && (!Objects.equals(fact.evidence(), updated.evidence())
+              || !fact.interactionIds().equals(updated.interactionIds()))) {
+            issues.add(new Issue("REPAIR_FACT_LOSS", "/changes/facts/" + fact.sourceFactId(), fact.sourceFactId(),
+                "Preserve the fact's source evidence and interaction IDs during anchor repair."));
+          }
+        }
+      }
       preserveValues(tree(expected).get("capabilities"), tree(candidate).get("capabilities"),
           "/capabilities", issues);
       preserveValues(tree(expected).get("settings"), tree(candidate).get("settings"), "/settings", issues);
@@ -719,6 +735,50 @@ final class RequirementRevisionAdmission {
     } catch (IllegalArgumentException malformed) {
       return false;
     }
+  }
+
+  private static Set<String> callAnchorRepairPaths(DraftInput base, DraftInput candidate) {
+    var interactions = base.flow().interactions().stream().map(InteractionInput::interactionId).toList();
+    var aliases = new LinkedHashMap<String, String>();
+    var paths = new java.util.LinkedHashSet<String>();
+    var proposed = tree(candidate).path("facts");
+    for (var fact : base.facts()) {
+      if (!RequirementCaptureEditor.isLocalServiceCall(fact)) continue;
+      var intent = fact.elementIntent();
+      String alias = intent.elementRef();
+      String owner = intent.ownerInteractionId();
+      if (alias == null || interactions.contains(alias) || !interactions.contains(owner)
+          || !fact.interactionIds().contains(owner) || !RequirementCaptureEditor.validFactId(fact.sourceFactId())) continue;
+      var updated = proposed.path(fact.sourceFactId()).path("elementIntent");
+      if (!owner.equals(updated.path("elementRef").asText())
+          || !owner.equals(updated.path("ownerInteractionId").asText())
+          || !"ANCHOR".equals(updated.path("placement").asText())) continue;
+      String path = "/facts/" + fact.sourceFactId() + "/elementIntent/";
+      paths.add(path + "elementRef");
+      paths.add(path + "placement");
+      boolean unambiguous = base.facts().stream().filter(other -> other.elementIntent() != null
+          && alias.equals(other.elementIntent().elementRef())).allMatch(other ->
+          RequirementCaptureEditor.isLocalServiceCall(other)
+              && owner.equals(other.elementIntent().ownerInteractionId())
+              && other.interactionIds().contains(owner));
+      if (unambiguous) aliases.put(alias, owner);
+    }
+    if (aliases.isEmpty()) return paths;
+    for (var fact : base.facts()) {
+      var intent = fact.elementIntent();
+      if (intent == null || !RequirementCaptureEditor.validFactId(fact.sourceFactId())) continue;
+      var updated = proposed.path(fact.sourceFactId()).path("elementIntent");
+      String path = "/facts/" + fact.sourceFactId() + "/elementIntent/";
+      allowCallReferenceRepair(paths, path, "successorElementRef", intent.successorElementRef(), updated, aliases);
+      allowCallReferenceRepair(paths, path, "predecessorElementRef", intent.predecessorElementRef(), updated, aliases);
+    }
+    return paths;
+  }
+
+  private static void allowCallReferenceRepair(Set<String> paths, String path, String field, String oldRef,
+      JsonNode updated, Map<String, String> aliases) {
+    String anchor = aliases.get(oldRef);
+    if (anchor != null && anchor.equals(updated.path(field).asText())) paths.add(path + field);
   }
 
   private static DraftInput amended(DraftInput base, DraftInput candidate, Set<String> paths) {
@@ -1073,7 +1133,7 @@ final class RequirementRevisionAdmission {
 
   private static FieldMappingInput mergeMapping(FieldMappingInput old, FieldMappingInput candidate) {
     if (old == null) return candidate;
-    if (candidate == null || old.sourcePath() != null && old.targetPath() != null) return old;
+    if (candidate == null || old.value() != null || old.sourcePath() != null && old.targetPath() != null) return old;
     return new FieldMappingInput(first(old.sourceInteractionId(), candidate.sourceInteractionId()),
         first(old.sourcePath(), candidate.sourcePath()), first(old.targetInteractionId(), candidate.targetInteractionId()),
         first(old.targetPath(), candidate.targetPath()), first(old.expression(), candidate.expression()));

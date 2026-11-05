@@ -341,8 +341,8 @@ _Avoid_: deploy without a Snapshot, prose "yes" to confirm undeploy or redeploy
 
 ## Regression testing
 
-`run-suite.sh` (integration-platform-skills/regression/bin/) drives `/api/v1/harness/skill-run`
-(`SkillHarnessResource`) against a real catalog chain it creates for the run. This harness path is
+The generator regression runner drives `/api/v1/harness/skill-run` (`SkillHarnessResource`) against
+a real catalog chain it creates for the run. This harness path is
 scoped to single-element regression checks for generator skills, deliberately avoids
 `ChainPlanGraph` (README: "Do not use ChainPlanGraph on this path"), and bypasses the chat router
 entirely — it is not a production entry point.

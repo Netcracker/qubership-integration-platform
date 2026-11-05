@@ -25,6 +25,9 @@ import org.qubership.integration.platform.ai.logging.AiTraceLog;
 import org.qubership.integration.platform.ai.logging.ToolTraceLog;
 import org.qubership.integration.platform.ai.plan.ChainPlanStore;
 import org.qubership.integration.platform.ai.plan.mapping.DirectFieldMappingScript;
+import org.qubership.integration.platform.ai.plan.mapping.CopyMappingPlanner;
+import org.qubership.integration.platform.ai.plan.mapping.ScriptExecutionAuthority;
+import org.qubership.integration.platform.ai.plan.mapping.SecureGroovyMappingCompiler;
 import org.qubership.integration.platform.ai.plan.mapping.MappingCaptureValidator;
 import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
 import org.qubership.integration.platform.ai.plan.mapping.envelope.MappingEnvelope;
@@ -98,13 +101,17 @@ public class ScriptBodyRepairTool {
 
   @Tool(
       """
-      Submit missing script bodies or explicitly requested edits to existing script bodies.
-      For an edit, use the supplied original body and preserve unrelated logic.
-      Submit exactly one script entry for each targetNodeId listed by the user message,
-      including every branch response script (for example response-even/response-odd under
-      if/else). Rationale-only or empty scripts payloads are rejected.
+      Submit script bodies only for an admitted native mapping or compiler-derived retention plan,
+      or the node's exact source-bound supplied body. BEHAVIOR facts, provenance, and region
+      membership alone do not authorize generated scripts. The native compiler derives retention.
+      Preserve supplied bytes exactly. A supplied-body edit requires its newly approved exact body;
+      an edit request alone does not authorize generated replacement code.
+      Submit exactly one script entry for each runtime-listed targetNodeId within that authority,
+      including branch scripts only when they have their own admitted authority.
+      Report unsupported constants or response assembly instead of generating Groovy without authority.
+      Rationale-only or empty scripts payloads are rejected.
       Mapping turns also submit mappingCoverage (JSON array of implemented target paths).
-      Non-mapping fills submit script only.
+      Compiler-derived retention fills submit script only.
       A compilation correction retains mapping scripts already validated for the same inputs.
       Do not submit graph nodes, edges, or chain fields.
       Escape every double quote inside script strings. Prefer JsonOutput.toJson([error: msg])
@@ -198,7 +205,7 @@ public class ScriptBodyRepairTool {
       GraphPatchOperation operation =
           hasProperty(base, nodeId, "script") ? GraphPatchOperation.UPDATE : GraphPatchOperation.ADD;
       propertyPatches.add(
-          new PropertyPatch(operation, nodeId, new PlanProperty("script", entry.script().trim())));
+          new PropertyPatch(operation, nodeId, new PlanProperty("script", entry.script())));
       if (isMappingSite(base, nodeId)) {
         GraphPatchOperation coverageOp =
             hasProperty(base, nodeId, MappingExecutionSite.MAPPING_COVERAGE_PROPERTY)
@@ -228,6 +235,11 @@ public class ScriptBodyRepairTool {
     if (!applied.validationResult().valid()) {
       return recordFailure(
           conversationId, capabilityId, "Script repair patch failed: " + applied.validationResult().summary());
+    }
+    try {
+      ScriptExecutionAuthority.requireSupported(context == null ? null : context.requirementBrief(), applied.graph());
+    } catch (IllegalArgumentException failure) {
+      return recordFailure(conversationId, capabilityId, failure.getMessage());
     }
     List<String> stillMissing =
         missingScriptNodeIds(conversationId, capabilityId, applied.graph());
@@ -338,6 +350,21 @@ public class ScriptBodyRepairTool {
     }
     for (ScriptBodyEntry entry : List.copyOf(byNodeId.values())) {
       ChainPlanNode node = findNode(graph, entry.targetNodeId());
+      if (CopyMappingPlanner.hasVerbatimBody(context.requirementBrief(), node)) {
+        if (context.editsExistingScriptBodies()) continue;
+        String body = node.properties().stream().filter(property -> "script".equals(property.key()))
+            .findFirst().orElseThrow().value();
+        byNodeId.put(entry.targetNodeId(), new ScriptBodyEntry(entry.targetNodeId(), body, entry.mappingCoverage()));
+        continue;
+      }
+      if (CopyMappingPlanner.nativeRetentionSite(node)) {
+        MappingEnvelope envelope = findEnvelope(conversationId, context, node.nodeId());
+        DirectFieldMappingScript.Generated generated = DirectFieldMappingScript.saveOnly(
+            envelope == null ? null : envelope.verifiedCopyPlan());
+        byNodeId.put(entry.targetNodeId(), new ScriptBodyEntry(entry.targetNodeId(),
+            generated.script(), generated.mappingCoverage()));
+        continue;
+      }
       String intentId = MappingExecutionSite.mappingIntentId(node);
       if (intentId == null || intentId.isBlank()) {
         continue;
@@ -369,8 +396,38 @@ public class ScriptBodyRepairTool {
     String failure = null;
     for (ScriptBodyEntry entry : byNodeId.values()) {
       ChainPlanNode node = findNode(graph, entry.targetNodeId());
+      if (context != null && ScriptExecutionAuthority.declaredSuppliedBody(
+          context.requirementBrief(), entry.targetNodeId()).isPresent()) {
+        if (CopyMappingPlanner.nativeRetentionSite(node)) {
+          if (failure == null) failure = "Retention metadata conflicts with supplied script authority: " + node.nodeId();
+          continue;
+        }
+        if (!ScriptExecutionAuthority.declaredSuppliedBody(context.requirementBrief(), entry.targetNodeId())
+            .orElseThrow().equals(entry.script())) {
+          if (failure == null) failure = "Supplied script body differs from its approved source: " + entry.targetNodeId();
+        } else {
+          validated.put(entry.targetNodeId(), entry);
+        }
+        continue;
+      }
+      if (CopyMappingPlanner.nativeRetentionSite(node)) {
+        try {
+          MappingEnvelope envelope = findEnvelope(conversationId, context, node.nodeId());
+          String expected = DirectFieldMappingScript.saveOnly(
+              envelope == null ? null : envelope.verifiedCopyPlan()).script();
+          if (!expected.equals(entry.script())) {
+            throw new IllegalArgumentException("Retention script does not match its frozen plan");
+          }
+          SecureGroovyMappingCompiler.compile(expected);
+          validated.put(entry.targetNodeId(), entry);
+        } catch (IllegalArgumentException failureAtSite) {
+          if (failure == null) failure = "Script node '" + entry.targetNodeId() + "': " + failureAtSite.getMessage();
+        }
+        continue;
+      }
       String intentId = MappingExecutionSite.mappingIntentId(node);
       if (intentId == null || intentId.isBlank()) {
+        if (failure == null) failure = ScriptExecutionAuthority.unsupportedMessage(entry.targetNodeId());
         continue;
       }
       try {
@@ -402,6 +459,7 @@ public class ScriptBodyRepairTool {
             .orElse(null);
     for (ScriptBodyEntry entry : List.copyOf(byNodeId.values())) {
       ChainPlanNode node = findNode(graph, entry.targetNodeId());
+      if (CopyMappingPlanner.nativeRetentionSite(node)) continue;
       String intentId = MappingExecutionSite.mappingIntentId(node);
       if (intentId == null || intentId.isBlank()) {
         continue;

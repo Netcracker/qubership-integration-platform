@@ -199,6 +199,80 @@ class ChatDecisionServiceTest {
   }
 
   @Test
+  void restoredCatalogVersionKeepsItsCardAndConfirmedIdentity() {
+    var fixture = savedVersionCard();
+    var pending = fixture.selections().pending("restored-version").orElseThrow();
+    var restored = fixture.restore();
+    var card = restored.openDecision("restored-version").orElseThrow();
+    assertEquals("catalog-operation-version", card.artifactType());
+    assertEquals(pending.hash(), card.artifactHash());
+    var confirmed = fixture.selections().confirm("restored-version", pending);
+
+    var afterConfirmation = fixture.restore().openDecision("restored-version").orElseThrow();
+
+    assertNotEquals("catalog-operation-version", afterConfirmation.artifactType());
+    assertEquals("op-new", confirmed.integrationOperationId());
+    assertEquals(confirmed, fixture.reloadSelections().confirmed("restored-version",
+        pending.proposal().interaction()).orElseThrow());
+  }
+
+  @Test
+  void restoredDismissedCatalogVersionDoesNotReopenItsCard() {
+    var fixture = savedVersionCard();
+    fixture.selections().dismiss("restored-version",
+        fixture.selections().pending("restored-version").orElseThrow());
+
+    var card = fixture.restore().openDecision("restored-version").orElseThrow();
+
+    assertNotEquals("catalog-operation-version", card.artifactType());
+  }
+
+  private static SavedVersionCard savedVersionCard() {
+    var blobs = new org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore();
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var drafts = new RequirementDraftStore(new CompilationArtifacts(blobs, mapper, Clock.systemUTC()),
+        new org.qubership.integration.platform.ai.compiler.artifact.CompilationSessions(blobs, mapper, Clock.systemUTC()));
+    var interaction = new org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction(
+        "task", org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction.OUTBOUND,
+        "Salesforce WFM", "createTask", "Create a task");
+    drafts.put("restored-version", new RequirementDraft(false, "Create tasks").withFlow(
+        new org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow(List.of(interaction), List.of())));
+    var selections = new org.qubership.integration.platform.ai.chat.decision.CatalogVersionSelection(blobs, mapper,
+        drafts, new org.qubership.integration.platform.ai.plan.ConversationApiResolutions());
+    selections.propose("restored-version", interaction, List.of(
+        new org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogMatch("sf", "group", "old",
+            "op-old", "Salesforce WFM", "http", "POST", "/tasks", "createTask", "old-evidence", "1.0.0"),
+        new org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogMatch("sf", "group", "new",
+            "op-new", "Salesforce WFM", "http", "POST", "/tasks", "createTask", "new-evidence", "2.0.0")));
+    return new SavedVersionCard(blobs, mapper, selections);
+  }
+
+  private record SavedVersionCard(
+      org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore blobs,
+      ObjectMapper mapper, org.qubership.integration.platform.ai.chat.decision.CatalogVersionSelection selections) {
+    private RequirementDraftStore reloadDrafts() {
+      return new RequirementDraftStore(new CompilationArtifacts(blobs, mapper, Clock.systemUTC()),
+          new org.qubership.integration.platform.ai.compiler.artifact.CompilationSessions(blobs, mapper, Clock.systemUTC()));
+    }
+
+    private org.qubership.integration.platform.ai.chat.decision.CatalogVersionSelection reloadSelections() {
+      return new org.qubership.integration.platform.ai.chat.decision.CatalogVersionSelection(blobs, mapper,
+          reloadDrafts(), new org.qubership.integration.platform.ai.plan.ConversationApiResolutions());
+    }
+
+    private ChatDecisionService restore() {
+      var facade = mock(CreateChainApplicationFacade.class);
+      var clarify = new CreateChainPendingAction.Clarify("Choose a version.", List.of(),
+          PipelineGates.STAGE_CLARIFICATION, "", null, "version-run", "requirement-discovery", "");
+      when(facade.snapshot("restored-version")).thenReturn(Optional.of(new CreateChainExecutionSnapshot(
+          "restored-version", "version-run", CreateChainExecutionStatus.INPUT_REQUIRED, 7L, clarify, "")));
+      var service = new ChatDecisionService(facade, questionStore(), reloadDrafts());
+      service.versionSelections = reloadSelections();
+      return service;
+    }
+  }
+
+  @Test
   void policyCardUsesTheActiveOfferAndKeepsTheArtifactHashCheck() {
     String conversationId = "conv-policy";
     long revision = 4L;

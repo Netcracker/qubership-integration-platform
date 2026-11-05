@@ -46,6 +46,12 @@ class ChainSemanticDesignAgentTest {
             invocation -> {
               ChatRequest request = invocation.getArgument(0);
               assertEquals("captureChainSemanticRevision", request.toolSpecifications().getFirst().name());
+              String toolInstructions = request.toolSpecifications().getFirst().description();
+              org.junit.jupiter.api.Assertions.assertAll("generated semantic tool authority instructions",
+                  () -> assertTrue(toolInstructions.contains("own admitted typed mapping"), toolInstructions),
+                  () -> assertTrue(toolInstructions.contains("exact source-bound supplied body"), toolInstructions),
+                  () -> assertTrue(toolInstructions.contains("alone do not authorize generated scripts"), toolInstructions),
+                  () -> assertTrue(toolInstructions.contains("native compiler derives retention"), toolInstructions));
               assertNull(request.responseFormat(), "a tool capture must not request a Result JSON envelope");
               return toolCall("capture-1", arguments);
             });

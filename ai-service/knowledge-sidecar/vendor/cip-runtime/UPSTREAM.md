@@ -13,23 +13,6 @@ This directory contains a read-only copy of the upstream Knowledge SDK. Do not e
 
 Copied with `rsync -a` and verified byte-identical to the source tree (`diff -qr` empty).
 
-## Knowledge Package
-
-The Knowledge Package is private and is not vendored into `ai-service`. Mount an externally
-compiled, certified export at `/knowledge` and set `QIP_KNOWLEDGE_PATH=/knowledge`.
-
-| Field | Value |
-|-------|-------|
-| Local source | `.private/rocky-knowledge/` |
-| Container path | `/knowledge` |
-| Host-path variable | `QIP_KNOWLEDGE_HOST_PATH` |
-
-Do not record local absolute paths that identify a confidential build environment.
-
 Semantic coverage required for sidecar tests includes `CIP:GEN-000005` and `CIP:GEN-000049`.
 
-## Out of scope
-
-Do not vendor compiler modules, skills, addons, release ZIPs, Markdown knowledge sources, or
-compiled Knowledge Packages here. The sidecar consumes the SDK from the image and the package
-from the read-only mount.
+Limit vendored content to the upstream SDK.
