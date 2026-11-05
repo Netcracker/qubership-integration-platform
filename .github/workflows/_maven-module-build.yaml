@@ -173,9 +173,13 @@ jobs:
 
       - name: Pre-install integration-build-library into .m2
         if: ${{ inputs.preinstall-integration-build-pipeline-library == true }}
+        env:
+          MAVEN_GITHUB_USERNAME: ${{ github.actor }}
+          MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eu
-          mvn --batch-mode -f integration-build-pipeline/pom.xml install \
+          mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
+            -f integration-build-pipeline/pom.xml install \
             -DskipTests -Dgpg.skip=true -Dcheckstyle.skip=true
 
       - name: Download Sonar inputs
@@ -237,9 +241,13 @@ jobs:
 
       - name: Pre-install integration-build-library into .m2
         if: ${{ inputs.preinstall-integration-build-pipeline-library == true }}
+        env:
+          MAVEN_GITHUB_USERNAME: ${{ github.actor }}
+          MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eu
-          mvn --batch-mode -f integration-build-pipeline/pom.xml install \
+          mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
+            -f integration-build-pipeline/pom.xml install \
             -DskipTests -Dgpg.skip=true -Dcheckstyle.skip=true
 
       - name: Update OpenAPI specifications
