@@ -84,6 +84,54 @@ test.describe("Maven workflow selection", () => {
     expect(upload?.with?.["include-hidden-files"], "the manifest includes hidden classpath resources").toBe(true);
   });
 
+  test("manual qualification keeps PR scope and Quality Gate", () => {
+    const workflow = workflows().find(({ name }) => name === "_maven-module-build.yaml")!.workflow;
+    const command = workflow.jobs?.sonar.steps?.find((step) => step.name === "Sonar scan (blocks on red Quality Gate)")?.run;
+    expect(command).toBeTruthy();
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "maven-sonar-"));
+    const head = spawnSync("git", ["rev-parse", "HEAD"], { cwd: repoRoot(), encoding: "utf-8" }).stdout.trim();
+    try {
+      fs.mkdirSync(path.join(directory, "scripts"));
+      fs.mkdirSync(path.join(directory, "bin"));
+      fs.writeFileSync(path.join(directory, "bin/gh"), '#!/bin/sh\nprintf "%s\\n" "$PR_RESPONSE"\n', { mode: 0o755 });
+      fs.writeFileSync(path.join(directory, "scripts/maven-ci.sh"), '#!/bin/sh\nprintf "%s\\n" "$@" > "$ARGUMENT_LOG"\n', { mode: 0o755 });
+      const argumentLog = path.join(directory, "arguments");
+      const run = (overrides: Record<string, string | undefined>) => {
+        fs.rmSync(argumentLog, { force: true });
+        const result = spawnSync("bash", ["-eu", "-c", command!], {
+          cwd: path.join(repoRoot(), "runtime-catalog"),
+          env: {
+            ...process.env, PATH: `${path.join(directory, "bin")}:${process.env.PATH}`,
+            GITHUB_WORKSPACE: directory, GITHUB_REPOSITORY: "Netcracker/qubership-integration-platform",
+            EVENT_NAME: "workflow_dispatch", REF_NAME: "qualification", DEFAULT_BRANCH: "main",
+            QUALIFICATION_PR: "1297", PR_RESPONSE: `${head}\tfeature/source\tmain\tOPEN`,
+            ARGUMENT_LOG: argumentLog, SONAR_PLUGIN_VERSION: "5.0.0.4389", SONAR_TOKEN: "",
+            SONAR_PROJECT_KEY: "project", SONAR_ORGANIZATION: "organization", SONAR_HOST_URL: "https://example.invalid",
+            ...overrides,
+          }, encoding: "utf-8",
+        });
+        return { result, args: fs.existsSync(argumentLog) ? fs.readFileSync(argumentLog, "utf-8").trim().split("\n") : [] };
+      };
+      const manual = run({});
+      expect(manual.result.status, manual.result.stderr).toBe(0);
+      expect(manual.args).toEqual(expect.arrayContaining([
+        "-Dsonar.pullrequest.key=1297", "-Dsonar.pullrequest.branch=feature/source",
+        "-Dsonar.pullrequest.base=main", "-Dsonar.qualitygate.wait=true",
+      ]));
+      for (const overrides of [{ QUALIFICATION_PR: "0" }, { PR_RESPONSE: "different\tfeature/source\tmain\tOPEN" }]) {
+        const invalid = run(overrides);
+        expect(invalid.result.status).not.toBe(0);
+        expect(invalid.args).toEqual([]);
+      }
+      const ordinary = run({ EVENT_NAME: "pull_request", QUALIFICATION_PR: "0" });
+      expect(ordinary.result.status, ordinary.result.stderr).toBe(0);
+      expect(ordinary.args).toContain("-Dsonar.qualitygate.wait=true");
+      expect(ordinary.args.some((arg) => arg.startsWith("-Dsonar.pullrequest."))).toBe(false);
+    } finally {
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
   test("module source changes retain selective Maven builds", () => {
     const byName = new Map(workflows().map(({ name, workflow }) => [name, workflow]));
     const affected = (file: string) => [...byName].filter(([, workflow]) =>

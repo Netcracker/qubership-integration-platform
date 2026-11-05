@@ -7,6 +7,10 @@ on:
         type: boolean
         default: false
         description: Run without restoring or saving the Maven cache.
+      qualification-pr:
+        type: number
+        default: 0
+        description: PR number for manual analysis on a feature branch.
       runner:
         type: choice
         default: ubuntu-latest
@@ -35,8 +39,10 @@ jobs:
     permissions:
       contents: read
       packages: read
+      pull-requests: read
     uses: ./.github/workflows/_maven-module-build.yaml
     with:
+      qualification-pr: ${{ inputs.qualification-pr || 0 }}
       use-cache: ${{ github.event_name != 'workflow_dispatch' || !inputs.cold-cache }}
       runner: ${{ github.event_name == 'workflow_dispatch' && inputs.runner || 'ubuntu-latest' }}
       module: runtime-catalog
