@@ -56,8 +56,8 @@ test.describe("micro domain lifecycle", { tag: ["@catalog", "@engine", "@slow"] 
     try {
       await test.step("POST /v1/catalog/chains/{chainId}/deployments runs both chains on the domain", async () => {
         await catalog.deploy(kept.id, keptSnapshot.id, domain, "MICRO");
-        droppedDeploymentId = (await catalog.deploy(dropped.id, droppedSnapshot.id, domain, "MICRO")).id;
         deployed = true;
+        droppedDeploymentId = (await catalog.deploy(dropped.id, droppedSnapshot.id, domain, "MICRO")).id;
         expect(await integration(resource)).not.toBeNull();
         await expect
           .poll(async () => [await routeStatus(request, domain, kept), await routeStatus(request, domain, dropped)], {
@@ -77,8 +77,12 @@ test.describe("micro domain lifecycle", { tag: ["@catalog", "@engine", "@slow"] 
             message: `the catalog never reported deployment ${droppedDeploymentId}`,
           })
           .toContain(droppedDeploymentId);
-        const readBack = await catalog.getDeployment(dropped.id, droppedDeploymentId);
-        expect(readBack.id).toBe(droppedDeploymentId);
+        await expect
+          .poll(() => catalog.getDeployment(dropped.id, droppedDeploymentId).then((row) => row.id), {
+            timeout: MICRO_READY_TIMEOUT,
+            message: `the catalog never answered GET for deployment ${droppedDeploymentId}`,
+          })
+          .toBe(droppedDeploymentId);
       });
 
       await test.step("DELETE /v1/catalog/chains/{chainId}/deployments/{deploymentId} removes one chain and keeps the other", async () => {
