@@ -50,6 +50,54 @@
   <dependencyManagement>
     <dependencies>
       <dependency>
+          <groupId>com.netcracker.cloud</groupId>
+          <artifactId>dbaas-client-bom</artifactId>
+          <version>${dbaas-client-bom.version}</version>
+          <type>pom</type>
+          <scope>import</scope>
+      </dependency>
+      <dependency>
+          <groupId>com.netcracker.cloud.maas.client</groupId>
+          <artifactId>maas-client-bom</artifactId>
+          <version>${maas-client-bom.version}</version>
+          <type>pom</type>
+          <scope>import</scope>
+      </dependency>
+      <dependency>
+          <groupId>com.netcracker.cloud</groupId>
+          <artifactId>dbaas-client-resttemplate</artifactId>
+          <version>${dbaas-resttemplate.version}</version>
+      </dependency>
+      <dependency>
+          <groupId>com.netcracker.cloud.maas.client</groupId>
+          <artifactId>maas-client-spring</artifactId>
+      </dependency>
+      <dependency>
+          <groupId>com.netcracker.cloud.maas.declarative</groupId>
+          <artifactId>maas-declarative-kafka-client-spring</artifactId>
+          <version>${maas-kafka-declarative-client.version}</version>
+      </dependency>
+      <dependency>
+          <groupId>com.netcracker.cloud</groupId>
+          <artifactId>consul-config-provider-common</artifactId>
+          <version>${consul-config-provider.version}</version>
+      </dependency>
+      <dependency>
+          <groupId>com.netcracker.cloud</groupId>
+          <artifactId>consul-config-provider-spring-resttemplate</artifactId>
+          <version>${consul-config-provider.version}</version>
+      </dependency>
+      <dependency>
+          <groupId>com.netcracker.cloud</groupId>
+          <artifactId>blue-green-state-monitor-spring</artifactId>
+          <version>${blue-green.version}</version>
+      </dependency>
+      <dependency>
+          <groupId>com.netcracker.cloud.security.core.utils</groupId>
+          <artifactId>k8s-utils</artifactId>
+          <version>${security-core-utils.version}</version>
+      </dependency>
+      <dependency>
           <groupId>io.netty</groupId>
           <artifactId>netty-bom</artifactId>
           <version>4.1.110.Final</version>
