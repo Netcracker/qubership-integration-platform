@@ -41,6 +41,7 @@ import { mergeUpdatedChainInFolderItems } from "./chains/mergeUpdatedChainInFold
 import {
   collectDescendantFolderIds,
   collectSubtreeBatches,
+  collectSubtreeChainIds,
 } from "./chains/chainSubtree.ts";
 import type { FolderContent } from "./chains/chainSubtree.ts";
 import { copyToClipboard } from "../misc/clipboard-util.ts";
@@ -174,10 +175,12 @@ const Chains = () => {
     [folderItems],
   );
 
-  const ensureChainSubtreeLoaded = useCallback(
-    async (record: ChainTableItem | FolderItem): Promise<React.Key[]> => {
+  const loadFolderSubtree = useCallback(
+    async (
+      record: ChainTableItem | FolderItem,
+    ): Promise<{ folderIds: React.Key[]; chainIds: string[] }> => {
       if (record.itemType !== CatalogItemType.FOLDER) {
-        return [record.id];
+        return { folderIds: [record.id], chainIds: [record.id] };
       }
       const knownLoaded = new Set<string>(loadedFolders);
       const visited = new Set<string>();
@@ -204,8 +207,16 @@ const Chains = () => {
           setIsLoading(false);
         }
       }
+      // knownLoaded holds every folder the walk fetched, the ticked folder
+      // included. batches holds only that folder's rows.
+      if (knownLoaded.size !== loadedFolders.size) {
+        setLoadedFolders((prev) => new Set([...prev, ...knownLoaded]));
+      }
       if (batches.length === 0) {
-        return collectDescendantFolderIds(record.id, folderItems);
+        return {
+          folderIds: collectDescendantFolderIds(record.id, folderItems),
+          chainIds: collectSubtreeChainIds(record.id, folderItems),
+        };
       }
       const flat = batches.flat();
       setFolderItems((prev) => {
@@ -213,23 +224,21 @@ const Chains = () => {
         const fresh = flat.filter((item) => !prevIds.has(item.id));
         return fresh.length > 0 ? [...prev, ...fresh] : prev;
       });
-      setLoadedFolders((prev) => {
-        const next = new Set(prev);
-        flat.forEach((item) => {
-          if (item.itemType === CatalogItemType.FOLDER) {
-            next.add(item.id);
-          }
-        });
-        return next;
-      });
       const prevIds = new Set(folderItems.map((item) => item.id));
       const freshItems = flat.filter((item) => !prevIds.has(item.id));
-      return collectDescendantFolderIds(record.id, [
-        ...folderItems,
-        ...freshItems,
-      ]);
+      const merged = [...folderItems, ...freshItems];
+      return {
+        folderIds: collectDescendantFolderIds(record.id, merged),
+        chainIds: collectSubtreeChainIds(record.id, merged),
+      };
     },
     [folderItems, loadedFolders, filters, searchString, notificationService],
+  );
+
+  const ensureChainSubtreeLoaded = useCallback(
+    (record: ChainTableItem | FolderItem) =>
+      loadFolderSubtree(record).then((loaded) => loaded.folderIds),
+    [loadFolderSubtree],
   );
 
   const {
@@ -1068,8 +1077,30 @@ const Chains = () => {
     }
   };
 
+  const cascadeFolderSelection = async (record: ChainTableItem) => {
+    const { chainIds } = await loadFolderSubtree(record);
+    if (chainIds.length === 0) {
+      return;
+    }
+    // The folder may have been unticked, or the selection reset while it fetched.
+    setSelectedRowKeys((prev) =>
+      prev.includes(record.id)
+        ? Array.from(new Set([...prev, ...chainIds]))
+        : prev,
+    );
+  };
+
   const onSelectChange = (newSelectedRowKeys: React.Key[]) => {
+    const prevKeys = new Set(selectedRowKeys);
+    const nextKeys = new Set(newSelectedRowKeys);
+    const checkedFolders = folderItems.filter(
+      (item) =>
+        item.itemType === CatalogItemType.FOLDER &&
+        !prevKeys.has(item.id) &&
+        nextKeys.has(item.id),
+    );
     setSelectedRowKeys(newSelectedRowKeys);
+    checkedFolders.forEach((folder) => void cascadeFolderSelection(folder));
   };
 
   const folderMenuItems: ProtectedMenuItem[] = [

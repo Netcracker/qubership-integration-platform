@@ -18,6 +18,7 @@ jest.mock("../../../src/api/api", () => ({
 import {
   collectDescendantFolderIds,
   collectSubtreeBatches,
+  collectSubtreeChainIds,
   fetchFolderContent,
   findUnvisitedChildFolderIds,
   findUnvisitedFolderIds,
@@ -205,5 +206,47 @@ describe("collectSubtreeBatches", () => {
     await expect(collectSubtreeBatches("root", ctx)).resolves.toEqual([]);
     expect(notifyLoadFailed).toHaveBeenCalledWith(failure);
     expect(ctx.knownLoaded.has("root")).toBe(false);
+  });
+});
+
+describe("collectSubtreeChainIds", () => {
+  it("returns an empty array for a folder with no chain descendants", () => {
+    const items = [folder("root")];
+
+    expect(collectSubtreeChainIds("root", items)).toEqual([]);
+  });
+
+  it("collects direct chains and chains in nested subfolders", () => {
+    const items = [
+      folder("root"),
+      chain("c1", "root"),
+      folder("sub", "root"),
+      chain("c2", "sub"),
+    ];
+
+    expect(collectSubtreeChainIds("root", items)).toEqual(
+      expect.arrayContaining(["c1", "c2"]),
+    );
+    expect(collectSubtreeChainIds("root", items)).toHaveLength(2);
+  });
+
+  it("ignores chains outside the subtree", () => {
+    const items = [
+      folder("root"),
+      chain("c1", "root"),
+      chain("other", "elsewhere"),
+    ];
+
+    expect(collectSubtreeChainIds("root", items)).toEqual(["c1"]);
+  });
+
+  it("does not loop forever when folders reference each other", () => {
+    const items = [
+      folder("a", "b"),
+      folder("b", "a"),
+      chain("c", "a"),
+    ];
+
+    expect(collectSubtreeChainIds("a", items)).toEqual(["c"]);
   });
 });

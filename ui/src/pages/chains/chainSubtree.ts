@@ -39,6 +39,34 @@ export function collectDescendantFolderIds(
   return ids;
 }
 
+export function collectSubtreeChainIds(
+  folderId: string,
+  items: (FolderItem | ChainItem)[],
+): string[] {
+  const chainIds: string[] = [];
+  const visited = new Set<string>([folderId]);
+  const queue: string[] = [folderId];
+  let head = 0;
+  while (head < queue.length) {
+    const current = queue[head++];
+    for (const item of items) {
+      if (item.parentId !== current) {
+        continue;
+      }
+      if (item.itemType === CatalogItemType.CHAIN) {
+        chainIds.push(item.id);
+      } else if (
+        item.itemType === CatalogItemType.FOLDER &&
+        !visited.has(item.id)
+      ) {
+        visited.add(item.id);
+        queue.push(item.id);
+      }
+    }
+  }
+  return chainIds;
+}
+
 export function findUnvisitedChildFolderIds(
   parentId: string,
   items: FolderContent,
