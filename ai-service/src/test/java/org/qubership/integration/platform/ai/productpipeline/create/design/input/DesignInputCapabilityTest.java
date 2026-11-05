@@ -398,6 +398,15 @@ class DesignInputCapabilityTest {
   }
 
   @Test
+  void designPromptReturnsTheServiceResponseWhenTheContractAlreadyMatches() {
+    var prompt = DesignInputCapability.authoringPrompt(ChainSemanticCaptureFixtures.approvedBrief(), CONTRACT);
+    assertTrue(prompt.contains("When a service response already satisfies the response requirement, return it directly."),
+        () -> prompt);
+    assertTrue(prompt.contains("Add processing only if the required response differs from that contract."),
+        () -> prompt);
+  }
+
+  @Test
   void authoringPromptIncludesMappingIntentIdTokenFromTheBrief() {
     String prompt =
         DesignInputCapability.authoringPrompt(

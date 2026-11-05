@@ -138,6 +138,8 @@ public class RequirementCaptureTools {
       The compiler derives retention before body replacement from the typed origin and execution transition.
       Named catalog outbound operations have no native capability entry; resolve them after capture.
       When nextAction is RUN_IMPORT, finish with CONTINUE to import uploaded specs before binding.
+      Capture the behavior separately from element settings. Leave elementIntent null if the author did not
+      specify a local element and no source-bound Script body needs it. A chain is not an element parent.
       Capture explicit HTTP trigger accessControlType and roles in ANCHOR elementIntent requestedProperties.
       RBAC needs the author's explicit role choice. Save a partial draft and ask for missing roles;
       role names from examples do not authorize access to this chain.
@@ -608,18 +610,21 @@ public class RequirementCaptureTools {
     if (input == null || input.facts() == null) {
       return issues;
     }
-    String authorText = store.currentAuthorText(conversationId).orElse(null);
-    if (conversations != null) {
-      authorText = conversations.archive().read(conversationId).activeTurns().stream()
-          .filter(turn -> turn.message().role()
-              == org.qubership.integration.platform.ai.chat.conversation.ConversationMessage.Role.USER)
-          .map(turn -> turn.message().content()).collect(Collectors.joining("\n"));
-    }
-    var source = conversations == null
+    var document = conversations == null ? null : conversations.archive().read(conversationId);
+    String authorText = document == null ? store.currentAuthorText(conversationId).orElse(null)
+        : document.activeTurns().stream().filter(turn -> turn.message().role()
+            == org.qubership.integration.platform.ai.chat.conversation.ConversationMessage.Role.USER)
+            .map(turn -> turn.message().content()).collect(Collectors.joining("\n"));
+    var source = document == null
         ? new AuthorSourceEvidence.Packet(store.writeAuthority(conversationId).sourceGeneration(),
             authorText == null ? List.of() : List.of(new AuthorSourceEvidence.Input(
                 store.writeAuthority(conversationId).sourceTurnId(), authorText)))
-        : AuthorSourceEvidence.packet(conversations.archive().read(conversationId));
+        : AuthorSourceEvidence.packet(document);
+    String authoredText = document == null ? authorText : AuthorSourceEvidence.authoredPacket(document).inputs().stream()
+        .map(AuthorSourceEvidence.Input::text).collect(Collectors.joining("\n"));
+    RequirementElementConstraints.issues(input, authoredText).stream()
+        .filter(issue -> !RequirementElementConstraints.EXPLICIT_UNSUPPORTED_ELEMENT.equals(issue.code()))
+        .forEach(issues::add);
     var bodyOwners = input.facts().stream().filter(Objects::nonNull).map(FactInput::elementIntent)
         .filter(Objects::nonNull).toList();
     for (FactInput fact : input.facts()) {

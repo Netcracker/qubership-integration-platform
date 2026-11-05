@@ -1117,6 +1117,13 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
           null,
           emitted);
     }
+    if (!catalogHasBeenWritten(doc.run().runId()) && "design-input".equals(stage.stageId())
+        && cause.causeCode() == RecoveryCauseCode.BRIEF_CONTRACT
+        && cause.findings().stream().anyMatch(finding ->
+            org.qubership.integration.platform.ai.plan.RequirementElementConstraints.EXPLICIT_UNSUPPORTED_ELEMENT
+                .equals(finding.code()))) {
+      return waitEditableBriefRecovery(doc, stage, refs, cause, evidence, committedDraftOwner(doc), emitted);
+    }
     Optional<ReportedDraftDefect> reportedDraftOwner = producerRepairAllowed
         ? reportedDraftOwner(doc, stage, refs, cause) : Optional.empty();
     if (cause.sourceReview() != null && cause.sourceReview().omissions().stream().anyMatch(report -> report.kind()
@@ -3583,6 +3590,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       if (ref.kind() == Kind.REQUIREMENT_DRAFT) {
         attributes.put(
             "approvedDraft", artifactStore.payload(revision.get(), RequirementDraft.class));
+        attributes.put("approvedDraftArtifactId", ref.artifactId());
       } else if (ref.kind() == Kind.USER_INPUT) {
         UserInput input = artifactStore.payload(revision.get(), UserInput.class);
         MappingGapPassThroughConfirmation.parse(input.text())

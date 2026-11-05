@@ -615,6 +615,84 @@ class RequirementCaptureToolsTest {
     }
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {"derived-disabled-mapper", "explicit-disabled-mapper", "supported-script"})
+  void draftKeepsAnExplicitElementChoiceAndRejectsAnUnsupportedGuess(String selection) throws Exception {
+    var h = harness();
+    boolean explicit = selection.equals("explicit-disabled-mapper");
+    String type = selection.equals("supported-script") ? "script" : "mapper-2";
+    String request = "Accept POST /tasks and return the response as JSON."
+        + (explicit ? " Use mapper-2." : "");
+    h.store().beginTurn(h.conversationId(), request);
+    var base = readyHttpDraft();
+    var intent = new RequirementElementIntent("reply", type, RequirementElementIntent.Placement.LOCAL_NODE,
+        "entry", null, null, null, List.of(), List.of());
+    var fact = new FactInput("reply", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+        "Return the response as JSON.", null, null, intent);
+    try (var ignored = ToolSession.open(h.conversationId())) {
+      var result = h.mapper().readValue(h.tools().captureRequirementDraft(new DraftInput(base.flow(),
+          List.of(base.facts().getFirst(), fact), base.capabilities(), base.openQuestions(), base.settings())),
+          RequirementCaptureResult.class);
+      boolean derived = selection.equals("derived-disabled-mapper");
+      assertEquals(derived ? List.of("/draft/facts/reply/elementIntent") : List.of(), result.issues().stream()
+          .filter(issue -> "DERIVED_UNSUPPORTED_ELEMENT".equals(issue.code())).map(issue -> issue.path()).toList(),
+          result::toString);
+      assertEquals(!derived, result.accepted(), result::toString);
+      if (!derived) assertEquals(intent, h.store().get(h.conversationId()).orElseThrow().authoredDraft()
+          .facts().stream().filter(candidate -> candidate.sourceFactId().equals("reply"))
+          .findFirst().orElseThrow().elementIntent());
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void topLevelElementCannotUseTheChainAsItsParent(boolean useChainParent) throws Exception {
+    var h = harness();
+    h.store().beginTurn(h.conversationId(), "Accept POST /tasks and route the response.");
+    var base = readyHttpDraft();
+    var chain = new FactInput("chain-name", List.of(), FactKind.GOAL, Polarity.POSITIVE,
+        "Create a chain.", null, null, new RequirementElementIntent("root", "chain",
+            RequirementElementIntent.Placement.CHAIN, null, null, null, null, List.of(), List.of()));
+    var routing = new FactInput("route", List.of("entry"), FactKind.ROUTING, Polarity.POSITIVE,
+        "Route the response.", null, null, new RequirementElementIntent("routing", "condition",
+            RequirementElementIntent.Placement.LOCAL_NODE, "entry", null, null,
+            useChainParent ? "root" : null, null, List.of(), List.of()));
+    try (var ignored = ToolSession.open(h.conversationId())) {
+      var result = h.mapper().readValue(h.tools().captureRequirementDraft(new DraftInput(base.flow(),
+          List.of(base.facts().getFirst(), chain, routing), base.capabilities(), base.openQuestions(), base.settings())),
+          RequirementCaptureResult.class);
+      assertEquals(useChainParent ? List.of("/draft/facts/route/elementIntent/parentElementRef") : List.of(),
+          result.issues().stream().filter(issue -> "CHAIN_IS_NOT_AN_ELEMENT_PARENT".equals(issue.code()))
+              .map(issue -> issue.path()).toList(), result::toString);
+      assertEquals(!useChainParent, result.accepted(), result::toString);
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"Return 1000 orders.", "Set the connection timeout to 3000 ms.",
+      "Set the connection timeout to 1000 seconds.", "Set the read timeout to 1000 ms.",
+      "Set connectTimeout to 1000 ms.", "Set the connection timeout to 1 second."})
+  void connectionTimeoutRequiresMatchingAuthorEvidence(String setting) throws Exception {
+    var h = harness();
+    h.store().beginTurn(h.conversationId(), "Accept POST /tasks. " + setting);
+    var base = readyHttpDraft();
+    var intent = new RequirementElementIntent("entry", "http-trigger", RequirementElementIntent.Placement.ANCHOR,
+        "entry", null, null, null, List.of(new PlanProperty("connectTimeout", "1000")), List.of());
+    var fact = new FactInput("entry-settings", List.of("entry"), FactKind.CONSTRAINT, Polarity.POSITIVE,
+        "Accept POST /tasks.", null, null, intent);
+    try (var ignored = ToolSession.open(h.conversationId())) {
+      var result = h.mapper().readValue(h.tools().captureRequirementDraft(new DraftInput(base.flow(),
+          List.of(base.facts().getFirst(), fact), base.capabilities(), base.openQuestions(), base.settings())),
+          RequirementCaptureResult.class);
+      boolean supported = setting.startsWith("Set connectTimeout")
+          || setting.equals("Set the connection timeout to 1 second.");
+      assertEquals(supported ? List.of() : List.of("/draft/facts/entry-settings/elementIntent/requestedProperties"),
+          result.issues().stream().filter(issue -> "UNPROVEN_ELEMENT_PROPERTY".equals(issue.code()))
+              .map(issue -> issue.path()).toList(), result::toString);
+      assertEquals(supported, result.accepted(), result::toString);
+    }
+  }
+
   @Test
   void scriptBehaviorBindsToItsOwnedArtifactBeforeTheScriptIsGenerated() throws Exception {
     var h = harness();

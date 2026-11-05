@@ -6,6 +6,7 @@ import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -23,7 +24,10 @@ import org.qubership.integration.platform.ai.llm.qute.QuteUserMessageEscaping;
 import org.qubership.integration.platform.ai.logging.AiTraceLog;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
+import org.qubership.integration.platform.ai.plan.AuthorSourceEvidence;
 import org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureEditor;
+import org.qubership.integration.platform.ai.plan.RequirementElementConstraints;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.plan.RequirementFlowValidator;
@@ -81,6 +85,9 @@ public class DesignInputCapability implements StageCapability {
 
   @Inject
   org.qubership.integration.platform.ai.compiler.capture.ChatMemorySanitizer chatMemorySanitizer;
+
+  @Inject
+  org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations;
 
   @Inject
   public DesignInputCapability(
@@ -175,13 +182,21 @@ public class DesignInputCapability implements StageCapability {
           StageOutcomeClass.MISSING_MANDATORY_INPUT,
           "design-input requires an approved RequirementBrief");
     }
-    var inputFindings = org.qubership.integration.platform.ai.plan.RequirementCaptureEditor.validateElementOrder(
-        brief.flow(), brief.facts());
+    var approvedDraft = context.attributes().get("approvedDraft");
+    var inputFindings = new ArrayList<>(RequirementCaptureEditor.validateElementOrder(brief.flow(), brief.facts()));
+    if (approvedDraft instanceof RequirementDraft draft
+        && Objects.equals(brief.approvedDraftReference(), context.attributes().get("approvedDraftArtifactId"))) {
+      String source = conversations == null ? null
+          : AuthorSourceEvidence.authoredPacket(conversations.archive().read(context.conversationId())).inputs().stream()
+              .map(AuthorSourceEvidence.Input::text).collect(java.util.stream.Collectors.joining("\n"));
+      inputFindings.addAll(RequirementElementConstraints.issues(draft.authoredDraft(), source).stream()
+          .filter(issue -> !"UNPROVEN_ELEMENT_PROPERTY".equals(issue.code())).toList());
+    }
     if (!inputFindings.isEmpty()) {
       var findings = inputFindings.stream().map(issue -> new PlanValidationFinding(
           issue.code(), issue.path() + ": " + issue.message(), true, null, issue.entityId(), issue.path())).toList();
       return StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
-          "The accepted brief contains contradictory element order.\n"
+          "The accepted brief contains element constraints that prevent design.\n"
               + String.join("\n", findings.stream().map(PlanValidationFinding::message).toList()),
           new RecoveryCause(RecoveryCauseCode.BRIEF_CONTRACT, findings, ""));
     }
@@ -196,7 +211,6 @@ public class DesignInputCapability implements StageCapability {
               List.of("entry point " + blankEntryPoint + " has no capabilityKey")));
     }
     List<Transition> uncovered = MappingGapCoverage.uncovered(brief);
-    var approvedDraft = context.attributes().get("approvedDraft");
     var omittedMapping = approvedDraft instanceof RequirementDraft draft
         ? RequirementBriefCoverageValidator.validateAuthoredMappings(draft, brief)
         : java.util.Optional.<String>empty();
@@ -355,6 +369,8 @@ public class DesignInputCapability implements StageCapability {
         .append("Capture one ChainSemanticRevision from this approved requirement brief.\n\n")
         .append(RequirementBriefText.format(brief))
         .append("\n\nUse LOCAL_NODE elementRef as nodeId. Keep inline hook facts exclusively on their Service Call.\n")
+        .append("When a service response already satisfies the response requirement, return it directly. ")
+        .append("Add processing only if the required response differs from that contract.\n")
         .append("\n\nCompiler contract version: ")
         .append(contract.contractVersion())
         .append("\nSemantic schema version: ")

@@ -216,6 +216,134 @@ class DesignInputRecoveryTest {
   }
 
   @ParameterizedTest
+  @ValueSource(strings = {"disabled-mapper", "chain-parent", "explicit-disabled-mapper"})
+  void savedInvalidElementConstraintReturnsToTheDraftOwner(String defect) throws Exception {
+    Clock clock = Clock.fixed(Instant.EPOCH, ZoneOffset.UTC);
+    ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    InMemoryArtifactBlobStore blobs = new InMemoryArtifactBlobStore();
+    var artifacts = new ProductPipelineArtifactStore(new CompilationArtifacts(blobs, mapper, clock));
+    var runs = new ProductPipelineRunStore(blobs, mapper, clock);
+    var correct = ChainSemanticCaptureFixtures.approvedBrief();
+    var payload = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.valueToTree(correct);
+    var facts = payload.withArray("facts");
+    var behavior = (com.fasterxml.jackson.databind.node.ObjectNode) facts.get(0);
+    behavior.putArray("interactionIds").add("http-in");
+    boolean chainParent = defect.equals("chain-parent");
+    boolean explicit = defect.equals("explicit-disabled-mapper");
+    var intent = behavior.putObject("elementIntent").put("elementRef", "reply").put("placement", "LOCAL_NODE")
+        .put("elementType", chainParent ? "condition" : "mapper-2").put("ownerInteractionId", "http-in");
+    intent.putArray("requestedProperties");
+    intent.putArray("exactValues");
+    if (chainParent) {
+      intent.put("parentElementRef", "root");
+      var chain = facts.addObject().put("sourceFactId", "chain-name").put("text", "Name this chain")
+          .put("kind", "GOAL").put("polarity", "POSITIVE");
+      var root = chain.putObject("elementIntent").put("elementRef", "root").put("elementType", "chain")
+          .put("placement", "CHAIN");
+      root.putArray("requestedProperties");
+      root.putArray("exactValues");
+    }
+    var draftJson = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.valueToTree(
+        new org.qubership.integration.platform.ai.plan.RequirementDraft(true, "Orders",
+            org.qubership.integration.platform.ai.plan.DraftDecision.READY_FOR_PLAN, List.of(), "gather", "1", "sha",
+            null, false, mapper.treeToValue(payload, RequirementBrief.class).facts(), false, null, false, correct.flow()));
+    var authored = draftJson.putObject("authoredDraft").putArray("facts");
+    for (var fact : facts) {
+      var entry = authored.addObject().put("sourceFactId", fact.path("sourceFactId").asText())
+          .put("text", fact.path("text").asText()).put("kind", "BEHAVIOR").put("polarity", "POSITIVE");
+      entry.set("elementIntent", fact.path("elementIntent").deepCopy());
+      if (explicit) entry.putObject("evidence").put("sourceTurnId", "source").put("quote", "Use mapper-2.");
+    }
+    var archived = mapper.treeToValue(draftJson, org.qubership.integration.platform.ai.plan.RequirementDraft.class);
+    AtomicInteger discoveryCalls = new AtomicInteger();
+    StageCapability discovery = new StageCapability() {
+      public String capabilityId() { return "requirement-discovery"; }
+      public Multi<CapabilitySignal> execute(StageExecutionContext context) {
+        if (context.attributeAsString("userText") == null && discoveryCalls.get() == 0) {
+          return Multi.createFrom().item(new CapabilitySignal.Completed(
+              StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "Requirements")));
+        }
+        return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(StageOutcomeClass.SUCCEEDED,
+            List.of(new ArtifactCandidate(Kind.REQUIREMENT_DRAFT,
+                discoveryCalls.incrementAndGet() == 1 ? archived : archived.withFacts(correct.facts()), List.of())),
+            "draft", null)));
+      }
+    };
+    StageCapability analysis = new StageCapability() {
+      public String capabilityId() { return "requirement-analysis"; }
+      public Multi<CapabilitySignal> execute(StageExecutionContext context) {
+        var draftRef = context.inputRefs().stream().filter(ref -> ref.kind() == Kind.REQUIREMENT_DRAFT)
+            .findFirst().orElseThrow();
+        payload.put("approvedDraftReference", draftRef.artifactId());
+        RequirementBrief candidate;
+        try {
+          candidate = discoveryCalls.get() == 1 ? mapper.treeToValue(payload, RequirementBrief.class) : correct;
+        } catch (com.fasterxml.jackson.core.JsonProcessingException failure) {
+          throw new IllegalArgumentException(failure);
+        }
+        return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(StageOutcomeClass.CANDIDATE,
+            List.of(new ArtifactCandidate(Kind.REQUIREMENT_BRIEF, candidate, List.of(draftRef))), "brief", null)));
+      }
+    };
+    AtomicInteger designCalls = new AtomicInteger();
+    var tool = captureTool();
+    var design = new DesignInputCapability((conversation, prompt) -> {
+      designCalls.incrementAndGet();
+      return Multi.createFrom().item(tool.captureChainSemanticRevision(ChainSemanticCaptureFixtures.linearCapture()));
+    }, new DefaultChainSemanticIdsRenderer());
+    var draftType = new ArtifactTypeRef("requirement-draft", 2);
+    var briefType = new ArtifactTypeRef("requirement-brief", 1);
+    var inputType = new ArtifactTypeRef("user-input", 1);
+    var profile = new ProductPipelineProfile(1, "element-recovery", "1", List.of(inputType), List.of(
+        new ProfileStage("requirement-discovery", discovery.capabilityId(), List.of(inputType), List.of(draftType),
+            null, null, new RetryPolicy(0, 0)),
+        new ProfileStage("requirement-analysis", analysis.capabilityId(), List.of(draftType), List.of(briefType),
+            new ApprovalPolicy(briefType), null, new RetryPolicy(0, 0)),
+        new ProfileStage("design-input", design.capabilityId(), List.of(briefType),
+            List.of(new ArtifactTypeRef("chain-semantic-revision", 1), new ArtifactTypeRef("ids-document", 1)),
+            null, null, new RetryPolicy(0, 0))),
+        new TerminalPolicy("design-input", "PLAN_APPROVED"), List.of("requirement-analysis", design.capabilityId()));
+    var support = CreateChainTestOrchestrator.supportBuilder(runs, artifacts,
+        new StageCapabilityRegistry(List.of(discovery, analysis, design)), clock).build();
+    var runtime = new CreateChainTestOrchestrator(support, runs);
+    var manifest = new RunManifest(RUN, null, List.of(), "product", profile.profileId(), "1", "sha",
+        "baseline", "sha", List.of(), "sha", null, "24.4", List.of(), null);
+    runtime.startOrResume(new StartOrResumeCommand("upstream-conversation", RUN, profile, manifest))
+        .collect().asList().await().indefinitely();
+    runtime.recordInput(new AcceptInputCommand(RUN, explicit ? "Use mapper-2." : "Return the response as JSON.",
+        "source", "source-hash")).collect().asList().await().indefinitely();
+    var gathered = support.stageExecutor().execute(RUN, "requirement-discovery").await().indefinitely();
+    support.applyStageLifecycle(RUN, gathered).collect().asList().await().indefinitely();
+    var approval = assertInstanceOf(StageDecision.WaitForApproval.class,
+        support.stageExecutor().execute(RUN, "requirement-analysis").await().indefinitely().decision());
+    runtime.recordApprove(new ApproveCommand(RUN, approval.candidate(), runs.load(RUN).orElseThrow().run().runRevision()))
+        .collect().asList().await().indefinitely();
+
+    var rejected = support.stageExecutor().execute(RUN, "design-input").await().indefinitely();
+    assertEquals(0, designCalls.get());
+    if (explicit) {
+      var wait = assertInstanceOf(StageDecision.WaitForInput.class, rejected.decision());
+      assertEquals(PipelineGates.RECOVERY_REVISE_BRIEF, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+      assertEquals(1, discoveryCalls.get());
+      return;
+    }
+    var reopen = assertInstanceOf(StageDecision.ReopenProducer.class, rejected.decision(),
+        runs.load(RUN).orElseThrow().attempts().getLast().failureEvidence());
+    assertEquals("requirement-discovery", reopen.producerStageId());
+    support.applyStageLifecycle(RUN, rejected).collect().asList().await().indefinitely();
+    var regathered = support.stageExecutor().execute(RUN, "requirement-discovery").await().indefinitely();
+    support.applyStageLifecycle(RUN, regathered).collect().asList().await().indefinitely();
+    var replacement = assertInstanceOf(StageDecision.WaitForApproval.class,
+        support.stageExecutor().execute(RUN, "requirement-analysis").await().indefinitely().decision());
+    runtime.recordApprove(new ApproveCommand(RUN, replacement.candidate(), runs.load(RUN).orElseThrow().run().runRevision()))
+        .collect().asList().await().indefinitely();
+    support.stageExecutor().execute(RUN, "design-input").await().indefinitely();
+    assertEquals(1, designCalls.get());
+    assertEquals(1, artifacts.history(RUN, Kind.USER_INPUT).size());
+    assertTrue(artifacts.latest(RUN, Kind.CHAIN_SEMANTIC_REVISION).isPresent());
+  }
+
+  @ParameterizedTest
   @ValueSource(strings = {"regenerate", "missing", "ask", "invalid", "zero-budget"})
   void rejectedTopologyReachesPlanningAfterRestartWithoutChangingTheBrief(String decisionMode) {
     verifyRecovery(decisionMode, false);
