@@ -191,6 +191,9 @@ public final class RequirementRepairPolicy {
   }
 
   private static boolean literalCovered(DraftInput candidate, FactInput fact, String literal) {
+    if (fact != null && fact.kind() == RequirementCaptureInput.FactKind.MESSAGE_SCHEMA && literal.equals(fact.text())) {
+      return true;
+    }
     if (RequiredLiteralBindings.covered(fact == null ? null : fact.elementIntent(), literal, mappingTexts(fact))) {
       return true;
     }

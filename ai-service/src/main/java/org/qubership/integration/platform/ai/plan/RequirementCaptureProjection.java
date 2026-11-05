@@ -1,6 +1,5 @@
 package org.qubership.integration.platform.ai.plan;
 
-import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingValue;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -121,7 +120,7 @@ public final class RequirementCaptureProjection {
   }
 
   /** Reserve authored IDs first; generated facts retain their preferred ID when it is available. */
-  private static String uniqueDerivedId(Set<String> usedIds, String preferred) {
+  static String uniqueDerivedId(Set<String> usedIds, String preferred) {
     String candidate = preferred;
     int suffix = 2;
     while (!usedIds.add(candidate)) {
@@ -262,20 +261,10 @@ public final class RequirementCaptureProjection {
                 "Resolve the catalog operation for " + interaction.participant() + "."));
       }
     }
-    Set<String> schemaOwners = new HashSet<>();
-    for (FactInput fact : input.facts()) {
-      if (fact.fieldMapping() == null || !(fact.fieldMapping().value() instanceof MappingValue.Copy copy)
-          || !(copy.source() instanceof MappingSource.Message origin)) continue;
-      CapabilityInput owner = capabilities.get(origin.interactionId());
-      if (!MessageSchemaContract.customHttp(owner) || !schemaOwners.add(owner.interactionId())) continue;
-      boolean supplied = input.facts().stream().anyMatch(candidate ->
-          candidate.kind() == RequirementCaptureInput.FactKind.MESSAGE_SCHEMA
-              && candidate.interactionIds().equals(List.of(owner.interactionId())));
-      if (!supplied) {
-        pending.add(new PendingWork("COPY_INPUT_SCHEMA_REQUIRED", owner.interactionId(), null,
-            "Provide the JSON Schema for the request body of " + owner.httpMethod() + " " + owner.path()
-                + ". Use propertyKey=requestSchema for this question."));
-      }
+    for (CapabilityInput owner : MessageSchemaContract.missingCopySchemas(input)) {
+      pending.add(new PendingWork("COPY_INPUT_SCHEMA_REQUIRED", owner.interactionId(), null,
+          "Provide the JSON Schema for the request body of " + owner.httpMethod() + " " + owner.path()
+              + ". Use propertyKey=requestSchema for this question."));
     }
     if (!hasInbound && !input.flow().interactions().isEmpty()) {
       pending.add(new PendingWork("ENTRY_POINT_REQUIRED", null, null,

@@ -57,6 +57,7 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftS
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftUpdate;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactKind;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FieldMappingInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FlowInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.CapabilityInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.AmendmentInput;
@@ -98,6 +99,9 @@ import org.qubership.integration.platform.ai.productpipeline.store.StageSnapshot
 import org.qubership.integration.platform.ai.productpipeline.store.StageStatus;
 import org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence;
 import org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingValue;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
@@ -107,6 +111,127 @@ import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackV
 import org.qubership.integration.platform.ai.qipknowledge.skill.CipKnowledgeCapabilityPhase;
 
 class RequirementDiscoveryCapabilityTest {
+
+  @ParameterizedTest
+  @ValueSource(strings = {"guessed-for-trigger", "guessed-for-outbound", "unrelated-properties",
+      "author-supplied", "mismatched-author-schema", "invalid-author-schema", "author-json-array"})
+  void shouldResolveRequestSchemaForCopy(String schemaSource) throws Exception {
+    String chat = "copy-schema";
+    boolean supplied = "author-supplied".equals(schemaSource);
+    boolean mismatched = "mismatched-author-schema".equals(schemaSource);
+    boolean invalid = "invalid-author-schema".equals(schemaSource) || "author-json-array".equals(schemaSource);
+    String authorSchema = switch (schemaSource) {
+      case "author-json-array" -> "[]";
+      case "invalid-author-schema" -> "{\"type\":\"string\"}";
+      default -> "{\"type\":\"object\",\"properties\":{\"client\":{\"type\":\"integer\"}}}";
+    };
+    String sourceText = "Receive POST /orders and copy client to customerId in the outgoing request. Proceed without IDS."
+        + (supplied || mismatched || invalid ? " Use request schema " + authorSchema : "")
+        + ("unrelated-properties".equals(schemaSource) ? " Example payload: {\"properties\":42}." : "");
+    var conversations = new ConversationService();
+    var source = conversations.archive().beginInput(chat, sourceText, null);
+    conversations.archive().resolveInput(chat, source, sourceText);
+    var h = captureHarness(null, conversations);
+    var copy = new FactInput("copy-client", List.of("entry", "submit"), FactKind.FIELD_MAPPING,
+        Polarity.POSITIVE, "Copy client to customerId.",
+        new FieldMappingInput("entry", null, "submit", "$.customerId", null,
+            new MappingValue.Copy(new MappingSource.Message("entry", MappingPort.OUTPUT, "$.client"))),
+        null, null, new ClaimEvidenceInput(source.turnId(), "copy client to customerId"));
+    var schemaFact = new FactInput("captured-schema", List.of("guessed-for-outbound".equals(schemaSource) ? "submit" : "entry"),
+        FactKind.MESSAGE_SCHEMA, Polarity.POSITIVE,
+        supplied || invalid ? authorSchema : "{\"type\":\"object\",\"properties\":{\"client\":{\"type\":\"string\"}}}",
+        null, null, null, new ClaimEvidenceInput(source.turnId(),
+            supplied || invalid ? authorSchema : "copy client to customerId"));
+    var input = new DraftInput(new FlowInput(List.of(
+        new InteractionInput("entry", Direction.INBOUND, "Caller", "POST /orders", null, null, null),
+        new InteractionInput("submit", Direction.OUTBOUND, "https://example.com/orders", "POST", null, null, null)),
+        List.of(new TransitionInput("entry", "submit"))),
+        List.of(new FactInput("goal", List.of(), FactKind.GOAL, Polarity.POSITIVE, "Forward the order."),
+            nativeAnchorFact("entry", "http-trigger"), nativeAnchorFact("submit", "http-sender"), copy, schemaFact),
+        List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.POST,
+                "/orders", null, null, null),
+            new CapabilityInput("submit", "http-sender", null, HttpMethod.POST,
+                "https://example.com/orders", null, null, null)),
+        List.of(), new DraftSettings(false, null));
+    var modelTurns = new AtomicInteger();
+    var capability = new RequirementDiscoveryCapability(null, h.store(), null, (cid, text) -> {
+      modelTurns.incrementAndGet();
+      h.tools().captureRequirementDraft(input);
+      h.tools().finishRequirementDiscoveryTurn(supplied
+          ? RequirementDiscoveryDirective.CONTINUE : RequirementDiscoveryDirective.STAY);
+      return Multi.createFrom().empty();
+    }, conversations);
+    capability.captureFeedback = h.feedback();
+    capability.captureTools = h.tools();
+    var outcome = capability.execute(new StageExecutionContext("copy-run", chat, "requirement-discovery",
+        "exec", "attempt", null, null, List.of(), Map.of("userText", sourceText)))
+        .collect().asList().await().indefinitely().stream().filter(CapabilitySignal.Completed.class::isInstance)
+        .map(CapabilitySignal.Completed.class::cast).findFirst().orElseThrow().outcome();
+
+    if (mismatched || invalid) {
+      assertEquals(StageOutcomeClass.CONTRACT_FAILURE, outcome.outcomeClass(), outcome.toString());
+      assertEquals(List.of(invalid ? "MESSAGE_SCHEMA_INVALID" : "MESSAGE_SCHEMA_SOURCE_REQUIRED"),
+          outcome.recoveryCause().findings().stream()
+          .map(finding -> finding.code()).toList());
+      assertTrue(h.store().get(chat).isEmpty());
+      return;
+    }
+    if (supplied) {
+      assertEquals(StageOutcomeClass.CANDIDATE, outcome.outcomeClass(), outcome.toString());
+      var draft = h.store().get(chat).orElseThrow();
+      assertEquals(List.of(), draft.authoredDraft().openQuestions());
+      assertEquals(List.of(schemaFact), draft.authoredDraft().facts().stream()
+          .filter(fact -> fact.kind() == FactKind.MESSAGE_SCHEMA).toList());
+      return;
+    }
+    assertEquals(StageOutcomeClass.NEEDS_INPUT, outcome.outcomeClass(), outcome.toString());
+    assertEquals(PipelineGates.STAGE_CLARIFICATION, PipelineGates.gateOf(outcome.message()).orElseThrow());
+    var draft = h.store().get(chat).orElseThrow();
+    assertEquals(List.of("goal", "native-entry", "native-submit", "copy-client"),
+        draft.authoredDraft().facts().stream().map(FactInput::sourceFactId).toList());
+    var question = draft.authoredDraft().openQuestions().getFirst();
+    assertEquals(new AuthorQuestionEvidence("entry", "requestSchema", AuthorQuestionEvidence.Kind.MISSING_VALUE,
+        List.of(source.turnId())), question.evidence());
+    assertTrue(question.text().contains("POST /orders"), question.text());
+
+    var coordinator = new RequirementClarificationCoordinator();
+    var active = coordinator.activeQuestion(h.store().latestRevision(chat).orElseThrow(), draft,
+        conversations.archive().read(chat).generation()).orElseThrow();
+    var offer = coordinator.createOffer(active, 6L);
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var runs = new ProductPipelineRunStore(new InMemoryArtifactBlobStore(), mapper, Clock.systemUTC());
+    var stages = List.of(new StageSnapshot("requirement-discovery", StageStatus.RUNNING, List.of(), null));
+    var created = runs.create(new RunSnapshot("copy-run", chat, 5L, RunStatus.RUNNING,
+        "requirement-discovery", stages, null));
+    var now = Instant.parse("2026-01-01T00:00:00Z");
+    var transition = new RunTransition(5L, 6L, RunStatus.RUNNING, RunStatus.WAITING_FOR_INPUT,
+        "requirement-discovery", now, "clarification", null, null, new ClarificationTransition(offer, null));
+    var attempt = new StageAttempt("attempt", "requirement-discovery", 6L, StageStatus.WAITING_FOR_INPUT,
+        now, now, List.of(), null);
+    runs.commit(5L, LogicalCommit.statusChange(created.run(), StageStatus.WAITING_FOR_INPUT, stages, attempt, transition));
+    h.store().useRunJournal(runs);
+    var answer = conversations.archive().beginInput(chat, ConversationArchive.deterministicAnswerTurnId(
+        offer.offerId(), authorSchema), authorSchema, mapper.createObjectNode().put("clarificationOfferId", offer.offerId()));
+    conversations.archive().resolveInput(chat, answer, authorSchema);
+    var continued = capability.execute(new StageExecutionContext("copy-run", chat, "requirement-discovery",
+        "exec", "answer", null, null, List.of(), Map.of("userText", authorSchema,
+            "admittedInputGate", PipelineGates.STAGE_CLARIFICATION, "admittedInputRevision", 6L,
+            "admittedClarificationOfferId", offer.offerId())))
+        .collect().asList().await().indefinitely().stream().filter(CapabilitySignal.Completed.class::isInstance)
+        .map(CapabilitySignal.Completed.class::cast).findFirst().orElseThrow().outcome();
+
+    assertEquals(StageOutcomeClass.CANDIDATE, continued.outcomeClass(), continued.toString());
+    assertEquals(1, modelTurns.get(), "Gather model calls across the opening turn and the schema answer");
+    var completed = h.store().get(chat).orElseThrow().authoredDraft();
+    assertEquals(List.of(), completed.openQuestions());
+    assertEquals(draft.authoredDraft().facts(), completed.facts().stream()
+        .filter(fact -> fact.kind() != FactKind.MESSAGE_SCHEMA).toList());
+    var actualSchema = completed.facts().stream().filter(fact -> fact.kind() == FactKind.MESSAGE_SCHEMA)
+        .findFirst().orElseThrow();
+    assertEquals(authorSchema, actualSchema.text());
+    assertEquals(new ClaimEvidenceInput(answer.turnId(), authorSchema), actualSchema.evidence());
+    assertEquals(offer.offerId(), h.store().latestClarificationAnswer(chat).orElseThrow().offerId());
+  }
 
   @Test
   void readyButtonCannotBypassMissingNativeAnchorMetadata() {

@@ -278,9 +278,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
     if (folderAgain.isPresent()) {
       return Multi.createFrom().item(folderAgain.get());
     }
-    if (admitActiveChainCall(context, conversationId, userMessage)) {
-      draftStore.finishTurn(conversationId, RequirementDiscoveryDirective.STAY);
-      draftStore.markCaptured(conversationId);
+    if (admitActiveClarification(context, conversationId, userMessage)) {
       return Multi.createFrom().item(completeDiscovery(context,
           new AtomicReference<>(draftStore.get(conversationId).orElse(null))));
     }
@@ -596,12 +594,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
     return draft.authoredDraft().settings().targetFolderPath();
   }
 
-  /**
-   * Writes one chain-trigger element id when this answer returns the open requirement offer and
-   * that offer is still the active catalog question. Admission is the capture result, not a
-   * before-and-after comparison.
-   */
-  private boolean admitActiveChainCall(StageExecutionContext context, String conversationId, String userMessage) {
+  private boolean admitActiveClarification(StageExecutionContext context, String conversationId, String userMessage) {
     if (captureTools == null || context == null || userMessage == null || userMessage.isBlank()) {
       return false;
     }
@@ -617,25 +610,31 @@ public class RequirementDiscoveryCapability implements StageCapability {
     RequirementDraft current = draftStore.get(conversationId).orElse(null);
     var active = selectActiveQuestion(conversationId, current).orElse(null);
     if (active == null || active.question().evidence() == null
-        || active.question().evidence().kind() != AuthorQuestionEvidence.Kind.CATALOG_CHOICE) {
+        || !offered.equals(new RequirementClarificationCoordinator().createOffer(active, revision).offerId())) {
       return false;
     }
-    if (!offered.equals(new RequirementClarificationCoordinator().createOffer(active, revision).offerId())) {
-      return false;
-    }
-    var update = captureTools.chainCallAnswerUpdate(current.authoredDraft(), active.question(), userMessage);
+    boolean chainCall = active.question().evidence().kind() == AuthorQuestionEvidence.Kind.CATALOG_CHOICE;
+    var update = chainCall
+        ? captureTools.chainCallAnswerUpdate(current.authoredDraft(), active.question(), userMessage)
+        : captureTools.requestSchemaAnswerUpdate(conversationId, current.authoredDraft(), active.question(), userMessage);
     if (update.isEmpty()) {
       return false;
     }
     draftStore.beginTurn(conversationId, userMessage);
     ToolSession.bind(conversationId);
-    String encoded;
     try {
-      encoded = captureTools.updateRequirementDraft(update.get());
+      if (!acceptedCapture(captureTools.updateRequirementDraft(update.get()))) {
+        return false;
+      }
+      if (chainCall) {
+        draftStore.finishTurn(conversationId, RequirementDiscoveryDirective.STAY);
+        draftStore.markCaptured(conversationId);
+        return true;
+      }
+      return acceptedCapture(captureTools.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE));
     } finally {
       ToolSession.clear();
     }
-    return acceptedCapture(encoded);
   }
 
   private static boolean acceptedCapture(String encoded) {

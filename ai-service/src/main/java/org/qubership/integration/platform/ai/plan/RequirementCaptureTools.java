@@ -163,8 +163,9 @@ public class RequirementCaptureTools {
               "DRAFT_ALREADY_EXISTS", "/draft", null,
               "Read the accepted draft and use updateRequirementDraft for changes.")));
         }
-        EditResult edit = RequirementCaptureEditor.initialize(proposal);
-        return publish(conversationId, proposal, previous, null, edit.issues());
+        DraftInput initial = store.prepareInitialRequestSchema(conversationId, proposal);
+        EditResult edit = RequirementCaptureEditor.initialize(initial);
+        return publish(conversationId, initial, previous, null, edit.issues());
       }
     });
   }
@@ -276,6 +277,17 @@ public class RequirementCaptureTools {
     return Optional.of(new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
         List.of(), List.of(), List.of(updated), List.of(), List.of(), List.of(),
         List.of(activeQuestion.questionId()), null));
+  }
+
+  public Optional<DraftUpdate> requestSchemaAnswerUpdate(String conversationId, DraftInput draft,
+      RequirementCaptureInput.QuestionInput question, String answerText) {
+    var answer = store.clarificationContext(conversationId, null);
+    if (answer == null || !question.equals(answer.pinnedQuestion()) || !answerText.equals(answer.answerText())) {
+      return Optional.empty();
+    }
+    return MessageSchemaContract.answer(draft, question, answer.answerTurnId(), answerText)
+        .map(fact -> new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(fact),
+            List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(question.questionId()), null));
   }
 
   public record SourceRead(String turnId, int offset, int maxChars) {}
