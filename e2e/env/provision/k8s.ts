@@ -98,6 +98,24 @@ const PREREQUISITES: Prerequisite[] = [
     },
   },
   {
+    name: "Istio ambient",
+    section: "istio",
+    async check(kubectl) {
+      for (const name of ["istio-cni-node", "ztunnel"]) {
+        const raw = await kubectl(["get", "ds", name, "-n", "istio-system", "-o", "json"]).catch(() => null);
+        if (raw === null) return `no ${name} DaemonSet in namespace istio-system`;
+        const { status } = JSON.parse(raw) as {
+          status?: { desiredNumberScheduled?: number; numberReady?: number; updatedNumberScheduled?: number };
+        };
+        const desired = status?.desiredNumberScheduled ?? 0;
+        if (!desired || status?.numberReady !== desired || status.updatedNumberScheduled !== desired) {
+          return `${name} is not ready on every node`;
+        }
+      }
+      return null;
+    },
+  },
+  {
     name: "the camel-k operator",
     section: "camel-k",
     async check(kubectl) {
@@ -504,8 +522,10 @@ async function ensureNamespace(): Promise<void> {
   if (!(await answers(kubectl, ["get", "namespace", NAMESPACE]))) {
     await kubectl(["create", "namespace", NAMESPACE]);
   }
-  // Before the install: a sidecar is injected when a pod is created.
-  await kubectl(["label", "--overwrite", "namespace", NAMESPACE, "istio-injection=enabled"]);
+  await kubectl([
+    "label", "--overwrite", "namespace", NAMESPACE,
+    "istio-injection-", "istio.io/dataplane-mode=ambient", "istio.io/use-waypoint=waypoint",
+  ]);
 }
 
 /**
@@ -594,6 +614,9 @@ export async function provisionK8s(
   const before = await deploymentGenerations();
   console.log(`[provision] helm upgrade --install ${RELEASE} -n ${NAMESPACE}`);
   await stream("helm", helmArguments({ root, choice, devServerHost, tags }), root);
+  await stream("kubectl", [
+    "wait", "--for=condition=Programmed", "gateway/waypoint", "-n", NAMESPACE, "--timeout=180s",
+  ], root);
   // Helm returns once the objects are written. Under Recreate the old pod may still answer the
   // health poll, so the rollout is awaited first.
   for (const role of ROLES) {

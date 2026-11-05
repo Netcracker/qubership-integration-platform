@@ -3,23 +3,32 @@
 ## Istio
 
 `global.qip.controlPlane.meshType: Istio` (the default in `values.yaml`) makes the platform generate
-Gateway API and Istio resources. Install Istio 1.31 or later and the Gateway API CRDs, and label
-the target namespace for sidecar injection, before you install the chart. From this directory:
+Gateway API and Istio resources. Install Istio 1.31 or later with the ambient profile and the
+Gateway API CRDs, then enroll the namespace. From this directory:
 
 ```sh
 kubectl apply --server-side --force-conflicts -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.3/standard-install.yaml
 istioctl install -f istio.yaml
 kubectl create namespace cip
-kubectl label namespace cip istio-injection=enabled
+kubectl label namespace cip --overwrite istio-injection- istio.io/dataplane-mode=ambient istio.io/use-waypoint=waypoint
 ```
 
-`istio.yaml` installs Istio's `minimal` profile with resource requests small enough for a
-single-node local cluster. A cluster installed earlier from the experimental Gateway API channel
-with `PILOT_ENABLE_ALPHA_GATEWAY_API=true` keeps working and needs no reinstall.
+`istio.yaml` installs istiod, istio-cni, and ztunnel with small resource requests and memory limits
+for a local cluster. It disables istiod autoscaling and installs no default ingress or egress gateway.
+The [end-to-end mesh budgets](../../../e2e/k8s/README.md#istio) list the values.
 
-Sidecars are injected when a pod is created, so a namespace labeled after `helm install` leaves the
-running pods without one. Run `kubectl rollout restart deployment -n cip` to recreate them if you get
-the order wrong.
+Enable `gateways.waypoint.enabled` when installing the chart to create the namespace's `waypoint`.
+It defaults to `false` for an existing installation that supplies its own waypoint. A waypoint
+provides L7 processing for Services in the ambient namespace. When converting a sidecar stand,
+restart its Deployments after enrollment to remove their old sidecars:
+
+```sh
+helm upgrade cip . -n cip --reuse-values --set gateways.waypoint.enabled=true
+kubectl rollout status daemonset/istio-cni-node -n istio-system
+kubectl rollout status daemonset/ztunnel -n istio-system
+kubectl wait --for=condition=Programmed gateway/waypoint -n cip --timeout=180s
+kubectl rollout restart deployment -n cip
+```
 
 Egress routes use `backendRefs` with `kind: Hostname`, which `istiod` 1.31.1 programs with no
 feature flag set.
@@ -52,7 +61,7 @@ only once you redeploy every chain.
 ```sh
 helm repo add camel-k https://apache.github.io/camel-k/charts/
 helm install camel-k camel-k/camel-k -n camel-k --create-namespace --set-string operator.global=true
-helm install --create-namespace --namespace cip cip .
+helm install --create-namespace --namespace cip cip . --set gateways.waypoint.enabled=true
 ```
 
 Pass `operator.global` with `--set-string`. The camel-k chart renders its RBAC only when the value
