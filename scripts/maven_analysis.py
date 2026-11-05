@@ -18,7 +18,9 @@ def digest(path):
 
 def identity(root):
     return {
-        "commit": subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"], text=True).strip(),
+        "commit": subprocess.check_output(
+            ["git", "-C", str(root), "rev-parse", "HEAD"], text=True
+        ).strip(),
         "run": os.environ.get("GITHUB_RUN_ID", "local"),
         "attempt": os.environ.get("GITHUB_RUN_ATTEMPT", "1"),
         "wrapper": digest(root / ".mvn/wrapper/maven-wrapper.properties"),
@@ -36,7 +38,11 @@ def export_project(arguments):
     manifest = (
         json.loads(manifest_path.read_text())
         if manifest_path.exists()
-        else {"identity": identity(ROOT), "module": os.environ["MAVEN_ANALYSIS_MODULE"], "projects": []}
+        else {
+            "identity": identity(ROOT),
+            "module": os.environ["MAVEN_ANALYSIS_MODULE"],
+            "projects": [],
+        }
     )
     pom = Path(arguments.pom)
     flattened = pom.parent / ".flattened-pom.xml"
@@ -92,18 +98,27 @@ def seal_bundle():
         if path.is_file() and path != manifest_path
     }
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
-    print(f"Exported {len(manifest['projects'])} reactor artifacts for {manifest['module']}.")
+    print(
+        f"Exported {len(manifest['projects'])} reactor artifacts for {manifest['module']}."
+    )
 
 
 def restore_bundle(root=ROOT):
     bundle = bundle_directory()
     manifest = json.loads((bundle / "manifest.json").read_text())
     current = identity(root)
-    if any(manifest["identity"][field] != current[field] for field in ["commit", "run", "wrapper"]):
-        raise ValueError("The analysis bundle belongs to another checkout, run, or Maven toolchain.")
+    if any(
+        manifest["identity"][field] != current[field]
+        for field in ["commit", "run", "wrapper"]
+    ):
+        raise ValueError(
+            "The analysis bundle belongs to another checkout, run, or Maven toolchain."
+        )
     for relative, expected in manifest["files"].items():
         if digest(bundle / relative) != expected:
-            raise ValueError(f"The analysis bundle file {relative} has a different digest.")
+            raise ValueError(
+                f"The analysis bundle file {relative} has a different digest."
+            )
     with tempfile.TemporaryDirectory(prefix="maven-analysis-") as directory:
         pom = Path(directory) / "pom.xml"
         pom.write_text(
@@ -128,12 +143,18 @@ def restore_bundle(root=ROOT):
                 check=True,
                 cwd=directory,
             )
-    shutil.copytree(bundle / "analysis", root / manifest["module"] / "target", dirs_exist_ok=True)
-    print(f"Restored analysis inputs for {manifest['module']} from {manifest['identity']['commit']}.")
+    shutil.copytree(
+        bundle / "analysis", root / manifest["module"] / "target", dirs_exist_ok=True
+    )
+    print(
+        f"Restored analysis inputs for {manifest['module']} from {manifest['identity']['commit']}."
+    )
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Transfer the current Maven reactor outputs to the analysis job.")
+    parser = argparse.ArgumentParser(
+        description="Transfer the current Maven reactor outputs to the analysis job."
+    )
     commands = parser.add_subparsers(dest="command", required=True)
     export = commands.add_parser("export")
     for name in ["group", "name", "version", "packaging", "artifact", "pom"]:

@@ -33,7 +33,11 @@ def main():
 
     repo_root = Path(__file__).resolve().parent.parent
     wrapper = repo_root / ("mvnw.cmd" if os.name == "nt" else "mvnw")
-    maven_executable = str(repo_root / "scripts/maven-ci.sh") if os.environ.get("CI") == "true" else str(wrapper)
+    maven_executable = (
+        str(repo_root / "scripts/maven-ci.sh")
+        if os.environ.get("CI") == "true"
+        else str(wrapper)
+    )
     command = [
         maven_executable,
         "-q",

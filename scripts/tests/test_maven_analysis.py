@@ -18,20 +18,34 @@ class AnalysisBundleTest(unittest.TestCase):
         self.bundle = self.root / "bundle"
         self.module = self.root / "consumer"
         (self.module / "target/classes").mkdir(parents=True)
-        (self.module / "target/classes/Consumer.class").write_bytes(b"compiled consumer")
+        (self.module / "target/classes/Consumer.class").write_bytes(
+            b"compiled consumer"
+        )
         (self.module / "target/classes/.gitkeep").touch()
         (self.module / "target/site/jacoco").mkdir(parents=True)
         (self.module / "target/site/jacoco/jacoco.xml").write_text("<report/>")
         (self.module / "target/surefire-reports").mkdir()
-        (self.module / "target/surefire-reports/TEST-Consumer.xml").write_text("<testsuite/>")
+        (self.module / "target/surefire-reports/TEST-Consumer.xml").write_text(
+            "<testsuite/>"
+        )
         self.pom = self.root / "flattened.xml"
-        self.pom.write_text("<project><dependencies><dependency>library</dependency></dependencies></project>")
+        self.pom.write_text(
+            "<project><dependencies><dependency>library</dependency></dependencies></project>"
+        )
         self.jar = self.root / "library.jar"
         self.jar.write_bytes(b"current library")
-        self.context = {"commit": "current", "run": "12", "attempt": "1", "wrapper": "pinned"}
+        self.context = {
+            "commit": "current",
+            "run": "12",
+            "attempt": "1",
+            "wrapper": "pinned",
+        }
         environment = patch.dict(
             os.environ,
-            {"MAVEN_ANALYSIS_DIRECTORY": str(self.bundle), "MAVEN_ANALYSIS_MODULE": "consumer"},
+            {
+                "MAVEN_ANALYSIS_DIRECTORY": str(self.bundle),
+                "MAVEN_ANALYSIS_MODULE": "consumer",
+            },
         )
         environment.start()
         self.addCleanup(environment.stop)
@@ -61,14 +75,26 @@ class AnalysisBundleTest(unittest.TestCase):
         self.assertIn(maven_analysis.INSTALL_GOAL, command)
         self.assertIn("-DgeneratePom=false", command)
         self.assertNotIn("verify", command)
-        self.assertEqual((self.module / "target/classes/Consumer.class").read_bytes(), b"compiled consumer")
-        self.assertTrue((self.module / "target/classes/.gitkeep").is_file())
-        self.assertEqual((self.module / "target/site/jacoco/jacoco.xml").read_text(), "<report/>")
-        self.assertEqual((self.module / "target/surefire-reports/TEST-Consumer.xml").read_text(), "<testsuite/>")
-        copied_pom = next(
-            argument.removeprefix("-DpomFile=") for argument in command if argument.startswith("-DpomFile=")
+        self.assertEqual(
+            (self.module / "target/classes/Consumer.class").read_bytes(),
+            b"compiled consumer",
         )
-        self.assertEqual(Path(copied_pom).read_text(encoding="utf-8"), self.pom.read_text())
+        self.assertTrue((self.module / "target/classes/.gitkeep").is_file())
+        self.assertEqual(
+            (self.module / "target/site/jacoco/jacoco.xml").read_text(), "<report/>"
+        )
+        self.assertEqual(
+            (self.module / "target/surefire-reports/TEST-Consumer.xml").read_text(),
+            "<testsuite/>",
+        )
+        copied_pom = next(
+            argument.removeprefix("-DpomFile=")
+            for argument in command
+            if argument.startswith("-DpomFile=")
+        )
+        self.assertEqual(
+            Path(copied_pom).read_text(encoding="utf-8"), self.pom.read_text()
+        )
 
     def test_a_missing_library_fails_before_an_old_cached_copy_can_be_used(self):
         (self.bundle / "reactor/ci.probe/library/1-SNAPSHOT/artifact.jar").unlink()
@@ -78,14 +104,18 @@ class AnalysisBundleTest(unittest.TestCase):
         execute.assert_not_called()
 
     def test_changed_bytes_fail_before_import(self):
-        (self.bundle / "reactor/ci.probe/library/1-SNAPSHOT/artifact.jar").write_bytes(b"old cached library")
+        (self.bundle / "reactor/ci.probe/library/1-SNAPSHOT/artifact.jar").write_bytes(
+            b"old cached library"
+        )
         with patch.object(maven_analysis.subprocess, "run") as execute:
             with self.assertRaisesRegex(ValueError, "different digest"):
                 maven_analysis.restore_bundle(self.root)
         execute.assert_not_called()
 
     def test_a_failed_analysis_can_reuse_the_build_from_an_earlier_attempt(self):
-        with patch.object(maven_analysis, "identity", return_value=dict(self.context, attempt="2")):
+        with patch.object(
+            maven_analysis, "identity", return_value=dict(self.context, attempt="2")
+        ):
             with patch.object(maven_analysis.subprocess, "run") as execute:
                 maven_analysis.restore_bundle(self.root)
         execute.assert_called_once()
