@@ -6,6 +6,7 @@ import * as path from "node:path";
 
 // Library build config for VS Code extensions - React and Monaco bundled (self-contained, no CDN)
 export default defineConfig({
+  base: "./",
   plugins: [
     react(),
     sassDts(),
