@@ -49,8 +49,8 @@ class UserTokenStoreTest {
   void waitsForRenewedTokenThenReturnsIt() throws Exception {
     long now = Instant.now().getEpochSecond();
     ToolSession.bind("conv-exp");
-    UserTokenStore.put("conv-exp", jwt(now - 60));
-    String fresh = jwt(now + 600);
+    UserTokenStore.put("conv-exp", jwt(now - 60, "alice"));
+    String fresh = jwt(now + 600, "alice");
     Thread renew =
         new Thread(
             () -> {
@@ -59,7 +59,7 @@ class UserTokenStoreTest {
               } catch (InterruptedException ignored) {
                 return;
               }
-              UserTokenStore.put("conv-exp", fresh);
+              UserTokenStore.renew("conv-exp", fresh);
             });
     renew.start();
 
@@ -85,18 +85,18 @@ class UserTokenStoreTest {
     finish.start();
 
     long started = System.nanoTime();
-    assertEquals(Optional.of(expired), UserTokenStore.currentUsable(5000));
+    assertEquals(Optional.empty(), UserTokenStore.currentUsable(5000));
     assertTrue(System.nanoTime() - started < 3_000_000_000L);
     finish.join();
   }
 
   @Test
-  void returnsExpiredTokenWhenNobodyRenewsIt() {
+  void returnsEmptyWhenNobodyRenewsExpiredToken() {
     String expired = jwt(Instant.now().getEpochSecond() - 60);
     ToolSession.bind("conv-exp");
     UserTokenStore.put("conv-exp", expired);
 
-    assertEquals(Optional.of(expired), UserTokenStore.currentUsable(600));
+    assertEquals(Optional.empty(), UserTokenStore.currentUsable(600));
   }
 
   private static String jwt(long exp) {
@@ -133,14 +133,26 @@ class UserTokenStoreTest {
   }
 
   @Test
-  void aFinishedTurnDoesNotRemoveANewerTurnsToken() {
+  void opaqueTokenCannotReplaceAnotherOnRunningConversation() {
     ToolSession.bind("conv-exp");
-    UserTokenStore.put("conv-exp", "old");
-    UserTokenStore.put("conv-exp", "new");
+    UserTokenStore.put("conv-exp", "opaque-alice");
 
-    UserTokenStore.remove("conv-exp", "old");
+    assertThrows(ForbiddenException.class, () -> UserTokenStore.put("conv-exp", "opaque-mallory"));
+    assertEquals(Optional.of("opaque-alice"), UserTokenStore.current());
+  }
 
-    assertEquals(Optional.of("new"), UserTokenStore.current());
+  @Test
+  void aFinishedTurnDoesNotRemoveANewerTurnsToken() {
+    long exp = Instant.now().getEpochSecond() + 600;
+    ToolSession.bind("conv-exp");
+    String old = jwt(exp, "alice");
+    String newer = jwt(exp + 60, "alice");
+    UserTokenStore.put("conv-exp", old);
+    UserTokenStore.put("conv-exp", newer);
+
+    UserTokenStore.remove("conv-exp", old);
+
+    assertEquals(Optional.of(newer), UserTokenStore.current());
   }
 
   private static String jwt(long exp, String subject) {
