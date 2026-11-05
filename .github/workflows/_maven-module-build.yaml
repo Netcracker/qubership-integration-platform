@@ -245,6 +245,8 @@ jobs:
           FORCE_UPDATE: ${{ inputs.force-update }}
         run: |
           set -eu
+          UPDATE_FLAG=""
+          if [ "$FORCE_UPDATE" = "true" ]; then UPDATE_FLAG="-U"; fi
           mvn --batch-mode -f integration-build-pipeline/pom.xml install $UPDATE_FLAG \
             -DskipTests -Dgpg.skip=true -Dcheckstyle.skip=true
 
