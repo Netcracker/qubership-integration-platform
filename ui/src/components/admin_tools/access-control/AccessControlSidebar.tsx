@@ -78,13 +78,13 @@ export const AccessControlSidebar: React.FC<AccessControlSidebarProps> = ({
                 | AccessControlProperty
                 | undefined;
               const { externalRoute, privateRoute } = properties ?? {};
+              const privateRouteStr = privateRoute ? "Private" : "Internal";
+              const externalRouteStr = externalRoute
+                ? "External"
+                : privateRouteStr;
               return externalRoute && privateRoute
                 ? "External, Private"
-                : externalRoute
-                  ? "External"
-                  : privateRoute
-                    ? "Private"
-                    : "Internal";
+                : externalRouteStr;
             })(),
           },
           {
@@ -94,12 +94,10 @@ export const AccessControlSidebar: React.FC<AccessControlSidebarProps> = ({
                 | AccessControlProperty
                 | undefined;
               const val = properties?.accessControlType;
-              return typeof val === "string" ? (
-                val
-              ) : val != null ? (
-                String(val)
-              ) : (
+              return val === undefined || val === null ? (
                 <Placeholder />
+              ) : (
+                String(val)
               );
             })(),
           },

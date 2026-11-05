@@ -149,6 +149,28 @@ type SidebarItem = {
   key: React.Key;
 } & DetailsSidebarSectionItem;
 
+const DetailsSidebarItem: React.FC<DetailsSidebarSectionItem> = ({
+  showLabel,
+  label,
+  value,
+}) => {
+  return showLabel === undefined || showLabel ? (
+    <Row wrap={false} gutter={4}>
+      <Col span={8}>
+        {typeof label === "string" ? (
+          <Typography.Text type={"secondary"}>{label}</Typography.Text>
+        ) : (
+          label
+        )}
+      </Col>
+
+      <Col>{value}</Col>
+    </Row>
+  ) : (
+    value
+  );
+};
+
 export const DetailsSidebar: React.FC<DetailsSidebarProps> = ({
   title,
   sections,
@@ -192,25 +214,7 @@ export const DetailsSidebar: React.FC<DetailsSidebarProps> = ({
           title: (groupKey) =>
             sections.find((section) => section.key === groupKey)?.title ?? "",
         }}
-        itemRender={(item) =>
-          item.showLabel === undefined || item.showLabel ? (
-            <Row wrap={false} gutter={4}>
-              <Col span={8}>
-                {typeof item.label === "string" ? (
-                  <Typography.Text type={"secondary"}>
-                    {item.label}
-                  </Typography.Text>
-                ) : (
-                  item.label
-                )}
-              </Col>
-
-              <Col>{item.value}</Col>
-            </Row>
-          ) : (
-            item.value
-          )
-        }
+        itemRender={(item) => <DetailsSidebarItem {...item} />}
         sticky
       />
     </Drawer>
