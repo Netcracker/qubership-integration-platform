@@ -1,6 +1,8 @@
 import React from "react";
 import type { AntdIconProps } from "@ant-design/icons/lib/components/AntdIcon";
+import parse from "html-react-parser";
 import mcpIcon from "../assets/mcp.svg?raw";
+import ncLogo from "../assets/logo-netcracker-32.svg?raw";
 import {
   DeleteOutlined,
   PlusOutlined,
@@ -137,38 +139,19 @@ import {
   CompassOutlined,
 } from "@ant-design/icons";
 
-/**
- * Default header logo (CIP text). Override: configure({ icons: { logo: … } }).
- * Deprecated key name in configuration: `qip` — see merge in IconProvider.
- */
-const CIP_WORDMARK_FONT_FAMILY =
-  '"Trebuchet MS", "Lucida Sans Unicode", "Segoe UI", sans-serif';
+const ncLogoSvg = parse(ncLogo.trim()) as React.ReactElement<
+  React.SVGProps<SVGSVGElement>
+>;
 
-const DefaultNavLogoIcon: React.FC<AntdIconProps> = ({ style, className }) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 40 18"
-    fill="none"
-    preserveAspectRatio="xMidYMid meet"
-    style={style}
-    className={className}
-  >
-    <title>CIP</title>
-    <text
-      x="20"
-      y="9"
-      textAnchor="middle"
-      dominantBaseline="central"
-      fill="currentColor"
-      fontFamily={CIP_WORDMARK_FONT_FAMILY}
-      fontSize="20"
-      fontWeight="700"
-      letterSpacing="-0.06em"
-    >
-      CIP
-    </text>
-  </svg>
-);
+export const DefaultNavLogoIcon: React.FC<AntdIconProps> = ({
+  style,
+  className,
+}) =>
+  React.cloneElement(ncLogoSvg, {
+    height: "1em",
+    style,
+    className: [className, "logo-icon"].filter((i) => !!i).join(" "),
+  });
 
 export const commonIcons = {
   plus: PlusOutlined,
