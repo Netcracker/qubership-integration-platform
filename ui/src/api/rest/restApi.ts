@@ -2146,7 +2146,7 @@ export class RestApi implements Api {
     searchRequest: AccessControlSearchRequest,
   ): Promise<AccessControlResponse> => {
     const response = await this.instance.post<AccessControlResponse>(
-      `${this.v1()}/catalog/chains/roles`,
+      `${this.v1()}/catalog/chains/access-control`,
       searchRequest,
     );
     return response.data;
@@ -2156,14 +2156,14 @@ export class RestApi implements Api {
     searchRequest: AccessControlUpdateRequest[],
   ): Promise<void> => {
     await this.instance.put<void>(
-      `${this.v1()}/catalog/chains/roles`,
+      `${this.v1()}/catalog/chains/access-control`,
       searchRequest,
     );
   };
 
   bulkDeployChainsAccessControl = async (chainIds: string[]): Promise<void> => {
     await this.instance.put<void>(
-      `${this.v1()}/catalog/chains/roles/redeploy`,
+      `${this.v1()}/catalog/chains/access-control/redeploy`,
       chainIds,
     );
   };

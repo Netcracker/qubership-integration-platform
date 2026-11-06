@@ -821,8 +821,8 @@ export interface LoggingPropertiesSet {
  * only one path leaves the other three unreached whatever it asserts.
  */
 export const CHAIN_ROLES_PATHS = [
-  "/v1/catalog/chains/roles",
   "/v1/catalog/chains/access-control",
+  "/v1/catalog/chains/roles",
 ] as const;
 
 export type ChainRolesPath = (typeof CHAIN_ROLES_PATHS)[number];
@@ -841,7 +841,7 @@ export interface ChainElementFilter {
   value: string;
 }
 
-/** The body `POST /v1/catalog/chains/roles` takes. Every field has a server-side default. */
+/** The access-control search body. Every field has a server-side default. */
 export interface ChainElementSearch {
   offset?: number;
   limit?: number;
