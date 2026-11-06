@@ -1,12 +1,5 @@
 ---
 
-# The repository's only Go module.
-#
-# `go 1.22` in testing-service/go.mod is a ceiling, not a floor: the downstream
-# build compiles this module with GOTOOLCHAIN=local against a 1.22 toolchain, so
-# a dependency that asks for a newer Go has to fail here rather than pull one in.
-# setup-go reads the directive from go.mod and GOTOOLCHAIN=local keeps it there.
-
 name: Testing Service Build
 
 on:

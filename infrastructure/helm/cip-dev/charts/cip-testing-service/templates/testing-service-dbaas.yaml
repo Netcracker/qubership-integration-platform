@@ -1,0 +1,32 @@
+{{- if and .Values.global.qip.testingService.enabled .Values.global.qip.testingService.dbaas.enabled }}
+---
+apiVersion: dbaas.netcracker.com/v1
+kind: InternalDatabase
+metadata:
+  name: testing-service-postgresql
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: testing-service
+    deployer.cleanup/allow: "true"
+spec:
+  operatorNamespace: {{ .Values.global.qip.testingService.dbaas.operatorNamespace | quote }}
+  classifier:
+    microserviceName: testing-service
+    scope: service
+  type: postgresql
+---
+apiVersion: dbaas.netcracker.com/v1
+kind: DatabaseAccessPolicy
+metadata:
+  name: testing-service-databaseaccesspolicy
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: testing-service
+    deployer.cleanup/allow: "true"
+spec:
+  operatorNamespace: {{ .Values.global.qip.testingService.dbaas.operatorNamespace | quote }}
+  microserviceName: testing-service
+  policy:
+    - type: postgresql
+      defaultRole: admin
+{{- end }}

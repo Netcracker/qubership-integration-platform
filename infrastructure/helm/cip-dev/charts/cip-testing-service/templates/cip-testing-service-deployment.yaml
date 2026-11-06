@@ -41,6 +41,18 @@ spec:
                 configMapKeyRef:
                   key: PRODUCTION_MODE
                   name: {{ .Release.Name }}-testing-service-env
+            - name: CIP_TESTING_DBAAS_ENABLED
+              value: {{ .Values.global.qip.testingService.dbaas.enabled | quote }}
+            {{- if .Values.global.qip.testingService.dbaas.enabled }}
+            - name: DBAAS_AGENT
+              value: {{ .Values.global.qip.testingService.dbaas.agentAddress | quote }}
+            - name: MICROSERVICE_NAME
+              value: testing-service
+            - name: MICROSERVICE_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            {{- else }}
             # The execution and pagination settings are left to the service's own
             # defaults: the config map does not render them, and referencing a
             # key it lacks would pin the pod the same way.
@@ -72,6 +84,7 @@ spec:
             # and the schema declared above.
             - name: CIP_TESTING_POSTGRES_DSN
               value: "postgres://$(POSTGRES_URL)?sslmode=disable&search_path=$(CIP_TESTING_POSTGRES_SCHEMA)"
+            {{- end }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
