@@ -9,6 +9,7 @@ import {
   screen,
   waitFor,
   fireEvent,
+  within,
 } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import {
@@ -16,9 +17,17 @@ import {
   CatalogItemType,
   FolderItem,
   ChainItem,
+  ChainCreationRequest,
+  DomainType,
+  BulkDeploymentSnapshotAction,
+  DeployMode,
 } from "../../src/api/apiTypes";
 
-// --------------- Mock data ---------------
+type ConfirmOptions = {
+  title: string;
+  content: string;
+  onOk: () => void | Promise<void>;
+};
 
 const mockNavigate = jest.fn();
 let mockSearchParams = new URLSearchParams();
@@ -104,10 +113,23 @@ jest.mock("../../src/Modals", () => ({
   }),
 }));
 
+const mockShowGenerateDdsModal = jest.fn();
 jest.mock("../../src/hooks/useGenerateDds.tsx", () => ({
   useGenerateDds: () => ({
-    showGenerateDdsModal: jest.fn(),
+    showGenerateDdsModal: mockShowGenerateDdsModal,
   }),
+}));
+
+const mockConfirmAndRun = jest.fn<void, [ConfirmOptions]>();
+jest.mock("../../src/misc/confirm-utils", () => ({
+  confirmAndRun: (options: ConfirmOptions) => mockConfirmAndRun(options),
+}));
+
+const mockMessageInfo = jest.fn<void, [string]>();
+const mockModalError = jest.fn<void, [unknown]>();
+jest.mock("../../src/misc/antd-app", () => ({
+  message: { info: (...args: [string]) => mockMessageInfo(...args) },
+  modal: { error: (...args: [unknown]) => mockModalError(...args) },
 }));
 
 const mockRequestFailed = jest.fn();
@@ -266,8 +288,9 @@ jest.mock("../../src/misc/format-utils", () => ({
   formatTimestamp: (ts: number) => new Date(ts).toISOString(),
 }));
 
+const mockCopyToClipboard = jest.fn<Promise<void>, [string]>();
 jest.mock("../../src/misc/clipboard-util", () => ({
-  copyToClipboard: jest.fn().mockResolvedValue(undefined),
+  copyToClipboard: (...args: [string]) => mockCopyToClipboard(...args),
 }));
 
 jest.mock("../../src/misc/selection-utils", () => ({
@@ -278,9 +301,11 @@ jest.mock("../../src/misc/tree-utils", () => ({
   traverseElementsDepthFirst: jest.fn(),
 }));
 
+const mockDownloadFile = jest.fn<void, [File]>();
+const mockMergeZipArchives = jest.fn<Promise<ArrayBuffer>, [Blob[]]>();
 jest.mock("../../src/misc/download-utils", () => ({
-  downloadFile: jest.fn(),
-  mergeZipArchives: jest.fn().mockResolvedValue(new ArrayBuffer(0)),
+  downloadFile: (...args: [File]) => mockDownloadFile(...args),
+  mergeZipArchives: (...args: [Blob[]]) => mockMergeZipArchives(...args),
 }));
 
 jest.mock("../../src/misc/export-additions", () => ({
@@ -313,6 +338,8 @@ const mockApi = {
   deleteFolder: jest.fn(),
   deleteFolders: jest.fn(),
   createChain: jest.fn(),
+  updateChain: jest.fn(),
+  getChain: jest.fn(),
   deleteChain: jest.fn(),
   deleteChains: jest.fn(),
   bulkDeploy: jest.fn(),
@@ -341,6 +368,8 @@ describe("Chains page", () => {
     mockCapturedEnsureChainLoaded = undefined;
     mockApi.listFolder.mockResolvedValue([]);
     mockApi.getPathToFolder.mockResolvedValue([]);
+    mockCopyToClipboard.mockResolvedValue(undefined);
+    mockMergeZipArchives.mockResolvedValue(new ArrayBuffer(0));
   });
 
   it("refreshes after a catalog write while preserving the current folder", async () => {
@@ -913,6 +942,519 @@ describe("Chains page", () => {
         name: "Child",
         parentId: "folder-1",
       }),
+    );
+  });
+
+  it("handles chain context menu actions", async () => {
+    mockApi.listFolder.mockResolvedValue([mockChain]);
+    mockApi.updateChain.mockResolvedValue({
+      ...mockChain,
+      name: "Renamed Chain",
+    });
+    mockApi.duplicateChain.mockResolvedValue({
+      ...mockChain,
+      id: "chain-dup",
+      name: "Duplicated Chain",
+    });
+    mockApi.deleteChain.mockResolvedValue(undefined);
+    render(<Chains />);
+    await screen.findByText("Test Chain");
+
+    fireEvent.click(screen.getByTestId("menu-item-copyChainLink"));
+    await waitFor(() =>
+      expect(mockCopyToClipboard).toHaveBeenCalledWith(
+        `${window.location.origin}/chains/chain-1`,
+      ),
+    );
+    await waitFor(() =>
+      expect(mockMessageInfo).toHaveBeenCalledWith(
+        "Link to a chain was copied to the clipboard",
+      ),
+    );
+
+    fireEvent.click(screen.getByTestId("menu-item-generateDDS"));
+    expect(mockShowGenerateDdsModal).toHaveBeenCalledWith("chain-1");
+
+    fireEvent.click(screen.getByTestId("menu-item-editChain"));
+    const editProps = mockShowModal.mock.calls.at(-1)![0].component.props as {
+      variant: string;
+      chainId: string;
+      onUpdateMetadata: (
+        id: string,
+        update: { name: string; labels: [] },
+        open: boolean,
+        tab: boolean,
+      ) => Promise<void>;
+    };
+    expect(editProps.variant).toBe("editChainMetaData");
+    expect(editProps.chainId).toBe("chain-1");
+
+    const update = { name: "Renamed Chain", labels: [] as [] };
+    await act(async () => {
+      await editProps.onUpdateMetadata("chain-1", update, true, false);
+    });
+    expect(mockApi.updateChain).toHaveBeenCalledWith("chain-1", update);
+    await waitFor(() =>
+      expect(mockNavigate).toHaveBeenCalledWith("/chains/chain-1"),
+    );
+    await screen.findByText("Renamed Chain");
+
+    mockApi.updateChain.mockRejectedValueOnce(new Error("offline"));
+    await act(async () => {
+      await editProps.onUpdateMetadata("chain-1", update, false, false);
+    });
+    expect(mockRequestFailed).toHaveBeenCalledWith(
+      "Failed to update chain",
+      expect.any(Error),
+    );
+
+    fireEvent.click(screen.getByTestId("menu-item-duplicateChain"));
+    await screen.findByText("Duplicated Chain");
+
+    const originalRow = document.querySelector<HTMLElement>(
+      'tr[data-row-key="chain-1"]',
+    )!;
+    fireEvent.click(within(originalRow).getByTestId("menu-item-deleteChain"));
+    const confirm = mockConfirmAndRun.mock.calls.at(-1)![0];
+    expect(confirm.title).toBe("Delete Chain");
+    expect(confirm.content).toContain("Renamed Chain");
+    await act(async () => {
+      await confirm.onOk();
+    });
+    expect(mockApi.deleteChain).toHaveBeenCalledWith("chain-1");
+    await waitFor(() =>
+      expect(screen.queryByText("Renamed Chain")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("copies a folder link and deletes the folder after confirmation", async () => {
+    mockApi.listFolder.mockResolvedValue([mockFolder]);
+    const error = new Error("offline");
+    mockApi.deleteFolder
+      .mockRejectedValueOnce(error)
+      .mockResolvedValueOnce(undefined);
+    render(<Chains />);
+    await screen.findByText("Test Folder");
+
+    fireEvent.click(screen.getByTestId("menu-item-copyFolderLink"));
+    await waitFor(() =>
+      expect(mockCopyToClipboard).toHaveBeenCalledWith(
+        `${window.location.origin}/chains?folder=folder-1`,
+      ),
+    );
+    await waitFor(() =>
+      expect(mockMessageInfo).toHaveBeenCalledWith(
+        "Link to a folder was copied to the clipboard",
+      ),
+    );
+
+    fireEvent.click(screen.getByTestId("menu-item-deleteFolder"));
+    const firstConfirm = mockConfirmAndRun.mock.calls.at(-1)![0];
+    expect(firstConfirm.title).toBe("Delete Folder");
+    await act(async () => {
+      await firstConfirm.onOk();
+    });
+    await waitFor(() =>
+      expect(mockRequestFailed).toHaveBeenCalledWith(
+        "Failed to delete folder",
+        error,
+      ),
+    );
+    expect(screen.getByText("Test Folder")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("menu-item-deleteFolder"));
+    await act(async () => {
+      await mockConfirmAndRun.mock.calls.at(-1)![0].onOk();
+    });
+    await waitFor(() =>
+      expect(mockApi.deleteFolder).toHaveBeenCalledWith("folder-1"),
+    );
+    await waitFor(() =>
+      expect(screen.queryByText("Test Folder")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("moves or copies a chain when pasted from the toolbar", async () => {
+    mockApi.listFolder.mockResolvedValue([mockChain]);
+    mockApi.moveChain.mockResolvedValue({ ...mockChain, parentId: "folder-2" });
+    mockApi.copyChain.mockResolvedValue({
+      ...mockChain,
+      id: "chain-copy",
+      name: "Copied Chain",
+    });
+    render(<Chains />);
+    await screen.findByText("Test Chain");
+
+    fireEvent.click(screen.getByTestId("menu-item-cut"));
+    fireEvent.click(screen.getByTestId("protected-btn-paste"));
+    await waitFor(() =>
+      expect(mockApi.moveChain).toHaveBeenCalledWith("chain-1", undefined),
+    );
+    expect(mockApi.copyChain).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("menu-item-copy"));
+    fireEvent.click(screen.getByTestId("protected-btn-paste"));
+    await waitFor(() =>
+      expect(mockApi.copyChain).toHaveBeenCalledWith("chain-1", undefined),
+    );
+    await screen.findByText("Copied Chain");
+
+    fireEvent.click(screen.getByTestId("protected-btn-paste"));
+    expect(mockApi.moveChain).toHaveBeenCalledTimes(1);
+    expect(mockApi.copyChain).toHaveBeenCalledTimes(1);
+  });
+
+  it("compares and deploys the selected chains", async () => {
+    mockApi.listFolder.mockResolvedValue([mockChain, mockChain2]);
+    mockApi.bulkDeploy.mockResolvedValue([]);
+    render(<Chains />);
+    await screen.findByText("Test Chain");
+    await screen.findByText("Another Chain");
+
+    const compare = () =>
+      screen.getByTestId("protected-btn-compare-selected-chains");
+    const deploy = () =>
+      screen.getByTestId("protected-btn-deploy-selected-chains");
+    const checkboxes = () =>
+      document.querySelectorAll<HTMLInputElement>(
+        'tbody input[type="checkbox"]',
+      );
+
+    expect(compare()).toBeDisabled();
+    expect(deploy()).toBeDisabled();
+
+    fireEvent.click(checkboxes()[0]);
+    expect(deploy()).not.toBeDisabled();
+    expect(compare()).toBeDisabled();
+
+    fireEvent.click(checkboxes()[1]);
+    expect(compare()).not.toBeDisabled();
+
+    fireEvent.click(compare());
+    const diffProps = mockShowModal.mock.calls.at(-1)![0].component.props as {
+      item1: { kind: string; id: string };
+      item2: { kind: string; id: string };
+    };
+    expect(diffProps.item1).toEqual({ kind: "chain", id: "chain-1" });
+    expect(diffProps.item2).toEqual({ kind: "chain", id: "chain-2" });
+
+    fireEvent.click(deploy());
+    const deployProps = mockShowModal.mock.calls.at(-1)![0].component.props as {
+      chainCount: number;
+      chainIds: string[];
+      onSubmit: (request: {
+        domains: { name: string; type: DomainType }[];
+        snapshotAction: BulkDeploymentSnapshotAction;
+      }) => Promise<unknown>;
+    };
+    expect(deployProps.chainCount).toBe(2);
+    expect(deployProps.chainIds).toEqual(["chain-1", "chain-2"]);
+
+    const request = {
+      domains: [{ name: "domain-a", type: DomainType.CLASSIC }],
+      snapshotAction: BulkDeploymentSnapshotAction.LAST_CREATED,
+    };
+    await act(async () => {
+      await deployProps.onSubmit(request);
+    });
+    expect(mockApi.bulkDeploy).toHaveBeenCalledWith({
+      domains: ["domain-a"],
+      chainIds: ["chain-1", "chain-2"],
+      snapshotAction: BulkDeploymentSnapshotAction.LAST_CREATED,
+      mode: DeployMode.APPEND,
+    });
+
+    const error = new Error("deploy failed");
+    mockApi.bulkDeploy.mockRejectedValueOnce(error);
+    let failure: unknown;
+    await act(async () => {
+      try {
+        await deployProps.onSubmit(request);
+      } catch (caught) {
+        failure = caught;
+      }
+    });
+    expect(failure).toBe(error);
+    expect(mockRequestFailed).toHaveBeenCalledWith(
+      "Failed to deploy chains",
+      error,
+    );
+  });
+
+  it("deletes selected folders and chains through the toolbar after confirmation", async () => {
+    mockApi.listFolder.mockResolvedValue([mockFolder, mockChain]);
+    mockApi.deleteFolders.mockResolvedValue(undefined);
+    mockApi.deleteChains.mockResolvedValue(undefined);
+    render(<Chains />);
+    await screen.findByText("Test Folder");
+    await screen.findByText("Test Chain");
+
+    fireEvent.click(
+      screen.getByTestId("protected-btn-delete-selected-chains-and-folders"),
+    );
+    expect(mockConfirmAndRun).not.toHaveBeenCalled();
+
+    const checkboxes = document.querySelectorAll<HTMLInputElement>(
+      'tbody input[type="checkbox"]',
+    );
+    fireEvent.click(checkboxes[0]);
+    fireEvent.click(checkboxes[1]);
+    fireEvent.click(
+      screen.getByTestId("protected-btn-delete-selected-chains-and-folders"),
+    );
+
+    const confirm = mockConfirmAndRun.mock.calls.at(-1)![0];
+    expect(confirm.title).toBe("Delete selected");
+    expect(confirm.content).toContain("folders and chains");
+    await act(async () => {
+      await confirm.onOk();
+    });
+
+    await waitFor(() =>
+      expect(mockApi.deleteFolders).toHaveBeenCalledWith(["folder-1"]),
+    );
+    expect(mockApi.deleteChains).toHaveBeenCalledWith(["chain-1"]);
+    expect(mockApi.deleteFolder).not.toHaveBeenCalled();
+    expect(mockApi.deleteChain).not.toHaveBeenCalled();
+  });
+
+  it("exports all chains or the selected chain through the export modal", async () => {
+    mockApi.listFolder.mockResolvedValue([mockChain]);
+    mockApi.exportAllChains.mockResolvedValue({
+      size: 1,
+      name: "all-chains.zip",
+    });
+    mockApi.exportChains.mockResolvedValue({
+      size: 1,
+      name: "selected-chain.zip",
+    });
+    render(<Chains />);
+    await screen.findByText("Test Chain");
+
+    const submitExport = () => {
+      const props = mockShowModal.mock.calls.at(-1)![0].component.props as {
+        multiple: boolean;
+        onSubmit: (options: {
+          exportSubchains: boolean;
+          exportServices: boolean;
+          exportVariables: boolean;
+        }) => void;
+      };
+      const options = {
+        exportSubchains: true,
+        exportServices: false,
+        exportVariables: false,
+      };
+      return { props, options };
+    };
+
+    fireEvent.click(screen.getByTestId("protected-btn-export-selected-chains"));
+    let { props, options } = submitExport();
+    expect(props.multiple).toBe(true);
+    props.onSubmit(options);
+    await waitFor(() =>
+      expect(mockApi.exportAllChains).toHaveBeenCalledTimes(1),
+    );
+    await waitFor(() =>
+      expect(mockDownloadFile).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "all-chains.zip" }),
+      ),
+    );
+
+    fireEvent.click(document.querySelector('tbody input[type="checkbox"]')!);
+    fireEvent.click(screen.getByTestId("protected-btn-export-selected-chains"));
+    ({ props, options } = submitExport());
+    expect(props.multiple).toBe(false);
+    props.onSubmit(options);
+    await waitFor(() =>
+      expect(mockApi.exportChains).toHaveBeenCalledWith(["chain-1"], true),
+    );
+    await waitFor(() =>
+      expect(mockDownloadFile).toHaveBeenLastCalledWith(
+        expect.objectContaining({ name: "selected-chain.zip" }),
+      ),
+    );
+  });
+
+  it("loads folder children on expand and reuses them afterwards", async () => {
+    mockApi.listFolder.mockImplementation(
+      async (request: { folderId?: string }) => {
+        if (request.folderId === "folder-1") {
+          return [mockNestedChain];
+        }
+        return [mockFolder];
+      },
+    );
+    render(<Chains />);
+    await screen.findByText("Test Folder");
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand row" }));
+    await screen.findByText("Nested Chain");
+    expect(mockApi.listFolder).toHaveBeenCalledWith({
+      folderId: "folder-1",
+      filters: [],
+      searchString: "",
+    });
+    const folderLoads = () =>
+      mockApi.listFolder.mock.calls.filter(
+        ([request]: [{ folderId?: string }]) => request.folderId === "folder-1",
+      ).length;
+    expect(folderLoads()).toBe(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Collapse row" }));
+    await waitFor(() =>
+      expect(screen.queryByText("Nested Chain")).not.toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand row" }));
+    await screen.findByText("Nested Chain");
+    expect(folderLoads()).toBe(1);
+  });
+
+  it("creates a folder and opens it in the current or a new tab", async () => {
+    mockApi.createFolder.mockResolvedValue({
+      id: "folder-new",
+      name: "New Folder",
+    });
+    render(<Chains />);
+    await waitFor(() => expect(mockApi.listFolder).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByTestId("menu-item-folder"));
+    const onSubmit = mockShowModal.mock.calls.at(-1)![0].component.props
+      .onSubmit as (name: string, open: boolean, tab: boolean) => Promise<void>;
+
+    await act(async () => {
+      await onSubmit("New Folder", true, false);
+    });
+    await waitFor(() =>
+      expect(mockNavigate).toHaveBeenCalledWith("/chains?folder=folder-new"),
+    );
+
+    const openSpy = jest.spyOn(window, "open").mockImplementation(() => null);
+    await act(async () => {
+      await onSubmit("Another Folder", true, true);
+    });
+    expect(openSpy).toHaveBeenCalledWith(
+      "/chains?folder=folder-new",
+      "_blank",
+      "noreferrer",
+    );
+    openSpy.mockRestore();
+
+    const error = new Error("offline");
+    mockApi.createFolder.mockRejectedValueOnce(error);
+    await act(async () => {
+      await onSubmit("Broken Folder", false, false);
+    });
+    expect(mockRequestFailed).toHaveBeenCalledWith(
+      "Failed to create folder",
+      error,
+    );
+  });
+
+  it("creates a chain and opens it in the current or a new tab", async () => {
+    mockApi.createChain.mockResolvedValue({
+      ...mockChain,
+      id: "chain-new",
+      name: "New Chain",
+    });
+    render(<Chains />);
+    await waitFor(() => expect(mockApi.listFolder).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByTestId("menu-item-chain"));
+    const onSubmit = mockShowModal.mock.calls.at(-1)![0].component.props
+      .onSubmit as (
+      request: ChainCreationRequest,
+      open: boolean,
+      tab: boolean,
+    ) => Promise<void>;
+
+    await act(async () => {
+      await onSubmit({ name: "New Chain" }, true, false);
+    });
+    expect(mockApi.createChain).toHaveBeenCalledWith({
+      name: "New Chain",
+      parentId: undefined,
+    });
+    await waitFor(() =>
+      expect(mockNavigate).toHaveBeenCalledWith("/chains/chain-new"),
+    );
+    await waitFor(() =>
+      expect(
+        document.querySelector('tr[data-row-key="chain-new"]'),
+      ).toBeInTheDocument(),
+    );
+
+    const openSpy = jest.spyOn(window, "open").mockImplementation(() => null);
+    await act(async () => {
+      await onSubmit({ name: "Another Chain" }, true, true);
+    });
+    expect(openSpy).toHaveBeenCalledWith(
+      "/chains/chain-new",
+      "_blank",
+      "noreferrer",
+    );
+    openSpy.mockRestore();
+
+    const error = new Error("offline");
+    mockApi.createChain.mockRejectedValueOnce(error);
+    await act(async () => {
+      await onSubmit({ name: "Broken Chain" }, false, false);
+    });
+    expect(mockRequestFailed).toHaveBeenCalledWith(
+      "Failed to create chain",
+      error,
+    );
+  });
+
+  it("keeps the open details drawer in sync during catalog refreshes", async () => {
+    const dispatchCatalogChange = () =>
+      act(async () =>
+        window.dispatchEvent(
+          new CustomEvent("qip-catalog-changed", {
+            detail: { chainIds: [mockChain.id], chainsListChanged: true },
+          }),
+        ),
+      );
+
+    mockApi.listFolder.mockResolvedValue([mockChain]);
+    render(<Chains />);
+    await screen.findByText("Test Chain");
+    fireEvent.click(screen.getByText("A test chain"));
+    expect(screen.getByTestId("drawer-chain-id")).toHaveTextContent("chain-1");
+
+    mockApi.listFolder.mockResolvedValue([
+      { ...mockChain, name: "Updated In List" },
+    ]);
+    await dispatchCatalogChange();
+    await waitFor(() =>
+      expect(screen.getByTestId("drawer-chain-name")).toHaveTextContent(
+        "Updated In List",
+      ),
+    );
+
+    mockApi.listFolder.mockResolvedValue([]);
+    mockApi.getChain.mockResolvedValue({
+      ...mockChain,
+      name: "Updated From Details",
+    });
+    await dispatchCatalogChange();
+    await waitFor(() =>
+      expect(screen.getByTestId("drawer-chain-name")).toHaveTextContent(
+        "Updated From Details",
+      ),
+    );
+
+    mockApi.getChain.mockRejectedValueOnce(new RestApiError("gone", 404));
+    await dispatchCatalogChange();
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId("chain-details-drawer"),
+      ).not.toBeInTheDocument(),
+    );
+    expect(mockNotificationService.info).toHaveBeenCalledWith(
+      "Chain deleted",
+      expect.stringContaining("no longer exists"),
     );
   });
 

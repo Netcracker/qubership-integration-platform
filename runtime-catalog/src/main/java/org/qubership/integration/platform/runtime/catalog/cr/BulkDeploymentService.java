@@ -228,6 +228,29 @@ public class BulkDeploymentService {
                 name -> domainTypeMap.getOrDefault(name, DomainType.MICRO)));
     }
 
+    public Optional<DomainType> discoverDomainType(String domainName) {
+        return engineService.getDomains().stream()
+            .filter(domain -> domain.getName().equals(domainName))
+            .map(EngineDomain::getType)
+            .findFirst();
+    }
+
+    public void deleteChainSnapshot(String domainName, String snapshotId) {
+        for (int attempt = 1; ; attempt++) {
+            try {
+                microDomainService.deleteChainSnapshot(domainName, snapshotId);
+                return;
+            } catch (KubeApiConflictException conflict) {
+                if (attempt == MAX_CONFLICT_ATTEMPTS) {
+                    throw conflict;
+                }
+                log.warn("Removal of snapshot '{}' from micro-domain '{}' lost a concurrency race on "
+                                + "attempt {}/{}; re-reading current cluster state and retrying",
+                    snapshotId, domainName, attempt, MAX_CONFLICT_ATTEMPTS);
+            }
+        }
+    }
+
     public void forClassicAndMicroDomains(
         Collection<String> domainNames,
         BiConsumer<Collection<String>, Collection<String>> consumer

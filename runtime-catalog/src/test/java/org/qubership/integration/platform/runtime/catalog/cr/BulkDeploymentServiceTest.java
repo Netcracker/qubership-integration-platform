@@ -219,6 +219,7 @@ class BulkDeploymentServiceTest {
         BulkDeploymentResponse created = BulkDeploymentResponse.builder()
                 .chainId("chain-1")
                 .status(BulkDeploymentStatus.CREATED)
+                .domain(EngineDomain.builder().name("classic-domain").type(DomainType.CLASSIC).build())
                 .build();
         when(deploymentService.deploySnapshot(snapshot, List.of("classic-domain"), List.of())).thenReturn(List.of(created));
 
@@ -355,6 +356,26 @@ class BulkDeploymentServiceTest {
     }
 
     @Test
+    void deployChainsDeploysToMicroDomainsWithoutTriggerChecks() {
+        classicDomainEnabled(true);
+        microDomainEnabled(true);
+        domainsExist(engineDomain("micro-domain", DomainType.MICRO));
+        resourceBuildSucceeds();
+        Chain chain = chain("chain-1");
+        when(chainRepository.findAllById(List.of("chain-1"))).thenReturn(List.of(chain));
+        Snapshot snapshot = snapshot("s1", chain);
+        when(deploymentService.provideSnapshots(any(), any(), any())).thenReturn(Map.of("chain-1", snapshot));
+
+        List<BulkDeploymentResponse> result = deployChains(bulkDeployRequest(List.of("chain-1"), "micro-domain"));
+
+        assertThat(result)
+                .extracting(BulkDeploymentResponse::getStatus, response -> response.getDomain().getType())
+                .containsExactly(tuple(BulkDeploymentStatus.CREATED, DomainType.MICRO));
+        verify(deploymentService, never()).checkTriggers(any(), any(), any(), any());
+        verify(deploymentService, never()).deleteById(any());
+    }
+
+    @Test
     void deployResourceBuildsWithTheProvidedOptionsAndDeploysTheResult() {
         ResourceDeployRequest request = ResourceDeployRequest.builder()
                 .name("orders")
@@ -442,6 +463,40 @@ class BulkDeploymentServiceTest {
         assertThrows(MicroDomainDeployError.class, () -> service.deployResource(request));
 
         verify(microDomainService, times(1)).deploy(any());
+    }
+
+    @DisplayName("Retries a snapshot removal that loses a concurrency race")
+    @Test
+    void deleteChainSnapshotRetriesOnConflict() {
+        doThrow(new KubeApiConflictException("conflict", null))
+                .doNothing()
+                .when(microDomainService).deleteChainSnapshot("orders", "s1");
+
+        service.deleteChainSnapshot("orders", "s1");
+
+        verify(microDomainService, times(2)).deleteChainSnapshot("orders", "s1");
+    }
+
+    @DisplayName("Gives up on a snapshot removal after the retry budget is exhausted")
+    @Test
+    void deleteChainSnapshotStopsRetryingAfterTheBudgetIsExhausted() {
+        doThrow(new KubeApiConflictException("conflict", null))
+                .when(microDomainService).deleteChainSnapshot("orders", "s1");
+
+        assertThrows(KubeApiConflictException.class, () -> service.deleteChainSnapshot("orders", "s1"));
+
+        verify(microDomainService, times(3)).deleteChainSnapshot("orders", "s1");
+    }
+
+    @DisplayName("Does not retry a snapshot removal that failed for a reason other than a conflict")
+    @Test
+    void deleteChainSnapshotDoesNotRetryANonConflictFailure() {
+        doThrow(new MicroDomainDeployError("boom", null))
+                .when(microDomainService).deleteChainSnapshot("orders", "s1");
+
+        assertThrows(MicroDomainDeployError.class, () -> service.deleteChainSnapshot("orders", "s1"));
+
+        verify(microDomainService, times(1)).deleteChainSnapshot("orders", "s1");
     }
 
     @DisplayName("A REWRITE deletes the HTTPRoutes of the chains it no longer deploys, after the deploy")

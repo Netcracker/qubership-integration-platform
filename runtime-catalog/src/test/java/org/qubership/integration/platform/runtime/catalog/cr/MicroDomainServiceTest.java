@@ -35,12 +35,14 @@ import org.qubership.integration.platform.camelk.naming.NamingStrategy;
 import org.qubership.integration.platform.camelk.naming.validation.K8sNameValidator;
 import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
 import org.qubership.integration.platform.chain.model.Snapshot;
+import org.qubership.integration.platform.runtime.catalog.configuration.DomainProperties;
 import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainService.BuiltResources;
 import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainService.ResourceKey;
 import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationConfigurationSerdes;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegration;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.GenericCustomResources;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.KubeCustomObject;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DomainTypeDisabledException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiConflictException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiException;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeOperator;
@@ -80,6 +82,8 @@ class MicroDomainServiceTest {
     private IntegrationConfigurationSerdes integrationConfigurationSerdes;
     private GenericCustomResources genericCustomResources;
     private IntegrationServiceCatalog integrationServiceCatalog;
+    private DomainProperties domainProperties;
+    private DomainProperties.DeployMethodConfiguration microConfiguration;
 
     @SuppressWarnings("unchecked")
     private MicroDomainService newService(boolean monitoringEnabled) {
@@ -92,7 +96,8 @@ class MicroDomainServiceTest {
                 integrationServiceCatalog,
                 monitoringEnabled,
                 context -> "engine-routes",
-                new K8sNameValidator());
+                new K8sNameValidator(),
+                domainProperties);
         // The @Value fields are package-private, so the test in this package sets them directly.
         service.domainLabel = "cip.domain";
         service.bgVersionLabel = "cip.bgVersion";
@@ -109,6 +114,27 @@ class MicroDomainServiceTest {
         integrationConfigurationSerdes = mock(IntegrationConfigurationSerdes.class);
         genericCustomResources = mock(GenericCustomResources.class);
         integrationServiceCatalog = mock(IntegrationServiceCatalog.class);
+        domainProperties = mock(DomainProperties.class);
+        microConfiguration = mock(DomainProperties.DeployMethodConfiguration.class);
+    }
+
+    @Test
+    void verifyMicroDomainEnabledRunsTheSupplierWhenEnabled() {
+        when(domainProperties.getMicro()).thenReturn(microConfiguration);
+        when(microConfiguration.isEnabled()).thenReturn(true);
+
+        String result = newService(false).verifyMicroDomainEnabled(() -> "ok");
+
+        assertEquals("ok", result);
+    }
+
+    @Test
+    void verifyMicroDomainEnabledThrowsWhenDisabled() {
+        when(domainProperties.getMicro()).thenReturn(microConfiguration);
+        when(microConfiguration.isEnabled()).thenReturn(false);
+
+        MicroDomainService service = newService(false);
+        assertThrows(DomainTypeDisabledException.class, () -> service.verifyMicroDomainEnabled(() -> "ok"));
     }
 
     private void stubNamingStrategies() {
