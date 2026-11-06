@@ -3,6 +3,10 @@
 # ports, the cluster-specific resolver and dev-server host, the broker switches,
 # and the Kafka TLS files and CA on the command line.
 
+gateways:
+  waypoint:
+    enabled: true
+
 global:
   qip:
     # Compose runs with PRODUCTION_MODE=false, which the Testing section needs.
@@ -17,10 +21,6 @@ global:
       enabled: false
     ui:
       e2eLocations: true
-      # No sidecar, so nginx's own answers reach the host as Compose serves them: an inbound
-      # sidecar replaces the Server header with istio-envoy.
-      podAnnotations:
-        sidecar.istio.io/inject: "false"
 
 # Recreate on every service: under a rolling update the old pod keeps serving
 # while the new one starts, and a restart spec would see no downtime.
@@ -77,7 +77,3 @@ cip-sessions-management:
 cip-testing-service:
   strategy:
     type: Recreate
-  # No sidecar: an inbound one answers a request with an unknown method itself, with 400
-  # "Bad Request", before the service can refuse it.
-  podAnnotations:
-    sidecar.istio.io/inject: "false"

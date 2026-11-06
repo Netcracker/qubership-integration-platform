@@ -5,9 +5,9 @@ import React from "react";
 import { render } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { CodeOutlined } from "@ant-design/icons";
-import { commonIcons, elementIcons } from "../../src/icons/IconDefenitions";
+import { commonIcons, elementIcons } from "../../src/icons/IconDefinitions";
 
-describe("IconDefenitions", () => {
+describe("IconDefinitions", () => {
   it("commonIcons maps stable keys to components", () => {
     expect(commonIcons.code).toBe(CodeOutlined);
     expect(typeof commonIcons.logo).toBe("function");

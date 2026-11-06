@@ -4,6 +4,8 @@ postgres:
 
 gateways:
   enabled: true
+  waypoint:
+    enabled: false
 
 # Brokers for chains that use them, off by default; README.md, "Brokers",
 # lists their names and ports.

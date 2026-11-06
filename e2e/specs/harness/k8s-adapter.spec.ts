@@ -124,6 +124,8 @@ test.describe("k8s adapter", () => {
       "get --raw /readyz": "ok",
       "get crd httproutes.gateway.networking.k8s.io": "",
       "get deploy istiod -n istio-system -o json": ISTIOD,
+      "get ds istio-cni-node -n istio-system -o json": JSON.stringify({ status: { desiredNumberScheduled: 1, numberReady: 1, updatedNumberScheduled: 1 } }),
+      "get ds ztunnel -n istio-system -o json": JSON.stringify({ status: { desiredNumberScheduled: 1, numberReady: 1, updatedNumberScheduled: 1 } }),
       "get crd integrations.camel.apache.org": "",
       "get deploy -A -l app=camel-k,camel.apache.org/component=operator -o json": OPERATORS,
       "get --raw /apis/metrics.k8s.io/v1beta1/nodes": "{}",
@@ -176,6 +178,23 @@ test.describe("k8s adapter", () => {
           message: /metrics-server: the metrics API does not answer.*#metrics-server/,
         },
       ];
+      for (const name of ["istio-cni-node", "ztunnel"]) {
+        const key = `get ds ${name} -n istio-system -o json`;
+        cases.push({
+          answers: without(key),
+          message: new RegExp(`Istio ambient: no ${name} DaemonSet.*#istio`),
+        });
+        for (const status of [
+          { desiredNumberScheduled: 0, numberReady: 0, updatedNumberScheduled: 0 },
+          { desiredNumberScheduled: 2, numberReady: 1, updatedNumberScheduled: 2 },
+          { desiredNumberScheduled: 2, numberReady: 2, updatedNumberScheduled: 1 },
+        ]) {
+          cases.push({
+            answers: { ...COMPLETE, [key]: JSON.stringify({ status }) },
+            message: new RegExp(`Istio ambient: ${name} is not ready on every node.*#istio`),
+          });
+        }
+      }
       for (const each of cases) {
         await expect(checkPrerequisites(stubKubectl(each.answers))).rejects.toThrow(each.message);
       }
