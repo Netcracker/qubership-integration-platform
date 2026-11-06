@@ -185,19 +185,22 @@ export const ChainDetailsDrawer: React.FC<ChainDetailsDrawerProps> = ({
           {
             label: "Deployments",
             showLabel: deploymentRows.length === 0,
-            value:
-              deploymentRows.length === 0 ? (
-                "Not deployed"
-              ) : (
-                <Table<DeploymentRow>
-                  className={"details-sidebar-kv-table"}
-                  size="small"
-                  columns={DEPLOYMENT_COLUMNS}
-                  dataSource={deploymentRows}
-                  pagination={false}
-                  rowKey="key"
-                />
-              ),
+            value: (
+              <Spin spinning={isLoading}>
+                {deploymentRows.length === 0 ? (
+                  "Not deployed"
+                ) : (
+                  <Table<DeploymentRow>
+                    className={"details-sidebar-kv-table"}
+                    size="small"
+                    columns={DEPLOYMENT_COLUMNS}
+                    dataSource={deploymentRows}
+                    pagination={false}
+                    rowKey="key"
+                  />
+                )}
+              </Spin>
+            ),
           },
         ],
       },
