@@ -14,6 +14,8 @@ public interface KubernetesProperties {
 
     VariablesSecretProperties variablesSecret();
 
+    SecretsRoleProperties secretsRole();
+
     @WithName("devmode")
     @WithDefault("false")
     Boolean devMode();
@@ -37,5 +39,9 @@ public interface KubernetesProperties {
         String name();
 
         String label();
+    }
+
+    interface SecretsRoleProperties {
+        String name();
     }
 }

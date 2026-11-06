@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.runtime.catalog.configuration;
 
 import io.kubernetes.client.openapi.ApiClient;
+import io.kubernetes.client.openapi.apis.RbacAuthorizationV1Api;
 import io.kubernetes.client.util.ClientBuilder;
 import io.kubernetes.client.util.credentials.AccessTokenAuthentication;
 import io.kubernetes.client.util.credentials.TokenFileAuthentication;
@@ -115,22 +116,36 @@ public class KubeOperatorAutoConfiguration {
      */
     @Bean
     @ConditionalOnProperty(prefix = "kubernetes", name = "devmode", havingValue = "false", matchIfMissing = true)
-    public KubeSecretOperator kubeSecretOperator() {
-        try {
-            log.info("Creating KubernetesSecretOperator bean in PROD mode");
+    public KubeSecretOperator kubeSecretOperator(ApiClient kubeApiClient) {
+        log.info("Creating KubernetesSecretOperator bean in PROD mode");
+        return new DefaultKubeSecretOperator(kubeApiClient, namespace);
+    }
 
-            ApiClient client = new ClientBuilder()
+    /**
+     * Inside cluster ApiClient shared by the secret operator and the secured variables Role sync
+     */
+    @Bean
+    @ConditionalOnProperty(prefix = "kubernetes", name = "devmode", havingValue = "false", matchIfMissing = true)
+    public ApiClient kubeApiClient() {
+        try {
+            log.info("Creating Kubernetes ApiClient bean in PROD mode");
+
+            return new ClientBuilder()
                     .setVerifyingSsl(false)
                     .setBasePath(uri)
                     .setCertificateAuthority(Files.readAllBytes(Paths.get(cert)))
                     .setAuthentication(new TokenFileAuthentication(token))
                     .build();
-
-            return new DefaultKubeSecretOperator(client, namespace);
         } catch (Exception e) {
             log.error("Invalid k8s cluster parameters, can't initialize k8s API. {}", e.getMessage());
-            return new DefaultKubeSecretOperator();
+            return new ClientBuilder().build();
         }
+    }
+
+    @Bean
+    @ConditionalOnProperty(prefix = "kubernetes", name = "devmode", havingValue = "false", matchIfMissing = true)
+    public RbacAuthorizationV1Api rbacAuthorizationApi(ApiClient kubeApiClient) {
+        return new RbacAuthorizationV1Api(kubeApiClient);
     }
 
     /**
