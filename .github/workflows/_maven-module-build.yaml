@@ -93,19 +93,17 @@ jobs:
           MAVEN_GITHUB_USERNAME: ${{ github.actor }}
           MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
           FORCE_UPDATE: ${{ inputs.force-update }}
+          OPENAPI_CHECK: ${{ inputs.ensure-openapi-spec }}
         run: |
           set -eu
-          # Run from the module dir so Maven reads only this module + parent (via
-          # relativePath), never siblings — micro-engine pulls private
-          # com.netcracker.cloud artifacts this token can't read. Publishes nothing.
-          UPDATE_FLAG=""
-          if [ "$FORCE_UPDATE" = "true" ]; then UPDATE_FLAG="-U"; fi
+          if [ "$OPENAPI_CHECK" = true ]; then
+            rm -f -- "$MODULE_NAME/api-spec/openapi.yaml"
+          fi
+          update_args=()
+          if [ "$FORCE_UPDATE" = true ]; then update_args=(-U); fi
           mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
-            verify \
-            $UPDATE_FLAG \
-            -pl $MODULE_NAME \
-            -am \
-            -Dgpg.skip=true
+            verify "${update_args[@]}" \
+            -pl "$MODULE_NAME" -am -Dgpg.skip=true
 
       - name: Save the Maven repository
         if: ${{ github.ref == 'refs/heads/main' && steps.maven-cache.outputs.cache-hit != 'true' }}
@@ -130,6 +128,15 @@ jobs:
             ${{ inputs.module }}/target/surefire-reports
             ${{ inputs.module }}/target/jacoco.exec
           if-no-files-found: ignore
+          retention-days: 1
+
+      - name: Upload generated OpenAPI
+        if: ${{ inputs.ensure-openapi-spec }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ${{ inputs.module }}-openapi
+          path: ${{ inputs.module }}/api-spec/openapi.yaml
+          if-no-files-found: error
           retention-days: 1
 
   sonar:
@@ -173,9 +180,13 @@ jobs:
 
       - name: Pre-install integration-build-library into .m2
         if: ${{ inputs.preinstall-integration-build-pipeline-library == true }}
+        env:
+          MAVEN_GITHUB_USERNAME: ${{ github.actor }}
+          MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eu
-          mvn --batch-mode -f integration-build-pipeline/pom.xml install \
+          mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
+            -f integration-build-pipeline/pom.xml install \
             -DskipTests -Dgpg.skip=true -Dcheckstyle.skip=true
 
       - name: Download Sonar inputs
@@ -211,56 +222,17 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: read
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
 
-      - name: Set up Java
-        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+      - name: Download generated OpenAPI
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
-          java-version: "21"
-          distribution: "temurin"
-          # GitHub Packages credentials live in .github/maven-settings.xml (passed via -s).
-
-      # Restores the cache the build job saves on main.
-      - name: Restore the Maven repository
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.m2/repository
-          key: maven-${{ runner.os }}-${{ inputs.module }}-${{ hashFiles('**/pom.xml') }}
-          restore-keys: |
-            maven-${{ runner.os }}-${{ inputs.module }}-
-            maven-${{ runner.os }}-
-
-      - name: Pre-install integration-build-library into .m2
-        if: ${{ inputs.preinstall-integration-build-pipeline-library == true }}
-        run: |
-          set -eu
-          mvn --batch-mode -f integration-build-pipeline/pom.xml install \
-            -DskipTests -Dgpg.skip=true -Dcheckstyle.skip=true
-
-      - name: Update OpenAPI specifications
-        working-directory: ${{ inputs.module }}
-        env:
-          MAVEN_MODULE_NAME: ${{ inputs.module }}
-          MAVEN_GITHUB_USERNAME: ${{ github.actor }}
-          MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-          FORCE_UPDATE: ${{ inputs.force-update }}
-        run: |
-          set -eu
-          # Run from the module dir so Maven reads only this module + parent (via
-          # relativePath), never siblings — micro-engine pulls private
-          # com.netcracker.cloud artifacts this token can't read. Publishes nothing.
-          UPDATE_FLAG=""
-          if [ "$FORCE_UPDATE" = "true" ]; then UPDATE_FLAG="-U"; fi
-          if [ "$MAVEN_MODULE_NAME" = "micro-engine" ]; then
-            mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" build $UPDATE_FLAG -Dgpg.skip=true
-          else
-            mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" test $UPDATE_FLAG -Dtest=OpenApiSpecGeneratorTest -DfailIfNoTests=false
-          fi
+          name: ${{ inputs.module }}-openapi
+          path: ${{ inputs.module }}/api-spec
       - name: Verify the specifications have no changes
         working-directory: ${{ inputs.module }}
         run: |
