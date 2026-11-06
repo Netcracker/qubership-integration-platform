@@ -12,6 +12,7 @@ import org.apache.camel.reifier.ProcessorReifier;
 import org.apache.camel.spi.CamelContextCustomizer;
 import org.qubership.integration.platform.engine.camel.components.grpc.GrpcCustomComponent;
 import org.qubership.integration.platform.engine.camel.components.pubsub.CustomGooglePubSubComponent;
+import org.qubership.integration.platform.engine.camel.components.sftp.SftpConsumerLifecycleStrategy;
 import org.qubership.integration.platform.engine.camel.reifiers.CustomStepReifier;
 import org.qubership.integration.platform.engine.service.debugger.CamelDebugger;
 
@@ -42,5 +43,6 @@ public class ContextCustomizer implements CamelContextCustomizer {
         // Camel Quarkus binds these and the stock components under the same names, in an order that varies by build.
         camelContext.addComponent("grpc", new GrpcCustomComponent());
         camelContext.addComponent("google-pubsub", new CustomGooglePubSubComponent());
+        camelContext.addLifecycleStrategy(new SftpConsumerLifecycleStrategy());
     }
 }
