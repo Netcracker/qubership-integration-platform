@@ -68,8 +68,8 @@ export const API_ROUTES: ApiRoute[] = [
   {
     line: 31,
     role: "runtime-catalog",
-    api: "/api/v1/cip/catalog/chains/roles",
-    service: "/v1/catalog/chains/roles",
+    api: "/api/v1/cip/catalog/chains/access-control",
+    service: "/v1/catalog/chains/access-control",
     outcome: "proxied",
     note: "GET is not mapped, so both surfaces answer 405 application/problem+json",
   },

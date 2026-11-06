@@ -20,11 +20,13 @@ tags:
   name: actions-log-export-controller
 - description: Bulk Deployment Controller
   name: bulk-deployment-controller
+- description: Chain Access Control Controller
+  name: chain-access-control-controller
 - description: Chain Controller
   name: chain-controller
 - description: Chain Design Controller
   name: chain-design-controller
-- description: Chain Roles Controller
+- description: Deprecated Chain Roles Controller
   name: chain-roles-controller
 - description: Common Variables Controller
   name: common-variables-controller
@@ -121,7 +123,7 @@ paths:
     post:
       deprecated: true
       description: Get action logs
-      operationId: findBySearchRequest_2
+      operationId: findBySearchRequest_1
       requestBody:
         content:
           application/json:
@@ -192,7 +194,7 @@ paths:
                 $ref: "#/components/schemas/ChainRolesResponse"
           description: OK
       tags:
-      - chain-roles-controller
+      - chain-access-control-controller
     put:
       description: Make a bulk update on roles configuration for http triggers
       operationId: updateRoles
@@ -209,7 +211,7 @@ paths:
         "204":
           description: No Content
       tags:
-      - chain-roles-controller
+      - chain-access-control-controller
   /v1/catalog/chains/access-control/redeploy:
     put:
       description: Make a bulk redeploy for chains specified in the request
@@ -227,7 +229,7 @@ paths:
         "204":
           description: No Content
       tags:
-      - chain-roles-controller
+      - chain-access-control-controller
   /v1/catalog/chains/deployments/bulk:
     post:
       description: (Re)deploy chains in bulk mode
@@ -251,8 +253,9 @@ paths:
       - bulk-deployment-controller
   /v1/catalog/chains/roles:
     post:
+      deprecated: true
       description: Get all chains with http trigger roles
-      operationId: findBySearchRequest_1
+      operationId: findBySearchRequestDeprecated
       parameters:
       - description: Whether include only http triggers with selected implemented
           service
@@ -278,8 +281,9 @@ paths:
       tags:
       - chain-roles-controller
     put:
+      deprecated: true
       description: Make a bulk update on roles configuration for http triggers
-      operationId: updateRoles_1
+      operationId: updateRolesDeprecated
       requestBody:
         content:
           application/json:
@@ -296,8 +300,9 @@ paths:
       - chain-roles-controller
   /v1/catalog/chains/roles/redeploy:
     put:
+      deprecated: true
       description: Make a bulk redeploy for chains specified in the request
-      operationId: bulkRedeploy_1
+      operationId: bulkRedeployDeprecated
       requestBody:
         content:
           application/json:
@@ -5245,7 +5250,7 @@ paths:
   /v2/catalog/actions-log:
     post:
       description: Get action logs with offset/limit pagination
-      operationId: findBySearchRequest_3
+      operationId: findBySearchRequest_2
       requestBody:
         content:
           application/json:

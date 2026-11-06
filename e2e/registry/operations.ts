@@ -388,11 +388,9 @@ const R_MAAS_AGENT_ABSENT = "no MaaS agent reachable locally, measured 500";
  * is the one row of the neighbourhood that belongs elsewhere, and `specs/api/libraries.spec.ts` has
  * it.
  *
- * `chain-roles-controller` earns **six** rows from three operations, because
- * `@RequestMapping(value = {"/v1/catalog/chains/roles", "/v1/catalog/chains/access-control"})` maps
- * it at two paths and the registry is keyed by `METHOD /path`. `specs/api/chain-roles.spec.ts`
- * drives both on every case rather than assuming the pairing, which is what makes the other three
- * rows reached at all.
+ * The access-control controller and its deprecated roles counterpart contribute six rows from
+ * three operations each. `specs/api/chain-roles.spec.ts` drives both paths and compares their
+ * behavior.
  *
  * **`sessions-management` is covered whole.** `specs/api/sessions-api.spec.ts` covers thirteen of
  * the fourteen rows, `GET /v1/sessions/external-id/{externalSessionId}` included, and
@@ -562,7 +560,7 @@ export const operationRegistry: OperationEntry[] = [
   { service: "catalog", method: "PATCH", path: "/v1/systems/{systemId}", controller: "system-controller", status: "covered" },
   { service: "catalog", method: "PATCH", path: "/v2/secured-variables", controller: "secured-variable-controller-v-2", status: "covered" },
   { service: "catalog", method: "POST", path: "/v1/catalog/actions-log", controller: "actions-log-controller", status: "covered" },
-  { service: "catalog", method: "POST", path: "/v1/catalog/chains/access-control", controller: "chain-roles-controller", status: "covered" },
+  { service: "catalog", method: "POST", path: "/v1/catalog/chains/access-control", controller: "chain-access-control-controller", status: "covered" },
   { service: "catalog", method: "POST", path: "/v1/catalog/chains/deployments/bulk", controller: "bulk-deployment-controller", status: "covered" },
   { service: "catalog", method: "POST", path: "/v1/catalog/chains/roles", controller: "chain-roles-controller", status: "covered" },
   { service: "catalog", method: "POST", path: "/v1/catalog/chains/{chainId}/deployments", controller: "deployment-controller", status: "covered" },
@@ -649,8 +647,8 @@ export const operationRegistry: OperationEntry[] = [
   { service: "catalog", method: "POST", path: "/v3/import/chains/diff", controller: "import-controller-v-3", status: "covered" },
   { service: "catalog", method: "POST", path: "/v3/import/chains/extract", controller: "import-controller-v-3", status: "covered" },
   { service: "catalog", method: "POST", path: "/v3/import/preview", controller: "import-controller-v-3", status: "covered" },
-  { service: "catalog", method: "PUT", path: "/v1/catalog/chains/access-control", controller: "chain-roles-controller", status: "covered" },
-  { service: "catalog", method: "PUT", path: "/v1/catalog/chains/access-control/redeploy", controller: "chain-roles-controller", status: "covered" },
+  { service: "catalog", method: "PUT", path: "/v1/catalog/chains/access-control", controller: "chain-access-control-controller", status: "covered" },
+  { service: "catalog", method: "PUT", path: "/v1/catalog/chains/access-control/redeploy", controller: "chain-access-control-controller", status: "covered" },
   { service: "catalog", method: "PUT", path: "/v1/catalog/chains/roles", controller: "chain-roles-controller", status: "covered" },
   { service: "catalog", method: "PUT", path: "/v1/catalog/chains/roles/redeploy", controller: "chain-roles-controller", status: "covered" },
   { service: "catalog", method: "PUT", path: "/v1/catalog/chains/{chainId}/snapshots/{snapshotId}", controller: "snapshot-controller", status: "covered" },
