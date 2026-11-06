@@ -39,8 +39,14 @@ public class JmsBeansBuilder implements ElementBeansBuilder {
         writePropertyElement(streamWriter, JMS_INITIAL_CONTEXT_FACTORY, ElementUtils.getPropertyAsString(element, JMS_INITIAL_CONTEXT_FACTORY));
         writePropertyElement(streamWriter, JMS_PROVIDER_URL, ElementUtils.getPropertyAsString(element, JMS_PROVIDER_URL));
         writePropertyElement(streamWriter, JMS_CONNECTION_FACTORY_NAME, ElementUtils.getPropertyAsString(element, JMS_CONNECTION_FACTORY_NAME));
-        writePropertyElement(streamWriter, JMS_USERNAME, ElementUtils.getPropertyAsString(element, JMS_USERNAME));
-        writePropertyElement(streamWriter,  JMS_PASSWORD, ElementUtils.getPropertyAsString(element, JMS_PASSWORD));
+        String username = ElementUtils.getPropertyAsString(element, JMS_USERNAME);
+        if (username != null) {
+            writePropertyElement(streamWriter, JMS_USERNAME, username);
+        }
+        String password = ElementUtils.getPropertyAsString(element, JMS_PASSWORD);
+        if (password != null) {
+            writePropertyElement(streamWriter, JMS_PASSWORD, password);
+        }
 
         streamWriter.writeEndElement();
         streamWriter.writeEndElement();
