@@ -154,7 +154,10 @@ describe("collectSubtreeBatches", () => {
   it("should return empty array when the folder was already visited", async () => {
     const ctx = makeContext({ visited: new Set(["root"]) });
 
-    await expect(collectSubtreeBatches("root", ctx)).resolves.toEqual([]);
+    await expect(collectSubtreeBatches("root", ctx)).resolves.toEqual({
+      batches: [],
+      complete: true,
+    });
     expect(mockListFolder).not.toHaveBeenCalled();
   });
 
@@ -168,7 +171,10 @@ describe("collectSubtreeBatches", () => {
       knownLoaded: new Set(["root", "child"]),
     });
 
-    await expect(collectSubtreeBatches("root", ctx)).resolves.toEqual([]);
+    await expect(collectSubtreeBatches("root", ctx)).resolves.toEqual({
+      batches: [],
+      complete: true,
+    });
     expect(mockListFolder).not.toHaveBeenCalled();
     expect(ctx.visited).toEqual(new Set(["root", "child"]));
   });
@@ -180,9 +186,12 @@ describe("collectSubtreeBatches", () => {
     mockListFolder.mockImplementationOnce(async () => childContent);
     const ctx = makeContext();
 
-    const batches = await collectSubtreeBatches("root", ctx);
+    const result = await collectSubtreeBatches("root", ctx);
 
-    expect(batches).toEqual([rootContent, childContent]);
+    expect(result).toEqual({
+      batches: [rootContent, childContent],
+      complete: true,
+    });
     expect(mockListFolder).toHaveBeenCalledTimes(2);
     expect(mockListFolder).toHaveBeenNthCalledWith(1, {
       folderId: "root",
@@ -203,9 +212,31 @@ describe("collectSubtreeBatches", () => {
     const notifyLoadFailed = jest.fn();
     const ctx = makeContext({ notifyLoadFailed });
 
-    await expect(collectSubtreeBatches("root", ctx)).resolves.toEqual([]);
+    await expect(collectSubtreeBatches("root", ctx)).resolves.toEqual({
+      batches: [],
+      complete: false,
+    });
     expect(notifyLoadFailed).toHaveBeenCalledWith(failure);
     expect(ctx.knownLoaded.has("root")).toBe(false);
+  });
+
+  it("should report incomplete when a nested folder fails but keep successful batches", async () => {
+    const rootContent = [folder("child", "root"), chain("direct", "root")];
+    mockListFolder.mockImplementation(async (request: unknown) => {
+      const { folderId } = request as { folderId?: string };
+      if (folderId === "root") return rootContent;
+      if (folderId === "child") throw new Error("denied");
+      return [];
+    });
+    const notifyLoadFailed = jest.fn();
+
+    const result = await collectSubtreeBatches(
+      "root",
+      makeContext({ notifyLoadFailed }),
+    );
+
+    expect(result).toEqual({ batches: [rootContent], complete: false });
+    expect(notifyLoadFailed).toHaveBeenCalledWith(expect.any(Error));
   });
 });
 
@@ -241,11 +272,7 @@ describe("collectSubtreeChainIds", () => {
   });
 
   it("does not loop forever when folders reference each other", () => {
-    const items = [
-      folder("a", "b"),
-      folder("b", "a"),
-      chain("c", "a"),
-    ];
+    const items = [folder("a", "b"), folder("b", "a"), chain("c", "a")];
 
     expect(collectSubtreeChainIds("a", items)).toEqual(["c"]);
   });

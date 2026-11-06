@@ -5,6 +5,11 @@ import type { EntityFilterModel } from "../../components/table/filter/filterType
 
 export type FolderContent = (FolderItem | ChainItem)[];
 
+export type SubtreeBatchesResult = {
+  batches: FolderContent[];
+  complete: boolean;
+};
+
 export type SubtreeLoadContext = {
   folderItems: FolderContent;
   knownLoaded: Set<string>;
@@ -111,9 +116,9 @@ export async function fetchFolderContent(
 export async function collectSubtreeBatches(
   folderId: string,
   ctx: SubtreeLoadContext,
-): Promise<FolderContent[]> {
+): Promise<SubtreeBatchesResult> {
   if (ctx.visited.has(folderId)) {
-    return [];
+    return { batches: [], complete: true };
   }
   ctx.visited.add(folderId);
   if (ctx.knownLoaded.has(folderId)) {
@@ -125,7 +130,10 @@ export async function collectSubtreeBatches(
     const nested = await Promise.all(
       childIds.map((id) => collectSubtreeBatches(id, ctx)),
     );
-    return nested.flat();
+    return {
+      batches: nested.flatMap((result) => result.batches),
+      complete: nested.every((result) => result.complete),
+    };
   }
   const response = await fetchFolderContent(
     folderId,
@@ -134,12 +142,15 @@ export async function collectSubtreeBatches(
     ctx.notifyLoadFailed,
   );
   if (!response) {
-    return [];
+    return { batches: [], complete: false };
   }
   ctx.knownLoaded.add(folderId);
   const childIds = findUnvisitedFolderIds(response, ctx.visited);
   const nested = await Promise.all(
     childIds.map((id) => collectSubtreeBatches(id, ctx)),
   );
-  return [response, ...nested.flat()];
+  return {
+    batches: [response, ...nested.flatMap((result) => result.batches)],
+    complete: nested.every((result) => result.complete),
+  };
 }
