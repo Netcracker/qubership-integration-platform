@@ -11,6 +11,7 @@ import {
   Placeholder,
   renderOptional,
 } from "../DetailsSidebar.tsx";
+import { Typography } from "antd";
 
 export type TestCaseRunDrawerProps = {
   run: TestCaseRunView | null;
@@ -34,7 +35,11 @@ function sessionCell(
     return <Placeholder />;
   }
   if (sessionPath) {
-    return <DetailsLink to={sessionPath}>{sessionId}</DetailsLink>;
+    return (
+        <Typography.Text copyable={{ text: sessionId }}>
+          <DetailsLink to={sessionPath}>{sessionId}</DetailsLink>
+        </Typography.Text>
+    );
   }
   return <IdText value={sessionId} />;
 }
