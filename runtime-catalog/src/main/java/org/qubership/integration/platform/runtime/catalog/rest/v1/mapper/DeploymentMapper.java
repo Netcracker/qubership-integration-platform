@@ -53,6 +53,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+// MapStruct generates the implementation as a subclass with a no-arg constructor, so these beans cannot be injected through a constructor.
+@SuppressWarnings("java:S6813")
 @Slf4j
 @Mapper(
         componentModel = "spring",
