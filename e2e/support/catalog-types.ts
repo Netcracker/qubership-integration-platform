@@ -453,6 +453,8 @@ export interface ImportChainResult {
   status: string;
   errorMessage?: string;
   deployAction?: string;
+  /** The domains the import deploys the chain to. Absent unless the action is `DEPLOY`. */
+  deployments?: Array<{ domain: string }>;
 }
 
 /** `POST /v1/catalog/import`. 200, or **207** as soon as one row carries `ERROR`. */
