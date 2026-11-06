@@ -6,6 +6,7 @@ import {
 } from "./contexts/NotificationLogContext.tsx";
 import { NotificationBarElement } from "./NotificationBarElement.tsx";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
+import { AI_ASSISTANT_Z_INDEX } from "../ai/AiAssistant.tsx";
 
 export const NotificationBar: React.FC = () => {
   const [open, setOpen] = useState(false);
@@ -47,6 +48,7 @@ export const NotificationBar: React.FC = () => {
             Clear All
           </Button>
         }
+        zIndex={AI_ASSISTANT_Z_INDEX + 1000}
         getContainer={".page-content"}
         rootStyle={{ position: "absolute" }}
       >
