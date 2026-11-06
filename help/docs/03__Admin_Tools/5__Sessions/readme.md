@@ -16,6 +16,10 @@ Functionality is available by navigating to **Admin Tools → Sessions** window.
 ## User Interface
 
 ---
+> ⚠️ If the Engine passes session data to OpenSearch through an in-memory queue instead of Kafka, the page shows the alert _**"In-memory sessions queue is configured in this environment. Please configure kafka sessions streaming."**_ above the table. The [Sessions](../../01__Chains/4__Sessions/readme.md) tab of a chain does not show this alert.
+>
+> To switch to Kafka, follow the steps in [Configuration](#configuration).
+
 ### Sessions Table View
 Table contains sessions, aggregated by correlation identifier, if it is available, and by parent session identifier for retry cases. Next columns and elements are available for the table:
 - **ID** - generated session UUID. The parameter value is clickable.
@@ -101,3 +105,22 @@ Please refer to [logging page] for more details regarding data storage.
 ---
 
 Session logs are being captured as per [logging settings](../../01__Chains/5__Logging/readme.md).
+
+Kafka streaming of sessions is switched on in the Engine and Micro-Engine with the parameters below:
+
+| Environment Parameter                 | Mandatory | Default Value | Description                                                                           |
+|:--------------------------------------|:----------|:--------------|:--------------------------------------------------------------------------------------|
+| OPENSEARCH\_KAFKA\_ENABLED            | O         | false         | Enables Kafka streaming of sessions. When it is `false`, the in-memory queue is used. |
+| OPENSEARCH\_KAFKA\_BOOTSTRAP\_SERVERS | O         | kafka:9092    | Kafka bootstrap servers.                                                              |
+| OPENSEARCH\_KAFKA\_TOPIC              | O         | elements      | Kafka topic that receives the session data.                                           |
+
+To stream sessions through Kafka and remove the warning from the **Sessions** page:
+
+1. Set `OPENSEARCH_KAFKA_ENABLED` to `true` for the Engine and the Micro-Engine, and set the bootstrap servers and topic if the defaults do not match your Kafka.
+2. Set `opensearchKafkaEnabled` to `true` in the UI configuration, in one of these places:
+   - the `config.json` file served with the UI;
+   - the `window.CIP_UI_CONFIG` object;
+   - the `VITE_OPENSEARCH_KAFKA_ENABLED=true` variable when the UI is built.
+
+> ℹ️ **Note:** Step 2 is always needed. The UI does not take the value from the Engine, so with only step 1 done the warning is still shown.
+

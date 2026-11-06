@@ -31,6 +31,8 @@ All sequentially added roles for each particular endpoint shall be specified man
 
 Where **Resource, Resource Type, Operation** are values, configured on [HTTP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/readme.md) within a chain.
 
+> ℹ️ **Note:** Earlier versions used the resource type `QIP-CHAIN` and the `/qip-routes/` prefix. Policies written for `QIP-CHAIN` no longer apply, so recreate them with `CIP-CHAIN`.
+
 ## Process Initialization
 
 ---

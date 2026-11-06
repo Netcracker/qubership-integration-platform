@@ -59,11 +59,22 @@ The next actions are available upper right corner:
 ### Add Element to the Graph
 To add a new element, find the suitable one from the left library panel and then drag it to the graph space.
 
+To add the element and connect it to an existing one in a single step, drop it on that element. The new element is created in the same swimlane as the element it was dropped on, and a connection from the existing element to the new one is added. See [Connect Elements](#connect-elements) for when a drop connects and when it nests.
+
 ### Place Element to the Containers
 To put the element into containers (e.g. [swimlanes](1__Elements_Library/8__Grouping/1__Swimlane/readme.md) and container-like element as [Loop](1__Elements_Library/1__Routing/8__Loop/readme.md), [Split](1__Elements_Library/1__Routing/4__Split/readme.md), etc.), simply drag the element from the graph or element table to the container.
 
 ### Connect Elements
 To connect the elements simply drop one element on another one or hover the mouse on the white dot (placed on the right border of the one element), click it and drag the connection line to the target element.
+
+A drop connects the elements instead of nesting them when the element it lands on cannot hold the dropped one:
+
+- The target is not a container.
+- The target is a container whose allowed children do not include the dropped element type.
+
+This applies both to an element dragged from the library panel and to an element moved within the graph. When an element is moved, the connection runs from the target to the moved element, and the element stays where it was. An element that already has an input connection keeps it, and no second connection is added.
+
+> ℹ️ A moved element that is not allowed inside containers, or that has its input disabled, is rejected with an error when dropped on an element that cannot hold it.
 
 ### Edit Element
 To edit a particular element, either double-click the element or choose "**Edit**" option from the context menu, that could be requested via right-click on the element. It is also possible to control element's window size with ![arrows-alt](img/arrows-alt.svg) and ![shrink](img/shrink.svg) buttons.

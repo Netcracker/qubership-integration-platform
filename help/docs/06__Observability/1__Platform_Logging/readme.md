@@ -20,7 +20,9 @@ This type of logs is being produced by Cloud Integration Platform in a **stdout*
 
 CIP Microservice log can be produced either in `json` (default) or `text` format (configurable via ```LOG_FORMAT``` environment parameter).
 
-Message consist from two different parts:
+> ℹ️ The `json` format writes every value in full, with no padding or length limit. The `text` format pads each value to a fixed width and limits `thread`, `class`, and `method` to 15, 60, and 30 characters. In `text` format, the classic engine prints at most five stack frames of an exception.
+
+Message consists from two different parts:
 
 - *standardized part* with parameters specified in accordance to [Logging-Development guide]
 - *custom part* with specific Cloud Integration Platform parameters, that described below
@@ -44,7 +46,7 @@ Following table contains list of CIP-specific parameters, that will be added **o
 | element\_name         | JSON session step entries   | Name of the chain element or step.                                                                              |
 | session\_log\_details | JSON session detail entries | Selected detail mode: `SENDERS` or `FULL`.                                                                      |
 | log\_type             | Inbound and outbound calls  | Constant, always equals to "int". This parameter is being set only for inbound and outbound calls.              |
-| `url`                 | REST outbound calls         | URL, to where call has been passed.                                                                             |
+| url                   | REST outbound calls         | URL, to where call has been passed.                                                                             |
 | responseCode          | REST outbound calls         | Response code, received from source. Blank if direction = request                                               |
 | responseTime          | REST outbound calls         | Response time, shows call processing time in **milliseconds**. Blank if direction = request                     |
 | direction             | REST outbound calls         | Shows the direction of the call. Possible values: <br/>- request<br>- response                                  |
