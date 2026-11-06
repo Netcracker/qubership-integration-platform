@@ -9,10 +9,6 @@ server:
   bind: ":8080"
 
 dbaas:
-  # DBaaS is opt-in so the standalone image can still run against any
-  # PostgreSQL through CIP_TESTING_POSTGRES_DSN. A CIP deployment enables it
-  # with CIP_TESTING_DBAAS_ENABLED and supplies the DBaaS client settings
-  # DBAAS_AGENT, MICROSERVICE_NAME and MICROSERVICE_NAMESPACE.
   enabled: false
 
 postgres:

@@ -1,7 +1,5 @@
 module github.com/Netcracker/qubership-integration-platform/testing-service
 
-// Downstream builds this module with GOTOOLCHAIN=local on a 1.23 toolchain, so
-// neither this directive nor any dependency may require a newer Go.
 go 1.23.0
 
 require (
@@ -29,8 +27,6 @@ require (
 	github.com/swaggo/swag v1.16.4 // kept in step with the swag CLI the go:generate directive pins
 )
 
-// The integration suite only. The public DBaaS client selects this Go
-// 1.23-compatible version in the shared module graph.
 require github.com/testcontainers/testcontainers-go v0.38.0
 
 require (

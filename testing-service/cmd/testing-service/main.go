@@ -106,8 +106,6 @@ type appConfig struct {
 		MaxConnections int    `koanf:"maxconnections"`
 	} `koanf:"postgres"`
 	DbaaS struct {
-		// Enabled selects the DBaaS PostgreSQL client. When false, the binary
-		// connects through Postgres.DSN as before.
 		Enabled bool `koanf:"enabled"`
 	} `koanf:"dbaas"`
 	Catalog struct {
@@ -143,9 +141,6 @@ type appConfig struct {
 }
 
 func init() {
-	// The DBaaS base client requires a security implementation even when it
-	// talks to a namespace-local dbaas-agent that performs upstream
-	// authentication on the application's behalf.
 	serviceloader.Register(1, &security.DummyToken{})
 }
 
@@ -245,9 +240,6 @@ func newHealthHandler(ping func(context.Context) error) fiber.Handler {
 	}
 }
 
-// databasePing resolves the bun handle for every round-trip. A DBaaS client
-// uses that call boundary to detect rotated credentials and replace its cached
-// SQL pool.
 func databasePing(database testingservice.DB) func(context.Context) error {
 	return func(ctx context.Context) error {
 		bunDB, err := database.GetBunDb(ctx)
@@ -435,9 +427,6 @@ func prepareDatabase(ctx context.Context, bunDB *bun.DB, schema string, logger *
 	return nil
 }
 
-// openDatabase selects the infrastructure client of the standalone process.
-// The library and its DAO only depend on testingservice.DB, so neither knows
-// whether the handle came from DBaaS or a configured DSN.
 func openDatabase(cfg appConfig) (testingservice.DB, func() error, error) {
 	if cfg.DbaaS.Enabled {
 		if !configloader.IsConfigLoaderInited() {
@@ -506,9 +495,6 @@ func run() error {
 	}
 	schema := cfg.Postgres.Schema
 	if cfg.DbaaS.Enabled {
-		// A DBaaS logical database is dedicated to this service. Unlike the
-		// fallback DSN it carries no search_path, so its migrations belong in
-		// the default schema.
 		schema = ""
 	}
 	if err := prepareDatabase(ctx, bunDB, schema, logger); err != nil {

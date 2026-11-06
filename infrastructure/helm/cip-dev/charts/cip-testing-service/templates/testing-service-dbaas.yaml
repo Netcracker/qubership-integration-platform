@@ -28,6 +28,5 @@ spec:
   microserviceName: testing-service
   policy:
     - type: postgresql
-      # The service applies its own schema migrations at startup.
       defaultRole: admin
 {{- end }}

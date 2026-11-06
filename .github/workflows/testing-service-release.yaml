@@ -56,9 +56,6 @@ concurrency:
 permissions: {}
 
 env:
-  # `go 1.22` in go.mod is a ceiling, not a floor: the downstream build compiles
-  # this module with GOTOOLCHAIN=local, so a released tag must not depend on a
-  # newer toolchain.
   GOTOOLCHAIN: local
 
 jobs:
