@@ -489,6 +489,16 @@ export const Diagnostic: React.FC = () => {
             }
           },
         }}
+        onRow={(item) => {
+          return {
+            onClick: () => {
+              if (isDiagnosticValidation(item)) {
+                setSelectedValidation(item);
+                setIsSidebarOpen(true);
+              }
+            },
+          };
+        }}
       />
       <DiagnosticValidationSidebar
         value={selectedValidation}
