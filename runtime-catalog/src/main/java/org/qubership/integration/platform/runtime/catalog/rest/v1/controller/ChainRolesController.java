@@ -46,7 +46,7 @@ import java.util.List;
     "/api/v1/cip/catalog/chains/roles"
 }, produces = MediaType.APPLICATION_JSON_VALUE)
 @CrossOrigin(origins = "*")
-@Deprecated
+@Deprecated(since = "2026.4")
 @Tag(name = "chain-roles-controller", description = "Deprecated Chain Roles Controller")
 public class ChainRolesController {
 
