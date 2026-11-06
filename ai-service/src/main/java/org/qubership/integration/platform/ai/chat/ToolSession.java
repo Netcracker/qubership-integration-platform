@@ -25,9 +25,19 @@ public final class ToolSession {
 
   private ToolSession() {}
 
+  /**
+   * Binds {@code conversationId} for a nested scope and restores any previous binding on
+   * {@link Handle#close()}. Prefer this over {@link #bind}/{@link #clear} when catalog/auth work
+   * may continue on the same thread after the nested scope ends.
+   */
   public static Handle open(String conversationId) {
+    String previousConversationId = THREAD_CONVERSATION_ID.get();
+    Context previousSubscribeContext = SUBSCRIBE_PATH_CONTEXT.get();
+    Context previousThreadContext = THREAD_CONTEXT.get();
+    Object previousMdc = MDC.get(ChatMdc.CONVERSATION_ID);
     bind(conversationId);
-    return new Handle();
+    return new Handle(
+        previousConversationId, previousSubscribeContext, previousThreadContext, previousMdc);
   }
 
   public static void bind(String conversationId) {
@@ -111,9 +121,31 @@ public final class ToolSession {
 
   public static final class Handle implements AutoCloseable {
 
+    private final String previousConversationId;
+    private final Context previousSubscribeContext;
+    private final Context previousThreadContext;
+    private final Object previousMdc;
+    private boolean closed;
+
+    private Handle(
+        String previousConversationId,
+        Context previousSubscribeContext,
+        Context previousThreadContext,
+        Object previousMdc) {
+      this.previousConversationId = previousConversationId;
+      this.previousSubscribeContext = previousSubscribeContext;
+      this.previousThreadContext = previousThreadContext;
+      this.previousMdc = previousMdc;
+    }
+
     @Override
     public void close() {
-      clear();
+      if (closed) {
+        return;
+      }
+      closed = true;
+      restoreThreadState(
+          previousConversationId, previousSubscribeContext, previousThreadContext, previousMdc);
     }
   }
 

@@ -249,14 +249,16 @@ public class CompilerSkillRuntime {
 
   public Multi<ChatEvent> runStreaming(SkillRunContext context, SkillWorkspace workspace, String capabilityId) {
     String conversationId = context.conversationId();
-    ToolSession.bind(conversationId);
+    // Nested open/close restores any outer turn binding so post-stream catalog reads keep the
+    // caller's bearer (see CatalogBearerTokenFilter + UserTokenStore).
+    ToolSession.Handle session = ToolSession.open(conversationId);
     Context toolSessionContext = ToolSession.attachedContext();
     MDC.put(CompilerSkillMdc.CAPABILITY_ID, capabilityId);
     clearCaptureState(conversationId, capabilityId);
 
     CompilerSkillDocument document = documentService.loadByCapabilityId(capabilityId);
     if (!document.supported()) {
-      ToolSession.clear();
+      session.close();
       MDC.remove(CompilerSkillMdc.CAPABILITY_ID);
       return Multi.createFrom()
           .item(ChatEvent.token("Compiler skill is not supported: " + capabilityId));
@@ -324,7 +326,7 @@ public class CompilerSkillRuntime {
                 .onTermination()
                 .invoke(
                     () -> {
-                      ToolSession.clear();
+                      session.close();
                       MDC.remove(CompilerSkillMdc.CAPABILITY_ID);
                       HttpTriggerCaptureSession.unbind(conversationId);
                       if (route.captureTool() == CaptureTool.CAPTURE_CONFIGURED_TRIGGER_SET) {
@@ -338,7 +340,13 @@ public class CompilerSkillRuntime {
 
   public Uni<SkillExecutionResult> run(
       SkillRunContext context, SkillWorkspace workspace, String capabilityId) {
-    return Uni.createFrom().item(resolveResultAfterStream(context, workspace, capabilityId));
+    return Uni.createFrom()
+        .item(
+            () -> {
+              try (ToolSession.Handle ignored = ToolSession.open(context.conversationId())) {
+                return resolveResultAfterStream(context, workspace, capabilityId);
+              }
+            });
   }
 
   SkillExecutionResult resolveResultAfterStream(

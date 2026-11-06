@@ -117,6 +117,24 @@ class CatalogBearerTokenFilterTest {
     assertEquals("Bearer " + renewed, headers.getFirst(HttpHeaders.AUTHORIZATION));
   }
 
+  @Test
+  void nestedSkillCloseKeepsTurnTokenForCatalogCalls() {
+    // design-execution: compiler skill ends, then ChainPlanGraphValidator hits /v1/library.
+    // Nested ToolSession must restore the turn binding so the user bearer is still attached.
+    long exp = java.time.Instant.now().getEpochSecond() + 600;
+    String user = jwt(exp, "alice");
+    ToolSession.bind("conv-1");
+    UserTokenStore.put("conv-1", user);
+    try (ToolSession.Handle ignored = ToolSession.open("conv-1")) {
+      assertEquals("conv-1", ToolSession.resolveConversationId());
+    }
+    MultivaluedMap<String, Object> headers = new MultivaluedHashMap<>();
+
+    new CatalogBearerTokenFilter("secret").filter(request(headers));
+
+    assertEquals("Bearer " + user, headers.getFirst(HttpHeaders.AUTHORIZATION));
+  }
+
   private static String jwt(long exp, String subject) {
     java.util.Base64.Encoder b64 = java.util.Base64.getUrlEncoder().withoutPadding();
     String payload = "{\"exp\":" + exp + ",\"sub\":\"" + subject + "\"}";
