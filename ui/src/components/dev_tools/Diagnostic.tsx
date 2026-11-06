@@ -13,8 +13,6 @@ import { useNotificationService } from "../../hooks/useNotificationService";
 import { formatTimestamp } from "../../misc/format-utils";
 import { IconName, OverridableIcon } from "../../icons/IconProvider";
 import { treeExpandIcon } from "../table/TreeExpandIcon";
-import { useModalsContext } from "../../Modals";
-import { DiagnosticValidationModal } from "./DiagnosticValidationModal";
 import { useDiagnosticValidationFilters } from "./useDiagnosticValidationFilters";
 import {
   ColumnsTypeWithSettings,
@@ -26,6 +24,7 @@ import {
   useTableConfiguration,
 } from "../table/useTableConfiguration.tsx";
 import commonStyles from "../admin_tools/CommonStyle.module.css";
+import { DiagnosticValidationSidebar } from "./DiagnosticValidationSidebar.tsx";
 import { AdminToolsHeader } from "../admin_tools/AdminToolsHeader.tsx";
 import { TableToolbar } from "../table/TableToolbar.tsx";
 
@@ -74,7 +73,6 @@ const isChainEntity = (item: DiagnosticValidationTableItem): boolean => {
 export const Diagnostic: React.FC = () => {
   const updateStatusDelay = 2500;
   const notificationService = useNotificationService();
-  const { showModal } = useModalsContext();
   const [isLoading, setIsLoading] = useState(false);
   const [diagnosticInProgress, setDiagnosticInProgress] = useState<boolean>();
   const diagnosticInProgressRef = useRef(diagnosticInProgress);
@@ -90,6 +88,10 @@ export const Diagnostic: React.FC = () => {
   );
   const [searchString, setSearchString] = useState<string>("");
   const { filters, filterButton } = useDiagnosticValidationFilters();
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
+  const [selectedValidation, setSelectedValidation] = useState<
+    DiagnosticValidation | undefined
+  >();
 
   const columns: ColumnsTypeWithSettings<DiagnosticValidationTableItem> = [
     {
@@ -115,13 +117,10 @@ export const Diagnostic: React.FC = () => {
                   />
                 )}
                 <a
-                  onClick={() =>
-                    showModal({
-                      component: (
-                        <DiagnosticValidationModal {...diagnosticValidation} />
-                      ),
-                    })
-                  }
+                  onClick={() => {
+                    setSelectedValidation(diagnosticValidation);
+                    setIsSidebarOpen(true);
+                  }}
                 >
                   {diagnosticValidation.title}
                 </a>
@@ -490,6 +489,21 @@ export const Diagnostic: React.FC = () => {
             }
           },
         }}
+        onRow={(item) => {
+          return {
+            onClick: () => {
+              if (isDiagnosticValidation(item)) {
+                setSelectedValidation(item);
+                setIsSidebarOpen(true);
+              }
+            },
+          };
+        }}
+      />
+      <DiagnosticValidationSidebar
+        value={selectedValidation}
+        open={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
       />
     </Flex>
   );

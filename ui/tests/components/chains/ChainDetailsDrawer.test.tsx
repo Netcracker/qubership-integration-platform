@@ -107,9 +107,8 @@ jest.mock("../../../src/components/logging/LoggingSettingsSourceTag", () => ({
 }));
 
 jest.mock("../../../src/misc/format-utils", () => ({
+  ...jest.requireActual("../../../src/misc/format-utils"),
   formatTimestamp: (ts: number) => `ts:${ts}`,
-  capitalize: (s: string) =>
-    s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : "",
 }));
 
 // Import after mocks
@@ -311,12 +310,14 @@ describe("ChainDetailsDrawer", () => {
     expect(screen.getByText("Info")).toBeInTheDocument();
     expect(screen.getByText("Headers")).toBeInTheDocument();
     expect(screen.getByText("Properties")).toBeInTheDocument();
-    expect(screen.getByText("true")).toBeInTheDocument();
-    expect(screen.getByText("false")).toBeInTheDocument();
+    expect(screen.getByText("True")).toBeInTheDocument();
+    expect(screen.getByText("False")).toBeInTheDocument();
 
     // Timestamps with author
-    expect(screen.getByText("ts:1700000000000 by alice")).toBeInTheDocument();
-    expect(screen.getByText("ts:1700000001000 by bob")).toBeInTheDocument();
+    expect(screen.getByText("ts:1700000000000")).toBeInTheDocument();
+    expect(screen.getByText("alice")).toBeInTheDocument();
+    expect(screen.getByText("ts:1700000001000")).toBeInTheDocument();
+    expect(screen.getByText("bob")).toBeInTheDocument();
   });
 
   it("falls back to em dash placeholders when fields are empty", async () => {
@@ -437,16 +438,26 @@ describe("ChainDetailsDrawer", () => {
     it("renders capitalized sessionLogDetails from custom (FULL -> Full)", async () => {
       mockGetLoggingSettings.mockResolvedValue(loggingWithSessionDetailsFull);
       render(
-        <ChainDetailsDrawer chain={chainFull} open={true} onClose={jest.fn()} />,
+        <ChainDetailsDrawer
+          chain={chainFull}
+          open={true}
+          onClose={jest.fn()}
+        />,
       );
       await waitFor(() => expect(mockGetLoggingSettings).toHaveBeenCalled());
       expect(await screen.findByText("Full")).toBeInTheDocument();
     });
 
     it("renders capitalized sessionLogDetails from consulDefault (SENDERS -> Senders)", async () => {
-      mockGetLoggingSettings.mockResolvedValue(loggingWithSessionDetailsSenders);
+      mockGetLoggingSettings.mockResolvedValue(
+        loggingWithSessionDetailsSenders,
+      );
       render(
-        <ChainDetailsDrawer chain={chainFull} open={true} onClose={jest.fn()} />,
+        <ChainDetailsDrawer
+          chain={chainFull}
+          open={true}
+          onClose={jest.fn()}
+        />,
       );
       await waitFor(() => expect(mockGetLoggingSettings).toHaveBeenCalled());
       expect(await screen.findByText("Senders")).toBeInTheDocument();
@@ -455,7 +466,11 @@ describe("ChainDetailsDrawer", () => {
     it("renders capitalized sessionLogDetails OFF -> Off from fallbackDefault", async () => {
       mockGetLoggingSettings.mockResolvedValue(loggingWithSessionDetailsOff);
       render(
-        <ChainDetailsDrawer chain={chainFull} open={true} onClose={jest.fn()} />,
+        <ChainDetailsDrawer
+          chain={chainFull}
+          open={true}
+          onClose={jest.fn()}
+        />,
       );
       await waitFor(() => expect(mockGetLoggingSettings).toHaveBeenCalled());
       expect(await screen.findByText("Off")).toBeInTheDocument();
@@ -464,11 +479,15 @@ describe("ChainDetailsDrawer", () => {
     it("shows placeholder dash when sessionLogDetails is missing", async () => {
       mockGetLoggingSettings.mockResolvedValue(loggingWithoutSessionDetails);
       render(
-        <ChainDetailsDrawer chain={chainFull} open={true} onClose={jest.fn()} />,
+        <ChainDetailsDrawer
+          chain={chainFull}
+          open={true}
+          onClose={jest.fn()}
+        />,
       );
       await waitFor(() => expect(mockGetLoggingSettings).toHaveBeenCalled());
       // Session log details row should be the dash placeholder
-      expect(screen.getByText("Session log details")).toBeInTheDocument();
+      expect(screen.getByText("Session Log Details")).toBeInTheDocument();
       // At least one dash is rendered for the missing field
       expect(screen.getAllByText("—").length).toBeGreaterThan(0);
       expect(screen.queryByText("Full")).not.toBeInTheDocument();
@@ -479,7 +498,11 @@ describe("ChainDetailsDrawer", () => {
     it("shows placeholder dash when loggingSettings is null", async () => {
       mockGetLoggingSettings.mockResolvedValue(null);
       render(
-        <ChainDetailsDrawer chain={chainFull} open={true} onClose={jest.fn()} />,
+        <ChainDetailsDrawer
+          chain={chainFull}
+          open={true}
+          onClose={jest.fn()}
+        />,
       );
       await waitFor(() => expect(mockGetLoggingSettings).toHaveBeenCalled());
       // loggingSettings null → pickLoggingProperties returns undefined → dash
@@ -516,7 +539,11 @@ describe("ChainDetailsDrawer", () => {
       };
       mockGetLoggingSettings.mockResolvedValue(mixed);
       render(
-        <ChainDetailsDrawer chain={chainFull} open={true} onClose={jest.fn()} />,
+        <ChainDetailsDrawer
+          chain={chainFull}
+          open={true}
+          onClose={jest.fn()}
+        />,
       );
       await waitFor(() => expect(mockGetLoggingSettings).toHaveBeenCalled());
       expect(await screen.findByText("Full")).toBeInTheDocument();
