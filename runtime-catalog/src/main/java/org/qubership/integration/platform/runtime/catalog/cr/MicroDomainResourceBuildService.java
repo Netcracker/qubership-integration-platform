@@ -7,6 +7,7 @@ import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainService.
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Service
@@ -23,6 +24,7 @@ public class MicroDomainResourceBuildService {
         this.buildContextFactory = buildContextFactory;
     }
 
+    @Transactional(readOnly = true)
     public BuiltResources buildResources(ResourceBuildRequest request, boolean appendToExisting) {
         BuildContextWithObservations built =
                 buildContextFactory.createResourceBuildContext(request, appendToExisting);
