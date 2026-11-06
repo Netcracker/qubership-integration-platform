@@ -5,7 +5,7 @@ import {
   formatSnakeCased,
   formatTimestamp,
 } from "../../misc/format-utils.ts";
-import { DetailsSidebar, renderOptional } from "../DetailsSidebar.tsx";
+import { DetailsSidebar, IdText, renderOptional } from "../DetailsSidebar.tsx";
 
 export type ActionLogSidebarProps = {
   value: ActionLog | null | undefined;
@@ -44,7 +44,7 @@ export const ActionLogSidebar: React.FC<ActionLogSidebarProps> = ({
           },
           {
             label: "Entity ID",
-            value: renderOptional(value?.entityId),
+            value: <IdText value={value?.entityId} />,
           },
           {
             label: "Entity Type",
@@ -58,7 +58,7 @@ export const ActionLogSidebar: React.FC<ActionLogSidebarProps> = ({
           },
           {
             label: "Parent ID",
-            value: renderOptional(value?.parentId),
+            value: <IdText value={value?.parentId} />,
           },
           {
             label: "Parent Name",
@@ -66,7 +66,7 @@ export const ActionLogSidebar: React.FC<ActionLogSidebarProps> = ({
           },
           {
             label: "Request ID",
-            value: renderOptional(value?.requestId),
+            value: <IdText value={value?.requestId} />,
           },
         ],
       },

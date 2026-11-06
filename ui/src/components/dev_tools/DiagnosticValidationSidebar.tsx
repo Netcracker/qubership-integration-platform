@@ -9,7 +9,7 @@ import {
   buildKeyValuePairsFromObject,
   KeyValuePair,
 } from "../../misc/key-value-text-util.ts";
-import { DetailsSidebar, renderOptional } from "../DetailsSidebar.tsx";
+import { DetailsSidebar, IdText, renderOptional } from "../DetailsSidebar.tsx";
 
 export type DiagnosticValidationSidebarProps = {
   value?: DiagnosticValidation;
@@ -46,7 +46,7 @@ export const DiagnosticValidationSidebar: React.FC<
         items: [
           {
             label: "ID",
-            value: renderOptional(value?.id),
+            value: <IdText value={value?.id} />,
           },
           {
             label: "Name",

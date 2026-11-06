@@ -15,8 +15,8 @@ import { DeploymentsCumulativeState } from "../../deployment_runtime_states/Depl
 import {
   DetailsSidebar,
   DetailsSidebarSection,
+  IdText,
   Placeholder,
-  renderOptional,
 } from "../../DetailsSidebar.tsx";
 
 export type AccessControlSidebarProps = {
@@ -168,7 +168,7 @@ export const AccessControlSidebar: React.FC<AccessControlSidebarProps> = ({
           },
           {
             label: "Chain ID",
-            value: renderOptional(value?.chainId),
+            value: <IdText value={value?.chainId} />,
           },
         ],
       },
