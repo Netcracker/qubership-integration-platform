@@ -99,13 +99,13 @@ export const DiagnosticValidationSidebar: React.FC<
                     key: "key",
                     dataIndex: "key",
                     title: "Key",
-                    sorter: (a, b) => b.key.localeCompare(a.key),
+                    sorter: (a, b) => a.key.localeCompare(b.key),
                   },
                   {
                     key: "value",
                     dataIndex: "value",
                     title: "Value",
-                    sorter: (a, b) => b.key.localeCompare(a.key),
+                    sorter: (a, b) => a.value.localeCompare(b.value),
                   },
                 ]}
                 rowKey={"key"}
