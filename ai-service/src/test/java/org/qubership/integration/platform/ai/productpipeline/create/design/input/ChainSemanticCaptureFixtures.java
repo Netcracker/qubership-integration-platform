@@ -172,7 +172,7 @@ public final class ChainSemanticCaptureFixtures {
                     "spec-om",
                     "op-om",
                     "kafka",
-                    "subscribe",
+                    "receive",
                     "task.start",
                     "catalog",
                     Instant.EPOCH,
@@ -318,7 +318,7 @@ public final class ChainSemanticCaptureFixtures {
                     "spec-om",
                     "op-start",
                     "kafka",
-                    "publish",
+                    "send",
                     "env05-bss.task.wfms_createWorkOrder.start",
                     observedAt),
                 rockyHint(
@@ -340,7 +340,7 @@ public final class ChainSemanticCaptureFixtures {
                     "spec-om",
                     "op-result",
                     "kafka",
-                    "subscribe",
+                    "receive",
                     "env05-bss.order.command.queue",
                     observedAt)))
         .withMappingIntents(

@@ -2061,7 +2061,7 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
-  void exhaustedBudgetStopsTheNextCapabilityBeforeAnyCatalogEffect() {
+  void persistedRefusalAllowsLocalStageCompletion() {
     var config = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.configuration.AppConfig.class,
         org.mockito.Mockito.RETURNS_DEEP_STUBS);
     org.mockito.Mockito.when(config.llm().maxRequestsPerRun()).thenReturn(1);
@@ -2081,10 +2081,65 @@ class ProductPipelineStageExecutorTest {
     budget.reserve(RUN_ID, 10, 10);
     assertThrows(org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget.Exhausted.class,
         () -> budget.reserve(RUN_ID, 10, 10));
-    var wait = assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "work").decision());
-    assertEquals(0, effects.get());
-    assertEquals(PipelineGates.RECOVERY_RETRY_TECHNICAL, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertInstanceOf(StageDecision.Complete.class, execute(runtime, "work").decision());
+    assertEquals(1, effects.get());
+    assertEquals(1, budget.state(RUN_ID).requests());
     assertEquals(1, artifactStore.history(RUN_ID, Kind.USER_INPUT).size());
+  }
+
+  @Test
+  void cancelledStageReleasesItsBudgetWatchBeforeRetry() {
+    var config = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.configuration.AppConfig.class,
+        org.mockito.Mockito.RETURNS_DEEP_STUBS);
+    var budget = new org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget(blobStore, mapper, config);
+    var attempts = new AtomicInteger();
+    var capability = capability("budget-cap", context -> {
+      if (context.attributeAsString("userText") == null) {
+        return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "")));
+      }
+      if (attempts.incrementAndGet() == 1) return Multi.createFrom().nothing();
+      return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.SUCCEEDED, "")));
+    });
+    var profile = retryProfile("work", "budget-cap", new RetryPolicy(2, 1L));
+    var runtime = newRuntime(profile, capability);
+    runtime.support().withLlmBudget(budget);
+    startAndRecordInput(runtime, profile);
+    var cancelled = runtime.stageExecutor().execute(RUN_ID, "work").subscribe().with(ignored -> {}, failure -> {
+      throw new AssertionError(failure);
+    });
+    assertEquals(1, attempts.get());
+    cancelled.cancel();
+    assertInstanceOf(StageDecision.Complete.class, execute(runtime, "work").decision());
+    assertEquals(2, attempts.get());
+  }
+
+  @Test
+  void aRejectedRequestCannotBecomeASuccessEvenWhenTheCapabilityCatchesIt() {
+    var config = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.configuration.AppConfig.class,
+        org.mockito.Mockito.RETURNS_DEEP_STUBS);
+    org.mockito.Mockito.when(config.llm().maxRequestsPerRun()).thenReturn(1);
+    var budget = new org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget(blobStore, mapper, config);
+    var attempts = new AtomicInteger();
+    var capability = capability("budget-cap", context -> {
+      if (context.attributeAsString("userText") == null) {
+        return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "")));
+      }
+      attempts.incrementAndGet();
+      try { budget.reserve(context.runId(), 10, 10); }
+      catch (org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget.Exhausted ignored) { }
+      return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.SUCCEEDED, "")));
+    });
+    var profile = retryProfile("work", "budget-cap", new RetryPolicy(2, 1L));
+    var runtime = newRuntime(profile, capability);
+    runtime.support().withLlmBudget(budget);
+    startAndRecordInput(runtime, profile);
+    budget.reserve(RUN_ID, 10, 10);
+    assertThrows(org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget.Exhausted.class,
+        () -> budget.reserve(RUN_ID, 10, 10));
+    var wait = assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "work").decision());
+    assertEquals(PipelineGates.RECOVERY_RETRY_TECHNICAL, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertEquals(1, attempts.get());
+    assertEquals(1, budget.state(RUN_ID).requests());
   }
 
   @Test
@@ -2163,6 +2218,44 @@ class ProductPipelineStageExecutorTest {
     assertEquals(approval, artifactStore.latest(RUN_ID, Kind.APPROVAL_RECORD).orElseThrow());
     assertEquals(candidate, artifactStore.latest(RUN_ID, Kind.IMPLEMENTATION_PLAN).orElseThrow());
     assertEquals(1, budget.state(RUN_ID).grants());
+  }
+
+  @Test
+  void providerQuotaParksTheSameStageWithoutAutomaticRetriesOrNarration() {
+    var profile = retryProfile("requirement-discovery", "gather", new RetryPolicy(2, 1000));
+    var narrative = org.mockito.Mockito.mock(FailureNarrative.class);
+    var calls = new AtomicInteger();
+    var quota = new RateLimitException("{\"error\":{\"code\":\"insufficient_quota\"}}");
+    var failing = capability("gather", context -> {
+      if (context.attributeAsString("userText") == null) {
+        return Multi.createFrom().item(new CapabilitySignal.Completed(
+            StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "")));
+      }
+      return calls.incrementAndGet() == 1 ? Multi.createFrom().failure(quota)
+          : Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.SUCCEEDED, "")));
+    });
+    var runtime = newRuntime(narrative, profile, failing);
+    startAndRecordInput(runtime, profile);
+
+    var wait = assertInstanceOf(StageDecision.WaitForInput.class,
+        execute(runtime, "requirement-discovery").decision());
+
+    assertEquals(1, calls.get());
+    assertEquals(PipelineGates.RECOVERY_RETRY_TECHNICAL, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
+    assertEquals("requirement-discovery", requireRun().run().currentStageId());
+    assertTrue(requireRun().attempts().getLast().failureEvidence().contains("PROVIDER_QUOTA_EXHAUSTED"));
+    org.mockito.Mockito.verifyNoInteractions(narrative);
+
+    var restored = newRuntime(narrative, profile, failing);
+    restored.startOrResume(new StartOrResumeCommand(CONVERSATION, RUN_ID, profile, manifest(profile)))
+        .collect().asList().await().indefinitely();
+    assertEquals(1, calls.get());
+    restored.recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.RETRY_ACTION))
+        .collect().asList().await().indefinitely();
+    assertEquals(RunStatus.RUNNING, requireRun().run().status());
+    assertInstanceOf(StageDecision.Complete.class, execute(restored, "requirement-discovery").decision());
+    assertEquals(2, calls.get());
   }
 
   @Test
@@ -6481,9 +6574,159 @@ class ProductPipelineStageExecutorTest {
         org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(Reference.class));
   }
 
+  @Test
+  void sourceOmissionReopensTheDiscoveryStageThatProducedTheReviewedDraft() {
+    var draft = sourceWordingDraft(false, false);
+    var importedDraft = draft.withImportIntent(true);
+    var review = new org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool.SourceReview(
+        "generation", "source-hash", org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(importedDraft),
+        List.of(new org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceOmission(
+            "source-turn", "Do not retry.", "The draft omits the retry limit.")));
+    var profile = discoveryAndAnalysisThenPlanningProfile(new ArtifactTypeRef("requirement-draft", 1),
+        new ArtifactTypeRef("requirement-brief", 1), new ArtifactTypeRef("plan-validation-result", 1));
+    var stages = new ArrayList<>(profile.stages());
+    var originalOwner = stages.getFirst();
+    stages.set(0, new ProfileStage(originalOwner.stageId(), "requirement-discovery", originalOwner.consumes(),
+        originalOwner.produces(), null, originalOwner.bypass(), originalOwner.retry(), originalOwner.skip()));
+    var draftType = new ArtifactTypeRef("requirement-draft", 1);
+    stages.add(1, new ProfileStage("uploaded-spec-import", "import-cap", List.of(draftType), List.of(draftType),
+        null, null, new RetryPolicy(0, 1L)));
+    profile = new ProductPipelineProfile(profile.schemaVersion(), profile.profileId(), profile.profileVersion(),
+        profile.runInputs(), stages, profile.terminal(),
+        List.of("requirement-discovery", "import-cap", "analysis-cap", "planning-cap"));
+    var discovery = capability("requirement-discovery", context -> {
+      if (context.attributeAsString("userText") == null && !StageRepairEvidence.isRepairTurn(context)) {
+        return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "Requirements needed.")));
+      }
+      return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(StageOutcomeClass.SUCCEEDED,
+          List.of(new ArtifactCandidate(Kind.REQUIREMENT_DRAFT, draft, List.of())), "ready", null)));
+    });
+    var importStage = capability("import-cap", context -> Multi.createFrom().item(new CapabilitySignal.Completed(
+        new StageOutcome(StageOutcomeClass.SUCCEEDED,
+            List.of(new ArtifactCandidate(Kind.REQUIREMENT_DRAFT, importedDraft, context.inputRefs())), "imported", null))));
+    var analysisCalls = new AtomicInteger();
+    var analysis = capability("analysis-cap", context -> {
+      analysisCalls.incrementAndGet();
+      return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
+          "The draft omits the retry limit.", new RecoveryCause(RecoveryCauseCode.MISSING_BRIEF_FACTS,
+              List.of(new PlanValidationFinding("MISSING_BRIEF_FACTS", "The draft omits the retry limit.", true)),
+              "", false, null, review))));
+    });
+    var narrative = org.mockito.Mockito.mock(FailureNarrative.class);
+    org.mockito.Mockito.when(narrative.diagnoseRecovery(org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(RecoveryContext.class))).thenAnswer(call -> {
+      RecoveryContext context = call.getArgument(1);
+      return FailureNarrative.RecoveryResult.reply(new RecoveryDecision(RecoveryCauseClass.UNCLASSIFIED, null,
+          List.of(context.evidence().failureId()), RecoveryAction.PARK, List.of(), "", "Review the rejected input."));
+    });
+    var runtime = newRuntime(narrative, profile, discovery, importStage, analysis, planningAlwaysCandidate());
+    runtime.support().withNativeRequirementCapture(
+        org.mockito.Mockito.mock(org.qubership.integration.platform.ai.plan.RequirementDraftStore.class), null);
+    startAndRecordInput(runtime, profile);
+    applyLifecycle(runtime, execute(runtime, originalOwner.stageId()));
+    applyLifecycle(runtime, execute(runtime, "uploaded-spec-import"));
+
+    var result = execute(runtime, "requirement-analysis");
+
+    assertEquals(originalOwner.stageId(), assertInstanceOf(StageDecision.ReopenProducer.class,
+        result.decision()).producerStageId());
+    assertEquals(1, analysisCalls.get());
+    org.mockito.Mockito.verify(narrative, org.mockito.Mockito.never()).diagnoseRecovery(
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(RecoveryContext.class));
+  }
+
+  @Test
+  void discoveryInterpretationReportStagesTheDraftUntilBriefApproval() {
+    var draft = sourceWordingDraft(false, false);
+    var review = new org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool.SourceReview(
+        "generation", "source-hash", org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(draft),
+        List.of(new org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceOmission(
+            "source-turn", "Use a QIP script.", "Correct the projection.",
+            org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceDiscrepancyKind.INTERPRETATION_CONFLICT,
+            "script", "/importIntent", "false", "true")));
+    var profile = discoveryAndAnalysisThenPlanningProfile(new ArtifactTypeRef("requirement-draft", 1),
+        new ArtifactTypeRef("requirement-brief", 1), new ArtifactTypeRef("plan-validation-result", 1));
+    var stages = new ArrayList<>(profile.stages());
+    var originalOwner = stages.getFirst();
+    stages.set(0, new ProfileStage(originalOwner.stageId(), "requirement-discovery", originalOwner.consumes(),
+        originalOwner.produces(), null, originalOwner.bypass(), originalOwner.retry(), originalOwner.skip()));
+    stages.set(2, new ProfileStage("design-input", "ids-cap", List.of(new ArtifactTypeRef("requirement-brief", 1)),
+        List.of(new ArtifactTypeRef("ids-document", 1)), null, null, new RetryPolicy(0, 1L)));
+    profile = new ProductPipelineProfile(profile.schemaVersion(), profile.profileId(), profile.profileVersion(),
+        profile.runInputs(), stages, new TerminalPolicy("design-input", "PLAN_APPROVED"),
+        List.of("requirement-discovery", "analysis-cap", "ids-cap"));
+    var discoveryCalls = new AtomicInteger();
+    var discovery = capability("requirement-discovery", context -> {
+      if (context.attributeAsString("userText") == null && !StageRepairEvidence.isRepairTurn(context)) {
+        return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "Requirements needed.")));
+      }
+      if (discoveryCalls.incrementAndGet() > 1) {
+        assertEquals(review, context.attributes().get("sourceRestorationReview"));
+        return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(StageOutcomeClass.SUCCEEDED,
+            List.of(new ArtifactCandidate(Kind.REQUIREMENT_DRAFT, draft.withImportIntent(true), List.of())), "repaired", null)));
+      }
+      var cause = new RecoveryCause(RecoveryCauseCode.MISSING_BRIEF_FACTS,
+          List.of(new PlanValidationFinding("SOURCE_INTERPRETATION_CONFLICT", "Correct the projection.", true)),
+          "", false, null, review);
+      return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(StageOutcomeClass.CONTRACT_FAILURE,
+          List.of(new ArtifactCandidate(Kind.REQUIREMENT_DRAFT, draft, List.of())), "Correct the projection.", null, cause)));
+    });
+    var correctedRef = new AtomicReference<Reference>();
+    var analysis = capability("analysis-cap", context -> {
+      var ref = context.inputRefs().stream().filter(value -> value.kind() == Kind.REQUIREMENT_DRAFT).findFirst().orElseThrow();
+      assertEquals(draft.withImportIntent(true), artifactStore.payload(artifactStore.get(RUN_ID, ref).orElseThrow(),
+          RequirementDraft.class));
+      correctedRef.set(ref);
+      var brief = new RequirementBrief("Brief", List.of(), List.of(), List.of(), List.of(), "",
+          ref.artifactId(), "", List.of());
+      return analysisWithBrief(brief).execute(context);
+    });
+    var briefRef = new AtomicReference<Reference>();
+    var ids = capability("ids-cap", context -> {
+      var brief = (RequirementBrief) context.attributes().get("requirementBrief");
+      assertEquals(correctedRef.get().artifactId(), brief.approvedDraftReference());
+      briefRef.set(context.inputRefs().stream().filter(value -> value.kind() == Kind.REQUIREMENT_BRIEF)
+          .findFirst().orElseThrow());
+      var document = new org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument(
+          "1", org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument.Mode.DERIVED,
+          briefRef.get().artifactId(), briefRef.get().contentHash(), "flow-hash", "renderer", "# IDS");
+      return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(StageOutcomeClass.SUCCEEDED,
+          List.of(new ArtifactCandidate(Kind.IDS_DOCUMENT, document, context.inputRefs())), "IDS ready", null)));
+    });
+    var runtime = newRuntime(profile, discovery, analysis, ids);
+    runtime.support().withNativeRequirementCapture(
+        org.mockito.Mockito.mock(org.qubership.integration.platform.ai.plan.RequirementDraftStore.class), null);
+    startAndRecordInput(runtime, profile);
+
+    var result = execute(runtime, originalOwner.stageId());
+
+    assertInstanceOf(StageDecision.Retry.class, result.decision());
+    var owner = snapshot(requireRun(), originalOwner.stageId());
+    assertEquals(List.of(), owner.outputRefs());
+    assertEquals(1, owner.candidateReferences().size());
+    assertEquals(draft, artifactStore.payload(artifactStore.get(RUN_ID, owner.candidateReferences().getFirst()).orElseThrow(),
+        RequirementDraft.class));
+    assertEquals(List.of(), artifactStore.history(RUN_ID, Kind.APPROVAL_RECORD));
+    applyLifecycle(runtime, result);
+    var repaired = execute(runtime, originalOwner.stageId());
+    assertInstanceOf(StageDecision.Continue.class, repaired.decision());
+    applyLifecycle(runtime, repaired);
+    var approval = assertInstanceOf(StageDecision.WaitForApproval.class, execute(runtime, "requirement-analysis").decision());
+    assertEquals(2, discoveryCalls.get());
+    assertEquals(List.of(), artifactStore.history(RUN_ID, Kind.APPROVAL_RECORD));
+    runtime.recordApprove(new ApproveCommand(RUN_ID, approval.candidate(), requireRun().run().runRevision()))
+        .collect().asList().await().indefinitely();
+    assertInstanceOf(StageDecision.Complete.class, execute(runtime, "design-input").decision());
+    var document = artifactStore.payload(artifactStore.latest(RUN_ID, Kind.IDS_DOCUMENT).orElseThrow(),
+        org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument.class);
+    assertEquals(briefRef.get().artifactId(), document.sourceReference());
+    assertEquals(briefRef.get().contentHash(), document.sourceHash());
+  }
+
   @ParameterizedTest
-  @ValueSource(booleans = {false, true})
-  void sourceRestorationRequiresTheFirstUpcomingApprovalToReviewTheBrief(boolean interveningApproval) {
+  @org.junit.jupiter.params.provider.CsvSource({"false,false,false", "true,false,false", "false,true,false", "false,true,true"})
+  void sourceRestorationRequiresTheFirstUpcomingApprovalToReviewTheBrief(
+      boolean interveningApproval, boolean priorBrief, boolean interpretation) {
     var draftType = new ArtifactTypeRef("requirement-draft", 1);
     var briefType = new ArtifactTypeRef("requirement-brief", 1);
     var reviewType = new ArtifactTypeRef("implementation-plan", 1);
@@ -6500,8 +6743,11 @@ class ProductPipelineStageExecutorTest {
         "generation", "source-hash", org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(draft),
         List.of(new org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceOmission(
             "source-turn", "Use a QIP script.", "Groovy is an unsupported addition.",
-            org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceDiscrepancyKind.UNSUPPORTED_ADDITION,
-            "script")));
+            interpretation
+                ? org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceDiscrepancyKind.INTERPRETATION_CONFLICT
+                : org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceDiscrepancyKind.UNSUPPORTED_ADDITION,
+            "script", interpretation ? "/capabilities/entry/type" : null,
+            interpretation ? "\"http-trigger\"" : null, interpretation ? "null" : null)));
     var stages = new ArrayList<ProfileStage>();
     stages.add(new ProfileStage("requirement-discovery", "requirement-discovery",
         List.of(new ArtifactTypeRef("user-input", 1)), List.of(draftType), null, null, new RetryPolicy(0, 1L)));
@@ -6537,10 +6783,16 @@ class ProductPipelineStageExecutorTest {
     var drafts = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.plan.RequirementDraftStore.class);
     runtime.support().withNativeRequirementCapture(drafts, null);
     startAndRecordInput(runtime, profile);
+    if (priorBrief) {
+      artifactStore.append(new CompilationArtifacts.AppendCommand(RUN_ID, Kind.REQUIREMENT_BRIEF,
+          "1", "prior-review", "1", new RequirementBrief("Earlier brief", List.of(), List.of(), List.of(), List.of(), ""),
+          List.of(), null, new org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactProvenance(
+              RUN_ID, "requirement-analysis", "prior-review", "2", "profile-hash", "analysis-cap", "1", "closure")));
+    }
     applyLifecycle(runtime, execute(runtime, "requirement-discovery"));
     if (interveningApproval) approveStage(runtime, "intervening-review");
     var repair = execute(runtime, "requirement-analysis");
-    if (interveningApproval) {
+    if (interveningApproval || (priorBrief && !interpretation)) {
       assertInstanceOf(StageDecision.WaitForInput.class, repair.decision());
       assertEquals(1, discoveryCalls.get());
       return;
@@ -6551,14 +6803,15 @@ class ProductPipelineStageExecutorTest {
 
     execute(runtime, "requirement-discovery");
 
-    assertEquals(!interveningApproval, granted.get());
+    assertEquals(true, granted.get());
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"approve", "repeat", "wrapper", "sequential"})
+  @ValueSource(strings = {"approve", "repeat", "wrapper", "sequential", "projection"})
   void sourceReconciliationPreservesPublishedRequirementsThroughTheExistingLifecycle(String scenario) {
     var original = sourceWordingDraft(false, false);
-    var corrected = sourceWordingDraft(true, !"sequential".equals(scenario));
+    var corrected = "projection".equals(scenario) ? original.withImportIntent(true)
+        : sourceWordingDraft(true, !"sequential".equals(scenario));
     var draftType = new ArtifactTypeRef("requirement-draft", 1);
     var briefType = new ArtifactTypeRef("requirement-brief", 1);
     var profile = discoveryAndAnalysisThenPlanningProfile(draftType, briefType,
@@ -6574,8 +6827,16 @@ class ProductPipelineStageExecutorTest {
     var discoveryCalls = new AtomicInteger();
     var analysisCalls = new AtomicInteger();
     var supplied = new AtomicReference<>(original);
-    var initialReview = sourceWordingReview(original, "generation", "Initial source comparison.",
-        "sequential".equals(scenario) ? List.of("script") : List.of("script", "ids"));
+    var initialReview = "projection".equals(scenario)
+        ? new org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool.SourceReview(
+            "generation", "source-hash",
+            org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(original),
+            List.of(new org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceOmission(
+                "source-turn", "Use a QIP script.", "Correct the selected projection.",
+                org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceDiscrepancyKind.INTERPRETATION_CONFLICT,
+                "script", "/importIntent", "false", "true")))
+        : sourceWordingReview(original, "generation", "Initial source comparison.",
+            "sequential".equals(scenario) ? List.of("script") : List.of("script", "ids"));
     var discovery = capability(owner.capabilityId(), context -> {
       if (context.attributeAsString("userText") == null && !StageRepairEvidence.isRepairTurn(context)) {
         return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "Requirements needed.")));
@@ -6593,7 +6854,7 @@ class ProductPipelineStageExecutorTest {
     });
     var analysis = capability("analysis-cap", context -> {
       if (analysisCalls.incrementAndGet() == 1) return sourceWordingFailure(initialReview);
-      if (!"approve".equals(scenario)) {
+      if (!"approve".equals(scenario) && !"projection".equals(scenario)) {
         var repeated = sourceWordingReview(supplied.get(), "different-generation", "Different explanation and attempt.",
             "sequential".equals(scenario) ? List.of("ids") : List.of("script", "ids"));
         return sourceWordingFailure(repeated);
@@ -6628,6 +6889,12 @@ class ProductPipelineStageExecutorTest {
         org.mockito.ArgumentMatchers.any(Reference.class));
     runtime.support().withNativeRequirementCapture(drafts, null);
     startAndRecordInput(runtime, profile);
+    if ("projection".equals(scenario)) {
+      artifactStore.append(new CompilationArtifacts.AppendCommand(RUN_ID, Kind.REQUIREMENT_BRIEF,
+          "1", "prior-review", "1", new RequirementBrief("Earlier brief", List.of(), List.of(), List.of(), List.of(), ""),
+          List.of(), null, new org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactProvenance(
+              RUN_ID, "requirement-analysis", "prior-review", "2", "profile-hash", "analysis-cap", "1", "closure")));
+    }
     int inputs = artifactStore.history(RUN_ID, Kind.USER_INPUT).size();
     applyLifecycle(runtime, execute(runtime, owner.stageId()));
     var acceptedRefs = snapshot(requireRun(), owner.stageId()).outputRefs();
@@ -6639,7 +6906,7 @@ class ProductPipelineStageExecutorTest {
     assertEquals(acceptedRefs, snapshot(requireRun(), owner.stageId()).outputRefs());
     assertEquals(original, stored.get());
     var result = execute(runtime, "requirement-analysis");
-    if (!"approve".equals(scenario)) {
+    if (!"approve".equals(scenario) && !"projection".equals(scenario)) {
       assertInstanceOf(StageDecision.WaitForInput.class, result.decision());
       assertEquals(2, discoveryCalls.get());
       assertEquals(candidateRefs, snapshot(requireRun(), owner.stageId()).candidateReferences());
@@ -6650,10 +6917,12 @@ class ProductPipelineStageExecutorTest {
       var reviewSignals = runtime.support().applyStageLifecycle(RUN_ID, result).collect().asList().await().indefinitely();
       String review = reviewSignals.stream().filter(PipelineSignal.Message.class::isInstance)
           .map(PipelineSignal.Message.class::cast).map(PipelineSignal.Message::text).collect(Collectors.joining("\n"));
+      if (!"projection".equals(scenario)) {
       assertTrue(review.contains("**Previous wording:**\n> Use a Groovy QIP script."), review);
       assertTrue(review.contains("**Proposed source wording:**\n> Use a QIP script."), review);
       assertTrue(review.contains("**Previous wording:**\n> Do not generate IDS. Keep a manual document."), review);
       assertTrue(review.contains("**Proposed source wording:**\n> Keep a manual document."), review);
+      }
       var approval = new ApproveCommand(RUN_ID, waiting.candidate(), requireRun().run().runRevision());
       assertThrows(IllegalStateException.class,
           () -> runtime.recordApprove(approval).collect().asList().await().indefinitely());

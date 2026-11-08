@@ -16,6 +16,10 @@ import org.qubership.integration.platform.ai.qipknowledge.validation.CompilerSec
 
 /** Shared source and value admission for discovery and recovery questions. */
 public final class AuthorQuestionAdmission {
+  private static final org.qubership.integration.platform.ai.schema.SchemaRefResolver PROPERTY_SCHEMAS =
+      new org.qubership.integration.platform.ai.schema.SchemaRefResolver(
+          new org.qubership.integration.platform.ai.schema.SchemaResourceLoader(),
+          new org.qubership.integration.platform.ai.schema.CipSchemaYamlParser());
   private AuthorQuestionAdmission() {}
 
   public static void validate(AuthorQuestionEvidence question, List<RequirementFact> facts,
@@ -82,7 +86,10 @@ public final class AuthorQuestionAdmission {
     });
     switch (question.kind()) {
       case MISSING_VALUE -> {
-        if (!values.isEmpty() || defaults.contains(question.propertyKey())) {
+        if (unsupportedMissingTarget(question, facts)) {
+          findings.add("ASK_USER targets no requirement field or native property on this owner."
+              + " Recheck saved sources and remove this inapplicable question; do not invent a value to close it.");
+        } else if (!values.isEmpty() || defaults.contains(question.propertyKey())) {
           findings.add("ASK_USER cannot request a supplied value or schema default. Repair the producer from saved input.");
         } else if (!sourceOwnerReviewed) {
           findings.add(RecoveryDecisionValidator.SOURCE_RECONCILIATION_REQUIRED
@@ -112,6 +119,36 @@ public final class AuthorQuestionAdmission {
           findings.add("ASK_USER requires an unresolved catalog choice. Reuse the approved binding.");
       }
     }
+  }
+
+  /** A known owner cannot acquire an author obligation through an invented property name. */
+  public static boolean unsupportedMissingTarget(AuthorQuestionEvidence question, List<RequirementFact> facts) {
+    if (question == null || question.kind() != AuthorQuestionEvidence.Kind.MISSING_VALUE) return false;
+    String key = question.propertyKey();
+    if (key == null || Set.of("participant", "operation", "description", "name", "requestedName", "capabilityKey", "httpMode",
+        "httpMethod", "path", "topic", "requestSchema", "targetReference", "mcpServerId").contains(key)) return false;
+    var types = new LinkedHashSet<String>();
+    for (var fact : facts) {
+      if (fact.polarity() != RequirementFactPolarity.POSITIVE) continue;
+      var intent = fact.elementIntent();
+      if (intent != null && (question.interactionId().equals(intent.elementRef())
+          || question.interactionId().equals(intent.ownerInteractionId()))) types.add(intent.elementType());
+      if (fact.targetsInteraction(question.interactionId()) && !fact.capabilityKey().isBlank()) {
+        types.add(fact.capabilityKey());
+      }
+    }
+    if (types.isEmpty()) return false;
+    for (String type : types) {
+      try {
+        var keys = org.qubership.integration.platform.ai.schema.ElementPropertiesSchemaModelBuilder
+            .build(type, PROPERTY_SCHEMAS).propertyDefs().keySet();
+        if (keys.isEmpty() || keys.contains(key)) return false;
+      } catch (org.qubership.integration.platform.ai.schema.SchemaNotFoundException
+          | org.qubership.integration.platform.ai.schema.SchemaRefResolutionException unavailable) {
+        return false;
+      }
+    }
+    return true;
   }
 
   /**

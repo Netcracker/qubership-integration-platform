@@ -484,12 +484,15 @@ class MappingGenerationPipelineTest {
   }
 
   @Test
-  void emptyIntentsCannotGenerateAnUnqualifiedBehaviorScript() {
+  void shouldScheduleImplementationOfApprovedBusinessBehaviorWithoutAuthorSelectedScriptTopology() {
     var prepared = pipeline.prepare(COMPILATION_ID, SCRIPT_SKILL,
         SemanticFixtures.linearOrdersWithCompleteTask(), List.of(),
         completeTaskContext(completeTaskGraph(), completeTaskBrief()));
-    assertTrue(prepared.blocked(), prepared.blockedMessage());
+    assertFalse(prepared.blocked(), prepared.blockedMessage());
     assertEquals(List.of(), prepared.envelopeRefs());
+    assertEquals(List.of(SemanticFixtures.COMPLETE_TASK_NODE_ID), prepared.context().editTargetNodeIds());
+    assertTrue(prepared.context().behaviorTasks().containsKey(SemanticFixtures.COMPLETE_TASK_NODE_ID),
+        prepared.context().behaviorTasks().toString());
   }
 
   @Test
@@ -507,6 +510,27 @@ class MappingGenerationPipelineTest {
     assertEquals(List.of(nodeId), prepared.context().editTargetNodeIds());
     assertTrue(prepared.mappingGenerationContext().contains("Behavior-owned script generation for " + nodeId + ": Return Hello world"),
         prepared.mappingGenerationContext());
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+  void behaviorContextNamesOnlyCompilerPreservedOrigins(boolean supplied) {
+    var intent = identityOrderId();
+    var graph = new ChainPlanGraph("1.0", new ChainSection("id", "Orders"), List.of(
+        new ChainPlanNode("typed-copy", "script", "Copy", null, 1,
+            List.of(new PlanProperty("mappingIntentId", intent.mappingIntentId())))), List.of());
+    var brief = new RequirementBrief("Typed copy", List.of(), List.of(), List.of(), List.of(), "summary")
+        .withMappingIntents(List.of(intent));
+    if (supplied) {
+      String body = "exchange.in.body = [orderId: 'supplied']";
+      brief = brief.withFacts(List.of(ScriptAuthorityTestFixtures.suppliedFact("typed-copy", body)));
+      graph = graph.withNodeProperty("typed-copy", "script", body);
+    }
+    var text = contextBuilder().renderBehaviorScriptGenerationContext(brief, List.of(), graph, revisionWith(intent));
+    var origin = new org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource.Message(
+        intent.sourceRef(), intent.sourcePort(), "$");
+    assertEquals(!supplied, text.contains("exchange.getProperty('" + CopyMappingPlanner.contextId(origin) + "')"), text);
+    assertEquals(!supplied, text.contains("populated by node 'typed-copy'. Only readable downstream of that node."), text);
   }
 
   @Test

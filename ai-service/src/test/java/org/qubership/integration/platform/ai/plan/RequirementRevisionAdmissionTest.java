@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.ai.plan;
 
+import static org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures.assertAuthoredContentEquals;
+
 import static org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures.withNativeAnchors;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -30,7 +32,417 @@ import org.qubership.integration.platform.ai.plan.RequirementPolicyConflict.Deci
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 
-class RequirementRevisionAdmissionTest {
+public class RequirementRevisionAdmissionTest {
+
+  @ParameterizedTest(name = "{0}")
+  @ValueSource(strings = {"valid", "literal-return", "local-description", "local-operation", "absolute-endpoint", "absolute-endpoint-method", "lowercase-method", "wrong-source", "wrong-current", "stale-source", "external-protocol",
+      "independent-goal", "author-body", "stale-base", "changed-origin", "changed-port", "changed-path", "changed-key", "changed-policy"})
+  void sourceBoundLocalResponseCorrectionRetainsTheTypedCopy(String scenario) throws Exception {
+    localResponseCorrection(scenario);
+  }
+
+  public static RequirementDraft correctLocalResponse() throws Exception {
+    return localResponseCorrection("valid");
+  }
+
+  public static org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief
+      correctLocalResponseBrief() throws Exception {
+    return localResponseBrief(correctLocalResponse());
+  }
+
+  private static org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief
+      localResponseBrief(RequirementDraft draft) {
+    var brief = new org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief(
+        "Return the status", List.of(), List.of(), List.of(), List.of(), "", null, "",
+        RequirementCaptureProjection.factsForBrief(draft), List.of(), List.of(), List.of(),
+        RequirementBriefProjector.authoredMappings(draft), draft.flow(), draft.catalogBindings());
+    return RequirementBriefProjector.canonicalizeMappingIntents(brief);
+  }
+
+  private static RequirementDraft localResponseCorrection(String scenario) throws Exception {
+    var h = new Harness();
+    try (var ignored = ToolSession.open(h.chat)) {
+      String quote = "Return the order status in the HTTP response.";
+      String independent = "independent-goal".equals(scenario) ? " Send an acknowledgement to the caller." : "";
+      var source = h.begin("Receive POST /tasks. Call Tasks POST /tasks. " + quote + independent + " Proceed without IDS.");
+      var entry = new InteractionInput("entry", Direction.INBOUND, "Caller", "POST /tasks", null, null, null);
+      var call = new InteractionInput("call", Direction.OUTBOUND, "Tasks", "POST /tasks", null, null, null);
+      var response = new InteractionInput("response", Direction.OUTBOUND, "Caller",
+          "external-protocol".equals(scenario) ? "POST /callback"
+              : "lowercase-method".equals(scenario) ? "post /callback"
+              : "absolute-endpoint-method".equals(scenario) ? "POST https://example.com/callback"
+              : "absolute-endpoint".equals(scenario) ? "https://example.com/callback"
+              : "local-operation".equals(scenario) ? "Return status from POST /tasks."
+              : "literal-return".equals(scenario) ? quote : "Return status",
+          "local-description".equals(scenario) ? "Return fields from POST /tasks." : null, null, null);
+      var mapping = new FieldMappingInput("call", null, "response", "status", null,
+          new org.qubership.integration.platform.ai.qipknowledge.artifact.MappingValue.Copy(
+              new org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource.Message("call",
+                  org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort.RESPONSE, "$.status")), "ERROR");
+      var fact = new FactInput("response-map", List.of("call", "response"), FactKind.FIELD_MAPPING,
+          Polarity.POSITIVE, quote, mapping, null, null, new ClaimEvidenceInput(source.turnId(), quote));
+      var facts = new ArrayList<>(List.of(fact));
+      if ("independent-goal".equals(scenario)) facts.add(new FactInput("callback", List.of("response"), FactKind.GOAL,
+          Polarity.POSITIVE, "Send an acknowledgement to the caller.", null, null, null,
+          new ClaimEvidenceInput(source.turnId(), "Send an acknowledgement to the caller.")));
+      var binding = new org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint(
+          "3", "call", "call", "POST /tasks", "tasks-system", "tasks-group", "tasks-spec", "tasks-operation",
+          "http", "POST", "/tasks", "1", java.time.Instant.EPOCH, "catalog-read:tasks");
+      when(h.bindings.canonicalBindings(any(), nullable(RequirementDraft.class), anyString())).thenReturn(List.of(binding));
+      var original = withNativeAnchors(new DraftInput(new FlowInput(List.of(entry, call, response),
+          List.of(new TransitionInput("entry", "call"), new TransitionInput("call", "response"))), facts,
+          List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.POST, "/tasks", null, null, null)),
+          List.of(), new DraftSettings(false, null)));
+      var captured = h.capture(original);
+      assertTrue(captured.accepted(), captured.toString());
+      var accepted = h.store.get(h.chat).orElseThrow();
+      h.tools.conversations = h.conversations;
+      var script = new RequirementElementIntent("response", "script", RequirementElementIntent.Placement.LOCAL_NODE,
+          "entry", null, "call", null, null,
+          "author-body".equals(scenario) ? List.of(new PlanProperty("script", "return 1")) : List.of(), List.of());
+      var kind = RequirementAnalysisCapture.SourceDiscrepancyKind.INTERPRETATION_CONFLICT;
+      var reports = List.of(
+          new RequirementAnalysisCapture.SourceOmission(source.turnId(), "wrong-source".equals(scenario) ? "Return" : quote,
+              "Use the local response.", kind, "response-map", "/interactions/response",
+              "wrong-current".equals(scenario) ? "{}" : h.mapper.valueToTree(response).toString(), "null"),
+          new RequirementAnalysisCapture.SourceOmission(source.turnId(), quote, "Remove the external response edge.", kind,
+              "response-map", "/transitions/call", "[\"response\"]", "[]"),
+          new RequirementAnalysisCapture.SourceOmission(source.turnId(), quote, "Declare the local response script.", kind,
+              "response-map", "/facts/response-map/elementIntent", "null", h.mapper.valueToTree(script).toString()),
+          new RequirementAnalysisCapture.SourceOmission(source.turnId(), quote, "Include the local owner.", kind,
+              "response-map", "/facts/response-map/interactionIds", "[\"call\",\"response\"]",
+              "[\"call\",\"response\",\"entry\"]"));
+      if ("valid".equals(scenario)) {
+        var base = accepted.authoredDraft();
+        var capabilities = new ArrayList<>(base.capabilities());
+        capabilities.add(new CapabilityInput("response", "http-sender", null, HttpMethod.POST,
+            "https://example.com/callback", null, null, null));
+        var external = new DraftInput(base.flow(), base.facts(), capabilities, base.openQuestions(), base.settings());
+        assertFalse(RequirementProjectionCorrection.validLocalReports(external, reports),
+            "An explicit native callback capability must remain external");
+        var callback = new org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint(
+            "3", "response", "response-map", "callback", "callback-system", "callback-group", "callback-spec",
+            "callback-operation", "http", "POST", "/callback", "1", java.time.Instant.EPOCH, "catalog-read:callback");
+        assertFalse(RequirementProjectionCorrection.validLocalAuthority(accepted.withBoundInteraction("response", callback),
+            AuthorSourceEvidence.authoredPacket(h.archive.read(h.chat)), reports),
+            "A resolved catalog callback must remain external");
+      }
+      var offered = new java.util.concurrent.atomic.AtomicReference<Object>();
+      org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext.bindDiscovery(
+          "source-run", h.chat, offered::set);
+      try {
+        if ("stale-source".equals(scenario)) {
+          var newer = h.archive.beginInput(h.chat, "Use a different result.", null);
+          h.archive.resolveInput(h.chat, newer, "Use a different result.");
+        }
+        if (List.of("wrong-source", "wrong-current", "stale-source", "external-protocol", "absolute-endpoint", "absolute-endpoint-method", "lowercase-method", "independent-goal", "author-body")
+            .contains(scenario)) {
+          var refused = h.mapper.readTree(h.tools.reportRequirementInterpretationConflict(
+              new RequirementCaptureTools.InterpretationReport(reports)));
+          assertFalse(refused.path("accepted").asBoolean(), refused.toString());
+          if ("wrong-source".equals(scenario)) assertEquals("SOURCE_EVIDENCE_MISMATCH", refused.path("issues").get(0).path("code").asText());
+          if ("wrong-current".equals(scenario)) assertEquals("PREVIOUS_VALUE_MISMATCH", refused.path("issues").get(0).path("code").asText());
+          assertNull(offered.get());
+          assertEquals(accepted, h.store.get(h.chat).orElseThrow());
+          return null;
+        }
+        assertThrows(org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException.class,
+            () -> h.tools.reportRequirementInterpretationConflict(new RequirementCaptureTools.InterpretationReport(reports)));
+        var review = assertInstanceOf(ProductRequirementBriefTool.SourceReview.class, offered.get());
+        assertEquals(reports, review.omissions());
+        assertEquals(accepted, h.store.get(h.chat).orElseThrow());
+      } finally {
+        org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext.unbind(h.chat);
+      }
+      var review = assertInstanceOf(ProductRequirementBriefTool.SourceReview.class, offered.get());
+      var changedMapping = new FieldMappingInput("call", null, "response",
+          "changed-key".equals(scenario) ? "different" : "status", null,
+          new org.qubership.integration.platform.ai.qipknowledge.artifact.MappingValue.Copy(
+              new org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource.Message(
+                  "changed-origin".equals(scenario) ? "entry" : "call",
+                  "changed-port".equals(scenario) ? org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort.REQUEST
+                      : org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort.RESPONSE,
+                  "changed-path".equals(scenario) ? "$.other" : "$.status")),
+          "changed-policy".equals(scenario) ? "IGNORE" : "ERROR");
+      var updatedFact = new FactInput(fact.sourceFactId(), List.of("call", "response", "entry"), fact.kind(),
+          fact.polarity(), fact.text(), List.of("valid", "literal-return", "local-description", "local-operation", "stale-base").contains(scenario)
+              ? fact.fieldMapping() : changedMapping,
+          fact.policyConflict(), script, fact.evidence());
+      var base = accepted.authoredDraft();
+      var proposed = new DraftInput(new FlowInput(List.of(entry, call), List.of(new TransitionInput("entry", "call"))),
+          base.facts().stream().map(value -> value.sourceFactId().equals("response-map") ? updatedFact : value).toList(),
+          base.capabilities(), base.openQuestions(), base.settings());
+      assertTrue(RequirementProjectionCorrection.validLocalReports(base, reports), reports.toString());
+      assertEquals(List.of("valid", "literal-return", "local-description", "local-operation", "stale-base").contains(scenario),
+          RequirementProjectionCorrection.matches(base, proposed, reports), scenario);
+      h.store.beginTurn(h.chat, "Repair the local response.");
+      if ("stale-base".equals(scenario)) h.artifacts.append(new CompilationArtifacts.AppendCommand(
+          h.sessions.active(h.chat), CompilationArtifacts.Kind.REQUIREMENT_DRAFT, "1", "test", "1",
+          accepted.withIdsRequested(true), List.of(), null));
+      var candidate = new java.util.concurrent.atomic.AtomicReference<RequirementDraft>();
+      org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext.bindDiscovery(
+          "source-run", h.chat, accepted, java.util.Map.of(), java.util.Set.of(), List.of(), review,
+          value -> candidate.set((RequirementDraft) value));
+      try {
+        var update = new DraftUpdate(List.of(), List.of(), List.of("response"), List.of(),
+            List.of(new TransitionInput("call", "response")), List.of(), List.of(updatedFact), List.of(),
+            List.of(), List.of(), List.of(), List.of(), List.of(), null, List.of());
+        var result = h.update(update);
+        if (!List.of("valid", "literal-return", "local-description", "local-operation").contains(scenario)) {
+          assertFalse(result.accepted(), result.toString());
+          assertNull(candidate.get());
+          assertEquals("stale-base".equals(scenario) ? accepted.withIdsRequested(true) : accepted,
+              h.store.get(h.chat).orElseThrow());
+          return null;
+        }
+        assertTrue(result.accepted(), result.toString());
+        assertEquals(RequirementCaptureResult.NextAction.AWAIT_APPROVAL, result.nextAction());
+        assertNotNull(candidate.get());
+        assertEquals(mapping, candidate.get().authoredDraft().facts().stream()
+            .filter(value -> value.sourceFactId().equals("response-map")).findFirst().orElseThrow().fieldMapping());
+        var projected = localResponseBrief(candidate.get());
+        assertEquals(1, projected.mappingIntents().size(), projected.mappingIntents().toString());
+        var intent = projected.mappingIntents().getFirst();
+        assertEquals("call", intent.sourceRef());
+        assertEquals("response", intent.targetRef());
+        assertEquals(org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort.RESPONSE, intent.sourcePort());
+        assertEquals(org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort.OUTPUT, intent.targetPort());
+        assertEquals(mapping.value(), intent.rules().getFirst().value());
+        assertEquals(mapping.missingSourcePolicy(), intent.rules().getFirst().missingSourcePolicy());
+        assertTrue(RequirementBriefCoverageValidator.validateMappingStructure(projected).isEmpty(), projected.toString());
+        assertEquals(accepted, h.store.get(h.chat).orElseThrow());
+        return candidate.get();
+      } finally {
+        org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext.unbind(h.chat);
+      }
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void discoveryReportUsesCurrentSourceAndDoesNotMutateTheDraft(boolean staleSource) throws Exception {
+    var h = new Harness();
+    try (var ignored = ToolSession.open(h.chat)) {
+      String quote = "Receive POST /tasks.";
+      var input = h.begin(quote + " Proceed without IDS.");
+      var intent = new RequirementElementIntent("entry", "chain-trigger-2", RequirementElementIntent.Placement.ANCHOR,
+          "entry", null, null, null, null, List.of(), List.of());
+      var fact = new FactInput("entry-fact", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+          quote, null, null, intent, new ClaimEvidenceInput(input.turnId(), quote));
+      var http = httpDraft(List.of(fact));
+      var original = new DraftInput(http.flow(), http.facts(),
+          List.of(new CapabilityInput("entry", "chain-trigger-2", null, null, null, null, null, null)),
+          http.openQuestions(), http.settings());
+      assertTrue(h.capture(original).accepted());
+      h.tools.conversations = h.conversations;
+      var accepted = h.store.get(h.chat).orElseThrow();
+      var offered = new java.util.concurrent.atomic.AtomicReference<Object>();
+      org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext.bindDiscovery(
+          "source-run", h.chat, offered::set);
+      try {
+        if (staleSource) {
+          var changed = h.archive.beginInput(h.chat, "Use another endpoint.", null);
+          h.archive.resolveInput(h.chat, changed, "Use another endpoint.");
+        }
+        var correction = new RequirementAnalysisCapture.SourceOmission(input.turnId(), quote,
+            "The chosen trigger cannot implement the HTTP endpoint.",
+            RequirementAnalysisCapture.SourceDiscrepancyKind.INTERPRETATION_CONFLICT, "entry-fact",
+            "/facts/entry-fact/elementIntent/elementType", "\"chain-trigger-2\"", "\"http-trigger\"");
+        var report = new RequirementCaptureTools.InterpretationReport(List.of(correction));
+        if (staleSource) {
+          var result = h.mapper.readTree(h.tools.reportRequirementInterpretationConflict(report));
+          assertFalse(result.path("accepted").asBoolean());
+          assertNull(offered.get());
+        } else {
+          assertThrows(org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException.class,
+              () -> h.tools.reportRequirementInterpretationConflict(report));
+          var review = assertInstanceOf(ProductRequirementBriefTool.SourceReview.class, offered.get());
+          assertEquals(List.of(correction), review.omissions());
+          assertEquals(org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(accepted), review.draftHash());
+          assertEquals(org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(
+              AuthorSourceEvidence.packet(h.archive.read(h.chat))), review.sourceHash());
+        }
+        assertEquals(accepted, h.store.get(h.chat).orElseThrow());
+      } finally {
+        org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext.unbind(h.chat);
+      }
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"valid", "mixed", "historic-claim", "wrong-quote", "stale-hash", "protected-name"})
+  void sourceBoundProjectionCorrectionStagesOnlyReportedChanges(String scenario) throws Exception {
+    var h = new Harness();
+    try (var ignored = ToolSession.open(h.chat)) {
+      String quote = "Receive POST /tasks.";
+      var input = h.begin(quote + " Proceed without IDS.");
+      var oldIntent = new RequirementElementIntent("entry", "chain-trigger-2", RequirementElementIntent.Placement.ANCHOR,
+          "entry", null, null, null, null, List.of(), List.of());
+      var originalFact = new FactInput("entry-fact", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+          scenario.equals("mixed") ? quote + " Require XML." : quote, null, null, oldIntent,
+          new ClaimEvidenceInput(input.turnId(), quote));
+      var http = httpDraft(List.of(originalFact));
+      var oldCapability = new CapabilityInput("entry", "chain-trigger-2", null, null, null, null, null, null);
+      var original = new DraftInput(http.flow(), http.facts(), List.of(oldCapability), http.openQuestions(), http.settings());
+      var captured = h.capture(original);
+      assertTrue(captured.accepted(), captured.toString());
+      var accepted = h.store.get(h.chat).orElseThrow();
+      var acceptedRef = h.store.latestRevision(h.chat).orElseThrow().reference();
+      var baseline = h.store.semanticBaseline(h.chat).orElseThrow();
+      if (scenario.equals("historic-claim")) {
+        var claim = baseline.claims().getFirst();
+        var older = new RequirementSemanticBaseline(baseline.sourceGeneration(), baseline.authorEvidenceHash(),
+            List.of(new RequirementSemanticClaim(claim.sourceFactId(), "Earlier wording", claim.polarity(), claim.evidence())));
+        h.artifacts.append(new CompilationArtifacts.AppendCommand(h.sessions.active(h.chat),
+            CompilationArtifacts.Kind.REQUIREMENT_SEMANTIC_BASELINE, "1", "test", "1", older, List.of(), null));
+        h.artifacts.append(new CompilationArtifacts.AppendCommand(h.sessions.active(h.chat),
+            CompilationArtifacts.Kind.REQUIREMENT_SEMANTIC_BASELINE, "1", "test", "1", baseline, List.of(), null));
+      }
+      var source = AuthorSourceEvidence.packet(h.archive.read(h.chat));
+      String reportedQuote = scenario.equals("wrong-quote") ? "Receive POST" : quote;
+      var typeReport = new RequirementAnalysisCapture.SourceOmission(input.turnId(), reportedQuote, "Correct the trigger type.",
+          RequirementAnalysisCapture.SourceDiscrepancyKind.INTERPRETATION_CONFLICT, "entry-fact",
+          "/facts/entry-fact/elementIntent/elementType", "\"chain-trigger-2\"", "\"http-trigger\"");
+      var capabilityReport = new RequirementAnalysisCapture.SourceOmission(input.turnId(), reportedQuote, "Correct the capability.",
+          RequirementAnalysisCapture.SourceDiscrepancyKind.INTERPRETATION_CONFLICT, "entry-fact", "/capabilities/entry",
+          h.mapper.valueToTree(oldCapability).toString(), h.mapper.valueToTree(http.capabilities().getFirst()).toString());
+      var reports = new ArrayList<>(List.of(typeReport, capabilityReport));
+      if (scenario.equals("mixed")) reports.add(new RequirementAnalysisCapture.SourceOmission(input.turnId(), quote,
+          "Remove unsupported content.", RequirementAnalysisCapture.SourceDiscrepancyKind.UNSUPPORTED_ADDITION, "entry-fact"));
+      var review = new ProductRequirementBriefTool.SourceReview(source.generation(),
+          scenario.equals("stale-hash") ? "stale" : org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(source),
+          org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(accepted), reports);
+      h.store.beginTurn(h.chat, "Internal source repair.");
+      var offered = new java.util.concurrent.atomic.AtomicReference<RequirementDraft>();
+      org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext.bindDiscovery(
+          "source-run", h.chat, accepted, java.util.Map.of(), java.util.Set.of(), List.of(), review,
+          value -> offered.set((RequirementDraft) value));
+      try {
+        var correctedIntent = new RequirementElementIntent("entry", "http-trigger", RequirementElementIntent.Placement.ANCHOR,
+            "entry", null, null, null, scenario.equals("protected-name") ? "Changed name" : null, List.of(), List.of());
+        var correctedFact = new FactInput(originalFact.sourceFactId(), originalFact.interactionIds(), originalFact.kind(),
+            originalFact.polarity(), scenario.equals("mixed") ? quote : originalFact.text(),
+            null, null, correctedIntent, originalFact.evidence());
+        var result = h.update(new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+            List.of(correctedFact), List.of(), http.capabilities(), List.of(), List.of(), List.of(), List.of(), null, List.of()));
+        if (List.of("valid", "mixed", "historic-claim").contains(scenario)) {
+          assertTrue(result.accepted(), result.toString());
+          assertEquals(RequirementCaptureResult.NextAction.AWAIT_APPROVAL, result.nextAction());
+          assertEquals(correctedFact, offered.get().authoredDraft().facts().getFirst());
+          assertEquals(http.capabilities(), offered.get().authoredDraft().capabilities());
+          assertTrue(h.store.isCurrentSourceCorrection(h.chat, h.store.writeAuthority(h.chat), offered.get()));
+          assertFalse(h.store.isCurrentSourceCorrection(h.chat, h.store.writeAuthority(h.chat), accepted));
+        } else {
+          assertFalse(result.accepted(), result.toString());
+          assertNull(offered.get());
+        }
+        assertEquals(accepted, h.store.get(h.chat).orElseThrow());
+        assertEquals(acceptedRef, h.store.latestRevision(h.chat).orElseThrow().reference());
+        assertEquals(baseline, h.store.semanticBaseline(h.chat).orElseThrow());
+      } finally {
+        org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext.unbind(h.chat);
+      }
+    }
+  }
+
+  @Test
+  void projectionCorrectionPreservesCapabilitySettingsOrRequiresMatchingCatalogEvidence() {
+    var base = httpDraft(List.of(fact("goal", "Call the uploaded API.")));
+    var sender = new CapabilityInput("entry", "http-sender", null, HttpMethod.POST,
+        "https://example.test/pets", null, null, null);
+    base = new DraftInput(base.flow(), base.facts(), List.of(sender), base.openQuestions(), base.settings());
+    var source = new AuthorSourceEvidence.Packet("generation", List.of(new AuthorSourceEvidence.Input("turn", "Call the uploaded API.")));
+    var custom = new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.POST, "/pets", null, null, null);
+    var catalog = new CapabilityInput("entry", "http-trigger", HttpMode.CATALOG, HttpMethod.POST, "/pets", null, null, null);
+    var customBase = new DraftInput(base.flow(), base.facts(), List.of(custom), base.openQuestions(), base.settings());
+    var catalogCandidate = new DraftInput(base.flow(), base.facts(), List.of(catalog), base.openQuestions(), base.settings());
+    assertTrue(RequirementProjectionCorrection.preservesCapabilities(customBase,
+        projectionDraft(catalogCandidate, java.util.Map.of()), source), "HTTP mode can change while method and path remain");
+    var changedModeMethod = new CapabilityInput("entry", "http-trigger", HttpMode.CATALOG, HttpMethod.GET, "/other", null, null, null);
+    var changedModeCandidate = new DraftInput(base.flow(), base.facts(), List.of(changedModeMethod), base.openQuestions(), base.settings());
+    assertFalse(RequirementProjectionCorrection.preservesCapabilities(customBase,
+        projectionDraft(changedModeCandidate, java.util.Map.of()), source), "HTTP mode changes must retain method and path");
+    var changed = new CapabilityInput("entry", "http-sender", null, HttpMethod.GET, "/other", null, null, null);
+    var changedDraft = new DraftInput(base.flow(), base.facts(), List.of(changed), base.openQuestions(), base.settings());
+    assertFalse(RequirementProjectionCorrection.preservesCapabilities(base, projectionDraft(changedDraft, java.util.Map.of()), source),
+        "A replacement must preserve POST and the requested path");
+    var removed = new DraftInput(base.flow(), base.facts(), List.of(), base.openQuestions(), base.settings());
+    assertFalse(RequirementProjectionCorrection.preservesCapabilities(base, projectionDraft(removed, java.util.Map.of()), source),
+        "Removing a configured sender requires operation evidence");
+    var intent = new RequirementElementIntent("entry", "service-call", RequirementElementIntent.Placement.ANCHOR,
+        "entry", null, null, null, null, List.of(), List.of());
+    var anchor = new FactInput("goal", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+        "Call the uploaded API.", null, null, intent);
+    var catalogDraft = new DraftInput(base.flow(), List.of(anchor), List.of(), base.openQuestions(), base.settings());
+    var binding = new UploadedSpecOperations.Binding("uploads/api.yaml", "POST", "/pets");
+    assertTrue(RequirementProjectionCorrection.preservesCapabilities(base,
+        projectionDraft(catalogDraft, java.util.Map.of("entry", binding)), source),
+        "A matching uploaded operation preserves POST and /pets");
+    var explicitUri = new AuthorSourceEvidence.Packet("generation", List.of(
+        new AuthorSourceEvidence.Input("turn", "Call https://example.test/pets.")));
+    assertFalse(RequirementProjectionCorrection.preservesCapabilities(base,
+        projectionDraft(catalogDraft, java.util.Map.of("entry", binding)), explicitUri),
+        "An explicit direct URI must remain a sender");
+    var topic = new CapabilityInput("entry", "kafka-sender", null, null, null, "orders", null, "target");
+    var topicBase = new DraftInput(base.flow(), base.facts(), List.of(topic), base.openQuestions(), base.settings());
+    assertFalse(RequirementProjectionCorrection.preservesCapabilities(topicBase, projectionDraft(removed, java.util.Map.of()), source),
+        "Removing a topic or target reference requires preserving it");
+    var changedTopic = new CapabilityInput("entry", "kafka-sender", null, null, null, "other", null, "target");
+    var changedTopicDraft = new DraftInput(base.flow(), base.facts(), List.of(changedTopic), base.openQuestions(), base.settings());
+    assertFalse(RequirementProjectionCorrection.preservesCapabilities(topicBase,
+        projectionDraft(changedTopicDraft, java.util.Map.of()), source), "A replacement must retain its topic");
+    var missingTarget = new CapabilityInput("entry", "kafka-sender", null, null, null, "orders", null, null);
+    var missingTargetDraft = new DraftInput(base.flow(), base.facts(), List.of(missingTarget), base.openQuestions(), base.settings());
+    assertFalse(RequirementProjectionCorrection.preservesCapabilities(topicBase,
+        projectionDraft(missingTargetDraft, java.util.Map.of()), source), "A replacement must retain its target reference");
+  }
+
+  private static RequirementDraft projectionDraft(DraftInput input, java.util.Map<String, UploadedSpecOperations.Binding> bindings) {
+    return new RequirementDraft(false, "", DraftDecision.READY_FOR_PLAN, List.of(), "test", "1", null, null,
+        false, List.of(), false, null, null, null, List.of(), null, input, bindings);
+  }
+
+  @Test
+  void projectionCorrectionRequiresReportedChangesAndPreservesAuthorContent() {
+    var intent = new RequirementElementIntent("entry-node", "http-trigger", RequirementElementIntent.Placement.ANCHOR,
+        "entry", null, null, null, null, List.of(), List.of());
+    var fact = new FactInput("entry-fact", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+        "Receive a request.", null, null, intent, new ClaimEvidenceInput("turn", "Receive a request."));
+    var base = httpDraft(List.of(fact));
+    var changedIntent = new RequirementElementIntent("entry-node", "chain-trigger", RequirementElementIntent.Placement.ANCHOR,
+        "entry", null, null, null, null, List.of(), List.of());
+    var changedFact = new FactInput(fact.sourceFactId(), fact.interactionIds(), fact.kind(), fact.polarity(), fact.text(),
+        null, null, changedIntent, fact.evidence());
+    var candidate = new DraftInput(base.flow(), List.of(changedFact), base.capabilities(), base.openQuestions(), base.settings());
+    var report = new RequirementAnalysisCapture.SourceOmission("turn", "Receive a request.", "Correct the trigger type.",
+        RequirementAnalysisCapture.SourceDiscrepancyKind.INTERPRETATION_CONFLICT, "entry-fact",
+        "/facts/entry-fact/elementIntent/elementType", "\"http-trigger\"", "\"chain-trigger\"");
+    assertTrue(RequirementProjectionCorrection.matches(base, candidate, List.of(report)), "Reported type change must match");
+    assertFalse(RequirementProjectionCorrection.matches(base, base, List.of(report)), "Unapplied report must fail");
+    var textChange = new FactInput(fact.sourceFactId(), fact.interactionIds(), fact.kind(), fact.polarity(), "Changed claim",
+        null, null, changedIntent, fact.evidence());
+    assertFalse(RequirementProjectionCorrection.matches(base,
+        new DraftInput(base.flow(), List.of(textChange), base.capabilities(), base.openQuestions(), base.settings()), List.of(report)),
+        "Unreported text change must fail");
+    var stale = new RequirementAnalysisCapture.SourceOmission("turn", "Receive a request.", "Correct the trigger type.",
+        RequirementAnalysisCapture.SourceDiscrepancyKind.INTERPRETATION_CONFLICT, "entry-fact",
+        "/facts/entry-fact/elementIntent/elementType", "\"other\"", "\"chain-trigger\"");
+    assertFalse(RequirementProjectionCorrection.matches(base, candidate, List.of(stale)), "Stale previous value must fail");
+    var trailing = new RequirementAnalysisCapture.SourceOmission("turn", "Receive a request.", "Correct the type.",
+        RequirementAnalysisCapture.SourceDiscrepancyKind.INTERPRETATION_CONFLICT, "entry-fact",
+        "/facts/entry-fact/elementIntent/elementType", "\"http-trigger\"", "\"chain-trigger\" null");
+    assertFalse(RequirementProjectionCorrection.validReport(base, trailing), "Trailing JSON must fail");
+    assertFalse(RequirementProjectionCorrection.matches(base, candidate, List.of(report, report)), "Duplicate paths must fail");
+    var forbidden = new RequirementAnalysisCapture.SourceOmission("turn", "Receive a request.", "Change the name.",
+        RequirementAnalysisCapture.SourceDiscrepancyKind.INTERPRETATION_CONFLICT, "entry-fact",
+        "/facts/entry-fact/elementIntent/requestedName", "null", "\"Name\"");
+    assertFalse(RequirementProjectionCorrection.validReport(base, forbidden), "Requested name is protected");
+    var removeCapability = new RequirementAnalysisCapture.SourceOmission("turn", "Receive a request.", "Correct the capability.",
+        RequirementAnalysisCapture.SourceDiscrepancyKind.INTERPRETATION_CONFLICT, "entry-fact", "/capabilities/entry",
+        new ObjectMapper().valueToTree(base.capabilities().getFirst()).toString(), "null");
+    var withoutCapability = new DraftInput(base.flow(), base.facts(), List.of(), base.openQuestions(), base.settings());
+    assertTrue(RequirementProjectionCorrection.matches(base, withoutCapability, List.of(removeCapability)), "Reported removal must match");
+  }
 
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
@@ -799,6 +1211,37 @@ class RequirementRevisionAdmissionTest {
   }
 
   @Test
+  void anInapplicablePinnedQuestionClosesWithoutChangingAuthorRequirements() throws Exception {
+    var h = new Harness();
+    try (var ignored = ToolSession.open(h.chat)) {
+      var source = h.begin("Create tasks through HTTP POST /tasks with no service calls. Proceed without IDS.");
+      var original = withNativeAnchors(httpDraft(List.of(fact("goal", "Create tasks without service calls."))));
+      var question = new QuestionInput("api-choice", List.of("entry"), "Which APIs?",
+          new org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence("entry", "apis",
+              org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.MISSING_VALUE,
+              List.of(source.turnId())));
+      var base = new DraftInput(original.flow(), original.facts(), original.capabilities(), List.of(question),
+          original.settings());
+      assertTrue(h.capture(base).accepted());
+      assertEquals(List.of("AUTHOR_QUESTION_NOT_SUPPORTED"), h.store.validateAuthorQuestions(h.chat).stream()
+          .map(RequirementCaptureEditor.Issue::code).toList());
+      pinClarification(h, "No service calls, no APIHub, no MCP.");
+      var result = h.update(new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+          List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of("api-choice"), null));
+      assertTrue(result.accepted(), result.toString());
+      var saved = h.store.get(h.chat).orElseThrow().authoredDraft();
+      org.junit.jupiter.api.Assertions.assertAll(
+          () -> assertEquals(base.facts(), saved.facts()),
+          () -> assertEquals(base.capabilities(), saved.capabilities()),
+          () -> assertEquals(List.of(), saved.openQuestions()),
+          () -> assertEquals(org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Disposition.ANSWER,
+              h.store.latestClarificationAnswer(h.chat).orElseThrow().disposition()));
+      var finished = h.result(h.tools.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE));
+      assertTrue(finished.accepted(), finished.toString());
+    }
+  }
+
+  @Test
   void aSourceBackedRoleAnswerChangesThePinnedTargetAndRemovesItsQuestion() throws Exception {
     var h = new Harness();
     try (var ignored = ToolSession.open(h.chat)) {
@@ -900,7 +1343,7 @@ class RequirementRevisionAdmissionTest {
       assertTrue(result.issues().stream().anyMatch(issue -> "REPAIR_FACT_LOSS".equals(issue.code())
           && "/changes/facts/response".equals(issue.path()) && "response".equals(issue.entityId())), result.toString());
       assertEquals(accepted, h.store.latestRevision(h.chat).orElseThrow().reference());
-      assertEquals(base, h.store.get(h.chat).orElseThrow().authoredDraft());
+      assertAuthoredContentEquals(base, h.store.get(h.chat).orElseThrow().authoredDraft());
     }
   }
 
@@ -1430,10 +1873,16 @@ class RequirementRevisionAdmissionTest {
       }
       var moved = h.capture(mappingDraft("$.Subject", "$.wrong", "/tasks"));
       assertTrue(moved.accepted(), moved.toString());
-      assertEquals("$.wrong", h.store.get(h.chat).orElseThrow().authoredDraft().facts().getFirst().fieldMapping().sourcePath());
+      assertEquals(new org.qubership.integration.platform.ai.qipknowledge.artifact.MappingValue.Copy(
+          new org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource.Message("entry",
+              org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort.OUTPUT, "$.wrong")),
+          h.store.get(h.chat).orElseThrow().authoredDraft().facts().getFirst().fieldMapping().value());
       var endpoint = h.capture(mappingDraft("$.Subject", "$.id", "/wrong-tasks"));
       assertFalse(endpoint.accepted(), endpoint.toString());
-      assertEquals("$.wrong", h.store.get(h.chat).orElseThrow().authoredDraft().facts().getFirst().fieldMapping().sourcePath());
+      assertEquals(new org.qubership.integration.platform.ai.qipknowledge.artifact.MappingValue.Copy(
+          new org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource.Message("entry",
+              org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort.OUTPUT, "$.wrong")),
+          h.store.get(h.chat).orElseThrow().authoredDraft().facts().getFirst().fieldMapping().value());
       assertEquals("/tasks", h.store.get(h.chat).orElseThrow().authoredDraft().capabilities().getFirst().path());
     }
   }

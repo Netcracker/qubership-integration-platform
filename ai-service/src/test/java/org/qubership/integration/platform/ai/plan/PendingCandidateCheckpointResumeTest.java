@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.ai.plan;
 
+import static org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures.assertAuthoredContentEquals;
+
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -234,7 +236,7 @@ class PendingCandidateCheckpointResumeTest {
 
     assertTrue(saved.accepted(), saved.toString());
     assertNull(drafts.repairConstraints(CHAT));
-    assertEquals(candidate, drafts.get(CHAT).orElseThrow().authoredDraft());
+    assertAuthoredContentEquals(candidate, drafts.get(CHAT).orElseThrow().authoredDraft());
     assertTrue(drafts.pendingProposal(CHAT).isEmpty());
   }
 

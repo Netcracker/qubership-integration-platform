@@ -105,6 +105,54 @@ class ScriptExecutionAuthorityTest {
         JSON.treeToValue(brief, RequirementBrief.class), "initializer"), defect);
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {"CONSTRAINT", "PARAMETER", "BEHAVIOR"})
+  void multipleFactsOfOneScriptRetainItsGeneratedAuthority(String kind) throws Exception {
+    var behavior = ScriptAuthorityTestFixtures.generatedBehavior("initializer", "Return a greeting.");
+    ObjectNode input = JSON.valueToTree(brief().withFacts(List.of(behavior, behavior)));
+    var second = (ObjectNode) input.withArray("facts").get(1);
+    second.put("sourceFactId", "language-or-extra-behavior").put("kind", kind).put("text", "Use Groovy.");
+    assertEquals(Optional.of(behavior), ScriptExecutionAuthority.declaredGeneratedBehavior(
+        JSON.treeToValue(input, RequirementBrief.class), "initializer"));
+  }
+
+  @Test
+  void aBodylessFacetSharesItsScriptsProvenSuppliedBody() throws Exception {
+    ObjectNode input = duplicateBrief();
+    var second = (ObjectNode) input.withArray("facts").get(1);
+    second.put("kind", "CONSTRAINT").put("text", "Use Groovy.");
+    ((ObjectNode) second.path("elementIntent")).putArray("requestedProperties");
+    assertEquals(Optional.of(BODY), ScriptExecutionAuthority.declaredSuppliedBody(
+        JSON.treeToValue(input, RequirementBrief.class), "initializer"));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"missingBinding", "differentGeneration", "suppliedBodyAuthority"})
+  void aSupplementaryFactCannotContradictTheGeneratedAuthority(String defect) throws Exception {
+    var behavior = ScriptAuthorityTestFixtures.generatedBehavior("initializer", "Return a greeting.");
+    ObjectNode input = JSON.valueToTree(brief().withFacts(List.of(behavior, behavior)));
+    var second = (ObjectNode) input.withArray("facts").get(1);
+    second.put("sourceFactId", "language").put("kind", "CONSTRAINT");
+    var intent = (ObjectNode) second.path("elementIntent");
+    switch (defect) {
+      case "missingBinding" -> intent.putNull("bodyBinding");
+      case "differentGeneration" -> ((ObjectNode) intent.path("bodyBinding")).put("sourceGeneration", "other");
+      case "suppliedBodyAuthority" -> ((ObjectNode) intent.path("bodyBinding")).put("authority", "VERBATIM_SOURCE_BODY");
+      default -> throw new AssertionError(defect);
+    }
+    assertEquals(Optional.empty(), ScriptExecutionAuthority.declaredGeneratedBehavior(
+        JSON.treeToValue(input, RequirementBrief.class), "initializer"), defect);
+  }
+
+  @Test
+  void aConstraintAloneDoesNotAuthorizeGeneratedBehavior() throws Exception {
+    ObjectNode input = JSON.valueToTree(brief().withFacts(List.of(
+        ScriptAuthorityTestFixtures.generatedBehavior("initializer", "Use Groovy."))));
+    ((ObjectNode) input.withArray("facts").get(0)).put("kind", "CONSTRAINT");
+    assertEquals(Optional.empty(), ScriptExecutionAuthority.declaredGeneratedBehavior(
+        JSON.treeToValue(input, RequirementBrief.class), "initializer"));
+  }
+
   private static ObjectNode duplicateBrief() {
     return JSON.valueToTree(brief().withFacts(
         ScriptAuthorityTestFixtures.suppliedFactsWithSupplementaryMetadata("initializer", BODY)));

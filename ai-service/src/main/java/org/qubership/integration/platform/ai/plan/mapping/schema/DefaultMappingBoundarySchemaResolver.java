@@ -10,6 +10,9 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.plan.MessageSchemaContract;
 import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
+import org.qubership.integration.platform.ai.plan.mapping.LocalMappingTarget;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingValue;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
@@ -67,14 +70,22 @@ public class DefaultMappingBoundarySchemaResolver implements MappingBoundarySche
             outputSchemas,
             intent.sourceRef(),
             intent.sourcePort());
-    MappingSchemaSide target =
-        resolveSide(
-            revision,
-            bindingList,
-            persisted,
-            outputSchemas,
-            intent.targetRef(),
-            intent.targetPort());
+    MappingSchemaSide target;
+    if (brief != null && LocalMappingTarget.resolve(brief.facts(), brief.flow(), intent.targetRef()).isPresent()
+        && intent.targetPort() == MappingPort.OUTPUT) {
+      Map<MappingSource.Message, MappingSchemaSide> origins = new java.util.LinkedHashMap<>();
+      for (var rule : intent.rules()) {
+        if (!(rule.value() instanceof MappingValue.Copy copy)
+            || !(copy.source() instanceof MappingSource.Message origin)) {
+          throw new IllegalArgumentException("Local output needs verified COPY origins");
+        }
+        origins.put(origin, resolveSide(revision, bindingList, persisted, outputSchemas,
+            origin.interactionId(), origin.port()));
+      }
+      target = LocalMappingTarget.outputSchema(intent, origins);
+    } else {
+      target = resolveSide(revision, bindingList, persisted, outputSchemas, intent.targetRef(), intent.targetPort());
+    }
     return new MappingBoundarySchemas(source, target);
   }
 
@@ -134,7 +145,12 @@ public class DefaultMappingBoundarySchemaResolver implements MappingBoundarySche
       var approved = MessageSchemaContract.requestSchema(brief.facts(), trigger.interactionId());
       if (approved.isPresent()) return approved.orElseThrow();
     }
-    return selectUnique(persisted, trigger.nodeId(), MappingPort.OUTPUT, resultDirection);
+    MappingSchemaSide stored = selectUnique(persisted, trigger.nodeId(), MappingPort.OUTPUT, resultDirection);
+    if (stored.schema() == null && brief != null && "http-trigger".equals(trigger.capabilityKey())
+        && MessageSchemaContract.isCustomHttp(brief, trigger.interactionId())) {
+      return MappingSchemaSide.runtimeJson(trigger.interactionId());
+    }
+    return stored;
   }
 
   private static MappingSchemaSide sideFromTransformOutput(

@@ -314,9 +314,10 @@ public class ChatExecutionService {
     chatMemorySanitizer.repairDanglingToolCalls(conversationId);
     if (request.getDecision() == null) {
       request.setResolvedEffectiveUserText(effectiveUserTextService.resolve(request, conversationId));
-      decisionService
-          .restartCommandForMessage(conversationId, request.getEffectiveUserText())
-          .ifPresent(request::setDecision);
+      if (matchedOffer == null) {
+        decisionService.restartCommandForMessage(conversationId, request.getEffectiveUserText())
+            .ifPresent(request::setDecision);
+      }
     }
     if (request.getDecision() != null) {
       // A typed answer needs no attachment or memory resolution: the marker is what the model reads.

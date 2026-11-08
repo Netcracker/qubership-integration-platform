@@ -79,8 +79,11 @@ public class MappingGenerationPipeline {
     if (!isMappingGenerator(skillId) || revision == null || compilationId == null) {
       return Result.ready(context, List.of(), "");
     }
+    if (context != null) context = context.withBehaviorTasks(ScriptExecutionAuthority.behaviorSites(revision, context.requirementBrief()));
     try {
-      ScriptExecutionAuthority.requireSupported(context == null ? null : context.requirementBrief(), graphOf(context));
+      ScriptExecutionAuthority.requireMappingBehaviorSites(context == null ? null : context.requirementBrief(), revision);
+      ScriptExecutionAuthority.requireSupported(context == null ? null : context.requirementBrief(), graphOf(context),
+          context == null ? Map.of() : context.behaviorTasks());
     } catch (IllegalArgumentException failure) {
       return Result.blocked(failure.getMessage(), context,
           List.of(new PlanValidationFinding("SCRIPT_AUTHORITY_UNSUPPORTED", failure.getMessage(), true)));
@@ -255,7 +258,7 @@ public class MappingGenerationPipeline {
       }
       if ((CopyMappingPlanner.nativeRetentionSite(node)
           || context != null && ScriptExecutionAuthority.declaredGeneratedBehavior(
-              context.requirementBrief(), node.nodeId()).isPresent())
+              context.requirementBrief(), node.nodeId(), context.behaviorTasks()).isPresent())
           && isBlankScriptNode(graph, node.nodeId())) {
         blanks.add(node.nodeId());
         continue;

@@ -53,6 +53,9 @@ public record StageOutcome(
   }
 
   public static StageOutcome invocationFailure(Throwable failure) {
+    if (org.qubership.integration.platform.ai.llm.ratelimit.RateLimitErrorClassifier.isQuotaExhausted(failure)) {
+      return technicalFailure(failure);
+    }
     var read = org.qubership.integration.platform.ai.llm.ratelimit.ReadNoProgressException.find(failure);
     if (read.isPresent()) return of(StageOutcomeClass.CONTRACT_FAILURE, read.get().getMessage(), read.get().recoveryCause());
     var capture = captureFailure(failure);
@@ -60,6 +63,11 @@ public record StageOutcome(
   }
 
   public static StageOutcome technicalFailure(Throwable failure) {
+    if (org.qubership.integration.platform.ai.llm.ratelimit.RateLimitErrorClassifier.isQuotaExhausted(failure)) {
+      return of(StageOutcomeClass.PROVIDER_QUOTA_EXHAUSTED,
+          "The model provider has no API credits remaining. Retry after credits are available.",
+          RecoveryCause.of(RecoveryCauseCode.PROVIDER_QUOTA_EXHAUSTED));
+    }
     String message = failure.getMessage() == null ? "Stage invocation failed." : failure.getMessage();
     RecoveryCause cause = org.qubership.integration.platform.ai.llm.ratelimit.LlmRequestBudget
         .isOverflow(failure)

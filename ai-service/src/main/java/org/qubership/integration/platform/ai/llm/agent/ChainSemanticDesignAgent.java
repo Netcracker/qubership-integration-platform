@@ -11,6 +11,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.input
  * {@link ChainSemanticCaptureTool}. IDS markdown is rendered by the server after capture.
  */
 @RegisterAiService(
+    toolHallucinationStrategy = org.qubership.integration.platform.ai.llm.tool.RecoverableToolNameStrategy.class,
     tools = {ChainSemanticCaptureTool.class},
     maxSequentialToolInvocations = 6)
 @ApplicationScoped

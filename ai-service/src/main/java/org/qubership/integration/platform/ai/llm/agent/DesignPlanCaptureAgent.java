@@ -8,6 +8,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.plann
 
 /** Runs the immutable design planner with only the typed plan capture tool. */
 @RegisterAiService(
+    toolHallucinationStrategy = org.qubership.integration.platform.ai.llm.tool.RecoverableToolNameStrategy.class,
     tools = {DesignPlanCaptureTool.class},
     maxSequentialToolInvocations = 6)
 @ApplicationScoped

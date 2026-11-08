@@ -49,6 +49,118 @@ class ProductRequirementBriefToolTest {
   private ProductRequirementBriefTool tool;
   private AtomicReference<Object> candidate;
 
+  @ParameterizedTest
+  @ValueSource(strings = {"generated", "generated-restored", "supplied", "unproven"})
+  void briefHandoffSeparatesGeneratedCandidateBytesFromAuthorBodies(String authority) {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    boolean generated = authority.startsWith("generated");
+    var base = approvedWithTypedMapping().authoredDraft();
+    var binding = "unproven".equals(authority) ? null : new RequirementBodyBinding(
+        generated ? RequirementBodyBinding.Authority.GENERATED_CANDIDATE
+            : RequirementBodyBinding.Authority.VERBATIM_SOURCE_BODY,
+        "guard", "script", RequirementBodyBinding.NativeBodyKind.GROOVY_SCRIPT, "generation", "turn",
+        "supplied".equals(authority) ? 0 : null, "supplied".equals(authority) ? 8 : null,
+        "supplied".equals(authority) ? RequirementBodyBinding.Encoding.RAW : null);
+    var intent = new RequirementElementIntent("guard", "script", RequirementElementIntent.Placement.LOCAL_NODE,
+        "entry", null, null, null, "Default guard",
+        List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty("script", "return 1")),
+        List.of(), binding);
+    var fact = new RequirementCaptureInput.FactInput("default", List.of("entry"),
+        RequirementCaptureInput.FactKind.BEHAVIOR, RequirementCaptureInput.Polarity.POSITIVE,
+        "Default the maximum iteration count to three.", null, null, intent);
+    var input = new RequirementCaptureInput.DraftInput(new RequirementCaptureInput.FlowInput(List.of(
+        new RequirementCaptureInput.InteractionInput("entry", Direction.INBOUND, "Caller", "GET /pages",
+            null, null, null)), List.of()), List.of(fact), List.of(
+        new RequirementCaptureInput.CapabilityInput("entry", "http-trigger", RequirementCaptureInput.HttpMode.CUSTOM,
+            RequirementCaptureInput.HttpMethod.GET, "/pages", null, null, null)), List.of(), base.settings());
+    var projected = RequirementCaptureProjection.toDraft(input, null, List.of(), "1", "hash", java.util.Map.of());
+    com.fasterxml.jackson.databind.node.ObjectNode stored = mapper.valueToTree(projected);
+    if ("generated-restored".equals(authority)) {
+      ((com.fasterxml.jackson.databind.node.ObjectNode) stored.withArray("facts").get(0))
+          .set("elementIntent", mapper.valueToTree(intent));
+    }
+    var approved = mapper.convertValue(stored, RequirementDraft.class);
+    ProductCapabilityCaptureContext.bindAnalysis("run", CONVERSATION, approved, candidate::set);
+    var result = tool.capture(new RequirementAnalysisCapture("Page loop", List.of("Page request"), List.of(),
+        "Apply the requested defaults.", List.of(), List.of()), CONVERSATION);
+    assertTrue(result.accepted(), result::toString);
+    var brief = (RequirementBrief) candidate.get();
+    var classic = RequirementBriefTool.pinApprovedDraft(brief, approved);
+    org.junit.jupiter.api.Assertions.assertAll(
+        () -> assertEquals(generated,
+            org.qubership.integration.platform.ai.plan.mapping.ScriptExecutionAuthority
+                .declaredGeneratedBehavior(brief, "guard").isPresent()),
+        () -> assertEquals(generated ? List.of() : intent.requestedProperties(),
+            brief.facts().getFirst().elementIntent().requestedProperties()),
+        () -> assertEquals(brief.facts(), classic.facts()),
+        () -> assertEquals(List.of(fact), approved.authoredDraft().facts()));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"valid", "wrong-quote", "protected-name", "wrong-previous-value"})
+  void interpretationReportRequiresTheSavedFactQuoteAndTechnicalField(String variant) {
+    String quote = "Receive HTTP GET /pets.";
+    var intent = new RequirementElementIntent("entry", "chain-trigger-2",
+        RequirementElementIntent.Placement.ANCHOR, "entry", null, null, null, "Entry",
+        List.of(), List.of());
+    var fact = new RequirementCaptureInput.FactInput("entry-fact", List.of("entry"),
+        RequirementCaptureInput.FactKind.BEHAVIOR, RequirementCaptureInput.Polarity.POSITIVE, quote,
+        null, null, intent, new RequirementCaptureInput.ClaimEvidenceInput("author-turn", quote));
+    var draft = new RequirementCaptureInput.DraftInput(new RequirementCaptureInput.FlowInput(
+        List.of(new RequirementCaptureInput.InteractionInput("entry", Direction.INBOUND, "Caller", "GET /pets", null,
+            null, null)), List.of()), List.of(fact), List.of(), List.of(),
+        new RequirementCaptureInput.DraftSettings(false, null));
+    var input = new AuthorSourceEvidence.Input("author-turn", quote);
+    var source = new AuthorSourceEvidence.Packet("generation", List.of(input));
+    var report = new RequirementAnalysisCapture.SourceOmission("author-turn",
+        variant.equals("wrong-quote") ? "Receive HTTP GET" : quote,
+        "The selected trigger does not implement the HTTP endpoint.",
+        RequirementAnalysisCapture.SourceDiscrepancyKind.INTERPRETATION_CONFLICT, "entry-fact",
+        "/facts/entry-fact/elementIntent/" + (variant.equals("protected-name") ? "requestedName" : "elementType"),
+        variant.equals("wrong-previous-value") ? "\"http-trigger\"" : "\"chain-trigger-2\"", "\"http-trigger\"");
+
+    assertEquals(variant.equals("valid"), ProductRequirementBriefTool.validInterpretationReport(draft, source, report));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"createTask", "POST /tasks"})
+  void restoredUploadedOperationKeepsItsAuthorIdentityInBothBriefCaptures(String operation) {
+    var base = approvedWithTypedMapping().authoredDraft();
+    var intent = new RequirementElementIntent("http-out", "service-call", RequirementElementIntent.Placement.ANCHOR,
+        "http-out", null, null, null, null, List.of(), List.of(operation));
+    var fact = new RequirementCaptureInput.FactInput("invoke-task", List.of("http-out"),
+        RequirementCaptureInput.FactKind.BEHAVIOR, RequirementCaptureInput.Polarity.POSITIVE,
+        "Invoke " + operation + ".", null, null, intent);
+    var input = new RequirementCaptureInput.DraftInput(new RequirementCaptureInput.FlowInput(List.of(
+        base.flow().interactions().getFirst(), new RequirementCaptureInput.InteractionInput("http-out",
+            Direction.OUTBOUND, "Tasks", operation, null, null, null)), base.flow().transitions()), List.of(fact),
+        List.of(base.capabilities().getFirst()), List.of(), base.settings());
+    var approved = RequirementCaptureProjection.toDraft(input, null, List.of(copyBinding("http-out")),
+        "1", "sha", java.util.Map.of(), java.util.Map.of("http-out",
+            new UploadedSpecOperations.Binding("uploads/tasks.yaml", "POST", "/tasks")));
+    var artifacts = new CompilationArtifacts(new InMemoryArtifactBlobStore(),
+        new ObjectMapper().findAndRegisterModules(), java.time.Clock.systemUTC());
+    var revision = artifacts.append(new CompilationArtifacts.AppendCommand("restored-run",
+        CompilationArtifacts.Kind.REQUIREMENT_DRAFT, "1", "requirement-discovery", "1", approved, List.of(), null));
+    var restored = artifacts.payload(revision, RequirementDraft.class);
+    ProductCapabilityCaptureContext.bindAnalysis("run", CONVERSATION, restored, candidate::set);
+
+    var result = tool.capture(new RequirementAnalysisCapture("Invoke task", List.of("Task request"), List.of(),
+        "Invoke the uploaded task operation.", List.of(), List.of()), CONVERSATION);
+    assertTrue(result.accepted(), result::toString);
+    var productBrief = (RequirementBrief) candidate.get();
+    var classicBrief = RequirementBriefTool.pinApprovedDraft(productBrief, restored);
+    org.junit.jupiter.api.Assertions.assertAll("restored uploaded operation " + operation,
+        () -> assertEquals(operation, productBrief.flow().interaction("http-out").orElseThrow().operation()),
+        () -> assertEquals(operation, classicBrief.flow().interaction("http-out").orElseThrow().operation()),
+        () -> assertEquals(List.of(),
+            org.qubership.integration.platform.ai.qipknowledge.validation.RequiredLiteralBindings.unbound(
+                productBrief.facts().getFirst(), productBrief.facts(), productBrief.flow().interactions())),
+        () -> assertEquals(List.of(copyBinding("http-out")), productBrief.catalogBindings()),
+        () -> assertEquals("POST /tasks", artifacts.payload(revision, RequirementDraft.class).flow()
+            .interaction("http-out").orElseThrow().operation()));
+  }
+
   @BeforeEach
   void setUp() {
     session = new CaptureSession();
@@ -225,7 +337,7 @@ class ProductRequirementBriefToolTest {
   private static CatalogBindingHint copyBinding(String id) {
     return new CatalogBindingHint("3",
         id, id, "http-in".equals(id) ? "onTaskStart" : "POST /tasks", "system", "group", "spec", "op-" + id,
-        "http-in".equals(id) ? "kafka" : "HTTP", "http-in".equals(id) ? "publish" : "POST", "/tasks", "1",
+        "http-in".equals(id) ? "kafka" : "HTTP", "http-in".equals(id) ? "subscribe" : "POST", "/tasks", "1",
         java.time.Instant.EPOCH, "catalog-evidence");
   }
 

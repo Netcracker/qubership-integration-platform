@@ -104,6 +104,44 @@ class DesignPlanContractValidatorTest {
   }
 
   @Test
+  void behaviorBeforeLocalMappingStillNeedsItsOwnProducer() {
+    var previous = new SemanticNode.Operation("previous", "script", new SemanticProvenance(List.of("behavior")));
+    var output = new SemanticNode.Operation("response", "script", new SemanticProvenance(List.of("return")));
+    var edge = new org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge(
+        "mapping-edge", "previous", "response", null, null, "return-map");
+    var revision = new ChainSemanticRevision(ChainSemanticRevision.CURRENT_SCHEMA_VERSION,
+        "revision", "chain", "1", List.of(), List.of(previous, output), List.of(), List.of(edge),
+        List.of(), List.of(), List.of(), List.of(), List.of());
+    var local = new org.qubership.integration.platform.ai.plan.RequirementElementIntent("response", "script",
+        org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.LOCAL_NODE,
+        "entry", null, "call", null, List.of(), List.of());
+    var declaration = new RequirementFact("return", RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.FIELD_MAPPING, "", "Return the order.", null, null, null, null, null, null,
+        List.of("entry"), null, local);
+    var behavior = new RequirementFact("behavior", RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.BEHAVIOR, "", "Retain the request identifier.", null, null, null, null, null, null,
+        List.of("entry"));
+    var flow = new RequirementFlow(List.of(new Interaction("entry", Direction.INBOUND, "Caller", "POST /", ""),
+        new Interaction("call", Direction.OUTBOUND, "Orders", "POST /", "")),
+        List.of(new RequirementFlow.Transition("entry", "call")));
+    var mapping = new org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent("return-map",
+        "call", org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort.RESPONSE,
+        "response", org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort.OUTPUT, List.of());
+    var brief = new RequirementBrief("Return", List.of(), List.of(), List.of(), List.of(), "Return")
+        .withFacts(List.of(declaration, behavior)).withFlow(flow).withMappingIntents(List.of(mapping));
+    var pin = DesignPlanTestFixtures.pinWithSkills(revision, "cip-script-generator");
+    var withProducer = contract(revision, List.of(step("previous-script", "cip-script-generator",
+        TargetKind.ELEMENT_NODE, "previous")));
+    var withFindings = validator.findings(withProducer, revision, brief, pin);
+    var withoutFindings = validator.findings(contract(revision, List.of(step("mapping", "cip-script-generator",
+        TargetKind.MAPPING_INTENT, "return-map"))), revision, brief, pin);
+    assertTrue(withFindings.stream().noneMatch(finding -> finding.code() == DesignPlanContractFinding.Code.UNKNOWN_TARGET
+        && "previous".equals(finding.targetId())), withFindings.toString());
+    assertTrue(withoutFindings.stream().anyMatch(finding -> finding.code() == DesignPlanContractFinding.Code.MISSING_TARGET_PRODUCER
+        && "previous".equals(finding.targetId())), withoutFindings.toString());
+  }
+
+  @Test
   void suppliedScriptDoesNotBecomeAGeneratorTarget() {
     var fixture = completeFixture();
     var steps = new ArrayList<>(fixture.contract().steps());

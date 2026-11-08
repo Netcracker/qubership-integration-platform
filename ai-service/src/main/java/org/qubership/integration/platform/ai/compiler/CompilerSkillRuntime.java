@@ -1311,8 +1311,10 @@ public class CompilerSkillRuntime {
           context != null && context.editsExistingScriptBodies(),
           context == null ? java.util.Map.of() : context.scriptEditDrafts());
     }
+    GraphPatchExecutionContext executionContext = executionContextStore
+        .get(conversationId, document.capabilityId()).or(executionContextStore::current).orElse(null);
     return contextBuilder.buildUserMessage(
-        conversationId, document, snapshot, activePlan, route.captureTool());
+        conversationId, document, snapshot, activePlan, route.captureTool(), executionContext);
   }
 
   private static String httpTriggerCaptureInstructions(String conversationId) {

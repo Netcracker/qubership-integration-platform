@@ -152,8 +152,7 @@ public record RequirementCaptureResult(
           null, List.of(), List.of());
     }
     List<RequirementCaptureProjection.PendingWork> pending = new java.util.ArrayList<>(
-        RequirementCaptureProjection.pending(draft, acceptedDraft.catalogBindings(),
-            RequirementCaptureProjection.resolvedTargets(acceptedDraft), uploadedSpecInteractions));
+        RequirementCaptureProjection.pending(acceptedDraft, uploadedSpecInteractions));
     pending.addAll(mappingPending);
     Readiness readiness = acceptedDraft.readyForPlan() && pending.isEmpty() ? Readiness.READY : Readiness.PARTIAL;
     NextAction action = nextAction(issues, pending, readiness, draft, directive);

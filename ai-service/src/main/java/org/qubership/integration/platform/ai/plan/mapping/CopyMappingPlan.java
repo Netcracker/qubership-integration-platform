@@ -11,7 +11,18 @@ public record CopyMappingPlan(List<Read> reads, List<Save> saves) {
   }
 
   public record Read(String ruleId, String targetField, MappingSource.Message origin,
-      String schemaDigest, String targetSchemaDigest, String contextId, boolean nullable) {}
+      String schemaDigest, String targetSchemaDigest, String contextId, boolean nullable,
+      @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_EMPTY)
+      List<String> runtimeTypes) {
+    public Read {
+      runtimeTypes = runtimeTypes == null ? List.of() : List.copyOf(runtimeTypes);
+    }
+
+    public Read(String ruleId, String targetField, MappingSource.Message origin,
+        String schemaDigest, String targetSchemaDigest, String contextId, boolean nullable) {
+      this(ruleId, targetField, origin, schemaDigest, targetSchemaDigest, contextId, nullable, List.of());
+    }
+  }
 
   public record Save(String sourceField, String contextId, boolean fromOutput, boolean nullable) {}
 }

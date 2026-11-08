@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.ai.plan;
 
+import static org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures.assertAuthoredContentEquals;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -41,8 +43,8 @@ class MiniTopologyRepresentationRecoveryTest {
     var result = h.capture(corrected);
 
     assertTrue(result.accepted(), result.toString());
-    assertEquals(corrected, h.store.get(h.chat).orElseThrow().authoredDraft());
-    assertEquals(corrected, result.draft());
+    assertAuthoredContentEquals(corrected, h.store.get(h.chat).orElseThrow().authoredDraft());
+    assertAuthoredContentEquals(corrected, result.draft());
     h.assertSourceAndAttempt(corrected, true);
   }
 
@@ -63,7 +65,7 @@ class MiniTopologyRepresentationRecoveryTest {
     var result = h.capture(corrected);
 
     assertTrue(result.accepted(), result.toString());
-    assertEquals(corrected, h.store.get(h.chat).orElseThrow().authoredDraft());
+    assertAuthoredContentEquals(corrected, h.store.get(h.chat).orElseThrow().authoredDraft());
     assertNotEquals(originalBase, h.store.latestRevision(h.chat));
     assertEquals(originalPayload, h.artifacts.get(originalAttempt.compilationId(), originalAttempt.reference())
         .orElseThrow().payload());

@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.ai.plan;
 
+import static org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures.assertAuthoredContentEquals;
+
 import static org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures.nativeAnchorFact;
 import static org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures.withNativeAnchors;
 
@@ -75,9 +77,74 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureResult.NextA
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 import org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition;
 import org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingValue;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 
 class RequirementCaptureToolsTest {
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void catalogCopyPinsNewDraftsAndReplaysPreviouslyAdmittedLegacyDrafts(boolean legacy) throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var store = new RequirementDraftStore();
+    var bindings = mock(RequirementDraftTool.class);
+    when(bindings.canonicalBindings(any(), nullable(RequirementDraft.class), anyString())).thenReturn(List.of());
+    var tools = new RequirementCaptureTools(store, bindings, mapper);
+    String chat = UUID.randomUUID().toString();
+    String author = "Map taskId to id.";
+    var base = readyHttpDraft();
+    var fact = new FactInput("copy-id", List.of("entry", "submit"), FactKind.FIELD_MAPPING, Polarity.POSITIVE,
+        author, new RequirementCaptureInput.FieldMappingInput("entry", "taskId", "submit", "id", null));
+    var input = new DraftInput(base.flow(), List.of(base.facts().getFirst(), fact),
+        List.of(base.capabilities().getFirst()), List.of(), base.settings());
+    store.beginTurn(chat, author);
+    if (legacy) store.put(chat, RequirementCaptureProjection.toDraft(input, null, List.of(), null, null));
+
+    try (var ignored = ToolSession.open(chat)) {
+      var accepted = mapper.readValue(tools.captureRequirementDraft(input), RequirementCaptureResult.class);
+      assertTrue(accepted.accepted(), accepted.toString());
+      var saved = store.get(chat).orElseThrow().authoredDraft();
+      var copy = saved.facts().getLast().fieldMapping();
+      if (legacy) {
+        assertEquals(input, saved);
+      } else {
+        assertEquals(new MappingValue.Copy(
+            new MappingSource.Message("entry",
+                MappingPort.OUTPUT, "$.taskId")), copy.value());
+        assertEquals("ERROR", copy.missingSourcePolicy());
+      }
+    }
+  }
+
+  @Test
+  void shouldPinNewMappingInDraftWithAnAnsweredPolicy() {
+    var store = new RequirementDraftStore();
+    String chat = UUID.randomUUID().toString();
+    String author = "Map taskId to id.";
+    store.beginTurn(chat, author);
+    var base = readyHttpDraft();
+    var policy = new RequirementPolicyConflict("access-policy", "accessControlType", "NONE", "RBAC",
+        "security-choice", RequirementPolicyConflict.Decision.KEEP_REQUESTED);
+    var answered = new FactInput("security", List.of("entry"), FactKind.CONSTRAINT, Polarity.POSITIVE,
+        "Keep accessControlType=NONE.", null, policy, null);
+    var saved = new DraftInput(base.flow(), List.of(base.facts().getFirst(), answered),
+        List.of(base.capabilities().getFirst()), List.of(), base.settings());
+    var mapping = new FactInput("copy-id", List.of("entry", "submit"), FactKind.FIELD_MAPPING,
+        Polarity.POSITIVE, author,
+        new RequirementCaptureInput.FieldMappingInput("entry", "taskId", "submit", "id", null));
+    var update = new DraftInput(saved.flow(), List.of(saved.facts().getFirst(), answered, mapping),
+        saved.capabilities(), saved.openQuestions(), saved.settings());
+    var previous = RequirementCaptureProjection.toDraft(saved, null, List.of(), null, null);
+
+    var pinned = store.discardUnconfirmedRuntimeSchemas(chat, update, previous);
+
+    assertEquals(answered, pinned.facts().get(1));
+    assertEquals(new MappingValue.Copy(new MappingSource.Message("entry", MappingPort.OUTPUT, "$.taskId")),
+        pinned.facts().getLast().fieldMapping().value());
+  }
+
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
   void freshInapplicablePolicyDoesNotProtectMetadataWhileRetainingAllOtherRequirements(boolean reload)
@@ -120,12 +187,12 @@ class RequirementCaptureToolsTest {
       var corrected = policyApplicabilityDraft("false", false, false, source.turnId());
       var accepted = mapper.readValue(h.tools().captureRequirementDraft(corrected), RequirementCaptureResult.class);
       assertTrue(accepted.accepted(), accepted.toString());
-      assertEquals(corrected, h.store().get(chat).orElseThrow().authoredDraft());
+      assertAuthoredContentEquals(corrected, h.store().get(chat).orElseThrow().authoredDraft());
       var finished = mapper.readValue(h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE),
           RequirementCaptureResult.class);
       assertTrue(finished.accepted(), finished.toString());
       var restored = policyApplicabilityHarness(blobs, mapper, conversations, chat, text);
-      assertEquals(corrected, restored.store().get(chat).orElseThrow().authoredDraft());
+      assertAuthoredContentEquals(corrected, restored.store().get(chat).orElseThrow().authoredDraft());
       assertEquals(immutableAttempt, mapper.valueToTree(artifacts.payload(rejectedRef,
           RequirementDraftStore.RequirementCaptureAttempt.class)));
       assertEquals(source.turnId(), ConversationArchive.latestInputId(archive.read(chat)));
@@ -166,7 +233,7 @@ class RequirementCaptureToolsTest {
       assertEquals(List.of("keep-requested", "use-recommended"), card.actions());
       assertEquals(Map.of("keep-requested", "Keep NONE", "use-recommended", "Use recommended RBAC"), card.actionLabels());
       var restored = policyApplicabilityHarness(blobs, mapper, conversations, chat, text);
-      assertEquals(input, restored.store().get(chat).orElseThrow().authoredDraft());
+      assertAuthoredContentEquals(input, restored.store().get(chat).orElseThrow().authoredDraft());
       assertEquals(offered, new PolicyChoiceSelection(artifacts,
           new CompilationSessions(blobs, mapper, Clock.systemUTC()), conversations).pending(chat, 7).orElseThrow());
     }
@@ -296,7 +363,7 @@ class RequirementCaptureToolsTest {
         assertTrue(h.store().get(h.conversationId()).isEmpty());
       } else {
         assertTrue(refused.accepted(), refused.toString());
-        assertEquals(input, h.store().get(h.conversationId()).orElseThrow().authoredDraft());
+        assertAuthoredContentEquals(input, h.store().get(h.conversationId()).orElseThrow().authoredDraft());
       }
     }
   }
@@ -322,7 +389,7 @@ class RequirementCaptureToolsTest {
       var removal = policyApplicabilityDraft("false", false, false, source.turnId());
       var refused = mapper.readValue(h.tools().captureRequirementDraft(removal), RequirementCaptureResult.class);
       assertTrue(refused.accepted(), refused.toString());
-      assertEquals(removal, h.store().get(chat).orElseThrow().authoredDraft());
+      assertAuthoredContentEquals(removal, h.store().get(chat).orElseThrow().authoredDraft());
       assertEquals(source.turnId(), ConversationArchive.latestInputId(archive.read(chat)));
     }
   }
@@ -530,7 +597,10 @@ class RequirementCaptureToolsTest {
           rejected = result;
         } else {
           assertTrue(result.accepted(), result.toString());
-          assertTrue(h.store().get(h.conversationId()).orElseThrow().authoredDraft().facts().containsAll(facts));
+          var capturedFacts = h.store().get(h.conversationId()).orElseThrow().authoredDraft().facts().stream()
+              .filter(fact -> facts.stream().anyMatch(expected -> expected.sourceFactId().equals(fact.sourceFactId())))
+              .toList();
+          assertAuthoredContentEquals(facts, capturedFacts);
           assertTrue(h.mapper().readValue(h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE),
               RequirementCaptureResult.class).accepted());
         }
@@ -638,7 +708,7 @@ class RequirementCaptureToolsTest {
           .filter(issue -> "DERIVED_UNSUPPORTED_ELEMENT".equals(issue.code())).map(issue -> issue.path()).toList(),
           result::toString);
       assertEquals(!derived, result.accepted(), result::toString);
-      if (!derived) assertEquals(intent, h.store().get(h.conversationId()).orElseThrow().authoredDraft()
+      if (!derived) assertAuthoredContentEquals(intent, h.store().get(h.conversationId()).orElseThrow().authoredDraft()
           .facts().stream().filter(candidate -> candidate.sourceFactId().equals("reply"))
           .findFirst().orElseThrow().elementIntent());
     }
@@ -709,7 +779,7 @@ class RequirementCaptureToolsTest {
           List.of(base.facts().getFirst(), fact), base.capabilities(), base.openQuestions(), base.settings())),
           RequirementCaptureResult.class);
       assertTrue(result.accepted(), result.toString());
-      assertEquals(intent, h.store().get(h.conversationId()).orElseThrow().authoredDraft().facts().getLast().elementIntent());
+      assertAuthoredContentEquals(intent, h.store().get(h.conversationId()).orElseThrow().authoredDraft().facts().getLast().elementIntent());
     }
   }
 
@@ -1783,8 +1853,8 @@ class RequirementCaptureToolsTest {
     when(catalog.getApiSpecifications("om")).thenReturn(List.of(
         new CatalogRestClient.SpecificationDto("om-spec", "1.33", "om-group", "om", "1.33")));
     when(catalog.getOperations(eq("om-spec"), eq(0), anyInt(), isNull())).thenReturn(List.of(
-        new CatalogRestClient.OperationDto("om-onTaskStart", "onTaskStart", "publish", "task.start", "om-spec"),
-        new CatalogRestClient.OperationDto("om-onTaskResult", "onTaskResult", "subscribe", "order.command", "om-spec")));
+        new CatalogRestClient.OperationDto("om-onTaskStart", "onTaskStart", "subscribe", "task.start", "om-spec"),
+        new CatalogRestClient.OperationDto("om-onTaskResult", "onTaskResult", "publish", "order.command", "om-spec")));
     var cache = new ConversationCatalogCache(new CatalogOperationsReadCache(catalog));
     var reads = new CatalogSystemReadTool(catalog, new CatalogOperationsLookupService(cache), null);
     var lookup = new CatalogOperationLookup(new CatalogSystemFinder(catalog), reads);
@@ -2355,7 +2425,7 @@ class RequirementCaptureToolsTest {
       assertTrue(harness.store().rejectedCaptureFacts(chat).isEmpty());
       var accepted = mapper.readValue(harness.tools().captureRequirementDraft(repaired), RequirementCaptureResult.class);
       assertTrue(accepted.accepted(), accepted.issues().toString());
-      assertEquals(repaired.facts(), harness.store().get(chat).orElseThrow().authoredDraft().facts());
+      assertAuthoredContentEquals(repaired.facts(), harness.store().get(chat).orElseThrow().authoredDraft().facts());
     }
   }
 
@@ -3254,7 +3324,7 @@ class RequirementCaptureToolsTest {
               "Respond with " + literal, null, null, correct)), input.capabilities(), input.openQuestions(),
           input.settings())), RequirementCaptureResult.class);
       assertTrue(accepted.accepted(), accepted.issues().toString());
-      assertEquals(correct, store.get(chat).orElseThrow().authoredDraft().facts().getFirst().elementIntent());
+      assertAuthoredContentEquals(correct, store.get(chat).orElseThrow().authoredDraft().facts().getFirst().elementIntent());
     }
   }
 
@@ -3379,6 +3449,47 @@ class RequirementCaptureToolsTest {
   }
 
   @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void acceptedStayAsksAboutAnUnresolvedCatalogChoiceInsteadOfRepeatingLookup(boolean withQuestion) throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var archive = new ConversationArchive(blobs, mapper);
+    var conversations = mock(ConversationService.class);
+    when(conversations.archive()).thenReturn(archive);
+    String chat = "catalog-choice-finish-" + UUID.randomUUID();
+    String text = "Receive POST /tasks, call Task API submit, and return its response. No APIHub.";
+    var turn = archive.beginInput(chat, text, null);
+    archive.resolveInput(chat, turn, text);
+    var store = new RequirementDraftStore(new CompilationArtifacts(blobs, mapper, Clock.systemUTC()),
+        new CompilationSessions(blobs, mapper, Clock.systemUTC()), conversations);
+    var adapter = mock(RequirementDraftTool.class);
+    when(adapter.canonicalBindings(any(), nullable(RequirementDraft.class), anyString())).thenReturn(List.of());
+    var tools = new RequirementCaptureTools(store, adapter, mapper);
+    var base = readyHttpDraft();
+    var question = new RequirementCaptureInput.QuestionInput("missing-service", List.of("submit"),
+        "Task API is absent from the catalog. How should this dependency be provided?",
+        new org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence("submit",
+            "participant",
+            org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.CATALOG_CHOICE,
+            List.of(turn.turnId())));
+    var input = withNativeAnchors(new DraftInput(base.flow(), base.facts(),
+        List.of(base.capabilities().getFirst()), withQuestion ? List.of(question) : List.of(), base.settings()));
+    store.beginTurn(chat, text);
+    try (var ignored = ToolSession.open(chat)) {
+      var captured = mapper.readValue(tools.captureRequirementDraft(input), RequirementCaptureResult.class);
+      assertTrue(captured.accepted(), captured.toString());
+      assertEquals(NextAction.LOOKUP, captured.nextAction(), captured.toString());
+      var finished = mapper.readValue(tools.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY),
+          RequirementCaptureResult.class);
+      assertTrue(finished.accepted(), finished.toString());
+      assertEquals(withQuestion ? NextAction.ASK_USER : NextAction.LOOKUP, finished.nextAction(), finished.toString());
+      assertTrue(finished.pendingWork().stream().anyMatch(work -> "OPERATION_LOOKUP_REQUIRED".equals(work.code())),
+          finished.toString());
+      assertEquals(input, store.get(chat).orElseThrow().authoredDraft());
+    }
+  }
+
+  @ParameterizedTest
   @org.junit.jupiter.params.provider.EnumSource(value = RequirementDiscoveryDirective.class,
       names = {"STAY", "CONTINUE"})
   void finishRefreshesTheCatalogBindingResolvedAfterCapture(RequirementDiscoveryDirective directive) throws Exception {
@@ -3409,6 +3520,93 @@ class RequirementCaptureToolsTest {
       assertEquals(List.of(binding), store.get(chat).orElseThrow().catalogBindings());
       assertEquals(input, store.get(chat).orElseThrow().authoredDraft());
       assertEquals(directive, store.turnDirective(chat));
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void readyStayOffersAnActionAllowedForTheCurrentTurn(boolean discussion) throws Exception {
+    Harness h = harness();
+    try (ToolSession.Handle ignored = ToolSession.open(h.conversationId())) {
+      var captured = h.mapper().readValue(h.tools().captureRequirementDraft(withNativeAnchors(readyHttpDraft())),
+          RequirementCaptureResult.class);
+      assertEquals(RequirementCaptureResult.Readiness.READY, captured.readiness(), captured.toString());
+      if (discussion) h.store().allowDiscussion(h.conversationId());
+      else h.store().markAutomaticRepair(h.conversationId());
+      var finished = h.mapper().readValue(h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY),
+          RequirementCaptureResult.class);
+      assertTrue(finished.accepted(), finished.toString());
+      assertEquals(discussion ? NextAction.DISCUSS : NextAction.REQUEST_IDS_CHOICE, finished.nextAction(),
+          finished.toString());
+    }
+  }
+
+  @Test
+  void recoveryGuidanceUsesOnlyTheCurrentSourceBoundAttempt() throws Exception {
+    Harness h = harness();
+    try (ToolSession.Handle ignored = ToolSession.open(h.conversationId())) {
+      var accepted = h.mapper().readValue(h.tools().captureRequirementDraft(withNativeAnchors(readyHttpDraft())),
+          RequirementCaptureResult.class);
+      h.store().beginTurn(h.conversationId(), "Submit a task.");
+      var before = h.store().get(h.conversationId()).orElseThrow();
+      var revision = h.store().latestRevision(h.conversationId()).orElseThrow().reference();
+      var old = RequirementCaptureResult.view(before, revision, false, false,
+          List.of(new RequirementCaptureEditor.Issue("CONFLICTING_ELEMENT_INTENT",
+              "/draft/facts/loop-config/elementIntent/requestedProperties", "loop-config", "Repair the property.")),
+          RequirementDiscoveryDirective.NONE);
+      h.store().recordCaptureOutcome(h.conversationId(), "updateRequirementDraft", "old", old);
+      var current = RequirementCaptureResult.view(before, revision, false, false,
+          List.of(new RequirementCaptureEditor.Issue("INVALID_TYPE", "/draft/facts/entry-route/kind",
+              "entry-route", "Repair the fact.")), RequirementDiscoveryDirective.NONE)
+          .withNextAction(NextAction.PROJECTION_REBUILD);
+      h.store().recordCaptureOutcome(h.conversationId(), "updateRequirementDraft", "current", current);
+      var guidance = h.store().recoveryGuidance(h.conversationId()).orElseThrow();
+      assertEquals(org.qubership.integration.platform.ai.productpipeline.recovery.RequirementRecoveryLadder.Stage.PROJECTION_REBUILD,
+          guidance.strategy());
+      assertEquals(List.of("entry-route"), guidance.participants());
+      assertEquals(List.of("/draft/facts/entry-route/kind"), guidance.editablePaths());
+      h.store().recordCaptureOutcome(h.conversationId(), "captureRequirementDraft", "accepted", accepted);
+      assertEquals(java.util.Optional.empty(), h.store().recoveryGuidance(h.conversationId()),
+          "Accepted attempt clears recovery guidance");
+      h.store().recordCaptureOutcome(h.conversationId(), "updateRequirementDraft", "current", current);
+      h.store().beginTurn(h.conversationId(), "Use a new author instruction.");
+      assertEquals(java.util.Optional.empty(), h.store().recoveryGuidance(h.conversationId()),
+          "New source clears recovery guidance");
+    }
+  }
+
+  @Test
+  void unauthorizedDiscussionDoesNotReviveOlderFactRepairGuidance() throws Exception {
+    Harness h = harness();
+    try (ToolSession.Handle ignored = ToolSession.open(h.conversationId())) {
+      var captured = h.mapper().readValue(h.tools().captureRequirementDraft(withNativeAnchors(readyHttpDraft())),
+          RequirementCaptureResult.class);
+      assertEquals(RequirementCaptureResult.Readiness.READY, captured.readiness(), captured.toString());
+      h.store().beginTurn(h.conversationId(), "Submit a task.");
+      var before = h.store().get(h.conversationId()).orElseThrow();
+      var old = RequirementCaptureResult.view(before, h.store().latestRevision(h.conversationId()).orElseThrow().reference(),
+          false, false, List.of(new RequirementCaptureEditor.Issue("CONFLICTING_ELEMENT_INTENT",
+              "/draft/facts/loop-config/elementIntent/requestedProperties", "loop-config", "Repair the property.")),
+          RequirementDiscoveryDirective.NONE);
+      h.store().recordCaptureOutcome(h.conversationId(), "updateRequirementDraft", "old-fact-repair", old);
+      var builder = new org.qubership.integration.platform.ai.llm.scenario.GatherRequirementsPromptBuilder(
+          null, null, h.store(), null);
+      String factPrompt = builder.wrap(h.conversationId(), "Repair.", "en");
+      assertTrue(factPrompt.contains("/draft/facts/loop-config/elementIntent/requestedProperties"), factPrompt);
+      h.store().markAutomaticRepair(h.conversationId());
+      var refused = h.mapper().readValue(h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.DISCUSS),
+          RequirementCaptureResult.class);
+      assertFalse(refused.accepted(), refused.toString());
+      assertTrue(refused.issues().stream().anyMatch(issue -> "DISCUSSION_NOT_AUTHORIZED".equals(issue.code())),
+          refused.toString());
+      String prompt = builder.wrap(h.conversationId(), "Repair.", "en");
+      assertTrue(prompt.contains("The accepted draft is ready. Finish with CONTINUE"), prompt);
+      assertFalse(prompt.contains("Editable paths: /draft/facts/loop-config"), prompt);
+      assertEquals(before, h.store().get(h.conversationId()).orElseThrow());
+      var finished = h.mapper().readValue(h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE),
+          RequirementCaptureResult.class);
+      assertTrue(finished.accepted(), finished.toString());
+      assertEquals(before, h.store().get(h.conversationId()).orElseThrow());
     }
   }
 

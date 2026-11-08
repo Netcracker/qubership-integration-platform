@@ -354,7 +354,7 @@ class CreateChainTriggerSenderPipelineMatrixTest {
             "sg-om",
             "spec-om",
             "op-om",
-            "publish",
+            "send",
             "task.wfms_createWorkOrder.start");
     RequirementFlow flow =
         flow(
@@ -685,7 +685,7 @@ class CreateChainTriggerSenderPipelineMatrixTest {
               hint.specificationId(),
               hint.integrationOperationId(),
               "kafka",
-              "publish",
+              "send",
               hint.path(),
               hint.operationQuery(),
               ResolvedServiceCallBinding.Source.EXISTING_CATALOG,

@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.ai.plan;
 
+import static org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures.assertAuthoredContentEquals;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -80,7 +82,7 @@ class RequirementRejectedReferenceRepairProviderTest {
         }),
         Turn.tool("continue", request -> {
           assertTrue(lastTool(request).path("accepted").asBoolean(), lastTool(request).toString());
-          assertEquals(fixture.corrected(), drafts.get(chat).orElseThrow().authoredDraft());
+          assertAuthoredContentEquals(fixture.corrected(), drafts.get(chat).orElseThrow().authoredDraft());
         }, "finishRequirementDiscoveryTurn", "{\"directive\":\"CONTINUE\"}"),
         Turn.text("ready", request -> assertTrue(lastTool(request).path("accepted").asBoolean()), "Requirements are ready."));
     doAnswer(call -> { scripted.chat(call.getArgument(0, ChatRequest.class), call.getArgument(1, StreamingChatResponseHandler.class)); return null; })
@@ -144,7 +146,7 @@ class RequirementRejectedReferenceRepairProviderTest {
         }),
         Turn.tool("continue-canonical", request -> {
           assertTrue(lastTool(request).path("accepted").asBoolean(), lastTool(request).toString());
-          assertEquals(canonical, drafts.get(chat).orElseThrow().authoredDraft());
+          assertAuthoredContentEquals(canonical, drafts.get(chat).orElseThrow().authoredDraft());
         }, "finishRequirementDiscoveryTurn", "{\"directive\":\"CONTINUE\"}"),
         Turn.text("ready-canonical", request -> assertTrue(lastTool(request).path("accepted").asBoolean()), "Requirements are ready."));
     doAnswer(call -> { scripted.chat(call.getArgument(0, ChatRequest.class), call.getArgument(1, StreamingChatResponseHandler.class)); return null; })

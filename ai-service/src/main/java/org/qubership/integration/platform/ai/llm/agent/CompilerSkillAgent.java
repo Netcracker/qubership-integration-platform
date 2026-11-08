@@ -5,6 +5,7 @@ import dev.langchain4j.service.UserMessage;
 import io.quarkiverse.langchain4j.RegisterAiService;
 import io.smallrye.mutiny.Multi;
 import jakarta.enterprise.context.ApplicationScoped;
+import org.qubership.integration.platform.ai.chat.memory.TaskPreservingChatMemory;
 import org.qubership.integration.platform.ai.compiler.ConfiguredTriggerSetCaptureTool;
 import org.qubership.integration.platform.ai.compiler.CompilerGraphPatchTool;
 import org.qubership.integration.platform.ai.compiler.NamingManifestCaptureTool;
@@ -17,6 +18,8 @@ import org.qubership.integration.platform.ai.integration.catalog.tool.ElementSch
  * → prompts/compiler-skill-system.md.
  */
 @RegisterAiService(
+    toolHallucinationStrategy = org.qubership.integration.platform.ai.llm.tool.RecoverableToolNameStrategy.class,
+    chatMemoryProviderSupplier = TaskPreservingChatMemory.Provider.class,
     tools = {
       CompilerGraphPatchTool.class,
       NamingManifestCaptureTool.class,

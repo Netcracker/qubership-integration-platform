@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.llm.ratelimit.RateLimitErrorClassifier;
 import org.qubership.integration.platform.ai.plan.mapping.ScriptExecutionAuthority;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
@@ -263,6 +264,9 @@ public class DesignPlanningCapability implements StageCapability {
           projection,
           ex.recoveryCause());
     } catch (RuntimeException ex) {
+      if (RateLimitErrorClassifier.isQuotaExhausted(ex)) {
+        return new CapabilitySignal.Completed(StageOutcome.technicalFailure(ex));
+      }
       var captureFailure = StageOutcome.captureFailure(ex);
       if (captureFailure.isPresent()) {
         var outcome = captureFailure.get();

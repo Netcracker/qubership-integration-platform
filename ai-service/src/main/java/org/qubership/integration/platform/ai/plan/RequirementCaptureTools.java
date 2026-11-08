@@ -130,6 +130,7 @@ public class RequirementCaptureTools {
       A new claim requires evidence: sourceTurnId and an exact quote from that user turn.
       The quote must be an exact substring of the named turn. A fact already in the saved
       semantic baseline, and a legacy accepted fact, may omit the quote.
+      Record whole-body passthrough as BEHAVIOR. Ask for a schema only when a requested operation needs one.
       For a field adaptation, record one FIELD_MAPPING fact per target field. The adjacent execution
       transition is fieldMapping.sourceInteractionId to fieldMapping.targetInteractionId; include both in interactionIds.
       For COPY, set fieldMapping.value.operation to COPY and value.source.kind to MESSAGE.
@@ -140,6 +141,16 @@ public class RequirementCaptureTools {
       When nextAction is RUN_IMPORT, finish with CONTINUE to import uploaded specs before binding.
       Capture the behavior separately from element settings. Leave elementIntent null if the author did not
       specify a local element and no source-bound Script body needs it. A chain is not an element parent.
+      For an if, else, try-2, catch-2, or finally branch, preserve the branch and its policy in fact text.
+      These are generated from semantic regions, not standalone operations. If recording elementIntent,
+      use the owning condition or try-catch-finally-2 element's same elementRef, type, placement and owner.
+      Never assign a branch its own elementRef with the owner's type. Keep branch properties in fact text,
+      not in the owner's requestedProperties.
+      For an explicitly requested service-call path or query parameter transfer, record the binding on
+      the service-call ANCHOR elementIntent in requestedProperties, using the native schema's
+      integrationOperationPathParameters or integrationOperationQueryParameters key and a JSON object
+      encoded as the property value. Include the parameter name and source expression when supported by
+      the author source and platform contract. Do not invent an unknown source or expression.
       Capture explicit HTTP trigger accessControlType and roles in ANCHOR elementIntent requestedProperties.
       RBAC needs the author's explicit role choice. Save a partial draft and ask for missing roles;
       role names from examples do not authorize access to this chain.
@@ -156,7 +167,8 @@ public class RequirementCaptureTools {
       synchronized (store) {
         RequirementDraft previous = store.get(conversationId).orElse(null);
         if (previous != null && previous.authoredDraft() != null) {
-          if (Objects.equals(previous.authoredDraft(), proposal)) {
+          if (Objects.equals(previous.authoredDraft(),
+              RequirementBodySources.bind(proposal, store.bodySource(conversationId)))) {
             return publish(conversationId, proposal, previous, null, List.of());
           }
           return view(previous, false, false, List.of(new Issue(
@@ -178,14 +190,16 @@ public class RequirementCaptureTools {
       Empty lists leave their entity family unchanged. Remove references explicitly when deleting an
       interaction. Preserve accepted fact IDs, kind, full text, polarity,
       and mapping values. Reassign fact references when fixing topology; add omitted requirements as
-      new facts.       A rejected FIELD_MAPPING classification may become BEHAVIOR when no business
-      transition is intended; retain its fact ID, complete author text, polarity, and valid references.
+      new facts. For a local HTTP response, retain accepted FIELD_MAPPING facts and their typed COPY values;
+      declare one local Script target instead of deleting mappings or inventing an outbound call.
       A new claim requires evidence: sourceTurnId and an exact quote from that user turn.
       The quote must be an exact substring of the named turn. A fact already in the saved
       semantic baseline, and a legacy accepted fact, may omit the quote.
       Deleting or changing claim text or polarity requires a new source-linked amendment.
       Kind, interaction IDs, mapping, element placement, and exact values stay fixed on an
       accepted draft unless an amendment or a server repair path covers that change.
+      When a server repair path covers an elementIntent, correct model-assigned references or types
+      against the saved source while preserving the fact's text, polarity, evidence, and other fields.
       When correcting BUSINESS_ANCHOR_REQUIRED, keep the saved evidence and interactionIds.
       Use the reported anchor ID for the placement correction and affected references.
       A new author message permits only its explicit amendments. For each changed accepted
@@ -290,6 +304,108 @@ public class RequirementCaptureTools {
             List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(question.questionId()), null));
   }
 
+  public record InterpretationReport(List<RequirementAnalysisCapture.SourceOmission> corrections) {}
+
+  @Tool("""
+      Report a contradiction between saved author evidence and the selected technical implementation.
+      Use this before asking the author for a value required only by a model-selected mechanism, or when
+      a selected type, reference or capability contradicts the task. Read the accepted draft and source first.
+      Each correction uses kind=INTERPRETATION_CONFLICT, the affected sourceFactId and its saved exact source quote,
+      a stable path, and previousValue/proposedValue encoded as JSON strings. Report coupled wiring and capability
+      changes together; JSON null removes a native capability when the source calls for a catalog-bound interaction.
+      For an invented unbound HTTP response interaction, report its removal, its predecessor's outgoing
+      transitions, and a same-ref LOCAL_NODE script declaration on one existing FIELD_MAPPING fact together.
+      Its owner is the inbound trigger; predecessor is the mapping source. Include the owner in that fact's
+      interactionIds by appending it without reordering existing IDs. For /transitions/<predecessor>, encode
+      previousValue and proposedValue as JSON arrays
+      of target interaction IDs, not edge objects. Use null for the new script's bodyBinding; the server binds it.
+      Preserve all FIELD_MAPPING facts, COPY sources, target keys, policies and source quotes.
+      Do not change author facts, names, literal/property values, mappings, bodies or confirmed choices.
+      This reports a proposal for guarded repair and renewed brief approval; it does not edit requirements.
+      Finish after acceptance. Do not repeat capture or ask an author question for this implementation defect.
+      """)
+  public String reportRequirementInterpretationConflict(InterpretationReport report) {
+    String conversationId = ToolSession.resolveConversationId();
+    return store.withWriteAuthority(conversationId, () -> {
+      var binding = ProductCapabilityCaptureContext.binding(conversationId).orElse(null);
+      var draft = store.get(conversationId).orElse(null);
+      var document = conversations == null ? null : conversations.archive().read(conversationId);
+      if (binding == null || binding.mode() != ProductCapabilityCaptureContext.Mode.DISCOVERY
+          || draft == null || draft.authoredDraft() == null || document == null
+          || !store.currentSource(conversationId)
+          || report == null || report.corrections() == null || report.corrections().isEmpty()) {
+        return encodeInterpretationResult(false, "REPAIR_CAPTURE", "Report a current saved draft and its source-bound technical corrections.");
+      }
+      var source = AuthorSourceEvidence.authoredPacket(document);
+      boolean localShape = RequirementProjectionCorrection.validLocalReports(draft.authoredDraft(), report.corrections());
+      boolean local = localShape && RequirementProjectionCorrection.validLocalAuthority(draft, source, report.corrections());
+      if (localShape && !local) {
+        String path = report.corrections().stream().map(RequirementAnalysisCapture.SourceOmission::path)
+            .filter(value -> value.startsWith("/interactions/")).findFirst().orElse("/corrections");
+        return encodeInterpretationResult(false, "REPAIR_CAPTURE", List.of(new ProductRequirementBriefTool.Issue(
+            "LOCAL_TARGET_PROTECTED", path,
+            "Retain an interaction with an explicit protocol or catalog binding.")),
+            "The requested correction is not permitted for this interaction.");
+      }
+      for (var correction : report.corrections()) {
+        if (!(local ? ProductRequirementBriefTool.validInterpretationEvidence(draft.authoredDraft(), source, correction)
+            : ProductRequirementBriefTool.validInterpretationReport(draft.authoredDraft(), source, correction))) {
+          return encodeInterpretationResult(false, "REPAIR_CAPTURE",
+              List.of(interpretationIssue(draft.authoredDraft(), source, correction)),
+              "Correct the reported field; do not remove mapping values or ask for an author amendment.");
+        }
+      }
+      var paths = report.corrections().stream().map(RequirementAnalysisCapture.SourceOmission::path).toList();
+      if (new java.util.HashSet<>(paths).size() != paths.size()) {
+        return encodeInterpretationResult(false, "REPAIR_CAPTURE", "Report each correction path once.");
+      }
+      var review = new ProductRequirementBriefTool.SourceReview(document.generation(),
+          org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(AuthorSourceEvidence.packet(document)),
+          org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(draft), report.corrections());
+      binding.captureTerminal().set(true);
+      if (binding.onCandidate() != null) binding.onCandidate().accept(review);
+      outcomeGateway.endInvocation(encodeInterpretationResult(true, "REPAIR_SOURCE",
+          "Interpretation conflict reported. Finish this turn; repair will retain author facts and renew brief approval."));
+      return null;
+    });
+  }
+
+  private ProductRequirementBriefTool.Issue interpretationIssue(DraftInput draft, AuthorSourceEvidence.Packet source,
+      RequirementAnalysisCapture.SourceOmission correction) {
+    String path = correction == null || correction.path() == null ? "/corrections" : correction.path();
+    if (!ProductRequirementBriefTool.validInterpretationEvidence(draft, source, correction)) {
+      return new ProductRequirementBriefTool.Issue("SOURCE_EVIDENCE_MISMATCH", path,
+          "Use the affected fact's exact saved source turn and quote, with a nonblank explanation.");
+    }
+    try {
+      var current = RequirementRevisionAdmission.tree(draft).at(com.fasterxml.jackson.core.JsonPointer.compile(path));
+      if (!current.isMissingNode() && !current.equals(mapper.readTree(correction.previousValue()))) {
+        return new ProductRequirementBriefTool.Issue("PREVIOUS_VALUE_MISMATCH", path,
+            "Use the current JSON value: " + current);
+      }
+    } catch (Exception invalid) {
+      return new ProductRequirementBriefTool.Issue("INVALID_CORRECTION_VALUE", path,
+          "Use a valid stable path and JSON-encoded current and proposed values.");
+    }
+    return new ProductRequirementBriefTool.Issue("UNSUPPORTED_INTERPRETATION_PATH", path,
+        "Use an allowed technical field. For a local response report the unbound interaction removal, its edge,"
+            + " the same-ref LOCAL_NODE Script declaration and its owner interactionIds together;"
+            + " retain each FIELD_MAPPING and typed COPY value.");
+  }
+
+  private String encodeInterpretationResult(boolean accepted, String action, String message) {
+    return encodeInterpretationResult(accepted, action, List.of(), message);
+  }
+
+  private String encodeInterpretationResult(boolean accepted, String action,
+      List<ProductRequirementBriefTool.Issue> issues, String message) {
+    try {
+      return mapper.writeValueAsString(new ProductRequirementBriefTool.Result(accepted, false, action, issues, message));
+    } catch (com.fasterxml.jackson.core.JsonProcessingException failure) {
+      throw new IllegalStateException("Cannot encode the interpretation review result.", failure);
+    }
+  }
+
   public record SourceRead(String turnId, int offset, int maxChars) {}
 
   @Tool("Read source evidence from this chat by its supplied turn id. Use an offset and at most 16000 characters.")
@@ -318,12 +434,13 @@ public class RequirementCaptureTools {
       if (current == null || current.authoredDraft() == null) {
         return current;
       }
-      List<CatalogBindingHint> bindings = legacyBindingAdapter.canonicalBindings(
-          current.authoredDraft(), current, conversationId);
-      if (!bindings.equals(current.catalogBindings())) {
+      var uploaded = current.uploadedSpecBindings().isEmpty()
+          ? resolveUploadedOperations(conversationId, current.authoredDraft()) : current.uploadedSpecBindings();
+      List<CatalogBindingHint> bindings = canonicalBindings(conversationId, current.authoredDraft(), current, uploaded);
+      if (!bindings.equals(current.catalogBindings()) || !uploaded.equals(current.uploadedSpecBindings())) {
         current = RequirementCaptureProjection.toDraft(
             current.authoredDraft(), current, bindings,
-            current.sourceSkillVersion(), current.sourceSkillHash());
+            current.sourceSkillVersion(), current.sourceSkillHash(), Map.of(), uploaded);
         store.put(conversationId, current);
       }
       return current;
@@ -399,7 +516,16 @@ public class RequirementCaptureTools {
           : store.validateAuthorQuestions(conversationId);
       if (!questions.isEmpty()) return view(current, false, false, questions);
       store.finishTurn(conversationId, directive);
-      return view(current, true, false, List.of());
+      var result = view(current, true, false, List.of());
+      if (directive == RequirementDiscoveryDirective.STAY && current != null && !current.openQuestions().isEmpty()) {
+        return result.withNextAction(RequirementCaptureResult.NextAction.ASK_USER);
+      }
+      if (directive == RequirementDiscoveryDirective.STAY && store.automaticRepair(conversationId)
+          && result.readiness() == RequirementCaptureResult.Readiness.READY) {
+        return result.withNextAction(current.idsRequested() == null
+            ? RequirementCaptureResult.NextAction.REQUEST_IDS_CHOICE : RequirementCaptureResult.NextAction.HANDOFF);
+      }
+      return result;
     });
   }
 
@@ -411,12 +537,8 @@ public class RequirementCaptureTools {
     }
     var consistency = RequirementFailureConsistency.issues(draft);
     if (!consistency.isEmpty()) return Optional.of(consistency.getFirst().message());
-    List<RequirementCaptureProjection.PendingWork> pending = draft.authoredDraft() == null
-        ? List.of()
-        : RequirementCaptureProjection.pending(
-            draft.authoredDraft(),
-            draft.catalogBindings(),
-            RequirementCaptureProjection.resolvedTargets(draft), uploadedSpecInteractions(draft));
+    List<RequirementCaptureProjection.PendingWork> pending =
+        RequirementCaptureProjection.pending(draft, uploadedSpecInteractions(draft));
     if (pending.isEmpty()) pending = mappingPending(draft);
     if (draft.readyForPlan() && pending.isEmpty()
         || RequirementCaptureProjection.onlyUploadedSpecImportsRemain(pending)) {
@@ -437,12 +559,20 @@ public class RequirementCaptureTools {
   private RequirementCaptureResult publish(
       String conversationId, DraftInput rawInput, RequirementDraft previous, DraftUpdate changes, List<Issue> editIssues) {
     if (rawInput == null) return reject(conversationId, previous, editIssues);
-    DraftInput input = editIssues.isEmpty() ? RequirementCaptureProjection.withCopyPolicies(rawInput) : rawInput;
+    DraftInput candidate = changes != null && editIssues.isEmpty()
+        ? store.discardUnconfirmedRuntimeSchemas(conversationId, rawInput, previous) : rawInput;
+    DraftInput input = RequirementBodySources.bind(
+        editIssues.isEmpty() ? RequirementCaptureProjection.withCopyPolicies(candidate) : candidate,
+        store.bodySource(conversationId));
     Issue folderIssue = input.settings() == null ? null : ambiguousFolder(input, previous,
         previous == null ? "/draft/settings/targetFolderPath" : "/changes/settings/targetFolderPath");
     if (folderIssue != null && editIssues.isEmpty()) return view(previous, false, false, List.of(folderIssue));
     var expectedBase = store.latestRevision(conversationId).map(value -> value.reference()).orElse(null);
     var issues = new ArrayList<>(editIssues);
+    if (editIssues.isEmpty()) {
+      issues.addAll(RequirementMappingCapture.validate(input,
+          previous == null || previous.authoredDraft() == null ? List.of() : previous.authoredDraft().facts()));
+    }
     if (folderIssue != null) issues.add(folderIssue);
     if (input.settings() != null) {
       issues.addAll(RequirementPreferenceEvidence.validate(input, previous,
@@ -467,8 +597,9 @@ public class RequirementCaptureTools {
     if (!issues.isEmpty()) {
       return reject(conversationId, previous, issues.stream().distinct().toList());
     }
+    var uploaded = resolveUploadedOperations(conversationId, input);
     List<CatalogBindingHint> bindings =
-        legacyBindingAdapter.canonicalBindings(input, previous, conversationId);
+        canonicalBindings(conversationId, input, previous, uploaded);
     var consistency = RequirementFailureConsistency.issues(input, bindings);
     if (!consistency.isEmpty()) {
       return view(previous, false, false, withPreservedFacts(consistency, previous));
@@ -477,7 +608,7 @@ public class RequirementCaptureTools {
     RequirementDraft draft = RequirementCaptureProjection.toDraft(
         admitted, previous, bindings,
         legacyBindingAdapter.sourceSkillVersion(conversationId),
-        legacyBindingAdapter.sourceSkillHash(conversationId), targetResolution.targetIds());
+        legacyBindingAdapter.sourceSkillHash(conversationId), targetResolution.targetIds(), uploaded);
     var clarification = store.clarificationContext(conversationId, changes);
     var validCandidate = validDispositionCandidates(input, clarification);
     var admission = store.admitCaptureDecision(conversationId, expectedBase, draft, changes,
@@ -487,10 +618,12 @@ public class RequirementCaptureTools {
       if (restored != null) {
         var preservedValues = store.copyRejectedCaptureValues(conversationId);
         store.noteNamedModeCorrection(conversationId, restored, bindings);
+        var restoredUploads = resolveUploadedOperations(conversationId, restored);
+        var restoredBindings = canonicalBindings(conversationId, restored, previous, restoredUploads);
         var restoredDraft = RequirementCaptureProjection.toDraft(
-            restored, previous, bindings,
+            restored, previous, restoredBindings,
             legacyBindingAdapter.sourceSkillVersion(conversationId),
-            legacyBindingAdapter.sourceSkillHash(conversationId), targetResolution.targetIds());
+            legacyBindingAdapter.sourceSkillHash(conversationId), targetResolution.targetIds(), restoredUploads);
         var retry = store.admitCaptureDecision(conversationId, expectedBase, restoredDraft, changes,
             mappingRepairPaths(conversationId), clarification, validCandidate);
         if (retry.issues().isEmpty()) {
@@ -627,11 +760,7 @@ public class RequirementCaptureTools {
         : document.activeTurns().stream().filter(turn -> turn.message().role()
             == org.qubership.integration.platform.ai.chat.conversation.ConversationMessage.Role.USER)
             .map(turn -> turn.message().content()).collect(Collectors.joining("\n"));
-    var source = document == null
-        ? new AuthorSourceEvidence.Packet(store.writeAuthority(conversationId).sourceGeneration(),
-            authorText == null ? List.of() : List.of(new AuthorSourceEvidence.Input(
-                store.writeAuthority(conversationId).sourceTurnId(), authorText)))
-        : AuthorSourceEvidence.packet(document);
+    var source = store.bodySource(conversationId);
     String authoredText = document == null ? authorText : AuthorSourceEvidence.authoredPacket(document).inputs().stream()
         .map(AuthorSourceEvidence.Input::text).collect(Collectors.joining("\n"));
     RequirementElementConstraints.issues(input, authoredText).stream()
@@ -813,6 +942,16 @@ public class RequirementCaptureTools {
 
   public List<RequirementCaptureProjection.PendingWork> mappingPending(RequirementDraft draft) {
     return copyMappings == null ? List.of() : copyMappings.pending(draft);
+  }
+
+  private List<CatalogBindingHint> canonicalBindings(String conversationId, DraftInput input,
+      RequirementDraft previous, Map<String, UploadedSpecOperations.Binding> uploaded) {
+    return uploaded.isEmpty() ? legacyBindingAdapter.canonicalBindings(input, previous, conversationId)
+        : legacyBindingAdapter.canonicalBindings(input, previous, conversationId, uploaded);
+  }
+
+  private Map<String, UploadedSpecOperations.Binding> resolveUploadedOperations(String conversationId, DraftInput input) {
+    return uploadedSpecs == null ? Map.of() : uploadedSpecs.resolveOpenApi(conversationId, input);
   }
 
   private java.util.Set<String> uploadedSpecInteractions(RequirementDraft draft) {

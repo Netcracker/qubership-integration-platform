@@ -61,6 +61,28 @@ class RateLimitAwareStreamingChatModelTest {
   }
 
   @Test
+  void providerCallbackKeepsTheConversationOnAnotherThreadAndRestoresItsContext() throws Exception {
+    var delegate = new FakeStreamingChatModel();
+    var observed = new java.util.concurrent.CompletableFuture<String>();
+    try (var ignored = org.qubership.integration.platform.ai.chat.ToolSession.open("original-conversation")) {
+      var model = new RateLimitAwareStreamingChatModel(delegate, classifier, policy,
+          new RateLimitAwareChatModelTest.RecordingSleeper(), true, 3, events::add);
+      model.chat(request, new StreamingChatResponseHandler() {
+        @Override public void onPartialResponse(String text) {}
+        @Override public void onCompleteResponse(ChatResponse response) {
+          observed.complete(org.qubership.integration.platform.ai.chat.ToolSession.resolveConversationId());
+        }
+        @Override public void onError(Throwable failure) { observed.completeExceptionally(failure); }
+      });
+    }
+    java.util.concurrent.CompletableFuture.runAsync(() -> {
+      delegate.handlers.getFirst().onCompleteResponse(successResponse);
+      assertNull(org.qubership.integration.platform.ai.chat.ToolSession.resolveConversationId());
+    }).get(5, java.util.concurrent.TimeUnit.SECONDS);
+    assertEquals("original-conversation", observed.get(5, java.util.concurrent.TimeUnit.SECONDS));
+  }
+
+  @Test
   void asynchronousErrorKeepsTheOriginalBoundedDeadline() {
     FakeStreamingChatModel delegate = new FakeStreamingChatModel();
     var sleeper = new RateLimitAwareChatModelTest.RecordingSleeper();

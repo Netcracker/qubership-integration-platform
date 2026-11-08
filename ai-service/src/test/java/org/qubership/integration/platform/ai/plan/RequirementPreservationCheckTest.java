@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.ai.plan;
 
+import static org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures.assertAuthoredContentEquals;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -153,7 +155,7 @@ class RequirementPreservationCheckTest {
     assertNotEquals(VERIFIED, report.outcome(), report.toString());
     assertTrue(report.changedPaths().stream().anyMatch(path -> path.startsWith("/facts/" + field)), report.toString());
     assertEquals(accepted, h.store.latestRevision(h.chat).orElseThrow().reference());
-    assertEquals(base, h.store.get(h.chat).orElseThrow().authoredDraft());
+    assertAuthoredContentEquals(base, h.store.get(h.chat).orElseThrow().authoredDraft());
   }
 
   @Test

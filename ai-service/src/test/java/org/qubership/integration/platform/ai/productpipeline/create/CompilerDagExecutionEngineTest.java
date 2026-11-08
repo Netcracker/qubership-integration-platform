@@ -263,7 +263,7 @@ class CompilerDagExecutionEngineTest {
     var failedExecutor = mock(SkillExecutor.class);
     when(failedExecutor.run(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
         .thenReturn(repeatedRead ? Uni.createFrom().failure(
-            new org.qubership.integration.platform.ai.llm.ratelimit.ReadNoProgressException("cip-script-generator"))
+            new org.qubership.integration.platform.ai.llm.ratelimit.ReadNoProgressException("cip-script-generator", "cip-script-generator", "input-graph-scope"))
             : Uni.createFrom().item(new SkillExecutionResult(
             org.qubership.integration.platform.ai.skill.executor.SkillRunStatus.FAILED, List.of(), "Invalid JSON at /arguments", false)));
     when(skillRegistry.require("cip-script-generator")).thenReturn(failedExecutor);

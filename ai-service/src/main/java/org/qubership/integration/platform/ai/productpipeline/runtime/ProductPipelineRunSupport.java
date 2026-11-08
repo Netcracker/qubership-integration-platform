@@ -3374,7 +3374,7 @@ public final class ProductPipelineRunSupport {
       case CONTRACT_FAILURE, INTERNAL_FAILURE -> FailureClass.CONTRACT;
       case POLICY_FAILURE -> FailureClass.POLICY;
       case MISSING_MANDATORY_INPUT -> FailureClass.MISSING_MANDATORY_INPUT;
-      case RETRYABLE_TECHNICAL_FAILURE -> FailureClass.TECHNICAL;
+      case RETRYABLE_TECHNICAL_FAILURE, PROVIDER_QUOTA_EXHAUSTED -> FailureClass.TECHNICAL;
       default -> FailureClass.DOMAIN;
     };
   }

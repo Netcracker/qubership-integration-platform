@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.ai.plan;
 
+import static org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures.assertAuthoredContentEquals;
+
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -75,8 +77,8 @@ class AdditiveLiteralBindingRecoveryTest {
     assertTrue(accepted.issues().isEmpty(), accepted.toString());
     assertTrue(accepted.pendingWork().isEmpty(), accepted.toString());
     assertEquals(RequirementCaptureResult.Readiness.READY, accepted.readiness());
-    assertEquals(corrected, accepted.draft());
-    assertEquals(corrected, h.store.get(h.chat).orElseThrow().authoredDraft());
+    assertAuthoredContentEquals(corrected, accepted.draft());
+    assertAuthoredContentEquals(corrected, h.store.get(h.chat).orElseThrow().authoredDraft());
     assertNotNull(accepted.revision());
     h.assertAttempt(corrected, true);
     h.assertUnchanged(immutable);
@@ -88,7 +90,7 @@ class AdditiveLiteralBindingRecoveryTest {
     var read = h.call("readRequirementDraft", Map.of());
     assertTrue(read.accepted(), read.toString());
     assertEquals(reference, read.revision());
-    assertEquals(corrected, read.draft());
+    assertAuthoredContentEquals(corrected, read.draft());
     var continued = h.call("finishRequirementDiscoveryTurn", Map.of("directive", "CONTINUE"));
     assertTrue(continued.accepted(), continued.toString());
     assertEquals(RequirementCaptureResult.NextAction.HANDOFF, continued.nextAction());

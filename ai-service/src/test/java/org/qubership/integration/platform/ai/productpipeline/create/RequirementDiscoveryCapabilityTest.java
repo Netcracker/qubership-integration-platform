@@ -113,6 +113,40 @@ import org.qubership.integration.platform.ai.qipknowledge.skill.CipKnowledgeCapa
 class RequirementDiscoveryCapabilityTest {
 
   @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void interpretationReportTakesPrecedenceOverClarification(boolean terminalException) {
+    String chat = "discovery-interpretation";
+    var store = new RequirementDraftStore();
+    var draft = RequirementFactFixtures.greetingsApprovedDraft();
+    store.put(chat, draft);
+    var report = new org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceOmission(
+        "source-turn", "Call the uploaded operation.", "The chosen direct HTTP mode conflicts with the source.",
+        org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceDiscrepancyKind.INTERPRETATION_CONFLICT,
+        "", "/capabilities/call/type", "\"http-sender\"", "\"service-call\"");
+    var review = new org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool.SourceReview(
+        "generation", "source-hash",
+        org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(draft), List.of(report));
+    var capability = new RequirementDiscoveryCapability(null, store, (cid, text) -> {
+      ProductCapabilityCaptureContext.binding(cid).orElseThrow().onCandidate().accept(review);
+      store.finishTurn(cid, RequirementDiscoveryDirective.STAY);
+      return terminalException
+          ? Multi.createFrom().failure(new org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException("terminal"))
+          : Multi.createFrom().empty();
+    });
+
+    var outcome = capability.execute(new StageExecutionContext("run", chat, "requirement-discovery",
+        "execution", "attempt", null, null, List.of(), Map.of("userText", "Call the uploaded operation.")))
+        .collect().asList().await().indefinitely().stream().filter(CapabilitySignal.Completed.class::isInstance)
+        .map(CapabilitySignal.Completed.class::cast).findFirst().orElseThrow().outcome();
+
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, outcome.outcomeClass());
+    assertEquals(review, outcome.recoveryCause().sourceReview());
+    assertEquals(draft, outcome.candidates().getFirst().payload());
+    assertEquals(CompilationArtifacts.Kind.REQUIREMENT_DRAFT, outcome.candidates().getFirst().kind());
+    assertEquals(draft, store.get(chat).orElseThrow());
+  }
+
+  @ParameterizedTest
   @ValueSource(strings = {"guessed-for-trigger", "guessed-for-outbound", "unrelated-properties",
       "author-supplied", "mismatched-author-schema", "invalid-author-schema", "author-json-array"})
   void shouldResolveRequestSchemaForCopy(String schemaSource) throws Exception {
@@ -312,6 +346,25 @@ class RequirementDiscoveryCapabilityTest {
         .map(CapabilitySignal.Completed.class::cast).findFirst().orElseThrow().outcome();
     assertEquals(technical ? StageOutcomeClass.CONTRACT_FAILURE : StageOutcomeClass.NEEDS_INPUT, outcome.outcomeClass());
     assertEquals(policy, h.store().get(chat).orElseThrow().facts().getFirst().policyConflict());
+  }
+
+  @Test
+  void unauthorizedDiscussionRecoveryRequestsContinuationWithoutFactRewrites() {
+    var store = org.mockito.Mockito.spy(new RequirementDraftStore());
+    org.mockito.Mockito.doReturn(true).when(store).unauthorizedDiscussionNeedsContinuation("directive-repair");
+    var request = new AtomicReference<String>();
+    var capability = new RequirementDiscoveryCapability(null, store, (chat, text) -> {
+      request.set(text);
+      return Multi.createFrom().empty();
+    });
+    var attrs = Map.<String, Object>of(
+        org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR,
+        "DISCUSSION_NOT_AUTHORIZED at /directive");
+    capability.execute(new StageExecutionContext("directive-run", "directive-repair", "requirement-discovery",
+        "execution", "attempt", null, null, List.of(), attrs)).collect().asList().await().indefinitely();
+    assertNotNull(request.get());
+    assertTrue(request.get().contains("The accepted draft is ready. Finish with CONTINUE"), request.get());
+    assertFalse(request.get().contains("Correct the affected capture fields"), request.get());
   }
 
   @Test
@@ -3720,8 +3773,8 @@ class RequirementDiscoveryCapabilityTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"yes", "no"})
-  void idsPathChoiceIsStoredWithoutAnotherDiscoveryTurn(String choice) {
+  @org.junit.jupiter.params.provider.CsvSource({"yes,false", "no,false", "yes,true", "no,true"})
+  void idsPathChoiceIsStoredWithoutAnotherDiscoveryTurn(String choice, boolean repair) {
     RequirementDraftStore store = new RequirementDraftStore();
     AtomicInteger discoveryTurns = new AtomicInteger();
     RequirementDraft undecided = petstoreServiceCallDraft();
@@ -3755,6 +3808,16 @@ class RequirementDiscoveryCapabilityTest {
             Map.of("userText", "Call Petstore Ext GET /pets for pending pets."));
     capability.execute(initial).collect().asList().await().indefinitely();
 
+    var answerAttributes = new java.util.HashMap<String, Object>();
+    answerAttributes.put("userText", choice);
+    answerAttributes.put("admittedInputGate", PipelineGates.IDS_PATH_CHOICE);
+    answerAttributes.put("admittedInputRevision", 2L);
+    if (repair) {
+      answerAttributes.put(org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR,
+          "Previous requirement repair");
+      answerAttributes.put(org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport.STAGE_ERROR_CAUSE_CODE_ATTR,
+          "MISSING_BRIEF_FACTS");
+    }
     StageExecutionContext answer =
         new StageExecutionContext(
             "run-ids-choice",
@@ -3765,8 +3828,7 @@ class RequirementDiscoveryCapabilityTest {
             withBypass,
             null,
             List.of(),
-            Map.of("userText", choice, "admittedInputGate", PipelineGates.IDS_PATH_CHOICE,
-                "admittedInputRevision", 2L));
+            answerAttributes);
     List<CapabilitySignal> signals =
         capability.execute(answer).collect().asList().await().indefinitely();
     StageOutcome outcome =
@@ -3830,6 +3892,61 @@ class RequirementDiscoveryCapabilityTest {
       assertEquals("Review the saved sources and capture a scoped author question before waiting for more input.",
           outcome.message());
       assertFalse(outcome.message().contains("Which endpoint should receive the request?"));
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void readyStayHandsOffAutomaticallyButKeepsAuthorDiscussionPaused(boolean discussion) throws Exception {
+    var h = captureHarness(null);
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var input = new DraftInput(new FlowInput(List.of(
+        new InteractionInput("entry", Direction.INBOUND, "Caller", "POST /orders", null, null, null),
+        new InteractionInput("submit", Direction.OUTBOUND, "https://example.com/orders", "POST", null, null, null)),
+        List.of(new TransitionInput("entry", "submit"))),
+        List.of(new FactInput("goal", List.of(), FactKind.GOAL, Polarity.POSITIVE, "Forward the order."),
+            nativeAnchorFact("entry", "http-trigger"), nativeAnchorFact("submit", "http-sender")),
+        List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.POST,
+                "/orders", null, null, null),
+            new CapabilityInput("submit", "http-sender", null, HttpMethod.POST,
+                "https://example.com/orders", null, null, null)),
+        List.of(), new DraftSettings(false, null));
+    var finished = new AtomicReference<org.qubership.integration.platform.ai.plan.RequirementCaptureResult>();
+    var capability = new RequirementDiscoveryCapability(null, h.store(), (chat, text) -> {
+      try {
+        var captured = mapper.readValue(h.tools().captureRequirementDraft(input),
+            org.qubership.integration.platform.ai.plan.RequirementCaptureResult.class);
+        assertTrue(captured.accepted(), captured.toString());
+        finished.set(mapper.readValue(h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY),
+            org.qubership.integration.platform.ai.plan.RequirementCaptureResult.class));
+      } catch (java.io.IOException error) {
+        throw new AssertionError(error);
+      }
+      return Multi.createFrom().empty();
+    });
+    capability.captureTools = h.tools();
+    var attrs = new java.util.HashMap<String, Object>();
+    attrs.put("userText", "Receive POST /orders and send to https://example.com/orders. Proceed without IDS.");
+    if (discussion) {
+      attrs.put("admittedInputGate", PipelineGates.STAGE_CLARIFICATION);
+      attrs.put("admittedInputRevision", 1L);
+    } else {
+      attrs.put(org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR,
+          "Repair the saved requirements.");
+    }
+    var outcome = capability.execute(new StageExecutionContext("stay-run", "stay-chat", "requirement-discovery",
+        "exec", "attempt", null, null, List.of(), attrs)).collect().asList().await().indefinitely().stream()
+        .filter(CapabilitySignal.Completed.class::isInstance).map(CapabilitySignal.Completed.class::cast)
+        .findFirst().orElseThrow().outcome();
+    assertTrue(finished.get().accepted(), finished.get().toString());
+    assertEquals(discussion ? "DISCUSS" : "HANDOFF", finished.get().nextAction().name());
+    assertEquals(discussion ? StageOutcomeClass.NEEDS_INPUT : StageOutcomeClass.CANDIDATE,
+        outcome.outcomeClass(), outcome.toString());
+    if (discussion) {
+      assertEquals(PipelineGates.REQUIREMENT_DRAFT_READY, PipelineGates.gateOf(outcome.message()).orElseThrow());
+    } else {
+      assertTrue(outcome.candidates().stream().anyMatch(candidate -> candidate.kind()
+          == CompilationArtifacts.Kind.REQUIREMENT_DRAFT), outcome.toString());
     }
   }
 

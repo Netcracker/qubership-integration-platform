@@ -43,7 +43,8 @@ public final class MessageSchemaContract {
     var supplied = new HashSet<String>();
     for (FactInput fact : draft.facts()) {
       if (fact.polarity() != RequirementCaptureInput.Polarity.POSITIVE) continue;
-      if (fact.fieldMapping() != null && fact.fieldMapping().value() instanceof MappingValue.Copy copy
+      if (fact.fieldMapping() != null && !RequirementMappingCapture.confirmedBodyPassthrough(draft, fact)
+          && fact.fieldMapping().value() instanceof MappingValue.Copy copy
           && copy.source() instanceof MappingSource.Message message) {
         origins.add(message.interactionId());
       }
@@ -53,6 +54,25 @@ public final class MessageSchemaContract {
     }
     return draft.capabilities().stream().filter(MessageSchemaContract::customHttp)
         .filter(owner -> origins.contains(owner.interactionId()) && !supplied.contains(owner.interactionId())).toList();
+  }
+
+  static List<CapabilityInput> requiredCopySchemas(DraftInput draft) {
+    return missingCopySchemas(draft).stream().filter(owner -> draft.facts().stream()
+        .filter(fact -> fact.polarity() == RequirementCaptureInput.Polarity.POSITIVE)
+        .filter(fact -> !RequirementMappingCapture.confirmedBodyPassthrough(draft, fact))
+        .map(FactInput::fieldMapping).filter(Objects::nonNull)
+        .filter(mapping -> mapping.value() instanceof MappingValue.Copy copy
+            && copy.source() instanceof MappingSource.Message message
+            && owner.interactionId().equals(message.interactionId()))
+        .anyMatch(mapping -> !catalogRequestCopy(draft, mapping)))
+        .toList();
+  }
+
+  private static boolean catalogRequestCopy(DraftInput draft, RequirementCaptureInput.FieldMappingInput mapping) {
+    return RequirementMappingCapture.catalogRequest(draft, mapping.targetInteractionId())
+        && draft.flow().transitions().stream().anyMatch(edge ->
+            mapping.sourceInteractionId().equals(edge.sourceInteractionId())
+                && mapping.targetInteractionId().equals(edge.targetInteractionId()));
   }
 
   static DraftInput withInitialClarification(DraftInput draft, AuthorSourceEvidence.Packet source,
@@ -67,13 +87,18 @@ public final class MessageSchemaContract {
         || quotedSchemaInput(fact, source)).toList();
     var partial = new DraftInput(draft.flow(), facts, draft.capabilities(), draft.openQuestions(), draft.settings());
     if (!RequirementCaptureEditor.initialize(partial).accepted()) return draft;
-    var missing = missingCopySchemas(partial).stream()
-        .filter(owner -> owner.httpMethod() != null && owner.path() != null && !owner.path().isBlank()).toList();
+    var missing = missingCopySchemas(partial);
     if (missing.isEmpty()) return draft;
-    var questions = new ArrayList<>(partial.openQuestions());
+    var required = requiredCopySchemas(partial);
+    var questions = new ArrayList<>(partial.openQuestions().stream()
+        .filter(question -> question.evidence() == null || !"requestSchema".equals(question.evidence().propertyKey())
+            || missing.stream().noneMatch(owner -> owner.interactionId().equals(question.evidence().interactionId())
+                && !required.contains(owner)))
+        .toList());
     boolean multipleRoutes = partial.capabilities().stream().filter(MessageSchemaContract::customHttp).count() > 1;
     var usedIds = questions.stream().map(QuestionInput::questionId).collect(Collectors.toSet());
-    for (CapabilityInput owner : missing) {
+    for (CapabilityInput owner : required) {
+      if (owner.httpMethod() == null || owner.path() == null || owner.path().isBlank()) continue;
       var evidence = new AuthorQuestionEvidence(owner.interactionId(), "requestSchema",
           AuthorQuestionEvidence.Kind.MISSING_VALUE, reviewedInputIds);
       boolean present = questions.stream().anyMatch(question -> question.evidence() != null
@@ -87,6 +112,28 @@ public final class MessageSchemaContract {
       }
     }
     return new DraftInput(partial.flow(), facts, partial.capabilities(), List.copyOf(questions), partial.settings());
+  }
+
+  static DraftInput withoutUnconfirmedRuntimeSchemas(DraftInput draft, RequirementDraft previous,
+      AuthorSourceEvidence.Packet source) {
+    if (source.inputs().isEmpty() || source.inputs().stream().map(AuthorSourceEvidence.Input::text)
+        .filter(Objects::nonNull).anyMatch(MessageSchemaContract::containsSchema)) {
+      return draft;
+    }
+    List<FactInput> unconfirmed = draft.facts().stream()
+        .filter(fact -> fact.kind() == RequirementCaptureInput.FactKind.MESSAGE_SCHEMA
+            && !quotedSchemaInput(fact, source)
+            && (previous == null || previous.authoredDraft() == null || !previous.authoredDraft().facts().contains(fact)))
+        .toList();
+    if (unconfirmed.isEmpty()) return draft;
+    var partial = new DraftInput(draft.flow(), draft.facts().stream()
+        .filter(fact -> !unconfirmed.contains(fact)).toList(), draft.capabilities(), draft.openQuestions(), draft.settings());
+    var required = requiredCopySchemas(partial);
+    var runtimeOwners = missingCopySchemas(partial).stream().filter(owner -> !required.contains(owner))
+        .map(CapabilityInput::interactionId).collect(Collectors.toSet());
+    var facts = draft.facts().stream().filter(fact -> !unconfirmed.contains(fact)
+        || fact.interactionIds().size() != 1 || !runtimeOwners.contains(fact.interactionIds().getFirst())).toList();
+    return new DraftInput(draft.flow(), facts, draft.capabilities(), draft.openQuestions(), draft.settings());
   }
 
   static Optional<FactInput> answer(DraftInput draft, QuestionInput question, String turnId, String text) {
@@ -173,7 +220,7 @@ public final class MessageSchemaContract {
         && turn.text() != null && turn.text().contains(evidence.quote()));
   }
 
-  private static boolean containsSchema(String text) {
+  static boolean containsSchema(String text) {
     int start = text.indexOf('{');
     if (start < 0 || !text.contains("\"properties\"") && !text.contains("\\u")) return false;
     char[] chars = text.toCharArray();
@@ -211,6 +258,19 @@ public final class MessageSchemaContract {
         .map(CapabilityInput::interactionId)
         .toList();
     return namedRoutes.equals(fact.interactionIds());
+  }
+
+  public static boolean isCustomHttp(org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief brief,
+      String interactionId) {
+    return brief.flow().interaction(interactionId)
+        .filter(interaction -> interaction.direction()
+            == org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction.INBOUND)
+        .filter(interaction -> brief.facts().stream().anyMatch(fact -> fact.kind() == RequirementFactKind.CAPABILITY
+            && fact.polarity() == RequirementFactPolarity.POSITIVE && "http-trigger".equals(fact.capabilityKey())
+            && fact.interactionIds().contains(interactionId)))
+        .filter(interaction -> RequirementFlowValidator.catalogLookupAction(interaction, brief.facts())
+            == RequirementFlowValidator.LookupAction.SKIP)
+        .isPresent();
   }
 
   public static Optional<MappingSchemaSide> requestSchema(List<RequirementFact> facts, String interactionId) {

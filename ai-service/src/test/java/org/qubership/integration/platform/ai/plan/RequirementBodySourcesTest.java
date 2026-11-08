@@ -56,6 +56,61 @@ class RequirementBodySourcesTest {
     }
   }
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {
+      "Combine the results from the two API calls into the response.",
+      "Normalize the incoming data before forwarding it.",
+      "Retain the earlier response until the final result is assembled."
+  })
+  void shouldClassifyBehaviorWithoutRequiringCandidateCodeOrAModelAuthorityFlag(String authorSource) {
+    var intent = intent("generated-step", null);
+    var result = RequirementBodySources.resolve(intent, List.of(intent), packet(authorSource));
+
+    assertAll(
+        () -> assertNull(result.error()),
+        () -> assertNotNull(result.binding(), "Behavior without supplied code still needs source classification"),
+        () -> assertNull(result.body()));
+    assertAll(
+        () -> assertEquals(Authority.GENERATED_CANDIDATE, result.binding().authority()),
+        () -> assertEquals("source-generation", result.binding().sourceGeneration()),
+        () -> assertEquals("source-turn", result.binding().sourceTurnId()),
+        () -> assertNull(result.binding().startOffset()),
+        () -> assertNull(result.binding().encoding()));
+  }
+
+  @Test
+  void shouldPreserveExactSourceEvenWhenTheCandidateHasNoBodyOrAuthorityFlag() {
+    String code = "  return 'author value'  \n\n";
+    String source = "prepare.script:\n```groovy\n" + code + "```\n";
+    var intent = intent("prepare", null);
+    var result = RequirementBodySources.resolve(intent, List.of(intent), packet(source));
+
+    assertAll(
+        () -> assertNull(result.error()),
+        () -> assertEquals(code, result.body()),
+        () -> assertEquals(Authority.VERBATIM_SOURCE_BODY, result.binding().authority()),
+        () -> assertEquals(code, source.substring(result.binding().startOffset(), result.binding().endOffset())));
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"missing-source", "ambiguous-source", "unbounded-source"})
+  void shouldRejectUnprovenSourceWithoutCandidateBytesOrAModelAuthorityFlag(String defect) {
+    var intent = intent("prepare", null);
+    var source = switch (defect) {
+      case "missing-source" -> new AuthorSourceEvidence.Packet("generation", List.of());
+      case "ambiguous-source" -> packet("prepare.script:\n```groovy\nreturn 'one'\n```\n"
+          + "prepare.script:\n```groovy\nreturn 'two'\n```\n");
+      case "unbounded-source" -> packet("Use this exact script: return 'unbounded'");
+      default -> throw new AssertionError(defect);
+    };
+    var result = RequirementBodySources.resolve(intent, List.of(intent), source);
+
+    assertAll(
+        () -> assertNotNull(result.error(), defect),
+        () -> assertNull(result.binding()),
+        () -> assertNull(result.body()));
+  }
+
   @Test
   void declarationAndOwnerAmbiguityStayUnproven() {
     var prepare = intent("prepare", "candidate");

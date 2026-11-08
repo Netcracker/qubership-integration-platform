@@ -32,6 +32,7 @@ public final class RateLimitErrorClassifier {
   }
 
   public boolean isRateLimit(Throwable t) {
+    if (isQuotaExhausted(t)) return false;
     for (Throwable c = t; c != null; c = c.getCause()) {
       if (c instanceof RateLimitException || c instanceof HttpException http && http.statusCode() == 429) {
         return true;
@@ -41,6 +42,27 @@ public final class RateLimitErrorClassifier {
       }
     }
     return false;
+  }
+
+  public static boolean isQuotaExhausted(Throwable error) {
+    for (Throwable cause = error; cause != null; cause = cause.getCause()) {
+      String message = cause.getMessage();
+      if (message == null) continue;
+      if (message.contains("You have no credits remaining.") || hasQuotaCode(message)) return true;
+    }
+    return false;
+  }
+
+  private static boolean hasQuotaCode(String message) {
+    int bodyStart = message.indexOf('{');
+    if (bodyStart < 0) return false;
+    try {
+      JsonNode error = JSON.readTree(message.substring(bodyStart)).path("error");
+      return "insufficient_quota".equals(error.path("code").asText())
+          || "insufficient_quota".equals(error.path("type").asText());
+    } catch (com.fasterxml.jackson.core.JsonProcessingException malformed) {
+      return false;
+    }
   }
 
   public Optional<Duration> extractWait(Throwable t) {

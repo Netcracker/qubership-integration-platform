@@ -11,6 +11,7 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureToolProvider
  * Gathers requirements from an explicit draft and source packet for each author turn.
  */
 @RegisterAiService(
+    toolHallucinationStrategy = org.qubership.integration.platform.ai.llm.tool.RecoverableToolNameStrategy.class,
     toolProviderSupplier = RequirementCaptureToolProvider.ProviderSupplier.class,
     chatMemoryProviderSupplier = RegisterAiService.NoChatMemoryProviderSupplier.class,
     maxSequentialToolInvocations = 10)

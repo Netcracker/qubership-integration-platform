@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.ai.plan;
 
+import static org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures.assertAuthoredContentEquals;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -87,15 +89,15 @@ class RequirementFailureConsistencyProviderTest {
           assertTrue(refusal.path("issues").toString().contains("/draft/flow/interactions/remote/failureMode"));
           var attempt = artifacts.latest(sessions.active(chat), CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_ATTEMPT).orElseThrow();
           assertEquals(refusal.path("issues"), attempt.payload().path("issues"));
-          if (lateBinding) assertEquals(original, drafts.get(chat).orElseThrow().authoredDraft());
+          if (lateBinding) assertAuthoredContentEquals(original, drafts.get(chat).orElseThrow().authoredDraft());
           else assertEquals("PROPAGATE", attempt.payload().at("/arguments/flow/interactions/1/failureMode").asText());
         }, lateBinding ? "updateRequirementDraft" : "captureRequirementDraft", json.writeValueAsString(lateBinding
             ? Map.of("changes", RequirementFailureConsistencyAdmissionTest.update(RequirementFailureConsistencyAdmissionTest.mode(ServiceCallFailureMode.INLINE_RESPONSE)))
             : Map.of("draft", corrected))),
         Turn.tool("corrected-mode", request -> {
           assertTrue(lastTool(request).path("accepted").asBoolean(), lastTool(request).toString());
-          assertEquals(corrected, drafts.get(chat).orElseThrow().authoredDraft());
-          assertEquals(original.facts(), drafts.get(chat).orElseThrow().authoredDraft().facts());
+          assertAuthoredContentEquals(corrected, drafts.get(chat).orElseThrow().authoredDraft());
+          assertAuthoredContentEquals(original.facts(), drafts.get(chat).orElseThrow().authoredDraft().facts());
         }, "finishRequirementDiscoveryTurn", "{\"directive\":\"CONTINUE\"}"),
         Turn.text("continued", request -> assertTrue(lastTool(request).path("accepted").asBoolean(), lastTool(request).toString()), "Requirements are ready."));
     doAnswer(call -> { script.chat((ChatRequest) call.getArgument(0), (StreamingChatResponseHandler) call.getArgument(1)); return null; })

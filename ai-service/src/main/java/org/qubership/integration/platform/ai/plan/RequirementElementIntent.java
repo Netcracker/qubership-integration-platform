@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonAlias;
 import java.util.List;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 
-/** Author-supplied element placement and values, separate from business interactions. */
+/** Element realization and requested values attached to an author fact. */
 public record RequirementElementIntent(
     String elementRef,
     String elementType,
@@ -24,8 +24,9 @@ public record RequirementElementIntent(
     List<PlanProperty> requestedProperties,
     List<String> exactValues,
     @NullableCaptureValue(description = "Authority for a requested native script body. Generated code and language hints are"
-        + " implementation candidates, not exact author code. Copy native source classification feedback when a body binding"
-        + " is required. VERBATIM_SOURCE_BODY binds the complete original code value, its owner, native key, generation,"
+        + " implementation candidates, not exact author code. The server derives and saves this metadata from retained"
+        + " author source; use null on new captures. Submitted metadata cannot override source classification."
+        + " VERBATIM_SOURCE_BODY binds the complete original code value, its owner, native key, generation,"
         + " turn, UTF-16 offsets, and encoding; preserve every body character. Never downgrade an author body to generated.")
     RequirementBodyBinding bodyBinding) {
 

@@ -187,7 +187,8 @@ class RequirementBriefProjectorTest {
 
     assertEquals(1, projected.entryPoints().size());
     assertEquals("http-trigger", projected.entryPoints().getFirst().capabilityKey());
-    assertTrue(projected.entryPoints().getFirst().path().isBlank());
+    assertEquals("/tasks", projected.entryPoints().getFirst().path());
+    assertEquals("POST", projected.entryPoints().getFirst().httpMethod());
     assertEquals("retrieveGeographicSite", projected.entryPoints().getFirst().operation());
     assertEquals("op-geo", projected.catalogBindings().getFirst().integrationOperationId());
   }
@@ -701,7 +702,7 @@ class RequirementBriefProjectorTest {
             "spec-om",
             "op-start",
             "kafka",
-            "publish",
+            "send",
             "env05-bss.task.wfms_createWorkOrder.start",
             observedAt);
     CatalogBindingHint createHint =
@@ -727,7 +728,7 @@ class RequirementBriefProjectorTest {
             "spec-om",
             "op-result",
             "kafka",
-            "subscribe",
+            "receive",
             "env05-bss.order.command.queue",
             observedAt);
     MappingIntent response =

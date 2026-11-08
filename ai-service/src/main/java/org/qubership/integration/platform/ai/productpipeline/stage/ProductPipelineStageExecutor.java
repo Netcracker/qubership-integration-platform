@@ -327,7 +327,6 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
               }
               return executeRunningStage(runId, doc);
             })
-        .map(result -> enforceResourcePause(runId, result))
         .invoke(
             result ->
                 LOG.infof(
@@ -354,8 +353,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     ProductPipelineRunDocument doc = requireRun(runId);
     var signals = result.signals().stream().filter(signal -> signal instanceof PipelineSignal.SkillProgress
         || signal instanceof PipelineSignal.Progress || signal instanceof PipelineSignal.Message).toList();
-    return handleOutcome(runId, currentStage(doc),
-        StageOutcome.of(StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE, refusal), signals);
+    return resourcePause(doc, currentStage(doc), List.of(), refusal, new ArrayList<>(signals));
   }
 
   /**
@@ -433,12 +431,6 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     if (llmBudget != null) { llmBudget.linkConversation(runId, doc.run().conversationId()); }
     ProductPipelineProfile profile = profilesByRun.get(runId);
     ProfileStage stage = currentStage(doc);
-    if (llmBudget != null && llmBudget.state(runId).refusal() != null) {
-      settlePendingRecoveryAttempt(runId, stage, llmBudget.state(runId).requests());
-      return Uni.createFrom().item(handleOutcome(runId, stage,
-          StageOutcome.of(StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE, "Model resources require another allowance."),
-          List.of()));
-    }
     if (stage.bypass() != null) {
       return Uni.createFrom().item(executeBypass(runId, doc, stage));
     }
@@ -516,7 +508,9 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     if (recoveryControl != null) recoveryControl.stageStarted(context);
     putRunAttribute(runId, ProductPipelineRunSupport.RECOVERY_INVOCATION_ATTR,
         recoveryJson(new ProducerInvocation(attemptId, stage.stageId(), inputs, nativeRequirementBaseline(doc, stage))));
-    long requestsBefore = llmBudget == null ? -1L : llmBudget.state(runId).requests();
+    var budgetBefore = llmBudget == null ? null : llmBudget.state(runId);
+    long requestsBefore = budgetBefore == null ? -1L : budgetBefore.requests();
+    var refused = llmBudget == null ? null : llmBudget.watchRefusals(runId);
     return io.smallrye.mutiny.Multi.createFrom().deferred(() -> capability.execute(context))
         .onItem()
         .invoke(signal -> forwardLiveSkillProgress(runId, signal))
@@ -538,7 +532,23 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             })
         .map(signals -> {
           settlePendingRecoveryAttempt(runId, stage, requestsBefore);
-          return handleCapabilitySignals(runId, stage, signals);
+          var budgetAfter = llmBudget == null ? null : llmBudget.state(runId);
+          boolean resourceFailure = budgetAfter != null && budgetAfter.refusal() != null
+              && (budgetBefore.refusal() == null || budgetAfter.requests() != requestsBefore || refused.get());
+          if (resourceFailure) {
+            var outcome = requireSingleCompleted(signals);
+            var refs = appendCandidates(runId, stage, resolveProducedCandidates(stage, outcome.candidates()));
+            return resourcePause(requireRun(runId), stage, refs, budgetAfter.refusal(), liveSignals(runId, stage, signals));
+          }
+          var result = handleCapabilitySignals(runId, stage, signals);
+          var finalBudget = llmBudget == null ? null : llmBudget.state(runId);
+          if (finalBudget != null && finalBudget.refusal() != null
+              && (budgetBefore.refusal() == null || finalBudget.requests() != requestsBefore || refused.get())) {
+            return enforceResourcePause(runId, result);
+          }
+          return result;
+        }).eventually(() -> {
+          if (llmBudget != null) llmBudget.stopWatchingRefusals(runId, refused);
         });
   }
 
@@ -562,6 +572,9 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
    * better message instead of reaching here.
    */
   private static StageOutcome outcomeOf(Throwable failure) {
+    if (org.qubership.integration.platform.ai.llm.ratelimit.RateLimitErrorClassifier.isQuotaExhausted(failure)) {
+      return StageOutcome.technicalFailure(failure);
+    }
     var capture = StageOutcome.captureFailure(failure);
     if (capture.isPresent()) return capture.get();
     if (org.qubership.integration.platform.ai.llm.ratelimit.LlmRequestBudget.isOverflow(failure)) {
@@ -663,6 +676,10 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       failedSkill = "";
     }
     putRunAttribute(runId, ProductPipelineRunSupport.STAGE_ERROR_FAILED_SKILL_ATTR, failedSkill);
+    return handleOutcome(runId, stage, outcome, liveSignals(runId, stage, signals));
+  }
+
+  private List<PipelineSignal> liveSignals(String runId, ProfileStage stage, List<CapabilitySignal> signals) {
     List<PipelineSignal> live = new ArrayList<>();
     for (CapabilitySignal signal : signals) {
       if (signal instanceof CapabilitySignal.SkillProgress skillProgress) {
@@ -678,7 +695,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         live.add(new PipelineSignal.Message(message.text()));
       }
     }
-    return handleOutcome(runId, stage, outcome, live);
+    return live;
   }
 
   private StageExecutionResult executeNoOutputSkip(String runId, ProfileStage stage) {
@@ -761,12 +778,6 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       List<PipelineSignal> live) {
     ProductPipelineRunDocument doc = requireRun(runId);
     List<PipelineSignal> emitted = new ArrayList<>(live);
-    String resourceRefusal = llmBudget == null ? null : llmBudget.state(runId).refusal();
-    if (resourceRefusal != null) {
-      String reason = resourceRefusal;
-      List<Reference> refs = appendCandidates(runId, stage, resolveProducedCandidates(stage, outcome.candidates()));
-      return resourcePause(doc, stage, refs, reason, emitted);
-    }
     return switch (outcome.outcomeClass()) {
       case NEEDS_INPUT -> {
         if (outcome.recoveryCause() != null && java.util.Set.of(
@@ -877,6 +888,9 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         commitStatus(doc, RunStatus.RUNNING, StageStatus.SUCCEEDED, updated, outcome.message());
         yield new StageExecutionResult(new StageDecision.Continue(stage.stageId()), emitted);
       }
+      case PROVIDER_QUOTA_EXHAUSTED -> haltRecoverable(
+          doc, stage, List.of(), outcome.outcomeClass(), outcome.message(), outcome.candidates(), emitted,
+          false, false, outcome.recoveryCause(), null);
       case RETRYABLE_TECHNICAL_FAILURE -> {
         String key = stageRetryKey(runId, stage.stageId());
         int used = ProductPipelineRunSupport.consecutiveTechnicalRetries(
@@ -1093,6 +1107,10 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         ProductPipelineRunSupport.STAGE_ERROR_REQUESTED_FACT_ATTR,
         cause.requestedFact());
     putRunAttribute(doc.run().runId(), ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR, "");
+    if (outcomeClass == StageOutcomeClass.PROVIDER_QUOTA_EXHAUSTED) {
+      return waitContextualRecovery(
+          doc, stage, refs, PipelineGates.RECOVERY_RETRY_TECHNICAL, message, evidence, null, emitted);
+    }
     if (outcomeClass == StageOutcomeClass.POLICY_FAILURE) {
       String diagnostic = findings.isBlank() ? evidence : findings;
       String evidenceWithRun = diagnostic + " (runId=" + doc.run().runId() + ")";
@@ -1132,8 +1150,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     Optional<ReportedDraftDefect> reportedDraftOwner = producerRepairAllowed
         ? reportedDraftOwner(doc, stage, refs, cause) : Optional.empty();
     if (cause.sourceReview() != null && cause.sourceReview().omissions().stream().anyMatch(report -> report.kind()
-        == org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceDiscrepancyKind.UNSUPPORTED_ADDITION)
-        && provisionalSourceRestoration(doc.run().runId()) == null) {
+        != org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceDiscrepancyKind.OMITTED_REQUIREMENT)
+        && provisionalSourceRestoration(doc.run().runId(), refs) == null) {
       return waitContextualRecovery(doc, stage, refs, PipelineGates.RECOVERY_REPEATED,
           "The source correction does not match the preserved draft and review boundary. Progress is saved.",
           evidence, null, emitted);
@@ -1187,7 +1205,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       var defect = reportedDraftOwner.get();
       recovery = new ProducerOwnedRecovery.Route(
           catalogHasBeenWritten(doc.run().runId()) ? ProducerOwnedRecovery.Action.PARK
-              : ProducerOwnedRecovery.Action.REOPEN_UPSTREAM, defect.owner());
+              : defect.owner().equals(stage.stageId()) ? ProducerOwnedRecovery.Action.REPAIR_CURRENT
+                  : ProducerOwnedRecovery.Action.REOPEN_UPSTREAM, defect.owner());
       RecoveryCause draftCause = new RecoveryCause(cause.causeCode(), defect.findings(), cause.requestedFact(), cause.noProgress(), cause.captureFailure(), cause.sourceReview());
       putRunAttribute(doc.run().runId(), ProductPipelineRunSupport.STAGE_ERROR_CAUSE_JSON_ATTR,
           ProductPipelineRunSupport.recoveryCauseJson(draftCause));
@@ -1209,6 +1228,9 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
           recoveryLedger.key(
               recovery.producerStageId(), budgetCause, ownerArtifact, doc.transitions());
       if (recoveryLedger.mayRepair(doc.transitions(), key, InputOrigin.TRUSTED)) {
+        if (cause.sourceReview() != null) {
+          putRunAttribute(doc.run().runId(), ProductPipelineRunSupport.RECOVERY_PREPARING_OWNER_ATTR, stage.stageId());
+        }
         recordProducerRepairAttempt(
             doc, stage, refs, recoveryLedger.recordRepair(key, ownerArtifact));
         emitted.add(new PipelineSignal.Progress(stage.stageId(), "Repairing rejected output"));
@@ -2605,7 +2627,26 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       return Optional.empty();
     }
     Revision draftRevision = committedArtifactRevision(doc, Kind.REQUIREMENT_DRAFT);
+    boolean sourceOwnerReview = cause.sourceReview() != null && !cause.sourceReview().omissions().isEmpty()
+        && cause.sourceReview().omissions().stream().allMatch(report -> report.kind()
+            == cause.sourceReview().omissions().getFirst().kind())
+        && cause.sourceReview().omissions().getFirst().kind()
+            != org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceDiscrepancyKind.UNSUPPORTED_ADDITION;
+    if (sourceOwnerReview && (draftRevision == null
+        || !org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(
+            artifactStore.payload(draftRevision, RequirementDraft.class)).equals(cause.sourceReview().draftHash()))) {
+      draftRevision = refs.stream().filter(ref -> ref.kind() == Kind.REQUIREMENT_DRAFT)
+          .map(ref -> artifactStore.get(doc.run().runId(), ref).orElse(null)).filter(Objects::nonNull)
+          .filter(revision -> org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(
+              artifactStore.payload(revision, RequirementDraft.class)).equals(cause.sourceReview().draftHash()))
+          .findFirst().orElse(null);
+    }
     if (draftRevision == null) return Optional.empty();
+    if (sourceOwnerReview && org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(
+        artifactStore.payload(draftRevision, RequirementDraft.class)).equals(cause.sourceReview().draftHash())) {
+      return requirementDraftOwner(doc.run().runId(), profilesByRun.get(doc.run().runId()), draftRevision)
+          .map(owner -> new ReportedDraftDefect(owner, cause.findings()));
+    }
     Revision briefRevision = rejectedArtifactRefs(refs).stream()
         .filter(ref -> ref.kind() == Kind.REQUIREMENT_BRIEF)
         .map(ref -> rejectedArtifactRevision(doc.run().runId(), ref).orElse(null))
@@ -3678,6 +3719,11 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
 
   private org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool.SourceReview provisionalSourceRestoration(
       String runId) {
+    return provisionalSourceRestoration(runId, List.of());
+  }
+
+  private org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool.SourceReview provisionalSourceRestoration(
+      String runId, List<Reference> pendingRefs) {
     Object encoded = attributesByRun.getOrDefault(runId, Map.of())
         .get(ProductPipelineRunSupport.STAGE_ERROR_CAUSE_JSON_ATTR);
     if (!(encoded instanceof String text) || text.isBlank()) return null;
@@ -3688,22 +3734,34 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     var profile = profilesByRun.get(runId);
     if (review == null || profile == null || review.omissions().isEmpty()
         || review.omissions().stream().anyMatch(report -> report.kind()
-            != org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceDiscrepancyKind.UNSUPPORTED_ADDITION)
-        || review.omissions().stream().map(report -> report.sourceFactId()).distinct().count() != review.omissions().size()
-        || !artifactStore.history(runId, Kind.REQUIREMENT_BRIEF).isEmpty()) return null;
-    if (requirementDrafts == null || requirementDrafts.sourceRestorationBlocked(runId)) return null;
+            == org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceDiscrepancyKind.OMITTED_REQUIREMENT)
+        || review.omissions().stream().map(report -> report.kind() + ":" + report.sourceFactId() + ":" + report.path()).distinct().count() != review.omissions().size()
+        || (review.omissions().stream().anyMatch(report -> report.kind()
+            == org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceDiscrepancyKind.UNSUPPORTED_ADDITION)
+            && !artifactStore.history(runId, Kind.REQUIREMENT_BRIEF).isEmpty())) return null;
+    if (requirementDrafts == null || (review.omissions().stream().anyMatch(report -> report.kind()
+        == org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceDiscrepancyKind.UNSUPPORTED_ADDITION)
+        && requirementDrafts.sourceRestorationBlocked(runId))) return null;
     var document = requireRun(runId);
-    var selected = document.run().stages().stream().filter(snapshot -> profile.stages().stream()
+    boolean interpretationOnly = review.omissions().stream().allMatch(report -> report.kind()
+        == org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceDiscrepancyKind.INTERPRETATION_CONFLICT);
+    var selected = java.util.stream.Stream.concat(interpretationOnly ? pendingRefs.stream() : java.util.stream.Stream.empty(),
+        document.run().stages().stream().filter(snapshot -> profile.stages().stream()
         .anyMatch(stage -> stage.stageId().equals(snapshot.stageId())
             && "requirement-discovery".equals(stage.capabilityId())))
-        .flatMap(snapshot -> snapshot.outputRefs().stream()).filter(ref -> ref.kind() == Kind.REQUIREMENT_DRAFT)
+        .flatMap(snapshot -> interpretationOnly
+            ? java.util.stream.Stream.concat(snapshot.outputRefs().stream(), snapshot.candidateReferences().stream())
+            : snapshot.outputRefs().stream()))
+        .filter(ref -> ref.kind() == Kind.REQUIREMENT_DRAFT)
         .map(ref -> artifactStore.get(runId, ref).orElse(null)).filter(Objects::nonNull)
         .filter(revision -> org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(
             artifactStore.payload(revision, RequirementDraft.class)).equals(review.draftHash()))
         .findFirst().orElse(null);
     if (selected == null || !org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(
         artifactStore.payload(selected, RequirementDraft.class)).equals(review.draftHash())) return null;
-    if (document.run().stages().stream().filter(snapshot -> profile.stages().stream()
+    if (review.omissions().stream().anyMatch(report -> report.kind()
+        == org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceDiscrepancyKind.UNSUPPORTED_ADDITION)
+        && document.run().stages().stream().filter(snapshot -> profile.stages().stream()
         .anyMatch(stage -> stage.stageId().equals(snapshot.stageId())
             && "requirement-discovery".equals(stage.capabilityId())))
         .flatMap(snapshot -> snapshot.candidateReferences().stream()).filter(ref -> ref.kind() == Kind.REQUIREMENT_DRAFT)

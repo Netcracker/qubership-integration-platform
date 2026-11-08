@@ -45,6 +45,53 @@ class BriefCopyMappingValidatorTest {
   }
 
   @Test
+  void localResponseCopyPinsVerifiedOriginAndDerivedOutput() throws Exception {
+    var result = validator(SOURCE, TARGET).validateAndPin(localBrief("result"));
+    assertEquals(List.of(), result.issues());
+    var pins = result.brief().mappingIntents().getFirst().rules().getFirst().schemaPins();
+    org.junit.jupiter.api.Assertions.assertNotNull(pins.get("target"));
+    assertEquals(List.of(), validator(SOURCE, TARGET).validateApproved(result.brief()));
+  }
+
+  @Test
+  void localOutputRequiresAUniqueDeclarationAtTheFinalInteraction() throws Exception {
+    var validator = validator(SOURCE, TARGET);
+    var brief = localBrief("result");
+    assertAll(
+        () -> assertEquals(List.of("MAPPING_SOURCE_UNRESOLVED"), validator.validateAndPin(brief.withFacts(List.of()))
+            .issues().stream().map(ProductRequirementBriefTool.Issue::code).toList()),
+        () -> assertEquals(List.of("MAPPING_SOURCE_UNRESOLVED"), validator.validateAndPin(
+                brief.withFacts(List.of(brief.facts().getFirst(), brief.facts().getFirst())))
+            .issues().stream().map(ProductRequirementBriefTool.Issue::code).toList()),
+        () -> assertEquals(List.of("MAPPING_SOURCE_UNRESOLVED"), validator.validateAndPin(localBrief("call"))
+            .issues().stream().map(ProductRequirementBriefTool.Issue::code).toList()));
+  }
+
+  @Test
+  void changedLocalOriginSchemaInvalidatesTheApprovedOutput() throws Exception {
+    var approved = validator(SOURCE, TARGET).validateAndPin(localBrief("result")).brief();
+    var changed = validator("""
+        {"type":"object","properties":{"processInstanceId":{"type":"string","maxLength":10}}}
+        """, TARGET);
+    assertEquals(List.of("MAPPING_SCHEMA_CHANGED"), changed.validateApproved(approved).stream()
+        .map(ProductRequirementBriefTool.Issue::code).toList());
+  }
+
+  private static RequirementBrief localBrief(String predecessor) {
+    var base = brief("entry", MappingPort.OUTPUT, "$.processInstanceId");
+    var declaration = new RequirementElementIntent("response", "script",
+        RequirementElementIntent.Placement.LOCAL_NODE, "entry", null, predecessor, null,
+        List.of(), List.of());
+    var fact = new RequirementFact("return-fact", RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.FIELD_MAPPING, "", "Return the mapped response.", null, null,
+        null, null, null, null, List.of("entry"), null, declaration);
+    var original = base.mappingIntents().getFirst();
+    var local = new MappingIntent(original.mappingIntentId(), "result", MappingPort.RESPONSE,
+        "response", MappingPort.OUTPUT, original.rules());
+    return base.withFacts(List.of(fact)).withMappingIntents(List.of(local));
+  }
+
+  @Test
   void undeclaredOpenSourceCannotEarnSchemaVerification() throws Exception {
     var result = validator(SOURCE, TARGET).validateAndPin(brief("entry", MappingPort.OUTPUT, "$.processId"));
     assertEquals(List.of("MAPPING_SOURCE_UNRESOLVED"), result.issues().stream()
@@ -110,7 +157,52 @@ class BriefCopyMappingValidatorTest {
   }
 
   @Test
-  void shouldRequireSchemaEvidenceForACustomTriggerAndRejectAnIncompatibleSchema() throws Exception {
+  void directCatalogCopyCanUseRuntimeJsonWithoutAnAuthoredInputSchema() throws Exception {
+    var validator = validator(SOURCE, TARGET);
+    var custom = directCatalogBrief(SOURCE);
+    var noSchema = custom.withFacts(List.of(custom.facts().getFirst()));
+
+    var result = validator.validateAndPin(noSchema);
+
+    assertAll(
+        () -> assertEquals(List.of(), result.issues()),
+        () -> assertEquals("runtime-json:entry",
+            result.brief().mappingIntents().getFirst().rules().getFirst().schemaPins().get("source")),
+        () -> assertEquals(List.of(), validator.validateApproved(result.brief())));
+  }
+
+  @Test
+  void catalogConstraintsThatNeedSourceEvidenceOfferAnInputSchemaQuestion() throws Exception {
+    String source = """
+        {"type":"object","properties":{"processInstanceId":{"type":"string","minLength":3}}}
+        """;
+    String target = """
+        {"type":"object","properties":{"processId":{"type":"string","minLength":3}}}
+        """;
+    var validator = validator(source, target);
+    var custom = directCatalogBrief(source);
+    var result = validator.validateAndPin(custom.withFacts(List.of(custom.facts().getFirst())));
+
+    assertAll(
+        () -> assertEquals(List.of("COPY_INPUT_SCHEMA_REQUIRED"),
+            result.issues().stream().map(ProductRequirementBriefTool.Issue::code).toList()),
+        () -> assertEquals(List.of(new RequirementCaptureProjection.PendingWork("COPY_INPUT_SCHEMA_REQUIRED",
+            "entry", null, "Provide the JSON Schema for the request body of POST /events."
+                + " Use propertyKey=requestSchema for this question.")), result.pendingWork()),
+        () -> assertEquals(List.of(), validator.validateAndPin(custom).issues()));
+  }
+
+  private static RequirementBrief directCatalogBrief(String schema) {
+    var custom = customEntryBrief(schema);
+    var intent = new MappingIntent("entry-copy", "entry", MappingPort.OUTPUT, "result",
+        MappingPort.REQUEST, custom.mappingIntents().getFirst().rules());
+    return custom.withMappingIntents(List.of(intent))
+        .withFlow(new RequirementFlow(List.of(interaction("entry", true), interaction("result", false)),
+            List.of(new RequirementFlow.Transition("entry", "result"))));
+  }
+
+  @Test
+  void retainedCopyUsesTheCatalogFieldTypeAndRejectsAnIncompatibleSuppliedSchema() throws Exception {
     var validator = validator(SOURCE, TARGET);
     var custom = customEntryBrief(SOURCE);
     var noSchema = custom.withFacts(List.of(custom.facts().getFirst()));
@@ -118,8 +210,7 @@ class BriefCopyMappingValidatorTest {
         {"type":"object","properties":{"processInstanceId":{"type":"integer"}}}
         """);
     assertAll(
-        () -> assertEquals(List.of("COPY needs a confirmed request body JSON Schema for entry"),
-            validator.validateAndPin(noSchema).issues().stream().map(ProductRequirementBriefTool.Issue::message).toList()),
+        () -> assertEquals(List.of(), validator.validateAndPin(noSchema).issues()),
         () -> assertEquals(List.of("Mapping origin is unresolved: COPY source and target types are incompatible"),
             validator.validateAndPin(mismatch).issues().stream().map(ProductRequirementBriefTool.Issue::message).toList()));
   }

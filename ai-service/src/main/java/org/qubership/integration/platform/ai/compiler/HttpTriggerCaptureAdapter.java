@@ -33,9 +33,11 @@ final class HttpTriggerCaptureAdapter {
           .filter(candidate -> candidate.nodeId().equals(entry.triggerNodeId()))
           .findFirst().orElse(null);
       RequirementEntryPoint requirement = approved.get(entry.entryPointId());
+      var catalog = catalogBinding(binding, entry.entryPointId());
+      boolean hasEndpoint = catalog.map(hint -> !hint.path().isBlank() && !hint.method().isBlank())
+          .orElse(requirement != null && !requirement.path().isBlank() && !requirement.httpMethod().isBlank());
       if (!(node instanceof SemanticNode.Trigger trigger)
-          || !"http-trigger".equals(trigger.capabilityKey()) || requirement == null
-          || requirement.path().isBlank() || requirement.httpMethod().isBlank()) {
+          || !"http-trigger".equals(trigger.capabilityKey()) || requirement == null || !hasEndpoint) {
         throw new IllegalArgumentException(
             "Approved HTTP path and method are required for " + entry.entryPointId() + ".");
       }
@@ -93,13 +95,24 @@ final class HttpTriggerCaptureAdapter {
         continue;
       }
       RequirementEntryPoint requirement = byNodeId.get(node);
-      triggers.add(new ConfiguredTrigger(
-          role, node, "http-trigger",
-          requirement.httpMethod() + " " + requirement.path(),
-          List.of(
-              new PlanProperty("contextPath", requirement.path()),
-              new PlanProperty("httpMethodRestrict", requirement.httpMethod()),
-              new PlanProperty("externalRoute", endpoint.externalRoute().toString()))));
+      var catalog = catalogBinding(binding, requirement.entryPointId());
+      var properties = new ArrayList<PlanProperty>();
+      if (catalog.isPresent()) {
+        var hint = catalog.orElseThrow();
+        properties.add(new PlanProperty("integrationSystemId", hint.systemId()));
+        properties.add(new PlanProperty("integrationSpecificationGroupId", hint.specificationGroupId()));
+        properties.add(new PlanProperty("integrationSpecificationId", hint.specificationId()));
+        properties.add(new PlanProperty("integrationOperationId", hint.integrationOperationId()));
+        properties.add(new PlanProperty("httpMethodRestrict", hint.method()));
+        properties.add(new PlanProperty("integrationOperationPath", hint.path()));
+      } else {
+        properties.add(new PlanProperty("contextPath", requirement.path()));
+        properties.add(new PlanProperty("httpMethodRestrict", requirement.httpMethod()));
+      }
+      properties.add(new PlanProperty("externalRoute", endpoint.externalRoute().toString()));
+      triggers.add(new ConfiguredTrigger(role, node, "http-trigger",
+          catalog.map(hint -> hint.method() + " " + hint.path())
+              .orElse(requirement.httpMethod() + " " + requirement.path()), List.copyOf(properties)));
       if (!requirement.sourceFactId().isBlank()) {
         factIds.add(requirement.sourceFactId());
       }
@@ -108,6 +121,12 @@ final class HttpTriggerCaptureAdapter {
       throw new Rejection(issues);
     }
     return new ConfiguredTriggerSet(1, triggers, factIds.stream().distinct().toList(), List.of());
+  }
+
+  private static java.util.Optional<org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint>
+      catalogBinding(HttpTriggerCaptureSession.Binding binding, String entryPointId) {
+    return binding.brief().catalogBindings().stream().filter(hint -> entryPointId.equals(hint.interactionId())
+        && "http".equalsIgnoreCase(hint.protocol())).findFirst();
   }
 
   /** Every endpoint defect of one capture, so the model can correct them in one call. */

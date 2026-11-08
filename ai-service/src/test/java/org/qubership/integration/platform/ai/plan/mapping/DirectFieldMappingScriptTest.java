@@ -21,8 +21,12 @@ import org.apache.camel.impl.DefaultCamelContext;
 import org.apache.camel.support.DefaultExchange;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
+import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.RequirementFactKind;
+import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.plan.mapping.envelope.JsonSchemaMessageSchemaFactory;
 import org.qubership.integration.platform.ai.plan.mapping.envelope.MappingEnvelope;
 import org.qubership.integration.platform.ai.plan.mapping.schema.DefaultMappingBoundarySchemaResolver;
@@ -41,6 +45,8 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingValue;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 
 class DirectFieldMappingScriptTest {
   private static final ObjectMapper JSON = new ObjectMapper().registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
@@ -304,6 +310,267 @@ class DirectFieldMappingScriptTest {
     assertThrows(IllegalArgumentException.class, () -> DirectFieldMappingScript.from(legacy, envelope(event, request)));
   }
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"string", "number", "integer", "boolean", "nullable"})
+  void localOutputRetainsEverySupportedScalarSchema(String type) throws Exception {
+    String shape = "nullable".equals(type) ? "[\"string\",\"null\"]" : "\"" + type + "\"";
+    var source = rawSide("entry", MappingPort.OUTPUT, "source", """
+        {"type":"object","properties":{"value":{"type":%s}}}
+        """.formatted(shape));
+    var origin = origin("entry", MappingPort.OUTPUT, "value");
+    var rule = new MappingIntentRule("value", List.of("fact"), "$.result", new MappingValue.Copy(origin),
+        MappingCondition.always(), MappingRuleStatus.PROPOSED).withMissingSourcePolicy("ERROR");
+    var intent = new MappingIntent("local", "call", MappingPort.RESPONSE, "response", MappingPort.OUTPUT,
+        List.of(rule));
+    var output = LocalMappingTarget.outputSchema(intent, Map.of(origin, source));
+    assertEquals(source.schema().path("properties").path("value"), output.schema().path("properties").path("result"));
+    assertEquals(output.sha256(), LocalMappingTarget.outputSchema(intent, Map.of(origin, source)).sha256());
+  }
+
+  @Test
+  void localOutputResolvesSourceFieldReferences() throws Exception {
+    var source = rawSide("entry", MappingPort.OUTPUT, "source", """
+        {"type":"object","properties":{"value":{"$ref":"#/$defs/text"}},
+         "$defs":{"text":{"type":"string","maxLength":12}}}
+        """);
+    var origin = origin("entry", MappingPort.OUTPUT, "value");
+    var rule = new MappingIntentRule("value", List.of("fact"), "$.result", new MappingValue.Copy(origin),
+        MappingCondition.always(), MappingRuleStatus.PROPOSED).withMissingSourcePolicy("ERROR");
+    var intent = new MappingIntent("local", "call", MappingPort.RESPONSE, "response", MappingPort.OUTPUT,
+        List.of(rule));
+    var output = LocalMappingTarget.outputSchema(intent, Map.of(origin, source));
+    assertEquals(JSON.readTree("{\"type\":\"string\",\"maxLength\":12}"),
+        output.schema().path("properties").path("result"));
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"object", "array"})
+  void localOutputRejectsUnsupportedNativeCopySourceTypes(String type) throws Exception {
+    var source = rawSide("entry", MappingPort.OUTPUT, "source", """
+        {"type":"object","properties":{"value":{"type":"%s"}}}
+        """.formatted(type));
+    var origin = origin("entry", MappingPort.OUTPUT, "value");
+    var rule = new MappingIntentRule("value", List.of("fact"), "$.result", new MappingValue.Copy(origin),
+        MappingCondition.always(), MappingRuleStatus.PROPOSED).withMissingSourcePolicy("ERROR");
+    var intent = new MappingIntent("local", "call", MappingPort.RESPONSE, "response", MappingPort.OUTPUT,
+        List.of(rule));
+    assertThrows(IllegalArgumentException.class, () -> LocalMappingTarget.outputSchema(intent, Map.of(origin, source)));
+  }
+
+  @Test
+  void localResponseCombinesThreeOriginalBodiesAfterRetentionInsertion() throws Exception {
+    JsonNode eventSchema = event.schema();
+    JsonNode orderSchema = JSON.readTree("""
+        {"type":"object","properties":{"orderId":{"type":"string"},"orderStatus":{"type":"string"}}}
+        """);
+    JsonNode paymentSchema = JSON.readTree("""
+        {"type":"object","properties":{"paymentId":{"type":"string"},"paymentStatus":{"type":"string"}}}
+        """);
+    artifacts = new CompilationArtifacts(new InMemoryArtifactBlobStore(), JSON, Clock.systemUTC());
+    event = side("onTaskStart", MappingPort.REQUEST, schemaHash(eventSchema), eventSchema.toString());
+    var order = side("orders", MappingPort.RESPONSE, schemaHash(orderSchema), orderSchema.toString());
+    var payment = side("payments", MappingPort.RESPONSE, schemaHash(paymentSchema), paymentSchema.toString());
+    var fields = List.of(
+        new MappingIntentRule("client", List.of("fact-client"), "$.client",
+            new MappingValue.Copy(origin("onTaskStart", MappingPort.OUTPUT, "title")),
+            MappingCondition.always(), MappingRuleStatus.PROPOSED).withMissingSourcePolicy("ERROR"),
+        new MappingIntentRule("correlation", List.of("fact-correlation"), "$.correlationId",
+            new MappingValue.Copy(origin("onTaskStart", MappingPort.OUTPUT, "processInstanceId")),
+            MappingCondition.always(), MappingRuleStatus.PROPOSED).withMissingSourcePolicy("ERROR"),
+        new MappingIntentRule("order", List.of("fact-order"), "$.orderId",
+            new MappingValue.Copy(origin("orders", MappingPort.RESPONSE, "orderId")),
+            MappingCondition.always(), MappingRuleStatus.PROPOSED).withMissingSourcePolicy("ERROR"),
+        new MappingIntentRule("order-status", List.of("fact-order-status"), "$.orderStatus",
+            new MappingValue.Copy(origin("orders", MappingPort.RESPONSE, "orderStatus")),
+            MappingCondition.always(), MappingRuleStatus.PROPOSED).withMissingSourcePolicy("ERROR"),
+        new MappingIntentRule("payment", List.of("fact-payment"), "$.paymentId",
+            new MappingValue.Copy(origin("payments", MappingPort.RESPONSE, "paymentId")),
+            MappingCondition.always(), MappingRuleStatus.PROPOSED).withMissingSourcePolicy("ERROR"),
+        new MappingIntentRule("payment-status", List.of("fact-payment-status"), "$.paymentStatus",
+            new MappingValue.Copy(origin("payments", MappingPort.RESPONSE, "paymentStatus")),
+            MappingCondition.always(), MappingRuleStatus.PROPOSED).withMissingSourcePolicy("ERROR"));
+    var local = new org.qubership.integration.platform.ai.plan.RequirementElementIntent("response", "script",
+        org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.LOCAL_NODE,
+        "onTaskStart", null, "payments", null, List.of(), List.of());
+    var declaration = new RequirementFact("return", RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.FIELD_MAPPING, "", "Return the combined values.", null, null,
+        null, null, null, null, List.of("onTaskStart"), null, local);
+    var flow = new RequirementFlow(List.of(
+        new RequirementFlow.Interaction("onTaskStart", RequirementFlow.Direction.INBOUND, "Caller", "POST /", ""),
+        new RequirementFlow.Interaction("orders", RequirementFlow.Direction.OUTBOUND, "Orders", "POST /", ""),
+        new RequirementFlow.Interaction("payments", RequirementFlow.Direction.OUTBOUND, "Payments", "POST /", "")),
+        List.of(new RequirementFlow.Transition("onTaskStart", "orders"),
+            new RequirementFlow.Transition("orders", "payments")));
+    var unpinned = new MappingIntent("local-result", "payments", MappingPort.RESPONSE,
+        "response", MappingPort.OUTPUT, fields);
+    var origins = Map.of(origin("onTaskStart", MappingPort.OUTPUT, "title"), event,
+        origin("onTaskStart", MappingPort.OUTPUT, "processInstanceId"), event,
+        origin("orders", MappingPort.RESPONSE, "orderId"), order,
+        origin("orders", MappingPort.RESPONSE, "orderStatus"), order,
+        origin("payments", MappingPort.RESPONSE, "paymentId"), payment,
+        origin("payments", MappingPort.RESPONSE, "paymentStatus"), payment);
+    var target = LocalMappingTarget.outputSchema(unpinned, origins);
+    var schemaMaps = Map.of(
+        "op-onTaskStart", new org.qubership.integration.platform.ai.plan.mapping.schema.OperationSchemaMaps(
+            "op-onTaskStart", Map.of("application/json", eventSchema), Map.of()),
+        "op-orders", new org.qubership.integration.platform.ai.plan.mapping.schema.OperationSchemaMaps(
+            "op-orders", Map.of(), Map.of("200", Map.of("application/json", orderSchema))),
+        "op-payments", new org.qubership.integration.platform.ai.plan.mapping.schema.OperationSchemaMaps(
+            "op-payments", Map.of(), Map.of("200", Map.of("application/json", paymentSchema))));
+    var loader = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.plan.mapping.schema.OperationSchemaLoader.class,
+        org.mockito.Mockito.CALLS_REAL_METHODS);
+    org.mockito.Mockito.when(loader.load(org.mockito.ArgumentMatchers.anyString()))
+        .thenAnswer(invocation -> schemaMaps.get(invocation.getArgument(0)));
+    var unpinnedBrief = new RequirementBrief("Return", List.of(), List.of(), List.of(), List.of(), "Return")
+        .withFlow(flow).withFacts(List.of(declaration)).withMappingIntents(List.of(unpinned))
+        .withCatalogBindings(List.of(testBinding("onTaskStart"), testBinding("orders"), testBinding("payments")));
+    var pinning = new org.qubership.integration.platform.ai.plan.BriefCopyMappingValidator(loader, JSON)
+        .validateAndPin(unpinnedBrief);
+    assertEquals(List.of(), pinning.issues());
+    var brief = pinning.brief();
+    var intent = brief.mappingIntents().getFirst();
+    assertEquals(target.sha256(), intent.rules().getFirst().schemaPins().get("target"));
+    var revision = new ChainSemanticRevision(ChainSemanticRevision.CURRENT_SCHEMA_VERSION, "revision", "chain", "1",
+        List.of(), List.of(new SemanticNode.Trigger("node-in", "onTaskStart", "async-api-trigger", null),
+            new SemanticNode.ServiceCall("node-orders", "orders", "orders", null),
+            new SemanticNode.ServiceCall("node-payments", "payments", "payments", null),
+            new SemanticNode.Operation("response", "script", null)), List.of(), List.of(
+            new SemanticExecutionEdge("e1", "node-in", "node-orders", null, null, null),
+            new SemanticExecutionEdge("e2", "node-orders", "node-payments", null, null, null),
+            new SemanticExecutionEdge("e3", "node-payments", "response", null, null, "local-result")),
+        List.of(), List.of(), List.of(), List.of(), List.of());
+    var graph = new ChainPlanGraph("1.0", null, List.of(
+        new ChainPlanNode("node-in", "async-api-trigger", "Entry", null, null, List.of()),
+        new ChainPlanNode("node-orders", "service-call", "Orders", null, null, List.of()),
+        new ChainPlanNode("node-payments", "service-call", "Payments", null, null, List.of()),
+        new ChainPlanNode("response", "script", "Response", null, null,
+            List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty("mappingIntentId", "local-result")))),
+        List.of(new ChainPlanEdge("e1", "node-in", "node-orders", null),
+            new ChainPlanEdge("e2", "node-orders", "node-payments", null),
+            new ChainPlanEdge("e3", "node-payments", "response", null)));
+    graph = CopyRetentionStructurePhase.place(graph, List.of(intent),
+        (ref, port) -> DefaultMappingBoundarySchemaResolver.semanticNodeId(revision, ref, port));
+    assertEquals(2, graph.nodes().stream().filter(CopyMappingPlanner::nativeRetentionSite).count());
+    var localResolver = new DefaultMappingBoundarySchemaResolver(artifacts, COMPILATION,
+        Map.of("node-in", "onTaskStart"), brief);
+    assertEquals(target, localResolver.resolve(revision, List.of(), intent, Map.of()).target());
+    var plans = CopyMappingPlanner.prepare(revision, List.of(intent), localResolver, List.of(),
+        Map.of("response", target), graph);
+    var builder = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.compiler.CompilerSkillContextBuilder.class,
+        invocation -> invocation.getMethod().getReturnType() == String.class ? ""
+            : org.mockito.Answers.RETURNS_DEFAULTS.answer(invocation));
+    var pipeline = new MappingGenerationPipeline(artifacts, JSON, builder);
+    var context = new org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecutionContext(
+        "run", "cip-script-generator", "brief", "graph", "compiler", "1", brief, List.of(), graph,
+        org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwnershipPolicy.denyAll(), "");
+    var triggerBinding = new ResolvedServiceCallBinding("node-in", "onTaskStart", "INTEGRATION",
+        "system", "group", "spec", "op-onTaskStart", "http", "POST", "/", "trigger",
+        ResolvedServiceCallBinding.Source.EXISTING_CATALOG, "1", "evidence", "");
+    var prepared = pipeline.prepare(COMPILATION, "cip-script-generator", revision, List.of(triggerBinding), context);
+    assertEquals(false, prepared.blocked(), prepared.blockedMessage());
+    var envelopes = new LinkedHashMap<String, MappingEnvelope>();
+    for (var stored : artifacts.history(COMPILATION, CompilationArtifacts.Kind.MAPPING_ENVELOPE)) {
+      var envelope = artifacts.payload(stored, MappingEnvelope.class);
+      envelopes.put(envelope.mappingIntentId(), envelope);
+    }
+    assertEquals(target.sha256(), envelopes.get("local-result").verifiedCopyPlan().reads().getFirst().targetSchemaDigest());
+    var materializedNodes = new java.util.ArrayList<ChainPlanNode>();
+    for (var node : graph.nodes()) {
+      String planId = CopyMappingPlanner.nativeRetentionSite(node) ? node.nodeId()
+          : MappingExecutionSite.mappingIntentId(node);
+      var plan = planId == null ? null : plans.get(planId);
+      if (plan == null) {
+        materializedNodes.add(node);
+        continue;
+      }
+      String body = plan.reads().isEmpty() ? DirectFieldMappingScript.saveOnly(plan).script()
+          : DirectFieldMappingScript.from(intent, envelopes.get(intent.mappingIntentId())).orElseThrow().script();
+      var properties = new java.util.ArrayList<>(node.properties());
+      properties.add(new org.qubership.integration.platform.ai.plan.model.PlanProperty("script", body));
+      materializedNodes.add(new ChainPlanNode(node.nodeId(), node.type(), node.label(), node.parentNodeId(),
+          node.order(), properties));
+    }
+    var materialized = new ChainPlanGraph(graph.schemaVersion(), graph.chain(), materializedNodes, graph.edges());
+    new CopyMappingMaterializationValidator(artifacts).validate(COMPILATION, brief, revision, materialized);
+    var exchange = new Exchange(Map.of("title", "original-client", "processInstanceId", "original-correlation"));
+    for (var entry : List.of(origin("onTaskStart", MappingPort.OUTPUT, "title"),
+        origin("orders", MappingPort.RESPONSE, "orderId"))) {
+      if ("orders".equals(entry.interactionId())) exchange.in.body = Map.of("orderId", "original-order", "orderStatus", "created");
+      String save = DirectFieldMappingScript.saveOnly(plans.get(CopyMappingPlanner.retentionSiteId(entry))).script();
+      SecureGroovyMappingCompiler.compile(save);
+      new GroovyShell(new Binding(Map.of("exchange", exchange))).evaluate(save);
+    }
+    exchange.in.body = Map.of("paymentId", "original-payment", "paymentStatus", "approved");
+    assertEquals(Map.of("client", "original-client", "correlationId", "original-correlation", "orderId", "original-order",
+        "orderStatus", "created", "paymentId", "original-payment", "paymentStatus", "approved"),
+        execute(intent, payment, target, plans, exchange));
+    side("orders", MappingPort.RESPONSE, "changed-orders-hash", """
+        {"type":"object","properties":{"orderId":{"type":"string","maxLength":12}}}
+        """);
+    var changed = assertThrows(IllegalStateException.class,
+        () -> new CopyMappingMaterializationValidator(artifacts).validate(COMPILATION, brief, revision, materialized));
+    org.junit.jupiter.api.Assertions.assertTrue(changed.getMessage().contains("Conflicting schema digests"), changed.getMessage());
+  }
+
+  @Test
+  void correctedCapturePinsAndExecutesItsLocalResponse() throws Exception {
+    var unpinned = org.qubership.integration.platform.ai.plan.RequirementRevisionAdmissionTest.correctLocalResponseBrief();
+    JsonNode sourceSchema = JSON.readTree("""
+        {"type":"object","properties":{"status":{"type":"string"}}}
+        """);
+    var loader = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.plan.mapping.schema.OperationSchemaLoader.class,
+        org.mockito.Mockito.CALLS_REAL_METHODS);
+    org.mockito.Mockito.when(loader.load("tasks-operation")).thenReturn(
+        new org.qubership.integration.platform.ai.plan.mapping.schema.OperationSchemaMaps("tasks-operation", Map.of(),
+            Map.of("200", Map.of("application/json", sourceSchema))));
+    var pinned = new org.qubership.integration.platform.ai.plan.BriefCopyMappingValidator(loader, JSON)
+        .validateAndPin(unpinned);
+    assertEquals(List.of(), pinned.issues());
+    var brief = pinned.brief();
+    var intent = brief.mappingIntents().getFirst();
+    assertEquals("response", intent.targetRef());
+    assertEquals(MappingPort.OUTPUT, intent.targetPort());
+    var source = side("call", MappingPort.RESPONSE, schemaHash(sourceSchema), sourceSchema.toString());
+    var revision = new ChainSemanticRevision(ChainSemanticRevision.CURRENT_SCHEMA_VERSION, "revision", "chain", "1",
+        List.of(), List.of(new SemanticNode.Trigger("entry", "entry", "http-trigger", null),
+            new SemanticNode.ServiceCall("call", "call", "tasks", null),
+            new SemanticNode.Operation("response", "script", null)), List.of(), List.of(
+            new SemanticExecutionEdge("entry-call", "entry", "call", null, null, null),
+            new SemanticExecutionEdge("call-response", "call", "response", null, null, intent.mappingIntentId())),
+        List.of(), List.of(), List.of(), List.of(), List.of());
+    var graph = new ChainPlanGraph("1.0", null, List.of(
+        new ChainPlanNode("entry", "http-trigger", "Entry", null, null, List.of()),
+        new ChainPlanNode("call", "service-call", "Call", null, null, List.of()),
+        new ChainPlanNode("response", "script", "Response", null, null,
+            List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty("mappingIntentId", intent.mappingIntentId())))),
+        List.of(new ChainPlanEdge("entry-call", "entry", "call", null),
+            new ChainPlanEdge("call-response", "call", "response", null)));
+    graph = CopyRetentionStructurePhase.placeApproved(graph, brief,
+        (ref, port) -> DefaultMappingBoundarySchemaResolver.semanticNodeId(revision, ref, port));
+    var builder = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.compiler.CompilerSkillContextBuilder.class,
+        invocation -> invocation.getMethod().getReturnType() == String.class ? ""
+            : org.mockito.Answers.RETURNS_DEFAULTS.answer(invocation));
+    var context = new org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecutionContext(
+        "run", "cip-script-generator", "brief", "graph", "compiler", "1", brief, List.of(), graph,
+        org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwnershipPolicy.denyAll(), "");
+    var prepared = new MappingGenerationPipeline(artifacts, JSON, builder)
+        .prepare(COMPILATION, "cip-script-generator", revision, List.of(), context);
+    assertEquals(false, prepared.blocked(), prepared.blockedMessage());
+    var envelope = artifacts.payload(artifacts.history(COMPILATION, CompilationArtifacts.Kind.MAPPING_ENVELOPE)
+        .getFirst(), MappingEnvelope.class);
+    var body = DirectFieldMappingScript.from(intent, envelope).orElseThrow().script();
+    var nodes = graph.nodes().stream().map(node -> "response".equals(node.nodeId())
+        ? new ChainPlanNode(node.nodeId(), node.type(), node.label(), node.parentNodeId(), node.order(),
+            List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty("mappingIntentId", intent.mappingIntentId()),
+                new org.qubership.integration.platform.ai.plan.model.PlanProperty("script", body))) : node).toList();
+    var materialized = new ChainPlanGraph(graph.schemaVersion(), graph.chain(), nodes, graph.edges());
+    new CopyMappingMaterializationValidator(artifacts).validate(COMPILATION, brief, revision, materialized);
+    assertEquals(Map.of("status", "created"), execute(intent, source,
+        new DefaultMappingBoundarySchemaResolver(artifacts, COMPILATION, Map.of(), brief)
+            .resolve(revision, List.of(), intent, Map.of()).target(),
+        Map.of(intent.mappingIntentId(), envelope.verifiedCopyPlan()), new Exchange(Map.of("status", "created"))));
+  }
+
   @Test
   void earlierEventRenameSurvivesBodyReplacementAndSameNamedResponseField() {
     Map<String, CopyMappingPlan> plans = prepare(List.of(requestIntent, resultIntent));
@@ -311,7 +578,42 @@ class DirectFieldMappingScriptTest {
     assertEquals(Map.of("Subject", "Create task"), execute(requestIntent, event, request, plans, exchange));
     exchange.in.body = Map.of("processInstanceId", "RESPONSE_SENTINEL");
     assertEquals(Map.of("processId", "ORIGINAL"), execute(resultIntent, response, result, plans, exchange));
-    assertEquals(1, exchange.properties.size());
+    assertEquals(java.util.Set.of(CopyMappingPlanner.contextId(origin("onTaskStart", MappingPort.OUTPUT, "processInstanceId")),
+        CopyMappingPlanner.contextId(new MappingSource.Message("onTaskStart", MappingPort.OUTPUT, "$"))),
+        exchange.properties.keySet());
+  }
+
+  @Test
+  void retainedRuntimeJsonUsesTheOriginalBodyAndChecksTheCatalogType() {
+    var runtime = MappingSchemaSide.runtimeJson("onTaskStart");
+    var copy = new MappingIntent(resultIntent.mappingIntentId(), resultIntent.sourceRef(), resultIntent.sourcePort(),
+        resultIntent.targetRef(), resultIntent.targetPort(), List.of(
+            rule("processInstanceId", "processId", "onTaskStart", MappingPort.OUTPUT, runtime, result)));
+    var runtimeResolver = new DefaultMappingBoundarySchemaResolver(artifacts, COMPILATION) {
+      @Override
+      public MappingSchemaSide resolveOrigin(ChainSemanticRevision revision, List<ResolvedServiceCallBinding> bindings,
+          String owner, MappingPort port, Map<String, MappingSchemaSide> outputs) {
+        if ("onTaskStart".equals(owner) && port == MappingPort.OUTPUT) return runtime;
+        return super.resolveOrigin(revision, bindings, owner, port, outputs);
+      }
+    };
+    ChainPlanGraph graph = CopyRetentionStructurePhase.place(responseGraph(), List.of(copy),
+        (ref, port) -> DefaultMappingBoundarySchemaResolver.semanticNodeId(revision(), ref, port));
+    var plans = CopyMappingPlanner.prepare(revision(), List.of(copy), runtimeResolver, List.of(), Map.of(), graph);
+    var origin = origin("onTaskStart", MappingPort.OUTPUT, "processInstanceId");
+    String saveScript = DirectFieldMappingScript.saveOnly(plans.get(CopyMappingPlanner.retentionSiteId(origin))).script();
+    SecureGroovyMappingCompiler.compile(saveScript);
+    for (Object original : List.of("inbound", 42)) {
+      var exchange = new Exchange(Map.of("processInstanceId", original));
+      new GroovyShell(new Binding(Map.of("exchange", exchange))).evaluate(saveScript);
+      exchange.in.body = Map.of("processInstanceId", "response");
+      if (original instanceof String) {
+        assertEquals(Map.of("processId", original), execute(copy, response, result, plans, exchange));
+      } else {
+        assertEquals("Invalid COPY source type: processInstanceId", assertThrows(IllegalArgumentException.class,
+            () -> execute(copy, response, result, plans, exchange)).getMessage());
+      }
+    }
   }
 
   @Test
@@ -331,6 +633,54 @@ class DirectFieldMappingScriptTest {
     assertEquals(original, exchange.in.body);
     exchange.in.body = Map.of("processInstanceId", "RESPONSE_SENTINEL");
     assertEquals(Map.of("processId", "ORIGINAL_JSON"), execute(resultIntent, response, result, plans, exchange));
+  }
+
+  @Test
+  void copyKeepsTheWholeOriginForLaterBusinessBehavior() throws Exception {
+    var current = resultIntent.withRules(List.of(rule("processInstanceId", "processId", "createTask",
+        MappingPort.RESPONSE, response, result)));
+    var original = new LinkedHashMap<String, Object>(Map.of("processInstanceId", "original", "status", "created"));
+    var exchange = new Exchange(original);
+    var plans = prepare(List.of(current));
+    assertEquals(Map.of("processId", "original"), execute(current, response, result, plans, exchange));
+    original.put("status", "mutated");
+    exchange.in.body = Map.of("paymentId", "payment");
+    var root = new MappingSource.Message("createTask", MappingPort.RESPONSE, "$");
+    assertEquals(Map.of("processInstanceId", "original", "status", "created"),
+        JSON.readValue(assertInstanceOf(String.class, exchange.getProperty(CopyMappingPlanner.contextId(root))), Map.class));
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"before", "after", "foreign-call"})
+  void copyUsesItsFrozenOriginAcrossEarlierProcessingButProtectsItsOutput(String placement) throws Exception {
+    var current = resultIntent.withRules(List.of(rule("processInstanceId", "processId", "createTask",
+        MappingPort.RESPONSE, response, result)));
+    var base = responseGraph();
+    var nodes = new java.util.ArrayList<>(base.nodes());
+    nodes.add(new ChainPlanNode("processing", "foreign-call".equals(placement) ? "service-call" : "script",
+        "Process business data", null, null, List.of()));
+    var edges = new java.util.ArrayList<>(base.edges());
+    var boundary = "after".equals(placement) ? edges.removeLast() : edges.remove(1);
+    edges.add(new ChainPlanEdge(boundary.edgeId(), boundary.fromNodeId(), "processing", null));
+    edges.add(new ChainPlanEdge("processing-out", "processing", boundary.toNodeId(), null));
+    var graph = CopyRetentionStructurePhase.place(new ChainPlanGraph(base.schemaVersion(), base.chain(), nodes, edges),
+        List.of(current), (ref, port) -> DefaultMappingBoundarySchemaResolver.semanticNodeId(revision(), ref, port));
+    if (!"before".equals(placement)) {
+      assertThrows(IllegalArgumentException.class, () -> CopyMappingPlanner.prepare(revision(), List.of(current),
+          resolver, List.of(), Map.of(), graph));
+      return;
+    }
+    var plans = CopyMappingPlanner.prepare(revision(), List.of(current), resolver, List.of(), Map.of(), graph);
+    var origin = origin("createTask", MappingPort.RESPONSE, "processInstanceId");
+    var exchange = new Exchange(Map.of("processInstanceId", "original", "status", "created"));
+    var save = DirectFieldMappingScript.saveOnly(plans.get(CopyMappingPlanner.retentionSiteId(origin))).script();
+    SecureGroovyMappingCompiler.compile(save);
+    new GroovyShell(new Binding(Map.of("exchange", exchange))).evaluate(save);
+    exchange.in.body = Map.of("processInstanceId", "intervening");
+    assertEquals(Map.of("processId", "original"), execute(current, response, result, plans, exchange));
+    var root = new MappingSource.Message("createTask", MappingPort.RESPONSE, "$");
+    assertEquals(Map.of("processInstanceId", "original", "status", "created"),
+        JSON.readValue(assertInstanceOf(String.class, exchange.getProperty(CopyMappingPlanner.contextId(root))), Map.class));
   }
 
   @Test
@@ -354,7 +704,8 @@ class DirectFieldMappingScriptTest {
     Map<String, CopyMappingPlan> plans = prepare(List.of(current));
     Exchange exchange = new Exchange(Map.of("processInstanceId", "CURRENT"));
     assertEquals(Map.of("processId", "CURRENT"), execute(current, response, result, plans, exchange));
-    assertEquals(Map.of(), exchange.properties);
+    assertEquals(Map.of(CopyMappingPlanner.contextId(new MappingSource.Message("createTask", MappingPort.RESPONSE, "$")),
+        "{\"processInstanceId\":\"CURRENT\"}"), exchange.properties);
   }
 
   @Test
@@ -543,6 +894,76 @@ class DirectFieldMappingScriptTest {
             new ChainPlanEdge("response-result", "response", "node-result", null)));
   }
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"string", "number", "integer", "boolean"})
+  void runtimeJsonCopyValidatesAgainstTheCatalogFieldBeforeReplacingTheBody(String type) throws Exception {
+    var origin = origin("onTaskStart", MappingPort.OUTPUT, "title");
+    var runtime = MappingSchemaSide.runtimeJson("onTaskStart");
+    var catalogRequest = side("runtimeOrder", MappingPort.REQUEST, "runtime-request-hash",
+        """
+        {"type":"object","properties":{"Subject":{"type":"%s"}},"required":["Subject"]}
+        """.formatted(type));
+    var intent = new MappingIntent("request-map", "onTaskStart", MappingPort.OUTPUT, "runtimeOrder",
+        MappingPort.REQUEST, List.of(rule("title", "Subject", "onTaskStart", MappingPort.OUTPUT, runtime, catalogRequest)));
+    var flow = new RequirementFlow(
+        List.of(new RequirementFlow.Interaction("onTaskStart", RequirementFlow.Direction.INBOUND,
+                "Caller", "POST /orders", ""),
+            new RequirementFlow.Interaction("runtimeOrder", RequirementFlow.Direction.OUTBOUND,
+                "Orders", "POST /orders", "")),
+        List.of(new RequirementFlow.Transition("onTaskStart", "runtimeOrder")));
+    var brief = new RequirementBrief("Copy title", List.of(), List.of(), List.of(), List.of(), "Copy title")
+        .withFacts(List.of(new RequirementFact("route", RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY, "http-trigger", "Receive an order.", "Caller", "POST /orders",
+            null, "POST", "/orders", null, List.of("onTaskStart"))))
+        .withFlow(flow).withMappingIntents(List.of(intent));
+    var customRevision = new ChainSemanticRevision(ChainSemanticRevision.CURRENT_SCHEMA_VERSION,
+        "revision", "chain", "1", List.of(),
+        List.of(new SemanticNode.Trigger("custom-entry", "onTaskStart", "http-trigger", null),
+            new SemanticNode.ServiceCall("node-call", "runtimeOrder", "create", null)),
+        List.of(), List.of(new SemanticExecutionEdge("in-call", "custom-entry", "node-call", null, null, null)),
+        List.of(), List.of(intent), List.of(), List.of(), List.of());
+    var originResolver = new DefaultMappingBoundarySchemaResolver(artifacts, COMPILATION, Map.of(), brief);
+    var schemas = originResolver.resolve(customRevision, List.of(), intent, Map.of());
+    var plans = CopyMappingPlanner.prepare(customRevision, List.of(intent), originResolver, List.of(), Map.of());
+
+    assertEquals(runtime, schemas.source());
+    Object value = switch (type) {
+      case "string" -> "Create task";
+      case "number" -> 42.5;
+      case "integer" -> 42.0;
+      case "boolean" -> true;
+      default -> throw new AssertionError(type);
+    };
+    Object wrongValue = switch (type) {
+      case "string", "boolean" -> 42;
+      case "integer" -> 42.5;
+      default -> "42";
+    };
+    assertEquals(List.of(type), plans.get("request-map").reads().getFirst().runtimeTypes());
+    assertEquals(Map.of("Subject", value),
+        execute(intent, runtime, catalogRequest, plans, new Exchange(Map.of("title", value))));
+    var wrongType = new Exchange(Map.of("title", wrongValue));
+    assertEquals("Invalid COPY source type: title", assertThrows(IllegalArgumentException.class,
+        () -> execute(intent, runtime, catalogRequest, plans, wrongType)).getMessage());
+    assertEquals(Map.of("title", wrongValue), wrongType.in.body);
+    assertEquals("Missing COPY source: title", assertThrows(IllegalArgumentException.class,
+        () -> execute(intent, runtime, catalogRequest, plans, new Exchange(Map.of()))).getMessage());
+  }
+
+  @Test
+  void legacyCopyReadRetainsItsArtifactShapeWithoutRuntimeChecks() throws Exception {
+    var oldRead = JSON.readTree("""
+        {"ruleId":"title","targetField":"Subject","origin":{"kind":"MESSAGE","interactionId":"onTaskStart",
+        "port":"OUTPUT","path":"$.title"},"schemaDigest":"event-hash","targetSchemaDigest":"request-hash",
+        "contextId":null,"nullable":false}
+        """);
+    var read = JSON.treeToValue(oldRead, CopyMappingPlan.Read.class);
+
+    assertAll(
+        () -> assertEquals(List.of(), read.runtimeTypes()),
+        () -> assertEquals(oldRead, JSON.valueToTree(read)));
+  }
+
   private Map<String, CopyMappingPlan> prepare(List<MappingIntent> intents) {
     return CopyMappingPlanner.prepare(revision(), intents, resolver, List.of(), Map.of());
   }
@@ -578,6 +999,17 @@ class DirectFieldMappingScriptTest {
         new MappingValue.Copy(origin(interaction, port, source)), MappingCondition.always(), MappingRuleStatus.PROPOSED)
         .withMissingSourcePolicy("ERROR")
         .withSchemaPins(Map.of("source", sourceSchema.sha256(), "target", targetSchema.sha256()));
+  }
+
+  private static String schemaHash(JsonNode schema) throws Exception {
+    return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+        .digest(JSON.writeValueAsBytes(schema)));
+  }
+
+  private static org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint testBinding(String id) {
+    return new org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint(
+        "3", id, "fact-" + id, id, "system", "group", "spec", "op-" + id,
+        "HTTP", "POST", "/" + id, "1", java.time.Instant.EPOCH, "catalog-evidence");
   }
 
   private static MappingSource.Message origin(String interaction, MappingPort port, String field) {

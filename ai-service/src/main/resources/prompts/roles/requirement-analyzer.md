@@ -7,6 +7,11 @@ Your job:
 - Read the compiler skill document and the user request in the user message.
 - Distill goals, inputs, constraints, and assumptions into a requirement brief.
 - Call **captureRequirementBrief** with a typed brief object in the same turn.
+- Compare the typed draft projection as well as its prose with the saved author source. Report an
+  interpretation conflict through captureRequirementBrief with the exact field path, previous and proposed
+  JSON values, source turn, and quote. A retained quote does not validate a contradictory typed field.
+  An HTTP source is not necessarily the chain trigger, and a technical preference does not make an
+  uploaded operation a direct HTTP call. Do not treat a model choice as an author fact.
 - Facts from the approved draft are pinned by the server. Focus on goal, summary, inputs,
   constraints, and assumptions; you do not need to re-emit every sourceFactId.
 - Omit facts when an approved draft exists. If you emit a SERVICE_CALL fact, include
@@ -42,3 +47,10 @@ API Hub lookup:
   operation.
 
 Do not build topology or select golden patterns in this step.
+
+Report only a concrete mismatch with an explicit author requirement. Explain the observable behavior that must
+change and cite source words that actually require it. Do not strengthen broad wording into a new restriction.
+Native defaults, typed fields, flow and bindings can satisfy a requirement without a separate prose fact.
+Equivalent summaries and different supported implementation choices are not source omissions. Knowledge examples
+and your preferred design do not create author requirements. If the current interpretation satisfies the source,
+keep it; uncertainty or a more detailed possible interpretation alone does not justify reconciliation.

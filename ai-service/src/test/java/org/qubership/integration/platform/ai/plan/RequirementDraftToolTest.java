@@ -2327,7 +2327,7 @@ class RequirementDraftToolTest {
                 "op-om",
                 "om-order-lifecycle-manager WFMS",
                 "kafka",
-                "subscribe",
+                "receive",
                 "task.wfms_createWorkOrder.start",
                 "onTaskStart",
                 "catalog-read:om")));
@@ -2766,7 +2766,7 @@ class RequirementDraftToolTest {
         captureTool.captureRequirementDraft(
             new RequirementDraftCapture(
                 true,
-                "OM onTaskStart calls Salesforce createTask, then subscribe task.result.",
+                "OM onTaskStart calls Salesforce createTask, then receive task.result.",
                 DraftDecision.READY_FOR_PLAN,
                 List.of(),
                 null,
@@ -3599,7 +3599,7 @@ class RequirementDraftToolTest {
         "op-start",
         "OM",
         "kafka",
-        "publish",
+        "send",
         "task.start",
         "onTaskStart",
         "catalog-read:om-start");
@@ -3627,7 +3627,7 @@ class RequirementDraftToolTest {
         "op-result",
         "OM",
         "kafka",
-        "subscribe",
+        "receive",
         "task.result",
         "onTaskResult",
         "catalog-read:om-result");
@@ -3670,7 +3670,7 @@ class RequirementDraftToolTest {
     cache.rememberOperation(
         "draft-conv",
         new CatalogRestClient.OperationDto(
-            "op-start", "onTaskStart", "publish", "task.start", "spec-om"));
+            "op-start", "onTaskStart", "send", "task.start", "spec-om"));
     cache.rememberOperation(
         "draft-conv",
         new CatalogRestClient.OperationDto(
@@ -3678,7 +3678,7 @@ class RequirementDraftToolTest {
     cache.rememberOperation(
         "draft-conv",
         new CatalogRestClient.OperationDto(
-            "op-result", "onTaskResult", "subscribe", "task.result", "spec-om"));
+            "op-result", "onTaskResult", "receive", "task.result", "spec-om"));
     return cache;
   }
 

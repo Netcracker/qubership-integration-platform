@@ -821,7 +821,7 @@ class RequirementFlowValidatorTest {
         "spec-om",
         "op-start",
         "kafka",
-        "publish",
+        "send",
         "task.start",
         "catalog",
         Instant.EPOCH,

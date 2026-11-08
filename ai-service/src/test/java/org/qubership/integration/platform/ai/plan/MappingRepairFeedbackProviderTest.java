@@ -111,8 +111,11 @@ class MappingRepairFeedbackProviderTest {
               .filter(tool -> "updateRequirementDraft".equals(tool.name())).findFirst().orElseThrow();
           var changes = (dev.langchain4j.model.chat.request.json.JsonObjectSchema)
               update.parameters().properties().get("changes");
-          var capabilities = (dev.langchain4j.model.chat.request.json.JsonArraySchema)
+          var nullableCapabilities = (dev.langchain4j.model.chat.request.json.JsonAnyOfSchema)
               changes.properties().get("setCapabilities");
+          var capabilities = nullableCapabilities.anyOf().stream()
+              .filter(dev.langchain4j.model.chat.request.json.JsonArraySchema.class::isInstance)
+              .map(dev.langchain4j.model.chat.request.json.JsonArraySchema.class::cast).findFirst().orElseThrow();
           var capability = (dev.langchain4j.model.chat.request.json.JsonObjectSchema) capabilities.items();
           var method = (dev.langchain4j.model.chat.request.json.JsonAnyOfSchema)
               capability.properties().get("httpMethod");

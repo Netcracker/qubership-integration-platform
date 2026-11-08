@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.ai.plan;
 
+import static org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures.assertAuthoredContentEquals;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -197,7 +199,7 @@ class RequirementFailureConsistencyAdmissionTest {
       var corrected = withMode(input(), ServiceCallFailureMode.INLINE_RESPONSE);
       var accepted = h.call("captureRequirementDraft", Map.of("draft", corrected));
       assertTrue(accepted.path("accepted").asBoolean(), accepted.toString());
-      assertEquals(corrected, h.store.get(h.chat).orElseThrow().authoredDraft());
+      assertAuthoredContentEquals(corrected, h.store.get(h.chat).orElseThrow().authoredDraft());
     } finally {
       ProductCapabilityCaptureContext.unbind();
     }
@@ -249,7 +251,7 @@ class RequirementFailureConsistencyAdmissionTest {
       var corrected = RequirementFailureConsistencyTest.input(ServiceCallFailureMode.INLINE_RESPONSE);
       corrected = withNativeAnchors(corrected);
       assertTrue(h.call("captureRequirementDraft", Map.of("draft", corrected)).path("accepted").asBoolean());
-      assertEquals(input().facts(), h.store.get(h.chat).orElseThrow().authoredDraft().facts());
+      assertAuthoredContentEquals(input().facts(), h.store.get(h.chat).orElseThrow().authoredDraft().facts());
       assertTrue(h.call("finishRequirementDiscoveryTurn", Map.of("directive", "CONTINUE")).path("accepted").asBoolean());
       assertEquals(attempt, h.artifacts.get(attempt.compilationId(), attempt.reference()).orElseThrow());
     } finally { ProductCapabilityCaptureContext.unbind(); }
@@ -376,7 +378,7 @@ class RequirementFailureConsistencyAdmissionTest {
     try {
       var result = h.call("updateRequirementDraft", Map.of("changes", update(mode(ServiceCallFailureMode.INLINE_RESPONSE))));
       assertTrue(result.path("accepted").asBoolean(), result.toString());
-      assertEquals(input().facts(), h.store.get(h.chat).orElseThrow().authoredDraft().facts());
+      assertAuthoredContentEquals(input().facts(), h.store.get(h.chat).orElseThrow().authoredDraft().facts());
     } finally { ProductCapabilityCaptureContext.unbind(); }
   }
 
@@ -458,7 +460,7 @@ class RequirementFailureConsistencyAdmissionTest {
       var corrected = withMode(input(), ServiceCallFailureMode.INLINE_RESPONSE);
       var accepted = h.call("captureRequirementDraft", Map.of("draft", corrected));
       assertTrue(accepted.path("accepted").asBoolean(), accepted.toString());
-      assertEquals(corrected, h.store.get(h.chat).orElseThrow().authoredDraft());
+      assertAuthoredContentEquals(corrected, h.store.get(h.chat).orElseThrow().authoredDraft());
       assertTrue(h.call("finishRequirementDiscoveryTurn", Map.of("directive", "CONTINUE"))
           .path("accepted").asBoolean());
       old.forEach(revision -> assertEquals(revision,

@@ -15,6 +15,7 @@ import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryDe
  * typed actions.
  */
 @RegisterAiService(
+    toolHallucinationStrategy = org.qubership.integration.platform.ai.llm.tool.RecoverableToolNameStrategy.class,
     chatMemoryProviderSupplier = RegisterAiService.NoChatMemoryProviderSupplier.class)
 @ApplicationScoped
 public interface FailureNarrativeAgent {

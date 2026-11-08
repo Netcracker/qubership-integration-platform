@@ -16,6 +16,7 @@ import jakarta.enterprise.context.ApplicationScoped;
  * → prompts/chain-list-reply-system.md.
  */
 @RegisterAiService(
+    toolHallucinationStrategy = org.qubership.integration.platform.ai.llm.tool.RecoverableToolNameStrategy.class,
     chatMemoryProviderSupplier = RegisterAiService.NoChatMemoryProviderSupplier.class)
 @ApplicationScoped
 public interface ChainListReplyAgent {

@@ -153,6 +153,12 @@ public final class RecoveryAttemptLedger {
   }
 
   private static List<PlanValidationFinding> budgetFindings(RecoveryCause cause) {
+    var stalledReads = new TreeMap<String, PlanValidationFinding>();
+    cause.findings().stream()
+        .filter(finding -> "TOOL_READ_NO_PROGRESS".equals(finding.code())
+            && !finding.originRecordId().isBlank() && !finding.fieldPointer().isBlank())
+        .forEach(finding -> stalledReads.putIfAbsent(findingIdentity(finding), finding));
+    if (!stalledReads.isEmpty()) return List.copyOf(stalledReads.values());
     var review = cause.sourceReview();
     if (review == null || cause.findings().stream().noneMatch(RecoveryAttemptLedger::isSourceOmission)) {
       return cause.findings();

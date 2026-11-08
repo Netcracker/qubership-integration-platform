@@ -339,7 +339,7 @@ class MaterializationCapabilityTest {
 
     assertEquals(StageOutcomeClass.CONTRACT_FAILURE, outcome.outcomeClass(), outcome.message());
     assertTrue(outcome.message().contains("invalid-groovy".equals(defect)
-        ? "Groovy mapping:" : "Missing executable body for approved script script-1"), outcome.message());
+        ? "Groovy mapping:" : "Missing executable body for approved behavior at script-1"), outcome.message());
     verify(materializer, never()).resume(any(), any());
   }
 

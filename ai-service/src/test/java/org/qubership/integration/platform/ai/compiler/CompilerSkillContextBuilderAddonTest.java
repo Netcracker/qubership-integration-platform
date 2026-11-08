@@ -9,6 +9,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -425,6 +426,175 @@ class CompilerSkillContextBuilderAddonTest {
   }
 
   @Test
+  void serviceCallPromptIdentifiesOwnedMappingsAndKeepsExplicitHooksAvailable() {
+    CompilerSkillDocument document = documentService.loadByCapabilityId("cip-service-call-generator");
+    ChainPlanGraph graph = new ChainPlanGraph(
+        "1.0", new ChainSection("orders", "Orders"),
+        java.util.List.of(
+            new ChainPlanNode("map-orders", "script", "Map orders", null, null,
+                java.util.List.of(new PlanProperty("mappingIntentId", "orders-map"))),
+            new ChainPlanNode("orders", "service-call", "Orders", null, null, java.util.List.of()),
+            new ChainPlanNode("map-response", "mapper-2", "Map response", null, null,
+                java.util.List.of(new PlanProperty("mappingIntentId", "response-map"))),
+            new ChainPlanNode("mapper-request", "mapper-2", "Map request", null, null,
+                java.util.List.of(new PlanProperty("mappingIntentId", "request-map"))),
+            new ChainPlanNode("payments", "service-call", "Payments", null, null, java.util.List.of()),
+            new ChainPlanNode("ordinary-script", "script", "Other script", null, null, java.util.List.of()),
+            new ChainPlanNode("unmapped", "service-call", "Other", null, null, java.util.List.of())),
+        java.util.List.of(
+            new org.qubership.integration.platform.ai.plan.model.ChainPlanEdge(
+                "orders-in", "map-orders", "orders", null),
+            new org.qubership.integration.platform.ai.plan.model.ChainPlanEdge(
+                "orders-out", "orders", "map-response", null),
+            new org.qubership.integration.platform.ai.plan.model.ChainPlanEdge(
+                "payments-in", "mapper-request", "payments", null),
+            new org.qubership.integration.platform.ai.plan.model.ChainPlanEdge(
+                "unmapped-in", "ordinary-script", "unmapped", null)));
+    CompilerSkillInputSnapshot snapshot = new CompilerSkillInputSnapshot(
+        "Map client to customerId", "mappingIntentId=orders-map: $.client -> $.customerId",
+        null, graph, null);
+
+    String message = contextBuilder.buildUserMessage(document, snapshot);
+
+    assertTrue(message.contains("service-call orders: incoming request body is prepared by map-orders"
+        + " (mappingIntentId=orders-map)"), message);
+    assertTrue(message.contains("service-call payments: incoming request body is prepared by mapper-request"
+        + " (mappingIntentId=request-map)"), message);
+    assertTrue(message.contains("service-call orders: response body is consumed by map-response"
+        + " (mappingIntentId=response-map)"), message);
+    assertTrue(message.contains("Use the target paths of that mapping as the incoming body contract"), message);
+    assertTrue(message.contains("Preserve the source paths needed by that mapping"), message);
+    assertTrue(message.contains("An independently requested inline hook remains valid"), message);
+    assertFalse(message.contains("service-call unmapped: incoming request body is prepared"), message);
+    var plan = new org.qubership.integration.platform.ai.compiler.plan.GeneratorPlan(
+        "service", "cip-service-call-generator",
+        org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanStatus.READY,
+        java.util.List.of(), java.util.List.of("orders"));
+    String resumedMessage = contextBuilder.buildUserMessage("recovery", document, snapshot, plan);
+    assertTrue(resumedMessage.contains("service-call orders: incoming request body is prepared by map-orders"
+        + " (mappingIntentId=orders-map)"), resumedMessage);
+    assertTrue(resumedMessage.contains("service-call orders: response body is consumed by map-response"
+        + " (mappingIntentId=response-map)"), resumedMessage);
+    assertTrue(resumedMessage.contains("$.client -> $.customerId"), resumedMessage);
+  }
+
+  @Test
+  void serviceCallPromptIdentifiesOnlyItsAdjacentNativeResponseRetention() {
+    CompilerSkillDocument document = documentService.loadByCapabilityId("cip-service-call-generator");
+    var graph = new ChainPlanGraph("1.0", new ChainSection("orders", "Orders"), List.of(
+        new ChainPlanNode("orders", "service-call", "Orders", null, null, List.of()),
+        new ChainPlanNode("retain-order", "script", "Retain order", null, null,
+            List.of(new PlanProperty("nativeRetentionSite", "true"))),
+        new ChainPlanNode("payments", "service-call", "Payments", null, null, List.of()),
+        new ChainPlanNode("ordinary", "script", "Ordinary script", null, null, List.of())),
+        List.of(new org.qubership.integration.platform.ai.plan.model.ChainPlanEdge("orders-out", "orders", "retain-order", null),
+            new org.qubership.integration.platform.ai.plan.model.ChainPlanEdge("payments-out", "payments", "ordinary", null)));
+    var snapshot = new CompilerSkillInputSnapshot("Call services", "Retain order response", null, graph, null);
+
+    String message = contextBuilder.buildUserMessage(document, snapshot);
+
+    assertTrue(message.contains("service-call orders: response retention is assigned to retain-order"), message);
+    assertTrue(message.contains("Do not add an after hook solely to retain that response"), message);
+    assertTrue(message.contains("An independently requested inline hook remains valid"), message);
+    assertFalse(message.contains("service-call payments: response retention is assigned"), message);
+  }
+
+  @Test
+  void boundOwnershipShowsOnlyCurrentMapperAndHeaderPropertyTargets() {
+    var document = documentService.loadByCapabilityId("cip-service-call-generator");
+    var graph = ownedWorkGraph();
+    var policy = new org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwnershipPolicy(
+        false, false, java.util.Set.of("header-modification", "mapper-2"), java.util.Set.of(),
+        java.util.Map.of("header-modification", java.util.Set.of("headerModificationToAdd", "headerModificationToRemove"),
+            "mapper-2", java.util.Set.of("mappingDescription")));
+    var snapshot = new CompilerSkillInputSnapshot("Configure headers", "Headers", null, graph, null);
+    var message = contextBuilder.buildUserMessage("test", document, snapshot, stalePlan(),
+        CaptureTool.CAPTURE_GRAPH_PATCH, ownedContext(graph, policy, List.of()));
+    String slice = ownershipSlice(message);
+    assertTrue(slice.contains("\"nodeId\":\"header\""), slice);
+    assertTrue(slice.contains("\"headerModificationToAdd\""), slice);
+    assertTrue(slice.contains("\"headerModificationToRemove\""), slice);
+    assertTrue(slice.contains("\"nodeId\":\"mapper\""), slice);
+    assertTrue(slice.contains("\"mappingDescription\""), slice);
+    assertFalse(slice.contains("\"nodeId\":\"loop\""), slice);
+    assertFalse(slice.contains("\"nodeId\":\"script\""), slice);
+    assertFalse(message.contains("Active generator plan slice:"), message);
+  }
+
+  @Test
+  void emptyOwnedPropertyTargetsDoNotImplyNoTopologyOrChainWork() {
+    var document = documentService.loadByCapabilityId("cip-service-call-generator");
+    var graph = ownedWorkGraph();
+    var policy = new org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwnershipPolicy(
+        true, true, java.util.Set.of("try"), java.util.Set.of("description"), java.util.Map.of());
+    var snapshot = new CompilerSkillInputSnapshot("Wrap flow", "Wrap flow", null, graph, null);
+    String slice = ownershipSlice(contextBuilder.buildUserMessage("test", document, snapshot, stalePlan(),
+        CaptureTool.CAPTURE_GRAPH_PATCH, ownedContext(graph, policy, List.of())));
+    assertTrue(slice.contains("\"propertyTargets\":[]"), slice);
+    assertTrue(slice.contains("\"mayAddNodes\":true"), slice);
+    assertTrue(slice.contains("\"mayAddEdges\":true"), slice);
+    assertTrue(slice.contains("\"chainFields\":[\"description\"]"), slice);
+    assertTrue(slice.contains("\"ownedNodeTypes\":[\"try\"]"), slice);
+    assertTrue(slice.contains("An empty list does not establish inapplicability"), slice);
+  }
+
+  @Test
+  void propertyOnlyOwnershipAndNamedEditScopeArePreserved() {
+    var document = documentService.loadByCapabilityId("cip-service-call-generator");
+    var graph = new ChainPlanGraph("1.0", new ChainSection("chain", "Chain"), List.of(
+        new ChainPlanNode("entry-a", "http-trigger", "A", null, null, List.of()),
+        new ChainPlanNode("entry-b", "http-trigger", "B", null, null, List.of())), List.of());
+    var policy = new org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwnershipPolicy(
+        false, false, java.util.Set.of(), java.util.Set.of(),
+        java.util.Map.of("http-trigger", java.util.Set.of("accessControlType")));
+    var snapshot = new CompilerSkillInputSnapshot("Edit A", "Edit A", null, graph, null, "Edit only entry-a");
+    String slice = ownershipSlice(contextBuilder.buildUserMessage("test", document, snapshot, stalePlan(),
+        CaptureTool.CAPTURE_GRAPH_PATCH, ownedContext(graph, policy, List.of("entry-a"))));
+    assertTrue(slice.contains("\"nodeId\":\"entry-a\""), slice);
+    assertTrue(slice.contains("\"accessControlType\""), slice);
+    assertFalse(slice.contains("\"nodeId\":\"entry-b\""), slice);
+    assertTrue(slice.contains("\"namedTargetNodeIds\":[\"entry-a\"]"), slice);
+  }
+
+  @Test
+  void unboundPromptKeepsTheExistingManifestSlice() {
+    var document = documentService.loadByCapabilityId("cip-service-call-generator");
+    var snapshot = new CompilerSkillInputSnapshot("Call", "Call", null, ownedWorkGraph(), null);
+    String message = contextBuilder.buildUserMessage("test", document, snapshot, stalePlan(), CaptureTool.CAPTURE_GRAPH_PATCH);
+    assertTrue(message.contains("Active generator plan slice:"), message);
+    assertTrue(message.contains("\"targetNodeIds\""), message);
+    assertFalse(message.contains("Current generator ownership:"), message);
+  }
+
+  private static ChainPlanGraph ownedWorkGraph() {
+    return new ChainPlanGraph("1.0", new ChainSection("chain", "Chain"), List.of(
+        new ChainPlanNode("loop", "loop-2", "Loop", null, null, List.of()),
+        new ChainPlanNode("script", "script", "Script", null, null, List.of()),
+        new ChainPlanNode("header", "header-modification", "Header", null, null, List.of()),
+        new ChainPlanNode("mapper", "mapper-2", "Mapper", null, null, List.of())), List.of());
+  }
+
+  private static org.qubership.integration.platform.ai.compiler.plan.GeneratorPlan stalePlan() {
+    return new org.qubership.integration.platform.ai.compiler.plan.GeneratorPlan("generator", "skill",
+        org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanStatus.READY,
+        List.of("approved_producer"), List.of("loop", "script"));
+  }
+
+  private static org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecutionContext ownedContext(
+      ChainPlanGraph graph, org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwnershipPolicy ownership,
+      List<String> targets) {
+    return new org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecutionContext("run", "skill", "req",
+        "graph", "compiler", "1", null, List.of(), graph, ownership, "", targets);
+  }
+
+  private static String ownershipSlice(String message) {
+    int start = message.indexOf("Current generator ownership:");
+    assertTrue(start >= 0, message);
+    int end = message.indexOf("\n\n", start);
+    return message.substring(start, end < 0 ? message.length() : end);
+  }
+
+  @Test
   void generatorPromptSerializesGraphAsCompactJson() {
     CompilerSkillDocument document = documentService.loadByCapabilityId("cip-security-generator");
     ChainPlanGraph graph =
@@ -457,6 +627,26 @@ class CompilerSkillContextBuilderAddonTest {
     assertFalse(graphJson.contains(scriptBody));
     assertFalse(graphJson.contains("script body omitted"));
     assertTrue(graphJson.contains("\"script-1\""));
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+  void generatorAndScriptRepairPromptsIncludeGroovyBindings(boolean standalone) {
+    org.mockito.Mockito.doReturn(standalone).when(addonRepository).hasStandaloneSkills();
+    CompilerSkillInputSnapshot snapshot = new CompilerSkillInputSnapshot(
+        "Call the service", "Process its response", null, graphWithScriptNode(""), null);
+    CompilerSkillDocument service = documentService.loadByCapabilityId("cip-service-call-generator");
+    CompilerSkillDocument script = documentService.loadByCapabilityId("cip-script-generator");
+    for (String message : java.util.List.of(
+        contextBuilder.buildUserMessage(service, snapshot),
+        contextBuilder.buildUserMessage(script, snapshot),
+        contextBuilder.buildScriptRepairMessage("recovery", script, snapshot, java.util.List.of("script-1")))) {
+      assertTrue(message.contains("For generated Groovy code, bindings include exchange, in, body, headers, variables, and exchangeProperties"), message);
+      assertTrue(message.contains("Use the documented runtime bindings or explicitly declared local variables"), message);
+      assertTrue(message.contains("message is not an implicit binding"), message);
+      assertTrue(message.contains("access exchange.getMessage() or exchange.in, or declare a local alias"), message);
+      assertTrue(message.contains("standalone and inline scripts"), message);
+    }
   }
 
   @Test
@@ -557,6 +747,30 @@ class CompilerSkillContextBuilderAddonTest {
         () -> assertFalse(message.contains("as the basis for the requested change. Preserve unrelated logic"), message));
     assertTrue(message.contains("Required script node IDs"));
     assertFalse(message.contains("PRIVATE_UNSELECTED"));
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"BEHAVIOR", "CONSTRAINT"})
+  void scriptGenerationContextIncludesEveryApprovedFactOnTheSameOwner(String kind) throws Exception {
+    var original = org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures
+        .linearOrdersWithCompleteTask();
+    String node = org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures.COMPLETE_TASK_NODE_ID;
+    var first = org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures
+        .generatedBehavior(node, "Return a greeting.");
+    var json = new ObjectMapper();
+    com.fasterxml.jackson.databind.node.ObjectNode data = json.valueToTree(first);
+    data.put("sourceFactId", "supplementary").put("kind", kind).put("text", "Preserve the approved supplementary behavior.");
+    var second = json.treeToValue(data, org.qubership.integration.platform.ai.plan.RequirementFact.class);
+    var brief = new RequirementBrief("Greeting", java.util.List.of(), java.util.List.of(), java.util.List.of(),
+        java.util.List.of(), "Greeting").withFacts(java.util.List.of(first, second));
+    var revision = org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures
+        .attachSuppliedFacts(original, brief);
+    var graph = new ChainPlanGraph("1.0", new ChainSection("greeting", "Greeting"), java.util.List.of(
+        new ChainPlanNode(node, "script", "Greeting", null, null, java.util.List.of())), java.util.List.of());
+    String context = contextBuilder.renderBehaviorScriptGenerationContext(brief, java.util.List.of(node), graph, revision);
+    org.junit.jupiter.api.Assertions.assertAll("all approved Script facts",
+        () -> assertTrue(context.contains(first.sourceFactId() + ": Return a greeting."), context),
+        () -> assertTrue(context.contains("supplementary: Preserve the approved supplementary behavior."), context));
   }
 
   @Test

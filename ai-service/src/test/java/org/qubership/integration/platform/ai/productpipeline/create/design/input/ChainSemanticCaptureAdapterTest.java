@@ -701,6 +701,43 @@ class ChainSemanticCaptureAdapterTest {
   }
 
   @Test
+  void localResponseMappingKeepsItsDeclaredTargetAcrossSemanticCapture() {
+    var base = ChainSemanticCaptureFixtures.approvedBrief();
+    var declaration = new org.qubership.integration.platform.ai.plan.RequirementElementIntent("response", "script",
+        org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.LOCAL_NODE,
+        "http-in", null, "call-1", null, List.of(), List.of());
+    var localFact = new org.qubership.integration.platform.ai.plan.RequirementFact("return-field",
+        org.qubership.integration.platform.ai.plan.RequirementFactPolarity.POSITIVE,
+        org.qubership.integration.platform.ai.plan.RequirementFactKind.FIELD_MAPPING, "", "Return the order id.",
+        null, null, null, null, null, null, List.of("http-in"), null, declaration);
+    var facts = new java.util.ArrayList<>(base.facts());
+    facts.add(localFact);
+    var flow = new org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow(List.of(
+        new org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction("http-in",
+            org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction.INBOUND, "Caller", "POST /", ""),
+        new org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction("call-1",
+            org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction.OUTBOUND, "Orders", "GET /", "")),
+        List.of(new org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition("http-in", "call-1")));
+    var mapping = new MappingIntent("return-map", "call-1", MappingPort.RESPONSE, "response", MappingPort.OUTPUT,
+        List.of(new MappingIntentRule("id", "orderId", null)));
+    var brief = base.withFacts(facts).withFlow(flow).withMappingIntents(List.of(mapping));
+    var original = ChainSemanticCaptureFixtures.linearCapture();
+    var operations = new java.util.ArrayList<>(original.operations());
+    operations.add(new CapturedOperation("response", "script", List.of("return-field")));
+    var edges = new java.util.ArrayList<>(original.edges());
+    edges.add(new CapturedEdge("call-1", "response", null, null, null, null, null, "return-map"));
+    var capture = new ChainSemanticCapture(original.chainIdentity(), operations, original.sequenceRegions(), original.conditionRegions(), original.splitRegions(), original.loopRegions(),
+        original.retryRegions(), original.errorScopeRegions(), edges, original.containment());
+
+    var revision = adapt(capture, brief);
+
+    assertEquals("response", revision.executionEdges().stream().filter(edge -> "return-map".equals(edge.mappingId()))
+        .findFirst().orElseThrow().targetNodeId());
+    assertEquals(mapping, revision.mappingBodies(brief).getFirst());
+    new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT, brief);
+  }
+
+  @Test
   void foldedPlaceholderDoesNotNeedItsOwnEdge() {
     MappingIntent approved = ChainSemanticCaptureFixtures.briefWithMapping().mappingIntents().getFirst();
     MappingIntent placeholder =

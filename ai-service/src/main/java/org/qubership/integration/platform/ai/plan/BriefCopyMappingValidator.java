@@ -16,6 +16,7 @@ import java.util.TreeMap;
 import java.util.function.Function;
 import org.qubership.integration.platform.ai.plan.mapping.schema.OperationSchemaMaps;
 import org.qubership.integration.platform.ai.plan.mapping.CopyMappingPlanner;
+import org.qubership.integration.platform.ai.plan.mapping.LocalMappingTarget;
 import org.qubership.integration.platform.ai.plan.mapping.schema.MappingSchemaSide;
 import org.qubership.integration.platform.ai.plan.mapping.schema.OperationSchemaLoader;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
@@ -39,7 +40,8 @@ public class BriefCopyMappingValidator {
     this.mapper = mapper.copy().enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
   }
 
-  public record Result(RequirementBrief brief, List<ProductRequirementBriefTool.Issue> issues) {}
+  public record Result(RequirementBrief brief, List<ProductRequirementBriefTool.Issue> issues,
+      List<RequirementCaptureProjection.PendingWork> pendingWork) {}
 
   public Result validateAndPin(RequirementBrief brief) {
     return validateAndPin(brief, schemas::load);
@@ -53,16 +55,14 @@ public class BriefCopyMappingValidator {
     if (intents.isEmpty()) return List.of();
     var brief = new RequirementBrief("", List.of(), List.of(), List.of(), List.of(), "",
         null, "", draft.facts(), intents).withFlow(draft.flow()).withCatalogBindings(draft.catalogBindings());
-    return validateAndPin(RequirementBriefProjector.canonicalizeMappingIntents(brief)).issues().stream()
-        .map(issue -> new RequirementCaptureProjection.PendingWork(issue.code(), null, null,
-            issue.path() + " " + issue.message()))
-        .toList();
+    return validateAndPin(RequirementBriefProjector.canonicalizeMappingIntents(brief)).pendingWork();
   }
 
   private Result validateAndPin(RequirementBrief brief, Function<String, OperationSchemaMaps> load) {
     Map<String, OperationSchemaMaps> operationSnapshots = new HashMap<>();
     Function<String, OperationSchemaMaps> snapshot = id -> operationSnapshots.computeIfAbsent(id, load);
     List<ProductRequirementBriefTool.Issue> issues = new ArrayList<>();
+    List<RequirementCaptureProjection.PendingWork> pending = new ArrayList<>();
     List<MappingIntent> intents = new ArrayList<>();
     Map<String, MappingSchemaSide> resolved = new HashMap<>();
     for (MappingIntent intent : brief.mappingIntents()) {
@@ -73,13 +73,15 @@ public class BriefCopyMappingValidator {
       try {
         Map<String, Integer> order = linearOrder(brief.flow());
         Integer placement = order.get(intent.sourceRef());
+        var local = LocalMappingTarget.resolve(brief.facts(), brief.flow(), intent.targetRef());
         Integer targetPosition = order.get(intent.targetRef());
-        if (placement == null || targetPosition == null || targetPosition != placement + 1) {
-          throw new IllegalArgumentException("COPY placement needs a direct linear transition");
+        boolean localBoundary = local.isPresent() && intent.targetPort() == MappingPort.OUTPUT
+            && intent.sourceRef().equals(local.orElseThrow().predecessorElementRef())
+            && placement != null && placement == order.size() - 1;
+        if (placement == null || (!localBoundary && (targetPosition == null || targetPosition != placement + 1))) {
+          throw new IllegalArgumentException("COPY placement needs a direct linear transition or declared final local Script");
         }
-        MappingSchemaSide target = side(brief, intent.targetRef(), intent.targetPort(), resolved, snapshot);
         Map<MappingSource.Message, MappingSchemaSide> origins = new LinkedHashMap<>();
-        List<MappingIntentRule> rules = new ArrayList<>();
         for (MappingIntentRule rule : intent.rules()) {
           if (!(rule.value() instanceof MappingValue.Copy copy)
               || !(copy.source() instanceof MappingSource.Message origin)) {
@@ -87,23 +89,47 @@ public class BriefCopyMappingValidator {
           }
           Integer sourcePosition = order.get(origin.interactionId());
           if (sourcePosition == null || sourcePosition > placement
-              || (sourcePosition.equals(placement) && origin.port() != intent.sourcePort())) {
+              || (sourcePosition.equals(placement) && origin.port() != intent.sourcePort()
+                  && !(origin.port() == MappingPort.REQUEST && intent.sourcePort() == MappingPort.RESPONSE))) {
             throw new IllegalArgumentException("COPY origin is not available at its execution placement");
           }
-          MappingSchemaSide source = side(brief, origin.interactionId(), origin.port(), resolved, snapshot);
-          origins.put(origin, source);
-          rules.add(rule.withSchemaPins(Map.of("source", source.sha256(), "target", target.sha256())));
+          origins.put(origin, side(brief, origin.interactionId(), origin.port(), resolved, snapshot));
+        }
+        MappingSchemaSide target = localBoundary ? LocalMappingTarget.outputSchema(intent, origins)
+            : side(brief, intent.targetRef(), intent.targetPort(), resolved, snapshot);
+        List<MappingIntentRule> rules = new ArrayList<>();
+        for (MappingIntentRule rule : intent.rules()) {
+          MappingSource.Message origin = (MappingSource.Message) ((MappingValue.Copy) rule.value()).source();
+          rules.add(rule.withSchemaPins(Map.of("source", origins.get(origin).sha256(), "target", target.sha256())));
         }
         MappingIntent pinned = intent.withRules(rules);
         CopyMappingPlanner.validateFields(pinned, origins, target);
         intents.add(pinned);
+      } catch (CopyMappingPlanner.InputSchemaRequired failure) {
+        String route = brief.facts().stream()
+            .filter(fact -> fact.kind() == RequirementFactKind.CAPABILITY && "http-trigger".equals(fact.capabilityKey())
+                && fact.polarity() == RequirementFactPolarity.POSITIVE
+                && fact.interactionIds().contains(failure.interactionId()))
+            .filter(fact -> fact.httpMethod() != null && fact.path() != null)
+            .map(fact -> fact.httpMethod() + " " + fact.path()).findFirst()
+            .orElseGet(() -> brief.flow().interaction(failure.interactionId()).orElseThrow().operation());
+        String question = "Provide the JSON Schema for the request body of " + route
+            + ". Use propertyKey=requestSchema for this question.";
+        issues.add(new ProductRequirementBriefTool.Issue("COPY_INPUT_SCHEMA_REQUIRED",
+            "mappingIntents[" + intent.mappingIntentId() + "]", question + " " + failure.getMessage()));
+        pending.add(new RequirementCaptureProjection.PendingWork(
+            "COPY_INPUT_SCHEMA_REQUIRED", failure.interactionId(), null, question));
+        intents.add(intent);
       } catch (IllegalArgumentException | IllegalStateException failure) {
-        issues.add(new ProductRequirementBriefTool.Issue("MAPPING_SOURCE_UNRESOLVED",
-            "mappingIntents[" + intent.mappingIntentId() + "]", failure.getMessage()));
+        var issue = new ProductRequirementBriefTool.Issue("MAPPING_SOURCE_UNRESOLVED",
+            "mappingIntents[" + intent.mappingIntentId() + "]", failure.getMessage());
+        issues.add(issue);
+        pending.add(new RequirementCaptureProjection.PendingWork(issue.code(), null, null,
+            issue.path() + " " + issue.message()));
         intents.add(intent);
       }
     }
-    return new Result(brief.withMappingIntents(intents), List.copyOf(issues));
+    return new Result(brief.withMappingIntents(intents), List.copyOf(issues), pending.stream().distinct().toList());
   }
 
   public List<ProductRequirementBriefTool.Issue> validateApproved(RequirementBrief brief) {
@@ -129,12 +155,9 @@ public class BriefCopyMappingValidator {
     }
     List<CatalogBindingHint> bindings = brief.catalogBindings().stream()
         .filter(binding -> interactionId.equals(binding.interactionId())).toList();
-    if (bindings.isEmpty() && inbound
-        && RequirementFlowValidator.catalogLookupAction(interaction, brief.facts())
-            == RequirementFlowValidator.LookupAction.SKIP) {
+    if (bindings.isEmpty() && inbound && MessageSchemaContract.isCustomHttp(brief, interactionId)) {
       MappingSchemaSide side = MessageSchemaContract.requestSchema(brief.facts(), interactionId)
-          .orElseThrow(() -> new IllegalArgumentException(
-              "COPY needs a confirmed request body JSON Schema for " + interactionId));
+          .orElseGet(() -> MappingSchemaSide.runtimeJson(interactionId));
       resolved.put(key, side);
       return side;
     }
@@ -179,7 +202,7 @@ public class BriefCopyMappingValidator {
     return "application/json".equals(base) || base.endsWith("+json");
   }
 
-  private static Map<String, Integer> linearOrder(RequirementFlow flow) {
+  static Map<String, Integer> linearOrder(RequirementFlow flow) {
     Map<String, String> next = new HashMap<>();
     Map<String, Integer> incoming = new HashMap<>();
     for (var interaction : flow.interactions()) incoming.put(interaction.interactionId(), 0);

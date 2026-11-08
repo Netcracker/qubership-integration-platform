@@ -34,6 +34,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 public class RequirementDraftStore {
 
   private final java.util.Set<String> discussionTurns = ConcurrentHashMap.newKeySet();
+  private final java.util.Set<String> automaticRepairTurns = ConcurrentHashMap.newKeySet();
   private final ConcurrentHashMap<String, Boolean> capturedThisTurn = new ConcurrentHashMap<>();
   private final ConcurrentHashMap<String, RequirementDiscoveryDirective> turnDirectives =
       new ConcurrentHashMap<>();
@@ -216,7 +217,9 @@ public class RequirementDraftStore {
       var paths = new java.util.LinkedHashSet<>(repairPaths);
       var review = org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext
           .binding(conversationId).orElseThrow().sourceRestoration();
-      review.omissions().forEach(report -> paths.add("/facts/" + report.sourceFactId() + "/text"));
+      review.omissions().forEach(report -> paths.add(
+          report.kind() == RequirementAnalysisCapture.SourceDiscrepancyKind.INTERPRETATION_CONFLICT
+              ? report.path() : "/facts/" + report.sourceFactId() + "/text"));
       repairPaths = java.util.Set.copyOf(paths);
     }
     issues.addAll(RequirementFailureConsistency.unauthorizedModeChanges(base, draft.authoredDraft(),
@@ -453,12 +456,15 @@ public class RequirementDraftStore {
         .orElse(null);
     var review = binding == null ? null : binding.sourceRestoration();
     var current = get(conversationId).orElse(null);
-    if (review == null || sourceRestorationBlocked(binding.runId())
+    if (review == null || (sourceRestorationBlocked(binding.runId())
+        && review.omissions().stream().anyMatch(report ->
+            report.kind() != RequirementAnalysisCapture.SourceDiscrepancyKind.INTERPRETATION_CONFLICT))
         || binding.approvedDraft() == null || !Objects.equals(current, binding.approvedDraft())
         || !currentSource(conversationId) || !Objects.equals(packet, currentBodySource(conversationId))) {
       return Optional.empty();
     }
     if (baseline != null) for (var report : review.omissions()) {
+      if (report.kind() == RequirementAnalysisCapture.SourceDiscrepancyKind.INTERPRETATION_CONFLICT) continue;
       String factId = report.sourceFactId();
       var claim = baseline.claims().stream().filter(value -> Objects.equals(value.sourceFactId(), factId))
           .findFirst().orElse(null);
@@ -481,10 +487,41 @@ public class RequirementDraftStore {
         || review.omissions().isEmpty() || packet == null
         || !Objects.equals(review.generation(), packet.generation())
         || !Objects.equals(review.sourceHash(), org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(packet))
-        || !Objects.equals(review.draftHash(), org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(current))
-        || !Objects.equals(current.catalogBindings(), candidate.catalogBindings())) return Optional.empty();
+        || !Objects.equals(review.draftHash(), org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(current))) return Optional.empty();
+    var projections = review.omissions().stream().filter(report ->
+        report.kind() == RequirementAnalysisCapture.SourceDiscrepancyKind.INTERPRETATION_CONFLICT).toList();
+    if (!projections.isEmpty()) {
+      if (RequirementProjectionCorrection.validLocalReports(base, projections)
+          && !RequirementProjectionCorrection.validLocalAuthority(current, source.authored(), projections)) return Optional.empty();
+      var affectedOwners = projections.stream().flatMap(report -> {
+        var fact = base.facts().stream().filter(value -> Objects.equals(value.sourceFactId(), report.sourceFactId()))
+            .findFirst().orElse(null);
+        if (fact == null) return java.util.stream.Stream.<String>empty();
+        var owners = new java.util.LinkedHashSet<>(fact.interactionIds());
+        if (fact.elementIntent() != null && fact.elementIntent().ownerInteractionId() != null)
+          owners.add(fact.elementIntent().ownerInteractionId());
+        return owners.stream();
+      }).collect(java.util.stream.Collectors.toSet());
+      if (!current.catalogBindings().stream().filter(binding -> !affectedOwners.contains(binding.interactionId())).toList()
+          .equals(candidate.catalogBindings().stream().filter(binding -> !affectedOwners.contains(binding.interactionId())).toList()))
+        return Optional.empty();
+      for (var report : projections) {
+        var fact = base.facts().stream().filter(value -> Objects.equals(value.sourceFactId(), report.sourceFactId()))
+            .findFirst().orElse(null);
+        var claim = baseline.claims().stream().filter(value -> Objects.equals(value.sourceFactId(), report.sourceFactId()))
+            .findFirst().orElse(null);
+        if (fact == null || claim == null || fact.evidence() == null
+            || !Objects.equals(fact.evidence(), claim.evidence()) || !Objects.equals(fact.text(), claim.text())
+            || fact.polarity() != claim.polarity()
+            || !Objects.equals(fact.evidence().sourceTurnId(), report.sourceTurnId())
+            || !Objects.equals(fact.evidence().quote(), report.quote())
+            || source.authored().inputs().stream().noneMatch(input -> Objects.equals(input.sourceTurnId(), report.sourceTurnId())
+                && report.quote() != null && !report.quote().isBlank() && input.text().contains(report.quote()))) return Optional.empty();
+      }
+    } else if (!Objects.equals(current.catalogBindings(), candidate.catalogBindings())) return Optional.empty();
     var replacements = new java.util.LinkedHashMap<String, RequirementCaptureInput.FactInput>();
     for (var report : review.omissions()) {
+      if (report.kind() == RequirementAnalysisCapture.SourceDiscrepancyKind.INTERPRETATION_CONFLICT) continue;
       if (report.kind() != RequirementAnalysisCapture.SourceDiscrepancyKind.UNSUPPORTED_ADDITION
           || replacements.containsKey(report.sourceFactId())) return Optional.empty();
       var fact = base.facts().stream().filter(value -> Objects.equals(value.sourceFactId(), report.sourceFactId()))
@@ -504,7 +541,12 @@ public class RequirementDraftStore {
     var expected = new RequirementCaptureInput.DraftInput(base.flow(), base.facts().stream()
         .map(value -> replacements.getOrDefault(value.sourceFactId(), value)).toList(),
         base.capabilities(), base.openQuestions(), base.settings());
-    if (!expected.equals(candidate.authoredDraft())) return Optional.empty();
+    var candidateForComparison = RequirementProjectionCorrection.validLocalReports(expected, projections)
+        ? RequirementProjectionCorrection.normalizeLocalBodyBinding(candidate.authoredDraft(), source.complete(), projections)
+        : candidate.authoredDraft();
+    if (projections.isEmpty() ? !expected.equals(candidate.authoredDraft())
+        : !RequirementProjectionCorrection.matches(expected, candidateForComparison, projections)
+            || !RequirementProjectionCorrection.preservesCapabilities(base, candidate, source.authored())) return Optional.empty();
     return Optional.of(restoredBaseline(baseline, review.omissions()));
   }
 
@@ -512,7 +554,8 @@ public class RequirementDraftStore {
       List<RequirementAnalysisCapture.SourceOmission> reports) {
     return new RequirementSemanticBaseline(baseline.sourceGeneration(), baseline.authorEvidenceHash(),
         baseline.claims().stream().map(value -> reports.stream()
-            .filter(report -> Objects.equals(value.sourceFactId(), report.sourceFactId())).findFirst()
+            .filter(report -> report.kind() == RequirementAnalysisCapture.SourceDiscrepancyKind.UNSUPPORTED_ADDITION
+                && Objects.equals(value.sourceFactId(), report.sourceFactId())).findFirst()
             .map(report -> new RequirementSemanticClaim(value.sourceFactId(), report.quote(), value.polarity(), value.evidence()))
             .orElse(value)).toList());
   }
@@ -590,6 +633,10 @@ public class RequirementDraftStore {
     return new SourceEvidence(packet, packet);
   }
 
+  AuthorSourceEvidence.Packet bodySource(String conversationId) {
+    return sourceEvidence(conversationId).complete();
+  }
+
   com.fasterxml.jackson.databind.node.ObjectNode copyRejectedCaptureValues(String conversationId) {
     var values = rejectedCaptureValues.get(conversationId);
     return values == null ? null : values.deepCopy();
@@ -654,8 +701,23 @@ public class RequirementDraftStore {
   RequirementCaptureInput.DraftInput prepareInitialRequestSchema(String conversationId,
       RequirementCaptureInput.DraftInput input) {
     var source = sourceEvidence(conversationId);
-    return MessageSchemaContract.withInitialClarification(input, source.authored(),
+    var candidate = RequirementCaptureEditor.initialize(input).accepted()
+        ? pinMappingSources(input, source.authored(), null) : input;
+    return MessageSchemaContract.withInitialClarification(candidate, source.authored(),
         source.complete().inputs().stream().map(AuthorSourceEvidence.Input::sourceTurnId).toList());
+  }
+
+  RequirementCaptureInput.DraftInput discardUnconfirmedRuntimeSchemas(String conversationId,
+      RequirementCaptureInput.DraftInput input, RequirementDraft previous) {
+    var authored = sourceEvidence(conversationId).authored();
+    return MessageSchemaContract.withoutUnconfirmedRuntimeSchemas(pinMappingSources(input, authored, previous), previous, authored);
+  }
+
+  private static RequirementCaptureInput.DraftInput pinMappingSources(RequirementCaptureInput.DraftInput input,
+      AuthorSourceEvidence.Packet authored, RequirementDraft previous) {
+    return RequirementMappingCapture.pin(input, authored.inputs().stream()
+        .map(AuthorSourceEvidence.Input::text).filter(java.util.Objects::nonNull).toList(),
+        previous == null || previous.authoredDraft() == null ? List.of() : previous.authoredDraft().facts());
   }
 
   List<RequirementCaptureEditor.Issue> validateMessageSchemaEvidence(String conversationId,
@@ -824,7 +886,7 @@ public class RequirementDraftStore {
             .anyMatch(prior -> prior.equals(path) || prior.startsWith(path + "/") || path.startsWith(prior + "/")));
   }
 
-  private boolean currentSource(String conversationId) {
+  boolean currentSource(String conversationId) {
     if (conversations == null || !sourceInputs.containsKey(conversationId)) {
       return true;
     }
@@ -846,7 +908,7 @@ public class RequirementDraftStore {
       var authored = draft.authoredDraft();
       var facts = RequirementCaptureProjection.facts(authored).subList(0, authored.facts().size());
       if (!draft.facts().containsAll(facts)
-          || !draft.flow().equals(RequirementCaptureProjection.flow(authored))) {
+          || !draft.flow().equals(RequirementCaptureProjection.flow(authored, draft.uploadedSpecBindings()))) {
         throw new IllegalArgumentException("Derived requirements must retain the admitted source facts and flow.");
       }
     }
@@ -911,6 +973,23 @@ public class RequirementDraftStore {
 
   public boolean isCurrentWrite(String conversationId, WriteAuthority expected) {
     return Objects.equals(expected, writeAuthority(conversationId));
+  }
+
+  public boolean isCurrentSourceCorrection(String conversationId, WriteAuthority authority, RequirementDraft candidate) {
+    return withWriteAuthority(conversationId, () -> {
+      if (!isCurrentWrite(conversationId, authority) || !currentSource(conversationId) || candidate == null) return false;
+      var current = get(conversationId).orElse(null);
+      var baseline = semanticBaseline(conversationId).orElse(null);
+      return captureAttemptsNewestFirst(conversationId).stream().anyMatch(attempt -> attempt.accepted()
+          && attempt.sourceRestoration() != null
+          && attempt.sourceRestoration().omissions().stream().anyMatch(report ->
+              report.kind() == RequirementAnalysisCapture.SourceDiscrepancyKind.INTERPRETATION_CONFLICT)
+          && Objects.equals(attempt.acceptedDraftReference(), authority.base())
+          && Objects.equals(attempt.semanticBaselineReference(), baselineReference(conversationId))
+          && Objects.equals(attempt.resolvedCandidate(), candidate.authoredDraft())
+          && sourceRestorationBaseline(current, candidate, baseline, sourceEvidence(conversationId),
+              attempt.sourceRestoration()).isPresent());
+    });
   }
 
   public boolean putIfCurrent(String conversationId, WriteAuthority expected, RequirementDraft draft) {
@@ -1117,6 +1196,7 @@ public class RequirementDraftStore {
     sessions.startNew(conversationId);
     capturedThisTurn.remove(conversationId);
     discussionTurns.remove(conversationId);
+    automaticRepairTurns.remove(conversationId);
     pendingClarificationAnswers.remove(conversationId);
     turnDirectives.remove(conversationId);
     lastCaptureRejection.remove(conversationId);
@@ -1153,6 +1233,7 @@ public class RequirementDraftStore {
     sourceInputs.remove(conversationId);
     capturedThisTurn.remove(conversationId);
     discussionTurns.remove(conversationId);
+    automaticRepairTurns.remove(conversationId);
     pendingClarificationAnswers.remove(conversationId);
     turnDirectives.remove(conversationId);
     lastCaptureRejection.remove(conversationId);
@@ -1174,6 +1255,7 @@ public class RequirementDraftStore {
 
   public void beginTurn(String conversationId, String authorText) {
     discussionTurns.remove(conversationId);
+    automaticRepairTurns.remove(conversationId);
     var source = conversations == null ? null : conversations.archive().read(conversationId);
     var previousSource = sourceInputs.get(conversationId);
     boolean sameAuthorTurn = source == null
@@ -1557,7 +1639,7 @@ public class RequirementDraftStore {
     if (base != null && base.authoredDraft() != null) {
       var removals = new java.util.ArrayList<>(withoutSuppliedChainCalls(
           RequirementRevisionAdmission.unappliedRemovals(base.authoredDraft(), current,
-              target -> questionDefaults(draft, target)),
+              target -> questionDefaults(draft, target), context),
           base.authoredDraft(), current));
       for (var extra : unsuppliedChainCallRemovals(base.authoredDraft(), current)) {
         if (removals.stream().noneMatch(issue -> extra.code().equals(issue.code())
@@ -1699,6 +1781,8 @@ public class RequirementDraftStore {
         .collect(java.util.stream.Collectors.toSet());
   }
 
+  public void markAutomaticRepair(String conversationId) { automaticRepairTurns.add(conversationId); }
+  public boolean automaticRepair(String conversationId) { return automaticRepairTurns.contains(conversationId); }
   public void allowDiscussion(String conversationId) { discussionTurns.add(conversationId); }
   public boolean discussionAllowed(String conversationId) { return discussionTurns.contains(conversationId); }
 
@@ -1973,52 +2057,37 @@ public class RequirementDraftStore {
     return Optional.empty();
   }
 
-  /**
-   * Strategy, conflict participants, and editable paths for the next capture. This is display
-   * guidance. It does not return the rejected draft.
-   */
+  public boolean unauthorizedDiscussionNeedsContinuation(String conversationId) {
+    return !discussionAllowed(conversationId) && get(conversationId).filter(RequirementDraft::readyForPlan).isPresent()
+        && currentRejectedCapture(conversationId)
+            .filter(attempt -> "finishRequirementDiscoveryTurn".equals(attempt.toolName()))
+            .filter(attempt -> attempt.issues().size() == 1)
+            .filter(attempt -> "DISCUSSION_NOT_AUTHORIZED".equals(attempt.issues().getFirst().code()))
+            .isPresent();
+  }
+
+  /** Returns display guidance from the current source- and base-bound rejected capture. */
   public Optional<RecoveryGuidance> recoveryGuidance(String conversationId) {
-    var session = sessions.current(conversationId);
-    if (session.isEmpty()) {
-      return Optional.empty();
-    }
-    var history = artifacts.history(session.orElseThrow().compilationId(), Kind.REQUIREMENT_CAPTURE_ATTEMPT);
-    RequirementRepairPolicy.Strategy chosen = null;
-    RequirementCaptureAttempt display = null;
-    for (int index = history.size() - 1; index >= 0; index--) {
-      var attempt = artifacts.payload(history.get(index), RequirementCaptureAttempt.class);
-      if (chosen == null && attempt.recoveryStrategy() != null) {
-        chosen = attempt.recoveryStrategy();
-      }
-      if (display == null && !attempt.accepted()
-          && List.of("captureRequirementDraft", "updateRequirementDraft").contains(attempt.toolName())) {
-        display = attempt;
-      }
-      if (chosen != null && display != null) {
-        break;
-      }
-    }
-    if (chosen == null) {
-      return Optional.empty();
-    }
+    var display = currentRejectedCapture(conversationId)
+        .filter(attempt -> attempt.recoveryStrategy() != null).orElse(null);
+    if (display == null) return Optional.empty();
+    var chosen = display.recoveryStrategy();
     var participants = new java.util.TreeSet<String>();
     var paths = new java.util.TreeSet<String>();
-    if (display != null) {
-      for (var issue : display.issues()) {
-        if ("UNCHANGED_PROPOSAL".equals(issue.code()) || "REPAIR_NO_PROGRESS".equals(issue.code())) {
-          continue;
-        }
-        if (issue.path() != null && !issue.path().isBlank() && !"/".equals(issue.path())) {
-          paths.add(issue.path());
-        }
-        if (issue.entityId() != null && !issue.entityId().isBlank()) {
-          participants.add(issue.entityId());
-        }
-        if (issue.details() != null && issue.details().relatedEntityIds() != null) {
-          issue.details().relatedEntityIds().stream()
-              .filter(id -> id != null && !id.isBlank())
-              .forEach(participants::add);
-        }
+    for (var issue : display.issues()) {
+      if ("UNCHANGED_PROPOSAL".equals(issue.code()) || "REPAIR_NO_PROGRESS".equals(issue.code())) {
+        continue;
+      }
+      if (issue.path() != null && !issue.path().isBlank() && !"/".equals(issue.path())) {
+        paths.add(issue.path());
+      }
+      if (issue.entityId() != null && !issue.entityId().isBlank()) {
+        participants.add(issue.entityId());
+      }
+      if (issue.details() != null && issue.details().relatedEntityIds() != null) {
+        issue.details().relatedEntityIds().stream()
+            .filter(id -> id != null && !id.isBlank())
+            .forEach(participants::add);
       }
     }
     var stage = org.qubership.integration.platform.ai.productpipeline.recovery.RequirementRecoveryLadder.Stage

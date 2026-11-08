@@ -259,7 +259,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
         captureFeedback.clearRequirement(conversationId);
       }
       RequirementDraft decided = draftStore.get(conversationId).orElseThrow();
-      if (StageRepairEvidence.from(context) != null) {
+      if (!decided.readyForPlan() && StageRepairEvidence.from(context) != null) {
         var attributes = new java.util.HashMap<>(context.attributes());
         attributes.put("userText", "");
         attributes.remove(ProductPipelineRunSupport.ADMITTED_INPUT_GATE_ATTR);
@@ -313,16 +313,21 @@ public class RequirementDiscoveryCapability implements StageCapability {
     if (context.attributes().get("sourceRestorationReview")
         instanceof org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool.SourceReview review) {
       userMessage = """
-          Restore every named provisional fact to its own exact saved author quote. Read readRequirementSource and the
-          current draft. Call updateRequirementDraft to change only those facts' text to their own quotes, preserving each ID,
-          evidence, polarity, kind, settings, flow, other facts, and confirmed choices. Do not ask the author to select
-          an implementation default introduced by the model. This produces a candidate for renewed brief approval.
+          Read readRequirementSource and the current draft. For an unsupported addition, restore the named provisional
+          fact text to its exact saved author quote. For an interpretation conflict, change only the reported path
+          from its previous JSON value to its proposed JSON value. Preserve all other facts, evidence, IDs, settings,
+          flow, and confirmed choices. A model-selected interpretation is not an author fact. Do not ask the author
+          to select an implementation default introduced by the model. This produces a candidate for renewed brief approval.
           After saving, finish with CONTINUE. Native source review:
           %s
           """.formatted(review);
     }
     if (repair != null && ChatEvent.CONTINUE_TO_PLANNING_ACTION.equals(userMessage.strip())) {
       userMessage = "";
+    }
+    if (userMessage.isBlank() && repair != null && draftStore.unauthorizedDiscussionNeedsContinuation(conversationId)) {
+      userMessage = "The accepted draft is ready. Finish with CONTINUE without rewriting unrelated facts; "
+          + "the normal continuation checks still apply.";
     }
     if (userMessage.isBlank() && repair != null
         && (RecoveryCauseCode.MISSING_BRIEF_FACTS.name().equals(repair.causeCode())
@@ -409,6 +414,8 @@ public class RequirementDiscoveryCapability implements StageCapability {
       return Multi.createFrom().item(completeDiscovery(context, new AtomicReference<>(current)));
     }
     AtomicReference<RequirementDraft> captured = new AtomicReference<>();
+    AtomicReference<org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool.SourceReview> reportedReview =
+        new AtomicReference<>();
     String gatherMessage = userMessage;
     RequirementDraft repairBase = draftStore.get(conversationId).orElse(mappingRepairDraft);
     var nativeRepairPaths = requirementRepairPaths(context, repairBase);
@@ -423,12 +430,15 @@ public class RequirementDiscoveryCapability implements StageCapability {
         mappingRepairPaths(context), nativeRepairPaths, missingMappingTargets(context), sourceRestoration, payload -> {
           if (payload instanceof RequirementDraft draft) {
             captured.set(draft);
+          } else if (payload instanceof org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool.SourceReview review) {
+            reportedReview.set(review);
           }
         });
       if (captureFeedback != null) {
         captureFeedback.clearRequirement(conversationId);
       }
       draftStore.beginTurn(conversationId, gatherMessage);
+      if (repair != null) draftStore.markAutomaticRepair(conversationId);
       if (PipelineGates.STAGE_CLARIFICATION.equals(context.attributeAsString(
           ProductPipelineRunSupport.ADMITTED_INPUT_GATE_ATTR))) {
         if (repair == null) draftStore.allowDiscussion(conversationId);
@@ -464,7 +474,8 @@ public class RequirementDiscoveryCapability implements StageCapability {
                             ProductCapabilityCaptureContext.withBinding(conversationId,
                                 ProductCapabilityCaptureContext.invocationParameters(binding),
                                 ProductCapabilityCaptureContext.Mode.DISCOVERY,
-                                currentBinding -> completeDiscovery(context, captured));
+                                currentBinding -> reportedReview.get() == null ? completeDiscovery(context, captured)
+                                    : sourceReviewOutcome(context, reportedReview.get()));
                         var completed = authority == null ? finish.get() : conversationService.archive()
                             .withAuthority(conversationId, authority.generation(),
                                 org.qubership.integration.platform.ai.chat.conversation.ConversationArchive.latestInputId(authority), finish);
@@ -493,11 +504,12 @@ public class RequirementDiscoveryCapability implements StageCapability {
                       SkillActivitySupport.clearParents();
                       ProductCapabilityCaptureContext.unbind(binding);
                       ToolSession.clear();
-                      return Multi.createFrom()
-                          .items(
+                      return reportedReview.get() != null
+                          ? Multi.createFrom().iterable(SkillActivitySupport.wrapTerminal(
+                              skillId, List.of(sourceReviewOutcome(context, reportedReview.get()))))
+                          : Multi.createFrom().items(
                               SkillActivitySupport.error(skillId),
-                              new CapabilitySignal.Completed(
-                                  StageOutcome.invocationFailure(error)));
+                              new CapabilitySignal.Completed(StageOutcome.invocationFailure(error)));
                     }));
   }
 
@@ -733,6 +745,18 @@ public class RequirementDiscoveryCapability implements StageCapability {
         RecoveryCause.captureFailure(rejection.feedback(), findings, evidence))));
   }
 
+  private CapabilitySignal.Completed sourceReviewOutcome(
+      StageExecutionContext context, org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool.SourceReview review) {
+    var findings = review.omissions().stream().map(report -> new PlanValidationFinding(
+        "SOURCE_INTERPRETATION_CONFLICT", report.explanation(), true, null,
+        report.sourceFactId(), report.path())).toList();
+    var cause = new RecoveryCause(RecoveryCauseCode.MISSING_BRIEF_FACTS, findings, "", false, null, review);
+    var draft = draftStore.get(context.conversationId()).orElseThrow();
+    return new CapabilitySignal.Completed(new StageOutcome(StageOutcomeClass.CONTRACT_FAILURE,
+        List.of(new ArtifactCandidate(CompilationArtifacts.Kind.REQUIREMENT_DRAFT, draft, context.inputRefs())),
+        "Source requirements need guarded reconciliation before brief creation.\n" + cause.formattedFindings(), null, cause));
+  }
+
   private CapabilitySignal.Completed completeDiscovery(
       StageExecutionContext context,
       AtomicReference<RequirementDraft> captured) {
@@ -859,10 +883,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
     }
     var uploadedInteractions = uploadedSpecs == null ? java.util.Set.<String>of()
         : uploadedSpecs.pendingInteractionIds(conversationId, draft);
-    var pending = draft.authoredDraft() == null ? List.<RequirementCaptureProjection.PendingWork>of()
-        : RequirementCaptureProjection.pending(
-            draft.authoredDraft(), draft.catalogBindings(),
-            RequirementCaptureProjection.resolvedTargets(draft), uploadedInteractions);
+    var pending = RequirementCaptureProjection.pending(draft, uploadedInteractions);
     boolean onlyUploadedImports = draft.authoredDraft() == null
         ? !uploadedInteractions.isEmpty() : RequirementCaptureProjection.onlyUploadedSpecImportsRemain(pending);
     if (versionSelections != null && versionSelections.pending(conversationId).isPresent()) {
@@ -879,8 +900,9 @@ public class RequirementDiscoveryCapability implements StageCapability {
           "Requirement discovery left unfinished work without an author question. Complete the saved draft and catalog lookups.",
           new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, findings, "")));
     }
-    if (directive == RequirementDiscoveryDirective.STAY) {
-      if (draft != null && draft.readyForPlan()) {
+    if (directive == RequirementDiscoveryDirective.STAY
+        && (!draft.readyForPlan() || !draftStore.automaticRepair(conversationId))) {
+      if (draft.readyForPlan()) {
         return new CapabilitySignal.Completed(
             StageOutcome.of(
                 StageOutcomeClass.NEEDS_INPUT,
@@ -1125,6 +1147,12 @@ public class RequirementDiscoveryCapability implements StageCapability {
   private Multi<ChatEvent> runGather(
       String conversationId, String userMessage, String responseLocale,
       ProductCapabilityCaptureContext.Binding binding, StageRepairEvidence repair) {
+    if (captureFeedback != null) {
+      Object sources = conversationService == null ? java.util.Arrays.asList(userMessage)
+          : org.qubership.integration.platform.ai.plan.AuthorSourceEvidence.authoredPacket(
+              conversationService.archive().read(conversationId));
+      captureFeedback.beginScope(conversationId, CAPABILITY_ID, sources);
+    }
     if (repair != null) {
       userMessage = (userMessage == null ? "" : userMessage)
           + "\n\n<current-native-repair-evidence>\n"

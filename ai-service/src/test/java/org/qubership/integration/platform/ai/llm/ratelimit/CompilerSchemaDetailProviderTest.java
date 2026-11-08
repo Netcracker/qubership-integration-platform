@@ -35,6 +35,13 @@ import org.qubership.integration.platform.ai.configuration.AppConfig;
 import org.qubership.integration.platform.ai.llm.ScriptedStreamingChatModel;
 import org.qubership.integration.platform.ai.llm.ScriptedStreamingChatModel.Turn;
 import org.qubership.integration.platform.ai.llm.agent.CompilerSkillAgent;
+import org.qubership.integration.platform.ai.llm.agent.HttpTriggerCaptureAgent;
+import org.qubership.integration.platform.ai.llm.agent.ScriptBodyRepairAgent;
+import org.qubership.integration.platform.ai.llm.agent.CreateChainPlanAgent;
+import org.qubership.integration.platform.ai.llm.agent.DiscoveryAgent;
+import org.qubership.integration.platform.ai.llm.agent.PatternSelectorAgent;
+import org.qubership.integration.platform.ai.llm.agent.ChainPlanRepairAgent;
+import org.qubership.integration.platform.ai.llm.agent.ValidationAgent;
 
 /** The real compiler agent dispatches schema tools before the scripted provider inspects its next request. */
 @QuarkusTest
@@ -48,7 +55,7 @@ class CompilerSchemaDetailProviderTest {
   @InjectMock RateLimitStreamingChatModel provider;
 
   @ParameterizedTest
-  @ValueSource(ints = {0, 1600})
+  @ValueSource(ints = {0, 1600, 12000})
   void actualNextRequestRetainsNativeDetailsCurrentSourceAndNativeRefusal(int unicodeChars) throws Exception {
     assertEquals(8000, ConfigProvider.getConfig().getValue(
         "quarkus.langchain4j.chat-memory.token-window.max-tokens", Integer.class));
@@ -109,6 +116,27 @@ class CompilerSchemaDetailProviderTest {
       MDC.remove(CompilerSkillMdc.CAPABILITY_ID);
       feedback.clearPatch(chat, OWNER);
     }
+  }
+
+  @ParameterizedTest
+  @ValueSource(classes = {CompilerSkillAgent.class, HttpTriggerCaptureAgent.class, ScriptBodyRepairAgent.class,
+      CreateChainPlanAgent.class, DiscoveryAgent.class, PatternSelectorAgent.class, ChainPlanRepairAgent.class,
+      ValidationAgent.class})
+  void everyCompilerAgentRetainsAnOversizedRenderedTask(Class<?> agentType) throws Exception {
+    String source = "Approved generator task and complete instructions. " + "ø".repeat(12_000);
+    var script = new ScriptedStreamingChatModel(Turn.text("preserved-task",
+        request -> assertCurrentSource(request, source), "Task retained"));
+    doAnswer(call -> {
+      script.chat(call.getArgument(0, ChatRequest.class), call.getArgument(1, StreamingChatResponseHandler.class));
+      return null;
+    }).when(provider).chat(any(ChatRequest.class), any(StreamingChatResponseHandler.class));
+    var actual = jakarta.enterprise.inject.spi.CDI.current().select(agentType).get();
+    var stream = (io.smallrye.mutiny.Multi<?>) agentType.getMethod("chat", String.class, String.class)
+        .invoke(actual, "task-wiring-" + UUID.randomUUID(), source);
+    stream.collect().asList().await().atMost(Duration.ofSeconds(30));
+
+    script.assertComplete();
+    assertEquals(1, script.requests().size(), agentType.getName());
   }
 
   private void assertDetails(ChatRequest request) {

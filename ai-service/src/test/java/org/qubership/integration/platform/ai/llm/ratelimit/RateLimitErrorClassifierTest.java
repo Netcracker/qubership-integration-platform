@@ -26,6 +26,16 @@ class RateLimitErrorClassifierTest {
   }
 
   @Test
+  void wrappedQuotaExhaustionIsNotRetryableEvenWhenTheProviderReturns429() {
+    String body = "{\"error\":{\"type\":\"insufficient_quota\"}}";
+    var quota = new RateLimitException(body, new HttpException(429, body));
+
+    assertTrue(RateLimitErrorClassifier.isQuotaExhausted(quota), quota::toString);
+    assertFalse(classifier.isRateLimit(quota), quota::toString);
+    assertFalse(new TransientErrorClassifier().isTransient(quota), quota::toString);
+  }
+
+  @Test
   void detectsRateLimitException() {
     assertTrue(classifier.isRateLimit(new RateLimitException("rate_limit_exceeded")));
   }

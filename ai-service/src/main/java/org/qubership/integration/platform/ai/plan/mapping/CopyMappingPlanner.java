@@ -74,23 +74,22 @@ public final class CopyMappingPlanner {
         MappingSchemaSide source = resolver.resolveOrigin(revision, bindings,
             origin.interactionId(), origin.port(), outputs);
         requirePins(rule, source, target);
-        Set<String> sourceTypes = types(source.schema(), sourceField);
-        Set<String> targetTypes = types(target.schema(), targetField);
-        requireTargetConstraints(source.schema(), sourceField, target.schema(), targetField);
-        if (!compatibleTypes(sourceTypes, targetTypes)) {
-          throw rejected("COPY source and target types are incompatible");
-        }
+        Set<String> sourceTypes = validatedTypes(intent, origin, source, sourceField, target, targetField);
         boolean nullable = sourceTypes.contains("null");
         String contextId = null;
-        if (!producer.equals(current) || origin.port() != intent.sourcePort()) {
+        if (!producer.equals(current) || origin.port() != intent.sourcePort()
+            || validRetentionSite(revision, origin, graph)) {
           contextId = contextId(origin);
           SaveSite site = saveSite(revision, intents, origin, positions, current, graph);
           List<CopyMappingPlan.Save> atSite = saves.computeIfAbsent(site.intentId(), ignored -> new ArrayList<>());
           CopyMappingPlan.Save save = new CopyMappingPlan.Save(sourceField, contextId, site.fromOutput(), nullable);
           if (!atSite.contains(save)) atSite.add(save);
+          var body = new CopyMappingPlan.Save("$", bodyContextId(origin), site.fromOutput(), false);
+          if (!atSite.contains(body)) atSite.add(body);
         }
         intentReads.add(new CopyMappingPlan.Read(rule.id(), targetField, origin,
-            source.sha256(), target.sha256(), contextId, nullable));
+            source.sha256(), target.sha256(), contextId, nullable,
+            source.isRuntimeJson() ? sourceTypes.stream().sorted().toList() : List.of()));
       }
       if (intentReads.isEmpty()) throw rejected("COPY artifact has no mapping operands");
       Set<String> covered = new HashSet<>();
@@ -123,11 +122,25 @@ public final class CopyMappingPlanner {
       MappingSchemaSide side = origins.get(origin);
       if (side == null) throw rejected("No schema evidence for COPY origin");
       requirePins(rule, side, target);
-      Set<String> sourceTypes = types(side.schema(), field(origin.path()));
-      Set<String> targetTypes = types(target == null ? null : target.schema(), field(rule.targetPath()));
-      requireTargetConstraints(side.schema(), field(origin.path()), target.schema(), field(rule.targetPath()));
-      if (!compatibleTypes(sourceTypes, targetTypes)) throw rejected("COPY source and target types are incompatible");
+      validatedTypes(intent, origin, side, field(origin.path()), target, field(rule.targetPath()));
     }
+  }
+
+  private static Set<String> validatedTypes(MappingIntent intent, MappingSource.Message origin,
+      MappingSchemaSide source, String sourceField, MappingSchemaSide target, String targetField) {
+    Set<String> targetTypes = types(target.schema(), targetField);
+    if (source.isRuntimeJson()) {
+      if (origin.port() != MappingPort.OUTPUT || intent.targetPort() != MappingPort.REQUEST
+          || target.operationId() == null) {
+        throw rejected("COPY without an input schema needs a catalog request target");
+      }
+      requireTargetConstraints(null, sourceField, target.schema(), targetField, origin.interactionId());
+      return targetTypes;
+    }
+    Set<String> sourceTypes = types(source.schema(), sourceField);
+    requireTargetConstraints(source.schema(), sourceField, target.schema(), targetField, null);
+    if (!compatibleTypes(sourceTypes, targetTypes)) throw rejected("COPY source and target types are incompatible");
+    return sourceTypes;
   }
 
   static void requireUnconditional(MappingIntentRule rule) {
@@ -191,14 +204,23 @@ public final class CopyMappingPlanner {
         throw rejected("COPY execution site is not on one root linear boundary");
       }
       cursor = outgoing.getFirst().toNodeId();
-      if (target.equals(cursor)) break;
+      if (target.equals(cursor)) {
+        if (site.equals(cursor)) visitedSite = true;
+        break;
+      }
       ChainPlanNode node = graph.nodes().stream().filter(item -> item.nodeId().equals(outgoing.getFirst().toNodeId()))
           .findFirst().orElseThrow(() -> rejected("COPY graph edge has no target node"));
       if (site.equals(cursor)) {
         if (visitedSite) throw rejected("COPY execution site is repeated");
         visitedSite = true;
       } else if (!nativeRetentionSite(node)) {
-        throw rejected("COPY execution site crosses another body-producing node");
+        boolean frozenInputs = intent.rules().stream().allMatch(rule ->
+            rule.value() instanceof MappingValue.Copy copy && copy.source() instanceof MappingSource.Message origin
+                && validRetentionSite(revision, origin, graph));
+        if (visitedSite || !"script".equals(node.type()) || MappingExecutionSite.mappingIntentId(node) != null
+            || !frozenInputs) {
+          throw rejected("COPY execution site crosses another body-producing node");
+        }
       }
     }
     if (!visitedSite) throw rejected("COPY script is outside its approved execution placement");
@@ -214,8 +236,12 @@ public final class CopyMappingPlanner {
     return matches.getFirst();
   }
 
+  public static String bodyContextId(MappingSource.Message origin) {
+    return contextId(new MappingSource.Message(origin.interactionId(), origin.port(), "$"));
+  }
+
   public static String retentionSiteId(MappingSource.Message origin) {
-    return "retain-" + contextId(new MappingSource.Message(origin.interactionId(), origin.port(), "$"))
+    return "retain-" + bodyContextId(origin)
         .substring("qip.mapping.".length());
   }
 
@@ -270,6 +296,16 @@ public final class CopyMappingPlanner {
     return path.substring(2);
   }
 
+  public static JsonNode verifiedFieldSchema(MappingSchemaSide source, String path) {
+    if (source == null || source.isRuntimeJson()) {
+      throw rejected("Local output needs a verified source schema");
+    }
+    String name = field(path);
+    types(source.schema(), name);
+    JsonNode root = dereference(source.schema(), source.schema(), new HashSet<>());
+    return dereference(source.schema(), root.path("properties").get(name), new HashSet<>()).deepCopy();
+  }
+
   private static Set<String> types(JsonNode schema, String name) {
     JsonNode root = dereference(schema, schema, new HashSet<>());
     if (root == null || !root.isObject() || complex(root)) throw rejected("Mapping schema is unknown or unsupported");
@@ -299,8 +335,8 @@ public final class CopyMappingPlanner {
   }
 
   private static void requireTargetConstraints(JsonNode sourceRoot, String sourceField,
-      JsonNode targetRoot, String targetField) {
-    JsonNode source = dereference(sourceRoot,
+      JsonNode targetRoot, String targetField, String runtimeSource) {
+    JsonNode source = sourceRoot == null ? null : dereference(sourceRoot,
         dereference(sourceRoot, sourceRoot, new HashSet<>()).path("properties").get(sourceField), new HashSet<>());
     JsonNode target = dereference(targetRoot,
         dereference(targetRoot, targetRoot, new HashSet<>()).path("properties").get(targetField), new HashSet<>());
@@ -310,9 +346,24 @@ public final class CopyMappingPlanner {
     while (fields.hasNext()) {
       var constraint = fields.next();
       if (!descriptive.contains(constraint.getKey())
-          && !constraint.getValue().equals(source.get(constraint.getKey()))) {
-        throw rejected("COPY target constraints are not established by its source: " + constraint.getKey());
+          && (source == null || !constraint.getValue().equals(source.get(constraint.getKey())))) {
+        String message = "COPY target constraints are not established by its source: " + constraint.getKey();
+        if (runtimeSource != null) throw new InputSchemaRequired(runtimeSource, message);
+        throw rejected(message);
       }
+    }
+  }
+
+  public static final class InputSchemaRequired extends IllegalArgumentException {
+    private final String interactionId;
+
+    InputSchemaRequired(String interactionId, String message) {
+      super(message);
+      this.interactionId = interactionId;
+    }
+
+    public String interactionId() {
+      return interactionId;
     }
   }
 

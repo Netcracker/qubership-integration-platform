@@ -34,7 +34,180 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 class RequirementCaptureProjectionTest {
 
   @Test
-  void shouldResolveCustomTriggerOutputAndAskForItsSchemaBeforePlanning() {
+  void shouldPinRetainedOriginsFromAuthorMappingClauses() {
+    var flow = new FlowInput(List.of(
+        new InteractionInput("entry", Direction.INBOUND, "Caller", "receive", null, null, null),
+        new InteractionInput("orders", Direction.OUTBOUND, "Orders API", "create", null, null, null),
+        new InteractionInput("payments", Direction.OUTBOUND, "Payments API", "pay", null, null, null),
+        new InteractionInput("delivery", Direction.OUTBOUND, "Delivery API", "send", null, null, null)),
+        List.of(new TransitionInput("entry", "orders"), new TransitionInput("orders", "payments"),
+            new TransitionInput("payments", "delivery")));
+    var input = new DraftInput(flow, List.of(
+        mapping("amount", "orders", "payments", "amount", null, "original inbound total saved before the Orders call"),
+        mapping("order", "payments", "delivery", "orderId", null, "executionId saved from the Orders response"),
+        mapping("payment", "payments", "delivery", "paymentId", null, "paymentId saved from the Payments response")),
+        List.of(), List.of(), null);
+    var admitted = RequirementMappingCapture.pin(input, List.of(
+        "Map the Orders response executionId to Payments request orderId"
+            + " and map the original total to Payments request amount. Map the Orders executionId to Delivery request orderId"
+            + " and the Payments response paymentId to Delivery request paymentId."), List.of());
+    var origins = admitted.facts().stream().map(FactInput::fieldMapping).map(FieldMappingInput::value)
+        .map(MappingValue.Copy.class::cast).map(MappingValue.Copy::source).toList();
+    var confirmed = new DraftInput(flow, List.of(admitted.facts().getFirst()), List.of(), List.of(), null);
+    var unchanged = RequirementMappingCapture.pin(confirmed,
+        List.of("Do not map the Orders response total to Payments request amount."), List.of());
+    var ambiguous = RequirementMappingCapture.pin(input, List.of(
+        "Map the original total to Payments request amount.",
+        "Map the Orders response total to Payments request amount."), List.of());
+    var calculated = mapping("with-tax", "orders", "payments", "amount", null, "subtotal + tax");
+    var calculatedDraft = new DraftInput(flow, List.of(calculated), List.of(), List.of(), null);
+    var retainedCalculation = RequirementMappingCapture.pin(calculatedDraft,
+        List.of("Map the Orders response subtotal to Payments request amount and add tax."), List.of());
+    var currency = new FactInput("currency", List.of("orders", "payments"), FactKind.FIELD_MAPPING,
+        Polarity.POSITIVE, "Set currency to USD.", new FieldMappingInput("orders", "\"USD\"",
+            "payments", "$.currency", null));
+    var constant = new DraftInput(flow, List.of(currency), List.of(), List.of(), null);
+
+    assertAll(
+        () -> assertEquals(List.of(
+            new MappingSource.Message("entry", MappingPort.OUTPUT, "$.total"),
+            new MappingSource.Message("orders", MappingPort.RESPONSE, "$.executionId"),
+            new MappingSource.Message("payments", MappingPort.RESPONSE, "$.paymentId")), origins),
+        () -> assertEquals(confirmed, unchanged),
+        () -> assertEquals(input.facts().getFirst(), ambiguous.facts().getFirst()),
+        () -> assertEquals(calculatedDraft, retainedCalculation),
+        () -> assertEquals(constant, RequirementMappingCapture.pin(constant, List.of("Set currency to USD."), List.of())),
+        () -> assertEquals(List.of(), RequirementMappingCapture.validate(constant, List.of())),
+        () -> assertEquals(List.of(), RequirementMappingCapture.validate(admitted, List.of())),
+        () -> assertEquals(List.of("amount", "order", "payment"), RequirementMappingCapture.validate(input, List.of()).stream()
+            .map(RequirementCaptureEditor.Issue::entityId).toList()));
+  }
+
+  @Test
+  void shouldDiscardInventedSchemaQuestionForWholeBodyPassthrough() {
+    String author = "Send the unchanged request body to Kafka without a schema.";
+    var identity = new FactInput("body-copy", List.of("http-entry", "publish-kafka"), FactKind.FIELD_MAPPING,
+        Polarity.POSITIVE, author, new FieldMappingInput("http-entry", null, "publish-kafka", "$", null,
+            new MappingValue.Copy(new MappingSource.Message("http-entry", MappingPort.OUTPUT, "$"))),
+        null, null, new RequirementCaptureInput.ClaimEvidenceInput("request", author));
+    var draft = kafkaDraft(List.of(identity));
+    var question = new QuestionInput("schema", List.of("http-entry"), "Provide the request body schema.",
+        new org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence(
+            "http-entry", "requestSchema",
+            org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.MISSING_VALUE,
+            List.of("request")));
+    var candidate = new DraftInput(draft.flow(), draft.facts(), draft.capabilities(), List.of(question), draft.settings());
+
+    var passthrough = RequirementMappingCapture.pin(candidate, List.of(author), List.of());
+    var saved = RequirementMappingCapture.pin(candidate, List.of(author), candidate.facts());
+    var fieldCopy = mapping("field-copy", "http-entry", "publish-kafka", "$.event",
+        new MappingValue.Copy(new MappingSource.Message("http-entry", MappingPort.OUTPUT, "$.id")), null);
+    var mapped = kafkaDraft(List.of(fieldCopy));
+    var mappedCandidate = new DraftInput(mapped.flow(), mapped.facts(), mapped.capabilities(),
+        List.of(question), mapped.settings());
+    var kept = RequirementMappingCapture.pin(mappedCandidate, List.of(author + " Set the Kafka key from id."), List.of());
+
+    assertAll(
+        () -> assertEquals(List.of(identity), saved.facts()),
+        () -> assertEquals(List.of(), saved.openQuestions()),
+        () -> assertEquals(List.of(), MessageSchemaContract.requiredCopySchemas(saved)),
+        () -> assertEquals(List.of(), RequirementBriefProjector.authoredMappings(
+            RequirementCaptureProjection.toDraft(saved, null, List.of(), null, null))),
+        () -> assertEquals(List.of(FactKind.BEHAVIOR), passthrough.facts().stream().map(FactInput::kind).toList()),
+        () -> assertEquals(identity.evidence(), passthrough.facts().getFirst().evidence()),
+        () -> assertEquals(List.of(), passthrough.openQuestions()),
+        () -> assertEquals(mappedCandidate, kept),
+        () -> assertEquals(List.of("http-entry"), MessageSchemaContract.requiredCopySchemas(kept).stream()
+            .map(CapabilityInput::interactionId).toList()));
+  }
+
+  @Test
+  void shouldRecognizeAuthorQuotedKafkaValueAsWholeBodyPassthrough() {
+    String author = "Send the unchanged request body to Kafka.";
+    var body = new FactInput("message-value", List.of("http-entry", "publish-kafka"), FactKind.FIELD_MAPPING,
+        Polarity.POSITIVE, "Send the request body as the Kafka value.",
+        new FieldMappingInput("http-entry", null, "publish-kafka", "value", null,
+            new MappingValue.Copy(new MappingSource.Message("http-entry", MappingPort.OUTPUT, "body"))),
+        null, null, new RequirementCaptureInput.ClaimEvidenceInput("request", author));
+    var candidate = kafkaDraft(List.of(body));
+    var whole = RequirementMappingCapture.pin(candidate, List.of(author), List.of());
+    String fieldRequest = "Send the unchanged body field to Kafka as the value.";
+    var fieldFact = new FactInput(body.sourceFactId(), body.interactionIds(), body.kind(), body.polarity(),
+        fieldRequest, body.fieldMapping(), null, null,
+        new RequirementCaptureInput.ClaimEvidenceInput("request", fieldRequest));
+    var field = kafkaDraft(List.of(fieldFact));
+    var saved = RequirementCaptureProjection.toDraft(candidate, null, List.of(), null, null);
+    var brief = new RequirementBrief("Publish the original body", List.of(), List.of(), List.of(), List.of(), "");
+    var oldFact = new RequirementFact(body.sourceFactId(), RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.FIELD_MAPPING, "", body.text(), "", "", "", "", "", "", body.interactionIds());
+    var oldDraft = saved.withFacts(List.of(oldFact));
+
+    assertAll(
+        () -> assertEquals(List.of(), MessageSchemaContract.requiredCopySchemas(whole)),
+        () -> assertEquals(FactKind.BEHAVIOR, whole.facts().getFirst().kind()),
+        () -> assertEquals(body.evidence(), whole.facts().getFirst().evidence()),
+        () -> assertEquals(List.of(), MessageSchemaContract.requiredCopySchemas(candidate)),
+        () -> assertEquals(List.of(), RequirementBriefProjector.authoredMappings(saved)),
+        () -> assertEquals(Optional.empty(), RequirementBriefCoverageValidator.validateAuthoredMappings(oldDraft, brief)),
+        () -> assertEquals(List.of(RequirementFactKind.BEHAVIOR), RequirementCaptureProjection.factsForBrief(oldDraft)
+            .stream().map(RequirementFact::kind).toList()),
+        () -> assertEquals(List.of(oldFact), oldDraft.facts()),
+        () -> assertEquals(RequirementFactKind.BEHAVIOR, saved.facts().stream()
+            .filter(fact -> body.sourceFactId().equals(fact.sourceFactId())).findFirst().orElseThrow().kind()),
+        () -> assertEquals(field, RequirementMappingCapture.pin(field, List.of(fieldRequest), List.of())),
+        () -> assertEquals(List.of("http-entry"), MessageSchemaContract.requiredCopySchemas(field).stream()
+            .map(CapabilityInput::interactionId).toList()));
+  }
+
+  @Test
+  void shouldAdmitCatalogPassthroughAndKeepASeparateRequestBodyRestore() {
+    var flow = new FlowInput(List.of(
+        new InteractionInput("entry", Direction.INBOUND, "Caller", "receive", null, null, null),
+        new InteractionInput("orders", Direction.OUTBOUND, "Orders API", "create", null, null, null),
+        new InteractionInput("payments", Direction.OUTBOUND, "Payments API", "pay", null, null, null)),
+        List.of(new TransitionInput("entry", "orders"), new TransitionInput("orders", "payments")));
+    var pass = mapping("passthrough", "entry", "orders", "$",
+        new MappingValue.Copy(new MappingSource.Message("entry", MappingPort.OUTPUT, "$")), null);
+    var restore = mapping("restore", "orders", "payments", "$",
+        new MappingValue.Copy(new MappingSource.Message("orders", MappingPort.REQUEST, "$")), null);
+    var draft = new DraftInput(flow, List.of(pass, restore), List.of(), List.of(), new DraftSettings(null, null));
+
+    assertAll(
+        () -> assertEquals(List.of("restore"), RequirementMappingCapture.validate(draft, List.of()).stream()
+            .map(RequirementCaptureEditor.Issue::entityId).toList()),
+        () -> assertEquals(List.of("payments"), RequirementBriefProjector.authoredMappings(
+            RequirementCaptureProjection.toDraft(draft, null, List.of(), null, null)).stream()
+                .map(org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent::targetRef).toList()));
+  }
+
+  @Test
+  void shouldPinCopyWhenASenderPlaceholderOnlyContainsACatalogRoute() {
+    var flow = new FlowInput(List.of(
+        new InteractionInput("entry", Direction.INBOUND, "Caller", "receive", null, null, null),
+        new InteractionInput("orders", Direction.OUTBOUND, "Orders API", "create", null, null, null)),
+        List.of(new TransitionInput("entry", "orders")));
+    var copy = new FactInput("client", List.of("entry", "orders"), FactKind.FIELD_MAPPING, Polarity.POSITIVE,
+        "Map client to customerId.", new FieldMappingInput("entry", "client", "orders", "customerId", null));
+    var placeholder = new CapabilityInput("orders", "http-sender", null, HttpMethod.POST, "/orders", null, null, null);
+    var direct = new CapabilityInput("orders", "http-sender", null, HttpMethod.POST,
+        "https://orders.example.test/orders", null, null, null);
+    var candidate = new DraftInput(flow, List.of(copy), List.of(placeholder), List.of(), null);
+    var directDraft = new DraftInput(flow, List.of(copy), List.of(direct), List.of(), null);
+
+    assertAll(
+        () -> assertEquals(new MappingValue.Copy(new MappingSource.Message("entry", MappingPort.OUTPUT, "$.client")),
+            RequirementMappingCapture.pin(candidate, List.of(), List.of()).facts().getFirst().fieldMapping().value()),
+        () -> assertEquals(directDraft, RequirementMappingCapture.pin(directDraft, List.of(), List.of())));
+  }
+
+  private static FactInput mapping(String id, String placement, String target, String field,
+      MappingValue value, String expression) {
+    return new FactInput(id, List.of(placement, target), FactKind.FIELD_MAPPING, Polarity.POSITIVE,
+        "Copy to " + field + ".", new FieldMappingInput(placement, null, target, field, expression, value));
+  }
+
+  @Test
+  void shouldResolveCustomTriggerOutputWithoutAskingForSchemaForDirectCatalogCopy() {
     var copy = new FactInput("copy-order", List.of("http-entry", "call"), FactKind.FIELD_MAPPING,
         Polarity.POSITIVE, "Copy customer to customerId.",
         new FieldMappingInput("http-entry", null, "call", "$.customerId", null,
@@ -48,11 +221,21 @@ class RequirementCaptureProjectionTest {
             "/orders", null, null, null)), List.of(), new DraftSettings(false, null));
 
     var admitted = RequirementCaptureProjection.withCopyPolicies(input);
+    var invented = new FactInput("invented-schema", List.of("http-entry"), FactKind.MESSAGE_SCHEMA,
+        Polarity.POSITIVE, """
+            {"type":"object","properties":{"customer":{"type":"string"}}}
+            """);
+    var revised = new DraftInput(admitted.flow(), List.of(admitted.facts().getFirst(), invented,
+        admitted.facts().getLast()), admitted.capabilities(), admitted.openQuestions(), admitted.settings());
+    var source = new AuthorSourceEvidence.Packet("input", List.of(
+        new AuthorSourceEvidence.Input("user-turn", "Copy customer to customerId.")));
+    var recovered = MessageSchemaContract.withoutUnconfirmedRuntimeSchemas(revised, null, source);
 
     assertAll(
+        () -> assertEquals(admitted.facts(), recovered.facts()),
         () -> assertEquals(new MappingValue.Copy(new MappingSource.Message(
             "http-entry", MappingPort.OUTPUT, "$.customer")), admitted.facts().getFirst().fieldMapping().value()),
-        () -> assertEquals(List.of("http-entry"), RequirementCaptureProjection.pending(admitted, List.of()).stream()
+        () -> assertEquals(List.of(), RequirementCaptureProjection.pending(admitted, List.of()).stream()
             .filter(work -> "COPY_INPUT_SCHEMA_REQUIRED".equals(work.code()))
             .map(RequirementCaptureProjection.PendingWork::interactionId).toList()));
   }

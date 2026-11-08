@@ -39,11 +39,12 @@ public class DocumentationTools {
     sessions.startNew(memoryId);
   }
 
-  @Tool("Search QIP product documentation before making platform behavior claims. Use English technical terms "
-      + "for English manuals, retaining exact property names and error codes. Results are excerpts, not complete "
-      + "sections. Read relevant sections with readDocumentation and cite their url. Missing results do not prove "
-      + "that the platform lacks a capability. Copy each returned documentation `url` verbatim; do not add a "
-      + "scheme or host.")
+  @Tool("Look up a specific QIP behavior that is missing from the supplied schema, validated graph, or skill "
+      + "instructions. In a compiler turn, use those inputs to finish the assigned patch when they already "
+      + "establish the answer. If a search adds no useful evidence, proceed with the established facts or identify "
+      + "the exact unresolved detail. Use English technical terms and exact property names. For documentation "
+      + "citations, read relevant sections with readDocumentation. Copy each returned documentation `url` verbatim; "
+      + "do not add a scheme or host.")
   public String searchDocumentation(@ToolMemoryId String memoryId, String query) {
     return invoke("searchDocumentation", memoryId, () -> {
       String conversation = conversation(memoryId);

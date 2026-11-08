@@ -156,6 +156,15 @@ public class ProductRequirementBriefTool {
       explanation. For an extra claim introduced by the model, use kind=UNSUPPORTED_ADDITION,
       sourceFactId of that selected fact, and its saved evidence quote; do not call an available
       platform default a missing author value. Otherwise use kind=OMITTED_REQUIREMENT.
+      Check typed elementIntent and capabilities against the source as well as the fact text. Retained prose does
+      not make an incompatible implementation correct. For a model-selected type, reference, placement or native
+      capability that contradicts the source, use kind=INTERPRETATION_CONFLICT with sourceFactId, exact path,
+      previousValue and proposedValue encoded as JSON strings. Report all coupled corrections together.
+      Choose the correction from source and platform contracts; do not introduce a new author choice.
+      Author names, property values, mapping fields, supplied bodies and policy decisions remain protected.
+      Report only a concrete mismatch with an explicit requirement. Native defaults and typed fields may already
+      satisfy it without another prose fact. Do not strengthen broad wording into an additional restriction,
+      demand verbatim summaries, or turn a preferred implementation into an author obligation.
       Account for later amendments and choices. A report stops brief creation for guarded source
       reconciliation and does not authorize changing approved requirements.
       """)
@@ -286,9 +295,9 @@ public class ProductRequirementBriefTool {
           trim(capture.goal()), capture.inputs(), constraints(approved), capture.assumptions(),
           capture.citations(), trim(capture.summary()), binding.approvedDraftReference(),
           approved.planningText(),
-          approved.facts())
+          RequirementCaptureProjection.factsForBrief(approved))
           .withMappingIntents(approvedMappings(approved, capture))
-          .withFlow(approved.flow())
+          .withFlow(RequirementCaptureProjection.flowForBrief(approved))
           .withCatalogBindings(approved.catalogBindings())
           .withTargetFolderPath(targetFolderPath(approved));
       brief = RequirementBriefProjector.project(brief);
@@ -394,6 +403,12 @@ public class ProductRequirementBriefTool {
               "Name one selected fact and its own saved source quote; confirmed policy choices are not repair targets.");
         }
       }
+      if (omission.kind() == RequirementAnalysisCapture.SourceDiscrepancyKind.INTERPRETATION_CONFLICT
+          && !validInterpretationReport(binding.approvedDraft().authoredDraft(), source, omission)) {
+        return repair(binding, capture, "SOURCE_PROJECTION_TARGET_MISMATCH", path,
+            "Name a current technical projection field with its exact JSON value and a different source-supported value."
+                + " Author facts, names, values, mappings, supplied bodies and confirmed choices are not projection repair targets.");
+      }
       if (blank(omission.explanation())) {
         return repair(binding, capture, "SOURCE_OMISSION_EXPLANATION_REQUIRED", path + "/explanation",
             "Explain the discrepancy after accounting for later amendments and confirmed choices.");
@@ -409,6 +424,26 @@ public class ProductRequirementBriefTool {
     }
     return new Result(false, false, "REPAIR_SOURCE", List.of(),
         "Source discrepancies reported. Finish this turn; guarded reconciliation must preserve approved requirements.");
+  }
+
+  static boolean validInterpretationReport(RequirementCaptureInput.DraftInput draft,
+      AuthorSourceEvidence.Packet source, RequirementAnalysisCapture.SourceOmission report) {
+    return RequirementProjectionCorrection.validReport(draft, report)
+        && validInterpretationEvidence(draft, source, report);
+  }
+
+  static boolean validInterpretationEvidence(RequirementCaptureInput.DraftInput draft,
+      AuthorSourceEvidence.Packet source, RequirementAnalysisCapture.SourceOmission report) {
+    if (report == null || report.kind() != RequirementAnalysisCapture.SourceDiscrepancyKind.INTERPRETATION_CONFLICT
+        || blank(report.explanation()) || blank(report.sourceFactId())) return false;
+    var fact = draft.facts().stream().filter(value -> report.sourceFactId().equals(value.sourceFactId()))
+        .findFirst().orElse(null);
+    return fact != null && fact.evidence() != null
+        && java.util.Objects.equals(fact.evidence().sourceTurnId(), report.sourceTurnId())
+        && java.util.Objects.equals(fact.evidence().quote(), report.quote())
+        && source != null && source.inputs().stream().anyMatch(input ->
+            java.util.Objects.equals(input.sourceTurnId(), report.sourceTurnId())
+                && report.quote() != null && !report.quote().isBlank() && input.text().contains(report.quote()));
   }
 
   private static String targetFolderPath(RequirementDraft approved) {

@@ -51,21 +51,33 @@ public class CopyMappingMaterializationValidator {
 
   public void validate(String compilationId, RequirementBrief brief,
       ChainSemanticRevision semantic, ChainPlanGraph graph) {
-    ScriptExecutionAuthority.requireSupported(brief, graph);
-    if (brief != null) {
-      for (var fact : brief.facts()) {
-        var intent = fact.elementIntent();
-        if (intent == null || ScriptExecutionAuthority.declaredGeneratedBehavior(brief, intent.elementRef())
-            .filter(fact::equals).isEmpty()) continue;
-        var bodies = graph.nodes().stream()
-            .filter(node -> intent.elementRef().equals(node.nodeId()) && "script".equals(node.type()))
-            .flatMap(node -> node.properties().stream())
-            .filter(property -> "script".equals(property.key())).toList();
-        if (bodies.size() != 1 || bodies.getFirst().value() == null || bodies.getFirst().value().isBlank()) {
-          throw new IllegalArgumentException("Missing executable body for approved script " + intent.elementRef());
-        }
-        SecureGroovyMappingCompiler.compile(bodies.getFirst().value());
+    var behaviorSites = ScriptExecutionAuthority.behaviorSites(semantic, brief);
+    ScriptExecutionAuthority.requireMappingBehaviorSites(brief, semantic);
+    var required = new java.util.TreeSet<>(behaviorSites.keySet());
+    brief.facts().stream().filter(fact -> fact.polarity()
+        == org.qubership.integration.platform.ai.plan.RequirementFactPolarity.POSITIVE)
+        .map(org.qubership.integration.platform.ai.plan.RequirementFact::elementIntent)
+        .filter(Objects::nonNull)
+        .filter(intent -> intent.placement()
+            == org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.LOCAL_NODE
+            && "script".equals(intent.elementType()))
+        .forEach(intent -> required.add(intent.elementRef()));
+    for (String nodeId : required) {
+      if (graph.nodes().stream().filter(node -> nodeId.equals(node.nodeId())
+          && "script".equals(node.type())).count() != 1) {
+        throw new IllegalArgumentException("Missing executable body for approved behavior at " + nodeId
+            + ". Restore its script node from the approved design before materialization.");
       }
+    }
+    ScriptExecutionAuthority.requireSupported(brief, graph, behaviorSites);
+    for (var node : graph.nodes()) {
+      if (!"script".equals(node.type()) || ScriptExecutionAuthority.declaredGeneratedBehavior(
+          brief, node.nodeId(), behaviorSites).isEmpty()) continue;
+      var bodies = node.properties().stream().filter(property -> "script".equals(property.key())).toList();
+      if (bodies.size() != 1 || bodies.getFirst().value() == null || bodies.getFirst().value().isBlank()) {
+        throw new IllegalArgumentException("Missing executable body for approved behavior at " + node.nodeId());
+      }
+      SecureGroovyMappingCompiler.compile(bodies.getFirst().value());
     }
     List<MappingIntent> ordinary = ordinaryMappings(brief, graph);
     if (ordinary.isEmpty()) {

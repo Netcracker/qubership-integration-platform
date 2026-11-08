@@ -306,6 +306,24 @@ class DesignPlanningCapabilityTest {
   }
 
   @Test
+  void plannerPreservesProviderQuotaExhaustion() {
+    var planner = new CipDesignPlannerAdapter(
+        (conversationId, skillId, input, formatFailure, repairEvidence, pinnedSkillHash) -> {
+          throw new dev.langchain4j.exception.HttpException(429, "{\"error\":{\"code\":\"insufficient_quota\"}}");
+        },
+        new CipDesignPlannerReportParser());
+    var capability = new DesignPlanningCapability(planner, new DesignPlanProjector(),
+        new DesignImplementationPlanRenderer(), artifactStore);
+
+    StageOutcome outcome = capability.execute(sampleContext()).collect().asList().await().indefinitely().stream()
+        .filter(CapabilitySignal.Completed.class::isInstance)
+        .map(CapabilitySignal.Completed.class::cast)
+        .findFirst().orElseThrow().outcome();
+
+    assertEquals(StageOutcomeClass.PROVIDER_QUOTA_EXHAUSTED, outcome.outcomeClass());
+  }
+
+  @Test
   void plannerContextRefusalsKeepTechnicalClassificationAndOverflowEvidence() {
     for (RuntimeException failure : List.of(
         new org.qubership.integration.platform.ai.llm.ratelimit.LlmRequestBudget.Overflow("local packet"),

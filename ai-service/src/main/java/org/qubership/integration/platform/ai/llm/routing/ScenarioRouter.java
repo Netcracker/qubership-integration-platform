@@ -121,9 +121,17 @@ public class ScenarioRouter {
     boolean atRecoverableHalt = false;
     if (createRunSelectionService != null && productPipelineChatAdapter != null) {
       try {
-        atRecoverableHalt =
-            createRunSelectionService.existing(conversationId).isPresent()
-                && recoverableHalt(conversationId);
+        if (createRunSelectionService.existing(conversationId).isPresent()) {
+          var pending = pendingClarification(conversationId);
+          String offerId = request.getClarificationOfferId();
+          if (offerId != null && !offerId.isBlank()
+              && pending.filter(wait -> offerId.equals(wait.clarificationOfferId())
+                  && PipelineGates.admitsAuthoredClarification(wait.gateId())).isPresent()) {
+            return productPipelineChatAdapter.handle(request, conversationId);
+          }
+          atRecoverableHalt = pending.map(PendingAction.Clarify::gateId)
+              .filter(PipelineGates::isRecoverableHaltGate).isPresent();
+        }
       } catch (UnsupportedCreateRunBindingException e) {
         LOG.warnf(
             "Unsupported CREATE binding conversationId=%s errorId=%s",
@@ -296,20 +304,12 @@ public class ScenarioRouter {
             .orElse(false);
   }
 
-  /** True when the bound CREATE run is paused and each typed follow-up needs classification. */
-  private boolean recoverableHalt(String conversationId) {
-    if (createChainFacade == null) {
-      return false;
-    }
-    return createChainFacade
-        .snapshot(conversationId)
+  private Optional<PendingAction.Clarify> pendingClarification(String conversationId) {
+    return createChainFacade == null ? Optional.empty() : createChainFacade.snapshot(conversationId)
         .filter(snapshot -> !snapshot.finished())
         .map(ExecutionSnapshot::pendingAction)
         .filter(PendingAction.Clarify.class::isInstance)
-        .map(PendingAction.Clarify.class::cast)
-        .map(PendingAction.Clarify::gateId)
-        .filter(PipelineGates::isRecoverableHaltGate)
-        .isPresent();
+        .map(PendingAction.Clarify.class::cast);
   }
 
   private RoutingOutcome resolveHaltRouting(ChatRequest request, String conversationId) {

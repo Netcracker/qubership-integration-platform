@@ -31,6 +31,48 @@ class RequirementBodyCompletionAdmissionTest {
   private static final String SOURCE = "Receive POST /legacy. prepare.script:\n```groovy\n" + CODE
       + "```\nProceed without IDS.";
 
+  @ParameterizedTest
+  @ValueSource(strings = {"binding-only", "foreign-generation", "changed-behavior", "candidate-code"})
+  void shouldCompleteOnlySourceMetadataForBehaviorWithoutCandidateBytesAfterReload(String change) {
+    var original = new Harness();
+    var tree = original.json.<com.fasterxml.jackson.databind.node.ObjectNode>valueToTree(original.input);
+    var fact = (com.fasterxml.jackson.databind.node.ObjectNode) tree.at("/facts/0");
+    fact.put("text", "Produce the required normalized response.");
+    var intent = (com.fasterxml.jackson.databind.node.ObjectNode) fact.path("elementIntent");
+    intent.putArray("requestedProperties");
+    intent.putArray("exactValues");
+    var input = original.json.convertValue(tree, DraftInput.class);
+    var h = new Harness(input, "Receive POST /legacy and produce the required normalized response.", List.of());
+    var base = h.store.get(h.chat).orElseThrow();
+    var source = h.conversations.archive().read(h.chat);
+    h.reload();
+    var completed = h.completed();
+    var changed = h.json.<com.fasterxml.jackson.databind.node.ObjectNode>valueToTree(completed.authoredDraft());
+    switch (change) {
+      case "foreign-generation" -> ((com.fasterxml.jackson.databind.node.ObjectNode) changed.at("/facts/0/elementIntent/bodyBinding"))
+          .put("sourceGeneration", "foreign");
+      case "changed-behavior" -> ((com.fasterxml.jackson.databind.node.ObjectNode) changed.at("/facts/0"))
+          .put("text", "Replace the approved behavior.");
+      case "candidate-code" -> ((com.fasterxml.jackson.databind.node.ObjectNode) changed.at("/facts/0/elementIntent"))
+          .withArray("requestedProperties").addObject().put("key", "script").put("value", "return 'new behavior'");
+      case "binding-only" -> { }
+      default -> throw new AssertionError(change);
+    }
+    var candidate = h.project(h.json.convertValue(changed, DraftInput.class));
+    ProductCapabilityCaptureContext.bindDiscovery("run", h.chat, base, Map.of(), Set.of(), value -> {});
+    try {
+      var issues = h.store.admitCapture(h.chat, h.reference, candidate, null, Map.of());
+      assertEquals(change.equals("binding-only"), issues.isEmpty(), issues.toString());
+    } finally { ProductCapabilityCaptureContext.unbind(h.chat); }
+    h.reload();
+
+    assertAll(
+        () -> assertEquals(change.equals("binding-only") ? candidate : base, h.store.get(h.chat).orElseThrow()),
+        () -> assertEquals(source, h.conversations.archive().read(h.chat)),
+        () -> assertEquals(input, h.artifacts.payload(h.artifacts.get(h.store.activeCompilationId(h.chat),
+            h.reference).orElseThrow(), RequirementDraft.class).authoredDraft()));
+  }
+
   @Test
   void consumedOriginalSourceCanCompleteOnlyLegacyMetadataAfterReload() {
     var h = new Harness();

@@ -222,7 +222,11 @@ if [[ -n "$min_deps" && "$min_deps" != "null" ]]; then
     e2e_pass "catalog skeleton dependencies=${dep_count} (min ${min_deps})"
 fi
 
-trigger_type="$(jq -r --arg s "$SCENARIO" '.[$s].catalog.skeleton.triggerType // "http-trigger"' "$SCENARIOS_FILE")"
+trigger_type="$(jq -r --arg s "$SCENARIO" '
+    .[$s].catalog | .skeleton.triggerType //
+        ([.requiredTypes[]? | select(test("(^|-)trigger(-[0-9]+)?$"))] | unique
+            | if length == 1 then .[0] else "http-trigger" end)
+' "$SCENARIOS_FILE")"
 if jq -e --arg s "$SCENARIO" '.[$s].catalog.skeleton.triggerMustHaveOutgoing == true' "$SCENARIOS_FILE" > /dev/null; then
     trigger_id="$(jq -r --arg t "$trigger_type" '[.. | objects | select(.type? == $t) | .id] | first // empty' "$elements_json")"
     [[ -n "$trigger_id" ]] || e2e_fail "catalog skeleton: ${trigger_type} not found"

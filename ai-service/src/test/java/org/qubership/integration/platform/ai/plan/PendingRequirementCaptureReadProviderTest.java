@@ -12,6 +12,7 @@ import dev.langchain4j.data.message.ToolExecutionResultMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.invocation.InvocationParameters;
 import dev.langchain4j.model.chat.request.ChatRequest;
+import dev.langchain4j.model.chat.request.json.JsonAnyOfSchema;
 import dev.langchain4j.model.chat.request.json.JsonArraySchema;
 import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
 import dev.langchain4j.model.chat.request.json.JsonStringSchema;
@@ -373,8 +374,12 @@ class PendingRequirementCaptureReadProviderTest {
           .filter(spec -> field[0].equals(spec.name())).findFirst().orElseThrow();
       var input = org.junit.jupiter.api.Assertions.assertInstanceOf(JsonObjectSchema.class,
           tool.parameters().properties().get(field[1]));
-      var facts = org.junit.jupiter.api.Assertions.assertInstanceOf(JsonArraySchema.class,
-          input.properties().get(field[2]));
+      var factsSchema = input.properties().get(field[2]);
+      if (factsSchema instanceof JsonAnyOfSchema nullable) {
+        factsSchema = nullable.anyOf().stream().filter(JsonArraySchema.class::isInstance)
+            .findFirst().orElseThrow();
+      }
+      var facts = org.junit.jupiter.api.Assertions.assertInstanceOf(JsonArraySchema.class, factsSchema);
       var fact = org.junit.jupiter.api.Assertions.assertInstanceOf(JsonObjectSchema.class, facts.items());
       var id = org.junit.jupiter.api.Assertions.assertInstanceOf(JsonStringSchema.class,
           fact.properties().get("sourceFactId"));

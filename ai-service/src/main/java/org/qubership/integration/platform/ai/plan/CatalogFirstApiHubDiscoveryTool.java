@@ -73,8 +73,9 @@ public class CatalogFirstApiHubDiscoveryTool {
 
   @Tool("""
       Resolve one catalog-backed interaction, inbound or outbound. This tool always checks the
-      local runtime catalog first. It calls API Hub only when the catalog has no matching service
-      and operation. Pass interactionId from the stored RequirementFlow. The stored direction
+      saved uploaded specification binding first, then the runtime catalog. It calls API Hub
+      only when both sources miss and the request permits API Hub. Pass interactionId from the
+      stored RequirementFlow. The stored direction
       determines whether the interaction becomes an entry point or a service call; catalog lookup
       does not change that role. Do not repeat interaction prose. Give HTTP method and path only as
       optional narrowing hints. If status is CATALOG_BOUND, use its payloadContracts to update
@@ -84,10 +85,10 @@ public class CatalogFirstApiHubDiscoveryTool {
       recommend recommendedCatalogBinding as the newest version. The reader confirms it on a decision
       card; keep the interaction unbound until confirmation. If status is AMBIGUOUS, ask the reader
       to choose; never search API Hub for an ambiguous local catalog match. If status is
-      INCOMPLETE, ask the reader for the fields listed in missingFields; do not guess them. On a
-      catalog miss, the result is the API Hub search response and may contain multiple candidates.
-      A catalog miss for an operation declared in a matching uploaded specification returns
-      UPLOADED_SPEC_IMPORT_REQUIRED and RUN_IMPORT.
+      INCOMPLETE, ask for the fields listed in missingFields. If status is CATALOG_MISS, report
+      the missing local operation.
+      An operation pinned to an uploaded specification returns UPLOADED_SPEC_IMPORT_REQUIRED
+      and RUN_IMPORT until it has a catalog binding.
       Finish discovery with CONTINUE so the pipeline can import and bind those specs.
       """)
   public String resolveApiOperation(
@@ -106,13 +107,39 @@ public class CatalogFirstApiHubDiscoveryTool {
       return error("interactionId is required");
     }
     String conversationId = ChainPlanTool.resolveConversationId();
-    RequirementFlow.Interaction interaction = storedInteraction(conversationId, resolvedInteractionId);
+    RequirementDraft draft = draftStore == null || conversationId == null || conversationId.isBlank()
+        ? null : draftStore.get(conversationId).orElse(null);
+    RequirementFlow.Interaction interaction = draft == null ? null
+        : draft.flow().interaction(resolvedInteractionId).orElse(null);
     if (interaction == null) {
       return error("Capture RequirementFlow before resolving interactionId=" + resolvedInteractionId);
     }
     String lookupRefusal = lookupRefusal(conversationId, interaction);
     if (lookupRefusal != null) {
       return lookupRefusal;
+    }
+    var uploaded = draft.uploadedSpecBindings().get(resolvedInteractionId);
+    if (uploaded != null) {
+      var hint = draft.catalogBinding(resolvedInteractionId).orElse(null);
+      if (hint == null) {
+        return uploadedImportRequired(resolvedInteractionId);
+      }
+      var match = new CatalogMatch(hint.systemId(), hint.specificationGroupId(), hint.specificationId(),
+          hint.integrationOperationId(), interaction.participant(), hint.protocol(), hint.method(),
+          hint.path(), uploaded.route(), hint.evidenceRef());
+      return encode(InteractionAssessment.resolved(resolvedInteractionId,
+          intentFrom(interaction, uploaded.method(), uploaded.path(), null), match));
+    }
+    if (uploadedSpecs != null) {
+      var options = uploadedSpecs.ambiguousOpenApi(conversationId, draft, resolvedInteractionId);
+      if (!options.isEmpty()) {
+        ObjectNode ambiguity = objectMapper.createObjectNode();
+        ambiguity.put("interactionId", resolvedInteractionId);
+        ambiguity.put("status", "AMBIGUOUS");
+        ambiguity.put("message", "Ask which uploaded specification and operation to use.");
+        ambiguity.set("uploadedOperations", objectMapper.valueToTree(options));
+        return ambiguity.toString();
+      }
     }
     InteractionAssessment.Intent intent = intentFrom(interaction, method, path, specificationHint);
 
@@ -178,18 +205,20 @@ public class CatalogFirstApiHubDiscoveryTool {
           InteractionAssessment.tooBroad(
               resolvedInteractionId, intent, List.of("systemHint")));
     }
-    if (uploadedSpecs != null && uploadedSpecs.pendingInteractionIds(
-        conversationId, draftStore.get(conversationId).orElse(null)).contains(resolvedInteractionId)) {
-      ObjectNode pending = objectMapper.createObjectNode();
-      pending.put("interactionId", resolvedInteractionId);
-      pending.put("status", "UPLOADED_SPEC_IMPORT_REQUIRED");
-      pending.put("nextAction", "RUN_IMPORT");
-      pending.put("message", "Import the uploaded API specifications before resolving this catalog miss."
-          + " Finish discovery with CONTINUE when the remaining business requirements are complete.");
-      return pending.toString();
+    if (uploadedSpecs != null
+        && uploadedSpecs.pendingInteractionIds(conversationId, draft).contains(resolvedInteractionId)) {
+      return uploadedImportRequired(resolvedInteractionId);
     }
     conversationResolutions.remember(
         conversationId, InteractionAssessment.catalogMiss(resolvedInteractionId, intent));
+    if (searchAuthorizations.prohibitsApiHub(conversationId)) {
+      searchAuthorizations.revoke(conversationId);
+      ObjectNode response = objectMapper.createObjectNode();
+      response.put("interactionId", resolvedInteractionId);
+      response.put("status", "CATALOG_MISS");
+      response.put("message", ApiHubSearchAuthorizations.DISABLED_MESSAGE);
+      return response.toString();
+    }
     // The miss is what authorizes the search, and it authorizes it for this interaction alone.
     searchAuthorizations.issue(
         conversationId, resolvedInteractionId, intent.operationQuery(), "confirmed catalog miss");
@@ -337,16 +366,14 @@ public class CatalogFirstApiHubDiscoveryTool {
     return List.copyOf(named);
   }
 
-  private RequirementFlow.Interaction storedInteraction(
-      String conversationId, String interactionId) {
-    if (draftStore == null || conversationId == null || conversationId.isBlank()) {
-      return null;
-    }
-    RequirementDraft draft = draftStore.get(conversationId).orElse(null);
-    if (draft == null) {
-      return null;
-    }
-    return draft.flow().interaction(interactionId).orElse(null);
+  private String uploadedImportRequired(String interactionId) {
+    ObjectNode pending = objectMapper.createObjectNode();
+    pending.put("interactionId", interactionId);
+    pending.put("status", "UPLOADED_SPEC_IMPORT_REQUIRED");
+    pending.put("nextAction", "RUN_IMPORT");
+    pending.put("message", "Import the uploaded API specifications to bind this operation."
+        + " Finish discovery with CONTINUE when the remaining business requirements are complete.");
+    return pending.toString();
   }
 
   private String lookupRefusal(String conversationId, RequirementFlow.Interaction interaction) {

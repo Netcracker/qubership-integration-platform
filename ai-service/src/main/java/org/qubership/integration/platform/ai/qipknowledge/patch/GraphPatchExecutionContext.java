@@ -22,15 +22,46 @@ public record GraphPatchExecutionContext(
     List<String> editTargetNodeIds,
     String mappingGenerationContext,
     boolean editsExistingScriptBodies,
-    Map<String, ScriptEditDraft> scriptEditDrafts) {
+    Map<String, ScriptEditDraft> scriptEditDrafts,
+    Map<String, List<String>> behaviorTasks) {
 
   public record ScriptEditDraft(String suppliedBody) {}
 
   public GraphPatchExecutionContext {
     scriptEditDrafts = scriptEditDrafts == null ? Map.of() : Map.copyOf(scriptEditDrafts);
+    var copiedTasks = new java.util.LinkedHashMap<String, List<String>>();
+    if (behaviorTasks != null) behaviorTasks.forEach((node, facts) -> copiedTasks.put(node, List.copyOf(facts)));
+    behaviorTasks = Map.copyOf(copiedTasks);
     consumedArtifacts = consumedArtifacts == null ? List.of() : List.copyOf(consumedArtifacts);
     ownership = ownership == null ? GraphPatchOwnershipPolicy.denyAll() : ownership;
     editTargetNodeIds = editTargetNodeIds == null ? List.of() : List.copyOf(editTargetNodeIds);
+  }
+
+  public GraphPatchExecutionContext(
+    String runId,
+    String skillId,
+    String requirementDigest,
+    String inputGraphDigest,
+    String compilerPackageDigest,
+    String languageVersion,
+    RequirementBrief requirementBrief,
+    List<CompilationArtifacts.Reference> consumedArtifacts,
+    ChainPlanGraph inputGraph,
+    GraphPatchOwnershipPolicy ownership,
+    String attemptId,
+    List<String> editTargetNodeIds,
+    String mappingGenerationContext,
+    boolean editsExistingScriptBodies,
+    Map<String, ScriptEditDraft> scriptEditDrafts) {
+    this(runId, skillId, requirementDigest, inputGraphDigest, compilerPackageDigest, languageVersion,
+        requirementBrief, consumedArtifacts, inputGraph, ownership, attemptId, editTargetNodeIds,
+        mappingGenerationContext, editsExistingScriptBodies, scriptEditDrafts, Map.of());
+  }
+
+  public GraphPatchExecutionContext withBehaviorTasks(Map<String, List<String>> tasks) {
+    return new GraphPatchExecutionContext(runId, skillId, requirementDigest, inputGraphDigest, compilerPackageDigest,
+        languageVersion, requirementBrief, consumedArtifacts, inputGraph, ownership, attemptId, editTargetNodeIds,
+        mappingGenerationContext, editsExistingScriptBodies, scriptEditDrafts, tasks);
   }
 
   public GraphPatchExecutionContext(
@@ -48,14 +79,14 @@ public record GraphPatchExecutionContext(
     return new GraphPatchExecutionContext(
         runId, skillId, requirementDigest, inputGraphDigest, compilerPackageDigest, languageVersion,
         requirementBrief, consumedArtifacts, inputGraph, ownership, attemptId, editTargetNodeIds,
-        mappingGenerationContext, enabled, scriptEditDrafts);
+        mappingGenerationContext, enabled, scriptEditDrafts, behaviorTasks);
   }
 
   public GraphPatchExecutionContext withScriptEditDrafts(Map<String, ScriptEditDraft> drafts) {
     return new GraphPatchExecutionContext(
         runId, skillId, requirementDigest, inputGraphDigest, compilerPackageDigest, languageVersion,
         requirementBrief, consumedArtifacts, inputGraph, ownership, attemptId, editTargetNodeIds,
-        mappingGenerationContext, editsExistingScriptBodies, drafts);
+        mappingGenerationContext, editsExistingScriptBodies, drafts, behaviorTasks);
   }
 
   /** Create path and callers with no named edit targets. */
@@ -133,7 +164,7 @@ public record GraphPatchExecutionContext(
         targetNodeIds,
         mappingGenerationContext,
         editsExistingScriptBodies,
-        scriptEditDrafts);
+        scriptEditDrafts, behaviorTasks);
   }
 
   public GraphPatchExecutionContext withConsumedArtifacts(
@@ -153,7 +184,7 @@ public record GraphPatchExecutionContext(
         editTargetNodeIds,
         mappingGenerationContext,
         editsExistingScriptBodies,
-        scriptEditDrafts);
+        scriptEditDrafts, behaviorTasks);
   }
 
   public GraphPatchExecutionContext withMappingGenerationContext(String mappingContext) {
@@ -172,6 +203,6 @@ public record GraphPatchExecutionContext(
         editTargetNodeIds,
         mappingContext,
         editsExistingScriptBodies,
-        scriptEditDrafts);
+        scriptEditDrafts, behaviorTasks);
   }
 }

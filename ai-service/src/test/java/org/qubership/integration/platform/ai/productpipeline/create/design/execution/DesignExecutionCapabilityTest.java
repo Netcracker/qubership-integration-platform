@@ -381,6 +381,18 @@ class DesignExecutionCapabilityTest {
   }
 
   @Test
+  void executionPreservesProviderQuotaExhaustion() {
+    when(bindingAdapter.resolve(eq(CONVERSATION_ID), eq(revision), anyList(), any()))
+        .thenThrow(new dev.langchain4j.exception.HttpException(429, "{\"error\":{\"code\":\"insufficient_quota\"}}"));
+
+    StageOutcome outcome = execute(List.of(idsRef, revisionRef, reportRef, planRef, implementationRef,
+        manifestRef, idsApprovalRef, implementationApprovalRef));
+
+    assertEquals(StageOutcomeClass.PROVIDER_QUOTA_EXHAUSTED, outcome.outcomeClass());
+    verifyNoInteractions(runner);
+  }
+
+  @Test
   void executionContextRefusalsKeepTechnicalClassificationAndOverflowEvidence() {
     for (RuntimeException failure : List.of(
         new org.qubership.integration.platform.ai.llm.ratelimit.LlmRequestBudget.Overflow("local packet"),

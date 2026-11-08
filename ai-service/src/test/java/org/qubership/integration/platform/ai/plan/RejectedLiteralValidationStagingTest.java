@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.ai.plan;
 
+import static org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures.assertAuthoredContentEquals;
+
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -102,7 +104,7 @@ class RejectedLiteralValidationStagingTest {
     try (var ignored = ToolSession.open(fresh.chat)) {
       var accepted = fresh.capture(corrected);
       assertTrue(accepted.accepted(), accepted.toString());
-      assertEquals(corrected, fresh.store.get(fresh.chat).orElseThrow().authoredDraft());
+      assertAuthoredContentEquals(corrected, fresh.store.get(fresh.chat).orElseThrow().authoredDraft());
       assertNotNull(accepted.revision());
     }
 
@@ -119,11 +121,11 @@ class RejectedLiteralValidationStagingTest {
       // The rejected combined exact value is not an obligation. Method and path properties cover the call.
       assertTrue(result.accepted(), result.toString());
       assertTrue(result.issues().isEmpty(), result.toString());
-      assertEquals(corrected, h.store.get(h.chat).orElseThrow().authoredDraft());
+      assertAuthoredContentEquals(corrected, h.store.get(h.chat).orElseThrow().authoredDraft());
       assertNotNull(result.revision());
       var saved = h.immutableArtifacts();
       h.reload();
-      assertEquals(corrected, h.store.get(h.chat).orElseThrow().authoredDraft());
+      assertAuthoredContentEquals(corrected, h.store.get(h.chat).orElseThrow().authoredDraft());
       assertEquals(result.revision(), h.store.latestRevision(h.chat).orElseThrow().reference());
       h.assertUnchanged(saved);
     }
@@ -175,13 +177,13 @@ class RejectedLiteralValidationStagingTest {
               && issue.path().equals("/changes/facts/create-anchor") && issue.entityId().equals("create-anchor")),
               result.toString());
           assertEquals(accepted, h.store.latestRevision(h.chat).map(CompilationArtifacts.Revision::reference));
-          assertEquals(original, h.store.get(h.chat).orElseThrow().authoredDraft());
+          assertAuthoredContentEquals(original, h.store.get(h.chat).orElseThrow().authoredDraft());
         } else {
           // No saved claim grounds these strings, so dropping them is not a literal obligation.
           assertTrue(result.accepted(), result.toString());
           assertTrue(result.issues().stream().noneMatch(issue -> issue.code().equals("UNBOUND_REQUIRED_LITERAL")
               || issue.code().equals("REPAIR_FACT_LOSS")), result.toString());
-          assertEquals(candidate, h.store.get(h.chat).orElseThrow().authoredDraft());
+          assertAuthoredContentEquals(candidate, h.store.get(h.chat).orElseThrow().authoredDraft());
         }
         h.assertUnchanged(immutable);
       }

@@ -616,7 +616,8 @@ final class RequirementRevisionAdmission {
         issues.add(new Issue("CONFIRMED_ANSWER_CHANGED", "/draft/openQuestions", null,
             "Retain the confirmed IDS choice and do not reopen its question."));
       }
-      repairPaths.stream().filter(path -> !path.contains("/policyConflict") && validPath(base, path))
+      repairPaths.stream().filter(path -> !path.contains("/policyConflict")
+          && (validPath(base, path) || path.startsWith("/capabilities/") && path.indexOf('/', 14) < 0))
           .forEach(allowed::add);
       candidate.facts().stream().filter(fact -> fact.policyConflict() != null
           && fact.policyConflict().decision() != null && canAnswer.test(fact))
@@ -805,7 +806,7 @@ final class RequirementRevisionAdmission {
     }
   }
 
-  private static ObjectNode tree(DraftInput input) {
+  static ObjectNode tree(DraftInput input) {
     var tree = MAPPER.createObjectNode();
     var facts = tree.putObject("facts");
     if (input.facts() != null) input.facts().stream().filter(Objects::nonNull).forEach(fact -> facts.set(fact.sourceFactId(), MAPPER.valueToTree(fact)));
@@ -1164,7 +1165,7 @@ final class RequirementRevisionAdmission {
         .noneMatch(question -> question != null && pinned.questionId().equals(question.questionId()));
     var after = new RequirementClarificationCoordinator().targetProjection(candidate, pinned);
     boolean targetChanged = context.targetProjection() != null && !context.targetProjection().equals(after);
-    var removals = unappliedRemovals(base, candidate, defaultsFor);
+    var removals = unappliedRemovals(base, candidate, defaultsFor, context);
     boolean pinnedUnapplied = removals.stream().anyMatch(issue -> pinned.questionId().equals(issue.entityId()));
     if (closed && !pinnedUnapplied) {
       var others = removals.stream().filter(issue -> !pinned.questionId().equals(issue.entityId())).toList();
@@ -1286,8 +1287,26 @@ final class RequirementRevisionAdmission {
     return issues;
   }
 
+  private static boolean structuredSchemaAnswer(RequirementDraftStore.ClarificationAdmissionContext context,
+      QuestionInput question) {
+    if (context == null || context.pinnedQuestion() == null
+        || !question.questionId().equals(context.pinnedQuestion().questionId()) || context.answerText() == null) return false;
+    if (MessageSchemaContract.containsSchema(context.answerText())) return true;
+    try {
+      JsonNode answer = MAPPER.readTree(context.answerText());
+      return answer != null && !answer.isMissingNode();
+    } catch (com.fasterxml.jackson.core.JsonProcessingException prose) {
+      return false;
+    }
+  }
+
   static List<Issue> unappliedRemovals(DraftInput base, RequirementDraft candidate,
       Function<String, Set<String>> defaultsFor) {
+    return unappliedRemovals(base, candidate, defaultsFor, null);
+  }
+
+  static List<Issue> unappliedRemovals(DraftInput base, RequirementDraft candidate,
+      Function<String, Set<String>> defaultsFor, RequirementDraftStore.ClarificationAdmissionContext context) {
     if (base == null || base.openQuestions() == null || candidate == null || candidate.authoredDraft() == null) {
       return List.of();
     }
@@ -1303,6 +1322,15 @@ final class RequirementRevisionAdmission {
           .anyMatch(open -> open != null && open.questionId().equals(question.questionId()))) {
         continue;
       }
+      if (AuthorQuestionAdmission.unsupportedMissingTarget(evidence, RequirementCaptureProjection.facts(base))
+          && AuthorQuestionAdmission.unsupportedMissingTarget(evidence, facts)) continue;
+      if (evidence.kind() == AuthorQuestionEvidence.Kind.MISSING_VALUE
+          && "requestSchema".equals(evidence.propertyKey())
+          && !RequirementMappingCapture.needsInputBodySchema(draft, evidence.interactionId())
+          && base.facts().stream().noneMatch(fact -> fact.kind() == RequirementCaptureInput.FactKind.MESSAGE_SCHEMA
+              && fact.polarity() == RequirementCaptureInput.Polarity.POSITIVE
+              && fact.interactionIds().contains(evidence.interactionId()))
+          && !structuredSchemaAnswer(context, question)) continue;
       boolean resolverWork = RequirementCaptureProjection.pending(draft, candidate.catalogBindings(),
           RequirementCaptureProjection.resolvedTargets(candidate)).stream().anyMatch(work ->
               evidence.interactionId().equals(work.interactionId()) && work.code().endsWith("LOOKUP_REQUIRED"));

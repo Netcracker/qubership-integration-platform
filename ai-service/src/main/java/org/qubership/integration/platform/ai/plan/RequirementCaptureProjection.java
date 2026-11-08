@@ -60,6 +60,40 @@ public final class RequirementCaptureProjection {
             .toList());
   }
 
+  static RequirementFlow flow(DraftInput input, Map<String, UploadedSpecOperations.Binding> uploadedSpecBindings) {
+    RequirementFlow authoredFlow = flow(input);
+    return uploadedSpecBindings.isEmpty() ? authoredFlow : new RequirementFlow(
+        authoredFlow.interactions().stream().map(interaction -> {
+          var binding = uploadedSpecBindings.get(interaction.interactionId());
+          return binding == null ? interaction : new RequirementFlow.Interaction(
+              interaction.interactionId(), interaction.direction(), interaction.participant(),
+              binding.route(), interaction.description(), interaction.failureMode());
+        }).toList(), authoredFlow.transitions());
+  }
+
+  static RequirementFlow flowForBrief(RequirementDraft draft) {
+    return draft.authoredDraft() == null ? draft.flow() : flow(draft.authoredDraft());
+  }
+
+  static List<RequirementFact> factsForBrief(RequirementDraft draft) {
+    DraftInput input = draft.authoredDraft();
+    if (input == null) return draft.facts().stream().map(RequirementBodySources::authoredFact).toList();
+    Map<String, RequirementFact> passthrough = new HashMap<>();
+    for (FactInput fact : input.facts()) {
+      if (RequirementMappingCapture.confirmedBodyPassthrough(input, fact)) {
+        passthrough.put(fact.sourceFactId(), projectedFact(fact, RequirementFactKind.BEHAVIOR));
+      }
+    }
+    return draft.facts().stream().map(fact -> fact.kind() == RequirementFactKind.FIELD_MAPPING
+        ? passthrough.getOrDefault(fact.sourceFactId(), fact) : fact).map(RequirementBodySources::authoredFact).toList();
+  }
+
+  private static RequirementFact projectedFact(FactInput fact, RequirementFactKind kind) {
+    return RequirementBodySources.authoredFact(new RequirementFact(fact.sourceFactId(), RequirementFactPolarity.valueOf(fact.polarity().name()),
+        kind, "", fact.text(), "", "", "", "", "", "", fact.interactionIds(), fact.policyConflict(),
+        fact.elementIntent()));
+  }
+
   public static List<RequirementFact> facts(DraftInput input) {
     return facts(input, Map.of());
   }
@@ -68,10 +102,9 @@ public final class RequirementCaptureProjection {
     List<RequirementFact> projected = new ArrayList<>();
     Set<String> usedIds = new HashSet<>();
     for (FactInput fact : input.facts()) {
-      projected.add(new RequirementFact(
-          fact.sourceFactId(), RequirementFactPolarity.valueOf(fact.polarity().name()),
-          RequirementFactKind.valueOf(fact.kind().name()), "", fact.text(), "", "", "", "", "",
-          "", fact.interactionIds(), fact.policyConflict(), fact.elementIntent()));
+      var kind = RequirementMappingCapture.confirmedBodyPassthrough(input, fact)
+          ? RequirementFactKind.BEHAVIOR : RequirementFactKind.valueOf(fact.kind().name());
+      projected.add(projectedFact(fact, kind));
       if (!blank(fact.sourceFactId())) {
         usedIds.add(fact.sourceFactId());
       }
@@ -130,6 +163,13 @@ public final class RequirementCaptureProjection {
     return candidate;
   }
 
+  public static List<PendingWork> pending(RequirementDraft draft, Set<String> uploadedSpecInteractions) {
+    if (draft.authoredDraft() == null) return List.of();
+    Set<String> uploaded = new HashSet<>(uploadedSpecInteractions);
+    uploaded.addAll(draft.uploadedSpecBindings().keySet());
+    return pending(draft.authoredDraft(), draft.catalogBindings(), resolvedTargets(draft), uploaded);
+  }
+
   public static List<PendingWork> pending(
       DraftInput input, List<CatalogBindingHint> bindings) {
     return pending(input, bindings, Map.of());
@@ -184,7 +224,7 @@ public final class RequirementCaptureProjection {
         hasInbound = true;
       }
       if (interaction.direction() == null || blank(interaction.participant())
-          || blank(interaction.operation())) {
+          || blank(interaction.operation()) && !uploadedSpecInteractions.contains(id)) {
         pending.add(new PendingWork(
             "INTERACTION_FIELD_REQUIRED", id, null, missingInteractionFields(interaction)));
       }
@@ -253,7 +293,8 @@ public final class RequirementCaptureProjection {
               || "http-trigger".equals(capability.capabilityKey())
                   && capability.httpMode() == RequirementCaptureInput.HttpMode.CATALOG);
       if (needsCatalog && !bound.contains(id)
-          && !blank(interaction.participant()) && !blank(interaction.operation())) {
+          && !blank(interaction.participant())
+          && (!blank(interaction.operation()) || uploadedSpecInteractions.contains(id))) {
         pending.add(uploadedSpecInteractions.contains(id)
             ? new PendingWork("UPLOADED_SPEC_IMPORT_REQUIRED", id, null,
                 "Import the uploaded API specifications before binding the operation for " + interaction.participant() + ".")
@@ -261,7 +302,7 @@ public final class RequirementCaptureProjection {
                 "Resolve the catalog operation for " + interaction.participant() + "."));
       }
     }
-    for (CapabilityInput owner : MessageSchemaContract.missingCopySchemas(input)) {
+    for (CapabilityInput owner : MessageSchemaContract.requiredCopySchemas(input)) {
       pending.add(new PendingWork("COPY_INPUT_SCHEMA_REQUIRED", owner.interactionId(), null,
           "Provide the JSON Schema for the request body of " + owner.httpMethod() + " " + owner.path()
               + ". Use propertyKey=requestSchema for this question."));
@@ -463,18 +504,26 @@ public final class RequirementCaptureProjection {
       String sourceVersion,
       String sourceHash,
       Map<String, String> verifiedTargets) {
-    RequirementFlow flow = flow(input);
+    return toDraft(input, previous, bindings, sourceVersion, sourceHash, verifiedTargets,
+        previous == null ? Map.of() : previous.uploadedSpecBindings());
+  }
+
+  public static RequirementDraft toDraft(
+      DraftInput input, RequirementDraft previous, List<CatalogBindingHint> bindings,
+      String sourceVersion, String sourceHash, Map<String, String> verifiedTargets,
+      Map<String, UploadedSpecOperations.Binding> uploadedSpecBindings) {
+    RequirementFlow flow = flow(input, uploadedSpecBindings);
     Map<String, String> targets = new HashMap<>(retainedTargets(previous, input));
     targets.putAll(verifiedTargets);
     List<RequirementFact> facts = facts(input, targets);
-    var remaining = pending(input, bindings, targets);
+    var remaining = pending(input, bindings, targets, uploadedSpecBindings.keySet());
     boolean ready = remaining.isEmpty()
         && RequirementFlowValidator.validateBindings(flow, facts, bindings).isEmpty();
     List<String> openQuestions = input.openQuestions().stream().map(QuestionInput::text).toList();
     String candidateInteractionId = previous == null
         ? null : previous.apiHubCandidateInteractionId();
-    boolean candidateBound = candidateInteractionId != null && bindings.stream()
-        .anyMatch(binding -> candidateInteractionId.equals(binding.interactionId()));
+    boolean candidateBound = candidateInteractionId != null && (uploadedSpecBindings.containsKey(candidateInteractionId)
+        || bindings.stream().anyMatch(binding -> candidateInteractionId.equals(binding.interactionId())));
     return new RequirementDraft(
         ready,
         render(input, bindings),
@@ -491,7 +540,7 @@ public final class RequirementCaptureProjection {
         bindings,
         input.settings().preferredSystemType() == null
             ? null : input.settings().preferredSystemType().name(),
-        input);
+        input, uploadedSpecBindings);
   }
 
   public static Map<String, String> resolvedTargets(RequirementDraft draft) {

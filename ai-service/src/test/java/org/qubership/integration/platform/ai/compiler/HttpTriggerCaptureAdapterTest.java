@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.compiler;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
@@ -37,6 +38,30 @@ class HttpTriggerCaptureAdapterTest {
     assertEquals("/tasks", result.triggers().getFirst().properties().get(0).value());
     assertEquals("POST", result.triggers().getFirst().properties().get(1).value());
     assertEquals("false", result.triggers().getFirst().properties().get(2).value());
+  }
+
+  @Test
+  void catalogEntryPointsUseCatalogIdentityWithoutCreatingACustomRoute() {
+    var original = binding("");
+    var hint = new org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint(
+        "3", "entry-1", "fact-http", "findTasks", "system", "group", "spec", "operation", "http",
+        "POST", "/tasks", "v1", java.time.Instant.parse("2026-11-07T00:00:00Z"), "catalog:operation");
+    var bound = new HttpTriggerCaptureSession.Binding(original.revision(),
+        original.brief().withCatalogBindings(List.of(hint)), original.skeleton());
+    var result = new HttpTriggerCaptureAdapter().adapt(new HttpTriggerCapture(List.of(
+        new HttpTriggerCapture.Endpoint("http-entry", "http-trigger-1", false))), bound);
+    assertEquals("POST /tasks", result.triggers().getFirst().label());
+    var properties = result.triggers().getFirst().properties().stream().collect(java.util.stream.Collectors.toMap(
+        org.qubership.integration.platform.ai.plan.model.PlanProperty::key,
+        org.qubership.integration.platform.ai.plan.model.PlanProperty::value));
+    var schema = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+        .createForUnitTests(new com.fasterxml.jackson.databind.ObjectMapper());
+    var allowed = schema.allowedPatchPropertyKeys("http-trigger");
+    assertTrue(allowed.containsAll(properties.keySet()), () -> "allowed=" + allowed + "; actual=" + properties.keySet());
+    assertEquals(java.util.Map.of("integrationSystemId", "system", "integrationSpecificationGroupId", "group",
+        "integrationSpecificationId", "spec", "integrationOperationId", "operation",
+        "httpMethodRestrict", "POST",
+        "integrationOperationPath", "/tasks", "externalRoute", "false"), properties);
   }
 
   @Test

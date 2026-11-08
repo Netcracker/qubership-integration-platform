@@ -528,7 +528,7 @@ class CipDesignExecutorJavaAdapterTest {
   @Test
   void repeatedReadKeepsRejectedGraphAndReachesDiagnosisWithoutImpersonatingCaptureFailure() {
     var completed = successfulEngineResult(List.of("cip-trigger-generator"));
-    var read = new org.qubership.integration.platform.ai.llm.ratelimit.ReadNoProgressException("Retained native schema");
+    var read = new org.qubership.integration.platform.ai.llm.ratelimit.ReadNoProgressException("Retained native schema", "cip-service-call-generator", "input-graph-scope");
     var rejected = new CompilerDagExecutionResult(StageOutcomeClass.CONTRACT_FAILURE, read.getMessage(),
         completed.executedSkillIds(), completed.patchLedger(), completed.graph(), null, null);
     var failed = mock(org.qubership.integration.platform.ai.productpipeline.create.CompilerDagExecutionFailure.class);

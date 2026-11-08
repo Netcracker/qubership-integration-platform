@@ -103,10 +103,15 @@ public class ChainSemanticCaptureTool {
 
   @Tool(value = """
       Capture the chain topology for this design-input turn.
-      Every script needs its own admitted typed mapping, exact source-bound supplied body, or
-      approved BEHAVIOR fact with a source-classified GENERATED_CANDIDATE binding for that node.
-      BEHAVIOR facts without that binding alone do not authorize generated scripts.
+      Generated processing scripts may implement approved positive BEHAVIOR facts bound on the
+      operation through sourceFactIds; the author need not preselect that processing topology.
+      Explicit author script bodies and element intents remain binding. Do not replace supplied code.
+      Native COPY scripts implement only their admitted mapping; extra behavior needs a separate operation.
       Copy the owning fact ID into sourceFactIds. The native compiler derives mapping retention.
+      sourceFactIds record provenance; citing a behavior on a call does not implement extra processing.
+      Data transformations and response composition need their authorized executable step or approved hook.
+      Plan preservation before body replacement when a later step uses an earlier result.
+      An external anchor alone implements only its native behavior.
       Split branches are metadata in splitRegions. Their entryNodeId and exitNodeIds refer to
       executable work. The server creates branch containers. A requested Split with three Script
       branches uses one split-2 owner, three script operations, and three branch metadata entries.

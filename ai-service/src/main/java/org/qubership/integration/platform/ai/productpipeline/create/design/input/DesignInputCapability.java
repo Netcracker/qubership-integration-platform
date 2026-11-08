@@ -455,12 +455,21 @@ public class DesignInputCapability implements StageCapability {
          mappingIntentId on exactly one edge entering its target external interaction. Omit it\
          on every earlier edge through internal processing nodes. Field-mapping\
          shells use elementType script. Do not mint a mapping id and do not reuse a\
-         sourceFactId as mappingIntentId. Every script needs its own admitted typed mapping or\
-         exact source-bound supplied body or an approved BEHAVIOR fact with a source-classified\
-         GENERATED_CANDIDATE binding for that node. A skipped mapping hop stays a direct edge\
-         unless a script has that authority. Preserve every positive BEHAVIOR fact on its\
+         sourceFactId as mappingIntentId. A generated processing Script can implement an approved\
+         positive BEHAVIOR by binding its sourceFactId on that operation; the author need not\
+         preselect the Script topology. Explicit author Script bodies and element intents remain\
+         binding and cannot be replaced by this path. Native COPY sites implement only their\
+         admitted mapping. Put additional behavior on a separate operation with its own edges.\
+         A skipped mapping hop stays a direct edge unless separate behavior needs processing. Preserve every positive BEHAVIOR fact on its\
          implementing node or anchor. Constants such as commandType=completeTask and response\
          assembly remain requirements. Attach them to the authorized Script that implements them.\
+         sourceFactIds are provenance, not proof that a node executes the behavior. A call or\
+         trigger does not gain data transformation or response composition by citing a fact.\
+         For each data-changing behavior, include the authorized executable processing step or\
+         approved hook that implements it. Use an anchor alone only for its native behavior.\
+         When approved behavior needs an earlier response after another call replaces the body,\
+         design where its values are saved before replacement and where they are read.\
+         Include both operations in the topology or use an approved existing producer.\
          The native compiler derives context retention from admitted mapping origins;\
          do not combine extra parsing, constants, or manual retention into a mapping script.\
          Keep supplied bodies exact and preserve their approved execution placement. Native\
@@ -495,6 +504,9 @@ public class DesignInputCapability implements StageCapability {
     prompt.append("""
 
         Preserve every approved branch decision and outcome when authoring or repairing predicates.
+        Branch policy facts attached to a control element belong in its sourceFactIds. Realize the
+        branch policy in the condition or error-scope region, including its predicate, exception and
+        ordering. The server generates branch shells; do not create separate control nodes for them.
         Correct syntax or date formats without weakening the condition or replacing it with a
         convenient comparison. Recheck the predicate against the approved behavior, including the
         opposite branch. Camel Simple date functions use SimpleDateFormat patterns; mm is minutes.

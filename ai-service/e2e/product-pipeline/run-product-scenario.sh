@@ -126,6 +126,7 @@ recovery_owner_stage="$(jq -r --arg s "${SCENARIO_ID}" '.[$s].recovery.ownerStag
 recovery_follow_up="$(jq -r --arg s "${SCENARIO_ID}" '.[$s].recovery.followUp // empty' "${SCENARIOS_FILE}")"
 recovery_exhaust_halt="$(jq -r --arg s "${SCENARIO_ID}" '.[$s].recovery.exhaustHalt // false' "${SCENARIOS_FILE}")"
 recovery_automatic_only="$(jq -r --arg s "${SCENARIO_ID}" '.[$s].recovery.automaticOnly // false' "${SCENARIOS_FILE}")"
+recovery_minimum_faults="$(jq -r --arg s "${SCENARIO_ID}" '.[$s].recovery.minimumFaults // 1' "${SCENARIOS_FILE}")"
 recovery_fault_stages_json="$(jq -c --arg s "${SCENARIO_ID}" \
     '.[$s].recovery.faultStages // (if .[$s].recovery.faultStage then [.[$s].recovery.faultStage] else [] end)' \
     "${SCENARIOS_FILE}")"
@@ -378,12 +379,15 @@ uploaded_spec_system_types_json='{}'
 uploaded_spec_uploads_json='[]'
 control_answer_sent=0
 control_question=""
+answered_offer=""
+imported_offer=""
 
 send_turn() {
     local label="$1"
     local text="$2"
     local structured="${3:-}"
     local decision="${4:-}"
+    local offer_id="${5:-}"
     if [[ "${STRICT_RECOVERY}" == "1" ]]; then
         python3 - "${run_dir}/interactions.jsonl" "${label}" "${text}" "${decision}" "${control_question}" \
             "${latest_wait_reason:-}" "${stage_id:-}" "${chat_card:-}" << 'PY'
@@ -416,7 +420,7 @@ PY
         local out_sse="${sse_dir}/${label}.sse"
         conversation_id="$(
             bash "${SCRIPTS_DIR}/chat-turn.sh" \
-                "${BASE_URL}" "${conversation_id}" "${text}" "${out_sse}" "" "${decision}"
+                "${BASE_URL}" "${conversation_id}" "${text}" "${out_sse}" "" "${decision}" "${offer_id}"
         )"
         if [[ "${recovery_exhaust_halt}" == "true" ]]; then
             e2e_assert_observable_sse_output "${out_sse}" "${label}"
@@ -509,23 +513,6 @@ fi
 send_turn "01-prompt" "${prompt}"
 unset E2E_CHAT_ATTACHMENT_KEYS_JSON || true
 
-if [[ "$(jq 'length' <<< "${uploaded_spec_object_keys_json}")" -gt 0 ]]; then
-    upload_decision="$(
-        e2e_extract_uploaded_spec_import_decision \
-            "${sse_dir}/01-prompt.sse" "${uploaded_spec_system_types_json}"
-    )" || {
-        echo "FAIL: uploaded specification import decision card not found" >&2
-        exit 1
-    }
-    jq -n \
-        --argjson uploads "${uploaded_spec_uploads_json}" \
-        --argjson specSystemTypes "${uploaded_spec_system_types_json}" \
-        --argjson decision "${upload_decision}" \
-        '{uploads: $uploads, specSystemTypes: $specSystemTypes, decision: $decision}' \
-        > "${run_dir}/uploaded-spec.json"
-    send_turn "02-import-specification" "" "" "${upload_decision}"
-fi
-
 # Overall poll cap (was hard-coded 600s). Stuck planning without plan artifacts
 # aborts earlier via PRODUCT_PIPELINE_PLANNING_STALL_SEC.
 : "${PRODUCT_PIPELINE_POLL_TIMEOUT_SEC:=300}"
@@ -602,6 +589,37 @@ while ((SECONDS < deadline)); do
     ' <<< "${chat_card}")"
     fi
 
+    upload_decision="$(jq -c --argjson types "${uploaded_spec_system_types_json}" '
+      select(($types | length) > 0 and .artifactType == "uploaded-specs-import-proposal"
+        and .artifactHash and ((.actions // []) | index("import-specification")))
+      | {action:"import-specification", artifactType, artifactHash, revision, specSystemTypes:$types}
+    ' <<< "${chat_card}")"
+    if [[ -n "${upload_decision}" ]]; then
+        if [[ "${upload_decision}" == "${imported_offer}" ]]; then
+            echo "FAIL: uploaded specification import card did not advance" >&2
+            break
+        fi
+        jq -n --argjson uploads "${uploaded_spec_uploads_json}" \
+            --argjson specSystemTypes "${uploaded_spec_system_types_json}" --argjson decision "${upload_decision}" \
+            '{uploads:$uploads, specSystemTypes:$specSystemTypes, decision:$decision}' > "${run_dir}/uploaded-spec.json"
+        send_turn "import-specification-$(date +%s)" "" "" "${upload_decision}"
+        imported_offer="${upload_decision}"
+        continue
+    fi
+    clarification_offer="$(jq -r '
+      select(.kind=="clarify" and (.artifactType // "")=="") | .id // ""
+      | select(length>0 and (startswith("clarify:") | not))
+    ' <<< "${chat_card}")"
+    if [[ "${TRANSPORT}" == "chat" && "${latest_wait_reason}" == "__GATE:stage-clarification__"* &&
+        -z "${clarification_offer}" ]]; then
+        sleep 2
+        continue
+    fi
+    if [[ -n "${clarification_offer}" && "${clarification_offer}" == "${answered_offer}" ]]; then
+        echo "FAIL: requirement clarification did not advance" >&2
+        break
+    fi
+
     if [[ "${current_state}" == "WAITING_FOR_APPROVAL" && "${expects_approval}" == "true" ]]; then
         if [[ -n "${recovery_fault_stage}" && "${stage_id}" == "${recovery_owner_stage}" &&
             "${recovery_revise_sent}" -eq 1 ]]; then
@@ -668,6 +686,13 @@ while ((SECONDS < deadline)); do
         or ((.attempts // []) | any(.stageId == "materialization"))
       ' <<< "${evidence}" > /dev/null; then
                 echo "FAIL: recovery fault occurred after materialization had already started" >&2
+                break
+            fi
+            if [[ "${recovery_exhaust_halt}" == "true" ]] && ! jq -e '
+        [.transitions[]? | select(.toStatus == "WAITING_FOR_INPUT") | .reason // ""] | last
+        | test("__GUARD__(MAX_SEMANTIC_REPAIRS|MAX_CAUSAL_REOPENS|RUN_RECOVERY_CEILING)")
+      ' <<< "${evidence}" > /dev/null; then
+                echo "FAIL: recovery halt does not identify an exhausted budget" >&2
                 break
             fi
             recovery_pre_materialization_clean=1
@@ -752,7 +777,8 @@ if kind != "clarify" or sent != "0" or not control or not re.search(control["que
 print(control["answer"])
 PY
             )" || exit 1
-            send_turn "control-answer-$(date +%s)" "${control_answer}"
+            send_turn "control-answer-$(date +%s)" "${control_answer}" "" "" "${clarification_offer}"
+            answered_offer="${clarification_offer}"
             control_answer_sent=1
             continue
         fi
@@ -782,7 +808,8 @@ PY
                     echo "FAIL: design-input asked again and designInputAnswers is exhausted for ${SCENARIO_ID}" >&2
                     break
                 fi
-                send_turn "design-input-$(date +%s)" "${follow_up}"
+                send_turn "design-input-$(date +%s)" "${follow_up}" "" "" "${clarification_offer}"
+                answered_offer="${clarification_offer}"
                 design_input_sent=$((design_input_sent + 1))
             fi
         else
@@ -793,7 +820,8 @@ PY
                 break
             fi
             discovery_continues=$((discovery_continues + 1))
-            send_turn "continue-${discovery_continues}" "${discovery_answer}"
+            send_turn "continue-${discovery_continues}" "${discovery_answer}" "" "" "${clarification_offer}"
+            answered_offer="${clarification_offer}"
         fi
     fi
     sleep 2
@@ -807,21 +835,41 @@ if [[ "$(jq 'length' <<< "${recovery_fault_stages_json}")" -gt 0 ]]; then
         jq -e \
             --argjson faults "${recovery_fault_stages_json}" \
             --argjson owners "${recovery_owner_stages_json}" \
-            --argjson rebuilt "${recovery_revise_sent}" '
+            --argjson rebuilt "${recovery_revise_sent}" \
+            --argjson minimumFaults "${recovery_minimum_faults}" '
+      def injected: ((.failureEvidence // "") | contains("E2E recovery fault"));
+      def details: try ((.failureEvidence // "") | fromjson) catch {};
       . as $doc
-      | all($faults[]; . as $fault
-          | any($doc.attempts[]?;
-              ((.failureEvidence // "") | contains("E2E recovery fault"))
-              and (
-                .stageId == $fault
-                or (try ((.failureEvidence // "") | fromjson | .stageErrorFailedStageId == $fault)
-                    catch false))))
-      and all($owners[]; . as $owner
-          | any($doc.transitions[]?;
+      | ([.attempts[]? | select(.outcome == "FAILED" and injected)
+            | {id: (.attemptId // ([.stageId, .runRevision] | tojson)), stage: .stageId}]
+          + [$doc.transitions[]? | select(.toRevision != null)
+            | select(((.reason // "") | startswith("automatic-reopen:"))
+                or ($rebuilt == 1 and ((.reason // "") | startswith("author-reopen:design-planning\u0000")))
+                or ((.reason // "") | startswith("causal reopen of "))) as $reopen
+            | $doc.attempts[]? | select(.runRevision == $reopen.toRevision and injected)
+            | details as $cause
+            | (try ($cause.recoveryProducerInvocation | fromjson | .attemptId) catch null) as $origin
+            | select($origin != null and $origin != "")
+            | {id: $origin,
+               stage: ($cause.stageErrorFailedStageId // .stageId)}]
+          | unique_by(.id)) as $injections
+      | ($injections | length) >= $minimumFaults
+      and all($faults[]; . as $fault
+          | any($injections[]; .stage == $fault))
+      and all($owners | to_entries[]; .key as $index | .value as $owner
+          | (if $faults[$index] == $owner then
+              ($rebuilt == 0)
+              and ([$doc.transitions[]? | select((.reason // "") | startswith("author-reopen:"))] | length == 0)
+              and (([$doc.attempts | to_entries[] | select(.value.stageId == $owner
+                    and .value.outcome == "FAILED"
+                    and ((.value.failureEvidence // "") | contains("E2E recovery fault"))) | .key] | max // -1) as $lastFailure
+                | $lastFailure >= 0 and any($doc.attempts | to_entries[];
+                    .key > $lastFailure and .value.stageId == $owner and .value.outcome == "SUCCEEDED"))
+            else any($doc.transitions[]?;
               ((.reason // "") | startswith("automatic-reopen:" + $owner + "\u0000"))
               or ($rebuilt == 1 and $owner == "design-planning"
                 and ((.reason // "") | startswith("author-reopen:" + $owner + "\u0000")))
-              or ((.reason // "") | startswith("causal reopen of " + $owner))))
+              or ((.reason // "") | startswith("causal reopen of " + $owner))) end))
       and (if ($owners | index("design-planning")) != null then
         ([$doc.attempts[]?.outputs[]? | select(.kind == "IMPLEMENTATION_PLAN") | .contentHash]
           | unique | length >= 2) else true end)
@@ -850,6 +898,17 @@ if [[ "$(jq 'length' <<< "${recovery_fault_stages_json}")" -gt 0 ]]; then
     elif [[ "${recovery_exhaust_halt}" == "true" ]]; then
         [[ "${recovery_follow_up_sent}" -eq 1 && "${recovery_pre_materialization_clean}" -eq 1 ]] || {
             echo "FAIL: exhausted-halt recovery did not send the follow-up before materialization" >&2
+            exit 1
+        }
+        python3 - "${DIR}/build-report-from-evidence.py" "${run_dir}/evidence.json" <<'PY_CHECK' || {
+import json
+import runpy
+import sys
+check = runpy.run_path(sys.argv[1])["_exhausted_halt"]
+with open(sys.argv[2], encoding="utf-8") as stream:
+    sys.exit(0 if check(json.load(stream).get("transitions", [])) else 1)
+PY_CHECK
+            echo "FAIL: recovery exhaustion was not observed before the invalid-stage guard" >&2
             exit 1
         }
         jq -e '
@@ -915,6 +974,7 @@ fi
 
 python3 "${DIR}/build-report-from-evidence.py" \
     --evidence "${run_dir}/evidence.json" \
+    --sse-dir "${sse_dir}" \
     --scenario-id "${SCENARIO_ID}" \
     --rep "${REP}" \
     --required-facts "${required_json}" \

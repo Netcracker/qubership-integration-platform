@@ -33,8 +33,53 @@ public final class RequirementBodySources {
 
   private RequirementBodySources() {}
 
+  /** Keeps generated candidate bytes in capture history, outside the author requirements consumed by generators. */
+  static RequirementFact authoredFact(RequirementFact fact) {
+    var intent = fact.elementIntent();
+    if (!ownsBody(intent, "script") || intent.bodyBinding() == null
+        || intent.bodyBinding().authority() != Authority.GENERATED_CANDIDATE) return fact;
+    try {
+      requireBinding(intent);
+    } catch (IllegalArgumentException unproven) {
+      return fact;
+    }
+    var binding = intent.bodyBinding();
+    if (binding.sourceGeneration() == null || binding.sourceGeneration().isBlank()
+        || binding.sourceTurnId() == null || binding.sourceTurnId().isBlank()
+        || binding.startOffset() != null || binding.endOffset() != null || binding.encoding() != null) return fact;
+    var properties = intent.requestedProperties().stream().filter(property -> !ownsBody(intent, property.key())).toList();
+    if (properties.equals(intent.requestedProperties())) return fact;
+    var authored = new RequirementElementIntent(intent.elementRef(), intent.elementType(), intent.placement(),
+        intent.ownerInteractionId(), intent.successorElementRef(), intent.predecessorElementRef(),
+        intent.parentElementRef(), intent.requestedName(), properties, intent.exactValues(), binding);
+    return new RequirementFact(fact.sourceFactId(), fact.polarity(), fact.kind(), fact.capabilityKey(), fact.text(),
+        fact.participant(), fact.operation(), fact.topic(), fact.httpMethod(), fact.path(), fact.serviceCallId(),
+        fact.interactionIds(), fact.policyConflict(), authored, fact.httpMode());
+  }
+
   public record Resolution(RequirementBodyBinding binding, String body, String error) {}
   private record Candidate(String turn, int start, int end, Encoding encoding, String body, String owner) {}
+
+  static RequirementCaptureInput.DraftInput bind(RequirementCaptureInput.DraftInput draft,
+      AuthorSourceEvidence.Packet source) {
+    if (draft == null || draft.facts() == null) return draft;
+    var owners = draft.facts().stream().filter(Objects::nonNull)
+        .map(RequirementCaptureInput.FactInput::elementIntent).filter(Objects::nonNull).toList();
+    var facts = draft.facts().stream().map(fact -> {
+      if (fact == null || !ownsBody(fact.elementIntent(), "script")) return fact;
+      var intent = fact.elementIntent();
+      var resolved = resolve(intent, owners, source);
+      if (resolved.error() != null || Objects.equals(intent.bodyBinding(), resolved.binding())) return fact;
+      var bound = new RequirementElementIntent(intent.elementRef(), intent.elementType(), intent.placement(),
+          intent.ownerInteractionId(), intent.successorElementRef(), intent.predecessorElementRef(),
+          intent.parentElementRef(), intent.requestedName(), intent.requestedProperties(), intent.exactValues(),
+          resolved.binding());
+      return new RequirementCaptureInput.FactInput(fact.sourceFactId(), fact.interactionIds(), fact.kind(),
+          fact.polarity(), fact.text(), fact.fieldMapping(), fact.policyConflict(), bound, fact.evidence());
+    }).toList();
+    return new RequirementCaptureInput.DraftInput(draft.flow(), facts, draft.capabilities(), draft.openQuestions(),
+        draft.settings());
+  }
 
   /** Exact metadata additions that can be independently reconstructed from retained author source. */
   public static Set<String> completionPaths(RequirementCaptureInput.DraftInput base,
@@ -225,9 +270,6 @@ public final class RequirementBodySources {
           "script", NativeBodyKind.GROOVY_SCRIPT, source.generation(), candidate.turn(), candidate.start(),
           candidate.end(), candidate.encoding()), candidate.body(), null);
     }
-    boolean requestedBody = intent.requestedProperties() != null && intent.requestedProperties().stream()
-        .anyMatch(property -> property != null && ownsBody(intent, property.key()));
-    if (!requestedBody && intent.bodyBinding() == null) return new Resolution(null, null, null);
     if (source.inputs().isEmpty()) return new Resolution(null, null,
         "Retained author source is unavailable. Preserve the body and reclassify it when source evidence is available.");
     String turn = source.inputs().getFirst().sourceTurnId();

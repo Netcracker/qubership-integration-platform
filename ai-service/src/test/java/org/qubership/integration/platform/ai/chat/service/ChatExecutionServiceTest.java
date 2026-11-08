@@ -918,7 +918,7 @@ class ChatExecutionServiceTest {
 
   @Test
   void matchingClarificationOfferArchivesTheCompleteTextOnce() {
-    String text = "Use the billing API.\nKeep the trailing detail.";
+    String text = "Restart from beginning.\nKeep the trailing detail.";
     ChatEvent.Decision open = requirementOffer("offer-current", "Which API?");
     ScenarioRouter router = mock(ScenarioRouter.class);
     when(router.route(any(), anyString())).thenReturn(Multi.createFrom().item(ChatEvent.token("noted")));
@@ -929,6 +929,7 @@ class ChatExecutionServiceTest {
     execution.streamV1Sse(clarificationRequest("conv-offer", text, "offer-current"))
         .collect().asList().await().indefinitely();
 
+    verify(decisions, never()).restartCommandForMessage("conv-offer", text);
     var turns = userTurns("conv-offer");
     assertEquals(1, turns.size());
     assertEquals(text, turns.getFirst().rawText());

@@ -44,6 +44,8 @@ public final class RateLimitAwareStreamingChatModel implements StreamingChatMode
   private final boolean transientEnabled;
   private final int transientMaxAttempts;
   private final Consumer<RateLimitAwareChatModel.BackoffEvent> onBackoff;
+  private final io.smallrye.mutiny.Context toolContext =
+      org.qubership.integration.platform.ai.chat.ToolSession.attachedContext();
   private LlmRunBudget runBudget;
   private String runId;
   private LlmRequestBudget requestBudget;
@@ -288,8 +290,10 @@ public final class RateLimitAwareStreamingChatModel implements StreamingChatMode
   }
 
   private void forward(Runnable callback) {
-    if (runId == null) { callback.run(); }
-    else { LlmRunBudget.withRun(runId, () -> { callback.run(); return null; }); }
+    org.qubership.integration.platform.ai.chat.ToolSession.executeInBoundContext(toolContext, () -> {
+      if (runId == null) { callback.run(); }
+      else { LlmRunBudget.withRun(runId, () -> { callback.run(); return null; }); }
+    });
   }
 
   private static void cancel(dev.langchain4j.model.chat.response.StreamingHandle handle) {

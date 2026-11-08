@@ -553,15 +553,18 @@ public class RequirementAnalysisCapability implements StageCapability {
       RequirementBrief brief, SourceReview sourceReview) {
     if (sourceReview != null) {
       var findings = sourceReview.omissions().stream().map(omission -> {
+        boolean interpretation = omission.kind()
+            == org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceDiscrepancyKind.INTERPRETATION_CONFLICT;
         boolean addition = omission.kind()
             == org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceDiscrepancyKind.UNSUPPORTED_ADDITION;
         return new org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding(
-            addition ? "SOURCE_UNSUPPORTED_ADDITION" : RecoveryCauseCode.MISSING_BRIEF_FACTS.name(),
+            interpretation ? "SOURCE_INTERPRETATION_CONFLICT"
+                : addition ? "SOURCE_UNSUPPORTED_ADDITION" : RecoveryCauseCode.MISSING_BRIEF_FACTS.name(),
             "Source review in generation " + sourceReview.generation() + "; sourceTurnId=" + omission.sourceTurnId()
                 + "; exact quote:\n" + omission.quote() + "\nReported discrepancy:\n" + omission.explanation()
                 + "\nThis report is diagnostic evidence, not permission to change approved requirements.",
-            true, null, addition ? omission.sourceFactId() : "",
-            addition ? "/facts/" + omission.sourceFactId() + "/text" : "");
+            true, null, addition || interpretation ? omission.sourceFactId() : "",
+            interpretation ? omission.path() : addition ? "/facts/" + omission.sourceFactId() + "/text" : "");
       }).toList();
       var cause = new RecoveryCause(RecoveryCauseCode.MISSING_BRIEF_FACTS, findings, "", false, null, sourceReview);
       return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,

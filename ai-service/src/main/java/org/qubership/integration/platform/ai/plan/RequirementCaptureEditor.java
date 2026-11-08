@@ -668,7 +668,13 @@ public final class RequirementCaptureEditor {
         add(issues, "MISSING_FIELD", path, fact.sourceFactId(),
             "Fact needs kind, polarity, and nonblank text.");
       }
-      checkTargets(issues, fact.interactionIds(), ids, path + "/interactionIds", fact.sourceFactId());
+      var factTargets = new LinkedHashSet<>(ids);
+      if (fact.kind() == FactKind.FIELD_MAPPING && fact.fieldMapping() != null
+          && org.qubership.integration.platform.ai.plan.mapping.LocalMappingTarget
+              .resolveDraft(draft, fact.fieldMapping().targetInteractionId()).isPresent()) {
+        factTargets.add(fact.fieldMapping().targetInteractionId());
+      }
+      checkTargets(issues, fact.interactionIds(), factTargets, path + "/interactionIds", fact.sourceFactId());
       var conflict = fact.policyConflict();
       if (conflict != null) {
         if (fact.kind() != RequirementCaptureInput.FactKind.CONSTRAINT
@@ -707,11 +713,15 @@ public final class RequirementCaptureEditor {
               "Specify the approved source, target, and field paths.");
           continue;
         }
+        boolean localTarget = org.qubership.integration.platform.ai.plan.mapping.LocalMappingTarget
+            .resolveDraft(draft, mapping.targetInteractionId())
+            .filter(intent -> Objects.equals(intent.predecessorElementRef(), mapping.sourceInteractionId()))
+            .isPresent();
         if (blank(mapping.sourceInteractionId()) || blank(mapping.targetInteractionId())
             || !ids.contains(mapping.sourceInteractionId())
-            || !ids.contains(mapping.targetInteractionId())
-            || !draft.flow().transitions().contains(new TransitionInput(
-                mapping.sourceInteractionId(), mapping.targetInteractionId()))) {
+            || !localTarget && (!ids.contains(mapping.targetInteractionId())
+                || !draft.flow().transitions().contains(new TransitionInput(
+                    mapping.sourceInteractionId(), mapping.targetInteractionId())))) {
           add(issues, "MAPPING_TRANSITION_REQUIRED", path + "/fieldMapping",
               fact.sourceFactId(),
               "Use one approved direct flow transition as execution placement. For an earlier event"

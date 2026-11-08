@@ -379,6 +379,12 @@ class ProductPipelineDerivedRunTest {
                 List.of(plan.reference(), graph.reference()),
                 null,
                 provenance(parentRunId, "design-planning")));
+    artifactStore.append(new AppendCommand(parentRunId, CompilationArtifacts.Kind.MAPPING_ENVELOPE, "1",
+        "previous-compiler", "1", java.util.Map.of("legacyFrozenPlan", true), List.of(), null,
+        provenance(parentRunId, "design-execution")));
+    artifactStore.append(new AppendCommand(parentRunId, CompilationArtifacts.Kind.CHAIN_PLAN_GRAPH, "1",
+        "previous-compiler", "1", java.util.Map.of("script", "previous generated COPY body"), List.of(), null,
+        provenance(parentRunId, "design-execution")));
     List<StageSnapshot> stages =
         createProfile.stages().stream()
             .map(
@@ -438,6 +444,9 @@ class ProductPipelineDerivedRunTest {
                 .latest("child-plan-run", CompilationArtifacts.Kind.APPROVAL_RECORD)
                 .orElseThrow(),
             ApprovalRecordV2.class);
+    assertTrue(artifactStore.history("child-plan-run", CompilationArtifacts.Kind.MAPPING_ENVELOPE).isEmpty());
+    assertEquals(java.util.Map.of("nodes", List.of()), artifactStore.payload(
+        artifactStore.latest("child-plan-run", CompilationArtifacts.Kind.CHAIN_PLAN_GRAPH).orElseThrow(), java.util.Map.class));
     assertEquals("design-execution", prepared.document().run().currentStageId());
     assertNotEquals(plan.reference(), childApproval.target());
     assertEquals(childApproval.target().contentHash(), childApproval.targetContentHash());

@@ -17,6 +17,7 @@ public final class TransientErrorClassifier {
   };
 
   public boolean isTransient(Throwable t) {
+    if (RateLimitErrorClassifier.isQuotaExhausted(t)) return false;
     for (Throwable current = t; current != null; current = current.getCause()) {
       if (current instanceof HttpException http) {
         if (http.statusCode() < 500) return false;

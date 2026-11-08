@@ -2055,9 +2055,15 @@ public class RequirementDraftTool {
   }
 
   List<CatalogBindingHint> canonicalBindings(
+      RequirementCaptureInput.DraftInput input, RequirementDraft previous, String conversationId) {
+    return canonicalBindings(input, previous, conversationId, Map.of());
+  }
+
+  List<CatalogBindingHint> canonicalBindings(
       RequirementCaptureInput.DraftInput input,
       RequirementDraft previous,
-      String conversationId) {
+      String conversationId,
+      Map<String, UploadedSpecOperations.Binding> uploadedSpecBindings) {
     Map<String, RequirementCaptureInput.InteractionInput> oldInteractions = new HashMap<>();
     Map<String, RequirementCaptureInput.CapabilityInput> oldCapabilities = new HashMap<>();
     if (previous != null && previous.authoredDraft() != null) {
@@ -2104,13 +2110,19 @@ public class RequirementDraftTool {
     }
     RequirementFlow flow = RequirementCaptureProjection.flow(input);
     List<RequirementFact> facts = RequirementCaptureProjection.facts(input);
-    Set<String> catalogInteractions = RequirementCaptureProjection.pending(input, List.of()).stream()
+    Set<String> catalogInteractions = RequirementCaptureProjection.pending(
+        input, List.of(), Map.of(), uploadedSpecBindings.keySet()).stream()
         .filter(work -> "OPERATION_LOOKUP_REQUIRED".equals(work.code()))
         .map(RequirementCaptureProjection.PendingWork::interactionId)
         .collect(Collectors.toSet());
     resolveUnboundFromCatalog(flow, facts, conversationId, catalogInteractions);
     return reconcileCatalogBindings(flow, previous, conversationId).stream()
         .filter(hint -> {
+          var uploaded = uploadedSpecBindings.get(hint.interactionId());
+          if (uploaded != null) {
+            return previous != null && uploaded.equals(previous.uploadedSpecBindings().get(hint.interactionId()))
+                && previous.catalogBinding(hint.interactionId()).filter(hint::equals).isPresent();
+          }
           RequirementFlow.Interaction owner = flow.interaction(hint.interactionId()).orElse(null);
           if (owner == null
               || RequirementFlowValidator.isNativeDirectInteraction(owner, facts)) {

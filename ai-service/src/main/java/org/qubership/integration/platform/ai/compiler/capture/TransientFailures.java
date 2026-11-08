@@ -10,6 +10,7 @@ import java.net.http.HttpTimeoutException;
 import java.security.cert.CertificateException;
 import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.SSLPeerUnverifiedException;
+import org.qubership.integration.platform.ai.llm.ratelimit.RateLimitErrorClassifier;
 import org.qubership.integration.platform.ai.llm.ratelimit.RateLimitTurnBudgetExhaustedException;
 import org.qubership.integration.platform.ai.llm.ratelimit.TransientErrorClassifier;
 
@@ -28,6 +29,7 @@ public final class TransientFailures {
   private TransientFailures() {}
 
   public static boolean isTransient(Throwable error) {
+    if (RateLimitErrorClassifier.isQuotaExhausted(error)) return false;
     for (Throwable current = error; current != null; current = current.getCause()) {
       if ((current instanceof HttpException || current instanceof InternalServerException)
           && !isPermanentEnvironment(error)

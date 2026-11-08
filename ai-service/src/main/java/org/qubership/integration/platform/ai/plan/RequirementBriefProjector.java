@@ -37,12 +37,14 @@ public final class RequirementBriefProjector {
       if (fact.kind() != RequirementCaptureInput.FactKind.FIELD_MAPPING) continue;
       var mapping = fact.fieldMapping();
       if (mapping == null) throw new IllegalArgumentException("Approved field mapping lacks structured fields.");
+      MappingValue value = resolveCopyOrigin(mapping.value(), draft.flow(), mapping.sourceInteractionId());
+      if (RequirementMappingCapture.confirmedBodyPassthrough(draft.authoredDraft(), fact)) continue;
       mappings.add(new MappingIntent("", mapping.sourceInteractionId(), null, mapping.targetInteractionId(), null,
-          List.of((mapping.value() == null
+          List.of((value == null
               ? new MappingIntentRule(mapping.sourcePath(), mapping.targetPath(), mapping.expression())
               : new MappingIntentRule("", List.of(),
                   org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContract.canonicalPath(mapping.targetPath()),
-                  resolveCopyOrigin(mapping.value(), draft.flow(), mapping.sourceInteractionId()), null, null)
+                  value, null, null)
                   .withMissingSourcePolicy(mapping.missingSourcePolicy()))
               .withRequirementIds(List.of(fact.sourceFactId()))), null));
     }
@@ -100,7 +102,11 @@ public final class RequirementBriefProjector {
   }
 
   private static List<MappingIntent> mappingIntentsFor(RequirementBrief brief) {
-    return assignMappingIntentIds(assignPorts(collapseMappingIntents(brief), brief.flow()));
+    var assigned = assignPorts(collapseMappingIntents(brief), brief.flow()).stream().map(intent ->
+        org.qubership.integration.platform.ai.plan.mapping.LocalMappingTarget.resolve(
+            brief.facts(), brief.flow(), intent.targetRef()).isPresent()
+            ? intent.withPorts(intent.sourcePort(), MappingPort.OUTPUT) : intent).toList();
+    return assignMappingIntentIds(assigned);
   }
 
   /**
@@ -197,7 +203,7 @@ public final class RequirementBriefProjector {
   }
 
   /**
-   * Drops identity pass-through rows, then keeps one intent per catalog boundary. A field alias
+   * Drops identity pass-through rows, then keeps one intent per mapping boundary, including declared local targets. A field alias
    * captured as its own edge placeholder is folded into the boundary that already maps that field,
    * or into the unique call-to-call mapping when there is no token overlap.
    */
@@ -208,7 +214,7 @@ public final class RequirementBriefProjector {
     Topology topology = topologyOf(brief);
     List<MappingIntent> kept = collapsePassThroughIntents(brief.mappingIntents());
     kept = mergeSameBoundary(kept);
-    kept = foldPlaceholders(kept, topology);
+    kept = foldPlaceholders(kept, topology, brief);
     return List.copyOf(kept);
   }
 
@@ -234,11 +240,12 @@ public final class RequirementBriefProjector {
   }
 
   private static List<MappingIntent> foldPlaceholders(
-      List<MappingIntent> intents, Topology topology) {
+      List<MappingIntent> intents, Topology topology, RequirementBrief brief) {
     List<MappingIntent> anchored = new ArrayList<>();
     List<MappingIntent> placeholders = new ArrayList<>();
     for (MappingIntent intent : intents) {
-      if (isPlaceholder(intent, topology)) {
+      if (org.qubership.integration.platform.ai.plan.mapping.LocalMappingTarget.resolve(
+          brief.facts(), brief.flow(), intent.targetRef()).isEmpty() && isPlaceholder(intent, topology)) {
         placeholders.add(intent);
       } else {
         anchored.add(intent);
@@ -445,13 +452,18 @@ public final class RequirementBriefProjector {
           config != null && "http-trigger".equals(config.capabilityKey())
               ? "http-trigger"
               : "async-api-trigger";
+      CatalogBindingHint binding = bindings.get(interactionId);
+      boolean httpBinding = "http-trigger".equals(capabilityKey) && binding != null
+          && "http".equalsIgnoreCase(binding.protocol());
       return new RequirementEntryPoint(
           interactionId,
           config == null ? interactionId : config.sourceFactId(),
           capabilityKey,
           config == null ? "" : config.topic(),
-          config == null ? "" : config.httpMethod(),
-          config == null ? "" : config.path(),
+          httpBinding ? binding.method()
+              : config == null ? "" : config.httpMethod(),
+          httpBinding ? binding.path()
+              : config == null ? "" : config.path(),
           interaction.operation());
     }
     return new RequirementEntryPoint(

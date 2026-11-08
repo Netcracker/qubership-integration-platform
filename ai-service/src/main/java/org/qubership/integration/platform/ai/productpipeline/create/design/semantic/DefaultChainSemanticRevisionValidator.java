@@ -65,6 +65,7 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
     validateReachability(revision, index, errors);
     validateContainment(revision, contract, index, errors);
     validateRegions(revision, contract, index, errors);
+    validateRequiredConditions(revision, errors);
     validateRequiredErrorScopes(revision, errors);
     validateServiceCallFailureModes(revision, brief, errors);
     validateHiddenJoins(revision, index, errors);
@@ -570,6 +571,24 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
     }
   }
 
+  private static void validateRequiredConditions(
+      ChainSemanticRevision revision, List<String> errors) {
+    Set<String> owners = new HashSet<>();
+    for (SemanticRegion region : revision.regions()) {
+      if (region instanceof SemanticRegion.Condition condition) {
+        owners.add(condition.ownerNodeId());
+      }
+    }
+    for (SemanticNode node : revision.nodes()) {
+      if (node instanceof SemanticNode.Operation operation
+          && "condition".equals(operation.elementType())
+          && !owners.contains(operation.nodeId())) {
+        errors.add(
+            "Node '" + operation.nodeId() + "' with element type 'condition' requires a CONDITION region");
+      }
+    }
+  }
+
   private static void validateRequiredErrorScopes(
       ChainSemanticRevision revision, List<String> errors) {
     Set<String> owners = new HashSet<>();
@@ -1034,8 +1053,13 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
 
   private static void validateScriptOwnership(
       ChainSemanticRevision revision, Index index, RequirementBrief brief, List<String> errors) {
-    Map<String, String> siteByIntent = mappingSiteByIntent(revision, index);
+    Map<String, String> siteByIntent = mappingSiteByIntent(revision, index, brief);
     Map<String, List<String>> intentsBySite = invertSites(siteByIntent);
+    try {
+      ScriptExecutionAuthority.requireMappingBehaviorSites(brief, revision);
+    } catch (IllegalArgumentException unsupported) {
+      errors.add(unsupported.getMessage());
+    }
     for (SemanticNode node : revision.nodes()) {
       if (!(node instanceof SemanticNode.Operation operation) || !isScript(operation)) {
         continue;
@@ -1053,7 +1077,7 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
         continue;
       }
       if (ScriptExecutionAuthority.declaredSuppliedBody(brief, operation.nodeId()).isEmpty()
-          && ScriptExecutionAuthority.declaredGeneratedBehavior(brief, operation.nodeId())
+          && ScriptExecutionAuthority.declaredGeneratedBehavior(brief, operation.nodeId(), ScriptExecutionAuthority.behaviorSites(revision, brief))
               .filter(fact -> operation.provenance().sourceFactIds().contains(fact.sourceFactId())).isEmpty()) {
         errors.add(ScriptExecutionAuthority.unsupportedMessage(operation.nodeId()));
       }
@@ -1061,13 +1085,13 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
   }
 
   private static Map<String, String> mappingSiteByIntent(
-      ChainSemanticRevision revision, Index index) {
+      ChainSemanticRevision revision, Index index, RequirementBrief brief) {
     Map<String, String> siteByIntent = new LinkedHashMap<>();
     for (SemanticExecutionEdge edge : revision.executionEdges()) {
       if (edge.mappingId() == null || edge.mappingId().isBlank()) {
         continue;
       }
-      String siteId = transformSiteNodeId(edge, index.nodes);
+      String siteId = transformSiteNodeId(edge, index.nodes, brief);
       if (siteId != null) {
         siteByIntent.put(edge.mappingId(), siteId);
       }
@@ -1106,6 +1130,22 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
       return target.nodeId();
     }
     return null;
+  }
+
+  public static String transformSiteNodeId(
+      SemanticExecutionEdge edge, Map<String, SemanticNode> nodes, RequirementBrief brief) {
+    if (brief != null) {
+      for (MappingIntent intent : brief.mappingIntents()) {
+        if (intent.mappingIntentId().equals(edge.mappingId())
+            && intent.targetRef().equals(edge.targetNodeId())
+            && org.qubership.integration.platform.ai.plan.mapping.LocalMappingTarget
+                .resolve(brief.facts(), brief.flow(), intent.targetRef()).isPresent()
+            && isTransformShell(nodes.get(edge.targetNodeId()))) {
+          return edge.targetNodeId();
+        }
+      }
+    }
+    return transformSiteNodeId(edge, nodes);
   }
 
   private static void validateMappingRefs(

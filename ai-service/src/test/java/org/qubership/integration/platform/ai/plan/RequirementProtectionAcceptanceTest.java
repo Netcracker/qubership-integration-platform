@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.ai.plan;
 
+import static org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures.assertAuthoredContentEquals;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -98,7 +100,7 @@ class RequirementProtectionAcceptanceTest {
       gather.chat(chat, packet, new InvocationParameters()).collect().asList().await()
           .atMost(RecoveryAcceptanceProvider.observation(config));
       if (!RecoveryAcceptanceProvider.live()) script.assertComplete();
-      assertEquals(corrected, drafts.get(chat).orElseThrow().authoredDraft());
+      assertAuthoredContentEquals(corrected, drafts.get(chat).orElseThrow().authoredDraft());
       assertEquals(RequirementDiscoveryDirective.CONTINUE, drafts.turnDirective(chat));
       var sourceAfter = json.valueToTree(conversations.archive().read(chat));
       ((ObjectNode) sourceBefore.at("/turns/0")).set("consumedDraftReference", sourceAfter.at("/turns/0/consumedDraftReference"));

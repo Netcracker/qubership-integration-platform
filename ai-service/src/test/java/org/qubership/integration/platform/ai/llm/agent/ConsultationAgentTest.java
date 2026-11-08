@@ -32,6 +32,44 @@ class ConsultationAgentTest {
   @InjectMock RateLimitStreamingChatModel provider;
   @InjectMock DocumentationTools documentation;
 
+  @org.junit.jupiter.api.Test
+  void anUnavailableToolReturnsFeedbackAndTheSameTurnCanUseASupportedTool() {
+    String question = "Read the supported documentation and explain the HTTP trigger.";
+    String memoryId = "unknown-tool:" + UUID.randomUUID();
+    when(documentation.readDocumentation(anyString(), anyString(), anyString())).thenReturn("HTTP requests start the chain.");
+    var unknown = dev.langchain4j.agent.tool.ToolExecutionRequest.builder()
+        .id("unknown").name("inventedReadDocumentation").arguments("{}").build();
+    var script = new ScriptedStreamingChatModel(
+        new Turn("unsupported tool", request -> {}, handler -> handler.onCompleteResponse(
+            dev.langchain4j.model.chat.response.ChatResponse.builder()
+                .aiMessage(dev.langchain4j.data.message.AiMessage.from(unknown)).build())),
+        Turn.tool("supported read", request -> {
+          var error = request.messages().stream().filter(ToolExecutionResultMessage.class::isInstance)
+              .map(ToolExecutionResultMessage.class::cast).findFirst().orElseThrow();
+          assertEquals("inventedReadDocumentation", error.toolName());
+          assertTrue(error.text().startsWith("UNKNOWN_TOOL:"), error.text());
+          assertEquals(java.util.List.of(question), request.messages().stream().filter(UserMessage.class::isInstance)
+              .map(UserMessage.class::cast).map(UserMessage::singleText).toList());
+        }, "readDocumentation", "{\"id\":\"http-trigger#0\",\"cursor\":\"\"}"),
+        new Turn("answer", request -> {
+          var result = request.messages().stream().filter(ToolExecutionResultMessage.class::isInstance)
+              .map(ToolExecutionResultMessage.class::cast).reduce((a, b) -> b).orElseThrow();
+          assertEquals("readDocumentation", result.toolName());
+          assertTrue(result.text().contains("HTTP requests start the chain."), result.text());
+        }, handler -> {
+          handler.onPartialResponse("The HTTP trigger starts the chain.");
+          handler.onCompleteResponse(dev.langchain4j.model.chat.response.ChatResponse.builder()
+              .aiMessage(dev.langchain4j.data.message.AiMessage.from("The HTTP trigger starts the chain.")).build());
+        }));
+    doAnswer(call -> {
+      script.chat((ChatRequest) call.getArgument(0), (StreamingChatResponseHandler) call.getArgument(1));
+      return null;
+    }).when(provider).chat(any(ChatRequest.class), any(StreamingChatResponseHandler.class));
+    var answer = agent.chat(memoryId, question).collect().asList().await().atMost(Duration.ofSeconds(20));
+    script.assertComplete();
+    assertEquals("The HTTP trigger starts the chain.", String.join("", answer));
+  }
+
   @ParameterizedTest(name = "{0}")
   @CsvSource({"short documentation, 1", "documentation exceeding the token window, 230"})
   void keepsDocumentationHistoryWithinTheConsultationInvocation(String description, int rows) {

@@ -91,9 +91,12 @@ public class RateLimitStreamingChatModel implements StreamingChatModel {
 
   @Override
   public void chat(ChatRequest chatRequest, StreamingChatResponseHandler handler) {
+    // Runtime feedback continues the caller's turn, so normalize its tool protocol before adding feedback.
+    ChatRequest original = normalizeToolHistory(chatRequest);
+    chatRequest = original;
     if (readProgress != null) {
       try {
-        readProgress.check(chatRequest,
+        chatRequest = readProgress.prepare(chatRequest,
             org.qubership.integration.platform.ai.chat.ToolSession.resolveConversationId(),
             org.jboss.logmanager.MDC.get(org.qubership.integration.platform.ai.compiler.CompilerSkillMdc.CAPABILITY_ID),
             runBudget == null ? null : runBudget.currentRun());
@@ -102,13 +105,18 @@ public class RateLimitStreamingChatModel implements StreamingChatModel {
         return;
       }
     }
-    chatRequest = org.qubership.integration.platform.ai.compiler.capture.ChatMemorySanitizer.repairRejectedArguments(chatRequest);
-    chatRequest = firstToolProtocol(chatRequest);
-    ChatRequest requestWithDefaults =
-        requestBudget.prepare(chatRequest
-            .toBuilder()
-            .parameters(delegate.defaultRequestParameters().overrideWith(chatRequest.parameters()))
-            .build());
+    boolean hasRetainedReads = chatRequest != original;
+    ChatRequest requestWithDefaults;
+    try {
+      requestWithDefaults = prepareProviderRequest(chatRequest);
+    } catch (LlmRequestBudget.Overflow overflow) {
+      if (!hasRetainedReads) throw overflow;
+      chatRequest = readProgress.prepare(original,
+          org.qubership.integration.platform.ai.chat.ToolSession.resolveConversationId(),
+          org.jboss.logmanager.MDC.get(org.qubership.integration.platform.ai.compiler.CompilerSkillMdc.CAPABILITY_ID),
+          runBudget == null ? null : runBudget.currentRun(), 0);
+      requestWithDefaults = prepareProviderRequest(chatRequest);
+    }
     boolean rateLimitEnabled = appConfig.llm().rateLimit().enabled();
     int rateLimitMaxAttempts = appConfig.llm().rateLimit().maxAttempts();
     boolean transientEnabled = appConfig.llm().transientRetry().enabled();
@@ -132,6 +140,16 @@ public class RateLimitStreamingChatModel implements StreamingChatModel {
     rateLimited.chat(
         requestWithDefaults, RateLimitSinkSupport.completionAwareHandler(handler, backoffInCall,
             chatRequest.parameters().toolChoice() == ToolChoice.REQUIRED));
+  }
+
+  private static ChatRequest normalizeToolHistory(ChatRequest request) {
+    return firstToolProtocol(
+        org.qubership.integration.platform.ai.compiler.capture.ChatMemorySanitizer.repairRejectedArguments(request));
+  }
+
+  private ChatRequest prepareProviderRequest(ChatRequest request) {
+    return requestBudget.prepare(request.toBuilder()
+        .parameters(delegate.defaultRequestParameters().overrideWith(request.parameters())).build());
   }
 
   private static ChatRequest firstToolProtocol(ChatRequest request) {

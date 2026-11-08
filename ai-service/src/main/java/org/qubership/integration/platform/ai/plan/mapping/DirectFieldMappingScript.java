@@ -19,6 +19,10 @@ public final class DirectFieldMappingScript {
       throw new IllegalArgumentException("Mapping COPY requires a verified origin plan; recapture and approve the mapping");
     }
     StringBuilder script = readJsonObject(false);
+    plan.reads().stream().filter(read -> read.contextId() == null)
+        .map(read -> CopyMappingPlanner.bodyContextId(read.origin())).distinct()
+        .forEach(key -> script.append("exchange.setProperty('").append(key)
+            .append("', JsonOutput.toJson(source))\n"));
     for (CopyMappingPlan.Save save : plan.saves()) {
       if (!save.fromOutput()) appendSave(script, save, "source");
     }
@@ -50,8 +54,22 @@ public final class DirectFieldMappingScript {
       }
       String field = read.contextId() == null ? read.origin().path().substring(2) : "value";
       appendPresent(script, input, field, read.nullable());
-      script.append("result['").append(read.targetField()).append("'] = ")
-          .append(input).append("['").append(field).append("']\n");
+      String value = input + "['" + field + "']";
+      if (!read.runtimeTypes().isEmpty()) {
+        script.append("if (!(");
+        script.append(read.runtimeTypes().stream().map(type -> switch (type) {
+          case "string" -> value + " instanceof String";
+          case "boolean" -> value + " instanceof Boolean";
+          case "number" -> value + " instanceof Number";
+          case "integer" -> "(" + value + " instanceof Number && " + value + " == "
+              + value + ".toBigInteger())";
+          case "null" -> value + " == null";
+          default -> throw new IllegalArgumentException("Unsupported COPY target type: " + type);
+        }).collect(java.util.stream.Collectors.joining(" || ")));
+        script.append(")) throw new IllegalArgumentException('Invalid COPY source type: ")
+            .append(read.origin().path().substring(2)).append("')\n");
+      }
+      script.append("result['").append(read.targetField()).append("'] = ").append(value).append("\n");
       coverage.add("$." + read.targetField());
     }
     for (CopyMappingPlan.Save save : plan.saves()) {
@@ -93,6 +111,11 @@ public final class DirectFieldMappingScript {
   }
 
   private static void appendSave(StringBuilder script, CopyMappingPlan.Save save, String source) {
+    if ("$".equals(save.sourceField())) {
+      script.append("exchange.setProperty('").append(save.contextId())
+          .append("', JsonOutput.toJson(").append(source).append("))\n");
+      return;
+    }
     appendPresent(script, source, save.sourceField(), save.nullable());
     script.append("exchange.setProperty('").append(save.contextId())
         .append("', JsonOutput.toJson([value: ").append(source).append("['")

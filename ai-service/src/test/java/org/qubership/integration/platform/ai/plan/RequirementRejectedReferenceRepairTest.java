@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.ai.plan;
 
+import static org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures.assertAuthoredContentEquals;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -52,7 +54,7 @@ class RequirementRejectedReferenceRepairTest {
       if (reload) h.reload();
       var accepted = h.call(fixture.corrected());
       assertTrue(accepted.path("accepted").asBoolean(), accepted.toString());
-      assertEquals(fixture.corrected(), h.store.get(h.chat).orElseThrow().authoredDraft());
+      assertAuthoredContentEquals(fixture.corrected(), h.store.get(h.chat).orElseThrow().authoredDraft());
       assertTrue(h.protectionHistory().isEmpty());
       assertTrue(JSON.readTree(h.tools.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE))
           .path("accepted").asBoolean());
@@ -85,7 +87,7 @@ class RequirementRejectedReferenceRepairTest {
       var result = h.call(submitted);
       assertTrue(h.protectionHistory().isEmpty());
       if (result.path("accepted").asBoolean()) {
-        assertEquals(submitted, h.store.get(h.chat).orElseThrow().authoredDraft());
+        assertAuthoredContentEquals(submitted, h.store.get(h.chat).orElseThrow().authoredDraft());
       } else {
         assertTrue(h.store.get(h.chat).isEmpty());
       }
@@ -184,7 +186,7 @@ class RequirementRejectedReferenceRepairTest {
       assertTrue(h.protectionHistory().isEmpty());
       var accepted = h.call(fixture.corrected());
       assertTrue(accepted.path("accepted").asBoolean(), accepted.toString());
-      assertEquals(fixture.corrected(), h.store.get(h.chat).orElseThrow().authoredDraft());
+      assertAuthoredContentEquals(fixture.corrected(), h.store.get(h.chat).orElseThrow().authoredDraft());
     }
   }
 

@@ -424,6 +424,30 @@ class RecoveryAttemptLedgerTest {
   }
 
   @Test
+  void stalledReadsUseOneDurableCleanRebuildBudgetForTheSameOwnerAndInputs() {
+    String stage = "design-execution";
+    var first = new org.qubership.integration.platform.ai.llm.ratelimit.ReadNoProgressException(
+        "describeElementProperty, call one", "cip-service-call-generator", "approved-graph").recoveryCause();
+    var second = new org.qubership.integration.platform.ai.llm.ratelimit.ReadNoProgressException(
+        "readDocumentation, call two", "cip-service-call-generator", "approved-graph").recoveryCause();
+    var combined = new RecoveryCause(second.causeCode(),
+        List.of(first.findings().getFirst(), second.findings().getFirst(),
+            new PlanValidationFinding("EXECUTION_CONTRACT", "Another diagnostic", true)), "", true);
+    var initial = ledger.key(stage, first, "approved-plan", List.of());
+    var journal = List.of(transition(ledger.recordCleanRebuild(initial, "approved-plan"), stage));
+    var restored = new RecoveryAttemptLedger(ledger.limits());
+    var later = restored.key(stage, combined, "approved-plan", journal);
+
+    assertEquals(initial, later);
+    assertFalse(restored.mayCleanRebuild(journal, later), journal.toString());
+    var changed = new org.qubership.integration.platform.ai.llm.ratelimit.ReadNoProgressException(
+        "readDocumentation, call three", "cip-service-call-generator", "changed-graph").recoveryCause();
+    var changedKey = restored.key(stage, changed, "approved-plan", journal);
+    assertNotEquals(initial.evidenceIdentity(), changedKey.evidenceIdentity());
+    assertTrue(restored.mayCleanRebuild(journal, changedKey), journal.toString());
+  }
+
+  @Test
   void questionsRetryClicksAndReviseClicksDoNotAdvanceTheEpoch() {
     List<RunTransition> journal = new ArrayList<>();
     RecoveryAttemptKey before = ledger.key("analysis", UNKNOWN_PROPERTY, "brief-a", journal);

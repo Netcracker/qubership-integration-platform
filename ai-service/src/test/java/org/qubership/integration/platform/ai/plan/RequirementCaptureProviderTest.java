@@ -1,6 +1,9 @@
 package org.qubership.integration.platform.ai.plan;
 
+import static org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures.assertAuthoredContentEquals;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures.withNativeAnchors;
@@ -51,7 +54,7 @@ class RequirementCaptureProviderTest {
         mock(RequirementDraftTool.class), mapper), mapper).provideTools(null);
     var input = assertInstanceOf(JsonObjectSchema.class,
         provider.toolSpecificationByName(tool).parameters().properties().get(parameter));
-    var facts = assertInstanceOf(JsonArraySchema.class, input.properties().get(factsField));
+    var facts = arraySchema(input.properties().get(factsField));
     var fact = assertInstanceOf(JsonObjectSchema.class, facts.items());
     var intentValue = assertInstanceOf(JsonAnyOfSchema.class, fact.properties().get("elementIntent"));
     var intent = intentValue.anyOf().stream().filter(JsonObjectSchema.class::isInstance)
@@ -103,8 +106,8 @@ class RequirementCaptureProviderTest {
             .arguments(mapper.writeValueAsString(Map.of("draft", input))).build(), chat));
 
     assertTrue(result.path("accepted").asBoolean(), result.toString());
-    assertEquals(input, store.get(chat).orElseThrow().authoredDraft());
-    assertEquals(fact, store.get(chat).orElseThrow().authoredDraft().facts().stream()
+    assertAuthoredContentEquals(input, store.get(chat).orElseThrow().authoredDraft());
+    assertAuthoredContentEquals(fact, store.get(chat).orElseThrow().authoredDraft().facts().stream()
         .filter(value -> value.sourceFactId().equals("reply")).findFirst().orElseThrow());
   }
 
@@ -135,8 +138,8 @@ class RequirementCaptureProviderTest {
             .arguments(mapper.writeValueAsString(Map.of("draft", input))).build(), chat));
 
     assertTrue(result.path("accepted").asBoolean(), result.toString());
-    assertEquals(input, store.get(chat).orElseThrow().authoredDraft());
-    assertEquals(fact, store.get(chat).orElseThrow().authoredDraft().facts().stream()
+    assertAuthoredContentEquals(input, store.get(chat).orElseThrow().authoredDraft());
+    assertAuthoredContentEquals(fact, store.get(chat).orElseThrow().authoredDraft().facts().stream()
         .filter(value -> value.sourceFactId().equals("reply")).findFirst().orElseThrow());
   }
 
@@ -148,7 +151,7 @@ class RequirementCaptureProviderTest {
     var changes = assertInstanceOf(JsonObjectSchema.class,
         provider.toolSpecificationByName("updateRequirementDraft").parameters().properties().get("changes"));
     assertTrue(changes.required().contains("amendments"));
-    var amendments = assertInstanceOf(JsonArraySchema.class, changes.properties().get("amendments"));
+    var amendments = arraySchema(changes.properties().get("amendments"));
     var item = assertInstanceOf(JsonObjectSchema.class, amendments.items());
     assertEquals(java.util.Set.of("path", "sourceTurnId", "quote"), java.util.Set.copyOf(item.required()));
   }
@@ -291,6 +294,39 @@ class RequirementCaptureProviderTest {
   }
 
   @Test
+  void sparseUpdatesPreserveUnchangedOperationsFactsAndNullableMetadata() throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var store = new RequirementDraftStore();
+    var adapter = mock(RequirementDraftTool.class);
+    when(adapter.canonicalBindings(any(), nullable(RequirementDraft.class), anyString())).thenReturn(List.of());
+    var provider = new RequirementCaptureToolProvider(new RequirementCaptureTools(store, adapter, mapper), mapper)
+        .provideTools(null);
+    String chat = "sparse-update-" + java.util.UUID.randomUUID();
+    var draft = new DraftInput(new FlowInput(List.of(new InteractionInput("entry", Direction.INBOUND,
+        "Caller", "GET /work", null, null, null)), List.of()),
+        List.of(new FactInput("goal", List.of("entry"), FactKind.GOAL, Polarity.POSITIVE, "Accept work.")),
+        List.of(), List.of(), new DraftSettings(null, null));
+    var captured = mapper.readTree(provider.toolExecutorByName("captureRequirementDraft").execute(
+        ToolExecutionRequest.builder().id("capture").name("captureRequirementDraft")
+            .arguments(mapper.writeValueAsString(java.util.Map.of("draft", draft))).build(), chat));
+    assertTrue(captured.path("accepted").asBoolean(), captured.toString());
+    var updated = mapper.readTree(provider.toolExecutorByName("updateRequirementDraft").execute(
+        ToolExecutionRequest.builder().id("update").name("updateRequirementDraft").arguments("""
+            {"changes":{"updateInteractions":[{"interactionId":"entry","direction":"INBOUND",
+              "participant":"Caller","operation":"GET /work"}]}}
+            """).build(), chat));
+    assertTrue(updated.path("accepted").asBoolean(), updated.toString());
+    assertEquals(draft, store.get(chat).orElseThrow().authoredDraft());
+  }
+
+  @Test
+  void omittedNullableFieldsHaveTheSameContractAsExplicitNulls() throws Exception {
+    var schema = RequirementCaptureSchemas.parameters("interaction", InteractionInput.class);
+    assertNull(RequirementCaptureToolProvider.check(new ObjectMapper().readTree(
+        "{\"interaction\":{\"interactionId\":\"entry\"}}"), schema, ""));
+  }
+
+  @Test
   void missingFieldInsideANullableObjectNamesThatField() throws Exception {
     ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
     var object = JsonObjectSchema.builder().addStringProperty("elementRef").required("elementRef").build();
@@ -353,4 +389,9 @@ class RequirementCaptureProviderTest {
 
     assertTrue(draft.at("/facts/0/elementIntent/elementRef").isMissingNode());
   }
+  private static JsonArraySchema arraySchema(dev.langchain4j.model.chat.request.json.JsonSchemaElement schema) {
+    var value = schema instanceof JsonAnyOfSchema nullable ? nullable.anyOf().getFirst() : schema;
+    return assertInstanceOf(JsonArraySchema.class, value);
+  }
+
 }

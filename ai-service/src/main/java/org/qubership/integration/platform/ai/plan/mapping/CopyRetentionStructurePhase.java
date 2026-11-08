@@ -14,7 +14,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingValue;
 
-/** Places compiler-owned save sites for earlier message operands without changing the body. */
+/** Preserves COPY origins before intervening processing without changing the message body. */
 public final class CopyRetentionStructurePhase {
   private CopyRetentionStructurePhase() {}
 
@@ -55,13 +55,15 @@ public final class CopyRetentionStructurePhase {
 
   public static ChainPlanGraph place(ChainPlanGraph graph, List<MappingIntent> intents,
       BiFunction<String, MappingPort, String> resolveRef) {
+    boolean hasProcessing = graph.nodes().stream().anyMatch(node -> "script".equals(node.type())
+        && !CopyMappingPlanner.nativeRetentionSite(node) && MappingExecutionSite.mappingIntentId(node) == null);
     Map<String, MappingSource.Message> needed = new LinkedHashMap<>();
     for (MappingIntent intent : intents) {
       for (var rule : intent.rules()) {
         if (!(rule.value() instanceof MappingValue.Copy copy)
             || !(copy.source() instanceof MappingSource.Message origin)
             || origin.interactionId() == null || origin.interactionId().isBlank() || origin.port() == null) continue;
-        if (!resolveRef.apply(origin.interactionId(), origin.port())
+        if (hasProcessing || !resolveRef.apply(origin.interactionId(), origin.port())
                 .equals(resolveRef.apply(intent.sourceRef(), intent.sourcePort()))
             || origin.port() != intent.sourcePort()) {
           needed.putIfAbsent(CopyMappingPlanner.retentionSiteId(origin), origin);

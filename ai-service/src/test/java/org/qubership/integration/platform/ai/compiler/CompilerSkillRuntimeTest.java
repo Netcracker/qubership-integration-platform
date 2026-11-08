@@ -490,6 +490,36 @@ class CompilerSkillRuntimeTest {
   }
 
   @Test
+  void generatorPromptUsesBoundOwnershipInsteadOfTheStaleManifestNodeList() {
+    var graph = greetingsGraph();
+    var policy = new GraphPatchOwnershipPolicy(false, false, Set.of("mapper-2", "header-modification"), Set.of(),
+        Map.of("mapper-2", Set.of("mappingDescription"), "header-modification", Set.of("headerModificationToAdd")));
+    executionContextStore.set(CONVERSATION_ID, GENERATOR_ID,
+        new GraphPatchExecutionContext("run", GENERATOR_ID, "req", "graph", "compiler", "1", null,
+            List.of(), graph, policy, ""));
+    var workspace = workspaceWithGraph(graph);
+    var stale = new org.qubership.integration.platform.ai.compiler.plan.GeneratorPlan("generator", GENERATOR_ID,
+        org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanStatus.READY,
+        List.of("approved_producer"), List.of("http-trigger-1", "script-1"));
+    workspace.put(SkillArtifact.of(SkillArtifactType.GENERATOR_PLAN_MANIFEST, "test",
+        new SkillArtifactPayload.GeneratorPlanManifestPayload(
+            new org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanManifest("1", List.of(stale)))));
+    when(generatorAgent.chat(eq(memoryId(GENERATOR_ID)), any())).thenAnswer(invocation -> {
+      putGraphPatch(GENERATOR_ID, GraphPatchFixtures.wrapHttpTriggerFlow("http-trigger-1", "script-1"));
+      return Multi.createFrom().empty();
+    });
+
+    runtime.runStreaming(runContext(GENERATOR_ID, 2), workspace, GENERATOR_ID).collect().asList().await().indefinitely();
+
+    var prompt = ArgumentCaptor.forClass(String.class);
+    verify(generatorAgent).chat(eq(memoryId(GENERATOR_ID)), prompt.capture());
+    String message = prompt.getValue();
+    assertTrue(message.contains("Current generator ownership:"), message);
+    assertTrue(message.contains("\"propertyTargets\":[]"), message);
+    assertFalse(message.contains("Active generator plan slice:"), message);
+  }
+
+  @Test
   void executionRepairUsesFreshSkillMemoryWithoutChangingKnowledgeRetrieval() {
     String approvedTask = "Return the greeting from the approved HTTP entry.";
     String cause = "{\"causeCode\":\"GRAPH_STRUCTURE\",\"findings\":[{"

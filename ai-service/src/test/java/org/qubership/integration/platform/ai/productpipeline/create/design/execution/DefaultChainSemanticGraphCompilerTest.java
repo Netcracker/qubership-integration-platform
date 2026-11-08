@@ -762,6 +762,38 @@ class DefaultChainSemanticGraphCompilerTest {
   }
 
   @Test
+  void localResponseOwnsMappingWhenPrecededByAnotherScript() {
+    var local = new org.qubership.integration.platform.ai.plan.RequirementElementIntent("response", "script",
+        org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.LOCAL_NODE,
+        "trigger-http", null, "call-1", null, List.of(), List.of());
+    var declaration = new org.qubership.integration.platform.ai.plan.RequirementFact("return-field",
+        org.qubership.integration.platform.ai.plan.RequirementFactPolarity.POSITIVE,
+        org.qubership.integration.platform.ai.plan.RequirementFactKind.FIELD_MAPPING, "", "Return the order id.",
+        null, null, null, null, null, null, List.of("trigger-http"), null, local);
+    var intent = new MappingIntent("return-map", "call-1", MappingPort.RESPONSE,
+        "response", MappingPort.OUTPUT, List.of(new MappingIntentRule("id", "orderId", null)));
+    var flow = new RequirementFlow(List.of(
+        new RequirementFlow.Interaction("trigger-http", RequirementFlow.Direction.INBOUND, "Caller", "POST /", ""),
+        new RequirementFlow.Interaction("call-1", RequirementFlow.Direction.OUTBOUND, "Orders", "GET /", "")),
+        List.of(new RequirementFlow.Transition("trigger-http", "call-1")));
+    var brief = new RequirementBrief("Return", List.of(), List.of(), List.of(), List.of(), "Return")
+        .withFacts(List.of(declaration)).withFlow(flow).withMappingIntents(List.of(intent));
+    var revision = revision(List.of(entry("http-in", "trigger-http", "call-1")), List.of(
+        new SemanticNode.Trigger("trigger-http", "http-trigger", new SemanticProvenance(List.of())),
+        new SemanticNode.ServiceCall("call-1", "call-1", "getOrder", new SemanticProvenance(List.of())),
+        new SemanticNode.Operation("previous", "script", new SemanticProvenance(List.of())),
+        new SemanticNode.Operation("response", "script", new SemanticProvenance(List.of()))), List.of(), List.of(
+        sequence("entry", "trigger-http", "call-1", null),
+        sequence("previous", "call-1", "previous", null),
+        new SemanticExecutionEdge("return", "previous", "response", null, new SemanticRoute.Sequence(), "return-map")),
+        List.of(), List.of());
+    var uncheckedCompiler = new DefaultChainSemanticGraphCompiler((ignored, contract) -> {}, schemaService);
+    var graph = uncheckedCompiler.compile(revision, CONTRACT, List.of(binding("call-1")), brief);
+    assertEquals("return-map", MappingExecutionSite.mappingIntentId(node(graph, "response")));
+    assertNull(MappingExecutionSite.mappingIntentId(node(graph, "previous")));
+  }
+
+  @Test
   void compilesSiteOnlyRevisionWhenBriefHoldsMappingBodies() {
     ChainSemanticRevision revision =
         SemanticFixtures.withoutMappingBodies(linearMappedRevision());
@@ -864,7 +896,7 @@ class DefaultChainSemanticGraphCompilerTest {
         "spec-om",
         "op-om",
         "kafka",
-        "subscribe",
+        "receive",
         topic,
         "onTaskStart",
         ResolvedServiceCallBinding.Source.EXISTING_CATALOG,

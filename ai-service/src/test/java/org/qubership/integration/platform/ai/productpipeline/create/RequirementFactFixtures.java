@@ -34,6 +34,23 @@ public final class RequirementFactFixtures {
 
   private RequirementFactFixtures() {}
 
+  public static void assertAuthoredContentEquals(Object expected, Object actual) {
+    var json = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
+    var expectedTree = json.valueToTree(expected);
+    var actualTree = json.valueToTree(actual);
+    removeBodyBindings(expectedTree);
+    removeBodyBindings(actualTree);
+    org.junit.jupiter.api.Assertions.assertEquals(expectedTree, actualTree);
+  }
+
+  private static void removeBodyBindings(com.fasterxml.jackson.databind.JsonNode node) {
+    if (node instanceof com.fasterxml.jackson.databind.node.ObjectNode object
+        && object.has("elementRef") && object.has("placement") && object.path("elementType").isTextual()) {
+      object.remove("bodyBinding");
+    }
+    node.forEach(RequirementFactFixtures::removeBodyBindings);
+  }
+
   public static FactInput nativeAnchorFact(String interactionId, String elementType) {
     return new FactInput("native-" + interactionId, List.of(interactionId), FactKind.PARAMETER, Polarity.POSITIVE,
         "Use the selected " + elementType + " element.", null, null,

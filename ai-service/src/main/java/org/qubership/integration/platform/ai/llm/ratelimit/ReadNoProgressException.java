@@ -8,15 +8,21 @@ import org.qubership.integration.platform.ai.productpipeline.capability.Recovery
 
 /** A repeated read is diagnostic evidence, not a rejected mutation or a grant of repair credit. */
 public final class ReadNoProgressException extends IllegalStateException {
-  public ReadNoProgressException(String evidence) {
+  private final String owner;
+  private final String scope;
+
+  public ReadNoProgressException(String evidence, String owner, String scope) {
     super("Repeated tool reads returned identical data without changing the accepted state. "
         + "Use the retained result and choose a different action. Preserve requirements and accepted progress. "
         + "Read evidence: " + evidence);
+    this.owner = owner;
+    this.scope = scope;
   }
 
   public RecoveryCause recoveryCause() {
     return new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE,
-        List.of(new PlanValidationFinding("TOOL_READ_NO_PROGRESS", getMessage(), true)), "", true);
+        List.of(new PlanValidationFinding("TOOL_READ_NO_PROGRESS", getMessage(), true, null, owner,
+            "/tool-reads/" + scope)), "", true);
   }
 
   public static Optional<ReadNoProgressException> find(Throwable failure) {

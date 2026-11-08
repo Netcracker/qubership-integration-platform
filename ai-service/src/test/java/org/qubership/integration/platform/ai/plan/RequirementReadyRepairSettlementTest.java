@@ -17,7 +17,6 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationArchive;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
@@ -148,8 +147,8 @@ class RequirementReadyRepairSettlementTest {
     var spentBefore = ledger.remaining(runs.load(run).orElseThrow().transitions(), key, InputOrigin.ABSENT);
 
     var ready = support.stageExecutor().execute(run, stage).await().indefinitely();
-    var wait = assertInstanceOf(StageDecision.WaitForInput.class, ready.decision());
     if (missingRoles) {
+      var wait = assertInstanceOf(StageDecision.WaitForInput.class, ready.decision());
       assertEquals(PipelineGates.STAGE_CLARIFICATION, PipelineGates.gateOf(wait.prompt()).orElseThrow());
       assertEquals("Which roles may access the endpoint?", PipelineGates.strip(wait.prompt()));
       assertEquals(1, calls.get());
@@ -189,47 +188,28 @@ class RequirementReadyRepairSettlementTest {
       assertEquals(1, calls.get(), "Reloading the clarification wait must not invoke Gather.");
       return;
     }
-    assertEquals(PipelineGates.REQUIREMENT_DRAFT_READY, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertInstanceOf(StageDecision.Complete.class, ready.decision());
     assertEquals(1, calls.get());
     var checkpoint = runs.load(run).orElseThrow();
-    var readyAttempt = checkpoint.attempts().getLast();
-    assertEquals(StageStatus.WAITING_FOR_INPUT, readyAttempt.outcome());
-    assertFalse(StageRepairEvidence.haltRecorded(ProductPipelineRunSupport.readHaltEvidence(readyAttempt.failureEvidence())));
+    assertEquals(RunStatus.PLAN_APPROVED, checkpoint.run().status());
+    assertEquals(StageStatus.SUCCEEDED, checkpoint.attempts().getLast().outcome());
     assertFalse(StageRepairEvidence.haltRecorded(support.runAttributes(run)));
     assertTrue(checkpoint.attempts().stream().anyMatch(attempt -> originalFailure.equals(attempt.failureEvidence())));
     var accepted = drafts.latestRevision(chat).orElseThrow();
-    var constraints = json.valueToTree(drafts.repairConstraints(chat));
     var sourceAfterReady = json.valueToTree(conversations.archive().read(chat));
-
     var reloadedConversations = new ConversationService(config, new ConversationArchive(blobs, json));
     var reloadedNative = new CompilationArtifacts(blobs, json, clock);
-    var reloadedDrafts = new RequirementDraftStore(reloadedNative, new CompilationSessions(blobs, json, clock), reloadedConversations);
-    reloadedDrafts.elementSchemas = drafts.elementSchemas;
-    var resumed = new RequirementDiscoveryCapability(null, reloadedDrafts, (cid, text) -> {
-      calls.incrementAndGet();
-      throw new AssertionError("The validated ready continuation must not make another Gather/provider invocation.");
-    }, null);
+    var reloadedDrafts = new RequirementDraftStore(reloadedNative, new CompilationSessions(blobs, json, clock),
+        reloadedConversations);
+    assertEquals(accepted, reloadedDrafts.latestRevision(chat).orElseThrow());
+    assertEquals(sourceAfterReady, json.valueToTree(reloadedConversations.archive().read(chat)));
     var reloadedRuns = new ProductPipelineRunStore(blobs, json, clock);
     var restored = CreateChainTestOrchestrator.supportBuilder(reloadedRuns,
-        new ProductPipelineArtifactStore(reloadedNative), new StageCapabilityRegistry(List.of(resumed)), clock)
-        .build().withLlmBudget(budget);
+        new ProductPipelineArtifactStore(reloadedNative), registry, clock).build().withLlmBudget(budget);
     restored.restoreForExternalWorkflow(start).collect().asList().await().indefinitely();
     assertFalse(StageRepairEvidence.haltRecorded(restored.runAttributes(run)));
-    assertTrue(String.valueOf(restored.runAttributes(run).getOrDefault(
-        ProductPipelineRunSupport.RECOVERY_PREPARING_OWNER_ATTR, "")).isBlank());
-    restored.recordInput(new AcceptInputCommand(run, ChatEvent.CONTINUE_TO_PLANNING_ACTION,
-        "normal-planning-control", "normal-planning-hash", InputOrigin.TRUSTED))
-        .collect().asList().await().indefinitely();
-    var continued = restored.stageExecutor().execute(run, stage).await().indefinitely();
-    assertInstanceOf(StageDecision.Complete.class, continued.decision());
-    assertEquals(1, calls.get());
-    assertEquals(accepted, reloadedDrafts.latestRevision(chat).orElseThrow());
-    assertEquals(constraints, json.valueToTree(reloadedDrafts.repairConstraints(chat)));
-    assertEquals(sourceAfterReady, json.valueToTree(reloadedConversations.archive().read(chat)));
     assertEquals(originalAttempt, reloadedNative.get(originalAttempt.compilationId(), originalAttempt.reference()).orElseThrow());
-    assertTrue(reloadedRuns.load(run).orElseThrow().attempts().stream()
-        .anyMatch(attempt -> originalFailure.equals(attempt.failureEvidence())));
-    assertEquals(spentBefore, ledger.remaining(reloadedRuns.load(run).orElseThrow().transitions(), key, InputOrigin.ABSENT));
+    assertEquals(spentBefore, ledger.remaining(checkpoint.transitions(), key, InputOrigin.ABSENT));
     assertEquals(budgetBefore, budget.state(run));
   }
 

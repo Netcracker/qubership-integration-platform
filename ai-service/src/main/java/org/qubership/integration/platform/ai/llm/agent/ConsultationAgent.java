@@ -15,7 +15,9 @@ import org.qubership.integration.platform.ai.productpipeline.knowledge.Documenta
 import org.qubership.integration.platform.ai.integration.catalog.tool.ElementSchemaTools;
 
 /** Read-only platform assistance independent of the private creation package. */
-@RegisterAiService(toolProviderSupplier = ConsultationAgent.ToolsSupplier.class,
+@RegisterAiService(
+    toolHallucinationStrategy = org.qubership.integration.platform.ai.llm.tool.RecoverableToolNameStrategy.class,
+    toolProviderSupplier = ConsultationAgent.ToolsSupplier.class,
     chatMemoryProviderSupplier = RegisterAiService.NoChatMemoryProviderSupplier.class,
     maxSequentialToolInvocations = 6)
 @ApplicationScoped

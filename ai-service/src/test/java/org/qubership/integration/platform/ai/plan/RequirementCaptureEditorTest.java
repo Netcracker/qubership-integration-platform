@@ -114,14 +114,13 @@ class RequirementCaptureEditorTest {
   }
 
   @Test
-  void typedMappingWireStillRequiresTheSourcePort() {
+  void typedMappingWireMayOmitADerivableSourcePort() {
     var result = inspectMappingWire("""
         {"mapping":{"sourceInteractionId":"entry","sourcePath":null,"targetInteractionId":"delivery",
           "targetPath":"$.receipt","expression":null,"value":{"operation":"COPY",
             "source":{"kind":"MESSAGE","interactionId":"entry","path":"$.receipt"}}}}
         """);
-    assertEquals("MISSING_FIELD", result.issue().code());
-    assertEquals("/mapping/value/source/port", result.issue().path());
+    assertEquals(List.of(), result.issues());
   }
 
   private static org.qubership.integration.platform.ai.llm.tool.StructuredCaptureArguments.Result inspectMappingWire(

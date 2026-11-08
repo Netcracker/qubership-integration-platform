@@ -239,7 +239,8 @@ public class ScriptBodyRepairTool {
     }
     try {
       if (context == null || context.scriptEditDrafts().isEmpty()) {
-        ScriptExecutionAuthority.requireSupported(context == null ? null : context.requirementBrief(), applied.graph());
+        ScriptExecutionAuthority.requireSupported(context == null ? null : context.requirementBrief(), applied.graph(),
+            context == null ? java.util.Map.of() : context.behaviorTasks());
       }
     } catch (IllegalArgumentException failure) {
       return recordFailure(conversationId, capabilityId, failure.getMessage());
@@ -432,7 +433,7 @@ public class ScriptBodyRepairTool {
       if (intentId == null || intentId.isBlank()) {
         var draft = context == null ? null : context.scriptEditDrafts().get(entry.targetNodeId());
         if (draft == null && (context == null || ScriptExecutionAuthority.declaredGeneratedBehavior(
-            context.requirementBrief(), entry.targetNodeId()).isEmpty())) {
+            context.requirementBrief(), entry.targetNodeId(), context.behaviorTasks()).isEmpty())) {
           if (failure == null) failure = ScriptExecutionAuthority.unsupportedMessage(entry.targetNodeId());
           continue;
         }

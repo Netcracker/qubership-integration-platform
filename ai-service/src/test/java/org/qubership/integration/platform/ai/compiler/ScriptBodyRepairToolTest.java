@@ -309,19 +309,24 @@ class ScriptBodyRepairToolTest {
     assertEquals(graph, planStore.get(CONVERSATION_ID).orElseThrow());
   }
 
-  @Test
-  void capturesBodyGeneratedForAnApprovedBehavior() {
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+  void capturesBodyGeneratedForAnApprovedBehavior(boolean authorSelectedScript) {
     var base = graphWithMissingScripts();
     planStore.put(CONVERSATION_ID, base);
     var supplied = suppliedBrief("return 1", "return 2");
-    var facts = List.of(
-        org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures.generatedBehavior(
-            "validate-siteIds", "Return Hello world"),
-        supplied.facts().getLast());
+    var behavior = authorSelectedScript
+        ? org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures.generatedBehavior(
+            "validate-siteIds", "Return Hello world")
+        : new org.qubership.integration.platform.ai.plan.RequirementFact("greeting",
+            org.qubership.integration.platform.ai.plan.RequirementFactPolarity.POSITIVE,
+            org.qubership.integration.platform.ai.plan.RequirementFactKind.BEHAVIOR, "", "Return Hello world");
+    var facts = List.of(behavior, supplied.facts().getLast());
     executionContextStore.set(CONVERSATION_ID, CAPABILITY_ID,
         new GraphPatchExecutionContext("create-run", CAPABILITY_ID, null, null, null, null,
             supplied.withFacts(facts), List.of(), base, GraphPatchOwnershipPolicy.denyAll(),
-            "attempt", List.of("validate-siteIds", "append-found-row")));
+            "attempt", List.of("validate-siteIds", "append-found-row"))
+            .withBehaviorTasks(java.util.Map.of("validate-siteIds", List.of(behavior.sourceFactId()))));
     String body = "exchange.in.body = 'Hello world'";
     assertThrows(CaptureValidationException.class, () -> tool.repairScriptBodies(
         new ScriptBodyRepairCapture("greeting-body", List.of(new ScriptBodyEntry("validate-siteIds", body),

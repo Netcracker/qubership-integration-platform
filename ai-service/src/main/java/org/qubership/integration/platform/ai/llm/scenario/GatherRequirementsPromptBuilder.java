@@ -133,17 +133,29 @@ public class GatherRequirementsPromptBuilder {
           Call finishRequirementDiscoveryTurn exactly once as the final tool call, after any
           required capture and before the final answer. Complete all tool calls before writing
           user-visible prose. After that tool returns, write exactly one final answer; do not repeat
-          or revise it. Use STAY for questions, advice, comparisons, or continued discussion. Use
+          or revise it. An accepted finish completes this turn even when readiness is PARTIAL.
+          When its nextAction is ASK_USER, present the saved question and leave the unresolved
+          lookup for the author's answer. Otherwise, summarize the accepted result without inventing a question.
+          Use STAY for questions, advice, comparisons, or continued discussion. Use
           CONTINUE only when the user asked to proceed and the saved draft has no missing fields.
           When nextAction is RUN_IMPORT, the business requirements are complete and uploaded
           operations await import. Use CONTINUE to hand them to the import stage; do not look up
           missing uploaded operations or ask the user to bind them.
-          For other PARTIAL drafts, or nextAction COMPLETE_DRAFT, call updateRequirementDraft
-          to complete the saved requirements. Do not claim readiness or use CONTINUE.
+          Before an accepted finish, for other PARTIAL drafts or nextAction COMPLETE_DRAFT,
+          call updateRequirementDraft to complete the saved requirements. Do not claim readiness or use CONTINUE.
           Preserve explicit elementIntent on facts: ANCHOR uses the interaction ID; LOCAL_NODE
           uses a separate stable elementRef; BEFORE_HOOK and AFTER_HOOK belong only to their
           Service Call. Chain names use CHAIN placement with elementType=chain. Copy requestedName
           without prefixes or language labels.
+          For if, else, try-2, catch-2, and finally branches, preserve branch policy in fact text.
+          Branch shells come from semantic regions: any elementIntent for a branch fact uses the
+          owning control element's same elementRef, type, placement and owner. Do not give a branch
+          its own elementRef with the control element's type, or put branch properties on the owner.
+          Record an explicitly requested service-call path or query parameter transfer on its ANCHOR
+          elementIntent in requestedProperties. Use the native schema key integrationOperationPathParameters
+          or integrationOperationQueryParameters and a JSON object encoded as the property value. Preserve
+          the requested parameter and its source expression when supported by the author source and platform
+          contract; do not invent an unknown source or expression.
           Use existing element schema keys for requestedProperties; omit guessed defaults.
           AsyncAPI Trigger topic and classifier come from the selected catalog operation. Keep
           their requested literals in fact text and exactValues, not standalone runtime properties.
@@ -164,7 +176,18 @@ public class GatherRequirementsPromptBuilder {
           result delivery, set INLINE_RESPONSE on the producing call; null propagates and skips
           that delivery on failure. Keep the delivery call's own failureMode null by default.
           Read the accepted view after lookups. searchCatalogSystems does not bind an
-          interaction. Reply in the
+          interaction. A catalog miss is evidence of a missing dependency. After the exact lookup
+          and a relevant broader search find no suitable service, save an open question naming the
+          required service and operation. Do not exhaust the budget by rewording the same missing
+          name, enumerating unrelated services, or searching individual letters. Keep APIHub
+          restrictions. An HTTP response to the caller is local result delivery, not another
+          external catalog operation unless the author explicitly requests a separate call.
+          A local response mapping keeps each typed FIELD_MAPPING and COPY source. Declare one LOCAL_NODE
+          script using the response target ID, the inbound trigger as owner and the last call as predecessor;
+          include the owner in the declaring fact's interactionIds. Do not replace typed mappings with BEHAVIOR
+          or remove their source and target fields. For an accepted mistaken outbound response, report its
+          interaction removal, predecessor transitions, script declaration and owner references together.
+          Reply in the
           pinned response locale %s. This
           locale is authoritative; do not infer another language from conversation history or
           embedded text.
@@ -201,6 +224,8 @@ public class GatherRequirementsPromptBuilder {
         Native validation permits technical correction of the current draft at these fields.
         Writable stable paths: %s
         Use amendments: [] for these corrections, using the saved author source; no new author answer is required.
+        A scoped elementIntent repair can correct model-assigned references or types while preserving the
+        fact's text, polarity, evidence, and all fields outside the permitted paths.
         Preserve all other accepted content and confirmed answers. Apply affected corrections atomically.
         Native admission still validates the proposal; this scope grants no permission to invent requirements.
         </native-requirement-repair>
@@ -229,15 +254,28 @@ public class GatherRequirementsPromptBuilder {
         .append("source-backed facts use amendments: [].\n")
         .append("Facts naming or configuring an existing Service Call use ANCHOR with elementRef=ownerInteractionId. ")
         .append("Attach the requested name and properties to that anchor. Give separate scripts their own LOCAL_NODE.\n")
+        .append("Capture required data processing as BEHAVIOR with its complete expected effect and data sources, ")
+        .append("not only as a goal or summary. Include preservation of earlier values when later results need them ")
+        .append("after body replacement. Leave unrequested processing topology to semantic design; do not ask the ")
+        .append("author for Script code or turn implementation choices into author-specified element placement. ")
         .append("For each explicitly requested Script, capture a BEHAVIOR fact with a script elementIntent, ")
         .append("its ownerInteractionId, and the required output or effect. Preserve this intent after clarification. ")
         .append("Before CONTINUE, add a structured fact for any explicit Script still described only in prose. ")
-        .append("If behavior is specified without source code, use a GENERATED_CANDIDATE bodyBinding with the ")
-        .append("retained author generation and turn, null offsets and encoding, and no script property. ")
+        .append("For behavior without supplied source code, leave requestedProperties free of candidate script bytes. ")
+        .append("The server classifies it as GENERATED_CANDIDATE against retained author source; if capture returns ")
+        .append("BODY_BINDING_REQUIRED, copy the returned binding and retry without changing the behavior. ")
         .append("Ask for missing behavior when the expected effect is unclear.\n")
         .append("Capture each explicit name in requestedName on its owning elementIntent, including entry triggers ")
         .append("and calls with ANCHOR placement even when they have no requestedProperties. ")
         .append("The interaction participant identifies the other party; it does not name the trigger or call. ")
+        .append("Before asking the author, check whether the selected mechanism adds requirements absent from the source or ")
+        .append("conflicts with author facts. Call reportRequirementInterpretationConflict with corrections containing ")
+        .append("the exact field path, previous and proposed JSON values, source turn, and quote. Do not treat ")
+        .append("a model-selected interpretation as an author choice.\n")
+        .append("Questions are provisional interpretations too. Scope each missing-value question to an actual ")
+        .append("requirement field or native property of its owner. If the saved source already excludes the ")
+        .append("question's premise or validation reports an unsupported target, remove the mistaken question ")
+        .append("while preserving author facts. Do not invent a property or value merely to close it.\n")
         .append("Before finishing, compare each explicit name in the saved author source to the accepted elementIntent fields. ")
         .append("Add a missing naming fact on that elementRef before using CONTINUE.\n")
         .append("""
@@ -253,9 +291,25 @@ public class GatherRequirementsPromptBuilder {
             Source occurrence alone does not establish a runtime constant. Preserve complete literals
             containing '=' or spaces, such as a required response body "a=b". Do not invent a business
             interaction for local script output or remove its behavior requirements.
-          - For COPY from a custom HTTP trigger, use OUTPUT. When pending work includes COPY_INPUT_SCHEMA_REQUIRED,
-            ask for that route's request body JSON Schema with propertyKey=requestSchema. If the user supplied it,
-            add a positive MESSAGE_SCHEMA fact scoped to the trigger. Copy the exact JSON Schema into text and cite
+          - Record forwarding the entire body unchanged as BEHAVIOR, including forwarding it as a Kafka message value.
+            If a schema finding comes from representing passthrough as a field mapping, correct the draft and continue.
+          - Forwarding query, path or header parameters is transport configuration, not a JSON body FIELD_MAPPING.
+            Keep the forwarding requirement as scoped BEHAVIOR. Use the native parameter properties and their
+            documented expressions during generation; for example, an HTTP query value can use ${header.status}.
+            A request-body JSON Schema is not needed for parameter forwarding or an unchanged response body.
+            If a previous question wrongly assumed a body-field operation, correct that representation and remove
+            the question. Do not fabricate a body schema to satisfy a question introduced by the model.
+          - For COPY from a custom HTTP trigger, use OUTPUT. Scalar COPY into a catalog request can use the target
+            schema at runtime, including when the original field must be retained across calls.
+          - Use catalog calls for operations named in uploaded specifications. Keep their routes on those calls.
+            When correcting a sender placeholder into a catalog call, review and type its incoming and outgoing COPY
+            sources in the same update so the compiler can retain fields from earlier messages.
+          - If a mapping is rejected, read the saved author source and use the tool finding to repair the draft.
+            You can change the technical representation while preserving the requested behavior.
+            Ask the author only for a detail that remains missing or ambiguous after checking the saved source.
+          - When a JSON body field operation still needs an input schema, ask for that route's request body JSON Schema
+            with propertyKey=requestSchema. If the user supplied it, add a positive MESSAGE_SCHEMA fact scoped
+            to the trigger. Copy the exact JSON Schema into text and cite
             its user turn and exact quote in evidence. For multiple triggers, the quote must name the method
             and path for this schema. Close the question in the same update. Never derive the input schema
             from field names, sample values, or the destination API.
@@ -422,6 +476,11 @@ public class GatherRequirementsPromptBuilder {
   private String recoveryLadderBlock(String conversationId) {
     if (draftStore == null || conversationId == null) {
       return "";
+    }
+    if (draftStore.unauthorizedDiscussionNeedsContinuation(conversationId)) {
+      return "\n<requirement-recovery-strategy>\nThe accepted draft is ready. Finish with CONTINUE; "
+          + "do not rewrite unrelated facts. Earlier repair history is not the current scope. Existing continuation checks still apply.\n"
+          + "</requirement-recovery-strategy>\n";
     }
     var guidance = draftStore.recoveryGuidance(conversationId);
     if (guidance.isEmpty()) {

@@ -186,7 +186,7 @@ public final class StructuredCaptureArguments {
         return;
       }
       for (String required : object.required()) {
-        if (!value.has(required)) {
+        if (!value.has(required) && !allowsNull(object.properties().get(required))) {
           issues.add(new Issue("MISSING_FIELD", path + "/" + required, "Include this field."));
         }
       }
@@ -217,6 +217,11 @@ public final class StructuredCaptureArguments {
     } else if (schema instanceof JsonBooleanSchema) {
       addUnless(value.isBoolean(), path, issues);
     }
+  }
+
+  public static boolean allowsNull(JsonSchemaElement schema) {
+    return schema instanceof JsonNullSchema || schema instanceof JsonAnyOfSchema anyOf
+        && anyOf.anyOf().stream().anyMatch(StructuredCaptureArguments::allowsNull);
   }
 
   private static void addUnless(boolean valid, String path, List<Issue> issues) {

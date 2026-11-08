@@ -84,6 +84,12 @@ public class RequirementCaptureToolProvider {
             (call, memoryId) -> inConversation(memoryId, authority, expected, () -> execute(
                 call, "updateRequirementDraft", update,
                 "changes", DraftUpdate.class, tools::updateRequirementDraft)))
+        .add(spec("reportRequirementInterpretationConflict", RequirementCaptureTools.InterpretationReport.class,
+                RequirementCaptureSchemas.parameters("report", RequirementCaptureTools.InterpretationReport.class)),
+            (call, memoryId) -> inConversation(memoryId, authority, expected, () -> execute(call,
+                "reportRequirementInterpretationConflict",
+                RequirementCaptureSchemas.parameters("report", RequirementCaptureTools.InterpretationReport.class),
+                "report", RequirementCaptureTools.InterpretationReport.class, tools::reportRequirementInterpretationConflict)))
         .add(spec("readRequirementDraft", null, read),
             (call, memoryId) -> inConversation(memoryId, authority, expected, () -> executeRead(call.arguments(), read)))
         .add(spec("finishRequirementDiscoveryTurn", RequirementDiscoveryDirective.class, finish),
@@ -234,7 +240,7 @@ public class RequirementCaptureToolProvider {
         return issue("INVALID_TYPE", path, "This field must be an object.");
       }
       for (String required : object.required()) {
-        if (!value.has(required)) {
+        if (!value.has(required) && !StructuredCaptureArguments.allowsNull(object.properties().get(required))) {
           return issue("MISSING_FIELD", path + "/" + required,
               "Include this field; use null only when its schema allows null.");
         }

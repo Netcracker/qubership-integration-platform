@@ -48,7 +48,7 @@ class RequirementBodySourceRequestTest {
 
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
-  void actualProviderReceivesBodyAuthoritySchemaAndNativeCorrectionBeforeContinuation(boolean literal) throws Exception {
+  void actualProviderReceivesBodyAuthoritySchemaAndServerBindingBeforeContinuation(boolean literal) throws Exception {
     String chat = "source-body-provider-" + UUID.randomUUID();
     String body = "  exchange.in.body = 'source 😀'  \n\n";
     String source = literal ? "Receive POST /work. Use this exact code for prepare:\n```groovy\n" + body + "```\n"
@@ -75,14 +75,6 @@ class RequirementBodySourceRequestTest {
           assertTrue(element.required().contains("bodyBinding"));
           assertTrue(element.properties().get("bodyBinding").description().contains("Never downgrade an author body"));
         }, "captureRequirementDraft", json.writeValueAsString(Map.of("draft", initial))),
-        Turn.tool("source-bound-correction", request -> {
-          var refused = lastTool(request);
-          assertFalse(refused.path("accepted").asBoolean(), refused.toString());
-          assertTrue(refused.path("issues").toString().contains("BODY_BINDING_REQUIRED"), refused.toString());
-          assertTrue(refused.path("issues").toString().contains(expected.authority().name()), refused.toString());
-          assertTrue(refused.path("issues").toString().contains(turn.generation()), refused.toString());
-          assertTrue(drafts.get(chat).isEmpty());
-        }, "captureRequirementDraft", json.writeValueAsString(Map.of("draft", corrected))),
         Turn.tool("continue-after-native-capture", request -> {
           assertTrue(lastTool(request).path("accepted").asBoolean(), lastTool(request).toString());
           assertEquals(corrected, drafts.get(chat).orElseThrow().authoredDraft());
@@ -93,7 +85,7 @@ class RequirementBodySourceRequestTest {
     try {
       gather.chat(chat, prompts.wrap(chat, source, "en"), new InvocationParameters()).collect().asList().await().atMost(Duration.ofSeconds(30));
       scripted.assertComplete();
-      assertEquals(4, scripted.requests().size());
+      assertEquals(3, scripted.requests().size());
       var brief = new RequirementBrief("goal", List.of(), List.of(), List.of(), List.of(), "")
           .withFacts(RequirementCaptureProjection.facts(drafts.get(chat).orElseThrow().authoredDraft()));
       var graph = RequirementBodyCaptureProviderTest.graph(literal ? null : body);

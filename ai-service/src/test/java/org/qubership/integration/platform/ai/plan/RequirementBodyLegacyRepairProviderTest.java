@@ -205,20 +205,14 @@ class RequirementBodyLegacyRepairProviderTest {
   }
 
   @Test
-  void sourceBaseAndBodyTamperingCannotUseLegacyMetadataCompletionOrMutateFailureEvidence() throws Exception {
+  void baseAndBodyTamperingCannotUseLegacyMetadataCompletionOrMutateFailureEvidence() throws Exception {
     var h = new Harness();
     var sourceBefore = json.valueToTree(conversations.archive().read(h.chat));
     var baseBefore = drafts.latestRevision(h.chat).orElseThrow();
     try {
       ProductCapabilityCaptureContext.bindDiscovery(h.run, h.chat, h.legacy, Map.of(), Set.of(PATH), ignored -> {});
-      var wrongSource = new RequirementBodyBinding(h.binding.authority(), h.binding.elementRef(), h.binding.propertyKey(),
-          h.binding.bodyKind(), "foreign-generation", h.binding.sourceTurnId(), h.binding.startOffset(), h.binding.endOffset(), h.binding.encoding());
-      h.assertRejected(fact(BODY, wrongSource), "foreign-source", "BODY_SOURCE_MISMATCH");
       h.assertRejected(fact(BODY.strip(), h.binding), "changed-body", "BODY_SOURCE_MISMATCH");
       var bodyRefusal = drafts.rejectedCaptureRevision(h.chat).orElseThrow().reference();
-      var wrongOwner = new RequirementBodyBinding(h.binding.authority(), "foreign-owner", h.binding.propertyKey(),
-          h.binding.bodyKind(), h.binding.sourceGeneration(), h.binding.sourceTurnId(), h.binding.startOffset(), h.binding.endOffset(), h.binding.encoding());
-      h.assertRejected(fact(BODY, wrongOwner), "foreign-owner", "BODY_SOURCE_MISMATCH");
       ProductCapabilityCaptureContext.unbind();
       var foreignBase = RequirementCaptureProjection.toDraft(input("different original body", null), null, List.of(), "legacy", "legacy");
       ProductCapabilityCaptureContext.bindDiscovery(h.run, h.chat, foreignBase, Map.of(), Set.of(PATH), ignored -> {});

@@ -48,7 +48,7 @@ public final class RequirementCaptureInput {
       @NullableCaptureValue(description = "Only for a CONSTRAINT tied to one interaction: company policy,"
           + " requested and recommended property values, persisted question ID, and the user's decision.")
           RequirementPolicyConflict policyConflict,
-      @NullableCaptureValue(description = "Explicit requested element, local node, inline hook, or chain name. Copy exact author values; null when unspecified.")
+      @NullableCaptureValue(description = "Element realization for this fact. Preserve explicit author names and values; repair model-selected wiring only through source-bound review. Null when unnecessary.")
           RequirementElementIntent elementIntent,
       @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
       @com.fasterxml.jackson.annotation.JsonProperty(required = false)
@@ -192,21 +192,21 @@ public final class RequirementCaptureInput {
   }
 
   public record DraftUpdate(
-      List<InteractionInput> addInteractions,
-      List<InteractionInput> updateInteractions,
-      List<String> removeInteractionIds,
-      List<TransitionInput> addTransitions,
-      List<TransitionInput> removeTransitions,
-      List<FactInput> addFacts,
-      List<FactInput> updateFacts,
-      List<String> removeFactIds,
-      List<CapabilityInput> setCapabilities,
-      List<String> removeCapabilityInteractionIds,
-      List<QuestionInput> addQuestions,
-      List<QuestionInput> updateQuestions,
-      List<String> removeQuestionIds,
+      @NullableCaptureValue List<InteractionInput> addInteractions,
+      @NullableCaptureValue List<InteractionInput> updateInteractions,
+      @NullableCaptureValue List<String> removeInteractionIds,
+      @NullableCaptureValue List<TransitionInput> addTransitions,
+      @NullableCaptureValue List<TransitionInput> removeTransitions,
+      @NullableCaptureValue List<FactInput> addFacts,
+      @NullableCaptureValue List<FactInput> updateFacts,
+      @NullableCaptureValue List<String> removeFactIds,
+      @NullableCaptureValue List<CapabilityInput> setCapabilities,
+      @NullableCaptureValue List<String> removeCapabilityInteractionIds,
+      @NullableCaptureValue List<QuestionInput> addQuestions,
+      @NullableCaptureValue List<QuestionInput> updateQuestions,
+      @NullableCaptureValue List<String> removeQuestionIds,
       @NullableCaptureValue DraftSettings settings,
-      List<AmendmentInput> amendments,
+      @NullableCaptureValue List<AmendmentInput> amendments,
       @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
       @com.fasterxml.jackson.annotation.JsonProperty(required = false)
       @NullableCaptureValue(description = "Exact pendingProposal.token from readRequirementDraft; only for focused"
@@ -218,6 +218,23 @@ public final class RequirementCaptureInput {
           + " Omit it on an ordinary gather call. The server derives ANSWER when the pinned target changes"
           + " or its question closes.")
       ClarificationDispositionInput clarificationDisposition) {
+
+    public DraftUpdate {
+      addInteractions = addInteractions == null ? List.of() : addInteractions;
+      updateInteractions = updateInteractions == null ? List.of() : updateInteractions;
+      removeInteractionIds = removeInteractionIds == null ? List.of() : removeInteractionIds;
+      addTransitions = addTransitions == null ? List.of() : addTransitions;
+      removeTransitions = removeTransitions == null ? List.of() : removeTransitions;
+      addFacts = addFacts == null ? List.of() : addFacts;
+      updateFacts = updateFacts == null ? List.of() : updateFacts;
+      removeFactIds = removeFactIds == null ? List.of() : removeFactIds;
+      setCapabilities = setCapabilities == null ? List.of() : setCapabilities;
+      removeCapabilityInteractionIds = removeCapabilityInteractionIds == null ? List.of() : removeCapabilityInteractionIds;
+      addQuestions = addQuestions == null ? List.of() : addQuestions;
+      updateQuestions = updateQuestions == null ? List.of() : updateQuestions;
+      removeQuestionIds = removeQuestionIds == null ? List.of() : removeQuestionIds;
+      amendments = amendments == null ? List.of() : amendments;
+    }
 
     public DraftUpdate(
         List<InteractionInput> addInteractions, List<InteractionInput> updateInteractions,
