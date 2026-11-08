@@ -4455,7 +4455,10 @@ public final class ProductPipelineRunSupport {
     return pending;
   }
 
-  /** Retires an observing stage's active error only after that stage succeeds or its output is approved. */
+  /**
+   * Retires the named observing stage's active error after stage success, output approval,
+   * ready-draft validation, or authoritative native feedback resolution.
+   */
   public static void settleActiveRepair(String stageId, Map<String, Object> attributes) {
     if (attributes != null && stageId.equals(attributes.get(STAGE_ERROR_FAILED_STAGE_ATTR))) {
       clearActiveRepair(attributes);
@@ -4489,7 +4492,9 @@ public final class ProductPipelineRunSupport {
         RECOVERY_EVIDENCE_REF_ATTR, RECOVERY_INVOCATION_ATTR, RECOVERY_PENDING_ATTEMPT_ATTR,
         RECOVERY_DIAGNOSIS_ATTR, DESIGN_INPUT_CLEAN_REBUILD_EVIDENCE_REF_ATTR,
         DESIGN_PLAN_CLEAN_REBUILD_EVIDENCE_REF_ATTR, PRODUCER_CLEAN_REBUILD_EVIDENCE_REF_ATTR,
-        PRIOR_CANDIDATE_ATTR)) {
+        PRIOR_CANDIDATE_ATTR,
+        org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence.REPAIR_HISTORY_ATTR,
+        org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence.PRIOR_OUTPUT_REFS_ATTR)) {
       attributes.remove(key);
     }
   }

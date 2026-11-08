@@ -52,7 +52,8 @@ class ChainSemanticCaptureToolTest {
 
   @Test
   void selfContainingConditionIsRejectedAndItsCorrectionCanBeCaptured() throws Exception {
-    var tool = tool(completePack());
+    var feedback = new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore();
+    var tool = tool(completePack(), new E2eRecoveryFaultInjector("", ""), feedback);
     bindDesign(ChainSemanticCaptureFixtures.approvedBrief());
     var base = ChainSemanticCaptureFixtures.linearCapture();
     var region = new ChainSemanticCapture.CapturedConditionRegion("header-check", "op-shared", List.of(
@@ -69,8 +70,12 @@ class ChainSemanticCaptureToolTest {
     assertEquals("REPAIR_CAPTURE", rejected.path("nextAction").asText());
     assertTrue(rejected.toString().contains("cannot contain its owner"), rejected.toString());
     assertTrue(ProductCapabilityCaptureContext.semanticCandidate().isEmpty());
+    assertTrue(feedback.repairHistory("conv-1", "design-input").contains("cannot contain its owner"),
+        () -> feedback.repairHistory("conv-1", "design-input"));
     String accepted = endedTurn(() -> tool.captureChainSemanticRevision(base));
     assertTrue(MAPPER.readTree(accepted).path("accepted").asBoolean(), accepted);
+    assertEquals("", feedback.repairHistory("conv-1", "design-input"));
+    assertEquals(java.util.Optional.empty(), feedback.lastPlanFailure("conv-1"));
   }
 
   @Test
@@ -480,6 +485,11 @@ class ChainSemanticCaptureToolTest {
 
   private static ChainSemanticCaptureTool tool(
       CipKnowledgePackRepository pack, E2eRecoveryFaultInjector injector) {
+    return tool(pack, injector, new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore());
+  }
+
+  private static ChainSemanticCaptureTool tool(CipKnowledgePackRepository pack, E2eRecoveryFaultInjector injector,
+      org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore feedback) {
     CatalogElementDescriptorLoader descriptors = mock(CatalogElementDescriptorLoader.class);
     CatalogElementDescriptorTestSupport.stubPermissive(descriptors);
     return new ChainSemanticCaptureTool(
@@ -488,7 +498,8 @@ class ChainSemanticCaptureToolTest {
         new ClasspathCompilerContractRepository(),
         pack,
         descriptors,
-        injector);
+        injector,
+        feedback);
   }
 
   static CipKnowledgePackRepository completePack() {

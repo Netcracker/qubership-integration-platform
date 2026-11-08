@@ -81,6 +81,20 @@ class DesignPlanCaptureToolTest {
     assertThrows(IllegalStateException.class, () -> bind("conversation-b", "2028.1"));
   }
 
+  @Test
+  void shouldRetireRejectedPlanFeedbackWhenCorrectedCaptureIsAccepted() {
+    bind("conversation-a", "2026.1");
+    ToolSession.bind("conversation-a");
+    var invalid = new DesignPlanCapture(List.of(
+        new DesignPlanCapture.Note(TargetKind.ENTRY_POINT, "ghost", "Unknown target")));
+    tool.captureDesignPlan(invalid);
+
+    endedTurn(() -> tool.captureDesignPlan(DesignPlanTestFixtures.validCapture("Trigger", "Call")));
+
+    assertEquals(java.util.Optional.empty(), tool.feedbackStore.lastPlanFailure("conversation-a"));
+    assertEquals("", tool.feedbackStore.repairHistory("conversation-a", "design-planning"));
+  }
+
   private static DesignPlanCaptureSession.Binding bind(
       String conversationId, String apiRelease) {
     ChainSemanticRevision revision = DesignPlanTestFixtures.revision();

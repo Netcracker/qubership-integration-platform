@@ -210,7 +210,7 @@ public class DesignPlanningCapability implements StageCapability {
       captureFeedback.beginScope(plannerRequest.conversationId(), CAPABILITY_ID, java.util.Map.of(
           "runId", context.runId(), "inputs", context.inputRefs(), "brief", brief, "revision", revision, "pin", pin),
           context.conversationId());
-      captureFeedback.clearPlan(plannerRequest.conversationId());
+      captureFeedback.resetPlan(plannerRequest.conversationId());
       if (typedPlanner != null) {
         if (llmBudget != null) { llmBudget.linkConversation(context.runId(), plannerRequest.conversationId()); }
         TypedCipDesignPlannerAdapter.Result result =

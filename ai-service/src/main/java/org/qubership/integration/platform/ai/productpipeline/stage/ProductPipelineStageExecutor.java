@@ -46,6 +46,7 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.UserInput;
 import org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
+import org.qubership.integration.platform.ai.productpipeline.capability.CaptureFailureEvidence;
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageCapability;
@@ -3193,6 +3194,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
 
   private List<RepairHistory.Attempt> repairHistory(String runId, String producer,
       List<Reference> inputs, List<String> authorIds) {
+    var revisions = artifactStore.history(runId, Kind.RECOVERY_EVIDENCE);
+    var resolved = resolvedRecoverySequences(runId, revisions);
     Set<String> approvalIds = conversations == null ? Set.of()
         : conversations.archive().read(requireRun(runId).run().conversationId()).activeTurns().stream()
             .filter(turn -> turn.message().role()
@@ -3200,10 +3203,12 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             .filter(turn -> org.qubership.integration.platform.ai.plan.AuthorSourceEvidence.authorInput(turn).isEmpty())
             .map(turn -> turn.id()).collect(java.util.stream.Collectors.toSet());
     List<String> sourceIds = authorIds.stream().filter(id -> !approvalIds.contains(id)).toList();
-    return artifactStore.history(runId, Kind.RECOVERY_EVIDENCE).stream()
+    return revisions.stream()
         .filter(revision -> {
           var evidence = artifactStore.payload(revision, RecoveryEvidence.class);
-          return (producer.equals(evidence.producerStageId())
+          return revision.sequence() > resolved.getOrDefault(evidence.observingStageId(), 0L)
+              && !resolvedNativeCapture(runId, evidence.captureFailure())
+              && (producer.equals(evidence.producerStageId())
               || evidence.producerStageId().isBlank() && producer.equals(evidence.observingStageId()))
               && inputs.equals(evidence.producerInputs())
               && sourceIds.equals(evidence.authorInputIds().stream().filter(id -> !approvalIds.contains(id)).toList());
@@ -3215,6 +3220,52 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
               evidence.producerInputs(), evidence.authorInputIds(), evidence.rejectedArtifactRefs(),
               objectMapper.valueToTree(proposal), evidence.findings(), evidence.cleanRebuild());
         }).toList();
+  }
+
+  private boolean resolvedNativeCapture(String runId, CaptureFailureEvidence capture) {
+    return captureFeedback != null && capture != null && capture.feedback() != null
+        && captureFeedback.isResolved(requireRun(runId).run().conversationId(), capture.feedback().evidenceReference());
+  }
+
+  private void settleResolvedNativeRepair(String runId, Map<String, Object> attributes) {
+    if (captureFeedback == null) return;
+    Object encoded = attributes.get(ProductPipelineRunSupport.STAGE_ERROR_CAUSE_JSON_ATTR);
+    if (!(encoded instanceof String text) || text.isBlank()) return;
+    RecoveryCause cause;
+    try { cause = objectMapper.readValue(text, RecoveryCause.class); }
+    catch (com.fasterxml.jackson.core.JsonProcessingException invalidEvidence) { return; }
+    if (cause != null && resolvedNativeCapture(runId, cause.captureFailure())) {
+      ProductPipelineRunSupport.settleActiveRepair(
+          Objects.toString(attributes.get(ProductPipelineRunSupport.STAGE_ERROR_FAILED_STAGE_ATTR), ""), attributes);
+    }
+  }
+
+  private Map<String, Long> resolvedRecoverySequences(String runId, List<Revision> revisions) {
+    var doc = requireRun(runId);
+    var recorded = new java.util.HashMap<String, Long>();
+    var resolved = new java.util.HashMap<String, Long>();
+    for (var attempt : doc.attempts()) {
+      var halt = ProductPipelineRunSupport.readHaltEvidence(attempt.failureEvidence());
+      Object reference = halt.get(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR);
+      revisions.stream().filter(revision -> revision.contentHash().equals(reference)).findFirst().ifPresent(revision -> {
+        var evidence = artifactStore.payload(revision, RecoveryEvidence.class);
+        recorded.merge(evidence.observingStageId(), revision.sequence(), Math::max);
+      });
+      boolean acceptedReadyDraft = attempt.outcome() == StageStatus.WAITING_FOR_INPUT
+          && "requirement-discovery".equals(attempt.stageId())
+          && "".equals(halt.get(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR))
+          && doc.transitions().stream().anyMatch(transition -> transition.toRevision() == attempt.runRevision()
+              && PipelineGates.REQUIREMENT_DRAFT_READY.equals(
+                  PipelineGates.gateOf(transition.reason()).orElse("")));
+      if (attempt.outcome() != StageStatus.SUCCEEDED && !acceptedReadyDraft) {
+        continue;
+      }
+      long outputSequence = attempt.outputs().stream().map(ref -> artifactStore.get(runId, ref))
+          .flatMap(Optional::stream).mapToLong(Revision::sequence).max().orElse(0L);
+      resolved.merge(attempt.stageId(), Math.max(outputSequence,
+          recorded.getOrDefault(attempt.stageId(), 0L)), Math::max);
+    }
+    return resolved;
   }
 
   private boolean isCurrentCleanRebuild(String runId, String stageId) {
@@ -3858,6 +3909,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       ProfileStage stage,
       Map<String, Object> attributes) {
     ProductPipelineRunSupport.overlayHaltEvidenceForStage(doc, stage.stageId(), attributes);
+    settleResolvedNativeRepair(runId, attributes);
     List<Reference> refs =
         StageRepairEvidence.haltRecorded(attributes)
             ? haltedAttemptOutputs(doc, stage.stageId())

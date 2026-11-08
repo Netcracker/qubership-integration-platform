@@ -256,6 +256,7 @@ public class ChainSemanticCaptureTool {
       return rejected("RUNTIME_CONFIGURATION_ERROR", "/capture", preflightError, true);
     }
     ProductCapabilityCaptureContext.offerSemantic(binding, revision);
+    feedbackStore.clearPlan(conversationId);
     return new CaptureResult(true, true, "HANDOFF", List.of(), CAPTURED_MESSAGE);
   }
 

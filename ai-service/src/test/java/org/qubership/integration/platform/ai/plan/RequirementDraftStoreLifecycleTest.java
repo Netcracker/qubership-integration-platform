@@ -27,6 +27,59 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementSe
 class RequirementDraftStoreLifecycleTest {
 
   @Test
+  void shouldRetireRejectedHistoryWhenCaptureIsAcceptedAfterRestart() {
+    var blobs = new InMemoryArtifactBlobStore();
+    var first = runtime(blobs);
+    first.store().beginTurn("chat", "Create one task.");
+    recordCapture(first.store(), false, "old-error");
+    recordCapture(first.store(), true, "accepted");
+    String compilation = first.store().activeCompilationId("chat");
+    var restored = runtime(blobs);
+    restored.store().beginTurn("chat", "Create one task.");
+
+    assertEquals("", restored.store().rejectedProposalHistory("chat"));
+    assertEquals(2, restored.artifacts().history(compilation, Kind.REQUIREMENT_CAPTURE_ATTEMPT).size());
+  }
+
+  @Test
+  void shouldKeepUnresolvedRejectedHistoryAfterRestart() throws Exception {
+    var blobs = new InMemoryArtifactBlobStore();
+    var first = runtime(blobs);
+    first.store().beginTurn("chat", "Create one task.");
+    recordCapture(first.store(), false, "pending-error");
+    var restored = runtime(blobs);
+    restored.store().beginTurn("chat", "Create one task.");
+
+    var history = new ObjectMapper().readTree(restored.store().rejectedProposalHistory("chat"));
+
+    assertEquals("pending-error", history.at("/attempts/0/issues/0/code").asText());
+    assertEquals(1, history.path("attempts").size());
+  }
+
+  @Test
+  void shouldKeepOnlyRejectionsAfterAcceptedCapture() throws Exception {
+    var store = runtime(new InMemoryArtifactBlobStore()).store();
+    store.beginTurn("chat", "Create one task.");
+    recordCapture(store, false, "resolved-error");
+    recordCapture(store, true, "accepted");
+    recordCapture(store, false, "new-error");
+
+    var history = new ObjectMapper().readTree(store.rejectedProposalHistory("chat"));
+
+    assertEquals("new-error", history.at("/attempts/0/issues/0/code").asText());
+    assertEquals(1, history.path("attempts").size());
+  }
+
+  private static void recordCapture(RequirementDraftStore store, boolean accepted, String code) {
+    var issues = accepted ? List.<RequirementCaptureResult.CaptureIssue>of()
+        : List.of(new RequirementCaptureResult.CaptureIssue(code, "/facts", null, null, code));
+    store.recordCaptureOutcome("chat", "captureRequirementDraft", java.util.Map.of("candidate", code),
+        new RequirementCaptureResult(accepted, accepted, null, RequirementCaptureResult.Readiness.PARTIAL,
+            accepted ? RequirementCaptureResult.NextAction.COMPLETE_DRAFT : RequirementCaptureResult.NextAction.REPAIR_CAPTURE,
+            issues, List.of(), null, List.of(), List.of()));
+  }
+
+  @Test
   void storedLegacyProtectionRestoresAndRejectedFactsDoNotWriteOne() {
     var blobs = new InMemoryArtifactBlobStore();
     var first = runtime(blobs);

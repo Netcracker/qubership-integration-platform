@@ -84,6 +84,34 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 
 class RequirementCaptureToolsTest {
 
+  @Test
+  void acceptedDraftRetiresStalledClarificationFeedback() throws Exception {
+    var store = new RequirementDraftStore();
+    var bindings = mock(RequirementDraftTool.class);
+    when(bindings.canonicalBindings(any(), nullable(RequirementDraft.class), anyString())).thenReturn(List.of());
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var feedback = new CaptureAttemptFeedbackStore();
+    var tools = new RequirementCaptureTools(store, bindings, mapper,
+        new CaptureToolOutcomeGateway(feedback.fingerprintStore(), feedback), feedback, null);
+    String chat = "accepted-clarification";
+    store.beginTurn(chat, "Accept POST /test and return success.");
+    feedback.beginScope(chat, "requirement-discovery", Map.of("source", "author-turn"));
+    var projection = mapper.createObjectNode().put("interactionId", "entry").put("propertyKey", "path");
+    var key = new CaptureAttemptFeedbackStore.ClarificationFailureKey(
+        "answer-turn", "offer", "entry", "path", projection, projection);
+    feedback.recordClarificationFailure(chat, "requirement-discovery", key, List.of(
+        new CaptureToolOutcomeGateway.TypedIssue("CLARIFICATION_ANSWER_NO_PROGRESS", "/draft/path", "Apply the answer.")));
+    assertTrue(feedback.repeatedClarificationFailure(chat, key), "Recorded stalled clarification");
+
+    try (var ignored = ToolSession.open(chat)) {
+      var result = mapper.readValue(tools.captureRequirementDraft(readyHttpDraft()), RequirementCaptureResult.class);
+      assertTrue(result.accepted(), result.toString());
+    }
+
+    assertEquals("", feedback.repairHistory(chat, "requirement-discovery"));
+    assertFalse(feedback.repeatedClarificationFailure(chat, key), "Accepted clarification target");
+  }
+
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
   void catalogCopyPinsNewDraftsAndReplaysPreviouslyAdmittedLegacyDrafts(boolean legacy) throws Exception {
@@ -1521,6 +1549,36 @@ class RequirementCaptureToolsTest {
       assertTrue(admitted.issues().stream().noneMatch(issue ->
           "CLARIFICATION_ANSWER_NO_PROGRESS".equals(issue.code())));
       assertEquals("AMBIGUOUS", telemetry.clarificationOutcomes().getLast().outcomeCode());
+    }
+  }
+
+  @Test
+  void validatedContinuationPreservesTheAcceptedClarificationProof() throws Exception {
+    var setup = pinnedUriQuestion("continued-answer", "Use https://example.com/tasks");
+    var h = setup.harness();
+    try (var ignored = ToolSession.open(setup.chat())) {
+      var applied = setup.mapper().readValue(h.tools().updateRequirementDraft(questionUpdate(
+          List.of(setup.captured().answeredCapability()), List.of(),
+          List.of(setup.captured().question().questionId()), null)), RequirementCaptureResult.class);
+      assertTrue(applied.accepted(), applied.toString());
+      var acceptedAnswer = h.store().latestClarificationAnswer(setup.chat()).orElseThrow();
+      var draft = h.store().get(setup.chat()).orElseThrow();
+
+      var finished = setup.mapper().readValue(h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE),
+          RequirementCaptureResult.class);
+
+      assertTrue(finished.accepted(), finished.toString());
+      assertEquals(acceptedAnswer, h.store().latestClarificationAnswer(setup.chat()).orElseThrow());
+      assertEquals(draft, h.store().get(setup.chat()).orElseThrow());
+      var artifacts = new CompilationArtifacts(setup.blobs(), setup.mapper(), Clock.systemUTC());
+      var continuation = artifacts.payload(artifacts.latest(h.store().activeCompilationId(setup.chat()),
+          CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_ATTEMPT).orElseThrow(), RequirementDraftStore.RequirementCaptureAttempt.class);
+      org.junit.jupiter.api.Assertions.assertAll(
+          () -> assertEquals("finishRequirementDiscoveryTurn", continuation.toolName()),
+          () -> assertEquals("CONTINUE", continuation.arguments()),
+          () -> org.junit.jupiter.api.Assertions.assertNull(continuation.clarificationAnswer()),
+          () -> org.junit.jupiter.api.Assertions.assertNull(continuation.sourceRestoration()),
+          () -> org.junit.jupiter.api.Assertions.assertNull(continuation.resolvedCandidate()));
     }
   }
 
@@ -3064,7 +3122,7 @@ class RequirementCaptureToolsTest {
     var fingerprints = new ToolCallFingerprintStore(mapper, artifacts, sessions);
     var feedback = new CaptureAttemptFeedbackStore(fingerprints, artifacts, sessions);
     return new Harness(store, new RequirementCaptureTools(store, adapter, mapper,
-        new CaptureToolOutcomeGateway(fingerprints, feedback), feedback, null), mapper, chat);
+        new CaptureToolOutcomeGateway(fingerprints, feedback), feedback, null), mapper, chat, feedback);
   }
 
   @Test
@@ -3577,7 +3635,9 @@ class RequirementCaptureToolsTest {
 
   @Test
   void unauthorizedDiscussionDoesNotReviveOlderFactRepairGuidance() throws Exception {
-    Harness h = harness();
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    Harness h = persistentHarness(blobs, mapper, null, "repaired-discussion");
     try (ToolSession.Handle ignored = ToolSession.open(h.conversationId())) {
       var captured = h.mapper().readValue(h.tools().captureRequirementDraft(withNativeAnchors(readyHttpDraft())),
           RequirementCaptureResult.class);
@@ -3603,9 +3663,49 @@ class RequirementCaptureToolsTest {
       assertTrue(prompt.contains("The accepted draft is ready. Finish with CONTINUE"), prompt);
       assertFalse(prompt.contains("Editable paths: /draft/facts/loop-config"), prompt);
       assertEquals(before, h.store().get(h.conversationId()).orElseThrow());
+      var rejected = h.feedback().lastRequirementRejection(h.conversationId()).orElseThrow();
+      assertEquals("DISCUSSION_NOT_AUTHORIZED", rejected.issues().getFirst().code());
+      var credits = h.feedback().fingerprintStore().softFingerprints(h.conversationId());
+      assertEquals(1, credits.size());
+      h.store().recordCaptureRejection(h.conversationId(), "DISCUSSION_NOT_AUTHORIZED");
       var finished = h.mapper().readValue(h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE),
           RequirementCaptureResult.class);
       assertTrue(finished.accepted(), finished.toString());
+      assertEquals(java.util.Optional.empty(), h.feedback().lastRequirementRejection(h.conversationId()));
+      assertEquals(credits, h.feedback().fingerprintStore().softFingerprints(h.conversationId()));
+      assertTrue(h.feedback().isResolved(h.conversationId(), rejected.feedback().evidenceReference()), rejected::toString);
+      assertEquals(java.util.Optional.empty(), h.store().lastCaptureRejection(h.conversationId()));
+      assertEquals("", h.store().rejectedProposalHistory(h.conversationId()));
+      assertEquals(before, h.store().get(h.conversationId()).orElseThrow());
+      var restoredArtifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
+      var restoredSessions = new CompilationSessions(blobs, mapper, Clock.systemUTC());
+      var restored = new CaptureAttemptFeedbackStore(new ToolCallFingerprintStore(mapper, restoredArtifacts, restoredSessions),
+          restoredArtifacts, restoredSessions);
+      assertEquals(java.util.Optional.empty(), restored.lastRequirementRejection(h.conversationId()));
+      assertEquals(credits, restored.fingerprintStore().softFingerprints(h.conversationId()));
+      assertTrue(restored.isResolved(h.conversationId(), rejected.feedback().evidenceReference()), rejected::toString);
+    }
+  }
+
+  @Test
+  void acceptedStayKeepsTheRejectedDraftCaptureUnresolved() throws Exception {
+    Harness h = harness();
+    try (ToolSession.Handle ignored = ToolSession.open(h.conversationId())) {
+      var captured = h.mapper().readValue(h.tools().captureRequirementDraft(partialKafkaSenderDraft()),
+          RequirementCaptureResult.class);
+      assertTrue(captured.accepted(), captured.toString());
+      assertEquals(RequirementCaptureResult.Readiness.PARTIAL, captured.readiness());
+      var before = h.store().get(h.conversationId()).orElseThrow();
+      var refused = h.mapper().readValue(h.tools().captureRequirementDraft(readyHttpDraft()),
+          RequirementCaptureResult.class);
+      assertFalse(refused.accepted(), refused.toString());
+      var rejected = h.feedback().lastRequirementRejection(h.conversationId()).orElseThrow();
+
+      var finished = h.mapper().readValue(h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY),
+          RequirementCaptureResult.class);
+
+      assertTrue(finished.accepted(), finished.toString());
+      assertEquals(rejected, h.feedback().lastRequirementRejection(h.conversationId()).orElseThrow());
       assertEquals(before, h.store().get(h.conversationId()).orElseThrow());
     }
   }
@@ -4016,19 +4116,21 @@ class RequirementCaptureToolsTest {
     ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
     var feedback = new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore(
         new org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore());
-    var tools = conversations == null ? new RequirementCaptureTools(store, bindingAdapter, mapper)
+    var tools = conversations == null ? new RequirementCaptureTools(store, bindingAdapter, mapper,
+            new CaptureToolOutcomeGateway(feedback.fingerprintStore(), feedback), feedback, null)
         : new RequirementCaptureTools(store, bindingAdapter, mapper,
             new org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway(
                 feedback.fingerprintStore(), feedback), feedback, null, null,
             new UploadedSpecOperations(conversations, s3), conversations);
-    return new Harness(store, tools, mapper, "capture-test-" + UUID.randomUUID());
+    return new Harness(store, tools, mapper, "capture-test-" + UUID.randomUUID(), feedback);
   }
 
   private record Harness(
       RequirementDraftStore store,
       RequirementCaptureTools tools,
       ObjectMapper mapper,
-      String conversationId) {}
+      String conversationId,
+      CaptureAttemptFeedbackStore feedback) {}
 
   private static DraftInput partialKafkaSenderDraft() {
     return new DraftInput(
@@ -4100,7 +4202,7 @@ class RequirementCaptureToolsTest {
       CapabilityInput answeredCapability) {}
 
   private record PinnedUri(ObjectMapper mapper, Harness harness, String chat, String firstTurnId,
-      ConversationArchive.Input answer, CapturedUri captured) {}
+      ConversationArchive.Input answer, CapturedUri captured, InMemoryArtifactBlobStore blobs) {}
 
   private static PinnedUri pinnedUriQuestion(String name, String reply) throws Exception {
     return pinnedUriQuestion(name, reply, false);
@@ -4133,7 +4235,7 @@ class RequirementCaptureToolsTest {
       }
     }
     var answer = pinAnswer(blobs, mapper, archive, harness, chat, reply);
-    return new PinnedUri(mapper, harness, chat, first.turnId(), answer, captured);
+    return new PinnedUri(mapper, harness, chat, first.turnId(), answer, captured, blobs);
   }
 
   private static CapturedUri missingUriDraft(String firstTurnId) {
@@ -4301,7 +4403,7 @@ class RequirementCaptureToolsTest {
         new CaptureToolOutcomeGateway(fingerprints, feedback), feedback,
         new RequirementTargetResolver(chains,
             mock(org.qubership.integration.platform.ai.catalog.binding.McpSystemCatalogBinder.class)));
-    var harness = new Harness(store, tools, mapper, chat);
+    var harness = new Harness(store, tools, mapper, chat, feedback);
     harness.store().beginTurn(chat, text);
     var target = new RequirementCaptureInput.QuestionInput("target", List.of("call"),
         "Which chain-trigger element id should this chain call use?",
@@ -4324,6 +4426,6 @@ class RequirementCaptureToolsTest {
       assertTrue(finished.accepted(), finished.toString());
     }
     var answer = pinAnswer(blobs, mapper, archive, harness, chat, reply);
-    return new PinnedUri(mapper, harness, chat, first.turnId(), answer, new CapturedUri(input, target, null));
+    return new PinnedUri(mapper, harness, chat, first.turnId(), answer, new CapturedUri(input, target, null), blobs);
   }
 }

@@ -1424,7 +1424,7 @@ public class CompilerSkillRuntime {
   }
 
   private void clearCaptureState(String conversationId, String capabilityId) {
-    feedbackStore.clearAll(conversationId);
+    feedbackStore.resetAll(conversationId);
     CaptureRoute route = captureRouter.routeFor(capabilityId);
     switch (route.captureTool()) {
       case CAPTURE_REQUIREMENT_BRIEF ->

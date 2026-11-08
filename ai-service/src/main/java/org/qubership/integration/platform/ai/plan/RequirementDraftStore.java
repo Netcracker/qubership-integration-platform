@@ -1522,7 +1522,7 @@ public class RequirementDraftStore {
   }
 
   private boolean focusedAnswerRepair(String conversationId, String answerTurnId) {
-    for (var attempt : captureAttemptsNewestFirst(conversationId)) {
+    for (var attempt : activeCaptureAttemptsNewestFirst(conversationId)) {
       if (attempt.recoveryStrategy() == null) {
         continue;
       }
@@ -1820,15 +1820,15 @@ public class RequirementDraftStore {
   void recordCaptureOutcome(String conversationId, String toolName, Object arguments,
       RequirementCaptureResult result, RequirementCaptureInput.DraftInput resolvedCandidate, Reference selectedAttempt,
       RequirementRepairPolicy.Strategy strategyOverride) {
-    if (result.accepted() && !List.of("captureRequirementDraft", "updateRequirementDraft").contains(toolName)) {
+    boolean captureTool = List.of("captureRequirementDraft", "updateRequirementDraft").contains(toolName);
+    if (result.accepted() && !captureTool && !isContinuation(toolName, arguments)) {
       return;
     }
     CaptureFactProtection source = factProtection(conversationId, List.of());
-    boolean captureTool = List.of("captureRequirementDraft", "updateRequirementDraft").contains(toolName);
     Reference baselineRef = baselineReference(conversationId);
     var strategy = strategyOverride != null ? strategyOverride
         : result.accepted() || !captureTool ? null : recoveryStrategy(result);
-    var answer = result.accepted() ? pendingClarificationAnswers.remove(conversationId) : null;
+    var answer = result.accepted() && captureTool ? pendingClarificationAnswers.remove(conversationId) : null;
     if (!result.accepted()) {
       pendingClarificationAnswers.remove(conversationId);
     }
@@ -1836,12 +1836,15 @@ public class RequirementDraftStore {
         source.authorText(), captureMutationScope(conversationId), toolName,
         arguments, result.accepted(), result.issues(), result.revision(), repairAuthority(conversationId),
         RequirementCaptureToolProvider.argumentBinding(), authorEvidenceHash(conversationId),
-        result.accepted() && result.nextAction() == RequirementCaptureResult.NextAction.AWAIT_APPROVAL
+        captureTool && result.accepted() && result.nextAction() == RequirementCaptureResult.NextAction.AWAIT_APPROVAL
             ? result.draft() : resolvedCandidate,
         baselineRef, strategy, answer,
-        result.accepted() && result.nextAction() == RequirementCaptureResult.NextAction.AWAIT_APPROVAL
+        captureTool && result.accepted() && result.nextAction() == RequirementCaptureResult.NextAction.AWAIT_APPROVAL
             ? org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext
                 .binding(conversationId).map(value -> value.sourceRestoration()).orElse(null) : null), selectedAttempt);
+    if (result.accepted()) {
+      lastCaptureRejection.remove(conversationId);
+    }
   }
 
   private String authorEvidenceHash(String conversationId) {
@@ -1874,7 +1877,7 @@ public class RequirementDraftStore {
 
   /** True when a projection rebuild is still the latest staged attempt. */
   boolean latestProjectionRebuild(String conversationId) {
-    for (var attempt : captureAttemptsNewestFirst(conversationId)) {
+    for (var attempt : activeCaptureAttemptsNewestFirst(conversationId)) {
       if ("projection-rebuild".equals(attempt.toolName())) {
         return true;
       }
@@ -1885,9 +1888,9 @@ public class RequirementDraftStore {
     return false;
   }
 
-  /** Newest saved stage. A later bookkeeping attempt with no stage does not hide it. */
+  /** Latest strategy in the unresolved capture episode; bookkeeping attempts do not hide it. */
   Optional<RequirementRepairPolicy.Strategy> latestRecoveryStrategy(String conversationId) {
-    for (var attempt : captureAttemptsNewestFirst(conversationId)) {
+    for (var attempt : activeCaptureAttemptsNewestFirst(conversationId)) {
       if (attempt.recoveryStrategy() != null) {
         return Optional.of(attempt.recoveryStrategy());
       }
@@ -1906,6 +1909,11 @@ public class RequirementDraftStore {
     return attempts;
   }
 
+  private List<RequirementCaptureAttempt> activeCaptureAttemptsNewestFirst(String conversationId) {
+    return activeCaptureAttempts(conversationId, false).reversed().stream()
+        .map(revision -> artifacts.payload(revision, RequirementCaptureAttempt.class)).toList();
+  }
+
   List<RequirementCaptureAttempt> identicalRejections(String conversationId, String toolName, Object arguments,
       RequirementCaptureInput.DraftInput candidate, boolean stopAtRebuild) {
     if (!currentSource(conversationId) || arguments == null
@@ -1915,8 +1923,7 @@ public class RequirementDraftStore {
     var source = factProtection(conversationId, List.of());
     String digest = org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(arguments);
     boolean initialCandidate = candidate != null && latestRevision(conversationId).isEmpty();
-    return sessions.current(conversationId).stream()
-        .flatMap(link -> artifacts.history(link.compilationId(), Kind.REQUIREMENT_CAPTURE_ATTEMPT).stream())
+    return activeCaptureAttempts(conversationId, stopAtRebuild).stream()
         .filter(revision -> {
           var attempt = artifacts.payload(revision, RequirementCaptureAttempt.class);
           return !attempt.accepted()
@@ -1974,29 +1981,36 @@ public class RequirementDraftStore {
   }
 
   public String rejectedProposalHistory(String conversationId) {
-    var revisions = sessions.current(conversationId).stream()
-        .flatMap(link -> artifacts.history(link.compilationId(), Kind.REQUIREMENT_CAPTURE_ATTEMPT).stream())
-        .toList();
-    int start = 0;
-    for (int index = revisions.size() - 1; index >= 0; index--) {
-      var attempt = artifacts.payload(revisions.get(index), RequirementCaptureAttempt.class);
-      if ("projection-rebuild".equals(attempt.toolName())) {
-        start = index + 1;
-        break;
-      }
-    }
-    var source = factProtection(conversationId, List.of());
     var mapper = new ObjectMapper();
-    var attempts = revisions.subList(start, revisions.size()).stream()
+    var attempts = activeCaptureAttempts(conversationId, true).stream()
         .map(revision -> artifacts.payload(revision, RequirementCaptureAttempt.class))
         .filter(attempt -> !attempt.accepted())
-        .filter(attempt -> new CaptureFactProtection(attempt.sourceGeneration(), attempt.sourceTurnId(),
-            attempt.authorText(), List.of()).sameSource(source))
         .map(attempt -> withoutCandidateBody(mapper.valueToTree(attempt)))
         .toList();
     return attempts.isEmpty() ? "" : org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory
         .projectValues(attempts, mapper,
             org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.CHAR_BUDGET).toString();
+  }
+
+  private List<Revision> activeCaptureAttempts(String conversationId, boolean stopAtRebuild) {
+    var source = factProtection(conversationId, List.of());
+    var active = new ArrayList<Revision>();
+    for (var revision : sessions.current(conversationId).stream()
+        .flatMap(link -> artifacts.history(link.compilationId(), Kind.REQUIREMENT_CAPTURE_ATTEMPT).stream()).toList()) {
+      var attempt = artifacts.payload(revision, RequirementCaptureAttempt.class);
+      if (!new CaptureFactProtection(attempt.sourceGeneration(), attempt.sourceTurnId(),
+          attempt.authorText(), List.of()).sameSource(source)) {
+        continue;
+      }
+      if ("reset".equals(attempt.toolName())
+          || isAcceptedCaptureBoundary(attempt)
+          || stopAtRebuild && "projection-rebuild".equals(attempt.toolName())) {
+        active.clear();
+      } else {
+        active.add(revision);
+      }
+    }
+    return List.copyOf(active);
   }
 
   /** A rejected draft is not a source for the next capture. */
@@ -2040,7 +2054,7 @@ public class RequirementDraftStore {
     if (session.isEmpty()) {
       return Optional.empty();
     }
-    var history = artifacts.history(session.orElseThrow().compilationId(), Kind.REQUIREMENT_CAPTURE_ATTEMPT);
+    var history = activeCaptureAttempts(conversationId, true);
     for (int index = history.size() - 1; index >= 0; index--) {
       var revision = history.get(index);
       var attempt = artifacts.payload(revision, RequirementCaptureAttempt.class);
@@ -2214,7 +2228,8 @@ public class RequirementDraftStore {
   }
 
   private static boolean clearsPending(RequirementCaptureAttempt attempt) {
-    return "reset".equals(attempt.toolName()) || "projection-rebuild".equals(attempt.toolName());
+    return "reset".equals(attempt.toolName()) || "projection-rebuild".equals(attempt.toolName())
+        || isAcceptedCaptureBoundary(attempt);
   }
 
   private static RequirementRepairPolicy.Strategy recoveryStrategy(RequirementCaptureResult result) {
@@ -2301,6 +2316,18 @@ public class RequirementDraftStore {
     public RequirementCaptureAttempt {
       issues = List.copyOf(issues);
     }
+  }
+
+  /** Identifies accepted draft captures, updates, and validated continuations. */
+  public static boolean isAcceptedCaptureBoundary(RequirementCaptureAttempt attempt) {
+    return attempt.accepted()
+        && (List.of("captureRequirementDraft", "updateRequirementDraft").contains(attempt.toolName())
+            || isContinuation(attempt.toolName(), attempt.arguments()));
+  }
+
+  private static boolean isContinuation(String toolName, Object arguments) {
+    return "finishRequirementDiscoveryTurn".equals(toolName)
+        && (arguments == RequirementDiscoveryDirective.CONTINUE || "CONTINUE".equals(arguments));
   }
 
   public void recordCaptureAttempt(String conversationId, boolean accepted) {

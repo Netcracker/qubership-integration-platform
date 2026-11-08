@@ -386,7 +386,8 @@ class RequirementFailureConsistencyAdmissionTest {
   void aValidatedFreshAuthorAmendmentCanChooseASeparateErrorScope() throws Exception {
     var h = new Harness(); h.begin();
     h.store.put(h.chat, RequirementCaptureProjection.toDraft(input(), null, bindings(), "1", "hash"));
-    String source = "Use a distinct catch path with ERROR_SCOPE for remote failures.";
+    String behaviorSourceTurnId = ConversationArchive.latestInputId(h.archive.read(h.chat));
+    String source = "Use a distinct catch path with ERROR_SCOPE for remote failures. Keep the local script named Render result.";
     var turn = h.archive.beginInput(h.chat, source, null); h.archive.resolveInput(h.chat, turn, source);
     h.store.beginTurn(h.chat, source);
     var update = update(mode(ServiceCallFailureMode.ERROR_SCOPE));
@@ -399,7 +400,13 @@ class RequirementFailureConsistencyAdmissionTest {
       var result = h.call("updateRequirementDraft", Map.of("changes", amended));
       assertTrue(result.path("accepted").asBoolean(), result.toString());
       assertEquals(ServiceCallFailureMode.ERROR_SCOPE, h.store.get(h.chat).orElseThrow().authoredDraft().flow().interactions().get(1).failureMode());
-      assertEquals(input().facts(), h.store.get(h.chat).orElseThrow().authoredDraft().facts());
+      var facts = h.store.get(h.chat).orElseThrow().authoredDraft().facts();
+      assertAuthoredContentEquals(input().facts(), facts);
+      var bodyBinding = facts.stream().filter(fact -> "render-result".equals(fact.sourceFactId()))
+          .findFirst().orElseThrow().elementIntent().bodyBinding();
+      assertEquals(new RequirementBodyBinding(RequirementBodyBinding.Authority.GENERATED_CANDIDATE,
+          "response", "script", RequirementBodyBinding.NativeBodyKind.GROOVY_SCRIPT,
+          h.archive.read(h.chat).generation(), behaviorSourceTurnId, null, null, null), bodyBinding);
     } finally { ProductCapabilityCaptureContext.unbind(); }
   }
 

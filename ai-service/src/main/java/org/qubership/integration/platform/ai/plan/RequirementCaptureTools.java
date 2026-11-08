@@ -652,6 +652,7 @@ public class RequirementCaptureTools {
     }
     store.recordCaptureAttempt(conversationId, true);
     feedbackStore.clearRequirement(conversationId);
+    feedbackStore.retireValidationFeedback(conversationId, "requirement-discovery");
     store.markCaptured(conversationId);
     ProductCapabilityCaptureContext.offerDraft(draft);
     if (admission.awaitingSourceApproval()) {
@@ -1038,6 +1039,11 @@ public class RequirementCaptureTools {
       DraftInput resolvedCandidate, org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference selectedAttempt) {
     String conversationId = ToolSession.resolveConversationId();
     store.recordCaptureOutcome(conversationId, toolName, arguments, result, resolvedCandidate, selectedAttempt);
+    if (result.accepted() && "finishRequirementDiscoveryTurn".equals(toolName)
+        && arguments == RequirementDiscoveryDirective.CONTINUE) {
+      feedbackStore.clearRequirement(conversationId);
+      feedbackStore.retireValidationFeedback(conversationId, "requirement-discovery");
+    }
     if ("finishRequirementDiscoveryTurn".equals(toolName) && result.issues().stream()
         .anyMatch(issue -> "REPEATED_REJECTION".equals(issue.code()))) {
       return result;

@@ -61,7 +61,9 @@ public final class RepairHistory {
       String id = java.util.UUID.randomUUID().toString();
       history.put("projectionId", id);
       String ending = END
-          + "\nThese attempts were rejected. Change the proposal; preserve current authority and approved values.\n";
+          + "\nThese are prior rejected proposals, not current requirements. "
+          + "Use the current validation result to identify remaining errors; "
+          + "preserve current authority and approved values.\n";
       String full = "\n" + START + history + ending;
       String reduced = "\n" + START + omitted(id) + ending;
       RENDERINGS.put(id, new Rendering(full, reduced));

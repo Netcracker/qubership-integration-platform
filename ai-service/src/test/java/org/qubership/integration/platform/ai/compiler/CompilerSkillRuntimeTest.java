@@ -154,7 +154,12 @@ class CompilerSkillRuntimeTest {
             Map.of("chainName", "{subRequestType} task for {orderId}"));
         feedbackStore.recordPlanValidationFailure(CONVERSATION_ID, "Keep {subRequestType} literal.");
       } else {
-        assertTrue(rendered.contains("{subRequestType}"));
+        if (call == 2) {
+          assertTrue(rendered.contains("{subRequestType}"), rendered);
+        } else {
+          assertFalse(rendered.contains(
+              org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.START), rendered);
+        }
         var graph = greetingsGraph();
         captureSession.accept(CaptureKey.conversation(CaptureSlot.NAMING_MANIFEST, CONVERSATION_ID),
             new NamingManifest(1, graph.chain().name(), graph.nodes().stream()

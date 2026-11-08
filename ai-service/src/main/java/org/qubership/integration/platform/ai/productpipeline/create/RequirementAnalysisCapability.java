@@ -532,7 +532,7 @@ public class RequirementAnalysisCapability implements StageCapability {
       chatMemorySanitizer.clear(conversationId);
     }
     if (feedbackStore != null) {
-      feedbackStore.clearPlan(conversationId);
+      feedbackStore.resetPlan(conversationId);
     }
     if (captureSession != null) {
       captureSession.clear(

@@ -105,6 +105,7 @@ public class DesignPlanCaptureTool {
       binding.rejection().set(null);
       binding.rejectionFindings().set(List.of());
       binding.candidate().set(contract);
+      feedbackStore.clearPlan(conversationId);
       return new Result(true, true, "HANDOFF", List.of(), CAPTURED_MESSAGE);
     } catch (PlannerContractException ex) {
       String message = ex.getMessage() == null ? "Planning inputs are unresolved." : ex.getMessage();

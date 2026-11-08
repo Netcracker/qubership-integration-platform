@@ -10,6 +10,22 @@ class RepairHistoryTest {
   private final ObjectMapper mapper = new ObjectMapper();
 
   @Test
+  void historyGuidanceUsesCurrentValidationInFullAndCompactedRequests() {
+    String guidance = "These are prior rejected proposals, not current requirements. "
+        + "Use the current validation result to identify remaining errors; "
+        + "preserve current authority and approved values.";
+    String history = RepairHistory.projectValues(
+        List.of(mapper.createObjectNode().put("proposal", "Rejected value")), mapper, 5000).toString();
+    String rendered = RepairHistory.block(history);
+    String compacted = RepairHistory.omit(rendered);
+
+    assertEquals(guidance, rendered.substring(rendered.indexOf(RepairHistory.END)
+        + RepairHistory.END.length()).strip());
+    assertEquals(guidance, compacted.substring(compacted.indexOf(RepairHistory.END)
+        + RepairHistory.END.length()).strip());
+  }
+
+  @Test
   void projectionIsBoundedRedactedAndDoesNotChangeSavedEvidence() {
     var raw = mapper.createObjectNode();
     raw.putObject("proposal").put("password", "secret").put("body", "large body ".repeat(2000));

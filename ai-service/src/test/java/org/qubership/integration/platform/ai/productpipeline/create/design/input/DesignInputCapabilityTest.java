@@ -308,9 +308,11 @@ class DesignInputCapabilityTest {
     assertTrue(prompt.contains("nodeId=call-1"), prompt);
     assertTrue(prompt.contains("commandType=completeTask"), prompt);
     org.junit.jupiter.api.Assertions.assertAll("script authority in rendered design instructions",
-        () -> assertTrue(prompt.contains("Every script needs its own admitted typed mapping"), prompt),
-        () -> assertTrue(prompt.contains("exact source-bound supplied body"), prompt),
-        () -> assertTrue(prompt.contains("GENERATED_CANDIDATE binding for that node"), prompt),
+        () -> assertTrue(prompt.contains("A generated processing Script can implement an approved positive BEHAVIOR"), prompt),
+        () -> assertTrue(prompt.contains("by binding its sourceFactId on that operation"), prompt),
+        () -> assertTrue(prompt.contains("Explicit author Script bodies and element intents remain binding"), prompt),
+        () -> assertTrue(prompt.contains("Native COPY sites implement only their admitted mapping"), prompt),
+        () -> assertTrue(prompt.contains("Keep supplied bodies exact and preserve their approved execution placement"), prompt),
         () -> assertTrue(prompt.contains("native compiler derives context retention"), prompt),
         () -> assertFalse(prompt.contains("or an ErrorScope requires a script"), prompt),
         () -> assertFalse(prompt.contains("is a behavior-owned script"), prompt));

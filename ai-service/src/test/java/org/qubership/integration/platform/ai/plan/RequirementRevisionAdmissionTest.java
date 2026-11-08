@@ -505,6 +505,40 @@ public class RequirementRevisionAdmissionTest {
   }
 
   @Test
+  void validatedContinuationPreservesTheApprovedSourceRestorationProof() throws Exception {
+    var fixture = sourceCorrectionFixture(true);
+    var h = fixture.h();
+    h.store.promoteSourceRestoration(h.chat, fixture.brief());
+    assertTrue(h.store.hasSourceRestorationCandidate(h.chat, fixture.brief()), fixture.brief()::toString);
+    try (var ignored = ToolSession.open(h.chat)) {
+      var source = AuthorSourceEvidence.packet(h.archive.read(h.chat)).inputs().stream()
+          .filter(input -> input.text().contains("Receive POST /tasks.")).findFirst().orElseThrow();
+      var anchored = h.update(new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(),
+          List.of(quoted(org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures.nativeAnchorFact(
+              "entry", "http-trigger"), source.sourceTurnId(), "Receive POST /tasks.")),
+          List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null));
+      assertTrue(anchored.accepted(), anchored.toString());
+      var draft = h.store.get(h.chat).orElseThrow();
+      var baseline = h.store.semanticBaseline(h.chat).orElseThrow();
+
+      var finished = h.result(h.tools.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE));
+
+      assertTrue(finished.accepted(), finished.toString());
+      assertTrue(h.store.hasSourceRestorationCandidate(h.chat, fixture.brief()), fixture.brief()::toString);
+      assertEquals(draft, h.store.get(h.chat).orElseThrow());
+      assertEquals(baseline, h.store.semanticBaseline(h.chat).orElseThrow());
+      var continuation = h.artifacts.payload(h.artifacts.latest(h.store.activeCompilationId(h.chat),
+          CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_ATTEMPT).orElseThrow(), RequirementDraftStore.RequirementCaptureAttempt.class);
+      org.junit.jupiter.api.Assertions.assertAll(
+          () -> assertEquals("finishRequirementDiscoveryTurn", continuation.toolName()),
+          () -> assertEquals("CONTINUE", continuation.arguments()),
+          () -> assertNull(continuation.clarificationAnswer()),
+          () -> assertNull(continuation.sourceRestoration()),
+          () -> assertNull(continuation.resolvedCandidate()));
+    }
+  }
+
+  @Test
   void changedAuthorSourceRejectsAnAlreadyCommittedSourceCorrection() throws Exception {
     var fixture = sourceCorrectionFixture(true);
     fixture.h().begin("Keep Groovy and also preserve the new instruction.");

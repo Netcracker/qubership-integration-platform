@@ -247,7 +247,7 @@ public class DesignInputCapability implements StageCapability {
     captureFeedback.beginScope(captureConversationId, CAPABILITY_ID, java.util.Map.of(
         "runId", context.runId(), "inputs", context.inputRefs(), "brief", brief, "contract", contract),
         context.conversationId());
-    captureFeedback.clearPlan(captureConversationId);
+    captureFeedback.resetPlan(captureConversationId);
     String history = captureFeedback.repairHistory(captureConversationId, CAPABILITY_ID);
     String agentText;
     try {

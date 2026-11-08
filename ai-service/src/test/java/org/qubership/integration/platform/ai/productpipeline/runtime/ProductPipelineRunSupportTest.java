@@ -124,10 +124,17 @@ class ProductPipelineRunSupportTest {
     var attrs = new HashMap<String, Object>();
     attrs.put(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR, "Rejected downstream plan");
     attrs.put(ProductPipelineRunSupport.STAGE_ERROR_FAILED_STAGE_ATTR, "design-planning");
+    attrs.put(org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence.REPAIR_HISTORY_ATTR,
+        "Rejected planning attempt");
+    attrs.put(org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence.PRIOR_OUTPUT_REFS_ATTR,
+        List.of("rejected-plan"));
+    var pending = Map.copyOf(attrs);
     ProductPipelineRunSupport.settleActiveRepair("requirement-analysis", attrs);
+    assertEquals(pending, attrs);
     assertTrue(org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence.haltRecorded(attrs));
     ProductPipelineRunSupport.settleActiveRepair("design-planning", attrs);
     assertFalse(org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence.haltRecorded(attrs));
+    assertEquals(Map.of(), attrs);
   }
 
   @org.junit.jupiter.params.ParameterizedTest

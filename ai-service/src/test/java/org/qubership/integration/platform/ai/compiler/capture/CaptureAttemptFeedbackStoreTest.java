@@ -13,6 +13,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass;
 import org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore;
 import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway.TypedIssue;
@@ -128,7 +129,7 @@ class CaptureAttemptFeedbackStoreTest {
   }
 
   @Test
-  void genericProposalFeedbackSurvivesReconstructionAndClearKeepsHistory() {
+  void acceptedPatchRetiresRecoveryHistoryAfterReconstructionAndPreservesAudit() {
     var mapper = new ObjectMapper().findAndRegisterModules();
     var blobs = new InMemoryArtifactBlobStore();
     var artifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
@@ -150,11 +151,424 @@ class CaptureAttemptFeedbackStoreTest {
     assertEquals(captured.evidenceReference(), restored.lastPatchFailure("chat", "skill").orElseThrow().evidenceReference());
     restored.clearPatch("chat", "skill");
     assertTrue(restored.lastPatchFailure("chat", "skill").isEmpty());
-    restored.beginScope("chat", "skill", java.util.Map.of("base", "v1"));
-    assertTrue(restored.repairHistory("chat", "skill").contains("Invalid A"));
-    org.junit.jupiter.api.Assertions.assertThrows(CaptureValidationException.class,
-        () -> restored.beginProposal("chat", "skill", "capture", java.util.Map.of("value", "A")));
+    var resumed = new CaptureAttemptFeedbackStore(new ToolCallFingerprintStore(mapper, artifacts, sessions), artifacts, sessions);
+    resumed.beginScope("chat", "skill", java.util.Map.of("base", "v1"));
+    assertEquals("", resumed.repairHistory("chat", "skill"));
+    assertTrue(resumed.isResolved("chat", captured.evidenceReference()), captured.evidenceReference()::toString);
+    org.junit.jupiter.api.Assertions.assertDoesNotThrow(
+        () -> resumed.beginProposal("chat", "skill", "capture", java.util.Map.of("value", "A")));
+    assertEquals(3, artifacts.history(sessions.active("chat"),
+        CompilationArtifacts.Kind.CAPTURE_ATTEMPT_FEEDBACK).size());
+    assertEquals("A", artifacts.payload(saved, CaptureAttemptFeedbackStore.Observation.class)
+        .proposal().arguments().path("value").asText());
     assertTrue(restored.lastPatchFailure("other-chat", "skill").isEmpty());
+  }
+
+  @Test
+  void clearAllRetiresPlanFailuresFromEachCapability() {
+    rejectScopedPlan("first");
+    rejectScopedPlan("second");
+
+    store.clearAll("chat");
+
+    org.junit.jupiter.api.Assertions.assertAll(
+        () -> assertEquals("", store.repairHistory("chat", "first")),
+        () -> assertEquals("", store.repairHistory("chat", "second")));
+  }
+
+  @Test
+  void resetAllKeepsUnresolvedPlanFailuresFromEachCapability() throws Exception {
+    rejectScopedPlan("first");
+    rejectScopedPlan("second");
+
+    store.resetAll("chat");
+
+    var mapper = new ObjectMapper();
+    var first = mapper.readTree(store.repairHistory("chat", "first")).path("attempts");
+    var second = mapper.readTree(store.repairHistory("chat", "second")).path("attempts");
+    org.junit.jupiter.api.Assertions.assertAll(
+        () -> assertEquals(1, first.size(), first::toString),
+        () -> assertEquals("first", first.get(0).path("capabilityId").asText()),
+        () -> assertEquals(1, second.size(), second::toString),
+        () -> assertEquals("second", second.get(0).path("capabilityId").asText()));
+  }
+
+  private void rejectScopedPlan(String capability) {
+    store.beginScope("chat", capability, Map.of("source", capability));
+    store.beginProposal("chat", capability, "capturePlan", Map.of("value", "bad"));
+    store.recordClassifiedPlanFailure("chat", CaptureFailureKind.VALIDATION,
+        CaptureFailureClass.CORRECTABLE, true, "Invalid plan");
+  }
+
+  @Test
+  void acceptedPatchKeepsUnresolvedValidationInTheSameCapability() throws Exception {
+    var mapper = new ObjectMapper();
+    store.beginScope("chat", "skill", Map.of("inputs", "source-1"));
+    store.beginProposal("chat", "skill", "captureGraphPatch", Map.of("value", "bad-patch"));
+    store.recordClassifiedPatchFailure("chat", "skill", CaptureFailureKind.VALIDATION,
+        CaptureFailureClass.CORRECTABLE, true, "Patch rejected");
+    store.beginProposal("chat", "skill", "captureValidationResult", Map.of("value", "bad-report"));
+    store.recordClassifiedValidationFailure("chat", "skill", CaptureFailureKind.VALIDATION,
+        CaptureFailureClass.CORRECTABLE, true, "Validation rejected");
+    store.clearPatch("chat", "skill");
+
+    var attempts = mapper.readTree(store.repairHistory("chat", "skill")).path("attempts");
+    assertEquals(1, attempts.size(), attempts::toString);
+    assertEquals("Validation rejected", attempts.get(0).path("feedback").path("summary").asText());
+    org.junit.jupiter.api.Assertions.assertThrows(CaptureNoProgressException.class,
+        () -> store.beginProposal("chat", "skill", "captureValidationResult", Map.of("value", "bad-report")));
+  }
+
+  @Test
+  void acceptedPatchKeepsUnresolvedSiblingCapability() throws Exception {
+    var mapper = new ObjectMapper();
+    store.beginScope("chat", "first", Map.of("inputs", "source-1"));
+    store.beginProposal("chat", "first", "captureGraphPatch", Map.of("value", "bad-first"));
+    store.recordClassifiedPatchFailure("chat", "first", CaptureFailureKind.VALIDATION,
+        CaptureFailureClass.CORRECTABLE, true, "First rejected");
+    store.beginScope("chat", "sibling", Map.of("inputs", "source-1"));
+    store.beginProposal("chat", "sibling", "captureGraphPatch", Map.of("value", "bad-sibling"));
+    store.recordClassifiedPatchFailure("chat", "sibling", CaptureFailureKind.VALIDATION,
+        CaptureFailureClass.CORRECTABLE, true, "Sibling rejected");
+    store.clearPatch("chat", "first");
+
+    assertEquals("", store.repairHistory("chat", "first"));
+    var attempts = mapper.readTree(store.repairHistory("chat", "sibling")).path("attempts");
+    assertEquals(1, attempts.size(), attempts::toString);
+    assertEquals("Sibling rejected", attempts.get(0).path("feedback").path("summary").asText());
+  }
+
+  @Test
+  void newRejectionAfterAcceptanceContainsOnlyTheNewActiveFailure() throws Exception {
+    var mapper = new ObjectMapper();
+    store.beginScope("chat", "skill", Map.of("inputs", "source-1"));
+    store.beginProposal("chat", "skill", "captureGraphPatch", Map.of("value", "bad-old"));
+    store.recordClassifiedPatchFailure("chat", "skill", CaptureFailureKind.VALIDATION,
+        CaptureFailureClass.IDENTICAL_SPAM, false, "Old rejection");
+    store.clearPatch("chat", "skill");
+    store.beginProposal("chat", "skill", "captureGraphPatch", Map.of("value", "bad-new"));
+    store.recordClassifiedPatchFailure("chat", "skill", CaptureFailureKind.VALIDATION,
+        CaptureFailureClass.CORRECTABLE, true, "New rejection");
+
+    var feedback = store.lastPatchFailure("chat", "skill").orElseThrow();
+    var attempts = mapper.readTree(feedback.repairHistoryJson()).path("attempts");
+    assertEquals(1, attempts.size(), attempts::toString);
+    assertEquals("New rejection", attempts.get(0).path("feedback").path("summary").asText());
+    assertEquals(0, store.identicalFailureCount("chat", "skill"));
+  }
+
+  @Test
+  void invocationResetKeepsUnresolvedHistoryAndDuplicateGuard() {
+    store.beginScope("chat", "skill", Map.of("source", "one"));
+    store.beginProposal("chat", "skill", "captureGraphPatch", Map.of("value", "bad"));
+    store.recordClassifiedPatchFailure("chat", "skill", CaptureFailureKind.VALIDATION,
+        CaptureFailureClass.CORRECTABLE, true, "Still rejected");
+    store.resetAll("chat");
+
+    assertEquals(java.util.Optional.empty(), store.lastPatchFailure("chat", "skill"));
+    assertTrue(store.repairHistory("chat", "skill").contains("Still rejected"),
+        () -> store.repairHistory("chat", "skill"));
+    org.junit.jupiter.api.Assertions.assertThrows(CaptureNoProgressException.class,
+        () -> store.beginProposal("chat", "skill", "captureGraphPatch", Map.of("value", "bad")));
+  }
+
+  @Test
+  void acceptanceOnlyRetiresFailuresForItsInputScope() {
+    store.beginScope("chat", "skill", Map.of("source", "one"));
+    store.beginProposal("chat", "skill", "captureGraphPatch", Map.of("value", "bad"));
+    store.recordClassifiedPatchFailure("chat", "skill", CaptureFailureKind.VALIDATION,
+        CaptureFailureClass.CORRECTABLE, true, "Source one rejected");
+    store.beginScope("chat", "skill", Map.of("source", "two"));
+    store.clearPatch("chat", "skill");
+    store.beginScope("chat", "skill", Map.of("source", "one"));
+
+    assertTrue(store.repairHistory("chat", "skill").contains("Source one rejected"),
+        () -> store.repairHistory("chat", "skill"));
+    org.junit.jupiter.api.Assertions.assertThrows(CaptureNoProgressException.class,
+        () -> store.beginProposal("chat", "skill", "captureGraphPatch", Map.of("value", "bad")));
+  }
+
+  @Test
+  void changedSourceDoesNotRestoreCachedFailureOrItsHistory() {
+    store.beginScope("chat", "skill", Map.of("source", "one"));
+    store.beginProposal("chat", "skill", "captureGraphPatch", Map.of("value", "bad"));
+    store.recordClassifiedPatchFailure("chat", "skill", CaptureFailureKind.VALIDATION,
+        CaptureFailureClass.CORRECTABLE, true, "Source one rejected");
+    store.beginScope("chat", "skill", Map.of("source", "two"));
+
+    assertEquals(java.util.Optional.empty(), store.lastPatchFailure("chat", "skill"));
+    assertEquals("", store.repairHistory("chat", "skill"));
+    org.junit.jupiter.api.Assertions.assertDoesNotThrow(
+        () -> store.beginProposal("chat", "skill", "captureGraphPatch", Map.of("value", "bad")));
+  }
+
+  @Test
+  void legacyClearedFeedbackStaysInactiveAfterUpgradeWithoutRemovingAudit() {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var artifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
+    var sessions = new CompilationSessions(blobs, mapper, Clock.systemUTC());
+    var first = new CaptureAttemptFeedbackStore(new ToolCallFingerprintStore(mapper, artifacts, sessions), artifacts, sessions);
+    first.beginScope("chat", "skill", Map.of("source", "one"));
+    first.beginProposal("chat", "skill", "captureGraphPatch", Map.of("value", "bad"));
+    first.recordClassifiedPatchFailure("chat", "skill", CaptureFailureKind.VALIDATION,
+        CaptureFailureClass.CORRECTABLE, true, "Legacy resolved rejection");
+    artifacts.append(new CompilationArtifacts.AppendCommand(sessions.active("chat"),
+        CompilationArtifacts.Kind.CAPTURE_ATTEMPT_FEEDBACK, "1", "capture-feedback", "1",
+        mapper.createObjectNode().put("channel", "PATCH").put("capabilityId", "skill")
+            .putNull("proposal").putNull("feedback"), List.of(), null));
+    var restored = new CaptureAttemptFeedbackStore(new ToolCallFingerprintStore(mapper, artifacts, sessions), artifacts, sessions);
+    restored.beginScope("chat", "skill", Map.of("source", "one"));
+
+    assertEquals("", restored.repairHistory("chat", "skill"));
+    assertEquals(java.util.Optional.empty(), restored.lastPatchFailure("chat", "skill"));
+    org.junit.jupiter.api.Assertions.assertDoesNotThrow(
+        () -> restored.beginProposal("chat", "skill", "captureGraphPatch", Map.of("value", "bad")));
+    assertEquals(2, artifacts.history(sessions.active("chat"),
+        CompilationArtifacts.Kind.CAPTURE_ATTEMPT_FEEDBACK).size());
+  }
+
+  @Test
+  void legacyPlanClearRetiresEachCapabilityAfterReconstructionAndPreservesAudit() throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var artifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
+    var sessions = new CompilationSessions(blobs, mapper, Clock.systemUTC());
+    var original = new CaptureAttemptFeedbackStore(new ToolCallFingerprintStore(mapper, artifacts, sessions), artifacts, sessions);
+    original.beginScope("chat", "first", Map.of("source", "first-input"));
+    original.beginProposal("chat", "first", "capturePlan", Map.of("value", "first-rejected"));
+    original.recordClassifiedPlanFailure("chat", CaptureFailureKind.VALIDATION,
+        CaptureFailureClass.CORRECTABLE, true, "First plan rejected");
+    original.beginScope("chat", "second", Map.of("source", "second-input"));
+    original.beginProposal("chat", "second", "capturePlan", Map.of("value", "second-rejected"));
+    original.recordClassifiedPlanFailure("chat", CaptureFailureKind.VALIDATION,
+        CaptureFailureClass.CORRECTABLE, true, "Second plan rejected");
+    var rejected = artifacts.history(sessions.active("chat"), CompilationArtifacts.Kind.CAPTURE_ATTEMPT_FEEDBACK);
+    var legacyMarker = mapper.readTree("""
+        {"channel":"PLAN","capabilityId":"","proposal":null,"feedback":null}
+        """);
+    artifacts.append(new CompilationArtifacts.AppendCommand(sessions.active("chat"),
+        CompilationArtifacts.Kind.CAPTURE_ATTEMPT_FEEDBACK, "1", "capture-feedback", "1",
+        legacyMarker, List.of(), null));
+    var audit = blobSnapshot(blobs);
+    var restored = new CaptureAttemptFeedbackStore(new ToolCallFingerprintStore(mapper, artifacts, sessions), artifacts, sessions);
+
+    restored.beginScope("chat", "first", Map.of("source", "first-input"));
+    org.junit.jupiter.api.Assertions.assertAll(
+        () -> assertEquals(java.util.Optional.empty(), restored.lastPlanFailure("chat")),
+        () -> assertEquals("", restored.repairHistory("chat", "first")),
+        () -> org.junit.jupiter.api.Assertions.assertDoesNotThrow(
+            () -> restored.beginProposal("chat", "first", "capturePlan", Map.of("value", "first-rejected"))));
+    restored.beginScope("chat", "second", Map.of("source", "second-input"));
+    org.junit.jupiter.api.Assertions.assertAll(
+        () -> assertEquals(java.util.Optional.empty(), restored.lastPlanFailure("chat")),
+        () -> assertEquals("", restored.repairHistory("chat", "second")),
+        () -> org.junit.jupiter.api.Assertions.assertDoesNotThrow(
+            () -> restored.beginProposal("chat", "second", "capturePlan", Map.of("value", "second-rejected"))));
+    org.junit.jupiter.api.Assertions.assertAll(
+        () -> assertTrue(restored.isResolved("chat", rejected.get(0).reference()), rejected.get(0).reference()::toString),
+        () -> assertTrue(restored.isResolved("chat", rejected.get(1).reference()), rejected.get(1).reference()::toString));
+    assertEquals(audit, blobSnapshot(blobs));
+    assertEquals(3, artifacts.history(sessions.active("chat"),
+        CompilationArtifacts.Kind.CAPTURE_ATTEMPT_FEEDBACK).size());
+    assertEquals(List.of("first-rejected", "second-rejected"), rejected.stream()
+        .map(revision -> artifacts.payload(revision, CaptureAttemptFeedbackStore.Observation.class)
+            .proposal().arguments().path("value").asText()).toList());
+  }
+
+  @Test
+  void resolvedNativeFeedbackReferenceCannotReenterRecovery() {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var artifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
+    var sessions = new CompilationSessions(blobs, mapper, Clock.systemUTC());
+    var first = new CaptureAttemptFeedbackStore(new ToolCallFingerprintStore(mapper, artifacts, sessions), artifacts, sessions);
+    first.beginScope("chat", "skill", Map.of("source", "one"));
+    first.beginProposal("chat", "skill", "captureGraphPatch", Map.of("value", "bad"));
+    first.recordClassifiedPatchFailure("chat", "skill", CaptureFailureKind.VALIDATION,
+        CaptureFailureClass.CORRECTABLE, true, "Resolved native rejection");
+    var rejected = first.lastPatchFailure("chat", "skill").orElseThrow();
+    assertFalse(first.isResolved("chat", rejected.evidenceReference()), rejected.evidenceReference()::toString);
+    first.clearPatch("chat", "skill");
+
+    assertTrue(first.isResolved("chat", rejected.evidenceReference()), rejected.evidenceReference()::toString);
+    org.junit.jupiter.api.Assertions.assertNull(first.failureEvidence("chat", "skill", rejected).nativeObservation());
+  }
+
+  @Test
+  void resolvedAliasFeedbackRemainsResolvedAfterOwnerSwitchAndReconstruction() {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var artifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
+    var sessions = new CompilationSessions(blobs, mapper, Clock.systemUTC());
+    var original = new CaptureAttemptFeedbackStore(new ToolCallFingerprintStore(mapper, artifacts, sessions), artifacts, sessions);
+    original.beginScope("clean-alias", "first", Map.of("source", "first-input"), "chat");
+    original.beginProposal("clean-alias", "first", "captureGraphPatch", Map.of("value", "bad"));
+    original.recordClassifiedPatchFailure("clean-alias", "first", CaptureFailureKind.VALIDATION,
+        CaptureFailureClass.CORRECTABLE, true, "First owner rejected");
+    var rejected = original.lastPatchFailure("clean-alias", "first").orElseThrow().evidenceReference();
+    original.clearPatch("clean-alias", "first");
+    var restored = new CaptureAttemptFeedbackStore(new ToolCallFingerprintStore(mapper, artifacts, sessions),
+        new CompilationArtifacts(blobs, mapper, Clock.systemUTC()), new CompilationSessions(blobs, mapper, Clock.systemUTC()));
+    restored.beginScope("chat", "second", Map.of("source", "second-input"));
+    var before = blobSnapshot(blobs);
+
+    assertTrue(restored.isResolved("chat", rejected), rejected::toString);
+    assertEquals(before, blobSnapshot(blobs));
+  }
+
+  @Test
+  void invocationResetDoesNotResolveANativeFeedbackReference() {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var artifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
+    var sessions = new CompilationSessions(blobs, mapper, Clock.systemUTC());
+    var durable = new CaptureAttemptFeedbackStore(new ToolCallFingerprintStore(mapper, artifacts, sessions), artifacts, sessions);
+    durable.beginScope("chat", "first", Map.of("source", "first-input"));
+    durable.beginProposal("chat", "first", "captureGraphPatch", Map.of("value", "bad"));
+    durable.recordClassifiedPatchFailure("chat", "first", CaptureFailureKind.VALIDATION,
+        CaptureFailureClass.CORRECTABLE, true, "First owner rejected");
+    var rejected = durable.lastPatchFailure("chat", "first").orElseThrow().evidenceReference();
+    durable.resetAll("chat");
+    durable.beginScope("chat", "second", Map.of("source", "second-input"));
+    var before = blobSnapshot(blobs);
+
+    assertFalse(durable.isResolved("chat", rejected), rejected::toString);
+    assertEquals(before, blobSnapshot(blobs));
+  }
+
+  @Test
+  void acceptanceUnderDifferentInputsDoesNotResolveANativeFeedbackReference() {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var artifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
+    var sessions = new CompilationSessions(blobs, mapper, Clock.systemUTC());
+    var durable = new CaptureAttemptFeedbackStore(new ToolCallFingerprintStore(mapper, artifacts, sessions), artifacts, sessions);
+    durable.beginScope("chat", "owner", Map.of("source", "first-input"));
+    durable.beginProposal("chat", "owner", "captureGraphPatch", Map.of("value", "bad"));
+    durable.recordClassifiedPatchFailure("chat", "owner", CaptureFailureKind.VALIDATION,
+        CaptureFailureClass.CORRECTABLE, true, "First input rejected");
+    var rejected = durable.lastPatchFailure("chat", "owner").orElseThrow().evidenceReference();
+    durable.beginScope("chat", "owner", Map.of("source", "other-input"));
+    durable.clearPatch("chat", "owner");
+    var before = blobSnapshot(blobs);
+
+    assertFalse(durable.isResolved("chat", rejected), rejected::toString);
+    assertEquals(before, blobSnapshot(blobs));
+  }
+
+  @Test
+  void unknownNativeReferencesRemainUnresolvedWithoutWriting() {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var artifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
+    var sessions = new CompilationSessions(blobs, mapper, Clock.systemUTC());
+    var durable = new CaptureAttemptFeedbackStore(new ToolCallFingerprintStore(mapper, artifacts, sessions), artifacts, sessions);
+    durable.beginScope("chat", "owner", Map.of("source", "one"));
+    durable.beginProposal("chat", "owner", "captureGraphPatch", Map.of("value", "bad"));
+    durable.recordClassifiedPatchFailure("chat", "owner", CaptureFailureKind.VALIDATION,
+        CaptureFailureClass.CORRECTABLE, true, "Rejected");
+    var rejected = durable.lastPatchFailure("chat", "owner").orElseThrow().evidenceReference();
+    durable.clearPatch("chat", "owner");
+    var before = blobSnapshot(blobs);
+
+    org.junit.jupiter.api.Assertions.assertAll(
+        () -> assertTrue(durable.isResolved("chat", rejected), rejected::toString),
+        () -> assertFalse(durable.isResolved("other-chat", rejected), "Foreign conversation"),
+        () -> assertFalse(durable.isResolved("chat", null), "Missing reference"),
+        () -> assertFalse(durable.isResolved("chat", new CompilationArtifacts.Reference(
+            rejected.kind(), rejected.artifactId(), "different-hash")), "Different content hash"),
+        () -> assertFalse(durable.isResolved("chat", new CompilationArtifacts.Reference(
+            rejected.kind(), "missing-artifact", rejected.contentHash())), "Unknown artifact"),
+        () -> assertFalse(durable.isResolved("chat", new CompilationArtifacts.Reference(
+            CompilationArtifacts.Kind.RECOVERY_EVIDENCE, rejected.artifactId(), rejected.contentHash())), "Other evidence kind"));
+    assertEquals(before, blobSnapshot(blobs));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"captureRequirementDraft", "updateRequirementDraft"})
+  void acceptedDraftCaptureResolvesEarlierRequirementFeedbackAcrossSourceChanges(String toolName) throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var artifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
+    var sessions = new CompilationSessions(blobs, mapper, Clock.systemUTC());
+    var original = new CaptureAttemptFeedbackStore(new ToolCallFingerprintStore(mapper, artifacts, sessions), artifacts, sessions);
+    original.beginScope("chat", "requirement-discovery", Map.of("source", "old-author-input"));
+    original.recordClassifiedRequirementFailure("chat", CaptureFailureKind.VALIDATION,
+        CaptureFailureClass.CORRECTABLE, true, "Earlier rejected draft", List.of());
+    var earlier = original.lastRequirementFailure("chat").orElseThrow().evidenceReference();
+    original.beginScope("chat", "requirement-discovery", Map.of("source", "new-author-input"));
+    var accepted = mapper.readTree("""
+        {"sourceGeneration":"new-generation","sourceTurnId":"new-author-input","authorText":"Revised request",
+         "mutationScope":"new-scope","toolName":"%s","arguments":{},"accepted":true,"issues":[],
+         "acceptedDraftReference":null}
+        """.formatted(toolName));
+    artifacts.append(new CompilationArtifacts.AppendCommand(sessions.active("chat"),
+        CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_ATTEMPT, "1", "requirement-capture-tools", "1",
+        accepted, List.of(), null));
+    var resumedAfterAcceptance = new CaptureAttemptFeedbackStore(new ToolCallFingerprintStore(mapper, artifacts, sessions),
+        new CompilationArtifacts(blobs, mapper, Clock.systemUTC()), new CompilationSessions(blobs, mapper, Clock.systemUTC()));
+    var acceptedAudit = blobSnapshot(blobs);
+    assertEquals(java.util.Optional.empty(), resumedAfterAcceptance.lastRequirementRejection("chat"));
+    assertEquals(acceptedAudit, blobSnapshot(blobs));
+    original.recordClassifiedRequirementFailure("chat", CaptureFailureKind.VALIDATION,
+        CaptureFailureClass.CORRECTABLE, true, "Later rejected draft", List.of());
+    var later = original.lastRequirementFailure("chat").orElseThrow().evidenceReference();
+    var restored = new CaptureAttemptFeedbackStore(new ToolCallFingerprintStore(mapper, artifacts, sessions),
+        new CompilationArtifacts(blobs, mapper, Clock.systemUTC()), new CompilationSessions(blobs, mapper, Clock.systemUTC()));
+    var before = blobSnapshot(blobs);
+
+    org.junit.jupiter.api.Assertions.assertAll(
+        () -> assertTrue(restored.isResolved("chat", earlier), earlier::toString),
+        () -> assertFalse(restored.isResolved("chat", later), later::toString),
+        () -> assertEquals(later, restored.lastRequirementFailure("chat").orElseThrow().evidenceReference()));
+    assertEquals(before, blobSnapshot(blobs));
+  }
+
+  @ParameterizedTest
+  @CsvSource({"reset,true,requirement-capture-tools", "projection-rebuild,true,requirement-capture-tools",
+      "captureRequirementDraft,false,requirement-capture-tools", "updateRequirementDraft,false,requirement-capture-tools",
+      "captureRequirementDraft,true,foreign-producer"})
+  void bookkeepingAndRejectedCapturesDoNotResolveRequirementFeedback(String toolName, boolean accepted, String producer) {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var artifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
+    var sessions = new CompilationSessions(blobs, mapper, Clock.systemUTC());
+    var durable = new CaptureAttemptFeedbackStore(new ToolCallFingerprintStore(mapper, artifacts, sessions), artifacts, sessions);
+    durable.recordClassifiedRequirementFailure("chat", CaptureFailureKind.VALIDATION,
+        CaptureFailureClass.CORRECTABLE, true, "Unresolved draft", List.of());
+    var rejected = durable.lastRequirementFailure("chat").orElseThrow().evidenceReference();
+    var bookkeeping = new org.qubership.integration.platform.ai.plan.RequirementDraftStore.RequirementCaptureAttempt(
+        "generation", "author-turn", "Request", "scope", toolName, Map.of(), accepted, List.of(), null);
+    artifacts.append(new CompilationArtifacts.AppendCommand(sessions.active("chat"),
+        CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_ATTEMPT, "1", producer, "1", bookkeeping, List.of(), null));
+    var before = blobSnapshot(blobs);
+
+    assertFalse(durable.isResolved("chat", rejected), rejected::toString);
+    assertEquals(before, blobSnapshot(blobs));
+  }
+
+  @Test
+  void legacyRequirementClearDoesNotProveAnAcceptedCapture() throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var artifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
+    var sessions = new CompilationSessions(blobs, mapper, Clock.systemUTC());
+    var original = new CaptureAttemptFeedbackStore(new ToolCallFingerprintStore(mapper, artifacts, sessions), artifacts, sessions);
+    original.recordClassifiedRequirementFailure("chat", CaptureFailureKind.VALIDATION,
+        CaptureFailureClass.CORRECTABLE, true, "Unresolved draft", List.of());
+    var rejected = original.lastRequirementFailure("chat").orElseThrow().evidenceReference();
+    var marker = artifacts.append(new CompilationArtifacts.AppendCommand(sessions.active("chat"),
+        CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_FEEDBACK, "1", "requirement-capture-feedback", "1",
+        mapper.readTree("{\"rejection\":null}"), List.of(), null));
+    var restored = new CaptureAttemptFeedbackStore(new ToolCallFingerprintStore(mapper, artifacts, sessions),
+        new CompilationArtifacts(blobs, mapper, Clock.systemUTC()), new CompilationSessions(blobs, mapper, Clock.systemUTC()));
+    var before = blobSnapshot(blobs);
+
+    org.junit.jupiter.api.Assertions.assertAll(
+        () -> assertFalse(restored.isResolved("chat", rejected), rejected::toString),
+        () -> assertFalse(restored.isResolved("chat", marker.reference()), marker.reference()::toString));
+    assertEquals(before, blobSnapshot(blobs));
   }
 
   @Test
