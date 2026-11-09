@@ -234,6 +234,8 @@ kubernetes:
   variables-secret:
     name: cip-secured-variables-v2
     label: cip-variable-type
+  secrets-role:
+    name: cip-secured-variables-reader # Role the catalog keeps in sync with the secured variables secrets
 
 quarkus:
   application:

@@ -1,6 +1,5 @@
 package org.qubership.integration.platform.engine.service;
 
-import org.apache.commons.lang3.tuple.Pair;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,7 +27,7 @@ import static org.mockito.Mockito.*;
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class VariablesServiceTest {
 
-    private static final String SECRET_LABEL = "variables";
+    private static final String SECRETS_ROLE_NAME = "cip-secured-variables-reader";
     private static final String DEFAULT_SECRET_NAME = "default-secret";
 
     @Mock
@@ -89,7 +88,7 @@ class VariablesServiceTest {
     @Test
     void shouldInjectSecuredVariablesAndSkipDefaultSecretWhenDisabled() {
         VariablesService service = service(false);
-        when(operator.getAllSecretsWithLabel(Pair.of(SECRET_LABEL, "secured"))).thenReturn(Map.of(
+        when(operator.getSecretsFromRole(SECRETS_ROLE_NAME)).thenReturn(Map.of(
                 DEFAULT_SECRET_NAME, Map.of("password", "default-password"),
                 "custom-secret", Map.of("token", "secret-token")
         ));
@@ -103,7 +102,7 @@ class VariablesServiceTest {
     @Test
     void shouldInjectDefaultSecretVariablesWhenEnabled() {
         VariablesService service = service(true);
-        when(operator.getAllSecretsWithLabel(Pair.of(SECRET_LABEL, "secured"))).thenReturn(Map.of(
+        when(operator.getSecretsFromRole(SECRETS_ROLE_NAME)).thenReturn(Map.of(
                 DEFAULT_SECRET_NAME, Map.of("password", "default-password")
         ));
 
@@ -152,7 +151,7 @@ class VariablesServiceTest {
     void shouldIgnoreInitializationErrorsWhenConfigured() {
         VariablesService service = service(false);
         KubeApiException exception = new KubeApiException("kube is unavailable");
-        when(operator.getAllSecretsWithLabel(Pair.of(SECRET_LABEL, "secured"))).thenThrow(exception);
+        when(operator.getSecretsFromRole(SECRETS_ROLE_NAME)).thenThrow(exception);
         when(operator.isDevmode()).thenReturn(false);
         when(startupErrorHandlingConfiguration.ignoreVariablesErrors()).thenReturn(true);
 
@@ -163,7 +162,7 @@ class VariablesServiceTest {
     void shouldPropagateInitializationErrorsWhenNotIgnored() {
         VariablesService service = service(false);
         KubeApiException exception = new KubeApiException("kube is unavailable");
-        when(operator.getAllSecretsWithLabel(Pair.of(SECRET_LABEL, "secured"))).thenThrow(exception);
+        when(operator.getSecretsFromRole(SECRETS_ROLE_NAME)).thenThrow(exception);
         when(operator.isDevmode()).thenReturn(false);
         when(startupErrorHandlingConfiguration.ignoreVariablesErrors()).thenReturn(false);
 
@@ -175,7 +174,7 @@ class VariablesServiceTest {
                 operator,
                 applicationConfiguration,
                 commonVariablesUpdateGetter,
-                SECRET_LABEL,
+                SECRETS_ROLE_NAME,
                 DEFAULT_SECRET_NAME,
                 defaultSecretEnabled,
                 startupErrorHandlingConfiguration);

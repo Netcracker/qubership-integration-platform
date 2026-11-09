@@ -27,6 +27,7 @@ import org.qubership.integration.platform.runtime.catalog.exception.exceptions.k
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiNotFoundException;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.secret.KubeSecretOperator;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.secret.SecretUpdateCallback;
+import org.qubership.integration.platform.runtime.catalog.kubernetes.secret.SecuredSecretsRoleSynchronizer;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
@@ -37,6 +38,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static java.util.Objects.isNull;
@@ -45,11 +47,14 @@ import static java.util.Objects.nonNull;
 @Slf4j
 @Service
 public class K8sSecretService implements SecretService {
+    public static final String SECURED_LABEL_VALUE = "secured";
+
     private final KubeSecretOperator kubeSecretOperator;
     private final ActionsLogService actionLogger;
     private final YAMLMapper yamlMapper;
     private final Pair<String, String> kubeSecretsLabel;
     private final String kubeSecretV2Name;
+    private final Optional<SecuredSecretsRoleSynchronizer> secretsRoleSynchronizer;
 
     @Autowired
     public K8sSecretService(
@@ -57,13 +62,15 @@ public class K8sSecretService implements SecretService {
             ActionsLogService actionLogger,
             @Qualifier("yamlMapper") YAMLMapper yamlMapper,
             @Value("${kubernetes.variables-secret.label}") String label,
-            @Value("${kubernetes.variables-secret.name}") String kubeSecretV2Name
+            @Value("${kubernetes.variables-secret.name}") String kubeSecretV2Name,
+            Optional<SecuredSecretsRoleSynchronizer> secretsRoleSynchronizer
     ) {
         this.kubeSecretOperator = kubeSecretOperator;
         this.actionLogger = actionLogger;
         this.yamlMapper = yamlMapper;
-        this.kubeSecretsLabel = Pair.of(label, "secured");
+        this.kubeSecretsLabel = Pair.of(label, SECURED_LABEL_VALUE);
         this.kubeSecretV2Name = kubeSecretV2Name;
+        this.secretsRoleSynchronizer = secretsRoleSynchronizer;
     }
 
     @Override
@@ -96,6 +103,7 @@ public class K8sSecretService implements SecretService {
                 return false;
             }
             kubeSecretOperator.createSecret(secretName, kubeSecretsLabel, null);
+            secretsRoleSynchronizer.ifPresent(SecuredSecretsRoleSynchronizer::syncSecretsRole);
             logAction(secretName, LogOperation.CREATE);
             return true;
         } catch (KubeApiException exception) {
