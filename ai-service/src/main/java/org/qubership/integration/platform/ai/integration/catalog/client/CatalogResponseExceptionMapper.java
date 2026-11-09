@@ -4,6 +4,7 @@ import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 import org.eclipse.microprofile.rest.client.ext.ResponseExceptionMapper;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogRestSupport;
 
 /** Maps only non-rate-limited client responses to the fault-tolerance abort type. */
@@ -19,7 +20,15 @@ public final class CatalogResponseExceptionMapper implements ResponseExceptionMa
       if (bodySnippet != null && !bodySnippet.isBlank()) {
         LOG.warnf("Catalog client error HTTP %d body=%s", status, bodySnippet);
       }
-      return new CatalogNonRetryableResponseException(response, bodySnippet);
+      boolean turnBearer = false;
+      if (status == CatalogAuthenticationFailures.UNAUTHORIZED_STATUS) {
+        String conversationId = ToolSession.resolveConversationId();
+        turnBearer = conversationId != null;
+        if (turnBearer) {
+          CatalogAuthenticationFailures.record(conversationId, status, bodySnippet);
+        }
+      }
+      return new CatalogNonRetryableResponseException(response, bodySnippet, turnBearer);
     }
     return new WebApplicationException(response);
   }

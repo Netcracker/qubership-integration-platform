@@ -3,9 +3,13 @@ package org.qubership.integration.platform.ai.productpipeline.create.design.inpu
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+
+import jakarta.ws.rs.core.Response;
 
 import java.time.Instant;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -21,6 +25,7 @@ import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogNonRetryableResponseException;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorLoader;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorTestSupport;
 import org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext;
@@ -403,6 +408,32 @@ class ChainSemanticCaptureToolTest {
     String result = tool.captureChainSemanticRevision(mutated);
     assertTrue(result.contains("ghost-call"), result);
     assertTrue(ProductCapabilityCaptureContext.semanticCandidate().isEmpty());
+  }
+
+  @Test
+  void turnBearer401DuringDescriptorPreflightEscapesAsTheCatalogAuthenticationFailure() {
+    CatalogElementDescriptorLoader descriptors = mock(CatalogElementDescriptorLoader.class);
+    when(descriptors.load(anyString()))
+        .thenThrow(
+            new CatalogNonRetryableResponseException(
+                Response.status(401).build(), "unauthorized", true));
+    ChainSemanticCaptureTool tool =
+        new ChainSemanticCaptureTool(
+            new ChainSemanticCaptureAdapter(new ChainSemanticCanonicalizer()),
+            new DefaultChainSemanticRevisionValidator(),
+            new ClasspathCompilerContractRepository(),
+            completePack(),
+            descriptors,
+            new E2eRecoveryFaultInjector("", ""));
+    bindDesign(ChainSemanticCaptureFixtures.approvedBrief());
+
+    CatalogNonRetryableResponseException thrown =
+        assertThrows(
+            CatalogNonRetryableResponseException.class,
+            () -> tool.captureChainSemanticRevision(ChainSemanticCaptureFixtures.linearCapture()));
+
+    assertTrue(thrown.turnBearer());
+    assertEquals(401, thrown.status());
   }
 
   private static ChainSemanticCapture withEdges(

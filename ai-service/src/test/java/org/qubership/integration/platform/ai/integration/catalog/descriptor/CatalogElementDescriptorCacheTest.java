@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogNonRetryableResponseException;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 
 @ExtendWith(MockitoExtension.class)
@@ -118,6 +119,32 @@ class CatalogElementDescriptorCacheTest {
     verify(catalogRestClient).getLibraryElement("unknown-type");
     verify(catalogRestClient, never()).createElement(any(), any());
     verifyNoMoreInteractions(catalogRestClient);
+  }
+
+  @Test
+  void turnBearer401IsRethrownAsTheTypedCatalogFailureNotAWrappedMissingDescriptor() {
+    CatalogNonRetryableResponseException unauthorized =
+        new CatalogNonRetryableResponseException(
+            Response.status(401).build(), "unauthorized", true);
+    when(catalogRestClient.getLibraryElement("condition")).thenThrow(unauthorized);
+
+    CatalogNonRetryableResponseException thrown =
+        assertThrows(CatalogNonRetryableResponseException.class, () -> cache.require("condition"));
+
+    assertSame(unauthorized, thrown);
+  }
+
+  @Test
+  void bearerless401StillWrapsAsAnUnloadableDescriptor() {
+    when(catalogRestClient.getLibraryElement("condition"))
+        .thenThrow(
+            new CatalogNonRetryableResponseException(
+                Response.status(401).build(), "unauthorized", false));
+
+    CatalogElementDescriptorException thrown =
+        assertThrows(CatalogElementDescriptorException.class, () -> cache.require("condition"));
+
+    assertTrue(thrown.getMessage().contains("condition"));
   }
 
   @Test

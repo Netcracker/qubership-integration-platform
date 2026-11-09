@@ -118,6 +118,35 @@ class CatalogBearerTokenFilterTest {
   }
 
   @Test
+  void tokenWithinAFewSecondsOfExpiryIsStillReplacedInTurn() throws Exception {
+    long exp = java.time.Instant.now().getEpochSecond() + 3;
+    String almostExpired = jwt(exp, "alice");
+    String fresh = jwt(exp + 60, "alice");
+    ToolSession.bind("conv-1");
+    UserTokenStore.put("conv-1", almostExpired);
+    Thread renew =
+        new Thread(
+            () -> {
+              try {
+                Thread.sleep(500);
+              } catch (InterruptedException ignored) {
+                return;
+              }
+              UserTokenStore.renew("conv-1", fresh);
+            });
+    renew.start();
+    MultivaluedMap<String, Object> headers = new MultivaluedHashMap<>();
+
+    try {
+      new CatalogBearerTokenFilter("secret", 5000).filter(request(headers));
+    } finally {
+      renew.join();
+    }
+
+    assertEquals("Bearer " + fresh, headers.getFirst(HttpHeaders.AUTHORIZATION));
+  }
+
+  @Test
   void nestedSkillCloseKeepsTurnTokenForCatalogCalls() {
     // design-execution: compiler skill ends, then ChainPlanGraphValidator hits /v1/library.
     // Nested ToolSession must restore the turn binding so the user bearer is still attached.

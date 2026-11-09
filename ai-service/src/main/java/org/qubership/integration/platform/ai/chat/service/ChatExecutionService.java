@@ -28,6 +28,7 @@ import org.qubership.integration.platform.ai.chain.deploy.PendingRedeploy;
 import org.qubership.integration.platform.ai.chain.deploy.PendingRedeployStore;
 import org.qubership.integration.platform.ai.compiler.capture.ChatMemorySanitizer;
 import org.qubership.integration.platform.ai.configuration.AppConfig;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogAuthenticationFailures;
 import org.qubership.integration.platform.ai.llm.routing.ScenarioRouter;
 import org.qubership.integration.platform.ai.model.ScenarioType;
 import org.qubership.integration.platform.ai.logging.AiTraceLog;
@@ -337,6 +338,7 @@ public class ChatExecutionService {
         .invoke(
             (failure, cancelled) -> {
               UserTokenStore.remove(finalConversationId, request.getUserToken());
+              CatalogAuthenticationFailures.clear(finalConversationId);
               {
                 logAssistantResultIfEnabled(finalConversationId, responseBuffer.toString());
                 boolean current = conversationService.archive().saveAssistant(finalConversationId,

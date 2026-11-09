@@ -199,6 +199,18 @@ card carries the run identifier the author hands to support and offers only End 
 report, because re-entering the stage meets the same defect. Stage IDs stay in technical details.
 _Avoid_: contract failure for a service defect, a Retry that cannot work, terminal FAILED
 
+**Turn bearer**:
+The access token taken from the chat request that opened the current turn and sent on that turn's
+catalog calls.
+_Avoid_: the access token currently held in the browser, a token refresh
+
+**Catalog authentication failure**:
+A catalog HTTP 401 on a call made with the turn bearer. The run stops at once on the
+temporary-technical card (Retry creation and Stop with report). It is not a repair attempt. Retry
+creation is a new chat request, so it carries that request's bearer. A permanent environment
+failure remains the case another create attempt cannot lift.
+_Avoid_: repair allowance, permanent environment failure, waiting in the turn for a new access token
+
 **Causal reopen window** (decided):
 Causal reopen runs only before any materializer has written to the catalog. A failure at or after
 materialization is outside this feature: the model does not reopen the plan and write again on its
