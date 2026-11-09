@@ -168,6 +168,8 @@
                 <setProperty name="internalProperty_graphQLEndpointUri">
                     <simple>graphql-custom:{{#if-property 'systemType' equals='EXTERNAL'}}{{gatewayProtocol}}://{{gatewayUrl}}{{externalRoutePath}}{{else}}{{integrationAddress}}{{/if-property}}{{escape (manualQuery
                                                                               operationName=(property 'integrationGqlOperationName')
+                                                                              queryHeader="CamelGraphQLQuery"
+                                                                              variablesHeader="CamelGraphQLVariables"
                                                                               httpClientConfigurer=(identifier prefix='#'))}}
                     </simple>
                 </setProperty>
@@ -300,6 +302,8 @@
                     <toD uri="graphql-custom:{{#if-property 'systemType' equals='EXTERNAL'}}{{gatewayProtocol}}://{{gatewayUrl}}{{externalRoutePath}}{{else}}{{integrationAddress}}{{/if-property}}{{escape
                             (manualQuery
                                     operationName=(property 'integrationGqlOperationName')
+                                    queryHeader="CamelGraphQLQuery"
+                                    variablesHeader="CamelGraphQLVariables"
                                     httpClientConfigurer=(identifier prefix='#'))}}"/>
                 {{/if-property}}
 
