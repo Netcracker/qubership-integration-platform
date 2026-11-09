@@ -43,6 +43,12 @@
   --vscode-list-activeSelectionForeground: #fff;
   --vscode-list-hoverBackground: #f5f5f5;
 
+  /* Menu Colors */
+  --vscode-menu-selectionBackground: #e6f7ff;
+  --vscode-menu-selectionForeground: #0068ff;
+  /*--vscode-menu-hoverBackground: ;*/
+  --vscode-menu-background: rgb(0 0 0 / 0);
+
   /* Badge Colors */
   --vscode-badge-background: #e8e8e8;
   --vscode-badge-foreground: #333;
