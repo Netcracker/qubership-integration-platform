@@ -28,8 +28,6 @@ public final class ServiceCallCatalogIdentity {
           "synchronousGrpcCall",
           "integrationGqlQuery",
           "integrationGqlOperationName",
-          "integrationGqlQueryHeader",
-          "integrationGqlVariablesHeader",
           "integrationGqlVariablesJSON",
           "groupId",
           "integrationOperationAsyncProperties");

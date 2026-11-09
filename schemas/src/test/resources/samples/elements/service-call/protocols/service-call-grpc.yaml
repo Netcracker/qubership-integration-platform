@@ -8,8 +8,6 @@ properties:
   errorThrowing: true
   grpcProperties: {}
   handleValidationAction: "default"
-  integrationGqlQueryHeader: "CamelGraphQLQuery"
-  integrationGqlVariablesHeader: "CamelGraphQLVariables"
   integrationOperationAsyncProperties: {}
   integrationOperationId: "c1b29676-6552-4c89-b002-8185cefcfc4b-my_service-1.0.0-MyService.SayHello"
   integrationOperationMethod: "SayHello"

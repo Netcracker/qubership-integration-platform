@@ -120,10 +120,6 @@
         <setProperty name="serviceCallPath">
             <simple>{{escape (property "integrationOperationPath")}}</simple>
         </setProperty>
-        <setProperty name="serviceCallVariablesHeader">
-            <simple>{{property 'integrationGqlVariablesHeader'}}</simple>
-        </setProperty>
-
         {{#each (property 'integrationOperationQueryParameters' raw='')}}
             <setProperty name="serviceCallQueryParameter_{{escape @key}}">
                 <simple>{{escape this}}</simple>
@@ -172,8 +168,6 @@
                 <setProperty name="internalProperty_graphQLEndpointUri">
                     <simple>graphql-custom:{{#if-property 'systemType' equals='EXTERNAL'}}{{gatewayProtocol}}://{{gatewayUrl}}{{externalRoutePath}}{{else}}{{integrationAddress}}{{/if-property}}{{escape (manualQuery
                                                                               operationName=(property 'integrationGqlOperationName')
-                                                                              queryHeader=(property 'integrationGqlQueryHeader')
-                                                                              variablesHeader=(property 'integrationGqlVariablesHeader')
                                                                               httpClientConfigurer=(identifier prefix='#'))}}
                     </simple>
                 </setProperty>
@@ -306,8 +300,6 @@
                     <toD uri="graphql-custom:{{#if-property 'systemType' equals='EXTERNAL'}}{{gatewayProtocol}}://{{gatewayUrl}}{{externalRoutePath}}{{else}}{{integrationAddress}}{{/if-property}}{{escape
                             (manualQuery
                                     operationName=(property 'integrationGqlOperationName')
-                                    queryHeader=(property 'integrationGqlQueryHeader')
-                                    variablesHeader=(property 'integrationGqlVariablesHeader')
                                     httpClientConfigurer=(identifier prefix='#'))}}"/>
                 {{/if-property}}
 
@@ -618,5 +610,4 @@
 <removeProperty name="serviceCallBrokers"/>
 <removeProperty name="serviceCallExchange"/>
 <removeProperty name="serviceCallService"/>
-<removeProperty name="serviceCallVariablesHeader"/>
 <removeProperty name="serviceCallSkipEmptyQueryParams"/>
