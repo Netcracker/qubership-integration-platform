@@ -70,7 +70,7 @@ export const ElementsLibrarySidebar = ({
               label: name,
               name: name,
               icon: (
-                <OverridableIcon name="folderOpen" className={"folder-icon"}/>
+                <OverridableIcon name="folderOpen" className={"folder-icon"} />
               ),
               children: [],
             });
@@ -85,9 +85,7 @@ export const ElementsLibrarySidebar = ({
                 />
               ),
               name: libraryData.childElements[child.name]?.title ?? child.name,
-              icon: (
-                <OverridableIcon name={child.name} />
-              ),
+              icon: <OverridableIcon name={child.name} />,
             };
             childrenMenuItems.push(childMenuItem);
           });
@@ -95,9 +93,7 @@ export const ElementsLibrarySidebar = ({
             key: element.name,
             label: <DraggableElement element={element} />,
             name: element.title,
-            icon: (
-              <OverridableIcon name={element.name} />
-            ),
+            icon: <OverridableIcon name={element.name} />,
           };
           if (childrenMenuItems.length !== 0) {
             childrenMenuItems.sort(compareChildren);
@@ -145,14 +141,15 @@ export const ElementsLibrarySidebar = ({
   };
 
   return (
-    <Sider width={width} className={styles.sideMenu} classNames={{ body: styles.sideMenuContent }}>
+    <Sider
+      width={width}
+      className={styles.sideMenu}
+      classNames={{ body: styles.sideMenuContent }}
+    >
       {isLibraryLoading && loading ? (
         <Spin />
       ) : (
-        <Flex
-          vertical
-          className={styles["left-panel-content"]}
-        >
+        <Flex vertical className={styles["left-panel-content"]}>
           <div className={styles["searchbar-wrapper"]}>
             <SidebarSearch
               items={allItems.current}

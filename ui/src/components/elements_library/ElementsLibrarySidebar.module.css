@@ -19,7 +19,8 @@
   flex-grow: 1;
   flex-shrink: 1;
   min-height: 0;
-  overflow-y: scroll;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
   padding-bottom: 8px;
 }
 
