@@ -170,7 +170,9 @@ const ChainPage = () => {
   }, [chain, chainId, sessionId, navigate]);
 
   const handleTabClick = (key: string) => {
-    void navigate(`/chains/${chainId}/${key}`);
+    const target = `/chains/${chainId}/${key}`;
+    if (pathname === target) return;
+    void navigate(target);
   };
 
   const tabItems = [
