@@ -14,6 +14,8 @@
  * `testing-service/internal/matching/matcher_predicate_factory.go`, not the list-filter conditions in
  * `internal/model/select.go`. Each predicate case carries one rule that holds and one that fails, and
  * the run has to record an error on the second alone, with the message that predicate writes.
+ *
+ * Shown failing: send X-E2e-Omitted instead of X-E2e-Probe; the probe-header assertion receives undefined.
  */
 import { test, expect } from "../../support/fixtures.js";
 import { UUID } from "../../support/absent.js";
@@ -186,8 +188,9 @@ test.describe("testing-service test cases", { tag: ["@testing-service"] }, () =>
       expect(session.chainId).toBe(trigger.chainId);
       const received = element(session, "HTTP Trigger");
       expect(received?.bodyBefore).toBe(body);
+      const probe = Object.entries(received?.headersBefore ?? {}).find(([header]) => header.toLowerCase() === "x-e2e-probe");
+      expect(probe?.[1]).toBe(name);
       expect(received?.headersBefore).toMatchObject({
-        "x-e2e-probe": name,
         "Content-Type": "application/json",
         CamelHttpMethod: "POST",
         CamelHttpQuery: "channel=web",

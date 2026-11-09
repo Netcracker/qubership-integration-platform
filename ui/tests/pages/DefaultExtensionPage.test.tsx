@@ -27,21 +27,25 @@ jest.mock("../../src/appConfig.ts", () => ({
   configureAppExtension: jest.fn(() => Promise.resolve()),
 }));
 
-function postMessage(type: string, payload: unknown): void {
+function postMessage(
+  type: string,
+  payload: unknown,
+  origin = window.origin,
+): void {
   act(() => {
     window.dispatchEvent(
-      new MessageEvent("message", { data: { type, payload } }),
+      new MessageEvent("message", { data: { type, payload }, origin }),
     );
   });
 }
 
-function startUp(): void {
+function startUp(origin?: string): void {
   render(
     <MemoryRouter>
       <DefaultExtensionPage />
     </MemoryRouter>,
   );
-  postMessage("startup", {});
+  postMessage("startup", {}, origin);
 }
 
 describe("DefaultExtensionPage", () => {
@@ -52,14 +56,18 @@ describe("DefaultExtensionPage", () => {
     (api as VSCodeExtensionApi).sendMessageToExtension = sendMessageToExtension;
   });
 
-  test("navigates to the path the extension sends", () => {
+  test("asks the extension for the path on startup", () => {
     sendMessageToExtension.mockResolvedValue({});
     startUp();
 
-    postMessage("navigate", "/chains/chain-1/graph");
-
     expect(sendMessageToExtension).toHaveBeenCalledWith("navigate");
-    expect(mockNavigate).toHaveBeenCalledWith("/chains/chain-1/graph");
+    expect(screen.getByText("Loading")).toBeInTheDocument();
+  });
+
+  test("ignores a startup message from another origin", () => {
+    startUp("https://example.com");
+
+    expect(sendMessageToExtension).not.toHaveBeenCalled();
     expect(screen.getByText("Loading")).toBeInTheDocument();
   });
 

@@ -155,7 +155,7 @@ Both editors use the same table. A row is one rule, and it has the following col
 
 The toolbar above the table adds a rule, deletes the checked rules, and enables or disables them in bulk. A local search filters the rows already in the table; typing in it clears the checked rows, so a bulk action never reaches a row the search has hidden.
 
-> ℹ️ **Note:** The in-place edited cells - **Name** and **Description** here, and the same cells wherever else the product edits in place - commit on **Enter** only. Clicking away closes the cell and discards what was typed.
+> ℹ️ **Note:** Press **Enter** or click outside the **Name** or **Description** cell to apply a valid edit to the test case or endpoint mock draft. Click **Save** to save the draft.
 
 Conditions and the parameters they take:
 
@@ -330,4 +330,3 @@ A Consul key takes precedence over `TESTING_SERVICE_ENABLED` and `TESTING_SERVIC
 - Only an **HTTP Trigger** can be activated by a test case. A trigger of any other type cannot be tested this way.
 - Test cases and endpoint mocks are not part of the chain export. They are exported and imported from their own tables.
 - Mocking is off by default, and it is environment-wide: the switch covers an engine installation, not a chain. It narrows the traffic it touches to test case runs, so a chain run any other way keeps reaching its real endpoints even while mocking is on. With mocking on and the testing service absent, an outbound call of a test case run fails to connect; with the service present, a call without a matching mock is answered `404`.
-- An in-place edited cell commits on **Enter** only; clicking away discards the edit.

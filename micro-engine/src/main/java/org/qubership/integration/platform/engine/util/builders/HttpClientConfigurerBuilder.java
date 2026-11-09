@@ -99,7 +99,7 @@ public class HttpClientConfigurerBuilder {
             if (m2mFallbackInterceptorEnabled && m2mEnabled) {
                 UrlCache m2mUrlCache = CDI.current().select(UrlCache.class, NamedLiteral.of("m2mUrlCache")).get();
 
-                clientBuilder.addExecInterceptorAfter(
+                clientBuilder.addExecInterceptorBefore(
                     ChainElement.REDIRECT.name(), "m2m-fallback-interceptor", new M2MFallbackHandler(m2mUrlCache));
             }
 

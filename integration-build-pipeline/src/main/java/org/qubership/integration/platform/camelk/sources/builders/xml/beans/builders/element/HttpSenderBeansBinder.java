@@ -9,12 +9,13 @@ import org.qubership.integration.platform.chain.model.Snapshot;
 import org.qubership.integration.platform.util.ElementUtils;
 import org.springframework.stereotype.Component;
 
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 import static org.qubership.integration.platform.camelk.sources.builders.xml.beans.BeanPropertyHelper.writePropertyElement;
 import static org.qubership.integration.platform.library.constants.CamelNames.*;
-import static org.qubership.integration.platform.library.constants.CamelOptions.CONTEXT_PATH;
-import static org.qubership.integration.platform.library.constants.CamelOptions.OPERATION_PATH;
+import static org.qubership.integration.platform.library.constants.CamelOptions.*;
 
 @Component
 public class HttpSenderBeansBinder implements ElementBeansBuilder {
@@ -57,11 +58,24 @@ public class HttpSenderBeansBinder implements ElementBeansBuilder {
         writePropertyElement(streamWriter, "protocol", Optional.ofNullable(element.getProperties().get(OPERATION_PROTOCOL_TYPE_PROP))
             .map(Object::toString)
             .orElse(OPERATION_PROTOCOL_TYPE_HTTP));
-        writePropertyElement(streamWriter, "m2mEnabled", Optional.ofNullable(element.getProperties().get(M2M_PROP))
-            .map(Object::toString)
-            .orElse("false"));
+        writePropertyElement(streamWriter, "m2mEnabled", getM2MEnabledFlag(element));
 
         streamWriter.writeEndElement();
         streamWriter.writeEndElement();
+    }
+
+    private String getM2MEnabledFlag(Element element) {
+        String m2mEnabled = null;
+        if (SERVICE_CALL_COMPONENT.equals(element.getType())) {
+            Map<String, String> authorizationConfig = (Map<String, String>) element.getProperties().get(AUTHORIZATION_CONFIGURATION);
+            if (authorizationConfig != null) {
+                m2mEnabled = String.valueOf(M2M_PROP.equalsIgnoreCase(authorizationConfig.get(TYPE)));
+            }
+        } else {
+            m2mEnabled = Objects.toString(element.getProperties().get(M2M_PROP), null);
+        }
+
+        return Optional.ofNullable(m2mEnabled)
+            .orElse("false");
     }
 }

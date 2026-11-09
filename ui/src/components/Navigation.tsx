@@ -64,7 +64,9 @@ const Navigation = () => {
           size="middle"
           title="Home"
           className={styles["home-button"]}
-        />
+        >
+          CIP
+        </Button>
         <Menu
           style={{ border: "none" }}
           items={items}

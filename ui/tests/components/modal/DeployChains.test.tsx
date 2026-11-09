@@ -125,7 +125,7 @@ describe("DeployChains", () => {
       expect(screen.getByText("Failed Chain")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("Chain Id")).toBeInTheDocument();
+    expect(screen.getByText("Chain ID")).toBeInTheDocument();
     expect(screen.getByText("Chain Name")).toBeInTheDocument();
     expect(screen.getByText("Status")).toBeInTheDocument();
     expect(screen.getByText("Message")).toBeInTheDocument();

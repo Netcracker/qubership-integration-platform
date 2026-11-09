@@ -35,17 +35,19 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 
+/**
+ * @deprecated Use {@link ChainAccessControlController} instead.
+ */
 @Slf4j
 @RestController
 @Validated
 @RequestMapping(value = {
     "/v1/catalog/chains/roles",
-    "/v1/catalog/chains/access-control",
-    "/api/v1/cip/catalog/chains/roles",
-    "/api/v1/cip/catalog/chains/access-control"
+    "/api/v1/cip/catalog/chains/roles"
 }, produces = MediaType.APPLICATION_JSON_VALUE)
 @CrossOrigin(origins = "*")
-@Tag(name = "chain-roles-controller", description = "Chain Roles Controller")
+@Deprecated(since = "2026.4")
+@Tag(name = "chain-roles-controller", description = "Deprecated Chain Roles Controller")
 public class ChainRolesController {
 
     private final ChainRolesService chainRolesService;
@@ -56,7 +58,11 @@ public class ChainRolesController {
     }
 
     @PostMapping("")
-    @Operation(description = "Get all chains with http trigger roles")
+    @Operation(
+            operationId = "findBySearchRequestDeprecated",
+            description = "Get all chains with http trigger roles",
+            deprecated = true
+    )
     public ResponseEntity<ChainRolesResponse> findBySearchRequest(@RequestBody @Parameter(description = "Search criteria for chain element") ChainElementSearchCriteria request,
                                                                   @RequestParam(required = false, defaultValue = "false") @Parameter(description = "Whether include only http triggers with selected implemented service") boolean isImplementedOnly) {
         ChainRolesResponse response = chainRolesService.findAllChainByHttpTrigger(request, isImplementedOnly);
@@ -64,7 +70,11 @@ public class ChainRolesController {
     }
 
     @PutMapping("")
-    @Operation(description = "Make a bulk update on roles configuration for http triggers")
+    @Operation(
+            operationId = "updateRolesDeprecated",
+            description = "Make a bulk update on roles configuration for http triggers",
+            deprecated = true
+    )
     @ApiResponse(responseCode = "204", description = "No Content")
     public ResponseEntity<Void> updateRoles(@RequestBody @Parameter(description = "Http trigger roles update request object") List<@Valid UpdateRolesRequest> request) {
         chainRolesService.updateRoles(request);
@@ -72,7 +82,11 @@ public class ChainRolesController {
     }
 
     @PutMapping("/redeploy")
-    @Operation(description = "Make a bulk redeploy for chains specified in the request")
+    @Operation(
+            operationId = "bulkRedeployDeprecated",
+            description = "Make a bulk redeploy for chains specified in the request",
+            deprecated = true
+    )
     @ApiResponse(responseCode = "204", description = "No Content")
     public ResponseEntity<Void> bulkRedeploy(@RequestBody @Parameter(description = "Ids of the chains to redeploy") List<String> chainIds) {
         chainRolesService.redeploy(chainIds);

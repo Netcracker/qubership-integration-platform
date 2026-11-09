@@ -124,7 +124,7 @@ data:
         proxy_intercept_errors on;
       }
 
-      location ~ ^/api/(v\d+)/.*/catalog/chains/(deployments|roles) {
+      location ~ ^/api/(v\d+)/.*/catalog/chains/(deployments|roles|access-control) {
         rewrite ^/api/(v\d+)/.*/catalog/(.*)$  /$1/catalog/$2  break;
         proxy_pass  http://{{ .Release.Name }}-runtime-catalog-{{ .Values.global.blueGreenVersion }}:8080;
         proxy_redirect     off;

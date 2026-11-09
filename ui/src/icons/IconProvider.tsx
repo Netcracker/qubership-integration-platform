@@ -10,7 +10,7 @@ import React, {
 import Icon from "@ant-design/icons";
 import type { AntdIconProps } from "@ant-design/icons/lib/components/AntdIcon";
 import parse from "html-react-parser";
-import { commonIcons, elementIcons } from "./IconDefenitions";
+import { commonIcons, elementIcons } from "./IconDefinitions";
 import { getConfig, onConfigChange } from "../appConfig.ts";
 import {
   isMonochromeSvgElement,

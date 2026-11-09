@@ -29,7 +29,7 @@ const COLUMNS: ColumnsType<ImportResultRow> = [
   { title: "Archive", dataIndex: "archive", key: "archive", width: 180 },
   { title: "File Name", dataIndex: "fileName", key: "fileName", width: 180 },
   {
-    title: "Id",
+    title: "ID",
     key: "entityId",
     width: 180,
     render: (_, row) => formatOptional(row.entityId),

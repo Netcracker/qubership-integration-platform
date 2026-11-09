@@ -17,6 +17,10 @@ export const ChainDiffViewWebview: React.FC = (): React.ReactNode => {
     const onMessage = (
       event: MessageEvent<VSCodeResponse<{ original: Chain; modified: Chain }>>,
     ) => {
+      // VS Code's webview host forwards extension messages from the webview's own origin.
+      if (event.origin !== window.origin) {
+        return;
+      }
       if (event.data.type === "comparedDocumentsResponse") {
         setItem1({ kind: "document", content: event.data.payload!.original });
         setItem2({ kind: "document", content: event.data.payload!.modified });

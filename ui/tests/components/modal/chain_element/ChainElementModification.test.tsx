@@ -862,6 +862,60 @@ describe("ChainElementModification", () => {
     expect(defaultProps.onClose).toHaveBeenCalled();
   });
 
+  describe("Focus on open", () => {
+    let pendingFrames: FrameRequestCallback[];
+
+    beforeEach(() => {
+      pendingFrames = [];
+      jest
+        .spyOn(globalThis, "requestAnimationFrame")
+        .mockImplementation((callback) => {
+          pendingFrames.push(callback);
+          return pendingFrames.length;
+        });
+    });
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    const runPendingFrames = () =>
+      act(() => {
+        pendingFrames.splice(0).forEach((callback) => callback(0));
+      });
+
+    it("moves focus into the form when nothing in it has focus", async () => {
+      renderWithPermissions({ chain: ["update"] });
+      const dialog = await screen.findByRole("dialog");
+
+      runPendingFrames();
+
+      expect(dialog).toContainElement(document.activeElement as HTMLElement);
+      expect(document.activeElement).not.toBe(dialog);
+      expect(document.activeElement).toHaveAttribute("tabindex", "-1");
+    });
+
+    it("keeps focus on a form field the user focused first", async () => {
+      renderWithPermissions({ chain: ["update"] });
+      const field = await screen.findByTestId("rjsf-user-change");
+      act(() => field.focus());
+
+      runPendingFrames();
+
+      expect(field).toHaveFocus();
+    });
+
+    it("keeps the name editor open when the user opened it first", async () => {
+      renderWithPermissions({ chain: ["update"] });
+      fireEvent.click(await screen.findByRole("button", { name: "Edit name" }));
+      const input = screen.getByTestId("element-name-input");
+
+      runPendingFrames();
+
+      expect(input).toHaveFocus();
+    });
+  });
+
   describe("Schema errors", () => {
     const nodeWithUnknownType: ChainGraphNode = {
       ...mockNode,

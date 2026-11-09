@@ -6,14 +6,14 @@
  * the state file records it as a preview this suite started: it may be a developer's dev server,
  * which serves a different artifact than the bundle.
  */
-import { execFileSync, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { newestMtimeMs, repoRoot } from "../env/host.js";
-import { processAlive } from "./run.js";
-import { sleep } from "./poll.js";
-import { readStateFile, writeStateFile } from "./state-file.js";
+import { newestMtimeMs, repoRoot, runToCompletion } from "../env/host.js";
+import { BuildLock, BUNDLE_HOLDER } from "./build-lock.js";
+import { groupAlive, RecordedServer } from "./process-group.js";
+import { readUntil } from "./poll.js";
 
 export const UI_PORT = 4200;
 
@@ -38,7 +38,7 @@ const BUILD_MARKER = "dist/.e2e-build";
  * production build, the schema sources the element forms are generated from, the help pages
  * `fetch-docs` copies, and the lockfile.
  */
-const BUNDLE_INPUTS = [
+export const BUNDLE_INPUTS = [
   "src",
   "public",
   "index.html",
@@ -53,14 +53,7 @@ const BUNDLE_INPUTS = [
   "../package-lock.json",
 ];
 
-/** The process group of the preview this suite started, and the run that started it. */
-interface UiServerState {
-  pid: number;
-  owner: number;
-}
-
-/** The Playwright runner, whose pid `.e2e-runs.json` records; setup and teardown run in its child workers. */
-const RUNNER = process.ppid;
+const server = new RecordedServer(STATE_FILE, new RegExp(`\\bpreview\\b.*--port ${UI_PORT}\\b`));
 
 function uiDir(): string {
   return path.resolve(repoRoot(), "ui");
@@ -97,43 +90,38 @@ const MARKER_TEXT = Object.entries(BUILD_ENV)
  * Whether `ui/dist` is missing, was built outside the suite or with other variables, or is older
  * than its inputs.
  */
-async function bundleIsStale(): Promise<boolean> {
+export async function bundleIsStale(): Promise<boolean> {
   const built = await newestMtimeMs(uiDir(), [BUILD_MARKER]);
   if (built === 0) return true;
   if (fs.readFileSync(path.resolve(uiDir(), BUILD_MARKER), "utf-8") !== MARKER_TEXT) return true;
   return (await newestMtimeMs(uiDir(), BUNDLE_INPUTS)) > built;
 }
 
-/** Runs a command to completion and keeps its output, so a failure can quote the end of it. */
-function runToCompletion(command: string, args: string[], cwd: string, env: NodeJS.ProcessEnv): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { cwd, env, stdio: ["ignore", "pipe", "pipe"] });
-    const output: string[] = [];
-    child.stdout.on("data", (chunk: Buffer) => output.push(chunk.toString()));
-    child.stderr.on("data", (chunk: Buffer) => output.push(chunk.toString()));
-    child.on("error", reject);
-    child.on("close", (code) => {
-      if (code === 0) return resolve();
-      const tail = output.join("").split("\n").slice(-40).join("\n");
-      reject(new Error(`${command} ${args.join(" ")} exited ${code}:\n${tail}`));
-    });
-  });
-}
-
 /**
- * Builds `schemas/dist` and then the bundle, the way the UI workspace does, `fetch-docs` included.
- *
- * `schemas/dist` is gitignored and `npm install` does not create it, and the UI resolves
- * `@netcracker/qip-schemas` to it. Rebuilding it with every bundle takes about 6 seconds and keeps
- * the element forms in step with the schema sources. `BUILD_ENV` is read at build time.
+ * The bundle build, `fetch-docs` included. `--ignore-scripts` skips the UI's `prebuild`, which would
+ * build the schemas a second time after the `schemas-build` project.
  */
+const UI_BUILD_ARGS = ["run", "build", "--ignore-scripts", "-w", "@netcracker/qip-ui"];
+
+/** Builds the bundle with `BUILD_ENV`, which Vite reads at build time, and marks it as the suite's. */
 async function buildBundle(): Promise<void> {
-  await runToCompletion("npm", ["run", "build", "-w", "@netcracker/qip-schemas"], repoRoot(), process.env);
-  await runToCompletion("npm", ["run", "build", "-w", "@netcracker/qip-ui"], repoRoot(), {
+  await runToCompletion("npm", UI_BUILD_ARGS, repoRoot(), {
     ...process.env,
     ...BUILD_ENV,
   });
   fs.writeFileSync(path.resolve(uiDir(), BUILD_MARKER), MARKER_TEXT);
+}
+
+/**
+ * Reserves the build lock for the bundle when the run reaches `ui-server` and the bundle is stale,
+ * so the `vscode-server` builds wait for it. Called in `globalSetup`, before any worker starts.
+ */
+export async function reserveBundleBuild(
+  projects: string[],
+  lock = new BuildLock(),
+  stale: () => Promise<boolean> = bundleIsStale,
+): Promise<boolean> {
+  return projects.includes(BUNDLE_HOLDER) && (await stale()) && lock.reserve(BUNDLE_HOLDER);
 }
 
 /** Starts `vite preview` in its own process group, so the teardown can stop npm and vite together. */
@@ -150,38 +138,14 @@ function startPreview(): number {
   return child.pid;
 }
 
-/**
- * Whether a process of the group led by `pid` still runs `preview --port 4200`. A stale state file
- * can name a pid that has since been reused by an unrelated group.
- */
-function previewGroup(pid: number): boolean {
-  const preview = new RegExp(`\\bpreview\\b.*--port ${UI_PORT}\\b`);
-  return execFileSync("ps", ["-A", "-o", "pgid=,args="], { encoding: "utf-8" })
-    .split("\n")
-    .some((line) => {
-      const [, pgid, args] = /^\s*(\d+)\s+(.*)$/.exec(line) ?? [];
-      return Number(pgid) === pid && preview.test(args);
-    });
-}
-
-/** Whether any process of the group led by `pid` is still running; npm may exit before vite. */
-function groupAlive(pid: number): boolean {
-  try {
-    process.kill(-pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 async function waitForPort(pid: number, budgetMs: number): Promise<boolean> {
-  const deadline = Date.now() + budgetMs;
-  while (Date.now() < deadline) {
-    if (await answers(UI_PORT)) return true;
-    if (!groupAlive(pid)) return false;
-    await sleep(250);
-  }
-  return false;
+  const last = await readUntil(
+    async () => ({ answered: await answers(UI_PORT), alive: groupAlive(pid) }),
+    ({ answered, alive }) => answered || !alive,
+    budgetMs,
+    250,
+  );
+  return last.answered;
 }
 
 /**
@@ -194,23 +158,32 @@ async function waitForPort(pid: number, budgetMs: number): Promise<boolean> {
  * `stopUiServer`.
  */
 export async function ensureUiServer(): Promise<{ pid: number | null; built: boolean }> {
-  const found = readStateFile<UiServerState>(STATE_FILE);
-  if (found && found.owner !== RUNNER && processAlive(found.owner)) {
+  try {
+    return await serveBundle();
+  } finally {
+    // A setup that built nothing lets the `vscode-server` builds go.
+    new BuildLock().dropReservation(BUNDLE_HOLDER);
+  }
+}
+
+async function serveBundle(): Promise<{ pid: number | null; built: boolean }> {
+  const owner = server.otherLiveOwner();
+  if (owner !== null) {
     throw new Error(
       `port ${UI_PORT} is served by the vite preview of another e2e run still in progress (runner pid ` +
-        `${found.owner}). Wait for it to finish or stop it: one run per stack at a time.`,
+        `${owner}). Wait for it to finish or stop it: one run per stack at a time.`,
     );
   }
   await stopUiServer();
   if (await answers(UI_PORT)) return { pid: null, built: false };
   const built = await bundleIsStale();
   if (built) {
-    await buildBundle().catch((cause: unknown) => {
+    await new BuildLock().run(BUNDLE_HOLDER, buildBundle).catch((cause: unknown) => {
       throw new Error(`nothing answers on port ${UI_PORT}: the UI bundle did not build. ${String(cause)}`);
     });
   }
   const pid = startPreview();
-  writeStateFile<UiServerState>(STATE_FILE, { pid, owner: RUNNER });
+  server.record(pid);
   if (!(await waitForPort(pid, 60_000))) {
     await stopUiServer();
     const log = fs.readFileSync(PREVIEW_LOG, "utf-8").split("\n").slice(-20).join("\n");
@@ -228,18 +201,5 @@ export async function ensureUiServer(): Promise<{ pid: number | null; built: boo
  * stay up.
  */
 export async function stopUiServer(): Promise<void> {
-  const state = readStateFile<UiServerState>(STATE_FILE);
-  if (state && state.owner !== RUNNER && processAlive(state.owner)) return;
-  fs.rmSync(STATE_FILE, { force: true });
-  if (!state?.pid || !previewGroup(state.pid)) return;
-  try {
-    process.kill(-state.pid, "SIGTERM");
-  } catch {
-    return; // The group has already exited.
-  }
-  const deadline = Date.now() + 10_000;
-  while (groupAlive(state.pid) && Date.now() < deadline) {
-    await sleep(100);
-  }
-  if (groupAlive(state.pid)) process.kill(-state.pid, "SIGKILL");
+  await server.stop();
 }

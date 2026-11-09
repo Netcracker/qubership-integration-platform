@@ -114,7 +114,7 @@ cip:
 logging:
   level:
     root: ${ROOT_LOG_LEVEL:INFO}
-  config: classpath:logback-spring.xml
+  config: classpath:cip-logback-spring.xml
 
 springdoc:
   writer-with-order-by-keys: true

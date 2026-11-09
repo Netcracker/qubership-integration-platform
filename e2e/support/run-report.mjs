@@ -25,6 +25,7 @@ import fs from "node:fs";
  * @typedef {{ name: string, skipped: number }} IdleProject
  * @typedef {{ cause: string[], projects: IdleProject[] }} NotRun
  * @typedef {{ ms: number, project: string, location: string, title: string }} TimedTest
+ * @typedef {{ name: string, image: string, imageId: string | null }} PublishedImage
  */
 
 export const ERROR_LINES = 8;
@@ -78,17 +79,18 @@ export function groupOf(report) {
 
 /**
  * Which tests pin a product defect that no longer reproduces. A `test.fail()` case that passed is
- * `unexpected`, with a passed result and the `fail` annotation. A project that needs no stack pins
- * no product defect: its pins test the pinning itself, so a pass there is an ordinary failure.
+ * `unexpected`, with a passed result and the `fail` annotation. Only a product project pins a
+ * product defect: a suite check's pins test the pinning itself, so a pass there is an ordinary
+ * failure.
  *
  * @param {Report} report
  * @returns {(test: ReportTest) => boolean}
  */
 export function fixedPinIn(report) {
-  const stackless = new Set((report.config.projects ?? []).filter((each) => each.metadata?.stack === false).map((each) => each.name));
+  const group = groupOf(report);
   return (test) =>
     test.status === "unexpected" &&
-    !stackless.has(test.projectName) &&
+    group(test.projectName) === "product" &&
     (test.annotations ?? []).some((each) => each.type === "fail") &&
     test.results.at(-1)?.status === "passed";
 }
@@ -97,9 +99,10 @@ export function fixedPinIn(report) {
 const zero = () => ({ passed: 0, failed: 0, pins: 0, flaky: 0, skipped: 0 });
 
 /**
- * The counts of each group. A failed count leaves out the pins to remove, which are counted apart.
- * `report.stats` tallies every project, so the setup and suite groups are counted off the report
- * and the product counts are what remains of the stats.
+ * The counts of each group. The product group's failed count leaves out the pins to remove, which
+ * it counts apart; the setup and suite groups hold no pins. `report.stats` tallies every project, so
+ * the setup and suite groups are counted off the report and the product counts are what remains of
+ * the stats.
  *
  * @param {Report} report
  * @returns {Record<Group, Counts>}
@@ -120,14 +123,13 @@ export function groupCounts(report) {
     if (test.status === "expected") each.passed++;
     else if (test.status === "flaky") each.flaky++;
     else if (test.status === "skipped") each.skipped++;
-    else if (test.status === "unexpected" && isFixedPin(test)) each.pins++;
     else if (test.status === "unexpected") each.failed++;
   });
   const { setup, suite } = counts;
   const { expected, unexpected, flaky, skipped } = report.stats;
   counts.product = {
     passed: expected - setup.passed - suite.passed,
-    failed: unexpected - setup.failed - setup.pins - suite.failed - suite.pins - productPins,
+    failed: unexpected - setup.failed - suite.failed - productPins,
     pins: productPins,
     flaky: flaky - setup.flaky - suite.flaky,
     skipped: skipped - setup.skipped - suite.skipped,
@@ -255,16 +257,19 @@ export const grepPattern = (title) => title.replace(/[\\^$.*+?()[\]{}|"'`!]/g, "
 export const grepPathPattern = (title) => title.split(" › ").map(grepPattern).join(".*");
 
 /**
- * The command that reruns one case against a kept corpus. Every iteration of a loop shares one file
- * and line, so the pattern picks out the one that failed.
+ * The command that reruns one case. Every iteration of a loop shares one file and line, so the
+ * pattern picks out the one that failed. A case that needs the stack reruns against a kept corpus,
+ * with `--no-deps`. A project that needs no stack keeps its dependencies, which build and serve
+ * what its cases use, such as the VS Code server of `vscode`.
  *
  * @param {string} target
  * @param {string} project
  * @param {string} location the spec's `file:line` under `specs/`
  * @param {string} title the describe path and the case title
+ * @param {boolean} [stack] whether the project needs the stack
  */
-export const rerunCommand = (target, project, location, title) =>
-  `npm run test:${target} -- --project=${project} --no-deps specs/${location} -g "${grepPathPattern(title)}"`;
+export const rerunCommand = (target, project, location, title, stack = true) =>
+  `npm run test:${target} -- --project=${project}${stack ? " --no-deps" : ""} specs/${location} -g "${grepPathPattern(title)}"`;
 
 /** @param {string[]} names */
 export const joined = (names) => (names.length <= 2 ? names.join(" and ") : `${names.slice(0, -1).join(", ")}, and ${names.at(-1)}`);
@@ -313,4 +318,14 @@ export function shortTime(iso) {
 /** @param {string} iso */
 export function utcDate(iso) {
   return `${shortDate(iso)}, ${new Date(iso).getUTCFullYear()}, ${shortTime(iso)} UTC`;
+}
+
+/**
+ * A published image by its digest, which the tag `latest` does not pin.
+ *
+ * @param {PublishedImage} each
+ */
+export function publishedLabel(each) {
+  if (each.imageId === null) return `${each.image} (no pod yet)`;
+  return /sha256:[0-9a-f]{64}/.exec(each.imageId)?.[0] ?? each.imageId;
 }

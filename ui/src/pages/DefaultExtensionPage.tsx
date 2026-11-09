@@ -19,8 +19,12 @@ const DefaultExtensionPage: React.FC = () => {
 
   useEffect(() => {
     const onMessage = (
-      event: MessageEvent<VSCodeResponse<AppExtensionProps | string>>,
+      event: MessageEvent<VSCodeResponse<AppExtensionProps>>,
     ) => {
+      // VS Code's webview host forwards extension messages from the webview's own origin.
+      if (event.origin !== window.origin) {
+        return;
+      }
       const { type, payload } = event.data;
 
       if (type === STARTUP_EVENT && payload && typeof payload === "object") {
@@ -49,12 +53,6 @@ const DefaultExtensionPage: React.FC = () => {
             setNavigateError(getErrorMessage(error));
           });
         }
-
-        return;
-      }
-
-      if (type === NAVIGATE_EVENT && typeof payload === "string") {
-        void navigate(payload);
       }
     };
 

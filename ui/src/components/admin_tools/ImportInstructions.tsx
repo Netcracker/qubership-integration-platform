@@ -512,7 +512,7 @@ export const ImportInstructions: React.FC = () => {
   const columns: ColumnsTypeWithSettings<InstructionRow> = useMemo(() => {
     return [
       {
-        title: "Id",
+        title: "ID",
         dataIndex: "id",
         key: "id",
         settings: {
@@ -921,7 +921,7 @@ export const AddInstructionModal: React.FC<AddInstructionModalProps> = ({
       >
         <Form.Item
           name="id"
-          label="Id"
+          label="ID"
           rules={[{ required: true, message: "Id is required" }]}
         >
           <Input placeholder="Enter id" />
@@ -994,7 +994,7 @@ export const UploadInstructionsModal: React.FC<
   >(
     () => [
       {
-        title: "Id",
+        title: "ID",
         dataIndex: "id",
         key: "id",
         render: (_name: unknown, row: UploadInstructionResultRow) =>

@@ -1,0 +1,15 @@
+---
+id: "e2e20009-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/service"
+name: "vsc-fixture-implemented"
+content:
+  activeEnvironmentId: "e2e20009-0000-4000-8000-000000000002"
+  integrationSystemType: "IMPLEMENTED"
+  protocol: "HTTP"
+  environments:
+  - id: "e2e20009-0000-4000-8000-000000000002"
+    name: "implemented"
+    address: "/vsc-implemented"
+    sourceType: "MANUAL"
+    labels: []
+  migrations: "[100, 101, 102]"

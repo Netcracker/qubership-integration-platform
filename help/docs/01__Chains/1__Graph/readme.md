@@ -35,7 +35,8 @@ Please find the description for all available tools below:
 - ![shrink](img/shrink.svg) - collapse all existing containers in graph.
 - ![insert-row-right](img/insert-row-right.svg) - expand/hide right panel. The panel is indented to edit chain graph by its text representation.
 - ![insert-row-left](img/insert-row-left.svg) - expand/hide left panel.
-- ![fullscreen](img/fullscreen.svg) ![Exit full screen icon](img/fullscreen-exit.svg) - switch between full screen and collapsed process view. **`⛔ Not available via VS Code extension`**
+- ![fullscreen](img/fullscreen.svg) ![Exit full screen icon](img/fullscreen-exit.svg) - switch between full screen and collapsed process view. **`⛔ Not available via the VS Code extension`**
+- ![compass](img/compass.svg) - hides or shows the minimap in the upper-right corner of the graph.
 
 ### General Actions
 The next actions are available upper right corner:
@@ -92,12 +93,12 @@ When property record is expanded, it shows related element's information as well
 > ℹ️ **Note:** Please note, that this view might not contain property usage record when property participates in complex scenarios (e.g. when property is declared and then fetched via "GET" as a variable).
 
 ### Open Chain's Text View
-**`⛔ Not available via VS Code extension`**
+**`⛔ Not available via the VS Code extension`**
 
 Chain is also available in a text view, that could be used to compare one chain with another, find specific data or debugging. To open text view, simply click ![insert-row-right](img/insert-row-right.svg) to open right panel and then select respective tab with ![file](img/file.svg) icon.
 
 ### Generate Document by Template
-**`⛔ Not available via VS Code extension`**
+**`⛔ Not available via the VS Code extension`**
 
 To initiate document generation, click ![file](img/file.svg) **"Generate DDS"** on control panel, select desired template from the list, specify document name and click "**Generate**". System will show preview screen, where it is possible to get familiar with the finalized view of the document. Click "**Download**" to get the archive, that contains design document in .md format and other supplementary files, like pictures, etc. Data from the archive can be further processed by Markdown editors or processors to build proper human-readable document, presented on preview step.
 

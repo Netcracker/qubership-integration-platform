@@ -12,7 +12,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { GROUPS, GROUP_TITLES, clock, eachTest, escapeHtml, readIfPresent, shortDate, shortTime, slowestTests, stripAnsi } from "./run-report.mjs";
+import { GROUPS, GROUP_TITLES, clock, eachTest, escapeHtml, publishedLabel, readIfPresent, shortDate, shortTime, slowestTests, stripAnsi } from "./run-report.mjs";
 import { readHistory, writeOutcomes } from "./run-history.mjs";
 import { byNovelty, groupsSentence, historyParts, runOf } from "./run-model.mjs";
 
@@ -32,8 +32,12 @@ export const METASPACE_ATTACHMENT = "metaspace";
  * @typedef {import("./run-model.mjs").Run} Run
  * @typedef {import("./run-model.mjs").FailedCase} FailedCase
  * @typedef {import("./run-model.mjs").LastRun} LastRun
- * @typedef {{ workers?: number, provision?: { durationMs?: number }, startedAt?: string, target?: string, commit?: { sha?: string, branch?: string }, absent?: { name: string, reason: string }[] }} Stack
- * @typedef {{ target: string, elements: { covered: number, inScope: number, outOfScope: number, shared: number }, operations: { total: number, reached: number, covered: number }, problems: number }} Coverage
+ * @typedef {import("./run-report.mjs").PublishedImage} PublishedImage
+ * @typedef {{ workers?: number, provision?: { durationMs?: number, published?: PublishedImage[] }, startedAt?: string, target?: string, commit?: { sha?: string, branch?: string }, absent?: { name: string, reason: string }[] }} Stack
+ * @typedef {{
+ *   target: string, elements: { covered: number, inScope: number, outOfScope: number, shared: number },
+ *   operations: { total: number, reached: number, covered: number }, messages: { covered: number, handled: number, unhandled: number }, problems: number
+ * }} Coverage
  * @typedef {{ role: string, memoryBytes: number, cpuPercent: number, samples: number, band: { memoryBytes: number, cpuPercent: number } }} PeakReading
  * @typedef {{ role: string, usedBytes: number, maxBytes: number, band: number }} MetaspaceReading
  * @typedef {{ report?: Report, lastRun?: LastRun, stack?: Stack, coverage?: Coverage, history?: Outcomes[], env?: Record<string, string | undefined> }} SummaryInput
@@ -99,6 +103,17 @@ function timing(run, stack) {
   if (stack?.provision?.durationMs !== undefined) parts.push(`${minutes(stack.provision.durationMs)} of it provisioning the stack`);
   if (stack?.workers) parts.push(`on ${stack.workers} workers`);
   return parts.length > 0 ? `${parts.join(", ")}.` : undefined;
+}
+
+/**
+ * The images the run took from GHCR rather than building them, which `E2E_BUILD` decides.
+ *
+ * @param {Stack | undefined} stack
+ */
+function publishedLine(stack) {
+  const published = stack?.provision?.published ?? [];
+  if (published.length === 0) return undefined;
+  return `From GHCR: ${published.map((each) => `${each.name} \`${publishedLabel(each)}\``).join(", ")}.`;
 }
 
 /**
@@ -214,7 +229,7 @@ function trendSection(run) {
 
 /** @param {Coverage} coverage */
 function coverageSection(coverage) {
-  const { elements, operations } = coverage;
+  const { elements, operations, messages } = coverage;
   const verdict =
     coverage.problems === 0
       ? "Reconciliation passed."
@@ -223,7 +238,8 @@ function coverageSection(coverage) {
     "Coverage",
     `Elements: ${elements.covered} of ${elements.inScope} registry rows in scope covered on ${coverage.target}` +
       ` (${elements.outOfScope} out of scope, ${elements.shared} shared). ` +
-      `API operations: ${operations.covered} of ${operations.total} covered, ${operations.reached} reached. ${verdict}`,
+      `API operations: ${operations.covered} of ${operations.total} covered, ${operations.reached} reached. ` +
+      `VS Code messages: ${messages.covered} of ${messages.handled} handled message types covered, ${messages.unhandled} unhandled. ${verdict}`,
   );
 }
 
@@ -317,6 +333,7 @@ export function summaryMarkdown({ report, lastRun, stack, coverage, history = []
     const parts = [];
     if (report || lastRun) parts.push(verdictLine(run));
     if (report) parts.push(timing(run, stack));
+    parts.push(publishedLine(stack));
     parts.push(linksSection(run));
     // Playwright colors the messages with ANSI escapes.
     if (report && report.errors.length > 0) {

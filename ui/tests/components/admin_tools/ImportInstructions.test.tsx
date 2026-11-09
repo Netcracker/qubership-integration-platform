@@ -546,7 +546,7 @@ describe("ImportInstructions", () => {
       await within(dialog).findByText("UploadedService"),
     ).toBeInTheDocument();
     expect(
-      within(dialog).getAllByRole("columnheader", { name: "Id" }).length,
+      within(dialog).getAllByRole("columnheader", { name: "ID" }).length,
     ).toBeGreaterThan(0);
     expect(
       await within(dialog).findByRole("columnheader", { name: "Status" }),

@@ -83,8 +83,6 @@ import {
   resolveOutputFileUri,
 } from "../exportImageUtils";
 
-let lastWebviewPath: string | undefined = undefined;
-
 const pendingExportImagesByPanel = new WeakMap<
   WebviewPanel,
   ExportImagesStartupPayload
@@ -144,10 +142,6 @@ export async function getApiResponse(
       return getExtensionConfiguration(panel);
     case "navigate":
       if (message.payload?.path) {
-        if (lastWebviewPath === message.payload.path) {
-          return;
-        }
-        lastWebviewPath = message.payload.path;
         return await parseNavigatePath(
           message.payload.path,
           fileUri,

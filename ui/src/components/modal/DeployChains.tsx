@@ -42,7 +42,7 @@ type DeployChainsProps = {
 
 const resultColumns: TableProps<BulkDeploymentResult>["columns"] = [
   {
-    title: "Chain Id",
+    title: "Chain ID",
     dataIndex: "chainId",
     ellipsis: true,
   },
