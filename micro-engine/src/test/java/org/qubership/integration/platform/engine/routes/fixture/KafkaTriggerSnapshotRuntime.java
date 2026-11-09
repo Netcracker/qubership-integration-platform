@@ -58,6 +58,9 @@ public final class KafkaTriggerSnapshotRuntime implements AutoCloseable {
     private final List<Exchange> invocationCompletions = new CopyOnWriteArrayList<>();
     private final List<RecordId> allReceived = new CopyOnWriteArrayList<>();
     private final List<RecordId> allCompleted = new CopyOnWriteArrayList<>();
+    private final Map<RecordId, PublishedRecord> brokerRecords = new ConcurrentHashMap<>();
+    private final Set<RecordId> historicalReplay = ConcurrentHashMap.newKeySet();
+    private final Map<RecordId, Long> historicalReplayCounts = new ConcurrentHashMap<>();
     private final List<Exchange> allInputs = new CopyOnWriteArrayList<>();
     private final Set<RecordId> redeliveryAllowed = ConcurrentHashMap.newKeySet();
     private final List<PublishedRecord> published = new ArrayList<>();
@@ -147,10 +150,36 @@ public final class KafkaTriggerSnapshotRuntime implements AutoCloseable {
         publishMessages(null, Map.of(), Map.of("messages", messages));
     }
 
+    Map<TopicPartition, Long> publishFiltered(List<?> messages) throws Exception {
+        Map<TopicPartition, Long> offsets = new LinkedHashMap<>();
+        for (PublishedRecord publishedRecord : publishMessages(null, Map.of(), Map.of("messages", messages))) {
+            offsets.merge(publishedRecord.id().topicPartition(), publishedRecord.id().offset() + 1, Math::max);
+        }
+        return offsets;
+    }
+
     void publishStartup(List<?> messages) throws Exception {
         List<PublishedRecord> records = publishMessages(null, Map.of(), Map.of("messages", messages));
         startupRecords.addAll(records);
         published.addAll(records);
+    }
+
+    void expectHistoricalReplay(List<?> records) {
+        for (Object item : records) {
+            Map<?, ?> value = (Map<?, ?>) item;
+            RecordId id = new RecordId((String) (value.containsKey("topic") ? value.get("topic") : defaultTopic),
+                    ((Number) value.get("partition")).intValue(), ((Number) value.get("offset")).longValue());
+            PublishedRecord publishedRecord = brokerRecords.get(id);
+            assertNotNull(publishedRecord, "Kafka replay expectation must reference an existing broker record: " + id);
+            historicalReplay.add(id);
+            historicalReplayCounts.compute(id, (ignored, previous) -> previous == null
+                    ? allReceived.stream().filter(id::equals).count() + 1 : previous + 1);
+            redeliveryAllowed.add(id);
+            startupRecords.add(publishedRecord);
+            if (published.stream().noneMatch(previous -> previous.id().equals(id))) {
+                published.add(publishedRecord);
+            }
+        }
     }
 
     void consumerFailure(Throwable failure) {
@@ -202,7 +231,10 @@ public final class KafkaTriggerSnapshotRuntime implements AutoCloseable {
         for (int index = 0; index < count; index++) {
             ProducerRecord<byte[], byte[]> record = createRecord(defaultTopic, body, headers, parameters);
             RecordMetadata metadata = producer.send(record).get(20, TimeUnit.SECONDS);
-            result.add(new PublishedRecord(record, metadata, parameters.get("valueEncoding"), parameters.get("keyEncoding")));
+            PublishedRecord publishedRecord = new PublishedRecord(record, metadata,
+                    parameters.get("valueEncoding"), parameters.get("keyEncoding"));
+            result.add(publishedRecord);
+            brokerRecords.put(publishedRecord.id(), publishedRecord);
         }
     }
 
@@ -236,7 +268,8 @@ public final class KafkaTriggerSnapshotRuntime implements AutoCloseable {
     }
 
     void assertNothingDelivered() {
-        assertTrue(received.isEmpty(), "Kafka trigger received a record while its consumer was unavailable.");
+        assertTrue(received.isEmpty(), () -> "Kafka trigger received unexpected records: "
+                + received.stream().map(KafkaTriggerSnapshotRuntime::id).toList());
         assertTrue(completions.isEmpty(), "Kafka trigger completed a record while its consumer was unavailable.");
     }
 
@@ -353,7 +386,12 @@ public final class KafkaTriggerSnapshotRuntime implements AutoCloseable {
             return;
         }
         assertNotNull(actual, description);
-        assertEquals(KafkaTriggerSnapshotRecordCodec.valueType(encoding), actual.getClass(), description + " type");
+        Class<?> expectedType = KafkaTriggerSnapshotRecordCodec.valueType(encoding);
+        if (expectedType == java.nio.ByteBuffer.class) {
+            assertInstanceOf(expectedType, actual, description + " type");
+        } else {
+            assertEquals(expectedType, actual.getClass(), description + " type");
+        }
         assertArrayEquals(expected, KafkaTriggerSnapshotRecordCodec.encode(actual, encoding), description + " bytes");
     }
 
@@ -412,7 +450,8 @@ public final class KafkaTriggerSnapshotRuntime implements AutoCloseable {
         for (RecordId record : actual) {
             Long last = previous.put(record.topicPartition(), record.offset());
             assertTrue(last == null || record.offset() > last
-                    || record.offset() == last && redeliveryAllowed.contains(record), description + " partition order");
+                    || record.offset() == last && redeliveryAllowed.contains(record)
+                    || historicalReplay.contains(record), description + " partition order");
             if (seen.add(record)) {
                 unique.add(record);
             } else {
@@ -436,6 +475,8 @@ public final class KafkaTriggerSnapshotRuntime implements AutoCloseable {
         assertRecordSequence(expected, allCompleted, "Kafka trigger final completion");
         Map<RecordId, PublishedRecord> records = byId(published);
         allInputs.forEach(input -> assertInput(records.get(id(input)), input, "Kafka trigger final input"));
+        historicalReplayCounts.forEach((recordId, count) -> assertEquals(count.longValue(),
+                allReceived.stream().filter(recordId::equals).count(), "Kafka historical replay count for " + recordId));
         assertNoUnexpectedCompletions("Kafka trigger");
     }
 

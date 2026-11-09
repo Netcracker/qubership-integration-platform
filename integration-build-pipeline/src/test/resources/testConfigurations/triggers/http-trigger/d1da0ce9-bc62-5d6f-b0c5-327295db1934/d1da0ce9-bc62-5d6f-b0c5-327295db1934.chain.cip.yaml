@@ -1,0 +1,97 @@
+---
+id: d1da0ce9-bc62-5d6f-b0c5-327295db1934
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+name: http-trigger-schema-mapper
+content:
+  labels: []
+  elements:
+  - id: 7d663b05-ea15-5c74-955b-861aaf6a96a2
+    name: HTTP Trigger
+    type: http-trigger
+    properties:
+      accessControlType: NONE
+      allowedContentTypes:
+      - application/json
+      chunked: true
+      connectTimeout: 120000
+      contextPath: schema-mapper
+      externalRoute: false
+      handleChainFailureAction: default
+      handleValidationAction: mapper-2
+      httpBinding: handlingHttpBinding
+      httpMethodRestrict: POST
+      idempotency:
+        enabled: true
+        keyExpiry: 600
+        keyExpression: ${jsonpath('$.id')}
+        contextExpression: http-schema-mapper
+        actionOnDuplicate: ignore
+      killSessionOnTimeout: false
+      privateRoute: false
+      receiveCorrelationId: false
+      rejectRequestIfNonNullBodyGetDelete: true
+      validationSchema: '{"type":"object","required":["id","value"],"properties":{"id":{"type":"string","minLength":1},"value":{"type":"integer","minimum":0}},"additionalProperties":false}'
+      handlerContainer:
+        mappingDescription:
+          source:
+            body:
+              name: object
+              schema:
+                id: a091a38fa23b431c9455a83fd47f62fc
+                attributes: []
+              metadata:
+                dataFormat: JSON
+                sourceType: sample
+                sourceFormat: JSON
+              definitions: []
+            headers: []
+            properties: []
+          target:
+            body:
+              name: object
+              schema:
+                id: 64d5d12aa4a848e2b7c0038ae562f7f3
+                attributes:
+                - id: bee9f026d74c5059b7c596cd7ffa80ae
+                  name: handled
+                  type:
+                    name: string
+                  required: false
+              metadata:
+                dataFormat: JSON
+                sourceType: sample
+                sourceFormat: JSON
+              definitions: []
+            headers: []
+            properties: []
+          actions:
+          - id: 814db7ebfce956ef88f2afd6c08e2676
+            target:
+              kind: body
+              path:
+              - bee9f026d74c5059b7c596cd7ffa80ae
+              type: attribute
+            sources:
+            - type: constant
+              constantId: 82c8fdbb318e536e8399f8482e88f50e
+          constants:
+          - id: 82c8fdbb318e536e8399f8482e88f50e
+            name: handled
+            type:
+              name: string
+            valueSupplier:
+              kind: given
+              value: validation
+        throwException: true
+  - id: 28f7968a-700f-5b17-b029-ce90d7f7280c
+    name: Process HTTP request
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 28f7968a-700f-5b17-b029-ce90d7f7280c.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: 7d663b05-ea15-5c74-955b-861aaf6a96a2
+    to: 28f7968a-700f-5b17-b029-ce90d7f7280c
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

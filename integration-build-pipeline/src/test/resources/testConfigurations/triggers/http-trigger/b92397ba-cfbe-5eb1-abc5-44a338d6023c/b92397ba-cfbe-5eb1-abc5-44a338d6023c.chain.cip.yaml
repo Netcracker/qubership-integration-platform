@@ -1,0 +1,50 @@
+id: b92397ba-cfbe-5eb1-abc5-44a338d6023c
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+name: http-trigger-session-deadline
+content:
+  labels: []
+  elements:
+  - id: 4d269b9e-8759-591f-853f-38217751fa64
+    name: HTTP Trigger
+    type: http-trigger
+    properties:
+      accessControlType: NONE
+      allowedContentTypes: []
+      chunked: true
+      connectTimeout: 5000
+      contextPath: session-deadline
+      externalRoute: false
+      handleChainFailureAction: default
+      handleValidationAction: default
+      httpBinding: handlingHttpBinding
+      httpMethodRestrict: POST
+      idempotency:
+        enabled: false
+        keyExpiry: 600
+        actionOnDuplicate: ignore
+      killSessionOnTimeout: true
+      privateRoute: false
+      receiveCorrelationId: false
+      rejectRequestIfNonNullBodyGetDelete: true
+      responseFilter: false
+  - id: 7c3af597-c69c-5e7d-992b-2658f3bf4afa
+    name: Finish current processor after deadline
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 7c3af597-c69c-5e7d-992b-2658f3bf4afa.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  - id: 55736109-4b03-50ca-83ae-36cc334fb733
+    name: Process request before deadline
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 55736109-4b03-50ca-83ae-36cc334fb733.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: 4d269b9e-8759-591f-853f-38217751fa64
+    to: 7c3af597-c69c-5e7d-992b-2658f3bf4afa
+  - from: 7c3af597-c69c-5e7d-992b-2658f3bf4afa
+    to: 55736109-4b03-50ca-83ae-36cc334fb733
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

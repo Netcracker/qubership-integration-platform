@@ -46,6 +46,7 @@ fixtures:
   deployment: kafka-sender-header-keys
 scenarios:
 - id: publishes-scalar-values-with-context-keys-and-routing
+  reuseBroker: true
   scope: Short
   deployment: kafka-sender
   endpointUri: cip-chain:20e7a133-e482-4ac0-afdf-26ae1f1f152d
@@ -2909,6 +2910,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: empty-batch
 - id: partitions-records-by-configured-and-header-keys
+  reuseBroker: true
   scope: Long
   deployment: kafka-sender
   endpointUri: cip-chain:20e7a133-e482-4ac0-afdf-26ae1f1f152d
@@ -3632,6 +3634,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: partition-original
 - id: publishes-values-from-iterator-and-recovers-after-invalid-or-empty-input
+  reuseBroker: true
   scope: Long
   deployment: kafka-sender
   driver:
@@ -4198,6 +4201,7 @@ scenarios:
             offset: 3
           expectedProduceAttempts: 1
 - id: publishes-scalar-and-batch-without-acknowledgments
+  reuseBroker: true
   scope: Long
   deployment: kafka-sender
   endpointUri: cip-chain:20e7a133-e482-4ac0-afdf-26ae1f1f152d
@@ -4327,6 +4331,7 @@ scenarios:
             partition: 0
             offset: 3
 - id: publishes-gzip-compressed-records
+  reuseBroker: true
   scope: Long
   deployment: kafka-sender
   endpointUri: cip-chain:20e7a133-e482-4ac0-afdf-26ae1f1f152d
@@ -4450,6 +4455,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: gzip-batch
 - id: publishes-snappy-compressed-records
+  reuseBroker: true
   scope: Long
   deployment: kafka-sender
   endpointUri: cip-chain:20e7a133-e482-4ac0-afdf-26ae1f1f152d
@@ -4573,6 +4579,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: snappy-batch
 - id: publishes-lz4-compressed-records
+  reuseBroker: true
   scope: Long
   deployment: kafka-sender
   endpointUri: cip-chain:20e7a133-e482-4ac0-afdf-26ae1f1f152d
@@ -4696,6 +4703,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: lz4-batch
 - id: publishes-zstd-compressed-records
+  reuseBroker: true
   scope: Long
   deployment: kafka-sender
   endpointUri: cip-chain:20e7a133-e482-4ac0-afdf-26ae1f1f152d
@@ -11916,6 +11924,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: after-batch-error
 - id: publishes-message-and-exchange-batches-with-per-item-routing-and-recovers
+  reuseBroker: true
   scope: Long
   deployment: kafka-sender-header-keys
   endpointUri: cip-chain:b1fa0faf-03f1-45a9-a8b6-dde58f19a46e
@@ -12769,6 +12778,7 @@ scenarios:
         itemType: exchange
         containerType: list
 - id: omits-record-metadata-on-message-batch-items
+  reuseBroker: true
   scope: Long
   deployment: kafka-sender-header-keys
   driver:
@@ -12925,6 +12935,7 @@ scenarios:
           producerProperties:
             recordMetadata: false
 - id: omits-record-metadata-on-exchange-batch-items-synchronously
+  reuseBroker: true
   scope: Long
   deployment: kafka-sender-header-keys
   driver:

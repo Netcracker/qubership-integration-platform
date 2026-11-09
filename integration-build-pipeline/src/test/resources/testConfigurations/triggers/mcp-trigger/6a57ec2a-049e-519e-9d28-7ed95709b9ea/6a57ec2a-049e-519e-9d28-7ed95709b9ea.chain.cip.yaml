@@ -1,0 +1,32 @@
+---
+id: 6a57ec2a-049e-519e-9d28-7ed95709b9ea
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+name: mcp-trigger-hints
+content:
+  labels: []
+  elements:
+  - id: db127a7a-5e5d-5379-bfc9-9bc7ec931bd7
+    name: MCP Trigger
+    type: mcp-trigger
+    properties:
+      mcpServiceIds:
+      - a61e7e36-2fe7-588c-bbb9-8e116c4b88c8
+      name: snapshot_mcp_hints
+      description: Exercises MCP hints behavior in component tests.
+      destructive: true
+      idempotent: true
+      inputSchema: '{"type":"object","properties":{"message":{"type":"string"}},"additionalProperties":false}'
+      openWorld: true
+      readOnly: true
+  - id: d5ff29ee-9347-57fb-99b3-7a6275cb916c
+    name: Script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: d5ff29ee-9347-57fb-99b3-7a6275cb916c.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: db127a7a-5e5d-5379-bfc9-9bc7ec931bd7
+    to: d5ff29ee-9347-57fb-99b3-7a6275cb916c
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

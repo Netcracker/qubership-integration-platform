@@ -6,11 +6,60 @@ deployments:
 
   - id: idempotency
     route: http-trigger-idempotency
+  - id: schema
+    route: http-trigger-schema
+  - id: header-correlation
+    route: http-trigger-header-correlation
+  - id: body-correlation
+    route: http-trigger-body-correlation
+  - id: response-filter
+    route: http-trigger-response-filter
+  - id: response-filter-shapes
+    route: http-trigger-response-filter-shapes
+  - id: failure-script
+    route: http-trigger-failure-script
+  - id: failure-subchain
+    route: http-trigger-failure-subchain
+  - id: duplicate-throw
+    route: http-trigger-duplicate-throw
+  - id: duplicate-subchain
+    route: http-trigger-duplicate-subchain
+  - id: schema-mapper
+    route: http-trigger-schema-mapper
+  - id: failure-mapper
+    route: http-trigger-failure-mapper
+  - id: servlet-wire
+    route: http-trigger-servlet-wire
+  - id: session-deadline
+    route: http-trigger-session-deadline
 fixtures:
   - id: idempotency-store
     provider: idempotency-postgres
     deployment: idempotency
     sourceElementId: e8b645a7-82b5-4fbd-976e-8a0aa33f8fc4
+  - id: schema-store
+    provider: idempotency-postgres
+    deployment: schema
+    sourceElementId: ebb0d535-40ee-5b4d-b2f4-f1ac0c143c09
+  - id: duplicate-throw-store
+    provider: idempotency-postgres
+    deployment: duplicate-throw
+    sourceElementId: ed12cb20-426d-5ec1-b000-21168cd8e476
+  - id: duplicate-subchain-store
+    provider: idempotency-postgres
+    deployment: duplicate-subchain
+    sourceElementId: 8afd67a3-12cd-523a-b7f4-e2f0e00db6e2
+  - id: duplicate-subchain-handler-store
+    provider: idempotency-postgres
+    deployment: duplicate-subchain
+    sourceElementId: 091dbfec-4797-52ab-a369-cc037b332e81
+  - id: schema-mapper-store
+    provider: idempotency-postgres
+    deployment: schema-mapper
+    sourceElementId: 28f7968a-700f-5b17-b029-ce90d7f7280c
+  - id: debugger-deadline
+    provider: http-session-deadline
+    deployment: session-deadline
 scenarios:
   - id: handles-empty-get-requests
     scope: Short
@@ -1665,3 +1714,1923 @@ scenarios:
                   - POST /qip-routes/test-w-body:existing
                   - POST /qip-routes/test-w-body:unreserved
                 updatedKeys: []
+
+  - id: validates-json-schema-before-reserving-idempotency-keys
+    scope: Short
+    deployment: schema
+    driver:
+      provider: http-trigger
+      sourceElementId: ab58f3e6-6c30-5f77-b885-0f78a04a66b8
+      parameters:
+        method: POST
+        path: /routes/schema-test
+    invocations:
+      - id: valid-before-rejections
+        body:
+          id: first
+          value: 1
+        expectedBody:
+          id: first
+          value: 1
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        headers:
+          Content-Type: application/json
+        expectedExchangeHeaders:
+          snapshotMainExecuted: true
+        interactions:
+          - fixture: schema-store
+            expectedRequest:
+              count: 1
+              properties:
+                insertionAttempts: 1
+                key: http-schema:first
+                keyExpiry: 600
+                storedKeys:
+                  - http-schema:first
+                updatedKeys:
+                  - http-schema:first
+      - id: missing-required-value
+        body:
+          id: missing
+        expectedBody: Invalid request
+        expectedHeaders:
+          CamelHttpResponseCode: 400
+        headers:
+          Content-Type: application/json
+        expectedAbsentExchangeHeaders:
+          - snapshotMainExecuted
+        expectedProperties:
+          internalProperty_sessionFailed: 'true'
+          internalProperty_elementFailed: 'true'
+        interactions:
+          - fixture: schema-store
+            expectedRequest:
+              count: 0
+              properties:
+                insertionAttempts: 0
+                key: null
+                keyExpiry: null
+                storedKeys:
+                  - http-schema:first
+                updatedKeys: []
+      - id: wrong-value-type
+        body:
+          id: wrong-type
+          value: one
+        expectedBody: Invalid request
+        expectedHeaders:
+          CamelHttpResponseCode: 400
+        headers:
+          Content-Type: application/json
+        expectedAbsentExchangeHeaders:
+          - snapshotMainExecuted
+        expectedProperties:
+          internalProperty_sessionFailed: 'true'
+          internalProperty_elementFailed: 'true'
+        interactions:
+          - fixture: schema-store
+            expectedRequest:
+              count: 0
+              properties:
+                insertionAttempts: 0
+                key: null
+                keyExpiry: null
+                storedKeys:
+                  - http-schema:first
+                updatedKeys: []
+      - id: negative-value
+        body:
+          id: negative
+          value: -1
+        expectedBody: Invalid request
+        expectedHeaders:
+          CamelHttpResponseCode: 400
+        headers:
+          Content-Type: application/json
+        expectedAbsentExchangeHeaders:
+          - snapshotMainExecuted
+        expectedProperties:
+          internalProperty_sessionFailed: 'true'
+          internalProperty_elementFailed: 'true'
+        interactions:
+          - fixture: schema-store
+            expectedRequest:
+              count: 0
+              properties:
+                insertionAttempts: 0
+                key: null
+                keyExpiry: null
+                storedKeys:
+                  - http-schema:first
+                updatedKeys: []
+      - id: unexpected-field
+        body:
+          id: extra
+          value: 1
+          extra: true
+        expectedBody: Invalid request
+        expectedHeaders:
+          CamelHttpResponseCode: 400
+        headers:
+          Content-Type: application/json
+        expectedAbsentExchangeHeaders:
+          - snapshotMainExecuted
+        expectedProperties:
+          internalProperty_sessionFailed: 'true'
+          internalProperty_elementFailed: 'true'
+        interactions:
+          - fixture: schema-store
+            expectedRequest:
+              count: 0
+              properties:
+                insertionAttempts: 0
+                key: null
+                keyExpiry: null
+                storedKeys:
+                  - http-schema:first
+                updatedKeys: []
+      - id: malformed-json
+        body: '{"id":'
+        expectedBody: Invalid request
+        expectedHeaders:
+          CamelHttpResponseCode: 400
+        headers:
+          Content-Type: application/json
+        expectedAbsentExchangeHeaders:
+          - snapshotMainExecuted
+        expectedProperties:
+          internalProperty_sessionFailed: 'true'
+          internalProperty_elementFailed: 'true'
+        interactions:
+          - fixture: schema-store
+            expectedRequest:
+              count: 0
+              properties:
+                insertionAttempts: 0
+                key: null
+                keyExpiry: null
+                storedKeys:
+                  - http-schema:first
+                updatedKeys: []
+      - id: empty-json
+        body: ''
+        expectedBody: Invalid request
+        expectedHeaders:
+          CamelHttpResponseCode: 400
+        headers:
+          Content-Type: application/json
+        expectedAbsentExchangeHeaders:
+          - snapshotMainExecuted
+        expectedProperties:
+          internalProperty_sessionFailed: 'true'
+          internalProperty_elementFailed: 'true'
+        interactions:
+          - fixture: schema-store
+            expectedRequest:
+              count: 0
+              properties:
+                insertionAttempts: 0
+                key: null
+                keyExpiry: null
+                storedKeys:
+                  - http-schema:first
+                updatedKeys: []
+      - id: valid-after-rejections
+        body:
+          id: recovered
+          value: 2
+        expectedBody:
+          id: recovered
+          value: 2
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        headers:
+          Content-Type: application/json; charset=UTF-8
+        expectedExchangeHeaders:
+          snapshotMainExecuted: true
+        expectedProperties:
+          internalProperty_sessionFailed: null
+          internalProperty_elementFailed: null
+        interactions:
+          - fixture: schema-store
+            expectedRequest:
+              count: 1
+              properties:
+                insertionAttempts: 1
+                key: http-schema:recovered
+                keyExpiry: 600
+                storedKeys:
+                  - http-schema:first
+                  - http-schema:recovered
+                updatedKeys:
+                  - http-schema:recovered
+  - id: restricts-content-types-before-reserving-idempotency-keys
+    scope: Short
+    deployment: schema
+    driver:
+      provider: http-trigger
+      sourceElementId: ab58f3e6-6c30-5f77-b885-0f78a04a66b8
+      parameters:
+        method: POST
+        path: /routes/schema-test
+    invocations:
+      - id: valid-before-rejections
+        body:
+          id: first
+          value: 1
+        expectedBody:
+          id: first
+          value: 1
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        headers:
+          Content-Type: application/json
+        expectedExchangeHeaders:
+          snapshotMainExecuted: true
+        interactions:
+          - fixture: schema-store
+            expectedRequest:
+              count: 1
+              properties:
+                insertionAttempts: 1
+                key: http-schema:first
+                keyExpiry: 600
+                storedKeys:
+                  - http-schema:first
+                updatedKeys:
+                  - http-schema:first
+      - id: text-content-type
+        body:
+          id: text
+          value: 1
+        expectedBody: Invalid request
+        expectedHeaders:
+          CamelHttpResponseCode: 400
+        headers:
+          Content-Type: text/plain
+        expectedAbsentExchangeHeaders:
+          - snapshotMainExecuted
+        expectedProperties:
+          internalProperty_sessionFailed: 'true'
+          internalProperty_elementFailed: 'true'
+        interactions:
+          - fixture: schema-store
+            expectedRequest:
+              count: 0
+              properties:
+                insertionAttempts: 0
+                key: null
+                keyExpiry: null
+                storedKeys:
+                  - http-schema:first
+                updatedKeys: []
+      - id: binary-content-type
+        body:
+          id: binary
+          value: 1
+        expectedBody: Invalid request
+        expectedHeaders:
+          CamelHttpResponseCode: 400
+        headers:
+          Content-Type: application/octet-stream
+        expectedAbsentExchangeHeaders:
+          - snapshotMainExecuted
+        expectedProperties:
+          internalProperty_sessionFailed: 'true'
+          internalProperty_elementFailed: 'true'
+        interactions:
+          - fixture: schema-store
+            expectedRequest:
+              count: 0
+              properties:
+                insertionAttempts: 0
+                key: null
+                keyExpiry: null
+                storedKeys:
+                  - http-schema:first
+                updatedKeys: []
+      - id: missing-content-type
+        body:
+          id: missing
+          value: 1
+        expectedBody: Invalid request
+        expectedHeaders:
+          CamelHttpResponseCode: 400
+        headers: {}
+        expectedAbsentExchangeHeaders:
+          - snapshotMainExecuted
+        expectedProperties:
+          internalProperty_sessionFailed: 'true'
+          internalProperty_elementFailed: 'true'
+        interactions:
+          - fixture: schema-store
+            expectedRequest:
+              count: 0
+              properties:
+                insertionAttempts: 0
+                key: null
+                keyExpiry: null
+                storedKeys:
+                  - http-schema:first
+                updatedKeys: []
+      - id: invalid-content-type
+        body:
+          id: invalid
+          value: 1
+        expectedBody: Invalid request
+        expectedHeaders:
+          CamelHttpResponseCode: 400
+        headers:
+          Content-Type: not a valid media type
+        expectedAbsentExchangeHeaders:
+          - snapshotMainExecuted
+        expectedProperties:
+          internalProperty_sessionFailed: 'true'
+          internalProperty_elementFailed: 'true'
+        interactions:
+          - fixture: schema-store
+            expectedRequest:
+              count: 0
+              properties:
+                insertionAttempts: 0
+                key: null
+                keyExpiry: null
+                storedKeys:
+                  - http-schema:first
+                updatedKeys: []
+      - id: valid-after-rejections
+        body:
+          id: recovered
+          value: 2
+        expectedBody:
+          id: recovered
+          value: 2
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        headers:
+          Content-Type: application/json; charset=UTF-8
+        expectedExchangeHeaders:
+          snapshotMainExecuted: true
+        expectedProperties:
+          internalProperty_sessionFailed: null
+          internalProperty_elementFailed: null
+        interactions:
+          - fixture: schema-store
+            expectedRequest:
+              count: 1
+              properties:
+                insertionAttempts: 1
+                key: http-schema:recovered
+                keyExpiry: 600
+                storedKeys:
+                  - http-schema:first
+                  - http-schema:recovered
+                updatedKeys:
+                  - http-schema:recovered
+  - id: extracts-header-correlation-and-path-variables-without-leaking-state
+    scope: Short
+    deployment: header-correlation
+    driver:
+      provider: http-trigger
+      sourceElementId: 13f3f32b-9c5b-5c02-b824-2714b65dca6d
+      parameters:
+        method: GET
+        path: /routes/correlated/{tenant}/items/{itemId}
+    invocations:
+      - id: first-path
+        expectedBody: Completed
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        driver:
+          provider: http-trigger
+          sourceElementId: 13f3f32b-9c5b-5c02-b824-2714b65dca6d
+          parameters:
+            method: GET
+            path: /routes/correlated/tenant-A/items/item-9
+        headers:
+          X-Correlation-Id: header-first
+        expectedProperties:
+          tenant: tenant-A
+          itemId: item-9
+          correlationId: header-first
+        expectedExchangeHeaders:
+          snapshotMainExecuted: true
+      - id: new-path-without-correlation
+        expectedBody: Completed
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        driver:
+          provider: http-trigger
+          sourceElementId: 13f3f32b-9c5b-5c02-b824-2714b65dca6d
+          parameters:
+            method: GET
+            path: /routes/correlated/tenant-B/items/item-2
+        expectedProperties:
+          tenant: tenant-B
+          itemId: item-2
+          correlationId: null
+        expectedExchangeHeaders:
+          snapshotMainExecuted: true
+      - id: punctuation-and-case
+        expectedBody: Completed
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        driver:
+          provider: http-trigger
+          sourceElementId: 13f3f32b-9c5b-5c02-b824-2714b65dca6d
+          parameters:
+            method: GET
+            path: /routes/correlated/Tenant_3/items/item.4
+        headers:
+          X-Correlation-Id: header-last
+        expectedProperties:
+          tenant: Tenant_3
+          itemId: item.4
+          correlationId: header-last
+        expectedExchangeHeaders:
+          snapshotMainExecuted: true
+  - id: extracts-body-correlation-and-preserves-the-request-body
+    scope: Short
+    deployment: body-correlation
+    driver:
+      provider: http-trigger
+      sourceElementId: d5f734c2-8cdf-5786-85ec-33bba336302f
+      parameters:
+        method: POST
+        path: /routes/body-correlation
+    invocations:
+      - id: string-id
+        body:
+          requestId: body-first
+          value: 1
+        expectedBody:
+          requestId: body-first
+          value: 1
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        headers:
+          Content-Type: application/json
+        expectedProperties:
+          correlationId: body-first
+        expectedExchangeHeaders:
+          snapshotMainExecuted: true
+      - id: missing-id
+        body:
+          value: 2
+        expectedBody:
+          value: 2
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        headers:
+          Content-Type: application/json
+        expectedProperties:
+          correlationId: null
+        expectedExchangeHeaders:
+          snapshotMainExecuted: true
+      - id: numeric-id
+        body:
+          requestId: 123
+          value: 3
+        expectedBody:
+          requestId: 123
+          value: 3
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        headers:
+          Content-Type: application/json
+        expectedProperties:
+          correlationId: '123'
+        expectedExchangeHeaders:
+          snapshotMainExecuted: true
+      - id: empty-body
+        body: ''
+        expectedBody: ''
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        headers:
+          Content-Type: application/json
+        expectedProperties:
+          correlationId: null
+        expectedExchangeHeaders:
+          snapshotMainExecuted: true
+      - id: recovered-id
+        body:
+          requestId: body-last
+        expectedBody:
+          requestId: body-last
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        headers:
+          Content-Type: application/json
+        expectedProperties:
+          correlationId: body-last
+        expectedExchangeHeaders:
+          snapshotMainExecuted: true
+  - id: filters-json-responses-through-the-production-http-binding
+    scope: Short
+    deployment: response-filter
+    driver:
+      provider: http-trigger
+      sourceElementId: f3100394-9697-5686-9775-e31615e39784
+      parameters:
+        method: GET
+        path: /routes/filtered-response
+        responseBinding: production
+    invocations:
+      - id: complete-response
+        expectedBody:
+          id: 7
+          name: sample
+          secret: hidden
+          nested:
+            keep: 1
+            secret: 2
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+          Content-Type: application/json
+          X-Snapshot-Response: visible
+        driver:
+          provider: http-trigger
+          sourceElementId: f3100394-9697-5686-9775-e31615e39784
+          parameters:
+            method: GET
+            path: /routes/filtered-response
+        expectedAbsentHeaders:
+          - span-id
+          - trace-id
+          - CamelHttpMethod
+      - id: include-selected-fields
+        expectedBody:
+          id: 7
+          nested:
+            keep: 1
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+          Content-Type: application/json
+          X-Snapshot-Response: visible
+        driver:
+          provider: http-trigger
+          sourceElementId: f3100394-9697-5686-9775-e31615e39784
+          parameters:
+            method: GET
+            path: /routes/filtered-response?fields=id%2Cnested.keep
+        expectedAbsentHeaders:
+          - span-id
+          - trace-id
+          - CamelHttpMethod
+      - id: exclude-private-fields
+        expectedBody:
+          id: 7
+          name: sample
+          nested:
+            keep: 1
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+          Content-Type: application/json
+          X-Snapshot-Response: visible
+        driver:
+          provider: http-trigger
+          sourceElementId: f3100394-9697-5686-9775-e31615e39784
+          parameters:
+            method: GET
+            path: /routes/filtered-response?excludeFields=secret%2Cnested.secret
+        expectedAbsentHeaders:
+          - span-id
+          - trace-id
+          - CamelHttpMethod
+      - id: combined-selection
+        expectedBody:
+          id: 7
+          nested:
+            keep: 1
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+          Content-Type: application/json
+          X-Snapshot-Response: visible
+        driver:
+          provider: http-trigger
+          sourceElementId: f3100394-9697-5686-9775-e31615e39784
+          parameters:
+            method: GET
+            path: /routes/filtered-response?fields=id%2Cnested&excludeFields=nested.secret
+        expectedAbsentHeaders:
+          - span-id
+          - trace-id
+          - CamelHttpMethod
+      - id: unfiltered-after-filtered
+        expectedBody:
+          id: 7
+          name: sample
+          secret: hidden
+          nested:
+            keep: 1
+            secret: 2
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+          Content-Type: application/json
+          X-Snapshot-Response: visible
+        driver:
+          provider: http-trigger
+          sourceElementId: f3100394-9697-5686-9775-e31615e39784
+          parameters:
+            method: GET
+            path: /routes/filtered-response
+        expectedAbsentHeaders:
+          - span-id
+          - trace-id
+          - CamelHttpMethod
+  - id: maps-downstream-failure-with-script-and-recovers
+    scope: Short
+    deployment: failure-script
+    driver:
+      provider: http-trigger
+      sourceElementId: 1585f190-0181-50d6-bb08-55895ec1373c
+      parameters:
+        method: POST
+        path: /routes/failure-script
+        responseBinding: production
+    invocations:
+      - id: before-failure
+        body:
+          value: before-failure
+        expectedBody: Completed
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        headers:
+          Content-Type: application/json
+          X-Snapshot-Fail: 'false'
+        expectedExchangeHeaders:
+          snapshotMainExecuted: true
+        expectedProperties:
+          internalProperty_sessionFailed: null
+          internalProperty_httpThreadFailed: null
+        expectedAbsentExchangeHeaders:
+          - snapshotFailureHandler
+      - id: downstream-failure
+        body:
+          value: downstream-failure
+        expectedBody: Handled chain failure
+        expectedHeaders:
+          CamelHttpResponseCode: 503
+        headers:
+          Content-Type: application/json
+          X-Snapshot-Fail: 'true'
+        expectedExchangeHeaders:
+          snapshotFailureHandler: true
+        expectedProperties:
+          internalProperty_sessionFailed: 'true'
+          internalProperty_httpThreadFailed: 'true'
+        expectedFailure:
+          type: java.lang.IllegalStateException
+          message: HTTP snapshot downstream failure
+          cause: null
+      - id: after-failure
+        body:
+          value: after-failure
+        expectedBody: Completed
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        headers:
+          Content-Type: application/json
+          X-Snapshot-Fail: 'false'
+        expectedExchangeHeaders:
+          snapshotMainExecuted: true
+        expectedProperties:
+          internalProperty_sessionFailed: null
+          internalProperty_httpThreadFailed: null
+        expectedAbsentExchangeHeaders:
+          - snapshotFailureHandler
+  - id: maps-downstream-failure-with-subchain-and-recovers
+    scope: Short
+    deployment: failure-subchain
+    driver:
+      provider: http-trigger
+      sourceElementId: 2c1bd157-1c1f-586d-bab4-7ee28f35b9f5
+      parameters:
+        method: POST
+        path: /routes/failure-subchain
+        responseBinding: production
+    invocations:
+      - id: before-failure
+        body:
+          value: before-failure
+        expectedBody: Completed
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        headers:
+          Content-Type: application/json
+          X-Snapshot-Fail: 'false'
+        expectedExchangeHeaders:
+          snapshotMainExecuted: true
+        expectedProperties:
+          internalProperty_sessionFailed: null
+          internalProperty_httpThreadFailed: null
+        expectedAbsentExchangeHeaders:
+          - snapshotFailureHandler
+      - id: downstream-failure
+        body:
+          value: downstream-failure
+        expectedBody: Handled chain failure
+        expectedHeaders:
+          CamelHttpResponseCode: 503
+        headers:
+          Content-Type: application/json
+          X-Snapshot-Fail: 'true'
+        expectedExchangeHeaders:
+          snapshotFailureHandler: true
+        expectedProperties:
+          internalProperty_sessionFailed: 'true'
+          internalProperty_httpThreadFailed: 'true'
+        expectedFailure:
+          type: java.lang.IllegalStateException
+          message: HTTP snapshot downstream failure
+          cause: null
+      - id: after-failure
+        body:
+          value: after-failure
+        expectedBody: Completed
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        headers:
+          Content-Type: application/json
+          X-Snapshot-Fail: 'false'
+        expectedExchangeHeaders:
+          snapshotMainExecuted: true
+        expectedProperties:
+          internalProperty_sessionFailed: null
+          internalProperty_httpThreadFailed: null
+        expectedAbsentExchangeHeaders:
+          - snapshotFailureHandler
+  - id: handles-http-duplicates-with-throw-and-recovers
+    scope: Short
+    deployment: duplicate-throw
+    driver:
+      provider: http-trigger
+      sourceElementId: 963c6730-3635-5f50-8435-d2e7717f11b6
+      parameters:
+        method: POST
+        path: /routes/duplicate-throw
+        responseBinding: production
+    invocations:
+      - id: first-key
+        body:
+          id: first
+          value: first-key
+        expectedBody: Completed
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        headers:
+          Content-Type: application/json
+        expectedProperties:
+          CamelDuplicateMessage: null
+          systemProperty_idempotencyKey: first
+          systemProperty_idempotencyContext: http-duplicate-throw
+          systemProperty_keyExpiry: '600'
+          internalProperty_sessionFailed: null
+        interactions:
+          - fixture: duplicate-throw-store
+            expectedRequest:
+              count: 1
+              properties:
+                insertionAttempts: 1
+                key: http-duplicate-throw:first
+                keyExpiry: 600
+                storedKeys:
+                  - http-duplicate-throw:first
+                updatedKeys:
+                  - http-duplicate-throw:first
+      - id: duplicate-key
+        body:
+          id: first
+          value: duplicate-key
+        expectedBody:
+          code: CIP-0001
+          message: Chain execution failed due to unexpected business error
+          reason: Unexpected Business error
+          extra:
+            sessionId:
+              $match: uuid
+            failedElementId:
+              $match: uuid
+        expectedHeaders:
+          CamelHttpResponseCode: 500
+        headers:
+          Content-Type: application/json
+        expectedProperties:
+          CamelDuplicateMessage: true
+          systemProperty_idempotencyKey: first
+          systemProperty_idempotencyContext: http-duplicate-throw
+          systemProperty_keyExpiry: '600'
+          internalProperty_sessionFailed: 'true'
+        interactions:
+          - fixture: duplicate-throw-store
+            expectedRequest:
+              count: 0
+              properties:
+                insertionAttempts: 1
+                key: http-duplicate-throw:first
+                keyExpiry: 600
+                storedKeys:
+                  - http-duplicate-throw:first
+                updatedKeys: []
+        expectedFailure:
+          type: org.qubership.integration.platform.engine.camel.idempotency.DuplicateException
+          message: Duplicated idempotency key
+          cause: null
+      - id: new-key-after-duplicate
+        body:
+          id: second
+          value: new-key-after-duplicate
+        expectedBody: Completed
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        headers:
+          Content-Type: application/json
+        expectedProperties:
+          CamelDuplicateMessage: null
+          systemProperty_idempotencyKey: second
+          systemProperty_idempotencyContext: http-duplicate-throw
+          systemProperty_keyExpiry: '600'
+          internalProperty_sessionFailed: null
+        interactions:
+          - fixture: duplicate-throw-store
+            expectedRequest:
+              count: 1
+              properties:
+                insertionAttempts: 1
+                key: http-duplicate-throw:second
+                keyExpiry: 600
+                storedKeys:
+                  - http-duplicate-throw:first
+                  - http-duplicate-throw:second
+                updatedKeys:
+                  - http-duplicate-throw:second
+  - id: handles-http-duplicates-with-subchain-and-recovers
+    scope: Short
+    deployment: duplicate-subchain
+    driver:
+      provider: http-trigger
+      sourceElementId: 621b4a2d-15c4-5818-a5fa-461c7a26990a
+      parameters:
+        method: POST
+        path: /routes/duplicate-subchain
+        responseBinding: production
+    invocations:
+      - id: first-key
+        body:
+          id: first
+          value: first-key
+        expectedBody: Completed
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        headers:
+          Content-Type: application/json
+        expectedProperties:
+          CamelDuplicateMessage: null
+          systemProperty_idempotencyKey: first
+          systemProperty_idempotencyContext: http-duplicate-subchain
+          systemProperty_keyExpiry: '600'
+          internalProperty_sessionFailed: null
+        interactions:
+          - fixture: duplicate-subchain-store
+            expectedRequest:
+              count: 1
+              properties:
+                insertionAttempts: 1
+                key: http-duplicate-subchain:first
+                keyExpiry: 600
+                storedKeys:
+                  - http-duplicate-subchain:first
+                updatedKeys:
+                  - http-duplicate-subchain:first
+          - fixture: duplicate-subchain-handler-store
+            expectedRequest:
+              count: 0
+              properties:
+                insertionAttempts: 1
+                key: http-duplicate-subchain:first
+                keyExpiry: 600
+                storedKeys:
+                  - http-duplicate-subchain:first
+                updatedKeys:
+                  - http-duplicate-subchain:first
+        expectedExchangeHeaders:
+          snapshotMainExecuted: true
+      - id: duplicate-key
+        body:
+          id: first
+          value: duplicate-key
+        expectedBody: Handled duplicate
+        expectedHeaders:
+          CamelHttpResponseCode: 209
+        headers:
+          Content-Type: application/json
+        expectedProperties:
+          CamelDuplicateMessage: true
+          systemProperty_idempotencyKey: first
+          systemProperty_idempotencyContext: http-duplicate-subchain
+          systemProperty_keyExpiry: '600'
+          internalProperty_sessionFailed: null
+        interactions:
+          - fixture: duplicate-subchain-store
+            expectedRequest:
+              count: 0
+              properties:
+                insertionAttempts: 1
+                key: http-duplicate-subchain:first
+                keyExpiry: 600
+                storedKeys:
+                  - http-duplicate-subchain:first
+                updatedKeys: []
+          - fixture: duplicate-subchain-handler-store
+            expectedRequest:
+              count: 1
+              properties:
+                insertionAttempts: 1
+                key: http-duplicate-subchain:first
+                keyExpiry: 600
+                storedKeys:
+                  - http-duplicate-subchain:first
+                updatedKeys: []
+        expectedExchangeHeaders:
+          snapshotDuplicateHandler: true
+      - id: new-key-after-duplicate
+        body:
+          id: second
+          value: new-key-after-duplicate
+        expectedBody: Completed
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        headers:
+          Content-Type: application/json
+        expectedProperties:
+          CamelDuplicateMessage: null
+          systemProperty_idempotencyKey: second
+          systemProperty_idempotencyContext: http-duplicate-subchain
+          systemProperty_keyExpiry: '600'
+          internalProperty_sessionFailed: null
+        interactions:
+          - fixture: duplicate-subchain-store
+            expectedRequest:
+              count: 1
+              properties:
+                insertionAttempts: 1
+                key: http-duplicate-subchain:second
+                keyExpiry: 600
+                storedKeys:
+                  - http-duplicate-subchain:first
+                  - http-duplicate-subchain:second
+                updatedKeys:
+                  - http-duplicate-subchain:second
+          - fixture: duplicate-subchain-handler-store
+            expectedRequest:
+              count: 0
+              properties:
+                insertionAttempts: 1
+                key: http-duplicate-subchain:second
+                keyExpiry: 600
+                storedKeys:
+                  - http-duplicate-subchain:first
+                  - http-duplicate-subchain:second
+                updatedKeys:
+                  - http-duplicate-subchain:second
+        expectedExchangeHeaders:
+          snapshotMainExecuted: true
+  - id: acquires-one-http-idempotency-key-under-concurrent-requests
+    scope: Short
+    deployment: idempotency
+    driver:
+      provider: http-trigger
+      sourceElementId: 8b21e4c7-fc5d-47fe-9769-b352ae5aa29e
+      parameters:
+        method: POST
+        path: /routes/test-w-body
+        concurrentRequests: 4
+    invocations:
+      - id: racing-new-key
+        body: '{"id":"parallel"}'
+        expectedBody:
+          responses:
+            - status: 200
+              body: Http Trigger called succesfully
+            - status: 202
+              body: '{"id":"parallel"}'
+            - status: 202
+              body: '{"id":"parallel"}'
+            - status: 202
+              body: '{"id":"parallel"}'
+          completedExchanges: 4
+          distinctExchangeIds: 4
+          failedExchanges: 0
+        headers:
+          Content-Type: application/json
+        interactions:
+          - fixture: idempotency-store
+            expectedRequest:
+              count: 1
+              properties:
+                insertionAttempts: 4
+                key: POST /qip-routes/test-w-body:parallel
+                keyExpiry: 600
+                storedKeys:
+                  - POST /qip-routes/test-w-body:parallel
+                updatedKeys:
+                  - POST /qip-routes/test-w-body:parallel
+      - id: racing-existing-key
+        body: '{"id":"parallel"}'
+        expectedBody:
+          responses:
+            - status: 202
+              body: '{"id":"parallel"}'
+            - status: 202
+              body: '{"id":"parallel"}'
+            - status: 202
+              body: '{"id":"parallel"}'
+            - status: 202
+              body: '{"id":"parallel"}'
+          completedExchanges: 4
+          distinctExchangeIds: 4
+          failedExchanges: 0
+        headers:
+          Content-Type: application/json
+        interactions:
+          - fixture: idempotency-store
+            expectedRequest:
+              count: 0
+              properties:
+                insertionAttempts: 4
+                key: POST /qip-routes/test-w-body:parallel
+                keyExpiry: 600
+                storedKeys:
+                  - POST /qip-routes/test-w-body:parallel
+                updatedKeys: []
+      - id: racing-fresh-key
+        body: '{"id":"recovered"}'
+        expectedBody:
+          responses:
+            - status: 200
+              body: Http Trigger called succesfully
+            - status: 202
+              body: '{"id":"recovered"}'
+            - status: 202
+              body: '{"id":"recovered"}'
+            - status: 202
+              body: '{"id":"recovered"}'
+          completedExchanges: 4
+          distinctExchangeIds: 4
+          failedExchanges: 0
+        headers:
+          Content-Type: application/json
+        interactions:
+          - fixture: idempotency-store
+            expectedRequest:
+              count: 1
+              properties:
+                insertionAttempts: 4
+                key: POST /qip-routes/test-w-body:recovered
+                keyExpiry: 600
+                storedKeys:
+                  - POST /qip-routes/test-w-body:parallel
+                  - POST /qip-routes/test-w-body:recovered
+                updatedKeys:
+                  - POST /qip-routes/test-w-body:recovered
+  - id: maps-schema-rejections-with-the-generated-mapper-handler
+    scope: Short
+    deployment: schema-mapper
+    driver:
+      provider: http-trigger
+      sourceElementId: 7d663b05-ea15-5c74-955b-861aaf6a96a2
+      parameters:
+        method: POST
+        path: /routes/schema-mapper
+        responseBinding: production
+    invocations:
+      - id: before-failure
+        body:
+          id: first
+          value: 1
+        headers:
+          Content-Type: application/json
+        expectedBody:
+          id: first
+          value: 1
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          internalProperty_sessionFailed: null
+        interactions:
+          - fixture: schema-mapper-store
+            expectedRequest:
+              count: 1
+              properties:
+                insertionAttempts: 1
+                storedKeys:
+                  - http-schema-mapper:first
+                updatedKeys:
+                  - http-schema-mapper:first
+      - id: mapped-failure
+        body:
+          id: first
+          value: invalid
+        headers:
+          Content-Type: application/json
+        expectedBody:
+          handled: validation
+        expectedHeaders:
+          CamelHttpResponseCode: 400
+        expectedProperties:
+          internalProperty_sessionFailed: 'true'
+        interactions:
+          - fixture: schema-mapper-store
+            expectedRequest:
+              count: 0
+              properties:
+                insertionAttempts: 0
+                storedKeys:
+                  - http-schema-mapper:first
+                updatedKeys: []
+        expectedAbsentExchangeHeaders:
+          - snapshotMainExecuted
+      - id: after-failure
+        body:
+          id: second
+          value: 1
+        headers:
+          Content-Type: application/json
+        expectedBody:
+          id: second
+          value: 1
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          internalProperty_sessionFailed: null
+        interactions:
+          - fixture: schema-mapper-store
+            expectedRequest:
+              count: 1
+              properties:
+                insertionAttempts: 1
+                storedKeys:
+                  - http-schema-mapper:first
+                  - http-schema-mapper:second
+                updatedKeys:
+                  - http-schema-mapper:second
+  - id: maps-downstream-failure-with-the-generated-mapper-handler
+    scope: Short
+    deployment: failure-mapper
+    driver:
+      provider: http-trigger
+      sourceElementId: 13476bc1-b52e-5dab-bb07-56a8cb879fb0
+      parameters:
+        method: POST
+        path: /routes/failure-mapper
+        responseBinding: production
+    invocations:
+      - id: before-failure
+        body:
+          id: first
+          value: 1
+        headers:
+          Content-Type: application/json
+          X-Snapshot-Fail: 'false'
+        expectedBody: Completed
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          internalProperty_sessionFailed: null
+          internalProperty_httpThreadFailed: null
+      - id: mapped-failure
+        body:
+          id: first
+          value: 1
+        headers:
+          Content-Type: application/json
+          X-Snapshot-Fail: 'true'
+        expectedBody:
+          handled: chain-failure
+        expectedHeaders:
+          CamelHttpResponseCode: 500
+        expectedProperties:
+          internalProperty_sessionFailed: 'true'
+          internalProperty_httpThreadFailed: 'true'
+        expectedFailure:
+          type: java.lang.IllegalStateException
+          message: HTTP snapshot downstream failure
+          cause: null
+      - id: after-failure
+        body:
+          id: second
+          value: 1
+        headers:
+          Content-Type: application/json
+          X-Snapshot-Fail: 'false'
+        expectedBody: Completed
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          internalProperty_sessionFailed: null
+          internalProperty_httpThreadFailed: null
+
+  - id: preserves-non-object-bodies-during-correlation-extraction
+    scope: Short
+    deployment: body-correlation
+    driver:
+      provider: http-trigger
+      sourceElementId: d5f734c2-8cdf-5786-85ec-33bba336302f
+      parameters:
+        method: POST
+        path: /routes/body-correlation
+    invocations:
+      - id: malformed-json
+        body: '{broken'
+        headers:
+          Content-Type: application/json
+        expectedBody: '{broken'
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          correlationId: null
+        expectedExchangeHeaders:
+          snapshotMainExecuted: true
+      - id: json-array
+        body: '[{"requestId":"array-id"}]'
+        headers:
+          Content-Type: application/json
+        expectedBody: '[{"requestId":"array-id"}]'
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          correlationId: null
+        expectedExchangeHeaders:
+          snapshotMainExecuted: true
+      - id: json-string
+        body: '"scalar-value"'
+        headers:
+          Content-Type: application/json
+        expectedBody: '"scalar-value"'
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          correlationId: null
+        expectedExchangeHeaders:
+          snapshotMainExecuted: true
+      - id: json-number
+        body: '17'
+        headers:
+          Content-Type: application/json
+        expectedBody: '17'
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          correlationId: null
+        expectedExchangeHeaders:
+          snapshotMainExecuted: true
+      - id: json-boolean
+        body: 'true'
+        headers:
+          Content-Type: application/json
+        expectedBody: 'true'
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          correlationId: null
+        expectedExchangeHeaders:
+          snapshotMainExecuted: true
+      - id: valid-object-after-non-object
+        body:
+          requestId: recovered-correlation
+        headers:
+          Content-Type: application/json
+        expectedBody:
+          requestId: recovered-correlation
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          correlationId: recovered-correlation
+        expectedExchangeHeaders:
+          snapshotMainExecuted: true
+  - id: extracts-correlation-from-json-value-boundaries
+    scope: Short
+    deployment: body-correlation
+    driver:
+      provider: http-trigger
+      sourceElementId: d5f734c2-8cdf-5786-85ec-33bba336302f
+      parameters:
+        method: POST
+        path: /routes/body-correlation
+    invocations:
+      - id: explicit-null-id
+        body: '{"requestId":null}'
+        headers:
+          Content-Type: application/json
+        expectedBody: '{"requestId":null}'
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          correlationId: 'null'
+        expectedExchangeHeaders:
+          snapshotMainExecuted: true
+      - id: boolean-id
+        body:
+          requestId: true
+        headers:
+          Content-Type: application/json
+        expectedBody:
+          requestId: true
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          correlationId: 'true'
+        expectedExchangeHeaders:
+          snapshotMainExecuted: true
+      - id: object-id
+        body:
+          requestId:
+            part: value
+        headers:
+          Content-Type: application/json
+        expectedBody:
+          requestId:
+            part: value
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          correlationId: '{part=value}'
+        expectedExchangeHeaders:
+          snapshotMainExecuted: true
+      - id: array-id
+        body:
+          requestId:
+            - first
+            - second
+        headers:
+          Content-Type: application/json
+        expectedBody:
+          requestId:
+            - first
+            - second
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          correlationId: '[first, second]'
+        expectedExchangeHeaders:
+          snapshotMainExecuted: true
+      - id: recovered-string-id
+        body:
+          requestId: final-id
+        headers:
+          Content-Type: application/json
+        expectedBody:
+          requestId: final-id
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          correlationId: final-id
+        expectedExchangeHeaders:
+          snapshotMainExecuted: true
+  - id: preserves-json-null-body-during-correlation-extraction
+    scope: Short
+    deployment: body-correlation
+    driver:
+      provider: http-trigger
+      sourceElementId: d5f734c2-8cdf-5786-85ec-33bba336302f
+      parameters:
+        method: POST
+        path: /routes/body-correlation
+    invocations:
+      - id: json-null-body
+        body: 'null'
+        headers:
+          Content-Type: application/json
+        expectedBody: 'null'
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          correlationId: null
+        expectedExchangeHeaders:
+          snapshotMainExecuted: true
+      - id: valid-object-after-null
+        body:
+          requestId: after-null
+        headers:
+          Content-Type: application/json
+        expectedBody:
+          requestId: after-null
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          correlationId: after-null
+        expectedExchangeHeaders:
+          snapshotMainExecuted: true
+  - id: filters-response-shapes-and-recovers-after-non-json-content
+    scope: Short
+    deployment: response-filter-shapes
+    driver:
+      provider: http-trigger
+      sourceElementId: 402d7e87-a791-5721-a3dd-7d23e0fb489b
+      parameters:
+        method: POST
+        path: /routes/filtered-response-shapes
+        responseBinding: production
+    invocations:
+      - id: array-includes
+        body:
+          - id: 1
+            secret: one
+          - id: 2
+            secret: two
+        headers:
+          Content-Type: application/json
+          X-Snapshot-Response-Content-Type: application/json
+        driver:
+          provider: http-trigger
+          sourceElementId: 402d7e87-a791-5721-a3dd-7d23e0fb489b
+          parameters:
+            method: POST
+            path: /routes/filtered-response-shapes?fields=id
+            responseBinding: production
+        expectedBody:
+          - id: 1
+          - id: 2
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+          Content-Type: application/json
+          X-Snapshot-Response: visible
+      - id: array-excludes
+        body:
+          - id: 1
+            secret: one
+          - id: 2
+            secret: two
+        headers:
+          Content-Type: application/json
+          X-Snapshot-Response-Content-Type: application/json
+        driver:
+          provider: http-trigger
+          sourceElementId: 402d7e87-a791-5721-a3dd-7d23e0fb489b
+          parameters:
+            method: POST
+            path: /routes/filtered-response-shapes?excludeFields=secret
+            responseBinding: production
+        expectedBody:
+          - id: 1
+          - id: 2
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+          Content-Type: application/json
+          X-Snapshot-Response: visible
+      - id: json-null
+        body: 'null'
+        headers:
+          Content-Type: application/json
+          X-Snapshot-Response-Content-Type: application/json
+        driver:
+          provider: http-trigger
+          sourceElementId: 402d7e87-a791-5721-a3dd-7d23e0fb489b
+          parameters:
+            method: POST
+            path: /routes/filtered-response-shapes?fields=id
+            responseBinding: production
+        expectedBody: 'null'
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+          Content-Type: application/json
+          X-Snapshot-Response: visible
+      - id: empty-response
+        body: ''
+        headers:
+          Content-Type: application/json
+          X-Snapshot-Response-Content-Type: application/json
+        driver:
+          provider: http-trigger
+          sourceElementId: 402d7e87-a791-5721-a3dd-7d23e0fb489b
+          parameters:
+            method: POST
+            path: /routes/filtered-response-shapes?fields=id
+            responseBinding: production
+        expectedBody: ''
+        expectedHeaders:
+          CamelHttpResponseCode: 204
+          Content-Type: application/json
+          X-Snapshot-Response: visible
+      - id: plain-text
+        body: plain response
+        headers:
+          Content-Type: application/json
+          X-Snapshot-Response-Content-Type: text/plain
+        driver:
+          provider: http-trigger
+          sourceElementId: 402d7e87-a791-5721-a3dd-7d23e0fb489b
+          parameters:
+            method: POST
+            path: /routes/filtered-response-shapes?fields=id
+            responseBinding: production
+        expectedBody: plain response
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+          Content-Type: text/plain
+          X-Snapshot-Response: visible
+      - id: malformed-json
+        body: '{broken'
+        headers:
+          Content-Type: application/json
+          X-Snapshot-Response-Content-Type: application/json
+        driver:
+          provider: http-trigger
+          sourceElementId: 402d7e87-a791-5721-a3dd-7d23e0fb489b
+          parameters:
+            method: POST
+            path: /routes/filtered-response-shapes?fields=id
+            responseBinding: production
+        expectedBody: '{broken'
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+          Content-Type: application/json
+          X-Snapshot-Response: visible
+      - id: unknown-selector
+        body:
+          id: 3
+          secret: hidden
+        headers:
+          Content-Type: application/json
+          X-Snapshot-Response-Content-Type: application/json
+        driver:
+          provider: http-trigger
+          sourceElementId: 402d7e87-a791-5721-a3dd-7d23e0fb489b
+          parameters:
+            method: POST
+            path: /routes/filtered-response-shapes?fields=unknown
+            responseBinding: production
+        expectedBody: {}
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+          Content-Type: application/json
+          X-Snapshot-Response: visible
+      - id: empty-selectors
+        body:
+          id: 4
+          secret: visible
+        headers:
+          Content-Type: application/json
+          X-Snapshot-Response-Content-Type: application/json
+        driver:
+          provider: http-trigger
+          sourceElementId: 402d7e87-a791-5721-a3dd-7d23e0fb489b
+          parameters:
+            method: POST
+            path: /routes/filtered-response-shapes?fields=&excludeFields=
+            responseBinding: production
+        expectedBody:
+          id: 4
+          secret: visible
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+          Content-Type: application/json
+          X-Snapshot-Response: visible
+      - id: whitespace-and-repeated-selectors
+        body:
+          id: 5
+          secret: hidden
+        headers:
+          Content-Type: application/json
+          X-Snapshot-Response-Content-Type: application/json
+        driver:
+          provider: http-trigger
+          sourceElementId: 402d7e87-a791-5721-a3dd-7d23e0fb489b
+          parameters:
+            method: POST
+            path: /routes/filtered-response-shapes?fields=%20id%20%2Cid
+            responseBinding: production
+        expectedBody:
+          id: 5
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+          Content-Type: application/json
+          X-Snapshot-Response: visible
+      - id: valid-object-after-malformed
+        body:
+          id: 6
+          secret: hidden
+        headers:
+          Content-Type: application/json
+          X-Snapshot-Response-Content-Type: application/json
+        driver:
+          provider: http-trigger
+          sourceElementId: 402d7e87-a791-5721-a3dd-7d23e0fb489b
+          parameters:
+            method: POST
+            path: /routes/filtered-response-shapes?fields=id
+            responseBinding: production
+        expectedBody:
+          id: 6
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+          Content-Type: application/json
+          X-Snapshot-Response: visible
+  - id: routes-real-servlet-requests-and-rejects-unknown-paths-and-methods
+    scope: Short
+    deployment: servlet-wire
+    driver:
+      provider: http-trigger
+      sourceElementId: 7f75a0ee-973b-5571-a725-adf7a56922e7
+      parameters:
+        transportMode: servlet
+        method: POST
+        path: /routes/servlet-wire/value
+    invocations:
+      - id: missing-path
+        driver:
+          provider: http-trigger
+          sourceElementId: 7f75a0ee-973b-5571-a725-adf7a56922e7
+          parameters:
+            transportMode: servlet
+            method: GET
+            path: /routes/servlet-missing
+            expectedRoutedRequests: 0
+        expectedHeaders:
+          CamelHttpResponseCode: 404
+      - id: wrong-method
+        driver:
+          provider: http-trigger
+          sourceElementId: 7f75a0ee-973b-5571-a725-adf7a56922e7
+          parameters:
+            transportMode: servlet
+            method: GET
+            path: /routes/servlet-wire/value
+            expectedRoutedRequests: 0
+        expectedHeaders:
+          CamelHttpResponseCode: 405
+      - id: options
+        driver:
+          provider: http-trigger
+          sourceElementId: 7f75a0ee-973b-5571-a725-adf7a56922e7
+          parameters:
+            transportMode: servlet
+            method: OPTIONS
+            path: /routes/servlet-wire/value
+            expectedRoutedRequests: 0
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+          Allow: POST,OPTIONS
+        expectedBody: ''
+      - id: valid-after-rejections
+        driver:
+          provider: http-trigger
+          sourceElementId: 7f75a0ee-973b-5571-a725-adf7a56922e7
+          parameters:
+            transportMode: servlet
+            method: POST
+            path: /routes/servlet-wire/value
+            expectedRoutedRequests: 1
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedBody: '{"value":"value","query":null,"headers":null,"tags":null,"body":"accepted"}'
+        body: accepted
+  - id: parses-servlet-header-values-and-encoded-paths-and-queries
+    scope: Short
+    deployment: servlet-wire
+    driver:
+      provider: http-trigger
+      sourceElementId: 7f75a0ee-973b-5571-a725-adf7a56922e7
+      parameters:
+        transportMode: servlet
+        method: POST
+        path: /routes/servlet-wire/value
+    invocations:
+      - id: separate-header-values
+        body: request café
+        headers:
+          Content-Type: text/plain; charset=UTF-8
+          X-Snapshot-Repeated:
+            - first
+            - second
+        driver:
+          provider: http-trigger
+          sourceElementId: 7f75a0ee-973b-5571-a725-adf7a56922e7
+          parameters:
+            transportMode: servlet
+            method: POST
+            path: /routes/servlet-wire/caf%C3%A9%20menu?tag=first&tag=second&empty=&plus=a+b&path=a%2Fb&word=caf%C3%A9
+        expectedBody:
+          value: caf%C3%A9%20menu
+          query: tag=first&tag=second&empty=&plus=a+b&path=a%2Fb&word=caf%C3%A9
+          headers:
+            - first
+            - second
+          tags:
+            - first
+            - second
+          body: request café
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedExchangeHeaders:
+          X-Snapshot-Repeated:
+            - first
+            - second
+          empty: ''
+          plus: a b
+          path: a/b
+          word: café
+        expectedProperties:
+          value: caf%C3%A9%20menu
+      - id: clean-request-after-encoded-values
+        body: fresh
+        driver:
+          provider: http-trigger
+          sourceElementId: 7f75a0ee-973b-5571-a725-adf7a56922e7
+          parameters:
+            transportMode: servlet
+            method: POST
+            path: /routes/servlet-wire/plain
+        expectedBody: '{"value":"plain","query":null,"headers":null,"tags":null,"body":"fresh"}'
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedAbsentExchangeHeaders:
+          - X-Snapshot-Repeated
+          - tag
+          - empty
+          - plus
+          - path
+          - word
+  - id: writes-http11-chunked-and-buffered-responses-through-the-servlet
+    scope: Short
+    deployment: servlet-wire
+    driver:
+      provider: http-trigger
+      sourceElementId: 7f75a0ee-973b-5571-a725-adf7a56922e7
+      parameters:
+        transportMode: servlet
+        method: GET
+        path: /routes/servlet-streaming
+    invocations:
+      - id: chunked-response
+        driver:
+          provider: http-trigger
+          sourceElementId: 7f75a0ee-973b-5571-a725-adf7a56922e7
+          parameters:
+            transportMode: servlet
+            method: GET
+            path: /routes/servlet-streaming
+        expectedBody: Wire café
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+          Content-Type: application/octet-stream
+          Transfer-Encoding: chunked
+        expectedAbsentHeaders:
+          - Content-Length
+      - id: buffered-response
+        driver:
+          provider: http-trigger
+          sourceElementId: 7f75a0ee-973b-5571-a725-adf7a56922e7
+          parameters:
+            transportMode: servlet
+            method: GET
+            path: /routes/servlet-buffered
+        expectedBody: Wire café
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+          Content-Type: application/octet-stream
+          Content-Length: '10'
+        expectedAbsentHeaders:
+          - Transfer-Encoding
+  - id: prefers-exact-servlet-paths-and-the-newest-active-consumer
+    scope: Short
+    deployment: servlet-wire
+    driver:
+      provider: http-trigger
+      sourceElementId: 118babf9-f73e-5e90-a8c3-7fffa74ccf6b
+      parameters:
+        transportMode: servlet
+        method: GET
+        path: /routes/servlet-overlap/static
+    invocations:
+      - id: exact-before-wildcard
+        driver:
+          provider: http-trigger
+          sourceElementId: 118babf9-f73e-5e90-a8c3-7fffa74ccf6b
+          parameters:
+            transportMode: servlet
+            method: GET
+            path: /routes/servlet-overlap/static
+        expectedBody: Exact route
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+      - id: wildcard-for-another-path
+        driver:
+          provider: http-trigger
+          sourceElementId: 118babf9-f73e-5e90-a8c3-7fffa74ccf6b
+          parameters:
+            transportMode: servlet
+            method: GET
+            path: /routes/servlet-overlap/dynamic
+        expectedBody: Wildcard route
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          item: dynamic
+      - id: newest-after-redeploy
+        driver:
+          provider: http-trigger
+          sourceElementId: 118babf9-f73e-5e90-a8c3-7fffa74ccf6b
+          parameters:
+            transportMode: servlet
+            method: GET
+            path: /routes/servlet-redeploy
+            servletAction: redeploy-first
+        expectedBody: First consumer
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+      - id: older-after-newest-stops
+        driver:
+          provider: http-trigger
+          sourceElementId: 118babf9-f73e-5e90-a8c3-7fffa74ccf6b
+          parameters:
+            transportMode: servlet
+            method: GET
+            path: /routes/servlet-redeploy
+            servletAction: stop-first
+        expectedBody: Second consumer
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+      - id: absent-after-both-stop
+        driver:
+          provider: http-trigger
+          sourceElementId: 118babf9-f73e-5e90-a8c3-7fffa74ccf6b
+          parameters:
+            transportMode: servlet
+            method: GET
+            path: /routes/servlet-redeploy
+            servletAction: stop-matching
+            expectedRoutedRequests: 0
+        expectedHeaders:
+          CamelHttpResponseCode: 404
+      - id: newest-serves-after-redeploy
+        driver:
+          provider: http-trigger
+          sourceElementId: 118babf9-f73e-5e90-a8c3-7fffa74ccf6b
+          parameters:
+            transportMode: servlet
+            method: GET
+            path: /routes/servlet-redeploy
+            servletAction: redeploy-first
+        expectedBody: First consumer
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+
+  - id: stops-after-the-current-processor-when-the-session-deadline-passes
+    scope: Long
+    deployment: session-deadline
+    driver:
+      provider: http-trigger
+      sourceElementId: 4d269b9e-8759-591f-853f-38217751fa64
+      parameters:
+        transportMode: servlet
+        method: POST
+        path: /routes/session-deadline
+    invocations:
+      - id: finishes-current-processor-and-skips-following-processor
+        headers:
+          X-Snapshot-Cross-Deadline: 'true'
+        expectedFailure:
+          type: org.qubership.integration.platform.engine.errorhandling.ChainExecutionTimeoutException
+          ignoreMessage: true
+          cause: null
+        expectedBody:
+          code: CIP-0113
+          message: Chain timeout reached
+          reason: Chain execution failed due to reaching execution timeout
+          extra:
+            sessionId:
+              $match: uuid
+            failedElementId:
+              $match: uuid
+        expectedHeaders:
+          CamelHttpResponseCode: 500
+          content-type: application/json
+        expectedProperties:
+          internalProperty_chainSessionTimedOut: true
+          internalProperty_sessionFailed: 'true'
+          internalProperty_httpThreadFailed: 'true'
+        interactions:
+          - fixture: debugger-deadline
+            response:
+              properties:
+                expectTimeout: true
+            expectedRequest:
+              count: 1
+      - id: completes-a-fresh-request-on-the-existing-route
+        expectedBody: Deadline recovered
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          internalProperty_chainSessionTimedOut: null
+          internalProperty_sessionFailed: null
+          internalProperty_httpThreadFailed: null
+        interactions:
+          - fixture: debugger-deadline
+            response:
+              properties:
+                expectTimeout: false
+            expectedRequest:
+              count: 1

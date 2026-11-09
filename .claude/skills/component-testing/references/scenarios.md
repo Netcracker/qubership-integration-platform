@@ -87,7 +87,7 @@ than copying a generic Java test or inventing a second manifest format:
 | --- | --- |
 | Route selection and header absence | `header-modification.yml` |
 | HTTP request assertions and controlled failure responses | `service-call.yml` |
-| Multiple deployments and nested async completion | `nested-async-chain-call.yml` |
+| Multiple deployments and nested async completion | `chain-call.yml` |
 | Stateful failure and subsequent retry | `checkpoint.yml` |
 | Shared broker with explicit invocation expectations | `rabbitmq-sender.yml` |
 | Structural output and generated values | `mapper.yml`, `xslt.yml` |

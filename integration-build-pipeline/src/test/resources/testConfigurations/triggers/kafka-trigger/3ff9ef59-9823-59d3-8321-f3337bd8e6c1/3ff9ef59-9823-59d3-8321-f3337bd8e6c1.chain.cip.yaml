@@ -1,0 +1,40 @@
+---
+id: 3ff9ef59-9823-59d3-8321-f3337bd8e6c1
+$schema: http://qubership.org/schemas/product/qip/chain
+name: kafka-trigger-scram-512
+content:
+  labels: []
+  elements:
+  - id: be4769f5-9ef4-5153-81f5-cfbb814679e0
+    name: Kafka Trigger
+    type: kafka-trigger-2
+    properties:
+      autoOffsetReset: earliest
+      brokers: localhost:9092
+      connectionSourceType: manual
+      consumersCount: 1
+      groupId: snapshot-kafka-trigger-scram-512
+      keyDeserializer: org.apache.kafka.common.serialization.StringDeserializer
+      maxPollIntervalMs: 300000
+      maxPollRecords: 500
+      reconnectBackoffMaxMs: 1000
+      saslJaasConfig: org.apache.kafka.common.security.scram.ScramLoginModule required username="reader" password="reader-password";
+      saslMechanism: SCRAM-SHA-512
+      securityProtocol: SASL_SSL
+      sslEndpointAlgorithm: https
+      sslProtocol: TLS
+      topics: snapshot.kafka.trigger.scram-512
+      valueDeserializer: org.apache.kafka.common.serialization.StringDeserializer
+      consumerConsistencyMode: EVENTUAL
+  - id: 11972125-ec82-596b-844f-d377fafa1577
+    name: Script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 11972125-ec82-596b-844f-d377fafa1577.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: be4769f5-9ef4-5153-81f5-cfbb814679e0
+    to: 11972125-ec82-596b-844f-d377fafa1577
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

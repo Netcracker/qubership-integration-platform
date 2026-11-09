@@ -1,0 +1,55 @@
+---
+id: ae9f5176-19c7-5c9e-874c-db1fbf30fccb
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+name: mcp-trigger-handled-failure
+content:
+  labels: []
+  elements:
+  - id: 7978dc96-0ec1-5904-9a5d-15209e922d70
+    name: MCP Trigger
+    type: mcp-trigger
+    properties:
+      mcpServiceIds:
+      - a61e7e36-2fe7-588c-bbb9-8e116c4b88c8
+      name: snapshot_mcp_handled_failure
+      title: Snapshot MCP handled-failure
+      description: Exercises MCP handled-failure behavior in component tests.
+      destructive: false
+      idempotent: false
+      inputSchema: '{"type":"object","properties":{"message":{"type":"string"}},"additionalProperties":false}'
+      openWorld: false
+      readOnly: false
+  - id: 5564a024-156b-5c55-aaf8-ebd640ba3b27
+    name: Handle MCP failure
+    type: try-catch-finally-2
+    children:
+    - id: 7c1017c3-27e7-5b1f-b3cc-8dde50b1feb4
+      name: Try
+      type: try-2
+      children:
+      - id: b46d8b23-4aa1-5d4e-907a-bca028cf162f
+        name: Script
+        type: script
+        properties:
+          exportFileExtension: groovy
+          propertiesFilename: b46d8b23-4aa1-5d4e-907a-bca028cf162f.element.script.cip.groovy
+          propertiesToExportInSeparateFile: script
+    - id: 1455d9cc-c3e5-5306-b341-23696b3424de
+      name: Catch IllegalStateException
+      type: catch-2
+      properties:
+        exception: java.lang.IllegalStateException
+        priority: 0
+      children:
+      - id: e07cf8f5-96b9-52ae-afc0-302ad168d929
+        name: Fallback
+        type: script
+        properties:
+          exportFileExtension: groovy
+          propertiesFilename: e07cf8f5-96b9-52ae-afc0-302ad168d929.element.script.cip.groovy
+          propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: 7978dc96-0ec1-5904-9a5d-15209e922d70
+    to: 5564a024-156b-5c55-aaf8-ebd640ba3b27
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

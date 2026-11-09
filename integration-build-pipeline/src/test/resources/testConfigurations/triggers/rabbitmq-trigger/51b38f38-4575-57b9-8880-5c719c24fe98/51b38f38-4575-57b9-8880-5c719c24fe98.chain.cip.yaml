@@ -1,0 +1,39 @@
+---
+id: 51b38f38-4575-57b9-8880-5c719c24fe98
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+name: rabbitmq-trigger-headers
+content:
+  labels: []
+  elements:
+  - id: 74e337c9-f31f-5393-a06e-c1d64d54ce30
+    name: RabbitMQ Trigger
+    type: rabbitmq-trigger-2
+    properties:
+      acknowledgeMode: AUTO
+      connectionSourceType: manual
+      addresses: localhost:5672
+      username: snapshot
+      password: snapshot
+      vhost: /
+      deadLetterExchange: snapshot.rabbitmq.trigger.headers.dlx
+      deadLetterExchangeType: direct
+      deadLetterQueue: snapshot.rabbitmq.trigger.headers.dlq
+      deadLetterRoutingKey: snapshot.rabbitmq.trigger.headers.dead
+      exchange: snapshot.rabbitmq.trigger.headers
+      exchangeType: headers
+      queues: snapshot.rabbitmq.trigger.headers.queue
+      routingKey: snapshot.rabbitmq.trigger.headers
+      idempotency:
+        enabled: false
+  - id: 9a39a95a-6655-5b1f-9e3d-2688beb7fdc7
+    name: Process RabbitMQ message
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 9a39a95a-6655-5b1f-9e3d-2688beb7fdc7.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: 74e337c9-f31f-5393-a06e-c1d64d54ce30
+    to: 9a39a95a-6655-5b1f-9e3d-2688beb7fdc7
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

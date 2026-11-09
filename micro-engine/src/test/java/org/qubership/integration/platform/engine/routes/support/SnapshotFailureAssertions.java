@@ -2,6 +2,7 @@ package org.qubership.integration.platform.engine.routes.support;
 
 import org.apache.camel.CamelExchangeException;
 import org.apache.kafka.common.errors.TimeoutException;
+import org.qubership.integration.platform.engine.camel.components.directvm.ChainConsumerNotAvailableException;
 import org.qubership.integration.platform.engine.routes.entrypoint.execution.SnapshotFailureExpectation;
 
 import java.security.cert.CertificateExpiredException;
@@ -22,6 +23,14 @@ public final class SnapshotFailureAssertions {
             "https?://(?:localhost|127\\.0\\.0\\.1):" + Pattern.quote(LOOPBACK_PORT) + "(?=[/?#\\s]|$)"
     );
     private static final String ELAPSED_MILLIS = "<elapsed-ms>";
+    private static final String SNAPSHOT_NODE_ID = "<snapshot-node-id>";
+    private static final Pattern CHAIN_CONSUMER_NODE = Pattern.compile(
+            "(cip-chain:(?://)?)[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+    );
+    private static final Pattern JMS_COMPONENT_NODE = Pattern.compile(
+            "^(Error creating bean: jms-)[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+                    + "( of type: org\\.apache\\.camel\\.component\\.jms\\.JmsComponent)$"
+    );
     private static final Pattern KAFKA_BATCH_EXPIRATION = Pattern.compile(
             "^(Expiring [0-9]+ record\\(s\\) for .+:)[0-9]+( ms has passed since batch creation)$"
     );
@@ -51,7 +60,14 @@ public final class SnapshotFailureAssertions {
             Throwable actual,
             String description
     ) {
-        assertMatches(expected, actual, description, "failure");
+        try {
+            assertMatches(expected, actual, description, "failure");
+        } catch (AssertionError mismatch) {
+            if (actual != null) {
+                mismatch.addSuppressed(actual);
+            }
+            throw mismatch;
+        }
     }
 
     private static void assertMatches(
@@ -116,6 +132,14 @@ public final class SnapshotFailureAssertions {
         }
         if (message != null && expectedMessage != null && expectedMessage.contains(LOOPBACK_PORT)) {
             message = normalizeLoopbackPorts(message, expectedMessage);
+        }
+        if (failure instanceof ChainConsumerNotAvailableException && message != null && expectedMessage != null
+                && expectedMessage.contains(SNAPSHOT_NODE_ID)) {
+            message = CHAIN_CONSUMER_NODE.matcher(message).replaceFirst("$1" + SNAPSHOT_NODE_ID);
+        }
+        if (failure.getClass() == RuntimeException.class && message != null && expectedMessage != null
+                && expectedMessage.contains(SNAPSHOT_NODE_ID)) {
+            message = JMS_COMPONENT_NODE.matcher(message).replaceFirst("$1" + SNAPSHOT_NODE_ID + "$2");
         }
         if (failure instanceof TimeoutException && message != null && expectedMessage != null
                 && expectedMessage.contains(ELAPSED_MILLIS)) {

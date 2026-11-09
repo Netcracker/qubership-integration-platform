@@ -1,0 +1,38 @@
+---
+id: c9650ae3-84a3-5632-b901-119190928166
+$schema: http://qubership.org/schemas/product/qip/chain
+name: kafka-trigger-typed-double
+content:
+  labels: []
+  elements:
+  - id: 80f5c8d3-a734-508e-97d9-c65ce6fc82cb
+    name: Kafka Trigger long
+    type: kafka-trigger-2
+    properties:
+      autoOffsetReset: latest
+      brokers: localhost:9092
+      connectionSourceType: manual
+      consumersCount: 1
+      groupId: snapshot-kafka-trigger-typed-double
+      keyDeserializer: org.apache.kafka.common.serialization.DoubleDeserializer
+      maxPollIntervalMs: 300000
+      maxPollRecords: 500
+      reconnectBackoffMaxMs: 30000
+      saslMechanism: GSSAPI
+      securityProtocol: PLAINTEXT
+      sslProtocol: TLS
+      topics: snapshot.kafka.trigger.typed.double
+      valueDeserializer: org.apache.kafka.common.serialization.DoubleDeserializer
+      consumerConsistencyMode: EVENTUAL
+  - id: b97b2b74-6b3b-5e16-a584-bf852cb47bfb
+    name: Describe typed records
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: b97b2b74-6b3b-5e16-a584-bf852cb47bfb.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: 80f5c8d3-a734-508e-97d9-c65ce6fc82cb
+    to: b97b2b74-6b3b-5e16-a584-bf852cb47bfb
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

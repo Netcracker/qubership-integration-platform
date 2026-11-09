@@ -14,7 +14,11 @@ final class KafkaTriggerSnapshotProcessingGate implements Processor, AutoCloseab
     private Gate active;
 
     Gate blockNext() {
-        active = new Gate();
+        return blockNext(25);
+    }
+
+    Gate blockNext(int timeoutSeconds) {
+        active = new Gate(timeoutSeconds);
         pending.set(active);
         return active;
     }
@@ -24,7 +28,7 @@ final class KafkaTriggerSnapshotProcessingGate implements Processor, AutoCloseab
         Gate gate = pending.getAndSet(null);
         if (gate != null) {
             gate.started.countDown();
-            assertTrue(gate.release.await(25, TimeUnit.SECONDS), "Kafka processing gate was not released within 25 seconds.");
+            assertTrue(gate.release.await(gate.timeoutSeconds, TimeUnit.SECONDS), "Kafka processing gate was not released before its deadline.");
         }
     }
 
@@ -39,6 +43,11 @@ final class KafkaTriggerSnapshotProcessingGate implements Processor, AutoCloseab
     static final class Gate {
         private final CountDownLatch started = new CountDownLatch(1);
         private final CountDownLatch release = new CountDownLatch(1);
+        private final int timeoutSeconds;
+
+        private Gate(int timeoutSeconds) {
+            this.timeoutSeconds = timeoutSeconds;
+        }
 
         void awaitStarted() throws InterruptedException {
             assertTrue(started.await(15, TimeUnit.SECONDS), "Kafka record did not reach the processing gate within 15 seconds.");

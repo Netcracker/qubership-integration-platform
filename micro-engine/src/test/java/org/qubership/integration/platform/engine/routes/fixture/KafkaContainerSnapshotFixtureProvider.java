@@ -85,7 +85,8 @@ class KafkaContainerSnapshotFixtureProvider implements SnapshotFixtureProvider {
         private final String deploymentId;
         private final List<SnapshotFixtureBinding> bindings;
         private final Map<String, KafkaFixtureRuntime> runtimes = new LinkedHashMap<>();
-        private final KafkaConnectionProxy proxy = new KafkaConnectionProxy();
+        private KafkaConnectionProxy proxy;
+        private SnapshotWorkerBrokerPool.Lease<KafkaSenderSnapshotBroker> brokerLease;
         private final Set<String> liveTopics = new LinkedHashSet<>();
         private final Map<String, String> timingOverrides = new LinkedHashMap<>();
         private final Map<String, String> producerProperties = new LinkedHashMap<>();
@@ -166,23 +167,31 @@ class KafkaContainerSnapshotFixtureProvider implements SnapshotFixtureProvider {
 
         @Override
         public void start() throws Exception {
-            if ("sasl-ssl".equals(security)) {
-                tls = KafkaTlsMaterial.create();
-                proxy.configureTls(tls.serverContext("valid"), tls.clientContext());
-            }
-            proxy.start();
-            container = tls == null ? new KafkaSnapshotContainer(KAFKA_IMAGE) {
-                @Override
-                public String getBootstrapServers() {
-                    return "127.0.0.1:" + proxy.port();
+            if (SnapshotWorkerBrokerPool.reuseRequested()) {
+                validateBrokerReuse();
+                brokerLease = SnapshotWorkerBrokerPool.acquire("kafka-sender:plaintext", KafkaSenderSnapshotBroker::start);
+                container = brokerLease.resource().container();
+                proxy = brokerLease.resource().proxy();
+            } else {
+                proxy = new KafkaConnectionProxy();
+                if ("sasl-ssl".equals(security)) {
+                    tls = KafkaTlsMaterial.create();
+                    proxy.configureTls(tls.serverContext("valid"), tls.clientContext());
                 }
-            } : new KafkaTlsContainer(KAFKA_IMAGE, proxy.port(), tls);
-            container.withEnv("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "false").withStartupTimeout(STARTUP_TIMEOUT);
-            if ("sasl-plain".equals(security)) {
-                KafkaSaslSupport.configure(container);
+                proxy.start();
+                container = tls == null ? new KafkaSnapshotContainer(KAFKA_IMAGE) {
+                    @Override
+                    public String getBootstrapServers() {
+                        return "127.0.0.1:" + proxy.port();
+                    }
+                } : new KafkaTlsContainer(KAFKA_IMAGE, proxy.port(), tls);
+                container.withEnv("KAFKA_AUTO_CREATE_TOPICS_ENABLE", "false").withStartupTimeout(STARTUP_TIMEOUT);
+                if ("sasl-plain".equals(security)) {
+                    KafkaSaslSupport.configure(container);
+                }
+                container.start();
+                proxy.connectTo(container.getHost(), container.getMappedPort(9092));
             }
-            container.start();
-            proxy.connectTo(container.getHost(), container.getMappedPort(9092));
             String adminAddress = container instanceof KafkaTlsContainer tlsContainer
                     ? tlsContainer.adminBootstrapServers() : container.getBootstrapServers();
             readerProperties = usesSasl() ? KafkaSaslSupport.adminProperties(adminAddress) : new Properties();
@@ -192,6 +201,23 @@ class KafkaContainerSnapshotFixtureProvider implements SnapshotFixtureProvider {
             adminProperties.put(AdminClientConfig.REQUEST_TIMEOUT_MS_CONFIG, (int) TimeUnit.SECONDS.toMillis(ADMIN_TIMEOUT_SECONDS));
             adminProperties.put(AdminClientConfig.DEFAULT_API_TIMEOUT_MS_CONFIG, (int) TimeUnit.SECONDS.toMillis(ADMIN_TIMEOUT_SECONDS));
             admin = Admin.create(adminProperties);
+        }
+
+        private void validateBrokerReuse() {
+            if (security != null && !"plaintext".equals(security)) {
+                throw new IllegalArgumentException("Kafka sender broker reuse requires a PLAINTEXT functional scenario.");
+            }
+            for (SnapshotFixtureBinding binding : bindings) {
+                for (SnapshotFixtureInteraction interaction : binding.interactionsByInvocationId().values()) {
+                    Map<String, Object> properties = responseProperties(interaction.getResponse());
+                    if (!Set.of("topicPartitions", "verifyMetadata", "expectedRecords", "security", "expectedSendCount",
+                            "synchronous", "producerProperties", "expectedAcks", "expectedCompressionCodec", "timingOverrides",
+                            "expectedProduceAttempts")
+                            .containsAll(properties.keySet())) {
+                        throw new IllegalArgumentException("Kafka sender broker reuse excludes fault, security, lifecycle, and resource controls.");
+                    }
+                }
+            }
         }
 
         @Override
@@ -216,7 +242,7 @@ class KafkaContainerSnapshotFixtureProvider implements SnapshotFixtureProvider {
             for (SnapshotFixtureBinding binding : bindings) {
                 KafkaProducerNode node = findProducerNode(routes, binding.definition());
                 KafkaEndpointUri uri = KafkaEndpointUri.parse(node.definition().getUri(), binding.definition().getId());
-                uri.validateSecurity(security);
+                uri.validateSecurity(brokerLease == null ? security : "plaintext");
                 Map<String, String> connectionOptions = new LinkedHashMap<>(timingOverrides);
                 connectionOptions.putAll(producerProperties);
                 if (synchronous != null) {
@@ -443,13 +469,17 @@ class KafkaContainerSnapshotFixtureProvider implements SnapshotFixtureProvider {
                 }
             } finally {
                 try {
-                    if (container != null) {
+                    if (brokerLease != null) {
+                        brokerLease.close();
+                    } else if (container != null) {
                         container.stop();
                     }
                 } finally {
                     try {
                         try {
-                            proxy.close();
+                            if (brokerLease == null && proxy != null) {
+                                proxy.close();
+                            }
                         } finally {
                             if (tls != null) {
                                 tls.close();
@@ -482,6 +512,9 @@ class KafkaContainerSnapshotFixtureProvider implements SnapshotFixtureProvider {
                 KafkaSaslSupport.applyTopicAcl(admin, topic, "reader", false);
             }
             liveTopics.add(topic);
+            if (brokerLease != null) {
+                KafkaSnapshotBrokerReset.assertEmptyTopics(admin, List.of(topic));
+            }
         }
 
         private void setTopicMaxMessageBytes(String topic, int maxMessageBytes) throws Exception {

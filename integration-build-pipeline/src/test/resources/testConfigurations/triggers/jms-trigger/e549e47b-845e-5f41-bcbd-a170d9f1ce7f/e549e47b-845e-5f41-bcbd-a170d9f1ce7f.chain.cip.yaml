@@ -1,0 +1,86 @@
+---
+id: e549e47b-845e-5f41-bcbd-a170d9f1ce7f
+$schema: http://qubership.org/schemas/product/qip/chain
+name: jms-trigger-duplicate-handler-failures
+content:
+  labels: []
+  elements:
+  - id: 66ea966e-ea40-57b2-9766-a226fa2ec23a
+    name: JMS Trigger client-subchain
+    type: jms-trigger
+    properties:
+      acknowledgmentMode: CLIENT_ACKNOWLEDGE
+      initialContextFactory: org.qubership.integration.platform.engine.routes.fixture.SnapshotJmsInitialContextFactory
+      providerUrl: snapshot:jms-trigger
+      connectionFactoryName: jms/BulkQuotationRequest/connectionfactory
+      destinationName: jms/snapshot/duplicate-handler/client
+      destinationType: queue
+      username: snapshot
+      password: snapshot
+      idempotency:
+        enabled: true
+        keyExpiry: 600
+        keyExpression: ${header.businessKey}
+        contextExpression: ${header.businessContext}
+        actionOnDuplicate: execute-subchain
+        chainTriggerParameters:
+          triggerElementId: 0d75c14f-8522-5928-8ea1-4036886cdf9b
+          chainCallTimeout: 1000
+  - id: 46388863-2379-5970-821c-443890ca6d00
+    name: Process client-subchain-script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 46388863-2379-5970-821c-443890ca6d00.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  - id: 9c832189-a89f-57e2-866a-fe7e21a151b8
+    name: JMS Trigger transacted-subchain
+    type: jms-trigger
+    properties:
+      acknowledgmentMode: SESSION_TRANSACTED
+      initialContextFactory: org.qubership.integration.platform.engine.routes.fixture.SnapshotJmsInitialContextFactory
+      providerUrl: snapshot:jms-trigger
+      connectionFactoryName: jms/BulkQuotationRequest/connectionfactory
+      destinationName: jms/snapshot/duplicate-handler/transacted
+      destinationType: queue
+      username: snapshot
+      password: snapshot
+      idempotency:
+        enabled: true
+        keyExpiry: 600
+        keyExpression: ${header.businessKey}
+        contextExpression: ${header.businessContext}
+        actionOnDuplicate: execute-subchain
+        chainTriggerParameters:
+          triggerElementId: 0d75c14f-8522-5928-8ea1-4036886cdf9b
+          chainCallTimeout: 1000
+  - id: fdfe4b2d-43b6-5a1e-94f2-8c84b617c2e0
+    name: Process transacted-subchain-script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: fdfe4b2d-43b6-5a1e-94f2-8c84b617c2e0.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  - id: 0d75c14f-8522-5928-8ea1-4036886cdf9b
+    name: Handle duplicate
+    type: chain-trigger-2
+    properties:
+      elementId: 0d75c14f-8522-5928-8ea1-4036886cdf9b
+  - id: bdaad712-5a39-5eaa-9b70-41f4da68e5d2
+    name: Process duplicate-script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: bdaad712-5a39-5eaa-9b70-41f4da68e5d2.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: 66ea966e-ea40-57b2-9766-a226fa2ec23a
+    to: 46388863-2379-5970-821c-443890ca6d00
+  - from: 9c832189-a89f-57e2-866a-fe7e21a151b8
+    to: fdfe4b2d-43b6-5a1e-94f2-8c84b617c2e0
+  - from: 0d75c14f-8522-5928-8ea1-4036886cdf9b
+    to: bdaad712-5a39-5eaa-9b70-41f4da68e5d2
+  deployments:
+  - domain: default
+  deployAction: DEPLOY
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

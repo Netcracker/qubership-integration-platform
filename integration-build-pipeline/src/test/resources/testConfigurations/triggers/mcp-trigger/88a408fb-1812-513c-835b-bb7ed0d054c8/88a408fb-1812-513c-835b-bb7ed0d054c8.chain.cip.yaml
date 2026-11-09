@@ -1,0 +1,42 @@
+---
+id: 88a408fb-1812-513c-835b-bb7ed0d054c8
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+name: mcp-trigger-idempotency-subchain
+content:
+  labels: []
+  elements:
+  - id: d556ce90-e691-5aa6-b7c7-cd1b2d6f8376
+    name: MCP Trigger
+    type: mcp-trigger
+    properties:
+      mcpServiceIds:
+      - a61e7e36-2fe7-588c-bbb9-8e116c4b88c8
+      name: snapshot_mcp_idempotency_subchain
+      title: Snapshot MCP idempotency-subchain
+      description: Exercises MCP idempotency-subchain behavior in component tests.
+      destructive: false
+      idempotent: false
+      inputSchema: '{"type":"object","properties":{"message":{"type":"string"},"key":{"type":"string"},"mode":{"type":"string"},"number":{"type":"number"},"enabled":{"type":"boolean"},"items":{"type":"array","items":{}},"metadata":{"type":"object"},"optionalValue":{"type":["string","null"]}},"required":["message"],"additionalProperties":false}'
+      openWorld: false
+      readOnly: false
+      idempotency:
+        enabled: true
+        contextExpression: snapshot-mcp-idempotency-subchain
+        keyExpression: ${body[key]}
+        keyExpiry: 60
+        actionOnDuplicate: execute-subchain
+        chainTriggerParameters:
+          triggerElementId: b053ad1e-04a8-51d6-ab94-da9d381fa062
+          chainCallTimeout: 3000
+  - id: b6906f6f-316a-53ac-8af9-699c3c8a4b88
+    name: Script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: b6906f6f-316a-53ac-8af9-699c3c8a4b88.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: d556ce90-e691-5aa6-b7c7-cd1b2d6f8376
+    to: b6906f6f-316a-53ac-8af9-699c3c8a4b88
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

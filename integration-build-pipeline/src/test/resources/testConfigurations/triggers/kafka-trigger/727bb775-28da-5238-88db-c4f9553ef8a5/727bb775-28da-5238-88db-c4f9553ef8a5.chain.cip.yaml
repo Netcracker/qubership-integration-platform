@@ -1,0 +1,38 @@
+---
+id: 727bb775-28da-5238-88db-c4f9553ef8a5
+$schema: http://qubership.org/schemas/product/qip/chain
+name: kafka-trigger-poll-limit
+content:
+  labels: []
+  elements:
+  - id: bc501bcb-65cf-5037-a30d-69499871244d
+    name: Kafka Trigger 1
+    type: kafka-trigger-2
+    properties:
+      autoOffsetReset: earliest
+      brokers: localhost:9092
+      connectionSourceType: manual
+      consumersCount: 1
+      groupId: snapshot-kafka-trigger-poll-limit
+      keyDeserializer: org.apache.kafka.common.serialization.StringDeserializer
+      maxPollIntervalMs: 300000
+      maxPollRecords: 2
+      reconnectBackoffMaxMs: 1000
+      saslMechanism: GSSAPI
+      securityProtocol: PLAINTEXT
+      sslProtocol: TLS
+      topics: snapshot.kafka.trigger.poll-limit
+      valueDeserializer: org.apache.kafka.common.serialization.StringDeserializer
+      consumerConsistencyMode: EVENTUAL
+  - id: bf57c343-cb88-5941-b4ea-671dea614012
+    name: Script 1
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: bf57c343-cb88-5941-b4ea-671dea614012.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: bc501bcb-65cf-5037-a30d-69499871244d
+    to: bf57c343-cb88-5941-b4ea-671dea614012
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

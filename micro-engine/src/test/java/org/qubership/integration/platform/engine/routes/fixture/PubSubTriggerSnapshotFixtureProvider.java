@@ -33,6 +33,7 @@ import java.util.function.BooleanSupplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -40,7 +41,10 @@ class PubSubTriggerSnapshotFixtureProvider implements SnapshotFixtureProvider {
     private static final Logger LOG = LoggerFactory.getLogger(PubSubTriggerSnapshotFixtureProvider.class);
     private static final Set<String> CONTROLS = Set.of("consumerAction", "startupUnavailable", "missingSubscription",
             "expectedAcknowledgments", "expectedNegativeAcknowledgments", "expectedAbsentHeaders", "expectedCompletions",
-            "expectedCompletionCounts", "resourceProbe", "subscriptionAction", "maxDeliveriesPerMessage");
+            "expectedCompletionCounts", "resourceProbe", "subscriptionAction", "maxDeliveriesPerMessage",
+            "redeliverAfterFailureRestart", "subscriberAuthentication", "oauthError", "shortLivedAccessToken",
+            "expireAccessToken", "awaitOAuthFailure", "minimumTokenRequests", "streamingFailure",
+            "verifyLeaseExtension", "backlogMessages", "resumeBacklog");
 
     @Override
     public String getId() {
@@ -79,10 +83,29 @@ class PubSubTriggerSnapshotFixtureProvider implements SnapshotFixtureProvider {
                 .contains(controls.get("subscriptionAction"))) {
             throw new IllegalArgumentException("Unsupported Pub/Sub subscriptionAction: " + controls.get("subscriptionAction"));
         }
-        for (String key : List.of("startupUnavailable", "missingSubscription")) {
+        for (String key : List.of("startupUnavailable", "missingSubscription", "redeliverAfterFailureRestart",
+                "subscriberAuthentication", "shortLivedAccessToken", "expireAccessToken", "awaitOAuthFailure",
+                "verifyLeaseExtension", "resumeBacklog")) {
             if (controls.containsKey(key) && !(controls.get(key) instanceof Boolean)) {
                 throw new IllegalArgumentException("Pub/Sub " + key + " must be a boolean.");
             }
+        }
+        if (controls.containsKey("oauthError") && !"invalid_grant".equals(controls.get("oauthError"))) {
+            throw new IllegalArgumentException("Pub/Sub OAuth failure supports only invalid_grant.");
+        }
+        if (controls.containsKey("streamingFailure")
+                && !Set.of("RESOURCE_EXHAUSTED", "DEADLINE_EXCEEDED").contains(controls.get("streamingFailure"))) {
+            throw new IllegalArgumentException("Pub/Sub streamingFailure supports RESOURCE_EXHAUSTED and DEADLINE_EXCEEDED.");
+        }
+        if (controls.containsKey("backlogMessages")) {
+            if (!(controls.get("backlogMessages") instanceof List<?> messages) || messages.isEmpty()) {
+                throw new IllegalArgumentException("Pub/Sub backlogMessages must contain publications.");
+            }
+            PubSubTriggerSnapshotRuntime.messages(null, Map.of(), Map.of("messages", messages));
+        }
+        if (controls.containsKey("minimumTokenRequests") && (!(controls.get("minimumTokenRequests") instanceof Number count)
+                || count.intValue() < 0 || count.doubleValue() != count.intValue())) {
+            throw new IllegalArgumentException("Pub/Sub minimumTokenRequests must be a nonnegative integer.");
         }
         if (controls.containsKey("maxDeliveriesPerMessage")
                 && (!(controls.get("maxDeliveriesPerMessage") instanceof Number value)
@@ -122,6 +145,9 @@ class PubSubTriggerSnapshotFixtureProvider implements SnapshotFixtureProvider {
         private Consumer consumer;
         private PubSubTriggerSnapshotBroker.Statistics invocationStart;
         private boolean stopped;
+        private PubSubOAuthServer oauth;
+        private PubSubSubscriberChannelRedirect channelRedirect;
+        private boolean firstOAuthInvocation = true;
         private final Map<String, java.util.logging.Level> previousLogLevels = new LinkedHashMap<>();
 
         private Fixture(String deploymentId, SnapshotFixtureBinding binding) {
@@ -135,7 +161,7 @@ class PubSubTriggerSnapshotFixtureProvider implements SnapshotFixtureProvider {
         }
 
         @Override
-        public void beforeRouteLoad(CamelContext camelContext) {
+        public void beforeRouteLoad(CamelContext camelContext) throws Exception {
             boolean quietResourceProbe = binding.interactionsByInvocationId().values().stream()
                     .anyMatch(interaction -> controls(interaction).containsKey("resourceProbe"));
             if (quietResourceProbe) {
@@ -147,7 +173,14 @@ class PubSubTriggerSnapshotFixtureProvider implements SnapshotFixtureProvider {
                 }
             }
             InstrumentedComponent component = new InstrumentedComponent(retention);
-            component.setAuthenticate(false);
+            boolean authenticate = binding.interactionsByInvocationId().values().stream()
+                    .anyMatch(interaction -> Boolean.TRUE.equals(controls(interaction).get("subscriberAuthentication")));
+            component.setAuthenticate(authenticate);
+            if (authenticate) {
+                oauth = new PubSubOAuthServer();
+                oauth.start();
+                configureOAuth(controls(binding.interactionsByInvocationId().values().iterator().next()));
+            }
             camelContext.addComponent("google-pubsub", component);
             camelContext.getRegistry().bind("snapshotPubSubAttempts", attempts);
         }
@@ -160,6 +193,16 @@ class PubSubTriggerSnapshotFixtureProvider implements SnapshotFixtureProvider {
         @Override
         public void configure(CamelContext camelContext, List<RouteDefinition> routes) throws Exception {
             context = camelContext;
+            if (SnapshotWorkerBrokerPool.reuseRequested()) {
+                for (SnapshotFixtureInteraction interaction : binding.interactionsByInvocationId().values()) {
+                    Map<String, Object> configured = controls(interaction);
+                    if (!Set.of("consumerAction", "expectedAcknowledgments", "expectedNegativeAcknowledgments", "expectedAbsentHeaders",
+                            "expectedCompletions", "expectedCompletionCounts", "maxDeliveriesPerMessage").containsAll(configured.keySet())
+                            || configured.containsKey("consumerAction") && !"restart".equals(configured.get("consumerAction"))) {
+                        throw new IllegalArgumentException("Pub/Sub backend reuse excludes authentication, transport, subscription, resource, and lease controls.");
+                    }
+                }
+            }
             String nodeId = binding.definition().getNodeId();
             route = SnapshotRouteNodes.requireSingle(SnapshotRouteNodes.findById(routes, nodeId),
                     "Pub/Sub trigger requires its generated consumer route").route();
@@ -176,10 +219,19 @@ class PubSubTriggerSnapshotFixtureProvider implements SnapshotFixtureProvider {
                     .anyMatch(interaction -> Boolean.TRUE.equals(controls(interaction).get("missingSubscription")));
             boolean unavailable = binding.interactionsByInvocationId().values().stream()
                     .anyMatch(interaction -> Boolean.TRUE.equals(controls(interaction).get("startupUnavailable")));
-            broker.start(destination[0], "snapshot-pubsub-trigger-topic", destination[1], missing, unavailable);
+            if (oauth != null) {
+                route.getInput().setUri(uri.replace("serviceAccountKey=" + parameters.get("serviceAccountKey"),
+                        "serviceAccountKey=" + oauth.credentialsResource(parameters.get("serviceAccountKey"))));
+            }
+            broker.start(destination[0], "snapshot-pubsub-trigger-topic", destination[1], missing, unavailable, oauth);
             InstrumentedComponent component = assertInstanceOf(InstrumentedComponent.class,
                     context.getComponent("google-pubsub"));
-            component.setEndpoint(broker.endpoint());
+            if (oauth == null) {
+                component.setEndpoint(broker.endpoint());
+            } else {
+                channelRedirect = new PubSubSubscriberChannelRedirect(broker.port());
+                assertEquals(null, component.getEndpoint(), "Authenticated Subscriber must retain the production default factory.");
+            }
             runtime = new PubSubTriggerSnapshotRuntime(broker, context, "NONE".equals(parameters.get("ackMode")));
             context.getRegistry().bind(PubSubTriggerSnapshotRuntime.registryName(nodeId), runtime);
             SnapshotFixtureRouteScope.bind(context, List.of(route), deploymentId + ':' + binding.definition().getId(),
@@ -204,8 +256,20 @@ class PubSubTriggerSnapshotFixtureProvider implements SnapshotFixtureProvider {
                 assertTrue(!endpoint.isSynchronousPull(), "Generated Pub/Sub trigger must use streaming pull.");
             }
             Map<String, Object> control = controls(binding.interaction(invocation.getId()));
+            if (Boolean.TRUE.equals(control.get("resumeBacklog"))) {
+                stopConsumer();
+            }
+            int tokenBaseline = oauth == null ? 0 : oauth.tokenRequestCount();
+            if (oauth != null) {
+                if (firstOAuthInvocation) {
+                    firstOAuthInvocation = false;
+                } else {
+                    configureOAuth(control);
+                }
+            }
             runtime.beforeInvocation(invocation, binding.interaction(invocation.getId()));
             broker.maxDeliveriesPerMessage(((Number) control.getOrDefault("maxDeliveriesPerMessage", Integer.MAX_VALUE)).intValue());
+            invocationStart = broker.statistics();
             if (Boolean.TRUE.equals(control.get("startupUnavailable"))) {
                 await(() -> broker.statistics().rejectedConnections() > 0, "startup connection rejection");
                 runtime.assertNothingDelivered();
@@ -249,11 +313,79 @@ class PubSubTriggerSnapshotFixtureProvider implements SnapshotFixtureProvider {
                     startConsumer();
                 }
             }
-            invocationStart = broker.statistics();
+            if (Boolean.TRUE.equals(control.get("awaitOAuthFailure"))) {
+                await(() -> oauth.tokenRequestCount() > tokenBaseline, "rejected OAuth token request");
+                runtime.assertNothingDelivered();
+            }
+            if (control.get("backlogMessages") instanceof List<?> messages) {
+                assertNotNull(oauth, "Pub/Sub OAuth backlog requires the authenticated subscriber boundary.");
+                int beforePublication = oauth.tokenRequestCount();
+                runtime.stageBacklog(messages);
+                await(() -> oauth.tokenRequestCount() > beforePublication, "OAuth rejection while the backlog is queued");
+                runtime.assertNothingDelivered();
+            }
+            if (control.get("streamingFailure") instanceof String code) {
+                long baseline = broker.injectedStreamingFailures();
+                broker.rejectStreamingPulls(code);
+                runtime.afterPublish(() -> {
+                    try {
+                        await(() -> broker.injectedStreamingFailures() > baseline, "injected " + code + " stream rejection");
+                        runtime.assertNothingDelivered();
+                    } finally {
+                        broker.allowStreamingPulls();
+                    }
+                });
+            }
+            if (Boolean.TRUE.equals(control.get("verifyLeaseExtension"))) {
+                runtime.holdFirstDelivery();
+                runtime.afterPublish(this::verifyLeaseRenewal);
+            }
+            if (Boolean.TRUE.equals(control.get("redeliverAfterFailureRestart"))) {
+                PubSubTriggerSnapshotBroker.Statistics baseline = invocationStart;
+                runtime.afterFirstCompletion(() -> {
+                    assertEquals(baseline.acknowledgedCount(), broker.statistics().acknowledgedCount(),
+                            "NONE must not acknowledge a failed delivery automatically.");
+                    assertEquals(baseline.negativeAcknowledgedCount(), broker.statistics().negativeAcknowledgedCount(),
+                            "NONE must not negatively acknowledge a failed delivery automatically.");
+                    stopConsumer();
+                    await(() -> broker.statistics().activeStreams() == 0, "failed delivery stream shutdown");
+                    broker.expireOutstandingLeases();
+                    startConsumer();
+                });
+            }
             if (control.get("resourceProbe") instanceof Map<?, ?> probe) {
                 verifyResources(probe, Boolean.TRUE.equals(control.get("missingSubscription")), "probe-unavailable".equals(action));
                 broker.restore();
             }
+        }
+
+        private void verifyLeaseRenewal() {
+            try {
+                runtime.awaitHeldDelivery();
+                await(() -> broker.streamAckDeadlineSeconds() > 0, "the initial streaming acknowledgment deadline");
+                int initialDeadline = broker.streamAckDeadlineSeconds();
+                assertTrue(initialDeadline <= 120, "Pub/Sub lease observation requires an initial deadline of at most 120 seconds.");
+                long originalDeadline = runtime.heldSinceNanos() + TimeUnit.SECONDS.toNanos(initialDeadline + 2L);
+                await(() -> {
+                    runtime.assertHeldOnce();
+                    assertEquals(invocationStart.acknowledgedCount(), broker.statistics().acknowledgedCount(),
+                            "Pub/Sub must not acknowledge the held message before processing completes.");
+                    return System.nanoTime() >= originalDeadline && broker.leaseExtensions(runtime.currentMessageIds()) > 0
+                            && broker.leaseDeadlineNanos(runtime.currentMessageIds()) > System.nanoTime();
+                }, "a renewed lease beyond the original acknowledgment deadline", initialDeadline + 15);
+                runtime.assertHeldOnce();
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Interrupted while observing Pub/Sub lease renewal.", exception);
+            } finally {
+                runtime.releaseHeldDelivery();
+            }
+        }
+
+        private void configureOAuth(Map<String, Object> control) throws InterruptedException {
+            oauth.beforeInvocation((String) control.get("oauthError"),
+                    Boolean.TRUE.equals(control.get("shortLivedAccessToken")),
+                    Boolean.TRUE.equals(control.get("expireAccessToken")));
         }
 
         @Override
@@ -313,10 +445,22 @@ class PubSubTriggerSnapshotFixtureProvider implements SnapshotFixtureProvider {
         public void verifyInvocation(SnapshotScenarioInvocation invocation) {
             runtime.verifyInvocation(invocation.getId());
             Map<String, Object> control = controls(binding.interaction(invocation.getId()));
+            if (oauth != null) {
+                oauth.verifyInvocation();
+                assertTrue(channelRedirect.redirectedChannels() > 0, "Subscriber must connect through the local TLS boundary.");
+                int minimum = ((Number) control.getOrDefault("minimumTokenRequests", 1)).intValue();
+                assertTrue(oauth.tokenRequestCount() >= minimum, "Subscriber must obtain the expected OAuth tokens.");
+            }
             int acknowledgments = ((Number) control.getOrDefault("expectedAcknowledgments", runtime.currentMessageIds().size())).intValue();
             int negative = ((Number) control.getOrDefault("expectedNegativeAcknowledgments", 0)).intValue();
-            await(() -> broker.statistics().acknowledgedCount() - invocationStart.acknowledgedCount() >= acknowledgments
-                    && broker.statistics().negativeAcknowledgedCount() - invocationStart.negativeAcknowledgedCount() >= negative,
+            List<String> publishedIds = runtime.currentMessageIds();
+            boolean expectsAllAcknowledged = acknowledgments == publishedIds.size();
+            await(() -> {
+                PubSubTriggerSnapshotBroker.Statistics observed = broker.statistics();
+                return observed.acknowledgedCount() - invocationStart.acknowledgedCount() >= acknowledgments
+                        && observed.negativeAcknowledgedCount() - invocationStart.negativeAcknowledgedCount() >= negative
+                        && (!expectsAllAcknowledged || observed.acknowledgedMessageIds().containsAll(publishedIds));
+            },
                     "broker acknowledgment requests");
             assertEquals(acknowledgments, broker.statistics().acknowledgedCount() - invocationStart.acknowledgedCount(),
                     "Pub/Sub acknowledgment count");
@@ -355,7 +499,9 @@ class PubSubTriggerSnapshotFixtureProvider implements SnapshotFixtureProvider {
 
         @Override
         public void releasePendingWork() {
+            runtime.releaseHeldDelivery();
             runtime.acknowledgePending();
+            broker.allowStreamingPulls();
             broker.restore();
         }
 
@@ -373,6 +519,7 @@ class PubSubTriggerSnapshotFixtureProvider implements SnapshotFixtureProvider {
         @Override
         public void beforeContextStop() {
             if (runtime != null) {
+                runtime.releaseHeldDelivery();
                 runtime.acknowledgePending();
             }
             broker.restore();
@@ -383,15 +530,28 @@ class PubSubTriggerSnapshotFixtureProvider implements SnapshotFixtureProvider {
             try {
                 broker.close();
             } finally {
-                previousLogLevels.forEach((name, level) -> org.jboss.logmanager.Logger.getLogger(name).setLevel(level));
+                try {
+                    if (channelRedirect != null) {
+                        channelRedirect.close();
+                    }
+                    if (oauth != null) {
+                        oauth.close();
+                    }
+                } finally {
+                    previousLogLevels.forEach((name, level) -> org.jboss.logmanager.Logger.getLogger(name).setLevel(level));
+                }
             }
         }
     }
 
     private static void await(BooleanSupplier condition, String description) {
+        await(condition, description, 20);
+    }
+
+    private static void await(BooleanSupplier condition, String description, int seconds) {
         var limiter = RateLimiterBuilder.newBuilder().withRate(10, TimeUnit.SECONDS).withConstantThroughput().build();
         try {
-            Unreliables.retryUntilTrue(20, TimeUnit.SECONDS, () -> limiter.getWhenReady(condition::getAsBoolean));
+            Unreliables.retryUntilTrue(seconds, TimeUnit.SECONDS, () -> limiter.getWhenReady(condition::getAsBoolean));
         } catch (RuntimeException exception) {
             throw new AssertionError("Timed out waiting for Pub/Sub " + description + '.', exception);
         }

@@ -1,0 +1,68 @@
+---
+id: 4018e3df-84ba-5ac4-965a-d1e58c796a2c
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+name: mcp-trigger-idempotency-other-context
+content:
+  labels: []
+  elements:
+  - id: 3e4806ee-919a-5da9-ad3f-b328fdb3418e
+    name: MCP Trigger
+    type: mcp-trigger
+    properties:
+      mcpServiceIds:
+      - a61e7e36-2fe7-588c-bbb9-8e116c4b88c8
+      name: snapshot_mcp_idempotency_other_context
+      title: Snapshot MCP idempotency-other-context
+      description: Exercises MCP idempotency-other-context behavior in component tests.
+      destructive: false
+      idempotent: false
+      inputSchema: '{"type":"object","properties":{"message":{"type":"string"},"key":{"type":"string"},"mode":{"type":"string"},"number":{"type":"number"},"enabled":{"type":"boolean"},"items":{"type":"array","items":{}},"metadata":{"type":"object"},"optionalValue":{"type":["string","null"]}},"required":["message"],"additionalProperties":false}'
+      openWorld: false
+      readOnly: false
+      idempotency:
+        enabled: true
+        contextExpression: snapshot-mcp-first-context
+        keyExpression: ${body[key]}
+        keyExpiry: 60
+        actionOnDuplicate: ignore
+  - id: 6585ca98-9ead-5be6-83fb-bfc450b13d7d
+    name: Script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 6585ca98-9ead-5be6-83fb-bfc450b13d7d.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  - id: 0c966d05-bb06-5a85-91a0-3a45631e97dd
+    name: MCP Trigger
+    type: mcp-trigger
+    properties:
+      mcpServiceIds:
+      - a61e7e36-2fe7-588c-bbb9-8e116c4b88c8
+      name: snapshot_mcp_idempotency_second_context
+      title: Snapshot MCP second context
+      description: Exercises MCP idempotency-other-context behavior in component tests.
+      destructive: false
+      idempotent: false
+      inputSchema: '{"type":"object","properties":{"message":{"type":"string"},"key":{"type":"string"},"mode":{"type":"string"},"number":{"type":"number"},"enabled":{"type":"boolean"},"items":{"type":"array","items":{}},"metadata":{"type":"object"},"optionalValue":{"type":["string","null"]}},"required":["message"],"additionalProperties":false}'
+      openWorld: false
+      readOnly: false
+      idempotency:
+        enabled: true
+        contextExpression: snapshot-mcp-second-context
+        keyExpression: ${body[key]}
+        keyExpiry: 60
+        actionOnDuplicate: ignore
+  - id: c37c7b2f-9476-583a-8450-86ec56e7be9f
+    name: Second context script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: c37c7b2f-9476-583a-8450-86ec56e7be9f.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: 3e4806ee-919a-5da9-ad3f-b328fdb3418e
+    to: 6585ca98-9ead-5be6-83fb-bfc450b13d7d
+  - from: 0c966d05-bb06-5a85-91a0-3a45631e97dd
+    to: c37c7b2f-9476-583a-8450-86ec56e7be9f
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'
