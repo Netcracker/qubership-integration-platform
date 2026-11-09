@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
@@ -47,11 +48,16 @@ public final class PubSubTriggerSnapshotRuntime {
     private final Map<String, PubsubMessage> published = new LinkedHashMap<>();
     private final List<String> currentIds = new ArrayList<>();
     private final List<String> allCompletedIds = new CopyOnWriteArrayList<>();
+    private final List<String> stagedIds = new ArrayList<>();
     private SnapshotFixtureInteraction interaction;
     private int publicationIndex;
     private Runnable afterPublish = () -> { };
+    private Runnable afterFirstCompletion = () -> { };
     private volatile List<String> currentPublishedMessageIds = List.of();
     private volatile String phase = "not-started";
+    private volatile CountDownLatch heldDelivery;
+    private volatile CountDownLatch releaseDelivery;
+    private volatile long heldSinceNanos;
 
     PubSubTriggerSnapshotRuntime(PubSubTriggerSnapshotBroker broker, CamelContext context, boolean manualAcknowledgment) {
         this.broker = broker;
@@ -70,16 +76,17 @@ public final class PubSubTriggerSnapshotRuntime {
             result.getMessage().setBody("Observed");
             return result;
         }
-        List<PubsubMessage> messages = messages(invocation.getBody(), invocation.getHeaders(), parameters);
-        int expectedCount = expectedCompletionCount(invocation, messages.size());
+        boolean consumeBacklog = Boolean.TRUE.equals(parameters.get("consumeBacklog"));
         phase = "publishing";
-        List<String> ids = broker.publish(messages).getMessageIdsList();
-        currentPublishedMessageIds = List.copyOf(ids);
-        assertEquals(messages.size(), ids.size(), "Pub/Sub must assign one ID per published message.");
-        for (int index = 0; index < ids.size(); index++) {
-            assertFalse(published.containsKey(ids.get(index)), "Pub/Sub must assign distinct message IDs.");
-            published.put(ids.get(index), messages.get(index));
+        List<String> ids;
+        if (consumeBacklog) {
+            assertFalse(stagedIds.isEmpty(), "Pub/Sub backlog consumption requires staged messages.");
+            ids = List.copyOf(stagedIds);
+        } else {
+            ids = publish(messages(invocation.getBody(), invocation.getHeaders(), parameters));
         }
+        int expectedCount = expectedCompletionCount(invocation, ids.size());
+        currentPublishedMessageIds = List.copyOf(ids);
         currentIds.addAll(ids);
         phase = "after-publish";
         afterPublish.run();
@@ -92,15 +99,38 @@ public final class PubSubTriggerSnapshotRuntime {
             String id = messageId(completion);
             assertTrue(ids.contains(id), "Pub/Sub completed an unexpected message: " + id);
             lastById.put(id, completion);
+            if (index == 0) {
+                afterFirstCompletion.run();
+            }
         }
         assertEquals(ids.size(), lastById.size(), "Every published message must complete.");
         List<Exchange> ordered = ids.stream().map(lastById::get).toList();
         Exchange result = copy(ordered.getLast());
-        if (parameters.containsKey("messages") || parameters.containsKey("messageCount")) {
+        if (parameters.containsKey("messages") || parameters.containsKey("messageCount") || consumeBacklog) {
             result.getMessage().setBody(ordered.stream().map(exchange -> exchange.getMessage().getBody()).toList());
+        }
+        if (consumeBacklog) {
+            stagedIds.clear();
         }
         phase = "completed";
         return result;
+    }
+
+    private List<String> publish(List<PubsubMessage> messages) {
+        List<String> ids = broker.publish(messages).getMessageIdsList();
+        assertEquals(messages.size(), ids.size(), "Pub/Sub must assign one ID per published message.");
+        for (int index = 0; index < ids.size(); index++) {
+            assertFalse(published.containsKey(ids.get(index)), "Pub/Sub must assign distinct message IDs.");
+            published.put(ids.get(index), messages.get(index));
+        }
+        return ids;
+    }
+
+    void stageBacklog(List<?> messages) {
+        assertTrue(stagedIds.isEmpty(), "Pub/Sub must consume its earlier staged backlog first.");
+        stagedIds.addAll(publish(messages(null, Map.of(), Map.of("messages", messages))));
+        currentIds.addAll(stagedIds);
+        currentPublishedMessageIds = List.copyOf(stagedIds);
     }
 
     private int expectedCompletionCount(SnapshotScenarioInvocation invocation, int messageCount) {
@@ -205,10 +235,18 @@ public final class PubSubTriggerSnapshotRuntime {
         interaction = expected;
         publicationIndex = 0;
         afterPublish = () -> { };
+        afterFirstCompletion = () -> { };
+        releaseHeldDelivery();
+        heldDelivery = null;
+        releaseDelivery = null;
     }
 
     void afterPublish(Runnable callback) {
         afterPublish = callback;
+    }
+
+    void afterFirstCompletion(Runnable callback) {
+        afterFirstCompletion = callback;
     }
 
     String timeoutDiagnostics() {
@@ -220,9 +258,39 @@ public final class PubSubTriggerSnapshotRuntime {
                 + ", pendingCompletions=" + completions.size();
     }
 
-    void received(Exchange exchange) {
+    void received(Exchange exchange) throws InterruptedException {
         assertEquals(ExchangePattern.InOnly, exchange.getPattern(), "Pub/Sub trigger must consume messages as InOnly.");
         inputs.add(copy(exchange));
+        if (heldDelivery != null && inputs.size() == 1) {
+            heldSinceNanos = System.nanoTime();
+            heldDelivery.countDown();
+            assertTrue(releaseDelivery.await(150, TimeUnit.SECONDS), "Pub/Sub held delivery was not released.");
+        }
+    }
+
+    void holdFirstDelivery() {
+        heldDelivery = new CountDownLatch(1);
+        releaseDelivery = new CountDownLatch(1);
+    }
+
+    void awaitHeldDelivery() throws InterruptedException {
+        assertTrue(heldDelivery.await(20, TimeUnit.SECONDS), "Pub/Sub did not enter its held delivery.");
+    }
+
+    long heldSinceNanos() {
+        return heldSinceNanos;
+    }
+
+    void assertHeldOnce() {
+        assertEquals(1, inputs.size(), "Pub/Sub redelivered a message while its original lease was being renewed.");
+        assertTrue(finished.isEmpty(), "Pub/Sub completed its message before the processing gate opened.");
+    }
+
+    void releaseHeldDelivery() {
+        CountDownLatch release = releaseDelivery;
+        if (release != null) {
+            release.countDown();
+        }
     }
 
     void completed(Exchange exchange) {
@@ -316,6 +384,7 @@ public final class PubSubTriggerSnapshotRuntime {
 
     void verifyStopped() {
         assertTrue(completions.isEmpty(), "Pub/Sub delivered an extra completion before shutdown.");
+        assertTrue(stagedIds.isEmpty(), "Pub/Sub did not consume its staged backlog.");
         assertTrue(allCompletedIds.stream().allMatch(published::containsKey), "Pub/Sub completed an unpublished message.");
     }
 

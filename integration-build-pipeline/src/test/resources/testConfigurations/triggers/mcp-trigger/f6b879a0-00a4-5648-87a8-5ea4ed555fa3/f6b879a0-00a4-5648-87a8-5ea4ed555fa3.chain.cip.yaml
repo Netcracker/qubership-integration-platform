@@ -1,0 +1,24 @@
+---
+id: f6b879a0-00a4-5648-87a8-5ea4ed555fa3
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+name: mcp-trigger-duplicate-handler
+content:
+  labels: []
+  elements:
+  - id: b053ad1e-04a8-51d6-ab94-da9d381fa062
+    name: Duplicate chain trigger
+    type: chain-trigger-2
+    properties:
+      elementId: b053ad1e-04a8-51d6-ab94-da9d381fa062
+  - id: e23e54bb-0c86-5b8c-abff-a12624b98317
+    name: Script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: e23e54bb-0c86-5b8c-abff-a12624b98317.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: b053ad1e-04a8-51d6-ab94-da9d381fa062
+    to: e23e54bb-0c86-5b8c-abff-a12624b98317
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

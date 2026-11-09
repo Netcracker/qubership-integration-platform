@@ -16,7 +16,11 @@ import org.apache.camel.model.RouteDefinition;
 import org.apache.camel.support.DefaultExchange;
 import org.qubership.integration.platform.engine.camel.CorrelationIdSetter;
 import org.qubership.integration.platform.engine.camel.JsonMessageValidator;
+import org.qubership.integration.platform.engine.camel.components.servlet.ServletCustomConsumer;
+import org.qubership.integration.platform.engine.camel.components.servlet.ServletCustomFilterStrategy;
+import org.qubership.integration.platform.engine.camel.components.servlet.binding.HandlingHttpBinding;
 import org.qubership.integration.platform.engine.camel.components.servlet.exception.ChainGlobalExceptionHandler;
+import org.qubership.integration.platform.engine.camel.context.propagation.ContextPropsProvider;
 import org.qubership.integration.platform.engine.camel.processors.ChainExceptionResponseHandlerProcessor;
 import org.qubership.integration.platform.engine.camel.processors.HttpTriggerProcessor;
 import org.qubership.integration.platform.engine.camel.processors.InterruptExchangeProcessor;
@@ -29,6 +33,7 @@ import org.qubership.integration.platform.engine.routes.entrypoint.execution.Sna
 import org.qubership.integration.platform.engine.routes.entrypoint.execution.SnapshotScenarioDriverDefinition;
 import org.qubership.integration.platform.engine.routes.entrypoint.execution.SnapshotScenarioInvocation;
 import org.qubership.integration.platform.engine.routes.fixture.SnapshotFixtureRouteScope;
+import org.qubership.integration.platform.engine.routes.support.SnapshotRouteNodes;
 import org.qubership.integration.platform.engine.service.debugger.util.ChainExceptionResponseHandlerService;
 import org.qubership.integration.platform.engine.testutils.ObjectMappers;
 
@@ -41,11 +46,14 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -97,11 +105,19 @@ class HttpTriggerSnapshotScenarioDriverProvider implements SnapshotScenarioDrive
         private final Map<String, TriggerBinding> bindingsByInvocationId = new LinkedHashMap<>();
         private final List<TriggerBinding> bindings = new ArrayList<>();
         private final AtomicReference<Throwable> handlerFailure = new AtomicReference<>();
-        private final AtomicReference<Exchange> routedExchange = new AtomicReference<>();
+        private final ConcurrentLinkedQueue<Exchange> routedExchanges = new ConcurrentLinkedQueue<>();
         private final Object lifecycleMonitor = new Object();
+        private final int concurrentRequests;
+        private final boolean servletMode;
+        private final String lifecycleNodeId;
+        private final Map<String, Map<String, Object>> optionsByInvocationId = new LinkedHashMap<>();
+        private final HandlingHttpBinding responseBinding;
 
         private HttpServer server;
+        private HttpTriggerSnapshotServletTransport servletTransport;
         private ExecutorService serverExecutor;
+        private volatile CountDownLatch requestBarrier;
+        private volatile CountDownLatch servletCompletions = new CountDownLatch(0);
         private boolean stopping;
 
         private HttpTriggerSnapshotScenarioDriver(
@@ -110,6 +126,24 @@ class HttpTriggerSnapshotScenarioDriverProvider implements SnapshotScenarioDrive
                 List<SnapshotScenarioInvocation> invocations
         ) {
             this.scenario = scenario;
+            lifecycleNodeId = (String) definition.getParameters().get("nodeId");
+            SnapshotScenarioDriverDefinition defaults = scenario.getDriver() == null ? definition : scenario.getDriver();
+            Object transport = defaults.getParameters().getOrDefault("transportMode", "bridge");
+            if (!"bridge".equals(transport) && !"servlet".equals(transport)) {
+                throw new IllegalArgumentException("HTTP trigger transportMode supports bridge or servlet.");
+            }
+            servletMode = "servlet".equals(transport);
+            Object concurrency = defaults.getParameters().getOrDefault("concurrentRequests", 1);
+            if (!(concurrency instanceof Integer count) || count < 1) {
+                throw new IllegalArgumentException("HTTP trigger concurrentRequests must be a positive integer.");
+            }
+            concurrentRequests = count;
+            Object binding = defaults.getParameters().get("responseBinding");
+            if (binding != null && !"production".equals(binding)) {
+                throw new IllegalArgumentException("HTTP trigger responseBinding supports only production.");
+            }
+            responseBinding = binding == null ? null
+                    : new HandlingHttpBinding(new ServletCustomFilterStrategy(new ContextPropsProvider()));
             invocations.forEach(invocation -> {
                 SnapshotScenarioDriverDefinition requestDefinition = invocation.getDriver() == null
                         ? definition : invocation.getDriver();
@@ -117,6 +151,7 @@ class HttpTriggerSnapshotScenarioDriverProvider implements SnapshotScenarioDrive
                 String path = requiredParameter(requestDefinition, PATH_PARAMETER);
                 validateRequestPath(scenario.getId(), path);
                 requestsByInvocationId.put(invocation.getId(), new RequestTarget(method, path));
+                optionsByInvocationId.put(invocation.getId(), requestDefinition.getParameters());
                 if (!invocation.getProperties().isEmpty()) {
                     throw new IllegalArgumentException(
                             "HTTP trigger scenario '" + scenario.getId() + "' invocation '"
@@ -135,20 +170,33 @@ class HttpTriggerSnapshotScenarioDriverProvider implements SnapshotScenarioDrive
         public void configure(CamelContext camelContext, List<RouteDefinition> routes) throws Exception {
             List<TriggerRoute> candidates = findTriggerRoutes(routes);
             Map<RouteDefinition, TriggerBinding> bindingsByRoute = new LinkedHashMap<>();
-            requestsByInvocationId.forEach((invocationId, request) -> {
-                TriggerRoute triggerRoute = selectTriggerRoute(candidates, request);
-                TriggerBinding binding = bindingsByRoute.computeIfAbsent(
-                        triggerRoute.route(), ignored -> new TriggerBinding(triggerRoute)
-                );
-                bindingsByInvocationId.put(invocationId, binding);
-            });
+            if (servletMode) {
+                for (TriggerRoute candidate : candidates) {
+                    bindingsByRoute.put(candidate.route(), new TriggerBinding(candidate));
+                }
+                servletTransport = new HttpTriggerSnapshotServletTransport(camelContext, concurrentRequests);
+            } else {
+                requestsByInvocationId.forEach((invocationId, request) -> {
+                    TriggerRoute triggerRoute = selectTriggerRoute(candidates, request);
+                    TriggerBinding binding = bindingsByRoute.computeIfAbsent(
+                            triggerRoute.route(), ignored -> new TriggerBinding(triggerRoute)
+                    );
+                    bindingsByInvocationId.put(invocationId, binding);
+                });
+            }
             bindings.addAll(bindingsByRoute.values());
             Map<String, Processor> runtimeProcessors = createRuntimeProcessors();
             for (TriggerBinding binding : bindings) {
                 TriggerRoute triggerRoute = binding.trigger();
                 validateHttpBinding(scenario.getId(), triggerRoute.httpBinding(), triggerRoute.tagsProvider());
                 Map<String, Processor> processors = new LinkedHashMap<>(runtimeProcessors);
-                processors.put("chainFinishProcessor", binding.chainFinishRecorder());
+                processors.put("chainFinishProcessor", exchange -> {
+                    binding.chainFinishRecorder().process(exchange);
+                    if (servletMode) {
+                        routedExchanges.add(exchange);
+                        servletCompletions.countDown();
+                    }
+                });
                 processors.put("httpTriggerFinishProcessor", binding.httpTriggerFinishRecorder());
                 SnapshotFixtureRouteScope.bind(
                         camelContext,
@@ -156,8 +204,22 @@ class HttpTriggerSnapshotScenarioDriverProvider implements SnapshotScenarioDrive
                         binding.directUri(),
                         processors
                 );
-                AdviceWith.adviceWith(camelContext, triggerRoute.route(), false, advice ->
-                        advice.replaceFromWith(binding.directUri()));
+                if (servletMode) {
+                    AdviceWith.adviceWith(camelContext, triggerRoute.route(), false, advice ->
+                            advice.weaveAddFirst().process(exchange -> {
+                                if (exchange.getContext().getDebugger() == null) {
+                                    exchange.setProperty(Properties.SESSION_ID, UUID.randomUUID().toString());
+                                }
+                                CountDownLatch barrier = requestBarrier;
+                                barrier.countDown();
+                                if (!barrier.await(5, TimeUnit.SECONDS)) {
+                                    throw new IllegalStateException("Concurrent servlet requests did not reach the request barrier.");
+                                }
+                            }));
+                } else {
+                    AdviceWith.adviceWith(camelContext, triggerRoute.route(), false, advice ->
+                            advice.replaceFromWith(binding.directUri()));
+                }
             }
         }
 
@@ -167,12 +229,23 @@ class HttpTriggerSnapshotScenarioDriverProvider implements SnapshotScenarioDrive
                 SnapshotScenarioInvocation invocation
         ) throws Exception {
             handlerFailure.set(null);
-            routedExchange.set(null);
-            HttpServer startedServer = startServer(producerTemplate);
+            routedExchanges.clear();
+            requestBarrier = new CountDownLatch(concurrentRequests);
+            if (servletMode) {
+                applyServletAction(producerTemplate.getCamelContext(), invocation);
+                servletCompletions = new CountDownLatch(expectedServletExchanges(invocation));
+                bindings.forEach(candidate -> {
+                    candidate.chainFinishRecorder().reset(concurrentRequests);
+                    candidate.httpTriggerFinishRecorder().reset(concurrentRequests);
+                });
+            }
             TriggerBinding binding = bindingsByInvocationId.get(invocation.getId());
-            binding.chainFinishRecorder().reset();
-            binding.httpTriggerFinishRecorder().reset();
-            HttpResponse<String> response = sendRequest(startedServer, invocation);
+            if (binding != null) {
+                binding.chainFinishRecorder().reset(concurrentRequests);
+                binding.httpTriggerFinishRecorder().reset(concurrentRequests);
+            }
+            int port = servletMode ? servletTransport.port() : startServer(producerTemplate).getAddress().getPort();
+            List<HttpResponse<String>> responses = sendRequests(port, invocation);
             Throwable failure = handlerFailure.get();
             if (failure != null) {
                 throw new IllegalStateException(
@@ -180,11 +253,101 @@ class HttpTriggerSnapshotScenarioDriverProvider implements SnapshotScenarioDrive
                         failure
                 );
             }
-            assertCompletionProcessorInvocation("chainFinishProcessor", binding.chainFinishRecorder());
-            if (binding.requiresHttpTriggerFinish()) {
-                assertCompletionProcessorInvocation("httpTriggerFinishProcessor", binding.httpTriggerFinishRecorder());
+            if (servletMode) {
+                verifyServletCompletions(invocation);
+            } else {
+                assertCompletionProcessorInvocation("chainFinishProcessor", binding.chainFinishRecorder(), concurrentRequests);
+                if (binding.requiresHttpTriggerFinish()) {
+                    assertCompletionProcessorInvocation("httpTriggerFinishProcessor", binding.httpTriggerFinishRecorder(), concurrentRequests);
+                }
+                if (routedExchanges.size() != concurrentRequests) {
+                    throw new IllegalStateException("HTTP trigger did not capture one exchange per completed request.");
+                }
             }
-            return toResultExchange(producerTemplate.getCamelContext(), response);
+            if (concurrentRequests == 1) {
+                return toResultExchange(producerTemplate.getCamelContext(), responses.getFirst());
+            }
+            Exchange result = new DefaultExchange(producerTemplate.getCamelContext());
+            result.getMessage().setBody(Map.of(
+                    "responses", responses.stream()
+                            .sorted(Comparator.comparingInt(HttpResponse<String>::statusCode).thenComparing(HttpResponse::body))
+                            .map(response -> Map.of("status", response.statusCode(), "body", response.body())).toList(),
+                    "completedExchanges", routedExchanges.size(),
+                    "distinctExchangeIds", Math.toIntExact(routedExchanges.stream().map(Exchange::getExchangeId).distinct().count()),
+                    "failedExchanges", Math.toIntExact(routedExchanges.stream().filter(exchange -> exchange.getException() != null).count())
+            ));
+            return result;
+        }
+
+        private int expectedServletExchanges(SnapshotScenarioInvocation invocation) {
+            Object configured = optionsByInvocationId.get(invocation.getId())
+                    .getOrDefault("expectedRoutedRequests", concurrentRequests);
+            if (!(configured instanceof Integer expected) || expected < 0 || expected > concurrentRequests) {
+                throw new IllegalArgumentException("HTTP trigger expectedRoutedRequests must be between zero and concurrentRequests.");
+            }
+            return expected;
+        }
+
+        private void verifyServletCompletions(SnapshotScenarioInvocation invocation) throws InterruptedException {
+            int expected = expectedServletExchanges(invocation);
+            if (!servletCompletions.await(COMPLETION_PROCESSOR_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("HTTP servlet completion processors did not finish within five seconds.");
+            }
+            int completed = bindings.stream().mapToInt(candidate -> candidate.chainFinishRecorder().getInvocationCount()).sum();
+            if (routedExchanges.size() != expected || completed != expected) {
+                throw new IllegalStateException("HTTP servlet expected " + expected + " completed exchanges, but captured "
+                        + routedExchanges.size() + " exchanges and " + completed + " chain completions.");
+            }
+            for (TriggerBinding candidate : bindings) {
+                int chainCompletions = candidate.chainFinishRecorder().getInvocationCount();
+                if (candidate.requiresHttpTriggerFinish() && chainCompletions > 0) {
+                    assertCompletionProcessorInvocation("httpTriggerFinishProcessor",
+                            candidate.httpTriggerFinishRecorder(), chainCompletions);
+                } else if (candidate.httpTriggerFinishRecorder().getInvocationCount() != 0) {
+                    throw new IllegalStateException("HTTP servlet invoked a finish processor for an unselected route.");
+                }
+            }
+        }
+
+        private void applyServletAction(CamelContext context, SnapshotScenarioInvocation invocation) throws Exception {
+            Object action = optionsByInvocationId.get(invocation.getId()).get("servletAction");
+            if (action == null) {
+                return;
+            }
+            RequestTarget request = requestsByInvocationId.get(invocation.getId());
+            List<TriggerBinding> matching = bindings.stream()
+                    .filter(candidate -> matchesRequest(candidate.trigger(), request)).toList();
+            if (matching.size() != 2) {
+                throw new IllegalArgumentException("HTTP servlet lifecycle actions require two matching generated routes.");
+            }
+            RouteDefinition first = SnapshotRouteNodes.requireSingle(
+                    SnapshotRouteNodes.findById(matching.stream().map(candidate -> candidate.trigger().route()).toList(),
+                            lifecycleNodeId),
+                    "HTTP servlet lifecycle action expected its selected trigger node").route();
+            if ("stop-first".equals(action)) {
+                context.getRouteController().stopRoute(first.getId());
+            } else if ("stop-matching".equals(action)) {
+                for (TriggerBinding candidate : matching) {
+                    context.getRouteController().stopRoute(candidate.trigger().route().getId());
+                }
+            } else if ("redeploy-first".equals(action)) {
+                long lastCreation = servletTransport.servlet().getConsumers().values().stream()
+                        .map(ServletCustomConsumer.class::cast)
+                        .mapToLong(ServletCustomConsumer::getCreationTime).max().orElse(0);
+                context.getRouteController().stopRoute(first.getId());
+                ModelCamelContext model = (ModelCamelContext) context;
+                model.removeRouteDefinition(first);
+                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+                while (System.currentTimeMillis() <= lastCreation && System.nanoTime() < deadline) {
+                    Thread.onSpinWait();
+                }
+                if (System.currentTimeMillis() <= lastCreation) {
+                    throw new IllegalStateException("The clock did not advance before servlet consumer redeployment.");
+                }
+                model.addRouteDefinition(first);
+            } else {
+                throw new IllegalArgumentException("Unsupported HTTP servlet lifecycle action '" + action + "'.");
+            }
         }
 
         private HttpServer startServer(ProducerTemplate producerTemplate) throws IOException {
@@ -201,7 +364,7 @@ class HttpTriggerSnapshotScenarioDriverProvider implements SnapshotScenarioDrive
 
                 HttpServer createdServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
                 ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
-                ExecutorService createdExecutor = Executors.newSingleThreadExecutor(runnable -> {
+                ExecutorService createdExecutor = Executors.newFixedThreadPool(concurrentRequests, runnable -> {
                     Thread thread = new Thread(runnable, SERVER_THREAD_NAME);
                     thread.setContextClassLoader(contextClassLoader);
                     thread.setDaemon(true);
@@ -228,23 +391,35 @@ class HttpTriggerSnapshotScenarioDriverProvider implements SnapshotScenarioDrive
             }
         }
 
-        private HttpResponse<String> sendRequest(
-                HttpServer startedServer,
+        private List<HttpResponse<String>> sendRequests(
+                int serverPort,
                 SnapshotScenarioInvocation invocation
         ) throws Exception {
             RequestTarget target = requestsByInvocationId.get(invocation.getId());
             URI requestUri = URI.create(
-                    "http://127.0.0.1:" + startedServer.getAddress().getPort() + target.path()
+                    "http://127.0.0.1:" + serverPort + target.path()
             );
-            HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(requestUri);
-            invocation.getHeaders().forEach((name, value) ->
-                    requestBuilder.header(name, String.valueOf(value)));
+            HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(requestUri)
+                    .version(HttpClient.Version.HTTP_1_1);
+            invocation.getHeaders().forEach((name, value) -> {
+                if (value instanceof List<?> values) {
+                    values.forEach(item -> requestBuilder.header(name, String.valueOf(item)));
+                } else {
+                    requestBuilder.header(name, String.valueOf(value));
+                }
+            });
             requestBuilder.method(target.method(), requestBodyPublisher(invocation));
 
-            return HttpClient.newBuilder()
+            HttpClient client = HttpClient.newBuilder()
                     .connectTimeout(Duration.ofSeconds(5))
-                    .build()
-                    .send(requestBuilder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+                    .build();
+            HttpRequest request = requestBuilder.build();
+            List<CompletableFuture<HttpResponse<String>>> responses = new ArrayList<>();
+            for (int index = 0; index < concurrentRequests; index++) {
+                responses.add(client.sendAsync(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)));
+            }
+            CompletableFuture.allOf(responses.toArray(CompletableFuture[]::new)).get();
+            return responses.stream().map(CompletableFuture::join).toList();
         }
 
         private HttpRequest.BodyPublisher requestBodyPublisher(
@@ -270,6 +445,11 @@ class HttpTriggerSnapshotScenarioDriverProvider implements SnapshotScenarioDrive
         ) throws IOException {
             try {
                 byte[] requestBody = httpExchange.getRequestBody().readAllBytes();
+                CountDownLatch barrier = requestBarrier;
+                barrier.countDown();
+                if (!barrier.await(5, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("Concurrent HTTP requests did not reach the publication barrier.");
+                }
                 RequestTarget target = new RequestTarget(
                         httpExchange.getRequestMethod(), httpExchange.getRequestURI().toString()
                 );
@@ -284,8 +464,14 @@ class HttpTriggerSnapshotScenarioDriverProvider implements SnapshotScenarioDrive
                                 serverPort,
                                 binding.trigger().path()
                         ));
-                routedExchange.set(exchange);
-                writeResponse(httpExchange, exchange);
+                routedExchanges.add(exchange);
+                if (responseBinding == null) {
+                    writeResponse(httpExchange, exchange);
+                } else {
+                    HttpTriggerSnapshotServletResponse response = new HttpTriggerSnapshotServletResponse(httpExchange);
+                    responseBinding.writeResponse(exchange, response.response());
+                    response.finish();
+                }
             } catch (Throwable throwable) {
                 handlerFailure.compareAndSet(null, throwable);
                 writeFailureResponse(httpExchange, throwable);
@@ -354,7 +540,7 @@ class HttpTriggerSnapshotScenarioDriverProvider implements SnapshotScenarioDrive
 
         private Exchange toResultExchange(CamelContext camelContext, HttpResponse<String> response) {
             Exchange result = new DefaultExchange(camelContext);
-            Exchange internalExchange = routedExchange.get();
+            Exchange internalExchange = routedExchanges.peek();
             if (internalExchange != null) {
                 internalExchange.getAllProperties().forEach(result::setProperty);
                 result.setException(internalExchange.getException());
@@ -371,13 +557,18 @@ class HttpTriggerSnapshotScenarioDriverProvider implements SnapshotScenarioDrive
         }
 
         @Override
-        public void beforeContextStop() {
+        public void beforeContextStop() throws Exception {
             synchronized (lifecycleMonitor) {
                 if (stopping) {
                     return;
                 }
                 stopping = true;
                 try {
+                    if (servletTransport != null) {
+                        HttpTriggerSnapshotServletTransport transport = servletTransport;
+                        servletTransport = null;
+                        transport.close();
+                    }
                     if (server != null) {
                         server.stop(0);
                     }
@@ -390,7 +581,7 @@ class HttpTriggerSnapshotScenarioDriverProvider implements SnapshotScenarioDrive
         }
 
         @Override
-        public void close() {
+        public void close() throws Exception {
             beforeContextStop();
             ExecutorService executorToAwait;
             synchronized (lifecycleMonitor) {
@@ -588,7 +779,8 @@ class HttpTriggerSnapshotScenarioDriverProvider implements SnapshotScenarioDrive
 
         private void assertCompletionProcessorInvocation(
                 String processorName,
-                InvocationRecorder recorder
+                InvocationRecorder recorder,
+                int expectedCount
         ) throws InterruptedException {
             if (!recorder.await()) {
                 throw new IllegalStateException(
@@ -598,10 +790,10 @@ class HttpTriggerSnapshotScenarioDriverProvider implements SnapshotScenarioDrive
                 );
             }
             int invocationCount = recorder.getInvocationCount();
-            if (invocationCount != 1) {
+            if (invocationCount != expectedCount) {
                 throw new IllegalStateException(
                         "HTTP trigger scenario '" + scenario.getId() + "' expected '"
-                                + processorName + "' to run once, but it ran " + invocationCount + " times."
+                            + processorName + "' to run " + expectedCount + " times, but it ran " + invocationCount + " times."
                 );
             }
         }
@@ -661,7 +853,7 @@ class HttpTriggerSnapshotScenarioDriverProvider implements SnapshotScenarioDrive
 
         private static final class InvocationRecorder implements Processor {
             private final AtomicReference<InvocationRecording> recording =
-                    new AtomicReference<>(new InvocationRecording());
+                    new AtomicReference<>(new InvocationRecording(1));
 
             @Override
             public void process(Exchange exchange) {
@@ -670,8 +862,8 @@ class HttpTriggerSnapshotScenarioDriverProvider implements SnapshotScenarioDrive
                 activeRecording.invocationRecorded().countDown();
             }
 
-            private void reset() {
-                recording.set(new InvocationRecording());
+            private void reset(int count) {
+                recording.set(new InvocationRecording(count));
             }
 
             private boolean await() throws InterruptedException {
@@ -687,8 +879,8 @@ class HttpTriggerSnapshotScenarioDriverProvider implements SnapshotScenarioDrive
                 AtomicInteger invocationCount,
                 CountDownLatch invocationRecorded
         ) {
-            private InvocationRecording() {
-                this(new AtomicInteger(), new CountDownLatch(1));
+            private InvocationRecording(int count) {
+                this(new AtomicInteger(), new CountDownLatch(count));
             }
         }
     }

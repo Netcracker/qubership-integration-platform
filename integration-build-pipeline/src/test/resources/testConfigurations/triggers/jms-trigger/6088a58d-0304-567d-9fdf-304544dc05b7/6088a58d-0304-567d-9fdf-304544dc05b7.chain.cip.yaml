@@ -1,0 +1,54 @@
+---
+id: 6088a58d-0304-567d-9fdf-304544dc05b7
+$schema: http://qubership.org/schemas/product/qip/chain
+name: jms-trigger-competing-queue
+content:
+  labels: []
+  elements:
+  - id: 227ca4c1-047a-5ba8-8258-e9d5a554cd48
+    name: Competing queue first
+    type: jms-trigger
+    properties:
+      acknowledgmentMode: AUTO_ACKNOWLEDGE
+      initialContextFactory: org.qubership.integration.platform.engine.routes.fixture.SnapshotJmsInitialContextFactory
+      providerUrl: snapshot:jms-trigger
+      connectionFactoryName: jms/BulkQuotationRequest/connectionfactory
+      destinationName: jms/snapshot/competing/queue
+      destinationType: queue
+      username: snapshot
+      password: snapshot
+  - id: 3ec84ae8-b5d6-545d-96e8-50a5510f7a51
+    name: Complete competing first
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 3ec84ae8-b5d6-545d-96e8-50a5510f7a51.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  - id: babc99b3-33fd-5cd7-ad1a-428c9df9bd86
+    name: Competing queue second
+    type: jms-trigger
+    properties:
+      acknowledgmentMode: AUTO_ACKNOWLEDGE
+      initialContextFactory: org.qubership.integration.platform.engine.routes.fixture.SnapshotJmsInitialContextFactory
+      providerUrl: snapshot:jms-trigger
+      connectionFactoryName: jms/BulkQuotationRequest/connectionfactory
+      destinationName: jms/snapshot/competing/queue
+      destinationType: queue
+      username: snapshot
+      password: snapshot
+  - id: 02147c55-a0ac-5e86-9490-dcb0a2f6be43
+    name: Complete competing second
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 02147c55-a0ac-5e86-9490-dcb0a2f6be43.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: 227ca4c1-047a-5ba8-8258-e9d5a554cd48
+    to: 3ec84ae8-b5d6-545d-96e8-50a5510f7a51
+  - from: babc99b3-33fd-5cd7-ad1a-428c9df9bd86
+    to: 02147c55-a0ac-5e86-9490-dcb0a2f6be43
+  deployments:
+  - domain: default
+  deployAction: DEPLOY
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

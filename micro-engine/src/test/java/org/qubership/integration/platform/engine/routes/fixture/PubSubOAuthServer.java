@@ -162,7 +162,11 @@ final class PubSubOAuthServer implements AutoCloseable {
     void verifyInvocation() {
         verify();
         if (!expiredInvocationTokens.isEmpty()) {
-            assertFalse(observedTokens.isEmpty(), "Pub/Sub did not publish with a refreshed access token.");
+            if (oauthError == null) {
+                assertFalse(observedTokens.isEmpty(), "Pub/Sub did not authenticate an RPC with a refreshed access token.");
+            } else {
+                assertTrue(observedTokens.isEmpty(), "Pub/Sub authenticated an RPC while OAuth grants were rejected.");
+            }
             assertTrue(observedTokens.stream().noneMatch(expiredInvocationTokens::contains),
                     "Pub/Sub reused an expired access token instead of obtaining a new token.");
         }

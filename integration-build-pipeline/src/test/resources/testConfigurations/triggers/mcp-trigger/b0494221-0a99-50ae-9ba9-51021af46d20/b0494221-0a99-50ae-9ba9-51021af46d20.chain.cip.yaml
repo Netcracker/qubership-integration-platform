@@ -1,0 +1,39 @@
+---
+id: b0494221-0a99-50ae-9ba9-51021af46d20
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+name: mcp-trigger-idempotency-throw
+content:
+  labels: []
+  elements:
+  - id: e8f64d23-38f4-5e48-b828-23c8c80a2eaf
+    name: MCP Trigger
+    type: mcp-trigger
+    properties:
+      mcpServiceIds:
+      - a61e7e36-2fe7-588c-bbb9-8e116c4b88c8
+      name: snapshot_mcp_idempotency_throw
+      title: Snapshot MCP idempotency-throw
+      description: Exercises MCP idempotency-throw behavior in component tests.
+      destructive: false
+      idempotent: false
+      inputSchema: '{"type":"object","properties":{"message":{"type":"string"},"key":{"type":"string"},"mode":{"type":"string"},"number":{"type":"number"},"enabled":{"type":"boolean"},"items":{"type":"array","items":{}},"metadata":{"type":"object"},"optionalValue":{"type":["string","null"]}},"required":["message"],"additionalProperties":false}'
+      openWorld: false
+      readOnly: false
+      idempotency:
+        enabled: true
+        contextExpression: snapshot-mcp-idempotency-throw
+        keyExpression: ${body[key]}
+        keyExpiry: 60
+        actionOnDuplicate: throw-exception
+  - id: bbf4d765-0ef0-5ae9-9a6d-05bf96aeb309
+    name: Script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: bbf4d765-0ef0-5ae9-9a6d-05bf96aeb309.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: e8f64d23-38f4-5e48-b828-23c8c80a2eaf
+    to: bbf4d765-0ef0-5ae9-9a6d-05bf96aeb309
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

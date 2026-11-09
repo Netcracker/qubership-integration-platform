@@ -14,6 +14,7 @@ public class SnapshotDeployment {
     private final String routeSourceLocation;
     private final List<String> dependencyIds;
     private final Map<String, String> snapshotNodeIdsBySourceElementId;
+    private final boolean isolatedContext;
 
     public SnapshotDeployment(
             String id,
@@ -29,6 +30,16 @@ public class SnapshotDeployment {
             List<String> dependencyIds,
             Map<String, String> snapshotNodeIdsBySourceElementId
     ) {
+        this(id, routeSourceLocation, dependencyIds, snapshotNodeIdsBySourceElementId, false);
+    }
+
+    public SnapshotDeployment(
+            String id,
+            String routeSourceLocation,
+            List<String> dependencyIds,
+            Map<String, String> snapshotNodeIdsBySourceElementId,
+            boolean isolatedContext
+    ) {
         this.id = requireNonBlank(id, "id");
         this.routeSourceLocation = requireNonBlank(routeSourceLocation, "routeSourceLocation");
         this.dependencyIds = immutableDependencyIds(this.id, dependencyIds);
@@ -36,6 +47,7 @@ public class SnapshotDeployment {
                 this.id,
                 snapshotNodeIdsBySourceElementId
         );
+        this.isolatedContext = isolatedContext;
     }
 
     public String getId() {
@@ -48,6 +60,10 @@ public class SnapshotDeployment {
 
     public List<String> getDependencyIds() {
         return dependencyIds;
+    }
+
+    public boolean isIsolatedContext() {
+        return isolatedContext;
     }
 
     public String resolveNodeId(String localNodeId, String sourceElementId) {

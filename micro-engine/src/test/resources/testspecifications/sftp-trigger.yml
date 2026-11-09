@@ -1,0 +1,1053 @@
+# yaml-language-server: $schema=../testspecifications.schema.json
+subject: base
+deployments:
+- id: base
+  route: sftp-trigger
+- id: buffered
+  route: sftp-trigger-buffered
+- id: unfiltered
+  route: sftp-trigger-unfiltered
+- id: fixed-key
+  route: sftp-trigger-fixed-key
+- id: no-idempotency
+  route: sftp-trigger-no-idempotency
+- id: create-directory
+  route: sftp-trigger-create-directory
+- id: strict-remote-errors
+  route: sftp-trigger-strict-remote-errors
+- id: invalid-cron
+  route: sftp-trigger-invalid-cron
+- id: isolated-buffered
+  route: sftp-trigger-buffered
+- id: isolated-base
+  route: sftp-trigger
+  dependsOn:
+  - isolated-buffered
+fixtures:
+- id: base-server
+  provider: sftp-trigger
+  deployment: base
+  sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
+- id: buffered-server
+  provider: sftp-trigger
+  deployment: buffered
+  sourceElementId: 51cb0207-f9c4-5488-83d4-652c3ba05acb
+- id: unfiltered-server
+  provider: sftp-trigger
+  deployment: unfiltered
+  sourceElementId: dac8f987-0e36-51bb-a42a-bb85f14122bc
+- id: fixed-key-server
+  provider: sftp-trigger
+  deployment: fixed-key
+  sourceElementId: bef770aa-5340-5f2b-9921-9a5b2c19a09f
+- id: no-idempotency-server
+  provider: sftp-trigger
+  deployment: no-idempotency
+  sourceElementId: 42b51522-432c-5451-820a-be804fbc0a5e
+- id: create-directory-server
+  provider: sftp-trigger
+  deployment: create-directory
+  sourceElementId: b4416023-ff97-5e21-9eb0-3cb7b2063014
+- id: strict-remote-errors-server
+  provider: sftp-trigger
+  deployment: strict-remote-errors
+  sourceElementId: 9acfbf7d-ad8a-5083-8c40-c0156946a2d0
+- id: invalid-cron-server
+  provider: sftp-trigger
+  deployment: invalid-cron
+  sourceElementId: 4d27e468-bc4d-5a49-8a84-79cc9dbbae79
+- id: isolated-base-server
+  provider: sftp-trigger
+  deployment: isolated-base
+  sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
+- id: isolated-buffered-server
+  provider: sftp-trigger
+  deployment: isolated-buffered
+  sourceElementId: 51cb0207-f9c4-5488-83d4-652c3ba05acb
+scenarios:
+- id: consumes-content-metadata-and-selected-files
+  scope: Short
+  deployment: base
+  driver:
+    provider: sftp-trigger
+    sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
+  invocations:
+  - id: polls-an-empty-directory-and-consumes-later-files
+    driver:
+      provider: sftp-trigger
+      sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
+      parameters:
+        publish: false
+        expectedCompletions: 0
+    interactions:
+    - fixture: base-server
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedFailureCompletions: 0
+          expectedFileNames: []
+          expectedRetainedKeyCount: 0
+  - id: consumes-text-json-utf8-and-empty-files
+    driver:
+      provider: sftp-trigger
+      sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
+      parameters:
+        files:
+        - fileName: plain.txt
+          body: SFTP text
+        - fileName: order.json.txt
+          body: '{"order":7,"active":true}'
+        - fileName: utf8.txt
+          body: café
+        - fileName: empty.txt
+          body: ''
+        - fileName: binary.txt
+          bodyBase64: AP+ACg1B
+        - fileName: metadata.txt
+          body: metadata-content
+          mtimeSeconds: 1700000000
+        - fileName: order report café.txt
+          body: named-content
+        expectedCompletions: 7
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-server
+      expectedRequest:
+        count: 7
+      expectedExchanges:
+      - count: 7
+        body: Triggered
+      response:
+        properties:
+          expectedBusinessCount: 7
+          expectedFailureCompletions: 0
+          expectedFileNames:
+          - plain.txt
+          - order.json.txt
+          - utf8.txt
+          - empty.txt
+          - binary.txt
+          - metadata.txt
+          - order report café.txt
+          expectedStreamDownload: true
+          verifyFileHeaders: true
+          expectedInputsByFile:
+            plain.txt:
+              body: SFTP text
+            order.json.txt:
+              body: '{"order":7,"active":true}'
+            utf8.txt:
+              body: café
+              bodyLength: 5
+            empty.txt:
+              body: ''
+              bodyLength: 0
+            binary.txt:
+              bodyLength: 6
+              bodySha256: 3e1184bc6a8b6e20e85992c10f7f60cb6b5082dc4099d5dea1b744139fb757e7
+            metadata.txt:
+              body: metadata-content
+            order report café.txt:
+              body: named-content
+  - id: filters-files-with-ant-include
+    driver:
+      provider: sftp-trigger
+      sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
+      parameters:
+        files:
+        - fileName: selected.txt
+          body: matching-file
+        - fileName: excluded.csv
+          body: excluded-csv
+        - fileName: extensionless
+          body: excluded-name
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-server
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedFileNames:
+          - selected.txt
+          expectedRemoteFiles:
+            selected.txt: matching-file
+            excluded.csv: excluded-csv
+            extensionless: excluded-name
+  - id: excludes-files-outside-the-polled-directory
+    driver:
+      provider: sftp-trigger
+      sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
+      parameters:
+        files:
+        - fileName: inside.txt
+          body: inside-content
+        - fileName: ../sibling/sibling.txt
+          body: outside-content
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-server
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedFileNames:
+          - inside.txt
+          expectedRemoteFiles:
+            ../sibling/sibling.txt: outside-content
+  - id: ignores-subdirectories-with-native-recursion-disabled
+    driver:
+      provider: sftp-trigger
+      sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
+      parameters:
+        files:
+        - fileName: root-only.txt
+          body: root-content
+        - fileName: nested/child.txt
+          body: nested-content
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-server
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedFileNames:
+          - root-only.txt
+          expectedRemoteFiles:
+            nested/child.txt: nested-content
+  - id: ignores-dot-prefixed-files
+    driver:
+      provider: sftp-trigger
+      sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
+      parameters:
+        files:
+        - fileName: visible.txt
+          body: visible-content
+        - fileName: .hidden.txt
+          body: hidden-content
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-server
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedFileNames:
+          - visible.txt
+          expectedRemoteFiles:
+            .hidden.txt: hidden-content
+  - id: consumes-a-batch-without-assuming-file-order
+    driver:
+      provider: sftp-trigger
+      sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
+      parameters:
+        files:
+        - fileName: batch-a.txt
+          body: batch-a
+        - fileName: batch-b.txt
+          body: batch-b
+        - fileName: batch-c.txt
+          body: batch-c
+        expectedCompletions: 3
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-server
+      expectedRequest:
+        count: 3
+      response:
+        properties:
+          expectedBusinessCount: 3
+          expectedFailureCompletions: 0
+          expectedFileNames:
+          - batch-a.txt
+          - batch-b.txt
+          - batch-c.txt
+- id: streams-large-files-and-recovers-after-an-interrupted-download
+  scope: Long
+  deployment: base
+  driver:
+    provider: sftp-trigger
+    sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
+  invocations:
+  - id: streams-large-files-without-truncation
+    driver:
+      provider: sftp-trigger
+      sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
+      parameters:
+        fileName: large.txt
+        bodyRepeat: 131072
+    body: SFTP-large-block-
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-server
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedStreamDownload: true
+          expectedBodyLength: 2228224
+          expectedBodySha256: d3f59b3727139265f52bd0e078a2e746da234900a4fbdb04281e5b0440b01169
+          expectedFileNames:
+          - large.txt
+  - id: retries-after-a-connection-is-lost-during-download
+    driver:
+      provider: sftp-trigger
+      sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
+      parameters:
+        fileName: interrupted.txt
+        bodyRepeat: 524288
+        expectedCompletions: 2
+    body: SFTP-large-block-
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-server
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 1
+          consumerAction: interrupted-download
+          expectedStreamDownload: true
+          expectedBodyLength: 8912896
+          expectedBodySha256: 1e5abe4326fd2662a66fe0c55fb3afa157ec15f9f36a08a33fcf029a1753bb4f
+          expectedFileNames:
+          - interrupted.txt
+- id: consumes-buffered-files
+  scope: Short
+  deployment: buffered
+  driver:
+    provider: sftp-trigger
+    sourceElementId: 51cb0207-f9c4-5488-83d4-652c3ba05acb
+  invocations:
+  - id: consumes-files-with-stream-download-disabled
+    body: buffered-content
+    expectedBody: Triggered
+    interactions:
+    - fixture: buffered-server
+      expectedRequest:
+        count: 1
+        body: buffered-content
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedStreamDownload: false
+          verifyFileHeaders: true
+  - id: preserves-buffered-binary-bytes
+    driver:
+      provider: sftp-trigger
+      sourceElementId: 51cb0207-f9c4-5488-83d4-652c3ba05acb
+      parameters:
+        fileName: buffered-binary.txt
+        bodyBase64: AP+ACg1B
+    expectedBody: Triggered
+    interactions:
+    - fixture: buffered-server
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedStreamDownload: false
+          expectedBodyLength: 6
+          expectedBodySha256: 3e1184bc6a8b6e20e85992c10f7f60cb6b5082dc4099d5dea1b744139fb757e7
+- id: consumes-visible-files-without-a-mask
+  scope: Short
+  deployment: unfiltered
+  driver:
+    provider: sftp-trigger
+    sourceElementId: dac8f987-0e36-51bb-a42a-bb85f14122bc
+  invocations:
+  - id: consumes-files-without-an-ant-mask
+    driver:
+      provider: sftp-trigger
+      sourceElementId: dac8f987-0e36-51bb-a42a-bb85f14122bc
+      parameters:
+        files:
+        - fileName: unfiltered.csv
+          body: csv-content
+        - fileName: unfiltered.bin
+          body: binary-name-content
+        - fileName: unfiltered
+          body: no-extension-content
+        expectedCompletions: 3
+    expectedBody: Triggered
+    interactions:
+    - fixture: unfiltered-server
+      expectedRequest:
+        count: 3
+      response:
+        properties:
+          expectedBusinessCount: 3
+          expectedFailureCompletions: 0
+          expectedFileNames:
+          - unfiltered.csv
+          - unfiltered.bin
+          - unfiltered
+- id: preserves-native-file-key-semantics
+  scope: Long
+  deployment: base
+  driver:
+    provider: sftp-trigger
+    sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
+  invocations:
+  - id: consumes-the-first-file-key
+    driver:
+      provider: sftp-trigger
+      sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
+      parameters:
+        fileName: same-name.txt
+        mtimeSeconds: 1700000000
+    body: first-size
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-server
+      expectedRequest:
+        count: 1
+        body: first-size
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRetainedKeyCount: 1
+  - id: suppresses-an-unchanged-file-on-later-polls
+    driver:
+      provider: sftp-trigger
+      sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
+      parameters:
+        publish: false
+        expectedCompletions: 0
+    interactions:
+    - fixture: base-server
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedFailureCompletions: 0
+          expectedRetainedKeyCount: 1
+          expectedFileNames: []
+          expectedRemoteFiles:
+            same-name.txt: first-size
+  - id: consumes-the-same-name-after-a-size-change
+    driver:
+      provider: sftp-trigger
+      sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
+      parameters:
+        fileName: same-name.txt
+        mtimeSeconds: 1700000000
+    body: second-with-new-size
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-server
+      expectedRequest:
+        count: 1
+        body: second-with-new-size
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRetainedKeyCount: 2
+          verifyFileHeaders: true
+          expectedFileNames:
+          - same-name.txt
+  - id: consumes-the-same-name-after-a-modification-time-change
+    driver:
+      provider: sftp-trigger
+      sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
+      parameters:
+        fileName: same-name.txt
+        mtimeSeconds: 1700000005
+    body: second-with-new-size
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-server
+      expectedRequest:
+        count: 1
+        body: second-with-new-size
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRetainedKeyCount: 3
+          verifyFileHeaders: true
+          expectedFileNames:
+          - same-name.txt
+  - id: retains-file-keys-across-stop-and-start-of-the-same-endpoint
+    driver:
+      provider: sftp-trigger
+      sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
+      parameters:
+        publish: false
+        expectedCompletions: 0
+    interactions:
+    - fixture: base-server
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedFailureCompletions: 0
+          consumerAction: restart-route
+          expectedRetainedKeyCount: 3
+          expectedFileNames: []
+  - id: consumes-a-new-file-after-retaining-earlier-keys
+    driver:
+      provider: sftp-trigger
+      sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
+      parameters:
+        fileName: new-after-restart.txt
+    body: new-after-restart
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-server
+      expectedRequest:
+        count: 1
+        body: new-after-restart
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRetainedKeyCount: 4
+          expectedFileNames:
+          - new-after-restart.txt
+- id: suppresses-distinct-files-sharing-one-native-key
+  scope: Short
+  deployment: fixed-key
+  driver:
+    provider: sftp-trigger
+    sourceElementId: bef770aa-5340-5f2b-9921-9a5b2c19a09f
+  invocations:
+  - id: consumes-the-first-fixed-key-file
+    driver:
+      provider: sftp-trigger
+      sourceElementId: bef770aa-5340-5f2b-9921-9a5b2c19a09f
+      parameters:
+        fileName: first-fixed.txt
+    body: first-fixed
+    expectedBody: Triggered
+    interactions:
+    - fixture: fixed-key-server
+      expectedRequest:
+        count: 1
+        body: first-fixed
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRetainedKeyCount: 1
+  - id: suppresses-a-different-file-with-a-fixed-key
+    driver:
+      provider: sftp-trigger
+      sourceElementId: bef770aa-5340-5f2b-9921-9a5b2c19a09f
+      parameters:
+        fileName: second-fixed.txt
+        expectedCompletions: 0
+    body: second-fixed
+    interactions:
+    - fixture: fixed-key-server
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedFailureCompletions: 0
+          expectedRetainedKeyCount: 1
+          expectedFileNames: []
+          expectedRemoteFiles:
+            first-fixed.txt: first-fixed
+            second-fixed.txt: second-fixed
+- id: suppresses-same-key-files-within-one-poll
+  scope: Short
+  deployment: fixed-key
+  driver:
+    provider: sftp-trigger
+    sourceElementId: bef770aa-5340-5f2b-9921-9a5b2c19a09f
+  invocations:
+  - id: reserves-a-shared-key-before-processing-the-batch
+    driver:
+      provider: sftp-trigger
+      sourceElementId: bef770aa-5340-5f2b-9921-9a5b2c19a09f
+      parameters:
+        publish: false
+        expectedCompletions: 1
+    expectedBody: Triggered
+    interactions:
+    - fixture: fixed-key-server
+      expectedRequest:
+        count: 1
+        body: shared-key-content
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRetainedKeyCount: 1
+          preloadFiles:
+          - fileName: batch-first.txt
+            body: shared-key-content
+          - fileName: batch-second.txt
+            body: shared-key-content
+          expectedRemoteFiles:
+            batch-first.txt: shared-key-content
+            batch-second.txt: shared-key-content
+- id: repeats-native-consumption-without-idempotency
+  scope: Short
+  deployment: no-idempotency
+  driver:
+    provider: sftp-trigger
+    sourceElementId: 42b51522-432c-5451-820a-be804fbc0a5e
+  invocations:
+  - id: repeats-consumption-when-native-idempotency-is-disabled
+    driver:
+      provider: sftp-trigger
+      sourceElementId: 42b51522-432c-5451-820a-be804fbc0a5e
+      parameters:
+        fileName: repeat.txt
+        expectedCompletions: 2
+    body: repeat-content
+    expectedBody: Triggered
+    interactions:
+    - fixture: no-idempotency-server
+      expectedRequest:
+        count: 2
+      response:
+        properties:
+          expectedBusinessCount: 2
+          expectedFailureCompletions: 0
+          expectedFileNames:
+          - repeat.txt
+          - repeat.txt
+          stopAfterCompletions: 2
+- id: rolls-back-a-native-file-key-after-processing-failure
+  scope: Long
+  deployment: base
+  driver:
+    provider: sftp-trigger
+    sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
+  invocations:
+  - id: retries-a-file-after-an-unhandled-processing-failure
+    driver:
+      provider: sftp-trigger
+      sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
+      parameters:
+        fileName: retry-once.txt
+        expectedCompletions: 2
+    body: retry-content
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-server
+      expectedRequest:
+        count: 2
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 1
+          controlledDownstreamFailures: 1
+          expectedRetainedKeyCount: 1
+          expectedFileNames:
+          - retry-once.txt
+          - retry-once.txt
+      expectedExchanges:
+      - count: 1
+        body: retry-content
+        expectedFailure:
+          type: java.lang.IllegalStateException
+          message: SFTP snapshot failure
+          cause: null
+      - count: 1
+        body: Triggered
+- id: consumes-preexisting-backlog
+  scope: Short
+  deployment: base
+  driver:
+    provider: sftp-trigger
+    sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
+  invocations:
+  - id: consumes-backlog-present-before-route-start
+    driver:
+      provider: sftp-trigger
+      sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
+      parameters:
+        publish: false
+        expectedCompletions: 2
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-server
+      expectedRequest:
+        count: 2
+      response:
+        properties:
+          expectedBusinessCount: 2
+          expectedFailureCompletions: 0
+          preloadFiles:
+          - fileName: backlog-a.txt
+            body: backlog-a
+          - fileName: backlog-b.txt
+            body: backlog-b
+          expectedFileNames:
+          - backlog-a.txt
+          - backlog-b.txt
+          expectedRemoteFiles:
+            backlog-a.txt: backlog-a
+            backlog-b.txt: backlog-b
+- id: creates-the-polled-directory
+  scope: Long
+  deployment: create-directory
+  driver:
+    provider: sftp-trigger
+    sourceElementId: b4416023-ff97-5e21-9eb0-3cb7b2063014
+  invocations:
+  - id: creates-a-missing-directory-when-enabled
+    body: created-directory-content
+    expectedBody: Triggered
+    interactions:
+    - fixture: create-directory-server
+      expectedRequest:
+        count: 1
+        body: created-directory-content
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          missingDirectory: true
+          verifyCreatedDirectory: true
+          expectedFileNames:
+          - creates-a-missing-directory-when-enabled.txt
+- id: recovers-from-an-ignored-missing-directory
+  scope: Long
+  deployment: base
+  driver:
+    provider: sftp-trigger
+    sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
+  invocations:
+  - id: recovers-when-a-missing-directory-is-created
+    body: restored-directory-content
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-server
+      expectedRequest:
+        count: 1
+        body: restored-directory-content
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          missingDirectory: true
+          consumerAction: missing-directory-until-published
+          expectedFileNames:
+          - recovers-when-a-missing-directory-is-created.txt
+- id: reports-remote-directory-errors-and-recovers
+  scope: Long
+  deployment: strict-remote-errors
+  driver:
+    provider: sftp-trigger
+    sourceElementId: 9acfbf7d-ad8a-5083-8c40-c0156946a2d0
+  invocations:
+  - id: reports-a-missing-directory-before-recovery
+    body: strict-missing-content
+    expectedBody: Triggered
+    interactions:
+    - fixture: strict-remote-errors-server
+      expectedRequest:
+        count: 1
+        body: strict-missing-content
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          missingDirectory: true
+          consumerAction: missing-directory-until-published
+          expectedPollFailures: 1
+  - id: reports-permission-denied-and-recovers-after-access-is-restored
+    body: strict-permission-content
+    expectedBody: Triggered
+    interactions:
+    - fixture: strict-remote-errors-server
+      expectedRequest:
+        count: 1
+        body: strict-permission-content
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          consumerAction: deny-access-until-published
+          expectedPollFailures: 1
+- id: recovers-from-remote-access-and-connection-failures
+  scope: Long
+  deployment: base
+  driver:
+    provider: sftp-trigger
+    sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
+  invocations:
+  - id: ignores-permission-denied-and-recovers-after-access-is-restored
+    body: restored-access
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-server
+      expectedRequest:
+        count: 1
+        body: restored-access
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          consumerAction: deny-access-until-published
+  - id: recovers-after-password-authentication-is-restored
+    body: restored-password
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-server
+      expectedRequest:
+        count: 1
+        body: restored-password
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          consumerAction: deny-password-until-published
+  - id: recovers-after-a-refused-connection
+    body: restored-connection
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-server
+      expectedRequest:
+        count: 1
+        body: restored-connection
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          consumerAction: refuse-until-published
+  - id: reconnects-after-an-sftp-server-restart
+    body: restarted-server
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-server
+      expectedRequest:
+        count: 1
+        body: restarted-server
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          consumerAction: restart-server
+- id: preserves-native-consumer-lifecycle
+  scope: Long
+  deployment: base
+  driver:
+    provider: sftp-trigger
+    sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
+  invocations:
+  - id: consumes-before-lifecycle-controls
+    driver:
+      provider: sftp-trigger
+      sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
+      parameters:
+        fileName: lifecycle-before.txt
+    body: before-lifecycle
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-server
+      expectedRequest:
+        count: 1
+        body: before-lifecycle
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRetainedKeyCount: 1
+  - id: consumes-backlog-after-route-stop-and-start
+    driver:
+      provider: sftp-trigger
+      sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
+      parameters:
+        fileName: lifecycle-backlog.txt
+    body: stopped-backlog
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-server
+      expectedRequest:
+        count: 1
+        body: stopped-backlog
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          consumerAction: stop-until-published
+          expectedRetainedKeyCount: 2
+  - id: waits-for-an-inflight-file-during-graceful-stop
+    driver:
+      provider: sftp-trigger
+      sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
+      parameters:
+        fileName: lifecycle-inflight.txt
+    body: inflight-content
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-server
+      expectedRequest:
+        count: 1
+        body: inflight-content
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          consumerAction: stop-during-processing
+          expectedRetainedKeyCount: 3
+  - id: closes-the-old-consumer-and-uses-a-fresh-repository-after-redeployment
+    driver:
+      provider: sftp-trigger
+      sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
+      parameters:
+        publish: false
+        expectedCompletions: 3
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-server
+      expectedRequest:
+        count: 3
+      response:
+        properties:
+          expectedBusinessCount: 3
+          expectedFailureCompletions: 0
+          consumerAction: redeploy
+          expectedRetainedKeyCount: 3
+          expectedFileNames:
+          - lifecycle-before.txt
+          - lifecycle-backlog.txt
+          - lifecycle-inflight.txt
+  - id: stops-polling-and-cleans-up-resources-on-context-close
+    driver:
+      provider: sftp-trigger
+      sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
+      parameters:
+        fileName: context-close.txt
+    body: context-close-content
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-server
+      expectedRequest:
+        count: 1
+        body: context-close-content
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          verifyContextClose: true
+          expectedRetainedKeyCount: 4
+- id: isolates-quartz-polling-between-generated-deployments
+  scope: Long
+  deployment: isolated-base
+  driver:
+    provider: sftp-trigger
+    sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
+  invocations:
+  - id: isolates-generated-quartz-triggers-between-deployments
+    driver:
+      provider: sftp-trigger
+      sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
+      parameters:
+        fileName: isolated-first.txt
+    body: isolated-first
+    expectedBody: Triggered
+    interactions:
+    - fixture: isolated-base-server
+      expectedRequest:
+        count: 1
+        body: isolated-first
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedDistinctFixture: isolated-buffered-server
+          expectedFileNames:
+          - isolated-first.txt
+    - fixture: isolated-buffered-server
+      expectedRequest:
+        count: 1
+        body: peer-first
+      response:
+        properties:
+          publishFiles:
+          - fileName: peer-first.txt
+            body: peer-first
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedFileNames:
+          - peer-first.txt
+          expectedStreamDownload: false
+  - id: keeps-the-peer-schedule-running-after-subject-stop
+    driver:
+      provider: sftp-trigger
+      sourceElementId: 2c238544-21f9-466d-a51f-1098b99a7c12
+      parameters:
+        publish: false
+        expectedCompletions: 0
+    interactions:
+    - fixture: isolated-base-server
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedFailureCompletions: 0
+          consumerAction: stop
+          expectedFileNames: []
+    - fixture: isolated-buffered-server
+      expectedRequest:
+        count: 1
+        body: peer-after-stop
+      response:
+        properties:
+          publishFiles:
+          - fileName: peer-after-stop.txt
+            body: peer-after-stop
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedFileNames:
+          - peer-after-stop.txt
+          expectedStreamDownload: false
+- id: rejects-an-invalid-quartz-cron-expression
+  scope: Short
+  deployment: invalid-cron
+  driver:
+    provider: sftp-trigger
+    sourceElementId: 4d27e468-bc4d-5a49-8a84-79cc9dbbae79
+  invocations:
+  - id: does-not-consume-files-before-invalid-schedule-startup
+    driver:
+      provider: sftp-trigger
+      sourceElementId: 4d27e468-bc4d-5a49-8a84-79cc9dbbae79
+      parameters:
+        publish: false
+        expectedCompletions: 0
+    interactions:
+    - fixture: invalid-cron-server
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedFailureCompletions: 0
+  expectedStartupFailure:
+    type: java.lang.RuntimeException
+    message: "CronExpression 'not-a-quartz-cron' is invalid."
+    cause:
+      type: java.text.ParseException
+      message: "Illegal characters for this position: 'NOT'"
+      cause: null

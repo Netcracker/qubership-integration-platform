@@ -129,7 +129,7 @@ public class CatalogSnapshotExecutionEntryPoint {
         return testSpecification.getSubject();
     }
 
-    private static List<SnapshotDeployment> resolveDeployments(
+    private List<SnapshotDeployment> resolveDeployments(
             SnapshotBundle bundle,
             String targetId,
             String testSpecificationFileName,
@@ -141,6 +141,7 @@ public class CatalogSnapshotExecutionEntryPoint {
                     targetId,
                     targetId,
                     List.of(),
+                    false,
                     testSpecificationFileName
             ));
         }
@@ -153,11 +154,14 @@ public class CatalogSnapshotExecutionEntryPoint {
                                 + "' contains a null deployment."
                 );
             }
+            SnapshotBundle selectedBundle = definition.getSnapshotVariant() == null ? bundle
+                    : bundleReader.read(bundleDirectory.resolve("variants").resolve(definition.getSnapshotVariant()));
             deployments.add(resolveDeployment(
-                    bundle,
+                    selectedBundle,
                     definition.getId(),
                     definition.getRoute(),
                     definition.getDependsOn(),
+                    definition.isIsolatedContext(),
                     testSpecificationFileName
             ));
         }
@@ -169,6 +173,7 @@ public class CatalogSnapshotExecutionEntryPoint {
             String deploymentId,
             String chainName,
             List<String> dependencyIds,
+            boolean isolatedContext,
             String testSpecificationFileName
     ) throws IOException {
         if (deploymentId == null || deploymentId.isBlank()) {
@@ -195,7 +200,8 @@ public class CatalogSnapshotExecutionEntryPoint {
                 deploymentId,
                 bundleEntry.snapshotFile().toUri().toString(),
                 dependencyIds,
-                bundleEntry.snapshotNodeIdsBySourceElementId()
+                bundleEntry.snapshotNodeIdsBySourceElementId(),
+                isolatedContext
         );
     }
 
