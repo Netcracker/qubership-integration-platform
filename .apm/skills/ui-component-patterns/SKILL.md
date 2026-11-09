@@ -1,6 +1,6 @@
 ---
 name: ui-component-patterns
-description: Component implementation patterns for QIP UI. Use when editing tables, forms, modals, notifications, labels, icons, and permissions-related UI.
+description: Component implementation patterns for QIP UI. Use when editing tables, forms, modals, details panels, notifications, labels, icons, and permissions-related UI.
 ---
 
 # UI Component Patterns
@@ -88,13 +88,31 @@ bundle into every Jest suite that reaches the editor, and those suites fail with
   preselect and the failure notification. Pass the entity's own nouns, its element predicate, and one
   `create` callback; keep each modal's defaults in the modal.
 
-## Details drawers
+## Details panels
 
-A read-only details drawer for a testing entity is built on `TestingDetailsDrawer`
-(`src/components/testing/`). It takes `sections`, an array of `Descriptions` item lists rendered
-divider-separated, and nothing is optional through a flag: a drawer with no audit footer passes no
-audit section. Reuse the item builders beside it — `idItem`, `chainItem`, `elementItem`,
-`auditSection` — and `DetailsLink`, which owns the navigate idiom every link in these drawers shares.
+Build every read-only details panel on `DetailsSidebar` (`src/components/DetailsSidebar.tsx`), not on
+an Ant Design `Drawer` or `Descriptions`. It owns the drawer: right placement, a width of 350,
+mounted into `.page-content` with absolute positioning, and its content destroyed on close. A panel
+component such as `TestCaseDetailsDrawer` or `ActionLogSidebar` passes only `title`, `open`,
+`onClose`, and `sections`.
+
+- The page renders the panel unconditionally and derives `open` from the selected record
+  (`open={detailsTestCase !== null}`). The record is `null` while the panel is closed, so build the
+  items with optional chaining.
+- A section is `{ key, title, items }`, and its `title` becomes a group header. Write the title in
+  lowercase (`"general info"`); the `details-sidebar-properties-group` class uppercases it. Sections
+  are not optional through a flag: a panel with no audit section passes none.
+- An item is `{ label, value }`. Wrap a value that can be absent in `renderOptional(value,
+  renderer)`, which shows the shared `Placeholder`, rather than rendering `PLACEHOLDER` text locally.
+- Reuse the builders beside the component: `idItem` and `IdText` for a copyable id, `chainItem` and
+  `elementItem` for a link that falls back to the id while the name is unresolved, `auditSection`
+  for an entity with `TestingAuditFields`, and `AuthorDetails` for a timestamp and user pair from
+  another type. Links go through `DetailsLink`.
+- A table inside an item takes the `details-sidebar-kv-table` class, which removes the item padding.
+  Set `showLabel: false` to give it the full width, as `DiagnosticValidationSidebar` does for its
+  parameters.
+
+`tests/components/DetailsSidebar.test.tsx` covers the component and the builders.
 
 ## Unsaved-changes blockers on editor pages
 
