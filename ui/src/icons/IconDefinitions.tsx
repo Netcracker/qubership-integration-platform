@@ -78,7 +78,6 @@ import {
   SolutionOutlined,
   ColumnHeightOutlined,
   VerticalAlignMiddleOutlined,
-  FolderOpenFilled,
   FlagOutlined,
   FileSearchOutlined,
   UploadOutlined,
@@ -137,6 +136,7 @@ import {
   CaretDownOutlined,
   ExperimentOutlined,
   CompassOutlined,
+  FolderOpenOutlined,
 } from "@ant-design/icons";
 
 const ncLogoSvg = parse(ncLogo.trim()) as React.ReactElement<
@@ -219,7 +219,7 @@ export const commonIcons = {
   file: FileOutlined,
   folderAdd: FolderAddOutlined,
   folder: FolderOutlined,
-  folderOpenFilled: FolderOpenFilled,
+  folderOpen: FolderOpenOutlined,
   apartment: ApartmentOutlined,
   api: ApiOutlined,
   group: GroupOutlined,

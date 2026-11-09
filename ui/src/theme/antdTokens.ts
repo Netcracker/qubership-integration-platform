@@ -218,6 +218,7 @@ export function getAntdThemeConfig(
           "--vscode-list-hoverBackground",
           isDark ? "#262626" : "#f5f5f5",
         ),
+        subMenuItemBg: "transparent",
       },
       Table: {
         headerBg: getCSSVariable(
