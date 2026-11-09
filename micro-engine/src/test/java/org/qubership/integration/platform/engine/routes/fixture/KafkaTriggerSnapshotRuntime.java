@@ -152,8 +152,8 @@ public final class KafkaTriggerSnapshotRuntime implements AutoCloseable {
 
     Map<TopicPartition, Long> publishFiltered(List<?> messages) throws Exception {
         Map<TopicPartition, Long> offsets = new LinkedHashMap<>();
-        for (PublishedRecord record : publishMessages(null, Map.of(), Map.of("messages", messages))) {
-            offsets.merge(record.id().topicPartition(), record.id().offset() + 1, Math::max);
+        for (PublishedRecord publishedRecord : publishMessages(null, Map.of(), Map.of("messages", messages))) {
+            offsets.merge(publishedRecord.id().topicPartition(), publishedRecord.id().offset() + 1, Math::max);
         }
         return offsets;
     }
@@ -169,15 +169,15 @@ public final class KafkaTriggerSnapshotRuntime implements AutoCloseable {
             Map<?, ?> value = (Map<?, ?>) item;
             RecordId id = new RecordId((String) (value.containsKey("topic") ? value.get("topic") : defaultTopic),
                     ((Number) value.get("partition")).intValue(), ((Number) value.get("offset")).longValue());
-            PublishedRecord record = brokerRecords.get(id);
-            assertNotNull(record, "Kafka replay expectation must reference an existing broker record: " + id);
+            PublishedRecord publishedRecord = brokerRecords.get(id);
+            assertNotNull(publishedRecord, "Kafka replay expectation must reference an existing broker record: " + id);
             historicalReplay.add(id);
             historicalReplayCounts.compute(id, (ignored, previous) -> previous == null
                     ? allReceived.stream().filter(id::equals).count() + 1 : previous + 1);
             redeliveryAllowed.add(id);
-            startupRecords.add(record);
+            startupRecords.add(publishedRecord);
             if (published.stream().noneMatch(previous -> previous.id().equals(id))) {
-                published.add(record);
+                published.add(publishedRecord);
             }
         }
     }
@@ -475,8 +475,8 @@ public final class KafkaTriggerSnapshotRuntime implements AutoCloseable {
         assertRecordSequence(expected, allCompleted, "Kafka trigger final completion");
         Map<RecordId, PublishedRecord> records = byId(published);
         allInputs.forEach(input -> assertInput(records.get(id(input)), input, "Kafka trigger final input"));
-        historicalReplayCounts.forEach((record, count) -> assertEquals(count.longValue(),
-                allReceived.stream().filter(record::equals).count(), "Kafka historical replay count for " + record));
+        historicalReplayCounts.forEach((recordId, count) -> assertEquals(count.longValue(),
+                allReceived.stream().filter(recordId::equals).count(), "Kafka historical replay count for " + recordId));
         assertNoUnexpectedCompletions("Kafka trigger");
     }
 

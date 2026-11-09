@@ -341,12 +341,13 @@ final class SftpTriggerSnapshotServer implements AutoCloseable {
     }
 
     private static void mkdirs(ChannelSftp channel, String path) throws SftpException {
-        String current = "";
+        StringBuilder current = new StringBuilder();
         for (String segment : path.split("/")) {
             if (!segment.isEmpty()) {
-                current += '/' + segment;
-                if (!exists(channel, current)) {
-                    channel.mkdir(current);
+                current.append('/').append(segment);
+                String directory = current.toString();
+                if (!exists(channel, directory)) {
+                    channel.mkdir(directory);
                 }
             }
         }

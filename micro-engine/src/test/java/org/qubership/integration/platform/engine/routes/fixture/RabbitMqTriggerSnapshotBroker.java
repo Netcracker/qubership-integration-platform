@@ -26,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 final class RabbitMqTriggerSnapshotBroker implements SnapshotWorkerBrokerPool.Resource {
@@ -120,12 +121,12 @@ final class RabbitMqTriggerSnapshotBroker implements SnapshotWorkerBrokerPool.Re
     }
 
     void password(String username, String password) throws Exception {
-        assertTrue(!INSPECTOR.equals(username), "Fault tests require an application user distinct from the inspector.");
+        assertNotEquals(INSPECTOR, username, "Fault tests require an application user distinct from the inspector.");
         execute("change_password", username, password);
     }
 
     void deleteVhost(String vhost) throws Exception {
-        assertTrue(!"/".equals(vhost), "Vhost removal requires a dedicated application vhost.");
+        assertNotEquals("/", vhost, "Vhost removal requires a dedicated application vhost.");
         execute("delete_vhost", vhost);
         vhosts.remove(vhost);
     }
@@ -241,9 +242,9 @@ final class RabbitMqTriggerSnapshotBroker implements SnapshotWorkerBrokerPool.Re
         }
         List<GetResponse> records = new ArrayList<>();
         try (Connection connection = publisherFactory(vhost).newConnection(); Channel channel = connection.createChannel()) {
-            GetResponse record;
-            while ((record = channel.basicGet(queue, true)) != null) {
-                records.add(record);
+            GetResponse delivery;
+            while ((delivery = channel.basicGet(queue, true)) != null) {
+                records.add(delivery);
             }
         } catch (IOException exception) {
             if (expected != 0 || !hasReplyCode(exception, 404)) {

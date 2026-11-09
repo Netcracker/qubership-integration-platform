@@ -47,7 +47,7 @@ class SchedulerSnapshotScenarioDriverProvider implements SnapshotScenarioDriverP
 
             @Override
             public Exchange execute(ProducerTemplate template, SnapshotScenarioInvocation invocation) throws Exception {
-                return runtime.await(invocation);
+                return runtime.await();
             }
         };
     }

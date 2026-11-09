@@ -33,6 +33,7 @@ import java.util.function.BooleanSupplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -317,7 +318,7 @@ class PubSubTriggerSnapshotFixtureProvider implements SnapshotFixtureProvider {
                 runtime.assertNothingDelivered();
             }
             if (control.get("backlogMessages") instanceof List<?> messages) {
-                assertTrue(oauth != null, "Pub/Sub OAuth backlog requires the authenticated subscriber boundary.");
+                assertNotNull(oauth, "Pub/Sub OAuth backlog requires the authenticated subscriber boundary.");
                 int beforePublication = oauth.tokenRequestCount();
                 runtime.stageBacklog(messages);
                 await(() -> oauth.tokenRequestCount() > beforePublication, "OAuth rejection while the backlog is queued");

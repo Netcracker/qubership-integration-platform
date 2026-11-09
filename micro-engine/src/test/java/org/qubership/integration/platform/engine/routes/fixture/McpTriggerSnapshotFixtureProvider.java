@@ -310,6 +310,7 @@ class McpTriggerSnapshotFixtureProvider implements SnapshotFixtureProvider {
 
         @Override
         public void verify() {
+            // Invocation assertions run in verifyInvocation(); close() checks tool removal after context shutdown.
         }
 
         @Override

@@ -19,10 +19,10 @@ import io.smallrye.common.annotation.Identifier;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
 import jakarta.annotation.PreDestroy;
+import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Disposes;
 import jakarta.enterprise.inject.Produces;
 import jakarta.inject.Inject;
-import jakarta.inject.Singleton;
 
 import java.lang.reflect.Type;
 import java.util.List;
@@ -30,13 +30,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-@Singleton
+@ApplicationScoped
 public class McpTriggerSnapshotDependencies {
     @Inject
     McpHttpServersBuildTimeConfig httpConfig;
 
     @Produces
-    @Singleton
+    @ApplicationScoped
     public Vertx vertx() {
         return Vertx.vertx(new VertxOptions().setEventLoopPoolSize(2).setWorkerPoolSize(8));
     }
@@ -46,7 +46,7 @@ public class McpTriggerSnapshotDependencies {
     }
 
     @Produces
-    @Singleton
+    @ApplicationScoped
     public ObjectMapper objectMapper(@Identifier("jsonMapper") ObjectMapper mapper) {
         ObjectMapper protocolMapper = mapper.copy();
         // The native SSE handler writes each encoded message into one data line.
@@ -56,14 +56,14 @@ public class McpTriggerSnapshotDependencies {
     }
 
     @Produces
-    @Singleton
+    @ApplicationScoped
     public InitialCheck initialCheck() {
         // The component extension's mock cannot represent an absent optional initialization policy.
         return request -> InitialCheck.CheckResult.successs();
     }
 
     @Produces
-    @Singleton
+    @ApplicationScoped
     public ToolFilter toolVisibility() {
         return (tool, connection) -> true;
     }
@@ -78,7 +78,7 @@ public class McpTriggerSnapshotDependencies {
     }
 
     @Produces
-    @Singleton
+    @ApplicationScoped
     public McpMetadata metadata() {
         return new McpMetadata() {
             @Override

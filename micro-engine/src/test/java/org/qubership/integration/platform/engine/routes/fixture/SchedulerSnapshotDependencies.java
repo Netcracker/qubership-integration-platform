@@ -6,7 +6,6 @@ import com.netcracker.cloud.bluegreen.api.model.State;
 import com.netcracker.cloud.bluegreen.api.model.Version;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Produces;
-import jakarta.inject.Singleton;
 import org.quartz.Scheduler;
 import org.quartz.impl.StdSchedulerFactory;
 import org.quartz.impl.matchers.EverythingMatcher;
@@ -25,7 +24,7 @@ import java.util.logging.LogRecord;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@Singleton
+@ApplicationScoped
 public class SchedulerSnapshotDependencies {
     private final List<Throwable> commitFailures = new CopyOnWriteArrayList<>();
     private final ControlledState state = new ControlledState();
@@ -60,18 +59,20 @@ public class SchedulerSnapshotDependencies {
         });
         logHandler = new Handler() {
             @Override
-            public void publish(LogRecord record) {
-                if (record.getThrown() != null && "Failed to commit scheduled jobs".equals(record.getMessage())) {
-                    commitFailures.add(record.getThrown());
+            public void publish(LogRecord logRecord) {
+                if (logRecord.getThrown() != null && "Failed to commit scheduled jobs".equals(logRecord.getMessage())) {
+                    commitFailures.add(logRecord.getThrown());
                 }
             }
 
             @Override
             public void flush() {
+                // Failure observations are stored in memory without buffered output.
             }
 
             @Override
             public void close() {
+                // The fixture unregisters this handler when it closes the scheduler.
             }
         };
         java.util.logging.Logger.getLogger(QuartzSchedulerService.class.getName()).addHandler(logHandler);

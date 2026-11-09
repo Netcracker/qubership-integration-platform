@@ -18,13 +18,10 @@ Scheduler isolation also uses a second catalog-generated snapshot of the same ch
 The latest complete verified baseline contains 269 passing scenarios. The RabbitMQ
 trigger target passed all 22 added scenarios separately. The SFTP trigger target
 passed all 17 scenarios after the failed-download key recovery fix in both engines.
-Its execution evidence is recorded in the [SFTP trigger plan](SFTP-TRIGGER-TEST-PLAN.md).
-The MCP target passed all 19 scenarios and 61 invocations separately. Its
-[MCP trigger plan](MCP-TRIGGER-TEST-PLAN.md) records the native protocol boundary.
+The MCP target passed all 19 scenarios and 61 invocations separately.
 The shared-runner regression passed all 155 Short scenarios and 621 invocations
 across 32 targets in 353.298 seconds. The scheduler target passed all 18 scenarios
-and 36 executed invocations; its [plan](SCHEDULER-TEST-PLAN.md) records the checks
-and native scheduling boundary. The complete 345-scenario suite has not been run.
+and 36 executed invocations. The complete 345-scenario suite has not been run.
 
 The `snapshotTests` and `snapshotTestsShort` profiles run micro-engine scenarios in four separate JVMs by default.
 This also applies to an ordinary build from the repository root:
@@ -1170,9 +1167,6 @@ deletion on route stop. Cleanup of fixture-owned schedulers is a separate check.
 The fixture uses the production `SchedulerProxy` over its RAM scheduler and commits
 jobs on the thread that starts each route. This retains production replacement
 behavior without claiming persistent or clustered Quartz coverage.
-See the [SFTP trigger plan](SFTP-TRIGGER-TEST-PLAN.md) for check IDs, current execution
-results, and the boundary around host-key policy, persistent scheduling, distributed
-idempotency, and Spring-engine parity.
 The strict retrieval-error scenario failed before the production key-recovery fix
 and passes afterward with the same assertions and timeouts. Both engines install
 `SftpConsumerLifecycleStrategy` to release an eager reservation after a failed
@@ -1232,8 +1226,7 @@ business failures, and result mapping remain in use. The fixture closes its HTTP
 session, client, server, Vert.x instance, and pending request tasks.
 
 The `rabbitmq-trigger.yml` manifest groups native inbound checks across exported acknowledgment,
-topology, TLS, MaaS, and idempotency variants. See the
-[RabbitMQ trigger case plan](RABBITMQ-TRIGGER-TEST-PLAN.md) for their assertions and verification status.
+topology, TLS, MaaS, and idempotency variants.
 Compatible publications share a broker and consumer within a scenario. Eight plaintext
 payload, topology, queue, and acknowledgment scenarios opt into worker broker reuse.
 Destructive fault, security, TLS, MaaS, and business-idempotency scenarios use dedicated brokers.
@@ -1824,8 +1817,7 @@ expose a synchronous-pull switch.
 
 The `scheduler` target tests the modern `quartz-scheduler` element through native
 Quartz jobs. The deprecated `scheduler` element has a different configuration
-model and is outside this target. The [scheduler plan](SCHEDULER-TEST-PLAN.md)
-lists the checks and execution evidence.
+model and is outside this target.
 
 The fixture installs a uniquely named RAMJobStore scheduler with the production
 15000 ms misfire threshold. It uses one worker for exact firing windows and two

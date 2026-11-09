@@ -150,7 +150,7 @@ class KafkaTriggerSnapshotFixtureProvider implements SnapshotFixtureProvider {
             parseCommittedOffsets(controls.get("siblingOffsets"));
         }
         if (controls.containsKey("expectedReplayRecords") && (!(controls.get("expectedReplayRecords") instanceof List<?> records)
-                || records.stream().anyMatch(record -> !(record instanceof Map<?, ?>))
+                || records.stream().anyMatch(replayRecord -> !(replayRecord instanceof Map<?, ?>))
                 || !"transition-with-backlog".equals(controls.get("consumerAction")))) {
             throw new IllegalArgumentException("Kafka expectedReplayRecords requires a transition-with-backlog record list.");
         }

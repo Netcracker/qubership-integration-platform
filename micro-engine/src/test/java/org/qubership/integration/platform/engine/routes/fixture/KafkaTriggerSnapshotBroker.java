@@ -47,6 +47,7 @@ import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 final class KafkaTriggerSnapshotBroker implements SnapshotWorkerBrokerPool.Resource {
@@ -441,7 +442,7 @@ final class KafkaTriggerSnapshotBroker implements SnapshotWorkerBrokerPool.Resou
     }
 
     void rotateTlsCertificate(String profile) throws Exception {
-        assertTrue(tls != null, "Kafka certificate rotation requires a TLS deployment.");
+        assertNotNull(tls, "Kafka certificate rotation requires a TLS deployment.");
         proxy.rotateTlsCertificate(tls.serverContext(profile), true);
     }
 

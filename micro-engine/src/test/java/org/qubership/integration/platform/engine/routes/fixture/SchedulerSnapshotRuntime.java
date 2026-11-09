@@ -11,7 +11,6 @@ import org.quartz.JobExecutionContext;
 import org.quartz.JobExecutionException;
 import org.quartz.Scheduler;
 import org.quartz.TriggerKey;
-import org.qubership.integration.platform.engine.routes.entrypoint.execution.SnapshotScenarioInvocation;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -173,7 +172,7 @@ public final class SchedulerSnapshotRuntime {
         assertTrue(entry.await(15, TimeUnit.SECONDS), "Native scheduled job did not enter its route.");
     }
 
-    public Exchange await(SnapshotScenarioInvocation invocation) throws Exception {
+    public Exchange await() throws Exception {
         List<Exchange> completed = awaitResults();
         if (expected == 0) {
             return new DefaultExchange(context);
@@ -181,6 +180,8 @@ public final class SchedulerSnapshotRuntime {
         return completed.getLast();
     }
 
+    // Later observer failures cannot change the scenario result after the first failure.
+    @SuppressWarnings("java:S1751")
     synchronized List<Exchange> awaitResults() throws Exception {
         if (results == null) {
             List<Exchange> completed = new ArrayList<>();

@@ -14,6 +14,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 final class SftpTriggerSnapshotProxy implements AutoCloseable {
@@ -98,7 +99,7 @@ final class SftpTriggerSnapshotProxy implements AutoCloseable {
     }
 
     void verify() {
-        assertTrue(failure == null, () -> "SFTP forwarding listener failed: " + failure);
+        assertNull(failure, () -> "SFTP forwarding listener failed: " + failure);
     }
 
     private static ServerSocket bind(int port) throws IOException {

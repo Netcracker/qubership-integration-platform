@@ -305,7 +305,9 @@ class RabbitMqTriggerSnapshotFixtureProvider implements SnapshotFixtureProvider 
             RabbitMqTriggerSnapshotRuntime runtime = consumer.runtime();
             String action = String.valueOf(properties.getOrDefault("consumerAction", ""));
             switch (action) {
-                case "" -> { }
+                case "" -> {
+                    // Preserve the consumer lifecycle when no action is requested.
+                }
                 case "stop-until-published" -> {
                     stop(consumer);
                     runtime.afterPublish(messages -> {
@@ -471,7 +473,7 @@ class RabbitMqTriggerSnapshotFixtureProvider implements SnapshotFixtureProvider 
             awaitReady(consumer);
         }
 
-        private void assertHeldAcknowledgment(Consumer consumer) throws Exception {
+        private void assertHeldAcknowledgment(Consumer consumer) {
             int expected = "AUTO".equals(consumer.settings().parameters().getOrDefault("acknowledgeMode", "AUTO")) ? 1 : 0;
             awaitChecked(() -> broker.unacknowledged(consumer.vhost(), consumer.settings().queues()) == expected,
                     "RabbitMQ acknowledgment state while downstream processing is held");
@@ -606,8 +608,8 @@ class RabbitMqTriggerSnapshotFixtureProvider implements SnapshotFixtureProvider 
             assertEquals(expected, records.size(), "RabbitMQ dead-letter record count");
             Set<String> published = consumer.runtime().published().stream().map(RabbitMqTriggerSnapshotRuntime.PublishedMessage::id)
                     .collect(Collectors.toSet());
-            for (GetResponse record : records) {
-                Map<String, Object> headers = record.getProps().getHeaders();
+            for (GetResponse delivery : records) {
+                Map<String, Object> headers = delivery.getProps().getHeaders();
                 assertNotNull(headers, "A dead-letter record must retain the publication headers.");
                 assertTrue(published.contains(String.valueOf(headers.get("snapshotPublicationId"))), "Dead-letter publication ID");
                 assertTrue(headers.containsKey("x-death"), "A rejected message must carry broker death metadata.");
@@ -616,7 +618,7 @@ class RabbitMqTriggerSnapshotFixtureProvider implements SnapshotFixtureProvider 
                         "The dead-letter reason must identify broker rejection.");
                 RabbitMqTriggerSnapshotRuntime.PublishedMessage original = consumer.runtime().published().stream()
                         .filter(message -> message.id().equals(String.valueOf(headers.get("snapshotPublicationId")))).findFirst().orElseThrow();
-                assertArrayEquals(original.body(), record.getBody(), "A rejected message must retain the original payload.");
+                assertArrayEquals(original.body(), delivery.getBody(), "A rejected message must retain the original payload.");
             }
         }
 

@@ -19,18 +19,20 @@ final class SftpTriggerSnapshotLogObserver implements AutoCloseable {
         String address = ":" + port;
         handler = new Handler() {
             @Override
-            public void publish(LogRecord record) {
-                if (record.getThrown() != null && record.getMessage().contains(address)) {
-                    failures.add(record.getThrown());
+            public void publish(LogRecord logRecord) {
+                if (logRecord.getThrown() != null && logRecord.getMessage().contains(address)) {
+                    failures.add(logRecord.getThrown());
                 }
             }
 
             @Override
             public void flush() {
+                // Failure observations are stored in memory without buffered output.
             }
 
             @Override
             public void close() {
+                // The enclosing observer removes this handler during cleanup.
             }
         };
         handler.setLevel(Level.ALL);

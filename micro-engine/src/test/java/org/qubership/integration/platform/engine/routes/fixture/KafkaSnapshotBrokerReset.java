@@ -2,6 +2,7 @@ package org.qubership.integration.platform.engine.routes.fixture;
 
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.AdminClientConfig;
+import org.apache.kafka.clients.admin.ListGroupsOptions;
 import org.apache.kafka.clients.admin.OffsetSpec;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.UnknownTopicOrPartitionException;
@@ -29,14 +30,16 @@ final class KafkaSnapshotBrokerReset {
         properties.put(AdminClientConfig.REQUEST_TIMEOUT_MS_CONFIG, TIMEOUT_SECONDS * 1000);
         properties.put(AdminClientConfig.DEFAULT_API_TIMEOUT_MS_CONFIG, TIMEOUT_SECONDS * 1000);
         try (Admin admin = Admin.create(properties)) {
-            List<String> groups = admin.listConsumerGroups().all().get(TIMEOUT_SECONDS, TimeUnit.SECONDS).stream()
+            List<String> groups = admin.listGroups(ListGroupsOptions.forConsumerGroups()).all()
+                    .get(TIMEOUT_SECONDS, TimeUnit.SECONDS).stream()
                     .map(group -> group.groupId()).toList();
             if (!groups.isEmpty()) {
                 await(() -> admin.describeConsumerGroups(groups).all().get(TIMEOUT_SECONDS, TimeUnit.SECONDS).values()
                         .stream().allMatch(group -> group.members().isEmpty()), "Kafka consumer groups to become empty");
                 admin.deleteConsumerGroups(groups).all().get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
             }
-            await(() -> admin.listConsumerGroups().all().get(TIMEOUT_SECONDS, TimeUnit.SECONDS).isEmpty(),
+            await(() -> admin.listGroups(ListGroupsOptions.forConsumerGroups()).all()
+                        .get(TIMEOUT_SECONDS, TimeUnit.SECONDS).isEmpty(),
                     "Kafka consumer groups to be deleted");
             // This broker belongs to one worker and has served only the scenario being released.
             var topics = admin.listTopics().names().get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -68,6 +71,8 @@ final class KafkaSnapshotBrokerReset {
                 "Kafka reused broker must start with an empty partition: " + partition));
     }
 
+    // Sleep limits the polling rate while Kafka's asynchronous state is checked until the deadline.
+    @SuppressWarnings("java:S2925")
     private static void await(Callable<Boolean> condition, String description) throws Exception {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(TIMEOUT_SECONDS);
         while (!condition.call()) {

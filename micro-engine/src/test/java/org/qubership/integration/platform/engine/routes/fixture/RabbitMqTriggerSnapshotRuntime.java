@@ -144,7 +144,7 @@ public final class RabbitMqTriggerSnapshotRuntime implements AutoCloseable {
         }
         Map<String, Exchange> byPublication = new LinkedHashMap<>();
         results.forEach(result -> byPublication.put(publicationId(result), result));
-        List<Exchange> ordered = records.stream().map(record -> byPublication.get(record.id())).filter(java.util.Objects::nonNull).toList();
+        List<Exchange> ordered = records.stream().map(publication -> byPublication.get(publication.id())).filter(java.util.Objects::nonNull).toList();
         Exchange result = copy(ordered.getLast(), null);
         if (parameters.containsKey("messages")) {
             result.getMessage().setBody(ordered.stream().map(item -> item.getMessage().getBody()).toList());

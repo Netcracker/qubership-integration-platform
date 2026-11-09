@@ -281,6 +281,8 @@ abstract class SnapshotRouteExecutionTest {
 
     protected abstract DefaultCamelContext createCamelContext();
 
+    // Subclasses use the deployment to select an isolated Camel context.
+    @SuppressWarnings("java:S1172")
     protected DefaultCamelContext createCamelContext(SnapshotDeployment deployment) {
         return createCamelContext();
     }

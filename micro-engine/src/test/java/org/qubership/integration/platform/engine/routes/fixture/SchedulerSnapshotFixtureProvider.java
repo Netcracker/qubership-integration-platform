@@ -362,6 +362,7 @@ class SchedulerSnapshotFixtureProvider implements SnapshotFixtureProvider {
 
         @Override
         public void verify() {
+            // Assertions run in verifyInvocation() and verifyStartupFailure().
         }
 
         @Override

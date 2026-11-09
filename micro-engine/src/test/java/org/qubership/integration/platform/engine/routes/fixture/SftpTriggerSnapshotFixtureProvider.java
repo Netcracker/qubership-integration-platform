@@ -182,12 +182,14 @@ class SftpTriggerSnapshotFixtureProvider implements SnapshotFixtureProvider {
             connectionLogs.clear();
             updateNativeConsumer();
             if (Boolean.TRUE.equals(controls.get("verifyCreatedDirectory"))) {
-                SftpTriggerSnapshotRuntime.await(() -> existsDirectory(), "SFTP native directory creation");
+                SftpTriggerSnapshotRuntime.await(this::existsDirectory, "SFTP native directory creation");
                 assertTrue(endpoint.isAutoCreate(), "Directory creation must be enabled in the export.");
             }
             String action = String.valueOf(controls.getOrDefault("consumerAction", ""));
             switch (action) {
-                case "" -> { }
+                case "" -> {
+                    // Preserve the consumer lifecycle when no action is requested.
+                }
                 case "stop" -> stop();
                 case "start" -> startRoute();
                 case "restart-route" -> {
