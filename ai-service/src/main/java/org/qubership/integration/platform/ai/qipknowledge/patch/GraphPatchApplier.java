@@ -10,10 +10,6 @@ import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationI
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationSeverity;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import jakarta.enterprise.context.ApplicationScoped;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -29,7 +25,6 @@ public class GraphPatchApplier {
 
   private static final Set<String> CHAIN_PROPERTY_KEYS =
       Set.of("name", "description", "maskingEnabled", "maskedFieldNames");
-  private static final ObjectMapper MAPPER = new ObjectMapper();
 
   public GraphPatchApplyResult apply(ChainPlanGraph graph, GraphPatch patch) {
     List<String> shapeErrors = GraphPatchShapeValidator.validate(patch);
@@ -211,7 +206,7 @@ public class GraphPatchApplier {
     }
     for (PlanProperty property : incoming.properties()) {
       if (property.key() != null) {
-        byKey.put(property.key(), keepDefaultHandler(byKey.get(property.key()), property));
+        byKey.put(property.key(), property);
       }
     }
     return List.copyOf(byKey.values());
@@ -909,9 +904,7 @@ public class GraphPatchApplier {
     if (node.properties() != null) {
       for (PlanProperty existing : node.properties()) {
         properties.add(
-            Objects.equals(existing.key(), property.key())
-                ? keepDefaultHandler(existing, property)
-                : existing);
+            Objects.equals(existing.key(), property.key()) ? property : existing);
       }
     }
     return new ChainPlanNode(
@@ -921,41 +914,6 @@ public class GraphPatchApplier {
         node.parentNodeId(),
         node.order(),
         List.copyOf(properties));
-  }
-
-  /**
-   * Keeps the {@code code: "default"} item of the current {@code after} when a patch writes an
-   * {@code after} without one, so an after hook does not turn an inline failure response into a
-   * rethrow. A single-object {@code after} counts as a one-item list.
-   */
-  private static PlanProperty keepDefaultHandler(PlanProperty existing, PlanProperty incoming) {
-    if (existing == null || !"after".equals(incoming.key())) {
-      return incoming;
-    }
-    try {
-      JsonNode handler = defaultHandler(MAPPER.readTree(existing.value()));
-      JsonNode next = MAPPER.readTree(incoming.value());
-      if (handler == null || next == null || !next.isContainerNode() || defaultHandler(next) != null) {
-        return incoming;
-      }
-      ArrayNode merged = next.isArray() ? (ArrayNode) next : MAPPER.createArrayNode().add(next);
-      merged.add(handler);
-      return new PlanProperty(incoming.key(), MAPPER.writeValueAsString(merged));
-    } catch (JsonProcessingException | IllegalArgumentException invalid) {
-      return incoming;
-    }
-  }
-
-  private static JsonNode defaultHandler(JsonNode after) {
-    if (after == null || !after.isContainerNode()) {
-      return null;
-    }
-    for (JsonNode item : after.isArray() ? after : List.of(after)) {
-      if ("default".equals(item.path("code").asText())) {
-        return item;
-      }
-    }
-    return null;
   }
 
   private static ChainPlanNode removeProperty(ChainPlanNode node, String key) {

@@ -11,6 +11,11 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
+import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchApplier;
+import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchApplyResult;
+import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOperation;
+import org.qubership.integration.platform.ai.qipknowledge.patch.PropertyPatch;
 import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
@@ -723,13 +728,76 @@ class DefaultChainSemanticGraphCompilerTest {
   void inlineFailureResponseGetsDefaultHandler() throws Exception {
     ChainPlanGraph graph = compileMapped(inlineFailureRevision(), List.of(binding("call-1")));
 
-    ChainPlanNode call = node(graph, "call-1");
-    com.fasterxml.jackson.databind.JsonNode after =
-        new ObjectMapper().readTree(property(call, "after"));
-    assertTrue(after.isArray(), after.toString());
-    assertEquals(1, after.size(), after.toString());
-    assertEquals("default", after.get(0).path("code").asText());
-    assertEquals("none", after.get(0).path("type").asText());
+    assertEquals(
+        MAPPER.readTree("[" + DEFAULT_HANDLER + "]"),
+        MAPPER.readTree(property(node(graph, "call-1"), "after")));
+  }
+
+  @Test
+  void inlineCallKeepsAnAfterHookAndGetsOneDefaultHandler() throws Exception {
+    ChainSemanticRevision revision = inlineFailureRevision();
+    for (String hook :
+        List.of(
+            "{\"code\":\"200\",\"type\":\"script\",\"script\":\"log.info('ok')\"}",
+            "{\"type\":\"script\",\"script\":\"log.info('ok')\"}")) {
+      ChainPlanGraph patched =
+          withAfter(compileMapped(revision, List.of(binding("call-1"))), "call-1", hook);
+
+      ChainPlanGraph graph = DefaultChainSemanticGraphCompiler.keepInlineResponseHandlers(patched, revision);
+
+      assertEquals(
+          MAPPER.readTree("[" + hook + "," + DEFAULT_HANDLER + "]"),
+          MAPPER.readTree(property(node(graph, "call-1"), "after")));
+    }
+  }
+
+  @Test
+  void inlineCallHookWithItsOwnDefaultGetsNoSecondDefault() {
+    ChainSemanticRevision revision = inlineFailureRevision();
+    String hook = "[{\"code\":\"default\",\"type\":\"script\",\"script\":\"log.info('any')\"}]";
+    ChainPlanGraph patched =
+        withAfter(compileMapped(revision, List.of(binding("call-1"))), "call-1", hook);
+
+    ChainPlanGraph graph = DefaultChainSemanticGraphCompiler.keepInlineResponseHandlers(patched, revision);
+
+    assertEquals(hook, property(node(graph, "call-1"), "after"));
+  }
+
+  @Test
+  void failFastCallKeepsItsAfterHookAsWritten() {
+    ChainSemanticRevision revision = linearMappedRevision();
+    String hook = "[{\"code\":\"200\",\"type\":\"script\",\"script\":\"log.info('ok')\"}]";
+    ChainPlanGraph patched =
+        withAfter(compileMapped(revision, List.of(binding("call-1"))), "call-1", hook);
+
+    ChainPlanGraph graph = DefaultChainSemanticGraphCompiler.keepInlineResponseHandlers(patched, revision);
+
+    assertEquals(hook, property(node(graph, "call-1"), "after"));
+  }
+
+  private static final ObjectMapper MAPPER = new ObjectMapper();
+  private static final String DEFAULT_HANDLER =
+      "{\"id\":\"default\",\"code\":\"default\",\"label\":\"Default\",\"type\":\"none\",\"wildcard\":false}";
+
+  /** Applies an after hook the way a generator patch does: the whole {@code after} is replaced. */
+  private static ChainPlanGraph withAfter(ChainPlanGraph graph, String nodeId, String after) {
+    GraphPatchApplyResult result =
+        new GraphPatchApplier()
+            .apply(
+                graph,
+                new GraphPatch(
+                    "after-hook",
+                    "cip-service-call-generator",
+                    List.of(),
+                    List.of(),
+                    List.of(
+                        new PropertyPatch(
+                            GraphPatchOperation.ADD, nodeId, new PlanProperty("after", after))),
+                    List.of(),
+                    List.of(),
+                    "Add the after hook"));
+    assertTrue(result.applied(), result.validationResult().summary());
+    return result.graph();
   }
 
   @Test

@@ -1,5 +1,9 @@
 package org.qubership.integration.platform.ai.productpipeline.create.design.execution;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
@@ -48,6 +52,7 @@ import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaSe
 @ApplicationScoped
 public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphCompiler {
 
+  private static final ObjectMapper MAPPER = new ObjectMapper();
   private static final String DEFAULT_RESPONSE_HANDLER =
       "[{\"id\":\"default\",\"code\":\"default\",\"label\":\"Default\",\"type\":\"none\","
           + "\"wildcard\":false}]";
@@ -150,6 +155,79 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
       graph = ServiceCallCatalogIdentity.upsert(graph, binding);
     }
     return graph;
+  }
+
+  /**
+   * Adds the Default response handler back to each {@code INLINE_RESPONSE} call whose {@code after}
+   * lost it, because a generator patch replaces the whole {@code after} when it writes an after
+   * hook. A call whose {@code after} already has a {@code default} item, or is not JSON, is left
+   * as is.
+   */
+  public static ChainPlanGraph keepInlineResponseHandlers(
+      ChainPlanGraph graph, ChainSemanticRevision revision) {
+    if (graph == null || graph.nodes() == null || revision == null) {
+      return graph;
+    }
+    Set<String> inlineCalls = new LinkedHashSet<>();
+    for (SemanticNode node : revision.nodes()) {
+      if (node instanceof SemanticNode.ServiceCall call
+          && call.failureMode() == ServiceCallFailureMode.INLINE_RESPONSE) {
+        inlineCalls.add(call.nodeId());
+      }
+    }
+    List<ChainPlanNode> nodes =
+        graph.nodes().stream()
+            .map(node -> inlineCalls.contains(node.nodeId()) ? withDefaultHandler(node) : node)
+            .toList();
+    return nodes.equals(graph.nodes())
+        ? graph
+        : new ChainPlanGraph(graph.schemaVersion(), graph.chain(), nodes, graph.edges());
+  }
+
+  private static ChainPlanNode withDefaultHandler(ChainPlanNode node) {
+    List<PlanProperty> properties =
+        node.properties() == null ? new ArrayList<>() : new ArrayList<>(node.properties());
+    int index = -1;
+    for (int i = 0; i < properties.size(); i++) {
+      if ("after".equals(properties.get(i).key())) {
+        index = i;
+      }
+    }
+    String after = index < 0 ? null : properties.get(index).value();
+    String merged = withDefaultHandler(after);
+    if (Objects.equals(merged, after)) {
+      return node;
+    }
+    if (index < 0) {
+      properties.add(new PlanProperty("after", merged));
+    } else {
+      properties.set(index, new PlanProperty("after", merged));
+    }
+    return new ChainPlanNode(
+        node.nodeId(), node.type(), node.label(), node.parentNodeId(), node.order(),
+        List.copyOf(properties));
+  }
+
+  private static String withDefaultHandler(String after) {
+    try {
+      JsonNode value = after == null || after.isBlank() ? null : MAPPER.readTree(after);
+      if (value == null || value.isNull()) {
+        return DEFAULT_RESPONSE_HANDLER;
+      }
+      if (!value.isContainerNode()) {
+        return after;
+      }
+      ArrayNode items = value.isArray() ? (ArrayNode) value : MAPPER.createArrayNode().add(value);
+      for (JsonNode item : items) {
+        if ("default".equals(item.path("code").asText())) {
+          return after;
+        }
+      }
+      items.addAll((ArrayNode) MAPPER.readTree(DEFAULT_RESPONSE_HANDLER));
+      return MAPPER.writeValueAsString(items);
+    } catch (JsonProcessingException invalid) {
+      return after;
+    }
   }
 
   private ChainPlanNode toPlanNode(

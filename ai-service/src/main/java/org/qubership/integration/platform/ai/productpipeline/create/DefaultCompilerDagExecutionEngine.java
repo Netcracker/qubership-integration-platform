@@ -64,6 +64,7 @@ import org.qubership.integration.platform.ai.plan.ChainPlanGraphValidator;
 import org.qubership.integration.platform.ai.plan.mapping.MappingContractBlockedException;
 import org.qubership.integration.platform.ai.plan.mapping.MappingGenerationPipeline;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
+import org.qubership.integration.platform.ai.productpipeline.create.design.execution.DefaultChainSemanticGraphCompiler;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainStructure;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.NamingManifest;
@@ -751,6 +752,9 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
           .map(artifact -> ((SkillArtifactPayload.RequirementBriefPayload) artifact.payload()).brief().facts())
           .orElse(java.util.List.of());
       currentGraph = org.qubership.integration.platform.ai.qipknowledge.validation.RequestedElementValues.apply(currentGraph, facts);
+      currentGraph =
+          DefaultChainSemanticGraphCompiler.keepInlineResponseHandlers(
+              currentGraph, semanticRevision(workspace));
       ChainPlanGraph secured = CredentialPlaceholderApplicator.apply(currentGraph);
       if (secured != currentGraph) {
         LOG.infof(
@@ -787,8 +791,10 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
     var facts = workspace.get(SkillArtifactType.REQUIREMENT_BRIEF)
         .map(artifact -> ((SkillArtifactPayload.RequirementBriefPayload) artifact.payload()).brief().facts())
         .orElse(java.util.List.of());
-    var graph = org.qubership.integration.platform.ai.qipknowledge.validation.RequestedElementValues.apply(
-        assembled.graph(), facts);
+    var graph = DefaultChainSemanticGraphCompiler.keepInlineResponseHandlers(
+        org.qubership.integration.platform.ai.qipknowledge.validation.RequestedElementValues.apply(
+            assembled.graph(), facts),
+        semanticRevision(workspace));
     var finalAssembly = graphAssemblyService.assembleFromGraph(graph, assembled.orderedPatchReferences(),
         assembled.ownershipFacts());
     return new GraphAssemblyResult(finalAssembly.schemaVersion(), finalAssembly.graph(), finalAssembly.graphDigest(),
