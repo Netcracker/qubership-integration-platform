@@ -1,0 +1,39 @@
+---
+id: bfb0735a-a792-5c30-b6df-18c75c4aef26
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+name: mcp-trigger-idempotency-ignore
+content:
+  labels: []
+  elements:
+  - id: ec1b8915-93c2-5b1e-97f3-79bb32a7ec95
+    name: MCP Trigger
+    type: mcp-trigger
+    properties:
+      mcpServiceIds:
+      - a61e7e36-2fe7-588c-bbb9-8e116c4b88c8
+      name: snapshot_mcp_idempotency_ignore
+      title: Snapshot MCP idempotency-ignore
+      description: Exercises MCP idempotency-ignore behavior in component tests.
+      destructive: false
+      idempotent: false
+      inputSchema: '{"type":"object","properties":{"message":{"type":"string"},"key":{"type":"string"},"mode":{"type":"string"},"number":{"type":"number"},"enabled":{"type":"boolean"},"items":{"type":"array","items":{}},"metadata":{"type":"object"},"optionalValue":{"type":["string","null"]}},"required":["message"],"additionalProperties":false}'
+      openWorld: false
+      readOnly: false
+      idempotency:
+        enabled: true
+        contextExpression: snapshot-mcp-idempotency-ignore
+        keyExpression: ${body[key]}
+        keyExpiry: 60
+        actionOnDuplicate: ignore
+  - id: b666d527-2e2a-59e1-a517-2f08e8b2e55d
+    name: Script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: b666d527-2e2a-59e1-a517-2f08e8b2e55d.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: ec1b8915-93c2-5b1e-97f3-79bb32a7ec95
+    to: b666d527-2e2a-59e1-a517-2f08e8b2e55d
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

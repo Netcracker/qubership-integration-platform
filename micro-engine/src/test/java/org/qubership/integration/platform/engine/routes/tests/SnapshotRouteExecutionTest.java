@@ -21,6 +21,7 @@ import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.Isolated;
 import org.qubership.integration.platform.engine.camel.ChainsAggregationStrategy;
 import org.qubership.integration.platform.engine.camel.components.directvm.ChainComponent;
+import org.qubership.integration.platform.engine.camel.components.sftp.SftpConsumerLifecycleStrategy;
 import org.qubership.integration.platform.engine.camel.processors.EmptyProcessor;
 import org.qubership.integration.platform.engine.camel.processors.HeaderModificationProcessor;
 import org.qubership.integration.platform.engine.camel.processors.MapperProcessor;
@@ -35,6 +36,7 @@ import org.qubership.integration.platform.engine.routes.entrypoint.execution.Sna
 import org.qubership.integration.platform.engine.routes.entrypoint.execution.SnapshotScenarioInvocation;
 import org.qubership.integration.platform.engine.routes.fixture.SnapshotFixture;
 import org.qubership.integration.platform.engine.routes.fixture.SnapshotFixtureRegistry;
+import org.qubership.integration.platform.engine.routes.fixture.SnapshotWorkerBrokerPool;
 import org.qubership.integration.platform.engine.routes.support.SnapshotFailureAssertions;
 import org.qubership.integration.platform.engine.routes.support.SnapshotValueAssertions;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
@@ -80,8 +82,12 @@ abstract class SnapshotRouteExecutionTest {
     }
 
     @AfterAll
-    static void restoreFormatLocale() {
-        Locale.setDefault(Locale.Category.FORMAT, originalFormatLocale);
+    static void restoreFormatLocale() throws Exception {
+        try {
+            SnapshotWorkerBrokerPool.closeWorker();
+        } finally {
+            Locale.setDefault(Locale.Category.FORMAT, originalFormatLocale);
+        }
     }
 
     protected void executeScenario(
@@ -94,51 +100,68 @@ abstract class SnapshotRouteExecutionTest {
         LOG.info("Snapshot {} [{}/{}]: preparing {} deployment(s), {} fixture(s).",
                 progressName, target.getScenarios().indexOf(scenario) + 1, target.getScenarios().size(),
                 scenarioTarget.getDeployments().size(), scenarioTarget.getFixtures().size());
-        SnapshotScenarioDriver driver = DRIVER_REGISTRY.createDriver(scenarioTarget, scenario);
-        List<InvocationResult> invocationResults = new ArrayList<>();
-        try (DeploymentEnvironment environment = new DeploymentEnvironment(scenarioTarget);
-                SnapshotInvocationRunner invocationRunner = SnapshotInvocationRunner.fromSystemProperties()) {
-            ProducerTemplate producerTemplate = environment.deploy(scenarioTarget, scenario, driver);
-            int invocationIndex = 0;
-            for (SnapshotScenarioInvocation invocation : scenario.getInvocations()) {
-                LOG.info("Snapshot {}: invocation {}/{} ({}).", progressName, ++invocationIndex,
-                        scenario.getInvocations().size(), invocation.getId());
-                AtomicReference<String> currentExecution = new AtomicReference<>(
-                        invocationStageName(scenario, invocation, "setup")
-                );
-                invocationRunner.execute(invocation.getTimeoutSeconds(), currentExecution::get, () -> {
-                    environment.beforeInvocation(invocation);
-                    for (int repetition = 1; repetition <= invocation.getRepeat(); repetition++) {
-                        currentExecution.set(executionName(scenario, invocation, repetition));
-                        Exchange exchange = driver.execute(producerTemplate, invocation);
-                        assertScenarioResult(exchange, scenario, invocation, repetition);
-                        invocationResults.add(new InvocationResult(exchange, invocation, repetition));
+        try (SnapshotWorkerBrokerPool.ScenarioScope brokerScope =
+                SnapshotWorkerBrokerPool.beginScenario(scenario.isReuseBroker(), progressName)) {
+            SnapshotScenarioDriver driver = DRIVER_REGISTRY.createDriver(scenarioTarget, scenario);
+            List<InvocationResult> invocationResults = new ArrayList<>();
+            try (DeploymentEnvironment environment = new DeploymentEnvironment(scenarioTarget);
+                    SnapshotInvocationRunner invocationRunner = SnapshotInvocationRunner.fromSystemProperties()) {
+                if (scenario.getExpectedStartupFailure() != null) {
+                    Exception startupFailure = null;
+                    try {
+                        environment.deploy(scenarioTarget, scenario, driver);
+                    } catch (Exception failure) {
+                        startupFailure = failure;
                     }
-                    currentExecution.set(invocationStageName(scenario, invocation, "verification"));
-                    environment.verifyInvocation(invocation);
-                    return null;
-                }, environment::timeoutDiagnostics, environment::abort);
-            }
-            LOG.info("Snapshot {}: verifying fixtures.", progressName);
-            invocationRunner.execute(
-                    null,
-                    () -> "Snapshot scenario '" + scenario.getId() + "' fixture verification",
-                    () -> {
-                        environment.verifyFixtures();
-                        for (InvocationResult result : invocationResults) {
-                            assertExpectedProperties(
-                                    result.exchange(),
-                                    result.invocation(),
-                                    executionName(scenario, result.invocation(), result.repetition())
-                                            + " after fixture completion"
-                            );
+                    SnapshotFailureAssertions.assertMatches(scenario.getExpectedStartupFailure(), startupFailure,
+                            "Snapshot scenario '" + scenario.getId() + "' startup");
+                    environment.verifyStartupFailure();
+                    LOG.info("Snapshot {}: verified the expected startup failure.", progressName);
+                    return;
+                }
+                ProducerTemplate producerTemplate = environment.deploy(scenarioTarget, scenario, driver);
+                int invocationIndex = 0;
+                for (SnapshotScenarioInvocation invocation : scenario.getInvocations()) {
+                    LOG.info("Snapshot {}: invocation {}/{} ({}).", progressName, ++invocationIndex,
+                            scenario.getInvocations().size(), invocation.getId());
+                    AtomicReference<String> currentExecution = new AtomicReference<>(
+                            invocationStageName(scenario, invocation, "setup")
+                    );
+                    invocationRunner.execute(invocation.getTimeoutSeconds(), currentExecution::get, () -> {
+                        environment.beforeInvocation(invocation);
+                        for (int repetition = 1; repetition <= invocation.getRepeat(); repetition++) {
+                            currentExecution.set(executionName(scenario, invocation, repetition));
+                            Exchange exchange = driver.execute(producerTemplate, invocation);
+                            assertScenarioResult(exchange, scenario, invocation, repetition);
+                            invocationResults.add(new InvocationResult(exchange, invocation, repetition));
                         }
+                        currentExecution.set(invocationStageName(scenario, invocation, "verification"));
+                        environment.verifyInvocation(invocation);
                         return null;
-                    },
-                    environment::timeoutDiagnostics,
-                    environment::abort
-            );
-            LOG.info("Snapshot {}: closing environment.", progressName);
+                    }, environment::timeoutDiagnostics, environment::abort);
+                }
+                LOG.info("Snapshot {}: verifying fixtures.", progressName);
+                invocationRunner.execute(
+                        null,
+                        () -> "Snapshot scenario '" + scenario.getId() + "' fixture verification",
+                        () -> {
+                            environment.verifyFixtures();
+                            for (InvocationResult result : invocationResults) {
+                                assertExpectedProperties(
+                                        result.exchange(),
+                                        result.invocation(),
+                                        executionName(scenario, result.invocation(), result.repetition())
+                                                + " after fixture completion"
+                                );
+                            }
+                            return null;
+                        },
+                        environment::timeoutDiagnostics,
+                        environment::abort
+                );
+                LOG.info("Snapshot {}: closing environment.", progressName);
+            }
+            brokerScope.commit();
         } catch (Exception | AssertionError failure) {
             LOG.error("Snapshot {}: failed after {} ms.", progressName,
                     TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt));
@@ -258,6 +281,12 @@ abstract class SnapshotRouteExecutionTest {
 
     protected abstract DefaultCamelContext createCamelContext();
 
+    // Subclasses use the deployment to select an isolated Camel context.
+    @SuppressWarnings("java:S1172")
+    protected DefaultCamelContext createCamelContext(SnapshotDeployment deployment) {
+        return createCamelContext();
+    }
+
     protected abstract void loadXmlRouteDefinitions(
             DefaultCamelContext camelContext,
             String routeSourceLocation
@@ -295,7 +324,7 @@ abstract class SnapshotRouteExecutionTest {
             fixtures.addAll(pendingFixtures);
 
             for (SnapshotDeployment deployment : target.getDeployments()) {
-                DefaultCamelContext camelContext = createCamelContext();
+                DefaultCamelContext camelContext = createCamelContext(deployment);
                 boolean newContext = !contextsByDeploymentId.containsValue(camelContext);
                 contextsByDeploymentId.put(deployment.getId(), camelContext);
                 if (newContext) {
@@ -342,6 +371,7 @@ abstract class SnapshotRouteExecutionTest {
         }
 
         private void configureRuntime(DefaultCamelContext camelContext) {
+            camelContext.addLifecycleStrategy(new SftpConsumerLifecycleStrategy());
             camelContext.getShutdownStrategy().setTimeout(CONTEXT_SHUTDOWN_TIMEOUT_SECONDS);
             camelContext.getShutdownStrategy().setTimeUnit(TimeUnit.SECONDS);
             camelContext.getShutdownStrategy().setShutdownNowOnTimeout(true);
@@ -390,6 +420,12 @@ abstract class SnapshotRouteExecutionTest {
         private void verifyInvocation(SnapshotScenarioInvocation invocation) throws Exception {
             for (SnapshotFixture fixture : fixtures) {
                 fixture.verifyInvocation(invocation);
+            }
+        }
+
+        private void verifyStartupFailure() throws Exception {
+            for (SnapshotFixture fixture : fixtures) {
+                fixture.verifyStartupFailure();
             }
         }
 

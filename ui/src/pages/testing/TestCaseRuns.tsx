@@ -267,7 +267,7 @@ export const TestCaseRuns: React.FC<TestCaseRunsProps> = ({
   const columnDefinitions = useMemo<ColumnsTypeWithSettings<TestCaseRunView>>(
     () => [
       {
-        title: "Id",
+        title: "ID",
         dataIndex: "id",
         key: "id",
         sorter: true,

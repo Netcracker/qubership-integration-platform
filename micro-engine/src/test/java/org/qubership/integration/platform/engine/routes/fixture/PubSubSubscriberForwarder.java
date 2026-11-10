@@ -60,11 +60,17 @@ final class PubSubSubscriberForwarder implements AutoCloseable {
     private final Map<String, Timestamp> publishTimesByMessageId = new HashMap<>();
     private final Map<String, Integer> remainingDeliveriesByMessageId = new HashMap<>();
     private final Set<String> acknowledgedMessageIds = new HashSet<>();
+    private final Set<String> acknowledgedAckIds = new HashSet<>();
     private final Set<String> negativeAcknowledgedMessageIds = new HashSet<>();
+    private final Map<String, Long> leaseExtensionsByMessageId = new HashMap<>();
+    private final Map<String, Long> leaseDeadlinesByMessageId = new HashMap<>();
     private long streamingPullRequests;
     private long acknowledgedCount;
     private long negativeAcknowledgedCount;
     private int maxDeliveriesPerMessage = Integer.MAX_VALUE;
+    private int streamAckDeadlineSeconds;
+    private Status.Code streamingFailure;
+    private long injectedStreamingFailures;
 
     PubSubSubscriberForwarder(ManagedChannel upstreamChannel) {
         this.upstreamChannel = upstreamChannel;
@@ -81,6 +87,8 @@ final class PubSubSubscriberForwarder implements AutoCloseable {
                         forwardUnary(MODIFY_ACK_DEADLINE, request, observer, response -> {
                             if (request.getAckDeadlineSeconds() == 0) {
                                 observeAcks(request.getAckIdsList(), true);
+                            } else {
+                                observeLeaseExtensions(request.getAckIdsList(), request.getAckDeadlineSeconds());
                             }
                         })))
                 .addMethod(GET_SUBSCRIPTION, ServerCalls.asyncUnaryCall((request, observer) ->
@@ -107,6 +115,58 @@ final class PubSubSubscriberForwarder implements AutoCloseable {
         }
     }
 
+    void rejectStreamingPulls(Status.Code failure) {
+        List<ForwardingStream> open;
+        synchronized (lock) {
+            streamingFailure = failure;
+            open = List.copyOf(streams);
+        }
+        open.forEach(stream -> stream.fail(failure));
+    }
+
+    void allowStreamingPulls() {
+        synchronized (lock) {
+            streamingFailure = null;
+        }
+    }
+
+    long injectedStreamingFailures() {
+        synchronized (lock) {
+            return injectedStreamingFailures;
+        }
+    }
+
+    int streamAckDeadlineSeconds() {
+        synchronized (lock) {
+            return streamAckDeadlineSeconds;
+        }
+    }
+
+    long leaseExtensions(List<String> messageIds) {
+        synchronized (lock) {
+            return messageIds.stream().mapToLong(id -> leaseExtensionsByMessageId.getOrDefault(id, 0L)).sum();
+        }
+    }
+
+    long leaseDeadlineNanos(List<String> messageIds) {
+        synchronized (lock) {
+            return messageIds.stream().mapToLong(id -> leaseDeadlinesByMessageId.getOrDefault(id, 0L)).min().orElse(0);
+        }
+    }
+
+    void expireOutstandingLeases(String subscription) {
+        List<String> ackIds;
+        synchronized (lock) {
+            ackIds = List.copyOf(messageIdsByAckId.keySet());
+        }
+        if (ackIds.isEmpty()) {
+            throw new IllegalStateException("Lease expiration requires an unacknowledged delivery.");
+        }
+        ClientCalls.blockingUnaryCall(upstreamChannel, MODIFY_ACK_DEADLINE,
+                CallOptions.DEFAULT.withDeadlineAfter(10, TimeUnit.SECONDS), ModifyAckDeadlineRequest.newBuilder()
+                        .setSubscription(subscription).addAllAckIds(ackIds).setAckDeadlineSeconds(1).build());
+    }
+
     @Override
     public void close() {
         List<ForwardingStream> openStreams;
@@ -119,11 +179,17 @@ final class PubSubSubscriberForwarder implements AutoCloseable {
 
     private StreamObserver<StreamingPullRequest> streamingPull(StreamObserver<StreamingPullResponse> observer) {
         ForwardingStream stream = new ForwardingStream(observer);
+        Status.Code failure;
         synchronized (lock) {
             streamingPullRequests++;
             streams.add(stream);
+            failure = streamingFailure;
         }
-        stream.start();
+        if (failure == null) {
+            stream.start();
+        } else {
+            stream.fail(failure);
+        }
         return stream;
     }
 
@@ -187,7 +253,11 @@ final class PubSubSubscriberForwarder implements AutoCloseable {
             if (negative) {
                 negativeAcknowledgedCount += ackIds.size();
             } else {
-                acknowledgedCount += ackIds.size();
+                for (String ackId : ackIds) {
+                    if (acknowledgedAckIds.add(ackId)) {
+                        acknowledgedCount++;
+                    }
+                }
             }
             Set<String> messageIds = negative ? negativeAcknowledgedMessageIds : acknowledgedMessageIds;
             for (String ackId : ackIds) {
@@ -201,9 +271,26 @@ final class PubSubSubscriberForwarder implements AutoCloseable {
 
     private void observeRequest(StreamingPullRequest request) {
         observeAcks(request.getAckIdsList(), false);
+        synchronized (lock) {
+            streamAckDeadlineSeconds = Math.max(streamAckDeadlineSeconds, request.getStreamAckDeadlineSeconds());
+        }
         for (int index = 0; index < request.getModifyDeadlineAckIdsCount(); index++) {
             if (request.getModifyDeadlineSeconds(index) == 0) {
                 observeAcks(List.of(request.getModifyDeadlineAckIds(index)), true);
+            } else {
+                observeLeaseExtensions(List.of(request.getModifyDeadlineAckIds(index)), request.getModifyDeadlineSeconds(index));
+            }
+        }
+    }
+
+    private void observeLeaseExtensions(List<String> ackIds, int seconds) {
+        synchronized (lock) {
+            for (String ackId : ackIds) {
+                String id = messageIdsByAckId.get(ackId);
+                if (id != null) {
+                    leaseExtensionsByMessageId.merge(id, 1L, Long::sum);
+                    leaseDeadlinesByMessageId.put(id, System.nanoTime() + TimeUnit.SECONDS.toNanos(seconds));
+                }
             }
         }
     }
@@ -246,10 +333,13 @@ final class PubSubSubscriberForwarder implements AutoCloseable {
 
                         @Override
                         public void onNext(StreamingPullResponse response) {
-                            StreamingPullResponse permitted = permittedDeliveries(response);
-                            observeDelivery(permitted.getReceivedMessagesList());
-                            downstream.onNext(permitted);
                             synchronized (ForwardingStream.this) {
+                                if (finished.get()) {
+                                    return;
+                                }
+                                StreamingPullResponse permitted = permittedDeliveries(response);
+                                observeDelivery(permitted.getReceivedMessagesList());
+                                downstream.onNext(permitted);
                                 responsePending = false;
                             }
                             requestResponse();
@@ -311,6 +401,20 @@ final class PubSubSubscriberForwarder implements AutoCloseable {
         private void cancel() {
             if (finish() && upstream != null) {
                 upstream.cancel("Pub/Sub consumer disconnected", Status.CANCELLED.asRuntimeException());
+            }
+        }
+
+        private synchronized void fail(Status.Code code) {
+            if (finish()) {
+                synchronized (lock) {
+                    injectedStreamingFailures++;
+                }
+                if (!downstream.isCancelled()) {
+                    downstream.onError(Status.fromCode(code).withDescription("Snapshot streaming pull failure").asRuntimeException());
+                }
+                if (upstream != null) {
+                    upstream.cancel("Snapshot streaming pull failure", Status.fromCode(code).asRuntimeException());
+                }
             }
         }
 

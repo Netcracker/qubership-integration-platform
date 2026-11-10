@@ -29,6 +29,8 @@ public class SnapshotExecutionScenario {
     private final Map<String, Object> expectedProperties;
     private final List<SnapshotFixtureInteraction> interactions;
     private final List<SnapshotScenarioInvocation> invocations;
+    private SnapshotFailureExpectation expectedStartupFailure;
+    private boolean reuseBroker;
 
     @JsonCreator
     public SnapshotExecutionScenario(
@@ -79,6 +81,14 @@ public class SnapshotExecutionScenario {
 
     public String getId() {
         return id;
+    }
+
+    public boolean isReuseBroker() {
+        return reuseBroker;
+    }
+
+    public void setReuseBroker(boolean reuseBroker) {
+        this.reuseBroker = reuseBroker;
     }
 
     public SnapshotScenarioScope getScope() {
@@ -143,6 +153,16 @@ public class SnapshotExecutionScenario {
 
     public List<SnapshotScenarioInvocation> getInvocations() {
         return invocations;
+    }
+
+    public SnapshotFailureExpectation getExpectedStartupFailure() {
+        return expectedStartupFailure;
+    }
+
+    @JsonProperty("expectedStartupFailure")
+    public void setExpectedStartupFailure(JsonNode expectedStartupFailure) {
+        this.expectedStartupFailure = SnapshotFailureExpectation.parse(expectedStartupFailure,
+                "Snapshot scenario '" + id + "' expectedStartupFailure");
     }
 
     private List<SnapshotScenarioInvocation> resolveInvocations(

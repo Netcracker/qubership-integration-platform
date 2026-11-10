@@ -1,0 +1,33 @@
+---
+id: 5bd73421-b2a4-524f-883a-ae52fb8d5c0c
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+name: mcp-trigger-invalid-input-schema
+content:
+  labels: []
+  elements:
+  - id: d77ba751-d21d-5ba2-9ac8-a935e13dcc4e
+    name: MCP Trigger
+    type: mcp-trigger
+    properties:
+      mcpServiceIds:
+      - a61e7e36-2fe7-588c-bbb9-8e116c4b88c8
+      name: snapshot_mcp_invalid_input_schema
+      title: Snapshot MCP invalid-input-schema
+      description: Exercises MCP invalid-input-schema behavior in component tests.
+      destructive: false
+      idempotent: false
+      inputSchema: '{'
+      openWorld: false
+      readOnly: false
+  - id: c5cfdb6a-0f30-5dfc-8443-25650f686734
+    name: Script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: c5cfdb6a-0f30-5dfc-8443-25650f686734.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: d77ba751-d21d-5ba2-9ac8-a935e13dcc4e
+    to: c5cfdb6a-0f30-5dfc-8443-25650f686734
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

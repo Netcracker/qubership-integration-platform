@@ -15,6 +15,18 @@ deployments:
   route: jms-trigger-idempotency-redelivery
 - id: topic-redelivery
   route: jms-trigger-topic-redelivery
+- id: startup-authentication
+  route: jms-trigger-startup-authentication
+- id: startup-missing-connection-factory
+  route: jms-trigger-startup-missing-connection-factory
+- id: duplicate-handler-failures
+  route: jms-trigger-duplicate-handler-failures
+- id: competing-queue
+  route: jms-trigger-competing-queue
+- id: concurrent-idempotency
+  route: jms-trigger-concurrent-idempotency
+- id: anonymous-naming
+  route: jms-trigger-anonymous-naming
 fixtures:
 - id: jms-broker
   provider: artemis-jms-trigger
@@ -140,8 +152,69 @@ fixtures:
   provider: artemis-jms-trigger
   deployment: topic-redelivery
   sourceElementId: 595822bb-8aeb-51a6-9a80-fc09d9a6bd9a
+- id: startup-authentication
+  provider: artemis-jms-trigger
+  deployment: startup-authentication
+  sourceElementId: 4a9d464f-dd27-5009-9000-f255760e9dea
+- id: startup-missing-connection-factory
+  provider: artemis-jms-trigger
+  deployment: startup-missing-connection-factory
+  sourceElementId: a652a7f1-526c-59f8-a8a9-cd2f59f2259f
+- id: handler-client
+  provider: artemis-jms-trigger
+  deployment: duplicate-handler-failures
+  sourceElementId: 66ea966e-ea40-57b2-9766-a226fa2ec23a
+- id: handler-store-client
+  provider: idempotency-postgres
+  deployment: duplicate-handler-failures
+  sourceElementId: 46388863-2379-5970-821c-443890ca6d00
+- id: handler-transacted
+  provider: artemis-jms-trigger
+  deployment: duplicate-handler-failures
+  sourceElementId: 9c832189-a89f-57e2-866a-fe7e21a151b8
+- id: handler-store-transacted
+  provider: idempotency-postgres
+  deployment: duplicate-handler-failures
+  sourceElementId: fdfe4b2d-43b6-5a1e-94f2-8c84b617c2e0
+- id: handler-store-duplicate
+  provider: idempotency-postgres
+  deployment: duplicate-handler-failures
+  sourceElementId: bdaad712-5a39-5eaa-9b70-41f4da68e5d2
+- id: handler-lifecycle
+  provider: chain-consumer-lifecycle
+  deployment: duplicate-handler-failures
+  sourceElementId: 0d75c14f-8522-5928-8ea1-4036886cdf9b
+- id: competing-queue
+  provider: artemis-jms-trigger
+  deployment: competing-queue
+  sourceElementId: 227ca4c1-047a-5ba8-8258-e9d5a554cd48
+- id: concurrent-ignore
+  provider: artemis-jms-trigger
+  deployment: concurrent-idempotency
+  sourceElementId: 0e531ab9-6214-5d7e-91e9-1b2a131f4a9c
+- id: concurrent-throw-exception
+  provider: artemis-jms-trigger
+  deployment: concurrent-idempotency
+  sourceElementId: 87c76aa1-c0e8-509b-863f-a479a9ccee0e
+- id: concurrent-execute-subchain
+  provider: artemis-jms-trigger
+  deployment: concurrent-idempotency
+  sourceElementId: 21a50cab-5be7-5948-ba4e-4bb9687d7fc1
+- id: concurrent-store-main
+  provider: idempotency-postgres
+  deployment: concurrent-idempotency
+  sourceElementId: 01f75b51-a80b-5b96-a387-eacb6697c127
+- id: concurrent-store-handler
+  provider: idempotency-postgres
+  deployment: concurrent-idempotency
+  sourceElementId: 3c6403fb-1b04-5537-9760-f8555e319ef9
+- id: anonymous-naming
+  provider: artemis-jms-trigger
+  deployment: anonymous-naming
+  sourceElementId: 57b9f175-3144-5de0-aa4d-d91033490ee5
 scenarios:
 - id: restores-scenario-message-type-and-headers-after-invocation-override
+  reuseBroker: true
   scope: Short
   deployment: jms-trigger
   driver:
@@ -210,6 +283,7 @@ scenarios:
         properties:
           expectedBodyType: java.lang.String
 - id: restores-scenario-publication-after-batch-override
+  reuseBroker: true
   scope: Short
   deployment: jms-trigger
   driver:
@@ -2281,6 +2355,7 @@ scenarios:
           expectedAcknowledgmentMode: 3
           expectedTransacted: false
 - id: delivers-each-topic-message-to-both-subscribers
+  reuseBroker: true
   scope: Short
   deployment: topic
   driver:
@@ -2537,6 +2612,7 @@ scenarios:
               snapshotSubscriber: second
               snapshotSequence: next-message-is-independent
 - id: deduplicates-jms-business-keys-and-reacquires-expired-keys
+  reuseBroker: true
   scope: Short
   deployment: idempotency
   driver:
@@ -3380,6 +3456,7 @@ scenarios:
       expectedRequest:
         count: 0
 - id: handles-jms-duplicates-with-each-configured-action
+  reuseBroker: true
   scope: Short
   deployment: idempotency
   driver:
@@ -4024,6 +4101,7 @@ scenarios:
       message: Duplicated idempotency key
       cause: null
 - id: retains-jms-idempotency-keys-after-script-failure
+  reuseBroker: true
   scope: Short
   deployment: idempotency
   driver:
@@ -8122,3 +8200,1686 @@ scenarios:
         headers:
           snapshotSequence: after-second-recovery
           JMSRedelivered: false
+
+- id: preserves-persistent-queue-backlog-across-broker-restart
+  scope: Long
+  deployment: transacted
+  driver:
+    provider: jms-trigger
+    sourceElementId: 75f92caa-0575-513b-8f3c-296253aaea26
+    parameters:
+      messageType: Text
+  invocations:
+  - id: before-restart
+    body: before-restart
+    headers:
+      snapshotFail: false
+    expectedBody: Triggered
+    expectedHeaders:
+      JMSRedelivered: false
+      JMSDeliveryMode: 2
+    interactions:
+    - fixture: transacted-transacted
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/ack/transacted
+      response:
+        properties:
+          expectedListenerTransacted: true
+          expectedAcknowledgmentMode: 0
+          expectedTransacted: true
+    timeoutSeconds: 180
+  - id: persistent-backlog
+    headers:
+      snapshotFail: false
+    expectedBody:
+    - Triggered
+    - Triggered
+    - Triggered
+    expectedHeaders:
+      JMSRedelivered: false
+      JMSDeliveryMode: 2
+    interactions:
+    - fixture: transacted-transacted
+      expectedRequest:
+        count: 3
+        destination: jms/snapshot/ack/transacted
+      response:
+        properties:
+          expectedListenerTransacted: true
+          expectedAcknowledgmentMode: 0
+          expectedTransacted: true
+          consumerAction: restart-broker-with-backlog
+      expectedExchanges:
+      - body: backlog-one
+        headers:
+          JMSDeliveryMode: 2
+          JMSRedelivered: false
+      - body: backlog-two
+        headers:
+          JMSDeliveryMode: 2
+          JMSRedelivered: false
+      - body: backlog-three
+        headers:
+          JMSDeliveryMode: 2
+          JMSRedelivered: false
+    timeoutSeconds: 180
+    driver:
+      provider: jms-trigger
+      sourceElementId: 75f92caa-0575-513b-8f3c-296253aaea26
+      parameters:
+        messages:
+        - body: backlog-one
+          messageType: Text
+          headers:
+            snapshotFail: false
+          jmsHeaders:
+            deliveryMode: PERSISTENT
+        - body: backlog-two
+          messageType: Text
+          headers:
+            snapshotFail: false
+          jmsHeaders:
+            deliveryMode: PERSISTENT
+        - body: backlog-three
+          messageType: Text
+          headers:
+            snapshotFail: false
+          jmsHeaders:
+            deliveryMode: PERSISTENT
+  - id: acked-messages-stay-absent
+    body: after-acknowledged-restart
+    headers:
+      snapshotFail: false
+    expectedBody: Triggered
+    expectedHeaders:
+      JMSRedelivered: false
+      JMSDeliveryMode: 2
+    interactions:
+    - fixture: transacted-transacted
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/ack/transacted
+      response:
+        properties:
+          expectedListenerTransacted: true
+          expectedAcknowledgmentMode: 0
+          expectedTransacted: true
+          consumerAction: restart-broker
+    timeoutSeconds: 180
+- id: redelivers-client-message-after-broker-loss-before-acknowledgment
+  scope: Long
+  deployment: acknowledgment
+  driver:
+    provider: jms-trigger
+    sourceElementId: bacb1f4e-33ca-518e-a5aa-b604caa60375
+    parameters:
+      messageType: Text
+  invocations:
+  - id: interrupted-before-acknowledgment
+    body: client-unacknowledged
+    headers:
+      snapshotFail: false
+    expectedBody: Triggered
+    expectedHeaders:
+      JMSRedelivered: true
+    interactions:
+    - fixture: acknowledgment-auto
+      expectedRequest:
+        count: 0
+    - fixture: acknowledgment-client
+      expectedRequest:
+        count: 2
+        body: client-unacknowledged
+        destination: jms/snapshot/ack/client
+      response:
+        properties:
+          expectedAcknowledgmentMode: 2
+          expectedTransacted: false
+          consumerAction: restart-broker-before-acknowledgment
+          expectedRedeliveryCount: 1
+          expectedCompletions:
+          - body: Triggered
+            headers:
+              JMSRedelivered: false
+          - body: Triggered
+            headers:
+              JMSRedelivered: true
+      expectedExchanges:
+      - body: client-unacknowledged
+        headers:
+          JMSRedelivered: false
+      - body: client-unacknowledged
+        headers:
+          JMSRedelivered: true
+    - fixture: acknowledgment-dups
+      expectedRequest:
+        count: 0
+    timeoutSeconds: 180
+  - id: fresh-after-recovery
+    body: client-after-recovery
+    headers:
+      snapshotFail: false
+    expectedBody: Triggered
+    expectedHeaders:
+      JMSRedelivered: false
+    interactions:
+    - fixture: acknowledgment-auto
+      expectedRequest:
+        count: 0
+    - fixture: acknowledgment-client
+      expectedRequest:
+        count: 1
+        body: client-after-recovery
+        destination: jms/snapshot/ack/client
+      response:
+        properties:
+          expectedAcknowledgmentMode: 2
+          expectedTransacted: false
+    - fixture: acknowledgment-dups
+      expectedRequest:
+        count: 0
+    timeoutSeconds: 180
+- id: redelivers-transacted-message-after-broker-loss-before-acknowledgment
+  scope: Long
+  deployment: transacted
+  driver:
+    provider: jms-trigger
+    sourceElementId: 75f92caa-0575-513b-8f3c-296253aaea26
+    parameters:
+      messageType: Text
+  invocations:
+  - id: interrupted-before-acknowledgment
+    body: transacted-unacknowledged
+    headers:
+      snapshotFail: false
+    expectedBody: Triggered
+    expectedHeaders:
+      JMSRedelivered: true
+    interactions:
+    - fixture: transacted-transacted
+      expectedRequest:
+        count: 2
+        body: transacted-unacknowledged
+        destination: jms/snapshot/ack/transacted
+      response:
+        properties:
+          expectedAcknowledgmentMode: 0
+          expectedTransacted: true
+          expectedListenerTransacted: true
+          consumerAction: restart-broker-before-acknowledgment
+          expectedRedeliveryCount: 1
+          expectedCompletions:
+          - body: Triggered
+            headers:
+              JMSRedelivered: false
+          - body: Triggered
+            headers:
+              JMSRedelivered: true
+      expectedExchanges:
+      - body: transacted-unacknowledged
+        headers:
+          JMSRedelivered: false
+      - body: transacted-unacknowledged
+        headers:
+          JMSRedelivered: true
+    timeoutSeconds: 180
+  - id: fresh-after-recovery
+    body: transacted-after-recovery
+    headers:
+      snapshotFail: false
+    expectedBody: Triggered
+    expectedHeaders:
+      JMSRedelivered: false
+    interactions:
+    - fixture: transacted-transacted
+      expectedRequest:
+        count: 1
+        body: transacted-after-recovery
+        destination: jms/snapshot/ack/transacted
+      response:
+        properties:
+          expectedAcknowledgmentMode: 0
+          expectedTransacted: true
+          expectedListenerTransacted: true
+    timeoutSeconds: 180
+- id: recovers-consumption-after-wrong-jndi-destination-binding
+  scope: Long
+  deployment: jms-trigger
+  driver:
+    provider: jms-trigger
+    sourceElementId: 5d543929-f2af-47a6-8db1-306df85ae0d4
+    parameters:
+      messageType: Text
+  invocations:
+  - id: repairs-wrong-destination-type
+    body: wrong-binding-persistent-backlog
+    expectedBody: Triggered
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 1
+        body: wrong-binding-persistent-backlog
+        destination: jms/snapshot/trigger
+      response:
+        properties:
+          consumerAction: wrong-jndi-binding-until-published
+    timeoutSeconds: 90
+  - id: uses-repaired-binding
+    body: after-binding-recovery
+    expectedBody: Triggered
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 1
+        body: after-binding-recovery
+        destination: jms/snapshot/trigger
+    timeoutSeconds: 90
+- id: rejects-generated-jms-startup-authentication
+  scope: Short
+  deployment: startup-authentication
+  driver:
+    provider: jms-trigger
+    sourceElementId: 4a9d464f-dd27-5009-9000-f255760e9dea
+    parameters:
+      messageType: Text
+  invocations:
+  - id: startup-is-rejected
+    interactions:
+    - fixture: startup-authentication
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedNamingFailure: authentication
+  expectedStartupFailure:
+    type: java.lang.RuntimeException
+    message: 'Error creating bean: jms-<snapshot-node-id> of type: org.apache.camel.component.jms.JmsComponent'
+    cause:
+      type: org.apache.camel.RuntimeCamelException
+      message: java.lang.reflect.InvocationTargetException
+      cause:
+        type: java.lang.reflect.InvocationTargetException
+        message: null
+        cause:
+          type: java.lang.RuntimeException
+          message: Unable to create JMS connection
+          cause:
+            type: javax.naming.AuthenticationException
+            message: Snapshot JMS naming credentials were rejected.
+            cause: null
+- id: rejects-generated-jms-startup-missing-connection-factory
+  scope: Short
+  deployment: startup-missing-connection-factory
+  driver:
+    provider: jms-trigger
+    sourceElementId: a652a7f1-526c-59f8-a8a9-cd2f59f2259f
+    parameters:
+      messageType: Text
+  invocations:
+  - id: startup-is-rejected
+    interactions:
+    - fixture: startup-missing-connection-factory
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedNamingFailure: missing-connection-factory
+  expectedStartupFailure:
+    type: java.lang.RuntimeException
+    message: 'Error creating bean: jms-<snapshot-node-id> of type: org.apache.camel.component.jms.JmsComponent'
+    cause:
+      type: org.apache.camel.RuntimeCamelException
+      message: java.lang.reflect.InvocationTargetException
+      cause:
+        type: java.lang.reflect.InvocationTargetException
+        message: null
+        cause:
+          type: java.lang.RuntimeException
+          message: Unable to create JMS connection
+          cause:
+            type: javax.naming.NameNotFoundException
+            message: Snapshot JMS name 'jms/missing/connectionfactory' is not bound.
+            cause: null
+- id: retains-client-key-and-dead-letters-failed-duplicate-handler
+  scope: Long
+  deployment: duplicate-handler-failures
+  driver:
+    provider: jms-trigger
+    sourceElementId: 66ea966e-ea40-57b2-9766-a226fa2ec23a
+    parameters:
+      messageType: Text
+  invocations:
+  - id: client-handler-key-acquired
+    body: client-handler-key-acquired
+    headers:
+      businessContext: client
+      businessKey: handler-failure
+      snapshotFail: false
+    expectedBody: Triggered
+    expectedHeaders:
+      JMSRedelivered: false
+    expectedProperties:
+      CamelDuplicateMessage: null
+      systemProperty_idempotencyKey: handler-failure
+      systemProperty_idempotencyContext: client
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: handler-client
+      expectedRequest:
+        count: 1
+        body: client-handler-key-acquired
+        destination: jms/snapshot/duplicate-handler/client
+      response:
+        properties:
+          expectedAcknowledgmentMode: 2
+          expectedTransacted: false
+          maxDeliveryAttempts: 3
+          expectedDeadLetterCount: 0
+    - fixture: handler-store-client
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: client:handler-failure
+          keyExpiry: 600
+          storedKeys:
+          - client:handler-failure
+          updatedKeys:
+          - client:handler-failure
+          records:
+          - key: client:handler-failure
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+    - fixture: handler-transacted
+      expectedRequest:
+        count: 0
+    - fixture: handler-store-transacted
+      expectedRequest:
+        count: 0
+    - fixture: handler-store-duplicate
+      expectedRequest:
+        count: 0
+    - fixture: handler-lifecycle
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          consumerAction: start
+    timeoutSeconds: 90
+  - id: client-duplicate-handler-fails
+    body: client-duplicate-handler-fails
+    headers:
+      businessContext: client
+      businessKey: handler-failure
+      snapshotFail: false
+      failDuplicateHandler: true
+    expectedBody: client-duplicate-handler-fails
+    expectedHeaders:
+      JMSRedelivered: true
+    expectedProperties:
+      CamelDuplicateMessage: true
+      systemProperty_idempotencyKey: handler-failure
+      systemProperty_idempotencyContext: client
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: handler-client
+      expectedRequest:
+        count: 3
+        body: client-duplicate-handler-fails
+        destination: jms/snapshot/duplicate-handler/client
+      response:
+        properties:
+          expectedAcknowledgmentMode: 2
+          expectedTransacted: false
+          maxDeliveryAttempts: 3
+          expectedDeadLetterCount: 1
+          expectedRedeliveryCount: 2
+          expectedCompletions:
+          - body: client-duplicate-handler-fails
+            headers:
+              JMSRedelivered: false
+              snapshotDuplicateHandler: true
+            properties:
+              CamelDuplicateMessage: true
+            expectedFailure:
+              type: java.lang.IllegalStateException
+              message: JMS duplicate handler failure
+              cause: null
+          - body: client-duplicate-handler-fails
+            headers:
+              JMSRedelivered: true
+              snapshotDuplicateHandler: true
+            properties:
+              CamelDuplicateMessage: true
+            expectedFailure:
+              type: java.lang.IllegalStateException
+              message: JMS duplicate handler failure
+              cause: null
+          - body: client-duplicate-handler-fails
+            headers:
+              JMSRedelivered: true
+              snapshotDuplicateHandler: true
+            properties:
+              CamelDuplicateMessage: true
+            expectedFailure:
+              type: java.lang.IllegalStateException
+              message: JMS duplicate handler failure
+              cause: null
+    - fixture: handler-store-client
+      expectedRequest:
+        count: 0
+        properties:
+          insertionAttempts: 3
+          key: client:handler-failure
+          keyExpiry: 600
+          storedKeys:
+          - client:handler-failure
+          updatedKeys: []
+          records:
+          - key: client:handler-failure
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+    - fixture: handler-transacted
+      expectedRequest:
+        count: 0
+    - fixture: handler-store-transacted
+      expectedRequest:
+        count: 0
+    - fixture: handler-store-duplicate
+      expectedRequest:
+        count: 3
+    - fixture: handler-lifecycle
+      expectedRequest:
+        count: 3
+      response:
+        properties:
+          consumerAction: start
+    timeoutSeconds: 90
+    expectedFailure:
+      type: java.lang.IllegalStateException
+      message: JMS duplicate handler failure
+      cause: null
+  - id: client-fresh-after-handler-failure
+    body: client-fresh-after-handler-failure
+    headers:
+      businessContext: client
+      businessKey: fresh-after-handler-failure
+      snapshotFail: false
+    expectedBody: Triggered
+    expectedHeaders:
+      JMSRedelivered: false
+    expectedProperties:
+      CamelDuplicateMessage: null
+      systemProperty_idempotencyKey: fresh-after-handler-failure
+      systemProperty_idempotencyContext: client
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: handler-client
+      expectedRequest:
+        count: 1
+        body: client-fresh-after-handler-failure
+        destination: jms/snapshot/duplicate-handler/client
+      response:
+        properties:
+          expectedAcknowledgmentMode: 2
+          expectedTransacted: false
+          maxDeliveryAttempts: 3
+          expectedDeadLetterCount: 0
+    - fixture: handler-store-client
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: client:fresh-after-handler-failure
+          keyExpiry: 600
+          storedKeys:
+          - client:fresh-after-handler-failure
+          - client:handler-failure
+          updatedKeys:
+          - client:fresh-after-handler-failure
+          records:
+          - key: client:fresh-after-handler-failure
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: client:handler-failure
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+    - fixture: handler-transacted
+      expectedRequest:
+        count: 0
+    - fixture: handler-store-transacted
+      expectedRequest:
+        count: 0
+    - fixture: handler-store-duplicate
+      expectedRequest:
+        count: 0
+    - fixture: handler-lifecycle
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          consumerAction: start
+    timeoutSeconds: 90
+- id: retains-transacted-key-and-dead-letters-failed-duplicate-handler
+  scope: Long
+  deployment: duplicate-handler-failures
+  driver:
+    provider: jms-trigger
+    sourceElementId: 9c832189-a89f-57e2-866a-fe7e21a151b8
+    parameters:
+      messageType: Text
+  invocations:
+  - id: transacted-handler-key-acquired
+    body: transacted-handler-key-acquired
+    headers:
+      businessContext: transacted
+      businessKey: handler-failure
+      snapshotFail: false
+    expectedBody: Triggered
+    expectedHeaders:
+      JMSRedelivered: false
+    expectedProperties:
+      CamelDuplicateMessage: null
+      systemProperty_idempotencyKey: handler-failure
+      systemProperty_idempotencyContext: transacted
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: handler-client
+      expectedRequest:
+        count: 0
+    - fixture: handler-store-client
+      expectedRequest:
+        count: 0
+    - fixture: handler-transacted
+      expectedRequest:
+        count: 1
+        body: transacted-handler-key-acquired
+        destination: jms/snapshot/duplicate-handler/transacted
+      response:
+        properties:
+          expectedAcknowledgmentMode: 0
+          expectedTransacted: true
+          maxDeliveryAttempts: 3
+          expectedDeadLetterCount: 0
+          expectedListenerTransacted: true
+    - fixture: handler-store-transacted
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: transacted:handler-failure
+          keyExpiry: 600
+          storedKeys:
+          - transacted:handler-failure
+          updatedKeys:
+          - transacted:handler-failure
+          records:
+          - key: transacted:handler-failure
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+    - fixture: handler-store-duplicate
+      expectedRequest:
+        count: 0
+    - fixture: handler-lifecycle
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          consumerAction: start
+    timeoutSeconds: 90
+  - id: transacted-duplicate-handler-fails
+    body: transacted-duplicate-handler-fails
+    headers:
+      businessContext: transacted
+      businessKey: handler-failure
+      snapshotFail: false
+      failDuplicateHandler: true
+    expectedBody: transacted-duplicate-handler-fails
+    expectedHeaders:
+      JMSRedelivered: true
+    expectedProperties:
+      CamelDuplicateMessage: true
+      systemProperty_idempotencyKey: handler-failure
+      systemProperty_idempotencyContext: transacted
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: handler-client
+      expectedRequest:
+        count: 0
+    - fixture: handler-store-client
+      expectedRequest:
+        count: 0
+    - fixture: handler-transacted
+      expectedRequest:
+        count: 3
+        body: transacted-duplicate-handler-fails
+        destination: jms/snapshot/duplicate-handler/transacted
+      response:
+        properties:
+          expectedAcknowledgmentMode: 0
+          expectedTransacted: true
+          maxDeliveryAttempts: 3
+          expectedDeadLetterCount: 1
+          expectedListenerTransacted: true
+          expectedRedeliveryCount: 2
+          expectedCompletions:
+          - body: transacted-duplicate-handler-fails
+            headers:
+              JMSRedelivered: false
+              snapshotDuplicateHandler: true
+            properties:
+              CamelDuplicateMessage: true
+            expectedFailure:
+              type: java.lang.IllegalStateException
+              message: JMS duplicate handler failure
+              cause: null
+          - body: transacted-duplicate-handler-fails
+            headers:
+              JMSRedelivered: true
+              snapshotDuplicateHandler: true
+            properties:
+              CamelDuplicateMessage: true
+            expectedFailure:
+              type: java.lang.IllegalStateException
+              message: JMS duplicate handler failure
+              cause: null
+          - body: transacted-duplicate-handler-fails
+            headers:
+              JMSRedelivered: true
+              snapshotDuplicateHandler: true
+            properties:
+              CamelDuplicateMessage: true
+            expectedFailure:
+              type: java.lang.IllegalStateException
+              message: JMS duplicate handler failure
+              cause: null
+    - fixture: handler-store-transacted
+      expectedRequest:
+        count: 0
+        properties:
+          insertionAttempts: 3
+          key: transacted:handler-failure
+          keyExpiry: 600
+          storedKeys:
+          - transacted:handler-failure
+          updatedKeys: []
+          records:
+          - key: transacted:handler-failure
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+    - fixture: handler-store-duplicate
+      expectedRequest:
+        count: 3
+    - fixture: handler-lifecycle
+      expectedRequest:
+        count: 3
+      response:
+        properties:
+          consumerAction: start
+    timeoutSeconds: 90
+    expectedFailure:
+      type: java.lang.IllegalStateException
+      message: JMS duplicate handler failure
+      cause: null
+  - id: transacted-fresh-after-handler-failure
+    body: transacted-fresh-after-handler-failure
+    headers:
+      businessContext: transacted
+      businessKey: fresh-after-handler-failure
+      snapshotFail: false
+    expectedBody: Triggered
+    expectedHeaders:
+      JMSRedelivered: false
+    expectedProperties:
+      CamelDuplicateMessage: null
+      systemProperty_idempotencyKey: fresh-after-handler-failure
+      systemProperty_idempotencyContext: transacted
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: handler-client
+      expectedRequest:
+        count: 0
+    - fixture: handler-store-client
+      expectedRequest:
+        count: 0
+    - fixture: handler-transacted
+      expectedRequest:
+        count: 1
+        body: transacted-fresh-after-handler-failure
+        destination: jms/snapshot/duplicate-handler/transacted
+      response:
+        properties:
+          expectedAcknowledgmentMode: 0
+          expectedTransacted: true
+          maxDeliveryAttempts: 3
+          expectedDeadLetterCount: 0
+          expectedListenerTransacted: true
+    - fixture: handler-store-transacted
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: transacted:fresh-after-handler-failure
+          keyExpiry: 600
+          storedKeys:
+          - transacted:fresh-after-handler-failure
+          - transacted:handler-failure
+          updatedKeys:
+          - transacted:fresh-after-handler-failure
+          records:
+          - key: transacted:fresh-after-handler-failure
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: transacted:handler-failure
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+    - fixture: handler-store-duplicate
+      expectedRequest:
+        count: 0
+    - fixture: handler-lifecycle
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          consumerAction: start
+    timeoutSeconds: 90
+- id: recovers-duplicate-handler-after-consumer-availability-timeout
+  scope: Long
+  deployment: duplicate-handler-failures
+  driver:
+    provider: jms-trigger
+    sourceElementId: 66ea966e-ea40-57b2-9766-a226fa2ec23a
+    parameters:
+      messageType: Text
+  invocations:
+  - id: timeout-key-acquired
+    body: timeout-key-acquired
+    headers:
+      businessContext: client
+      businessKey: handler-timeout
+      snapshotFail: false
+    expectedBody: Triggered
+    expectedHeaders:
+      JMSRedelivered: false
+    expectedProperties:
+      CamelDuplicateMessage: null
+      systemProperty_idempotencyKey: handler-timeout
+      systemProperty_idempotencyContext: client
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: handler-client
+      expectedRequest:
+        count: 1
+        body: timeout-key-acquired
+        destination: jms/snapshot/duplicate-handler/client
+      response:
+        properties:
+          expectedAcknowledgmentMode: 2
+          expectedTransacted: false
+          maxDeliveryAttempts: 3
+          expectedDeadLetterCount: 0
+    - fixture: handler-store-client
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: client:handler-timeout
+          keyExpiry: 600
+          storedKeys:
+          - client:handler-timeout
+          updatedKeys:
+          - client:handler-timeout
+          records:
+          - key: client:handler-timeout
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+    - fixture: handler-transacted
+      expectedRequest:
+        count: 0
+    - fixture: handler-store-transacted
+      expectedRequest:
+        count: 0
+    - fixture: handler-store-duplicate
+      expectedRequest:
+        count: 0
+    - fixture: handler-lifecycle
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          consumerAction: start
+    timeoutSeconds: 90
+  - id: duplicate-handler-consumer-unavailable
+    body: duplicate-handler-consumer-unavailable
+    headers:
+      businessContext: client
+      businessKey: handler-timeout
+      snapshotFail: false
+    expectedBody: duplicate-handler-consumer-unavailable
+    expectedHeaders:
+      JMSRedelivered: true
+    expectedProperties:
+      CamelDuplicateMessage: true
+      systemProperty_idempotencyKey: handler-timeout
+      systemProperty_idempotencyContext: client
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: handler-client
+      expectedRequest:
+        count: 3
+        body: duplicate-handler-consumer-unavailable
+        destination: jms/snapshot/duplicate-handler/client
+      response:
+        properties:
+          expectedAcknowledgmentMode: 2
+          expectedTransacted: false
+          maxDeliveryAttempts: 3
+          expectedDeadLetterCount: 1
+          expectedRedeliveryCount: 2
+          expectedCompletions:
+          - body: duplicate-handler-consumer-unavailable
+            headers:
+              JMSRedelivered: false
+            properties:
+              CamelDuplicateMessage: true
+            expectedFailure:
+              type: org.qubership.integration.platform.engine.camel.components.directvm.ChainConsumerNotAvailableException
+              message: 'No consumers available on endpoint: cip-chain://<snapshot-node-id>?block=true&failIfNoConsumers=false&timeout=1000.
+                Exchange[]'
+              cause: null
+          - body: duplicate-handler-consumer-unavailable
+            headers:
+              JMSRedelivered: true
+            properties:
+              CamelDuplicateMessage: true
+            expectedFailure:
+              type: org.qubership.integration.platform.engine.camel.components.directvm.ChainConsumerNotAvailableException
+              message: 'No consumers available on endpoint: cip-chain://<snapshot-node-id>?block=true&failIfNoConsumers=false&timeout=1000.
+                Exchange[]'
+              cause: null
+          - body: duplicate-handler-consumer-unavailable
+            headers:
+              JMSRedelivered: true
+            properties:
+              CamelDuplicateMessage: true
+            expectedFailure:
+              type: org.qubership.integration.platform.engine.camel.components.directvm.ChainConsumerNotAvailableException
+              message: 'No consumers available on endpoint: cip-chain://<snapshot-node-id>?block=true&failIfNoConsumers=false&timeout=1000.
+                Exchange[]'
+              cause: null
+    - fixture: handler-store-client
+      expectedRequest:
+        count: 0
+        properties:
+          insertionAttempts: 3
+          key: client:handler-timeout
+          keyExpiry: 600
+          storedKeys:
+          - client:handler-timeout
+          updatedKeys: []
+          records:
+          - key: client:handler-timeout
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+    - fixture: handler-transacted
+      expectedRequest:
+        count: 0
+    - fixture: handler-store-transacted
+      expectedRequest:
+        count: 0
+    - fixture: handler-store-duplicate
+      expectedRequest:
+        count: 0
+    - fixture: handler-lifecycle
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          consumerAction: stop
+    timeoutSeconds: 90
+    expectedFailure:
+      type: org.qubership.integration.platform.engine.camel.components.directvm.ChainConsumerNotAvailableException
+      message: 'No consumers available on endpoint: cip-chain://<snapshot-node-id>?block=true&failIfNoConsumers=false&timeout=1000. Exchange[]'
+      cause: null
+  - id: duplicate-handler-consumer-restored
+    body: duplicate-handler-consumer-restored
+    headers:
+      businessContext: client
+      businessKey: handler-timeout
+      snapshotFail: false
+    expectedBody: Duplicate handled
+    expectedHeaders:
+      JMSRedelivered: false
+    expectedProperties:
+      CamelDuplicateMessage: true
+      systemProperty_idempotencyKey: handler-timeout
+      systemProperty_idempotencyContext: client
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: handler-client
+      expectedRequest:
+        count: 1
+        body: duplicate-handler-consumer-restored
+        destination: jms/snapshot/duplicate-handler/client
+      response:
+        properties:
+          expectedAcknowledgmentMode: 2
+          expectedTransacted: false
+          maxDeliveryAttempts: 3
+          expectedDeadLetterCount: 0
+    - fixture: handler-store-client
+      expectedRequest:
+        count: 0
+        properties:
+          insertionAttempts: 1
+          key: client:handler-timeout
+          keyExpiry: 600
+          storedKeys:
+          - client:handler-timeout
+          updatedKeys: []
+          records:
+          - key: client:handler-timeout
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+    - fixture: handler-transacted
+      expectedRequest:
+        count: 0
+    - fixture: handler-store-transacted
+      expectedRequest:
+        count: 0
+    - fixture: handler-store-duplicate
+      expectedRequest:
+        count: 1
+    - fixture: handler-lifecycle
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          consumerAction: start
+    timeoutSeconds: 90
+  - id: fresh-after-handler-timeout
+    body: fresh-after-handler-timeout
+    headers:
+      businessContext: client
+      businessKey: fresh-after-handler-timeout
+      snapshotFail: false
+    expectedBody: Triggered
+    expectedHeaders:
+      JMSRedelivered: false
+    expectedProperties:
+      CamelDuplicateMessage: null
+      systemProperty_idempotencyKey: fresh-after-handler-timeout
+      systemProperty_idempotencyContext: client
+      systemProperty_keyExpiry: '600'
+    interactions:
+    - fixture: handler-client
+      expectedRequest:
+        count: 1
+        body: fresh-after-handler-timeout
+        destination: jms/snapshot/duplicate-handler/client
+      response:
+        properties:
+          expectedAcknowledgmentMode: 2
+          expectedTransacted: false
+          maxDeliveryAttempts: 3
+          expectedDeadLetterCount: 0
+    - fixture: handler-store-client
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: client:fresh-after-handler-timeout
+          keyExpiry: 600
+          storedKeys:
+          - client:fresh-after-handler-timeout
+          - client:handler-timeout
+          updatedKeys:
+          - client:fresh-after-handler-timeout
+          records:
+          - key: client:fresh-after-handler-timeout
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: client:handler-timeout
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+    - fixture: handler-transacted
+      expectedRequest:
+        count: 0
+    - fixture: handler-store-transacted
+      expectedRequest:
+        count: 0
+    - fixture: handler-store-duplicate
+      expectedRequest:
+        count: 0
+    - fixture: handler-lifecycle
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          consumerAction: start
+    timeoutSeconds: 90
+- id: distributes-a-shared-queue-and-fails-over-without-losing-backlog
+  scope: Long
+  deployment: competing-queue
+  driver:
+    provider: jms-trigger
+    sourceElementId: 227ca4c1-047a-5ba8-8258-e9d5a554cd48
+    parameters:
+      messageType: Text
+  invocations:
+  - id: both-consumers-receive
+    driver:
+      provider: jms-trigger
+      sourceElementId: 227ca4c1-047a-5ba8-8258-e9d5a554cd48
+      parameters:
+        messageType: Text
+        messages:
+        - body: both-consumers-receive-0
+        - body: both-consumers-receive-1
+        - body: both-consumers-receive-2
+        - body: both-consumers-receive-3
+    expectedBody:
+    - Triggered
+    - Triggered
+    - Triggered
+    - Triggered
+    interactions:
+    - fixture: competing-queue
+      expectedRequest:
+        count: 4
+        destination: jms/snapshot/competing/queue
+      response:
+        properties:
+          sharedQueue: true
+          expectedConsumerCount: 2
+          expectedAcknowledgmentMode: 1
+          expectedTransacted: false
+          holdConcurrentConsumers: true
+    timeoutSeconds: 90
+  - id: remaining-consumer-drains-new-work
+    driver:
+      provider: jms-trigger
+      sourceElementId: 227ca4c1-047a-5ba8-8258-e9d5a554cd48
+      parameters:
+        messageType: Text
+        messages:
+        - body: remaining-consumer-drains-new-work-0
+        - body: remaining-consumer-drains-new-work-1
+        - body: remaining-consumer-drains-new-work-2
+    expectedBody:
+    - Triggered
+    - Triggered
+    - Triggered
+    interactions:
+    - fixture: competing-queue
+      expectedRequest:
+        count: 3
+        destination: jms/snapshot/competing/queue
+      response:
+        properties:
+          sharedQueue: true
+          expectedConsumerCount: 1
+          expectedAcknowledgmentMode: 1
+          expectedTransacted: false
+          consumerAction: stop-peer
+    timeoutSeconds: 90
+  - id: backlog-drains-after-both-consumers-stop
+    driver:
+      provider: jms-trigger
+      sourceElementId: 227ca4c1-047a-5ba8-8258-e9d5a554cd48
+      parameters:
+        messageType: Text
+        messages:
+        - body: backlog-drains-after-both-consumers-stop-0
+        - body: backlog-drains-after-both-consumers-stop-1
+        - body: backlog-drains-after-both-consumers-stop-2
+    expectedBody:
+    - Triggered
+    - Triggered
+    - Triggered
+    interactions:
+    - fixture: competing-queue
+      expectedRequest:
+        count: 3
+        destination: jms/snapshot/competing/queue
+      response:
+        properties:
+          sharedQueue: true
+          expectedConsumerCount: 1
+          expectedAcknowledgmentMode: 1
+          expectedTransacted: false
+          consumerAction: stop-group-until-published
+    timeoutSeconds: 90
+  - id: peer-rejoins-the-queue
+    driver:
+      provider: jms-trigger
+      sourceElementId: 227ca4c1-047a-5ba8-8258-e9d5a554cd48
+      parameters:
+        messageType: Text
+        messages:
+        - body: peer-rejoins-the-queue-0
+        - body: peer-rejoins-the-queue-1
+        - body: peer-rejoins-the-queue-2
+        - body: peer-rejoins-the-queue-3
+    expectedBody:
+    - Triggered
+    - Triggered
+    - Triggered
+    - Triggered
+    interactions:
+    - fixture: competing-queue
+      expectedRequest:
+        count: 4
+        destination: jms/snapshot/competing/queue
+      response:
+        properties:
+          sharedQueue: true
+          expectedConsumerCount: 2
+          expectedAcknowledgmentMode: 1
+          expectedTransacted: false
+          consumerAction: start-peer
+          holdConcurrentConsumers: true
+    timeoutSeconds: 90
+  - id: peer-takes-over-after-primary-stops
+    driver:
+      provider: jms-trigger
+      sourceElementId: 227ca4c1-047a-5ba8-8258-e9d5a554cd48
+      parameters:
+        messageType: Text
+        messages:
+        - body: peer-takes-over-after-primary-stops-0
+        - body: peer-takes-over-after-primary-stops-1
+        - body: peer-takes-over-after-primary-stops-2
+    expectedBody:
+    - Triggered
+    - Triggered
+    - Triggered
+    interactions:
+    - fixture: competing-queue
+      expectedRequest:
+        count: 3
+        destination: jms/snapshot/competing/queue
+      response:
+        properties:
+          sharedQueue: true
+          expectedConsumerCount: 1
+          expectedAcknowledgmentMode: 1
+          expectedTransacted: false
+          consumerAction: stop-primary
+    timeoutSeconds: 90
+- id: acquires-one-jms-idempotency-key-under-competing-consumers
+  reuseBroker: true
+  scope: Long
+  deployment: concurrent-idempotency
+  driver:
+    provider: jms-trigger
+    sourceElementId: 0e531ab9-6214-5d7e-91e9-1b2a131f4a9c
+    parameters:
+      messageType: Text
+  invocations:
+  - id: acquires-one-key-with-ignore
+    driver:
+      provider: jms-trigger
+      sourceElementId: 0e531ab9-6214-5d7e-91e9-1b2a131f4a9c
+      parameters:
+        messageType: Text
+        messages:
+        - body: Triggered
+          headers:
+            businessContext: orders
+            businessKey: concurrent-ignore
+        - body: Triggered
+          headers:
+            businessContext: orders
+            businessKey: concurrent-ignore
+    expectedBody:
+    - Triggered
+    - Triggered
+    interactions:
+    - fixture: concurrent-ignore
+      expectedRequest:
+        count: 2
+        destination: jms/snapshot/concurrent/ignore
+      response:
+        properties:
+          sharedQueue: true
+          expectedConsumerCount: 2
+          expectedAcknowledgmentMode: 1
+          expectedTransacted: false
+          holdConcurrentConsumers: true
+          expectedDuplicateCompletions: 1
+          expectedFailureCompletions: 0
+    - fixture: concurrent-throw-exception
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/concurrent/throw-exception
+      response:
+        properties:
+          sharedQueue: true
+          expectedConsumerCount: 0
+          expectedAcknowledgmentMode: 1
+          expectedTransacted: false
+    - fixture: concurrent-execute-subchain
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/concurrent/execute-subchain
+      response:
+        properties:
+          sharedQueue: true
+          expectedConsumerCount: 0
+          expectedAcknowledgmentMode: 1
+          expectedTransacted: false
+    - fixture: concurrent-store-main
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 2
+          key: orders:concurrent-ignore
+          keyExpiry: 600
+          storedKeys:
+          - orders:concurrent-ignore
+          updatedKeys:
+          - orders:concurrent-ignore
+          records:
+          - key: orders:concurrent-ignore
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+    - fixture: concurrent-store-handler
+      expectedRequest:
+        count: 0
+    timeoutSeconds: 90
+  - id: acquires-one-key-with-throw-exception
+    driver:
+      provider: jms-trigger
+      sourceElementId: 87c76aa1-c0e8-509b-863f-a479a9ccee0e
+      parameters:
+        messageType: Text
+        messages:
+        - body: Triggered
+          headers:
+            businessContext: orders
+            businessKey: concurrent-throw-exception
+        - body: Triggered
+          headers:
+            businessContext: orders
+            businessKey: concurrent-throw-exception
+    expectedBody:
+    - Triggered
+    - Triggered
+    interactions:
+    - fixture: concurrent-ignore
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/concurrent/ignore
+      response:
+        properties:
+          sharedQueue: true
+          expectedConsumerCount: 0
+          expectedAcknowledgmentMode: 1
+          expectedTransacted: false
+    - fixture: concurrent-throw-exception
+      expectedRequest:
+        count: 2
+        destination: jms/snapshot/concurrent/throw-exception
+      response:
+        properties:
+          sharedQueue: true
+          expectedConsumerCount: 2
+          expectedAcknowledgmentMode: 1
+          expectedTransacted: false
+          holdConcurrentConsumers: true
+          expectedDuplicateCompletions: 1
+          expectedFailureCompletions: 1
+    - fixture: concurrent-execute-subchain
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/concurrent/execute-subchain
+      response:
+        properties:
+          sharedQueue: true
+          expectedConsumerCount: 0
+          expectedAcknowledgmentMode: 1
+          expectedTransacted: false
+    - fixture: concurrent-store-main
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 2
+          key: orders:concurrent-throw-exception
+          keyExpiry: 600
+          storedKeys:
+          - orders:concurrent-ignore
+          - orders:concurrent-throw-exception
+          updatedKeys:
+          - orders:concurrent-throw-exception
+          records:
+          - key: orders:concurrent-ignore
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:concurrent-throw-exception
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+    - fixture: concurrent-store-handler
+      expectedRequest:
+        count: 0
+    timeoutSeconds: 90
+    expectedFailure:
+      type: org.qubership.integration.platform.engine.camel.idempotency.DuplicateException
+      message: Duplicated idempotency key
+      cause: null
+  - id: acquires-one-key-with-execute-subchain
+    driver:
+      provider: jms-trigger
+      sourceElementId: 21a50cab-5be7-5948-ba4e-4bb9687d7fc1
+      parameters:
+        messageType: Text
+        messages:
+        - body: Triggered
+          headers:
+            businessContext: orders
+            businessKey: concurrent-execute-subchain
+        - body: Triggered
+          headers:
+            businessContext: orders
+            businessKey: concurrent-execute-subchain
+    expectedBody:
+    - Triggered
+    - Triggered
+    interactions:
+    - fixture: concurrent-ignore
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/concurrent/ignore
+      response:
+        properties:
+          sharedQueue: true
+          expectedConsumerCount: 0
+          expectedAcknowledgmentMode: 1
+          expectedTransacted: false
+    - fixture: concurrent-throw-exception
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/concurrent/throw-exception
+      response:
+        properties:
+          sharedQueue: true
+          expectedConsumerCount: 0
+          expectedAcknowledgmentMode: 1
+          expectedTransacted: false
+    - fixture: concurrent-execute-subchain
+      expectedRequest:
+        count: 2
+        destination: jms/snapshot/concurrent/execute-subchain
+      response:
+        properties:
+          sharedQueue: true
+          expectedConsumerCount: 2
+          expectedAcknowledgmentMode: 1
+          expectedTransacted: false
+          holdConcurrentConsumers: true
+          expectedDuplicateCompletions: 1
+          expectedFailureCompletions: 0
+    - fixture: concurrent-store-main
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 2
+          key: orders:concurrent-execute-subchain
+          keyExpiry: 600
+          storedKeys:
+          - orders:concurrent-execute-subchain
+          - orders:concurrent-ignore
+          - orders:concurrent-throw-exception
+          updatedKeys:
+          - orders:concurrent-execute-subchain
+          records:
+          - key: orders:concurrent-execute-subchain
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:concurrent-ignore
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+          - key: orders:concurrent-throw-exception
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+    - fixture: concurrent-store-handler
+      expectedRequest:
+        count: 1
+    timeoutSeconds: 90
+- id: resolves-jms-components-through-anonymous-jndi
+  scope: Long
+  deployment: anonymous-naming
+  driver:
+    provider: jms-trigger
+    sourceElementId: 57b9f175-3144-5de0-aa4d-d91033490ee5
+    parameters:
+      messageType: Text
+  invocations:
+  - id: resolves-without-naming-credentials
+    body: resolves-without-naming-credentials
+    expectedBody: Triggered
+    expectedHeaders:
+      JMSRedelivered: false
+    interactions:
+    - fixture: anonymous-naming
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/anonymous
+        body: resolves-without-naming-credentials
+      response:
+        properties:
+          anonymousNaming: true
+          expectedAcknowledgmentMode: 1
+          expectedTransacted: false
+    timeoutSeconds: 90
+  - id: consumes-after-anonymous-component-restart
+    body: consumes-after-anonymous-component-restart
+    expectedBody: Triggered
+    expectedHeaders:
+      JMSRedelivered: false
+    interactions:
+    - fixture: anonymous-naming
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/anonymous
+        body: consumes-after-anonymous-component-restart
+      response:
+        properties:
+          anonymousNaming: true
+          expectedAcknowledgmentMode: 1
+          expectedTransacted: false
+          consumerAction: restart-broker
+    timeoutSeconds: 90
+- id: finishes-client-delivery-before-graceful-consumer-stop
+  scope: Long
+  deployment: acknowledgment
+  driver:
+    provider: jms-trigger
+    sourceElementId: bacb1f4e-33ca-518e-a5aa-b604caa60375
+    parameters:
+      messageType: Text
+  invocations:
+  - id: stops-while-delivery-is-held
+    body: client-stops-while-delivery-is-held
+    expectedBody: Triggered
+    expectedHeaders:
+      JMSRedelivered: false
+    interactions:
+    - fixture: acknowledgment-auto
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/ack/auto
+      response:
+        properties: {}
+    - fixture: acknowledgment-client
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/ack/client
+      response:
+        properties:
+          expectedAcknowledgmentMode: 2
+          expectedTransacted: false
+          expectedListenerTransacted: false
+          consumerAction: stop-during-processing
+    - fixture: acknowledgment-dups
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/ack/dups
+      response:
+        properties: {}
+    timeoutSeconds: 90
+  - id: consumes-after-graceful-stop
+    body: client-consumes-after-graceful-stop
+    expectedBody: Triggered
+    expectedHeaders:
+      JMSRedelivered: false
+    interactions:
+    - fixture: acknowledgment-auto
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/ack/auto
+      response:
+        properties: {}
+    - fixture: acknowledgment-client
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/ack/client
+      response:
+        properties:
+          expectedAcknowledgmentMode: 2
+          expectedTransacted: false
+          expectedListenerTransacted: false
+    - fixture: acknowledgment-dups
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/ack/dups
+      response:
+        properties: {}
+    timeoutSeconds: 90
+  - id: committed-delivery-stays-excluded-after-broker-restart
+    body: client-committed-delivery-stays-excluded-after-broker-restart
+    expectedBody: Triggered
+    expectedHeaders:
+      JMSRedelivered: false
+    interactions:
+    - fixture: acknowledgment-auto
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/ack/auto
+      response:
+        properties: {}
+    - fixture: acknowledgment-client
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/ack/client
+      response:
+        properties:
+          expectedAcknowledgmentMode: 2
+          expectedTransacted: false
+          expectedListenerTransacted: false
+          consumerAction: restart-broker
+    - fixture: acknowledgment-dups
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/ack/dups
+      response:
+        properties: {}
+    timeoutSeconds: 90
+- id: finishes-transacted-delivery-before-graceful-consumer-stop
+  scope: Long
+  deployment: transacted
+  driver:
+    provider: jms-trigger
+    sourceElementId: 75f92caa-0575-513b-8f3c-296253aaea26
+    parameters:
+      messageType: Text
+  invocations:
+  - id: stops-while-delivery-is-held
+    body: transacted-stops-while-delivery-is-held
+    expectedBody: Triggered
+    expectedHeaders:
+      JMSRedelivered: false
+    interactions:
+    - fixture: transacted-transacted
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/ack/transacted
+      response:
+        properties:
+          expectedAcknowledgmentMode: 0
+          expectedTransacted: true
+          expectedListenerTransacted: true
+          consumerAction: stop-during-processing
+    timeoutSeconds: 90
+  - id: consumes-after-graceful-stop
+    body: transacted-consumes-after-graceful-stop
+    expectedBody: Triggered
+    expectedHeaders:
+      JMSRedelivered: false
+    interactions:
+    - fixture: transacted-transacted
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/ack/transacted
+      response:
+        properties:
+          expectedAcknowledgmentMode: 0
+          expectedTransacted: true
+          expectedListenerTransacted: true
+    timeoutSeconds: 90
+  - id: committed-delivery-stays-excluded-after-broker-restart
+    body: transacted-committed-delivery-stays-excluded-after-broker-restart
+    expectedBody: Triggered
+    expectedHeaders:
+      JMSRedelivered: false
+    interactions:
+    - fixture: transacted-transacted
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/ack/transacted
+      response:
+        properties:
+          expectedAcknowledgmentMode: 0
+          expectedTransacted: true
+          expectedListenerTransacted: true
+          consumerAction: restart-broker
+    timeoutSeconds: 90

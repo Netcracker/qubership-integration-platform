@@ -4,6 +4,9 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
+      - '.github/workflows/ai-service-build.yaml'
+      - '.github/workflows/_maven-module-build.yaml'
+      - '.github/maven-settings.xml'
       - 'ai-service/**'
       - 'schemas/**'
       - 'pom.xml'

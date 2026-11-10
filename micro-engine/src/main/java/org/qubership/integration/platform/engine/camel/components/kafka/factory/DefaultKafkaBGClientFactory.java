@@ -43,7 +43,7 @@ public class DefaultKafkaBGClientFactory implements KafkaBGClientFactory {
         if (StringUtils.isNotEmpty(offsetResetMode)
                 && "earliest".equalsIgnoreCase(offsetResetMode)) {
             offsetSetupStrategy = OffsetSetupStrategy.EARLIEST;
-            kafkaProps.remove(AUTO_OFFSET_RESET_CONFIG);
+            kafkaProps.setProperty(AUTO_OFFSET_RESET_CONFIG, "earliest");
         }
 
         return new BGKafkaConsumerExtendedImpl(BGKafkaConsumerConfig

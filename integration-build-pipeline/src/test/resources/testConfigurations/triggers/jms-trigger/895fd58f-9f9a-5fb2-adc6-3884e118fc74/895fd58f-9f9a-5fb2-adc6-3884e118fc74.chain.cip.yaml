@@ -1,0 +1,37 @@
+---
+id: 895fd58f-9f9a-5fb2-adc6-3884e118fc74
+$schema: http://qubership.org/schemas/product/qip/chain
+name: jms-trigger-startup-authentication
+content:
+  labels: []
+  elements:
+  - id: 4a9d464f-dd27-5009-9000-f255760e9dea
+    name: JMS Trigger
+    type: jms-trigger
+    properties:
+      acknowledgmentMode: AUTO_ACKNOWLEDGE
+      actionOnDuplicate: ignore
+      chainCallTimeout: 30000
+      initialContextFactory: org.qubership.integration.platform.engine.routes.fixture.SnapshotJmsInitialContextFactory
+      providerUrl: snapshot:jms-trigger
+      connectionFactoryName: jms/BulkQuotationRequest/connectionfactory
+      destinationName: jms/snapshot/startup/authentication
+      destinationType: queue
+      username: invalid-naming-user
+      password: snapshot
+      enableIdempotency: false
+      idempotencyKeyExpiry: 600
+  - id: 7b7fd52d-166e-5f58-b02f-7db71333e005
+    name: Script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 7b7fd52d-166e-5f58-b02f-7db71333e005.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: 4a9d464f-dd27-5009-9000-f255760e9dea
+    to: 7b7fd52d-166e-5f58-b02f-7db71333e005
+  deployments:
+  - domain: default
+  deployAction: DEPLOY
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

@@ -124,7 +124,7 @@ class BGKafkaConsumerExtendedImplTest {
 
         assertEquals(GROUP_ID, capturedProperties.get().get(GROUP_ID_CONFIG));
         assertEquals("kept", capturedProperties.get().get("custom.option"));
-        assertFalse(capturedProperties.get().containsKey(AUTO_OFFSET_RESET_CONFIG));
+        assertEquals("earliest", capturedProperties.get().get(AUTO_OFFSET_RESET_CONFIG));
 
         verify(kafkaConsumer).subscribe(eq(Set.of(TOPIC)), any(ConsumerRebalanceListener.class));
         verify(kafkaConsumer).poll(Duration.ZERO);
@@ -392,6 +392,23 @@ class BGKafkaConsumerExtendedImplTest {
 
         assertFalse(capturedProperties.get().containsKey(AUTO_OFFSET_RESET_CONFIG));
         assertEquals(GROUP_ID, capturedProperties.get().get(GROUP_ID_CONFIG));
+    }
+
+    @Test
+    void shouldLeaveOffsetResetAbsentForVersionedGroupWhenItIsNotConfigured() {
+        AtomicReference<Map<String, Object>> capturedProperties = new AtomicReference<>();
+        BlueGreenState state = candidateState();
+        when(kafkaConsumer.poll(Duration.ZERO)).thenReturn(ConsumerRecords.empty());
+        consumer = newConsumer(state, Map.of(GROUP_ID_CONFIG, GROUP_ID), props -> {
+            capturedProperties.set(new HashMap<>(props));
+            return kafkaConsumer;
+        });
+
+        assertTrue(consumer.poll(Duration.ZERO).isEmpty());
+
+        assertFalse(capturedProperties.get().containsKey(AUTO_OFFSET_RESET_CONFIG));
+        assertEquals(new VersionedGroupId(GROUP_ID, state.getCurrent().getVersion(), State.CANDIDATE,
+                State.ACTIVE, UPDATE_TIME).toString(), capturedProperties.get().get(GROUP_ID_CONFIG));
     }
 
     @Test

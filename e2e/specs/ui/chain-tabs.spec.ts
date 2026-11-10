@@ -145,6 +145,30 @@ test.describe("chain tabs", () => {
     await expect(details.getByRole("row").filter({ hasText: "e2e-fixture" })).toContainText(corpus.run);
   });
 
+  test("Sessions tab from an open session returns to the list", async ({
+    page,
+    request,
+    env,
+    sessions,
+  }) => {
+    const corpus = readCorpusState();
+    const chain = seedChain(corpus, "http-echo");
+    const { token, response } = await callChain(request, env.chainUrl(chain.contextPath), {
+      data: { ping: "ui-sessions-tab" },
+    });
+    expect(response.status()).toBe(200);
+    const session = await sessions.byExternalId(token, { elements: 3 });
+    const tabs = new ChainTabsPage(page);
+
+    await tabs.goto(chain.id, "sessions");
+    await tabs.search("sessions").fill(token);
+    await page.getByRole("row").getByText(session.id, { exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`/chains/${chain.id}/sessions/${session.id}$`));
+
+    await tabs.tab("Sessions").click();
+    await expect(page).toHaveURL(new RegExp(`/chains/${chain.id}/sessions$`));
+  });
+
   test("the header search box keeps its caret and every typed key", async ({ page, catalog, folder, run }) => {
     const chain = await catalog.createChain(tokenized(run, "ui-tabs-search"), folder.id);
     const tabs = new ChainTabsPage(page);

@@ -12,18 +12,26 @@
  * Until #1139 the catalog reported progress 100 before it stored the result, and a read in between
  * answered an empty body.
  *
- * Measured on Docker Desktop's Kubernetes: a run took 8 s and discovered four services.
+ * Cold OpenAPI generation and import took over 60 s on CI while other Kubernetes cases ran.
  */
 import { test, expect } from "../../support/fixtures.js";
 import type { Catalog } from "../../support/catalog.js";
 import { serviceNames } from "../../support/kube.js";
 
-const DISCOVERY_TIMEOUT = 60_000;
+const DISCOVERY_TIMEOUT = 120_000;
+const CLEANUP_TIMEOUT = 30_000;
 
 /** The Service the e2e values add under the catalog's Compose name. */
 const CATALOG_ALIAS = "qip-runtime-catalog";
 
 async function deleteDiscovered(catalog: Catalog): Promise<string[]> {
+  try {
+    // Discovery can still be importing a specification after the test's poll times out.
+    await expect.poll(() => catalog.discoveryProgress(), { timeout: CLEANUP_TIMEOUT }).toBe("100");
+  } catch (cause) {
+    return [`discovery did not complete; services were retained: ${String(cause)}`];
+  }
+
   const failures: string[] = [];
   for (const each of await catalog.discoveredServices()) {
     await catalog.deleteSystem(each.id).catch((cause: unknown) => failures.push(`${each.id}: ${String(cause)}`));
@@ -33,6 +41,7 @@ async function deleteDiscovered(catalog: Catalog): Promise<string[]> {
 
 test.describe("service discovery", { tag: ["@catalog", "@infra"] }, () => {
   test("creates a catalog service per Service with a specification", async ({ catalog }) => {
+    test.setTimeout(180_000);
     expect(await deleteDiscovered(catalog), "services an earlier run discovered").toEqual([]);
 
     let bodyFailed = true;

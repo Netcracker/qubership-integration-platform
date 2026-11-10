@@ -1,15 +1,15 @@
 import React from "react";
 import { EndpointMock } from "../../api/apiTypes.ts";
-import { EMPTY } from "./testingAudit.tsx";
 import { EnabledTag } from "./TestingTags.tsx";
 import { formatMockNumber } from "./endpointMocks.ts";
 import {
   auditSection,
   chainItem,
+  DetailsSidebar,
   elementItem,
   idItem,
-  TestingDetailsDrawer,
-} from "./TestingDetailsDrawer.tsx";
+  renderOptional,
+} from "../DetailsSidebar.tsx";
 
 export type EndpointMockDetailsDrawerProps = {
   endpointMock: EndpointMock | null;
@@ -27,53 +27,58 @@ export const EndpointMockDetailsDrawer: React.FC<
   const matchers = endpointMock?.requestMatchers ?? [];
 
   return (
-    <TestingDetailsDrawer
+    <DetailsSidebar
       title="Endpoint Mock Details"
       open={open}
       onClose={onClose}
-      sections={
-        !endpointMock
-          ? []
-          : [
-              [
-                idItem(endpointMock.id),
-                { label: "Name", children: endpointMock.name || EMPTY },
-                {
-                  label: "Description",
-                  children: endpointMock.description || EMPTY,
-                },
-              ],
-              [
-                chainItem(chainId, chainName),
-                elementItem("Endpoint", chainId, elementId, elementName),
-              ],
-              [
-                {
-                  label: "Status",
-                  children: <EnabledTag enabled={endpointMock.enabled} />,
-                },
-                {
-                  label: "Response status",
-                  children: formatMockNumber(
-                    endpointMock.responseSettings?.status,
-                  ),
-                },
-                {
-                  label: "Response delay, ms",
-                  children: formatMockNumber(
-                    endpointMock.responseSettings?.delay,
-                  ),
-                },
-                { label: "Rules", children: matchers.length },
-                {
-                  label: "Active rules",
-                  children: matchers.filter((matcher) => matcher.enabled)
-                    .length,
-                },
-              ],
-              auditSection(endpointMock),
-            ]
-      }
+      sections={[
+        {
+          key: "general-info",
+          title: "general info",
+          items: [
+            idItem(endpointMock?.id),
+            { label: "Name", value: renderOptional(endpointMock?.name) },
+            {
+              label: "Description",
+              value: renderOptional(endpointMock?.description),
+            },
+          ],
+        },
+        {
+          key: "endpoint",
+          title: "endpoint",
+          items: [
+            chainItem(chainId, chainName),
+            elementItem("Endpoint", chainId, elementId, elementName),
+          ],
+        },
+        {
+          key: "status",
+          title: "status",
+          items: [
+            {
+              label: "Enabled",
+              value: renderOptional(endpointMock?.enabled, (v) => (
+                <EnabledTag enabled={v} />
+              )),
+            },
+            {
+              label: "Response Code",
+              value: renderOptional(endpointMock?.responseSettings?.status),
+            },
+            {
+              label: "Response Delay (ms)",
+              value: formatMockNumber(endpointMock?.responseSettings?.delay),
+            },
+            { label: "Rules", value: matchers.length },
+            {
+              label: "Active Rules",
+              value: matchers.filter((matcher) => matcher.enabled).length,
+            },
+          ],
+        },
+        auditSection(endpointMock),
+      ]}
     />
   );
 };

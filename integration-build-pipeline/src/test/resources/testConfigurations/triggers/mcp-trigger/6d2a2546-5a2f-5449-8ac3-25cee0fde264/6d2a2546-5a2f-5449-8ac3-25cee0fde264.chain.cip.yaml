@@ -1,0 +1,34 @@
+---
+id: 6d2a2546-5a2f-5449-8ac3-25cee0fde264
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+name: mcp-trigger-invalid-output-schema
+content:
+  labels: []
+  elements:
+  - id: 52fca17f-69c0-5570-92d0-56827fea0d19
+    name: MCP Trigger
+    type: mcp-trigger
+    properties:
+      mcpServiceIds:
+      - a61e7e36-2fe7-588c-bbb9-8e116c4b88c8
+      name: snapshot_mcp_invalid_output_schema
+      title: Snapshot MCP invalid-output-schema
+      description: Exercises MCP invalid-output-schema behavior in component tests.
+      destructive: false
+      idempotent: false
+      inputSchema: '{"type":"object","properties":{"message":{"type":"string"}},"additionalProperties":false}'
+      openWorld: false
+      readOnly: false
+      outputSchema: '{'
+  - id: c8a0ca77-a023-5703-a216-427f7b532cf6
+    name: Script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: c8a0ca77-a023-5703-a216-427f7b532cf6.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: 52fca17f-69c0-5570-92d0-56827fea0d19
+    to: c8a0ca77-a023-5703-a216-427f7b532cf6
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

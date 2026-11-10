@@ -1,0 +1,47 @@
+---
+id: 8cc20f06-b6e5-5a7c-aa50-2e98b804781c
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+name: scheduler-handled-failure
+content:
+  labels: []
+  elements:
+  - id: 10ce5c3a-786d-57a8-aafc-8089eb880860
+    name: Scheduler
+    type: quartz-scheduler
+    properties:
+      cron: 0/1 * * ? * *
+      deleteJob: false
+  - id: 351f42ba-99b0-5eac-b120-c5f482829c64
+    name: Handle scheduled failure
+    type: try-catch-finally-2
+    children:
+    - id: 10c69f25-4e6c-54c3-b20b-d09c7d91b4d4
+      name: Try
+      type: try-2
+      children:
+      - id: 22925622-9382-5687-a621-65e8c99a9794
+        name: Script
+        type: script
+        properties:
+          exportFileExtension: groovy
+          propertiesFilename: 22925622-9382-5687-a621-65e8c99a9794.element.script.cip.groovy
+          propertiesToExportInSeparateFile: script
+    - id: 61fbc1a2-e468-52c5-8971-948dcf5e1ab5
+      name: Catch IllegalStateException
+      type: catch-2
+      properties:
+        exception: java.lang.IllegalStateException
+        priority: 0
+      children:
+      - id: 91078067-3130-591c-9828-ccf6d5c0934d
+        name: Fallback
+        type: script
+        properties:
+          exportFileExtension: groovy
+          propertiesFilename: 91078067-3130-591c-9828-ccf6d5c0934d.element.script.cip.groovy
+          propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: 10ce5c3a-786d-57a8-aafc-8089eb880860
+    to: 351f42ba-99b0-5eac-b120-c5f482829c64
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

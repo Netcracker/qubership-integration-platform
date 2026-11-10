@@ -1,0 +1,33 @@
+---
+id: 8b4c0bdf-ec73-51ec-a87d-be4de819fd1a
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+name: mcp-trigger-redeployed
+content:
+  labels: []
+  elements:
+  - id: 26d63148-31ba-5094-b973-6825ecc53594
+    name: MCP Trigger
+    type: mcp-trigger
+    properties:
+      mcpServiceIds:
+      - a61e7e36-2fe7-588c-bbb9-8e116c4b88c8
+      name: snapshot_mcp_trigger
+      title: Snapshot MCP redeployed
+      description: Exercises MCP redeployed behavior in component tests.
+      destructive: false
+      idempotent: false
+      inputSchema: '{"type":"object","properties":{"message":{"type":"string"}},"additionalProperties":false}'
+      openWorld: false
+      readOnly: false
+  - id: d6777070-f922-5e3c-94cd-70b9b6804666
+    name: Script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: d6777070-f922-5e3c-94cd-70b9b6804666.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: 26d63148-31ba-5094-b973-6825ecc53594
+    to: d6777070-f922-5e3c-94cd-70b9b6804666
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

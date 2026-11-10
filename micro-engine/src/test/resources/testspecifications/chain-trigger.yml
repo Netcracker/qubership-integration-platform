@@ -1,0 +1,644 @@
+# yaml-language-server: $schema=../testspecifications.schema.json
+subject: wait
+deployments:
+- id: wait
+  route: chain-trigger-consumer-wait
+  dependsOn:
+  - child
+- id: child
+  route: test-subchain
+- id: overlap
+  route: chain-trigger-consumer-wait
+  dependsOn:
+  - child-old
+  - child-new
+- id: child-old
+  route: test-subchain
+  isolatedContext: true
+- id: child-new
+  route: test-subchain
+  isolatedContext: true
+fixtures:
+- id: child-lifecycle
+  provider: chain-consumer-lifecycle
+  deployment: child
+  sourceElementId: ec738992-9f5b-4368-92d2-0e4c461b7bb6
+- id: old-lifecycle
+  provider: chain-consumer-lifecycle
+  deployment: child-old
+  sourceElementId: ec738992-9f5b-4368-92d2-0e4c461b7bb6
+- id: new-lifecycle
+  provider: chain-consumer-lifecycle
+  deployment: child-new
+  sourceElementId: ec738992-9f5b-4368-92d2-0e4c461b7bb6
+scenarios:
+- id: times-out-without-consumer-and-recovers-after-start
+  scope: Long
+  deployment: wait
+  endpointUri: cip-chain:cc2a9c2f-f198-5854-9e9e-2468fe2096a8
+  invocations:
+  - id: healthy-before-stop
+    body: Original
+    headers:
+      X-Test-Request: request-value
+    properties:
+      failChild: false
+      testProperty: property-value
+    expectedBody: Subchain called
+    expectedHeaders:
+      X-Test-Request: child-header
+    expectedProperties:
+      testProperty: child-property
+      afterCallReached: true
+    interactions:
+    - fixture: child-lifecycle
+      expectedRequest:
+        count: 1
+        body: Original
+        headers:
+          X-Test-Request: request-value
+        properties:
+          testProperty: property-value
+  - id: absent-consumer-times-out
+    body: Original
+    headers:
+      X-Test-Request: request-value
+    properties:
+      failChild: false
+      testProperty: property-value
+    expectedFailure:
+      type: org.qubership.integration.platform.engine.camel.components.directvm.ChainConsumerNotAvailableException
+      message: 'No consumers available on endpoint: cip-chain://<snapshot-node-id>?block=true&failIfNoConsumers=false&timeout=1500.
+        Exchange[]'
+      cause: null
+    expectedProperties:
+      afterCallReached: null
+    interactions:
+    - fixture: child-lifecycle
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          consumerAction: stop
+    timeoutSeconds: 5
+  - id: consumer-start-restores-delivery
+    body: Original
+    headers:
+      X-Test-Request: request-value
+    properties:
+      failChild: false
+      testProperty: property-value
+    expectedBody: Subchain called
+    expectedHeaders:
+      X-Test-Request: child-header
+    expectedProperties:
+      testProperty: child-property
+      afterCallReached: true
+    interactions:
+    - fixture: child-lifecycle
+      expectedRequest:
+        count: 1
+        body: Original
+        headers:
+          X-Test-Request: request-value
+        properties:
+          testProperty: property-value
+      response:
+        properties:
+          consumerAction: start
+- id: waits-for-consumer-start-and-retains-payload
+  scope: Short
+  deployment: wait
+  endpointUri: cip-chain:cc2a9c2f-f198-5854-9e9e-2468fe2096a8
+  invocations:
+  - id: caller-waits-until-consumer-starts
+    body: Original
+    headers:
+      X-Test-Request: request-value
+    properties:
+      failChild: false
+      testProperty: property-value
+    expectedBody: Subchain called
+    expectedHeaders:
+      X-Test-Request: child-header
+    expectedProperties:
+      testProperty: child-property
+      afterCallReached: true
+    interactions:
+    - fixture: child-lifecycle
+      expectedRequest:
+        count: 1
+        body: Original
+        headers:
+          X-Test-Request: request-value
+        properties:
+          testProperty: property-value
+      response:
+        properties:
+          consumerAction: start-when-caller-waits
+  - id: next-call-uses-fresh-input
+    body: Fresh
+    headers:
+      X-Test-Request: second-request
+    properties:
+      testProperty: second-property
+    expectedBody: Subchain called
+    expectedHeaders:
+      X-Test-Request: child-header
+    expectedProperties:
+      testProperty: child-property
+      afterCallReached: true
+    interactions:
+    - fixture: child-lifecycle
+      expectedRequest:
+        count: 1
+        body: Fresh
+        headers:
+          X-Test-Request: second-request
+        properties:
+          testProperty: second-property
+          failChild: null
+- id: restarts-chain-consumer-without-losing-calls
+  scope: Short
+  deployment: wait
+  endpointUri: cip-chain:cc2a9c2f-f198-5854-9e9e-2468fe2096a8
+  invocations:
+  - id: first-call
+    body: Original
+    headers:
+      X-Test-Request: request-value
+    properties:
+      failChild: false
+      testProperty: property-value
+    expectedBody: Subchain called
+    expectedHeaders:
+      X-Test-Request: child-header
+    expectedProperties:
+      testProperty: child-property
+      afterCallReached: true
+    interactions:
+    - fixture: child-lifecycle
+      expectedRequest:
+        count: 1
+        body: Original
+        headers:
+          X-Test-Request: request-value
+        properties:
+          testProperty: property-value
+  - id: call-after-consumer-restart
+    body: Original
+    headers:
+      X-Test-Request: request-value
+    properties:
+      failChild: false
+      testProperty: property-value
+    expectedBody: Subchain called
+    expectedHeaders:
+      X-Test-Request: child-header
+    expectedProperties:
+      testProperty: child-property
+      afterCallReached: true
+    interactions:
+    - fixture: child-lifecycle
+      expectedRequest:
+        count: 1
+        body: Original
+        headers:
+          X-Test-Request: request-value
+        properties:
+          testProperty: property-value
+      response:
+        properties:
+          consumerAction: restart
+  - id: third-call
+    body: Original
+    headers:
+      X-Test-Request: request-value
+    properties:
+      failChild: false
+      testProperty: property-value
+    expectedBody: Subchain called
+    expectedHeaders:
+      X-Test-Request: child-header
+    expectedProperties:
+      testProperty: child-property
+      afterCallReached: true
+    interactions:
+    - fixture: child-lifecycle
+      expectedRequest:
+        count: 1
+        body: Original
+        headers:
+          X-Test-Request: request-value
+        properties:
+          testProperty: property-value
+
+- id: selects-newest-chain-consumer-and-restores-the-previous-deployment
+  scope: Long
+  deployment: overlap
+  endpointUri: cip-chain:cc2a9c2f-f198-5854-9e9e-2468fe2096a8
+  invocations:
+  - id: newest-consumer-wins
+    body: Original
+    headers:
+      X-Test-Request: request-value
+    properties:
+      testProperty: property-value
+      failChild: false
+    interactions:
+    - fixture: old-lifecycle
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          consumerTag: old
+    - fixture: new-lifecycle
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          consumerTag: new
+          consumerAction: restart
+          expectOtherConsumer: true
+    expectedBody: Subchain called
+    expectedHeaders:
+      X-Test-Request: child-header
+      snapshotChainConsumer: new
+    expectedProperties:
+      testProperty: child-property
+      afterCallReached: true
+  - id: stopping-inactive-old-keeps-new
+    body: Original
+    headers:
+      X-Test-Request: request-value
+    properties:
+      testProperty: property-value
+      failChild: false
+    interactions:
+    - fixture: old-lifecycle
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          consumerTag: old
+          consumerAction: stop
+          expectOtherConsumer: true
+    - fixture: new-lifecycle
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          consumerTag: new
+    expectedBody: Subchain called
+    expectedHeaders:
+      X-Test-Request: child-header
+      snapshotChainConsumer: new
+    expectedProperties:
+      testProperty: child-property
+      afterCallReached: true
+  - id: restarted-old-becomes-newest
+    body: Original
+    headers:
+      X-Test-Request: request-value
+    properties:
+      testProperty: property-value
+      failChild: false
+    interactions:
+    - fixture: old-lifecycle
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          consumerTag: old
+          consumerAction: start
+    - fixture: new-lifecycle
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          consumerTag: new
+    expectedBody: Subchain called
+    expectedHeaders:
+      X-Test-Request: child-header
+      snapshotChainConsumer: old
+    expectedProperties:
+      testProperty: child-property
+      afterCallReached: true
+  - id: stopping-newest-restores-previous
+    body: Original
+    headers:
+      X-Test-Request: request-value
+    properties:
+      testProperty: property-value
+      failChild: false
+    interactions:
+    - fixture: old-lifecycle
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          consumerTag: old
+          consumerAction: stop
+          expectOtherConsumer: true
+    - fixture: new-lifecycle
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          consumerTag: new
+    expectedBody: Subchain called
+    expectedHeaders:
+      X-Test-Request: child-header
+      snapshotChainConsumer: new
+    expectedProperties:
+      testProperty: child-property
+      afterCallReached: true
+  - id: no-remaining-consumer-times-out
+    body: Original
+    headers:
+      X-Test-Request: request-value
+    properties:
+      testProperty: property-value
+      failChild: false
+    interactions:
+    - fixture: old-lifecycle
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          consumerTag: old
+    - fixture: new-lifecycle
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          consumerTag: new
+          consumerAction: stop
+    expectedFailure:
+      type: org.qubership.integration.platform.engine.camel.components.directvm.ChainConsumerNotAvailableException
+      message: 'No consumers available on endpoint: cip-chain://<snapshot-node-id>?block=true&failIfNoConsumers=false&timeout=1500.
+        Exchange[]'
+      cause: null
+    expectedProperties:
+      afterCallReached: null
+  - id: old-consumer-restores-delivery
+    body: Original
+    headers:
+      X-Test-Request: request-value
+    properties:
+      testProperty: property-value
+      failChild: false
+    interactions:
+    - fixture: old-lifecycle
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          consumerTag: old
+          consumerAction: start
+    - fixture: new-lifecycle
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          consumerTag: new
+    expectedBody: Subchain called
+    expectedHeaders:
+      X-Test-Request: child-header
+      snapshotChainConsumer: old
+    expectedProperties:
+      testProperty: child-property
+      afterCallReached: true
+- id: isolates-concurrent-chain-callers-and-child-failures
+  scope: Long
+  deployment: wait
+  driver:
+    provider: chain-concurrent
+    sourceElementId: cc2a9c2f-f198-5854-9e9e-2468fe2096a8
+    parameters:
+      requests: 4
+  invocations:
+  - id: one-child-failure-is-isolated
+    body: Concurrent
+    properties:
+      testProperty: original-property
+    driver:
+      provider: chain-concurrent
+      sourceElementId: cc2a9c2f-f198-5854-9e9e-2468fe2096a8
+      parameters:
+        requests: 4
+        failureIndex: 1
+    expectedBody:
+    - requestId: one-child-failure-is-isolated-0
+      body: Subchain called
+      headerRequestId: one-child-failure-is-isolated-0
+      propertyRequestId: one-child-failure-is-isolated-0
+      sessionFlag: true
+      classLoaderRestored: true
+      afterCallReached: true
+      testProperty: child-property
+      failure: null
+    - requestId: one-child-failure-is-isolated-1
+      body: Concurrent-1
+      headerRequestId: one-child-failure-is-isolated-1
+      propertyRequestId: one-child-failure-is-isolated-1
+      sessionFlag: false
+      classLoaderRestored: true
+      afterCallReached: null
+      testProperty: original-property
+      failure:
+        type: java.lang.IllegalStateException
+        message: Child chain failed
+        cause: null
+    - requestId: one-child-failure-is-isolated-2
+      body: Subchain called
+      headerRequestId: one-child-failure-is-isolated-2
+      propertyRequestId: one-child-failure-is-isolated-2
+      sessionFlag: true
+      classLoaderRestored: true
+      afterCallReached: true
+      testProperty: child-property
+      failure: null
+    - requestId: one-child-failure-is-isolated-3
+      body: Subchain called
+      headerRequestId: one-child-failure-is-isolated-3
+      propertyRequestId: one-child-failure-is-isolated-3
+      sessionFlag: false
+      classLoaderRestored: true
+      afterCallReached: true
+      testProperty: child-property
+      failure: null
+    interactions:
+    - fixture: child-lifecycle
+      expectedRequest:
+        count: 4
+      response:
+        properties:
+          concurrentEntries: 4
+          applicationClassLoaderMarker: true
+  - id: all-following-calls-recover
+    body: Concurrent
+    properties:
+      testProperty: original-property
+    driver:
+      provider: chain-concurrent
+      sourceElementId: cc2a9c2f-f198-5854-9e9e-2468fe2096a8
+      parameters:
+        requests: 4
+    expectedBody:
+    - requestId: all-following-calls-recover-0
+      body: Subchain called
+      headerRequestId: all-following-calls-recover-0
+      propertyRequestId: all-following-calls-recover-0
+      sessionFlag: true
+      classLoaderRestored: true
+      afterCallReached: true
+      testProperty: child-property
+      failure: null
+    - requestId: all-following-calls-recover-1
+      body: Subchain called
+      headerRequestId: all-following-calls-recover-1
+      propertyRequestId: all-following-calls-recover-1
+      sessionFlag: false
+      classLoaderRestored: true
+      afterCallReached: true
+      testProperty: child-property
+      failure: null
+    - requestId: all-following-calls-recover-2
+      body: Subchain called
+      headerRequestId: all-following-calls-recover-2
+      propertyRequestId: all-following-calls-recover-2
+      sessionFlag: true
+      classLoaderRestored: true
+      afterCallReached: true
+      testProperty: child-property
+      failure: null
+    - requestId: all-following-calls-recover-3
+      body: Subchain called
+      headerRequestId: all-following-calls-recover-3
+      propertyRequestId: all-following-calls-recover-3
+      sessionFlag: false
+      classLoaderRestored: true
+      afterCallReached: true
+      testProperty: child-property
+      failure: null
+    interactions:
+    - fixture: child-lifecycle
+      expectedRequest:
+        count: 4
+      response:
+        properties:
+          concurrentEntries: 4
+          applicationClassLoaderMarker: true
+- id: finishes-inflight-chain-call-before-graceful-stop
+  scope: Long
+  deployment: wait
+  endpointUri: cip-chain:cc2a9c2f-f198-5854-9e9e-2468fe2096a8
+  invocations:
+  - id: held-call-finishes-before-stop
+    body: Original
+    headers:
+      X-Test-Request: request-value
+    properties:
+      testProperty: property-value
+      failChild: false
+    expectedBody: Subchain called
+    expectedHeaders:
+      X-Test-Request: child-header
+    expectedProperties:
+      testProperty: child-property
+      afterCallReached: true
+    interactions:
+    - fixture: child-lifecycle
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          consumerAction: stop-while-processing
+  - id: delivery-resumes-after-start
+    body: Original
+    headers:
+      X-Test-Request: request-value
+    properties:
+      testProperty: property-value
+      failChild: false
+    expectedBody: Subchain called
+    expectedHeaders:
+      X-Test-Request: child-header
+    expectedProperties:
+      testProperty: child-property
+      afterCallReached: true
+    interactions:
+    - fixture: child-lifecycle
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          consumerAction: start
+- id: drains-old-chain-deployment-during-overlapping-replacement
+  scope: Long
+  deployment: overlap
+  endpointUri: cip-chain:cc2a9c2f-f198-5854-9e9e-2468fe2096a8
+  invocations:
+  - id: old-call-drains-while-replacement-starts
+    body: Original
+    headers:
+      X-Test-Request: request-value
+    properties:
+      testProperty: property-value
+      failChild: false
+    interactions:
+    - fixture: old-lifecycle
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          consumerTag: old
+          consumerAction: replace-while-processing
+          lifecycleGroup: chain-rolling-replacement
+          peerDeployment: child-new
+    - fixture: new-lifecycle
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          consumerTag: new
+          consumerAction: stop
+          expectOtherConsumer: true
+          lifecycleGroup: chain-rolling-replacement
+    expectedBody: Subchain called
+    expectedHeaders:
+      X-Test-Request: child-header
+      snapshotChainConsumer: old
+    expectedProperties:
+      testProperty: child-property
+      afterCallReached: true
+  - id: fresh-call-uses-only-new-consumer
+    body: Original
+    headers:
+      X-Test-Request: request-value
+    properties:
+      testProperty: property-value
+      failChild: false
+    interactions:
+    - fixture: old-lifecycle
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          consumerTag: old
+          lifecycleGroup: chain-rolling-replacement
+    - fixture: new-lifecycle
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          consumerTag: new
+          lifecycleGroup: chain-rolling-replacement
+    expectedBody: Subchain called
+    expectedHeaders:
+      X-Test-Request: child-header
+      snapshotChainConsumer: new
+    expectedProperties:
+      testProperty: child-property
+      afterCallReached: true

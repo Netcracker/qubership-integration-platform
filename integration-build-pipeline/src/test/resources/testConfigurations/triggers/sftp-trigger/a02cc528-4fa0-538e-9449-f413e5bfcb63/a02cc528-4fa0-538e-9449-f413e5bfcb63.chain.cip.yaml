@@ -1,0 +1,41 @@
+---
+id: a02cc528-4fa0-538e-9449-f413e5bfcb63
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+name: sftp-trigger-fixed-key
+content:
+  labels: []
+  elements:
+  - id: bef770aa-5340-5f2b-9921-9a5b2c19a09f
+    name: SFTP Trigger
+    type: sftp-trigger-2
+    properties:
+      connectUrl: localhost:22/upload/snapshot-trigger
+      username: snapshot
+      password: snapshot
+      antInclude: '*.txt'
+      autoCreate: false
+      binary: true
+      idempotent: true
+      idempotentKey: snapshot-sftp-fixed-key
+      ignoreFileNotFoundOrPermissionError: true
+      jschLoggingLevel: 'OFF'
+      readLockLoggingLevel: 'OFF'
+      runLoggingLevel: 'OFF'
+      scheduler: quartz
+      scheduler.cron: 0/1 * * ? * *
+      scheduler.deleteJob: false
+      scheduler.triggerGroup: '%%{domain-placeholder}-group'
+      streamDownload: true
+      useUserKnownHostsFile: false
+  - id: 5f57997c-1b9b-55ad-85f4-e827bf4820e5
+    name: Script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 5f57997c-1b9b-55ad-85f4-e827bf4820e5.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: bef770aa-5340-5f2b-9921-9a5b2c19a09f
+    to: 5f57997c-1b9b-55ad-85f4-e827bf4820e5
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

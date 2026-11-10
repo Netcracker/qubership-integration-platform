@@ -1,0 +1,41 @@
+---
+id: 6af6f2a4-e784-5bc2-8608-c3bcf76837a6
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+name: sftp-trigger-strict-remote-errors
+content:
+  labels: []
+  elements:
+  - id: 9acfbf7d-ad8a-5083-8c40-c0156946a2d0
+    name: SFTP Trigger
+    type: sftp-trigger-2
+    properties:
+      connectUrl: localhost:22/upload/snapshot-trigger
+      username: snapshot
+      password: snapshot
+      antInclude: '*.txt'
+      autoCreate: false
+      binary: true
+      idempotent: true
+      idempotentKey: ${file:name}-${file:size}-${file:modified}
+      ignoreFileNotFoundOrPermissionError: false
+      jschLoggingLevel: 'OFF'
+      readLockLoggingLevel: 'OFF'
+      runLoggingLevel: 'OFF'
+      scheduler: quartz
+      scheduler.cron: 0/1 * * ? * *
+      scheduler.deleteJob: false
+      scheduler.triggerGroup: '%%{domain-placeholder}-group'
+      streamDownload: true
+      useUserKnownHostsFile: false
+  - id: dd640ea2-97e4-5f0a-9980-09b19cddc57e
+    name: Script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: dd640ea2-97e4-5f0a-9980-09b19cddc57e.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: 9acfbf7d-ad8a-5083-8c40-c0156946a2d0
+    to: dd640ea2-97e4-5f0a-9980-09b19cddc57e
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

@@ -401,6 +401,7 @@ const ChainGraphInner: React.FC = () => {
       >
         {showLeftPanel && (
           <Splitter.Panel
+            className={styles["left-panel"]}
             size={leftPanelWidth}
             min={MIN_PANEL_WIDTH}
             max={MAX_PANEL_WIDTH}

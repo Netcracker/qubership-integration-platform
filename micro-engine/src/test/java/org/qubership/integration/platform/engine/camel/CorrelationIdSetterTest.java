@@ -169,6 +169,18 @@ class CorrelationIdSetterTest {
     }
 
     @Test
+    void shouldPreserveBodyAndLeaveCorrelationUnsetWhenJsonBodyIsNull() {
+        exchange.setProperty(CorrelationIdSetter.CORRELATION_ID_POSITION, CorrelationIdSetter.BODY);
+        exchange.setProperty(CorrelationIdSetter.CORRELATION_ID_NAME, "correlationId");
+        exchange.getMessage().setBody("null");
+
+        setter.setCorrelationId(exchange);
+
+        assertNull(exchange.getProperty(CorrelationIdSetter.CORRELATION_ID));
+        assertEquals("null", exchange.getMessage().getBody());
+    }
+
+    @Test
     void shouldKeepCorrelationIdWhenBodyIsNull() {
         exchange.setProperty(CorrelationIdSetter.CORRELATION_ID_POSITION, CorrelationIdSetter.BODY);
         exchange.setProperty(CorrelationIdSetter.CORRELATION_ID_NAME, "correlationId");

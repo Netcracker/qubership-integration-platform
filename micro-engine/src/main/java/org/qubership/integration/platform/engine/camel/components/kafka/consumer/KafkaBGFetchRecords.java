@@ -185,10 +185,10 @@ public class KafkaBGFetchRecords implements Runnable {
         } catch (Exception e) {
             Exception originalException = e;
 
-            // last - previously processed, current - usually has offset (last + 1)
+            // A failed poll has no current record to skip; processing failures supply their record below.
             CommitMarker lastCommitMarker =
                 lastResult != null ? lastResult.getLeft().getPartitionLastOffset() : null;
-            CommitMarker currentCommitMarker = lastCommitMarker;
+            CommitMarker currentCommitMarker = null;
             if (e instanceof ProcessRecordsException processRecordsException) {
                 originalException = (Exception) processRecordsException.getCause();
                 currentCommitMarker = processRecordsException.getCurrentRecord().getCommitMarker();
@@ -404,10 +404,7 @@ public class KafkaBGFetchRecords implements Runnable {
     // skip message - commit (offset + 1)
     private void seekToNextOffset(CommitMarker lastCommitMarker, CommitMarker currentCommitMarker,
         KafkaBGRecordProcessor kafkaRecordProcessor) {
-        if (currentCommitMarker == null) {
-            // impossible state
-            log.error("currentCommitMarker is null! Can't handle this");
-        } else {
+        if (currentCommitMarker != null) {
             kafkaRecordProcessor.commitOffset(currentCommitMarker, false, true);
         }
     }

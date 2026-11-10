@@ -1,0 +1,36 @@
+id: 6a62525e-61f0-5e21-8ded-74ba95e8bae2
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+name: kafka-trigger-maas
+content:
+  labels: []
+  elements:
+  - id: db5eca54-5c20-5a4f-8b5f-52e04f01bacc
+    name: Kafka Trigger 1
+    type: kafka-trigger-2
+    properties:
+      autoOffsetReset: earliest
+      connectionSourceType: maas
+      consumersCount: 1
+      groupId: snapshot-kafka-trigger-maas
+      keyDeserializer: org.apache.kafka.common.serialization.StringDeserializer
+      maxPollIntervalMs: 300000
+      maxPollRecords: 10
+      reconnectBackoffMaxMs: 1000
+      sslProtocol: TLS
+      valueDeserializer: org.apache.kafka.common.serialization.StringDeserializer
+      topicsClassifierName: snapshot-trigger-classifier
+      maasClassifierNamespace: snapshot-maas
+      maasClassifierTenantEnabled: false
+      consumerConsistencyMode: EVENTUAL
+  - id: 9c09d13d-aa03-56cd-97fe-4f8d7cd86080
+    name: Script 1
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 9c09d13d-aa03-56cd-97fe-4f8d7cd86080.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: db5eca54-5c20-5a4f-8b5f-52e04f01bacc
+    to: 9c09d13d-aa03-56cd-97fe-4f8d7cd86080
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

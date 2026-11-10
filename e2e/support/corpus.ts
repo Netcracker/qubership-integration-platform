@@ -418,6 +418,7 @@ export async function deployToMicroDomain(catalog: Catalog, domain: string, chai
 export async function waitForDeployed(
   catalog: Catalog,
   chains: readonly DeployedChain[],
+  timeout = DEPLOY_TIMEOUT + chains.length * DEPLOY_TIMEOUT_PER_CHAIN,
 ): Promise<void> {
   const byId = new Map(chains.map((each) => [each.id, each.name]));
   await expect
@@ -439,7 +440,7 @@ export async function waitForDeployed(
         return missing.sort();
       },
       {
-        timeout: DEPLOY_TIMEOUT + chains.length * DEPLOY_TIMEOUT_PER_CHAIN,
+        timeout,
         message: "seed chains the engine never reported DEPLOYED",
       },
     )
