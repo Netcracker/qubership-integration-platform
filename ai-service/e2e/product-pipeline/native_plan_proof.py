@@ -472,7 +472,9 @@ def _verify(evidence, rejected, graph_row):
         "Missing current native repair section boundaries",
     )
     diagnostic, native_section = suffix[len(_REPAIR_HEADER) :].split(_REBUILD)
-    native_section = native_section.removeprefix(" Call captureChainSemanticRevision once.")
+    native_section = native_section.removeprefix(
+        " Call captureChainSemanticRevision once."
+    )
     causes = re.findall(r"^- typedCause: (.+)$", diagnostic, re.MULTILINE)
     typed = _obj(
         _json(_one(causes, "Current typed cause"), "Typed cause"), "Typed cause"

@@ -88,7 +88,9 @@ class CatalogTest(unittest.TestCase):
         package = self.root / r"checkout\name" / ".private/rocky-skills"
         directory = package / "testing"
         directory.mkdir(parents=True)
-        (directory / "suites.json").write_text(json.dumps({"skillsPackageVersion": "1.0"}))
+        (directory / "suites.json").write_text(
+            json.dumps({"skillsPackageVersion": "1.0"})
+        )
 
         reason = Catalog(self.root, package=package).plan("chain-acceptance")["blocked"]
 

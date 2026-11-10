@@ -900,7 +900,7 @@ if [[ "$(jq 'length' <<< "${recovery_fault_stages_json}")" -gt 0 ]]; then
             echo "FAIL: exhausted-halt recovery did not send the follow-up before materialization" >&2
             exit 1
         }
-        python3 - "${DIR}/build-report-from-evidence.py" "${run_dir}/evidence.json" <<'PY_CHECK' || {
+        python3 - "${DIR}/build-report-from-evidence.py" "${run_dir}/evidence.json" << 'PY_CHECK' || {
 import json
 import runpy
 import sys

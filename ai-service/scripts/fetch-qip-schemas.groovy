@@ -19,7 +19,8 @@ if (local && !source.isDirectory()) {
     throw new IOException('Schema directory not found: ' + source)
 }
 if (!source.isDirectory() && !archiveUrl) {
-    throw new IOException('Set qip.schemas.local.dir or qip.schemas.download.url, or check out schemas/ next to ai-service')
+    throw new IOException('Set qip.schemas.local.dir or qip.schemas.download.url, ' +
+        'or check out schemas/ next to ai-service')
 }
 if (staging.toFile().exists() && !staging.toFile().deleteDir()) {
     throw new IOException('Cannot replace schema staging directory: ' + staging)
@@ -46,7 +47,9 @@ if (source.isDirectory()) {
         new TarInputStream(new GZIPInputStream(download)).withCloseable { archive ->
             def entry
             while ((entry = archive.nextEntry) != null) {
-                def match = entry.name =~ /^(?:[^\/]+\/)?(?:schemas\/src\/main\/resources\/conf-model|src\/main\/resources\/qip-model)\/(.*)$/
+                def match = entry.name =~ (
+                    /^(?:[^\/]+\/)?(?:schemas\/src\/main\/resources\/conf-model/ +
+                    /|src\/main\/resources\/qip-model)\/(.*)$/)
                 if (!match.matches()) {
                     continue
                 }
@@ -72,11 +75,13 @@ if (!elementDir.isDirectory()) {
     throw new IOException('Element schema directory not found: ' + elementDir)
 }
 def elements = elementDir.listFiles()
-    .findAll { it.isFile() && it.name.endsWith('.schema.yaml') && it.name != 'element.schema.yaml' }
-    .sort { it.name }
+    .findAll { schema ->
+        schema.isFile() && schema.name.endsWith('.schema.yaml') && schema.name != 'element.schema.yaml'
+    }
+    .sort { schema -> schema.name }
     .collect { schema ->
         def type = schema.name.substring(0, schema.name.length() - '.schema.yaml'.length())
-        def titleLine = schema.readLines('UTF-8').find { it.startsWith('title:') }
+        def titleLine = schema.readLines('UTF-8').find { line -> line.startsWith('title:') }
         def title = titleLine?.substring('title:'.length())?.trim()?.replaceAll(/^"|"$/, '') ?: type
         [type: type, title: title, deprecated: title.toLowerCase(Locale.ROOT).contains('(deprecated)')]
     }

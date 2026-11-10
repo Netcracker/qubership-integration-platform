@@ -3,14 +3,14 @@ import org.apache.camel.impl.DefaultCamelContext
 import org.apache.camel.support.DefaultExchange
 
 def chain = new com.fasterxml.jackson.databind.ObjectMapper().readValue(new File(args[0]), Map)
-def scripts = chain.elements.findAll { it.type == 'script' }
+def scripts = chain.elements.findAll { element -> element.type == 'script' }
 assert scripts.size() == 1 : [scriptCount: scripts.size()]
 
-try (def context = new DefaultCamelContext()) {
+new DefaultCamelContext().withCloseable { context ->
     def exchange = new DefaultExchange(context)
     context.resolveLanguage('groovy').createExpression(scripts.first().properties.script).evaluate(exchange, Object)
     def actual = exchange.message.body
-    assert actual instanceof String && !actual.isBlank() : [body: actual]
+    assert String.isInstance(actual) && !actual.isBlank() : [body: actual]
     println JsonOutput.toJson([
         verdict: 'PASS',
         actual: actual,

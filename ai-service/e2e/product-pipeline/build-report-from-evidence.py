@@ -45,9 +45,7 @@ def _latest_attempt_decoded(
     if not references:
         return _first_decoded(decoded, kind)
     revision = max(revision for revision, _ in references)
-    artifact_ids = {
-        artifact_id for at, artifact_id in references if at == revision
-    }
+    artifact_ids = {artifact_id for at, artifact_id in references if at == revision}
     if len(artifact_ids) != 1:
         raise ValueError(f"conflicting {kind} output references at revision {revision}")
     return decoded.get(f"{kind}#{artifact_ids.pop()}")
@@ -308,7 +306,7 @@ def _element_schema_types() -> set[str]:
     return {path.name.removesuffix(".schema.yaml") for path in schemas}
 
 
-def _forbidden_haystack(decoded: dict[str, Any], requirement: Any) -> str:
+def _forbidden_haystack(decoded: dict[str, Any], _requirement: Any) -> str:
     parts = _materialized_element_types(decoded)
     plan = _first_decoded(decoded, "IMPLEMENTATION_PLAN")
     if isinstance(plan, dict):
@@ -322,16 +320,24 @@ def _forbidden_haystack(decoded: dict[str, Any], requirement: Any) -> str:
 def _exhausted_halt(transitions: list[Any]) -> bool:
     exhausted = False
     for transition in transitions:
-        if not isinstance(transition, dict) or transition.get("toStatus") != "WAITING_FOR_INPUT":
+        if (
+            not isinstance(transition, dict)
+            or transition.get("toStatus") != "WAITING_FOR_INPUT"
+        ):
             continue
         reason = transition.get("reason") or ""
         if "__GUARD__NAMED_STAGE_OUTSIDE_CANDIDATE_SET" in reason:
             return exhausted and "__GATE:recovery-repeated__" in reason
-        if all(marker in reason for marker in (
-            "__GATE:recovery-repeated__", "__GUARD__MAX_SEMANTIC_REPAIRS",
-            "Repairs remaining: 0.", "Clean regenerations remaining: 0.",
-            "Automatic reopens remaining: 0.",
-        )):
+        if all(
+            marker in reason
+            for marker in (
+                "__GATE:recovery-repeated__",
+                "__GUARD__MAX_SEMANTIC_REPAIRS",
+                "Repairs remaining: 0.",
+                "Clean regenerations remaining: 0.",
+                "Automatic reopens remaining: 0.",
+            )
+        ):
             exhausted = True
     return False
 
@@ -343,13 +349,17 @@ def _sse_tool_invocations(directory: str) -> list[str]:
             if not line.startswith("data:data: "):
                 continue
             try:
-                event = json.loads(line[len("data:data: "):])
+                event = json.loads(line[len("data:data: ") :])
             except json.JSONDecodeError:
                 continue
-            if isinstance(event, dict) and event.get("kind") == "tool" and event.get("status") == "running":
+            if (
+                isinstance(event, dict)
+                and event.get("kind") == "tool"
+                and event.get("status") == "running"
+            ):
                 tool_id = event.get("id", "")
                 if isinstance(tool_id, str) and tool_id.startswith("tool:"):
-                    result.append(tool_id[len("tool:"):])
+                    result.append(tool_id[len("tool:") :])
     return result
 
 
@@ -563,18 +573,34 @@ def build_report(
         decoded, requirement_facts, findings, attempts, transitions, validation_verdict
     )
     forbidden_haystack = _forbidden_haystack(decoded, requirement)
-    negative_facts = requirement.get("facts", []) if isinstance(requirement, dict) else []
-    no_apihub = any(isinstance(f, dict) and f.get("kind") == "CONSTRAINT"
-                    and f.get("polarity") == "NEGATIVE"
-                    and "apihub" in re.sub(r"\s+", "", str(f.get("text", "")).lower())
-                    for f in negative_facts)
-    apihub_tools = {"searchApiOperations", "getApiOperationSpecification", "listApiHubPackages",
-                    "getApiHubDocument", "importApiHubSpecToSystem"}
-    invoked_apihub = bool(apihub_tools.intersection(evidence.get("toolInvocations", [])))
+    negative_facts = (
+        requirement.get("facts", []) if isinstance(requirement, dict) else []
+    )
+    no_apihub = any(
+        isinstance(f, dict)
+        and f.get("kind") == "CONSTRAINT"
+        and f.get("polarity") == "NEGATIVE"
+        and "apihub" in re.sub(r"\s+", "", str(f.get("text", "")).lower())
+        for f in negative_facts
+    )
+    apihub_tools = {
+        "searchApiOperations",
+        "getApiOperationSpecification",
+        "listApiHubPackages",
+        "getApiHubDocument",
+        "importApiHubSpecToSystem",
+    }
+    invoked_apihub = bool(
+        apihub_tools.intersection(evidence.get("toolInvocations", []))
+    )
     missing_required = [
         fact
         for fact in required_facts
-        if not (no_apihub if fact == "No APIHub" else _required_fact_present(fact, haystack, decoded))
+        if not (
+            no_apihub
+            if fact == "No APIHub"
+            else _required_fact_present(fact, haystack, decoded)
+        )
     ]
     if "APIHub" in forbidden_facts and not evidence.get("toolInvocations"):
         missing_required.append("observable tool activity")
@@ -582,9 +608,15 @@ def build_report(
     present_forbidden = [
         fact
         for fact in forbidden_facts
-        if (invoked_apihub if fact == "APIHub" else
-            fact in _materialized_element_types(decoded) if fact in schema_types else
-            _forbidden_fact_present(fact, forbidden_haystack))
+        if (
+            invoked_apihub
+            if fact == "APIHub"
+            else (
+                fact in _materialized_element_types(decoded)
+                if fact in schema_types
+                else _forbidden_fact_present(fact, forbidden_haystack)
+            )
+        )
     ]
 
     kinds = evidence.get("committedArtifactKinds") or []

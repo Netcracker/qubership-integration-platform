@@ -425,7 +425,9 @@ class NativePlanProofTest(unittest.TestCase):  # pylint: disable=too-many-public
         )
         self.assertEqual(before, self.evidence)
 
-    def test_archived_repair_prompt_with_single_call_instruction_still_proves_recovery(self):
+    def test_archived_repair_prompt_with_single_call_instruction_still_proves_recovery(
+        self,
+    ):
         self.text(
             lambda text: text.replace(
                 " placements.\n<repair-history>",

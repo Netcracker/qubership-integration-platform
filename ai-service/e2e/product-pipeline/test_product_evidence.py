@@ -21,7 +21,9 @@ forbidden_fact_present = runpy.run_path(
 
 class ForbiddenFactTest(unittest.TestCase):
     def test_requirement_prose_is_not_implementation_evidence(self):
-        requirement = {"facts": [{"polarity": "POSITIVE", "text": "No MCP and no APIHub"}]}
+        requirement = {
+            "facts": [{"polarity": "POSITIVE", "text": "No MCP and no APIHub"}]
+        }
         haystack = forbidden_haystack({}, requirement)
         self.assertFalse(forbidden_fact_present("APIHub", haystack))
 
@@ -131,30 +133,65 @@ class ProductEvidenceReportTest(unittest.TestCase):
         evidence["decodedArtifacts"].pop("PLAN_VALIDATION_RESULT#rejected")
         self.assertEqual("PASS", self.report(evidence)["validationVerdict"])
 
-
     def test_negated_description_does_not_add_a_forbidden_element(self):
         evidence = self.evidence()
         evidence["decodedArtifacts"]["CHAIN_PLAN_GRAPH"] = {
-            "nodes": [{"type": "http-trigger", "description": "do not add a separate service-call element"}]
+            "nodes": [
+                {
+                    "type": "http-trigger",
+                    "description": "do not add a separate service-call element",
+                }
+            ]
         }
-        report = build_report(evidence, scenario_id="test", rep=1, required_facts=[],
-                              forbidden_facts=["service-call"], expected_terminal_state="CHAIN_MATERIALIZED")
+        report = build_report(
+            evidence,
+            scenario_id="test",
+            rep=1,
+            required_facts=[],
+            forbidden_facts=["service-call"],
+            expected_terminal_state="CHAIN_MATERIALIZED",
+        )
         self.assertEqual([], report["presentForbiddenFacts"])
-        evidence["decodedArtifacts"]["CHAIN_PLAN_GRAPH"]["nodes"].append({"type": "service-call"})
-        report = build_report(evidence, scenario_id="test", rep=1, required_facts=[],
-                              forbidden_facts=["service-call"], expected_terminal_state="CHAIN_MATERIALIZED")
+        evidence["decodedArtifacts"]["CHAIN_PLAN_GRAPH"]["nodes"].append(
+            {"type": "service-call"}
+        )
+        report = build_report(
+            evidence,
+            scenario_id="test",
+            rep=1,
+            required_facts=[],
+            forbidden_facts=["service-call"],
+            expected_terminal_state="CHAIN_MATERIALIZED",
+        )
         self.assertEqual(["service-call"], report["presentForbiddenFacts"])
 
     def test_api_hub_constraint_and_tool_invocation(self):
         evidence = self.evidence()
-        evidence["decodedArtifacts"]["REQUIREMENT_BRIEF"] = {"facts": [
-            {"kind": "CONSTRAINT", "polarity": "NEGATIVE", "text": "Do not use APIHub for service resolution."}
-        ]}
+        evidence["decodedArtifacts"]["REQUIREMENT_BRIEF"] = {
+            "facts": [
+                {
+                    "kind": "CONSTRAINT",
+                    "polarity": "NEGATIVE",
+                    "text": "Do not use APIHub for service resolution.",
+                }
+            ]
+        }
         evidence["toolInvocations"] = ["captureRequirementDraft"]
+
         def check():
-            return build_report(evidence, scenario_id="test", rep=1, required_facts=["No APIHub"],
-                                forbidden_facts=["APIHub"], expected_terminal_state="CHAIN_MATERIALIZED")
-        self.assertEqual(([], []), (check()["missingRequiredFacts"], check()["presentForbiddenFacts"]))
+            return build_report(
+                evidence,
+                scenario_id="test",
+                rep=1,
+                required_facts=["No APIHub"],
+                forbidden_facts=["APIHub"],
+                expected_terminal_state="CHAIN_MATERIALIZED",
+            )
+
+        self.assertEqual(
+            ([], []),
+            (check()["missingRequiredFacts"], check()["presentForbiddenFacts"]),
+        )
         evidence["toolInvocations"] = []
         self.assertIn("observable tool activity", check()["missingRequiredFacts"])
         evidence["toolInvocations"] = ["searchApiOperations"]
@@ -165,22 +202,46 @@ class ProductEvidenceReportTest(unittest.TestCase):
         evidence["decodedArtifacts"]["CHAIN_PLAN_GRAPH"] = {
             "nodes": [{"type": "script", "description": "do not add circuit-breaker"}]
         }
-        evidence["decodedArtifacts"]["IMPLEMENTATION_PLAN"] = {"scriptOutcomes": ["do not add circuit-breaker"]}
+        evidence["decodedArtifacts"]["IMPLEMENTATION_PLAN"] = {
+            "scriptOutcomes": ["do not add circuit-breaker"]
+        }
+
         def check():
-            return build_report(evidence, scenario_id="test", rep=1, required_facts=[],
-                                forbidden_facts=["circuit-breaker"], expected_terminal_state="CHAIN_MATERIALIZED")
+            return build_report(
+                evidence,
+                scenario_id="test",
+                rep=1,
+                required_facts=[],
+                forbidden_facts=["circuit-breaker"],
+                expected_terminal_state="CHAIN_MATERIALIZED",
+            )
+
         self.assertEqual([], check()["presentForbiddenFacts"])
-        evidence["decodedArtifacts"]["CHAIN_PLAN_GRAPH"]["nodes"].append({"type": "circuit-breaker"})
+        evidence["decodedArtifacts"]["CHAIN_PLAN_GRAPH"]["nodes"].append(
+            {"type": "circuit-breaker"}
+        )
         self.assertEqual(["circuit-breaker"], check()["presentForbiddenFacts"])
 
     def test_api_hub_constraint_with_space(self):
         evidence = self.evidence()
-        evidence["decodedArtifacts"]["REQUIREMENT_BRIEF"] = {"facts": [
-            {"kind": "CONSTRAINT", "polarity": "NEGATIVE", "text": "Do not use API Hub for service resolution."}
-        ]}
+        evidence["decodedArtifacts"]["REQUIREMENT_BRIEF"] = {
+            "facts": [
+                {
+                    "kind": "CONSTRAINT",
+                    "polarity": "NEGATIVE",
+                    "text": "Do not use API Hub for service resolution.",
+                }
+            ]
+        }
         evidence["toolInvocations"] = ["captureRequirementDraft"]
-        report = build_report(evidence, scenario_id="test", rep=1, required_facts=["No APIHub"],
-                              forbidden_facts=["APIHub"], expected_terminal_state="CHAIN_MATERIALIZED")
+        report = build_report(
+            evidence,
+            scenario_id="test",
+            rep=1,
+            required_facts=["No APIHub"],
+            forbidden_facts=["APIHub"],
+            expected_terminal_state="CHAIN_MATERIALIZED",
+        )
         self.assertEqual([], report["missingRequiredFacts"])
 
     def test_forbidden_property_facts_remain_checked(self):
@@ -188,13 +249,22 @@ class ProductEvidenceReportTest(unittest.TestCase):
         evidence["decodedArtifacts"]["IMPLEMENTATION_PLAN"] = {
             "branchFacts": ["else.condition", "else.priority"]
         }
-        report = build_report(evidence, scenario_id="test", rep=1, required_facts=[],
-                              forbidden_facts=["else.condition", "else.priority"],
-                              expected_terminal_state="CHAIN_MATERIALIZED")
-        self.assertEqual(["else.condition", "else.priority"], report["presentForbiddenFacts"])
+        report = build_report(
+            evidence,
+            scenario_id="test",
+            rep=1,
+            required_facts=[],
+            forbidden_facts=["else.condition", "else.priority"],
+            expected_terminal_state="CHAIN_MATERIALIZED",
+        )
+        self.assertEqual(
+            ["else.condition", "else.priority"], report["presentForbiddenFacts"]
+        )
 
     def test_sse_records_api_hub_tool_invocations(self):
-        parse = runpy.run_path(str(Path(__file__).with_name("build-report-from-evidence.py")))["_sse_tool_invocations"]
+        parse = runpy.run_path(
+            str(Path(__file__).with_name("build-report-from-evidence.py"))
+        )["_sse_tool_invocations"]
         with tempfile.TemporaryDirectory() as directory:
             Path(directory, "turn.sse").write_text(
                 'data:data: {"kind":"tool","status":"running","id":"tool:searchApiOperations"}\n'
@@ -204,10 +274,25 @@ class ProductEvidenceReportTest(unittest.TestCase):
             self.assertEqual(["searchApiOperations"], parse(directory))
 
     def test_exhaustion_must_precede_invalid_stage_guard(self):
-        check = runpy.run_path(str(Path(__file__).with_name("build-report-from-evidence.py")))["_exhausted_halt"]
-        guard = {"toStatus": "WAITING_FOR_INPUT", "reason": "__GATE:recovery-repeated__invalid__GUARD__NAMED_STAGE_OUTSIDE_CANDIDATE_SET"}
-        exhausted = {"toStatus": "WAITING_FOR_INPUT", "reason": "__GATE:recovery-repeated__Repair attempts for this defect are spent. Repairs remaining: 0. Clean regenerations remaining: 0. Automatic reopens remaining: 0.__GUARD__MAX_SEMANTIC_REPAIRS"}
-        combined = {"toStatus": "WAITING_FOR_INPUT", "reason": exhausted["reason"] + guard["reason"]}
+        check = runpy.run_path(
+            str(Path(__file__).with_name("build-report-from-evidence.py"))
+        )["_exhausted_halt"]
+        guard = {
+            "toStatus": "WAITING_FOR_INPUT",
+            "reason": "__GATE:recovery-repeated__invalid__GUARD__NAMED_STAGE_OUTSIDE_CANDIDATE_SET",
+        }
+        exhausted = {
+            "toStatus": "WAITING_FOR_INPUT",
+            "reason": (
+                "__GATE:recovery-repeated__Repair attempts for this defect are spent. "
+                "Repairs remaining: 0. Clean regenerations remaining: 0. "
+                "Automatic reopens remaining: 0.__GUARD__MAX_SEMANTIC_REPAIRS"
+            ),
+        }
+        combined = {
+            "toStatus": "WAITING_FOR_INPUT",
+            "reason": exhausted["reason"] + guard["reason"],
+        }
         for name, transitions, expected in (
             ("guard alone", [guard], False),
             ("guard before exhaustion", [guard, exhausted], False),
