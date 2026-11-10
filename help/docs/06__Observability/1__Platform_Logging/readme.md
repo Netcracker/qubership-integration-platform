@@ -55,12 +55,11 @@ When **Session log details** is set to **Senders** or **Full** on the chain [Log
 
 #### Value Length and Padding
 
-Where the limit applies, values longer than value of `LOG_FIELDS_MAX_SIZE` plus 3 characters are cut to the first `LOG_FIELDS_MAX_SIZE` characters, followed by `...`:
+Where the limit applies, values longer than value of `LOG_FIELDS_MAX_SIZE` plus 3 characters are cut to the first `LOG_FIELDS_MAX_SIZE` characters, followed by `...`.
 
 > ⚠️ Warning
-> - In `text` format, error messages, failed HTTP operations, and outbound service-call requests logged with external service details bypass this limit.
+> - In `text` format, error messages, failed HTTP operations, and outbound service-call requests logged. with external service details bypass this limit.
 > - In any log format, messages written by **Log Record** elements or custom scripts are not truncated.
-
 
 Apart from these fields, the formats differ:
 
