@@ -47,13 +47,13 @@ interface Answered {
 }
 
 /** Calls the seeded chain `fixture` while a mock answers its service call with 404. */
-async function callOn404(fixture: string, { request, env, sessions, testingService, run }: CallFixtures): Promise<Answered> {
+async function callOn404(fixture: string, { request, env, sessions, testingService, run }: CallFixtures, elements = 4): Promise<Answered> {
   const chain = seedChain(readCorpusState(), fixture);
   const callId = chain.elements[CALL];
   return testingService.withMock({ name: tokenized(run, fixture), reference: { chainId: chain.id, elementId: callId }, response: { status: 404, body: NOT_FOUND } }, async () => {
     const call = await callChain(request, env.chainUrl(chain.contextPath), { data: {} });
     const body = await call.response.text();
-    return { callId, status: call.response.status(), body, session: await sessions.byExternalId(call.token, { elements: 4 }) };
+    return { callId, status: call.response.status(), body, session: await sessions.byExternalId(call.token, { elements }) };
   });
 }
 
@@ -71,7 +71,7 @@ test.describe("service-call unhandled response", { tag: ["@engine", "@catalog", 
 
   test("a Default handler handles the 404", async ({ request, env, sessions, testingService, run }) => {
     coversBehavior("service-call", "default-handler");
-    const { status, body, session } = await callOn404("service-call-default-handler", { request, env, sessions, testingService, run });
+    const { status, body, session } = await callOn404("service-call-default-handler", { request, env, sessions, testingService, run }, 5);
     expect(status, body).toBe(404);
     expect(body).toBe(NOT_FOUND);
     expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, CALL, "Request attempt", "Handle response default"]);
