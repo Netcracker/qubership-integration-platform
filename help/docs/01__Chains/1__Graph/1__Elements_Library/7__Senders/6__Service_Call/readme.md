@@ -208,6 +208,10 @@ The tab is responsible for configuring the handling logic based on response code
 - **Scripting** - script, specified in the code block, will be executed for added code/range. Additional information is available in specialized section: [Script](../../5__Transformation/1__Script/readme.md).
 - **Mapping** - system shows mapper interface, that allows the structure of the response message to be mapped to the desired/target message structure, while also applying transformations, if necessary. Specific mapping rules will be applied to added code/range, with no possibility to edit schemes, that come with service call. Additional information is available in specialized section: [Mapper](../../5__Transformation/2__Mapper/readme.md).
 
+A 4xx or 5xx response that no handler matches fails the chain. This applies to a call with no handlers at all. The **Default** handler catches every response that no other handler matches, so a call that has one does not fail on an unmatched response. A response that fails validation is the exception: when the **Handle Validation Failure** tab has a script or a mapping, that handler's result is kept and the call does not fail.
+
+Retries, set by **Retry count** on the **Parameters** tab, skip HTTP 4xx responses. Other failures are retried.
+
 There is also "**Throw exception on transformation failure**" checkbox available on the tab, when option "**Mapping**" is selected. When it is checked, Integration Platform throws an exception if data transformation fails during chain processing.
 
 > ℹ️ For **GraphQL** and **Protobuf** specification there is no ability to select response body schema for mapping from the API Specification. Please, define it manually.
