@@ -48,6 +48,10 @@ import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaSe
 @ApplicationScoped
 public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphCompiler {
 
+  private static final String DEFAULT_RESPONSE_HANDLER =
+      "[{\"id\":\"default\",\"code\":\"default\",\"label\":\"Default\",\"type\":\"none\","
+          + "\"wildcard\":false}]";
+
   private final ChainSemanticRevisionValidator validator;
   private final DeterministicElementSchemaService schemaService;
 
@@ -759,7 +763,7 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
       addProperty(extraByNode, call.nodeId(), "semanticNodeId", call.nodeId());
       addProperty(extraByNode, call.nodeId(), "semanticRevisionId", revisionId);
       if (call.failureMode() == ServiceCallFailureMode.INLINE_RESPONSE) {
-        addProperty(extraByNode, call.nodeId(), "errorThrowing", "false");
+        addProperty(extraByNode, call.nodeId(), "after", DEFAULT_RESPONSE_HANDLER);
       }
     }
   }

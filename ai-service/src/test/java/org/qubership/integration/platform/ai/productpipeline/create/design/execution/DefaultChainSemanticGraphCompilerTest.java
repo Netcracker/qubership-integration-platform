@@ -720,7 +720,28 @@ class DefaultChainSemanticGraphCompilerTest {
   }
 
   @Test
-  void disablesServiceCallExceptionThrowingForInlineFailureResponses() {
+  void inlineFailureResponseGetsDefaultHandler() throws Exception {
+    ChainPlanGraph graph = compileMapped(inlineFailureRevision(), List.of(binding("call-1")));
+
+    ChainPlanNode call = node(graph, "call-1");
+    com.fasterxml.jackson.databind.JsonNode after =
+        new ObjectMapper().readTree(property(call, "after"));
+    assertTrue(after.isArray(), after.toString());
+    assertEquals(1, after.size(), after.toString());
+    assertEquals("default", after.get(0).path("code").asText());
+    assertEquals("none", after.get(0).path("type").asText());
+  }
+
+  @Test
+  void failFastCallGetsNoDefaultHandler() {
+    ChainPlanGraph graph =
+        compileMapped(linearMappedRevision(), List.of(binding("call-1")));
+
+    String after = property(node(graph, "call-1"), "after");
+    assertTrue(after == null || !after.contains("\"default\""), after);
+  }
+
+  private static ChainSemanticRevision inlineFailureRevision() {
     ChainSemanticRevision base = linearMappedRevision();
     List<SemanticNode> nodes = new java.util.ArrayList<>();
     for (SemanticNode node : base.nodes()) {
@@ -736,18 +757,13 @@ class DefaultChainSemanticGraphCompilerTest {
         nodes.add(node);
       }
     }
-    ChainSemanticRevision inlineFailure =
-        revision(
-            base.entryPoints(),
-            nodes,
-            base.regions(),
-            base.executionEdges(),
-            base.containment(),
-            base.mappingIntents());
-
-    ChainPlanGraph graph = compileMapped(inlineFailure, List.of(binding("call-1")));
-
-    assertEquals("false", property(node(graph, "call-1"), "errorThrowing"));
+    return revision(
+        base.entryPoints(),
+        nodes,
+        base.regions(),
+        base.executionEdges(),
+        base.containment(),
+        base.mappingIntents());
   }
 
   @Test

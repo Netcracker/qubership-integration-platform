@@ -828,13 +828,14 @@ class ChainEditCompilerTest {
 
   @Test
   void aConfigureRequestNamingAPropertyNoGeneratorOwnsIsRefusedNamingTheElementNeverAGenerator() {
-    // errorThrowing is a real service-call property, but no pinned generator declares it.
-    intentReply = configureCapture(List.of(TARGET), "stop throwing errors", List.of("errorThrowing"));
+    // receiveCorrelationId is a real service-call property, but no pinned generator declares it.
+    intentReply =
+        configureCapture(List.of(TARGET), "receive the correlation id", List.of("receiveCorrelationId"));
 
     ChainEditOutcome.ResolutionFailure failure =
         assertInstanceOf(ChainEditOutcome.ResolutionFailure.class, compiler.compile(request()));
 
-    assertTrue(failure.message().contains("errorThrowing"), failure.message());
+    assertTrue(failure.message().contains("receiveCorrelationId"), failure.message());
     assertTrue(failure.message().contains(TARGET), failure.message());
     assertFalse(failure.message().contains("cip-"), failure.message());
     org.junit.jupiter.api.Assertions.assertNull(

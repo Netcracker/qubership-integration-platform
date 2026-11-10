@@ -177,7 +177,7 @@ public final class PublicCipKnowledgePackFixture {
       case "cip-trigger-generator" -> List.of("http_trigger_nodes", "incomplete_http_trigger_endpoint");
       case "cip-error-handling-generator" -> List.of("explicit_error_handling", "incomplete_try_catch_nodes");
       case "cip-auth-generator" -> List.of("credentials", "tls");
-      case "cip-service-call-generator" -> List.of("service_call_nodes", "backend_integration_intent", "incomplete_service_call_bindings", "incomplete_service_call_error_throwing");
+      case "cip-service-call-generator" -> List.of("service_call_nodes", "backend_integration_intent", "incomplete_service_call_bindings");
       case "cip-routing-generator" -> List.of("routing_nodes", "branching_without_routing_nodes", "incomplete_routing_nodes");
       case "cip-script-generator" -> List.of("script_nodes_missing_body");
       case "cip-security-generator" -> List.of("rbac", "external_route", "rbac_roles_missing");

@@ -334,7 +334,7 @@ class RequirementCaptureToolsTest {
     var capabilities = List.of(base.capabilities().getFirst());
     String owner = successor ? "entry" : "deliver";
     var properties = List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty(
-        successor ? "accessControlType" : "errorThrowing", successor ? "RBAC" : "true"));
+        successor ? "accessControlType" : "retryCount", successor ? "RBAC" : "3"));
     java.util.function.Function<String, FactInput> dependent = ref -> new FactInput("dependent", List.of(owner),
         FactKind.BEHAVIOR, Polarity.POSITIVE, "Keep the requested endpoint configuration.", null, null,
         new RequirementElementIntent(owner, successor ? "http-trigger" : "service-call",

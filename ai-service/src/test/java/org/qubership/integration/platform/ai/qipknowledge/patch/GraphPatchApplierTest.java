@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -412,6 +414,65 @@ class GraphPatchApplierTest {
     assertFalse(result.applied());
     assertTrue(result.validationResult().hasBlockingIssues());
     assertEquals(1, result.graph().edges().size());
+  }
+
+  private static final String DEFAULT_HANDLER =
+      "[{\"id\":\"default\",\"code\":\"default\",\"label\":\"Default\",\"type\":\"none\",\"wildcard\":false}]";
+
+  @Test
+  void afterHookWithoutDefaultKeepsTheDefaultHandler() throws Exception {
+    String hook = "{\"code\":\"200\",\"type\":\"script\",\"script\":\"log.info('ok')\"}";
+
+    for (GraphPatchOperation operation :
+        List.of(GraphPatchOperation.ADD, GraphPatchOperation.UPDATE)) {
+      GraphPatchApplyResult result = applier.apply(inlineCallGraph(), afterPatch(operation, hook));
+
+      assertTrue(result.applied(), result.validationResult().summary());
+      JsonNode after = new ObjectMapper().readTree(propertyValue(result.graph(), "call", "after"));
+      assertEquals(2, after.size(), after.toString());
+      assertEquals("script", after.get(0).path("type").asText());
+      assertEquals("default", after.get(1).path("code").asText());
+      assertEquals("none", after.get(1).path("type").asText());
+    }
+  }
+
+  @Test
+  void afterHookWithItsOwnDefaultReplacesTheDefaultHandler() {
+    String hook =
+        "[{\"code\":\"default\",\"type\":\"script\",\"script\":\"log.info('any')\"}]";
+
+    GraphPatchApplyResult result =
+        applier.apply(inlineCallGraph(), afterPatch(GraphPatchOperation.ADD, hook));
+
+    assertTrue(result.applied(), result.validationResult().summary());
+    assertEquals(hook, propertyValue(result.graph(), "call", "after"));
+  }
+
+  private static ChainPlanGraph inlineCallGraph() {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection("demo-chain", "Demo"),
+        List.of(
+            new ChainPlanNode(
+                "call",
+                "service-call",
+                "Call",
+                null,
+                null,
+                List.of(new PlanProperty("after", DEFAULT_HANDLER)))),
+        List.of());
+  }
+
+  private static GraphPatch afterPatch(GraphPatchOperation operation, String after) {
+    return new GraphPatch(
+        "patch-after-hook",
+        "cip-service-call-generator",
+        List.of(),
+        List.of(),
+        List.of(new PropertyPatch(operation, "call", new PlanProperty("after", after))),
+        List.of(),
+        List.of(),
+        "Add the after hook");
   }
 
   @Test

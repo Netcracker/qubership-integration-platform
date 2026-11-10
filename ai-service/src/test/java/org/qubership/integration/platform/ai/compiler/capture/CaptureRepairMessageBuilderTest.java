@@ -185,14 +185,6 @@ class CaptureRepairMessageBuilderTest {
   }
 
   @Test
-  void serviceCallErrorThrowingCompletenessAsksForTheProperty() {
-    String message =
-        builder.completenessSummary(List.of("incomplete_service_call_error_throwing"));
-
-    assertTrue(message.contains("errorThrowing"), message);
-  }
-
-  @Test
   void headerModificationCompletenessAsksForArrayValue() {
     String message =
         builder.completenessSummary(List.of("incomplete_header_modification"));

@@ -15,7 +15,7 @@
         "direction": "OUTBOUND",
         "participant": "cloud-integration-platform-catalog",
         "operation": "GET /v1/common-variables",
-        "description": "Catalog-registered internal REST operation using m2m authorization; errorThrowing=true; retry count 0.",
+        "description": "Catalog-registered internal REST operation using m2m authorization; retry count 0.",
         "failureMode": null,
         "retryPolicy": {
           "retryCount": 0,
@@ -127,7 +127,7 @@
       ],
       "kind": "BEHAVIOR",
       "polarity": "POSITIVE",
-      "text": "Use a Service Call element bound by name to the catalog-registered internal system cloud-integration-platform-catalog, invoking GET /v1/common-variables over HTTP. Use machine-to-machine (m2m) authorization, errorThrowing=true, and retry count 0. Do not use a raw http-sender.",
+      "text": "Use a Service Call element bound by name to the catalog-registered internal system cloud-integration-platform-catalog, invoking GET /v1/common-variables over HTTP. Use machine-to-machine (m2m) authorization and retry count 0. Do not use a raw http-sender.",
       "fieldMapping": null,
       "policyConflict": null,
       "elementIntent": {
@@ -143,10 +143,6 @@
           {
             "key": "authorizationConfiguration",
             "value": "{\"type\":\"m2m\"}"
-          },
-          {
-            "key": "errorThrowing",
-            "value": "true"
           },
           {
             "key": "retryCount",
