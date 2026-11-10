@@ -129,6 +129,7 @@ public final class A2aSseTestSupport {
         HttpRequest.newBuilder()
             .uri(URI.create("http://localhost:" + RestAssured.port + path))
             .timeout(timeout)
+            .header("Authorization", A2aTestAuth.AUTHORIZATION_HEADER)
             .header("A2A-Version", "1.0")
             .header("Accept", "text/event-stream");
     if ("POST".equalsIgnoreCase(method)) {

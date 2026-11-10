@@ -20,6 +20,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.facade.Creat
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPublicArtifactTypes;
 import org.qubership.integration.platform.ai.productpipeline.runtime.CreateChainTestOrchestrator;
 import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
+import org.qubership.integration.platform.ai.a2a.transport.A2aTestAuth;
 
 /**
  * Package 05: provided-IDS-style happy path against a real {@link CreateChainApplicationFacade} and
@@ -97,9 +98,7 @@ class A2aRealRuntimeProvidedIdsE2EIT {
     assertEquals(1, harness.runStore().loadByConversation(taskId).stream().count());
 
     String getBody =
-        io.restassured.RestAssured.given()
-            .urlEncodingEnabled(false)
-            .header("A2A-Version", "1.0")
+        A2aTestAuth.givenA2a()
             .when()
             .get(java.net.URI.create("/tasks/" + taskId))
             .then()

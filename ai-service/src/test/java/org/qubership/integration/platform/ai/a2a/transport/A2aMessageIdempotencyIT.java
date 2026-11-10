@@ -93,9 +93,7 @@ class A2aMessageIdempotencyIT {
             .formatted(messageId);
 
     String taskId =
-        given()
-            .urlEncodingEnabled(false)
-            .header("A2A-Version", "1.0")
+        A2aTestAuth.givenA2a()
             .contentType(ContentType.JSON)
             .body(body)
             .when()
@@ -106,9 +104,7 @@ class A2aMessageIdempotencyIT {
             .path("task.id");
 
     String secondTaskId =
-        given()
-            .urlEncodingEnabled(false)
-            .header("A2A-Version", "1.0")
+        A2aTestAuth.givenA2a()
             .contentType(ContentType.JSON)
             .body(body)
             .when()
@@ -139,9 +135,7 @@ class A2aMessageIdempotencyIT {
             .formatted(messageId);
 
     String taskId =
-        given()
-            .urlEncodingEnabled(false)
-            .header("A2A-Version", "1.0")
+        A2aTestAuth.givenA2a()
             .contentType(ContentType.JSON)
             .body(body)
             .when()
@@ -165,9 +159,7 @@ class A2aMessageIdempotencyIT {
         """
             .formatted(messageId, taskId);
 
-    given()
-        .urlEncodingEnabled(false)
-        .header("A2A-Version", "1.0")
+    A2aTestAuth.givenA2a()
         .contentType(ContentType.JSON)
         .body(secondBody)
         .when()
@@ -195,9 +187,7 @@ class A2aMessageIdempotencyIT {
         """
             .formatted(messageId);
 
-    given()
-        .urlEncodingEnabled(false)
-        .header("A2A-Version", "1.0")
+    A2aTestAuth.givenA2a()
         .contentType(ContentType.JSON)
         .body(firstBody)
         .when()
@@ -219,9 +209,7 @@ class A2aMessageIdempotencyIT {
         """
             .formatted(messageId);
 
-    given()
-        .urlEncodingEnabled(false)
-        .header("A2A-Version", "1.0")
+    A2aTestAuth.givenA2a()
         .contentType(ContentType.JSON)
         .body(secondBody)
         .when()
@@ -250,9 +238,7 @@ class A2aMessageIdempotencyIT {
             .formatted(messageId);
 
     String taskId =
-        given()
-            .urlEncodingEnabled(false)
-            .header("A2A-Version", "1.0")
+        A2aTestAuth.givenA2a()
             .contentType(ContentType.JSON)
             .body(body)
             .when()
@@ -263,9 +249,7 @@ class A2aMessageIdempotencyIT {
             .path("task.id");
 
     String recovered =
-        given()
-            .urlEncodingEnabled(false)
-            .header("A2A-Version", "1.0")
+        A2aTestAuth.givenA2a()
             .contentType(ContentType.JSON)
             .body(body)
             .when()
@@ -296,9 +280,7 @@ class A2aMessageIdempotencyIT {
         """
             .formatted(messageId);
 
-    given()
-        .urlEncodingEnabled(false)
-        .header("A2A-Version", "1.0")
+    A2aTestAuth.givenA2a()
         .contentType(ContentType.JSON)
         .body(firstBody)
         .when()
@@ -320,9 +302,7 @@ class A2aMessageIdempotencyIT {
         """
             .formatted(messageId);
 
-    given()
-        .urlEncodingEnabled(false)
-        .header("A2A-Version", "1.0")
+    A2aTestAuth.givenA2a()
         .contentType(ContentType.JSON)
         .body(conflictBody)
         .when()
@@ -393,9 +373,7 @@ class A2aMessageIdempotencyIT {
               try {
                 barrier.await(10, java.util.concurrent.TimeUnit.SECONDS);
                 statusA.set(
-                    given()
-                        .urlEncodingEnabled(false)
-                        .header("A2A-Version", "1.0")
+                    A2aTestAuth.givenA2a()
                         .contentType(ContentType.JSON)
                         .body(bodyA)
                         .when()
@@ -414,9 +392,7 @@ class A2aMessageIdempotencyIT {
               try {
                 barrier.await(10, java.util.concurrent.TimeUnit.SECONDS);
                 statusB.set(
-                    given()
-                        .urlEncodingEnabled(false)
-                        .header("A2A-Version", "1.0")
+                    A2aTestAuth.givenA2a()
                         .contentType(ContentType.JSON)
                         .body(bodyB)
                         .when()
@@ -496,9 +472,7 @@ class A2aMessageIdempotencyIT {
         """
             .formatted(messageId);
 
-    given()
-        .urlEncodingEnabled(false)
-        .header("A2A-Version", "1.0")
+    A2aTestAuth.givenA2a()
         .contentType(ContentType.JSON)
         .body(firstBody)
         .when()
@@ -519,9 +493,7 @@ class A2aMessageIdempotencyIT {
         """
             .formatted(messageId);
 
-    given()
-        .urlEncodingEnabled(false)
-        .header("A2A-Version", "1.0")
+    A2aTestAuth.givenA2a()
         .contentType(ContentType.JSON)
         .body(conflictBody)
         .when()
@@ -555,9 +527,7 @@ class A2aMessageIdempotencyIT {
         """
             .formatted(messageId, "a".repeat(64));
 
-    given()
-        .urlEncodingEnabled(false)
-        .header("A2A-Version", "1.0")
+    A2aTestAuth.givenA2a()
         .contentType(ContentType.JSON)
         .body(body)
         .when()
@@ -611,7 +581,7 @@ class A2aMessageIdempotencyIT {
       assertEquals(1, events.size());
       assertEquals(taskId, events.getFirst().path("task").path("id").asText());
     } else {
-      given().urlEncodingEnabled(false).header("A2A-Version", "1.0").contentType(ContentType.JSON)
+      A2aTestAuth.givenA2a().contentType(ContentType.JSON)
           .body(body).post(URI.create("/message:send")).then().statusCode(denied ? 404 : applied ? 200 : 400);
     }
     assertEquals(applied && !owned && !denied,

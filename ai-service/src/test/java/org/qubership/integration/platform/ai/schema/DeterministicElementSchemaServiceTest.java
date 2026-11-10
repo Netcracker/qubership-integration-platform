@@ -285,13 +285,13 @@ class DeterministicElementSchemaServiceTest {
   }
 
   @Test
-  void acceptsHttpMethodRestrictCatalogObjectAtCaptureBoundary() throws Exception {
+  void rejectsHttpMethodRestrictCatalogObjectAtCaptureBoundary() throws Exception {
     JsonNode catalogObject = objectMapper.readTree("{\"httpMethods\":[\"GET\"]}");
 
     assertTrue(
         service
             .validateCapturePropertyValue("http-trigger", "httpMethodRestrict", catalogObject)
-            .isEmpty());
+            .isPresent());
   }
 
   @Test

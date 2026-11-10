@@ -27,6 +27,7 @@ import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
 import org.qubership.integration.platform.ai.llm.routing.ScenarioRouter;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
+import org.qubership.integration.platform.ai.a2a.transport.A2aTestAuth;
 
 /**
  * When A2A is disabled, discovery and invocation are unavailable while browser chat and readiness
@@ -60,9 +61,7 @@ class A2aFeatureFlagDisabledIT {
         .statusCode(equalTo(503))
         .body(containsString(A2aFeatureGate.DISABLED_MESSAGE));
 
-    given()
-        .urlEncodingEnabled(false)
-        .header("A2A-Version", "1.0")
+    A2aTestAuth.givenA2a()
         .contentType(ContentType.JSON)
         .body("{}")
         .when()
@@ -113,9 +112,7 @@ class A2aFeatureFlagDisabledIT {
     A2aPersistedTask persisted = taskRepository.findByTaskId(taskId).orElseThrow();
     assertEquals(A2aTaskState.INPUT_REQUIRED, persisted.state());
 
-    given()
-        .urlEncodingEnabled(false)
-        .header("A2A-Version", "1.0")
+    A2aTestAuth.givenA2a()
         .when()
         .get("/tasks/" + taskId)
         .then()

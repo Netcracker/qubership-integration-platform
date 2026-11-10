@@ -127,9 +127,7 @@ class A2aTransportContractIT {
     String body = textMessageBody(messageId, null, "Build a payment chain");
 
     String taskId =
-        given()
-            .urlEncodingEnabled(false)
-            .header("A2A-Version", "1.0")
+        A2aTestAuth.givenA2a()
             .contentType(ContentType.JSON)
             .body(body)
             .when()
@@ -152,9 +150,7 @@ class A2aTransportContractIT {
   void continueInputRequiredAdvancesSameTaskWithoutSecondCreate() {
     String createMessageId = UUID.randomUUID().toString();
     String taskId =
-        given()
-            .urlEncodingEnabled(false)
-            .header("A2A-Version", "1.0")
+        A2aTestAuth.givenA2a()
             .contentType(ContentType.JSON)
             .body(textMessageBody(createMessageId, null, "Start requirements"))
             .when()
@@ -165,9 +161,7 @@ class A2aTransportContractIT {
             .path("task.id");
 
     String continueMessageId = UUID.randomUUID().toString();
-    given()
-        .urlEncodingEnabled(false)
-        .header("A2A-Version", "1.0")
+    A2aTestAuth.givenA2a()
         .contentType(ContentType.JSON)
         .body(textMessageBody(continueMessageId, taskId, "Clarification details"))
         .when()
@@ -185,9 +179,7 @@ class A2aTransportContractIT {
   @Test
   void getTaskReturnsDurableSnapshot() throws Exception {
     String taskId =
-        given()
-            .urlEncodingEnabled(false)
-            .header("A2A-Version", "1.0")
+        A2aTestAuth.givenA2a()
             .contentType(ContentType.JSON)
             .body(textMessageBody(UUID.randomUUID().toString(), null, "Poll me"))
             .when()
@@ -205,9 +197,7 @@ class A2aTransportContractIT {
     taskStore.delete(taskId);
     assertNull(taskStore.get(taskId));
 
-    given()
-        .urlEncodingEnabled(false)
-        .header("A2A-Version", "1.0")
+    A2aTestAuth.givenA2a()
         .when()
         .get(URI.create("/tasks/" + taskId))
         .then()
@@ -221,9 +211,7 @@ class A2aTransportContractIT {
   void getUnknownTaskReturnsTaskNotFoundWithoutCreatingState() {
     String missingTaskId = "missing-get-" + UUID.randomUUID();
 
-    given()
-        .urlEncodingEnabled(false)
-        .header("A2A-Version", "1.0")
+    A2aTestAuth.givenA2a()
         .when()
         .get(URI.create("/tasks/" + missingTaskId))
         .then()
@@ -240,9 +228,7 @@ class A2aTransportContractIT {
     String body = textMessageBody(messageId, null, "Idempotent create");
 
     String firstTaskId =
-        given()
-            .urlEncodingEnabled(false)
-            .header("A2A-Version", "1.0")
+        A2aTestAuth.givenA2a()
             .contentType(ContentType.JSON)
             .body(body)
             .when()
@@ -255,9 +241,7 @@ class A2aTransportContractIT {
     // Lost-initial retry: same Message without taskId. Adding a client taskId is a different
     // canonical command and must conflict (covered by A2aMessageIdempotencyIT).
     String secondTaskId =
-        given()
-            .urlEncodingEnabled(false)
-            .header("A2A-Version", "1.0")
+        A2aTestAuth.givenA2a()
             .contentType(ContentType.JSON)
             .body(body)
             .when()
@@ -276,9 +260,7 @@ class A2aTransportContractIT {
   void terminalContinuationIsRejected() {
     completeOnStart = true;
     String taskId =
-        given()
-            .urlEncodingEnabled(false)
-            .header("A2A-Version", "1.0")
+        A2aTestAuth.givenA2a()
             .contentType(ContentType.JSON)
             .body(textMessageBody(UUID.randomUUID().toString(), null, "finish"))
             .when()
@@ -289,9 +271,7 @@ class A2aTransportContractIT {
             .extract()
             .path("task.id");
 
-    given()
-        .urlEncodingEnabled(false)
-        .header("A2A-Version", "1.0")
+    A2aTestAuth.givenA2a()
         .contentType(ContentType.JSON)
         .body(textMessageBody(UUID.randomUUID().toString(), taskId, "too late"))
         .when()
@@ -303,9 +283,7 @@ class A2aTransportContractIT {
 
   @Test
   void unknownTaskReturnsTaskNotFound() {
-    given()
-        .urlEncodingEnabled(false)
-        .header("A2A-Version", "1.0")
+    A2aTestAuth.givenA2a()
         .contentType(ContentType.JSON)
         .body(textMessageBody(UUID.randomUUID().toString(), "missing-task", "hello"))
         .when()
@@ -318,9 +296,7 @@ class A2aTransportContractIT {
   @Test
   void cancelReturnsTaskNotCancelableWithoutStateChange() {
     String taskId =
-        given()
-            .urlEncodingEnabled(false)
-            .header("A2A-Version", "1.0")
+        A2aTestAuth.givenA2a()
             .contentType(ContentType.JSON)
             .body(textMessageBody(UUID.randomUUID().toString(), null, "cancel me"))
             .when()
@@ -332,9 +308,7 @@ class A2aTransportContractIT {
 
     A2aPersistedTask before = taskRepository.findByTaskId(taskId).orElseThrow();
 
-    given()
-        .urlEncodingEnabled(false)
-        .header("A2A-Version", "1.0")
+    A2aTestAuth.givenA2a()
         .contentType(ContentType.JSON)
         .body("{}")
         .when()
@@ -370,9 +344,7 @@ class A2aTransportContractIT {
         """
             .formatted(UUID.randomUUID());
 
-    given()
-        .urlEncodingEnabled(false)
-        .header("A2A-Version", "1.0")
+    A2aTestAuth.givenA2a()
         .contentType(ContentType.JSON)
         .body(body)
         .when()
@@ -385,9 +357,7 @@ class A2aTransportContractIT {
   @Test
   void publicImplementActionIsRejected() {
     String taskId =
-        given()
-            .urlEncodingEnabled(false)
-            .header("A2A-Version", "1.0")
+        A2aTestAuth.givenA2a()
             .contentType(ContentType.JSON)
             .body(textMessageBody(UUID.randomUUID().toString(), null, "start"))
             .when()
@@ -417,9 +387,7 @@ class A2aTransportContractIT {
         """
             .formatted(UUID.randomUUID(), taskId);
 
-    given()
-        .urlEncodingEnabled(false)
-        .header("A2A-Version", "1.0")
+    A2aTestAuth.givenA2a()
         .contentType(ContentType.JSON)
         .body(body)
         .when()

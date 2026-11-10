@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.UUID;
 import org.qubership.integration.platform.ai.a2a.transport.A2aSseTestSupport;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPublicArtifactTypes;
+import org.qubership.integration.platform.ai.a2a.transport.A2aTestAuth;
 
 /** Shared HTTP helpers for A2A launch-gate E2E scenarios. */
 final class A2aE2eSupport {
@@ -59,9 +60,7 @@ final class A2aE2eSupport {
   }
 
   static String sendMessage(String body) {
-    return given()
-        .urlEncodingEnabled(false)
-        .header("A2A-Version", "1.0")
+    return A2aTestAuth.givenA2a()
         .contentType(ContentType.JSON)
         .body(body)
         .when()
@@ -73,9 +72,7 @@ final class A2aE2eSupport {
   }
 
   static Map<?, ?> getTask(String taskId) {
-    return given()
-        .urlEncodingEnabled(false)
-        .header("A2A-Version", "1.0")
+    return A2aTestAuth.givenA2a()
         .when()
         .get(URI.create("/tasks/" + taskId))
         .then()
@@ -85,9 +82,7 @@ final class A2aE2eSupport {
   }
 
   static String getTaskState(String taskId) {
-    return given()
-        .urlEncodingEnabled(false)
-        .header("A2A-Version", "1.0")
+    return A2aTestAuth.givenA2a()
         .when()
         .get(URI.create("/tasks/" + taskId))
         .then()
@@ -99,9 +94,7 @@ final class A2aE2eSupport {
   @SuppressWarnings("unchecked")
   static Map<String, Object> pendingData(String taskId) {
     Object data =
-        given()
-            .urlEncodingEnabled(false)
-            .header("A2A-Version", "1.0")
+        A2aTestAuth.givenA2a()
             .when()
             .get(URI.create("/tasks/" + taskId))
             .then()
@@ -118,9 +111,7 @@ final class A2aE2eSupport {
     String type = String.valueOf(pending.get("artifactType"));
     String hash = String.valueOf(pending.get("artifactHash"));
     long revision = ((Number) pending.get("revision")).longValue();
-    given()
-        .urlEncodingEnabled(false)
-        .header("A2A-Version", "1.0")
+    A2aTestAuth.givenA2a()
         .contentType(ContentType.JSON)
         .body(approveBody(taskId, type, hash, revision))
         .when()
@@ -171,9 +162,7 @@ final class A2aE2eSupport {
   static void assertMaterializationResult(String taskId) {
     assertEquals("TASK_STATE_COMPLETED", getTaskState(taskId));
     String body =
-        given()
-            .urlEncodingEnabled(false)
-            .header("A2A-Version", "1.0")
+        A2aTestAuth.givenA2a()
             .when()
             .get(URI.create("/tasks/" + taskId))
             .then()
@@ -244,9 +233,7 @@ final class A2aE2eSupport {
   }
 
   static void cancelRejected(String taskId) {
-    given()
-        .urlEncodingEnabled(false)
-        .header("A2A-Version", "1.0")
+    A2aTestAuth.givenA2a()
         .contentType(ContentType.JSON)
         .body("{}")
         .when()

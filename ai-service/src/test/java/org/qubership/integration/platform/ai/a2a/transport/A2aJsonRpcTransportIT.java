@@ -317,7 +317,7 @@ class A2aJsonRpcTransportIT {
 
   private static JsonNode postJsonRpc(String path, String body, String version) throws Exception {
     var request =
-        given().urlEncodingEnabled(false).contentType(ContentType.JSON).body(body);
+        A2aTestAuth.givenAuthorized().contentType(ContentType.JSON).body(body);
     if (version != null) {
       request = request.header("A2A-Version", version);
     }

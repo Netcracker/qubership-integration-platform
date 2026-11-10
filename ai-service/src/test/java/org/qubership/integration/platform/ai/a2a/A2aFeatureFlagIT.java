@@ -35,6 +35,7 @@ import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
 import org.qubership.integration.platform.ai.llm.routing.ScenarioRouter;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
+import org.qubership.integration.platform.ai.a2a.transport.A2aTestAuth;
 
 @QuarkusTest
 @TestProfile(TestArtifactBlobStoreProducer.Profile.class)
@@ -116,8 +117,7 @@ class A2aFeatureFlagIT {
     assertEquals(beforeDisable.publicSnapshotJson(), afterToggleSimulation.publicSnapshotJson());
     assertEquals(beforeDisable.revision(), afterToggleSimulation.revision());
 
-    given()
-        .header("A2A-Version", "1.0")
+    A2aTestAuth.givenA2a()
         .when()
         .get("/tasks/" + taskId)
         .then()

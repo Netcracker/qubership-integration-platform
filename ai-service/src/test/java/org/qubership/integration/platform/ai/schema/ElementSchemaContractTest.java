@@ -125,19 +125,28 @@ class ElementSchemaContractTest {
   }
 
   @Test
-  void keepsHintsAndStructuredValuesAcrossPropertyVariants() throws Exception {
+  void keepsHttpMethodRestrictAsCommaSeparatedMethodString() throws Exception {
+    // Custom vs Implemented branches still surface as titled anyOf variants; the shared
+    // conf-model value itself is a comma-separated method string (not {httpMethods:[...]}).
     var hint = mapper.readTree(schemas.describeElementProperty("http-trigger", "httpMethodRestrict"))
         .path("schema");
     assertEquals("anyOf", hint.path("type").asText(), hint.toString());
     assertEquals(2, hint.path("variants").size(), hint.toString());
-    var methods = mapper.readTree(schemas.describeElementProperty(
-        "http-trigger", "httpMethodRestrict.httpMethods")).path("schema");
-    assertEquals("array", methods.path("type").asText(), methods.toString());
-    Object value = schemas.coercePatchPropertyValue(
-        "http-trigger", "httpMethodRestrict", "{\"httpMethods\":[\"GET\"]}");
-    assertEquals(Map.of("httpMethods", java.util.List.of("GET")), value);
+    assertEquals("HTTP Methods", hint.path("variants").path(0).path("title").asText(), hint.toString());
+    assertEquals(
+        "Operation method", hint.path("variants").path(1).path("title").asText(), hint.toString());
+    Object value = schemas.coercePatchPropertyValue("http-trigger", "httpMethodRestrict", "GET");
+    assertEquals("GET", value);
     assertTrue(schemas.validateCapturePropertyValue(
         "http-trigger", "httpMethodRestrict", mapper.valueToTree(value)).isEmpty());
+    assertTrue(
+        schemas
+            .validateCapturePropertyValue(
+                "http-trigger",
+                "httpMethodRestrict",
+                mapper.readTree("{\"httpMethods\":[\"GET\"]}"))
+            .isPresent(),
+        "legacy catalog object shape is not a capture value; flatten on write instead");
   }
 
   @ParameterizedTest
