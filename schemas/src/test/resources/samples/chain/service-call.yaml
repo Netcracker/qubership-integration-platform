@@ -63,7 +63,6 @@ content:
         fileName: "sdfsdf"
         mimeType: "text/plain"
       bodyMimeType: "multipart/form-data"
-      errorThrowing: true
       handleValidationAction: "mapper-2"
       handlerContainer:
         mappingDescription:

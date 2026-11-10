@@ -5,7 +5,6 @@ type: "service-call"
 properties:
   after: []
   afterValidation: []
-  errorThrowing: true
   handleValidationAction: "default"
   integrationGqlQueryHeader: "CamelGraphQLQuery"
   integrationGqlVariablesHeader: "CamelGraphQLVariables"
