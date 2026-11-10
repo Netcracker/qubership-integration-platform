@@ -169,8 +169,10 @@ const ChainPage = () => {
     ]);
   }, [chain, chainId, sessionId, navigate]);
 
-  const handleTabChange = (key: string) => {
-    void navigate(`/chains/${chainId}/${key}`);
+  const handleTabClick = (key: string) => {
+    const target = `/chains/${chainId}/${key}`;
+    if (pathname === target) return;
+    void navigate(target);
   };
 
   const tabItems = [
@@ -260,7 +262,7 @@ const ChainPage = () => {
             tabItems={tabItems}
             headerSlotRef={setHeaderSlot}
             pathItems={pathItems}
-            onTabChange={handleTabChange}
+            onTabClick={handleTabClick}
             showUnsavedChanges={!isVsCode && chain.unsavedChanges}
           />
           <Flex className={styles.stretched}>
@@ -277,7 +279,7 @@ type ChainPageHeaderProps = {
   tabItems: { key: string; label: string }[];
   headerSlotRef: (slot: HTMLElement | null) => void;
   pathItems: BreadcrumbProps["items"];
-  onTabChange: (key: string) => void;
+  onTabClick: (key: string) => void;
   showUnsavedChanges: boolean;
 };
 
@@ -286,7 +288,7 @@ const ChainPageHeader: FC<ChainPageHeaderProps> = ({
   tabItems,
   headerSlotRef,
   pathItems,
-  onTabChange,
+  onTabClick,
   showUnsavedChanges,
 }) => {
   const fullscreenCtx = useChainFullscreenContext();
@@ -297,7 +299,7 @@ const ChainPageHeader: FC<ChainPageHeaderProps> = ({
       <Tabs
         className={styles.chainPageTabs}
         activeKey={activeKey}
-        onChange={onTabChange}
+        onTabClick={onTabClick}
         items={tabItems}
         style={{ marginBottom: 0 }}
         tabBarExtraContent={
@@ -336,7 +338,7 @@ const ChainPageHeader: FC<ChainPageHeaderProps> = ({
       <Tabs
         className={styles.chainPageTabs}
         activeKey={activeKey}
-        onChange={onTabChange}
+        onTabClick={onTabClick}
         items={tabItems}
         tabBarExtraContent={tabsBarExtra}
       />
