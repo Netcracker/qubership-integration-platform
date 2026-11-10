@@ -106,21 +106,30 @@ Please refer to [logging page] for more details regarding data storage.
 
 Session logs are being captured as per [logging settings](../../01__Chains/5__Logging/readme.md).
 
-Kafka streaming of sessions is switched on in the Engine and Micro-Engine with the parameters below:
+Kafka streaming of sessions is switched on in the Engine and Micro-Engine with the parameters below. The Engine reads these parameters at startup. The Micro-Engine reads `OPENSEARCH_KAFKA_ENABLED` when it is built, so it is described separately below.
 
-| Environment Parameter                 | Mandatory | Default Value | Description                                                                           |
-|:--------------------------------------|:----------|:--------------|:--------------------------------------------------------------------------------------|
-| OPENSEARCH\_KAFKA\_ENABLED            | O         | false         | Enables Kafka streaming of sessions. When it is `false`, the in-memory queue is used. |
-| OPENSEARCH\_KAFKA\_BOOTSTRAP\_SERVERS | O         | kafka:9092    | Kafka bootstrap servers.                                                              |
-| OPENSEARCH\_KAFKA\_TOPIC              | O         | elements      | Kafka topic that receives the session data.                                           |
+| Environment Parameter                 | Mandatory | Default Value | Description                                                                                                                                                                                       |
+|:--------------------------------------|:----------|:--------------|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| OPENSEARCH\_KAFKA\_ENABLED            | O         | false         | When `true`, the Engine sends session elements to the Kafka topic instead of writing them to OpenSearch. When `false`, the Engine writes them to OpenSearch directly, through an in-memory queue. |
+| OPENSEARCH\_KAFKA\_BOOTSTRAP\_SERVERS | O         | kafka:9092    | Kafka bootstrap servers.                                                                                                                                                                          |
+| OPENSEARCH\_KAFKA\_TOPIC              | O         | elements      | Kafka topic that receives the session data.                                                                                                                                                       |
+
+> ℹ️ **Note:** For the Micro-Engine, `OPENSEARCH_KAFKA_ENABLED` is a build-time setting.
+
+> ⚠️ With `OPENSEARCH_KAFKA_ENABLED=true`, the Engine no longer writes sessions to OpenSearch, and the **Sessions** pages read sessions only from OpenSearch. Before you enable it, make sure that:
+> - a consumer that reads the topic and indexes session elements into OpenSearch is deployed and running (CIP does not include one);
+> - the topic set in `OPENSEARCH_KAFKA_TOPIC` exists in Kafka (the Engine does not create it).
+>
+> Without the consumer, new sessions do not appear on the **Sessions** pages.
 
 To stream sessions through Kafka and remove the warning from the **Sessions** page:
 
-1. Set `OPENSEARCH_KAFKA_ENABLED` to `true` for the Engine and the Micro-Engine, and set the bootstrap servers and topic if the defaults do not match your Kafka.
+1. When the prerequisites above are met, enable Kafka streaming in each engine type you deploy:
+   - **Engine:** set `OPENSEARCH_KAFKA_ENABLED` to `true` in the deployment, and set the bootstrap servers and topic if the defaults do not match your Kafka.
+   - **Micro-Engine:** build the Micro-Engine image with `OPENSEARCH_KAFKA_ENABLED=true` set in the build environment. The build includes either the Kafka writer or the direct OpenSearch writer, and setting the variable on an already built image does not change which one runs. The published image is built with the default `false`.
 2. Set `opensearchKafkaEnabled` to `true` in the UI configuration, in one of these places:
    - the `config.json` file served with the UI;
    - the `window.CIP_UI_CONFIG` object;
    - the `VITE_OPENSEARCH_KAFKA_ENABLED=true` variable when the UI is built.
 
-> ℹ️ **Note:** Step 2 is always needed. The UI does not take the value from the Engine, so with only step 1 done the warning is still shown.
-
+> ℹ️ Step 2 is always needed. The UI does not take the value from the Engine, so with only step 1 done the warning is still shown.

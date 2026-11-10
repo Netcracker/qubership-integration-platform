@@ -26,7 +26,7 @@ There are 2 options to configure the Implemented Service:
 Table with Implemented services is accessible by navigating to **Services** → **Implemented** tab. Next columns and elements are available for the table:
 
 - **Name** - clickable name of the service or specification group. When clicked, system navigates to respective entity.
-- **Protocol** - service's integration protocol. **_HTTP_** is the only supported protocol for Implemented Services.
+- **Protocol** - service's integration protocol.Possible values: **_http, soap, graphql_**, . Value for this parameter will be propagated from the firstly imported API specification. There is no ability to upload API specifications with another protocol after that.
 - **Status** - API Specification status. Possible values:
   - 🔵 _**New**_ - initial state of API specification, uploaded manually or imported by service discovery.
   - 🟢 _**In Use**_ - status indicates that API Specification is utilized within at least one chain.
@@ -226,6 +226,7 @@ To add API specification into existing specification group:
     > ℹ️ **Note:**
     > - API Specification **version must be unique inside of API Specification group for any type of service**. Import of API Specification with non-unique version will result in version duplication error.
     > - OpenAPI 3.2.0 specifications are imported using the OpenAPI 3.1 parser. Features available only in OpenAPI 3.2.0 are not supported and are dropped during import. The system shows a warning notification when this happens.
+    > - For **WSDL/GraphQL** specifications, system will generate the name by autoincrement (e.g. 1.0.0 -> 2.0.0), rename if required.
 
     - **Import from Chains** - on this tab, it is possible to select existing [HTTP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/readme.md) endpoint, configured within a particular chain and create API Specification from it.
     > ℹ️ **Note:** Checked _**"External routes only"**_ parameter allows to create specification only from chains with external [HTTP Triggers](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/readme.md).

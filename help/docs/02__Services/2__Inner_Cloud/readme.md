@@ -234,7 +234,7 @@ To add API specification into existing specification group:
 > ℹ️ **Note:**
 > - **API Specification version must be unique inside of API Specification group for any type of service**. Import of API Specification with non-unique version will result in version duplication error.
 > - OpenAPI 3.2.0 specifications are imported using the OpenAPI 3.1 parser. Features available only in OpenAPI 3.2.0 are not supported and are dropped during import. The system shows a warning notification when this happens.
-> - For an **AsyncAPI 3.0** specification, the MaaS classifier name of an operation is the value of its `x-maas-classifier-name` extension. When the operation has none, the extension on its channel is used, and a reply operation (declared with `reply`) takes the extension from its reply channel. The value fills `maas.classifier.name` when the operation is selected in a Service Call or an AsyncAPI Trigger. An **AsyncAPI 2.x** specification takes the extension from the operation only.
+> - For a **Kafka** operation in an **AsyncAPI 3.0** specification, the MaaS classifier name is the value of the operation's `x-maas-classifier-name` extension. When the operation has none, the extension on its channel is used, and a reply operation (declared with `reply`) takes the extension from its reply channel. An **AsyncAPI 2.x** specification takes the extension from the operation only.
 > - For service with _**grpc**_ protocol, import archive could contain more than one `.proto` file.
 > - Only for **WSDL**, **GraphQL**, **Protobuf** specifications, system will generate the name by autoincrement (e.g. 1.0.0 -> 2.0.0), rename if required.
 3. Confirm operation with **"Import File"** button.

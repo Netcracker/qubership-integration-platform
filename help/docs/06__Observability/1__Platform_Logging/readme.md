@@ -20,8 +20,6 @@ This type of logs is being produced by Cloud Integration Platform in a **stdout*
 
 CIP Microservice log can be produced either in `json` (default) or `text` format (configurable via ```LOG_FORMAT``` environment parameter).
 
-> ℹ️ The `json` format writes every value in full, with no padding or length limit. The `text` format pads each value to a fixed width and limits `thread`, `class`, and `method` to 15, 60, and 30 characters. In `text` format, the classic engine prints at most five stack frames of an exception.
-
 Message consists from two different parts:
 
 - *standardized part* with parameters specified in accordance to [Logging-Development guide]
@@ -53,12 +51,20 @@ Following table contains list of CIP-specific parameters, that will be added **o
 
 When **Session log details** is set to **Senders** or **Full** on the chain [Logging](../../01__Chains/5__Logging/readme.md) tab, the engine writes a session start entry and a session step entry after a step finishes. These entries are available only in JSON microservice logs.
 
-#### JSON format
+#### Value Length and Padding
 
-*Session step entry:**
+In both formats, the Engine and the Micro-Engine limit the length of the logged exchange body, headers, and properties. In `json` format, these are the `exchange_body`, `exchange_headers`, and `exchange_properties` fields, including those of session step entries. A value longer than `LOG_FIELDS_MAX_SIZE` plus 3 characters is cut to its first `LOG_FIELDS_MAX_SIZE` characters, followed by `...`. To log longer values, raise the limit, see [Configuration](#configuration).
+
+Apart from these fields, the formats differ:
+
+- `json` adds no padding and writes all other values in full.
+- `text` pads each value to a fixed width and limits `thread`, `class`, and `method` to 15, 60, and 30 characters. The classic Engine also prints at most five stack frames of an exception.
+
+#### JSON format
 
 The following example contains every field emitted by the JSON session-step logger. Parameters that apply to inbound or outbound HTTP calls are not included.
 
+**Session step entry:**
 ```json
 {
   "time": "2026-10-15T09:41:36.528+0000",
@@ -777,4 +783,11 @@ According to the requirements and contracts, Cloud Integration Platform handles 
 
 ---
 
-Chain-specific log level can be settled during the deployment. Please refer to the [respective article] for more details. For Tracing parameters, global settings (including retention and log probabilistic variables), please refer to the Installation guide.
+Chain-specific log level can be settled during the [chain deployment](../../01__Chains/3__Deployments/readme.md). For Tracing parameters, global settings (including retention and log probabilistic variables), please refer to the Installation guide.
+
+Microservice logs are configured with the parameters below:
+
+| Environment Parameter  | Mandatory | Default Value | Description                                                                                                                                                                                                                                                                | Sample  |
+|:-----------------------|:----------|:--------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:--------|
+| LOG\_FORMAT            | O         | json          | Format of the microservice logs: `json` or `text`. Applies to all CIP microservices. See [Microservice Logs](#microservice-logs) for the differences between the formats.                                                                                                  | `text`  |
+| LOG\_FIELDS\_MAX\_SIZE | O         | 4096          | Maximum number of characters kept from the logged exchange body, headers, and properties. Applies to the Engine and the Micro-Engine. A value longer than this number plus 3 characters is cut to this length and followed by `...`. A negative value turns the limit off. | `16384` |
