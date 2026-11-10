@@ -735,34 +735,61 @@ class MicroDomainServiceTest {
                         + "read-modify-write's optimistic-concurrency precondition, not a value to clear");
     }
 
-    @DisplayName("Lets a conflict on the configuration config map through with its type intact")
-    @Test
-    void deleteChainSnapshotDoesNotWrapAConflictException() {
-        stubNamingStrategies();
-
+    private CamelKIntegration integrationMountingSnapshotSource() {
         CamelKIntegration.IntegrationSpec.Traits.MountTrait mount =
                 new CamelKIntegration.IntegrationSpec.Traits.MountTrait();
-        mount.setResources(new ArrayList<>(List.of("configmap:src-s1/x")));
+        mount.setResources(new ArrayList<>(List.of("configmap:src-s1/x", "configmap:keep/y")));
         CamelKIntegration.IntegrationSpec.Traits traits = new CamelKIntegration.IntegrationSpec.Traits();
         traits.setMount(mount);
         CamelKIntegration.IntegrationSpec spec = new CamelKIntegration.IntegrationSpec();
         spec.setTraits(traits);
         CamelKIntegration integration = new CamelKIntegration();
         integration.setSpec(spec);
-        integration.setMetadata(new V1ObjectMeta().name(INTEGRATION_RESOURCE_NAME));
+        return integration;
+    }
 
+    private V1ConfigMap stubSnapshotRemoval(CamelKIntegration integration) {
         V1ConfigMap cfg = configMap(CFG_CONFIG_MAP_NAME, null);
         V1ConfigMap source = configMap("src-s1", Map.of(SNAPSHOT_ID_LABEL, "s1"));
         when(kubeOperator.getIntegrationsByLabels(any())).thenReturn(List.of(integration));
         when(kubeOperator.getServicesByLabel(anyString(), anyString())).thenReturn(List.of());
         when(kubeOperator.getConfigMapsByLabel(anyString(), anyString())).thenReturn(List.of(cfg, source));
-
         IntegrationsConfiguration configuration = IntegrationsConfiguration.builder()
-                .sources(new ArrayList<>(List.of(SourceDefinition.builder().id("s1").build())))
+                .sources(new ArrayList<>(List.of(
+                        SourceDefinition.builder().id("s1").build(),
+                        SourceDefinition.builder().id("s2").build())))
                 .build();
         when(integrationConfigurationSerdes.getFromConfigMap(cfg)).thenReturn(configuration);
         when(integrationConfigurationSerdes.toYaml(any())).thenReturn("yaml-out");
+        return cfg;
+    }
 
+    @DisplayName("Retries a conflict and leaves the snapshot removed exactly once")
+    @Test
+    void deleteChainSnapshotRetriesAConflictAndRemovesTheSnapshotOnce() {
+        stubNamingStrategies();
+        CamelKIntegration integration = integrationMountingSnapshotSource();
+        V1ConfigMap cfg = stubSnapshotRemoval(integration);
+        doThrow(new KubeApiConflictException("conflict", null))
+                .doNothing()
+                .when(kubeOperator).createOrUpdateResource(cfg);
+
+        MicroDomainService service = newService(false);
+        service.deleteChainSnapshot(DOMAIN, "s1");
+
+        assertEquals(List.of("configmap:keep/y"),
+                integration.getSpec().getTraits().getMount().getResources(),
+                "the retry re-reads the integration, so the snapshot's mount must not be removed twice or restored");
+        verify(kubeOperator).deleteConfigMap("src-s1");
+        verify(kubeOperator, times(2)).createOrUpdateResource(cfg);
+    }
+
+    @DisplayName("Rethrows the same conflict after the retry budget is exhausted")
+    @Test
+    void deleteChainSnapshotRethrowsTheSameConflictAfterTheBudget() {
+        stubNamingStrategies();
+        CamelKIntegration integration = integrationMountingSnapshotSource();
+        V1ConfigMap cfg = stubSnapshotRemoval(integration);
         KubeApiConflictException conflict = new KubeApiConflictException("conflict", null);
         doThrow(conflict).when(kubeOperator).createOrUpdateResource(cfg);
 
@@ -770,8 +797,22 @@ class MicroDomainServiceTest {
         KubeApiConflictException thrown = assertThrows(KubeApiConflictException.class,
                 () -> service.deleteChainSnapshot(DOMAIN, "s1"));
 
-        assertSame(conflict, thrown,
-                "wrapping it in a RuntimeException would hide the conflict from a caller's retry logic");
+        assertSame(conflict, thrown);
+        verify(kubeOperator, times(ConflictRetry.MAX_ATTEMPTS)).createOrUpdateResource(cfg);
+    }
+
+    @DisplayName("Does not retry a snapshot removal that failed for a reason other than a conflict")
+    @Test
+    void deleteChainSnapshotDoesNotRetryANonConflictFailure() {
+        stubNamingStrategies();
+        CamelKIntegration integration = integrationMountingSnapshotSource();
+        V1ConfigMap cfg = stubSnapshotRemoval(integration);
+        doThrow(new IllegalStateException("boom")).when(kubeOperator).createOrUpdateResource(cfg);
+
+        MicroDomainService service = newService(false);
+
+        assertThrows(IllegalStateException.class, () -> service.deleteChainSnapshot(DOMAIN, "s1"));
+        verify(kubeOperator, times(1)).createOrUpdateResource(cfg);
     }
 
     @DisplayName("Deletes the HTTPRoutes labeled with the removed snapshot and keeps the others")

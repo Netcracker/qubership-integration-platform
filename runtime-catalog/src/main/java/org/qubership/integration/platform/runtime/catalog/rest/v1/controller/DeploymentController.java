@@ -223,7 +223,7 @@ public class DeploymentController {
         String domain = matcher.group(1);
         String snapshotId = matcher.group(2);
         return microDomainService.verifyMicroDomainEnabled(() -> {
-            bulkDeploymentService.deleteChainSnapshot(domain, snapshotId);
+            microDomainService.deleteChainSnapshot(domain, snapshotId);
             return ResponseEntity.noContent().build();
         });
     }

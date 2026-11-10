@@ -308,6 +308,12 @@ public class MicroDomainService {
     }
 
     public void deleteChainSnapshot(String domainName, String snapshotId) {
+        ConflictRetry.run(
+                "Removal of snapshot '" + snapshotId + "' from micro-domain '" + domainName + "'",
+                () -> deleteChainSnapshotOnce(domainName, snapshotId));
+    }
+
+    private void deleteChainSnapshotOnce(String domainName, String snapshotId) {
         getMainIntegrationResources(domainName).ifPresent(resources -> {
             CamelKIntegration integration = resources.integration();
             String cfgName = Optional.ofNullable(resources.getSourceByLabelMap(SNAPSHOT_ID_LABEL))

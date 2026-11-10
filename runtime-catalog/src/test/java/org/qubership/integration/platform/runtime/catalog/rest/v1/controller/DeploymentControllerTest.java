@@ -307,7 +307,7 @@ class DeploymentControllerTest {
         ResponseEntity<Void> response = controller.deleteById("chain-1", "orders-" + SNAPSHOT_ID);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
-        verify(bulkDeploymentService).deleteChainSnapshot("orders", SNAPSHOT_ID);
+        verify(microDomainService).deleteChainSnapshot("orders", SNAPSHOT_ID);
         verifyNoInteractions(deploymentService);
     }
 
@@ -317,7 +317,7 @@ class DeploymentControllerTest {
 
         controller.deleteById("chain-1", "micro-domain-1-" + SNAPSHOT_ID);
 
-        verify(bulkDeploymentService).deleteChainSnapshot("micro-domain-1", SNAPSHOT_ID);
+        verify(microDomainService).deleteChainSnapshot("micro-domain-1", SNAPSHOT_ID);
     }
 
     @Test
@@ -335,7 +335,7 @@ class DeploymentControllerTest {
 
         assertThatThrownBy(() -> controller.deleteById("chain-1", "orders-" + SNAPSHOT_ID))
                 .isInstanceOf(DomainTypeDisabledException.class);
-        verify(bulkDeploymentService, never()).deleteChainSnapshot(any(), any());
+        verify(microDomainService, never()).deleteChainSnapshot(any(), any());
     }
 
     @Test
