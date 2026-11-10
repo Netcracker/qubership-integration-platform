@@ -66,7 +66,7 @@ To put the element into containers (e.g. [swimlanes](1__Elements_Library/8__Grou
 
 ### Connect Elements
 To connect the elements:
-- simply drop one element on another one 
+- simply drop one element on another one
 - or hover the mouse on the white dot (placed on the right border of the one element), click it and drag the connection line to the target element.
 
 A drop connects the elements instead of nesting them when the (target) element it lands on cannot hold the dropped one:
@@ -75,7 +75,7 @@ A drop connects the elements instead of nesting them when the (target) element i
 - The target is a container whose allowed children do not include the dropped element type.
 
 >⚠️ **Preventing errors in elements connection**
-> 
+>
 > - Every connection of a moved element must lead to an element that is selected and dragged together with it. Otherwise the drop is rejected with an error. For example, in the chain **HTTP Trigger → Script → Service Call**, dragging only **Script** onto a non-container element is rejected, because **Script** is connected to **HTTP Trigger** and **Service Call**, which are not dragged with it.
 > - A moved element that already has an incoming connection keeps it, and no second connection is added.
 > - A moved element that is not allowed inside containers, or that has its input disabled, is rejected with an error when dropped on an element that cannot hold it.
