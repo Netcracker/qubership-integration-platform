@@ -227,7 +227,8 @@ public class CipKnowledgePackIngestionService {
     writeJson(
         versionDir.resolve(CipKnowledgePackIndexLoader.ELEMENT_SUPPORT_MATRIX_FILE),
         supportMatrix);
-    Path profilesDir = packRoot.resolve("product-pipelines").resolve("profiles");
+    Path profilesDir =
+        ProductPipelinePackageIndexBuilder.productPipelinesRoot(packRoot).resolve("profiles");
     PipelineCompatibilityReport compatibilityReport =
         new CompilerPipelineCompatibilityAnalyzer()
             .compare(loadPreviousCertifiedPipelineIndex(), pipelineIndex);

@@ -179,6 +179,9 @@ public final class ProductPipelineDependencyResolver {
           "generated pack index / schema contract");
     }
     Path path = packRoot.resolve("instructions/" + ruleId + ".md");
+    if (!Files.isRegularFile(path)) {
+      path = packRoot.resolve(".apm/instructions/" + ruleId + ".md");
+    }
     requireFile(path, "rule", ruleId);
     return new DependencyPin(
         ruleId, "rule", relativize(repoRoot, path), sha256(path), ReferenceDisposition.ADOPTED, null);

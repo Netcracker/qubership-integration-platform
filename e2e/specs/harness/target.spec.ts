@@ -236,7 +236,10 @@ test.describe("target", () => {
       for (const on of ["compose", "k8s"] as const) {
         withEnv({ E2E_BROKERS: "0" }, () => {
           const setup = targetSetup(on);
-          expect(setup.absent, on).toEqual(dropped[on].map((name) => ({ name, reason: "E2E_BROKERS=0" })));
+          expect(setup.absent, on).toEqual([
+            ...(on === "k8s" ? [{ name: "env: specs/env/ai-recovery-lifecycle.spec.ts", reason: "owned Compose AI-service lifecycle" }] : []),
+            ...dropped[on].map((name) => ({ name, reason: "E2E_BROKERS=0" })),
+          ]);
           // A dependency or a teardown naming a dropped project would fail the config.
           const projects = suiteProjects(setup);
           const names = projects.map((each) => each.name);
