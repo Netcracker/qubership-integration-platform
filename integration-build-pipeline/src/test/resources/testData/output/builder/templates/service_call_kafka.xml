@@ -155,7 +155,7 @@
         </loop>
         <choice>
             <when>
-                <simple>${headers.CamelHttpResponseCode} range '400..599'</simple>
+                <simple>${headers.CamelHttpResponseCode} range '400..599' &amp;&amp; ${exchangeProperty.CamelExceptionCaught} !is 'org.qubership.integration.platform.engine.errorhandling.ResponseValidationException'</simple>
                 <process ref="throwCaughtExceptionProcessor"/>
             </when>
         </choice>

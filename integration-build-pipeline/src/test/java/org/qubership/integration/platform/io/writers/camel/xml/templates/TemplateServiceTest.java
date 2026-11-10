@@ -259,6 +259,11 @@ public class TemplateServiceTest {
                         "/testData/output/builder/templates/service_call_no_after.xml"
                 ),
                 Arguments.of(
+                        "Service Call element with a validation handler and no Default handler",
+                        "/testData/input/builder/templates/service_call_validation_handler_no_default.yml",
+                        "/testData/output/builder/templates/service_call_validation_handler_no_default.xml"
+                ),
+                Arguments.of(
                         "Service Call element with null response handlers",
                         "/testData/input/builder/templates/service_call_after_null.yml",
                         "/testData/output/builder/templates/service_call_after_null.xml"
