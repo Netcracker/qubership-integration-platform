@@ -32,7 +32,7 @@ public class UiChatAdapterResource {
   @RestStreamElementType(MediaType.TEXT_PLAIN)
   public Multi<String> chat(
       @HeaderParam(HttpHeaders.AUTHORIZATION) String authorization, ChatRequest request) {
-    request.setUserToken(UserTokenStore.requireBearer(authorization));
+    request.setUserToken(UserTokenStore.bearerForTurn(authorization));
     return chatExecutionService.streamUiDataLines(request);
   }
 }

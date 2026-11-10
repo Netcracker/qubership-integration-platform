@@ -348,3 +348,12 @@ automatic mechanism -- the catalog refuses one on a chain that fails property ve
 exactly the mid-edit state the semantic validator tolerates, and building one overwrites
 `currentSnapshot`.
 _Avoid_: taking a snapshot around every patch, recreating a deleted element under its old name
+
+**Auth required** (`qip.ai.auth.required`, env `QIP_AI_AUTH_REQUIRED`):
+On by default: every chat turn must carry the caller's bearer, and catalog calls inside a turn use
+only that bearer (never the service identity). Local stacks without an identity provider turn it
+off: a turn without a bearer is then served with the service identity (`CATALOG_TOKEN`), as before
+caller tokens were propagated. A bearer that does arrive is always honoured. The token renewal
+endpoint stays strict.
+_Avoid_: "local mode" (the flag, not the environment, is what matters)
+

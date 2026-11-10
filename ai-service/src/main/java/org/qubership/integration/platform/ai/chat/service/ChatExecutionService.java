@@ -337,7 +337,9 @@ public class ChatExecutionService {
         .onTermination()
         .invoke(
             (failure, cancelled) -> {
-              UserTokenStore.remove(finalConversationId, request.getUserToken());
+              if (request.getUserToken() != null) {
+                UserTokenStore.remove(finalConversationId, request.getUserToken());
+              }
               CatalogAuthenticationFailures.clear(finalConversationId);
               {
                 logAssistantResultIfEnabled(finalConversationId, responseBuffer.toString());

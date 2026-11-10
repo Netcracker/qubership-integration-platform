@@ -4,6 +4,7 @@ import io.vertx.ext.web.Router;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
+import org.qubership.integration.platform.ai.chat.AuthPolicy;
 import org.qubership.integration.platform.ai.chat.UserTokenStore;
 
 /**
@@ -26,7 +27,7 @@ public class A2aBearerRequiredRouteFilter {
         .order(-1999)
         .handler(
             ctx -> {
-              if (!featureGate.enabled()) {
+              if (!featureGate.enabled() || !AuthPolicy.required()) {
                 ctx.next();
                 return;
               }

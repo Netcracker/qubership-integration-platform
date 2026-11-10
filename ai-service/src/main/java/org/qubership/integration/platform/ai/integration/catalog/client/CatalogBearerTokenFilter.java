@@ -5,6 +5,7 @@ import jakarta.ws.rs.client.ClientRequestContext;
 import jakarta.ws.rs.client.ClientRequestFilter;
 import jakarta.ws.rs.core.HttpHeaders;
 import org.eclipse.microprofile.config.ConfigProvider;
+import org.qubership.integration.platform.ai.chat.AuthPolicy;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.UserTokenStore;
 
@@ -36,7 +37,9 @@ public class CatalogBearerTokenFilter implements ClientRequestFilter {
       return;
     }
     // Inside a turn: caller's usable token only — never fall back to the service identity.
-    if (ToolSession.resolveConversationId() != null) {
+    // Exception: auth is switched off (local stack) and the turn carries no token at all.
+    if (ToolSession.resolveConversationId() != null
+        && (AuthPolicy.required() || UserTokenStore.current().isPresent())) {
       String user =
           (renewWaitMillis < 0
                   ? UserTokenStore.currentUsable()

@@ -38,6 +38,19 @@ class UserTokenStoreTest {
   }
 
   @Test
+  void turnBearerIsOptionalOnlyWhenAuthNotRequired() {
+    assertThrows(NotAuthorizedException.class, () -> UserTokenStore.bearerForTurn(null));
+    assertEquals("abc", UserTokenStore.bearerForTurn("Bearer abc"));
+    System.setProperty("qip.ai.auth.required", "false");
+    try {
+      assertNull(UserTokenStore.bearerForTurn(null));
+      assertEquals("abc", UserTokenStore.bearerForTurn("Bearer abc"));
+    } finally {
+      System.clearProperty("qip.ai.auth.required");
+    }
+  }
+
+  @Test
   void readsExpiryFromJwtAndTreatsOpaqueTokenAsValid() {
     long now = Instant.now().getEpochSecond();
     assertTrue(UserTokenStore.isExpired(jwt(now - 60)));

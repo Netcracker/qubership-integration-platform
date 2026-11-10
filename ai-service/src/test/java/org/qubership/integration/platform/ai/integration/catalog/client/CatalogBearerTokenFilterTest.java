@@ -83,6 +83,38 @@ class CatalogBearerTokenFilterTest {
   }
 
   @Test
+  void authNotRequiredFallsBackToServiceTokenWhenTurnHasNoUserToken() {
+    System.setProperty("qip.ai.auth.required", "false");
+    try {
+      ToolSession.bind("conv-1");
+      MultivaluedMap<String, Object> headers = new MultivaluedHashMap<>();
+
+      new CatalogBearerTokenFilter("secret").filter(request(headers));
+
+      assertEquals("Bearer secret", headers.getFirst(HttpHeaders.AUTHORIZATION));
+    } finally {
+      System.clearProperty("qip.ai.auth.required");
+    }
+  }
+
+  @Test
+  void authNotRequiredStillPrefersUserTokenWhenPresent() {
+    System.setProperty("qip.ai.auth.required", "false");
+    try {
+      String user = jwt(java.time.Instant.now().getEpochSecond() + 600, "alice");
+      ToolSession.bind("conv-1");
+      UserTokenStore.put("conv-1", user);
+      MultivaluedMap<String, Object> headers = new MultivaluedHashMap<>();
+
+      new CatalogBearerTokenFilter("secret").filter(request(headers));
+
+      assertEquals("Bearer " + user, headers.getFirst(HttpHeaders.AUTHORIZATION));
+    } finally {
+      System.clearProperty("qip.ai.auth.required");
+    }
+  }
+
+  @Test
   void expiredUserTokenIsNotSentWhenNobodyRenews() {
     long exp = java.time.Instant.now().getEpochSecond() - 60;
     String expired =

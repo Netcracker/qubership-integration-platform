@@ -94,6 +94,14 @@ public final class UserTokenStore {
   }
 
   /**
+   * The caller's bearer for a chat turn. Missing bearer is rejected unless {@link
+   * AuthPolicy#required()} is off, in which case the turn runs without a user token ({@code null}).
+   */
+  public static String bearerForTurn(String authorization) {
+    return AuthPolicy.required() ? requireBearer(authorization) : parseBearer(authorization);
+  }
+
+  /**
    * The conversation's token, waiting up to {@code waitMillis} for the client to renew it when it
    * has expired. Tells the client with {@code step(kind=auth, status=token_expired)} while waiting.
    * On timeout (or when the turn ends) returns empty so the caller fails closed instead of sending

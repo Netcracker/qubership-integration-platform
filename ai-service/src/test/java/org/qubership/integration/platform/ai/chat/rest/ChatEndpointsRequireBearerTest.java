@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.chat.rest;
 
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import jakarta.ws.rs.NotAuthorizedException;
@@ -21,5 +22,29 @@ class ChatEndpointsRequireBearerTest {
   void renewWithoutBearerIsRejected() {
     assertThrows(
         NotAuthorizedException.class, () -> new ChatController(null, null).renewToken("c1", null));
+  }
+
+  @Test
+  void chatWithoutBearerIsAcceptedWhenAuthNotRequired() {
+    System.setProperty("qip.ai.auth.required", "false");
+    try {
+      var request = new ChatRequest();
+      assertThrows(
+          NullPointerException.class, () -> new ChatController(null, null).chat(null, request));
+      assertNull(request.getUserToken());
+    } finally {
+      System.clearProperty("qip.ai.auth.required");
+    }
+  }
+
+  @Test
+  void renewStaysStrictWhenAuthNotRequired() {
+    System.setProperty("qip.ai.auth.required", "false");
+    try {
+      assertThrows(
+          NotAuthorizedException.class, () -> new ChatController(null, null).renewToken("c1", null));
+    } finally {
+      System.clearProperty("qip.ai.auth.required");
+    }
   }
 }
