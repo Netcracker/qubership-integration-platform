@@ -438,22 +438,6 @@
                         </configuration>
                     </execution>
                     <execution>
-                        <id>fetch-qip-schemas</id>
-                        <phase>generate-resources</phase>
-                        <goals>
-                            <goal>exec</goal>
-                        </goals>
-                        <configuration>
-                            <skip>${qip.schemas.sync.skip}</skip>
-                            <executable>${project.basedir}/scripts/fetch-qip-schemas.sh</executable>
-                            <environmentVariables>
-                                <QIP_SCHEMAS_STAGING_DIR>${project.build.directory}/qip-schemas-staging/qip-schemas</QIP_SCHEMAS_STAGING_DIR>
-                                <QIP_SCHEMAS_DOWNLOAD_URL>${qip.schemas.download.url}</QIP_SCHEMAS_DOWNLOAD_URL>
-                                <QIP_SCHEMAS_LOCAL_DIR>${qip.schemas.local.dir}</QIP_SCHEMAS_LOCAL_DIR>
-                            </environmentVariables>
-                        </configuration>
-                    </execution>
-                    <execution>
                         <id>generate-qip-knowledge-indexes</id>
                         <phase>process-classes</phase>
                         <goals>
@@ -556,6 +540,14 @@
                 <artifactId>groovy-maven-plugin</artifactId>
                 <version>2.1.1</version>
                 <executions>
+                    <execution>
+                        <id>fetch-qip-schemas</id>
+                        <phase>generate-resources</phase>
+                        <goals><goal>execute</goal></goals>
+                        <configuration>
+                            <source>${project.basedir}/scripts/fetch-qip-schemas.groovy</source>
+                        </configuration>
+                    </execution>
                     <execution>
                         <id>clear-private-build-output</id>
                         <phase>initialize</phase>

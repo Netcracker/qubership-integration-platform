@@ -23,6 +23,31 @@ on:
 permissions: {}
 
 jobs:
+  build-scripts:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - name: Set up Java
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: maven
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+      - name: Test build scripts without Bash
+        run: python -m unittest discover -s ai-service/e2e/test_system/tests -p test_schema_build.py -v
+
   test-system:
     runs-on: ubuntu-latest
     permissions:

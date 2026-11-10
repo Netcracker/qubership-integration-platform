@@ -5,11 +5,24 @@ and deploys existing chains.
 
 ## Build the service
 
-Run from the repository root with JDK 21 and Maven.
+Run from the repository root with JDK 21 and Maven on Windows, macOS, or Linux.
+Maven runs the build scripts through its Groovy plugin; no Bash installation is required.
 
-```bash
+```text
 mvn -f ai-service/pom.xml -Dgpg.skip=true -Dmaven.test.skip=true package
 ```
+
+Package selection is explicit. The command above builds the public service. To include the Rocky runtime
+packages, use the existing profile:
+
+```text
+mvn -f ai-service/pom.xml -Pwith-rocky-skills -Dgpg.skip=true -Dmaven.test.skip=true package
+```
+
+The profile reads `.private/rocky-skills` and `.private/rocky-knowledge` beside `ai-service/`.
+For another layout, set both `qip.ai.qipknowledge.pack-root` and `qip.knowledge.export` to the absolute paths
+of the selected packages. Missing or invalid packages fail the build; the profile does not fall back to the
+public service. These Maven commands replace `scripts/build.sh`.
 
 The command writes the Quarkus application to `ai-service/target/quarkus-app/`. If Maven cannot resolve
 dependencies from GitHub Packages, configure credentials for the `github` server in your Maven settings. The
