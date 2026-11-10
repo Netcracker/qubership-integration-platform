@@ -47,7 +47,7 @@ const suite: SuiteProject[] = [
   {
     name: "ai-tests",
     testDir: "./specs/ai-tests",
-    metadata: { stack: false },
+    metadata: { stack: false, group: "suite" },
     use: { ...devices["Desktop Chrome"] },
   },
   {

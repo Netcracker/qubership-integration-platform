@@ -262,7 +262,8 @@ public class CaptureAttemptFeedbackStore {
     var captured = pending.remove(conversationId);
     var proposal = captured;
     String capability = proposal == null
-        ? channelCapability.isEmpty() ? activeCapabilities.getOrDefault(conversationId, "") : channelCapability
+        ? channelCapability == null || channelCapability.isEmpty()
+            ? activeCapabilities.getOrDefault(conversationId, "") : channelCapability
         : proposal.capabilityId();
     var observation = new Observation(channel, capability, proposal, feedback,
         proposal == null ? new FeedbackState(inputScope(conversationId, capability), false) : null);

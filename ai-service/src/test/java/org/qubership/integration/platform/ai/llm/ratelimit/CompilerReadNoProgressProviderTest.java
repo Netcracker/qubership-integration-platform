@@ -71,8 +71,9 @@ class CompilerReadNoProgressProviderTest {
               () -> assertTrue(recovery.contains("Retained tool results"), recovery),
               () -> assertEquals("describeElementProperty", retained.path("tool").asText()),
               () -> assertEquals("httpMethodRestrict", retained.path("arguments").path("propertyPath").asText()),
-              () -> assertEquals(json.valueToTree(List.of("POST", "GET", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS")),
-                  retained.path("result").path("data").path("schema").findValue("enum"), packet),
+              () -> assertEquals(
+                  "^$|^(POST|GET|PUT|DELETE|PATCH|HEAD|OPTIONS)(,(POST|GET|PUT|DELETE|PATCH|HEAD|OPTIONS))*$",
+                  retained.path("result").path("data").path("schema").findValue("pattern").asText(), packet),
               () -> assertTrue(tools.containsAll(List.of("describeElementProperty", "captureGraphPatch")), tools.toString()));
         }, "captureGraphPatch", noop));
     var selected = RecoveryAcceptanceProvider.controlledPrefix(script, upstreamStreaming, 3, "read-loop", json);
@@ -131,7 +132,7 @@ class CompilerReadNoProgressProviderTest {
 
   private static void assertNativeResult(ChatRequest request, String id) {
     assertTrue(request.messages().stream().anyMatch(message -> message instanceof ToolExecutionResultMessage result
-        && id.equals(result.id()) && result.text().contains("httpMethodRestrict") && result.text().contains("enum")),
+        && id.equals(result.id()) && result.text().contains("httpMethodRestrict") && result.text().contains("pattern")),
         request.messages().toString());
   }
 }

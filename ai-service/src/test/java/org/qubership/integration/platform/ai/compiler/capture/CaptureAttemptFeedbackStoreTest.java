@@ -31,6 +31,37 @@ class CaptureAttemptFeedbackStoreTest {
     store = new CaptureAttemptFeedbackStore();
   }
 
+  @ParameterizedTest(name = "scope={0}, channel={1}, recorded={2}")
+  @CsvSource(value = {
+      "NULL|NULL|''",
+      "NULL|''|''",
+      "NULL|http|http",
+      "active|NULL|active",
+      "active|''|active",
+      "active|http|http"
+  }, delimiter = '|', nullValues = "NULL")
+  void typedPlanFeedbackUsesTheChannelCapabilityOrActiveScope(
+      String activeCapability, String channelCapability, String expectedCapability) {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var artifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
+    var sessions = new CompilationSessions(blobs, mapper, Clock.systemUTC());
+    var durable = new CaptureAttemptFeedbackStore(new ToolCallFingerprintStore(mapper, artifacts, sessions), artifacts, sessions);
+    if (activeCapability != null) {
+      durable.beginScope("chat", activeCapability, Map.of("source", "approved"));
+    }
+    var issues = List.of(new TypedIssue("UNKNOWN_ROLE", "/capture/endpoints/0/roleId", "Unknown role"));
+
+    durable.recordTypedPlanFailure("chat", channelCapability, CaptureFailureKind.VALIDATION,
+        CaptureFailureClass.CORRECTABLE, true, "Unknown role", issues);
+
+    var saved = artifacts.latest(sessions.active("chat"), CompilationArtifacts.Kind.CAPTURE_ATTEMPT_FEEDBACK).orElseThrow();
+    var observation = artifacts.payload(saved, CaptureAttemptFeedbackStore.Observation.class);
+    org.junit.jupiter.api.Assertions.assertAll(
+        () -> assertEquals(expectedCapability, observation.capabilityId()),
+        () -> assertEquals(issues, observation.feedback().issues()));
+  }
+
   @Test
   void optionalFailureCarriersPreserveLegacyNullSerializationAndRoundTripExactNativeData() throws Exception {
     var mapper = new ObjectMapper().findAndRegisterModules();

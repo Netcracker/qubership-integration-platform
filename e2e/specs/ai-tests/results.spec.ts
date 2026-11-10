@@ -192,71 +192,71 @@ test.afterEach(async () => {
   rmSync(directory, { recursive: true, force: true });
 });
 
-test(
-  "an agent run appears in the UI with separate failure and recovery details",
-  { tag: ["@ui", "@tier1"] },
-  async ({ page, request }) => {
-    const run = JSON.parse(
-      execFileSync(
-        "python3",
-        [
-          entry,
-          "--package",
-          join(directory, "package"),
-          "--store",
-          join(directory, "runs"),
-          "start",
-          "report-fixture",
-        ],
-        { encoding: "utf8" },
-      ),
-    );
-    await page.goto(url + "/#" + run.id);
-    await expect(
-      page.getByRole("heading", { name: "F001 · import-v2" }),
-    ).toBeVisible();
-    await expect(
-      page.getByText(
-        "<script>window.injected=true</script> Wrong specification version",
-        { exact: true },
-      ),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("heading", { name: "Root cause · UNKNOWN" }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("heading", { name: "Why recovery failed · HYPOTHESIS" }),
-    ).toBeVisible();
-    expect(await page.evaluate(() => "injected" in window)).toBe(false);
-    await page.reload();
-    await expect(
-      page.getByRole("heading", { name: "F001 · import-v2" }),
-    ).toBeVisible();
-    const response = await request.get(url + `/api/runs/${run.id}/report.md`);
-    expect(await response.text()).toContain("Recovery: FAILED");
-    const again = page.waitForResponse(
-      (response) =>
-        response.url() === url + "/api/runs" &&
-        response.request().method() === "POST",
-    );
-    await page.getByRole("button", { name: "Run again" }).click();
-    const next = await (await again).json();
-    expect(next.parentRunId).toBe(run.id);
-    expect(next.id).not.toBe(run.id);
-    await expect
-      .poll(
-        async () =>
-          (await (await request.get(url + `/api/runs/${next.id}`)).json())
-            .status,
-      )
-      .toBe("FAIL");
-    expect(
-      (await (await request.get(url + `/api/runs/${run.id}`)).json()).status,
-    ).toBe("FAIL");
-  },
-);
+test.describe("AI test results", () => {
+  test(
+    "shows failure and recovery details for an agent run",
+    async ({ page, request }) => {
+      const run = JSON.parse(
+        execFileSync(
+          "python3",
+          [
+            entry,
+            "--package",
+            join(directory, "package"),
+            "--store",
+            join(directory, "runs"),
+            "start",
+            "report-fixture",
+          ],
+          { encoding: "utf8" },
+        ),
+      );
+      await page.goto(url + "/#" + run.id);
+      await expect(
+        page.getByRole("heading", { name: "F001 · import-v2" }),
+      ).toBeVisible();
+      await expect(
+        page.getByText(
+          "<script>window.injected=true</script> Wrong specification version",
+          { exact: true },
+        ),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("heading", { name: "Root cause · UNKNOWN" }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("heading", { name: "Why recovery failed · HYPOTHESIS" }),
+      ).toBeVisible();
+      expect(await page.evaluate(() => "injected" in window)).toBe(false);
+      await page.reload();
+      await expect(
+        page.getByRole("heading", { name: "F001 · import-v2" }),
+      ).toBeVisible();
+      const response = await request.get(url + `/api/runs/${run.id}/report.md`);
+      expect(await response.text()).toContain("Recovery: FAILED");
+      const again = page.waitForResponse(
+        (response) =>
+          response.url() === url + "/api/runs" &&
+          response.request().method() === "POST",
+      );
+      await page.getByRole("button", { name: "Run again" }).click();
+      const next = await (await again).json();
+      expect(next.parentRunId).toBe(run.id);
+      expect(next.id).not.toBe(run.id);
+      await expect
+        .poll(
+          async () =>
+            (await (await request.get(url + `/api/runs/${next.id}`)).json())
+              .status,
+        )
+        .toBe("FAIL");
+      expect(
+        (await (await request.get(url + `/api/runs/${run.id}`)).json()).status,
+      ).toBe("FAIL");
+    },
+  );
 
-  test("repeats only the selected suites", { tag: ["@ui", "@tier1"] }, async ({ page, request }) => {
+  test("repeats only the selected suites", async ({ page, request }) => {
     const started = await request.post(url + "/api/runs", {
       data: { profile: "focused-fixture", suites: ["fixture-report"] },
     });
@@ -316,95 +316,93 @@ test(
       .toBe("FAIL");
     expect(readdirSync(directory)).toContain("unselected-ran");
   });
+  test(
+    "cancels a run and retains it in history",
+    async ({ page, request }) => {
+      await page.goto(url);
+      await page
+        .getByRole("combobox", { name: "Profile", exact: true })
+        .selectOption("cancel-fixture");
+      const started = page.waitForResponse(
+        (response) =>
+          response.url() === url + "/api/runs" &&
+          response.request().method() === "POST",
+      );
+      await page.getByRole("button", { name: "Start run", exact: true }).click();
+      const run = await (await started).json();
+      await expect
+        .poll(
+          async () =>
+            (await (await request.get(url + `/api/runs/${run.id}`)).json())
+              .tasks[0].status,
+        )
+        .toBe("RUNNING");
+      await page.getByRole("button", { name: "Cancel run" }).click();
+      await expect
+        .poll(
+          async () =>
+            (await (await request.get(url + `/api/runs/${run.id}`)).json())
+              .status,
+        )
+        .toBe("CANCELLED");
+      await page.reload();
+      await expect(
+        page.getByRole("navigation", { name: "Run history" }),
+      ).toContainText(run.id);
+      await expect(
+        page.getByRole("navigation", { name: "Run history" }),
+      ).toContainText("CANCELLED");
+    },
+  );
 
-test(
-  "a manual run can be cancelled and remains in history",
-  { tag: ["@ui", "@tier1"] },
-  async ({ page, request }) => {
-    await page.goto(url);
-    await page
-      .getByRole("combobox", { name: "Profile", exact: true })
-      .selectOption("cancel-fixture");
-    const started = page.waitForResponse(
-      (response) =>
-        response.url() === url + "/api/runs" &&
-        response.request().method() === "POST",
-    );
-    await page.getByRole("button", { name: "Start run", exact: true }).click();
-    const run = await (await started).json();
-    await expect
-      .poll(
-        async () =>
-          (await (await request.get(url + `/api/runs/${run.id}`)).json())
-            .tasks[0].status,
-      )
-      .toBe("RUNNING");
-    await page.getByRole("button", { name: "Cancel run" }).click();
-    await expect
-      .poll(
-        async () =>
-          (await (await request.get(url + `/api/runs/${run.id}`)).json())
-            .status,
-      )
-      .toBe("CANCELLED");
-    await page.reload();
-    await expect(
-      page.getByRole("navigation", { name: "Run history" }),
-    ).toContainText(run.id);
-    await expect(
-      page.getByRole("navigation", { name: "Run history" }),
-    ).toContainText("CANCELLED");
-  },
-);
-
-test(
-  "prepared recovery readiness appears in the UI and Kimi stays blocked without LLM authorization",
-  { tag: ["@ui", "@tier1"] },
-  async ({ page, request }) => {
-    const errors: string[] = [];
-    page.on("pageerror", (error) => errors.push(error.message));
-    await page.goto(url);
-    const profile = page.getByRole("combobox", {
-      name: "Profile",
-      exact: true,
-    });
-    await profile.selectOption("recovery-acceptance-check");
-    let response = page.waitForResponse(
-      (r) => r.url() === url + "/api/runs" && r.request().method() === "POST",
-    );
-    await page.getByRole("button", { name: "Start run", exact: true }).click();
-    const check = await (await response).json();
-    await expect
-      .poll(
-        async () =>
-          (await (await request.get(url + `/api/runs/${check.id}`)).json())
-            .status,
-      )
-      .toBe("PASS");
-    await expect(page.locator("#detail")).toContainText(
-      "prepared-acceptance-readiness",
-    );
-    await profile.selectOption("recovery-acceptance");
-    await page.getByLabel("Model / deployment identifier").fill("kimi");
-    response = page.waitForResponse(
-      (r) => r.url() === url + "/api/runs" && r.request().method() === "POST",
-    );
-    await page.getByRole("button", { name: "Start run", exact: true }).click();
-    const live = await (await response).json();
-    expect(live.status).toBe("BLOCKED");
-    expect(live.settings.model).toBe("kimi");
-    await expect(page.locator("#detail")).toContainText(
-      "LLM execution is disabled",
-    );
-    expect(
-      existsSync(
-        join(directory, "prepared-workspace/.dev/prepared/paid-command"),
-      ),
-    ).toBe(false);
-    await page.reload();
-    await expect(
-      page.getByRole("navigation", { name: "Run history" }),
-    ).toContainText(live.id);
-    expect(errors).toEqual([]);
-  },
-);
+  test(
+    "shows readiness and blocks unauthorized Kimi runs",
+    async ({ page, request }) => {
+      const errors: string[] = [];
+      page.on("pageerror", (error) => errors.push(error.message));
+      await page.goto(url);
+      const profile = page.getByRole("combobox", {
+        name: "Profile",
+        exact: true,
+      });
+      await profile.selectOption("recovery-acceptance-check");
+      let response = page.waitForResponse(
+        (r) => r.url() === url + "/api/runs" && r.request().method() === "POST",
+      );
+      await page.getByRole("button", { name: "Start run", exact: true }).click();
+      const check = await (await response).json();
+      await expect
+        .poll(
+          async () =>
+            (await (await request.get(url + `/api/runs/${check.id}`)).json())
+              .status,
+        )
+        .toBe("PASS");
+      await expect(page.locator("#detail")).toContainText(
+        "prepared-acceptance-readiness",
+      );
+      await profile.selectOption("recovery-acceptance");
+      await page.getByLabel("Model / deployment identifier").fill("kimi");
+      response = page.waitForResponse(
+        (r) => r.url() === url + "/api/runs" && r.request().method() === "POST",
+      );
+      await page.getByRole("button", { name: "Start run", exact: true }).click();
+      const live = await (await response).json();
+      expect(live.status).toBe("BLOCKED");
+      expect(live.settings.model).toBe("kimi");
+      await expect(page.locator("#detail")).toContainText(
+        "LLM execution is disabled",
+      );
+      expect(
+        existsSync(
+          join(directory, "prepared-workspace/.dev/prepared/paid-command"),
+        ),
+      ).toBe(false);
+      await page.reload();
+      await expect(
+        page.getByRole("navigation", { name: "Run history" }),
+      ).toContainText(live.id);
+      expect(errors).toEqual([]);
+    },
+  );
+});

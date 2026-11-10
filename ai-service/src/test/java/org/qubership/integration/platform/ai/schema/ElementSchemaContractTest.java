@@ -124,19 +124,22 @@ class ElementSchemaContractTest {
         .anyMatch("properties.idempotency.keyExpiry"::equals), result.toString());
   }
 
-  @Test
-  void keepsHintsAndStructuredValuesAcrossPropertyVariants() throws Exception {
+  @ParameterizedTest(name = "methods={0}")
+  @ValueSource(strings = {"GET", "GET,POST", ""})
+  void keepsHttpMethodStringPatternAndValues(String methods) throws Exception {
     var hint = mapper.readTree(schemas.describeElementProperty("http-trigger", "httpMethodRestrict"))
         .path("schema");
     assertEquals(2, hint.path("anyOf").size(), hint.toString());
-    var methods = mapper.readTree(schemas.describeElementProperty(
-        "http-trigger", "httpMethodRestrict.httpMethods")).path("schema");
-    assertEquals("array", methods.path("type").asText(), methods.toString());
-    Object value = schemas.coercePatchPropertyValue(
-        "http-trigger", "httpMethodRestrict", "{\"httpMethods\":[\"GET\"]}");
-    assertEquals(Map.of("httpMethods", java.util.List.of("GET")), value);
-    assertTrue(schemas.validateCapturePropertyValue(
-        "http-trigger", "httpMethodRestrict", mapper.valueToTree(value)).isEmpty());
+    for (var variant : hint.path("anyOf")) {
+      var methodSchema = variant.path("$refTarget").path("schema");
+      assertEquals("string", methodSchema.path("type").asText(), variant.toString());
+      assertEquals("^$|^(POST|GET|PUT|DELETE|PATCH|HEAD|OPTIONS)(,(POST|GET|PUT|DELETE|PATCH|HEAD|OPTIONS))*$",
+          methodSchema.path("pattern").asText(), variant.toString());
+    }
+    Object value = schemas.coercePatchPropertyValue("http-trigger", "httpMethodRestrict", methods);
+    assertEquals(methods, value);
+    assertEquals(java.util.Optional.empty(), schemas.validateCapturePropertyValue(
+        "http-trigger", "httpMethodRestrict", mapper.valueToTree(value)), "methods=" + methods);
   }
 
   @ParameterizedTest

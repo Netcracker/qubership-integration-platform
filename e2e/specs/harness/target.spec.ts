@@ -213,7 +213,7 @@ test.describe("target", () => {
         expect(lifecycle.length).toBeGreaterThan(0);
         for (const each of lifecycle) expect(each.metadata?.group, each.name).toBe("setup");
         const groups = Object.fromEntries(projects.map((each) => [each.name, each.metadata?.group ?? "product"]));
-        expect(groups).toMatchObject({ schema: "suite", harness: "suite", tooling: "setup", api: "product", ui: "product", vscode: "product" });
+        expect(groups).toMatchObject({ "ai-tests": "suite", schema: "suite", harness: "suite", tooling: "setup", api: "product", ui: "product", vscode: "product" });
       }
     });
 

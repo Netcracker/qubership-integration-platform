@@ -372,7 +372,7 @@ holds a micro domain's pod only because a failed micro case keeps the run's micr
 every tag comes from a closed list:
 
 - a component: `@catalog`, `@engine`, `@sessions`, `@testing-service`, or `@infra`. The cases of
-  the `ui`, `vscode`, `schema`, and `harness` projects carry none: the project is their component,
+  the `ai-tests`, `ui`, `vscode`, `schema`, and `harness` projects carry none: the project is their component,
   and the HTML report already names it;
 - `@slow`, for a case that needs more than 60 s;
 - `@classic-only`, for a case the micro projects leave out;
