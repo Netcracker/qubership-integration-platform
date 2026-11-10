@@ -776,6 +776,8 @@ export const elementRegistry: RegistryEntry[] = [
   { family: "service-call", kind: "axis", axisPath: "systemType", value: "EXTERNAL", status: "covered", tags: ENGINE },
   { family: "service-call", kind: "axis", axisPath: "systemType", value: "IMPLEMENTED", status: NOT_COVERED, reason: R_SERVICE_CALL_IMPLEMENTED, tags: ENGINE },
   { family: "service-call", kind: "behavior", behavior: "retry", status: "covered", tags: ENGINE },
+  { family: "service-call", kind: "behavior", behavior: "unhandled-response", status: "covered", tags: ENGINE },
+  { family: "service-call", kind: "behavior", behavior: "default-handler", status: "covered", tags: ENGINE },
   { family: "sftp-download", kind: "element", status: "covered", tags: ENGINE },
   { family: "sftp-trigger-2", kind: "element", status: "covered", tags: ENGINE },
   { family: "sftp-upload", kind: "element", status: "covered", tags: ENGINE },
