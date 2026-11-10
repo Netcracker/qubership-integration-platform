@@ -125,9 +125,6 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
     propertiesFilename: {
       "ui:widget": "hidden",
     },
-    errorThrowing: {
-      "ui:widget": "hidden",
-    },
     authorizationConfiguration: {
       type: {
         "ui:widget": "hidden",

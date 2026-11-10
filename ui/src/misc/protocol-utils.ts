@@ -15,6 +15,9 @@ const isAmqpProtocol = (value: string) =>
 const isHttpProtocol = (value: string) =>
   matchesProtocol(value, ["http", "soap"]);
 
+const isGraphqlProtocol = (value: string) =>
+  matchesProtocol(value, ["graphql"]);
+
 const isAsyncProtocol = (value: string) =>
   isKafkaProtocol(value) || isAmqpProtocol(value);
 
@@ -27,4 +30,5 @@ export {
   isHttpProtocol,
   isAsyncProtocol,
   isGrpcProtocol,
+  isGraphqlProtocol,
 };
