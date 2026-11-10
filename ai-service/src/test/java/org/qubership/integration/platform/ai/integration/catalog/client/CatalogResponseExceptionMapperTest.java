@@ -34,6 +34,7 @@ class CatalogResponseExceptionMapperTest {
   @AfterEach
   void clearRecordedFailures() {
     CatalogAuthenticationFailures.clear(CONVERSATION);
+    CatalogAccessDeniedFailures.clear(CONVERSATION);
     ToolSession.clear();
   }
 
@@ -88,6 +89,13 @@ class CatalogResponseExceptionMapperTest {
       assertFalse(CatalogAuthenticationFailures.isTurnBearerUnauthorized(forbidden));
       assertFalse(CatalogAuthenticationFailures.isTurnBearerUnauthorized(missing));
       assertTrue(CatalogAuthenticationFailures.recordedFor(CONVERSATION).isEmpty());
+      assertTrue(CatalogAccessDeniedFailures.isTurnBearerAccessDenied(forbidden));
+      assertFalse(CatalogAccessDeniedFailures.isTurnBearerAccessDenied(missing));
+      CatalogAccessDeniedFailures.RecordedRejection rejection =
+          CatalogAccessDeniedFailures.recordedFor(CONVERSATION).orElseThrow();
+      assertEquals(403, rejection.status());
+      assertTrue(rejection.technicalDetails().contains("403"));
+      assertTrue(rejection.technicalDetails().contains("forbidden"));
     }
   }
 

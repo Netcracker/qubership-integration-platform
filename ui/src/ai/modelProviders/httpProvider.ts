@@ -1,5 +1,6 @@
 import { AiModelProvider } from "./AiModelProvider.ts";
 import {
+  ChatFailureClass,
   ChatRequest,
   ChatResponse,
   ChatMessage,
@@ -58,6 +59,14 @@ function getApiErrorMessage(data: unknown): string | undefined {
   }
   const maybe = data as { error?: unknown };
   return typeof maybe.error === "string" ? maybe.error : undefined;
+}
+
+function classifyStreamStartFailure(
+  status: number,
+): ChatFailureClass | undefined {
+  if (status === 403) return "access-denied";
+  if (status === 401) return "session-expired";
+  return undefined;
 }
 
 function getBearerHeader(
@@ -135,6 +144,15 @@ export class HttpAiModelProvider implements AiModelProvider {
 
       if (!response.ok || !response.body) {
         const text = await response.text().catch(() => "");
+        const failureClass = classifyStreamStartFailure(response.status);
+        if (failureClass) {
+          onChunk({
+            type: "error",
+            errorMessage: text.trim() || `HTTP ${response.status}`,
+            failureClass,
+          });
+          return;
+        }
         throw new Error(
           text || `Streaming request failed with status ${response.status}`,
         );

@@ -6,6 +6,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import java.util.Optional;
 import java.util.concurrent.CompletionException;
 import org.eclipse.microprofile.faulttolerance.exceptions.TimeoutException;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogAccessDeniedFailures;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogNonRetryableResponseException;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogRestSupport;
 
@@ -18,6 +19,9 @@ public class KnownFailureMapper {
 
   public static final String CATALOG_TIMEOUT_MESSAGE =
       "Couldn't finish this catalog request. The catalog did not respond in time. Try again.";
+
+  public static final String CATALOG_ACCESS_DENIED_MESSAGE =
+      CatalogAccessDeniedFailures.ACCESS_DENIED_MESSAGE;
 
   private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -36,6 +40,9 @@ public class KnownFailureMapper {
 
   private KnownFailure mapCatalogRefusal(
       CatalogNonRetryableResponseException refused, CatalogOperation operation) {
+    if (refused.status() == CatalogAccessDeniedFailures.FORBIDDEN_STATUS) {
+      return new KnownFailure(CATALOG_ACCESS_DENIED_MESSAGE, catalogDiagnostic(refused));
+    }
     String prefix = "Couldn't " + operation.verb();
     String body = CatalogRestSupport.readResponseBodySnippet(refused.getResponse());
     if (body == null || body.isBlank()) {
@@ -105,5 +112,11 @@ public class KnownFailureMapper {
       return error.getClass().getName();
     }
     return error.getClass().getName() + ": " + message;
+  }
+
+  private static String catalogDiagnostic(CatalogNonRetryableResponseException refused) {
+    String detail = diagnostic(refused);
+    String body = refused.bodySnippet();
+    return body == null || body.isBlank() ? detail : detail + " — " + body.trim();
   }
 }

@@ -1,6 +1,8 @@
 import { describe, it, expect } from "@jest/globals";
 import type { ChatMessage } from "../../../src/ai/modelProviders/types.ts";
 import {
+  ACCESS_DENIED_FAILURE_SUMMARY,
+  SESSION_EXPIRED_FAILURE_SUMMARY,
   TURN_FAILURE_SUMMARY,
   appendTurnFailure,
   applyStreamingDoneMessages,
@@ -99,6 +101,51 @@ describe("appendTurnFailure", () => {
     );
     expect(next[next.length - 1]?.content).toContain(
       "The decision card above is still valid.",
+    );
+  });
+});
+
+describe("classified turn failures", () => {
+  it("should show its own access-denied summary and no reload hint even when the card is stale", () => {
+    const message = buildTurnFailureMessage(
+      "You don't have permission to perform this action in the catalog",
+      "stale",
+    );
+
+    expect(message.content).toBe(ACCESS_DENIED_FAILURE_SUMMARY);
+    expect(message.content).not.toContain("AI service failed");
+    expect(message.content).not.toContain("Reload this conversation");
+    expect(message.detail).toBe(
+      "You don't have permission to perform this action in the catalog",
+    );
+  });
+
+  it("should show the session-expired summary without the generic wording", () => {
+    const message = buildTurnFailureMessage(
+      "HTTP 401",
+      "stale",
+      "session-expired",
+    );
+
+    expect(message.content).toBe(SESSION_EXPIRED_FAILURE_SUMMARY);
+    expect(message.content).not.toContain("AI service failed");
+    expect(message.content).not.toContain("Reload this conversation");
+    expect(message.detail).toBe("HTTP 401");
+  });
+
+  it("should not append a reload hint for a classified in-stream failure", () => {
+    const messages: ChatMessage[] = [{ role: "user", content: "deploy it" }];
+
+    const next = appendTurnFailure(
+      messages,
+      "You don't have permission to perform this action in the catalog",
+      undefined,
+      "stale",
+    );
+
+    expect(next[next.length - 1]?.content).toBe(ACCESS_DENIED_FAILURE_SUMMARY);
+    expect(next[next.length - 1]?.content).not.toContain(
+      "Reload this conversation",
     );
   });
 });

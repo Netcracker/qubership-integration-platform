@@ -21,11 +21,16 @@ public final class CatalogResponseExceptionMapper implements ResponseExceptionMa
         LOG.warnf("Catalog client error HTTP %d body=%s", status, bodySnippet);
       }
       boolean turnBearer = false;
-      if (status == CatalogAuthenticationFailures.UNAUTHORIZED_STATUS) {
+      if (status == CatalogAuthenticationFailures.UNAUTHORIZED_STATUS
+          || status == CatalogAccessDeniedFailures.FORBIDDEN_STATUS) {
         String conversationId = ToolSession.resolveConversationId();
         turnBearer = conversationId != null;
         if (turnBearer) {
-          CatalogAuthenticationFailures.record(conversationId, status, bodySnippet);
+          if (status == CatalogAuthenticationFailures.UNAUTHORIZED_STATUS) {
+            CatalogAuthenticationFailures.record(conversationId, status, bodySnippet);
+          } else {
+            CatalogAccessDeniedFailures.record(conversationId, status, bodySnippet);
+          }
         }
       }
       return new CatalogNonRetryableResponseException(response, bodySnippet, turnBearer);

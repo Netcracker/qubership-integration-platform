@@ -211,6 +211,20 @@ creation is a new chat request, so it carries that request's bearer. A permanent
 failure remains the case another create attempt cannot lift.
 _Avoid_: repair allowance, permanent environment failure, waiting in the turn for a new access token
 
+**Session expired**:
+A catalog HTTP 401 on a call made with the turn bearer. The UI renews the token silently: the
+stream carries the token-expired step, the client posts a fresh token, and the user sees nothing.
+It is never shown as an error and never opens a permission message.
+_Avoid_: permission denied, access denied, a visible session error
+
+**Access denied**:
+A catalog HTTP 403 on a call made with the turn bearer. The turn ends at once with the fixed
+message "You don't have permission to perform this action in the catalog" and the usual terminal
+frame; the model does not continue or paraphrase it. No renew is triggered. The raw catalog
+response stays in the diagnostic detail. The chat request itself rejected with HTTP 403 before the
+stream starts gets the shorter generic message without naming the catalog.
+_Avoid_: authentication failure, session expired, role names in user-facing text
+
 **Causal reopen window** (decided):
 Causal reopen runs only before any materializer has written to the catalog. A failure at or after
 materialization is outside this feature: the model does not reopen the plan and write again on its

@@ -92,6 +92,22 @@ class KnownFailureMapperTest {
   }
 
   @Test
+  void catalog403MapsToTheFixedPermissionMessageForAnyOperation() {
+    KnownFailure snapshot =
+        mapper.tryMap(catalog(403, "{\"errorMessage\":\"forbidden\"}"), CatalogOperation.SNAPSHOT)
+            .orElseThrow();
+    KnownFailure deploy =
+        mapper.tryMap(catalog(403, "{\"errorMessage\":\"forbidden\"}"), CatalogOperation.DEPLOY)
+            .orElseThrow();
+
+    assertEquals(KnownFailureMapper.CATALOG_ACCESS_DENIED_MESSAGE, snapshot.safeText());
+    assertEquals(KnownFailureMapper.CATALOG_ACCESS_DENIED_MESSAGE, deploy.safeText());
+    assertTrue(snapshot.diagnosticDetail().contains("403"));
+    assertTrue(snapshot.diagnosticDetail().contains("forbidden"));
+    assertFalse(snapshot.safeText().contains("forbidden"));
+  }
+
+  @Test
   void catalog400MissingBodyIsShortRefusalWithoutRawDump() {
     CatalogNonRetryableResponseException refused = catalog400("");
 
@@ -114,8 +130,12 @@ class KnownFailureMapperTest {
   }
 
   private static CatalogNonRetryableResponseException catalog400(String json) {
+    return catalog(400, json);
+  }
+
+  private static CatalogNonRetryableResponseException catalog(int status, String json) {
     Response response =
-        Response.status(400)
+        Response.status(status)
             .type("application/json")
             .entity(json.getBytes(StandardCharsets.UTF_8))
             .build();
