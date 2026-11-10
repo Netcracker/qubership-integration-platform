@@ -58,6 +58,24 @@ class V109RevertMigrationTest {
     }
 
     @Test
+    void writesEmptyAfterWhenMissing() throws Exception {
+        ObjectNode result = migration.revert(chain(
+                "[{\"id\":\"1\",\"type\":\"service-call\",\"properties\":{}}]"));
+
+        assertTrue(firstProperties(result).get("errorThrowing").asBoolean());
+        assertEquals(MAPPER.readTree("[]"), firstProperties(result).get("after"));
+    }
+
+    @Test
+    void writesEmptyAfterWhenNull() throws Exception {
+        ObjectNode result = migration.revert(chain(
+                "[{\"id\":\"1\",\"type\":\"service-call\",\"properties\":{\"after\":null}}]"));
+
+        assertTrue(firstProperties(result).get("errorThrowing").asBoolean());
+        assertEquals(MAPPER.readTree("[]"), firstProperties(result).get("after"));
+    }
+
+    @Test
     void removesVersion109() throws Exception {
         ObjectNode result = migration.revert(chain(
                 "[{\"id\":\"1\",\"type\":\"service-call\",\"properties\":{\"after\":[]}}]"));

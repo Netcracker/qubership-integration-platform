@@ -8,7 +8,8 @@ import static org.qubership.integration.platform.io.readers.migrations.common.Mi
 
 /**
  * Writes {@code errorThrowing} back to every Service Call, so an installation without migration 109 behaves the
- * same: the call rethrows exactly when no item of {@code after} has the code {@code default}. Runs before
+ * same: the call rethrows exactly when no item of {@code after} has the code {@code default}. A missing or
+ * {@code null} {@code after} becomes {@code []}. Runs before
  * {@link V108RevertMigration}, while the chain fields still live inside {@code content}.
  */
 @Component
@@ -38,6 +39,10 @@ public class V109RevertMigration implements RevertMigration {
         if (type != null && "service-call".equals(type.asText())
                 && element.get("properties") instanceof ObjectNode properties) {
             properties.put("errorThrowing", !hasDefaultHandler(properties.get("after")));
+            // An older template renders the <choice>, and so honors errorThrowing, only when "after" is present.
+            if (properties.path("after").isMissingNode() || properties.get("after").isNull()) {
+                properties.putArray("after");
+            }
         }
         element.path("children").forEach(V109RevertMigration::revertElement);
     }
