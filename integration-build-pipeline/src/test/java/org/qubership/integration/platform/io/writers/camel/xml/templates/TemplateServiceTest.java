@@ -254,14 +254,14 @@ public class TemplateServiceTest {
                         "/testData/output/builder/templates/service_call_multi_response_handlers.xml"
                 ),
                 Arguments.of(
-                        "HTTP Service Call element without response handlers",
-                        "/testData/input/builder/templates/service_call_http_no_after.yml",
-                        "/testData/output/builder/templates/service_call_http_no_after.xml"
+                        "Service Call element without response handlers",
+                        "/testData/input/builder/templates/service_call_no_after.yml",
+                        "/testData/output/builder/templates/service_call_no_after.xml"
                 ),
                 Arguments.of(
-                        "HTTP Service Call element with null response handlers",
-                        "/testData/input/builder/templates/service_call_http_after_null.yml",
-                        "/testData/output/builder/templates/service_call_http_after_null.xml"
+                        "Service Call element with null response handlers",
+                        "/testData/input/builder/templates/service_call_after_null.yml",
+                        "/testData/output/builder/templates/service_call_after_null.xml"
                 ),
                 Arguments.of(
                         "Service Call element with the Default handler",
