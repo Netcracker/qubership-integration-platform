@@ -18,7 +18,9 @@ This type of logs is being produced by Cloud Integration Platform in a **stdout*
 
 **Message format:**
 
-CIP Microservice log can be produced either in `json` (default) or `text` format (configurable via ```LOG_FORMAT``` environment parameter).
+`LOG_FORMAT` selects the microservice log format for the Engine, Micro-Engine, Runtime Catalog, and Sessions Management: `json` (default) or `text`.
+
+The testing service uses `CIP_TESTING_LOG_FORMAT`. See [Configuration](#configuration) for service-specific settings.
 
 Message consists from two different parts:
 
@@ -53,7 +55,12 @@ When **Session log details** is set to **Senders** or **Full** on the chain [Log
 
 #### Value Length and Padding
 
-In both formats, the Engine and the Micro-Engine limit the length of the logged exchange body, headers, and properties. In `json` format, these are the `exchange_body`, `exchange_headers`, and `exchange_properties` fields, including those of session step entries. A value longer than `LOG_FIELDS_MAX_SIZE` plus 3 characters is cut to its first `LOG_FIELDS_MAX_SIZE` characters, followed by `...`. To log longer values, raise the limit, see [Configuration](#configuration).
+Where the limit applies, values longer than value of `LOG_FIELDS_MAX_SIZE` plus 3 characters are cut to the first `LOG_FIELDS_MAX_SIZE` characters, followed by `...`:
+
+> ⚠️ Warning
+> - In `text` format, error messages, failed HTTP operations, and outbound service-call requests logged with external service details bypass this limit.
+> - In any log format, messages written by **Log Record** elements or custom scripts are not truncated.
+
 
 Apart from these fields, the formats differ:
 
@@ -787,7 +794,8 @@ Chain-specific log level can be settled during the [chain deployment](../../01__
 
 Microservice logs are configured with the parameters below:
 
-| Environment Parameter  | Mandatory | Default Value | Description                                                                                                                                                                                                                                                                | Sample  |
-|:-----------------------|:----------|:--------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:--------|
-| LOG\_FORMAT            | O         | json          | Format of the microservice logs: `json` or `text`. Applies to all CIP microservices. See [Microservice Logs](#microservice-logs) for the differences between the formats.                                                                                                  | `text`  |
-| LOG\_FIELDS\_MAX\_SIZE | O         | 4096          | Maximum number of characters kept from the logged exchange body, headers, and properties. Applies to the Engine and the Micro-Engine. A value longer than this number plus 3 characters is cut to this length and followed by `...`. A negative value turns the limit off. | `16384` |
+| Environment Parameter     | Mandatory | Default Value | Description                                                                                                                                                                                                                                                                                                                                             | Sample  |
+|:--------------------------|:----------|:--------------|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:--------|
+| LOG\_FORMAT               | O         | json          | Format of the microservice logs for the Engine, Micro-Engine, Runtime Catalog, and Sessions Management: `json` or `text`. See [Microservice Logs](#microservice-logs) for the differences between the formats.<br><br>ℹ️ For the Micro-Engine, set `LOG_FORMAT` to the intended value when building the application, and use the same value at runtime. | `text`  |
+| CIP\_TESTING\_LOG\_FORMAT | O         | json          | Testing service log format: `json` or `text`. Overrides `log.format` in the configuration file, `application.yaml` by default.                                                                                                                                                                                                                          | `text`  |
+| LOG\_FIELDS\_MAX\_SIZE    | O         | 4096          | Maximum number of characters kept from the logged exchange body, headers, and properties in the Engine and Micro-Engine. See [Value Length and Padding](#value-length-and-padding) for scope and exceptions. A value longer than this number plus 3 characters is cut to this length and followed by `...`. A negative value turns the limit off.       | `16384` |

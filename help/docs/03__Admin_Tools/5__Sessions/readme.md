@@ -106,25 +106,43 @@ Please refer to [logging page] for more details regarding data storage.
 
 Session logs are being captured as per [logging settings](../../01__Chains/5__Logging/readme.md).
 
-Kafka streaming of sessions is switched on in the Engine and Micro-Engine with the parameters below. The Engine reads these parameters at startup. The Micro-Engine reads `OPENSEARCH_KAFKA_ENABLED` when it is built, so it is described separately below.
+**Kafka streaming of session**s is switched on in the Engine and Micro-Engine with the parameters below. The Engine reads these parameters at startup. The Micro-Engine reads `OPENSEARCH_KAFKA_ENABLED` when the application is built. The broker and topic settings apply to standalone session writers; a standalone Micro-Engine also requires the channel configuration shown below.
 
 | Environment Parameter                 | Mandatory | Default Value | Description                                                                                                                                                                                                                                                                           |
 |:--------------------------------------|:----------|:--------------|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | OPENSEARCH\_KAFKA\_ENABLED            | O         | false         | When `true`, the Engine sends session elements to the Kafka topic instead of writing them to OpenSearch. When `false`, the Engine writes them to OpenSearch directly, through an in-memory queue.<br><br>ℹ️ For the Micro-Engine, `OPENSEARCH_KAFKA_ENABLED` is a build-time setting. |
-| OPENSEARCH\_KAFKA\_BOOTSTRAP\_SERVERS | O         | kafka:9092    | Kafka bootstrap servers.                                                                                                                                                                                                                                                              |
-| OPENSEARCH\_KAFKA\_TOPIC              | O         | elements      | Kafka topic that receives the session data.                                                                                                                                                                                                                                           |
+| OPENSEARCH\_KAFKA\_BOOTSTRAP\_SERVERS | O         | kafka:9092    | Kafka bootstrap servers for the standalone session writer.                                                                                                                                                                                                                            |
+| OPENSEARCH\_KAFKA\_TOPIC              | O         | elements      | Kafka topic that receives session data from the standalone session writer.                                                                                                                                                                                                            |
 
-> ⚠️ With `OPENSEARCH_KAFKA_ENABLED=true`, the Engine no longer writes sessions to OpenSearch, and the **Sessions** pages read sessions only from OpenSearch. Before you enable it, make sure that:
-> - a consumer that reads the topic and indexes session elements into OpenSearch is deployed and running (CIP does not include one);
-> - the topic set in `OPENSEARCH_KAFKA_TOPIC` exists in Kafka (the Engine does not create it).
+**For a standalone Micro-Engine in production**, configure the outgoing `sessions` channel in the application configuration. The following example uses `application.properties` format and binds the channel to the broker and topic parameters above:
+
+```properties
+mp.messaging.outgoing.sessions.enabled=true
+mp.messaging.outgoing.sessions.connector=smallrye-kafka
+mp.messaging.outgoing.sessions.bootstrap.servers=${cip.opensearch.kafka-client.bootstrap-servers}
+mp.messaging.outgoing.sessions.topic=${cip.opensearch.kafka-client.topic}
+mp.messaging.outgoing.sessions.value.serializer=io.quarkus.kafka.client.serialization.ObjectMapperSerializer
+```
+
+The built-in broker and topic bindings exist only in `application-development.yml`. Setting `OPENSEARCH_KAFKA_BOOTSTRAP_SERVERS` and `OPENSEARCH_KAFKA_TOPIC` alone does not configure the production channel.
+
+**For MaaS-backed session writers**, identify the destination through MaaS before enabling streaming:
+
+- **Engine:** inspect the MaaS producer definition selected by `cip.opensearch.kafka-client.maas-producer-name` (default `opensearch-kafka-producer`) to identify its broker and topic.
+- **Micro-Engine:** resolve the topic through MaaS using the configured classifier. Its name is set by `OPENSEARCH_KAFKA_MAAS_CLASSIFIER_NAME` (default `opensearch.sessions.queue`), and its namespace comes from `cloud.microservice.namespace`. When `OPENSEARCH_KAFKA_MAAS_CLASSIFIER_IS_TENANT=true`, the classifier also includes `tenant.default.id`. Use the broker connection and physical topic name returned by MaaS.
+
+> ⚠️ With Kafka streaming enabled, the Engine and Micro-Engine send session elements to Kafka instead of writing them to OpenSearch. The **Sessions** pages read sessions only from OpenSearch. Before enabling streaming, make sure that:
+>
+> - a consumer reads from the same broker and topic as the session writer and indexes session elements into OpenSearch (CIP does not include one);
+> - the destination topic exists in Kafka (standalone session writers do not create it).
+>
+> For MaaS-backed writers, use the resolved MaaS destination for these checks; `OPENSEARCH_KAFKA_TOPIC` does not select that destination.
 >
 > Without the consumer, new sessions do not appear on the **Sessions** pages.
 
 To stream sessions through Kafka and remove the warning from the **Sessions** page:
 
-1. When the prerequisites above are met, enable Kafka streaming in each engine type you deploy:
-   - **Engine:** set `OPENSEARCH_KAFKA_ENABLED` to `true` in the deployment, and set the bootstrap servers and topic if the defaults do not match your Kafka.
-   - **Micro-Engine:** build the Micro-Engine image with `OPENSEARCH_KAFKA_ENABLED=true` set in the build environment. The build includes either the Kafka writer or the direct OpenSearch writer, and setting the variable on an already built image does not change which one runs. The published image is built with the default `false`.
+1. Set `OPENSEARCH_KAFKA_ENABLED` to `true`:
 2. Set `opensearchKafkaEnabled` to `true` in the UI configuration, in one of these places:
    - the `config.json` file served with the UI;
    - the `window.CIP_UI_CONFIG` object;
