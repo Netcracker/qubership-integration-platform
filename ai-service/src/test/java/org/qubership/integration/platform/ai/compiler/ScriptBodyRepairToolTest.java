@@ -812,7 +812,8 @@ class ScriptBodyRepairToolTest {
     var shell = new groovy.lang.GroovyShell(new groovy.lang.Binding(java.util.Map.of("exchange", exchange)));
     shell.evaluate(bodies.get(saveId));
     exchange.in.body = java.util.Map.of("processInstanceId", "WRONG_RESPONSE");
-    assertEquals(java.util.Map.of("processId", "ORIGINAL"), shell.evaluate(bodies.get("response")));
+    assertEquals(MAPPER.valueToTree(java.util.Map.of("processId", "ORIGINAL")),
+        MAPPER.readTree((String) shell.evaluate(bodies.get("response"))));
     assertEquals(graph, planStore.get(CONVERSATION_ID).orElseThrow());
   }
 
@@ -855,8 +856,9 @@ class ScriptBodyRepairToolTest {
             .property()
             .value();
     var source = new java.util.LinkedHashMap<String, Object>(); source.put("orderId", "ORIGINAL");
-    assertEquals(java.util.Map.of("orderId", "ORIGINAL"), new groovy.lang.GroovyShell(
-        new groovy.lang.Binding(java.util.Map.of("exchange", new MappingExchange(200, source)))).evaluate(script));
+    assertEquals(MAPPER.valueToTree(java.util.Map.of("orderId", "ORIGINAL")), MAPPER.readTree((String)
+        new groovy.lang.GroovyShell(new groovy.lang.Binding(
+            java.util.Map.of("exchange", new RetainingExchange(source)))).evaluate(script)));
     assertFalse(script.contains("headers"));
   }
 

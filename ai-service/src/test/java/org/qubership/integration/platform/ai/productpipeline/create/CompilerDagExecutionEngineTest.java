@@ -1168,7 +1168,8 @@ class CompilerDagExecutionEngineTest {
     when(skillRegistry.require("cip-script-generator")).thenReturn(executor);
     var mapped = engineWithMappingPipeline();
     var failure = assertThrows(org.qubership.integration.platform.ai.plan.mapping.MappingContractBlockedException.class,
-        () -> executeCompleteTaskDag(mapped, conversationId, dagWithScriptGenerator()));
+        () -> executeCompleteTaskDag(mapped, conversationId, dagWithScriptGenerator(),
+            completeTaskBrief().withFacts(List.of())));
     assertEquals(List.of("SCRIPT_AUTHORITY_UNSUPPORTED"), failure.findings().stream()
         .map(PlanValidationFinding::code).toList());
     verify(executor, never()).run(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());

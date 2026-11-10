@@ -319,7 +319,8 @@ class RequirementSourceReviewProviderTest {
   }
 
   private String arguments(List<RequirementAnalysisCapture.SourceOmission> omissions) throws Exception {
-    return json.writeValueAsString(Map.of("capture", new RequirementAnalysisCapture("Greetings",
+    return json.copy().setSerializationInclusion(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+        .writeValueAsString(Map.of("capture", new RequirementAnalysisCapture("Greetings",
         List.of("GET /greetings"), List.of(), "Return Hello world!", List.of(), List.of(), omissions)));
   }
 

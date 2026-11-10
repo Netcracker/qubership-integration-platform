@@ -147,9 +147,16 @@ class CompilerSchemaDetailProviderTest {
     assertEquals("type", branches.get(2).path("required").get(0).asText());
     assertEquals("groovy", branches.get(2).at("/allOf/0/$refTarget/schema/properties/exportFileExtension/const").asText());
     JsonNode methods = payload(result(request, "method-detail").text()).at("/data/schema");
-    var expected = json.valueToTree(List.of("POST", "GET", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"));
-    assertTrue(methods.findValues("enum").contains(expected), methods.toString());
-    assertTrue(methods.findValues("required").stream().anyMatch(keys -> keys.toString().contains("httpMethods")));
+    var patterns = methods.findValues("pattern");
+    assertFalse(patterns.isEmpty(), methods.toString());
+    for (var pattern : patterns) {
+      for (String allowed : List.of("", "POST", "GET", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS", "POST,GET")) {
+        assertTrue(allowed.matches(pattern.asText()), () -> allowed + " must match " + pattern);
+      }
+      for (String rejected : List.of("TRACE", "POST;GET", "GET,")) {
+        assertFalse(rejected.matches(pattern.asText()), () -> rejected + " must not match " + pattern);
+      }
+    }
   }
 
   private JsonNode payload(String value) {

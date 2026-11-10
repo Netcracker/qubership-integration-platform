@@ -64,7 +64,7 @@ class ChainSemanticMappingPlacementInvestigationTest {
   }
 
   @Test
-  void retentionAndRequestMappingShareOneScriptWithoutLosingBehavior() {
+  void retentionUsesAProcessingScriptBesideItsNativeRequestMapping() {
     RequirementBrief original = brief();
     List<RequirementFact> facts = new ArrayList<>(original.facts());
     facts.add(new RequirementFact(
@@ -77,14 +77,27 @@ class ChainSemanticMappingPlacementInvestigationTest {
             new CapturedOperation("mapper-1", "script", List.of("fact-script"))),
         capture(false).edges());
 
-    var revision = adapter.adapt(merged, "run-combined-retention", approved, CONTRACT);
+    var mergedRevision = adapter.adapt(merged, "run-combined-retention", approved, CONTRACT);
+    IllegalArgumentException combinedBehavior = assertThrows(IllegalArgumentException.class,
+        () -> new DefaultChainSemanticRevisionValidator().validate(mergedRevision, CONTRACT, approved));
+    assertTrue(combinedBehavior.getMessage().contains("retain-input"), combinedBehavior.getMessage());
+
+    var edges = new ArrayList<>(capture(false).edges());
+    edges.removeFirst();
+    edges.addFirst(new CapturedEdge("retain-input-script", "map-start", null, null, null, null, null, null));
+    edges.addFirst(new CapturedEdge("task-start", "retain-input-script", null, null, null, null, null, null));
+    var separate = ChainSemanticCaptureFixtures.rockyCapture(List.of(
+        new CapturedOperation("retain-input-script", "script", List.of("retain-input")),
+        new CapturedOperation("map-start", "script", List.of()),
+        new CapturedOperation("mapper-1", "script", List.of("fact-script"))), edges);
+    var revision = adapter.adapt(separate, "run-separate-retention", approved, CONTRACT);
 
     assertDoesNotThrow(() ->
         new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT, approved));
-    assertEquals(5, revision.nodes().size());
-    assertEquals(4, revision.executionEdges().size());
+    assertEquals(6, revision.nodes().size());
+    assertEquals(5, revision.executionEdges().size());
     assertEquals(List.of("retain-input"), revision.nodes().stream()
-        .filter(node -> node.nodeId().equals("map-start"))
+        .filter(node -> node.nodeId().equals("retain-input-script"))
         .findFirst().orElseThrow().provenance().sourceFactIds());
     assertEquals(List.of(START_MAP, RESULT_MAP), revision.mappingBodies(approved).stream()
         .map(MappingIntent::mappingIntentId).toList());

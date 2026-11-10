@@ -186,8 +186,8 @@ class StageQuestionRepairFeedbackProviderTest {
   @Test
   void deletedQuestionUpdateReportsItsAbsentIdentityBeforeTheRequiredQuestionIsAddedAgain() throws Exception {
     String chat = "deleted-question-feedback-" + UUID.randomUUID();
-    String source = SOURCE + " Add one required HTTP header, but I have not chosen its name. Ask for that name.";
-    String headerQuestion = "What is the required HTTP header name?";
+    String source = SOURCE + " Accept a structured request body, but I have not chosen its schema. Ask for that schema.";
+    String schemaQuestion = "What is the request body schema?";
     var input = conversations.archive().beginInput(chat, source, null);
     conversations.archive().resolveInput(chat, input, source);
     drafts.beginTurn(chat, source);
@@ -200,31 +200,31 @@ class StageQuestionRepairFeedbackProviderTest {
         "The company recommends RBAC for requested NONE; the author has not chosen an option.", null,
         new RequirementPolicyConflict(CompilerSecurityValidator.EXTERNAL_RBAC_POLICY, "accessControlType", "NONE", "RBAC",
             "security-choice", null), null);
-    var header = new FactInput("required-header", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
-        "Add one required HTTP header; the author has not chosen its name.");
+    var body = new FactInput("request-body", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+        "Accept a structured request body; the author has not chosen its schema.");
     var security = new QuestionInput("security-choice", List.of("entry"), QUESTION,
         new AuthorQuestionEvidence("entry", "accessControlType", AuthorQuestionEvidence.Kind.POLICY_CHOICE,
             List.of(input.turnId())));
-    var missingHeader = new QuestionInput("header-name", List.of("entry"), headerQuestion,
-        new AuthorQuestionEvidence("entry", "headerName", AuthorQuestionEvidence.Kind.MISSING_VALUE,
+    var missingSchema = new QuestionInput("body-schema", List.of("entry"), schemaQuestion,
+        new AuthorQuestionEvidence("entry", "requestSchema", AuthorQuestionEvidence.Kind.MISSING_VALUE,
             List.of(input.turnId())));
     var initial = new DraftInput(new FlowInput(List.of(new InteractionInput("entry", Direction.INBOUND,
-        "Caller", "POST /question-feedback", null, null, null)), List.of()), List.of(endpoint, policy, header),
+        "Caller", "POST /question-feedback", null, null, null)), List.of()), List.of(endpoint, policy, body),
         List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.POST,
-            "/question-feedback", null, null, null)), List.of(security, missingHeader), new DraftSettings(false, null));
+            "/question-feedback", null, null, null)), List.of(security, missingSchema), new DraftSettings(false, null));
     try (var ignored = ToolSession.open(chat)) {
       var captured = json.readTree(tools.captureRequirementDraft(initial));
       assertTrue(captured.path("accepted").asBoolean(), captured.toString());
-      var removed = json.readTree(tools.updateRequirementDraft(questionChanges(List.of(), List.of(), List.of("header-name"))));
+      var removed = json.readTree(tools.updateRequirementDraft(questionChanges(List.of(), List.of(), List.of("body-schema"))));
       assertTrue(removed.path("accepted").asBoolean(), removed.toString());
       assertEquals(json.valueToTree(List.of(security)), removed.path("draft").path("openQuestions"));
     }
     var currentReference = drafts.latestRevision(chat).orElseThrow().reference();
     JsonNode sourceBefore = json.valueToTree(conversations.archive().read(chat));
     var limitsBefore = limits();
-    var rejectedUpdate = questionChanges(List.of(), List.of(missingHeader), List.of());
+    var rejectedUpdate = questionChanges(List.of(), List.of(missingSchema), List.of());
     var restored = new DraftInput(initial.flow(), initial.facts(), initial.capabilities(),
-        List.of(security, missingHeader), initial.settings());
+        List.of(security, missingSchema), initial.settings());
     var script = new ScriptedStreamingChatModel(
         Turn.tool("update-deleted-question", request -> {
           assertEquals(currentReference, drafts.latestRevision(chat).orElseThrow().reference());
@@ -243,9 +243,9 @@ class StageQuestionRepairFeedbackProviderTest {
           var issue = result.path("issues").get(0);
           assertEquals("CONFLICTING_EDIT", issue.path("code").asText());
           assertEquals("/changes/updateQuestions/0", issue.path("path").asText());
-          assertEquals("header-name", issue.path("entityId").asText());
+          assertEquals("body-schema", issue.path("entityId").asText());
           String message = issue.path("message").asText();
-          assertTrue(message.startsWith("Rejected update identity=header-name for questions:"
+          assertTrue(message.startsWith("Rejected update identity=body-schema for questions:"
               + " this identity is absent from the current draft."), message);
           assertTrue(message.contains("Current questions identities at this edit step: [security-choice]"), message);
           assertTrue(message.contains("Use addQuestions only if this question is still required."), message);
@@ -263,17 +263,17 @@ class StageQuestionRepairFeedbackProviderTest {
           assertEquals(sourceBefore, json.valueToTree(conversations.archive().read(chat)));
           assertEquals(initial.facts(), drafts.get(chat).orElseThrow().authoredDraft().facts());
         }, "updateRequirementDraft", json.writeValueAsString(Map.of("changes",
-            questionChanges(List.of(missingHeader), List.of(), List.of())))),
+            questionChanges(List.of(missingSchema), List.of(), List.of())))),
         Turn.tool("stay-for-author-choices", request -> {
           var result = lastTool(request);
           assertTrue(result.path("accepted").asBoolean(), result.toString());
           assertTrue(result.path("changed").asBoolean());
           assertEquals(json.valueToTree(restored), result.path("draft"));
-          assertTrue(drafts.validateAuthorQuestions(chat).isEmpty());
+          assertEquals(List.of(), drafts.validateAuthorQuestions(chat));
         }, "finishRequirementDiscoveryTurn", "{\"directive\":\"STAY\"}"),
         Turn.text("normal-questions", request -> {
           assertTrue(lastTool(request, "finishRequirementDiscoveryTurn").path("accepted").asBoolean());
-        }, QUESTION + "\n" + headerQuestion));
+        }, QUESTION + "\n" + schemaQuestion));
     var outcome = execute(chat, Map.of("userText", source), script);
     assertEquals(4, script.requests().size(), "No additional provider dispatch is needed for the diagnostic.");
     assertEquals(StageOutcomeClass.NEEDS_INPUT, outcome.outcomeClass(), outcome.toString());

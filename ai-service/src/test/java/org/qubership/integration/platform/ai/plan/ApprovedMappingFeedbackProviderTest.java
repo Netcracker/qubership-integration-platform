@@ -69,16 +69,14 @@ class ApprovedMappingFeedbackProviderTest {
     var input = conversations.archive().beginInput(chat, source, null);
     conversations.archive().resolveInput(chat, input, source);
     var approved = typedParcelDraft();
-    if (corrected) {
-      when(schemas.load(anyString())).thenAnswer(call -> {
-        String operation = call.getArgument(0);
-        String body = operation.equals("op-ingress")
-            ? "{\"type\":\"object\",\"properties\":{\"parcel\":{\"type\":\"string\"}}}"
-            : "{\"type\":\"object\",\"properties\":{\"Receipt\":{\"type\":\"string\"}}}";
-        return new org.qubership.integration.platform.ai.plan.mapping.schema.OperationSchemaMaps(operation,
-            Map.of("application/json", json.readTree(body)), Map.of());
-      });
-    }
+    when(schemas.load(anyString())).thenAnswer(call -> {
+      String operation = call.getArgument(0);
+      String body = operation.equals("op-ingress")
+          ? "{\"type\":\"object\",\"properties\":{\"parcel\":{\"type\":\"string\"}}}"
+          : "{\"type\":\"object\",\"properties\":{\"Receipt\":{\"type\":\"string\"}}}";
+      return new org.qubership.integration.platform.ai.plan.mapping.schema.OperationSchemaMaps(operation,
+          Map.of("application/json", json.readTree(body)), Map.of());
+    });
     var approvedReference = artifacts.append(new AppendCommand(sessions.active(chat),
         CompilationArtifacts.Kind.REQUIREMENT_DRAFT, "2", "approved-mapping-fixture", "1",
         approved, List.of(), null)).reference();

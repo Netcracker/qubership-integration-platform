@@ -160,23 +160,23 @@
       {
         "sourceFactId": "init-fact",
         "polarity": "POSITIVE",
-        "kind": "BEHAVIOR",
+        "kind": "FIELD_MAPPING",
         "capabilityKey": "script",
-        "text": "Initialize the request."
+        "text": "Copy customerId from the HTTP input to customer.id in the first order request."
       },
       {
         "sourceFactId": "inventory-map-fact",
         "polarity": "POSITIVE",
-        "kind": "BEHAVIOR",
+        "kind": "FIELD_MAPPING",
         "capabilityKey": "script",
-        "text": "Convert the order result into an inventory reservation request."
+        "text": "Copy orderId from the first order response to parentOrderId in the second order request."
       },
       {
         "sourceFactId": "response-fact",
         "polarity": "POSITIVE",
-        "kind": "BEHAVIOR",
+        "kind": "FIELD_MAPPING",
         "capabilityKey": "script",
-        "text": "Build the HTTP response."
+        "text": "Copy orderId from the second order response to id in the HTTP response."
       }
     ],
     "entryPoints": [

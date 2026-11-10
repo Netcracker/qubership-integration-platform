@@ -15,7 +15,7 @@ class RequirementFactTest {
   void aLegacyHttpFactRemainsByteCompatibleWithoutInventingAMode() throws Exception {
     String legacy;
     try (var input = getClass().getResourceAsStream("/requirements/legacy-http-fact.json")) {
-      legacy = new String(input.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+      legacy = new String(input.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).stripTrailing();
     }
 
     var restored = mapper.readValue(legacy, RequirementFact.class);
