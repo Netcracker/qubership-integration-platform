@@ -254,6 +254,26 @@ public class TemplateServiceTest {
                         "/testData/output/builder/templates/service_call_multi_response_handlers.xml"
                 ),
                 Arguments.of(
+                        "HTTP Service Call element without response handlers",
+                        "/testData/input/builder/templates/service_call_http_no_after.yml",
+                        "/testData/output/builder/templates/service_call_http_no_after.xml"
+                ),
+                Arguments.of(
+                        "HTTP Service Call element with null response handlers",
+                        "/testData/input/builder/templates/service_call_http_after_null.yml",
+                        "/testData/output/builder/templates/service_call_http_after_null.xml"
+                ),
+                Arguments.of(
+                        "Service Call element with the Default handler",
+                        "/testData/input/builder/templates/service_call_default_handler_error_throwing_true.yml",
+                        "/testData/output/builder/templates/service_call_default_handler_error_throwing_true.xml"
+                ),
+                Arguments.of(
+                        "Service Call element with a single response handler object",
+                        "/testData/input/builder/templates/service_call_single_object_after.yml",
+                        "/testData/output/builder/templates/service_call_single_object_after.xml"
+                ),
+                Arguments.of(
                         "HTTP Trigger element with a chain call failure handler",
                         "/testData/input/builder/templates/http_trigger_chain_failure_chain_call.yml",
                         "/testData/output/builder/templates/http_trigger_chain_failure_chain_call.xml"

@@ -137,6 +137,12 @@
         </loop>
         <removeHeader name="CamelGraphQLQuery"/>
         <removeHeader name="CamelGraphQLVariables"/>
+        <choice>
+            <when>
+                <simple>${headers.CamelHttpResponseCode} range '400..599'</simple>
+                <process ref="throwCaughtExceptionProcessor"/>
+            </when>
+        </choice>
     </step>
     <removeHeader name="CamelHttpUri"/>
     <removeProperty name="serviceCallAddress"/>

@@ -509,8 +509,8 @@
         </doTry>
     {{/if-property}}
 
-    {{#if-property 'after' presented=''}}
-        <choice>
+    <choice>
+        {{#if-property 'after' presented=''}}
             {{#with-property 'after'}}
                 {{#if-property 'code' not-equals='default'}}
                     {{#if-property 'wildcard' equals='false'}}
@@ -592,16 +592,16 @@
                     </when>
                 {{/if-property}}
             {{/with-property}}
-            {{#if-property 'errorThrowing' equals='true'}}
-                <when>
-                    <simple>
-                        ${headers.CamelHttpResponseCode} range '400..599'
-                    </simple>
-                    <process ref="throwCaughtExceptionProcessor" />
-                </when>
-            {{/if-property}}
-        </choice>
-    {{/if-property}}
+        {{/if-property}}
+        {{#unless-default-handler}}
+            <when>
+                <simple>
+                    ${headers.CamelHttpResponseCode} range '400..599'
+                </simple>
+                <process ref="throwCaughtExceptionProcessor" />
+            </when>
+        {{/unless-default-handler}}
+    </choice>
 </step>
 
 <removeHeader name="CamelHttpUri"/>
