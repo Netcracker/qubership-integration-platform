@@ -298,6 +298,26 @@ public final class PublicCipKnowledgePackFixture {
           total_objects: 1
         """);
 
+    List<String> payload = List.of("capabilities/capability-catalog.yaml", "capabilities/capability-index.yaml",
+        "capabilities/capability-relations.yaml", "objects.jsonl");
+    StringBuilder payloadHashes = new StringBuilder();
+    for (String name : payload) {
+      if (!payloadHashes.isEmpty()) payloadHashes.append('\n');
+      payloadHashes.append(name).append(':').append(sha256(export.resolve(name)));
+    }
+    String digest = "sha256:" + HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+        .digest(payloadHashes.toString().getBytes(StandardCharsets.UTF_8)));
+    Path manifestFile = export.resolve("manifest.yaml");
+    write(manifestFile, Files.readString(manifestFile)
+        .replace("package_checksum:", "checksum_algorithm: rocky-export-v1\n  package_checksum:")
+        .replace("sha256:" + "a".repeat(64), digest));
+    Path certificateFile = export.resolve("runtime-certification.yaml");
+    write(certificateFile, Files.readString(certificateFile)
+        .replace("status: CERTIFIED", "status: CERTIFIED\n  profile: rocky-export-v1\n"
+            + "  manifest_sha256: " + sha256(manifestFile) + "\n"
+            + "  gates: {IR: PASS, CAPABILITIES: PASS, RELATIONS: PASS, EMBEDDINGS: PASS, LANCEDB: PASS, RETRIEVAL: PASS}")
+        .replace("sha256:" + "a".repeat(64), digest));
+
     List<String> checkedFiles =
         List.of(
             "manifest.yaml",

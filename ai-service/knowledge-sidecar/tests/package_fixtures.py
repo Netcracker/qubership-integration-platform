@@ -68,6 +68,30 @@ def rewrite_checksums(package: Path) -> None:
     )
 
 
+def refresh_fixture_certificate(package: Path) -> None:
+    names = sorted(
+        ["objects.jsonl", *(f"capabilities/{name}" for name in CAPABILITY_FILES)]
+    )
+    payload = "\n".join(
+        f"{name}:{_sha256((package / name).read_bytes())}" for name in names
+    )
+    checksum = "sha256:" + _sha256(payload.encode("utf-8"))
+    manifest_path = package / "manifest.yaml"
+    manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+    manifest["integrity"]["package_checksum"] = checksum
+    _write_yaml(manifest_path, manifest)
+    certificate_path = package / "runtime-certification.yaml"
+    certificate = json.loads(certificate_path.read_text(encoding="utf-8"))
+    certificate["certification"]["manifest_sha256"] = _sha256(
+        manifest_path.read_bytes()
+    )
+    certificate["certification"]["package"]["manifest_hash"] = checksum
+    certificate_path.write_text(
+        json.dumps(certificate, sort_keys=True), encoding="utf-8"
+    )
+    rewrite_checksums(package)
+
+
 def write_package(root: Path, *, key: str, object_id: str, alias: str) -> Path:
     package = root / key
     package.mkdir()
@@ -111,10 +135,16 @@ def write_package(root: Path, *, key: str, object_id: str, alias: str) -> Path:
     for name, payload in CAPABILITY_FILES.items():
         _write_yaml(package / "capabilities" / name, payload)
 
-    package_checksum = "sha256:" + _sha256(object_bytes)
+    names = sorted(
+        ["objects.jsonl", *(f"capabilities/{name}" for name in CAPABILITY_FILES)]
+    )
+    payload = "\n".join(
+        f"{name}:{_sha256((package / name).read_bytes())}" for name in names
+    )
+    package_checksum = "sha256:" + _sha256(payload.encode("utf-8"))
     manifest = {
         "manifest_schema": "1.0",
-        "product": "CIP",
+        "product": key,
         "knowledge_version": knowledge_version,
         "runtime_sdk_version": ">=1.0.0 <2.0",
         "provider": "lancedb",
@@ -123,19 +153,34 @@ def write_package(root: Path, *, key: str, object_id: str, alias: str) -> Path:
         "collections": {"Standard": 1},
         "total_objects": 1,
         "relations_count": 0,
-        "integrity": {"package_checksum": package_checksum},
+        "integrity": {
+            "package_checksum": package_checksum,
+            "checksum_algorithm": "rocky-export-v1",
+        },
     }
     _write_yaml(package / "manifest.yaml", manifest)
 
     certification = {
         "certification": {
             "status": "CERTIFIED",
+            "profile": "rocky-export-v1",
+            "manifest_sha256": _sha256((package / "manifest.yaml").read_bytes()),
+            "gates": {
+                name: "PASS"
+                for name in (
+                    "IR",
+                    "CAPABILITIES",
+                    "RELATIONS",
+                    "EMBEDDINGS",
+                    "LANCEDB",
+                    "RETRIEVAL",
+                )
+            },
             "pipeline_version": "1.0",
             "package": {
                 "key": f"{key}@{knowledge_version}",
                 "manifest_hash": package_checksum,
             },
-            "gates": {"QG-Q-01": "PASS"},
             "total_objects": 1,
         }
     }
@@ -196,7 +241,7 @@ def mutate_fixture(package: Path, mutation: str) -> None:
     elif mutation == "duplicate_id":
         row = (package / "objects.jsonl").read_bytes()
         (package / "objects.jsonl").write_bytes(row + row)
-        rewrite_checksums(package)
+        refresh_fixture_certificate(package)
     elif mutation == "malformed_canonical_ir":
         row = json.loads((package / "objects.jsonl").read_text())
         row["relations"] = [{"from": row["id"], "to": "CIP:RULE-000001"}]
@@ -204,6 +249,6 @@ def mutate_fixture(package: Path, mutation: str) -> None:
             json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n",
             encoding="utf-8",
         )
-        rewrite_checksums(package)
+        refresh_fixture_certificate(package)
     else:
         raise AssertionError(f"unknown fixture mutation: {mutation}")

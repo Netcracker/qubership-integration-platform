@@ -85,7 +85,36 @@ public final class CipKnowledgeExportValidator {
     if (!packageChecksum.equals(requiredText(certifiedPackage, "manifest_hash"))) {
       fail("Certification manifest hash does not match the package checksum");
     }
-
+    String algorithm = manifest.path("integrity").path("checksum_algorithm").asText("");
+    String profile = certification.path("profile").asText("");
+    if (!"rocky-export-v1".equals(algorithm) || !"rocky-export-v1".equals(profile)) {
+      fail("Unsupported knowledge certification profile");
+    }
+    if (Files.exists(root.resolve("lancedb"))) {
+      fail("Certified export must not contain an unbound LanceDB store");
+    }
+    if (!requiredText(certifiedPackage, "key").equals(
+        requiredText(manifest, "product") + "@" + requiredText(manifest, "knowledge_version"))) {
+      fail("Certification package identity does not match the manifest");
+    }
+    if (!checksums.get("manifest.yaml").equals(requiredText(certification, "manifest_sha256"))) {
+      fail("Certified manifest checksum does not match the contents");
+    }
+    for (String gate : List.of("IR", "CAPABILITIES", "RELATIONS", "EMBEDDINGS", "LANCEDB", "RETRIEVAL")) {
+      if (!"PASS".equals(certification.path("gates").path(gate).asText())) {
+        fail("Knowledge certification gate did not pass: " + gate);
+      }
+    }
+    String payload = java.util.stream.Stream.concat(CAPABILITY_FILES.stream(), java.util.stream.Stream.of("objects.jsonl"))
+        .sorted().map(name -> name + ":" + checksums.get(name))
+        .collect(java.util.stream.Collectors.joining("\n"));
+    try {
+      String actual = "sha256:" + HexFormat.of().formatHex(
+          MessageDigest.getInstance("SHA-256").digest(payload.getBytes(StandardCharsets.UTF_8)));
+      if (!actual.equals(packageChecksum)) fail("Certified package checksum does not match the contents");
+    } catch (NoSuchAlgorithmException error) {
+      throw new IllegalStateException(error);
+    }
     int totalObjects = requiredInt(manifest, "total_objects");
     if (requiredInt(certification, "total_objects") != totalObjects) {
       fail("Certification object count does not match the manifest");
