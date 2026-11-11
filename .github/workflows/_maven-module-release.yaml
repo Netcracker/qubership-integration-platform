@@ -247,11 +247,10 @@ jobs:
             # shellcheck disable=SC2086
             files="$POM $(bash scripts/sync-consumer-pins.sh "$SYNC_PROPERTY" "$RELEASE_VERSION" $SYNC_POMS | tr '\n' ' ')"
           fi
-          # The BOM lists the modules in QIP_BOM_ENTRIES at their project
-          # versions, so a listed module's entry moves with its <revision>. The
-          # BOM itself and ai-service have no entry.
-          . scripts/modules.sh
-          if [[ " ${QIP_BOM_ENTRIES[*]} " == *" $MODULE "* ]]; then
+          # The BOM lists every Maven module at its project version, so this
+          # module's entry moves with its <revision>. The BOM has no entry for
+          # itself.
+          if [ "$MODULE" != bom ]; then
             files="$files $(bash scripts/sync-bom-entry.sh "$MODULE" "$RELEASE_VERSION")"
           fi
           # shellcheck disable=SC2086

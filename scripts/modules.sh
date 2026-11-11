@@ -56,6 +56,7 @@ QIP_BOM_ENTRIES=(
     engine
     runtime-catalog
     sessions-management
+    ai-service
 )
 
 # Modules release-all releases and the release manifest reports, in output order.

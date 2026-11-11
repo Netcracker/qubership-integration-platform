@@ -66,6 +66,11 @@
         <artifactId>qip-sessions-management</artifactId>
         <version>1.7.1${changelist}</version>
       </dependency>
+      <dependency>
+        <groupId>org.qubership.integration.platform</groupId>
+        <artifactId>qip-ai-service</artifactId>
+        <version>1.6.1${changelist}</version>
+      </dependency>
     </dependencies>
   </dependencyManagement>
 
