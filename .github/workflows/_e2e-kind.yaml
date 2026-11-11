@@ -73,6 +73,8 @@ jobs:
       ARTIFACT_SUFFIX: ${{ inputs.pull-request && format('-{0}', inputs.name) || '' }}
       # A .e2e-k8s- name, so "Upload the report" carries the log.
       BOOTSTRAP_LOG: ${{ github.workspace }}/e2e/.e2e-k8s-bootstrap.log
+      # Avoid plaintext conntrack tuple collisions (istio/ztunnel#2227).
+      E2E_ZTUNNEL_ORIG_SRC: "false"
     steps:
       - name: Checkout
         id: checkout
