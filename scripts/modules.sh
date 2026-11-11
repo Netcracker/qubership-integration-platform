@@ -32,6 +32,7 @@ QIP_PARENT_CHILDREN=(
     sessions-management/pom.xml
     engine/pom.xml
     micro-engine/pom.xml
+    ai-service/pom.xml
     parents/quarkus/pom.xml
 )
 

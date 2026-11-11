@@ -290,6 +290,7 @@ class SetPlatformVersionTest(RepositoryCopy):
                 "sessions-management/pom.xml",
                 "engine/pom.xml",
                 "micro-engine/pom.xml",
+                "ai-service/pom.xml",
             },
         )
         check = self.run_script("check-version-invariants.sh")

@@ -117,7 +117,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:5d4e83ec706bf614991b6ca4ce825eb41bbbaf590aa22477fbe4ccdf54079bb9
+  content_hash: sha256:7b4f1bc1317c2c002f454e37501d8e1810c67a460d75756fadfa2c4f22ac9222
 - kind: project-relative
   target: claude
   value: .claude/agents/npm-verifier.md
@@ -252,7 +252,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:34de7b79447eb9d597a3de6f69400cd0b60c613c2a7a65e8b09eb3519cf2acd8
+  content_hash: sha256:353ec36f39ffb01d61919a269bbf840f6f9312db3ea1ff2008f6049a043017be
 - kind: project-relative
   target: claude
   value: .claude/rules/npm-workspaces.md
@@ -990,7 +990,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:ab9890a2608d59eb62c14506da0b915eafb1ed211d66d8bdc153603cbb8a7f63
+  content_hash: sha256:33959c9b49658f8976eefa61fed7568737175913eaedc104833fec5f39d6f686
 - kind: project-relative
   target: codex
   value: .codex/agents/npm-verifier.toml
@@ -1008,7 +1008,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:5d4e83ec706bf614991b6ca4ce825eb41bbbaf590aa22477fbe4ccdf54079bb9
+  content_hash: sha256:7b4f1bc1317c2c002f454e37501d8e1810c67a460d75756fadfa2c4f22ac9222
 - kind: project-relative
   target: cursor
   value: .cursor/agents/npm-verifier.md
@@ -1143,7 +1143,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:a66a83fad35a5e92d926adb3483208050592ae0b1cefb23bddd86a2ae3cd5052
+  content_hash: sha256:e43415f080bb596756ef73a0b34e5e9d251eb749d017d4feeecf685e4523b4f5
 - kind: project-relative
   target: cursor
   value: .cursor/rules/npm-workspaces.mdc
@@ -1908,7 +1908,7 @@ local_deployed_file_hashes:
   .agents/skills/ui-component-patterns/SKILL.md: sha256:60c050e39f166029918494debb59479e0b5476a2cd2f85df54bca8093c6740c7
   .agents/skills/ui-core-development/SKILL.md: sha256:e2ae18d6f5b2d56b107b3cb10bdb648cf26af83afbbc1af273d5c9889dfddbf1
   .agents/skills/vscode-extension-testing/SKILL.md: sha256:293cee3bd45c6662ac7ca79bebceee1370284a28c01e9e0f1ade34cd0da8db41
-  .claude/agents/maven-verifier.md: sha256:5d4e83ec706bf614991b6ca4ce825eb41bbbaf590aa22477fbe4ccdf54079bb9
+  .claude/agents/maven-verifier.md: sha256:7b4f1bc1317c2c002f454e37501d8e1810c67a460d75756fadfa2c4f22ac9222
   .claude/agents/npm-verifier.md: sha256:cd94b9228627e8910fad60be98b52d9138afd475780ba7c6bce4b5bcd7b61012
   .claude/rules/ai-service.md: sha256:e8dcd513adf2d7d6eb08b26a9d718cd25674925665978699b1afe06b4f4f8eea
   .claude/rules/change-description.md: sha256:6d991481aa9b9c4a4bbdc4eba31ed68730c1aed0d4c64b778dda740d12bb2829
@@ -1921,7 +1921,7 @@ local_deployed_file_hashes:
   .claude/rules/engine.md: sha256:3692f2f72eb760bb2abff2c4fc52d065e197d9381271aa1447220dee898fb09a
   .claude/rules/infrastructure.md: sha256:d73fc1116ebaf3bec00275d2d9335f468314713c468aee2bef4a242bf6e403cf
   .claude/rules/micro-engine.md: sha256:192cc7fe4c07cb167bb317ce67a719ac2f440ca5570c0572f8aaebccf811c465
-  .claude/rules/monorepo.md: sha256:34de7b79447eb9d597a3de6f69400cd0b60c613c2a7a65e8b09eb3519cf2acd8
+  .claude/rules/monorepo.md: sha256:353ec36f39ffb01d61919a269bbf840f6f9312db3ea1ff2008f6049a043017be
   .claude/rules/npm-workspaces.md: sha256:3f8361e6ca7d8051574472264b59e66fda55fe703af800ffcfc685343248c6b2
   .claude/rules/runtime-catalog.md: sha256:4e11c201176cf1ba2c2b84cbcec1d69681a639f032649331a5716919dfe2cf47
   .claude/rules/schemas.md: sha256:3c7ecfdc30381309f79bef7715f458c838452c8a485db85a2e96b17dd66dc46a
@@ -1971,9 +1971,9 @@ local_deployed_file_hashes:
   .claude/skills/ui-component-patterns/SKILL.md: sha256:60c050e39f166029918494debb59479e0b5476a2cd2f85df54bca8093c6740c7
   .claude/skills/ui-core-development/SKILL.md: sha256:e2ae18d6f5b2d56b107b3cb10bdb648cf26af83afbbc1af273d5c9889dfddbf1
   .claude/skills/vscode-extension-testing/SKILL.md: sha256:293cee3bd45c6662ac7ca79bebceee1370284a28c01e9e0f1ade34cd0da8db41
-  .codex/agents/maven-verifier.toml: sha256:ab9890a2608d59eb62c14506da0b915eafb1ed211d66d8bdc153603cbb8a7f63
+  .codex/agents/maven-verifier.toml: sha256:33959c9b49658f8976eefa61fed7568737175913eaedc104833fec5f39d6f686
   .codex/agents/npm-verifier.toml: sha256:e2caee9c2a430b11eae819408a61a318b72c87e74eeeaecd466e119a66a445bf
-  .cursor/agents/maven-verifier.md: sha256:5d4e83ec706bf614991b6ca4ce825eb41bbbaf590aa22477fbe4ccdf54079bb9
+  .cursor/agents/maven-verifier.md: sha256:7b4f1bc1317c2c002f454e37501d8e1810c67a460d75756fadfa2c4f22ac9222
   .cursor/agents/npm-verifier.md: sha256:cd94b9228627e8910fad60be98b52d9138afd475780ba7c6bce4b5bcd7b61012
   .cursor/rules/ai-service.mdc: sha256:f8f42d2b098907b1169308132e7c680fd5f1b37724dcd10828666368a4ae85fa
   .cursor/rules/change-description.mdc: sha256:6e83d1ab1b11c03329b515b86f1a9e2e4df8fa6c970ffbdd73a346dd80c18ffa
@@ -1986,7 +1986,7 @@ local_deployed_file_hashes:
   .cursor/rules/engine.mdc: sha256:ea62cf3608f3fb9bbeb66b7d1a5b32c47a879b9e3ae6da0acbe32b28062fd60f
   .cursor/rules/infrastructure.mdc: sha256:d77869a78d94aafb2aca5a01945cc1f7f87342947125eab4ede87a7ef4620f3b
   .cursor/rules/micro-engine.mdc: sha256:d5acdd196fc6e1d32d77c96f81412a0bc35cf44b674a1cffb4d1de684cdd7d66
-  .cursor/rules/monorepo.mdc: sha256:a66a83fad35a5e92d926adb3483208050592ae0b1cefb23bddd86a2ae3cd5052
+  .cursor/rules/monorepo.mdc: sha256:e43415f080bb596756ef73a0b34e5e9d251eb749d017d4feeecf685e4523b4f5
   .cursor/rules/npm-workspaces.mdc: sha256:45b6f4193027005bc12cffdd494c0ca9f6467a2ca3816022b88f30806ee95921
   .cursor/rules/runtime-catalog.mdc: sha256:b07c4adc4a788d55ca78861e8dd4fd218a10ea76a02b566d77dbace1c7559d28
   .cursor/rules/schemas.mdc: sha256:ff9b680b2f05673ab0ae512a6fe106fa8ce2ac27cbab39a34ce1d3a91c64db55

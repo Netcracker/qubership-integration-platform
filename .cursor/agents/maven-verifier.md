@@ -48,7 +48,7 @@ Decide how much to build:
   compiles against the library version in `~/.m2`, not against the change.
 - **`parents/` or `checkstyle/` touched** — these change every downstream module. Verify the
   modules that matter to the caller with `-am`, which builds the parent POMs and `checkstyle`
-  from the checkout. ai-service has no `<parent>`, so a `parents/` change does not reach it.
+  from the checkout.
 - **Several modules touched** — pass them together: `-pl engine,runtime-catalog`.
 
 ## 2. Run the check
