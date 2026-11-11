@@ -32,7 +32,9 @@ public class A2aBearerRequiredRouteFilter {
                 return;
               }
               String path = ctx.request().path();
-              if (path == null || !requiresCallerBearer(path)) {
+              String method = ctx.request().method() == null ? null : ctx.request().method().name();
+              String contentType = ctx.request().getHeader("Content-Type");
+              if (path == null || !requiresCallerBearer(method, path, contentType)) {
                 ctx.next();
                 return;
               }
@@ -49,6 +51,14 @@ public class A2aBearerRequiredRouteFilter {
   }
 
   static boolean requiresCallerBearer(String path) {
+    return requiresCallerBearer(null, path, null);
+  }
+
+  /**
+   * The A2A SDK also accepts JSON-RPC on {@code POST /}. Only a JSON POST to the root is an
+   * invocation; the agent card, GETs, and other root requests stay open.
+   */
+  static boolean requiresCallerBearer(String method, String path, String contentType) {
     if ("/.well-known/agent-card.json".equals(path)
         || path.endsWith("/.well-known/agent-card.json")) {
       return false;
@@ -56,6 +66,16 @@ public class A2aBearerRequiredRouteFilter {
     if ("/rpc".equals(path) || path.endsWith("/rpc")) {
       return true;
     }
+    if (isRootJsonRpc(method, path, contentType)) {
+      return true;
+    }
     return A2aDisabledRouteFilter.isA2aPath(path);
+  }
+
+  private static boolean isRootJsonRpc(String method, String path, String contentType) {
+    return "/".equals(path)
+        && "POST".equalsIgnoreCase(method)
+        && contentType != null
+        && contentType.toLowerCase(java.util.Locale.ROOT).startsWith("application/json");
   }
 }

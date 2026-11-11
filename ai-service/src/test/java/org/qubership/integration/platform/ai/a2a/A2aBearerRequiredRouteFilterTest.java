@@ -16,4 +16,18 @@ class A2aBearerRequiredRouteFilterTest {
   void messageSendRequiresBearer() {
     assertTrue(A2aBearerRequiredRouteFilter.requiresCallerBearer("/message:send"));
   }
+
+  @Test
+  void rootJsonRpcPostRequiresBearer() {
+    assertTrue(
+        A2aBearerRequiredRouteFilter.requiresCallerBearer(
+            "POST", "/", "application/json"));
+  }
+
+  @Test
+  void rootGetAndNonJsonPostDoNotRequireBearer() {
+    assertFalse(A2aBearerRequiredRouteFilter.requiresCallerBearer("GET", "/", null));
+    assertFalse(
+        A2aBearerRequiredRouteFilter.requiresCallerBearer("POST", "/", "text/plain"));
+  }
 }

@@ -104,6 +104,44 @@ class UserTokenStoreTest {
   }
 
   @Test
+  void resolvesTheTokenOfTheOwningConversation() {
+    long exp = Instant.now().getEpochSecond() + 600;
+    String token = jwt(exp, "alice");
+    UserTokenStore.put("conv-owner", token);
+    try (ToolSession.Handle ignored = ToolSession.open("conv-clean", "conv-owner")) {
+      assertEquals(Optional.of(token), UserTokenStore.current());
+      assertEquals(Optional.of(token), UserTokenStore.currentUsable(0));
+    } finally {
+      UserTokenStore.remove("conv-owner", token);
+    }
+  }
+
+  @Test
+  void waitsForRenewalOnTheOwningConversation() throws Exception {
+    long now = Instant.now().getEpochSecond();
+    String expired = jwt(now - 60, "alice");
+    String fresh = jwt(now + 600, "alice");
+    UserTokenStore.put("conv-owner", expired);
+    try (ToolSession.Handle ignored = ToolSession.open("conv-clean", "conv-owner")) {
+      Thread renew =
+          new Thread(
+              () -> {
+                try {
+                  Thread.sleep(300);
+                } catch (InterruptedException interrupted) {
+                  return;
+                }
+                UserTokenStore.renew("conv-owner", fresh);
+              });
+      renew.start();
+      assertEquals(Optional.of(fresh), UserTokenStore.currentUsable(5000));
+      renew.join();
+    } finally {
+      UserTokenStore.remove("conv-owner", fresh);
+    }
+  }
+
+  @Test
   void returnsEmptyWhenNobodyRenewsExpiredToken() {
     String expired = jwt(Instant.now().getEpochSecond() - 60);
     ToolSession.bind("conv-exp");

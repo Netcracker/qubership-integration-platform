@@ -1,6 +1,7 @@
 {{- if .Values.global.qip.ai.enabled }}
 {{- $a2aEnabled := .Values.global.qip.ai.a2aEnabled | default "false" | toString }}
 {{- $a2aPublicBaseUrl := .Values.global.qip.ai.a2aPublicBaseUrl | default "" | toString }}
+{{- $authRequired := .Values.global.qip.ai.authRequired | default "false" | toString }}
 {{- if and (eq $a2aEnabled "true") (eq $a2aPublicBaseUrl "") }}
 {{- fail "Set global.qip.ai.a2aPublicBaseUrl before enabling A2A (global.qip.ai.a2aEnabled=true)." }}
 {{- end }}
@@ -20,4 +21,6 @@ data:
   QIP_AI_A2A_ENABLED: {{ $a2aEnabled | quote }}
   # Public Agent Card URL advertised on supportedInterfaces[].url (required before enabling A2A).
   QIP_AI_A2A_PUBLIC_BASE_URL: {{ $a2aPublicBaseUrl | quote }}
+  # Callers present their own bearer. Off only for this identity-provider-less dev stack.
+  QIP_AI_AUTH_REQUIRED: {{ $authRequired | quote }}
 {{- end }}

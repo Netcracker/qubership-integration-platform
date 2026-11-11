@@ -249,17 +249,23 @@ public class CompilerSkillRuntime {
 
   public Multi<ChatEvent> runStreaming(SkillRunContext context, SkillWorkspace workspace, String capabilityId) {
     String conversationId = context.conversationId();
-    // Nested open/close restores any outer turn binding so post-stream catalog reads keep the
-    // caller's bearer (see CatalogBearerTokenFilter + UserTokenStore).
-    ToolSession.Handle session = ToolSession.open(conversationId);
-    Context toolSessionContext = ToolSession.attachedContext();
     MDC.put(CompilerSkillMdc.CAPABILITY_ID, capabilityId);
+    try (ToolSession.Handle ignored = ToolSession.open(conversationId)) {
+      return startStreaming(context, workspace, capabilityId, conversationId);
+    } finally {
+      MDC.remove(CompilerSkillMdc.CAPABILITY_ID);
+    }
+  }
+
+  private Multi<ChatEvent> startStreaming(
+      SkillRunContext context, SkillWorkspace workspace, String capabilityId, String conversationId) {
+    // The binding reaches the agent subscription through propagateBinding; this thread only builds
+    // the stream and must be left exactly as it was found.
+    Context toolSessionContext = ToolSession.attachedContext();
     clearCaptureState(conversationId, capabilityId);
 
     CompilerSkillDocument document = documentService.loadByCapabilityId(capabilityId);
     if (!document.supported()) {
-      session.close();
-      MDC.remove(CompilerSkillMdc.CAPABILITY_ID);
       return Multi.createFrom()
           .item(ChatEvent.token("Compiler skill is not supported: " + capabilityId));
     }
@@ -326,7 +332,6 @@ public class CompilerSkillRuntime {
                 .onTermination()
                 .invoke(
                     () -> {
-                      session.close();
                       MDC.remove(CompilerSkillMdc.CAPABILITY_ID);
                       HttpTriggerCaptureSession.unbind(conversationId);
                       if (route.captureTool() == CaptureTool.CAPTURE_CONFIGURED_TRIGGER_SET) {

@@ -9,13 +9,11 @@ import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import org.eclipse.microprofile.faulttolerance.Retry;
-import org.eclipse.microprofile.faulttolerance.Timeout;
 import org.eclipse.microprofile.faulttolerance.exceptions.TimeoutException;
 import org.eclipse.microprofile.rest.client.annotation.RegisterProvider;
 import org.junit.jupiter.api.AfterEach;
@@ -157,9 +155,6 @@ class CatalogResponseExceptionMapperTest {
     assertTrue(
         Arrays.stream(clientType.getAnnotationsByType(RegisterProvider.class))
             .anyMatch(provider -> provider.value().equals(CatalogResponseExceptionMapper.class)));
-    Timeout timeout = clientType.getAnnotation(Timeout.class);
-    assertEquals(10, timeout.value());
-    assertEquals(ChronoUnit.SECONDS, timeout.unit());
     Retry retry = clientType.getAnnotation(Retry.class);
     assertEquals(2, retry.maxRetries());
     assertTrue(Arrays.asList(retry.retryOn()).contains(WebApplicationException.class));

@@ -15,20 +15,13 @@ public class CatalogBearerTokenFilter implements ClientRequestFilter {
   private static final String CFG_TOKEN = "qip.ai.catalog.token";
 
   private final String token;
-  /** Negative means use {@link UserTokenStore#currentUsable()} default wait. */
-  private final long renewWaitMillis;
 
   public CatalogBearerTokenFilter() {
     this(ConfigProvider.getConfig().getOptionalValue(CFG_TOKEN, String.class).orElse(null));
   }
 
   CatalogBearerTokenFilter(String token) {
-    this(token, -1L);
-  }
-
-  CatalogBearerTokenFilter(String token, long renewWaitMillis) {
     this.token = token == null || token.isBlank() ? null : token.trim();
-    this.renewWaitMillis = renewWaitMillis;
   }
 
   @Override
@@ -36,21 +29,28 @@ public class CatalogBearerTokenFilter implements ClientRequestFilter {
     if (requestContext.getHeaders().containsKey(HttpHeaders.AUTHORIZATION)) {
       return;
     }
-    // Inside a turn: caller's usable token only — never fall back to the service identity.
-    // Exception: auth is switched off (local stack) and the turn carries no token at all.
-    if (ToolSession.resolveConversationId() != null
-        && (AuthPolicy.required() || UserTokenStore.current().isPresent())) {
-      String user =
-          (renewWaitMillis < 0
-                  ? UserTokenStore.currentUsable()
-                  : UserTokenStore.currentUsable(renewWaitMillis))
-              .orElseThrow(() -> new NotAuthorizedException("Bearer"));
-      requestContext.getHeaders().putSingle(HttpHeaders.AUTHORIZATION, "Bearer " + user);
+    // The renewal wait happens in AwaitUsableTurnBearerInterceptor, before the timed HTTP call.
+    if (AuthPolicy.required()) {
+      requestContext
+          .getHeaders()
+          .putSingle(HttpHeaders.AUTHORIZATION, "Bearer " + usableTurnBearer());
+      return;
+    }
+    // Auth off: a turn that carries a bearer still uses it; otherwise the service identity serves
+    // the local stack.
+    if (ToolSession.resolveConversationId() != null && UserTokenStore.current().isPresent()) {
+      requestContext
+          .getHeaders()
+          .putSingle(HttpHeaders.AUTHORIZATION, "Bearer " + usableTurnBearer());
       return;
     }
     if (token == null) {
       return;
     }
     requestContext.getHeaders().putSingle(HttpHeaders.AUTHORIZATION, "Bearer " + token);
+  }
+
+  private static String usableTurnBearer() {
+    return UserTokenStore.currentUsable(0).orElseThrow(() -> new NotAuthorizedException("Bearer"));
   }
 }

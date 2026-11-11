@@ -5,7 +5,6 @@ import io.smallrye.mutiny.infrastructure.Infrastructure;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.qubership.integration.platform.ai.chat.ToolSession;
-import org.qubership.integration.platform.ai.chat.UserTokenStore;
 import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 import java.util.function.Supplier;
 import org.qubership.integration.platform.ai.chat.attachment.UploadedSpecAttachment;
@@ -69,6 +68,7 @@ public class CatalogMutationGateway {
   public Uni<ApiHubSpecificationImportResult> importApiHubSpecification(
       String conversationId, ApiHubRequirementRefs refs, String systemType) {
     return onWorker(
+        conversationId,
         () -> apiHubSpecificationImportService.importFromRefs(conversationId, refs, systemType));
   }
 
@@ -80,18 +80,28 @@ public class CatalogMutationGateway {
   public Uni<UploadedSpecImportOutcome> importUploadedSpec(
       String conversationId, UploadedSpecAttachment attachment, String systemType) {
     return onWorker(
+        conversationId,
         () -> uploadedSpecAutoImporter.importSpec(conversationId, attachment, systemType));
   }
 
   private static <T> Uni<T> onWorker(Supplier<T> work) {
+    return onWorker(null, work);
+  }
+
+  private static <T> Uni<T> onWorker(String conversationId, Supplier<T> work) {
     var context = ToolInvocationSink.attachedContext();
     var sessionContext = ToolSession.attachedContext();
-    return Uni.createFrom().item(() ->
-        ToolSession.callInBoundContext(sessionContext, () -> {
-          // Waits here, outside the client's @Timeout, for a renewed token when the user's has expired.
-          UserTokenStore.currentUsable();
-          return ToolInvocationSink.callInBoundContext(context, work);
-        }))
+    return Uni.createFrom()
+        .item(
+            () -> {
+              if (conversationId != null && !conversationId.isBlank()) {
+                try (ToolSession.Handle ignored = ToolSession.open(conversationId)) {
+                  return ToolInvocationSink.callInBoundContext(context, work);
+                }
+              }
+              return ToolSession.callInBoundContext(
+                  sessionContext, () -> ToolInvocationSink.callInBoundContext(context, work));
+            })
         .runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
   }
 }

@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import jakarta.ws.rs.NotAuthorizedException;
 import jakarta.ws.rs.core.Response;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,6 +28,8 @@ import org.qubership.integration.platform.ai.harness.PlannerHarnessService;
 import org.qubership.integration.platform.ai.harness.SkillHarnessRequest;
 import org.qubership.integration.platform.ai.harness.SkillHarnessResponse;
 import org.qubership.integration.platform.ai.harness.SkillHarnessService;
+import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.chat.UserTokenStore;
 import org.qubership.integration.platform.ai.harness.SkillHarnessStatus;
 
 class SkillHarnessResourceTest {
@@ -35,6 +38,7 @@ class SkillHarnessResourceTest {
   private static final String SKILL_ID = "cip-trigger-generator";
   private static final String PROMPT = "Configure the HTTP trigger on this chain.";
   private static final String CONVERSATION_ID = "conv-harness-1";
+  private static final String AUTH = "Bearer test-harness-caller";
 
   private SkillHarnessService harnessService;
   private ChainPatchHarnessService chainPatchHarnessService;
@@ -62,10 +66,10 @@ class SkillHarnessResourceTest {
     resource = new SkillHarnessResource(
         harnessService, chainPatchHarnessService, plannerHarnessService, executorHarnessService, false);
 
-    assertThrows(jakarta.ws.rs.NotFoundException.class, () -> resource.run(null));
-    assertThrows(jakarta.ws.rs.NotFoundException.class, () -> resource.runPlanner(null));
-    assertThrows(jakarta.ws.rs.NotFoundException.class, () -> resource.runExecutor(null));
-    assertThrows(jakarta.ws.rs.NotFoundException.class, () -> resource.runChainPatch(null));
+    assertThrows(jakarta.ws.rs.NotFoundException.class, () -> resource.run(AUTH, null));
+    assertThrows(jakarta.ws.rs.NotFoundException.class, () -> resource.runPlanner(AUTH, null));
+    assertThrows(jakarta.ws.rs.NotFoundException.class, () -> resource.runExecutor(AUTH, null));
+    assertThrows(jakarta.ws.rs.NotFoundException.class, () -> resource.runChainPatch(AUTH, null));
     verifyNoInteractions(harnessService, chainPatchHarnessService, plannerHarnessService, executorHarnessService);
   }
 
@@ -92,6 +96,7 @@ class SkillHarnessResourceTest {
 
     Response response =
         resource.runExecutor(
+        AUTH,
             new ExecutorHarnessRequest(
                 CONVERSATION_ID,
                 "1. Generate trigger (cip-trigger-generator)",
@@ -109,7 +114,7 @@ class SkillHarnessResourceTest {
   @Test
   void runExecutorRejectsMissingSavedPlannerResponse() {
     Response response =
-        resource.runExecutor(new ExecutorHarnessRequest(CONVERSATION_ID, " ", null, null, List.of()));
+        resource.runExecutor(AUTH, new ExecutorHarnessRequest(CONVERSATION_ID, " ", null, null, List.of()));
 
     assertEquals(Response.Status.BAD_REQUEST.getStatusCode(), response.getStatus());
     assertTrue(response.getEntity().toString().contains("plannerResponse"));
@@ -130,7 +135,7 @@ class SkillHarnessResourceTest {
     when(plannerHarnessService.run(any())).thenReturn(expected);
 
     Response response =
-        resource.runPlanner(new PlannerHarnessRequest(CONVERSATION_ID, "IDS", null));
+        resource.runPlanner(AUTH, new PlannerHarnessRequest(CONVERSATION_ID, "IDS", null));
 
     assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
     assertEquals(expected, response.getEntity());
@@ -140,7 +145,7 @@ class SkillHarnessResourceTest {
   @Test
   void runPlannerRejectsMissingInput() {
     Response response =
-        resource.runPlanner(new PlannerHarnessRequest(CONVERSATION_ID, " ", null));
+        resource.runPlanner(AUTH, new PlannerHarnessRequest(CONVERSATION_ID, " ", null));
 
     assertEquals(Response.Status.BAD_REQUEST.getStatusCode(), response.getStatus());
     assertTrue(response.getEntity().toString().contains("input"));
@@ -156,6 +161,7 @@ class SkillHarnessResourceTest {
 
     Response response =
         resource.run(
+        AUTH,
             new SkillHarnessRequest(CONVERSATION_ID, CHAIN_ID, SKILL_ID, PROMPT));
 
     assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
@@ -173,7 +179,7 @@ class SkillHarnessResourceTest {
   @Test
   void runRejectsMissingChainId() {
     Response response =
-        resource.run(new SkillHarnessRequest(CONVERSATION_ID, "  ", SKILL_ID, PROMPT));
+        resource.run(AUTH, new SkillHarnessRequest(CONVERSATION_ID, "  ", SKILL_ID, PROMPT));
 
     assertEquals(Response.Status.BAD_REQUEST.getStatusCode(), response.getStatus());
     assertTrue(response.getEntity().toString().contains("chainId"));
@@ -183,7 +189,7 @@ class SkillHarnessResourceTest {
   @Test
   void runRejectsMissingSkillId() {
     Response response =
-        resource.run(new SkillHarnessRequest(CONVERSATION_ID, CHAIN_ID, "", PROMPT));
+        resource.run(AUTH, new SkillHarnessRequest(CONVERSATION_ID, CHAIN_ID, "", PROMPT));
 
     assertEquals(Response.Status.BAD_REQUEST.getStatusCode(), response.getStatus());
     assertTrue(response.getEntity().toString().contains("skillId"));
@@ -193,7 +199,7 @@ class SkillHarnessResourceTest {
   @Test
   void runRejectsMissingPrompt() {
     Response response =
-        resource.run(new SkillHarnessRequest(CONVERSATION_ID, CHAIN_ID, SKILL_ID, null));
+        resource.run(AUTH, new SkillHarnessRequest(CONVERSATION_ID, CHAIN_ID, SKILL_ID, null));
 
     assertEquals(Response.Status.BAD_REQUEST.getStatusCode(), response.getStatus());
     assertTrue(response.getEntity().toString().contains("prompt"));
@@ -202,7 +208,7 @@ class SkillHarnessResourceTest {
 
   @Test
   void runRejectsNullRequestBody() {
-    Response response = resource.run(null);
+    Response response = resource.run(AUTH, null);
 
     assertEquals(Response.Status.BAD_REQUEST.getStatusCode(), response.getStatus());
     verifyNoInteractions(harnessService);
@@ -222,6 +228,7 @@ class SkillHarnessResourceTest {
 
     Response response =
         resource.runChainPatch(
+        AUTH,
             new ChainPatchHarnessRequest(CONVERSATION_ID, CHAIN_ID, "fix the script"));
 
     assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
@@ -238,7 +245,7 @@ class SkillHarnessResourceTest {
   @Test
   void runChainPatchRejectsMissingChainId() {
     Response response =
-        resource.runChainPatch(new ChainPatchHarnessRequest(CONVERSATION_ID, " ", "fix it"));
+        resource.runChainPatch(AUTH, new ChainPatchHarnessRequest(CONVERSATION_ID, " ", "fix it"));
 
     assertEquals(Response.Status.BAD_REQUEST.getStatusCode(), response.getStatus());
     assertTrue(response.getEntity().toString().contains("chainId"));
@@ -248,7 +255,7 @@ class SkillHarnessResourceTest {
   @Test
   void runChainPatchRejectsMissingPrompt() {
     Response response =
-        resource.runChainPatch(new ChainPatchHarnessRequest(CONVERSATION_ID, CHAIN_ID, null));
+        resource.runChainPatch(AUTH, new ChainPatchHarnessRequest(CONVERSATION_ID, CHAIN_ID, null));
 
     assertEquals(Response.Status.BAD_REQUEST.getStatusCode(), response.getStatus());
     assertTrue(response.getEntity().toString().contains("prompt"));
@@ -257,9 +264,36 @@ class SkillHarnessResourceTest {
 
   @Test
   void runChainPatchRejectsNullRequestBody() {
-    Response response = resource.runChainPatch(null);
+    Response response = resource.runChainPatch(AUTH, null);
 
     assertEquals(Response.Status.BAD_REQUEST.getStatusCode(), response.getStatus());
     verifyNoInteractions(chainPatchHarnessService);
+  }
+
+  @Test
+  void withAuthRequiredAHarnessRunWithoutABearerIsRejected() {
+    assertThrows(
+        NotAuthorizedException.class,
+        () -> resource.run(null, new SkillHarnessRequest(CONVERSATION_ID, CHAIN_ID, SKILL_ID, PROMPT)));
+    verifyNoInteractions(harnessService);
+  }
+
+  @Test
+  void skillRunBindsTheCallersBearerForItsConversation() {
+    java.util.concurrent.atomic.AtomicReference<String> seenToken =
+        new java.util.concurrent.atomic.AtomicReference<>();
+    when(harnessService.run(any()))
+        .thenAnswer(
+            invocation -> {
+              seenToken.set(UserTokenStore.current().orElse(null));
+              assertEquals(CONVERSATION_ID, ToolSession.resolveConversationId());
+              return new SkillHarnessResponse(
+                  CONVERSATION_ID, SkillHarnessStatus.COMPLETED, "Trigger configured");
+            });
+
+    resource.run(
+        AUTH, new SkillHarnessRequest(CONVERSATION_ID, CHAIN_ID, SKILL_ID, PROMPT));
+
+    assertEquals("test-harness-caller", seenToken.get());
   }
 }

@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.compiler;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.contains;
@@ -19,6 +20,8 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,6 +34,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.jboss.logmanager.MDC;
 import org.qubership.integration.platform.ai.chat.ChatMdc;
+import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonRepository;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureKey;
@@ -172,6 +176,40 @@ class CompilerSkillRuntimeTest {
     assertEquals(3, calls.get());
     assertEquals(SkillRunStatus.COMPLETED,
         runtime.resolveResultAfterStream(context, workspace, capabilityId).status());
+  }
+
+  @Test
+  void streamingRestoresTheCallingThreadAndLeavesTheTerminationThreadUnbound() throws Exception {
+    ExecutorService worker = Executors.newSingleThreadExecutor();
+    try {
+      when(generatorAgent.chat(eq(memoryId(GENERATOR_ID)), any()))
+          .thenAnswer(invocation -> Multi.createFrom().items("token"));
+      ToolSession.bind("conv-outer");
+      try {
+        runtime
+            .runStreaming(
+                runContext(GENERATOR_ID, 3), workspaceWithGraph(greetingsGraph()), GENERATOR_ID)
+            .runSubscriptionOn(worker)
+            .collect()
+            .asList()
+            .await()
+            .indefinitely();
+
+        assertEquals("conv-outer", ToolSession.resolveConversationId());
+        assertNull(
+            worker
+                .submit(
+                    () -> {
+                      org.jboss.logmanager.MDC.remove(ChatMdc.CONVERSATION_ID);
+                      return ToolSession.resolveConversationId();
+                    })
+                .get());
+      } finally {
+        ToolSession.clear();
+      }
+    } finally {
+      worker.shutdownNow();
+    }
   }
 
   @Mock private CompilerSkillAgent generatorAgent;

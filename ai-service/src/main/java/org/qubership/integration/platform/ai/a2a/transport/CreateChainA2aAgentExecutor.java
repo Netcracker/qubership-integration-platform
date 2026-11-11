@@ -207,6 +207,26 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
     Objects.requireNonNull(emitter, "emitter");
     requireFeatureEnabled();
 
+    String callerBearer = A2aInboundBearerBinding.bearerFrom(context);
+    java.util.concurrent.atomic.AtomicReference<String> tokenKey =
+        new java.util.concurrent.atomic.AtomicReference<>(context.getTaskId());
+    if (callerBearer != null) {
+      A2aInboundBearerBinding.bind(tokenKey.get(), callerBearer);
+    }
+    try {
+      executeDispatched(context, emitter, callerBearer, tokenKey);
+    } finally {
+      if (callerBearer != null) {
+        A2aInboundBearerBinding.unbind(tokenKey.get(), callerBearer);
+      }
+    }
+  }
+
+  private void executeDispatched(
+      RequestContext context,
+      AgentEmitter emitter,
+      String callerBearer,
+      java.util.concurrent.atomic.AtomicReference<String> tokenKey) {
     CallerContext caller = callerContextProvider.current();
     String taskId = context.getTaskId();
     String contextId = context.getContextId();
@@ -306,6 +326,11 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
       // transport never infers application from Task status, revision, or pending action.
       if (claim instanceof A2aCallerMessageClaimResult.Incomplete incomplete) {
         taskId = incomplete.taskId();
+        if (callerBearer != null && !taskId.equals(tokenKey.get())) {
+          A2aInboundBearerBinding.unbind(tokenKey.get(), callerBearer);
+          A2aInboundBearerBinding.bind(taskId, callerBearer);
+          tokenKey.set(taskId);
+        }
         isNew =
             facade.snapshot(taskId).isEmpty() && command instanceof InboundCommand.ClarifyText;
       }

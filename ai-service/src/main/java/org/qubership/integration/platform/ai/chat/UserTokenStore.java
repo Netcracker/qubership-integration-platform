@@ -70,9 +70,9 @@ public final class UserTokenStore {
     return replaced[0];
   }
 
-  /** The token of the conversation bound to the current thread, if any. */
+  /** The token of the owning conversation of the current thread, if any. */
   public static Optional<String> current() {
-    String conversationId = ToolSession.resolveConversationId();
+    String conversationId = ToolSession.resolveOwningConversationId();
     return conversationId == null ? Optional.empty() : Optional.ofNullable(TOKENS.get(conversationId));
   }
 
@@ -121,7 +121,7 @@ public final class UserTokenStore {
     if (waitMillis <= 0) {
       return Optional.empty();
     }
-    String conversationId = ToolSession.resolveConversationId();
+    String conversationId = ToolSession.resolveOwningConversationId();
     Optional<Consumer<ChatEvent>> emit = ToolInvocationSink.currentEmit(conversationId);
     emit.ifPresent(e -> e.accept(new ChatEvent.Step(STEP_ID, "auth", "token_expired",
         "Session token expired, waiting for a new one", null)));

@@ -215,34 +215,35 @@ public class DesignInputCapability implements StageCapability {
     if (chatMemorySanitizer != null) {
       chatMemorySanitizer.clear(captureConversationId);
     }
-    ToolSession.bind(captureConversationId);
-    ProductCapabilityCaptureContext.bindDesign(
-        context.runId(),
-        captureConversationId,
-        brief,
-        payload -> {
-          if (payload instanceof ChainSemanticRevision revision) {
-            captured.set(revision);
-          }
-        });
     CompilerContract contract = contractRepository.require(CompilerContract.V1);
-    captureFeedback.beginScope(captureConversationId, CAPABILITY_ID, java.util.Map.of(
-        "runId", context.runId(), "inputs", context.inputRefs(), "brief", brief, "contract", contract),
-        context.conversationId());
-    captureFeedback.clearPlan(captureConversationId);
-    String history = captureFeedback.repairHistory(captureConversationId, CAPABILITY_ID);
     String agentText;
-    try {
-      agentText =
-          runDesignAgent(captureConversationId, authoringPrompt(brief, contract, context)
-              + org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.block(history));
-      ProductCapabilityCaptureContext.designBinding(captureConversationId).ifPresent(binding -> {
-        rejection.set(binding.captureRejection().get());
-        terminalRejection.set(binding.captureTerminal().get());
-      });
-    } finally {
-      ProductCapabilityCaptureContext.unbind(captureConversationId);
-      ToolSession.clear();
+    try (ToolSession.Handle ignored =
+        ToolSession.open(captureConversationId, context.conversationId())) {
+      ProductCapabilityCaptureContext.bindDesign(
+          context.runId(),
+          captureConversationId,
+          brief,
+          payload -> {
+            if (payload instanceof ChainSemanticRevision revision) {
+              captured.set(revision);
+            }
+          });
+      captureFeedback.beginScope(captureConversationId, CAPABILITY_ID, java.util.Map.of(
+          "runId", context.runId(), "inputs", context.inputRefs(), "brief", brief, "contract", contract),
+          context.conversationId());
+      captureFeedback.clearPlan(captureConversationId);
+      String history = captureFeedback.repairHistory(captureConversationId, CAPABILITY_ID);
+      try {
+        agentText =
+            runDesignAgent(captureConversationId, authoringPrompt(brief, contract, context)
+                + org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.block(history));
+        ProductCapabilityCaptureContext.designBinding(captureConversationId).ifPresent(binding -> {
+          rejection.set(binding.captureRejection().get());
+          terminalRejection.set(binding.captureTerminal().get());
+        });
+      } finally {
+        ProductCapabilityCaptureContext.unbind(captureConversationId);
+      }
     }
     ChainSemanticRevision revision = captured.get();
     if (revision == null) {

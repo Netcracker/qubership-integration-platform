@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.integration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -23,11 +24,8 @@ class RestClientTimeoutContractTest {
   }
 
   @Test
-  void catalogClientKeepsTenSecondTimeout() {
-    Timeout timeout = CatalogRestClient.class.getAnnotation(Timeout.class);
-    assertNotNull(timeout);
-    assertEquals(10, timeout.value());
-    assertEquals(ChronoUnit.SECONDS, timeout.unit());
+  void catalogClientHasNoFaultToleranceTimeoutThatWouldCutARenewalWaitShort() {
+    assertNull(CatalogRestClient.class.getAnnotation(Timeout.class));
   }
 
   @Test
@@ -42,6 +40,8 @@ class RestClientTimeoutContractTest {
     assertTrue(properties.contains("quarkus.rest-client.apihub-mcp.connect-timeout="));
     assertTrue(properties.contains("quarkus.rest-client.apihub-mcp.read-timeout="));
     assertTrue(properties.contains("quarkus.rest-client.catalog-api.connect-timeout="));
-    assertTrue(properties.contains("quarkus.rest-client.catalog-api.read-timeout="));
+    assertTrue(
+        properties.contains(
+            "quarkus.rest-client.catalog-api.read-timeout=${QIP_CATALOG_READ_TIMEOUT_MS:10000}"));
   }
 }

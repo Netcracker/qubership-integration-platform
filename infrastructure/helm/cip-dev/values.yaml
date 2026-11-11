@@ -191,3 +191,6 @@ global:
       a2aEnabled: "false"
       # Public base URL for the Agent Card. Set before enabling A2A (for example https://ai.example.com).
       a2aPublicBaseUrl: ""
+      # This stack has no identity provider and its standalone UI sends no bearer, so catalog calls
+      # use the service identity. The ai-service default is true; only cip-dev turns it off.
+      authRequired: "false"

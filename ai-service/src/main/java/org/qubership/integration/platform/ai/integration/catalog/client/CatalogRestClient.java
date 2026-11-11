@@ -12,7 +12,6 @@ import java.net.http.HttpTimeoutException;
 import java.time.temporal.ChronoUnit;
 import org.eclipse.microprofile.faulttolerance.CircuitBreaker;
 import org.eclipse.microprofile.faulttolerance.Retry;
-import org.eclipse.microprofile.faulttolerance.Timeout;
 import org.eclipse.microprofile.faulttolerance.exceptions.TimeoutException;
 import org.eclipse.microprofile.rest.client.annotation.RegisterProvider;
 import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
@@ -45,12 +44,14 @@ import java.util.Map;
  * runtime-catalog directly, {@code http://host:8080} + {@code /v1/chains} is correct.
  */
 @RegisterRestClient(configKey = "catalog-api")
+@AwaitUsableTurnBearer
 @RegisterProvider(CatalogBearerTokenFilter.class)
 @RegisterProvider(CatalogOutboundLoggingFilter.class)
 @RegisterProvider(CatalogResponseExceptionMapper.class)
 @Consumes(MediaType.APPLICATION_JSON)
 @Produces(MediaType.APPLICATION_JSON)
-@Timeout(value = 10, unit = ChronoUnit.SECONDS)
+// No @Timeout: it wraps AwaitUsableTurnBearerInterceptor, so a token renewal would trip it.
+// The HTTP read timeout (10 s by default) bounds the call itself.
 @Retry(
     maxRetries = 2,
     delay = 200,
@@ -243,8 +244,7 @@ public interface CatalogRestClient {
 
   @PATCH
   @Path("/v1/chains/{chainId}/elements/{elementId}")
-  @Timeout(value = 10, unit = ChronoUnit.SECONDS)
-  @Retry(maxRetries = 0)
+    @Retry(maxRetries = 0)
   ChainDiffDto updateElement(
       @PathParam("chainId") String chainId,
       @PathParam("elementId") String elementId,

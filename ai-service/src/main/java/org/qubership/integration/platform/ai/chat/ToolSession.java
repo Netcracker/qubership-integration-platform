@@ -18,8 +18,10 @@ import org.qubership.integration.platform.ai.productpipeline.create.ProductCapab
 public final class ToolSession {
 
   static final String CONTEXT_KEY = "tool-session-conversation-id";
+  static final String CONTEXT_OWNER_KEY = "tool-session-owning-conversation-id";
 
   private static final ThreadLocal<String> THREAD_CONVERSATION_ID = new ThreadLocal<>();
+  private static final ThreadLocal<String> THREAD_OWNER_CONVERSATION_ID = new ThreadLocal<>();
   private static final ThreadLocal<Context> THREAD_CONTEXT = new ThreadLocal<>();
   private static final ThreadLocal<Context> SUBSCRIBE_PATH_CONTEXT = new ThreadLocal<>();
 
@@ -31,20 +33,34 @@ public final class ToolSession {
    * may continue on the same thread after the nested scope ends.
    */
   public static Handle open(String conversationId) {
-    String previousConversationId = THREAD_CONVERSATION_ID.get();
-    Context previousSubscribeContext = SUBSCRIBE_PATH_CONTEXT.get();
-    Context previousThreadContext = THREAD_CONTEXT.get();
-    Object previousMdc = MDC.get(ChatMdc.CONVERSATION_ID);
-    bind(conversationId);
-    return new Handle(
-        previousConversationId, previousSubscribeContext, previousThreadContext, previousMdc);
+    return open(conversationId, null);
+  }
+
+  /**
+   * Binds {@code conversationId} for a nested scope and restores any previous binding and owning
+   * conversation on {@link Handle#close()}. The owning conversation is where the turn bearer lives
+   * when the bound id is an isolated capture scope, such as a clean design-input rebuild.
+   */
+  public static Handle open(String conversationId, String owningConversationId) {
+    ThreadState previous = captureThreadState();
+    bind(conversationId, owningConversationId);
+    return new Handle(previous);
   }
 
   public static void bind(String conversationId) {
+    bind(conversationId, null);
+  }
+
+  public static void bind(String conversationId, String owningConversationId) {
     String id = requireConversationId(conversationId);
+    String owner = normalizeOptional(owningConversationId);
     MDC.put(ChatMdc.CONVERSATION_ID, id);
     THREAD_CONVERSATION_ID.set(id);
-    Context context = Context.of(CONTEXT_KEY, id);
+    setOwnerConversationId(owner);
+    Context context =
+        owner == null
+            ? Context.of(CONTEXT_KEY, id)
+            : Context.of(CONTEXT_KEY, id, CONTEXT_OWNER_KEY, owner);
     THREAD_CONTEXT.set(context);
     SUBSCRIBE_PATH_CONTEXT.set(context);
   }
@@ -52,6 +68,7 @@ public final class ToolSession {
   public static void clear() {
     MDC.remove(ChatMdc.CONVERSATION_ID);
     THREAD_CONVERSATION_ID.remove();
+    THREAD_OWNER_CONVERSATION_ID.remove();
     THREAD_CONTEXT.remove();
     SUBSCRIBE_PATH_CONTEXT.remove();
   }
@@ -77,6 +94,18 @@ public final class ToolSession {
         .orElse(null);
   }
 
+  /**
+   * The conversation whose turn bearer and event stream this work belongs to. Equals the bound id
+   * unless an isolated capture scope set a separate owner.
+   */
+  public static String resolveOwningConversationId() {
+    String owner = THREAD_OWNER_CONVERSATION_ID.get();
+    if (owner != null && !owner.isBlank()) {
+      return owner.trim();
+    }
+    return resolveConversationId();
+  }
+
   public static Context attachedContext() {
     Context context = THREAD_CONTEXT.get();
     return context != null ? context : Context.empty();
@@ -86,16 +115,50 @@ public final class ToolSession {
     if (context == null || !context.contains(CONTEXT_KEY)) {
       return upstream;
     }
-    String conversationId = context.get(CONTEXT_KEY);
-    return upstream.onSubscription().invoke(subscription -> installOnSubscription(conversationId, context));
+    return Uni.createFrom()
+        .deferred(
+            () -> {
+              java.util.concurrent.atomic.AtomicReference<ThreadState> previous =
+                  new java.util.concurrent.atomic.AtomicReference<>();
+              return upstream
+                  .onSubscription()
+                  .invoke(
+                      subscription -> {
+                        previous.set(captureThreadState());
+                        installOnSubscription(context);
+                      })
+                  .onTermination()
+                  .invoke(() -> restoreIfCaptured(previous));
+            });
   }
 
   public static <T> Multi<T> propagateBinding(Context context, Multi<T> upstream) {
     if (context == null || !context.contains(CONTEXT_KEY)) {
       return upstream;
     }
-    String conversationId = context.get(CONTEXT_KEY);
-    return upstream.onSubscription().invoke(subscription -> installOnSubscription(conversationId, context));
+    return Multi.createFrom()
+        .deferred(
+            () -> {
+              java.util.concurrent.atomic.AtomicReference<ThreadState> previous =
+                  new java.util.concurrent.atomic.AtomicReference<>();
+              return upstream
+                  .onSubscription()
+                  .invoke(
+                      subscription -> {
+                        previous.set(captureThreadState());
+                        installOnSubscription(context);
+                      })
+                  .onTermination()
+                  .invoke(() -> restoreIfCaptured(previous));
+            });
+  }
+
+  private static void restoreIfCaptured(
+      java.util.concurrent.atomic.AtomicReference<ThreadState> previous) {
+    ThreadState state = previous.getAndSet(null);
+    if (state != null) {
+      restoreThreadState(state);
+    }
   }
 
   public static void executeInBoundContext(Context context, Runnable action) {
@@ -106,36 +169,22 @@ public final class ToolSession {
     if (context == null || !context.contains(CONTEXT_KEY)) {
       return action.get();
     }
-    String conversationId = context.get(CONTEXT_KEY);
-    String previousConversationId = THREAD_CONVERSATION_ID.get();
-    Context previousSubscribeContext = SUBSCRIBE_PATH_CONTEXT.get();
-    Context previousThreadContext = THREAD_CONTEXT.get();
-    Object previousMdc = MDC.get(ChatMdc.CONVERSATION_ID);
-    installOnSubscription(conversationId, context);
+    ThreadState previous = captureThreadState();
+    installOnSubscription(context);
     try {
       return action.get();
     } finally {
-      restoreThreadState(previousConversationId, previousSubscribeContext, previousThreadContext, previousMdc);
+      restoreThreadState(previous);
     }
   }
 
   public static final class Handle implements AutoCloseable {
 
-    private final String previousConversationId;
-    private final Context previousSubscribeContext;
-    private final Context previousThreadContext;
-    private final Object previousMdc;
+    private final ThreadState previous;
     private boolean closed;
 
-    private Handle(
-        String previousConversationId,
-        Context previousSubscribeContext,
-        Context previousThreadContext,
-        Object previousMdc) {
-      this.previousConversationId = previousConversationId;
-      this.previousSubscribeContext = previousSubscribeContext;
-      this.previousThreadContext = previousThreadContext;
-      this.previousMdc = previousMdc;
+    private Handle(ThreadState previous) {
+      this.previous = previous;
     }
 
     @Override
@@ -144,43 +193,74 @@ public final class ToolSession {
         return;
       }
       closed = true;
-      restoreThreadState(
-          previousConversationId, previousSubscribeContext, previousThreadContext, previousMdc);
+      restoreThreadState(previous);
     }
   }
 
-  private static void installOnSubscription(String conversationId, Context context) {
+  private static void installOnSubscription(Context context) {
+    String conversationId = context.get(CONTEXT_KEY);
     MDC.put(ChatMdc.CONVERSATION_ID, conversationId);
     THREAD_CONVERSATION_ID.set(conversationId);
+    setOwnerConversationId(
+        context.contains(CONTEXT_OWNER_KEY) ? context.get(CONTEXT_OWNER_KEY) : null);
     THREAD_CONTEXT.set(context);
     SUBSCRIBE_PATH_CONTEXT.set(context);
   }
 
-  private static void restoreThreadState(
-      String previousConversationId,
-      Context previousSubscribeContext,
-      Context previousThreadContext,
-      Object previousMdc) {
-    if (previousConversationId != null) {
-      THREAD_CONVERSATION_ID.set(previousConversationId);
+  private record ThreadState(
+      String conversationId,
+      String ownerConversationId,
+      Context subscribeContext,
+      Context threadContext,
+      Object mdc) {}
+
+  private static ThreadState captureThreadState() {
+    return new ThreadState(
+        THREAD_CONVERSATION_ID.get(),
+        THREAD_OWNER_CONVERSATION_ID.get(),
+        SUBSCRIBE_PATH_CONTEXT.get(),
+        THREAD_CONTEXT.get(),
+        MDC.get(ChatMdc.CONVERSATION_ID));
+  }
+
+  private static void restoreThreadState(ThreadState state) {
+    if (state.conversationId() != null) {
+      THREAD_CONVERSATION_ID.set(state.conversationId());
     } else {
       THREAD_CONVERSATION_ID.remove();
     }
-    if (previousMdc != null) {
-      MDC.put(ChatMdc.CONVERSATION_ID, previousMdc.toString());
+    setOwnerConversationId(state.ownerConversationId());
+    if (state.mdc() != null) {
+      MDC.put(ChatMdc.CONVERSATION_ID, state.mdc().toString());
     } else {
       MDC.remove(ChatMdc.CONVERSATION_ID);
     }
-    if (previousSubscribeContext != null) {
-      SUBSCRIBE_PATH_CONTEXT.set(previousSubscribeContext);
+    if (state.subscribeContext() != null) {
+      SUBSCRIBE_PATH_CONTEXT.set(state.subscribeContext());
     } else {
       SUBSCRIBE_PATH_CONTEXT.remove();
     }
-    if (previousThreadContext != null) {
-      THREAD_CONTEXT.set(previousThreadContext);
+    if (state.threadContext() != null) {
+      THREAD_CONTEXT.set(state.threadContext());
     } else {
       THREAD_CONTEXT.remove();
     }
+  }
+
+  private static void setOwnerConversationId(String owningConversationId) {
+    String owner = normalizeOptional(owningConversationId);
+    if (owner == null) {
+      THREAD_OWNER_CONVERSATION_ID.remove();
+    } else {
+      THREAD_OWNER_CONVERSATION_ID.set(owner);
+    }
+  }
+
+  private static String normalizeOptional(String conversationId) {
+    if (conversationId == null || conversationId.isBlank()) {
+      return null;
+    }
+    return conversationId.trim();
   }
 
   private static String readMdcConversationId() {

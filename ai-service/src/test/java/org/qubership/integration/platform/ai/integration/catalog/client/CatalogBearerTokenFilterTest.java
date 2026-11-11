@@ -20,23 +20,43 @@ import org.qubership.integration.platform.ai.chat.UserTokenStore;
 class CatalogBearerTokenFilterTest {
 
   @Test
-  void addsBearerHeaderWhenTokenConfigured() {
-    MultivaluedMap<String, Object> headers = new MultivaluedHashMap<>();
+  void addsServiceBearerOnlyWhenAuthIsOff() {
+    System.setProperty("qip.ai.auth.required", "false");
+    try {
+      MultivaluedMap<String, Object> headers = new MultivaluedHashMap<>();
 
-    new CatalogBearerTokenFilter("secret").filter(request(headers));
+      new CatalogBearerTokenFilter("secret").filter(request(headers));
 
-    assertEquals("Bearer secret", headers.getFirst(HttpHeaders.AUTHORIZATION));
+      assertEquals("Bearer secret", headers.getFirst(HttpHeaders.AUTHORIZATION));
+    } finally {
+      System.clearProperty("qip.ai.auth.required");
+    }
   }
 
   @Test
-  void omitsHeaderWhenTokenBlank() {
-    for (String token : new String[] {null, "", "  "}) {
-      MultivaluedMap<String, Object> headers = new MultivaluedHashMap<>();
+  void omitsServiceHeaderWhenTokenBlankAndAuthIsOff() {
+    System.setProperty("qip.ai.auth.required", "false");
+    try {
+      for (String token : new String[] {null, "", "  "}) {
+        MultivaluedMap<String, Object> headers = new MultivaluedHashMap<>();
 
-      new CatalogBearerTokenFilter(token).filter(request(headers));
+        new CatalogBearerTokenFilter(token).filter(request(headers));
 
-      assertFalse(headers.containsKey(HttpHeaders.AUTHORIZATION));
+        assertFalse(headers.containsKey(HttpHeaders.AUTHORIZATION));
+      }
+    } finally {
+      System.clearProperty("qip.ai.auth.required");
     }
+  }
+
+  @Test
+  void authRequiredWithoutABoundConversationFailsClosed() {
+    MultivaluedMap<String, Object> headers = new MultivaluedHashMap<>();
+
+    assertThrows(
+        NotAuthorizedException.class,
+        () -> new CatalogBearerTokenFilter("secret").filter(request(headers)));
+    assertFalse(headers.containsKey(HttpHeaders.AUTHORIZATION));
   }
 
   @Test
@@ -130,7 +150,7 @@ class CatalogBearerTokenFilterTest {
 
     assertThrows(
         NotAuthorizedException.class,
-        () -> new CatalogBearerTokenFilter("secret", 0).filter(request(headers)));
+        () -> new CatalogBearerTokenFilter("secret").filter(request(headers)));
     assertFalse(headers.containsKey(HttpHeaders.AUTHORIZATION));
   }
 
@@ -150,32 +170,18 @@ class CatalogBearerTokenFilterTest {
   }
 
   @Test
-  void tokenWithinAFewSecondsOfExpiryIsStillReplacedInTurn() throws Exception {
+  void filterDoesNotBlockWaitingForARenewal() {
     long exp = java.time.Instant.now().getEpochSecond() + 3;
-    String almostExpired = jwt(exp, "alice");
-    String fresh = jwt(exp + 60, "alice");
     ToolSession.bind("conv-1");
-    UserTokenStore.put("conv-1", almostExpired);
-    Thread renew =
-        new Thread(
-            () -> {
-              try {
-                Thread.sleep(500);
-              } catch (InterruptedException ignored) {
-                return;
-              }
-              UserTokenStore.renew("conv-1", fresh);
-            });
-    renew.start();
+    UserTokenStore.put("conv-1", jwt(exp, "alice"));
     MultivaluedMap<String, Object> headers = new MultivaluedHashMap<>();
+    long started = System.nanoTime();
 
-    try {
-      new CatalogBearerTokenFilter("secret", 5000).filter(request(headers));
-    } finally {
-      renew.join();
-    }
+    assertThrows(
+        NotAuthorizedException.class,
+        () -> new CatalogBearerTokenFilter("secret").filter(request(headers)));
 
-    assertEquals("Bearer " + fresh, headers.getFirst(HttpHeaders.AUTHORIZATION));
+    assertTrue(System.nanoTime() - started < 2_000_000_000L);
   }
 
   @Test

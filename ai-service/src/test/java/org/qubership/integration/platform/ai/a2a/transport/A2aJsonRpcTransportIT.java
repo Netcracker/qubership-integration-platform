@@ -32,6 +32,8 @@ import org.qubership.integration.platform.ai.a2a.persistence.A2aTaskRepository;
 import org.qubership.integration.platform.ai.a2a.protocol.A2aProtocolConstants;
 import org.qubership.integration.platform.ai.a2a.protocol.A2aTaskState;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.chat.UserTokenStore;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationMessage;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
@@ -67,14 +69,18 @@ class A2aJsonRpcTransportIT {
   @Inject ConversationService conversations;
 
   private final AtomicInteger startCalls = new AtomicInteger();
+  private final java.util.concurrent.atomic.AtomicReference<String> facadeCallerToken =
+      new java.util.concurrent.atomic.AtomicReference<>();
 
   @BeforeEach
   void stubCollaborators() {
     startCalls.set(0);
+    facadeCallerToken.set(null);
     when(facade.start(any(StartCreateChainCommand.class)))
         .thenAnswer(
             invocation -> {
               startCalls.incrementAndGet();
+              facadeCallerToken.set(UserTokenStore.current().orElse(null));
               return Multi.createFrom()
                   .items(
                       new CreateChainEvent.Progress("Working"),
@@ -231,8 +237,25 @@ class A2aJsonRpcTransportIT {
 
   @Test
   void rootJsonRpcPathAlsoCreatesCreateChainTask() throws Exception {
-    postCreateChainAndExtractTaskId("/", "Root path create");
+    String taskId = postCreateChainAndExtractTaskId("/", "Root path create");
     assertEquals(1, startCalls.get());
+    assertEquals(A2aTestAuth.BEARER, facadeCallerToken.get());
+    try (ToolSession.Handle ignored = ToolSession.open(taskId)) {
+      assertTrue(UserTokenStore.current().isEmpty(), "the turn bearer must be released");
+    }
+  }
+
+  @Test
+  void rootJsonRpcWithoutABearerIsRejected() throws Exception {
+    given()
+        .contentType(ContentType.JSON)
+        .body(sendMessageWithSkill("No bearer"))
+        .header("A2A-Version", "1.0")
+        .when()
+        .post(URI.create("/"))
+        .then()
+        .statusCode(401);
+    assertEquals(0, startCalls.get());
   }
 
   /**

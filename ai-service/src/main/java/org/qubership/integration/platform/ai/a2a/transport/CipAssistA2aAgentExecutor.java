@@ -37,6 +37,8 @@ import org.qubership.integration.platform.ai.a2a.access.TaskOperation;
 import org.qubership.integration.platform.ai.a2a.protocol.A2aProtocolConstants;
 import org.qubership.integration.platform.ai.a2a.protocol.A2aTaskState;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.chat.UserTokenStore;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
 import org.qubership.integration.platform.ai.llm.routing.ScenarioRouter;
@@ -129,7 +131,25 @@ public final class CipAssistA2aAgentExecutor implements AgentExecutor {
     String callerContextId =
         A2aClientCorrelationCarrier.lookup(requestCorrelationId(context)).contextId();
     ResolvedContext resolved = resolveConversationId(callerContextId, contextId, userText);
-    TurnResult turn = runTurn(userText, resolved.conversationId());
+    String callerBearer = A2aInboundBearerBinding.bearerFrom(context);
+    ToolSession.Handle turnBinding = null;
+    if (callerBearer != null) {
+      UserTokenStore.put(resolved.conversationId(), callerBearer);
+      turnBinding = ToolSession.open(resolved.conversationId());
+    }
+    TurnResult turn;
+    try {
+      turn = runTurn(userText, resolved.conversationId(), callerBearer);
+    } catch (RuntimeException failure) {
+      if (callerBearer != null) {
+        UserTokenStore.remove(resolved.conversationId(), callerBearer);
+      }
+      throw failure;
+    } finally {
+      if (turnBinding != null) {
+        turnBinding.close();
+      }
+    }
     String answer = turn.answer(resolved.conversationId(), taskId);
 
     LOG.infof(
@@ -238,7 +258,7 @@ public final class CipAssistA2aAgentExecutor implements AgentExecutor {
    * durable state, and cutting the stream would abandon work the caller can still reach through
    * the conversation.
    */
-  private TurnResult runTurn(String userText, String conversationId) {
+  private TurnResult runTurn(String userText, String conversationId, String turnBearer) {
     ChatRequest request = new ChatRequest();
     request.setConversationId(conversationId);
     request.setMessage(userText);
@@ -264,6 +284,9 @@ public final class CipAssistA2aAgentExecutor implements AgentExecutor {
         error.set("Cannot save the conversation: " + failure.getMessage());
       } finally {
         done.countDown();
+        if (turnBearer != null) {
+          UserTokenStore.remove(conversationId, turnBearer);
+        }
       }
     };
 

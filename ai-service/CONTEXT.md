@@ -200,9 +200,21 @@ report, because re-entering the stage meets the same defect. Stage IDs stay in t
 _Avoid_: contract failure for a service defect, a Retry that cannot work, terminal FAILED
 
 **Turn bearer**:
-The access token taken from the chat request that opened the current turn and sent on that turn's
-catalog calls.
-_Avoid_: the access token currently held in the browser, a token refresh
+The access token taken from the request that started the work (the chat request that opened the
+current turn, or the A2A request that started a task) and sent on that work's catalog calls.
+_Avoid_: the access token currently held in the browser, a token refresh, user token, caller token
+
+**Service identity**:
+The AI service's own catalog credential (`CATALOG_TOKEN`), carrying its service account's
+permissions rather than any person's. Never used for work a caller started while auth is required.
+_Avoid_: system user, technical token, M2M token
+
+**Owning conversation**:
+The conversation whose turn bearer and event stream a piece of work belongs to. Usually the bound
+conversation itself; it differs when work runs under an isolated capture scope, such as a clean
+design-input rebuild (`<conversationId>-clean-design-<attempt>`), which keeps its own capture
+history but authenticates as its owning conversation.
+_Avoid_: owning turn, parent conversation, history owner (that name is for capture feedback only)
 
 **Catalog authentication failure**:
 A catalog HTTP 401 on a call made with the turn bearer. The run stops at once on the
@@ -364,10 +376,11 @@ exactly the mid-edit state the semantic validator tolerates, and building one ov
 _Avoid_: taking a snapshot around every patch, recreating a deleted element under its old name
 
 **Auth required** (`qip.ai.auth.required`, env `QIP_AI_AUTH_REQUIRED`):
-On by default: every chat turn must carry the caller's bearer, and catalog calls inside a turn use
-only that bearer (never the service identity). Local stacks without an identity provider turn it
-off: a turn without a bearer is then served with the service identity (`CATALOG_TOKEN`), as before
-caller tokens were propagated. A bearer that does arrive is always honoured. The token renewal
-endpoint stays strict.
+On by default: every chat turn, A2A invocation, and harness run must carry a turn bearer, and every
+catalog call uses only the turn bearer of its owning conversation. A call with no owning
+conversation bound, or with no usable bearer, fails as unauthenticated; it never falls back to the
+service identity (ADR 0007). Local stacks without an identity provider turn it off: work without a
+bearer is then served with the service identity, as before caller tokens were propagated. A bearer
+that does arrive is always honoured. The token renewal endpoint stays strict.
 _Avoid_: "local mode" (the flag, not the environment, is what matters)
 
