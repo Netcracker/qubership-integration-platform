@@ -18,6 +18,11 @@ on:
         required: false
         type: string
         default: ""
+      probe-only:
+        description: Run only the concurrent folder diagnostic
+        required: false
+        type: boolean
+        default: false
       build:
         description: The images built from the checkout (E2E_BUILD); the rest run from GHCR
         required: false
@@ -198,6 +203,7 @@ jobs:
           GLOBAL_TIMEOUT_MINUTES: ${{ inputs.global-timeout }}
           PROJECTS: ${{ steps.lane.outputs.projects }}
           PULL_REQUEST: ${{ inputs.pull-request }}
+          PROBE_ONLY: ${{ inputs.probe-only }}
           E2E_BOOTSTRAP_LOG: ${{ env.BOOTSTRAP_LOG }}
           MAVEN_ARGS: -B -s ${{ github.workspace }}/.github/maven-settings.xml
           MAVEN_GITHUB_USERNAME: ${{ github.actor }}
@@ -207,7 +213,11 @@ jobs:
           args=(--global-timeout="$E2E_SAMPLE_MAX_MS")
           if [ "$PULL_REQUEST" = true ]; then args+=(--max-failures=1); fi
           # shellcheck disable=SC2086 # one --project flag per word
-          npm run test:k8s -- $PROJECTS "${args[@]}"
+          if [ "$PROBE_ONLY" = true ]; then
+            npm run test:k8s -- --config http-diagnostic.config.ts "${args[@]}"
+          else
+            npm run test:k8s -- $PROJECTS "${args[@]}"
+          fi
 
       - name: Reconcile the coverage registry
         id: reconcile
@@ -358,7 +368,7 @@ jobs:
           retention-days: 30
 
       - name: Repeat the concurrent folder writes
-        if: ${{ success() }}
+        if: ${{ success() && !inputs.probe-only }}
         working-directory: e2e
         env:
           CIP_TARGET: k8s
@@ -377,6 +387,8 @@ jobs:
         with:
           name: http-diagnostic${{ env.ARTIFACT_SUFFIX }}
           path: ${{ env.E2E_HTTP_DIAGNOSTIC_DIR }}
+          include-hidden-files: true
+          if-no-files-found: error
           retention-days: 7
 
       - name: Dump the cluster

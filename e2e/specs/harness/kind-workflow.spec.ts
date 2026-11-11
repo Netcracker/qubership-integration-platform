@@ -125,6 +125,7 @@ test.describe("kind workflow", () => {
     expect(nightly.with).toEqual({
       name: "ui",
       lane: "ui",
+      "probe-only": "${{ inputs.probe-only || false }}",
       brokers: false,
       "pull-request": true,
       workers: "${{ inputs.workers }}",

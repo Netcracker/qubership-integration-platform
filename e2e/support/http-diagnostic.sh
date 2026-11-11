@@ -40,7 +40,7 @@ case ${1:?} in
     host_capture=$!
     for ((i=0; i<3300; i++)); do
       if [ -z "$node_capture" ]; then
-        pod_ip=$(kubectl -n cip-e2e get pods -l app=cip-runtime-catalog -o jsonpath='{.items[0].status.podIP}' 2>/dev/null || true)
+        pod_ip=$(kubectl -n cip-e2e get pods -l app=cip-runtime-catalog-v1 -o jsonpath='{.items[0].status.podIP}' 2>/dev/null || true)
         if [ -n "$pod_ip" ]; then
           node_pid=$(docker inspect -f '{{.State.Pid}}' qip-control-plane)
           sudo -n timeout 3300 nsenter -t "$node_pid" -n tcpdump -nn -tttt -q -l -i any "tcp port 30091 or (host $pod_ip and tcp port 8080)" > "$base/node-packets.txt" 2>&1 &
@@ -63,7 +63,10 @@ case ${1:?} in
       sleep 0.1
     done
     mkdir -p "$base/final"
-    collect_access "$base/final" || true
+    collect_access "$base/final"
+    grep -q 'rid=diag-' "$base/final/access.log" || exit 1
+    test -s "$base/node-packets.txt" || exit 1
+    test -s "$base/host-packets.txt" || exit 1
     ;;
   snapshot)
     snapshot "$base/manual-snapshot"

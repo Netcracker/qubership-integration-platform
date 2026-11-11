@@ -11,6 +11,11 @@ on:
         description: Playwright workers (E2E_WORKERS); empty uses the nightly value
         required: false
         type: string
+      probe-only:
+        description: Run only the concurrent folder diagnostic
+        required: false
+        type: boolean
+        default: false
       email-to:
         description: Comma-separated addresses to email the run to; empty sends no email
         required: false
@@ -33,6 +38,7 @@ jobs:
     with:
       name: ui
       lane: ui
+      probe-only: ${{ inputs.probe-only || false }}
       brokers: false
       pull-request: true
       workers: ${{ inputs.workers }}
