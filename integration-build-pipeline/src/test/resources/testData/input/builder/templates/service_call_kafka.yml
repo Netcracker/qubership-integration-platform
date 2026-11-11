@@ -17,7 +17,6 @@ elements:
       retryCount: "2"
       retryDelay: "5000"
       systemType: "INTERNAL"
-      errorThrowing: true
       connectionTimeout: "120000"
       correlationIdName: "test_correlation_id"
       integrationSystemId: "8b3663ff-7dc5-45d1-afd4-0de909ffdc65"

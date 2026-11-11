@@ -676,7 +676,7 @@ public class CompilerSkillContextBuilder {
           Groovy 4 has no groovy-dateutil module in this runtime. Use Java time APIs for dates.
           Today's ISO date is java.time.LocalDate.now().toString(); Date.format() and Date.parse()
           are unavailable.
-          For an approved INLINE_RESPONSE HTTP call, errorThrowing=false means the failed response
+          An approved INLINE_RESPONSE HTTP call has a Default response handler, so a failed response
           can arrive without CamelExceptionCaught. Check the HTTP status and the actual body.
           A successful response with errors=[] is success. A plain-text error must still reach the
           requested result delivery. Preserve the error response text and all retained input fields.

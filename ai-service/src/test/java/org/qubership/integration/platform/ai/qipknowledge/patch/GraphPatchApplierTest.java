@@ -415,6 +415,44 @@ class GraphPatchApplierTest {
   }
 
   @Test
+  void afterRewriteWithoutDefaultHandlerIsKeptAsWritten() {
+    String failFast = "[{\"code\":\"200\",\"type\":\"none\",\"wildcard\":false}]";
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo-chain", "Demo"),
+            List.of(
+                new ChainPlanNode(
+                    "call",
+                    "service-call",
+                    "Call",
+                    null,
+                    null,
+                    List.of(
+                        new PlanProperty(
+                            "after",
+                            "[{\"id\":\"default\",\"code\":\"default\",\"type\":\"none\"}]")))),
+            List.of());
+    GraphPatch patch =
+        new GraphPatch(
+            "patch-fail-fast",
+            "cip-service-call-generator",
+            List.of(),
+            List.of(),
+            List.of(
+                new PropertyPatch(
+                    GraphPatchOperation.UPDATE, "call", new PlanProperty("after", failFast))),
+            List.of(),
+            List.of(),
+            "Fail on 4xx and 5xx");
+
+    GraphPatchApplyResult result = applier.apply(graph, patch);
+
+    assertTrue(result.applied(), result.validationResult().summary());
+    assertEquals(failFast, propertyValue(result.graph(), "call", "after"));
+  }
+
+  @Test
   void appliesPropertyAddUpdateAndRemoveByKey() {
     GraphPatch addPatch =
         new GraphPatch(

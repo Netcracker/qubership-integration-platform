@@ -22,8 +22,6 @@ properties:
       - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/context-propagation"
       - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/validation-failure-handler-properties"
     properties:
-      errorThrowing:
-        type: boolean
       retryCount:
         oneOf:
           - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/integer-or-variable-placeholder"
@@ -45,6 +43,7 @@ properties:
       after:
         type: array
         title: Response Handlers
+        default: []
         items:
           $ref: "#/definitions/ResponseHandler"
       authorizationConfiguration:

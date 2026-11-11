@@ -1701,7 +1701,7 @@ class CompilerGraphPatchToolTest {
                 Set.of(),
                 Map.of(
                     "service-call",
-                    Set.of("propagateContext", "errorThrowing", "before", "after"))),
+                    Set.of("propagateContext", "before", "after"))),
             ""));
 
     GraphPatchCapture patch =
@@ -1755,11 +1755,6 @@ class CompilerGraphPatchToolTest {
                     GraphPatchOperation.ADD,
                     "call-1",
                     "propagateContext",
-                    JsonNodeFactory.instance.booleanNode(true)),
-                new PropertyPatchCapture(
-                    GraphPatchOperation.ADD,
-                    "call-1",
-                    "errorThrowing",
                     JsonNodeFactory.instance.booleanNode(true))),
             List.of(),
             List.of(),
