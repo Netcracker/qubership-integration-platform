@@ -1,6 +1,7 @@
 import React from "react";
-import { Button, Input, Space } from "antd";
+import { Input, Space, Tooltip } from "antd";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
+import styles from "./CompactSearch.module.css";
 
 export type CompactSearchProps = {
   value: string;
@@ -9,7 +10,6 @@ export type CompactSearchProps = {
   /** Called on Enter or Search button click. Use for immediate submit (e.g. bypass debounce). */
   onSearchConfirm?: (value: string) => void;
   placeholder?: string;
-  allowClear?: boolean;
   style?: React.CSSProperties;
   className?: string;
 };
@@ -20,31 +20,45 @@ export const CompactSearch: React.FC<CompactSearchProps> = ({
   onClear,
   onSearchConfirm,
   placeholder,
-  allowClear = true,
   style,
   className,
 }) => {
+  const showClearAction = value.length > 0;
+  const actionLabel = showClearAction ? "Clear search" : "Search";
   const handleConfirm = () =>
     onSearchConfirm ? onSearchConfirm(value) : onChange(value);
+  const handleClear = () => {
+    onChange("");
+    onClear?.();
+  };
+  const handleChange = (nextValue: string) => {
+    if (nextValue) {
+      onChange(nextValue);
+    } else {
+      handleClear();
+    }
+  };
 
   return (
     <Space.Compact style={style} className={className}>
       <Input
         placeholder={placeholder}
-        allowClear={allowClear}
         value={value}
-        onChange={(e) => {
-          const v = e.target.value;
-          onChange(v);
-          if (!v) onClear?.();
-        }}
+        onChange={(e) => handleChange(e.target.value)}
         onPressEnter={handleConfirm}
-      />
-      <Button
-        type="primary"
-        icon={<OverridableIcon name="search" />}
-        aria-label="Search"
-        onClick={handleConfirm}
+        suffix={
+          <Tooltip title={actionLabel} placement="bottom">
+            <button
+              type="button"
+              className={styles.action}
+              aria-label={actionLabel}
+              onClick={showClearAction ? handleClear : handleConfirm}
+              onMouseDown={(event) => event.preventDefault()}
+            >
+              <OverridableIcon name={showClearAction ? "close" : "search"} />
+            </button>
+          </Tooltip>
+        }
       />
     </Space.Compact>
   );

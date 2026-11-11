@@ -14,6 +14,9 @@ on:
     branches:
       - main
     paths:
+      - '.github/workflows/main-build.yaml'
+      - '.github/workflows/_maven-module-build.yaml'
+      - '.github/maven-settings.xml'
       - 'checkstyle/**'
       - 'engine/**'
       - 'micro-engine/**'
@@ -22,6 +25,7 @@ on:
       - 'runtime-catalog/**'
       - 'integration-build-maven-plugin/**'
       - 'sessions-management/**'
+      - 'ai-service/**'
       - 'parents/**'
       - 'pom.xml'
       - 'schemas/**'
@@ -50,6 +54,7 @@ jobs:
           - micro-engine
           - runtime-catalog
           - sessions-management
+          - ai-service
           - integration-build-maven-plugin
     permissions:
       contents: read
@@ -85,13 +90,10 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies (root workspaces)
-        run: npm ci --legacy-peer-deps
+        run: npm ci
 
       - name: Build workspace chain
-        run: |
-          npm run build -w schemas              # schemas/dist — consumed by the ui build
-          npm run build -w ui                   # standalone web UI (vite app build)
-          npm run build -w vscode-extension     # prepare-deps (schemas + ui:lib) + compile-web
+        run: npm run build  # schemas, the ui app, then vscode-extension (prepare-deps + compile-web)
 
       - name: Test
         run: npm test --workspaces --if-present

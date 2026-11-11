@@ -17,3 +17,8 @@ export function matchesByFields(term: string, fields: SearchField[]): boolean {
   if (!normalizedTerm) return true;
   return makeSearchHaystack(fields).includes(normalizedTerm);
 }
+
+export function matchesAllTerms(term: string, fields: SearchField[]): boolean {
+  const terms = normalizeSearchTerm(term).split(/\s+/).filter(Boolean);
+  return terms.every((t) => matchesByFields(t, fields));
+}

@@ -36,6 +36,12 @@ spring:
         enabled: false
     consul:
       enabled: true
+      # Retries the config import for about 110 s while Consul starts, then fails the pod
+      retry:
+        initial-interval: 1000
+        multiplier: 2
+        max-interval: 5000
+        max-attempts: 24
       config:
         enabled: true
         prefixes: config/${NAMESPACE}
@@ -46,7 +52,7 @@ spring:
 
 cloud:
   microservice:
-    name: ${MICROSERVICE_NAME:qip-sessions-management}
+    name: ${MICROSERVICE_NAME:cip-sessions-management}
     bg_version: ${DEPLOYMENT_VERSION:v1}
     namespace: ${NAMESPACE}
 
@@ -97,7 +103,7 @@ cip:
     index:
       prefix: ${OPENSEARCH_PREFIX:}
       elements:
-        name: qip-elements-${spring.application.namespace}-session-elements
+        name: cip-elements-${spring.application.namespace}-session-elements
     session:
       default-buffer-limit: ${OPENSEARCH_SESSION_DEFAULT_BUFFER_LIMIT:104857600}
   internal-services:
@@ -108,7 +114,7 @@ cip:
 logging:
   level:
     root: ${ROOT_LOG_LEVEL:INFO}
-  config: classpath:logback-spring.xml
+  config: classpath:cip-logback-spring.xml
 
 springdoc:
   writer-with-order-by-keys: true

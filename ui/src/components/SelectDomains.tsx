@@ -53,16 +53,20 @@ export const domainNamesRule: Rule = {
 };
 
 export type SelectDomainsProperties = {
+  id?: string;
   value?: Domain[];
   onChange?: (value: Domain[]) => void;
+  disabled?: boolean;
 };
 
 export type DomainsFormItemProperties = {
   label?: string;
+  disabled?: boolean;
 };
 
 export const DomainsFormItem: React.FC<DomainsFormItemProperties> = ({
   label = "Domains",
+  disabled,
 }) => {
   return (
     <Form.Item
@@ -73,7 +77,7 @@ export const DomainsFormItem: React.FC<DomainsFormItemProperties> = ({
         domainNamesRule,
       ]}
     >
-      <SelectDomains />
+      <SelectDomains disabled={disabled} />
     </Form.Item>
   );
 };
@@ -142,8 +146,10 @@ export function useDomainTypes(): {
 }
 
 export const SelectDomains: React.FC<SelectDomainsProperties> = ({
+  id,
   value,
   onChange,
+  disabled,
 }) => {
   const { isLoading: isDomainsLoading, domains } = useDomains();
   const { loaded: domainTypesLoaded, domainTypes } = useDomainTypes();
@@ -157,8 +163,10 @@ export const SelectDomains: React.FC<SelectDomainsProperties> = ({
 
   return (
     <Select
+      id={id}
       value={value?.map((domain) => domain.name)}
       loading={!domainTypesLoaded || isDomainsLoading}
+      disabled={disabled}
       mode={domainTypes.includes(DomainType.MICRO) ? "tags" : "multiple"}
       allowClear
       labelRender={renderOption}

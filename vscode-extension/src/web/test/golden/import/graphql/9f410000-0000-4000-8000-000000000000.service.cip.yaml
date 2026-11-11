@@ -1,0 +1,13 @@
+id: 9f410000-0000-4000-8000-000000000000
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/service
+name: import-9f410000
+content:
+  integrationSystemType: INTERNAL
+  migrations: "[100, 101, 102]"
+  description: ""
+  activeEnvironmentId: ""
+  extendedProtocol: GRAPHQL
+  specification: ""
+  environments: []
+  labels: []
+  protocol: GRAPHQL

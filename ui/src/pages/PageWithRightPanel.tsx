@@ -310,7 +310,6 @@ export const PageWithRightPanel = ({
                   <CompactSearch
                     value={searchString}
                     onChange={setSearchString}
-                    allowClear
                     onClear={() => setSearchString("")}
                     placeholder="Search"
                     style={{ width: "100%" }}

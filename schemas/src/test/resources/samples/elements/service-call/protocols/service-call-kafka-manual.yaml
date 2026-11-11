@@ -5,10 +5,7 @@ type: "service-call"
 properties:
   after: []
   afterValidation: []
-  errorThrowing: true
   handleValidationAction: "default"
-  integrationGqlQueryHeader: "CamelGraphQLQuery"
-  integrationGqlVariablesHeader: "CamelGraphQLVariables"
   integrationOperationAsyncProperties: {}
   integrationOperationId: "ea0034d2-f02d-40a0-ac0c-259b6272ca0a-async-kafka-1.0.0-publishUserSignedUp"
   integrationOperationMethod: "publish"

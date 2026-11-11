@@ -1,0 +1,7 @@
+---
+id: "e2e00035-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/mcp-service"
+name: "e2e-{{RUN}}-mcp-service"
+content:
+  identifier: "e2e-{{RUN}}-mcp-service"
+  migrations: "[100]"

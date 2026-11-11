@@ -4,11 +4,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.modelcontextprotocol.json.McpJsonMapper;
 import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper;
 import io.modelcontextprotocol.server.McpServerFeatures;
-import io.modelcontextprotocol.server.McpSyncServer;
 import io.modelcontextprotocol.spec.McpSchema;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.camel.CamelContext;
 import org.apache.camel.Exchange;
 import org.apache.camel.ProducerTemplate;
+import org.apache.camel.component.direct.DirectConsumerNotAvailableException;
 import org.apache.camel.spring.SpringCamelContext;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.engine.model.ChainElementType;
@@ -21,27 +22,33 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static java.util.Objects.isNull;
+import static java.util.Objects.nonNull;
 
 @Slf4j
 @Component
 @OnAfterDeploymentContextCreated
 public class McpToolRegistrar extends ElementProcessingAction {
     public static final String DEPLOYMENT_ID = "deploymentId";
+    public static final String TOOL_SPECIFICATIONS = "mcpToolSpecifications";
+    public static final String TOOL_TARGETS = "mcpToolTargets";
 
-    private final McpSyncServer mcpSyncServer;
     private final McpJsonMapper mcpJsonMapper;
+    private final McpToolTargets toolTargets;
 
     @Autowired
-    public McpToolRegistrar(
-            McpSyncServer mcpSyncServer,
-            @Qualifier("jsonMapper") ObjectMapper objectMapper
-    ) {
-        this.mcpSyncServer = mcpSyncServer;
+    public McpToolRegistrar(@Qualifier("jsonMapper") ObjectMapper objectMapper, McpToolTargets toolTargets) {
         this.mcpJsonMapper = new JacksonMcpJsonMapper(objectMapper);
+        this.toolTargets = toolTargets;
     }
 
     @Override
@@ -54,15 +61,28 @@ public class McpToolRegistrar extends ElementProcessingAction {
     @Override
     public void apply(SpringCamelContext context, ElementProperties properties, DeploymentInfo deploymentInfo) {
         McpSchema.Tool tool = buildMcpTool(properties, deploymentInfo);
+        McpToolTargets.Target own = new McpToolTargets.Target(context, "direct:" + properties.getElementId());
         McpServerFeatures.SyncToolSpecification toolSpecification = McpServerFeatures.SyncToolSpecification.builder()
                 .tool(tool)
                 .callHandler((mcpExchange, request) -> {
-                    ProducerTemplate producerTemplate = context.createProducerTemplate();
-                    String endpointUri = "direct:" + properties.getElementId();
-                    Exchange result = producerTemplate.request(endpointUri, exchange ->
-                        exchange.getIn().setBody(request.arguments()));
+                    Exchange result = send(own, request.arguments());
+                    // A redeploy can replace the tool after the server handed it this call, and stop this
+                    // context before the call reaches the trigger. Only an exchange that entered no route goes
+                    // to the deployment that serves the tool now: a reuse-reference inside the chain can fail
+                    // the same way after the chain has done its work.
+                    if (result.getException() instanceof DirectConsumerNotAvailableException
+                            && isNull(result.getFromRouteId())) {
+                        McpToolTargets.Target serving = toolTargets.current(tool.name()).orElse(own);
+                        if (serving.context() != context) {
+                            result = send(serving, request.arguments());
+                        }
+                    }
                     McpSchema.CallToolResult.Builder builder = McpSchema.CallToolResult.builder();
-                    if (isNull(tool.outputSchema())) {
+                    Exception exception = result.getException();
+                    if (nonNull(exception)) {
+                        builder.isError(true).addTextContent(
+                                Objects.toString(exception.getMessage(), exception.getClass().getName()));
+                    } else if (isNull(tool.outputSchema())) {
                         builder.textContent(Collections.singletonList(result.getMessage().getBody(String.class)));
                     } else {
                         builder.structuredContent(result.getMessage().getBody());
@@ -70,8 +90,40 @@ public class McpToolRegistrar extends ElementProcessingAction {
                     return builder.build();
                 })
                 .build();
-        log.debug("Registering MCP tool: {}", toolSpecification.tool());
-        mcpSyncServer.addTool(toolSpecification);
+        log.debug("Prepared MCP tool: {}", toolSpecification.tool());
+        toolSpecifications(context).add(toolSpecification);
+        targets(context).put(tool.name(), own);
+    }
+
+    private static Exchange send(McpToolTargets.Target target, Object arguments) {
+        try (ProducerTemplate producerTemplate = target.context().createProducerTemplate()) {
+            return producerTemplate.request(target.endpointUri(), exchange -> exchange.getIn().setBody(arguments));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    // McpToolPublisher hands these to McpToolTargets with the tools.
+    @SuppressWarnings("unchecked")
+    private static Map<String, McpToolTargets.Target> targets(CamelContext context) {
+        Map<String, McpToolTargets.Target> targets = context.getRegistry().lookupByNameAndType(TOOL_TARGETS, Map.class);
+        if (isNull(targets)) {
+            targets = new HashMap<>();
+            context.getRegistry().bind(TOOL_TARGETS, targets);
+        }
+        return targets;
+    }
+
+    // McpToolPublisher offers these once the context has started.
+    @SuppressWarnings("unchecked")
+    private static List<McpServerFeatures.SyncToolSpecification> toolSpecifications(CamelContext context) {
+        List<McpServerFeatures.SyncToolSpecification> specifications =
+                context.getRegistry().lookupByNameAndType(TOOL_SPECIFICATIONS, List.class);
+        if (isNull(specifications)) {
+            specifications = new ArrayList<>();
+            context.getRegistry().bind(TOOL_SPECIFICATIONS, specifications);
+        }
+        return specifications;
     }
 
     private McpSchema.Tool buildMcpTool(ElementProperties properties, DeploymentInfo deploymentInfo) {

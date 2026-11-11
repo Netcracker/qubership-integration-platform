@@ -81,8 +81,8 @@ h1 {
 }
 
 .fixed-textarea {
-  height: 120px;
-  resize: none;
+  height: 120px !important;
+  resize: none !important;
 }
 
 .flex-tabs {
@@ -150,13 +150,34 @@ h1 {
           > .ant-table-body table {
             height: auto !important;
           }
+
+          /* An empty table stretches so its placeholder fills the body. */
+          > .ant-table-body table:has(.ant-table-placeholder) {
+            height: 100% !important;
+
+            .ant-table-cell {
+              border: none !important;
+            }
+          }
+
+          > .ant-table-content {
+            height: 100%;
+          }
+
+          > .ant-table-content table:has(.ant-table-placeholder) {
+            height: 100% !important;
+
+            .ant-table-cell {
+              border: none !important;
+            }
+          }
         }
       }
     }
   }
 }
 
-.qip-editor {
+.cip-editor {
   min-width: 0;
   min-height: 0;
   border: solid 1px var(--vscode-border, lightgrey);
@@ -165,9 +186,9 @@ h1 {
   position: relative;
 }
 
-.qip-editor .monaco-editor,
-.qip-editor .monaco-editor-background,
-.qip-editor .monaco-editor .overflow-guard {
+.cip-editor .monaco-editor,
+.cip-editor .monaco-editor-background,
+.cip-editor .monaco-editor .overflow-guard {
   border-radius: 4px;
 }
 
@@ -252,4 +273,16 @@ h1 {
 
 .ant-table-filter-dropdown {
   z-index: 1050;
+}
+
+.details-sidebar-body {
+  padding: 0 !important;
+}
+
+.details-sidebar-properties-group {
+  text-transform: uppercase;
+}
+
+.ant-listy-item:has(> .details-sidebar-kv-table) {
+  padding: 0 !important;
 }

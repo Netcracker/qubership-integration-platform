@@ -20,6 +20,7 @@ import com.netcracker.cloud.dbaas.client.opensearch.DbaasOpensearchClient;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.opensearch.client.json.JsonData;
+import org.opensearch.client.opensearch._types.Conflicts;
 import org.opensearch.client.opensearch._types.FieldSort;
 import org.opensearch.client.opensearch._types.FieldValue;
 import org.opensearch.client.opensearch._types.SortOptions;
@@ -32,6 +33,7 @@ import org.opensearch.client.opensearch.core.search.FieldCollapse;
 import org.opensearch.client.opensearch.core.search.Hit;
 import org.opensearch.client.opensearch.core.search.InnerHits;
 import org.opensearch.client.opensearch.core.search.InnerHitsResult;
+import org.opensearch.client.opensearch.indices.RefreshRequest;
 import org.opensearch.client.transport.httpclient5.ApacheHttpClient5Options;
 import org.opensearch.client.transport.httpclient5.HttpAsyncResponseConsumerFactory;
 import org.qubership.integration.platform.sessions.dto.Session;
@@ -158,6 +160,7 @@ public class SessionService {
     public void deleteAllSessions() {
         DeleteByQueryRequest request = new DeleteByQueryRequest.Builder()
                 .index(opensearchClient.normalize(indexName))
+                .conflicts(Conflicts.Proceed)
                 .query(new MatchAllQuery.Builder().build().toQuery())
                 .refresh(true)
                 .build();
@@ -167,6 +170,7 @@ public class SessionService {
     public void deleteByField(String fieldName, String value, boolean refresh) {
         DeleteByQueryRequest request = new DeleteByQueryRequest.Builder()
                 .index(opensearchClient.normalize(indexName))
+                .conflicts(Conflicts.Proceed)
                 .query(new TermQuery.Builder().field(fieldName).value(FieldValue.of(value)).build().toQuery())
                 .refresh(refresh)
                 .build();
@@ -183,6 +187,7 @@ public class SessionService {
                 .toQuery();
         DeleteByQueryRequest request = new DeleteByQueryRequest.Builder()
                 .index(opensearchClient.normalize(indexName))
+                .conflicts(Conflicts.Proceed)
                 .query(query)
                 .refresh(true)
                 .build();
@@ -221,13 +226,21 @@ public class SessionService {
     }
 
     private void configureSessionElementsCollapseBy(SearchRequest.Builder builder, String field) {
+        configureSessionElementsCollapseBy(builder, field, false);
+    }
+
+    private void configureSessionElementsCollapseBy(SearchRequest.Builder builder, String field, boolean applyExcludes) {
+        InnerHits.Builder innerHits = new InnerHits.Builder()
+                .name(INNER_HIT_NAME)
+                .sort(new SortOptions.Builder().field(new FieldSort.Builder().field(SESSION_DURATION_KEY).order(SortOrder.Desc).build()).build())
+                .size(1);
+        // getSearchResponse reads the inner hits, and the request's _source filter does not apply to them.
+        if (applyExcludes) {
+            innerHits.source(source -> source.filter(filter -> filter.excludes(Arrays.asList(EXCLUDE_FIELD_IN_SESSIONS))));
+        }
         FieldCollapse collapse = new FieldCollapse.Builder()
                 .field(field)
-                .innerHits(new InnerHits.Builder()
-                        .name(INNER_HIT_NAME)
-                        .sort(new SortOptions.Builder().field(new FieldSort.Builder().field(SESSION_DURATION_KEY).order(SortOrder.Desc).build()).build())
-                        .size(1)
-                        .build())
+                .innerHits(innerHits.build())
                 .build();
         builder.collapse(collapse);
     }
@@ -294,7 +307,7 @@ public class SessionService {
                 .size(count)
                 .sort(new SortOptions.Builder().field(new FieldSort.Builder().field(STARTED_KEY).order(SortOrder.Asc).build()).build())
                 .source(builder -> builder.filter(builder1 -> builder1.excludes(Arrays.asList(EXCLUDE_FIELD_IN_SESSIONS))));
-        configureSessionElementsCollapseBy(requestBuilder, SESSION_ID_KEY);
+        configureSessionElementsCollapseBy(requestBuilder, SESSION_ID_KEY, true);
 
         return getSearchResponse(requestBuilder.build());
     }
@@ -342,6 +355,8 @@ public class SessionService {
 
     private void delete(DeleteByQueryRequest request) {
         try {
+            // The delete reads the index as of its last refresh, so an element rewritten since then would conflict and stay.
+            opensearchClient.getClient().indices().refresh(new RefreshRequest.Builder().index(request.index()).build());
             opensearchClient.getClient().deleteByQuery(request);
         } catch (IOException e) {
             throw new SearchException("Unable to perform delete from OpenSearch", e);

@@ -1,6 +1,5 @@
 import {
   createVscodeMock,
-  stubProjectConfigService,
   buildMockContext,
 } from "./helpers/mocks";
 
@@ -72,25 +71,8 @@ jest.mock("../src/web/response/file/fileApiImpl", () => ({
     createEmptyContextService: jest.fn(),
   })),
 }));
-jest.mock("../src/web/response/file/fileExtensions", () => ({
-  getExtensionsForUri: jest.fn().mockReturnValue({
-    chain: ".qip-chain.yaml",
-    service: ".qip-service.yaml",
-    contextService: ".qip-context-service.yaml",
-    mcpService: ".qip-mcp-service.yaml",
-    specificationGroup: ".qip-sg.yaml",
-    specification: ".qip-spec.yaml",
-  }),
-  getExtensionsForFile: jest.fn().mockReturnValue({
-    chain: ".qip-chain.yaml",
-    service: ".qip-service.yaml",
-  }),
-  setCurrentFileContext: jest.fn(),
-  extractFilename: jest.fn(),
-  initializeContextFromFile: jest.fn(),
-}));
-jest.mock("../src/web/qipExplorer", () => ({
-  QipExplorerProvider: jest.fn().mockImplementation(() => ({
+jest.mock("../src/web/cipExplorer", () => ({
+  CipExplorerProvider: jest.fn().mockImplementation(() => ({
     refresh: jest.fn(),
     getTreeItem: jest.fn(),
     getChildren: jest.fn(),
@@ -102,12 +84,6 @@ jest.mock("../src/web/services/FileCacheService", () => ({
     getInstance: jest.fn().mockReturnValue({ invalidateByUri: jest.fn() }),
   },
 }));
-jest.mock("../src/web/services/ProjectConfigService", () =>
-  stubProjectConfigService(),
-);
-jest.mock("../src/web/services/ConfigApiProvider", () => ({
-  ConfigApiProvider: { getInstance: jest.fn().mockReturnValue({}) },
-}));
 jest.mock("../src/web/response/navigationUtils", () => ({
   getAndClearNavigationStateValue: jest.fn(),
   getNavigationStateValue: jest.fn(),
@@ -116,10 +92,11 @@ jest.mock("../src/web/response/navigationUtils", () => ({
 }));
 
 import { activate } from "../src/web/extension";
+import { getAndClearNavigationStateValue } from "../src/web/response/navigationUtils";
 
 function activateAndGetProvider() {
   activate(buildMockContext());
-  return capturedEditorProviders["qip.chainFile.editor"];
+  return capturedEditorProviders["cip.chainFile.editor"];
 }
 
 const validDocument = { uri: { path: "/test.yaml", fsPath: "/test.yaml" } };
@@ -211,6 +188,36 @@ describe("extension.ts", () => {
     });
   });
 
+  describe("onDidChangeViewState - stored navigation path", () => {
+    const path = "/services/context/c-1/parameters";
+    let onViewStateChange: (e: unknown) => Promise<void>;
+
+    beforeEach(async () => {
+      await openEditorAndGetMessageHandler();
+      onViewStateChange = (mockPanel.onDidChangeViewState.mock.calls as any)[0][0];
+      jest.mocked(getAndClearNavigationStateValue).mockResolvedValue(path as never);
+      mockPostMessage.mockClear();
+    });
+
+    test("posts the path getApiResponse resolves", async () => {
+      mockGetApiResponse.mockResolvedValue(path);
+
+      await onViewStateChange({ webviewPanel: { active: true } });
+
+      expect(mockPostMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "navigate", payload: path }),
+      );
+    });
+
+    test("posts nothing and does not reject when getApiResponse throws", async () => {
+      mockGetApiResponse.mockRejectedValue(new Error("Invalid service file content"));
+
+      await expect(onViewStateChange({ webviewPanel: { active: true } })).resolves.toBeUndefined();
+
+      expect(mockPostMessage).not.toHaveBeenCalled();
+    });
+  });
+
   describe("getWebviewContent - importMapScript", () => {
     test("omits importmap when bundled JS file exists", async () => {
       mockStatBehavior = "resolve";
@@ -239,6 +246,36 @@ describe("extension.ts", () => {
       expect(mockWebview.html).toContain("importmap");
       expect(mockWebview.html).toContain("esm.sh/react@18.3.1");
     });
+
+    test("links the cip-ui stylesheet", async () => {
+      mockStatBehavior = "resolve";
+      const provider = activateAndGetProvider();
+
+      await provider.resolveCustomTextEditor(
+        validDocument as any,
+        mockPanel as any,
+        {} as any,
+      );
+
+      expect(mockWebview.asWebviewUri).toHaveBeenCalledWith(
+        expect.objectContaining({ path: "cip-ui.css" }),
+      );
+    });
+  });
+
+  describe("file watchers", () => {
+    test("watches every *.cip.yaml file with a single watcher", () => {
+      const vscode = require("vscode");
+      vscode.workspace.createFileSystemWatcher.mockClear();
+
+      activate(buildMockContext());
+
+      expect(
+        vscode.workspace.createFileSystemWatcher.mock.calls.map(
+          (call: unknown[]) => call[0],
+        ),
+      ).toEqual(["**/*.cip.yaml"]);
+    });
   });
 
   describe("useDefaultDiffView toggle", () => {
@@ -259,7 +296,7 @@ describe("extension.ts", () => {
       const update = jest.fn().mockResolvedValue(undefined);
       vscode.workspace.getConfiguration.mockImplementation(
         (section?: string) => {
-          if (section === "qipExtension") {
+          if (section === "cipExtension") {
             return {
               get: jest.fn((_key: string, defaultVal: any) =>
                 _key === "useDefaultDiffView"
@@ -357,7 +394,7 @@ describe("extension.ts", () => {
       expect(update).not.toHaveBeenCalled();
 
       state.useDefaultDiffView = true;
-      fireConfigurationChange("qipExtension.useDefaultDiffView");
+      fireConfigurationChange("cipExtension.useDefaultDiffView");
       await flushAsync();
 
       expect(update).toHaveBeenCalledWith(

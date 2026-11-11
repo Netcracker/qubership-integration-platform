@@ -518,7 +518,6 @@ export const SecuredVariables: React.FC = () => {
       )}
       <AdminToolsHeader
         title="Secured Variables"
-        iconName="lock"
         toolbar={
           <TableToolbar
             refresh={{
@@ -533,7 +532,6 @@ export const SecuredVariables: React.FC = () => {
               value: searchTerm,
               onChange: setSearchTerm,
               placeholder: "Search secrets...",
-              allowClear: true,
             }}
             filterButton={filterButton}
             actions={

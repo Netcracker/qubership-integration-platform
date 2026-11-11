@@ -1,0 +1,1394 @@
+package org.qubership.integration.platform.ai.productpipeline.create.design.semantic;
+
+import jakarta.enterprise.context.ApplicationScoped;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
+import org.qubership.integration.platform.ai.compiler.contract.CompilerContract.ContainmentRole;
+import org.qubership.integration.platform.ai.compiler.contract.CompilerContract.ElementContract;
+import org.qubership.integration.platform.ai.compiler.contract.CompilerContract.TopologyContract;
+import org.qubership.integration.platform.ai.plan.BriefMappingValidator;
+import org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator;
+import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.RequirementFactKind;
+import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
+import org.qubership.integration.platform.ai.plan.RequirementFlowValidator;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFailureMode;
+import org.qubership.integration.platform.ai.schema.ChainElementFamilies;
+
+/**
+ * One validation pass over a semantic revision. Wrong input fails closed; values are not
+ * rewritten.
+ */
+@ApplicationScoped
+public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevisionValidator {
+
+  private enum Color {
+    WHITE,
+    GRAY,
+    BLACK
+  }
+
+  @Override
+  public void validate(ChainSemanticRevision revision, CompilerContract contract) {
+    validate(revision, contract, null);
+  }
+
+  @Override
+  public void validate(
+      ChainSemanticRevision revision, CompilerContract contract, RequirementBrief brief) {
+    Objects.requireNonNull(revision, "revision");
+    Objects.requireNonNull(contract, "contract");
+    List<String> errors = new ArrayList<>();
+    validateVersions(revision, contract, errors);
+    Index index = Index.build(revision, errors);
+    validateEntries(revision, index, errors);
+    validateNodes(revision, contract, errors);
+    validateEdges(revision, index, errors);
+    validateExecutionDag(revision, index, errors);
+    validateReachability(revision, index, errors);
+    validateContainment(revision, contract, index, errors);
+    validateRegions(revision, contract, index, errors);
+    validateRequiredErrorScopes(revision, errors);
+    validateServiceCallFailureModes(revision, brief, errors);
+    validateHiddenJoins(revision, index, errors);
+    validateMappings(revision, brief, index, errors);
+    validateScriptOwnership(revision, index, brief, errors);
+    errors.addAll(org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCaptureAdapter
+        .validateElementIntent(brief, revision, contract));
+    validateBindingPolicy(revision, brief, errors);
+    if (!errors.isEmpty()) {
+      throw new SemanticRevisionValidationException(
+          "Invalid chain semantic revision:\n- " + String.join("\n- ", errors), "");
+    }
+  }
+
+  private static void validateVersions(
+      ChainSemanticRevision revision, CompilerContract contract, List<String> errors) {
+    if (!ChainSemanticRevision.CURRENT_SCHEMA_VERSION.equals(revision.schemaVersion())) {
+      errors.add("Unsupported semantic schema version: " + revision.schemaVersion());
+    }
+    if (!revision.schemaVersion().equals(contract.semanticSchemaVersion())) {
+      errors.add(
+          "semantic schema version '"
+              + revision.schemaVersion()
+              + "' does not match compiler contract '"
+              + contract.semanticSchemaVersion()
+              + "'");
+    }
+    if (!revision.compilerContractVersion().equals(contract.contractVersion())) {
+      errors.add(
+          "compiler contract version '"
+              + revision.compilerContractVersion()
+              + "' does not match contract '"
+              + contract.contractVersion()
+              + "'");
+    }
+  }
+
+  private static void validateEntries(
+      ChainSemanticRevision revision, Index index, List<String> errors) {
+    if (revision.entryPoints().isEmpty()) {
+      errors.add("entryPoints must contain at least one entry");
+    }
+    for (SemanticEntryPoint entry : revision.entryPoints()) {
+      SemanticNode trigger = index.nodes.get(entry.triggerNodeId());
+      if (trigger == null) {
+        errors.add(
+            "Entry point '"
+                + entry.entryPointId()
+                + "' triggerNodeId '"
+                + entry.triggerNodeId()
+                + "' is missing");
+      } else if (!(trigger instanceof SemanticNode.Trigger)) {
+        errors.add(
+            "Entry point '"
+                + entry.entryPointId()
+                + "' triggerNodeId '"
+                + entry.triggerNodeId()
+                + "' is not a TRIGGER");
+      }
+      if (!index.nodes.containsKey(entry.initialTargetNodeId())) {
+        errors.add(
+            "Entry point '"
+                + entry.entryPointId()
+                + "' initialTargetNodeId '"
+                + entry.initialTargetNodeId()
+                + "' is missing");
+      }
+    }
+  }
+
+  private static void validateNodes(
+      ChainSemanticRevision revision, CompilerContract contract, List<String> errors) {
+    Set<String> serviceCallIds = new HashSet<>();
+    for (SemanticNode node : revision.nodes()) {
+      String elementType = elementType(node);
+      if (!contract.elements().containsKey(elementType)) {
+        errors.add("Unknown contract element: " + elementType);
+      }
+      if ((ChainElementFamilies.isTrigger(elementType) || ChainElementFamilies.isSender(elementType))
+          && ChainElementFamilies.bindingMode(elementType) == ChainElementFamilies.BindingMode.UNSUPPORTED_IN_CREATE) {
+        errors.add("Runtime descriptor missing for element: " + elementType);
+      }
+      TopologyContract topology = contract.topology().get(elementType);
+      if (topology != null && !topology.supported()) {
+        errors.add("Unsupported topology: " + elementType);
+      }
+      if (node instanceof SemanticNode.ServiceCall serviceCall
+          && !serviceCallIds.add(serviceCall.serviceCallId())) {
+        errors.add("Duplicate serviceCallId: " + serviceCall.serviceCallId());
+      }
+    }
+  }
+
+  private static void validateEdges(ChainSemanticRevision revision, Index index, List<String> errors) {
+    for (SemanticExecutionEdge edge : revision.executionEdges()) {
+      if (!index.nodes.containsKey(edge.sourceNodeId())) {
+        errors.add(
+            "Execution edge '"
+                + edge.edgeId()
+                + "' sourceNodeId '"
+                + edge.sourceNodeId()
+                + "' is missing");
+      }
+      if (!index.nodes.containsKey(edge.targetNodeId())) {
+        errors.add(
+            "Execution edge '"
+                + edge.edgeId()
+                + "' targetNodeId '"
+                + edge.targetNodeId()
+                + "' is missing");
+      }
+      if (edge.regionId() != null && !index.regions.containsKey(edge.regionId())) {
+        errors.add(
+            "Execution edge '"
+                + edge.edgeId()
+                + "' regionId '"
+                + edge.regionId()
+                + "' is missing");
+      }
+      if (edge.route() == null) {
+        errors.add("Execution edge '" + edge.edgeId() + "' is missing a route");
+      } else {
+        validateRouteRefs(edge, index, errors);
+      }
+    }
+  }
+
+  private static void validateRouteRefs(
+      SemanticExecutionEdge edge, Index index, List<String> errors) {
+    SemanticRoute route = edge.route();
+    List<ScopedRef> refs = scopedRefs(route);
+    if (refs.isEmpty()) {
+      return;
+    }
+    if (edge.regionId() == null) {
+      errors.add("Execution edge '" + edge.edgeId() + "' is missing a region");
+      return;
+    }
+    SemanticRegion region = index.regions.get(edge.regionId());
+    if (region == null) {
+      return;
+    }
+    for (ScopedRef ref : refs) {
+      if (!regionOwns(region, route, ref.id())) {
+        errors.add(
+            "Execution edge '"
+                + edge.edgeId()
+                + "' "
+                + ref.field()
+                + " '"
+                + ref.id()
+                + "' is missing from region '"
+                + edge.regionId()
+                + "'");
+      }
+    }
+  }
+
+  private static List<ScopedRef> scopedRefs(SemanticRoute route) {
+    return switch (route) {
+      case SemanticRoute.ConditionBranch branch ->
+          List.of(new ScopedRef("branchId", branch.branchId()));
+      case SemanticRoute.SplitBranch branch -> List.of(new ScopedRef("branchId", branch.branchId()));
+      case SemanticRoute.CatchPath catchPath ->
+          List.of(new ScopedRef("handlerId", catchPath.handlerId()));
+      case SemanticRoute.Reconverge reconverge -> {
+        List<ScopedRef> refs = new ArrayList<>();
+        for (String branchId : reconverge.branchIds()) {
+          refs.add(new ScopedRef("branchId", branchId));
+        }
+        yield refs;
+      }
+      default -> List.of();
+    };
+  }
+
+  private static boolean regionOwns(SemanticRegion region, SemanticRoute route, String id) {
+    return switch (route) {
+      case SemanticRoute.ConditionBranch ignored ->
+          region instanceof SemanticRegion.Condition condition
+              && ownsConditionBranch(condition, id);
+      case SemanticRoute.SplitBranch ignored ->
+          region instanceof SemanticRegion.Split split && ownsSplitBranch(split, id);
+      case SemanticRoute.CatchPath ignored ->
+          region instanceof SemanticRegion.ErrorScope scope && ownsHandler(scope, id);
+      case SemanticRoute.Reconverge ignored -> ownsReconvergeBranch(region, id);
+      default -> true;
+    };
+  }
+
+  private static boolean ownsConditionBranch(SemanticRegion.Condition condition, String branchId) {
+    for (SemanticBranch.Condition branch : condition.branches()) {
+      if (branch.branchId().equals(branchId)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean ownsSplitBranch(SemanticRegion.Split split, String branchId) {
+    for (SemanticBranch.Split branch : split.branches()) {
+      if (branch.branchId().equals(branchId)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean ownsHandler(SemanticRegion.ErrorScope scope, String handlerId) {
+    for (ErrorHandler handler : scope.handlers()) {
+      if (handler.handlerId().equals(handlerId)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean ownsReconvergeBranch(SemanticRegion region, String branchId) {
+    return switch (region) {
+      case SemanticRegion.Condition condition -> ownsConditionBranch(condition, branchId);
+      case SemanticRegion.Split split -> ownsSplitBranch(split, branchId);
+      default -> false;
+    };
+  }
+
+  private static void validateExecutionDag(
+      ChainSemanticRevision revision, Index index, List<String> errors) {
+    Map<String, Color> colors = new HashMap<>();
+    for (SemanticNode node : revision.nodes()) {
+      colors.put(node.nodeId(), Color.WHITE);
+    }
+    boolean cycle = false;
+    for (SemanticNode node : revision.nodes()) {
+      if (colors.get(node.nodeId()) == Color.WHITE
+          && dfsExecution(node.nodeId(), index, colors)) {
+        cycle = true;
+      }
+    }
+    if (cycle) {
+      errors.add("execution edges must form a DAG");
+    }
+  }
+
+  private static boolean dfsExecution(String nodeId, Index index, Map<String, Color> colors) {
+    colors.put(nodeId, Color.GRAY);
+    boolean cycle = false;
+    for (SemanticExecutionEdge edge : index.outgoing.getOrDefault(nodeId, List.of())) {
+      String target = edge.targetNodeId();
+      if (!colors.containsKey(target)) {
+        continue;
+      }
+      Color color = colors.get(target);
+      if (color == Color.WHITE) {
+        cycle |= dfsExecution(target, index, colors);
+      } else if (color == Color.GRAY) {
+        cycle = true;
+      }
+    }
+    colors.put(nodeId, Color.BLACK);
+    return cycle;
+  }
+
+  private static void validateReachability(
+      ChainSemanticRevision revision, Index index, List<String> errors) {
+    Set<String> reachable = new HashSet<>();
+    ArrayDeque<String> queue = new ArrayDeque<>();
+    for (SemanticEntryPoint entry : revision.entryPoints()) {
+      if (index.nodes.containsKey(entry.triggerNodeId()) && reachable.add(entry.triggerNodeId())) {
+        queue.add(entry.triggerNodeId());
+      }
+    }
+    while (!queue.isEmpty()) {
+      String nodeId = queue.removeFirst();
+      for (SemanticExecutionEdge edge : index.outgoing.getOrDefault(nodeId, List.of())) {
+        if (index.nodes.containsKey(edge.targetNodeId()) && reachable.add(edge.targetNodeId())) {
+          queue.add(edge.targetNodeId());
+        }
+      }
+    }
+    Map<String, String> parentByChild = parentByChild(revision);
+    for (SemanticNode node : revision.nodes()) {
+      if (!reachable.contains(node.nodeId())
+          && reuseOwner(node.nodeId(), index, parentByChild) == null) {
+        errors.add("Node '" + node.nodeId() + "' is not reachable from any entry point");
+      }
+    }
+  }
+
+  private static void validateContainment(
+      ChainSemanticRevision revision,
+      CompilerContract contract,
+      Index index,
+      List<String> errors) {
+    Map<String, String> parentByChild = new LinkedHashMap<>();
+    Map<String, List<String>> children = new LinkedHashMap<>();
+    Map<String, Map<String, Integer>> roleCounts = new LinkedHashMap<>();
+    for (SemanticContainment relation : revision.containment()) {
+      if (!index.nodes.containsKey(relation.parentNodeId())) {
+        errors.add("Containment parentNodeId '" + relation.parentNodeId() + "' is missing");
+      }
+      if (!index.nodes.containsKey(relation.childNodeId())) {
+        errors.add("Containment childNodeId '" + relation.childNodeId() + "' is missing");
+      }
+      validateContainmentRole(relation, contract, index, errors);
+      String previous = parentByChild.put(relation.childNodeId(), relation.parentNodeId());
+      if (previous != null) {
+        errors.add(
+            "Node '" + relation.childNodeId() + "' has more than one containment parent");
+      }
+      children
+          .computeIfAbsent(relation.parentNodeId(), ignored -> new ArrayList<>())
+          .add(relation.childNodeId());
+      roleCounts
+          .computeIfAbsent(relation.parentNodeId(), ignored -> new LinkedHashMap<>())
+          .merge(relation.role(), 1, Integer::sum);
+    }
+    validateContainmentCardinality(revision, contract, roleCounts, errors);
+    validateReuseExecution(revision, index, parentByChild, errors);
+    Map<String, Color> colors = new HashMap<>();
+    for (SemanticNode node : revision.nodes()) {
+      colors.put(node.nodeId(), Color.WHITE);
+    }
+    boolean cycle = false;
+    for (SemanticNode node : revision.nodes()) {
+      if (colors.get(node.nodeId()) == Color.WHITE
+          && dfsContainment(node.nodeId(), children, colors)) {
+        cycle = true;
+      }
+    }
+    if (cycle) {
+      errors.add("containment relations must form a DAG");
+    }
+  }
+
+  private static void validateContainmentCardinality(
+      ChainSemanticRevision revision,
+      CompilerContract contract,
+      Map<String, Map<String, Integer>> roleCounts,
+      List<String> errors) {
+    Set<String> regionOwners = new HashSet<>();
+    for (SemanticRegion region : revision.regions()) {
+      switch (region) {
+        case SemanticRegion.Condition value -> regionOwners.add(value.ownerNodeId());
+        case SemanticRegion.Split value -> regionOwners.add(value.ownerNodeId());
+        case SemanticRegion.Loop value -> regionOwners.add(value.ownerNodeId());
+        case SemanticRegion.Retry value -> regionOwners.add(value.ownerNodeId());
+        case SemanticRegion.ErrorScope value -> regionOwners.add(value.ownerNodeId());
+        case SemanticRegion.Sequence ignored -> {
+          // A sequence has no structural owner.
+        }
+      }
+    }
+    for (SemanticNode node : revision.nodes()) {
+      if (regionOwners.contains(node.nodeId())) {
+        continue;
+      }
+      ElementContract element = contract.elements().get(elementType(node));
+      if (element == null) {
+        continue;
+      }
+      Map<String, Integer> counts = roleCounts.getOrDefault(node.nodeId(), Map.of());
+      for (Map.Entry<String, ContainmentRole> role : element.containmentRoles().entrySet()) {
+        int count = counts.getOrDefault(role.getKey(), 0);
+        if (count < role.getValue().min()) {
+          errors.add(
+              "Element '"
+                  + node.nodeId()
+                  + "' requires at least "
+                  + role.getValue().min()
+                  + " '"
+                  + role.getKey()
+                  + "' child");
+        }
+        Integer max = role.getValue().max();
+        if (max != null && count > max) {
+          errors.add(
+              "Element '"
+                  + node.nodeId()
+                  + "' allows at most "
+                  + max
+                  + " '"
+                  + role.getKey()
+                  + "' child");
+        }
+      }
+    }
+  }
+
+  private static void validateReuseExecution(
+      ChainSemanticRevision revision,
+      Index index,
+      Map<String, String> parentByChild,
+      List<String> errors) {
+    for (SemanticExecutionEdge edge : revision.executionEdges()) {
+      SemanticNode source = index.nodes.get(edge.sourceNodeId());
+      SemanticNode target = index.nodes.get(edge.targetNodeId());
+      if (isReuse(source) || isReuse(target)) {
+        errors.add(
+            "Execution edge '"
+                + edge.edgeId()
+                + "' must not connect to a standalone reuse container");
+      }
+      String sourceOwner = reuseOwner(edge.sourceNodeId(), index, parentByChild);
+      String targetOwner = reuseOwner(edge.targetNodeId(), index, parentByChild);
+      if (!Objects.equals(sourceOwner, targetOwner)) {
+        errors.add(
+            "Execution edge '"
+                + edge.edgeId()
+                + "' crosses reuse containment boundary");
+      }
+    }
+  }
+
+  private static Map<String, String> parentByChild(ChainSemanticRevision revision) {
+    Map<String, String> parents = new LinkedHashMap<>();
+    for (SemanticContainment relation : revision.containment()) {
+      parents.putIfAbsent(relation.childNodeId(), relation.parentNodeId());
+    }
+    return parents;
+  }
+
+  private static String reuseOwner(
+      String nodeId, Index index, Map<String, String> parentByChild) {
+    Set<String> visited = new HashSet<>();
+    String current = nodeId;
+    while (current != null && visited.add(current)) {
+      if (isReuse(index.nodes.get(current))) {
+        return current;
+      }
+      current = parentByChild.get(current);
+    }
+    return null;
+  }
+
+  private static boolean isReuse(SemanticNode node) {
+    return node instanceof SemanticNode.Operation operation
+        && "reuse".equals(operation.elementType());
+  }
+
+  private static void validateContainmentRole(
+      SemanticContainment relation,
+      CompilerContract contract,
+      Index index,
+      List<String> errors) {
+    SemanticNode parent = index.nodes.get(relation.parentNodeId());
+    if (parent == null) {
+      return;
+    }
+    ElementContract element = contract.elements().get(elementType(parent));
+    if (element == null || !element.containmentRoles().containsKey(relation.role())) {
+      errors.add(
+          "Containment role '"
+              + relation.role()
+              + "' is not allowed on parent '"
+              + relation.parentNodeId()
+              + "'");
+    }
+  }
+
+  private static boolean dfsContainment(
+      String nodeId, Map<String, List<String>> children, Map<String, Color> colors) {
+    colors.put(nodeId, Color.GRAY);
+    boolean cycle = false;
+    for (String child : children.getOrDefault(nodeId, List.of())) {
+      if (!colors.containsKey(child)) {
+        continue;
+      }
+      Color color = colors.get(child);
+      if (color == Color.WHITE) {
+        cycle |= dfsContainment(child, children, colors);
+      } else if (color == Color.GRAY) {
+        cycle = true;
+      }
+    }
+    colors.put(nodeId, Color.BLACK);
+    return cycle;
+  }
+
+  private static void validateRegions(
+      ChainSemanticRevision revision, CompilerContract contract, Index index, List<String> errors) {
+    Map<String, String> ownerToRegion = new LinkedHashMap<>();
+    for (int regionIndex = 0; regionIndex < revision.regions().size(); regionIndex++) {
+      SemanticRegion region = revision.regions().get(regionIndex);
+      switch (region) {
+        case SemanticRegion.Sequence sequence -> validateSequence(sequence, index, errors);
+        case SemanticRegion.Condition condition -> {
+          if (condition.branches().stream().anyMatch(branch -> condition.ownerNodeId().equals(branch.entryNodeId())
+              || branch.exitNodeIds().contains(condition.ownerNodeId()))) {
+            throw new SemanticRevisionValidationException(
+                "Invalid chain semantic revision:\n- Condition '" + condition.regionId()
+                    + "' cannot contain its owner '" + condition.ownerNodeId() + "' in a branch",
+                "/regions/" + regionIndex);
+          }
+          validateCondition(condition, contract, index, ownerToRegion, errors);
+        }
+        case SemanticRegion.Split split ->
+            validateSplit(split, contract, index, ownerToRegion, errors);
+        case SemanticRegion.Loop loop -> validateLoop(loop, index, ownerToRegion, errors);
+        case SemanticRegion.Retry retry -> validateRetry(retry, index, ownerToRegion, errors);
+        case SemanticRegion.ErrorScope scope ->
+            validateErrorScope(scope, contract, index, ownerToRegion, errors);
+      }
+    }
+  }
+
+  private static void validateRequiredErrorScopes(
+      ChainSemanticRevision revision, List<String> errors) {
+    Set<String> owners = new HashSet<>();
+    for (SemanticRegion region : revision.regions()) {
+      if (region instanceof SemanticRegion.ErrorScope scope) {
+        owners.add(scope.ownerNodeId());
+      }
+    }
+    for (SemanticNode node : revision.nodes()) {
+      if (node instanceof SemanticNode.Operation operation
+          && "try-catch-finally-2".equals(operation.elementType())
+          && !owners.contains(operation.nodeId())) {
+        errors.add(
+            "Node '"
+                + operation.nodeId()
+                + "' with element type 'try-catch-finally-2' requires an ERROR_SCOPE region");
+      }
+    }
+  }
+
+  private static void validateSequence(
+      SemanticRegion.Sequence sequence, Index index, List<String> errors) {
+    for (String memberNodeId : sequence.memberNodeIds()) {
+      requireNode(memberNodeId, "Sequence '" + sequence.regionId() + "' member", index, errors);
+    }
+  }
+
+  private static void validateCondition(
+      SemanticRegion.Condition condition,
+      CompilerContract contract,
+      Index index,
+      Map<String, String> ownerToRegion,
+      List<String> errors) {
+    claimOwner(condition.regionId(), condition.ownerNodeId(), index, ownerToRegion, errors);
+    requireNode(condition.reconvergenceNodeId(), "Condition reconvergence", index, errors);
+    ElementContract element = contract.elements().get("condition");
+    BranchCounts counts = validateConditionBranches(condition, index, errors);
+    int minIf = minRole(element, "if", 1);
+    int maxElse = maxRole(element, "else", 1);
+    if (counts.ifCount < minIf) {
+      errors.add("condition requires at least " + minIf + " IF branch");
+    }
+    if (maxElse != Integer.MAX_VALUE && counts.elseCount > maxElse) {
+      errors.add("condition allows at most " + maxElse + " ELSE branch");
+    }
+  }
+
+  private static BranchCounts validateConditionBranches(
+      SemanticRegion.Condition condition, Index index, List<String> errors) {
+    int ifCount = 0;
+    int elseCount = 0;
+    Set<Integer> ifPriorities = new HashSet<>();
+    Set<String> branchIds = new HashSet<>();
+    for (SemanticBranch.Condition branch : condition.branches()) {
+      if (!branchIds.add(branch.branchId())) {
+        errors.add(
+            "Condition '"
+                + condition.regionId()
+                + "' has duplicate branch id '"
+                + branch.branchId()
+                + "'");
+      }
+      requireNode(branch.entryNodeId(), "Condition branch entry", index, errors);
+      for (String exitNodeId : branch.exitNodeIds()) {
+        requireNode(exitNodeId, "Condition branch exit", index, errors);
+      }
+      if (branch.role() != ConditionBranchRole.IF) {
+        elseCount++;
+        continue;
+      }
+      ifCount++;
+      if (branch.predicate() == null || branch.predicate().isBlank()) {
+        errors.add(
+            "Condition IF branch '" + branch.branchId() + "' requires a non-empty predicate");
+      }
+      if (!ifPriorities.add(branch.priority())) {
+        errors.add("Condition '" + condition.regionId() + "' requires unique IF priorities");
+      }
+    }
+    return new BranchCounts(ifCount, elseCount);
+  }
+
+  private static void validateSplit(
+      SemanticRegion.Split split,
+      CompilerContract contract,
+      Index index,
+      Map<String, String> ownerToRegion,
+      List<String> errors) {
+    claimOwner(split.regionId(), split.ownerNodeId(), index, ownerToRegion, errors);
+    requireNode(split.reconvergenceNodeId(), "Split reconvergence", index, errors);
+    String topologyKey = split.mode() == SplitMode.ASYNC ? "split-async-2" : "split-2";
+    SemanticNode owner = index.nodes.get(split.ownerNodeId());
+    if (owner != null && !topologyKey.equals(elementType(owner))) {
+      errors.add(
+          "Split '" + split.regionId() + "' mode " + split.mode()
+              + " does not match owner element '" + elementType(owner)
+              + "'; expected '" + topologyKey + "'");
+    }
+    TopologyContract topology = contract.topology().get(topologyKey);
+    if (topology != null && !topology.supported()) {
+      errors.add("Unsupported topology: " + topologyKey);
+    }
+    int minimumBranches =
+        topology != null && topology.minimumBranches() != null
+            ? topology.minimumBranches()
+            : minRole(contract.elements().get(topologyKey), splitRole(split.mode()), 1);
+    if (split.branches().size() < minimumBranches) {
+      errors.add(topologyKey + " requires at least " + minimumBranches + " branch");
+    }
+    if (split.mainBranchId() != null) {
+      if (split.mode() == SplitMode.ASYNC) {
+        errors.add("Async split '" + split.regionId() + "' cannot declare a main branch");
+      } else if (split.branches().stream()
+          .noneMatch(branch -> branch.branchId().equals(split.mainBranchId()))) {
+        errors.add("Split '" + split.regionId() + "' references an unknown main branch '"
+            + split.mainBranchId() + "'");
+      }
+    }
+    Set<String> branchIds = new HashSet<>();
+    for (SemanticBranch.Split branch : split.branches()) {
+      if (!branchIds.add(branch.branchId())) {
+        errors.add(
+            "Split '"
+                + split.regionId()
+                + "' has duplicate branch id '"
+                + branch.branchId()
+                + "'");
+      }
+      requireNode(branch.entryNodeId(), "Split branch entry", index, errors);
+      for (String exitNodeId : branch.exitNodeIds()) {
+        requireNode(exitNodeId, "Split branch exit", index, errors);
+      }
+    }
+  }
+
+  private static String splitRole(SplitMode mode) {
+    return mode == SplitMode.ASYNC ? "async-split-element-2" : "split-element-2";
+  }
+
+  private static void validateLoop(
+      SemanticRegion.Loop loop,
+      Index index,
+      Map<String, String> ownerToRegion,
+      List<String> errors) {
+    claimOwner(loop.regionId(), loop.ownerNodeId(), index, ownerToRegion, errors);
+    requireNode(loop.bodyEntryNodeId(), "Loop body entry", index, errors);
+    requireNode(loop.exitNodeId(), "Loop exit", index, errors);
+    for (String exitNodeId : loop.bodyExitNodeIds()) {
+      requireNode(exitNodeId, "Loop body exit", index, errors);
+    }
+  }
+
+  private static void validateRetry(
+      SemanticRegion.Retry retry,
+      Index index,
+      Map<String, String> ownerToRegion,
+      List<String> errors) {
+    claimOwner(retry.regionId(), retry.ownerNodeId(), index, ownerToRegion, errors);
+    requireNode(retry.bodyEntryNodeId(), "Retry body entry", index, errors);
+    requireNode(retry.exhaustedNodeId(), "Retry exhausted", index, errors);
+    for (String exitNodeId : retry.bodyExitNodeIds()) {
+      requireNode(exitNodeId, "Retry body exit", index, errors);
+    }
+  }
+
+  private static void validateErrorScope(
+      SemanticRegion.ErrorScope scope,
+      CompilerContract contract,
+      Index index,
+      Map<String, String> ownerToRegion,
+      List<String> errors) {
+    claimOwner(scope.regionId(), scope.ownerNodeId(), index, ownerToRegion, errors);
+    requireNode(scope.tryEntryNodeId(), "Error-scope try entry", index, errors);
+    requireNode(scope.finallyEntryNodeId(), "Error-scope finally entry", index, errors);
+    for (String exitNodeId : scope.exitNodeIds()) {
+      requireNode(exitNodeId, "Error-scope exit", index, errors);
+    }
+    int minCatch = minRole(contract.elements().get("try-catch-finally-2"), "catch-2", 1);
+    if (scope.handlers().size() < minCatch) {
+      errors.add("try-catch-finally-2 requires at least " + minCatch + " catch handler");
+    }
+    Set<String> handlerIds = new HashSet<>();
+    for (ErrorHandler handler : scope.handlers()) {
+      if (!handlerIds.add(handler.handlerId())) {
+        errors.add(
+            "Error scope '"
+                + scope.regionId()
+                + "' has duplicate handler id '"
+                + handler.handlerId()
+                + "'");
+      }
+      requireNode(handler.entryNodeId(), "Error handler entry", index, errors);
+      for (String exitNodeId : handler.exitNodeIds()) {
+        requireNode(exitNodeId, "Error handler exit", index, errors);
+      }
+    }
+    validateErrorScopeRoutes(scope, index, errors);
+  }
+
+  private static void validateErrorScopeRoutes(
+      SemanticRegion.ErrorScope scope, Index index, List<String> errors) {
+    int tryPaths = 0;
+    int finallyPaths = 0;
+    Map<String, Integer> catchPaths = new HashMap<>();
+    Map<String, String> catchEntryByHandler = new HashMap<>();
+    for (ErrorHandler handler : scope.handlers()) {
+      catchEntryByHandler.put(handler.handlerId(), handler.entryNodeId());
+    }
+    for (SemanticExecutionEdge edge : index.edges.values()) {
+      if (!scope.regionId().equals(edge.regionId())) {
+        continue;
+      }
+      String expectedTarget = null;
+      if (edge.route() instanceof SemanticRoute.TryPath) {
+        tryPaths++;
+        expectedTarget = scope.tryEntryNodeId();
+      } else if (edge.route() instanceof SemanticRoute.CatchPath catchPath) {
+        catchPaths.merge(catchPath.handlerId(), 1, Integer::sum);
+        expectedTarget = catchEntryByHandler.get(catchPath.handlerId());
+      } else if (edge.route() instanceof SemanticRoute.FinallyPath) {
+        finallyPaths++;
+        expectedTarget = scope.finallyEntryNodeId();
+      } else {
+        continue;
+      }
+      if (!scope.ownerNodeId().equals(edge.sourceNodeId())) {
+        errors.add(
+            "Error-scope branch edge '"
+                + edge.edgeId()
+                + "' must start at owner '"
+                + scope.ownerNodeId()
+                + "'");
+      }
+      if (expectedTarget != null && !expectedTarget.equals(edge.targetNodeId())) {
+        errors.add(
+            "Error-scope branch edge '"
+                + edge.edgeId()
+                + "' must target entry node '"
+                + expectedTarget
+                + "'");
+      }
+    }
+    if (tryPaths != 1) {
+      errors.add("Error scope '" + scope.regionId() + "' requires exactly one TRY_PATH edge");
+    }
+    for (ErrorHandler handler : scope.handlers()) {
+      if (catchPaths.getOrDefault(handler.handlerId(), 0) != 1) {
+        errors.add(
+            "Error handler '"
+                + handler.handlerId()
+                + "' requires exactly one CATCH_PATH edge");
+      }
+    }
+    int expectedFinallyPaths = scope.finallyEntryNodeId() == null ? 0 : 1;
+    if (finallyPaths != expectedFinallyPaths) {
+      errors.add(
+          "Error scope '"
+              + scope.regionId()
+              + "' requires exactly "
+              + expectedFinallyPaths
+              + " FINALLY_PATH edge");
+    }
+  }
+
+  private static void validateServiceCallFailureModes(
+      ChainSemanticRevision revision, RequirementBrief brief, List<String> errors) {
+    Map<String, ServiceCallFailureMode> approvedModes = new LinkedHashMap<>();
+    if (brief != null) {
+      for (RequirementServiceCall call : brief.serviceCalls()) {
+        approvedModes.put(call.serviceCallId(), call.failureMode());
+      }
+    }
+    Set<String> errorScopeOwners = new LinkedHashSet<>();
+    for (SemanticRegion region : revision.regions()) {
+      if (region instanceof SemanticRegion.ErrorScope scope) {
+        errorScopeOwners.add(scope.ownerNodeId());
+      }
+    }
+    Map<String, String> parentByChild = new LinkedHashMap<>();
+    for (SemanticContainment relation : revision.containment()) {
+      parentByChild.put(relation.childNodeId(), relation.parentNodeId());
+    }
+    for (SemanticRegion region : revision.regions()) {
+      if (region.ownerNodeId() != null) {
+        for (String member : region.bodyNodeIds(revision.executionEdges(), revision.regions())) {
+          parentByChild.putIfAbsent(member, region.ownerNodeId());
+        }
+      }
+    }
+    for (SemanticNode node : revision.nodes()) {
+      if (!(node instanceof SemanticNode.ServiceCall call)) {
+        continue;
+      }
+      ServiceCallFailureMode approved = approvedModes.get(call.serviceCallId());
+      if (approved != null && approved != call.failureMode()) {
+        errors.add(
+            "Service call '"
+                + call.serviceCallId()
+                + "' failureMode="
+                + call.failureMode()
+                + " conflicts with approved failureMode="
+                + approved);
+      }
+      boolean insideErrorScope = hasAncestor(call.nodeId(), errorScopeOwners, parentByChild);
+      if (call.failureMode() == ServiceCallFailureMode.ERROR_SCOPE && !insideErrorScope) {
+        errors.add(
+            "Service call '"
+                + call.serviceCallId()
+                + "' uses failureMode=ERROR_SCOPE but is not inside an ErrorScope try path");
+      } else if (call.failureMode() == ServiceCallFailureMode.INLINE_RESPONSE && insideErrorScope) {
+        errors.add(
+            "Service call '"
+                + call.serviceCallId()
+                + "' is inside an ErrorScope but uses failureMode="
+                + call.failureMode());
+      }
+    }
+  }
+
+  private static boolean hasAncestor(
+      String nodeId, Set<String> candidates, Map<String, String> parentByChild) {
+    Set<String> visited = new HashSet<>();
+    String current = parentByChild.get(nodeId);
+    while (current != null && visited.add(current)) {
+      if (candidates.contains(current)) {
+        return true;
+      }
+      current = parentByChild.get(current);
+    }
+    return false;
+  }
+
+  private static void validateHiddenJoins(
+      ChainSemanticRevision revision, Index index, List<String> errors) {
+    for (SemanticNode node : revision.nodes()) {
+      List<SemanticExecutionEdge> incoming =
+          index.incoming.getOrDefault(node.nodeId(), List.of());
+      if (incoming.size() <= 1) {
+        continue;
+      }
+      boolean allTriggers = true;
+      boolean allReconverge = true;
+      for (SemanticExecutionEdge edge : incoming) {
+        SemanticNode source = index.nodes.get(edge.sourceNodeId());
+        if (!(source instanceof SemanticNode.Trigger)) {
+          allTriggers = false;
+        }
+        if (!(edge.route() instanceof SemanticRoute.Reconverge)) {
+          allReconverge = false;
+        }
+      }
+      if (!allTriggers && !allReconverge) {
+        errors.add("Unsupported topology: generic-barrier at node '" + node.nodeId() + "'");
+      }
+    }
+  }
+
+  private static void validateMappings(
+      ChainSemanticRevision revision,
+      RequirementBrief brief,
+      Index index,
+      List<String> errors) {
+    boolean legacyReferences = brief != null && brief.flow().interactions().isEmpty();
+    if (brief != null && !legacyReferences) {
+      RequirementBriefCoverageValidator.validateMappingStructure(brief).ifPresent(errors::add);
+    }
+    Map<String, List<SemanticExecutionEdge>> sitesByIntent = new LinkedHashMap<>();
+    for (SemanticExecutionEdge edge : revision.executionEdges()) {
+      if (edge.mappingId() == null || edge.mappingId().isBlank()) {
+        continue;
+      }
+      sitesByIntent.computeIfAbsent(edge.mappingId(), ignored -> new ArrayList<>()).add(edge);
+    }
+    Set<String> intentIds = new HashSet<>();
+    for (MappingIntent intent : revision.mappingBodies(brief)) {
+      if (!intentIds.add(intent.mappingIntentId())) {
+        errors.add("Duplicate mapping intent: " + intent.mappingIntentId());
+      }
+      if (legacyReferences) {
+        validateMappingRefs(intent, revision, index, errors);
+      }
+      validateMappingSite(
+          intent.mappingIntentId(),
+          sitesByIntent.getOrDefault(intent.mappingIntentId(), List.of()),
+          index,
+          errors);
+    }
+    for (Map.Entry<String, List<SemanticExecutionEdge>> entry : sitesByIntent.entrySet()) {
+      if (!intentIds.contains(entry.getKey())) {
+        errors.add("Unknown mapping id '" + entry.getKey() + "'");
+      }
+    }
+  }
+
+  /**
+   * Script shells on the approved semantic graph are mapping-owned, behavior-owned, or rejected.
+   * Ownership is derived from {@link SemanticNode.Operation}, {@link SemanticProvenance}, {@link
+   * MappingIntent} sites, and region membership. There is no parallel ownership registry.
+   */
+  public static List<String> behaviorOwnedScriptNodeIds(ChainSemanticRevision revision) {
+    if (revision == null) {
+      return List.of();
+    }
+    Index index = Index.build(revision, new ArrayList<>());
+    Map<String, String> siteByIntent = mappingSiteByIntent(revision, index);
+    Map<String, List<String>> intentsBySite = invertSites(siteByIntent);
+    Set<String> regionRequired = regionRequiredNodeIds(revision);
+    List<String> ids = new ArrayList<>();
+    for (SemanticNode node : revision.nodes()) {
+      if (node instanceof SemanticNode.Operation operation
+          && isScript(operation)
+          && isBehaviorOwned(operation, intentsBySite, regionRequired, null)) {
+        ids.add(operation.nodeId());
+      }
+    }
+    return List.copyOf(ids);
+  }
+
+  private static void validateBindingPolicy(
+      ChainSemanticRevision revision, RequirementBrief brief, List<String> errors) {
+    if (brief == null) {
+      return;
+    }
+    List<RequirementFact> facts = brief.facts() == null ? List.of() : brief.facts();
+    RequirementFlow flow = brief.flow() == null ? RequirementFlow.EMPTY : brief.flow();
+    for (SemanticNode node : revision.nodes()) {
+      if (!(node instanceof SemanticNode.ServiceCall call)) {
+        continue;
+      }
+      if (RequirementFlowValidator.nativeDirectOutboundCapabilityKey(call.serviceCallId(), facts)
+          .isPresent()) {
+        errors.add(
+            "Service call '"
+                + call.serviceCallId()
+                + "' conflicts with a direct sender capability on the approved brief");
+      }
+    }
+    for (RequirementFact fact : facts) {
+      if (fact == null
+          || fact.kind() != RequirementFactKind.CAPABILITY
+          || !ChainElementFamilies.isTrigger(fact.capabilityKey())) {
+        continue;
+      }
+      if (flow.interaction(fact.owningInteractionId())
+          .filter(interaction -> interaction.direction() == Direction.OUTBOUND)
+          .isPresent()) {
+        errors.add(
+            "Trigger capability '"
+                + fact.capabilityKey()
+                + "' is not allowed on outbound interaction '"
+                + fact.sourceFactId()
+                + "'");
+      }
+    }
+    if (!flow.interactions().isEmpty()) {
+      RequirementFlowValidator.validateBindings(flow, facts, catalogBindings(brief))
+          .ifPresent(
+              message -> {
+                if (message.contains("unexpected catalog binding")) {
+                  errors.add(
+                      message.replace(
+                          "requirement flow interaction ",
+                          "Direct interaction "));
+                }
+              });
+    }
+  }
+
+  private static List<CatalogBindingHint> catalogBindings(RequirementBrief brief) {
+    List<CatalogBindingHint> bindings = new ArrayList<>();
+    for (CatalogBindingHint hint : brief.catalogBindings()) {
+      if (hint != null) {
+        bindings.add(hint);
+      }
+    }
+    for (RequirementServiceCall call : brief.serviceCalls()) {
+      if (call != null && call.catalogBinding() != null) {
+        bindings.add(call.catalogBinding());
+      }
+    }
+    return List.copyOf(bindings);
+  }
+
+  private static void validateScriptOwnership(
+      ChainSemanticRevision revision, Index index, RequirementBrief brief, List<String> errors) {
+    Map<String, String> siteByIntent = mappingSiteByIntent(revision, index);
+    Map<String, List<String>> intentsBySite = invertSites(siteByIntent);
+    Set<String> regionRequired = regionRequiredNodeIds(revision);
+    for (SemanticNode node : revision.nodes()) {
+      if (!(node instanceof SemanticNode.Operation operation) || !isScript(operation)) {
+        continue;
+      }
+      List<String> boundIntents = intentsBySite.getOrDefault(operation.nodeId(), List.of());
+      if (boundIntents.size() > 1) {
+        errors.add(
+            "script '"
+                + operation.nodeId()
+                + "' is bound to more than one mapping intent: "
+                + String.join(", ", boundIntents));
+        continue;
+      }
+      if (boundIntents.size() == 1) {
+        continue;
+      }
+      if (!isBehaviorOwned(operation, intentsBySite, regionRequired, brief)) {
+        errors.add("orphan script: " + operation.nodeId()
+            + ". Bind its mappingIntentId on an adjacent edge; when both endpoints are scripts,"
+            + " the source script owns the mapping. Place the mapping on this script's outgoing"
+            + " edge to its destination call, or keep an approved BEHAVIOR fact on a behavior script.");
+      }
+    }
+  }
+
+  private static boolean isBehaviorOwned(
+      SemanticNode.Operation operation,
+      Map<String, List<String>> intentsBySite,
+      Set<String> regionRequired,
+      RequirementBrief brief) {
+    if (!intentsBySite.getOrDefault(operation.nodeId(), List.of()).isEmpty()) {
+      return false;
+    }
+    if (regionRequired.contains(operation.nodeId())) {
+      return true;
+    }
+    List<String> factIds = operation.provenance().sourceFactIds();
+    if (factIds.isEmpty()) {
+      return false;
+    }
+    if (brief == null) {
+      return true;
+    }
+    return resolvesToPositiveBehavior(factIds, brief);
+  }
+
+  private static boolean resolvesToPositiveBehavior(
+      List<String> sourceFactIds, RequirementBrief brief) {
+    Set<String> wanted = new HashSet<>(sourceFactIds);
+    for (RequirementFact fact : brief.facts()) {
+      if (fact == null || !wanted.contains(fact.sourceFactId())) {
+        continue;
+      }
+      if (fact.polarity() == RequirementFactPolarity.POSITIVE
+          && fact.kind() == RequirementFactKind.BEHAVIOR) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static Map<String, String> mappingSiteByIntent(
+      ChainSemanticRevision revision, Index index) {
+    Map<String, String> siteByIntent = new LinkedHashMap<>();
+    for (SemanticExecutionEdge edge : revision.executionEdges()) {
+      if (edge.mappingId() == null || edge.mappingId().isBlank()) {
+        continue;
+      }
+      String siteId = transformSiteNodeId(edge, index.nodes);
+      if (siteId != null) {
+        siteByIntent.put(edge.mappingId(), siteId);
+      }
+    }
+    return siteByIntent;
+  }
+
+  private static Map<String, List<String>> invertSites(Map<String, String> siteByIntent) {
+    Map<String, List<String>> intentsBySite = new LinkedHashMap<>();
+    for (Map.Entry<String, String> entry : siteByIntent.entrySet()) {
+      intentsBySite.computeIfAbsent(entry.getValue(), ignored -> new ArrayList<>()).add(entry.getKey());
+    }
+    return intentsBySite;
+  }
+
+  static boolean isScript(SemanticNode.Operation operation) {
+    return operation != null && "script".equals(operation.elementType());
+  }
+
+  static boolean isTransformShell(SemanticNode node) {
+    if (!(node instanceof SemanticNode.Operation operation)) {
+      return false;
+    }
+    String type = operation.elementType();
+    return "script".equals(type) || "mapper-2".equals(type);
+  }
+
+  static String transformSiteNodeId(SemanticExecutionEdge edge, Map<String, SemanticNode> nodes) {
+    SemanticNode source = nodes.get(edge.sourceNodeId());
+    if (isTransformShell(source)) {
+      return source.nodeId();
+    }
+    SemanticNode target = nodes.get(edge.targetNodeId());
+    if (isTransformShell(target)) {
+      return target.nodeId();
+    }
+    return null;
+  }
+
+  private static Set<String> regionRequiredNodeIds(ChainSemanticRevision revision) {
+    Set<String> ids = new LinkedHashSet<>();
+    for (SemanticRegion region : revision.regions()) {
+      switch (region) {
+        case SemanticRegion.ErrorScope scope -> {
+          ids.add(scope.tryEntryNodeId());
+          if (scope.finallyEntryNodeId() != null) {
+            ids.add(scope.finallyEntryNodeId());
+          }
+          ids.addAll(scope.exitNodeIds());
+          for (ErrorHandler handler : scope.handlers()) {
+            ids.add(handler.entryNodeId());
+            ids.addAll(handler.exitNodeIds());
+          }
+        }
+        case SemanticRegion.Condition condition -> {
+          if (condition.reconvergenceNodeId() != null) {
+            ids.add(condition.reconvergenceNodeId());
+          }
+          for (SemanticBranch.Condition branch : condition.branches()) {
+            ids.add(branch.entryNodeId());
+            ids.addAll(branch.exitNodeIds());
+          }
+        }
+        case SemanticRegion.Split split -> {
+          if (split.reconvergenceNodeId() != null) {
+            ids.add(split.reconvergenceNodeId());
+          }
+          for (SemanticBranch.Split branch : split.branches()) {
+            ids.add(branch.entryNodeId());
+            ids.addAll(branch.exitNodeIds());
+          }
+        }
+        case SemanticRegion.Loop loop -> {
+          ids.add(loop.bodyEntryNodeId());
+          ids.addAll(loop.bodyExitNodeIds());
+          ids.add(loop.exitNodeId());
+        }
+        case SemanticRegion.Retry retry -> {
+          ids.add(retry.bodyEntryNodeId());
+          ids.addAll(retry.bodyExitNodeIds());
+          ids.add(retry.exhaustedNodeId());
+        }
+        case SemanticRegion.Sequence sequence -> ids.addAll(sequence.memberNodeIds());
+        default -> {}
+      }
+    }
+    for (SemanticContainment containment : revision.containment()) {
+      ids.add(containment.childNodeId());
+    }
+    return ids;
+  }
+
+  private static void validateMappingRefs(
+      MappingIntent intent, ChainSemanticRevision revision, Index index, List<String> errors) {
+    if (!mappingRefExists(intent.sourceRef(), revision, index)) {
+      errors.add(
+          "Mapping intent '"
+              + intent.mappingIntentId()
+              + "' sourceRef '"
+              + intent.sourceRef()
+              + "' is missing");
+    }
+    if (!mappingRefExists(intent.targetRef(), revision, index)) {
+      errors.add(
+          "Mapping intent '"
+              + intent.mappingIntentId()
+              + "' targetRef '"
+              + intent.targetRef()
+              + "' is missing");
+    }
+  }
+
+  private static boolean mappingRefExists(
+      String reference, ChainSemanticRevision revision, Index index) {
+    if (index.nodes.containsKey(reference) || index.edges.containsKey(reference)) {
+      return true;
+    }
+    for (SemanticEntryPoint entry : revision.entryPoints()) {
+      if (entry.entryPointId().equals(reference)) {
+        return true;
+      }
+    }
+    for (SemanticNode node : revision.nodes()) {
+      if (node.provenance().sourceFactIds().contains(reference)) {
+        return true;
+      }
+      if (node instanceof SemanticNode.Trigger trigger
+          && trigger.interactionId().equals(reference)) {
+        return true;
+      }
+      if (node instanceof SemanticNode.ServiceCall call
+          && call.serviceCallId().equals(reference)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static void validateMappingSite(
+      String mappingIntentId,
+      List<SemanticExecutionEdge> sites,
+      Index index,
+      List<String> errors) {
+    if (sites.isEmpty()) {
+      errors.add("orphan mapping intent: " + mappingIntentId);
+      return;
+    }
+    if (sites.size() != 1) {
+      errors.add(
+          "Mapping intent '" + mappingIntentId + "' does not resolve to a single-incoming site");
+      return;
+    }
+    SemanticExecutionEdge site = sites.getFirst();
+    int incoming = index.incoming.getOrDefault(site.targetNodeId(), List.of()).size();
+    boolean reconverge = site.route() instanceof SemanticRoute.Reconverge;
+    if (!BriefMappingValidator.isMappingEndpoint(incoming, reconverge)) {
+      errors.add("Unsupported topology: generic-aggregate");
+      errors.add(
+          "Mapping intent '" + mappingIntentId + "' does not resolve to a single-incoming site");
+    }
+  }
+
+  private static void claimOwner(
+      String regionId,
+      String ownerNodeId,
+      Index index,
+      Map<String, String> ownerToRegion,
+      List<String> errors) {
+    requireNode(ownerNodeId, "Region '" + regionId + "' owner", index, errors);
+    String previous = ownerToRegion.put(ownerNodeId, regionId);
+    if (previous != null) {
+      errors.add(
+          "Region owner '" + ownerNodeId + "' is already owned by region '" + previous + "'");
+    }
+  }
+
+  private static void requireNode(String nodeId, String role, Index index, List<String> errors) {
+    if (nodeId != null && !index.nodes.containsKey(nodeId)) {
+      errors.add(role + " '" + nodeId + "' is missing");
+    }
+  }
+
+  private static int minRole(ElementContract element, String role, int defaultMin) {
+    if (element == null) {
+      return defaultMin;
+    }
+    ContainmentRole containmentRole = element.containmentRoles().get(role);
+    return containmentRole == null ? defaultMin : containmentRole.min();
+  }
+
+  private static int maxRole(ElementContract element, String role, int defaultMax) {
+    if (element == null) {
+      return defaultMax;
+    }
+    ContainmentRole containmentRole = element.containmentRoles().get(role);
+    if (containmentRole == null) {
+      return defaultMax;
+    }
+    return containmentRole.max() == null ? Integer.MAX_VALUE : containmentRole.max();
+  }
+
+  private static String elementType(SemanticNode node) {
+    return switch (node) {
+      case SemanticNode.Trigger trigger -> trigger.capabilityKey();
+      case SemanticNode.ServiceCall ignored -> "service-call";
+      case SemanticNode.Operation operation -> operation.elementType();
+    };
+  }
+
+  private record BranchCounts(int ifCount, int elseCount) {}
+
+  private record ScopedRef(String field, String id) {}
+
+  private static final class Index {
+    private final Map<String, SemanticNode> nodes;
+    private final Map<String, SemanticExecutionEdge> edges;
+    private final Map<String, SemanticRegion> regions;
+    private final Map<String, List<SemanticExecutionEdge>> outgoing;
+    private final Map<String, List<SemanticExecutionEdge>> incoming;
+
+    private Index(
+        Map<String, SemanticNode> nodes,
+        Map<String, SemanticExecutionEdge> edges,
+        Map<String, SemanticRegion> regions,
+        Map<String, List<SemanticExecutionEdge>> outgoing,
+        Map<String, List<SemanticExecutionEdge>> incoming) {
+      this.nodes = nodes;
+      this.edges = edges;
+      this.regions = regions;
+      this.outgoing = outgoing;
+      this.incoming = incoming;
+    }
+
+    private static Index build(ChainSemanticRevision revision, List<String> errors) {
+      Map<String, SemanticNode> nodes = new LinkedHashMap<>();
+      for (SemanticNode node : revision.nodes()) {
+        if (nodes.put(node.nodeId(), node) != null) {
+          errors.add("Duplicate node id: " + node.nodeId());
+        }
+      }
+      Map<String, SemanticEntryPoint> entries = new LinkedHashMap<>();
+      for (SemanticEntryPoint entry : revision.entryPoints()) {
+        if (entries.put(entry.entryPointId(), entry) != null) {
+          errors.add("Duplicate entry point id: " + entry.entryPointId());
+        }
+      }
+      Map<String, SemanticRegion> regions = new LinkedHashMap<>();
+      for (SemanticRegion region : revision.regions()) {
+        if (regions.put(region.regionId(), region) != null) {
+          errors.add("Duplicate region id: " + region.regionId());
+        }
+      }
+      Map<String, SemanticExecutionEdge> edges = new LinkedHashMap<>();
+      Map<String, List<SemanticExecutionEdge>> outgoing = new LinkedHashMap<>();
+      Map<String, List<SemanticExecutionEdge>> incoming = new LinkedHashMap<>();
+      for (SemanticExecutionEdge edge : revision.executionEdges()) {
+        if (edges.put(edge.edgeId(), edge) != null) {
+          errors.add("Duplicate edge id: " + edge.edgeId());
+        }
+        outgoing.computeIfAbsent(edge.sourceNodeId(), ignored -> new ArrayList<>()).add(edge);
+        incoming.computeIfAbsent(edge.targetNodeId(), ignored -> new ArrayList<>()).add(edge);
+      }
+      return new Index(nodes, edges, regions, outgoing, incoming);
+    }
+  }
+}

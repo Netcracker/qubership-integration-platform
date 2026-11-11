@@ -3,30 +3,33 @@
  *
  * The developer installs the cluster and what runs cluster-wide: Istio with the Gateway API CRDs,
  * the camel-k operator, and metrics-server (`e2e/k8s/README.md`). This module checks for them, then
- * owns everything in namespace `qip-e2e`: it builds the images from the checkout, installs the chart
+ * owns everything in namespace `cip-e2e`: it builds the images from the checkout, installs the chart
  * with `helm upgrade --install`, and waits until every role answers on its host port.
  *
  * Each image is tagged with a hash over its own inputs, so an image whose tag already exists is not
- * rebuilt, and Helm leaves a Deployment whose tag did not change alone.
+ * rebuilt, and Helm leaves a Deployment whose tag did not change alone. `E2E_BUILD` narrows the
+ * images built from the checkout; every other one runs as its published `:latest` from GHCR.
  */
-import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import type { ServiceRole } from "../index.js";
-import { hostPort, proxyPort, proxyUrl, ROLES } from "../containers.js";
+import { BROKER_PORT, hostPort, OVERLAY_NAMES, proxyPort, proxyUrl, ROLES } from "../containers.js";
+import { brokersEnabled } from "../target.js";
 import {
   deploymentOf,
   healthUrl,
+  podImageId,
   K8S_OVERRIDES_FILE,
   kubectl,
+  type Kubectl,
   NAMESPACE,
   RELEASE,
   restoreDeclared,
 } from "../k8s.js";
-import { capture, httpStatus, pollUntil, repoRoot, stream } from "../host.js";
+import { capture, httpStatus, imageTag, pollUntil, repoRoot, stream } from "../host.js";
 import { describeOverride, overrideNotice, readOverrides } from "../overrides.js";
 import { apiPath } from "../api-routes.js";
-import type { ProvisionMode, ProvisionReport } from "../provision.js";
+import type { ProvisionMode, ProvisionReport, PublishedImage } from "../provision.js";
 import { emptyProvisionReport, mavenInstall } from "./common.js";
 import { provisionedSources } from "./compose.js";
 
@@ -35,9 +38,6 @@ const README = "e2e/k8s/README.md";
 // ---------------------------------------------------------------------------
 // Prerequisites
 // ---------------------------------------------------------------------------
-
-/** Runs `kubectl` with the given arguments and returns stdout; a non-zero exit throws. */
-export type Kubectl = (args: string[]) => Promise<string>;
 
 /** A cluster-wide prerequisite the suite does not install, and the README section that does. */
 export interface Prerequisite {
@@ -58,7 +58,6 @@ async function answers(run: Kubectl, args: string[]): Promise<boolean> {
 interface DeploymentStatusView {
   metadata: { name: string };
   status?: { availableReplicas?: number };
-  spec: { template: { spec: { containers: { env?: { name: string; value?: string }[] }[] } } };
 }
 
 /** In the order they are checked. The run fails on the first one missing. */
@@ -78,17 +77,12 @@ const PREREQUISITES: Prerequisite[] = [
     },
   },
   {
-    name: "the Gateway API CRDs, experimental channel",
+    name: "the Gateway API CRDs",
     section: "gateway-api",
     async check(kubectl) {
-      if (!(await answers(kubectl, ["get", "crd", "httproutes.gateway.networking.k8s.io"]))) {
-        return "the HTTPRoute CRD is not installed";
-      }
-      // The standard channel lacks UDPRoute v1alpha2, which istiod watches under
-      // PILOT_ENABLE_ALPHA_GATEWAY_API, and without it istiod never becomes ready.
-      return (await answers(kubectl, ["get", "crd", "udproutes.gateway.networking.k8s.io"]))
+      return (await answers(kubectl, ["get", "crd", "httproutes.gateway.networking.k8s.io"]))
         ? null
-        : "the UDPRoute CRD is missing, so the standard channel is installed rather than the experimental one";
+        : "the HTTPRoute CRD is not installed";
     },
   },
   {
@@ -100,13 +94,25 @@ const PREREQUISITES: Prerequisite[] = [
       );
       if (raw === null) return "no istiod Deployment in namespace istio-system";
       const istiod = JSON.parse(raw) as DeploymentStatusView;
-      if (!istiod.status?.availableReplicas) return "istiod has no available replica";
-      const alpha = istiod.spec.template.spec.containers
-        .flatMap((container) => container.env ?? [])
-        .find((each) => each.name === "PILOT_ENABLE_ALPHA_GATEWAY_API");
-      return alpha?.value === "true"
-        ? null
-        : "istiod runs without PILOT_ENABLE_ALPHA_GATEWAY_API=true, so the egress routes are never programmed";
+      return istiod.status?.availableReplicas ? null : "istiod has no available replica";
+    },
+  },
+  {
+    name: "Istio ambient",
+    section: "istio",
+    async check(kubectl) {
+      for (const name of ["istio-cni-node", "ztunnel"]) {
+        const raw = await kubectl(["get", "ds", name, "-n", "istio-system", "-o", "json"]).catch(() => null);
+        if (raw === null) return `no ${name} DaemonSet in namespace istio-system`;
+        const { status } = JSON.parse(raw) as {
+          status?: { desiredNumberScheduled?: number; numberReady?: number; updatedNumberScheduled?: number };
+        };
+        const desired = status?.desiredNumberScheduled ?? 0;
+        if (!desired || status?.numberReady !== desired || status.updatedNumberScheduled !== desired) {
+          return `${name} is not ready on every node`;
+        }
+      }
+      return null;
     },
   },
   {
@@ -240,13 +246,60 @@ async function kindNetworkGateway(): Promise<string> {
 }
 
 // ---------------------------------------------------------------------------
+// The cluster bootstrap
+// ---------------------------------------------------------------------------
+
+/**
+ * Waits for the cluster bootstrap that `_e2e-kind.yaml` starts in the background. The workflow
+ * writes the output of `e2e/k8s/bootstrap-cluster.sh` to `log`, then its exit code to `<log>.exit`.
+ * Exit code 0 prints the log in a collapsed group of the job log; any other code throws with the
+ * log in the message.
+ */
+export async function awaitBootstrap(log: string, intervalMs = 2_000): Promise<void> {
+  const exitFile = `${log}.exit`;
+  const startedAt = Date.now();
+  if (!fs.existsSync(exitFile)) console.log(`[provision] waiting for the cluster bootstrap, which writes ${log}`);
+  while (!fs.existsSync(exitFile)) await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  const code = fs.readFileSync(exitFile, "utf-8").trim();
+  const output = fs.readFileSync(log, "utf-8");
+  if (code !== "0") {
+    throw new Error(`The cluster bootstrap e2e/k8s/bootstrap-cluster.sh exited with ${code}. Its log:\n${output}`);
+  }
+  console.log(`::group::The cluster bootstrap, after ${Math.round((Date.now() - startedAt) / 1000)} s of waiting`);
+  console.log(output);
+  console.log("::endgroup::");
+}
+
+/** The cluster the run installs into, as the steps after the image builds address it. */
+export interface ReadyCluster {
+  choice: ClusterChoice;
+  devServerHost: string;
+}
+
+/**
+ * Checks the prerequisites and reads the cluster kind. With `bootstrapLog`, the bootstrap that
+ * writes it has to finish first, because a cluster still being created fails the first check.
+ */
+export async function readyCluster(bootstrapLog: string | null, run: Kubectl = kubectl): Promise<ReadyCluster> {
+  if (bootstrapLog) await awaitBootstrap(bootstrapLog);
+  await checkPrerequisites(run);
+  const choice = clusterChoice((await run(["config", "current-context"])).trim());
+  const devServerHost = choice.devServerHost ?? (await kindNetworkGateway());
+  console.log(describeChoice(choice, devServerHost));
+  return { choice, devServerHost };
+}
+
+// ---------------------------------------------------------------------------
 // Images
 // ---------------------------------------------------------------------------
+
+/** An image the suite builds from the checkout, or the role or micro engine it runs. */
+export type SuiteImageName = ServiceRole | "micro-engine";
 
 /** An image the suite builds from the checkout. */
 export interface SuiteImage {
   /** The role the image runs, or `micro-engine`, which the catalog deploys per micro domain. */
-  name: ServiceRole | "micro-engine";
+  name: SuiteImageName;
   repository: string;
   /** The module directory holding the Dockerfile, relative to the repository root. */
   context: string;
@@ -298,42 +351,67 @@ export function suiteImages(): SuiteImage[] {
   ];
 }
 
-function filesUnder(root: string, relative: string): string[] {
-  const absolute = path.resolve(root, relative);
-  const stat = fs.statSync(absolute, { throwIfNoEntry: false });
-  if (!stat) return [];
-  if (stat.isFile()) return [relative];
-  return fs
-    .readdirSync(absolute, { recursive: true, withFileTypes: true })
-    .filter((entry) => entry.isFile())
-    .map((entry) => path.relative(root, path.join(entry.parentPath, entry.name)));
+/** The tag of an image this run does not build: the one `_maven-module-release.yaml` publishes. */
+export const PUBLISHED_TAG = "latest";
+
+/**
+ * The images `E2E_BUILD` builds from the checkout: a comma list of image names, `all`, or `none`.
+ * Unset or empty means `all`; `all` beside other names is still `all`, and `none` beside other
+ * names adds nothing, so `none,micro-engine` builds the micro engine alone.
+ */
+export function imagesToBuild(raw: string | undefined = process.env.E2E_BUILD): Set<SuiteImageName> {
+  const names: SuiteImageName[] = [...ROLES, "micro-engine"];
+  const tokens = (raw ?? "").split(",").map((each) => each.trim()).filter(Boolean);
+  const unknown = tokens.filter(
+    (each) => each !== "all" && each !== "none" && !names.includes(each as SuiteImageName),
+  );
+  if (unknown.length) {
+    throw new Error(
+      `E2E_BUILD names ${unknown.join(", ")}, which the suite has no image for. It takes a comma ` +
+        `list of ${names.join(", ")}, or all, or none.`,
+    );
+  }
+  if (!tokens.length || tokens.includes("all")) return new Set(names);
+  return new Set(tokens.filter((each) => each !== "none") as SuiteImageName[]);
+}
+
+/** Each image's tag: a hash over its sources when this run builds it, otherwise `latest`. */
+export function imageTags(
+  root: string,
+  images: readonly SuiteImage[],
+  build: ReadonlySet<SuiteImageName>,
+): Record<SuiteImageName, string> {
+  return Object.fromEntries(
+    images.map((image) => [
+      image.name,
+      build.has(image.name) ? imageTag(root, image.sources, image.mavenArgs) : PUBLISHED_TAG,
+    ]),
+  ) as Record<SuiteImageName, string>;
 }
 
 /**
- * `e2e-` and 12 hex digits of a SHA-256 over the sources' paths and contents, and over the Maven
- * arguments, which change the jar the same sources build.
- *
- * Contents rather than modification times: a checkout of the same commit elsewhere, or a touch that
- * changes nothing, gives the same tag, and `target/` never takes part.
+ * Refuses a run that selects a micro project without building the micro engine. The published
+ * micro-engine image is a `prod` build, which the chart cannot start, so `seed-micro` would wait
+ * for a pod that never serves.
  */
-export function imageTag(
-  root: string,
-  sources: readonly string[],
-  mavenArgs: readonly string[] = [],
-): string {
-  const hash = createHash("sha256");
-  for (const arg of mavenArgs) {
-    hash.update(arg);
-    hash.update("\0");
-  }
-  const files = sources.flatMap((each) => filesUnder(root, each)).sort();
-  for (const file of files) {
-    hash.update(file);
-    hash.update("\0");
-    hash.update(fs.readFileSync(path.resolve(root, file)));
-    hash.update("\0");
-  }
-  return `e2e-${hash.digest("hex").slice(0, 12)}`;
+export function checkMicroBuild(build: ReadonlySet<SuiteImageName>, microProjects: readonly string[]): void {
+  if (build.has("micro-engine") || !microProjects.length) return;
+  throw new Error(
+    `E2E_BUILD=${process.env.E2E_BUILD ?? ""} leaves out micro-engine, and this run selects ` +
+      `${microProjects.join(", ")}, which run the micro engine. The published micro-engine image is a ` +
+      `prod build the chart cannot start. Add micro-engine to E2E_BUILD, or select no micro project.`,
+  );
+}
+
+/**
+ * The one Maven run that installs every module behind `images`. The arguments of every module go
+ * to the whole reactor; only the micro engine has any, and only Quarkus reads them.
+ */
+export function mavenReactor(images: readonly SuiteImage[]): { modules: string[]; args: string[] } | null {
+  const modules = images.flatMap((image) => (image.mavenModule ? [image.mavenModule] : []));
+  if (!modules.length) return null;
+  const args = [...new Set(images.flatMap((image) => image.mavenArgs ?? []))];
+  return { modules, args: ["-T", "1C", ...args] };
 }
 
 async function imageExists(reference: string): Promise<boolean> {
@@ -357,11 +435,11 @@ export function helmArguments(options: {
   root: string;
   choice: ClusterChoice;
   devServerHost: string;
-  tags: Record<SuiteImage["name"], string>;
+  tags: Record<SuiteImageName, string>;
 }): string[] {
   const { root, choice, devServerHost, tags } = options;
   const args = [
-    "upgrade", "--install", RELEASE, path.join(root, "infrastructure/qip-dev"),
+    "upgrade", "--install", RELEASE, path.join(root, "infrastructure/helm/cip-dev"),
     "-n", NAMESPACE,
     "-f", path.join(root, "e2e/k8s/values.e2e.yaml"),
     "--set-string", `global.qip.ui.resolver=${choice.resolver}`,
@@ -369,16 +447,32 @@ export function helmArguments(options: {
     "--set-string", `global.qip.deploy.micro.image=${REPOSITORY}-micro-engine:${tags["micro-engine"]}`,
     // The catalog reads the micro image from a ConfigMap once, at startup. The annotation changes its
     // pod template with the tag, so Helm restarts it.
-    "--set-string", `qip-runtime-catalog.podAnnotations.e2e-micro-engine-tag=${tags["micro-engine"]}`,
+    "--set-string", `cip-runtime-catalog.podAnnotations.e2e-micro-engine-tag=${tags["micro-engine"]}`,
   ];
-  for (const role of ROLES) args.push("--set-string", `qip-${role}.image.tag=${tags[role]}`);
+  for (const role of ROLES) args.push("--set-string", `cip-${role}.image.tag=${tags[role]}`);
   // The host ports the suite addresses, from the table its URLs are built from.
-  for (const role of ROLES) args.push("--set", `qip-${role}.nodePort=${hostPort(role, "k8s")}`);
+  for (const role of ROLES) args.push("--set", `cip-${role}.nodePort=${hostPort(role, "k8s")}`);
   args.push("--set", `global.qip.ui.port=${proxyPort("k8s")}`);
   if (choice.hostPorts === "LoadBalancer Services") {
-    for (const role of ROLES) args.push("--set", `qip-${role}.loadBalancerPort=${hostPort(role, "k8s")}`);
+    for (const role of ROLES) args.push("--set", `cip-${role}.loadBalancerPort=${hostPort(role, "k8s")}`);
     args.push("--set", `global.qip.ui.loadBalancerPort=${proxyPort("k8s")}`);
   }
+  // Only `enabled` follows E2E_BROKERS, so a run without the brokers leaves the engine and the catalog alone.
+  const hostPortKey = choice.hostPorts === "LoadBalancer Services" ? "loadBalancerPort" : "nodePort";
+  for (const overlay of OVERLAY_NAMES) {
+    args.push("--set", `${overlay}.enabled=${brokersEnabled()}`);
+    args.push("--set", `${overlay}.${hostPortKey}=${BROKER_PORT[overlay].k8s}`);
+  }
+  const certs = path.join(root, "infrastructure/docker/kafka-ssl");
+  args.push(
+    "--set-file", `kafka.tls.serverCert=${path.join(certs, "server/kafka.crt")}`,
+    "--set-file", `kafka.tls.serverKey=${path.join(certs, "server/kafka.key")}`,
+    // Both engines trust the Kafka CA; a micro domain mounts the classic engine's Secret.
+    "--set-file", `cip-engine.trustedCerts.ca\\.crt=${path.join(certs, "client/ca.crt")}`,
+    "--set", `cip-runtime-catalog.microDomainResources={secret:${RELEASE}-engine-certs@/app/cert/defaultsslcertificate}`,
+    // A micro domain's root file system is read-only, and it writes its truststore here.
+    "--set", "cip-runtime-catalog.microDomainEmptyDirs={truststore:/app/truststore}",
+  );
   return args;
 }
 
@@ -436,11 +530,34 @@ async function ensureNamespace(): Promise<void> {
   if (!(await answers(kubectl, ["get", "namespace", NAMESPACE]))) {
     await kubectl(["create", "namespace", NAMESPACE]);
   }
-  // Before the install: a sidecar is injected when a pod is created.
-  await kubectl(["label", "--overwrite", "namespace", NAMESPACE, "istio-injection=enabled"]);
+  await kubectl([
+    "label", "--overwrite", "namespace", NAMESPACE,
+    "istio-injection-", "istio.io/dataplane-mode=ambient", "istio.io/use-waypoint=waypoint",
+  ]);
 }
 
-export async function provisionK8s(mode: ProvisionMode): Promise<ProvisionReport> {
+/**
+ * The image each role's pod runs, for the images this run did not build. The micro engine has no
+ * pod until a micro domain is deployed, so its digest is `null`.
+ */
+async function publishedImages(images: readonly SuiteImage[], build: ReadonlySet<SuiteImageName>): Promise<PublishedImage[]> {
+  const published: PublishedImage[] = [];
+  for (const image of images) {
+    if (build.has(image.name)) continue;
+    published.push({
+      name: image.name,
+      image: `${image.repository}:${PUBLISHED_TAG}`,
+      imageId: image.name === "micro-engine" ? null : await podImageId(image.name),
+    });
+  }
+  return published;
+}
+
+/** `microProjects` are the projects of this run that run the micro engine. */
+export async function provisionK8s(
+  mode: ProvisionMode,
+  microProjects: readonly string[],
+): Promise<ProvisionReport> {
   const startedAt = Date.now();
   const report = emptyProvisionReport(mode);
 
@@ -460,34 +577,27 @@ export async function provisionK8s(mode: ProvisionMode): Promise<ProvisionReport
     return report;
   }
 
-  await checkPrerequisites();
-  const choice = clusterChoice((await kubectl(["config", "current-context"])).trim());
-  const devServerHost = choice.devServerHost ?? (await kindNetworkGateway());
-  console.log(describeChoice(choice, devServerHost));
+  const build = imagesToBuild();
+  checkMicroBuild(build, microProjects);
+  // E2E_BOOTSTRAP_LOG names the log of a bootstrap still running, so the cluster is checked after
+  // the image builds, which need no cluster. Otherwise it is checked first, before the long build.
+  const bootstrapLog = process.env.E2E_BOOTSTRAP_LOG || null;
+  let cluster = bootstrapLog ? null : await readyCluster(null);
 
   const root = repoRoot();
   const images = suiteImages();
-  const tags = Object.fromEntries(
-    images.map((image) => [image.name, imageTag(root, image.sources, image.mavenArgs)]),
-  ) as Record<SuiteImage["name"], string>;
+  const tags = imageTags(root, images, build);
+  const built = images.filter((image) => build.has(image.name));
   const missing: SuiteImage[] = [];
-  for (const image of images) {
+  for (const image of built) {
     if (!(await imageExists(`${image.repository}:${tags[image.name]}`))) missing.push(image);
   }
 
-  // The Dockerfiles copy what `target/` holds, so the jar is built first: one Maven run for the
-  // modules that need no extra arguments, and one per module that does.
-  const builds = new Map<string, { args: string[]; modules: string[] }>();
-  for (const image of missing) {
-    if (!image.mavenModule) continue;
-    const args = image.mavenArgs ?? [];
-    const build = builds.get(args.join(" ")) ?? { args, modules: [] };
-    build.modules.push(image.mavenModule);
-    builds.set(args.join(" "), build);
-  }
-  for (const { args, modules } of builds.values()) {
-    await mavenInstall(modules, args);
-    report.built.push(...modules);
+  // The Dockerfiles copy what `target/` holds, so the jars are built first.
+  const reactor = mavenReactor(missing);
+  if (reactor) {
+    await mavenInstall(reactor.modules, reactor.args);
+    report.built.push(...reactor.modules);
   }
   for (const image of missing) {
     const reference = `${image.repository}:${tags[image.name]}`;
@@ -495,8 +605,10 @@ export async function provisionK8s(mode: ProvisionMode): Promise<ProvisionReport
     await stream("docker", ["build", "-t", reference, path.join(root, image.context)], root);
     report.rebuilt.push(image.name);
   }
+  cluster ??= await readyCluster(bootstrapLog);
+  const { choice, devServerHost } = cluster;
   // kind skips an image the node already holds; k3d imports it again, which costs seconds.
-  for (const image of images) await loadImage(choice, `${image.repository}:${tags[image.name]}`, root);
+  for (const image of built) await loadImage(choice, `${image.repository}:${tags[image.name]}`, root);
 
   await ensureNamespace();
   // Before the upgrade. Helm applies server-side and merges its entry into a patched one, so over a
@@ -510,6 +622,9 @@ export async function provisionK8s(mode: ProvisionMode): Promise<ProvisionReport
   const before = await deploymentGenerations();
   console.log(`[provision] helm upgrade --install ${RELEASE} -n ${NAMESPACE}`);
   await stream("helm", helmArguments({ root, choice, devServerHost, tags }), root);
+  await stream("kubectl", [
+    "wait", "--for=condition=Programmed", "gateway/waypoint", "-n", NAMESPACE, "--timeout=180s",
+  ], root);
   // Helm returns once the objects are written. Under Recreate the old pod may still answer the
   // health poll, so the rollout is awaited first.
   for (const role of ROLES) {
@@ -527,6 +642,7 @@ export async function provisionK8s(mode: ProvisionMode): Promise<ProvisionReport
     if (before[role] === after[role]) report.untouched.push(role);
     else report.started.push(role);
   }
+  report.published = await publishedImages(images, build);
   report.durationMs = Date.now() - startedAt;
   return report;
 }

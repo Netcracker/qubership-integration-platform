@@ -58,16 +58,25 @@ class JsonLogProviderTest {
         logRecord.setInstant(Instant.parse("2023-01-01T10:00:00Z"));
         logRecord.setMdc(Map.of(
                 "requestId", "req-123",
-                "X-B3-TraceId", "trace-456",
+                "tenantId", "tenant-1",
+                "trace_id", "trace-456",
+                "span_id", "span-1",
+                "businessIdentifiers", "bi-1",
+                "originating-bi-id", "obi-1",
                 "chainId", "chain-789",
+                "X-B3-TraceId", "should-be-ignored",
                 "unknownKey", "should-be-ignored"));
 
         jsonLogProvider.writeTo(jsonGenerator, logRecord);
 
         verify(jsonGenerator).writeStringField("request_id", "req-123");
+        verify(jsonGenerator).writeStringField("tenant_id", "tenant-1");
         verify(jsonGenerator).writeStringField("traceId", "trace-456");
+        verify(jsonGenerator).writeStringField("spanId", "span-1");
+        verify(jsonGenerator).writeStringField("business_identifiers", "bi-1");
+        verify(jsonGenerator).writeStringField("originating_bi_id", "obi-1");
         verify(jsonGenerator).writeStringField("chain_id", "chain-789");
-        verify(jsonGenerator, never()).writeStringField(eq("unknownKey"), anyString());
+        verify(jsonGenerator, never()).writeStringField(anyString(), eq("should-be-ignored"));
     }
 
     @Test

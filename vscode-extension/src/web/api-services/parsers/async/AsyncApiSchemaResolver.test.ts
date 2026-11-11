@@ -122,4 +122,43 @@ describe("AsyncApiSchemaResolver", () => {
     expect(schema.definitions.Shared.properties.fromMessage).toBeDefined();
     expect(schema.definitions.Shared.properties.fromSchema).toBeUndefined();
   });
+
+  it("resolves a message alias to what the message it names resolves to", () => {
+    const aliasComponents = {
+      messages: {
+        Alias: { $ref: "#/components/messages/Real" },
+        Real: { payload: { $ref: "#/components/schemas/Item" } },
+      },
+      schemas: components.schemas,
+    };
+    const withoutId = (ref: string) => {
+      const { $id, ...schema } = resolver.resolveRef(ref, aliasComponents)!
+        .schema as Record<string, unknown>;
+      return schema;
+    };
+
+    expect(withoutId("#/components/messages/Alias")).toEqual(
+      withoutId("#/components/messages/Real"),
+    );
+    expect(withoutId("#/components/messages/Alias").payload).toBeUndefined();
+  });
+
+  // The backend's payload model has no `definitions`, so the shared fixture cannot carry this case.
+  it("keeps the definitions an inline payload declares", () => {
+    const { schema } = resolver.resolveSchema(
+      "payload",
+      {
+        type: "object",
+        properties: {
+          code: { $ref: "#/definitions/Code" },
+          item: { $ref: "#/components/schemas/Item" },
+        },
+        definitions: { Code: { type: "string", maxLength: 3 } },
+      },
+      components,
+    );
+    expect(schema.properties.code.$ref).toBe("#/definitions/Code");
+    expect(schema.definitions.Code).toEqual({ type: "string", maxLength: 3 });
+    expect(schema.definitions.Item).toBeDefined();
+  });
 });

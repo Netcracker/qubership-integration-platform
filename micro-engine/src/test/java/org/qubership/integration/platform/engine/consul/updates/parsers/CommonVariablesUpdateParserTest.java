@@ -16,13 +16,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @QuarkusComponentTest
 @TestConfigProperty(key = "consul.keys.prefix", value = "config/test-env")
-@TestConfigProperty(key = "consul.keys.engine-config-root", value = "/qip-engine-configurations")
+@TestConfigProperty(key = "consul.keys.engine-config-root", value = "/cip-engine-configurations")
 @TestConfigProperty(key = "consul.keys.common-variables-v2", value = "/variables/common")
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class CommonVariablesUpdateParserTest {
 
     private static final String COMMON_VARIABLES_PATH =
-            "config/test-env/qip-engine-configurations/variables/common";
+            "config/test-env/cip-engine-configurations/variables/common";
 
     @Inject
     CommonVariablesUpdateParser parser;

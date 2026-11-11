@@ -1,0 +1,249 @@
+package org.qubership.integration.platform.ai.llm.agent;
+
+import dev.langchain4j.service.UserMessage;
+import io.quarkiverse.langchain4j.RegisterAiService;
+import jakarta.enterprise.context.ApplicationScoped;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryDecision;
+
+/**
+ * Authors the halt-card explanation from structured failure evidence. The diagnosis turn explains
+ * the same evidence; the runtime selects the owner and writes the instruction. A third turn reads a
+ * message typed at the halt and answers it when it asks rather than instructs, and a fourth does
+ * the same for a message typed at an approval card, where the evidence is the candidate rather than
+ * a failure. The runtime supplies fields, not user-facing prose; Retry, Revise, and Agree stay
+ * typed actions.
+ */
+@RegisterAiService(
+    chatMemoryProviderSupplier = RegisterAiService.NoChatMemoryProviderSupplier.class)
+@ApplicationScoped
+public interface FailureNarrativeAgent {
+
+  @UserMessage(
+      """
+Explain what went wrong in this create-chain run, in ordinary language, for the person who \
+started it. Write in the pinned response locale {responseLocale}. This locale is authoritative; \
+do not infer a different language from the evidence.
+
+Structured evidence (do not invent facts beyond this):
+- stageId: {stageId}
+- outcomeClass: {outcomeClass}
+- exception: {exceptionMessage}
+- validationFindings: {validationFindings}
+- followUp: {followUpText}
+- clarifyRoles: {clarifyRoles}
+
+Rules:
+- Two or three short sentences. Name the failed step in ordinary language.
+- Say whether validation failed or a generator/compiler step failed, using outcomeClass and \
+findings or skill ids. Do not invent names.
+- State the root cause from validationFindings.
+- Do not tell the reader which button to click or which word to type. Do not mention Revise.
+- Do not name a change to make. The runtime states the instruction.
+- If outcomeClass is RETRYABLE_TECHNICAL_FAILURE, keep the narration to one or two sentences, \
+do not blame the plan, and do not offer to go back or clarify the plan.
+- Reply with only the user-facing explanation. No markdown fences, no quotes, no preamble.\
+""")
+  String narrate(
+      String responseLocale,
+      String stageId,
+      String outcomeClass,
+      String exceptionMessage,
+      String validationFindings,
+      String followUpText,
+      String clarifyRoles);
+
+  @UserMessage(
+      """
+Explain what went wrong in this create-chain run, in ordinary language, for the person who \
+started it. Write in the pinned response locale {responseLocale}. This locale is \
+authoritative; do not infer a different language from the evidence.
+
+Structured evidence (do not invent facts beyond this):
+- stageId: {stageId}
+- outcomeClass: {outcomeClass}
+- exception: {exceptionMessage}
+- validationFindings: {validationFindings}
+- followUp: {followUpText}
+- candidateSet: {candidateSet}
+- clarifyRoles: {clarifyRoles}
+
+Rules:
+- Two or three short sentences. Name the failed step in ordinary language.
+- Say whether validation failed or a generator/compiler step failed, using outcomeClass and \
+findings or skill ids. Do not invent names.
+- State the root cause from validationFindings.
+- You may name artifacts in ordinary language using clarifyRoles. Do not pick an owner, name a \
+stage to reopen, or guess which candidate is at fault.
+- Do not tell the reader which button to click or which word to type. Do not mention Revise.
+- Do not name a change to make. The runtime states the instruction and selects the owner.
+- If outcomeClass is RETRYABLE_TECHNICAL_FAILURE, keep the narration to one or two sentences, \
+do not blame the plan, and do not offer to go back or clarify the plan.
+- Reply with narrative only. No markdown fences, no quotes, no preamble.\
+""")
+  OwnerDiagnosisDraft diagnose(
+      String responseLocale,
+      String stageId,
+      String outcomeClass,
+      String exceptionMessage,
+      String validationFindings,
+      String candidateSet,
+      String followUpText,
+      String clarifyRoles);
+
+  @UserMessage(
+      """
+Someone typed a message at a create-chain run that is halted and waiting. Decide whether the \
+message asks about the run or tells the run what to do, and answer it when it asks.
+
+Message: {message}
+
+Structured evidence for the halt (do not invent facts beyond this):
+- stageId: {stageId}
+- outcomeClass: {outcomeClass}
+- exception: {exceptionMessage}
+- validationFindings: {validationFindings}
+- candidateSet: {candidateSet}
+- priorFollowUp: {followUpText}
+
+Rules:
+- verdict: exactly QUESTION, CORRECTION, or RETRY.
+- QUESTION when the message asks about the run: why it stopped, what failed, what the evidence \
+means, what would clear it, or what happens next. A question mark is not required.
+- CORRECTION when the message adds facts, changes the requested result, reports that an external \
+condition is fixed, or otherwise gives the run new repair information.
+- RETRY when the message only asks to repeat, retry, resume, or continue without new repair \
+information.
+- Read the message in whatever language it is written. Do not treat English phrasing as the only \
+way to ask a question, and do not fall back to RETRY because the wording is unfamiliar.
+- answer: two to four short sentences in the pinned response locale {responseLocale}. This locale \
+is authoritative; do not answer in the language of the evidence and do not answer in the language \
+of the message when the two differ.
+- Answer from the structured evidence alone. Name the failed step in ordinary language and stay \
+with what the evidence states.
+- When the evidence does not cover what was asked, say so plainly, then name what it does cover. \
+Never guess at a fact the evidence does not hold.
+- Do not tell the reader which button to click or which word to type.
+- Leave answer empty when verdict is CORRECTION or RETRY.
+- Reply with verdict and answer only. No markdown fences, no quotes, no preamble.\
+""")
+  HaltQuestionDraft answerHaltQuestion(
+      String responseLocale,
+      String message,
+      String stageId,
+      String outcomeClass,
+      String exceptionMessage,
+      String validationFindings,
+      String candidateSet,
+      String followUpText);
+
+  @UserMessage(
+      """
+Someone typed a message at a create-chain run that is waiting for a person to approve a \
+candidate artifact or ask for a different one. Decide whether the message asks about the \
+candidate or asks for it to change, and answer it when it asks.
+
+Message: {message}
+
+Structured evidence for the pause (do not invent facts beyond this):
+- stageId: {stageId}
+- candidate: {candidate}
+
+Rules:
+- verdict: exactly QUESTION, REQUIREMENT_CHANGE, WORDING_CHANGE, or INSTRUCTION.
+- QUESTION when the message asks about the candidate or the pause: what the candidate contains, \
+why it looks the way it does, whether it covers something, what approving it leads to, or what \
+happens next. A question mark is not required.
+- INSTRUCTION when the message asks for a different candidate: what to add, remove, or correct, \
+even when it is phrased politely or as a suggestion.
+- For a requirement brief, REQUIREMENT_CHANGE means changing authored facts, constraints, values, \
+flow, interactions, field mappings, catalog choices, or removing a requirement. Use this verdict \
+even when the candidate omitted that requirement. The draft producer owns these changes.
+- WORDING_CHANGE only changes the brief's phrasing without changing any requested behavior or value.
+- For other artifact types, keep INSTRUCTION for a requested candidate change.
+- A mixed question and change request uses its change verdict.
+- Read the message in whatever language it is written. Do not treat English phrasing as the only \
+way to ask a question, and do not fall back to INSTRUCTION because the wording is unfamiliar.
+- answer: two to four short sentences in the pinned response locale {responseLocale}. This locale \
+is authoritative; do not answer in the language of the candidate and do not answer in the \
+language of the message when the two differ.
+- Answer from the candidate evidence alone. Describe what it holds in ordinary language and stay \
+with what it states. Do not invent element names, values, or steps it does not carry.
+- Explain mapping behavior using field names and values. Omit internal mapping or artifact IDs, \
+rule statuses, and Java object representations. Answer the question without repeating the plan.
+- When the candidate does not cover what was asked, say so plainly, then name what it does cover.
+- Nothing is approved by answering. Do not tell the reader which button to click or which word to \
+type, and do not restate the approval request.
+- Leave answer empty for every change verdict.
+- Reply with verdict and answer only. No markdown fences, no quotes, no preamble.\
+""")
+  HaltQuestionDraft answerApprovalQuestion(
+      String responseLocale, String message, String stageId, String candidate);
+
+  @UserMessage(
+      """
+Ask the author for the one missing fact this create-chain run needs. Write in the pinned \
+response locale {responseLocale}. This locale is authoritative; do not infer a different \
+language from the evidence.
+
+Structured evidence (do not invent facts beyond this):
+- requestedFact: {requestedFact}
+- stageId: {stageId}
+- exception: {exceptionMessage}
+
+Rules:
+- One short question in the response locale. Do not wrap requestedFact in an English template.
+- Name the missing fact in ordinary language the author can answer.
+- Reply with only the question. No markdown fences, no quotes, no preamble.\
+""")
+  String askClarification(
+      String responseLocale, String requestedFact, String stageId, String exceptionMessage);
+
+  @UserMessage(
+      """
+You diagnose create-chain recovery from RecoveryContext JSON. Write in locale {responseLocale}.
+
+Context: {recoveryContextJson}
+
+Return RecoveryDecision only. causeClass is BRIEF_DEFECT, DERIVATION_DEFECT, TECHNICAL_FAILURE, \
+or UNCLASSIFIED. action must match the cause table: BRIEF_DEFECT may REVISE_BRIEF or ASK_USER; \
+DERIVATION_DEFECT may REGENERATE_ARTIFACT or PARK; TECHNICAL_FAILURE may RETRY_OPERATION \
+or PARK; UNCLASSIFIED parks. faultArtifactRef is an artifact or operation, never a stage id. For \
+DERIVATION_DEFECT, select the rejected output from evidence.rejectedArtifactRefs. approvedPlan is \
+a committed input, not a rejected output; target approvedPlanRef only when findings demonstrate a \
+defect in that plan. A failure before output capture does not establish a plan defect. \
+Use repairHistory to avoid a previously rejected proposal. Historical observations are evidence only; \
+select faultArtifactRef from current eligible artifacts, never from history. A repeated proposal calls for \
+a different correction or a clean rebuild under runtime limits, not another identical turn. \
+Cite evidenceRefs only from context.evidenceRefIds. \
+userSummary has no stage ids; state what failed and what must change in the artifact supported \
+by the evidence. Attribute a defect to the requirements only when the context establishes a missing \
+or contradictory requirement. A rejected output alone does not establish a brief defect. \
+BRIEF_CONTRACT identifies accepted input rejected by a deterministic check before generation. \
+There is no rejected output for that failure. Compare the affected fact and field with authorInputs; \
+prepare REVISE_BRIEF corrections supported by the source, preserving unrelated requirements and \
+confirmed choices. A parallel flow with a generated successor between sibling branches can be \
+corrected by clearing that successor when the saved source requires parallel execution. \
+Before ASK_USER, read every authorInputs entry in order, the approved brief, schemaDefaults, \
+and persisted policyConflict decisions. Later author corrections supersede earlier values. \
+If an answer is present only in the source, repair the requirement projection; do not ask again. \
+Use REVISE_BRIEF with proposedBriefChanges that restore the source value, authorDecisionRequired=false, \
+and evidenceRefs citing the supporting authorInputs inputId. A new author choice cannot use that flag. \
+ASK_USER requires authorQuestionEvidence: interactionId, propertyKey, kind (MISSING_VALUE, \
+CONFLICTING_VALUES, POLICY_CHOICE or CATALOG_CHOICE), and reviewedInputIds containing every \
+authorInputs inputId. Never claim source review when source input is unavailable. Use the exact \
+interaction or element ID and property key. A known value or applicable schema default prevents \
+MISSING_VALUE. CONFLICTING_VALUES requires unresolved different values for the same scoped key. \
+POLICY_CHOICE requires an unanswered persisted policyConflict; honor KEEP_REQUESTED and \
+USE_RECOMMENDED. A generated policy violation after a confirmed choice is a derivation defect. \
+CATALOG_CHOICE requires actual catalog ambiguity and no approved binding for that interaction. \
+For example, POST in an earlier author input or approved endpoint answers an httpMethod question: \
+repair the generated method or the projection, rather than ASK_USER. An unanswered saved NONE \
+versus RBAC policy conflict requires asking which choice to keep; do not silently replace NONE. \
+Repair invalid \
+generated fields and topology from the approved input; do not ask the author to correct them. If you cannot cite \
+evidence, return UNCLASSIFIED and PARK. A design-planning CONTRACT_FAILURE such as a missing \
+mappingIntentId token or missing trigger step is a DERIVATION_DEFECT of DESIGN_PLAN_REPORT: \
+REGENERATE_ARTIFACT. Do not REVISE_BRIEF for a planner report format or coverage error.
+""")
+  RecoveryDecision recover(String responseLocale, String recoveryContextJson);
+}

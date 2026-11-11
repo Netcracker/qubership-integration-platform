@@ -8,10 +8,6 @@ jest.mock("../../../src/web/response/file", () => ({
   fileApi: { readFile: jest.fn() },
 }));
 
-jest.mock("../../../src/web/response/file/fileExtensions", () => ({
-  getExtensionsForUri: jest.fn(),
-}));
-
 const readFile = fileApi.readFile as jest.Mock;
 const fileUri = {} as Uri;
 const CHAIN_ID = "chain-1";

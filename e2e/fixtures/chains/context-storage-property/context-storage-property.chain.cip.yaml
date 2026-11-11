@@ -1,0 +1,44 @@
+---
+id: "e2e00045-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-context-storage-property"
+description: "Calls the seeded context service. GET reads the context into the e2e-context property, and a script answers it."
+content:
+  labels: []
+  elements:
+  - id: "e2e00045-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-context-storage-property"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e00045-0000-4000-8000-000000000003"
+    name: "Get Context"
+    type: "context-storage"
+    properties:
+      contextServiceId: "e2e00034-0000-4000-8000-000000000001"
+      useCorrelationId: false
+      contextId: "${header.e2e-context-id}"
+      operation: "GET"
+      keys: "e2eKey"
+      target: "PROPERTY"
+      targetName: "e2e-context"
+  - id: "e2e00045-0000-4000-8000-000000000004"
+    name: "Read Property"
+    type: "script"
+    properties:
+      script: "exchange.getMessage().setBody(String.valueOf(exchange.getProperty('e2e-context')))"
+  dependencies:
+  - from: "e2e00045-0000-4000-8000-000000000002"
+    to: "e2e00045-0000-4000-8000-000000000003"
+  - from: "e2e00045-0000-4000-8000-000000000003"
+    to: "e2e00045-0000-4000-8000-000000000004"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

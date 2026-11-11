@@ -8,6 +8,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.spi.CamelEvent;
 import org.apache.camel.support.SimpleEventNotifierSupport;
 import org.qubership.integration.platform.engine.camel.listeners.qualifiers.OnRouteAdded;
+import org.qubership.integration.platform.engine.camel.listeners.qualifiers.OnRouteReloaded;
+import org.qubership.integration.platform.engine.camel.listeners.qualifiers.OnRouteRemoved;
+import org.qubership.integration.platform.engine.camel.listeners.qualifiers.OnRouteStarted;
+import org.qubership.integration.platform.engine.camel.listeners.qualifiers.OnRouteStopped;
 
 import java.util.Collection;
 import java.util.List;
@@ -23,22 +27,22 @@ public class RouteEventListener extends SimpleEventNotifierSupport {
 
     @Inject
     @All
-    @OnRouteAdded
+    @OnRouteStarted
     List<EventProcessingAction<CamelEvent.RouteStartedEvent>> onRouteStartedActions;
 
     @Inject
     @All
-    @OnRouteAdded
+    @OnRouteStopped
     List<EventProcessingAction<CamelEvent.RouteStoppedEvent>> onRouteStoppedActions;
 
     @Inject
     @All
-    @OnRouteAdded
+    @OnRouteRemoved
     List<EventProcessingAction<CamelEvent.RouteRemovedEvent>> onRouteRemovedActions;
 
     @Inject
     @All
-    @OnRouteAdded
+    @OnRouteReloaded
     List<EventProcessingAction<CamelEvent.RouteReloadedEvent>> onRouteReloadedActions;
 
     @Override

@@ -23,14 +23,15 @@ import { TablePageLayout } from "../components/TablePageLayout.tsx";
 import { filterOutByIds, toStringIds } from "../misc/selection-utils.ts";
 import { Require } from "../permissions/Require.tsx";
 import { useColumnSettingsBasedOnColumnsType } from "../components/table/useColumnSettingsButton.tsx";
-import { useTableConfiguration } from "../components/table/useTableConfiguration.tsx";
+import {
+  SELECTION_COLUMN_WIDTH,
+  useTableConfiguration,
+} from "../components/table/useTableConfiguration.tsx";
 import { tableEmpty } from "../components/table/tableEmpty.tsx";
 import { matchesByFields } from "../components/table/tableSearch.ts";
 import { ProtectedButton } from "../permissions/ProtectedButton.tsx";
-import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
+import { ChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
 import { TableToolbar } from "../components/table/TableToolbar.tsx";
-
-const MASKING_SELECTION_COLUMN_WIDTH = 48;
 
 function maskedFieldMatchesSearch(field: MaskedField, term: string): boolean {
   const createdStr = field.createdWhen
@@ -234,7 +235,7 @@ export const Masking: React.FC = () => {
       modifiedBy: 120,
       modifiedWhen: 168,
     },
-    { selectionColumnWidth: MASKING_SELECTION_COLUMN_WIDTH },
+    { selectionColumnWidth: SELECTION_COLUMN_WIDTH },
     "maskingTable",
   );
 
@@ -265,7 +266,6 @@ export const Masking: React.FC = () => {
           value: searchTerm,
           onChange: setSearchTerm,
           placeholder: "Search masked fields...",
-          allowClear: true,
           style: { minWidth: 160, maxWidth: 360, flex: "0 1 auto" },
         }}
         columnSettingsButton={columnSettingsButton}
@@ -278,6 +278,7 @@ export const Masking: React.FC = () => {
                 iconName: "delete",
                 onClick: () => void onDeleteBtnClick(),
                 disabled: selectedRowKeys.length === 0,
+                "data-testid": "masking-delete",
               }}
             />
             <ProtectedButton
@@ -287,6 +288,7 @@ export const Masking: React.FC = () => {
                 type: "primary",
                 iconName: "plus",
                 onClick: () => void onCreateBtnClick(),
+                "data-testid": "masking-create",
               }}
             />
           </>
@@ -296,14 +298,9 @@ export const Masking: React.FC = () => {
     [searchTerm, columnSettingsButton, selectedRowKeys],
   );
 
-  useRegisterChainHeaderActions(chainTabToolbar, [
-    searchTerm,
-    selectedRowKeys,
-    // columnSettingsButton is new JSX every render — omit (see Deployments).
-  ]);
-
   return (
     <TablePageLayout>
+      <ChainHeaderActions>{chainTabToolbar}</ChainHeaderActions>
       <Table
         size="small"
         columns={columnsWithResize}

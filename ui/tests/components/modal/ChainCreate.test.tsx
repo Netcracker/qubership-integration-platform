@@ -152,6 +152,18 @@ describe("ChainCreate", () => {
     expect(newTab).toBeDisabled();
   });
 
+  it("disables In new tab checkbox while the chain is created", async () => {
+    const onSubmit = jest.fn(() => new Promise<void>(() => {}));
+    render(<ChainCreate onSubmit={onSubmit} />);
+    fireEvent.change(screen.getByRole("textbox", { name: "Name" }), {
+      target: { value: "Named" },
+    });
+    fireEvent.submit(document.getElementById("createChainForm")!);
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+    expect(screen.getByLabelText("Open chain")).toBeDisabled();
+    expect(screen.getByLabelText("In new tab")).toBeDisabled();
+  });
+
   it("create mode passes openChain false to onSubmit when Open chain is unchecked", async () => {
     const onSubmit = jest.fn();
     render(<ChainCreate onSubmit={onSubmit} />);

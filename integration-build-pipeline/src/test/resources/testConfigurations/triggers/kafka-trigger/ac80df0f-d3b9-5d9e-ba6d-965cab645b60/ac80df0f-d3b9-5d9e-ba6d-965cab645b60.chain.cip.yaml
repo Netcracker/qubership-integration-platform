@@ -1,0 +1,60 @@
+---
+id: ac80df0f-d3b9-5d9e-ba6d-965cab645b60
+$schema: http://qubership.org/schemas/product/qip/chain
+name: kafka-trigger-idempotency-subchain
+content:
+  labels: []
+  elements:
+  - id: af33bece-ad20-5ff9-b2f0-5980df60258d
+    name: Kafka Trigger subchain
+    type: kafka-trigger-2
+    properties:
+      autoOffsetReset: latest
+      brokers: localhost:9092
+      connectionSourceType: manual
+      consumersCount: 1
+      groupId: snapshot-kafka-trigger-idempotency-subchain
+      keyDeserializer: org.apache.kafka.common.serialization.StringDeserializer
+      maxPollIntervalMs: 300000
+      maxPollRecords: 500
+      reconnectBackoffMaxMs: 30000
+      saslMechanism: GSSAPI
+      securityProtocol: PLAINTEXT
+      sslProtocol: TLS
+      topics: snapshot.kafka.trigger.idempotency.subchain
+      valueDeserializer: org.apache.kafka.common.serialization.StringDeserializer
+      idempotency:
+        enabled: true
+        keyExpiry: 600
+        keyExpression: ${header.businessKey}
+        contextExpression: ${header.businessContext}
+        actionOnDuplicate: execute-subchain
+        chainTriggerParameters:
+          triggerElementId: 2860d97f-bb2d-5ec0-b1d4-e54195de2785
+          chainCallTimeout: 30000
+  - id: 2fd86b7a-1615-580c-917d-6444c966a31a
+    name: Process business record
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 2fd86b7a-1615-580c-917d-6444c966a31a.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  - id: 2860d97f-bb2d-5ec0-b1d4-e54195de2785
+    name: Handle duplicate
+    type: chain-trigger-2
+    properties:
+      elementId: 2860d97f-bb2d-5ec0-b1d4-e54195de2785
+  - id: 91681d2d-fd70-5aad-a65f-54b6e7d38e08
+    name: Process duplicate record
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 91681d2d-fd70-5aad-a65f-54b6e7d38e08.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: af33bece-ad20-5ff9-b2f0-5980df60258d
+    to: 2fd86b7a-1615-580c-917d-6444c966a31a
+  - from: 2860d97f-bb2d-5ec0-b1d4-e54195de2785
+    to: 91681d2d-fd70-5aad-a65f-54b6e7d38e08
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

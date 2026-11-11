@@ -1,0 +1,68 @@
+caseId: cip-script-generator-applicable
+skillId: cip-script-generator
+expectedApplicability: APPLICABLE
+requirementBrief:
+  goal: Return inventory data from a script.
+  inputs: []
+  constraints: []
+  assumptions: []
+  citations: []
+  summary: Return inventory data from a script.
+  approvedDraftReference: approved-draft-cip-script-generator-applicable
+  approvedDraftText: Return inventory data from a script.
+  facts:
+    - sourceFactId: script-1
+      polarity: POSITIVE
+      kind: BEHAVIOR
+      capabilityKey: script
+      text: Fill the script body on script-1.
+upstreamArtifacts:
+  CHAIN_STRUCTURE:
+    schemaVersion: 1
+inputGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Script.Demo.Inventory
+    description: Return inventory from exchange property.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: script-1
+      type: script
+      label: Read inventory
+      parentNodeId: null
+      order: null
+      properties:
+        []
+  edges: []
+capturedPatch:
+  patchId: script-body
+  ownerCapabilityId: cip-script-generator
+  nodePatches: []
+  edgePatches: []
+  propertyPatches:
+    - operation: ADD
+      targetNodeId: script-1
+      property:
+        key: script
+        value: "def inventory = exchange.getProperty('inventoryData')\nif (inventory != null) {\n    return inventory\n} else {\n    throw new Exception('Inventory data not found')\n}"
+  chainPatches: []
+  usedKnowledgeRefs: []
+  rationale: script-1 exists without a body. Fill the script property on the existing node; do not use nodePatches.
+expectedGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Script.Demo.Inventory
+    description: Return inventory from exchange property.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: script-1
+      type: script
+      label: Read inventory
+      parentNodeId: null
+      order: null
+      properties:
+        - key: script
+          value: "def inventory = exchange.getProperty('inventoryData')\nif (inventory != null) {\n    return inventory\n} else {\n    throw new Exception('Inventory data not found')\n}"
+  edges: []

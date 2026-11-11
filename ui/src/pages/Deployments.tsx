@@ -11,9 +11,7 @@ import { TableProps } from "antd/lib/table";
 import {
   CreateDeploymentRequest,
   Deployment,
-  DeployMode,
   DomainType,
-  MicroDomainDeployRequest,
   Snapshot,
 } from "../api/apiTypes.ts";
 import { useSnapshots } from "../hooks/useSnapshots.tsx";
@@ -23,6 +21,7 @@ import {
   CreateDeploymentOptions,
   DeploymentCreate,
 } from "../components/modal/DeploymentCreate.tsx";
+import { toDomains } from "../misc/domain-utils.ts";
 import { api } from "../api/api.ts";
 import { LongActionButton } from "../components/LongActionButton.tsx";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
@@ -34,7 +33,7 @@ import { createActionsColumnBase } from "../components/table/actionsColumn.ts";
 import { matchesByFields } from "../components/table/tableSearch.ts";
 import { ProtectedButton } from "../permissions/ProtectedButton.tsx";
 import { TableToolbar } from "../components/table/TableToolbar.tsx";
-import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
+import { ChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
 import { DeleteDeploymentWarningModal } from "../components/modal/DeleteDeploymentWarningModal.tsx";
 
 function deploymentMatchesSearch(
@@ -76,14 +75,7 @@ export const Deployments: React.FC = () => {
   const deleteDeployment = useCallback(
     async (deployment: Deployment) => {
       try {
-        if (deployment.domainType === DomainType.MICRO) {
-          await api.deleteSnapshotFromMicroDomain(
-            deployment.domain,
-            deployment.snapshotId,
-          );
-        } else {
-          await api.deleteDeployment(deployment.id);
-        }
+        await api.deleteDeployment(deployment.id);
         removeDeployment(deployment);
       } catch (error) {
         notificationService.requestFailed("Failed to delete deployment", error);
@@ -207,7 +199,12 @@ export const Deployments: React.FC = () => {
 
   const onDeploymentCreated = useCallback(
     (deployment: Deployment) => {
-      setDeployments((prev) => [...(prev ?? []), deployment]);
+      setDeployments((prev) => {
+        const list = prev ?? [];
+        return list.some((row) => row.id === deployment.id)
+          ? list
+          : [...list, deployment];
+      });
     },
     [setDeployments],
   );
@@ -218,22 +215,14 @@ export const Deployments: React.FC = () => {
       try {
         await Promise.all(
           options.domains.map(async (domain) => {
-            if (domain.type === DomainType.MICRO) {
-              const request: MicroDomainDeployRequest = {
-                name: domain.name,
-                snapshotIds: [options.snapshotId],
-                mode: DeployMode.APPEND,
-              };
-              await api.deploySnapshotsToMicroDomain(request);
-            } else {
-              const request: CreateDeploymentRequest = {
-                domain: domain.name,
-                snapshotId: options.snapshotId,
-                suspended: false,
-              };
-              const deployment = await api.createDeployment(chainId, request);
-              onDeploymentCreated(deployment);
-            }
+            const request: CreateDeploymentRequest = {
+              domain: domain.name,
+              domainType: domain.type,
+              snapshotId: options.snapshotId,
+              suspended: false,
+            };
+            const deployment = await api.createDeployment(chainId, request);
+            onDeploymentCreated(deployment);
           }),
         );
       } catch (error) {
@@ -243,13 +232,19 @@ export const Deployments: React.FC = () => {
     [chainId, notificationService, onDeploymentCreated],
   );
 
+  const initialDomains = useMemo(() => toDomains(deployments), [deployments]);
+
   const onCreateClick = useCallback(() => {
     showModal({
       component: (
-        <DeploymentCreate chainId={chainId} onSubmit={createDeployment} />
+        <DeploymentCreate
+          chainId={chainId}
+          initialDomains={initialDomains}
+          onSubmit={createDeployment}
+        />
       ),
     });
-  }, [showModal, chainId, createDeployment]);
+  }, [showModal, chainId, createDeployment, initialDomains]);
 
   const chainTabToolbar = useMemo(
     () => (
@@ -260,7 +255,6 @@ export const Deployments: React.FC = () => {
           value: searchTerm,
           onChange: setSearchTerm,
           placeholder: "Search deployments...",
-          allowClear: true,
           style: { minWidth: 160, maxWidth: 360, flex: "0 1 auto" },
         }}
         columnSettingsButton={columnSettingsButton}
@@ -281,15 +275,9 @@ export const Deployments: React.FC = () => {
     [searchTerm, columnSettingsButton, onCreateClick, refresh, isLoading],
   );
 
-  useRegisterChainHeaderActions(chainTabToolbar, [
-    searchTerm,
-    onCreateClick,
-    refresh,
-    isLoading,
-  ]);
-
   return (
     <TablePageLayout>
+      <ChainHeaderActions>{chainTabToolbar}</ChainHeaderActions>
       <Table
         className="flex-table"
         size="small"

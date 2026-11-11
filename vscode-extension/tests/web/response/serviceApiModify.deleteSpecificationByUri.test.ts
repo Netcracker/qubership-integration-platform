@@ -3,7 +3,7 @@ import * as vscode from "vscode";
 import { deleteSpecificationByUri } from "../../../src/web/response/serviceApiModify";
 import { fileApi } from "../../../src/web/response/file/fileApiProvider";
 import { ContentParser } from "../../../src/web/api-services/parsers/ContentParser";
-import { getExtensionsForFile } from "../../../src/web/response/file/fileExtensions";
+import { FILE_EXTENSIONS } from "../../../src/web/response/file/fileExtensions";
 
 jest.mock("../../../src/web/response/file/fileApiProvider", () => ({
   fileApi: {
@@ -34,10 +34,6 @@ jest.mock("../../../src/web/response/serviceApiRead", () => ({
   getService: jest.fn(),
   getContextService: jest.fn(),
   getMcpService: jest.fn(),
-}));
-
-jest.mock("../../../src/web/response/file/fileExtensions", () => ({
-  getExtensionsForFile: jest.fn(),
 }));
 
 jest.mock(
@@ -77,45 +73,35 @@ const consoleErrorSpy = jest
 
 describe("deleteSpecificationByUri", () => {
   const specFileUri = {
-    path: "/workspace/svc/spec1.specification.qip.yaml",
-    fsPath: "/workspace/svc/spec1.specification.qip.yaml",
-    toString: jest.fn().mockReturnValue("/workspace/svc/spec1.specification.qip.yaml"),
+    path: "/workspace/svc/spec1.specification.cip.yaml",
+    fsPath: "/workspace/svc/spec1.specification.cip.yaml",
+    toString: jest.fn().mockReturnValue("/workspace/svc/spec1.specification.cip.yaml"),
   } as unknown as Uri;
 
   const groupFileUri = {
-    path: "/workspace/svc/group1.specification-group.qip.yaml",
-    fsPath: "/workspace/svc/group1.specification-group.qip.yaml",
-    toString: jest.fn().mockReturnValue("/workspace/svc/group1.specification-group.qip.yaml"),
+    path: "/workspace/svc/group1.specification-group.cip.yaml",
+    fsPath: "/workspace/svc/group1.specification-group.cip.yaml",
+    toString: jest.fn().mockReturnValue("/workspace/svc/group1.specification-group.cip.yaml"),
   } as unknown as Uri;
 
   const serviceFileUri = {
-    path: "/workspace/svc/svc.service.qip.yaml",
-    fsPath: "/workspace/svc/svc.service.qip.yaml",
-    toString: jest.fn().mockReturnValue("/workspace/svc/svc.service.qip.yaml"),
+    path: "/workspace/svc/svc.service.cip.yaml",
+    fsPath: "/workspace/svc/svc.service.cip.yaml",
+    toString: jest.fn().mockReturnValue("/workspace/svc/svc.service.cip.yaml"),
   } as unknown as Uri;
 
   const mockDeleteFile = (fileApi as any).deleteFile as jest.Mock;
   const mockFindFileById = (fileApi as any).findFileById as jest.Mock;
   const mockGetSpecFiles = (fileApi as any).getSpecificationFiles as jest.Mock;
   const mockParse = ContentParser.parseContentFromFile as jest.Mock;
-  const mockGetExtensions = getExtensionsForFile as jest.Mock;
   const mockShowInfo = vscode.window
     .showInformationMessage as unknown as jest.Mock;
   const mockShowError = vscode.window.showErrorMessage as unknown as jest.Mock;
 
-  const extensions = {
-    appName: "qip",
-    chain: ".chain.qip.yaml",
-    service: ".service.qip.yaml",
-    contextService: ".context-service.qip.yaml",
-    mcpService: ".mcp-service.qip.yaml",
-    specificationGroup: ".specification-group.qip.yaml",
-    specification: ".specification.qip.yaml",
-  };
+  const extensions = FILE_EXTENSIONS;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockGetExtensions.mockReturnValue(extensions);
     mockDeleteFile.mockResolvedValue(undefined);
   });
 
@@ -150,7 +136,7 @@ describe("deleteSpecificationByUri", () => {
       if (id === "svc1") return serviceFileUri;
       throw new Error(`not found ${id}`);
     });
-    mockGetSpecFiles.mockResolvedValue(["spec1.specification.qip.yaml"]);
+    mockGetSpecFiles.mockResolvedValue(["spec1.specification.cip.yaml"]);
   }
 
   it("should resolve hierarchy and delete via model path without touching the uri directly and stay silent", async () => {
@@ -158,13 +144,12 @@ describe("deleteSpecificationByUri", () => {
 
     await deleteSpecificationByUri(specFileUri);
 
-    expect(mockGetExtensions).toHaveBeenCalledWith("spec1.specification.qip.yaml");
     expect(mockFindFileById).toHaveBeenCalledWith("group1", extensions.specificationGroup);
     expect(mockFindFileById).toHaveBeenCalledWith("svc1", extensions.service);
     // model path deletes the spec file discovered via getSpecificationFiles
     expect(mockGetSpecFiles).toHaveBeenCalledWith(serviceFileUri);
     expect(mockDeleteFile).toHaveBeenCalledWith(
-      expect.objectContaining({ path: expect.stringContaining("spec1.specification.qip.yaml") }),
+      expect.objectContaining({ path: expect.stringContaining("spec1.specification.cip.yaml") }),
     );
     // early return: the passed-in uri object itself is never deleted directly
     expect(mockDeleteFile).not.toHaveBeenCalledWith(specFileUri);

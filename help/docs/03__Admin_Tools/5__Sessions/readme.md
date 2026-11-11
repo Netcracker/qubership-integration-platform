@@ -16,6 +16,10 @@ Functionality is available by navigating to **Admin Tools → Sessions** window.
 ## User Interface
 
 ---
+> ⚠️ If the Engine passes session data to OpenSearch through an in-memory queue instead of Kafka, the page shows the alert _**"In-memory sessions queue is configured in this environment. Please configure kafka sessions streaming."**_ above the table. The [Sessions](../../01__Chains/4__Sessions/readme.md) tab of a chain does not show this alert.
+>
+> To switch to Kafka, follow the steps in [Configuration](#configuration).
+
 ### Sessions Table View
 Table contains sessions, aggregated by correlation identifier, if it is available, and by parent session identifier for retry cases. Next columns and elements are available for the table:
 - **ID** - generated session UUID. The parameter value is clickable.
@@ -38,6 +42,7 @@ Table contains sessions, aggregated by correlation identifier, if it is availabl
 At the top of the table the following options are available:
   - **Search field** - search box, provides ability to find particular session(s) by body field name, body field value, header name or header value.
   > ℹ️ **Note:** When searching for long or complex entity name, please consider specifying its **full name** or **first part of the name** for proper search result.
+  - ![filter](img/filter.svg) - opens the **Filter** dialog. You can filter sessions by **Chain**, **Status**, **Start Time**, **Finish Time**, and **Engine**.
   - ![Settings|20](img/setting.svg)- opens pop-up with table properties that allows to adjust visibility and sequence of columns except **ID**.
   - ![Delete|20](img/delete.svg) - deletes selected session(s).
   - ![Download|20](img/cloud-download.svg) - exports selected sessions.
@@ -100,3 +105,47 @@ Please refer to [logging page] for more details regarding data storage.
 ---
 
 Session logs are being captured as per [logging settings](../../01__Chains/5__Logging/readme.md).
+
+**Kafka streaming of session**s is switched on in the Engine and Micro-Engine with the parameters below. The Engine reads these parameters at startup. The Micro-Engine reads `OPENSEARCH_KAFKA_ENABLED` when the application is built. The broker and topic settings apply to standalone session writers; a standalone Micro-Engine also requires the channel configuration shown below.
+
+| Environment Parameter                 | Mandatory | Default Value | Description                                                                                                                                                                                                                                                                           |
+|:--------------------------------------|:----------|:--------------|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| OPENSEARCH\_KAFKA\_ENABLED            | O         | false         | When `true`, the Engine sends session elements to the Kafka topic instead of writing them to OpenSearch. When `false`, the Engine writes them to OpenSearch directly, through an in-memory queue.<br><br>ℹ️ For the Micro-Engine, `OPENSEARCH_KAFKA_ENABLED` is a build-time setting. |
+| OPENSEARCH\_KAFKA\_BOOTSTRAP\_SERVERS | O         | kafka:9092    | Kafka bootstrap servers for the standalone session writer.                                                                                                                                                                                                                            |
+| OPENSEARCH\_KAFKA\_TOPIC              | O         | elements      | Kafka topic that receives session data from the standalone session writer.                                                                                                                                                                                                            |
+
+**For a standalone Micro-Engine in production**, configure the outgoing `sessions` channel in the application configuration. The following example uses `application.properties` format and binds the channel to the broker and topic parameters above:
+
+```properties
+mp.messaging.outgoing.sessions.enabled=true
+mp.messaging.outgoing.sessions.connector=smallrye-kafka
+mp.messaging.outgoing.sessions.bootstrap.servers=${cip.opensearch.kafka-client.bootstrap-servers}
+mp.messaging.outgoing.sessions.topic=${cip.opensearch.kafka-client.topic}
+mp.messaging.outgoing.sessions.value.serializer=io.quarkus.kafka.client.serialization.ObjectMapperSerializer
+```
+
+The built-in broker and topic bindings exist only in `application-development.yml`. Setting `OPENSEARCH_KAFKA_BOOTSTRAP_SERVERS` and `OPENSEARCH_KAFKA_TOPIC` alone does not configure the production channel.
+
+**For MaaS-backed session writers**, identify the destination through MaaS before enabling streaming:
+
+- **Engine:** inspect the MaaS producer definition selected by `cip.opensearch.kafka-client.maas-producer-name` (default `opensearch-kafka-producer`) to identify its broker and topic.
+- **Micro-Engine:** resolve the topic through MaaS using the configured classifier. Its name is set by `OPENSEARCH_KAFKA_MAAS_CLASSIFIER_NAME` (default `opensearch.sessions.queue`), and its namespace comes from `cloud.microservice.namespace`. When `OPENSEARCH_KAFKA_MAAS_CLASSIFIER_IS_TENANT=true`, the classifier also includes `tenant.default.id`. Use the broker connection and physical topic name returned by MaaS.
+
+> ⚠️ With Kafka streaming enabled, the Engine and Micro-Engine send session elements to Kafka instead of writing them to OpenSearch. The **Sessions** pages read sessions only from OpenSearch. Before enabling streaming, make sure that:
+>
+> - a consumer reads from the same broker and topic as the session writer and indexes session elements into OpenSearch (CIP does not include one);
+> - the destination topic exists in Kafka (standalone session writers do not create it).
+>
+> For MaaS-backed writers, use the resolved MaaS destination for these checks; `OPENSEARCH_KAFKA_TOPIC` does not select that destination.
+>
+> Without the consumer, new sessions do not appear on the **Sessions** pages.
+
+To stream sessions through Kafka and remove the warning from the **Sessions** page:
+
+1. Set `OPENSEARCH_KAFKA_ENABLED` to `true`:
+2. Set `opensearchKafkaEnabled` to `true` in the UI configuration, in one of these places:
+   - the `config.json` file served with the UI;
+   - the `window.CIP_UI_CONFIG` object;
+   - the `VITE_OPENSEARCH_KAFKA_ENABLED=true` variable when the UI is built.
+
+> ℹ️ Step 2 is always needed. The UI does not take the value from the Engine, so with only step 1 done the warning is still shown.

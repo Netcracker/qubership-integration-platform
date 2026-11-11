@@ -9,10 +9,6 @@ jest.mock("../../../src/web/response/file", () => ({
   },
 }));
 
-jest.mock("../../../src/web/response/file/fileExtensions", () => ({
-  getExtensionsForUri: jest.fn(() => ({ chain: "**/*.chain.cip.yaml" })),
-}));
-
 const findFiles = fileApi.findFiles as jest.Mock;
 const parseFile = fileApi.parseFile as jest.Mock;
 
@@ -32,7 +28,7 @@ describe("listChainExportTargets", () => {
 
     const targets = await listChainExportTargets();
 
-    expect(findFiles).toHaveBeenCalledWith("**/*.chain.cip.yaml");
+    expect(findFiles).toHaveBeenCalledWith(".chain.cip.yaml");
     expect(targets).toEqual([
       {
         chainId: "alpha",

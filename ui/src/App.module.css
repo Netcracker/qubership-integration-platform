@@ -21,6 +21,7 @@
   flex-direction: column;
   overflow: auto;
   background: var(--vscode-panel-background, #fafafa);
+  position: relative;
 }
 
 /* Outlet route root fills main area so height: 100% / flex-table chains work. */

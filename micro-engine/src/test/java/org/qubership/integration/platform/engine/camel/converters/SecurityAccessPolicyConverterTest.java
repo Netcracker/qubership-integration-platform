@@ -10,7 +10,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.qubership.integration.platform.engine.security.QipSecurityAccessPolicy;
+import org.qubership.integration.platform.engine.security.CipSecurityAccessPolicy;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 import org.qubership.integration.platform.engine.testutils.ObjectMappers;
 
@@ -29,7 +29,7 @@ class SecurityAccessPolicyConverterTest {
     private SecurityAccessPolicyConverter converter;
 
     @Mock
-    QipSecurityAccessPolicy expectedPolicy;
+    CipSecurityAccessPolicy expectedPolicy;
 
     @BeforeEach
     void setUp() {
@@ -39,11 +39,11 @@ class SecurityAccessPolicyConverterTest {
 
     @Test
     void shouldConvertJsonStringToSecurityAccessPolicy() {
-        try (MockedStatic<QipSecurityAccessPolicy> policyMock = mockStatic(QipSecurityAccessPolicy.class)) {
-            policyMock.when(() -> QipSecurityAccessPolicy.fromStrings(List.of("role_admin", "scope_read")))
+        try (MockedStatic<CipSecurityAccessPolicy> policyMock = mockStatic(CipSecurityAccessPolicy.class)) {
+            policyMock.when(() -> CipSecurityAccessPolicy.fromStrings(List.of("role_admin", "scope_read")))
                     .thenReturn(expectedPolicy);
 
-            QipSecurityAccessPolicy result = converter.convert("[\"role_admin\",\"scope_read\"]");
+            CipSecurityAccessPolicy result = converter.convert("[\"role_admin\",\"scope_read\"]");
 
             assertSame(expectedPolicy, result);
         }
@@ -58,11 +58,11 @@ class SecurityAccessPolicyConverterTest {
             }
         };
 
-        try (MockedStatic<QipSecurityAccessPolicy> policyMock = mockStatic(QipSecurityAccessPolicy.class)) {
-            policyMock.when(() -> QipSecurityAccessPolicy.fromStrings(List.of("role_user")))
+        try (MockedStatic<CipSecurityAccessPolicy> policyMock = mockStatic(CipSecurityAccessPolicy.class)) {
+            policyMock.when(() -> CipSecurityAccessPolicy.fromStrings(List.of("role_user")))
                     .thenReturn(expectedPolicy);
 
-            QipSecurityAccessPolicy result = converter.convert(value);
+            CipSecurityAccessPolicy result = converter.convert(value);
 
             assertSame(expectedPolicy, result);
         }
@@ -75,7 +75,7 @@ class SecurityAccessPolicyConverterTest {
                 () -> converter.convert("not-a-json")
         );
 
-        assertEquals(QipSecurityAccessPolicy.class, exception.getToType());
+        assertEquals(CipSecurityAccessPolicy.class, exception.getToType());
         assertInstanceOf(JsonProcessingException.class, exception.getCause());
     }
 }

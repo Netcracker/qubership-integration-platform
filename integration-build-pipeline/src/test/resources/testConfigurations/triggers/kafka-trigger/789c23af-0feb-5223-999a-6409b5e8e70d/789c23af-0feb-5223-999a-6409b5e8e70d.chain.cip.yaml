@@ -1,0 +1,39 @@
+---
+id: "789c23af-0feb-5223-999a-6409b5e8e70d"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "kafka-trigger-sasl-ssl-invalid-credentials"
+content:
+  labels: []
+  elements:
+  - id: "701daba0-36f1-5ff1-8bc1-871140fdf9b7"
+    name: "Kafka Trigger"
+    type: "kafka-trigger-2"
+    properties:
+      autoOffsetReset: "earliest"
+      brokers: "localhost:9092"
+      connectionSourceType: "manual"
+      consumersCount: 1
+      groupId: "snapshot-kafka-trigger-sasl-ssl-invalid-credentials"
+      keyDeserializer: "org.apache.kafka.common.serialization.StringDeserializer"
+      maxPollIntervalMs: 300000
+      maxPollRecords: 500
+      reconnectBackoffMaxMs: 1000
+      saslJaasConfig: 'org.apache.kafka.common.security.plain.PlainLoginModule required username="reader" password="incorrect-password";'
+      saslMechanism: "PLAIN"
+      securityProtocol: "SASL_SSL"
+      sslEndpointAlgorithm: "https"
+      sslProtocol: "TLS"
+      topics: "snapshot.kafka.trigger.sasl-ssl-invalid-credentials"
+      valueDeserializer: "org.apache.kafka.common.serialization.StringDeserializer"
+  - id: "c8650d95-8d14-5672-a657-68b1ef2f3fe6"
+    name: "Script"
+    type: "script"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesFilename: "c8650d95-8d14-5672-a657-68b1ef2f3fe6.element.script.cip.groovy"
+      propertiesToExportInSeparateFile: "script"
+  dependencies:
+  - from: "701daba0-36f1-5ff1-8bc1-871140fdf9b7"
+    to: "c8650d95-8d14-5672-a657-68b1ef2f3fe6"
+  deployAction: "SNAPSHOT"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

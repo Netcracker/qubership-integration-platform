@@ -30,6 +30,7 @@ To view all templates, available in the system, navigate to "**Admin Tools**" an
 
 At the top of the table the following options are available:
   - **Search templates** - search box, provides ability to find respective data in the table.
+  - ![filter](img/filter.svg) - opens the **Filter** dialog. You can filter templates by **Name**, **Type**, and **Created At**.
   - ![delete](img/delete.svg)- deletes selected templates.
   - ![setting](img/setting.svg)- opens pop-up with table properties that allows to adjust visibility and sequence of columns except **Name**.
   - ![cloud-download](img/cloud-download.svg) - exports selected templates in Markdown.

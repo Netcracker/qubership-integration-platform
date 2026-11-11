@@ -36,6 +36,18 @@
         "doc": "/doc/01__Chains/7__Properties/readme.md"
     },
     {
+        "pattern": "/chains/.+/testing/test-cases",
+        "doc": "/doc/01__Chains/8__Testing/readme.md#test-cases-table-view"
+    },
+    {
+        "pattern": "/chains/.+/testing/endpoint-mocks",
+        "doc": "/doc/01__Chains/8__Testing/readme.md#endpoint-mocks-table-view"
+    },
+    {
+        "pattern": "/chains/.+/testing/test-case-runs",
+        "doc": "/doc/01__Chains/8__Testing/readme.md#test-case-runs-table-view"
+    },
+    {
         "pattern": "/chains/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/testing",
         "doc": "/doc/01__Chains/8__Testing/readme.md"
     },
@@ -60,6 +72,14 @@
         "doc": "/doc/02__Services/5__MCP/readme.md"
     },
     {
+        "pattern": "/services/context",
+        "doc": "/doc/02__Services/4__Context/readme.md#view-parameters"
+    },
+    {
+        "pattern": "/services/mcp",
+        "doc": "/doc/02__Services/5__MCP/readme.md#view-parameters"
+    },
+    {
         "pattern": "/services$",
         "doc": "/doc/02__Services/readme.md"
     },
@@ -69,11 +89,11 @@
     },
     {
         "pattern": "/admintools/variables/common",
-        "doc": "/doc/03__Admin_Tools/2__Variables/readme.md"
+        "doc": "/doc/03__Admin_Tools/2__Variables/readme.md#view-common-variables"
     },
     {
         "pattern": "/admintools/variables/secured",
-        "doc": "/doc/03__Admin_Tools/2__Variables/readme.md"
+        "doc": "/doc/03__Admin_Tools/2__Variables/readme.md#view-secured-variables"
     },
     {
         "pattern": "/admintools/audit",
@@ -98,6 +118,18 @@
     {
         "pattern": "/admintools/exchanges",
         "doc": "/doc/03__Admin_Tools/8__Live_Exchanges/readme.md"
+    },
+    {
+        "pattern": "/admintools/testing/test-cases",
+        "doc": "/doc/03__Admin_Tools/9__Testing/readme.md#test-cases-table-view"
+    },
+    {
+        "pattern": "/admintools/testing/endpoint-mocks",
+        "doc": "/doc/03__Admin_Tools/9__Testing/readme.md#endpoint-mocks-table-view"
+    },
+    {
+        "pattern": "/admintools/testing/test-runs",
+        "doc": "/doc/03__Admin_Tools/9__Testing/readme.md#test-runs-table-view"
     },
     {
         "pattern": "/admintools/testing",

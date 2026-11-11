@@ -122,6 +122,7 @@ jest.mock("../../src/components/mapper/Mapping", () => ({
 
 jest.mock("../../src/misc/protocol-utils", () => ({
   isHttpProtocol: (val: string) => val === "http" || val === "soap",
+  isGraphqlProtocol: (val: string) => val === "graphql",
 }));
 
 jest.mock(
@@ -331,6 +332,63 @@ describe("CustomArrayField", () => {
       const select = container.querySelector(".ant-select");
       expect(select).toBeTruthy();
       expect(select?.classList.contains("ant-select-disabled")).toBeFalsy();
+    });
+
+    it("offers the Default handler and wildcards for graphql protocol", async () => {
+      const props = makeProps({
+        formContext: { integrationOperationProtocolType: "graphql" },
+      });
+
+      const { container } = render(<CustomArrayField {...props} />);
+
+      const select = container.querySelector(".ant-select");
+      expect(select?.classList.contains("ant-select-disabled")).toBeFalsy();
+      openSelect(container);
+
+      await waitFor(() => {
+        for (const title of ["1xx", "2xx", "3xx", "4xx", "5xx", "Default"]) {
+          expect(screen.getByTitle(title)).toBeTruthy();
+        }
+      });
+    });
+
+    it("does not touch errorThrowing when a Default handler is added or deleted", async () => {
+      const updateContext = jest.fn();
+      const onChange = jest.fn();
+      const props = makeProps({
+        onChange,
+        formContext: {
+          integrationOperationProtocolType: "http",
+          updateContext,
+        },
+      });
+
+      const { container } = render(<CustomArrayField {...props} />);
+      openSelect(container);
+      await waitFor(() => expect(screen.getByTitle("Default")).toBeTruthy());
+      fireEvent.click(screen.getByTitle("Default"));
+      fireEvent.click(screen.getByText("Add"));
+      expect(onChange).toHaveBeenCalled();
+
+      const withDefault = makeProps({
+        formData: [
+          makeResponseHandler({
+            code: "default",
+            label: "Default",
+            id: "default",
+          }),
+        ],
+        formContext: {
+          integrationOperationProtocolType: "http",
+          updateContext,
+        },
+      });
+      render(<CustomArrayField {...withDefault} />);
+      fireEvent.click(screen.getByTestId("icon-delete"));
+
+      for (const [arg] of updateContext.mock.calls) {
+        expect(arg).not.toHaveProperty("errorThrowing");
+      }
     });
 
     it("provides empty code options for non-http protocol", () => {
@@ -710,6 +768,44 @@ describe("CustomArrayField", () => {
       });
     });
 
+    it("offers only 2xx JSON validations", async () => {
+      const props = makeProps({
+        name: "afterValidation",
+        formContext: {
+          elementType: "service-call",
+          integrationOperationId: "op-123",
+          integrationOperationProtocolType: "http",
+          operationResponseSchemas: {
+            "200": {
+              "application/json": {},
+              "application/xml": {},
+              "*/*": {},
+            },
+            "201": { "application/problem+json": {} },
+            "400": { "application/json": {} },
+            "404": null,
+          },
+        },
+      });
+
+      const { container } = render(<CustomArrayField {...props} />);
+      openSelect(container);
+
+      await waitFor(() => {
+        expect(screen.getByTitle("200-application/json")).toBeTruthy();
+      });
+      const titles = Array.from(
+        document.querySelectorAll(".ant-select-item-option"),
+      ).map((e) => e.getAttribute("title"));
+      expect(titles.sort()).toEqual(
+        [
+          "200-*/*",
+          "200-application/json",
+          "201-application/problem+json",
+        ].sort(),
+      );
+    });
+
     it("filters out already-used codes from available codes", async () => {
       const existing = makeResponseValidation({
         code: "200",
@@ -726,17 +822,20 @@ describe("CustomArrayField", () => {
           integrationOperationProtocolType: "http",
           operationResponseSchemas: {
             "200": { "application/json": { type: "object" } },
+            "201": { "application/json": { type: "object" } },
             "400": { "application/json": { type: "string" } },
           },
         },
       });
 
       const { container } = render(<CustomArrayField {...props} />);
+      openSelect(container);
 
       await waitFor(() => {
-        const select = container.querySelector(".ant-select");
-        expect(select?.classList.contains("ant-select-disabled")).toBeFalsy();
+        expect(screen.getByTitle("201-application/json")).toBeTruthy();
       });
+      expect(screen.queryByTitle("200-application/json")).toBeNull();
+      expect(screen.queryByTitle("400-application/json")).toBeNull();
     });
   });
 

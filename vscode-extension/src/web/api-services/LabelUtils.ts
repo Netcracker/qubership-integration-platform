@@ -74,7 +74,7 @@ export class LabelUtils {
   /**
    * Convert EntityLabel array to string array for backend
    */
-  static fromEntityLabels(entityLabels: EntityLabel[]): string[] {
+  static fromEntityLabels(entityLabels: Pick<EntityLabel, "name">[]): string[] {
     return entityLabels.map((label) => label.name);
   }
 

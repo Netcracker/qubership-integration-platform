@@ -22,12 +22,14 @@ import org.qubership.integration.platform.runtime.catalog.exception.ExceptionDTO
 import org.qubership.integration.platform.runtime.catalog.rest.handler.exception.MicroserviceErrorResponseException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResponseErrorHandler;
 
 import java.io.IOException;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 
 @Component
@@ -47,7 +49,7 @@ public class RestTemplateMsResponseErrorHandler implements ResponseErrorHandler 
 
     @Override
     @SuppressWarnings("checkstyle:EmptyCatchBlock")
-    public void handleError(ClientHttpResponse response) throws IOException {
+    public void handleError(URI url, HttpMethod method, ClientHttpResponse response) throws IOException {
         String errorMessage = IOUtils.toString(response.getBody(), StandardCharsets.UTF_8);
 
         try {

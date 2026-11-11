@@ -1,8 +1,18 @@
-import { ChatRequest, ChatResponse, StreamingChunk } from "./types.ts";
+import {
+  ChatRequest,
+  ChatResponse,
+  ProviderCapabilities,
+  StreamingChunk,
+} from "./types.ts";
 
 export interface AiModelProvider {
   id: string;
   displayName: string;
+  capabilities?: ProviderCapabilities;
+  streamChat?(
+    request: ChatRequest,
+    onChunk: (chunk: StreamingChunk) => void,
+  ): Promise<void>;
   /**
    * Chat with SSE progress events while tools run, then resolves with the final response.
    */
@@ -10,6 +20,10 @@ export interface AiModelProvider {
     request: ChatRequest,
     onChunk: (chunk: StreamingChunk) => void,
   ): Promise<ChatResponse>;
-  /** Upload a file for chat attachment; returns object URL. Optional – only HTTP provider supports it. */
-  uploadFile?(file: File, sessionId?: string): Promise<{ url: string }>;
+  chat?(request: ChatRequest): Promise<ChatResponse>;
+  /** Upload a file for chat attachment; returns storage object key and download URL. Optional – HTTP provider only. */
+  uploadFile?(
+    file: File,
+    sessionId?: string,
+  ): Promise<{ url: string; objectKey: string }>;
 }

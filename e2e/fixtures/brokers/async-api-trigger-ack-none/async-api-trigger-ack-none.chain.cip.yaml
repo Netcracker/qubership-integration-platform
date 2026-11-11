@@ -1,0 +1,44 @@
+---
+id: "e2e10014-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-async-api-trigger-ack-none"
+description: "The amqp async-api-trigger with acknowledgeMode NONE into an http-sender on a host that never resolves, so every message fails. The brokers seed declares the queue with the dead-letter arguments these async properties name."
+content:
+  labels: []
+  elements:
+  - id: "e2e10014-0000-4000-8000-000000000002"
+    name: "integrationOperationAsyncProperties/acknowledgeMode=NONE"
+    type: "async-api-trigger"
+    properties:
+      systemType: "EXTERNAL"
+      integrationSystemId: "e2e0e002-0000-4000-8000-000000000001"
+      integrationSpecificationGroupId: "e2e0e002-0000-4000-8000-000000000001-async-api-amqp"
+      integrationSpecificationId: "e2e0e002-0000-4000-8000-000000000001-async-api-amqp-1.0.0"
+      integrationOperationId: "e2e0e002-0000-4000-8000-000000000001-async-api-amqp-1.0.0-e2e-{{RUN}}-async-api-trigger-ack-none"
+      integrationOperationPath: "e2e-{{RUN}}-async-api-trigger-ack-none"
+      integrationOperationMethod: "publish"
+      integrationOperationProtocolType: "amqp"
+      integrationOperationAsyncProperties:
+        acknowledgeMode: "NONE"
+        queues: "e2e-{{RUN}}-async-api-trigger-ack-none"
+        deadLetterExchange: "e2e-{{RUN}}-async-api-trigger-ack-none-dlx"
+        deadLetterQueue: "e2e-{{RUN}}-async-api-trigger-ack-none-dlq"
+        deadLetterRoutingKey: "e2e-{{RUN}}-async-api-trigger-ack-none-dlk"
+      idempotency:
+        enabled: false
+  - id: "e2e10014-0000-4000-8000-000000000003"
+    name: "HTTP Sender"
+    type: "http-sender"
+    properties:
+      uri: "http://e2e-rabbitmq-fail.invalid/boom"
+      httpMethod: "POST"
+      isExternalCall: false
+      m2m: false
+      reuseEstablishedConnection: true
+      propagateContext: false
+      receiveCorrelationId: false
+  dependencies:
+  - from: "e2e10014-0000-4000-8000-000000000002"
+    to: "e2e10014-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

@@ -1,0 +1,7 @@
+---
+id: "e2e00031-0000-4000-8000-000000000001-methods"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/specification-group"
+name: "methods"
+content:
+  synchronization: false
+  parentId: "e2e00031-0000-4000-8000-000000000001"

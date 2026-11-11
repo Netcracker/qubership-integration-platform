@@ -47,7 +47,7 @@ import static org.mockito.Mockito.when;
  */
 class KubeOperatorCreateOrUpdateTest {
 
-    private static final String NAMESPACE = "qip";
+    private static final String NAMESPACE = "cip";
     private static final String CAMEL_K_GROUP = "camel.apache.org";
     private static final String CAMEL_K_VERSION = "v1";
     private static final String INTEGRATIONS_PLURAL = "integrations";
@@ -441,9 +441,9 @@ class KubeOperatorCreateOrUpdateTest {
 
     @Test
     void resolvesAGenericCustomObjectThroughItsRegisteredDefinition() throws ApiException {
-        KubeCustomObject mesh = customObject(MESH_GROUP + "/" + MESH_VERSION, "Mesh", "qip-mesh");
+        KubeCustomObject mesh = customObject(MESH_GROUP + "/" + MESH_VERSION, "Mesh", "cip-mesh");
         when(genericCustomResources.definitionFor("Mesh")).thenReturn(meshDefinition(true));
-        stubCustomObjectReadAsNotFound(MESH_GROUP, MESH_VERSION, MESHES_PLURAL, "qip-mesh");
+        stubCustomObjectReadAsNotFound(MESH_GROUP, MESH_VERSION, MESHES_PLURAL, "cip-mesh");
         CustomObjectsApi.APIcreateNamespacedCustomObjectRequest createRequest =
                 stubCustomObjectCreate(MESH_GROUP, MESH_VERSION, MESHES_PLURAL);
 
@@ -456,9 +456,9 @@ class KubeOperatorCreateOrUpdateTest {
 
     @Test
     void leavesAnExistingGenericCustomObjectAloneWhenItsDefinitionForbidsUpdates() throws ApiException {
-        KubeCustomObject mesh = customObject(MESH_GROUP + "/" + MESH_VERSION, "Mesh", "qip-mesh");
+        KubeCustomObject mesh = customObject(MESH_GROUP + "/" + MESH_VERSION, "Mesh", "cip-mesh");
         when(genericCustomResources.definitionFor("Mesh")).thenReturn(meshDefinition(false));
-        stubCustomObjectRead(MESH_GROUP, MESH_VERSION, MESHES_PLURAL, "qip-mesh", rawObject("qip-mesh"));
+        stubCustomObjectRead(MESH_GROUP, MESH_VERSION, MESHES_PLURAL, "cip-mesh", rawObject("cip-mesh"));
 
         kubeOperator.createOrUpdateResource(mesh);
 
@@ -471,7 +471,7 @@ class KubeOperatorCreateOrUpdateTest {
     @Test
     void rejectsAGenericCustomObjectWhenNoDefinitionsAreRegistered() {
         ReflectionTestUtils.setField(kubeOperator, "genericCustomResources", null);
-        KubeCustomObject mesh = customObject(MESH_GROUP + "/" + MESH_VERSION, "Mesh", "qip-mesh");
+        KubeCustomObject mesh = customObject(MESH_GROUP + "/" + MESH_VERSION, "Mesh", "cip-mesh");
 
         KubeApiException exception =
                 assertThrows(KubeApiException.class, () -> kubeOperator.createOrUpdateResource(mesh));

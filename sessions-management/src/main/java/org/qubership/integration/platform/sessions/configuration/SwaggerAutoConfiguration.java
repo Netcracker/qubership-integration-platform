@@ -59,6 +59,15 @@ public class SwaggerAutoConfiguration {
             .addSecurityItem(new SecurityRequirement().addList(BEARER_AUTH));
     }
 
+    @Bean
+    public OpenApiCustomizer hidePublicRoutes() {
+        return openApi -> {
+            if (openApi.getPaths() != null) {
+                openApi.getPaths().keySet().removeIf(path -> path.startsWith("/api/v1/cip/sessions-management"));
+            }
+        };
+    }
+
     private Info getInfo() {
         return new Info()
             .title("Cloud Integration Platform Sessions Management")

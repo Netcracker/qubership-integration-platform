@@ -1,0 +1,36 @@
+asyncapi: 3.0.0
+info:
+  title: E2E AsyncAPI 3.0 AMQP Trigger
+  version: 1.0.0
+servers:
+  production:
+    host: rabbitmq:5672
+    protocol: amqp
+channels:
+  e2eAsyncApiV3SendChannel:
+    address: e2e-{{RUN}}-async-api-v3-send
+    messages:
+      Ping:
+        payload:
+          type: object
+          properties:
+            ping:
+              type: string
+  e2eAsyncApiV3ReceiveChannel:
+    address: e2e-{{RUN}}-async-api-v3-receive
+    messages:
+      Ping:
+        payload:
+          type: object
+          properties:
+            ping:
+              type: string
+operations:
+  e2eAsyncApiV3Send:
+    action: send
+    channel:
+      $ref: '#/channels/e2eAsyncApiV3SendChannel'
+  e2eAsyncApiV3Receive:
+    action: receive
+    channel:
+      $ref: '#/channels/e2eAsyncApiV3ReceiveChannel'

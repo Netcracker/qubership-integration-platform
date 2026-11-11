@@ -17,14 +17,16 @@ import {
   ColumnsTypeWithSettings,
   useColumnSettingsBasedOnColumnsType,
 } from "../../components/table/useColumnSettingsButton.tsx";
-import { useTableConfiguration } from "../../components/table/useTableConfiguration.tsx";
+import {
+  SELECTION_COLUMN_WIDTH,
+  useTableConfiguration,
+} from "../../components/table/useTableConfiguration.tsx";
 import { EndpointMockDetailsDrawer } from "../../components/testing/EndpointMockDetailsDrawer.tsx";
 import { formatMockNumber } from "../../components/testing/endpointMocks.ts";
 import { getTestingPermissions } from "../../components/testing/testingPermissions.ts";
 import { EnabledTag } from "../../components/testing/TestingTags.tsx";
 import { useTestingFilter } from "../../hooks/filter/useTestingFilter.ts";
 import {
-  TESTING_SELECTION_COLUMN_WIDTH,
   endpointMocksListSource,
   useTestingEntityList,
 } from "../../hooks/testing/useTestingEntityList.ts";
@@ -36,6 +38,7 @@ import type { TestingPageVariant } from "./TestingLayout.tsx";
 import { RowLink } from "../../components/table/RowLink.tsx";
 import { TestingListActions } from "../../components/testing/TestingListActions.tsx";
 import { useTestingListToolbar } from "../../components/testing/useTestingListToolbar.tsx";
+import { ChainHeaderActions } from "../ChainHeaderActionsContext.tsx";
 
 const COLUMN_WIDTHS = {
   name: 220,
@@ -84,8 +87,6 @@ export const EndpointMocks: React.FC<EndpointMocksProps> = ({
     getChainName,
     getElementName,
     exportEntities,
-    sortBy,
-    sortOrder,
     tableSort,
     handleTableChange: handleServerTableChange,
     selectedRowKeys,
@@ -289,7 +290,7 @@ export const EndpointMocks: React.FC<EndpointMocksProps> = ({
     orderedColumns,
     COLUMN_WIDTHS,
     {
-      selectionColumnWidth: TESTING_SELECTION_COLUMN_WIDTH,
+      selectionColumnWidth: SELECTION_COLUMN_WIDTH,
       controlledSort: tableSort,
       onChange: handleServerTableChange,
     },
@@ -342,19 +343,6 @@ export const EndpointMocks: React.FC<EndpointMocksProps> = ({
     filterButton,
     columnSettingsButton,
     actions: toolbarActions,
-    registerInChainHeader: variant === "chain-tab",
-    registerDependencies: [
-      isLoading,
-      variant,
-      searchString,
-      sortBy,
-      sortOrder,
-      selectedRowKeys,
-      selectAllMatching,
-      allLoaded,
-      filters,
-      permissions,
-    ],
   });
 
   const table = (
@@ -395,13 +383,15 @@ export const EndpointMocks: React.FC<EndpointMocksProps> = ({
         <Flex vertical className={commonStyles.container}>
           <AdminToolsHeader
             title="Endpoint Mocks"
-            iconName="api"
             toolbar={toolbar}
           />
           {table}
         </Flex>
       ) : (
-        table
+        <>
+          <ChainHeaderActions>{toolbar}</ChainHeaderActions>
+          {table}
+        </>
       )}
       <EndpointMockDetailsDrawer
         endpointMock={detailsMock}

@@ -115,7 +115,7 @@ public abstract class ComparisonExpression extends BinaryExpression implements B
                     regexp.append(".*?"); // Do a non-greedy match
                 } else if (c == '_') {
                     regexp.append("."); // match one
-                } else if (REGEXP_CONTROL_CHARS.contains(new Character(c))) {
+                } else if (REGEXP_CONTROL_CHARS.contains(Character.valueOf(c))) {
                     regexp.append("\\x");
                     regexp.append(Integer.toHexString(0xFFFF & c));
                 } else {
@@ -373,9 +373,9 @@ public abstract class ComparisonExpression extends BinaryExpression implements B
                     } else if (rc == Long.class) {
                         lv = Long.valueOf(((Number)lv).longValue());
                     } else if (rc == Float.class) {
-                        lv = new Float(((Number)lv).floatValue());
+                        lv = Float.valueOf(((Number)lv).floatValue());
                     } else if (rc == Double.class) {
-                        lv = new Double(((Number)lv).doubleValue());
+                        lv = Double.valueOf(((Number)lv).doubleValue());
                     } else if (rc == BigInteger.class) {
                         lv = BigInteger.valueOf((Byte)lv);
                     } else if (rc == BigDecimal.class) {
@@ -391,9 +391,9 @@ public abstract class ComparisonExpression extends BinaryExpression implements B
                     } else if (rc == Long.class) {
                         lv = Long.valueOf(((Number)lv).longValue());
                     } else if (rc == Float.class) {
-                        lv = new Float(((Number)lv).floatValue());
+                        lv = Float.valueOf(((Number)lv).floatValue());
                     } else if (rc == Double.class) {
-                        lv = new Double(((Number)lv).doubleValue());
+                        lv = Double.valueOf(((Number)lv).doubleValue());
                     } else if (rc == BigInteger.class) {
                         lv = BigInteger.valueOf((Short)lv);
                     } else if (rc == BigDecimal.class) {
@@ -407,9 +407,9 @@ public abstract class ComparisonExpression extends BinaryExpression implements B
                     if (rc == Long.class) {
                         lv = Long.valueOf(((Number)lv).longValue());
                     } else if (rc == Float.class) {
-                        lv = new Float(((Number)lv).floatValue());
+                        lv = Float.valueOf(((Number)lv).floatValue());
                     } else if (rc == Double.class) {
-                        lv = new Double(((Number)lv).doubleValue());
+                        lv = Double.valueOf(((Number)lv).doubleValue());
                     } else if (rc == BigInteger.class) {
                         lv = BigInteger.valueOf((Integer)lv);
                     } else if (rc == BigDecimal.class) {
@@ -423,9 +423,9 @@ public abstract class ComparisonExpression extends BinaryExpression implements B
                     if (rc == Integer.class) {
                         rv = Long.valueOf(((Number)rv).longValue());
                     } else if (rc == Float.class) {
-                        lv = new Float(((Number)lv).floatValue());
+                        lv = Float.valueOf(((Number)lv).floatValue());
                     } else if (rc == Double.class) {
-                        lv = new Double(((Number)lv).doubleValue());
+                        lv = Double.valueOf(((Number)lv).doubleValue());
                     } else if (rc == BigInteger.class) {
                         lv = BigInteger.valueOf((Long)lv);
                     } else if (rc == BigDecimal.class) {
@@ -437,11 +437,11 @@ public abstract class ComparisonExpression extends BinaryExpression implements B
                     }
                 } else if (lc == Float.class) {
                     if (rc == Integer.class) {
-                        rv = new Float(((Number)rv).floatValue());
+                        rv = Float.valueOf(((Number)rv).floatValue());
                     } else if (rc == Long.class) {
-                        rv = new Float(((Number)rv).floatValue());
+                        rv = Float.valueOf(((Number)rv).floatValue());
                     } else if (rc == Double.class) {
-                        lv = new Double(((Number)lv).doubleValue());
+                        lv = Double.valueOf(((Number)lv).doubleValue());
                     } else if (rc == BigInteger.class) {
                         rv = new BigDecimal((BigInteger)rv);
                         lv = BigDecimal.valueOf((Float)lv);
@@ -454,11 +454,11 @@ public abstract class ComparisonExpression extends BinaryExpression implements B
                     }
                 } else if (lc == Double.class) {
                     if (rc == Integer.class) {
-                        rv = new Double(((Number)rv).doubleValue());
+                        rv = Double.valueOf(((Number)rv).doubleValue());
                     } else if (rc == Long.class) {
-                        rv = new Double(((Number)rv).doubleValue());
+                        rv = Double.valueOf(((Number)rv).doubleValue());
                     } else if (rc == Float.class) {
-                        rv = new Double(((Number)rv).doubleValue());
+                        rv = Double.valueOf(((Number)rv).doubleValue());
                     } else if (rc == BigInteger.class) {
                         rv = new BigDecimal((BigInteger)rv);
                         lv = BigDecimal.valueOf((Double)lv);

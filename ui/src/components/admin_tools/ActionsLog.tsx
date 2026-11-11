@@ -1,13 +1,5 @@
 import { ActionLog, EntityType, LogOperation } from "../../api/apiTypes.ts";
-import {
-  Badge,
-  Button,
-  Descriptions,
-  Drawer,
-  Flex,
-  Table,
-  Tooltip,
-} from "antd";
+import { Badge, Button, Flex, Table, Tooltip } from "antd";
 import React, { useMemo, useState } from "react";
 import { useActionLog } from "../../hooks/useActionLog.tsx";
 import {
@@ -34,6 +26,7 @@ import { useTableConfiguration } from "../table/useTableConfiguration.tsx";
 import { TableToolbar } from "../table/TableToolbar.tsx";
 import { AdminToolsHeader } from "./AdminToolsHeader.tsx";
 import { useActionLogFilter } from "../../hooks/useActionLogFilter.ts";
+import { ActionLogSidebar } from "./ActionLogSidebar.tsx";
 
 export enum OperationType {
   READ = "read",
@@ -233,15 +226,14 @@ export const ActionsLog: React.FC = () => {
     }
 
     const link = (
-      <Flex vertical={true} gap={4}>
-        <a
-          onClick={() => {
-            window.open(getEntityLink(type, id, parentId, name), "_blank");
-          }}
-        >
-          {displayedName}
-        </a>
-      </Flex>
+      <a
+        onClick={(event) => {
+          event.stopPropagation();
+          window.open(getEntityLink(type, id, parentId, name), "_blank");
+        }}
+      >
+        {displayedName}
+      </a>
     );
 
     return displayedName ? link : "—";
@@ -353,21 +345,21 @@ export const ActionsLog: React.FC = () => {
         hidden: true,
       },
       {
-        title: "Entity Id",
+        title: "Entity ID",
         key: "entityId",
         dataIndex: "entityId",
         width: actionLogColumnResize.columnWidths.entityId,
         hidden: true,
       },
       {
-        title: "Parent Id",
+        title: "Parent ID",
         key: "parentId",
         dataIndex: "parentId",
         width: actionLogColumnResize.columnWidths.parentId,
         hidden: true,
       },
       {
-        title: "Request Id",
+        title: "Request ID",
         key: "requestId",
         dataIndex: "requestId",
         width: actionLogColumnResize.columnWidths.requestId,
@@ -428,7 +420,6 @@ export const ActionsLog: React.FC = () => {
         onChange: setSearchTerm,
         onSearchConfirm: confirmSearch,
         placeholder: "Search audit log...",
-        allowClear: true,
       }}
       columnSettingsButton={columnSettingsButton}
       filterButton={filterButton}
@@ -457,7 +448,7 @@ export const ActionsLog: React.FC = () => {
 
   return (
     <Flex vertical className={commonStyles["container"]}>
-      <AdminToolsHeader title="Audit" iconName="audit" toolbar={auditToolbar} />
+      <AdminToolsHeader title="Audit" toolbar={auditToolbar} />
       <Flex
         style={{
           flex: "1 1 auto",
@@ -468,45 +459,6 @@ export const ActionsLog: React.FC = () => {
           overflow: "hidden",
         }}
       >
-        {currentActionLog && (
-          <Drawer
-            title="Action Details"
-            placement="right"
-            open={openSidebar}
-            closable={false}
-            onClose={onClose}
-          >
-            <Descriptions column={1} size="small" layout="vertical">
-              <Descriptions.Item label="Action Time">
-                {formatTimestamp(currentActionLog.actionTime)}
-              </Descriptions.Item>
-              <Descriptions.Item label="Initiator">
-                {currentActionLog.username}
-              </Descriptions.Item>
-              <Descriptions.Item label="Operation">
-                {capitalize(OperationTypeMap[currentActionLog.operation])}
-              </Descriptions.Item>
-              <Descriptions.Item label="Entity Id">
-                {currentActionLog.entityId}
-              </Descriptions.Item>
-              <Descriptions.Item label="Entity Type">
-                {capitalize(currentActionLog.entityType)}
-              </Descriptions.Item>
-              <Descriptions.Item label="Entity Name">
-                {renderEntityLink(currentActionLog)}
-              </Descriptions.Item>
-              <Descriptions.Item label="Parent Id">
-                {currentActionLog.parentId}
-              </Descriptions.Item>
-              <Descriptions.Item label="Parent Name">
-                {renderParentLink(currentActionLog)}
-              </Descriptions.Item>
-              <Descriptions.Item label="Request Id">
-                {currentActionLog.requestId}
-              </Descriptions.Item>
-            </Descriptions>
-          </Drawer>
-        )}
         <Flex
           style={{
             width: "100%",
@@ -552,6 +504,13 @@ export const ActionsLog: React.FC = () => {
           </div>
         </Flex>
       </Flex>
+      <ActionLogSidebar
+        value={currentActionLog}
+        onClose={onClose}
+        open={openSidebar}
+        entityLinkRenderer={renderEntityLink}
+        parentLinkRenderer={renderParentLink}
+      />
     </Flex>
   );
 };

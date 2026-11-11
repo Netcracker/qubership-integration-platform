@@ -5,7 +5,7 @@ description: Triage the SonarCloud findings on a pull request — read the quali
 
 # Triaging SonarCloud on a pull request
 
-Every module publishes to its own SonarCloud project, so a pull request that
+Every scanned module publishes to its own SonarCloud project, so a pull request that
 spans `runtime-catalog`, `ui`, and `vscode-extension` has three separate gates
 and three separate issue lists. Triage each one; a green gate on one module says
 nothing about the others.
@@ -20,9 +20,13 @@ gh api repos/Netcracker/qubership-integration-platform/actions/variables \
   --jq '.variables[] | select(.name|test("SONAR")) | "\(.name)=\(.value)"'
 ```
 
-`SONAR_PROJECT_KEY` (no suffix) is the aggregate project; the per-module keys
-are `-engine`, `-micro-engine`, `-runtime-catalog`, `-sessions-management`,
-`-ui`, and `-vscode-extension`.
+Six modules are scanned, each into its own project: `-engine`, `-micro-engine`,
+`-runtime-catalog`, `-sessions-management`, `-ui`, and `-vscode-extension`.
+Three more are wired in their build workflows but have no variable set, so
+the scan job is skipped: `SONAR_INTEGRATION_BUILD_PIPELINE_PROJECT_KEY`,
+`SONAR_INTEGRATION_BUILD_MAVEN_PLUGIN_PROJECT_KEY`, and
+`SONAR_AI_SERVICE_PROJECT_KEY`. `SONAR_PROJECT_KEY` (no suffix) is set, and no
+workflow reads it. `schemas` and `testing-service` have no scan.
 
 The read API needs no token — plain `curl` against `https://sonarcloud.io/api`
 works. Scope every call to the pull request with `&pullRequest=<N>`; without it
@@ -38,11 +42,15 @@ slashes.
 
 ## What actually blocks the merge
 
-The UI scan passes `-Dsonar.qualitygate.wait=true`, so a red gate fails its own
-job. The Maven modules' reusable `sonar` job does not wait; it blocks a merge
-only when branch protection marks that job as a required status check. Check
-which of the two you are dealing with before telling the user a red gate is
-harmless.
+Every scan passes `-Dsonar.qualitygate.wait=true`: the UI and vscode-extension
+workflows, and the reusable `sonar` job in `_maven-module-build.yaml` that the
+Maven modules call. A red gate therefore fails the scan job itself, so a red
+gate is never harmless.
+
+Jest gates no coverage in `vscode-extension`, `ui`, or `schemas`: none of their
+Jest configs sets `coverageThreshold`. The `ui` and `vscode-extension` scans
+wait on the gate, so its coverage condition is the only one enforced there.
+`schemas` has no Sonar scan, so nothing enforces its coverage.
 
 ## Sequence
 

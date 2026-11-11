@@ -1,0 +1,43 @@
+---
+id: "e2e00030-0000-4000-8000-000000000001-orders-1.0.0"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/specification"
+name: "1.0.0"
+content:
+  deprecated: false
+  version: "1.0.0"
+  source: "MANUAL"
+  operations:
+  - id: "e2e00030-0000-4000-8000-000000000001-orders-1.0.0-e2eServiceCall"
+    name: "e2eServiceCall"
+    method: "POST"
+    path: "/orders/{orderId}"
+    specification:
+      responses:
+        "201":
+          description: "created"
+      parameters:
+      - in: "path"
+        name: "orderId"
+        style: "simple"
+        schema:
+          type: "string"
+        explode: false
+        required: true
+      operationId: "e2eServiceCall"
+    requestSchema:
+      parameters:
+      - in: "path"
+        name: "orderId"
+        style: "simple"
+        schema:
+          type: "string"
+        explode: false
+        required: true
+    responseSchemas:
+      "201": {}
+  specificationSources:
+  - id: "e2e00030-0000-4000-8000-000000000003"
+    name: "orders.openapi.yaml"
+    fileName: "source-e2e00030-0000-4000-8000-000000000001-orders-1.0.0/orders.openapi.yaml"
+    mainSource: true
+  parentId: "e2e00030-0000-4000-8000-000000000001-orders"

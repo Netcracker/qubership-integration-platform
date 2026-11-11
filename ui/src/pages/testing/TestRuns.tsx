@@ -18,14 +18,16 @@ import {
   ColumnsTypeWithSettings,
   useColumnSettingsBasedOnColumnsType,
 } from "../../components/table/useColumnSettingsButton.tsx";
-import { useTableConfiguration } from "../../components/table/useTableConfiguration.tsx";
+import {
+  SELECTION_COLUMN_WIDTH,
+  useTableConfiguration,
+} from "../../components/table/useTableConfiguration.tsx";
 import { getTestingPermissions } from "../../components/testing/testingPermissions.ts";
 import { isTestsRunCancellable } from "../../components/testing/runStatus.ts";
 import { RunStatusTag } from "../../components/testing/TestingTags.tsx";
 import { TestRunDrawer } from "../../components/testing/TestRunDrawer.tsx";
 import { useTestingFilter } from "../../hooks/filter/useTestingFilter.ts";
 import {
-  TESTING_SELECTION_COLUMN_WIDTH,
   testsRunsListSource,
   useTestingEntityList,
 } from "../../hooks/testing/useTestingEntityList.ts";
@@ -147,7 +149,7 @@ export const TestRuns: React.FC = () => {
   const columnDefinitions = useMemo<ColumnsTypeWithSettings<TestsRunView>>(
     () => [
       {
-        title: "Id",
+        title: "ID",
         dataIndex: "id",
         key: "id",
         sorter: true,
@@ -237,7 +239,7 @@ export const TestRuns: React.FC = () => {
     orderedColumns,
     COLUMN_WIDTHS,
     {
-      selectionColumnWidth: TESTING_SELECTION_COLUMN_WIDTH,
+      selectionColumnWidth: SELECTION_COLUMN_WIDTH,
       controlledSort: tableSort,
       onChange: handleServerTableChange,
     },
@@ -295,8 +297,6 @@ export const TestRuns: React.FC = () => {
     filterButton,
     columnSettingsButton,
     actions: toolbarActions,
-    registerInChainHeader: false,
-    registerDependencies: [isLoading],
   });
 
   return (
@@ -304,7 +304,6 @@ export const TestRuns: React.FC = () => {
       <Flex vertical className={commonStyles.container}>
         <AdminToolsHeader
           title="Test Runs"
-          iconName="carryOut"
           toolbar={toolbar}
         />
         <TablePageLayout>

@@ -1,0 +1,672 @@
+# yaml-language-server: $schema=../testspecifications.schema.json
+subject: base
+deployments:
+- id: base
+  route: scheduler
+- id: seven-field
+  route: scheduler-seven-field
+- id: steps
+  route: scheduler-steps
+- id: lists
+  route: scheduler-lists
+  dependsOn:
+  - steps
+- id: invalid
+  route: scheduler-invalid
+- id: expired
+  route: scheduler-expired
+- id: delete-job
+  route: scheduler-delete-job
+- id: second
+  route: scheduler
+  snapshotVariant: scheduler-second
+  dependsOn:
+  - base
+- id: replacement
+  route: scheduler-replacement
+  dependsOn:
+  - base
+  - second
+- id: unhandled-failure
+  route: scheduler-unhandled-failure
+- id: handled-failure
+  route: scheduler-handled-failure
+- id: multi-trigger
+  route: scheduler-multi-trigger
+fixtures:
+- id: base-schedule
+  provider: scheduler
+  deployment: base
+  sourceElementId: 93468365-eb30-49f5-9077-cbe535f5edd3
+- id: seven-field-schedule
+  provider: scheduler
+  deployment: seven-field
+  sourceElementId: cffb3cf1-4d4e-5f82-9138-ddf75084006b
+- id: steps-schedule
+  provider: scheduler
+  deployment: steps
+  sourceElementId: fe4f6121-532a-5b44-833f-107ff3e30dfc
+- id: lists-schedule
+  provider: scheduler
+  deployment: lists
+  sourceElementId: 0fdf51e6-caeb-5230-b769-59f7bb717806
+- id: invalid-schedule
+  provider: scheduler
+  deployment: invalid
+  sourceElementId: aff2541a-b602-53e8-941f-5611d4d651c4
+- id: expired-schedule
+  provider: scheduler
+  deployment: expired
+  sourceElementId: e2117318-b553-5dcf-8251-a5336b399ead
+- id: delete-job-schedule
+  provider: scheduler
+  deployment: delete-job
+  sourceElementId: 37ce42de-ad22-5e04-b4ca-a46abcfd113c
+- id: replacement-schedule
+  provider: scheduler
+  deployment: replacement
+  sourceElementId: 30a1b65f-fec5-516d-8832-920e7fb5af37
+- id: unhandled-failure-schedule
+  provider: scheduler
+  deployment: unhandled-failure
+  sourceElementId: 780b450e-fddb-5078-bd59-87f2a548eeb9
+- id: handled-failure-schedule
+  provider: scheduler
+  deployment: handled-failure
+  sourceElementId: 10ce5c3a-786d-57a8-aafc-8089eb880860
+- id: multi-trigger-schedule
+  provider: scheduler
+  deployment: multi-trigger
+  sourceElementId: c71d51d8-368f-5100-982d-88e687f415fd
+- id: multi-trigger-second-schedule
+  provider: scheduler
+  deployment: multi-trigger
+  sourceElementId: 8eb76110-7863-593e-a069-01cd1ef2a1d3
+- id: second-schedule
+  provider: scheduler
+  deployment: second
+  sourceElementId: 93468365-eb30-49f5-9077-cbe535f5edd3
+scenarios:
+- id: fires-native-cron-and-preserves-scheduling-metadata
+  scope: Short
+  deployment: base
+  driver:
+    provider: scheduler
+    sourceElementId: 93468365-eb30-49f5-9077-cbe535f5edd3
+  invocations:
+  - id: first-native-fire
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-schedule
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedCron: 0/1 * * ? * *
+          expectedDeleteJob: false
+          expectedRegistered: true
+          expectedCompletionBody: Triggered
+  - id: second-native-fire
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-schedule
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+  - id: third-native-fire
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-schedule
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+- id: accepts-seven-field-quartz-cron
+  scope: Short
+  deployment: seven-field
+  driver:
+    provider: scheduler
+    sourceElementId: cffb3cf1-4d4e-5f82-9138-ddf75084006b
+  invocations:
+  - id: seven-field-native-fire
+    expectedBody: Triggered
+    interactions:
+    - fixture: seven-field-schedule
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedCron: 0/1 * * ? * * *
+          expectedCompletionBody: Triggered
+- id: preserves-cron-steps-ranges-and-lists
+  scope: Short
+  deployment: lists
+  driver:
+    provider: scheduler
+    sourceElementId: 0fdf51e6-caeb-5230-b769-59f7bb717806
+  invocations:
+  - id: inspects-generated-native-cron
+    expectedBody: null
+    interactions:
+    - fixture: lists-schedule
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedCron: 0,15,30,45 * * ? * *
+          expectedRegistered: true
+          inspectionOnly: true
+    - fixture: steps-schedule
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedCron: 0/2 * * ? * SUN-SAT
+          expectedRegistered: true
+          inspectionOnly: true
+- id: rejects-malformed-cron-before-firing
+  scope: Short
+  deployment: invalid
+  expectedStartupFailure:
+    type: org.apache.camel.FailedToStartRouteException
+    ignoreMessage: true
+    cause:
+      type: java.lang.RuntimeException
+      message: CronExpression '0/50 ** ** ?' is invalid.
+      cause:
+        type: java.text.ParseException
+        message: Unexpected end of expression.
+        cause: null
+  driver:
+    provider: scheduler
+    sourceElementId: aff2541a-b602-53e8-941f-5611d4d651c4
+  invocations:
+  - id: invalid-cron-has-no-business-execution
+    expectedBody: null
+    interactions:
+    - fixture: invalid-schedule
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          action: observe
+- id: observes-expired-cron-at-the-native-commit-boundary
+  scope: Long
+  deployment: expired
+  driver:
+    provider: scheduler
+    sourceElementId: e2117318-b553-5dcf-8251-a5336b399ead
+  invocations:
+  - id: expired-cron-registers-no-job
+    expectedBody: null
+    interactions:
+    - fixture: expired-schedule
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedCron: 0 0 0 1 1 ? 1970
+          expectedRegistered: false
+          expectedStartupCommitFailure: true
+- id: continues-after-an-unhandled-script-failure
+  scope: Long
+  deployment: unhandled-failure
+  driver:
+    provider: scheduler
+    sourceElementId: 780b450e-fddb-5078-bd59-87f2a548eeb9
+  invocations:
+  - id: fails-first-native-fire
+    expectedBody: null
+    interactions:
+    - fixture: unhandled-failure-schedule
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          snapshotSchedulerFail: true
+          verifyRequestContext: true
+    expectedFailure:
+      type: java.lang.IllegalStateException
+      message: Scheduled script failure
+      cause: null
+  - id: recovers-on-the-next-native-fire
+    expectedBody: Triggered
+    interactions:
+    - fixture: unhandled-failure-schedule
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          snapshotSchedulerFail: false
+          verifyRequestContext: true
+          expectedCompletionBody: Triggered
+- id: continues-after-a-handled-script-failure
+  scope: Long
+  deployment: handled-failure
+  driver:
+    provider: scheduler
+    sourceElementId: 10ce5c3a-786d-57a8-aafc-8089eb880860
+  invocations:
+  - id: handles-first-native-failure
+    expectedBody: Fallback
+    interactions:
+    - fixture: handled-failure-schedule
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          snapshotSchedulerFail: true
+          expectedCompletionBody: Fallback
+    expectedProperties:
+      snapshotSchedulerFallbackReached: true
+      snapshotSchedulerScriptReached: true
+  - id: succeeds-after-the-handled-failure
+    expectedBody: Triggered
+    interactions:
+    - fixture: handled-failure-schedule
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          snapshotSchedulerFail: false
+          expectedCompletionBody: Triggered
+    expectedProperties:
+      snapshotSchedulerFallbackReached: null
+      snapshotSchedulerScriptReached: true
+- id: allows-overlap-without-leaking-exchange-state
+  scope: Long
+  deployment: base
+  driver:
+    provider: scheduler
+    sourceElementId: 93468365-eb30-49f5-9077-cbe535f5edd3
+  invocations:
+  - id: overlapping-natural-fires
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-schedule
+      expectedRequest:
+        count: 2
+      response:
+        properties:
+          overlap: true
+          expectedCompletionBody: Triggered
+- id: recovers-through-native-consumer-lifecycle
+  scope: Long
+  deployment: base
+  driver:
+    provider: scheduler
+    sourceElementId: 93468365-eb30-49f5-9077-cbe535f5edd3
+  invocations:
+  - id: fires-before-lifecycle-changes
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-schedule
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          action: observe
+  - id: fires-after-stop-and-start
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-schedule
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          action: stop-start
+          expectedRegistered: true
+  - id: fires-after-suspend-and-resume
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-schedule
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          action: suspend-resume
+          expectedRegistered: true
+- id: retains-the-job-when-delete-job-is-disabled
+  scope: Long
+  deployment: base
+  driver:
+    provider: scheduler
+    sourceElementId: 93468365-eb30-49f5-9077-cbe535f5edd3
+  invocations:
+  - id: fires-before-endpoint-stop
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-schedule
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedDeleteJob: false
+  - id: retains-the-paused-job-after-endpoint-stop
+    expectedBody: null
+    interactions:
+    - fixture: base-schedule
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          action: endpoint-stop
+          expectedRegistered: true
+          expectedTriggerPaused: true
+- id: deletes-the-job-when-delete-job-is-enabled
+  scope: Long
+  deployment: delete-job
+  driver:
+    provider: scheduler
+    sourceElementId: 37ce42de-ad22-5e04-b4ca-a46abcfd113c
+  invocations:
+  - id: fires-before-endpoint-stop
+    expectedBody: Triggered
+    interactions:
+    - fixture: delete-job-schedule
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedDeleteJob: true
+  - id: removes-the-job-after-endpoint-stop
+    expectedBody: null
+    interactions:
+    - fixture: delete-job-schedule
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          action: endpoint-stop
+          expectedRegistered: false
+- id: recreates-a-job-after-route-removal-and-reload
+  scope: Long
+  deployment: base
+  driver:
+    provider: scheduler
+    sourceElementId: 93468365-eb30-49f5-9077-cbe535f5edd3
+  invocations:
+  - id: fires-before-route-removal
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-schedule
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          action: observe
+  - id: removes-the-generated-job
+    expectedBody: null
+    interactions:
+    - fixture: base-schedule
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          action: remove
+          expectedRegistered: false
+  - id: fires-after-generated-route-reload
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-schedule
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          action: reload
+          expectedRegistered: true
+- id: finishes-inflight-work-during-graceful-stop
+  scope: Long
+  deployment: base
+  driver:
+    provider: scheduler
+    sourceElementId: 93468365-eb30-49f5-9077-cbe535f5edd3
+  invocations:
+  - id: completes-native-inflight-fire
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-schedule
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          action: graceful-stop
+          expectedCompletionBody: Triggered
+- id: isolates-two-scheduler-elements-in-one-chain
+  scope: Short
+  deployment: multi-trigger
+  driver:
+    provider: scheduler
+    sourceElementId: c71d51d8-368f-5100-982d-88e687f415fd
+  invocations:
+  - id: fires-each-native-trigger
+    expectedBody: Triggered
+    interactions:
+    - fixture: multi-trigger-schedule
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          expectedRegistered: true
+    - fixture: multi-trigger-second-schedule
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedCompletionBody: Secondary
+          expectedRegistered: true
+- id: removes-old-jobs-during-deployment-replacement
+  scope: Long
+  deployment: replacement
+  driver:
+    provider: scheduler
+    sourceElementId: 30a1b65f-fec5-516d-8832-920e7fb5af37
+  invocations:
+  - id: fires-original-before-replacement
+    expectedBody: null
+    interactions:
+    - fixture: base-schedule
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+    - fixture: replacement-schedule
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          deferRoutesUntilInvocation: true
+          expectedRegistered: false
+    - fixture: second-schedule
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+  - id: replaces-the-original-generated-deployment
+    expectedBody: Replacement
+    interactions:
+    - fixture: base-schedule
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          action: remove
+          expectedRegistered: false
+    - fixture: replacement-schedule
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          action: reload
+          expectedRegistered: true
+          expectedCompletionBody: Replacement
+    - fixture: second-schedule
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+  - id: keeps-the-replacement-independent
+    expectedBody: Replacement
+    interactions:
+    - fixture: base-schedule
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedRegistered: false
+    - fixture: replacement-schedule
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedCompletionBody: Replacement
+    - fixture: second-schedule
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+- id: controls-native-firing-through-blue-green-transitions
+  scope: Long
+  deployment: base
+  driver:
+    provider: scheduler
+    sourceElementId: 93468365-eb30-49f5-9077-cbe535f5edd3
+  invocations:
+  - id: starts-with-an-inactive-scheduler
+    expectedBody: null
+    interactions:
+    - fixture: base-schedule
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          initialInactive: true
+          action: blue-green
+          blueGreenState: INACTIVE
+          expectedRegistered: true
+  - id: fires-after-activation
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-schedule
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          action: blue-green
+          blueGreenState: ACTIVE
+  - id: fires-after-repeated-active-state
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-schedule
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          action: blue-green
+          blueGreenState: ACTIVE
+  - id: suspends-after-deactivation
+    expectedBody: null
+    interactions:
+    - fixture: base-schedule
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          action: blue-green
+          blueGreenState: INACTIVE
+  - id: stays-suspended-after-repeated-inactive-state
+    expectedBody: null
+    interactions:
+    - fixture: base-schedule
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          action: blue-green
+          blueGreenState: INACTIVE
+  - id: fires-after-reactivation
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-schedule
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          action: blue-green
+          blueGreenState: ACTIVE
+- id: recovers-once-after-a-native-cron-misfire
+  scope: Long
+  deployment: base
+  driver:
+    provider: scheduler
+    sourceElementId: 93468365-eb30-49f5-9077-cbe535f5edd3
+  invocations:
+  - id: recovers-from-the-observed-native-misfire
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-schedule
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          action: misfire
+          expectedCompletionBody: Triggered
+  - id: returns-to-normal-cron-firing
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-schedule
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+- id: isolates-two-deployments-of-the-same-chain
+  scope: Short
+  deployment: second
+  driver:
+    provider: scheduler
+    sourceElementId: 93468365-eb30-49f5-9077-cbe535f5edd3
+  invocations:
+  - id: fires-both-generated-deployments
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-schedule
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          expectedRegistered: true
+    - fixture: second-schedule
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          expectedRegistered: true
+  - id: keeps-the-second-deployment-firing-after-the-first-stops
+    expectedBody: Triggered
+    interactions:
+    - fixture: base-schedule
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          action: endpoint-stop
+          expectedRegistered: true
+          expectedTriggerPaused: true
+    - fixture: second-schedule
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedCompletionBody: Triggered
+          expectedRegistered: true

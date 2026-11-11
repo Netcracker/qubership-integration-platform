@@ -20,3 +20,5 @@
 
 ---
 Can't set input dependency to element.
+
+On a micro domain, a scheduled chain runs only on pods whose blue-green state is `ACTIVE`. During a blue-green update, the candidate version fires nothing until it becomes `ACTIVE`, and the previous version stops firing when it leaves `ACTIVE`.

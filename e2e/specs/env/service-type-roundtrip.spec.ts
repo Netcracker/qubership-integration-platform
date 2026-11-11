@@ -123,7 +123,7 @@ let legacyFlagOn = false;
 
 test.describe.configure({ mode: "serial" });
 
-test.describe("service type round trip", () => {
+test.describe("service type round trip", { tag: ["@catalog"] }, () => {
   test.beforeAll(async ({ env }) => {
     const settings = await env.settings("runtime-catalog");
     expect(
@@ -146,7 +146,7 @@ test.describe("service type round trip", () => {
     if (services.mcp) await catalog.deleteMcpSystem(services.mcp).catch(() => {});
   });
 
-  test("a current-format archive imports back over the services it was exported from", { tag: ["@catalog", "@tier2"] }, async ({ catalog, env, run }) => {
+  test("a current-format archive imports back over its services", async ({ catalog, env, run }) => {
     // No restart in this case, so RESTART_TIMEOUT would overstate it.
     test.setTimeout(EXPORT_CYCLE_TIMEOUT);
     const began = logWindowStart();
@@ -221,7 +221,7 @@ test.describe("service type round trip", () => {
     );
   });
 
-  test("with the legacy flag on the export writes the old file names, and only plain services import back", { tag: ["@catalog", "@tier2"] }, async ({ catalog, env }) => {
+  test("a legacy export writes old names, only plain services import", async ({ catalog, env }) => {
     test.setTimeout(RESTART_TIMEOUT);
     // Set before the await, not after it: `restartWith` recreates the container and then waits up
     // to 180 s for its health check, so a throw in that wait would leave the catalog running in

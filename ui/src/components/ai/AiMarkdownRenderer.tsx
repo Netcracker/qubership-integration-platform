@@ -4,23 +4,41 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import type { Components } from "react-markdown";
-import { extractMarkdownText } from "./chatMessageUtils.ts";
+import {
+  extractMarkdownText,
+  isCollapsibleChainPlanJsonBlock,
+} from "./chatMessageUtils.ts";
+import { CollapsibleChainPlanJsonBlock } from "./CollapsibleChainPlanJsonBlock.tsx";
+import { AiMermaidDiagram } from "./AiMermaidDiagram.tsx";
 
 const markdownComponents: Components = {
-  code(props) {
-    const { children, className, ...rest } = props;
-    const match = /language-(\w+)/.exec(className || "");
-    const code = extractMarkdownText(children).replace(/\n$/, "");
-
-    if (!match) {
+  code({ children }) {
+    return <code className="ai-inline-code">{children}</code>;
+  },
+  pre({ children }) {
+    const element = React.Children.toArray(children)[0];
+    if (
+      !React.isValidElement<{ className?: string; children?: React.ReactNode }>(
+        element,
+      )
+    ) {
+      return <pre>{children}</pre>;
+    }
+    const raw = extractMarkdownText(element.props.children);
+    const code = raw.endsWith("\n") ? raw.slice(0, -1) : raw;
+    const language =
+      element.props.className
+        ?.split(" ")
+        .find((value) => value.startsWith("language-"))
+        ?.slice("language-".length) || "text";
+    if (isCollapsibleChainPlanJsonBlock(language, code)) {
       return (
-        <code className="ai-inline-code" {...rest}>
-          {children}
-        </code>
+        <CollapsibleChainPlanJsonBlock
+          code={code}
+          language={language === "chain-plan-json" ? "chain-plan-json" : "json"}
+        />
       );
     }
-
-    const language = match[1] || "text";
     return (
       <div className="ai-code-block">
         <div className="ai-code-block__header">
@@ -36,9 +54,17 @@ const markdownComponents: Components = {
             Copy
           </Button>
         </div>
-        <SyntaxHighlighter language={language} PreTag="div">
-          {code}
-        </SyntaxHighlighter>
+        {language === "mermaid" ? (
+          <AiMermaidDiagram code={code} />
+        ) : language === "text" ? (
+          <pre>
+            <code>{code}</code>
+          </pre>
+        ) : (
+          <SyntaxHighlighter language={language} PreTag="div">
+            {code}
+          </SyntaxHighlighter>
+        )}
       </div>
     );
   },

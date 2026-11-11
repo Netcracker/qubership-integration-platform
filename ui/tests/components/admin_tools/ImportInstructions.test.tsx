@@ -204,7 +204,7 @@ describe("ImportInstructions", () => {
     jest.clearAllMocks();
     mockApi.getImportInstructions.mockResolvedValue(sampleInstructions);
     mockApi.exportImportInstructions.mockResolvedValue(
-      new File(["content"], "qip-import-instructions.yaml"),
+      new File(["content"], "cip-import-instructions.yaml"),
     );
     mockDraggerFileContent = "yaml";
     mockRandomUUIDIndex = 0;
@@ -234,7 +234,9 @@ describe("ImportInstructions", () => {
     expect(
       await screen.findByRole("button", { name: /add/i }),
     ).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("Search...")).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText("Search import instructions..."),
+    ).toBeInTheDocument();
   });
 
   it("displays chain and variable items from instructions", async () => {
@@ -363,7 +365,9 @@ describe("ImportInstructions", () => {
     expect(screen.getByText("Chain One")).toBeInTheDocument();
     expect(screen.getByText("Var One")).toBeInTheDocument();
 
-    const searchInput = screen.getByPlaceholderText("Search...");
+    const searchInput = screen.getByPlaceholderText(
+      "Search import instructions...",
+    );
     fireEvent.change(searchInput, { target: { value: "chain" } });
 
     expect(screen.getByText("Chain One")).toBeInTheDocument();
@@ -374,7 +378,9 @@ describe("ImportInstructions", () => {
 
     await flushPromises();
     expect(screen.getByText("Chains")).toBeInTheDocument();
-    const searchInput = screen.getByPlaceholderText("Search...");
+    const searchInput = screen.getByPlaceholderText(
+      "Search import instructions...",
+    );
     fireEvent.change(searchInput, { target: { value: "nonexistent-xyz" } });
     expect(screen.queryByText("Chains")).not.toBeInTheDocument();
     expect(screen.queryByText("Common Variables")).not.toBeInTheDocument();
@@ -478,7 +484,7 @@ describe("ImportInstructions", () => {
       await within(dialog).findByText("UploadedService"),
     ).toBeInTheDocument();
     expect(
-      within(dialog).getAllByRole("columnheader", { name: "Id" }).length,
+      within(dialog).getAllByRole("columnheader", { name: "ID" }).length,
     ).toBeGreaterThan(0);
     expect(
       await within(dialog).findByRole("columnheader", { name: "Status" }),

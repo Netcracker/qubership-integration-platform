@@ -9,7 +9,7 @@ server:
 
 cloud:
   microservice:
-    name: ${MICROSERVICE_NAME:qip-runtime-catalog}
+    name: ${MICROSERVICE_NAME:cip-engine}
     bg_version: ${DEPLOYMENT_VERSION:v1}
     namespace: ${NAMESPACE}
     origin_namespace: ${ORIGIN_NAMESPACE}
@@ -39,11 +39,11 @@ spring:
   profiles:
     active: default
   application:
-    name: ${MICROSERVICE_NAME:qip-engine}
+    name: ${MICROSERVICE_NAME:cip-engine}
     cloud_service_name: ${spring.application.name}-${spring.application.deployment_version}
     deployment_version: ${DEPLOYMENT_VERSION:v1}
     namespace: ${NAMESPACE:local}
-    default_integration_domain_microservice_name: ${MICROSERVICE_NAME:qip-engine} # custom param
+    default_integration_domain_microservice_name: ${MICROSERVICE_NAME:cip-engine} # custom param
     default_integration_domain_name: default # custom param
   config:
     import: consul:${CONSUL_URL:http://consul:8500}
@@ -55,6 +55,12 @@ spring:
         enabled: false
     consul:
       enabled: true
+      # Retries the config import for about 110 s while Consul starts, then fails the pod
+      retry:
+        initial-interval: 1000
+        multiplier: 2
+        max-interval: 5000
+        max-attempts: 24
       config:
         enabled: true
         prefixes: config/${NAMESPACE}
@@ -97,9 +103,6 @@ spring:
           resource: false
           prompt: false
 
-app:
-  prefix: qip
-
 tenant:
   default:
     id: 00000000-0000-0000-0000-000000000000
@@ -135,7 +138,7 @@ management:
 logging:
   level:
     root: ${ROOT_LOG_LEVEL:INFO}
-  config: classpath:logback-spring.xml
+  config: classpath:cip-logback-spring.xml
 
 db:
   flyway:
@@ -213,7 +216,7 @@ consul:
   token: ${CONSUL_ADMIN_TOKEN:}
   keys:
     prefix: /config/${NAMESPACE}
-    engine-config-root: /${app.prefix}-engine-configurations
+    engine-config-root: /cip-engine-configurations
     deployments-update: /deployments-update
     libraries-update: /libraries-update
     engines-state: /engines-state
@@ -249,7 +252,7 @@ cip:
   standalone: true
   camel:
     routes:
-      prefix: /${app.prefix}-routes
+      prefix: /cip-routes
     stream-caching:
       enabled: true # enable exchange payload spooling
       buffer:
@@ -310,7 +313,7 @@ cip:
           maximum: 300000
     index:
       elements:
-        name: ${app.prefix}-elements-${spring.application.namespace}
+        name: cip-elements-${spring.application.namespace}
         shards: ${OPENSEARCH_INDEX_SHARDS:3}
     rollover:
       min_index_age: 1d
@@ -369,6 +372,13 @@ cip:
   idempotency:
     expired-records-cleanup-cron: ${IDEMPOTENCY_RECORDS_CLEANUP_CRON:0 */5 * ? * *}
   chains:
+    http-client:
+      m2m:
+        fallback-interceptor:
+          enabled: ${M2M_FALLBACK_INTERCEPTOR_ENABLED:false}
+          url-cache:
+            size: 500
+            ttl-hours: 5
     external-routes:
       base-path: ${cip.camel.routes.prefix}
 
@@ -382,8 +392,8 @@ kubernetes:
     token-file-path: ${KUBE_TOKEN_PATH:/var/run/secrets/kubernetes.io/serviceaccount/token}
     cert: ${KUBE_CERT_PATH:/var/run/secrets/kubernetes.io/serviceaccount/ca.crt}
   variables-secret:
-    name: ${app.prefix}-secured-variables-v2
-    label: ${app.prefix}-variable-type
+    name: cip-secured-variables-v2
+    label: cip-variable-type
 
 springdoc:
   writer-with-order-by-keys: true

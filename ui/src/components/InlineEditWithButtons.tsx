@@ -15,6 +15,7 @@ const { useForm } = Form;
 
 export type InlineEditWithButtonsRef<Values> = {
   getValuesAndClose: () => Values | null;
+  isEditing: () => boolean;
 };
 
 export type InlineEditWithButtonsProps<Values> = InlineEditProps<Values> & {
@@ -41,7 +42,7 @@ function InlineEditActionButtons<Values>({
 }) {
   const form = Form.useFormInstance<Values>();
   const ctx = useContext(InlineEditContext);
-  const values = Form.useWatch(undefined, form) as Values | undefined;
+  const values = Form.useWatch([], form) as Values | undefined;
 
   const applyEnabled =
     showApply &&
@@ -93,13 +94,16 @@ export function InlineEditWithButtons<Values>(
   const [active, setActive] = useState(props.initialActive ?? false);
   const [hasChanges, setHasChanges] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  // Callers pass a new values object on every render, so compare it by content.
+  const valuesKey = JSON.stringify(props.values);
 
   useEffect(() => {
     if (active) {
       form.setFieldsValue(props.values);
       setHasChanges(false);
     }
-  }, [props.values, active, form]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- valuesKey stands for props.values
+  }, [valuesKey, active, form]);
 
   const toggle = useCallback(() => {
     setActive((prev) => {
@@ -119,9 +123,11 @@ export function InlineEditWithButtons<Values>(
     return values;
   }, [active, form, toggle]);
 
-  useImperativeHandle(innerRef, () => ({ getValuesAndClose }), [
-    getValuesAndClose,
-  ]);
+  useImperativeHandle(
+    innerRef,
+    () => ({ getValuesAndClose, isEditing: () => active }),
+    [active, getValuesAndClose],
+  );
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" || e.key === " ") {

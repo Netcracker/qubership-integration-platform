@@ -47,6 +47,11 @@ Cloud Integration Platform will apply its own default hardcoded option and notif
 
 > ℹ️ **Note:** You can also log a particular transaction with a **Debug** session level by sending **"TraceMe"** header with "true" value in the HTTP request, which will make all available session parameters logged at **Debug level**, regardless of the current state of chain's logging settings.
 
+- **Session log details** - controls session entries written to JSON microservice logs. Possible values:
+  - **Off** _(Default value)_ - no session start or session step entries are written.
+  - **Senders** - writes a session start entry and session step entries for triggers, senders, service calls, checkpoints, and chain calls.
+  - **Full** - writes a session start entry and session step entries for every processed chain element.
+
 - **Log Level** - supported log levels. For proper logging, it should not be higher than logging level, globally specified for microservice. Possible values:
   - **Error** _(Default value)_ - logging of Integrations with Exceptions. Log levels - ERROR, FATAL.
   - **Warning** - logging of Integrations with Warnings. Log level - WARNING, ERROR, FATAL.

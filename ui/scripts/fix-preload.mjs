@@ -27,7 +27,7 @@ function fixPreloadInFile(filePath, fileName) {
       `Found ${preloadCount} occurrences of __vitePreload in ${fileName}, fixing...`,
     );
 
-    content = content.replace(/__vitePreload/g, "__qipVitePreload");
+    content = content.replace(/__vitePreload/g, "__cipVitePreload");
 
     fs.writeFileSync(filePath, content, "utf8");
 

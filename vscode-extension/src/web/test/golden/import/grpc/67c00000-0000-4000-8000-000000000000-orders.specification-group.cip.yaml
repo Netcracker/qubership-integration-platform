@@ -1,0 +1,7 @@
+id: 67c00000-0000-4000-8000-000000000000-orders
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/specification-group
+name: orders
+content:
+  synchronization: false
+  parentId: 67c00000-0000-4000-8000-000000000000
+  labels: []

@@ -1148,7 +1148,7 @@ export async function deleteMaskedFields(
     let index = (chain.content.maskedFields as [])?.findIndex(
       (mf: any) => mf.id === maskedFieldId,
     );
-    if (index) {
+    if (index >= 0) {
       (chain.content.maskedFields as []).splice(index, 1);
     }
   }
@@ -1389,7 +1389,10 @@ export async function cloneElements(
 
 export async function deleteChain(chainFileUri: Uri) {
   try {
-    const chain = await fileApi.getMainChain(chainFileUri);
+    // Read the file rather than calling `getMainChain`, which reports a file it cannot reach to the
+    // user: this cleanup ignores that failure, and a stale explorer item would raise the popup over
+    // a delete that then succeeds.
+    const chain = await fileApi.parseFile(chainFileUri);
     const elements = chain.content.elements as ElementSchema[] | undefined;
     if (elements?.length) {
       await deleteElementsPropertyFiles(chainFileUri, elements);

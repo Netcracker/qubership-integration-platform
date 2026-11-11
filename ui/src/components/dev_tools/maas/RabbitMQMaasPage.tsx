@@ -152,57 +152,55 @@ export const RabbitMQMaasPage: React.FC = () => {
   return (
     <Flex vertical className={sharedStyles["container"]}>
       <MaasPageHeader
-        title="RabbitMQ - MaaS"
+        title="RabbitMQ"
         exportInProgress={exportInProgress}
         isFormValid={isFormValid}
         onExport={() => void handleExport()}
       />
 
-      <div className={styles["parametersSection"]}>
-        <div className={styles["parametersHeading"]}>Parameters</div>
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={() => void handleCreate()}
+      <Form
+        form={form}
+        layout="vertical"
+        onFinish={() => void handleCreate()}
+      >
+        <NamespaceField/>
+
+        <Form.Item
+          label="Vhost Classifier Name"
+          name={RABBITMQ_FIELD_NAMES.VHOST}
+          required
+          rules={[
+            {required: true, message: "Vhost Classifier Name is required"},
+            {
+              pattern: NON_WHITESPACE_PATTERN,
+              message: "Vhost Classifier Name cannot be empty",
+            },
+          ]}
         >
-          <NamespaceField />
+          <Input placeholder="Enter vhost classifier name"/>
+        </Form.Item>
 
-          <Form.Item
-            label="Vhost Classifier Name"
-            name={RABBITMQ_FIELD_NAMES.VHOST}
-            required
-            rules={[
-              { required: true, message: "Vhost Classifier Name is required" },
-              {
-                pattern: NON_WHITESPACE_PATTERN,
-                message: "Vhost Classifier Name cannot be empty",
-              },
-            ]}
-          >
-            <Input placeholder="Enter vhost classifier name" />
-          </Form.Item>
+        <Form.Item
+          label="Exchange Name"
+          name={RABBITMQ_FIELD_NAMES.EXCHANGE}
+          dependencies={[RABBITMQ_FIELD_NAMES.QUEUE]}
+          rules={[{validator: validateExchangeOrQueue}]}
+        >
+          <Input placeholder="Enter exchange name"/>
+        </Form.Item>
 
-          <Form.Item
-            label="Exchange Name"
-            name={RABBITMQ_FIELD_NAMES.EXCHANGE}
-            dependencies={[RABBITMQ_FIELD_NAMES.QUEUE]}
-            rules={[{ validator: validateExchangeOrQueue }]}
-          >
-            <Input placeholder="Enter exchange name" />
-          </Form.Item>
+        <Form.Item
+          label="Queue Name"
+          name={RABBITMQ_FIELD_NAMES.QUEUE}
+          dependencies={[RABBITMQ_FIELD_NAMES.EXCHANGE]}
+          rules={[{validator: validateExchangeOrQueue}]}
+        >
+          <Input placeholder="Enter queue name"/>
+        </Form.Item>
 
-          <Form.Item
-            label="Queue Name"
-            name={RABBITMQ_FIELD_NAMES.QUEUE}
-            dependencies={[RABBITMQ_FIELD_NAMES.EXCHANGE]}
-            rules={[{ validator: validateExchangeOrQueue }]}
-          >
-            <Input placeholder="Enter queue name" />
-          </Form.Item>
-
-          <Form.Item
-            label={
-              <span className={styles["labelWithIcon"]}>
+        <Form.Item
+          label={
+            <span className={styles["labelWithIcon"]}>
                 Routing Key
                 <Tooltip
                   title='When both "Exchange Name" and "Queue Name" are specified, there will be binding created with routing key value from this field.'
@@ -214,27 +212,24 @@ export const RabbitMQMaasPage: React.FC = () => {
                   />
                 </Tooltip>
               </span>
-            }
-            name={RABBITMQ_FIELD_NAMES.ROUTING_KEY}
-            dependencies={[
-              RABBITMQ_FIELD_NAMES.EXCHANGE,
-              RABBITMQ_FIELD_NAMES.QUEUE,
-            ]}
-            rules={[{ validator: validateRoutingKey }]}
-          >
-            <Input placeholder="Enter routing key" />
-          </Form.Item>
-        </Form>
-      </div>
+          }
+          name={RABBITMQ_FIELD_NAMES.ROUTING_KEY}
+          dependencies={[
+            RABBITMQ_FIELD_NAMES.EXCHANGE,
+            RABBITMQ_FIELD_NAMES.QUEUE,
+          ]}
+          rules={[{validator: validateRoutingKey}]}
+        >
+          <Input placeholder="Enter routing key"/>
+        </Form.Item>
+      </Form>
 
-      <div className={styles["footer"]}>
-        <MaasFormActions
-          createInProgress={createInProgress}
-          isFormValid={isFormValid}
-          onCreate={() => void handleCreate()}
-          onReset={handleReset}
-        />
-      </div>
+      <MaasFormActions
+        createInProgress={createInProgress}
+        isFormValid={isFormValid}
+        onCreate={() => void handleCreate()}
+        onReset={handleReset}
+      />
     </Flex>
   );
 };

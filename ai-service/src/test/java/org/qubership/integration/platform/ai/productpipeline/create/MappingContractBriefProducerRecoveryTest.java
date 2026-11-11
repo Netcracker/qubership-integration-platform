@@ -1,0 +1,1794 @@
+package org.qubership.integration.platform.ai.productpipeline.create;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import io.smallrye.mutiny.Multi;
+import io.smallrye.mutiny.Uni;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.qubership.integration.platform.ai.catalog.binding.CompositionCatalogBinder;
+import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
+import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.compiler.CompilerSkillContextBuilder;
+import org.qubership.integration.platform.ai.compiler.CompilerSkillRuntimeEligibility;
+import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonContext;
+import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonRepository;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
+import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
+import org.qubership.integration.platform.ai.compiler.catalog.CompilerSkillCatalog;
+import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
+import org.qubership.integration.platform.ai.compiler.pipeline.CompilerNodeExecutionMode;
+import org.qubership.integration.platform.ai.compiler.policy.CompilerGeneratorSpecIndex;
+import org.qubership.integration.platform.ai.plan.ChainPlanStore;
+import org.qubership.integration.platform.ai.plan.ImplementationPlan;
+import org.qubership.integration.platform.ai.plan.MappingTurnResult;
+import org.qubership.integration.platform.ai.plan.PlanCompilationTestSupport;
+import org.qubership.integration.platform.ai.plan.mapping.schema.MappingSchemaSide;
+import org.qubership.integration.platform.ai.plan.mapping.schema.OperationSchemaLoader;
+import org.qubership.integration.platform.ai.plan.mapping.schema.OperationSchemaMaps;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
+import org.qubership.integration.platform.ai.plan.model.ChainSection;
+import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
+import org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactProvenance;
+import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRunPin;
+import org.qubership.integration.platform.ai.productpipeline.artifact.DependencyClosureEntry;
+import org.qubership.integration.platform.ai.productpipeline.artifact.MappingValidationDetails;
+import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
+import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
+import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerDag;
+import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerNode;
+import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
+import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
+import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageCapability;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageCapabilityRegistry;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
+import org.qubership.integration.platform.ai.productpipeline.create.CompilerNodeExecutionAdapterRegistry;
+import org.qubership.integration.platform.ai.productpipeline.create.CompilerValidationPipeline;
+import org.qubership.integration.platform.ai.productpipeline.create.DefaultCompilerDagExecutionEngine;
+import org.qubership.integration.platform.ai.productpipeline.create.FailureNarrative;
+import org.qubership.integration.platform.ai.productpipeline.create.FakeFailureNarrativeAgent;
+import org.qubership.integration.platform.ai.productpipeline.create.GraphAssemblyService;
+import org.qubership.integration.platform.ai.productpipeline.create.design.execution.ApprovedCompilerExecutionRunner;
+import org.qubership.integration.platform.ai.productpipeline.create.design.execution.BindingResolutionResult;
+import org.qubership.integration.platform.ai.productpipeline.create.design.execution.ChainSemanticGraphCompiler;
+import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CipDesignExecutorJavaAdapter;
+import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CipDesignExecutorJavaAdapter.ExecutionInputs;
+import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CipDesignExecutorJavaAdapter.ExecutionResult;
+import org.qubership.integration.platform.ai.productpipeline.create.design.execution.DefaultApprovedCompilerExecutionRunner;
+import org.qubership.integration.platform.ai.productpipeline.create.design.execution.ExecutorCatalogBindingAdapter;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanReport;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures;
+import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
+import org.qubership.integration.platform.ai.productpipeline.runtime.AcceptInputCommand;
+import org.qubership.integration.platform.ai.productpipeline.runtime.ApproveCommand;
+import org.qubership.integration.platform.ai.productpipeline.runtime.CreateChainTestOrchestrator;
+import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
+import org.qubership.integration.platform.ai.productpipeline.runtime.StartOrResumeCommand;
+import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeClient;
+import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeContextProvider;
+import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
+import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPolicy;
+import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
+import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
+import org.qubership.integration.platform.ai.productpipeline.profile.ProfileStage;
+import org.qubership.integration.platform.ai.productpipeline.profile.RetryPolicy;
+import org.qubership.integration.platform.ai.productpipeline.profile.TerminalPolicy;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryAction;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryCauseClass;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryDecision;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryEvidence;
+import org.qubership.integration.platform.ai.productpipeline.recovery.SemanticFinding;
+import org.qubership.integration.platform.ai.productpipeline.stage.StageDecision;
+import org.qubership.integration.platform.ai.productpipeline.stage.StageExecutionResult;
+import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
+import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
+import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContract;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.patch.CanonicalGraphDigest;
+import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwnershipPolicy;
+import org.qubership.integration.platform.ai.qipknowledge.validation.CompilerPlanValidator;
+import org.qubership.integration.platform.ai.qipknowledge.validation.CompilerQualityValidator;
+import org.qubership.integration.platform.ai.qipknowledge.validation.CompilerSecurityValidator;
+import org.qubership.integration.platform.ai.qipknowledge.validation.PlanGraphValidationInput;
+import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
+import org.qubership.integration.platform.ai.skill.executor.SkillExecutionResult;
+import org.qubership.integration.platform.ai.skill.executor.SkillExecutor;
+import org.qubership.integration.platform.ai.skill.executor.SkillExecutorKind;
+import org.qubership.integration.platform.ai.skill.orchestration.SkillRunContext;
+import org.qubership.integration.platform.ai.skill.registry.SkillExecutorRegistry;
+import org.qubership.integration.platform.ai.skill.workspace.InMemorySkillWorkspaceStore;
+import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
+import org.qubership.integration.platform.ai.skill.workspace.SkillWorkspace;
+import org.qubership.integration.platform.ai.plan.mapping.MappingGenerationPipeline;
+
+/**
+ * Brief-owned mapping rejection reopens the brief producer. Java chooses owner and action before
+ * advisory diagnosis. Production transport is pipeline to blocked exception to adapter.
+ */
+class MappingContractBriefProducerRecoveryTest {
+
+  private static final Instant FIXED = Instant.parse("2026-09-10T21:00:00Z");
+  private static final String RUN_ID = "run-mapping-brief-producer-1";
+  private static final String CONV_ID = "conv-mapping-brief-producer-1";
+  private static final String CATALOG_HASH = "catalog-hash";
+  private static final String SKILL_HASH = "skill-hash-script";
+  private static final String ADDON_HASH = "addon-hash-script";
+  private static final String RETURN_CORRECTION =
+      "For the result message, take executionId and orderId from the saved request.";
+  private static final ObjectMapper MAPPER =
+      new ObjectMapper().registerModule(new JavaTimeModule());
+
+  private ProductPipelineRunStore runStore;
+  private ProductPipelineArtifactStore artifactStore;
+  private CompilationArtifacts artifacts;
+  private CipDesignExecutorJavaAdapter adapter;
+  private ProductPipelineProfile profile;
+  private Revision consumedBriefRevision;
+  private AtomicInteger analysisCalls;
+  private AtomicInteger designInputCalls;
+  private AtomicReference<RequirementBrief> repairedBrief;
+  private RequirementBrief initialBrief;
+  private org.qubership.integration.platform.ai.plan.RequirementDraft authoredDraft;
+
+  @BeforeEach
+  void setUp() throws Exception {
+    PlanCompilationTestSupport.memory();
+    Clock clock = Clock.fixed(FIXED, ZoneOffset.UTC);
+    InMemoryArtifactBlobStore blobStore = new InMemoryArtifactBlobStore();
+    artifacts = new CompilationArtifacts(blobStore, MAPPER, clock);
+    artifactStore = new ProductPipelineArtifactStore(artifacts);
+    runStore = new ProductPipelineRunStore(blobStore, MAPPER, clock);
+    profile = threeStageProfile();
+    adapter = productionAdapter(clock);
+    analysisCalls = new AtomicInteger();
+    designInputCalls = new AtomicInteger();
+    repairedBrief = new AtomicReference<>();
+    initialBrief = unknownTargetBrief();
+    persistSide("trigger-http", MappingPort.OUTPUT, sourceSchema());
+    persistSide("call-1", MappingPort.REQUEST, targetSchema());
+    persistSide("call-1", MappingPort.RESPONSE, serviceResponseSchema());
+    persistSide("result-call", MappingPort.REQUEST, resultSchema());
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void authoredMappingReopensItsExactDraftProducerAndRestoresRepairEvidence(boolean imported) throws Exception {
+    var stages = new java.util.ArrayList<ProfileStage>();
+    stages.add(new ProfileStage("requirement-discovery", "requirement-discovery", List.of(),
+        List.of(new ArtifactTypeRef("requirement-draft", 2)), null, null, new RetryPolicy(0, 1L)));
+    if (imported) {
+      stages.add(new ProfileStage("spec-import", "import-cap", List.of(new ArtifactTypeRef("requirement-draft", 2)),
+          List.of(new ArtifactTypeRef("requirement-draft", 2)), null, null, new RetryPolicy(0, 1L)));
+    }
+    stages.addAll(profile.stages());
+    profile = new ProductPipelineProfile(profile.schemaVersion(), profile.profileId(),
+        profile.profileVersion(), profile.runInputs(), stages, profile.terminal(), profile.dependencyRoots());
+    var fact = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput(
+        "subject-map", List.of("trigger-http", "call-1"),
+        org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactKind.FIELD_MAPPING,
+        org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polarity.POSITIVE,
+        "Map the execution identifier.", new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FieldMappingInput(
+            "trigger-http", "executionId", "call-1", "preserved.executionId", "   "));
+    var authored = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput(
+            new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FlowInput(List.of(
+                new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.InteractionInput(
+                    "trigger-http", org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction.INBOUND,
+                    "Caller", "Receive event", null, null, null),
+                new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.InteractionInput(
+                    "call-1", org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction.OUTBOUND,
+                    "Salesforce", "Create task", null, null, null)), List.of(
+                new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.TransitionInput("trigger-http", "call-1"))),
+            List.of(fact, new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput(
+                "sibling-map", fact.interactionIds(), fact.kind(), fact.polarity(), "Map the subject.",
+                new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FieldMappingInput(
+                    "trigger-http", "subject", "call-1", "Subject", null))), List.of(), List.of(),
+            new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftSettings(false, null));
+    authoredDraft = org.qubership.integration.platform.ai.plan.RequirementCaptureProjection.toDraft(
+        authored, null, List.of(), null, null);
+    var runtime = runtime(FakeFailureNarrativeAgent.narrates("unused"), injectedMappingExecution());
+    runtime.startOrResume(new StartOrResumeCommand(CONV_ID, RUN_ID, profile, manifest()))
+        .collect().asList().await().indefinitely();
+    Reference draftRef = artifactStore.latest(RUN_ID, Kind.REQUIREMENT_DRAFT).orElseThrow().reference();
+    haltAtMappingContract(runtime);
+
+    StageExecutionResult failed = execute(runtime, "design-execution");
+    assertEquals("requirement-discovery",
+        assertInstanceOf(StageDecision.ReopenProducer.class, failed.decision()).producerStageId());
+    applyLifecycle(runtime, failed);
+    assertEquals("requirement-discovery", run().run().currentStageId());
+
+    var restored = runtime(FakeFailureNarrativeAgent.narrates("unused"), injectedMappingExecution());
+    restoreCaches(restored);
+    restored.stageExecutor().execute(RUN_ID, "requirement-discovery").await().indefinitely();
+    var attrs = restored.support().runAttributes(RUN_ID);
+    assertEquals(draftRef, attrs.get("requirementCorrectionDraftReference"));
+    assertEquals(authoredDraft, attrs.get("requirementCorrectionDraft"));
+    assertEquals("true", attrs.get("mappingRepairAutomatic"));
+    assertEquals(Map.of("subject-map", Set.of("targetPath")), attrs.get("mappingRepairPaths"));
+
+    var repairPrompt = new AtomicReference<String>();
+    var discovery = new RequirementDiscoveryCapability(null,
+        new org.qubership.integration.platform.ai.plan.RequirementDraftStore(), (chat, text) -> {
+          repairPrompt.set(text);
+          return Multi.createFrom().empty();
+        });
+    discovery.execute(new StageExecutionContext(RUN_ID, CONV_ID, "requirement-discovery",
+        "repair", "repair-attempt", profile, manifest(), List.of(), attrs))
+        .collect().asList().await().indefinitely();
+    assertTrue(repairPrompt.get().contains("\"expectedContract\":\"Subject\""), repairPrompt.get());
+    assertTrue(repairPrompt.get().contains("\"observed\":\"$.preserved.executionId\""), repairPrompt.get());
+
+    Reference authorDraft = artifactStore.append(new AppendCommand(RUN_ID, Kind.REQUIREMENT_DRAFT, "2",
+        "requirement-discovery", "1", authoredDraft, List.of(draftRef), null,
+        artifactStore.get(RUN_ID, draftRef).orElseThrow().provenance())).reference();
+    artifactStore.append(new AppendCommand(RUN_ID, Kind.USER_INPUT, "1", "product-pipeline-runtime", "1",
+        new org.qubership.integration.platform.ai.productpipeline.artifact.UserInput(
+            "author-correction", "requirement-discovery", "Revise the response mapping.", FIXED,
+            authorDraft, List.of()), List.of(authorDraft), null,
+        artifactStore.get(RUN_ID, draftRef).orElseThrow().provenance()));
+    var authorAttributes = new java.util.HashMap<>(attrs);
+    authorAttributes.put("mappingRepairAutomatic", "false");
+    var document = run();
+    long revision = document.run().runRevision();
+    runStore.commit(revision, new org.qubership.integration.platform.ai.productpipeline.store.LogicalCommit(
+        RUN_ID, revision, RunStatus.RUNNING, "requirement-discovery", document.run().stages(),
+        new org.qubership.integration.platform.ai.productpipeline.store.StageAttempt(
+            "author-correction", "requirement-discovery", revision + 1,
+            org.qubership.integration.platform.ai.productpipeline.store.StageStatus.RUNNING,
+            FIXED, FIXED, List.of(), ProductPipelineRunSupport.haltEvidence(authorAttributes, null)),
+        new org.qubership.integration.platform.ai.productpipeline.store.RunTransition(revision, revision + 1,
+            document.run().status(), RunStatus.RUNNING, "requirement-discovery", FIXED, "author correction")));
+    var authorRuntime = runtime(FakeFailureNarrativeAgent.narrates("unused"), injectedMappingExecution());
+    restoreCaches(authorRuntime);
+    authorRuntime.stageExecutor().execute(RUN_ID, "requirement-discovery").await().indefinitely();
+    assertEquals(authorDraft, authorRuntime.support().runAttributes(RUN_ID).get("requirementCorrectionDraftReference"));
+  }
+
+  @Test
+  void productionTransportReopensTheBriefProducer() throws Exception {
+    FakeFailureNarrativeAgent agent =
+        FakeFailureNarrativeAgent.owner("Ask which field to invent.", "design-planning")
+            .recoverReturns(askUserDecision());
+    CreateChainTestOrchestrator runtime = runtime(agent, productionExecution());
+    haltAtMappingContract(runtime);
+
+    StageExecutionResult failed = execute(runtime, "design-execution");
+    assertBriefProducerRoute(runtime, failed, agent);
+    assertPersistedMappingEvidence();
+    applyLifecycle(runtime, failed);
+    assertEquals("requirement-analysis", run().run().currentStageId());
+    assertEquals(RunStatus.RUNNING, run().run().status());
+  }
+
+  @Test
+  void persistedEvidenceUsesTheCompiledBriefInsteadOfTheLatestRevision() throws Exception {
+    FakeFailureNarrativeAgent agent =
+        FakeFailureNarrativeAgent.owner("Conflicting advisory owner.", "design-planning");
+    CreateChainTestOrchestrator runtime = runtime(agent, injectedMappingExecution());
+    haltAtMappingContract(runtime);
+    Revision compiledR1 = consumedBriefRevision;
+    Revision newerR2 =
+        appendRunArtifact(
+            Kind.REQUIREMENT_BRIEF,
+            "1",
+            new RequirementBrief(
+                    "newer goal", List.of(), List.of(), List.of(), List.of(), "newer summary")
+                .withMappingIntents(List.of(unknownTargetIntent())),
+            "requirement-analysis");
+    assertNotEquals(compiledR1.reference(), newerR2.reference());
+
+    StageExecutionResult failed = execute(runtime, "design-execution");
+
+    assertBriefProducerRoute(runtime, failed, agent);
+    RecoveryEvidence evidence =
+        artifactStore.payload(
+            artifactStore.history(RUN_ID, Kind.RECOVERY_EVIDENCE).getFirst(),
+            RecoveryEvidence.class);
+    assertEquals(compiledR1.artifactId(), evidence.approvedBriefRef().artifactId());
+    assertEquals(compiledR1.contentHash(), evidence.approvedBriefRef().contentHash());
+    assertNotEquals(newerR2.artifactId(), evidence.approvedBriefRef().artifactId());
+  }
+
+  @ParameterizedTest
+  @EnumSource(AdvisoryConflict.class)
+  void conflictingOrMissingAdvisoryKeepsMappingContractAndBriefProducer(AdvisoryConflict conflict)
+      throws Exception {
+    FakeFailureNarrativeAgent agent = conflict.agent();
+    CreateChainTestOrchestrator runtime = runtime(agent, injectedMappingExecution());
+    haltAtMappingContract(runtime);
+
+    StageExecutionResult failed = execute(runtime, "design-execution");
+    assertBriefProducerRoute(runtime, failed, agent);
+    assertPersistedMappingEvidence();
+  }
+
+  @Test
+  void rewordedRepairWithTheSameUnknownTargetIsRejectedBeforeApproval() throws Exception {
+    repairedBrief.set(rewordedUnknownTargetBrief());
+    CreateChainTestOrchestrator runtime =
+        runtime(
+            FakeFailureNarrativeAgent.narrates("unused"),
+            validatingExecution(new AtomicInteger(), new AtomicReference<>()));
+    haltAtMappingContract(runtime);
+    StageExecutionResult failed = execute(runtime, "design-execution");
+    applyLifecycle(runtime, failed);
+
+    StageExecutionResult repaired = execute(runtime, "requirement-analysis");
+
+    assertInstanceOf(StageDecision.WaitForInput.class, repaired.decision());
+    assertEquals(1, artifactStore.history(RUN_ID, Kind.REQUIREMENT_BRIEF).size());
+    assertEquals(1, designInputCalls.get());
+    String findings =
+        String.valueOf(
+            runtime
+                .support()
+                .runAttributes(RUN_ID)
+                .get(ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR));
+    assertTrue(findings.contains("$.preserved.executionId"), findings);
+    assertTrue(findings.contains("MAPPING_UNKNOWN_TARGET"), findings);
+  }
+
+  @Test
+  void spentAutomaticReopenCaptureRejectOffersEditRequirementsAndEndRun() throws Exception {
+    repairedBrief.set(rewordedUnknownTargetBrief());
+    CreateChainTestOrchestrator runtime =
+        runtime(
+            FakeFailureNarrativeAgent.narrates("unused"),
+            validatingExecution(new AtomicInteger(), new AtomicReference<>()));
+    haltAtMappingContract(runtime);
+    StageExecutionResult failed = execute(runtime, "design-execution");
+    applyLifecycle(runtime, failed);
+
+    StageExecutionResult repaired = execute(runtime, "requirement-analysis");
+
+    StageDecision.WaitForInput wait =
+        assertInstanceOf(StageDecision.WaitForInput.class, repaired.decision());
+    assertEquals(PipelineGates.RECOVERY_REVISE_BRIEF, PipelineGates.gateOf(wait.prompt()).orElse(""));
+    assertEquals(
+        List.of(ChatEvent.EDIT_REQUIREMENTS_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
+        ChatEvent.actionsForGate(PipelineGates.gateOf(wait.prompt()).orElseThrow()));
+    assertEquals(
+        RecoveryCauseCode.MAPPING_CONTRACT.name(),
+        String.valueOf(
+            runtime
+                .support()
+                .runAttributes(RUN_ID)
+                .get(ProductPipelineRunSupport.STAGE_ERROR_CAUSE_CODE_ATTR)));
+    assertNotEquals(
+        RecoveryCauseCode.MISSING_BRIEF_FACTS.name(),
+        String.valueOf(
+            runtime
+                .support()
+                .runAttributes(RUN_ID)
+                .get(ProductPipelineRunSupport.STAGE_ERROR_CAUSE_CODE_ATTR)));
+  }
+
+  @Test
+  void missingResponseIdsCanBeCorrectedAtTheAnalysisHaltBeforeApproval() throws Exception {
+    RequirementBrief complete = validContextPreservingBrief();
+    MappingIntent request = complete.mappingIntents().getFirst();
+    MappingIntent response = complete.mappingIntents().getLast();
+    MappingIntentRule commandType = new MappingIntentRule("\"completeTask\"", "$.commandType", null);
+    initialBrief = complete.withMappingIntents(
+        List.of(request, response.withRules(List.of(commandType))));
+    repairedBrief.set(initialBrief);
+    AtomicInteger executions = new AtomicInteger();
+    CreateChainTestOrchestrator runtime = runtime(
+        FakeFailureNarrativeAgent.narrates("unused"),
+        validatingExecution(executions, new AtomicReference<>()));
+    haltAtMappingContract(runtime);
+    applyLifecycle(runtime, execute(runtime, "design-execution"));
+    StageDecision.WaitForInput wait = assertInstanceOf(
+        StageDecision.WaitForInput.class, execute(runtime, "requirement-analysis").decision());
+    assertEquals(PipelineGates.RECOVERY_REVISE_BRIEF, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertEquals(1, artifactStore.history(RUN_ID, Kind.REQUIREMENT_BRIEF).size());
+    String evidence = String.valueOf(runtime.support().runAttributes(RUN_ID)
+        .get(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR));
+    String findings = String.valueOf(runtime.support().runAttributes(RUN_ID)
+        .get(ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR));
+    assertTrue(findings.contains("MAPPING_MISSING_REQUIRED_TARGET"), findings);
+    assertTrue(evidence.contains("call-1/RESPONSE -> result-call/REQUEST"), evidence);
+    assertTrue(evidence.contains("targetPath=$.executionId"), evidence);
+    assertTrue(evidence.contains("targetPath=$.orderId"), evidence);
+
+    List<MappingIntentRule> rules = new java.util.ArrayList<>(response.rules());
+    rules.add(commandType);
+    repairedBrief.set(complete.withMappingIntents(List.of(request, response.withRules(rules))));
+    runtime.acceptInput(new AcceptInputCommand(RUN_ID, RETURN_CORRECTION))
+        .collect().asList().await().indefinitely();
+
+    assertEquals(RunStatus.WAITING_FOR_APPROVAL, run().run().status(), run().transitions().getLast().reason());
+    assertEquals("requirement-analysis", run().run().currentStageId());
+    assertEquals(1, executions.get());
+    assertEquals(RETURN_CORRECTION, runtime.support().haltFollowUpText(RUN_ID).orElseThrow());
+    assertEquals(repairedBrief.get().mappingIntents(),
+        artifactStore.payload(artifactStore.latest(RUN_ID, Kind.REQUIREMENT_BRIEF).orElseThrow(),
+            RequirementBrief.class).mappingIntents());
+    runtime.approve(new ApproveCommand(RUN_ID,
+        snapshot("requirement-analysis").approvableReference(), run().run().runRevision()))
+        .collect().asList().await().indefinitely();
+
+    assertEquals(RunStatus.PLAN_APPROVED, run().run().status());
+    assertEquals(2, executions.get());
+    assertTrue(artifactStore.latest(RUN_ID, Kind.MATERIALIZATION_RESULT).isEmpty());
+  }
+
+  @Test
+  void validRepairIsApprovedRebuiltAndExecutedInTheSameRun() throws Exception {
+    AtomicInteger executionCalls = new AtomicInteger();
+    AtomicReference<String> compilerVisibleContext = new AtomicReference<>("");
+    repairedBrief.set(validContextPreservingBrief());
+    CreateChainTestOrchestrator runtime =
+        runtime(
+            FakeFailureNarrativeAgent.narrates("unused"),
+            validatingExecution(executionCalls, compilerVisibleContext));
+    haltAtMappingContract(runtime);
+    StageExecutionResult failed = execute(runtime, "design-execution");
+    applyLifecycle(runtime, failed);
+
+    StageExecutionResult repaired = execute(runtime, "requirement-analysis");
+    assertInstanceOf(StageDecision.WaitForApproval.class, repaired.decision());
+    runtime
+        .recordApprove(
+            new ApproveCommand(
+                RUN_ID,
+                snapshot("requirement-analysis").approvableReference(),
+                run().run().runRevision()))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+    applyLifecycle(runtime, execute(runtime, "design-input"));
+    applyLifecycle(runtime, execute(runtime, "design-execution"));
+
+    assertEquals(RUN_ID, run().run().runId());
+    assertEquals(RunStatus.PLAN_APPROVED, run().run().status());
+    assertEquals(2, executionCalls.get());
+    assertEquals(2, designInputCalls.get());
+    RequirementBrief executed =
+        artifactStore
+            .latest(RUN_ID, Kind.REQUIREMENT_BRIEF)
+            .map(revision -> artifactStore.payload(revision, RequirementBrief.class))
+            .orElseThrow();
+    List<String> requestTargets = new java.util.ArrayList<>();
+    for (MappingIntentRule rule : executed.mappingIntents().getFirst().rules()) {
+      requestTargets.add(rule.targetPath());
+    }
+    assertEquals(List.of("$.Subject"), requestTargets);
+    String compilerOutput = compilerVisibleContext.get();
+    for (String property :
+        List.of("executionId", "orderId", "processInstanceId", "executionNumber", "taskId")) {
+      assertTrue(
+          compilerOutput.contains(
+              "exchange.setProperty('" + property + "', body." + property + ")"),
+          compilerOutput);
+      assertTrue(
+          compilerOutput.contains("exchange.getProperty('" + property + "')"), compilerOutput);
+    }
+    assertFalse(compilerOutput.contains("$.processId"), compilerOutput);
+    assertFalse(compilerOutput.contains("preserved."), compilerOutput);
+  }
+
+  @Test
+  void unresolvedRepairKeepsTypedEvidenceForASecondCapture() throws Exception {
+    repairedBrief.set(validRepairWithAmbiguousBindings());
+    CreateChainTestOrchestrator runtime =
+        runtime(
+            FakeFailureNarrativeAgent.narrates("unused"),
+            validatingExecution(new AtomicInteger(), new AtomicReference<>()));
+    haltAtMappingContract(runtime);
+    StageExecutionResult failed = execute(runtime, "design-execution");
+    applyLifecycle(runtime, failed);
+    String originalEvidenceHash =
+        String.valueOf(
+            runtime
+                .support()
+                .runAttributes(RUN_ID)
+                .get(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR));
+
+    StageExecutionResult firstRepair = execute(runtime, "requirement-analysis");
+
+    assertFalse(firstRepair.decision() instanceof StageDecision.WaitForApproval);
+    assertEquals(1, artifactStore.history(RUN_ID, Kind.REQUIREMENT_BRIEF).size());
+    assertPersistedMappingEvidence();
+    assertEquals(
+        originalEvidenceHash,
+        String.valueOf(
+            runtime
+                .support()
+                .runAttributes(RUN_ID)
+                .get(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR)));
+
+    MappingRepairCaptureValidator.Result secondCapture =
+        captureValidator()
+            .validate(RUN_ID, CONV_ID, originalEvidenceHash, validContextPreservingBrief());
+
+    assertEquals(MappingRepairCaptureValidator.Result.Status.PASSED, secondCapture.status());
+    assertPersistedMappingEvidence();
+  }
+
+  @Test
+  void invalidRepairIsRejectedAfterRuntimeRestoreOnTheReopenedProducer() throws Exception {
+    repairedBrief.set(rewordedUnknownTargetBrief());
+    CreateChainTestOrchestrator first =
+        runtime(
+            FakeFailureNarrativeAgent.narrates("unused"),
+            validatingExecution(new AtomicInteger(), new AtomicReference<>()));
+    haltAtMappingContract(first);
+    applyLifecycle(first, execute(first, "design-execution"));
+    String evidenceHash =
+        String.valueOf(
+            first.support().runAttributes(RUN_ID).get(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR));
+    assertFalse(evidenceHash.isBlank());
+    assertEquals("requirement-analysis", run().run().currentStageId());
+
+    CreateChainTestOrchestrator restored =
+        runtime(
+            FakeFailureNarrativeAgent.narrates("unused"),
+            validatingExecution(new AtomicInteger(), new AtomicReference<>()));
+    restoreCaches(restored);
+
+    assertEquals(
+        evidenceHash,
+        String.valueOf(
+            restored
+                .support()
+                .runAttributes(RUN_ID)
+                .get(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR)));
+    StageExecutionResult repaired = execute(restored, "requirement-analysis");
+
+    assertFalse(repaired.decision() instanceof StageDecision.WaitForApproval, repaired.decision().toString());
+    assertInstanceOf(StageDecision.WaitForInput.class, repaired.decision());
+    assertEquals(1, artifactStore.history(RUN_ID, Kind.REQUIREMENT_BRIEF).size());
+    assertEquals(1, designInputCalls.get());
+    String findings =
+        String.valueOf(
+            restored
+                .support()
+                .runAttributes(RUN_ID)
+                .get(ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR));
+    assertTrue(findings.contains("$.preserved.executionId"), findings);
+    assertTrue(findings.contains("MAPPING_UNKNOWN_TARGET"), findings);
+  }
+
+  @Test
+  void validRepairContinuesTheSameRunAfterRuntimeRestore() throws Exception {
+    AtomicInteger executionCalls = new AtomicInteger();
+    AtomicReference<String> compilerVisibleContext = new AtomicReference<>("");
+    repairedBrief.set(validContextPreservingBrief());
+    CreateChainTestOrchestrator first =
+        runtime(
+            FakeFailureNarrativeAgent.narrates("unused"),
+            validatingExecution(executionCalls, compilerVisibleContext));
+    haltAtMappingContract(first);
+    applyLifecycle(first, execute(first, "design-execution"));
+
+    CreateChainTestOrchestrator restored =
+        runtime(
+            FakeFailureNarrativeAgent.narrates("unused"),
+            validatingExecution(executionCalls, compilerVisibleContext));
+    restoreCaches(restored);
+    assertEquals(
+        String.valueOf(
+            first.support().runAttributes(RUN_ID).get(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR)),
+        String.valueOf(
+            restored
+                .support()
+                .runAttributes(RUN_ID)
+                .get(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR)));
+    StageExecutionResult repaired = execute(restored, "requirement-analysis");
+    assertInstanceOf(StageDecision.WaitForApproval.class, repaired.decision());
+    restored
+        .recordApprove(
+            new ApproveCommand(
+                RUN_ID,
+                snapshot("requirement-analysis").approvableReference(),
+                run().run().runRevision()))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+    applyLifecycle(restored, execute(restored, "design-input"));
+    applyLifecycle(restored, execute(restored, "design-execution"));
+
+    assertEquals(RUN_ID, run().run().runId());
+    assertEquals(RunStatus.PLAN_APPROVED, run().run().status());
+    assertEquals(2, executionCalls.get());
+    assertEquals(2, designInputCalls.get());
+  }
+
+  @Test
+  void laterRecoveryRecordAndAnotherRunDoNotReplaceActiveEvidence() throws Exception {
+    repairedBrief.set(rewordedUnknownTargetBrief());
+    CreateChainTestOrchestrator first =
+        runtime(
+            FakeFailureNarrativeAgent.narrates("unused"),
+            validatingExecution(new AtomicInteger(), new AtomicReference<>()));
+    haltAtMappingContract(first);
+    applyLifecycle(first, execute(first, "design-execution"));
+    String activeHash =
+        String.valueOf(
+            first.support().runAttributes(RUN_ID).get(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR));
+    appendRunArtifact(
+        Kind.RECOVERY_EVIDENCE,
+        "1",
+        new RecoveryEvidence(
+            1,
+            "decoy-same-run",
+            "UNCLASSIFIED",
+            "design-execution",
+            "requirement-analysis",
+            null,
+            null,
+            List.of(),
+            List.of(),
+            null,
+            List.of()),
+        "design-execution");
+    artifactStore.append(
+        new AppendCommand(
+            "run-other-mapping-recovery",
+            Kind.RECOVERY_EVIDENCE,
+            "1",
+            "test-producer",
+            "1",
+            new RecoveryEvidence(
+                1,
+                "decoy-other-run",
+                "MAPPING_CONTRACT",
+                "design-execution",
+                "requirement-analysis",
+                null,
+                null,
+                List.of(),
+                List.of(),
+                null,
+                List.of()),
+            List.of(),
+            null,
+            new ArtifactProvenance(
+                "run-other-mapping-recovery",
+                "design-execution",
+                "create-chain",
+                "2",
+                "profile-sha",
+                "design-execution",
+                "1",
+                "closure")));
+    assertTrue(artifactStore.history(RUN_ID, Kind.RECOVERY_EVIDENCE).size() >= 2);
+
+    CreateChainTestOrchestrator restored =
+        runtime(
+            FakeFailureNarrativeAgent.narrates("unused"),
+            validatingExecution(new AtomicInteger(), new AtomicReference<>()));
+    restoreCaches(restored);
+
+    assertEquals(
+        activeHash,
+        String.valueOf(
+            restored
+                .support()
+                .runAttributes(RUN_ID)
+                .get(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR)));
+    StageExecutionResult repaired = execute(restored, "requirement-analysis");
+
+    assertFalse(repaired.decision() instanceof StageDecision.WaitForApproval, repaired.decision().toString());
+    String findings =
+        String.valueOf(
+            restored
+                .support()
+                .runAttributes(RUN_ID)
+                .get(ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR));
+    assertTrue(findings.contains("MAPPING_UNKNOWN_TARGET"), findings);
+    assertEquals(1, designInputCalls.get());
+  }
+
+  @Test
+  void ordinaryCreateDoesNotApplyMappingRepairCapture() throws Exception {
+    CreateChainTestOrchestrator runtime =
+        runtime(
+            FakeFailureNarrativeAgent.narrates("unused"),
+            validatingExecution(new AtomicInteger(), new AtomicReference<>()));
+    runtime
+        .startOrResume(new StartOrResumeCommand(CONV_ID, RUN_ID, profile, manifest()))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+    if (run().run().status() == RunStatus.WAITING_FOR_INPUT) {
+      runtime
+          .recordInput(new AcceptInputCommand(RUN_ID, "create a Salesforce task chain"))
+          .collect()
+          .asList()
+          .await()
+          .indefinitely();
+    }
+
+    assertEquals(RunStatus.WAITING_FOR_APPROVAL, run().run().status());
+    assertEquals(
+        MappingRepairCaptureValidator.Result.Status.NOT_APPLICABLE,
+        captureValidator().validate(RUN_ID, CONV_ID, "", unknownTargetBrief()).status());
+    Object evidenceRef =
+        runtime.support().runAttributes(RUN_ID).get(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR);
+    assertTrue(evidenceRef == null || String.valueOf(evidenceRef).isBlank());
+  }
+
+  private enum AdvisoryConflict {
+    MISSING,
+    ASK_USER,
+    PARK,
+    REGENERATE,
+    INVALID;
+
+    private FakeFailureNarrativeAgent agent() {
+      FakeFailureNarrativeAgent agent =
+          FakeFailureNarrativeAgent.owner("Conflicting advisory owner.", "design-planning");
+      return switch (this) {
+        case MISSING -> agent;
+        case ASK_USER -> agent.recoverReturns(askUserDecision());
+        case PARK ->
+            agent.recoverReturns(
+                new RecoveryDecision(
+                    RecoveryCauseClass.UNCLASSIFIED,
+                    null,
+                    List.of(),
+                    RecoveryAction.PARK,
+                    List.of(),
+                    "",
+                    "Park this mapping halt."));
+        case REGENERATE -> agent.recoverRegenerates(Kind.CHAIN_PLAN_GRAPH, "Regenerate the graph.");
+        case INVALID ->
+            agent.recoverReturns(
+                new RecoveryDecision(
+                    RecoveryCauseClass.BRIEF_DEFECT,
+                    new Reference(Kind.IMPLEMENTATION_PLAN, "plan-1", "plan-hash"),
+                    List.of("missing-failure"),
+                    RecoveryAction.REVISE_BRIEF,
+                    List.of(),
+                    "",
+                    "Revise from an invalid evidence ref."));
+      };
+    }
+  }
+
+  private static RecoveryDecision askUserDecision() {
+    return new RecoveryDecision(
+        RecoveryCauseClass.DERIVATION_DEFECT,
+        new Reference(Kind.CHAIN_PLAN_GRAPH, "graph-1", "graph-hash"),
+        List.of("failure-1"),
+        RecoveryAction.ASK_USER,
+        List.of(),
+        "Which target should we add?",
+        "Ask the author for a field.");
+  }
+
+  private void haltAtMappingContract(CreateChainTestOrchestrator runtime) {
+    runtime
+        .startOrResume(new StartOrResumeCommand(CONV_ID, RUN_ID, profile, manifest()))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+    if (run().run().status() == RunStatus.WAITING_FOR_INPUT) {
+      runtime
+          .recordInput(new AcceptInputCommand(RUN_ID, "create a Salesforce task chain"))
+          .collect()
+          .asList()
+          .await()
+          .indefinitely();
+    }
+    assertEquals(RunStatus.WAITING_FOR_APPROVAL, run().run().status());
+    runtime
+        .recordApprove(
+            new ApproveCommand(
+                RUN_ID,
+                snapshot("requirement-analysis").approvableReference(),
+                run().run().runRevision()))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+    applyLifecycle(runtime, execute(runtime, "design-input"));
+    consumedBriefRevision = artifactStore.latest(RUN_ID, Kind.REQUIREMENT_BRIEF).orElseThrow();
+  }
+
+  private void assertBriefProducerRoute(
+      CreateChainTestOrchestrator runtime,
+      StageExecutionResult failed,
+      FakeFailureNarrativeAgent agent) {
+    StageDecision.ReopenProducer reopen =
+        assertInstanceOf(StageDecision.ReopenProducer.class, failed.decision());
+    assertEquals("requirement-analysis", reopen.producerStageId());
+    assertEquals(
+        RecoveryCauseCode.MAPPING_CONTRACT.name(),
+        String.valueOf(
+            runtime
+                .support()
+                .runAttributes(RUN_ID)
+                .get(ProductPipelineRunSupport.STAGE_ERROR_CAUSE_CODE_ATTR)));
+    assertNotEquals(
+        RecoveryCauseCode.MISSING_BRIEF_FACTS.name(),
+        String.valueOf(
+            runtime
+                .support()
+                .runAttributes(RUN_ID)
+                .get(ProductPipelineRunSupport.STAGE_ERROR_CAUSE_CODE_ATTR)));
+    assertEquals(
+        "requirement-analysis", runtime.support().diagnosedOwnerStageId(RUN_ID).orElseThrow());
+    assertEquals(null, agent.lastRecoveryContextJson.get());
+    assertFalse(failed.decision() instanceof StageDecision.WaitForInput);
+    String findings =
+        String.valueOf(
+            runtime
+                .support()
+                .runAttributes(RUN_ID)
+                .get(ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR));
+    assertTrue(findings.contains("MAPPING_UNKNOWN_TARGET"), findings);
+    String evidence = String.valueOf(runtime.support().runAttributes(RUN_ID)
+        .get(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR));
+    assertTrue(evidence.contains("mappingIntentId=salesforce-create-task"), evidence);
+    assertTrue(evidence.contains("trigger-http/OUTPUT -> "), evidence);
+    assertTrue(evidence.contains("/REQUEST; targetPath=$.preserved.executionId"), evidence);
+    assertFalse(
+        findings.toLowerCase(Locale.ROOT).contains("which target should we add"), findings);
+  }
+
+  private void assertPersistedMappingEvidence() throws Exception {
+    List<Revision> history = artifactStore.history(RUN_ID, Kind.RECOVERY_EVIDENCE);
+    assertEquals(1, history.size());
+    RecoveryEvidence evidence = artifactStore.payload(history.getFirst(), RecoveryEvidence.class);
+    assertEquals("design-execution", evidence.observingStageId());
+    assertEquals("requirement-analysis", evidence.producerStageId());
+    assertEquals("MAPPING_CONTRACT", evidence.observedCauseCode());
+    SemanticFinding finding = evidence.findings().getFirst();
+    JsonNode payload = MAPPER.readTree(finding.rawValidatorJson());
+    assertTrue(payload.isObject(), finding.rawValidatorJson());
+    assertEquals(
+        "$.preserved.executionId", payload.path("mappingDetails").path("targetPath").asText());
+    assertFalse(payload.path("mappingDetails").path("consumedBriefArtifactId").asText().isBlank());
+    assertEquals("call-1", payload.path("mappingDetails").path("targetSchemaOwner").asText());
+  }
+
+  private CreateChainTestOrchestrator runtime(
+      FakeFailureNarrativeAgent agent, StageCapability execution) {
+    ProductPipelineRunSupport support =
+        CreateChainTestOrchestrator.supportBuilder(
+                runStore,
+                artifactStore,
+                new StageCapabilityRegistry(
+                    List.of(analysisCapability(), designInputCapability(), execution,
+                        capability("requirement-discovery", context -> Multi.createFrom().item(
+                            new CapabilitySignal.Completed(StageRepairEvidence.isRepairTurn(context)
+                                ? StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "review repair")
+                                : new StageOutcome(StageOutcomeClass.SUCCEEDED,
+                                    List.of(new ArtifactCandidate(Kind.REQUIREMENT_DRAFT, authoredDraft, List.of())),
+                                    "draft ready", null)))),
+                        capability("import-cap", context -> Multi.createFrom().item(
+                            new CapabilitySignal.Completed(new StageOutcome(StageOutcomeClass.SUCCEEDED,
+                                List.of(new ArtifactCandidate(Kind.REQUIREMENT_DRAFT, authoredDraft, context.inputRefs())),
+                                "import skipped", null)))))),
+                Clock.fixed(FIXED, ZoneOffset.UTC))
+            .failureNarrative(new FailureNarrative(agent))
+            .mappingTurnAdapter((brief, text) -> RETURN_CORRECTION.equals(text)
+                ? MappingTurnResult.changes(
+                    new MappingTurnResult.AddRule("return-context", "$.executionId", "$.executionId", null),
+                    new MappingTurnResult.AddRule("return-context", "$.orderId", "$.orderId", null))
+                : MappingTurnResult.changes())
+            .mappingRepairCaptureValidator(captureValidator())
+            .build();
+    return new CreateChainTestOrchestrator(support, runStore);
+  }
+
+  private StageCapability analysisCapability() {
+    return capability(
+        "analysis-cap",
+        context ->
+            Multi.createFrom()
+                .item(
+                    new CapabilitySignal.Completed(
+                        new StageOutcome(
+                            StageOutcomeClass.CANDIDATE,
+                            List.of(
+                                new ArtifactCandidate(
+                                    Kind.REQUIREMENT_BRIEF,
+                                    analysisCalls.incrementAndGet() == 1
+                                        ? initialBrief(context)
+                                        : repairedBrief.get() == null
+                                            ? unknownTargetBrief()
+                                            : repairedBrief.get(),
+                                    List.of())),
+                            "brief ready",
+                            null))));
+  }
+
+  private StageCapability designInputCapability() {
+    return capability(
+        "design-input-cap",
+        context -> {
+          designInputCalls.incrementAndGet();
+          RequirementBrief brief =
+              context.attributes().get("requirementBrief") instanceof RequirementBrief value
+                  ? value
+                  : unknownTargetBrief();
+          return Multi.createFrom()
+              .item(
+                  new CapabilitySignal.Completed(
+                      new StageOutcome(
+                          StageOutcomeClass.SUCCEEDED,
+                          List.of(
+                              new ArtifactCandidate(
+                                  Kind.CHAIN_SEMANTIC_REVISION,
+                                  revisionWith(brief.mappingIntents()),
+                                  List.of())),
+                          "revision ready",
+                          null)));
+        });
+  }
+
+  private RequirementBrief initialBrief(StageExecutionContext context) {
+    if (authoredDraft == null) {
+      return initialBrief;
+    }
+    Reference draftRef = artifactStore.latest(RUN_ID, Kind.REQUIREMENT_DRAFT).orElseThrow().reference();
+    return new RequirementBrief("goal", List.of(), List.of(), List.of(), List.of(), "summary",
+        draftRef.artifactId(), authoredDraft.planningText(), authoredDraft.facts())
+        .withMappingIntents(List.of(unknownTargetIntent()));
+  }
+
+  private StageCapability injectedMappingExecution() {
+    return capability(
+        "execution-cap",
+        context ->
+            Multi.createFrom()
+                .item(
+                    new CapabilitySignal.Completed(
+                        StageOutcome.of(
+                            StageOutcomeClass.VALIDATION_FAILURE,
+                            "mapping contract rejected",
+                            RecoveryCause.mappingContract(List.of(unknownTargetFinding()))))));
+  }
+
+  private StageCapability productionExecution() {
+    return capability(
+        "execution-cap",
+        context -> {
+          ExecutionResult result = adapter.executeAfterApproval(productionInputs());
+          return Multi.createFrom()
+              .item(
+                  new CapabilitySignal.Completed(
+                      new StageOutcome(
+                          result.outcomeClass(),
+                          result.candidates() == null ? List.of() : result.candidates(),
+                          result.message(),
+                          null,
+                          result.recoveryCause())));
+        });
+  }
+
+  private StageCapability validatingExecution(
+      AtomicInteger calls, AtomicReference<String> compilerVisibleContext) {
+    return capability(
+        "execution-cap",
+        context -> {
+          calls.incrementAndGet();
+          RequirementBrief brief =
+              assertInstanceOf(
+                  RequirementBrief.class, context.attributes().get("requirementBrief"));
+          List<PlanValidationFinding> findings = new java.util.ArrayList<>();
+          Revision briefRevision =
+              artifactStore.latest(RUN_ID, Kind.REQUIREMENT_BRIEF).orElseThrow();
+          for (MappingIntent intent : brief.mappingIntents()) {
+            MappingSchemaSide source = sideFor(intent.sourceRef(), intent.sourcePort());
+            MappingSchemaSide target = sideFor(intent.targetRef(), intent.targetPort());
+            var evaluated = org.qubership.integration.platform.ai.plan.mapping.MappingContractGate
+                .evaluate(intent, sourceContract(source), sourceContract(target));
+            findings.addAll(
+                org.qubership.integration.platform.ai.plan.mapping.MappingContractGate.toPlanFindings(
+                    evaluated,
+                    source,
+                    target,
+                    briefRevision.artifactId(),
+                    briefRevision.contentHash()));
+          }
+          if (!findings.isEmpty()) {
+            return Multi.createFrom()
+                .item(
+                    new CapabilitySignal.Completed(
+                        StageOutcome.of(
+                            StageOutcomeClass.VALIDATION_FAILURE,
+                            "mapping contract rejected",
+                            RecoveryCause.mappingContract(findings))));
+          }
+          MappingIntent resultIntent =
+              brief.mappingIntents().stream()
+                  .filter(intent -> "return-context".equals(intent.mappingIntentId()))
+                  .findFirst()
+                  .orElseThrow();
+          MappingSchemaSide response =
+              sideFor(resultIntent.sourceRef(), resultIntent.sourcePort());
+          MappingSchemaSide result =
+              sideFor(resultIntent.targetRef(), resultIntent.targetPort());
+          String generationContext =
+              contextBuilder()
+                  .renderMappingGenerationContext(
+                      resultIntent,
+                      new org.qubership.integration.platform.ai.plan.mapping.envelope
+                              .JsonSchemaMessageSchemaFactory(MAPPER)
+                          .fromSides(response, result),
+                      response,
+                      result,
+                      brief.mappingIntents(),
+                      Map.of(
+                          "salesforce-create-task",
+                          sourceContract(sideFor("trigger-http", MappingPort.OUTPUT)),
+                          "return-context",
+                          sourceContract(response)));
+          compilerVisibleContext.set(generationContext);
+          return Multi.createFrom()
+              .item(
+                  new CapabilitySignal.Completed(
+                      StageOutcome.of(StageOutcomeClass.SUCCEEDED, "execution accepted")));
+        });
+  }
+
+  private MappingRepairCaptureValidator captureValidator() {
+    return new MappingRepairCaptureValidator(
+        artifactStore,
+        MAPPER,
+        new OperationSchemaLoader() {
+          @Override
+          public OperationSchemaMaps load(String operationId) {
+            throw new AssertionError("unchanged repair must reuse persisted contracts");
+          }
+
+          @Override
+          public MappingSchemaSide persistRequest(
+              String compilationId,
+              String serviceCallId,
+              String operationId,
+              String contentType) {
+            throw new UnsupportedOperationException();
+          }
+
+          @Override
+          public MappingSchemaSide persistResponse(
+              String compilationId,
+              String serviceCallId,
+              String operationId,
+              String contentType,
+              String responseCode) {
+            throw new UnsupportedOperationException();
+          }
+        });
+  }
+
+  private MappingSchemaSide sideFor(String owner, MappingPort port) {
+    String schemaOwner = "node-call".equals(owner) ? "call-1" : owner;
+    return artifactStore.history(CONV_ID, Kind.MAPPING_SCHEMA_SIDE).stream()
+        .map(revision -> artifactStore.payload(revision, MappingSchemaSide.class))
+        .filter(side -> schemaOwner.equals(side.serviceCallId()) && port == side.direction())
+        .findFirst()
+        .orElseThrow();
+  }
+
+  private static MappingContract sourceContract(MappingSchemaSide side) {
+    return org.qubership.integration.platform.ai.plan.mapping.schema.JsonSchemaMappingContractFactory
+        .from(side.schema());
+  }
+
+  private ExecutionInputs productionInputs() {
+    ChainSemanticRevision revision = revisionWith(unknownTargetIntent());
+    DesignPlanReport report = new DesignPlanReport("1", "# plan\n");
+    DesignExecutionPlan plan = samplePlan();
+    IdsDocument ids =
+        new IdsDocument(
+            "1",
+            IdsDocument.Mode.PROVIDED,
+            "brief-1",
+            "brief-hash",
+            "flow-hash",
+            "renderer-1",
+            "# IDS\n");
+    ImplementationPlan implementation = new ImplementationPlan("plan text");
+    RunManifest runManifest = emptySourceReferencesManifest(scriptGeneratorDag());
+    Reference idsRef = appendRunArtifact(Kind.IDS_DOCUMENT, "1", ids).reference();
+    Reference revisionRef =
+        appendRunArtifact(
+                Kind.CHAIN_SEMANTIC_REVISION, ChainSemanticRevision.CURRENT_SCHEMA_VERSION, revision)
+            .reference();
+    Reference reportRef = appendRunArtifact(Kind.DESIGN_PLAN_REPORT, "1", report).reference();
+    Reference planRef = appendRunArtifact(Kind.DESIGN_EXECUTION_PLAN, "1", plan).reference();
+    Reference implementationRef =
+        appendRunArtifact(Kind.IMPLEMENTATION_PLAN, "1", implementation).reference();
+    Reference manifestRef = appendRunArtifact(Kind.RUN_MANIFEST, "1", runManifest).reference();
+    ApprovalRecordV2 approval =
+        new ApprovalRecordV2(
+            implementationRef,
+            implementationRef.contentHash(),
+            List.of(idsRef, revisionRef, reportRef, planRef, implementationRef),
+            "tester",
+            "approved",
+            FIXED,
+            ApprovalPolicy.CATALOG_FIRST_V1,
+            ApprovalPolicy.CATALOG_FIRST_V1_HASH,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
+    Reference approvalRef = appendRunArtifact(Kind.APPROVAL_RECORD, "2", approval).reference();
+    return new ExecutionInputs(
+        RUN_ID,
+        CONV_ID,
+        approvalRef,
+        approval,
+        report,
+        reportRef,
+        plan,
+        planRef,
+        revision,
+        revisionRef,
+        ids,
+        idsRef,
+        implementation,
+        implementationRef,
+        runManifest,
+        manifestRef,
+        List.of(),
+        null,
+        null,
+        null);
+  }
+
+  private PlanValidationFinding unknownTargetFinding() {
+    MappingValidationDetails details =
+        new MappingValidationDetails(
+            "salesforce-create-task",
+            "trigger-http",
+            "OUTPUT",
+            "call-1",
+            "REQUEST",
+            "$.executionId",
+            "$.preserved.executionId",
+            "",
+            "PROPOSED",
+            consumedBriefRevision.artifactId(),
+            consumedBriefRevision.contentHash(),
+            "trigger-http",
+            "OUTPUT",
+            "sha-source",
+            "conversation-schema",
+            "call-1",
+            "REQUEST",
+            "sha-target",
+            "conversation-schema",
+            "Subject",
+            "$.preserved.executionId");
+    return new PlanValidationFinding(
+        "MAPPING_UNKNOWN_TARGET",
+        "Target path $.preserved.executionId is absent from the target contract.",
+        true,
+        details);
+  }
+
+  private StageExecutionResult execute(CreateChainTestOrchestrator runtime, String stageId) {
+    return runtime.stageExecutor().execute(RUN_ID, stageId).await().indefinitely();
+  }
+
+  private void applyLifecycle(CreateChainTestOrchestrator runtime, StageExecutionResult result) {
+    runtime
+        .support()
+        .applyStageLifecycle(RUN_ID, result)
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+  }
+
+  private void restoreCaches(CreateChainTestOrchestrator runtime) {
+    runtime
+        .restoreForExternalWorkflow(new StartOrResumeCommand(CONV_ID, RUN_ID, profile, manifest()))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+  }
+
+  private ProductPipelineRunDocument run() {
+    return runStore.load(RUN_ID).orElseThrow();
+  }
+
+  private org.qubership.integration.platform.ai.productpipeline.store.StageSnapshot snapshot(
+      String stageId) {
+    return run().run().stages().stream()
+        .filter(stage -> stageId.equals(stage.stageId()))
+        .findFirst()
+        .orElseThrow();
+  }
+
+  private static StageCapability capability(
+      String id, java.util.function.Function<StageExecutionContext, Multi<CapabilitySignal>> exec) {
+    return new StageCapability() {
+      @Override
+      public String capabilityId() {
+        return id;
+      }
+
+      @Override
+      public Multi<CapabilitySignal> execute(StageExecutionContext context) {
+        return exec.apply(context);
+      }
+    };
+  }
+
+  private static ProductPipelineProfile threeStageProfile() {
+    ArtifactTypeRef brief = new ArtifactTypeRef("requirement-brief", 1);
+    ArtifactTypeRef flow = new ArtifactTypeRef("chain-semantic-revision", 1);
+    ArtifactTypeRef plan = new ArtifactTypeRef("implementation-plan", 1);
+    ArtifactTypeRef userInput = new ArtifactTypeRef("user-input", 1);
+    return new ProductPipelineProfile(
+        1,
+        "mapping-brief-producer",
+        "1",
+        List.of(userInput),
+        List.of(
+            new ProfileStage(
+                "requirement-analysis",
+                "analysis-cap",
+                List.of(userInput),
+                List.of(brief),
+                new ApprovalPolicy(brief),
+                null,
+                new RetryPolicy(0, 1L)),
+            new ProfileStage(
+                "design-input",
+                "design-input-cap",
+                List.of(userInput),
+                List.of(plan, flow),
+                null,
+                null,
+                new RetryPolicy(0, 1L)),
+            new ProfileStage(
+                "design-execution",
+                "execution-cap",
+                List.of(flow),
+                List.of(),
+                null,
+                null,
+                new RetryPolicy(0, 1L))),
+        new TerminalPolicy("design-execution", "PLAN_APPROVED"),
+        List.of("analysis-cap", "design-input-cap", "execution-cap"));
+  }
+
+  private RunManifest manifest() {
+    return new RunManifest(
+        RUN_ID,
+        null,
+        List.of(),
+        "product",
+        profile.profileId(),
+        profile.profileVersion(),
+        "profile-sha",
+        "baseline",
+        "baseline-sha",
+        List.of(new DependencyClosureEntry("cap", "1", "c1")),
+        "closure-sha",
+        new KnowledgePackageRef(
+            "knowledge-1",
+            "1",
+            "1.0.0",
+            "checksum",
+            "CERTIFIED",
+            "sha256:certificate"),
+        "24.4",
+        List.of(new ArtifactTypeRef("user-input", 1)),
+        null);
+  }
+
+  private CipDesignExecutorJavaAdapter productionAdapter(Clock clock) throws Exception {
+    InMemorySkillWorkspaceStore workspaceStore =
+        new InMemorySkillWorkspaceStore(new ChainPlanStore());
+    SkillExecutorRegistry skillRegistry = mock(SkillExecutorRegistry.class);
+    when(skillRegistry.require("cip-script-generator")).thenReturn(new MustNotRunScriptExecutor());
+    CipKnowledgePackRepository packRepository = mock(CipKnowledgePackRepository.class);
+    when(packRepository.activeVersion()).thenReturn(new CipKnowledgePackVersion("v1", "v1"));
+    CanonicalGraphDigest digest = new CanonicalGraphDigest(MAPPER);
+    CompilerSecurityValidator securityValidator = mock(CompilerSecurityValidator.class);
+    when(securityValidator.validate(any())).thenReturn(new ValidationResult(true, List.of(), "ok"));
+    CompilerQualityValidator qualityValidator = mock(CompilerQualityValidator.class);
+    when(qualityValidator.validate(any(), any()))
+        .thenReturn(new ValidationResult(true, List.of(), "ok"));
+    CompilerValidationPipeline validationPipeline =
+        new CompilerValidationPipeline(
+            graph -> new ValidationResult(true, List.of(), "ok"),
+            graph -> new ValidationResult(true, List.of(), "ok"),
+            graph -> new ValidationResult(true, List.of(), "ok"),
+            securityValidator,
+            qualityValidator);
+    MappingGenerationPipeline pipeline =
+        new MappingGenerationPipeline(artifacts, MAPPER, contextBuilder());
+    DefaultCompilerDagExecutionEngine engine =
+        new DefaultCompilerDagExecutionEngine(
+            workspaceStore,
+            skillRegistry,
+            mock(CompilerNodeExecutionAdapterRegistry.class),
+            packRepository,
+            new GraphAssemblyService(digest),
+            validationPipeline,
+            artifactStore,
+            pipeline);
+    ChainSemanticGraphCompiler graphCompiler = mock(ChainSemanticGraphCompiler.class);
+    when(graphCompiler.compile(any(), any(), anyList(), any())).thenReturn(sampleGraph());
+    ApprovedCompilerExecutionRunner engineRunner =
+        new DefaultApprovedCompilerExecutionRunner(
+            engine,
+            runStore,
+            artifactStore,
+            graphCompiler,
+            new ClasspathCompilerContractRepository(),
+            new CompositionCatalogBinder(mock(CatalogRestClient.class)),
+            new org.qubership.integration.platform.ai.catalog.binding.McpSystemCatalogBinder(
+                mock(CatalogRestClient.class)),
+            new org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanManifestBuilder(
+                new org.qubership.integration.platform.ai.compiler.plan.GeneratorReadinessEvaluator(),
+                (catalog, intentRequest, intentBrief) -> ""));
+    ExecutorCatalogBindingAdapter bindingAdapter = mock(ExecutorCatalogBindingAdapter.class);
+    when(bindingAdapter.resolve(eq(CONV_ID), any(), anyList(), any()))
+        .thenReturn(List.of(new BindingResolutionResult.Resolved(sampleBinding())));
+    CompilerPlanValidator planValidator = mock(CompilerPlanValidator.class);
+    when(planValidator.validate(any(PlanGraphValidationInput.class)))
+        .thenReturn(new ValidationResult(true, List.of(), "ok"));
+    return new CipDesignExecutorJavaAdapter(
+        engineRunner, bindingAdapter, artifactStore, planValidator);
+  }
+
+  private Revision appendRunArtifact(Kind kind, String schemaVersion, Object payload) {
+    return appendRunArtifact(kind, schemaVersion, payload, "design-execution");
+  }
+
+  private Revision appendRunArtifact(
+      Kind kind, String schemaVersion, Object payload, String producerStageId) {
+    return artifactStore.append(
+        new AppendCommand(
+            RUN_ID,
+            kind,
+            schemaVersion,
+            "test-producer",
+            "1",
+            payload,
+            List.of(),
+            null,
+            new ArtifactProvenance(
+                RUN_ID,
+                producerStageId,
+                "create-chain",
+                "2",
+                "profile-sha",
+                "design-execution",
+                "1",
+                "closure")));
+  }
+
+  private void persistSide(String serviceCallId, MappingPort direction, JsonNode schema) {
+    artifacts.append(
+        new AppendCommand(
+            CONV_ID,
+            Kind.MAPPING_SCHEMA_SIDE,
+            "1",
+            "test",
+            "1",
+            new MappingSchemaSide(
+                "1",
+                serviceCallId,
+                "op-1",
+                direction,
+                "application/json",
+                null,
+                "sha-test",
+                "conversation-schema",
+                schema),
+            List.of(),
+            null));
+  }
+
+  private static JsonNode sourceSchema() throws Exception {
+    return MAPPER.readTree(
+        """
+        {
+          "type": "object",
+          "properties": {
+            "executionId": { "type": "string" },
+            "orderId": { "type": "string" },
+            "processInstanceId": { "type": "string" },
+            "executionNumber": { "type": "string" },
+            "taskId": { "type": "string" },
+            "subject": { "type": "string" }
+          }
+        }
+        """);
+  }
+
+  private static JsonNode targetSchema() throws Exception {
+    return MAPPER.readTree(
+        """
+        {
+          "type": "object",
+          "properties": { "Subject": { "type": "string" } },
+          "required": ["Subject"]
+        }
+        """);
+  }
+
+  private static JsonNode serviceResponseSchema() throws Exception {
+    return MAPPER.readTree(
+        """
+        {
+          "type": "object",
+          "properties": { "id": { "type": "string" } }
+        }
+        """);
+  }
+
+  private static JsonNode resultSchema() throws Exception {
+    return MAPPER.readTree(
+        """
+        {
+          "type": "object",
+          "properties": {
+            "commandType": { "type": "string" },
+            "executionId": { "type": "string" },
+            "orderId": { "type": "string" },
+            "processInstanceId": { "type": "string" },
+            "executionNumber": { "type": "string" },
+            "taskId": { "type": "string" }
+          },
+          "required": ["executionId", "orderId"]
+        }
+        """);
+  }
+
+  private static RequirementBrief unknownTargetBrief() {
+    return new RequirementBrief(
+            "goal", List.of(), List.of(), List.of(), List.of(), "summary")
+        .withMappingIntents(List.of(unknownTargetIntent()));
+  }
+
+  private static RequirementBrief rewordedUnknownTargetBrief() {
+    MappingIntent original = unknownTargetIntent();
+    List<MappingIntentRule> rules =
+        List.of(
+            original.rules().getFirst(),
+            new MappingIntentRule(
+                "$.executionId",
+                "$.preserved.executionId",
+                "keep the correlation id for the response",
+                MappingRuleStatus.PROPOSED));
+    return new RequirementBrief(
+            "reworded goal", List.of(), List.of(), List.of(), List.of(), "reworded summary")
+        .withMappingIntents(
+            List.of(
+                new MappingIntent(
+                    original.mappingIntentId(),
+                    original.sourceRef(),
+                    original.sourcePort(),
+                    original.targetRef(),
+                    original.targetPort(),
+                    rules)));
+  }
+
+  private static RequirementBrief validRepairWithAmbiguousBindings() {
+    return validContextPreservingBrief()
+        .withCatalogBindings(
+            List.of(catalogBinding("node-call", "op-1"), catalogBinding("node-call", "new-op")));
+  }
+
+  private static CatalogBindingHint catalogBinding(String interactionId, String operationId) {
+    return new CatalogBindingHint(
+        CatalogBindingHint.SCHEMA_VERSION,
+        interactionId,
+        interactionId,
+        "Create task",
+        "system-1",
+        "group-1",
+        "specification-1",
+        operationId,
+        "http",
+        "POST",
+        "/tasks",
+        "2024.4",
+        FIXED,
+        "catalog-evidence");
+  }
+
+  private static RequirementBrief validContextPreservingBrief() {
+    MappingIntent request =
+        new MappingIntent(
+            "salesforce-create-task",
+            "trigger-http",
+            MappingPort.OUTPUT,
+            "node-call",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    "$.subject", "$.Subject", null, MappingRuleStatus.PROPOSED)));
+    List<MappingIntentRule> contextRules =
+        List.of(
+            new MappingIntentRule("$.executionId", "$.executionId", null),
+            new MappingIntentRule("$.orderId", "$.orderId", null),
+            new MappingIntentRule("$.processInstanceId", "$.processInstanceId", null),
+            new MappingIntentRule("$.executionNumber", "$.executionNumber", null),
+            new MappingIntentRule("$.taskId", "$.taskId", null));
+    MappingIntent response =
+        new MappingIntent(
+            "return-context",
+            "call-1",
+            MappingPort.RESPONSE,
+            "result-call",
+            MappingPort.REQUEST,
+            contextRules,
+            "SCRIPT");
+    return new RequirementBrief(
+            "preserve independent correlation context",
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            "create the task and preserve correlation context")
+        .withMappingIntents(List.of(request, response));
+  }
+
+  private static MappingIntent unknownTargetIntent() {
+    return new MappingIntent(
+        "salesforce-create-task",
+        "trigger-http",
+        MappingPort.OUTPUT,
+        "node-call",
+        MappingPort.REQUEST,
+        List.of(
+            new MappingIntentRule("$.subject", "$.Subject", null, MappingRuleStatus.PROPOSED),
+            new MappingIntentRule(
+                "$.executionId",
+                "$.preserved.executionId",
+                "preserve for response",
+                MappingRuleStatus.PROPOSED)));
+  }
+
+  private static ChainSemanticRevision revisionWith(MappingIntent intent) {
+    return revisionWith(List.of(intent));
+  }
+
+  private static ChainSemanticRevision revisionWith(List<MappingIntent> intents) {
+    return SemanticFixtures.linear(
+        "Orders",
+        "revision-orders",
+        "trigger-http",
+        "node-call",
+        "call-1",
+        "createOrder",
+        "Orders API",
+        intents,
+        List.of("Preserve trace identifiers"));
+  }
+
+  private static ChainPlanGraph sampleGraph() {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection("id", "Orders"),
+        List.of(
+            new ChainPlanNode("trigger-http", "http-trigger", "Trigger", null, 1, List.of()),
+            new ChainPlanNode("node-call", "service-call", "Call", null, 2, List.of())),
+        List.of());
+  }
+
+  private static ResolvedServiceCallBinding sampleBinding() {
+    return new ResolvedServiceCallBinding(
+        "node-call",
+        "call-1",
+        "INTEGRATION",
+        "sys-1",
+        "sg-1",
+        "spec-1",
+        "op-1",
+        "http",
+        "POST",
+        "/orders",
+        "createOrder",
+        ResolvedServiceCallBinding.Source.EXISTING_CATALOG,
+        "2024.4",
+        "evidence-call-1",
+        "");
+  }
+
+  private static ResolvedCompilerDag scriptGeneratorDag() {
+    GraphPatchOwnershipPolicy scriptOwnership =
+        new GraphPatchOwnershipPolicy(
+            false, false, Set.of(), Set.of(), Map.of("script", Set.of("script")));
+    return new ResolvedCompilerDag(
+        List.of(
+            new ResolvedCompilerNode(
+                "cip-script-generator",
+                "Implementation",
+                null,
+                List.of(SkillArtifactType.CHAIN_PLAN_GRAPH.name()),
+                List.of(SkillArtifactType.GRAPH_PATCH.name()),
+                List.of(),
+                "captureGraphPatch",
+                List.of(),
+                List.of(),
+                true,
+                List.of(),
+                0,
+                0,
+                true,
+                CompilerNodeExecutionMode.LLM_SKILL,
+                null,
+                scriptOwnership)),
+        List.of(),
+        "dag-script");
+  }
+
+  private static RunManifest emptySourceReferencesManifest(ResolvedCompilerDag dag) {
+    CompilerRunPin pin =
+        new CompilerRunPin(
+            "compiler",
+            "1",
+            "pkg-digest",
+            1,
+            "1",
+            CATALOG_HASH,
+            dag,
+            List.of("cip-script-generator"),
+            Map.of("cip-script-generator", SKILL_HASH),
+            Map.of("cip-script-generator", ADDON_HASH),
+            List.of(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
+    return new RunManifest(
+        RUN_ID,
+        null,
+        List.of(),
+        "product",
+        "create-chain",
+        "2",
+        "profile-sha",
+        "baseline",
+        "baseline-digest",
+        List.of(),
+        "closure",
+        new KnowledgePackageRef(
+            "knowledge-1",
+            "1",
+            "1.0.0",
+            "checksum",
+            "CERTIFIED",
+            "sha256:certificate"),
+        "24.4",
+        List.of(),
+        pin);
+  }
+
+  private static DesignExecutionPlan samplePlan() {
+    return new DesignExecutionPlan(
+        "1",
+        "revision-orders",
+        "cip-design-planner",
+        "chain-semantic-revision/revision-orders",
+        "design-input-hash",
+        "2024.4",
+        ApprovalPolicy.CATALOG_FIRST_V1,
+        List.of(
+            new DesignExecutionPlan.Step(
+                "step-1-cip-script-generator",
+                1,
+                "Step 1",
+                DesignExecutionPlan.OwnerKind.SKILL,
+                List.of("cip-script-generator"),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of("GRAPH_PATCH_ARTIFACT"))),
+        "design-plan-report",
+        "report-content-hash",
+        Map.of("cip-script-generator", SKILL_HASH),
+        Map.of("cip-script-generator", ADDON_HASH),
+        CATALOG_HASH,
+        ApprovalPolicy.CATALOG_FIRST_V1_HASH);
+  }
+
+  private static CompilerSkillContextBuilder contextBuilder() {
+    CipKnowledgePackRepository repository = mock(CipKnowledgePackRepository.class);
+    CompilerSkillAddonRepository addonRepository = mock(CompilerSkillAddonRepository.class);
+    when(addonRepository.loadForSkill(any())).thenReturn(CompilerSkillAddonContext.empty());
+    when(repository.loadCompilerGeneratorSpecIndex())
+        .thenReturn(new CompilerGeneratorSpecIndex(List.of()));
+    when(repository.loadCompilerSkillCatalog()).thenReturn(new CompilerSkillCatalog(List.of()));
+    return new CompilerSkillContextBuilder(
+        MAPPER,
+        repository,
+        addonRepository,
+        mock(CompilerSkillRuntimeEligibility.class),
+        mock(KnowledgeClient.class),
+        mock(KnowledgeContextProvider.class));
+  }
+
+  private static final class MustNotRunScriptExecutor implements SkillExecutor {
+    @Override
+    public String skillId() {
+      return "cip-script-generator";
+    }
+
+    @Override
+    public SkillExecutorKind kind() {
+      return SkillExecutorKind.AGENT;
+    }
+
+    @Override
+    public Set<SkillArtifactType> requiredInputs() {
+      return Set.of(SkillArtifactType.CHAIN_PLAN_GRAPH);
+    }
+
+    @Override
+    public Set<SkillArtifactType> outputTypes() {
+      return Set.of(SkillArtifactType.GRAPH_PATCH);
+    }
+
+    @Override
+    public Uni<SkillExecutionResult> run(SkillRunContext context, SkillWorkspace workspace) {
+      throw new AssertionError("mapping contract must block before the script generator runs");
+    }
+  }
+}

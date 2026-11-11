@@ -42,8 +42,8 @@ public class MicroserviceRestTemplateAutoConfiguration {
         return builder
                 .requestFactory(getClientHttpRequestFactorySupplier())
                 .errorHandler(restTemplateMsResponseErrorHandler)
-                .setConnectTimeout(Duration.ofMillis(60_000))
-                .setReadTimeout(Duration.ofMillis(60_000))
+                .connectTimeout(Duration.ofMillis(60_000))
+                .readTimeout(Duration.ofMillis(60_000))
                 .build();
     }
 

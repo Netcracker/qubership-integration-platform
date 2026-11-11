@@ -1,0 +1,75 @@
+package org.qubership.integration.platform.ai.productpipeline.stage;
+
+import java.time.Duration;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
+
+/**
+ * Terminal decision of one stage-module invocation. Flow applies lifecycle transitions. The stage
+ * module never selects the next stage, sleeps, or recurses.
+ */
+public sealed interface StageDecision {
+
+  String stageId();
+
+  record Continue(String stageId) implements StageDecision {}
+
+  record WaitForInput(String stageId, String prompt) implements StageDecision {
+
+    public WaitForInput {
+      prompt = prompt == null ? "" : prompt;
+    }
+  }
+
+  record WaitForApproval(
+      String stageId, CompilationArtifacts.Reference candidate, String prompt)
+      implements StageDecision {
+
+    public WaitForApproval {
+      prompt = prompt == null ? "" : prompt;
+    }
+  }
+
+  record WaitForImplementation(String stageId, String approvedPlanContentHash)
+      implements StageDecision {
+
+    public WaitForImplementation {
+      approvedPlanContentHash = approvedPlanContentHash == null ? "" : approvedPlanContentHash;
+    }
+  }
+
+  record Retry(String stageId, Duration delay, boolean technicalRetry) implements StageDecision {
+
+    public Retry(String stageId, Duration delay) {
+      this(stageId, delay, false);
+    }
+
+    public Retry {
+      delay = delay == null ? Duration.ZERO : delay;
+    }
+  }
+
+  /**
+   * Reopen the producer of a rejected upstream artifact. {@code stageId} is the observing stage;
+   * {@code producerStageId} is the stage that must emit a replacement. {@code authorNote} is the
+   * plain-language reason shown above the approval that follows the repair.
+   */
+  record ReopenProducer(String stageId, String producerStageId, String authorNote)
+      implements StageDecision {
+
+    public ReopenProducer {
+      producerStageId = producerStageId == null ? "" : producerStageId;
+      authorNote = authorNote == null ? "" : authorNote;
+    }
+
+    public ReopenProducer(String stageId, String producerStageId) {
+      this(stageId, producerStageId, "");
+    }
+  }
+
+  record Fail(String stageId, StageOutcomeClass outcomeClass, String message)
+      implements StageDecision {}
+
+  record Complete(String stageId, RunStatus status) implements StageDecision {}
+}

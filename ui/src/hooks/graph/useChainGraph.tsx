@@ -6,6 +6,7 @@ import {
   EdgeChange,
   Node,
   NodeChange,
+  OnNodeDrag,
   useEdgesState,
   useNodesState,
   useReactFlow,
@@ -388,6 +389,18 @@ const resolveSiblingOverlapsAfterResize = (
 
 export const useChainGraph = () => {
   const chainContext = useContext(ChainContext);
+  const finishDragRef = useRef<(() => void) | undefined>();
+  useEffect(() => () => finishDragRef.current?.(), []);
+  const guardLocalWrite =
+    <Args extends unknown[]>(operation: (...args: Args) => Promise<void>) =>
+    async (...args: Args) => {
+      const finish = chainContext?.beginLocalOperation?.();
+      try {
+        await operation(...args);
+      } finally {
+        finish?.();
+      }
+    };
   const { screenToFlowPosition, getIntersectingNodes } =
     useReactFlow<Node<ChainGraphNodeData>>();
   const { libraryElements, isLibraryLoading } = useLibraryContext();
@@ -1297,8 +1310,8 @@ export const useChainGraph = () => {
     ],
   );
 
-  const handleDragInteraction = useCallback(
-    (_: React.MouseEvent, draggedNode: ChainGraphNode) => {
+  const handleDragInteraction = useCallback<OnNodeDrag<ChainGraphNode>>(
+    (_event, draggedNode) => {
       scheduleHoverVisuals(() => draggedNode);
     },
     [scheduleHoverVisuals],
@@ -1330,7 +1343,7 @@ export const useChainGraph = () => {
 
   const onNodeDragStop = useCallback(
     async (
-      _event: React.MouseEvent,
+      _event: Parameters<OnNodeDrag<ChainGraphNode>>[0],
       draggedNode: ChainGraphNode,
       draggedNodes?: ChainGraphNode[],
     ) => {
@@ -1483,15 +1496,28 @@ export const useChainGraph = () => {
     edges,
     setEdges,
     decorativeEdges,
-    onConnect,
+    onConnect: guardLocalWrite(onConnect),
     onDragOver,
-    onDrop,
-    onDelete,
+    onDrop: guardLocalWrite(onDrop),
+    onDelete: guardLocalWrite(onDelete),
     onEdgesChange,
     onNodesChange,
-    onNodeDragStart: handleDragInteraction,
+    onNodeDragStart: (...args: Parameters<typeof handleDragInteraction>) => {
+      finishDragRef.current?.();
+      finishDragRef.current = chainContext?.beginLocalOperation?.();
+      handleDragInteraction(...args);
+    },
     onNodeDrag: handleDragInteraction,
-    onNodeDragStop,
+    onNodeDragStop: guardLocalWrite(
+      async (...args: Parameters<typeof onNodeDragStop>) => {
+        try {
+          await onNodeDragStop(...args);
+        } finally {
+          finishDragRef.current?.();
+          finishDragRef.current = undefined;
+        }
+      },
+    ),
     direction,
     toggleDirection,
     updateNodeData,

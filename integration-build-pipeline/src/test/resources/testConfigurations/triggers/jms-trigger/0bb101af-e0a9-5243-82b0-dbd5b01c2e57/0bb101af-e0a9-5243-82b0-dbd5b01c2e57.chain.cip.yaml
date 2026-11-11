@@ -1,0 +1,54 @@
+---
+id: 0bb101af-e0a9-5243-82b0-dbd5b01c2e57
+$schema: http://qubership.org/schemas/product/qip/chain
+name: jms-trigger-topic
+content:
+  labels: []
+  elements:
+  - id: bfcf682a-cca9-5500-9b11-a22feada622c
+    name: JMS Trigger first
+    type: jms-trigger
+    properties:
+      acknowledgmentMode: AUTO_ACKNOWLEDGE
+      initialContextFactory: org.qubership.integration.platform.engine.routes.fixture.SnapshotJmsInitialContextFactory
+      providerUrl: snapshot:jms-trigger
+      connectionFactoryName: jms/BulkQuotationRequest/connectionfactory
+      destinationName: jms/snapshot/topic
+      destinationType: topic
+      username: snapshot
+      password: snapshot
+  - id: f203e41e-e6c3-57b1-94fe-8cb2700e9691
+    name: Process first subscription
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: f203e41e-e6c3-57b1-94fe-8cb2700e9691.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  - id: 7e542d78-76bd-50f0-9b7d-69085283b30c
+    name: JMS Trigger second
+    type: jms-trigger
+    properties:
+      acknowledgmentMode: AUTO_ACKNOWLEDGE
+      initialContextFactory: org.qubership.integration.platform.engine.routes.fixture.SnapshotJmsInitialContextFactory
+      providerUrl: snapshot:jms-trigger
+      connectionFactoryName: jms/BulkQuotationRequest/connectionfactory
+      destinationName: jms/snapshot/topic
+      destinationType: topic
+      username: snapshot
+      password: snapshot
+  - id: b7806056-8337-5428-8e01-4880f76fadf7
+    name: Process second subscription
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: b7806056-8337-5428-8e01-4880f76fadf7.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: bfcf682a-cca9-5500-9b11-a22feada622c
+    to: f203e41e-e6c3-57b1-94fe-8cb2700e9691
+  - from: 7e542d78-76bd-50f0-9b7d-69085283b30c
+    to: b7806056-8337-5428-8e01-4880f76fadf7
+  deployments:
+  - domain: default
+  deployAction: DEPLOY
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

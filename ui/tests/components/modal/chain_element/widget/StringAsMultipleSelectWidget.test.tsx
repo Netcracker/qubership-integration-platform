@@ -31,8 +31,8 @@ describe("StringAsMultipleSelectWidget", () => {
       />,
     );
 
-    // tagRender uppercases each selected value into a qip-method-tag.
-    const tags = container.querySelectorAll(".qip-method-tag");
+    // tagRender uppercases each selected value into a cip-method-tag.
+    const tags = container.querySelectorAll(".cip-method-tag");
     expect(tags).toHaveLength(2);
     expect(screen.getByText("GET")).toBeInTheDocument();
     expect(screen.getByText("POST")).toBeInTheDocument();
@@ -51,7 +51,7 @@ describe("StringAsMultipleSelectWidget", () => {
       />,
     );
 
-    const tag = container.querySelector(".qip-method-tag");
+    const tag = container.querySelector(".cip-method-tag");
     expect(tag).not.toBeNull();
 
     const mouseDown = createEvent.mouseDown(tag as Element);
@@ -91,7 +91,7 @@ describe("StringAsMultipleSelectWidget", () => {
     );
 
     // Non-method branch: options = [] and the plain tag renderer is used.
-    expect(container.querySelector(".qip-method-tag")).toBeNull();
+    expect(container.querySelector(".cip-method-tag")).toBeNull();
     expect(screen.getByText("alpha")).toBeInTheDocument();
 
     openSelect(container);

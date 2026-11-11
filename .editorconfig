@@ -37,5 +37,9 @@ indent_style = tab
 switch_case_indent = true
 space_redirects = true
 
+[mvnw]
+# Keep the generated Maven wrapper's upstream indentation.
+indent_size = 2
+
 [Makefile]
 indent_style = tab

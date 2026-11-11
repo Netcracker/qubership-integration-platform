@@ -1,0 +1,25 @@
+---
+id: "f7cad007-cad4-4416-a1fc-6586387070c0"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "scheduler"
+content:
+  labels: []
+  elements:
+  - id: "4f2a9575-3501-4ca8-9d2c-e50f3eab9532"
+    name: "Script"
+    type: "script"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesFilename: "4f2a9575-3501-4ca8-9d2c-e50f3eab9532.element.script.cip.groovy"
+      propertiesToExportInSeparateFile: "script"
+  - id: "93468365-eb30-49f5-9077-cbe535f5edd3"
+    name: "Scheduler"
+    type: "quartz-scheduler"
+    properties:
+      cron: "0/1 * * ? * *"
+      deleteJob: false
+  dependencies:
+  - from: "93468365-eb30-49f5-9077-cbe535f5edd3"
+    to: "4f2a9575-3501-4ca8-9d2c-e50f3eab9532"
+  deployAction: "SNAPSHOT"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

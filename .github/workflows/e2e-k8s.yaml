@@ -1,0 +1,42 @@
+---
+
+name: E2E K8s
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      workers:
+        description: Playwright workers (E2E_WORKERS); empty uses the nightly value
+        required: false
+        type: string
+      email-to:
+        description: Comma-separated addresses to email the run to; empty sends no email
+        required: false
+        type: string
+        default: ""
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+permissions: {}
+
+jobs:
+  # The steps live in _e2e-kind.yaml, which the pull request jobs of e2e-pr.yaml call per lane.
+  e2e:
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+    uses: ./.github/workflows/_e2e-kind.yaml
+    with:
+      name: Full suite on kind
+      workers: ${{ inputs.workers }}
+      timeout-minutes: 180
+      global-timeout: 140
+    # The recipients go as a secret, so the runner masks them in every step header.
+    # A scheduled run mails vars.EMAIL_TO, a dispatched one only the addresses it names.
+    secrets:
+      EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+      EMAIL_TO: ${{ github.event_name == 'schedule' && vars.EMAIL_TO || inputs.email-to }}

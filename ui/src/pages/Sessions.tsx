@@ -1,4 +1,4 @@
-import { Table } from "antd";
+import { Alert, Table } from "antd";
 import React, {
   useCallback,
   useEffect,
@@ -32,8 +32,8 @@ import { downloadFile } from "../misc/download-utils.ts";
 import { ImportSessions } from "../components/modal/ImportSessions.tsx";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import { TablePageLayout } from "../components/TablePageLayout.tsx";
-import { filterOutByIds, toStringIds } from "../misc/selection-utils.ts";
-import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
+import { toStringIds } from "../misc/selection-utils.ts";
+import { ChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
 import { confirmAndRun } from "../misc/confirm-utils.ts";
 import { ProtectedButton } from "../permissions/ProtectedButton.tsx";
 import {
@@ -41,12 +41,17 @@ import {
   useColumnSettingsBasedOnColumnsType,
 } from "../components/table/useColumnSettingsButton.tsx";
 import { tableScroll } from "../components/table/tableScroll.ts";
-import { useTableConfiguration } from "../components/table/useTableConfiguration.tsx";
+import {
+  EXPAND_COLUMN_WIDTH,
+  SELECTION_COLUMN_WIDTH,
+  useTableConfiguration,
+} from "../components/table/useTableConfiguration.tsx";
 import { tableEmpty } from "../components/table/tableEmpty.tsx";
 import commonStyles from "../components/admin_tools/CommonStyle.module.css";
 import { TableToolbar } from "../components/table/TableToolbar.tsx";
 import { AdminToolsHeader } from "../components/admin_tools/AdminToolsHeader.tsx";
 import { useSessionsFilter } from "../hooks/filter/useSessionsFilter.ts";
+import { getConfig, onConfigChange } from "../appConfig.ts";
 
 type SessionWithCheckpoints = Session & {
   checkpoints?: Checkpoint[];
@@ -80,10 +85,6 @@ function groupBy<T, K>(array: T[], getKey: (item: T) => K): Map<K, T[]> {
   }, new Map<K, T[]>());
 }
 
-/** rc-table expand column when rows have nested `children`. */
-const SESSIONS_EXPAND_COLUMN_WIDTH = 48;
-const SESSIONS_SELECTION_COLUMN_WIDTH = 48;
-
 const INITIAL_PAGE_COUNT = 2;
 
 export const SESSIONS_LOAD_SENTINEL_TEST_ID = "sessions-load-sentinel";
@@ -107,6 +108,20 @@ export const Sessions: React.FC<SessionsProps> = ({
   const { filters, filterButton } = useSessionsFilter(chainId);
   const notificationService = useNotificationService();
   const tableWrapperRef = useRef<HTMLDivElement>(null);
+  // A filter, a search, or a refresh can start a load while another is in flight. Only the newest may write.
+  const requestGenerationRef = useRef(0);
+  const [isOpensearchKafkaEnabled, setIsOpensearchKafkaEnabled] =
+    useState<boolean>(false);
+
+  useEffect(() => {
+    const updateOpensearchKafkaEnabled = (
+      cfg: ReturnType<typeof getConfig>,
+    ) => {
+      setIsOpensearchKafkaEnabled(!!cfg.opensearchKafkaEnabled);
+    };
+    updateOpensearchKafkaEnabled(getConfig());
+    return onConfigChange((config) => updateOpensearchKafkaEnabled(config));
+  }, []);
 
   const tableData = useMemo<SessionTableItem[]>(() => {
     const rowMap = new Map<string, SessionTableItem>(
@@ -188,6 +203,8 @@ export const Sessions: React.FC<SessionsProps> = ({
   const fetchSessions = useCallback(
     async (initialOffset: number) => {
       const isInitialLoad = initialOffset === 0;
+      const generation = ++requestGenerationRef.current;
+      const isCurrent = () => generation === requestGenerationRef.current;
       setIsLoading(true);
       try {
         const pagesToFetch = isInitialLoad ? INITIAL_PAGE_COUNT : 1;
@@ -210,7 +227,8 @@ export const Sessions: React.FC<SessionsProps> = ({
           }
         }
 
-        const checkpointSessionsLists = await Promise.all(
+        // A failed domain, such as a deleted micro domain, leaves its sessions without checkpoints.
+        const checkpointSessionsLists = await Promise.allSettled(
           Array.from(groupBy(fetched, (s) => s.domain).entries()).map(
             ([domainName, sessions]) => {
               const domainType = sessions[0].domainType;
@@ -222,7 +240,9 @@ export const Sessions: React.FC<SessionsProps> = ({
           ),
         );
         const checkpointSessions: CheckpointSession[] =
-          checkpointSessionsLists.flat();
+          checkpointSessionsLists.flatMap((result) =>
+            result.status === "fulfilled" ? result.value : [],
+          );
         const checkpointsById = new Map<string, Checkpoint[]>();
         checkpointSessions.forEach((cs) =>
           checkpointsById.set(cs.id, cs.checkpoints),
@@ -231,6 +251,7 @@ export const Sessions: React.FC<SessionsProps> = ({
           ...s,
           checkpoints: checkpointsById.get(s.id),
         }));
+        if (!isCurrent()) return;
 
         setSessions((prev) =>
           isInitialLoad ? withCheckpoints : [...prev, ...withCheckpoints],
@@ -238,10 +259,11 @@ export const Sessions: React.FC<SessionsProps> = ({
         setOffset(currentOffset);
         setAllSessionsLoaded(reachedEnd);
       } catch (error) {
+        if (!isCurrent()) return;
         notificationService.requestFailed("Failed to fetch sessions", error);
         setAllSessionsLoaded(true);
       } finally {
-        setIsLoading(false);
+        if (isCurrent()) setIsLoading(false);
       }
     },
     [chainId, filterAndSearchRequest, notificationService],
@@ -422,8 +444,8 @@ export const Sessions: React.FC<SessionsProps> = ({
       engineAddress: 150,
     },
     {
-      expandColumnWidth: SESSIONS_EXPAND_COLUMN_WIDTH,
-      selectionColumnWidth: SESSIONS_SELECTION_COLUMN_WIDTH,
+      expandColumnWidth: EXPAND_COLUMN_WIDTH,
+      selectionColumnWidth: SELECTION_COLUMN_WIDTH,
     },
     sessionsColumnSettingsKey,
   );
@@ -443,9 +465,15 @@ export const Sessions: React.FC<SessionsProps> = ({
     sentinel.style.height = "1px";
     root.appendChild(sentinel);
 
+    // The load effect below runs after this one, so a filter or search that starts a load leaves this offset
+    // behind. The observer can still fire after that, and its append must not supersede the new load.
+    const generation = requestGenerationRef.current;
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
+        if (
+          generation === requestGenerationRef.current &&
+          entries.some((entry) => entry.isIntersecting)
+        ) {
           void fetchSessions(offset);
         }
       },
@@ -459,26 +487,31 @@ export const Sessions: React.FC<SessionsProps> = ({
     };
   }, [isLoading, allSessionsLoaded, offset, fetchSessions]);
 
+  // A correlation group row is not a session, so its key stays out of the selection.
   const onSelectChange = (newSelectedRowKeys: React.Key[]) => {
-    setSelectedRowKeys(newSelectedRowKeys);
+    const sessionIds = new Set(sessions.map((session) => session.id));
+    setSelectedRowKeys(
+      newSelectedRowKeys.filter((key) => sessionIds.has(String(key))),
+    );
   };
 
   const hasSelection = selectedRowKeys.length > 0;
 
+  const onRefreshSessions = useCallback(() => {
+    setSelectedRowKeys([]);
+    void fetchSessions(0);
+  }, [fetchSessions]);
+
   const deleteSelectedSessions = useCallback(async () => {
     try {
-      const ids = toStringIds(selectedRowKeys);
-      if (selectedRowKeys.length === sessions.length) {
-        await api.deleteSessionsByChainId(chainId);
-        setSessions([]);
-      } else {
-        await api.deleteSessions(ids);
-        setSessions((prevSessions) => filterOutByIds(prevSessions, ids));
-      }
+      await api.deleteSessions(toStringIds(selectedRowKeys));
     } catch (error) {
       notificationService.requestFailed("Failed to delete sessions", error);
+      return;
     }
-  }, [selectedRowKeys, sessions.length, chainId, notificationService]);
+    // The server pages by position, so the list reloads from the start to reach the sessions that remain.
+    onRefreshSessions();
+  }, [selectedRowKeys, notificationService, onRefreshSessions]);
 
   const onDeleteBtnClick = useCallback(() => {
     if (!hasSelection) return;
@@ -514,11 +547,6 @@ export const Sessions: React.FC<SessionsProps> = ({
       ),
     });
   }, [showModal]);
-
-  const onRefreshSessions = useCallback(() => {
-    setSelectedRowKeys([]);
-    void fetchSessions(0);
-  }, [fetchSessions]);
 
   const rowSelection: TableRowSelection<SessionTableItem> = {
     type: "checkbox",
@@ -557,6 +585,7 @@ export const Sessions: React.FC<SessionsProps> = ({
           require={{ session: ["delete"] }}
           tooltipProps={{ title: "Delete selected sessions" }}
           buttonProps={{
+            "data-testid": "sessions-delete",
             iconName: "delete",
             onClick: onDeleteBtnClick,
             disabled: !hasSelection,
@@ -587,7 +616,6 @@ export const Sessions: React.FC<SessionsProps> = ({
           value: searchString,
           onChange: setSearchString,
           placeholder: "Search sessions...",
-          allowClear: true,
         }}
         filterButton={filterButton}
         columnSettingsButton={columnSettingsButton}
@@ -601,18 +629,6 @@ export const Sessions: React.FC<SessionsProps> = ({
       columnSettingsButton,
       sessionsToolbarActions,
       onRefreshSessions,
-      isLoading,
-    ],
-  );
-
-  useRegisterChainHeaderActions(
-    variant === "chain-tab" ? sessionsToolbar : undefined,
-    [
-      searchString,
-      chainId,
-      selectedRowKeys,
-      onRefreshSessions,
-      variant,
       isLoading,
     ],
   );
@@ -652,15 +668,23 @@ export const Sessions: React.FC<SessionsProps> = ({
     <>
       {variant === "admin-page" ? (
         <Flex vertical className={commonStyles.container}>
-          <AdminToolsHeader
-            title="Sessions"
-            iconName="snippets"
-            toolbar={sessionsToolbar}
-          />
+          <AdminToolsHeader title="Sessions" toolbar={sessionsToolbar} />
+          {!isOpensearchKafkaEnabled && (
+            <Alert
+              type="warning"
+              showIcon
+              title={
+                "In-memory sessions queue is configured in this environment. Please configure kafka sessions streaming."
+              }
+            />
+          )}
           {sessionsTable}
         </Flex>
       ) : (
-        sessionsTable
+        <>
+          <ChainHeaderActions>{sessionsToolbar}</ChainHeaderActions>
+          {sessionsTable}
+        </>
       )}
     </>
   );

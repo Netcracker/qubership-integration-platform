@@ -1,0 +1,81 @@
+caseId: cip-auth-generator-not-applicable
+skillId: cip-auth-generator
+expectedApplicability: NOT_APPLICABLE
+requirementBrief:
+  goal: Call a backend with M2M authentication.
+  inputs: []
+  constraints: []
+  assumptions: []
+  citations: []
+  summary: Call a backend with M2M authentication.
+  approvedDraftReference: approved-draft-cip-auth-generator-not-applicable
+  approvedDraftText: Call a backend with M2M authentication.
+  facts: []
+upstreamArtifacts:
+  CHAIN_STRUCTURE:
+    schemaVersion: 1
+inputGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Auth.Demo.Get
+    description: Call backend with M2M auth.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: http-trigger-1
+      type: http-trigger
+      label: GET /orders
+      parentNodeId: null
+      order: null
+      properties:
+        - key: externalRoute
+          value: "false"
+    - nodeId: service-call-1
+      type: service-call
+      label: Call orders
+      parentNodeId: null
+      order: null
+      properties:
+        []
+  edges:
+    - edgeId: trigger-to-call
+      fromNodeId: http-trigger-1
+      toNodeId: service-call-1
+      scopeNodeId: null
+capturedPatch:
+  patchId: cip-auth-generator-no-changes
+  ownerCapabilityId: cip-auth-generator
+  nodePatches: []
+  edgePatches: []
+  propertyPatches: []
+  chainPatches: []
+  usedKnowledgeRefs: []
+  rationale: No patch required for this requirement.
+expectedGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Auth.Demo.Get
+    description: Call backend with M2M auth.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: http-trigger-1
+      type: http-trigger
+      label: GET /orders
+      parentNodeId: null
+      order: null
+      properties:
+        - key: externalRoute
+          value: "false"
+    - nodeId: service-call-1
+      type: service-call
+      label: Call orders
+      parentNodeId: null
+      order: null
+      properties:
+        []
+  edges:
+    - edgeId: trigger-to-call
+      fromNodeId: http-trigger-1
+      toNodeId: service-call-1
+      scopeNodeId: null

@@ -1,6 +1,5 @@
-import { DependencyList, ReactNode, useMemo } from "react";
+import { ReactNode, useMemo } from "react";
 import { TableToolbar, TableToolbarVariant } from "../table/TableToolbar.tsx";
-import { useRegisterChainHeaderActions } from "../../pages/ChainHeaderActionsContext.tsx";
 
 type TestingListToolbarOptions = {
   variant: TableToolbarVariant;
@@ -13,17 +12,9 @@ type TestingListToolbarOptions = {
   filterButton?: ReactNode;
   columnSettingsButton?: ReactNode;
   actions: ReactNode;
-  /** A chain tab hands its toolbar to the chain header; an admin page renders it itself. */
-  registerInChainHeader: boolean;
-  /**
-   * The state the toolbar reads, not the toolbar node: the filter and column-settings
-   * buttons are fresh elements on every render, and depending on them would loop
-   * through the header's own re-render.
-   */
-  registerDependencies: DependencyList;
 };
 
-/** The toolbar every testing list page builds, and the chain-header registration that follows it. */
+/** The toolbar every testing list page builds. */
 export function useTestingListToolbar({
   variant,
   searchValue,
@@ -34,8 +25,6 @@ export function useTestingListToolbar({
   filterButton,
   columnSettingsButton,
   actions,
-  registerInChainHeader,
-  registerDependencies,
 }: TestingListToolbarOptions): ReactNode {
   const toolbar = useMemo(
     () => (
@@ -47,7 +36,6 @@ export function useTestingListToolbar({
           onChange: onSearchChange,
           onSearchConfirm,
           placeholder: searchPlaceholder,
-          allowClear: true,
         }}
         filterButton={filterButton}
         columnSettingsButton={columnSettingsButton}
@@ -65,11 +53,6 @@ export function useTestingListToolbar({
       columnSettingsButton,
       actions,
     ],
-  );
-
-  useRegisterChainHeaderActions(
-    registerInChainHeader ? toolbar : undefined,
-    registerDependencies,
   );
 
   return toolbar;

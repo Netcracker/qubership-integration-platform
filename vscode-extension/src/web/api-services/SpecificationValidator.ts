@@ -1,5 +1,5 @@
 import { ApiSpecificationType } from "../api-services/importApiTypes";
-import { QipSchemaType, getQipSchemaType } from "../services/qipSchemas";
+import { CipSchemaType, getCipSchemaType } from "../services/cipSchemas";
 import { FileParserService } from "../services/FileParserService";
 
 export class SpecificationValidator {
@@ -17,18 +17,18 @@ export class SpecificationValidator {
   }
 
   /**
-   * Gets QIP specification type
+   * Gets CIP specification type
    */
-  static async getQipSpecificationType(
+  static async getCipSpecificationType(
     file: File,
-  ): Promise<QipSchemaType | null> {
+  ): Promise<CipSchemaType | null> {
     try {
       if (!FileParserService.hasTextMethod(file)) {
         return null;
       }
 
       const { content } = await FileParserService.parseFileContent(file);
-      return getQipSchemaType(content.$schema);
+      return getCipSchemaType(content.$schema);
     } catch (error) {
       return null;
     }

@@ -93,7 +93,7 @@ Accessed via **Admin Tools → Audit**, the interface features a customizable ta
 - **Action Time** - datetime of the action. Time is being sorted the way that the last records are always on top by default.
 - **Initiator** - name of the user who performed operation.
 - **Operation** - type of the operation (Create, Update, Delete, etc.) with color bar additionally applied.
-- **Entity ID** - unique identifier of recorded entity. Column is hidden by default.
+- **Entity ID** - unique identifier of recorded entity. For the **Import** operation on a chain, it is the ID of the import session. Column is hidden by default.
 - **Entity Type** - type of the entity with respective icon.
 - **Entity Name** - reference to the entity that has been captured within the current operation. Reference won't operate if entity has been removed.
 - **Request ID** - unique identifier, that helps to identify if multiple operations were executed as a group. Column is hidden by default.
@@ -104,6 +104,7 @@ Accessed via **Admin Tools → Audit**, the interface features a customizable ta
 
 At the top of the table the following options are available:
 - **Search audit log** - search box, provides ability to find respective data in the table.
+- ![filter](img/filter.svg) - opens the **Filter** dialog. You can filter audit logs by **Action Time**, **Initiator**, **Operation**, **Entity Type**, **Entity Name**, **Parent Name**, **Entity Id**, **Parent Id**, and **Request Id**.
 - ![setting](img/setting.svg) - Column settings.
 - ![redo](img/redo.svg) - Refresh.
 - ![cloud-download](img/cloud-download.svg) - Export Action Logs.
@@ -131,3 +132,5 @@ Please refer to [logging page] for more details regarding data storage.
 ---
 
 Configuration is being done during the CIP installation with ACTION_LOG_CLEANUP_INTERVAL and ACTION_LOG_CLEANUP_CRON variables. Please refer to [Retention Settings](../../08__Features/3__Retention_Settings/readme.md) for more details.
+
+The import session an **Import** record points to is kept for the period set by IMPORT_LOG_LIFETIME_MINUTES (7 days by default), see [Import Sessions Retention](../../08__Features/3__Retention_Settings/readme.md#import-sessions-retention).

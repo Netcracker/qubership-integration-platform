@@ -25,14 +25,13 @@ export const MaasPageHeader: React.FC<MaasPageHeaderProps> = ({
       <Tooltip title="Explore declarative file for deployer">
         <span>
           <Button
+            aria-label="Export declarative file"
             size="small"
             icon={<OverridableIcon name="cloudDownload" />}
             loading={exportInProgress}
             disabled={exportInProgress || !isFormValid}
             onClick={onExport}
-          >
-            Export
-          </Button>
+          />
         </span>
       </Tooltip>
     </Flex>

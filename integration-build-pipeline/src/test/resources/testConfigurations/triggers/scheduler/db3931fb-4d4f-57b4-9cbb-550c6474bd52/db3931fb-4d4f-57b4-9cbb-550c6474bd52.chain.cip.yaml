@@ -1,0 +1,25 @@
+---
+id: db3931fb-4d4f-57b4-9cbb-550c6474bd52
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+name: scheduler-seven-field
+content:
+  labels: []
+  elements:
+  - id: cffb3cf1-4d4e-5f82-9138-ddf75084006b
+    name: Scheduler
+    type: quartz-scheduler
+    properties:
+      cron: 0/1 * * ? * * *
+      deleteJob: false
+  - id: 59cdb884-c82b-5329-b4b6-016814fb4fa6
+    name: Script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 59cdb884-c82b-5329-b4b6-016814fb4fa6.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: cffb3cf1-4d4e-5f82-9138-ddf75084006b
+    to: 59cdb884-c82b-5329-b4b6-016814fb4fa6
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

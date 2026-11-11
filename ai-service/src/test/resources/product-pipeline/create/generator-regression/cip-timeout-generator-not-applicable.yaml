@@ -1,0 +1,81 @@
+caseId: cip-timeout-generator-not-applicable
+skillId: cip-timeout-generator
+expectedApplicability: NOT_APPLICABLE
+requirementBrief:
+  goal: Apply descending timeout hierarchy.
+  inputs: []
+  constraints: []
+  assumptions: []
+  citations: []
+  summary: Apply descending timeout hierarchy.
+  approvedDraftReference: approved-draft-cip-timeout-generator-not-applicable
+  approvedDraftText: Apply descending timeout hierarchy.
+  facts: []
+upstreamArtifacts:
+  CHAIN_STRUCTURE:
+    schemaVersion: 1
+inputGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Timeout.Demo.Hierarchy
+    description: Apply descending timeouts.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: http-trigger-1
+      type: http-trigger
+      label: GET /orders
+      parentNodeId: null
+      order: null
+      properties:
+        - key: externalRoute
+          value: "false"
+    - nodeId: service-call-1
+      type: service-call
+      label: Call orders
+      parentNodeId: null
+      order: null
+      properties:
+        []
+  edges:
+    - edgeId: trigger-to-call
+      fromNodeId: http-trigger-1
+      toNodeId: service-call-1
+      scopeNodeId: null
+capturedPatch:
+  patchId: cip-timeout-generator-no-changes
+  ownerCapabilityId: cip-timeout-generator
+  nodePatches: []
+  edgePatches: []
+  propertyPatches: []
+  chainPatches: []
+  usedKnowledgeRefs: []
+  rationale: No patch required for this requirement.
+expectedGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Timeout.Demo.Hierarchy
+    description: Apply descending timeouts.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: http-trigger-1
+      type: http-trigger
+      label: GET /orders
+      parentNodeId: null
+      order: null
+      properties:
+        - key: externalRoute
+          value: "false"
+    - nodeId: service-call-1
+      type: service-call
+      label: Call orders
+      parentNodeId: null
+      order: null
+      properties:
+        []
+  edges:
+    - edgeId: trigger-to-call
+      fromNodeId: http-trigger-1
+      toNodeId: service-call-1
+      scopeNodeId: null

@@ -25,7 +25,7 @@ export const SourceFlagTag: React.FC<{
   const label = isProtocol ? key : capitalize(source);
   return (
     <Tag
-      className="qip-solid-tag"
+      className="cip-solid-tag"
       style={{
         background: color,
         color: "#fff",

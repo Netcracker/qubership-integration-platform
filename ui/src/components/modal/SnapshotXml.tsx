@@ -59,7 +59,7 @@ export const SnapshotXmlView: React.FC<SnapshotXmlViewProps> = ({
       loading={isLoading}
     >
       <Editor
-        className="qip-editor"
+        className="cip-editor"
         wrapperProps={{ "data-testid": "snapshot-xml-editor" }}
         defaultLanguage="xml"
         defaultValue={snapshot?.xmlDefinition}

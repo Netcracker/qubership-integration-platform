@@ -81,7 +81,7 @@ class JsonChainLoggerTest {
 
         try (MockedStatic<ErrorCodePrefix> mockedStatic = mockStatic(ErrorCodePrefix.class)) {
             mockedStatic.when(ErrorCodePrefix::getCodePrefix)
-                    .thenReturn("qip");
+                    .thenReturn("cip");
             jsonChainLogger.logError("Error occurred", exception, body, header, properties);
 
             LogstashMarker expectedMarker = buildExpectedErrorArgs(body, header, properties,
@@ -109,7 +109,7 @@ class JsonChainLoggerTest {
 
         try (MockedStatic<ErrorCodePrefix> mockedStatic = mockStatic(ErrorCodePrefix.class)) {
             mockedStatic.when(ErrorCodePrefix::getCodePrefix)
-                    .thenReturn("qip");
+                    .thenReturn("cip");
 
             jsonChainLogger.logErrorWithHttpParams("Validation error", errorCode, params, body, header, properties);
 
@@ -156,7 +156,7 @@ class JsonChainLoggerTest {
 
         try (MockedStatic<ErrorCodePrefix> mockedStatic = mockStatic(ErrorCodePrefix.class)) {
             mockedStatic.when(ErrorCodePrefix::getCodePrefix)
-                    .thenReturn("qip");
+                    .thenReturn("cip");
 
             jsonChainLogger.logFailedHttpOperation(body, header, properties, httpException, 30000L);
 
@@ -181,7 +181,7 @@ class JsonChainLoggerTest {
 
         try (MockedStatic<ErrorCodePrefix> mockedStatic = mockStatic(ErrorCodePrefix.class)) {
             mockedStatic.when(ErrorCodePrefix::getCodePrefix)
-                    .thenReturn("qip");
+                    .thenReturn("cip");
 
             jsonChainLogger.logFailedOperation(body, header, properties, exception, 100L);
 

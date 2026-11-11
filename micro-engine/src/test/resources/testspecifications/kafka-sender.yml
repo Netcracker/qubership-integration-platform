@@ -46,6 +46,7 @@ fixtures:
   deployment: kafka-sender-header-keys
 scenarios:
 - id: publishes-scalar-values-with-context-keys-and-routing
+  reuseBroker: true
   scope: Short
   deployment: kafka-sender
   endpointUri: cip-chain:20e7a133-e482-4ac0-afdf-26ae1f1f152d
@@ -95,7 +96,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: first
   - id: second
-    body: "Order received \u2014 caf\u00e9 \u2615"
+    body: "Order received - caf\u00e9"
     headers:
       Authorization: Bearer snapshot-second
       X-Request-Id: incoming-second
@@ -104,7 +105,7 @@ scenarios:
     properties:
       outboundRequestId: outgoing-second
       kafkaKey: "order-\u00e9-202"
-    expectedBody: "Order received \u2014 caf\u00e9 \u2615"
+    expectedBody: "Order received - caf\u00e9"
     expectedAbsentHeaders:
     - Authorization
     - X-Request-Id
@@ -118,7 +119,7 @@ scenarios:
       expectedRequest:
         count: 1
         destination: test-topic
-        body: "Order received \u2014 caf\u00e9 \u2615"
+        body: "Order received - caf\u00e9"
         headers:
           Authorization: null
           X-Request-Id: outgoing-second
@@ -1775,7 +1776,7 @@ scenarios:
       X-Long: 9223372036854775807
       X-Double: 3.25
       X-Boolean: true
-      X-Text: "caf\u00e9 \u2615"
+      X-Text: "caf\u00e9"
       X-Object:
         number: 42
       X-List:
@@ -1810,7 +1811,7 @@ scenarios:
           kafka.OVERRIDE_TOPIC: null
           kafka.OVERRIDE_TIMESTAMP: null
           X-Boolean: 'true'
-          X-Text: "caf\u00e9 \u2615"
+          X-Text: "caf\u00e9"
           X-Object: null
           X-List: null
           X-Null: null
@@ -1931,7 +1932,7 @@ scenarios:
       X-Long: 9223372036854775807
       X-Double: 3.25
       X-Boolean: true
-      X-Text: "caf\u00e9 \u2615"
+      X-Text: "caf\u00e9"
       X-Object:
         number: 42
       X-List:
@@ -1966,7 +1967,7 @@ scenarios:
           kafka.OVERRIDE_TOPIC: null
           kafka.OVERRIDE_TIMESTAMP: null
           X-Boolean: 'true'
-          X-Text: "caf\u00e9 \u2615"
+          X-Text: "caf\u00e9"
           X-Object: null
           X-List: null
           X-Null: null
@@ -2007,7 +2008,7 @@ scenarios:
       X-Long: 9223372036854775807
       X-Double: 3.25
       X-Boolean: true
-      X-Text: "caf\u00e9 \u2615"
+      X-Text: "caf\u00e9"
       X-Object:
         number: 42
       X-List:
@@ -2042,7 +2043,7 @@ scenarios:
           kafka.OVERRIDE_TOPIC: null
           kafka.OVERRIDE_TIMESTAMP: null
           X-Boolean: 'true'
-          X-Text: "caf\u00e9 \u2615"
+          X-Text: "caf\u00e9"
           X-Object: null
           X-List: null
           X-Null: null
@@ -2495,7 +2496,7 @@ scenarios:
       X-Long: 9223372036854775807
       X-Double: 3.25
       X-Boolean: true
-      X-Text: "caf\u00e9 \u2615"
+      X-Text: "caf\u00e9"
       X-Object:
         number: 42
       X-List:
@@ -2530,7 +2531,7 @@ scenarios:
           kafka.OVERRIDE_TOPIC: null
           kafka.OVERRIDE_TIMESTAMP: null
           X-Boolean: 'true'
-          X-Text: "caf\u00e9 \u2615"
+          X-Text: "caf\u00e9"
           X-Object: null
           X-List: null
           X-Null: null
@@ -2739,7 +2740,7 @@ scenarios:
       X-Long: 9223372036854775807
       X-Double: 3.25
       X-Boolean: true
-      X-Text: "caf\u00e9 \u2615"
+      X-Text: "caf\u00e9"
       X-Object:
         number: 42
       X-List:
@@ -2779,7 +2780,7 @@ scenarios:
           kafka.OVERRIDE_TOPIC: null
           kafka.OVERRIDE_TIMESTAMP: null
           X-Boolean: 'true'
-          X-Text: "caf\u00e9 \u2615"
+          X-Text: "caf\u00e9"
           X-Object: null
           X-List: null
           X-Null: null
@@ -2909,6 +2910,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: empty-batch
 - id: partitions-records-by-configured-and-header-keys
+  reuseBroker: true
   scope: Long
   deployment: kafka-sender
   endpointUri: cip-chain:20e7a133-e482-4ac0-afdf-26ae1f1f152d
@@ -3054,7 +3056,7 @@ scenarios:
       kafka.KEY: ignored-header-key
     properties:
       outboundRequestId: outgoing-configured-key-4
-      kafkaKey: "order-\u2615-202"
+      kafkaKey: "order-caf\u00e9-201"
     expectedBody: Automatic configured key 4
     expectedAbsentHeaders:
     - Authorization
@@ -3078,12 +3080,12 @@ scenarios:
           kafka.PARTITION_KEY: null
           kafka.OVERRIDE_TOPIC: null
           kafka.OVERRIDE_TIMESTAMP: null
-        key: "order-\u2615-202"
+        key: "order-caf\u00e9-201"
       response:
         properties:
           topicPartitions: 4
           expectedRecords:
-          - key: "order-\u2615-202"
+          - key: "order-caf\u00e9-201"
             partition: 0
             offset: 0
           verifyMetadata: true
@@ -3142,7 +3144,7 @@ scenarios:
       kafka.KEY: ignored-header-key
     properties:
       outboundRequestId: outgoing-configured-key-6
-      kafkaKey: "order-\u2615-202"
+      kafkaKey: "order-caf\u00e9-201"
     expectedBody: Automatic configured key 6
     expectedAbsentHeaders:
     - Authorization
@@ -3166,12 +3168,12 @@ scenarios:
           kafka.PARTITION_KEY: null
           kafka.OVERRIDE_TOPIC: null
           kafka.OVERRIDE_TIMESTAMP: null
-        key: "order-\u2615-202"
+        key: "order-caf\u00e9-201"
       response:
         properties:
           topicPartitions: 4
           expectedRecords:
-          - key: "order-\u2615-202"
+          - key: "order-caf\u00e9-201"
             partition: 0
             offset: 1
           verifyMetadata: true
@@ -3315,7 +3317,7 @@ scenarios:
       Authorization: Bearer snapshot-header-key-4
       X-Request-Id: incoming-header-key-4
       X-Snapshot-Header: header-key-4
-      kafka.KEY: "order-\u2615-202"
+      kafka.KEY: "order-caf\u00e9-201"
     properties:
       outboundRequestId: outgoing-header-key-4
       kafkaKey: ''
@@ -3342,12 +3344,12 @@ scenarios:
           kafka.PARTITION_KEY: null
           kafka.OVERRIDE_TOPIC: null
           kafka.OVERRIDE_TIMESTAMP: null
-        key: "order-\u2615-202"
+        key: "order-caf\u00e9-201"
       response:
         properties:
           topicPartitions: 4
           expectedRecords:
-          - key: "order-\u2615-202"
+          - key: "order-caf\u00e9-201"
             partition: 0
             offset: 2
           verifyMetadata: true
@@ -3403,7 +3405,7 @@ scenarios:
       Authorization: Bearer snapshot-header-key-6
       X-Request-Id: incoming-header-key-6
       X-Snapshot-Header: header-key-6
-      kafka.KEY: "order-\u2615-202"
+      kafka.KEY: "order-caf\u00e9-201"
     properties:
       outboundRequestId: outgoing-header-key-6
       kafkaKey: ''
@@ -3430,12 +3432,12 @@ scenarios:
           kafka.PARTITION_KEY: null
           kafka.OVERRIDE_TOPIC: null
           kafka.OVERRIDE_TIMESTAMP: null
-        key: "order-\u2615-202"
+        key: "order-caf\u00e9-201"
       response:
         properties:
           topicPartitions: 4
           expectedRecords:
-          - key: "order-\u2615-202"
+          - key: "order-caf\u00e9-201"
             partition: 0
             offset: 3
           verifyMetadata: true
@@ -3632,6 +3634,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: partition-original
 - id: publishes-values-from-iterator-and-recovers-after-invalid-or-empty-input
+  reuseBroker: true
   scope: Long
   deployment: kafka-sender
   driver:
@@ -4198,6 +4201,7 @@ scenarios:
             offset: 3
           expectedProduceAttempts: 1
 - id: publishes-scalar-and-batch-without-acknowledgments
+  reuseBroker: true
   scope: Long
   deployment: kafka-sender
   endpointUri: cip-chain:20e7a133-e482-4ac0-afdf-26ae1f1f152d
@@ -4327,12 +4331,13 @@ scenarios:
             partition: 0
             offset: 3
 - id: publishes-gzip-compressed-records
+  reuseBroker: true
   scope: Long
   deployment: kafka-sender
   endpointUri: cip-chain:20e7a133-e482-4ac0-afdf-26ae1f1f152d
   invocations:
   - id: gzip-scalar
-    body: "Compression payload | caf\u00e9 \u2615 | "
+    body: "Compression payload | caf\u00e9 | "
     headers:
       Authorization: Bearer snapshot-gzip-scalar
       X-Request-Id: incoming-gzip-scalar
@@ -4359,7 +4364,7 @@ scenarios:
       expectedRequest:
         count: 1
         destination: test-topic
-        body: "Compression payload | caf\u00e9 \u2615 | "
+        body: "Compression payload | caf\u00e9 | "
         headers:
           Authorization: null
           X-Request-Id: outgoing-gzip-scalar
@@ -4376,7 +4381,7 @@ scenarios:
           expectedCompressionCodec: gzip
           expectedRecords:
           - key: order-gzip
-            body: "Compression payload | caf\u00e9 \u2615 | "
+            body: "Compression payload | caf\u00e9 | "
             bodyRepeat: 256
             partition: 0
             offset: 0
@@ -4386,7 +4391,7 @@ scenarios:
       X-Snapshot-Header: gzip-scalar
   - id: gzip-batch
     body:
-    - "Order received | caf\u00e9 \u2615"
+    - "Order received | caf\u00e9"
     - null
     - ''
     headers:
@@ -4398,7 +4403,7 @@ scenarios:
       outboundRequestId: outgoing-gzip-batch
       kafkaKey: order-gzip
     expectedBody:
-    - "Order received | caf\u00e9 \u2615"
+    - "Order received | caf\u00e9"
     - null
     - ''
     expectedAbsentHeaders:
@@ -4415,7 +4420,7 @@ scenarios:
         count: 3
         destination: test-topic
         body:
-        - "Order received | caf\u00e9 \u2615"
+        - "Order received | caf\u00e9"
         - null
         - ''
         headers:
@@ -4434,7 +4439,7 @@ scenarios:
           expectedCompressionCodec: gzip
           expectedRecords:
           - key: null
-            body: "Order received | caf\u00e9 \u2615"
+            body: "Order received | caf\u00e9"
             partition: 0
             offset: 1
           - key: null
@@ -4450,12 +4455,13 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: gzip-batch
 - id: publishes-snappy-compressed-records
+  reuseBroker: true
   scope: Long
   deployment: kafka-sender
   endpointUri: cip-chain:20e7a133-e482-4ac0-afdf-26ae1f1f152d
   invocations:
   - id: snappy-scalar
-    body: "Compression payload | caf\u00e9 \u2615 | "
+    body: "Compression payload | caf\u00e9 | "
     headers:
       Authorization: Bearer snapshot-snappy-scalar
       X-Request-Id: incoming-snappy-scalar
@@ -4482,7 +4488,7 @@ scenarios:
       expectedRequest:
         count: 1
         destination: test-topic
-        body: "Compression payload | caf\u00e9 \u2615 | "
+        body: "Compression payload | caf\u00e9 | "
         headers:
           Authorization: null
           X-Request-Id: outgoing-snappy-scalar
@@ -4499,7 +4505,7 @@ scenarios:
           expectedCompressionCodec: snappy
           expectedRecords:
           - key: order-snappy
-            body: "Compression payload | caf\u00e9 \u2615 | "
+            body: "Compression payload | caf\u00e9 | "
             bodyRepeat: 256
             partition: 0
             offset: 0
@@ -4509,7 +4515,7 @@ scenarios:
       X-Snapshot-Header: snappy-scalar
   - id: snappy-batch
     body:
-    - "Order received | caf\u00e9 \u2615"
+    - "Order received | caf\u00e9"
     - null
     - ''
     headers:
@@ -4521,7 +4527,7 @@ scenarios:
       outboundRequestId: outgoing-snappy-batch
       kafkaKey: order-snappy
     expectedBody:
-    - "Order received | caf\u00e9 \u2615"
+    - "Order received | caf\u00e9"
     - null
     - ''
     expectedAbsentHeaders:
@@ -4538,7 +4544,7 @@ scenarios:
         count: 3
         destination: test-topic
         body:
-        - "Order received | caf\u00e9 \u2615"
+        - "Order received | caf\u00e9"
         - null
         - ''
         headers:
@@ -4557,7 +4563,7 @@ scenarios:
           expectedCompressionCodec: snappy
           expectedRecords:
           - key: null
-            body: "Order received | caf\u00e9 \u2615"
+            body: "Order received | caf\u00e9"
             partition: 0
             offset: 1
           - key: null
@@ -4573,12 +4579,13 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: snappy-batch
 - id: publishes-lz4-compressed-records
+  reuseBroker: true
   scope: Long
   deployment: kafka-sender
   endpointUri: cip-chain:20e7a133-e482-4ac0-afdf-26ae1f1f152d
   invocations:
   - id: lz4-scalar
-    body: "Compression payload | caf\u00e9 \u2615 | "
+    body: "Compression payload | caf\u00e9 | "
     headers:
       Authorization: Bearer snapshot-lz4-scalar
       X-Request-Id: incoming-lz4-scalar
@@ -4605,7 +4612,7 @@ scenarios:
       expectedRequest:
         count: 1
         destination: test-topic
-        body: "Compression payload | caf\u00e9 \u2615 | "
+        body: "Compression payload | caf\u00e9 | "
         headers:
           Authorization: null
           X-Request-Id: outgoing-lz4-scalar
@@ -4622,7 +4629,7 @@ scenarios:
           expectedCompressionCodec: lz4
           expectedRecords:
           - key: order-lz4
-            body: "Compression payload | caf\u00e9 \u2615 | "
+            body: "Compression payload | caf\u00e9 | "
             bodyRepeat: 256
             partition: 0
             offset: 0
@@ -4632,7 +4639,7 @@ scenarios:
       X-Snapshot-Header: lz4-scalar
   - id: lz4-batch
     body:
-    - "Order received | caf\u00e9 \u2615"
+    - "Order received | caf\u00e9"
     - null
     - ''
     headers:
@@ -4644,7 +4651,7 @@ scenarios:
       outboundRequestId: outgoing-lz4-batch
       kafkaKey: order-lz4
     expectedBody:
-    - "Order received | caf\u00e9 \u2615"
+    - "Order received | caf\u00e9"
     - null
     - ''
     expectedAbsentHeaders:
@@ -4661,7 +4668,7 @@ scenarios:
         count: 3
         destination: test-topic
         body:
-        - "Order received | caf\u00e9 \u2615"
+        - "Order received | caf\u00e9"
         - null
         - ''
         headers:
@@ -4680,7 +4687,7 @@ scenarios:
           expectedCompressionCodec: lz4
           expectedRecords:
           - key: null
-            body: "Order received | caf\u00e9 \u2615"
+            body: "Order received | caf\u00e9"
             partition: 0
             offset: 1
           - key: null
@@ -4696,12 +4703,13 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: lz4-batch
 - id: publishes-zstd-compressed-records
+  reuseBroker: true
   scope: Long
   deployment: kafka-sender
   endpointUri: cip-chain:20e7a133-e482-4ac0-afdf-26ae1f1f152d
   invocations:
   - id: zstd-scalar
-    body: "Compression payload | caf\u00e9 \u2615 | "
+    body: "Compression payload | caf\u00e9 | "
     headers:
       Authorization: Bearer snapshot-zstd-scalar
       X-Request-Id: incoming-zstd-scalar
@@ -4728,7 +4736,7 @@ scenarios:
       expectedRequest:
         count: 1
         destination: test-topic
-        body: "Compression payload | caf\u00e9 \u2615 | "
+        body: "Compression payload | caf\u00e9 | "
         headers:
           Authorization: null
           X-Request-Id: outgoing-zstd-scalar
@@ -4745,7 +4753,7 @@ scenarios:
           expectedCompressionCodec: zstd
           expectedRecords:
           - key: order-zstd
-            body: "Compression payload | caf\u00e9 \u2615 | "
+            body: "Compression payload | caf\u00e9 | "
             bodyRepeat: 256
             partition: 0
             offset: 0
@@ -4755,7 +4763,7 @@ scenarios:
       X-Snapshot-Header: zstd-scalar
   - id: zstd-batch
     body:
-    - "Order received | caf\u00e9 \u2615"
+    - "Order received | caf\u00e9"
     - null
     - ''
     headers:
@@ -4767,7 +4775,7 @@ scenarios:
       outboundRequestId: outgoing-zstd-batch
       kafkaKey: order-zstd
     expectedBody:
-    - "Order received | caf\u00e9 \u2615"
+    - "Order received | caf\u00e9"
     - null
     - ''
     expectedAbsentHeaders:
@@ -4784,7 +4792,7 @@ scenarios:
         count: 3
         destination: test-topic
         body:
-        - "Order received | caf\u00e9 \u2615"
+        - "Order received | caf\u00e9"
         - null
         - ''
         headers:
@@ -4803,7 +4811,7 @@ scenarios:
           expectedCompressionCodec: zstd
           expectedRecords:
           - key: null
-            body: "Order received | caf\u00e9 \u2615"
+            body: "Order received | caf\u00e9"
             partition: 0
             offset: 1
           - key: null
@@ -4954,7 +4962,7 @@ scenarios:
             deliveryTimeoutMs: 6000
             retryBackoffMs: 100
   - id: second
-    body: "Order received \u2014 caf\u00e9 \u2615"
+    body: "Order received - caf\u00e9"
     headers:
       Authorization: Bearer snapshot-second
       X-Request-Id: incoming-second
@@ -4963,7 +4971,7 @@ scenarios:
     properties:
       kafkaUsername: writer
       kafkaPassword: writer-password
-    expectedBody: "Order received \u2014 caf\u00e9 \u2615"
+    expectedBody: "Order received - caf\u00e9"
     expectedHeaders:
       X-Snapshot-Header: second
     expectedAbsentHeaders:
@@ -4977,7 +4985,7 @@ scenarios:
       expectedRequest:
         count: 1
         destination: test-topic
-        body: "Order received \u2014 caf\u00e9 \u2615"
+        body: "Order received - caf\u00e9"
         key: order-id
         headers:
           Authorization: null
@@ -7202,7 +7210,7 @@ scenarios:
             deliveryTimeoutMs: 6000
             retryBackoffMs: 100
   - id: second-tls
-    body: "Order received \u2014 caf\u00e9 \u2615"
+    body: "Order received - caf\u00e9"
     headers:
       Authorization: Bearer snapshot-second-tls
       X-Request-Id: incoming-second-tls
@@ -7211,7 +7219,7 @@ scenarios:
     properties:
       kafkaUsername: writer
       kafkaPassword: writer-password
-    expectedBody: "Order received \u2014 caf\u00e9 \u2615"
+    expectedBody: "Order received - caf\u00e9"
     expectedHeaders:
       X-Snapshot-Header: second-tls
     expectedAbsentHeaders:
@@ -7225,7 +7233,7 @@ scenarios:
       expectedRequest:
         count: 1
         destination: test-topic
-        body: "Order received \u2014 caf\u00e9 \u2615"
+        body: "Order received - caf\u00e9"
         key: order-id
         headers:
           Authorization: null
@@ -8117,7 +8125,8 @@ scenarios:
           kafka.KEY: null
       response:
         properties:
-          tlsCertificate: untrusted
+          tlsCertificateOnNextProduce: untrusted
+          disconnectBeforeProduce: true
           minFailedTlsHandshakes: 1
     expectedFailure:
       type: org.apache.kafka.common.errors.TimeoutException
@@ -9944,7 +9953,7 @@ scenarios:
             offset: 5
           verifyMetadata: true
   - id: binary-unicode-string
-    body: "Order received \u2014 caf\u00e9 \u2615"
+    body: "Order received - caf\u00e9"
     headers:
       Authorization: Bearer snapshot-binary-unicode-string
       X-Request-Id: incoming-binary-unicode-string
@@ -9954,7 +9963,7 @@ scenarios:
     properties:
       kafkaUsername: writer
       kafkaPassword: writer-password
-    expectedBody: "Order received \u2014 caf\u00e9 \u2615"
+    expectedBody: "Order received - caf\u00e9"
     expectedHeaders:
       X-Snapshot-Header: binary-unicode-string
     expectedAbsentHeaders:
@@ -9980,7 +9989,7 @@ scenarios:
           security: sasl-ssl
           expectedRecords:
           - key: order-id
-            bodyHex: 4f7264657220726563656976656420e2809420636166c3a920e29895
+            bodyHex: 4f72646572207265636569766564202d20636166c3a9
             partition: 1
             offset: 6
           verifyMetadata: true
@@ -11198,7 +11207,7 @@ scenarios:
             deliveryTimeoutMs: 6000
             retryBackoffMs: 100
   - id: second
-    body: "Order received \u2014 caf\u00e9 \u2615"
+    body: "Order received - caf\u00e9"
     headers:
       Authorization: Bearer snapshot-second
       X-Request-Id: incoming-second
@@ -11207,7 +11216,7 @@ scenarios:
     properties:
       kafkaUsername: writer
       kafkaPassword: writer-password
-    expectedBody: "Order received \u2014 caf\u00e9 \u2615"
+    expectedBody: "Order received - caf\u00e9"
     expectedHeaders:
       X-Snapshot-Header: second
     expectedAbsentHeaders:
@@ -11221,7 +11230,7 @@ scenarios:
       expectedRequest:
         count: 1
         destination: test-topic
-        body: "Order received \u2014 caf\u00e9 \u2615"
+        body: "Order received - caf\u00e9"
         key: order-id
         headers:
           Authorization: null
@@ -11915,6 +11924,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: after-batch-error
 - id: publishes-message-and-exchange-batches-with-per-item-routing-and-recovers
+  reuseBroker: true
   scope: Long
   deployment: kafka-sender-header-keys
   endpointUri: cip-chain:b1fa0faf-03f1-45a9-a8b6-dde58f19a46e
@@ -12768,6 +12778,7 @@ scenarios:
         itemType: exchange
         containerType: list
 - id: omits-record-metadata-on-message-batch-items
+  reuseBroker: true
   scope: Long
   deployment: kafka-sender-header-keys
   driver:
@@ -12924,6 +12935,7 @@ scenarios:
           producerProperties:
             recordMetadata: false
 - id: omits-record-metadata-on-exchange-batch-items-synchronously
+  reuseBroker: true
   scope: Long
   deployment: kafka-sender-header-keys
   driver:

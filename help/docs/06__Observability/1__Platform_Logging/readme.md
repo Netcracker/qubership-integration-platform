@@ -18,9 +18,11 @@ This type of logs is being produced by Cloud Integration Platform in a **stdout*
 
 **Message format:**
 
-CIP Microservice log can be produced either in `json` (default) or `text` format (configurable via ```LOG_FORMAT``` environment parameter).
+`LOG_FORMAT` selects the microservice log format for the Engine, Micro-Engine, Runtime Catalog, and Sessions Management: `json` (default) or `text`.
 
-Message consist from two different parts:
+The testing service uses `CIP_TESTING_LOG_FORMAT`. See [Configuration](#configuration) for service-specific settings.
+
+Message consists from two different parts:
 
 - *standardized part* with parameters specified in accordance to [Logging-Development guide]
 - *custom part* with specific Cloud Integration Platform parameters, that described below
@@ -31,53 +33,84 @@ Message consist from two different parts:
 
 Following table contains list of CIP-specific parameters, that will be added **on top of** the standardized list.
 
-| Param              | Availability               | Description                                                                                                     |
-|:-------------------|:---------------------------|:----------------------------------------------------------------------------------------------------------------|
-| session\_id        | All types of calls         | Session id.                                                                                                     |
-| chain\_id          | All types of calls         | Chain id, object id of the chain, available in chain list.                                                      |
-| correlation\_id    | All types of calls         | When correlation id is available it will be logged. Its purpose is to logically connect multiple session on UI. |
-| chain              | All types of calls         | Chain name.                                                                                                     |
-| chain\_element\_id | All types of calls         | Object id of the element within the chain, that produced the message.                                           |
-| chain\_element     | All types of calls         | Chain element name.                                                                                             |
-| log\_type          | Inbound and outbound calls | Constant, always equals to "int". This parameter is being set only for inbound and outbound calls.              |
-| `url`              | REST outbound calls        | URL, to where call has been passed.                                                                             |
-| responseCode       | REST outbound calls        | Response code, received from source. Blank if direction = request                                               |
-| responseTime       | REST outbound calls        | Response time, shows call processing time in **milliseconds**. Blank if direction = request                     |
-| direction          | REST outbound calls        | Shows the direction of the call. Possible values: <br/>- request<br>- response                                  |
+| Param                 | Availability                | Description                                                                                                     |
+|:----------------------|:----------------------------|:----------------------------------------------------------------------------------------------------------------|
+| session\_id           | All types of calls          | Session id.                                                                                                     |
+| chain\_id             | All types of calls          | Chain id, object id of the chain, available in chain list.                                                      |
+| correlation\_id       | All types of calls          | When correlation id is available it will be logged. Its purpose is to logically connect multiple session on UI. |
+| chain                 | All types of calls          | Chain name.                                                                                                     |
+| chain\_element\_id    | All types of calls          | Object id of the element within the chain, that produced the message.                                           |
+| chain\_element        | All types of calls          | Chain element name.                                                                                             |
+| element\_id           | JSON session step entries   | Identifier of the session step.                                                                                 |
+| parent\_element\_id   | JSON session step entries   | Identifier of the parent session step. It lets log consumers reconstruct the execution tree.                    |
+| element\_name         | JSON session step entries   | Name of the chain element or step.                                                                              |
+| session\_log\_details | JSON session detail entries | Selected detail mode: `SENDERS` or `FULL`.                                                                      |
+| log\_type             | Inbound and outbound calls  | Constant, always equals to "int". This parameter is being set only for inbound and outbound calls.              |
+| url                   | REST outbound calls         | URL, to where call has been passed.                                                                             |
+| responseCode          | REST outbound calls         | Response code, received from source. Blank if direction = request                                               |
+| responseTime          | REST outbound calls         | Response time, shows call processing time in **milliseconds**. Blank if direction = request                     |
+| direction             | REST outbound calls         | Shows the direction of the call. Possible values: <br/>- request<br>- response                                  |
+
+When **Session log details** is set to **Senders** or **Full** on the chain [Logging](../../01__Chains/5__Logging/readme.md) tab, the engine writes a session start entry and a session step entry after a step finishes. These entries are available only in JSON microservice logs.
+
+#### Value Length and Padding
+
+Where the limit applies, values longer than value of `LOG_FIELDS_MAX_SIZE` plus 3 characters are cut to the first `LOG_FIELDS_MAX_SIZE` characters, followed by `...`.
+
+> ⚠️ Warning
+> - In `text` format, error messages, failed HTTP operations, and outbound service-call requests logged. with external service details bypass this limit.
+> - In any log format, messages written by **Log Record** elements or custom scripts are not truncated.
+
+Apart from these fields, the formats differ:
+
+- `json` adds no padding and writes all other values in full.
+- `text` pads each value to a fixed width and limits `thread`, `class`, and `method` to 15, 60, and 30 characters. The classic Engine also prints at most five stack frames of an exception.
+
+#### JSON format
+
+The following example contains every field emitted by the JSON session-step logger. Parameters that apply to inbound or outbound HTTP calls are not included.
+
+**Session step entry:**
+```json
+{
+  "time": "2026-10-15T09:41:36.528+0000",
+  "level": "INFO",
+  "message": "Session step finished with status COMPLETED_NORMALLY",
+  "request_id": "f78bcac12c746f329dd2ed69f21795ed",
+  "tenant_id": "e393a7a6-1920-4082-87d2-69179fd8e6f0",
+  "thread": "0.0-8080-exec-9",
+  "class": "org.qubership.integration.platform.engine.service.debugger.sessions.JsonSessionStepLogger",
+  "traceId": "--",
+  "spanId": "--",
+  "originating_bi_id": "--",
+  "business_identifiers": "--",
+  "method": "logAfter",
+  "log_type": "--",
+  "session_id": "978ee143-8319-404d-a361-84a9b6d8701d",
+  "chain_id": "3b0e487d-352f-4ed4-a0c2-8ff831be404d",
+  "chain": "test-log-format",
+  "chain_element_id": "76c818eb-f021-40bd-b0f8-430b77638239",
+  "chain_element": "HTTP Sender",
+  "domain": "default",
+  "domain_type": "CLASSIC",
+  "snapshot": "V1",
+  "element_id": "9a52b9dd-2600-4f83-a829-40bb88970235",
+  "parent_element_id": "5dbdd863-1d6e-47d5-9e0c-7b2990d57477",
+  "element_name": "Send order",
+  "session_log_details": "FULL",
+  "exchange_body": "{\"orderId\":\"9001\",\"status\":\"accepted\"}",
+  "exchange_headers": "{\"CamelHttpResponseCode\":\"200\",\"x-request-id\":\"f78bcac12c746f329dd2ed69f21795ed\"}",
+  "exchange_properties": "{\"orderStatus\":{\"type\":\"java.lang.String\",\"value\":\"accepted\"}}"
+}
+```
+
+#### Text (stdout) format
+
 
 **Message sample for successful REST inbound call:**
 
-**Text format**
-
 ```text
 2022-08-17T10:11:07.129388551Z [2022-08-17T10:11:07.129][INFO ] [request_id=1660731067128.0.7228021061350399] [tenant_id=cloud-common ] [traceId=- ] [spanId=- ] [originating_bi_id=- ] [business_identifiers=- ] [thread=0.0-8080-exec-8] [class=o.q.i.platform.engine.service.debugger.CamelDebugger        ] [method=logBeforeProcessByType ] [session_id=b702f2b9-58fa-4f24-8ccb-f7c9a59ad329] [chain_id=ff3ecdb8-1907-4435-8aa1-32061b341ecc] [chain=New Chain ] [chain_element_id=54b43763-8338-4a6a-80ea-2a60d3ae412c] [chain_element=HTTP Trigger ] [log_type=int] Get request from trigger. Headers: {CamelHttpUrl=http://localhost:8092/routes/test1, X-Request-Id=1660731067128.0.7228021061350399}, body: <body not logged>, exchange properties: {}
-```
-
-**JSON format**
-
-```json
-{
-    "time":"2026-06-08T15:38:54.388",
-    "level":"INFO",
-    "message":"Get request from trigger.",
-    "request_id":"f78bcac12c746f329dd2ed69f21795ed",
-    "tenant_id":"e393a7a6-1920-4082-87d2-69179fd8e6f0",
-    "thread":"0.0-8080-exec-9",
-    "class":"o.q.i.platform.engine.service.debugger.logging.ChainLogger",
-    "traceId":"-",
-    "spanId":"-",
-    "originating_bi_id":"-",
-    "business_identifiers":"-",
-    "method":"info",
-    "log_type":"int",
-    "session_id":"978ee143-8319-404d-a361-84a9b6d8701d",
-    "chain_id":"3b0e487d-352f-4ed4-a0c2-8ff831be404d",
-    "chain":"test-log-format",
-    "chain_element_id":"76c818eb-f021-40bd-b0f8-430b77638239",
-    "chain_element":"HTTP Trigger",
-    "exchange_properties":"{}",
-    "exchange_headers":"{content-length=0, x-forwarded-proto=https, CamelHttpCharacterEncoding=UTF-8, a-lot-of-other-headers=...}"
-}
 ```
 
 **Message sample for successful REST inbound call (with exchange properties):**
@@ -278,6 +311,14 @@ java.lang.IllegalArgumentException: AMQP addresses has invalid format, check con
 [Consumer clientId=XXX, groupId=<groupId>-XXX] consumer poll timeout has expired. This means the time between subsequent calls to poll() was longer than the configured max.poll.interval.ms, which typically implies that the poll loop is spending too much time processing messages. You can address this either by increasing max.poll.interval.ms or by reducing the maximum size of batches returned in poll() with max.poll.records.
 ...
 ```
+
+#### GraphQL
+
+When chain **Log Level** is **Info** and **Log Payload** includes **Body**, the GraphQL logging processor assembles JSON for [GraphQL Sender](../../01__Chains/1__Graph/1__Elements_Library/7__Senders/7__GraphQL_Sender/readme.md) and [GraphQL Service Call](../../01__Chains/1__Graph/1__Elements_Library/7__Senders/6__Service_Call/readme.md) request logs.
+
+The assembled body contains `query`, `operationName`, and `variables`. The processor runs before the route applies the configured **Variables JSON**, so the logged `variables` can differ from the variables the request sends. In most cases the log records `"variables": {}`.
+
+The same processor assembles the body for [session logging](#session-logs).
 
 #### Sub-Chains
 
@@ -747,7 +788,7 @@ Logging options and level for ***microservice logs,*** ***session logs*** *and* 
 According to the requirements and contracts, Cloud Integration Platform handles logs depending on their type:
 
 - ***microservice messages*** are being produced in a **stdout** (standard output), hence not stored by CIP.
-- **Session logs** are going to the **OpenSearch** and stored there, according to the retention setting (controled by variables SESSIONS\_RETENTION\_CLEANUP\_CRON, SESSIONS\_RETENTION\_CLEANUP\_INTERVAL) and probability settings (controlled by SESSION\_SAMPLER\_PROBABILISTIC variable)
+- **Session logs** are being produces to the **OpenSearch** and stored there, according to the retention setting (controled by variables SESSIONS\_RETENTION\_CLEANUP\_CRON, SESSIONS\_RETENTION\_CLEANUP\_INTERVAL) and probability settings (controlled by SESSION\_SAMPLER\_PROBABILISTIC variable)
 - **Action logs** are being written to the CIP **Database.** There is a possibility to set up a retention policy with ACTION\_LOG\_CLEANUP\_INTERVAL and ACTION\_LOG\_CLEANUP\_CRON variables during the CIP installation.
 - **DPT logs** are being produced and pushed to the DPT via Kafka, hence, although there is no intention to store such logs, they could be still available for some time in the Kafka topic during the processing.
 - No data is intended to be stored while **Tracing** is ON.
@@ -756,4 +797,12 @@ According to the requirements and contracts, Cloud Integration Platform handles 
 
 ---
 
-Chain-specific log level can be settled during the deployment. Please refer to the [respective article] for more details. For Tracing parameters, global settings (including retention and log probabilistic variables), please refer to the Installation guide.
+Chain-specific log level can be settled during the [chain deployment](../../01__Chains/3__Deployments/readme.md). For Tracing parameters, global settings (including retention and log probabilistic variables), please refer to the Installation guide.
+
+Microservice logs are configured with the parameters below:
+
+| Environment Parameter     | Mandatory | Default Value | Description                                                                                                                                                                                                                                                                                                                                             | Sample  |
+|:--------------------------|:----------|:--------------|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:--------|
+| LOG\_FORMAT               | O         | json          | Format of the microservice logs for the Engine, Micro-Engine, Runtime Catalog, and Sessions Management: `json` or `text`. See [Microservice Logs](#microservice-logs) for the differences between the formats.<br><br>ℹ️ For the Micro-Engine, set `LOG_FORMAT` to the intended value when building the application, and use the same value at runtime. | `text`  |
+| CIP\_TESTING\_LOG\_FORMAT | O         | json          | Testing service log format: `json` or `text`. Overrides `log.format` in the configuration file, `application.yaml` by default.                                                                                                                                                                                                                          | `text`  |
+| LOG\_FIELDS\_MAX\_SIZE    | O         | 4096          | Maximum number of characters kept from the logged exchange body, headers, and properties in the Engine and Micro-Engine. See [Value Length and Padding](#value-length-and-padding) for scope and exceptions. A value longer than this number plus 3 characters is cut to this length and followed by `...`. A negative value turns the limit off.       | `16384` |

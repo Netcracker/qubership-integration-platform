@@ -40,7 +40,8 @@ import java.util.stream.Collectors;
 
 
 @RestController
-@RequestMapping(value = "/v1/catalog/validation", produces = MediaType.APPLICATION_JSON_VALUE)
+@RequestMapping(value = {"/v1/catalog/validation", "/api/v1/cip/catalog/validation"},
+    produces = MediaType.APPLICATION_JSON_VALUE)
 @CrossOrigin(origins = "*")
 @Tag(name = "element-validation-controller", description = "Element Validation Controller")
 public class ElementValidationController {

@@ -38,7 +38,7 @@ import org.qubership.integration.platform.runtime.catalog.service.codeview.seria
 import org.qubership.integration.platform.runtime.catalog.service.variables.secrets.KubeSecretSerializer;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
@@ -50,13 +50,13 @@ public class MapperAutoConfiguration {
 
     @Primary
     @Bean(name = {"objectMapper", "jsonMapper"})
-    @ConditionalOnProperty(prefix = "app", name = "prefix", havingValue = "qip")
+    @ConditionalOnMissingBean(name = {"objectMapper", "jsonMapper"})
     public ObjectMapper objectMapper() {
-        return qipPrimaryObjectMapper();
+        return primaryObjectMapper();
     }
 
     @Bean("primaryObjectMapper")
-    public ObjectMapper qipPrimaryObjectMapper() {
+    public ObjectMapper primaryObjectMapper() {
         ObjectMapper objectMapper = JsonMapper.builder()
                 .enable(SerializationFeature.INDENT_OUTPUT)
                 .enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_ENUMS)
@@ -135,7 +135,7 @@ public class MapperAutoConfiguration {
 
     @Bean("objectMapperWithSorting")
     public ObjectMapper objectMapperWithSorting() {
-        ObjectMapper objectMapper = qipPrimaryObjectMapper();
+        ObjectMapper objectMapper = primaryObjectMapper();
         objectMapper.configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
 
         return objectMapper;

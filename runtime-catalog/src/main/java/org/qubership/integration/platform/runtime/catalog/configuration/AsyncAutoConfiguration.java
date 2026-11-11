@@ -30,7 +30,7 @@ public class AsyncAutoConfiguration {
         executor.setCorePoolSize(2);
         executor.setMaxPoolSize(2);
         executor.setQueueCapacity(500);
-        executor.setThreadNamePrefix("qip-runtime-catalog-");
+        executor.setThreadNamePrefix("cip-runtime-catalog-");
         return executor;
     }
 }

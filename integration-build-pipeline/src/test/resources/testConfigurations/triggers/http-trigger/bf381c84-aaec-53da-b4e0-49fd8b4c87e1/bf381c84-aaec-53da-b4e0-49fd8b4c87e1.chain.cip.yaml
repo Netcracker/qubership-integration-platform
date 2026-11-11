@@ -1,0 +1,227 @@
+---
+id: bf381c84-aaec-53da-b4e0-49fd8b4c87e1
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+name: http-trigger-servlet-wire
+content:
+  labels: []
+  elements:
+  - id: 7f75a0ee-973b-5571-a725-adf7a56922e7
+    name: Wire HTTP trigger
+    type: http-trigger
+    properties:
+      accessControlType: NONE
+      allowedContentTypes: []
+      chunked: true
+      connectTimeout: 120000
+      contextPath: servlet-wire/{value}
+      externalRoute: false
+      handleChainFailureAction: default
+      handleValidationAction: default
+      httpBinding: handlingHttpBinding
+      httpMethodRestrict: POST
+      idempotency:
+        enabled: false
+        keyExpiry: 600
+        actionOnDuplicate: ignore
+      killSessionOnTimeout: false
+      privateRoute: false
+      receiveCorrelationId: false
+      rejectRequestIfNonNullBodyGetDelete: true
+  - id: 315ca7d8-66d5-58c0-8211-41597428ec7e
+    name: Wire HTTP response
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 315ca7d8-66d5-58c0-8211-41597428ec7e.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  - id: ba8d07d4-ca94-5e59-9fb0-faa346f82d0d
+    name: Streaming HTTP trigger
+    type: http-trigger
+    properties:
+      accessControlType: NONE
+      allowedContentTypes: []
+      chunked: true
+      connectTimeout: 120000
+      contextPath: servlet-streaming
+      externalRoute: false
+      handleChainFailureAction: default
+      handleValidationAction: default
+      httpBinding: handlingHttpBinding
+      httpMethodRestrict: GET
+      idempotency:
+        enabled: false
+        keyExpiry: 600
+        actionOnDuplicate: ignore
+      killSessionOnTimeout: false
+      privateRoute: false
+      receiveCorrelationId: false
+      rejectRequestIfNonNullBodyGetDelete: true
+  - id: 39d256da-01d2-523a-a97d-dad154a2c781
+    name: Streaming HTTP response
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 39d256da-01d2-523a-a97d-dad154a2c781.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  - id: 66a2325e-7262-50c7-9b44-b3c34bdc6cc6
+    name: Buffered HTTP trigger
+    type: http-trigger
+    properties:
+      accessControlType: NONE
+      allowedContentTypes: []
+      chunked: false
+      connectTimeout: 120000
+      contextPath: servlet-buffered
+      externalRoute: false
+      handleChainFailureAction: default
+      handleValidationAction: default
+      httpBinding: handlingHttpBinding
+      httpMethodRestrict: GET
+      idempotency:
+        enabled: false
+        keyExpiry: 600
+        actionOnDuplicate: ignore
+      killSessionOnTimeout: false
+      privateRoute: false
+      receiveCorrelationId: false
+      rejectRequestIfNonNullBodyGetDelete: true
+  - id: 7f4e9047-414a-5d2b-9296-dba44a503a25
+    name: Buffered HTTP response
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 7f4e9047-414a-5d2b-9296-dba44a503a25.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  - id: b72c6caf-efcc-52b5-8d62-b6650d4b272b
+    name: Wildcard HTTP trigger
+    type: http-trigger
+    properties:
+      accessControlType: NONE
+      allowedContentTypes: []
+      chunked: true
+      connectTimeout: 120000
+      contextPath: servlet-overlap/{item}
+      externalRoute: false
+      handleChainFailureAction: default
+      handleValidationAction: default
+      httpBinding: handlingHttpBinding
+      httpMethodRestrict: GET
+      idempotency:
+        enabled: false
+        keyExpiry: 600
+        actionOnDuplicate: ignore
+      killSessionOnTimeout: false
+      privateRoute: false
+      receiveCorrelationId: false
+      rejectRequestIfNonNullBodyGetDelete: true
+  - id: 84ab7ea3-caeb-5c75-9526-e9b3649bc996
+    name: Wildcard HTTP response
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 84ab7ea3-caeb-5c75-9526-e9b3649bc996.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  - id: 91b28557-b62e-5fd1-a0c5-94ddc9f2438a
+    name: Exact HTTP trigger
+    type: http-trigger
+    properties:
+      accessControlType: NONE
+      allowedContentTypes: []
+      chunked: true
+      connectTimeout: 120000
+      contextPath: servlet-overlap/static
+      externalRoute: false
+      handleChainFailureAction: default
+      handleValidationAction: default
+      httpBinding: handlingHttpBinding
+      httpMethodRestrict: GET
+      idempotency:
+        enabled: false
+        keyExpiry: 600
+        actionOnDuplicate: ignore
+      killSessionOnTimeout: false
+      privateRoute: false
+      receiveCorrelationId: false
+      rejectRequestIfNonNullBodyGetDelete: true
+  - id: 35180385-7f4f-56e3-bc70-819992fb57c6
+    name: Exact HTTP response
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 35180385-7f4f-56e3-bc70-819992fb57c6.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  - id: 118babf9-f73e-5e90-a8c3-7fffa74ccf6b
+    name: First HTTP trigger
+    type: http-trigger
+    properties:
+      accessControlType: NONE
+      allowedContentTypes: []
+      chunked: true
+      connectTimeout: 120000
+      contextPath: servlet-redeploy
+      externalRoute: false
+      handleChainFailureAction: default
+      handleValidationAction: default
+      httpBinding: handlingHttpBinding
+      httpMethodRestrict: GET
+      idempotency:
+        enabled: false
+        keyExpiry: 600
+        actionOnDuplicate: ignore
+      killSessionOnTimeout: false
+      privateRoute: false
+      receiveCorrelationId: false
+      rejectRequestIfNonNullBodyGetDelete: true
+  - id: ad6a212e-09f9-552c-bde3-f6e29857f501
+    name: First HTTP response
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: ad6a212e-09f9-552c-bde3-f6e29857f501.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  - id: 01bc1492-0512-513b-87d6-fedb2a555ba3
+    name: Second HTTP trigger
+    type: http-trigger
+    properties:
+      accessControlType: NONE
+      allowedContentTypes: []
+      chunked: true
+      connectTimeout: 120000
+      contextPath: servlet-redeploy
+      externalRoute: false
+      handleChainFailureAction: default
+      handleValidationAction: default
+      httpBinding: handlingHttpBinding
+      httpMethodRestrict: GET
+      idempotency:
+        enabled: false
+        keyExpiry: 600
+        actionOnDuplicate: ignore
+      killSessionOnTimeout: false
+      privateRoute: false
+      receiveCorrelationId: false
+      rejectRequestIfNonNullBodyGetDelete: true
+  - id: ed47698a-6b74-5fc4-8aae-f59a3cd2a6eb
+    name: Second HTTP response
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: ed47698a-6b74-5fc4-8aae-f59a3cd2a6eb.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: 7f75a0ee-973b-5571-a725-adf7a56922e7
+    to: 315ca7d8-66d5-58c0-8211-41597428ec7e
+  - from: ba8d07d4-ca94-5e59-9fb0-faa346f82d0d
+    to: 39d256da-01d2-523a-a97d-dad154a2c781
+  - from: 66a2325e-7262-50c7-9b44-b3c34bdc6cc6
+    to: 7f4e9047-414a-5d2b-9296-dba44a503a25
+  - from: b72c6caf-efcc-52b5-8d62-b6650d4b272b
+    to: 84ab7ea3-caeb-5c75-9526-e9b3649bc996
+  - from: 91b28557-b62e-5fd1-a0c5-94ddc9f2438a
+    to: 35180385-7f4f-56e3-bc70-819992fb57c6
+  - from: 118babf9-f73e-5e90-a8c3-7fffa74ccf6b
+    to: ad6a212e-09f9-552c-bde3-f6e29857f501
+  - from: 01bc1492-0512-513b-87d6-fedb2a555ba3
+    to: ed47698a-6b74-5fc4-8aae-f59a3cd2a6eb
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

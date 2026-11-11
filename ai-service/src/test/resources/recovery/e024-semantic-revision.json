@@ -1,0 +1,96 @@
+{
+  "schemaVersion": "chain-semantic-revision/v1",
+  "revisionId": "semantic-290b9bb9e0a000e9a4be613c43a382ff",
+  "chainIdentity": "Chain trigger + Header modification",
+  "compilerContractVersion": "create-chain-compiler-contract/v1",
+  "entryPoints": [
+    {
+      "entryPointId": "entry",
+      "triggerNodeId": "entry",
+      "initialTargetNodeId": "check-header-result",
+      "order": 0,
+      "provenance": {
+        "sourceFactIds": [
+          "entry"
+        ]
+      },
+      "presentation": {
+        "label": null,
+        "description": null
+      }
+    }
+  ],
+  "nodes": [
+    {
+      "nodeId": "entry",
+      "kind": "TRIGGER",
+      "interactionId": "entry",
+      "capabilityKey": "chain-trigger-2",
+      "provenance": {
+        "sourceFactIds": [
+          "entry",
+          "entry-anchor"
+        ]
+      }
+    },
+    {
+      "nodeId": "check-header-result",
+      "kind": "OPERATION",
+      "elementType": "script",
+      "provenance": {
+        "sourceFactIds": [
+          "verify-headers"
+        ]
+      }
+    }
+  ],
+  "regions": [
+    {
+      "regionId": "header-check",
+      "kind": "CONDITION",
+      "ownerNodeId": "check-header-result",
+      "branches": [
+        {
+          "branchId": "headers-match",
+          "kind": "CONDITION",
+          "role": "IF",
+          "predicate": "${header.test-adding} != null && ${header.test-keeping} != null && ${header.test-removing} == null && ${header.test-keeping-modification} != \"old-test-value\"",
+          "priority": 0,
+          "entryNodeId": "check-header-result",
+          "exitNodeIds": [
+            "check-header-result"
+          ]
+        },
+        {
+          "branchId": "headers-mismatch",
+          "kind": "CONDITION",
+          "role": "ELSE",
+          "predicate": null,
+          "priority": 1,
+          "entryNodeId": "check-header-result",
+          "exitNodeIds": [
+            "check-header-result"
+          ]
+        }
+      ],
+      "reconvergenceNodeId": null
+    }
+  ],
+  "executionEdges": [
+    {
+      "edgeId": "edge-1ba9b19837ae2a1d",
+      "sourceNodeId": "entry",
+      "targetNodeId": "check-header-result",
+      "regionId": null,
+      "route": {
+        "kind": "SEQUENCE"
+      },
+      "mappingId": null
+    }
+  ],
+  "containment": [],
+  "mappingIntents": [],
+  "constraints": [],
+  "assumptions": [],
+  "citations": []
+}

@@ -5,7 +5,7 @@
   <parent>
     <groupId>org.qubership.integration.platform</groupId>
     <artifactId>qip-parent-spring</artifactId>
-    <version>1.5.1-SNAPSHOT</version>
+    <version>1.7.1-SNAPSHOT</version>
     <relativePath>../parents/spring/pom.xml</relativePath>
   </parent>
 
@@ -16,10 +16,8 @@
   <description>Managing recorded sessions of integration flows execution stored in OpenSearch index</description>
 
   <properties>
-    <revision>1.5.1</revision>
+    <revision>1.7.1</revision>
     <changelist>-SNAPSHOT</changelist>
-
-    <lombok.version>1.18.30</lombok.version>
   </properties>
 
   <dependencyManagement>
@@ -43,6 +41,10 @@
 
   <dependencies>
     <!-- Cloud Core dependencies -->
+    <dependency>
+      <groupId>com.netcracker.cloud.security.core.utils</groupId>
+      <artifactId>k8s-utils</artifactId>
+    </dependency>
     <dependency>
       <groupId>com.netcracker.cloud</groupId>
       <artifactId>dbaas-client-opensearch-starter</artifactId>

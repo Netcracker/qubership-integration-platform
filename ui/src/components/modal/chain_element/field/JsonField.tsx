@@ -6,7 +6,10 @@ import styles from "../ChainElementModification.module.css";
 
 const JsonField: React.FC<FieldProps> = ({
   formData,
+  onChange,
+  fieldPathId,
   readonly,
+  disabled,
   uiSchema,
   id,
   required,
@@ -14,6 +17,12 @@ const JsonField: React.FC<FieldProps> = ({
 }) => {
   const title = uiSchema?.["ui:title"] ?? schema?.title ?? "";
   const description = schema?.description;
+  const value =
+    typeof formData === "string"
+      ? formData
+      : formData === undefined || formData === null
+        ? ""
+        : JSON.stringify(formData, null, 2);
 
   return (
     <div>
@@ -28,9 +37,10 @@ const JsonField: React.FC<FieldProps> = ({
         )}
       </label>
       <Script
-        value={JSON.stringify(formData, null, 2)}
+        value={value}
         mode="json"
-        readOnly={readonly}
+        readOnly={readonly || disabled}
+        onChange={(value) => onChange(value, fieldPathId.path)}
       />
     </div>
   );

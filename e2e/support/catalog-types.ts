@@ -38,6 +38,15 @@ export interface FolderSearchItem extends Named {
   parentId?: string;
 }
 
+/**
+ * A row of `GET /v1/folders?openedFolderId=…`. A folder whose content the answer leaves out carries
+ * no `items` key.
+ */
+export interface OpenedFolderItem extends FolderItem {
+  parentId?: string;
+  items?: Array<Named & { parentId?: string }>;
+}
+
 /** What `GET /v1/folders/{id}` answers: the folder plus the items directly inside it. */
 export interface FolderView extends Named {
   parentId?: string;
@@ -56,6 +65,7 @@ export interface FolderView extends Named {
 export interface ChainView extends Named {
   parentId?: string;
   description?: string;
+  labels?: Array<{ name: string; technical?: boolean }>;
   unsavedChanges?: boolean;
   currentSnapshot?: SnapshotView;
   /** Whether an element of a type `PATCH /v1/chains/{id}/migrate` replaces is on the chain. */
@@ -222,9 +232,9 @@ export interface LibraryElementsView {
  * There is no method for that endpoint here, and the absence is deliberate. It answers the types in
  * use across the **whole catalog** — `ElementRepository.findAllGroupByType` is
  * `SELECT e.type FROM elements e GROUP BY e.type` with no chain, snapshot or caller predicate — and
- * it answers 500 for a type the library cannot name, which is a defect
- * `docs/product-defects.md` carries. A caller therefore reads it through `raw` and asserts the
- * status itself; `specs/global/element-library-endpoints.spec.ts` is the one that does.
+ * it answers 500 for a type the library cannot name, a defect decided as won't fix. A caller
+ * therefore reads it through `raw` and asserts the status itself;
+ * `specs/global/element-library-endpoints.spec.ts` is the one that does.
  */
 export interface ElementTypeInUse {
   elementTitle: string;
@@ -399,8 +409,7 @@ export interface BulkDeploymentRow {
   domain: { name: string; replicas: number; type: string };
 }
 
-/** `REWRITE` replaces the chains a micro domain runs; `APPEND` adds to them. */
-export type CustomResourceMode = "REWRITE" | "APPEND";
+export type DomainType = "CLASSIC" | "MICRO";
 
 /** One service `POST /v1/systems/discovery` created, as `GET /v1/systems/discovery` lists it. */
 export interface DiscoveredServiceView {
@@ -443,6 +452,8 @@ export interface ImportChainResult {
   status: string;
   errorMessage?: string;
   deployAction?: string;
+  /** The domains the import deploys the chain to. Absent unless the action is `DEPLOY`. */
+  deployments?: Array<{ domain: string }>;
 }
 
 /** `POST /v1/catalog/import`. 200, or **207** as soon as one row carries `ERROR`. */
@@ -553,6 +564,17 @@ export interface SystemView extends Named {
 export interface UsedSystem {
   systemId: string;
   usedSystemModelIds: string[];
+}
+
+/** A chain as the readers of chains by service answer it; `elements` only in the full mode. */
+export interface ChainOfService extends Named {
+  elements?: Array<{ id: string; type: string }>;
+}
+
+/** One row of `GET /v1/chains/{systemId}/specificationGroup`. */
+export interface ChainsOfSpecificationGroup {
+  specificationGroupId: string;
+  chains: ChainOfService[];
 }
 
 /**
@@ -713,7 +735,7 @@ export interface ImportVariablePreview {
 export interface SecretView {
   secretName: string;
   variablesNames: string[];
-  /** The `qip-secured-variables-v2` secret the `/v1` surface addressed. */
+  /** The `cip-secured-variables-v2` secret the `/v1` surface addressed. */
   defaultSecret: boolean;
   /** True for the default secret while `cip.variables.default-secret.enabled` is false. */
   disabled: boolean;
@@ -798,8 +820,8 @@ export interface LoggingPropertiesSet {
  * only one path leaves the other three unreached whatever it asserts.
  */
 export const CHAIN_ROLES_PATHS = [
-  "/v1/catalog/chains/roles",
   "/v1/catalog/chains/access-control",
+  "/v1/catalog/chains/roles",
 ] as const;
 
 export type ChainRolesPath = (typeof CHAIN_ROLES_PATHS)[number];
@@ -818,7 +840,7 @@ export interface ChainElementFilter {
   value: string;
 }
 
-/** The body `POST /v1/catalog/chains/roles` takes. Every field has a server-side default. */
+/** The access-control search body. Every field has a server-side default. */
 export interface ChainElementSearch {
   offset?: number;
   limit?: number;

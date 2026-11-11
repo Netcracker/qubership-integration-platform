@@ -51,11 +51,12 @@ import {
   workerFolderName,
   type RunRecord,
 } from "./run.js";
-import { attachDiagnostics, beginDiagnostics } from "./diagnostics.js";
+import { attachDiagnostics, beginDiagnostics, microCaseFailed } from "./diagnostics.js";
 import { Sessions } from "./sessions.js";
 import { Engine } from "./engine.js";
 import type { EngineKind, Env } from "../env/index.js";
 import { targetSetup } from "../env/target-setup.js";
+import { MICRO_CORPUS_STATE_FILE } from "../env/k8s.js";
 import { RESOURCES_FILE, stopResourceSampler } from "../env/resources.js";
 import { recordingRequest } from "../registry/reached.js";
 
@@ -95,6 +96,8 @@ interface WorkerFixtures {
    * Worker-scoped, because the worker-scoped `env` depends on it.
    */
   engineKind: EngineKind;
+  /** The state file naming the micro domain and the micro copy this project reads, set with `use`. */
+  microDomainState: string;
   /**
    * The thing that runs the platform, behind the `Env` seam.
    *
@@ -107,7 +110,7 @@ interface WorkerFixtures {
   /** One catalog client per worker, on the catalog's own port. */
   catalog: Catalog;
   /**
-   * The engine's own REST surface, on its own port.
+   * The REST surface of the engine this project's chains run on, at `env.engineUrl()`.
    *
    * A transport rather than a `request.fetch` in the spec, for the reason `support/engine.ts`
    * states: `noteReached()` fires inside a transport and nowhere else, so an engine call made any
@@ -145,12 +148,12 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
   },
 
   diagnostics: [
-    async ({ env, engineKind }, use, testInfo) => {
+    async ({ env, engineKind, run }, use, testInfo) => {
       beginDiagnostics();
       await use();
       // After the test body and before Playwright decides the run is over, which is the only point
       // where both the outcome and the window the test ran in are known.
-      await attachDiagnostics(testInfo, env, engineKind);
+      await attachDiagnostics(testInfo, env, engineKind, run);
     },
     { auto: true },
   ],
@@ -169,9 +172,11 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
 
   engineKind: ["classic", { option: true, scope: "worker" }],
 
+  microDomainState: [MICRO_CORPUS_STATE_FILE, { option: true, scope: "worker" }],
+
   env: [
-    async ({ engineKind }, use) => {
-      await use(targetSetup().createEnv(engineKind));
+    async ({ engineKind, microDomainState }, use) => {
+      await use(targetSetup().createEnv(engineKind, microDomainState));
     },
     { scope: "worker" },
   ],
@@ -186,9 +191,9 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
   ],
 
   engine: [
-    async ({ playwright }, use) => {
+    async ({ playwright, env }, use) => {
       const api = await playwright.request.newContext();
-      await use(new Engine(api));
+      await use(new Engine(api, env.engineUrl()));
       await api.dispose();
     },
     { scope: "worker" },
@@ -260,7 +265,7 @@ const SESSION_PAGE = 1000;
  *
  * Read to the end of the listing rather than to the end of one page. The answer carries no total:
  * `SessionSearchResponse` holds the rows and an `offset` that comes back as `offset + rows`
- * (`SessionService.java:220`), a marker for the next request rather than an echo of this one, so a
+ * (`SessionService.java:225`), a marker for the next request rather than an echo of this one, so a
  * full page and a last one look alike and an empty page is the only ending on the wire. Advancing
  * by what the page held computes that same marker locally, which is what `mocksOfRun` in
  * `support/testing-service.ts` does against the analogous listing.
@@ -321,7 +326,7 @@ export async function deleteSessionsOfChains(
 /**
  * The two services the catalog client cannot answer for, as the sweep addresses them.
  *
- * Injected rather than reached for, and **optional**, because `specs/schema/sweep.spec.ts` runs the
+ * Injected rather than reached for, and **optional**, because `specs/harness/sweep.spec.ts` runs the
  * sweep against a stub catalog in a project defined as needing no stack: a client built at the
  * point of use would put two HTTP calls into a run that has nothing to answer them. The two live
  * entry points — the start-of-run sweep and `globalTeardown` — pass `OUTSIDE_CATALOG`, and they are
@@ -611,30 +616,6 @@ export async function sweepRunToken(
       );
     });
   }
-  // Specification groups before their system, so a group that outlives one is still named.
-  for (const group of of("specification-group")) {
-    await remove(
-      `specification-group ${group.name}`,
-      group,
-      catalog.deleteSpecificationGroup(group.id),
-    );
-  }
-  // The system takes its environments with it; nothing else does.
-  for (const system of of("service")) {
-    await remove(`service ${system.name}`, system, catalog.deleteSystem(system.id));
-    // The environments went exactly as far as the system did.
-    if (gone.has(system)) {
-      for (const environment of of("environment")) {
-        if (environment.scope === system.id) gone.add(environment);
-      }
-    }
-  }
-  for (const context of of("context-system")) {
-    await remove(`context-system ${context.name}`, context, catalog.deleteContextSystem(context.id));
-  }
-  for (const mcp of of("mcp-system")) {
-    await remove(`mcp-system ${mcp.name}`, mcp, catalog.deleteMcpSystem(mcp.id));
-  }
   // Before the chains, because a chain's logging properties are a Consul key the chain delete does
   // not reach: once the chain is gone the key is addressed by an id nothing can list. A failure
   // here is what keeps that chain for the next sweep to try again.
@@ -688,6 +669,32 @@ export async function sweepRunToken(
       if (await catalog.holds(`/v1/chains/${chain.id}`)) throw cause;
     });
     await remove(`chain ${chain.name}`, chain, drop);
+  }
+  // After the chains, since the catalog refuses to delete a service a chain still calls: a seeded
+  // chain calls a seeded service. Specification groups before their system, so a group that
+  // outlives one is still named.
+  for (const group of of("specification-group")) {
+    await remove(
+      `specification-group ${group.name}`,
+      group,
+      catalog.deleteSpecificationGroup(group.id),
+    );
+  }
+  // The system takes its environments with it; nothing else does.
+  for (const system of of("service")) {
+    await remove(`service ${system.name}`, system, catalog.deleteSystem(system.id));
+    // The environments went exactly as far as the system did.
+    if (gone.has(system)) {
+      for (const environment of of("environment")) {
+        if (environment.scope === system.id) gone.add(environment);
+      }
+    }
+  }
+  for (const context of of("context-system")) {
+    await remove(`context-system ${context.name}`, context, catalog.deleteContextSystem(context.id));
+  }
+  for (const mcp of of("mcp-system")) {
+    await remove(`mcp-system ${mcp.name}`, mcp, catalog.deleteMcpSystem(mcp.id));
   }
   const templates = of("design-template");
   if (templates.length) {
@@ -822,9 +829,10 @@ export default async function globalTeardown(): Promise<void> {
   if (!run) return;
 
   // Before the sweep, because the sampler is a detached process and nothing else ends it — and
-  // only for this run's own sampler. `--project=schema` is a supported, stack-free selection and CI
-  // runs exactly that; stopping the sampler it finds would empty the peaks file of a full run going
-  // on beside it, whose `process-envelope` band check then fails on no reading at all.
+  // only for this run's own sampler. `--project=schema --project=harness` is a supported, stack-free
+  // selection and CI runs exactly that; stopping the sampler it finds would empty the peaks file of
+  // a full run going on beside it, whose `process-envelope` band check then fails on no reading at
+  // all.
   stopResourceSampler(RESOURCES_FILE, run);
 
   const api = await playwrightRequest.newContext();
@@ -841,9 +849,12 @@ export default async function globalTeardown(): Promise<void> {
           `reason — see SECRET_FIXTURE_NAME.`,
       );
     }
-    if (keepEntities()) {
+    // A failed micro case keeps the run's micro domains for the CI cluster dump, which runs after
+    // the suite; the run keeps its manifest entry, so the next run's sweep collects them.
+    const keep = keepEntities() ? "E2E_KEEP=1" : microCaseFailed(run) ? "a micro case failed" : null;
+    if (keep) {
       const left = await findResidue(catalog, run, OUTSIDE_CATALOG);
-      console.log(`[keep] E2E_KEEP=1, ${left.length} entities left behind for run ${run}`);
+      console.log(`[keep] ${keep}, ${left.length} entities left behind for run ${run}`);
       for (const each of left) console.log(`[keep]   ${each.kind} ${each.name} (${each.id})`);
       return;
     }

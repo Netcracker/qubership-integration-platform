@@ -1,0 +1,2327 @@
+# yaml-language-server: $schema=../testspecifications.schema.json
+subject: auto
+deployments:
+- id: auto
+  route: rabbitmq-trigger
+- id: manual
+  route: rabbitmq-trigger-manual
+- id: none
+  route: rabbitmq-trigger-none
+- id: multiple-queues
+  route: rabbitmq-trigger-multiple-queues
+- id: fanout
+  route: rabbitmq-trigger-fanout
+- id: topic
+  route: rabbitmq-trigger-topic
+- id: headers
+  route: rabbitmq-trigger-headers
+- id: tls
+  route: rabbitmq-trigger-tls
+- id: broker-faults
+  route: rabbitmq-trigger-broker-faults
+- id: maas
+  route: rabbitmq-trigger-maas
+- id: maas-default
+  route: rabbitmq-trigger-maas-default
+- id: idempotency
+  route: rabbitmq-trigger-idempotency
+- id: competing
+  route: rabbitmq-trigger-competing-idempotency
+fixtures:
+- id: auto-broker
+  provider: rabbitmq-trigger
+  deployment: auto
+  sourceElementId: 94164c82-e1a7-493c-877b-46f00f286c08
+- id: manual-broker
+  provider: rabbitmq-trigger
+  deployment: manual
+  sourceElementId: 67cf068e-8e09-5ac8-bf31-c84f26941e6a
+- id: none-broker
+  provider: rabbitmq-trigger
+  deployment: none
+  sourceElementId: 0c249797-17ae-5d1c-a3c8-3cca40f54c04
+- id: multiple-queues-broker
+  provider: rabbitmq-trigger
+  deployment: multiple-queues
+  sourceElementId: fb2d1b81-5979-5c12-8c1a-96947ed0106c
+- id: fanout-broker
+  provider: rabbitmq-trigger
+  deployment: fanout
+  sourceElementId: 6dad34b2-5b6c-570c-87f2-da1ffd1682dd
+- id: topic-broker
+  provider: rabbitmq-trigger
+  deployment: topic
+  sourceElementId: 61f91466-aa34-5eaf-920e-25b985f787bd
+- id: headers-broker
+  provider: rabbitmq-trigger
+  deployment: headers
+  sourceElementId: 74e337c9-f31f-5393-a06e-c1d64d54ce30
+- id: tls-broker
+  provider: rabbitmq-trigger
+  deployment: tls
+  sourceElementId: c96e5983-163f-57c0-8349-47fd4f825d77
+- id: broker-faults-broker
+  provider: rabbitmq-trigger
+  deployment: broker-faults
+  sourceElementId: 494fcc2a-3d1d-5bb1-acf5-2514f7943133
+- id: maas-broker
+  provider: rabbitmq-trigger
+  deployment: maas
+  sourceElementId: b1dc7ea9-38a7-572c-af62-defb99704d7e
+- id: maas-default-broker
+  provider: rabbitmq-trigger
+  deployment: maas-default
+  sourceElementId: e21bcf61-0479-546f-b206-8d69a9bbac40
+- id: idempotency-ignore
+  provider: rabbitmq-trigger
+  deployment: idempotency
+  sourceElementId: 8efe42ba-50eb-588f-a961-88673fca22be
+- id: store-ignore
+  provider: idempotency-postgres
+  deployment: idempotency
+  sourceElementId: 851de195-442c-5a4c-8aed-d04dbff7da13
+- id: idempotency-throw
+  provider: rabbitmq-trigger
+  deployment: idempotency
+  sourceElementId: 8073273c-0118-52cc-8961-72cfc7fd3b07
+- id: store-throw
+  provider: idempotency-postgres
+  deployment: idempotency
+  sourceElementId: 21317329-b2ca-559b-84c8-05d91173682f
+- id: idempotency-subchain
+  provider: rabbitmq-trigger
+  deployment: idempotency
+  sourceElementId: 371b0ba7-10eb-5f3c-a7ae-b03e00d5a908
+- id: store-subchain
+  provider: idempotency-postgres
+  deployment: idempotency
+  sourceElementId: 7724c2b2-85ef-5ab0-af68-20125400b1f8
+- id: store-handler
+  provider: idempotency-postgres
+  deployment: idempotency
+  sourceElementId: ac27018c-525d-589b-a4b6-55c204b14714
+- id: competing-first
+  provider: rabbitmq-trigger
+  deployment: competing
+  sourceElementId: 756bc711-0ff1-5adc-8ec4-76dfafe3dfdc
+- id: competing-second
+  provider: rabbitmq-trigger
+  deployment: competing
+  sourceElementId: 967eb4b7-b433-5371-aa3a-9ae126d7786d
+- id: store-competing
+  provider: idempotency-postgres
+  deployment: competing
+  sourceElementId: 5dc95d6e-2016-5711-8281-6871ec1c6b77
+scenarios:
+- id: consumes-basic-payloads-headers-and-routing
+  reuseBroker: true
+  scope: Short
+  deployment: auto
+  driver:
+    provider: rabbitmq-trigger
+    sourceElementId: 94164c82-e1a7-493c-877b-46f00f286c08
+  invocations:
+  - id: consumes-text-json-utf8-and-empty-payloads
+    body: RabbitMQ text
+    expectedBody: Triggered
+    interactions:
+    - fixture: auto-broker
+      expectedRequest:
+        count: 1
+        body: RabbitMQ text
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+  - id: consumes-json-text
+    body: '{"order":7,"active":true}'
+    expectedBody: Triggered
+    interactions:
+    - fixture: auto-broker
+      expectedRequest:
+        count: 1
+        body: '{"order":7,"active":true}'
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+  - id: consumes-utf8-text
+    body: café
+    expectedBody: Triggered
+    interactions:
+    - fixture: auto-broker
+      expectedRequest:
+        count: 1
+        body: café
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+  - id: consumes-empty-bytes
+    body: ''
+    expectedBody: Triggered
+    interactions:
+    - fixture: auto-broker
+      expectedRequest:
+        count: 1
+        body: ''
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+          expectedBodyLength: 0
+  - id: preserves-binary-payloads-and-content-types
+    driver:
+      provider: rabbitmq-trigger
+      sourceElementId: 94164c82-e1a7-493c-877b-46f00f286c08
+      parameters:
+        bodyBase64: AAECf4D+/wA=
+        amqpProperties:
+          contentType: application/octet-stream
+          contentEncoding: binary
+    body: null
+    expectedBody: Triggered
+    interactions:
+    - fixture: auto-broker
+      expectedRequest:
+        count: 1
+        headers:
+          CamelSpringRabbitmqContentType: application/octet-stream
+          CamelSpringRabbitmqContentEncoding: binary
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+          expectedBodyBase64: AAECf4D+/wA=
+  - id: defaults-missing-content-type-and-preserves-explicit-values
+    body: missing-content-type
+    expectedBody: Triggered
+    interactions:
+    - fixture: auto-broker
+      expectedRequest:
+        count: 1
+        body: missing-content-type
+        headers:
+          Content-Type: application/json
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+  - id: preserves-explicit-text-content-type
+    body: explicit-text
+    headers:
+      Content-Type: text/plain
+    expectedBody: Triggered
+    interactions:
+    - fixture: auto-broker
+      expectedRequest:
+        count: 1
+        body: explicit-text
+        headers:
+          Content-Type: text/plain
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+  - id: preserves-explicit-binary-content-type
+    body: explicit-binary
+    headers:
+      Content-Type: application/octet-stream
+    expectedBody: Triggered
+    interactions:
+    - fixture: auto-broker
+      expectedRequest:
+        count: 1
+        body: explicit-binary
+        headers:
+          Content-Type: application/octet-stream
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+  - id: maps-amqp-properties-and-typed-headers
+    driver:
+      provider: rabbitmq-trigger
+      sourceElementId: 94164c82-e1a7-493c-877b-46f00f286c08
+      parameters:
+        amqpProperties:
+          contentType: text/plain
+          contentEncoding: UTF-8
+          deliveryMode: 2
+          priority: 3
+          correlationId: correlation-1
+          replyTo: snapshot.reply
+          expiration: '60000'
+          messageId: message-1
+          timestamp: 1735689600000
+          type: order.created
+          userId: snapshot
+          appId: snapshot-tests
+          clusterId: snapshot-cluster
+        headersBase64:
+          binary: AAH+/w==
+    body: metadata
+    headers:
+      text: café
+      integer: 7
+      boolean: true
+      decimal: 1.25
+      array:
+      - one
+      - 2
+      - false
+      table:
+        name: nested
+        enabled: true
+    expectedBody: Triggered
+    interactions:
+    - fixture: auto-broker
+      expectedRequest:
+        count: 1
+        body: metadata
+        headers:
+          CamelSpringRabbitmqContentType: text/plain
+          CamelSpringRabbitmqContentEncoding: UTF-8
+          CamelSpringRabbitmqDeliveryMode: PERSISTENT
+          CamelSpringRabbitmqPriority: 3
+          CamelSpringRabbitmqCorrelationId: correlation-1
+          CamelSpringRabbitmqReplyTo: snapshot.reply
+          CamelSpringRabbitmqExpiration: '60000'
+          CamelSpringRabbitmqMessageId: message-1
+          CamelSpringRabbitmqTimestamp: 1735689600000
+          CamelSpringRabbitmqType: order.created
+          CamelSpringRabbitmqUserId: snapshot
+          CamelSpringRabbitmqAppId: snapshot-tests
+          CamelSpringRabbitmqClusterId: snapshot-cluster
+          text: café
+          integer: 7
+          boolean: true
+          decimal: 1.25
+          array:
+          - one
+          - 2
+          - false
+          table:
+            name: nested
+            enabled: true
+          binary: AAH+/w==
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+  - id: filters-routing-through-direct-bindings
+    body: routed
+    expectedBody: Triggered
+    interactions:
+    - fixture: auto-broker
+      expectedRequest:
+        count: 1
+        body: routed
+        destination: snapshot.rabbitmq.trigger
+        key: snapshot.rabbitmq.trigger
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+  - id: does-not-consume-an-unbound-routing-key
+    driver:
+      provider: rabbitmq-trigger
+      sourceElementId: 94164c82-e1a7-493c-877b-46f00f286c08
+      parameters:
+        routingKey: snapshot.unbound
+        expectedCompletions: 0
+    body: unrouted
+    expectedBody: null
+    interactions:
+    - fixture: auto-broker
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+- id: recovers-through-consumer-and-broker-lifecycle
+  scope: Long
+  deployment: auto
+  driver:
+    provider: rabbitmq-trigger
+    sourceElementId: 94164c82-e1a7-493c-877b-46f00f286c08
+  invocations:
+  - id: isolates-message-headers-and-exchanges
+    body: first
+    headers:
+      firstOnly: first
+      X-Request-Id: request-one
+    expectedBody: Triggered
+    interactions:
+    - fixture: auto-broker
+      expectedRequest:
+        count: 1
+        body: first
+        headers:
+          firstOnly: first
+          X-Request-Id: request-one
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+  - id: does-not-retain-previous-application-headers
+    body: second
+    headers:
+      X-Request-Id: request-two
+    expectedBody: Triggered
+    interactions:
+    - fixture: auto-broker
+      expectedRequest:
+        count: 1
+        body: second
+        headers:
+          X-Request-Id: request-two
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+          expectedAbsentHeaders:
+          - firstOnly
+  - id: consumes-large-payloads-with-exact-length-and-digest
+    driver:
+      provider: rabbitmq-trigger
+      sourceElementId: 94164c82-e1a7-493c-877b-46f00f286c08
+      parameters:
+        bodyRepeat: 32768
+    body: abcdefgh
+    expectedBody: Triggered
+    interactions:
+    - fixture: auto-broker
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+          expectedBodyLength: 262144
+          expectedBodySha256: 45392302e4a0844d5162e25bce073a22832e7939b77eecc052bd0b8dd614d1dc
+  - id: acknowledges-successful-auto-deliveries-before-route-restart
+    body: before-route-restart
+    expectedBody: Triggered
+    interactions:
+    - fixture: auto-broker
+      expectedRequest:
+        count: 1
+        body: before-route-restart
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+  - id: does-not-replay-acknowledged-messages-after-route-restart
+    body: after-route-restart
+    expectedBody: Triggered
+    interactions:
+    - fixture: auto-broker
+      expectedRequest:
+        count: 1
+        body: after-route-restart
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+          consumerAction: restart-route
+    timeoutSeconds: 90
+  - id: resumes-backlog-after-consumer-stop-and-start
+    body: queued-during-stop
+    expectedBody: Triggered
+    interactions:
+    - fixture: auto-broker
+      expectedRequest:
+        count: 1
+        body: queued-during-stop
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+          consumerAction: stop-until-published
+    timeoutSeconds: 90
+  - id: completes-in-flight-processing-during-graceful-stop
+    body: held-during-stop
+    expectedBody: Triggered
+    interactions:
+    - fixture: auto-broker
+      expectedRequest:
+        count: 1
+        body: held-during-stop
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+          consumerAction: stop-during-processing
+    timeoutSeconds: 90
+  - id: recovers-durable-backlog-after-broker-restart
+    body: persistent-backlog
+    expectedBody: Triggered
+    interactions:
+    - fixture: auto-broker
+      expectedRequest:
+        count: 1
+        body: persistent-backlog
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+          consumerAction: restart-broker-with-backlog
+    timeoutSeconds: 90
+  - id: recovers-after-queue-deletion-and-recreation
+    body: after-queue-recreation
+    expectedBody: Triggered
+    interactions:
+    - fixture: auto-broker
+      expectedRequest:
+        count: 1
+        body: after-queue-recreation
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+          consumerAction: delete-recreate-queue
+    timeoutSeconds: 90
+  - id: recreates-consumer-state-after-redeployment
+    body: after-redeployment
+    expectedBody: Triggered
+    interactions:
+    - fixture: auto-broker
+      expectedRequest:
+        count: 1
+        body: after-redeployment
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+          consumerAction: redeploy
+    timeoutSeconds: 90
+  - id: redelivers-unacknowledged-auto-messages-after-connection-loss
+    body: interrupted-delivery
+    expectedBody: Triggered
+    interactions:
+    - fixture: auto-broker
+      expectedRequest:
+        count: 2
+        body: interrupted-delivery
+      response:
+        properties:
+          expectedBusinessCount: 2
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 1
+          consumerAction: close-during-processing
+    timeoutSeconds: 90
+  - id: continues-after-transport-redelivery
+    body: fresh-after-redelivery
+    expectedBody: Triggered
+    interactions:
+    - fixture: auto-broker
+      expectedRequest:
+        count: 1
+        body: fresh-after-redelivery
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+- id: consumes-preexisting-queue-without-resource-declaration
+  reuseBroker: true
+  scope: Long
+  deployment: auto
+  driver:
+    provider: rabbitmq-trigger
+    sourceElementId: 94164c82-e1a7-493c-877b-46f00f286c08
+  invocations:
+  - id: consumes-existing-queues-without-declaring-resources
+    driver:
+      provider: rabbitmq-trigger
+      sourceElementId: 94164c82-e1a7-493c-877b-46f00f286c08
+      parameters:
+        exchange: ''
+        routingKey: snapshot.rabbitmq.trigger.queue
+    body: queue-only
+    expectedBody: Triggered
+    interactions:
+    - fixture: auto-broker
+      expectedRequest:
+        count: 1
+        body: queue-only
+        headers:
+          CamelSpringRabbitmqExchangeName: ''
+        key: snapshot.rabbitmq.trigger.queue
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+          topology: queue-only
+          deadLetterPolicy: false
+- id: consumes-from-both-configured-queues
+  reuseBroker: true
+  scope: Long
+  deployment: multiple-queues
+  driver:
+    provider: rabbitmq-trigger
+    sourceElementId: fb2d1b81-5979-5c12-8c1a-96947ed0106c
+  invocations:
+  - id: consumes-from-every-configured-queue
+    driver:
+      provider: rabbitmq-trigger
+      sourceElementId: fb2d1b81-5979-5c12-8c1a-96947ed0106c
+      parameters:
+        exchange: ''
+        routingKey: snapshot.rabbitmq.trigger.multiple.first
+    body: first-queue
+    expectedBody: Triggered
+    interactions:
+    - fixture: multiple-queues-broker
+      expectedRequest:
+        count: 1
+        body: first-queue
+        key: snapshot.rabbitmq.trigger.multiple.first
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+  - id: consumes-second-configured-queue
+    driver:
+      provider: rabbitmq-trigger
+      sourceElementId: fb2d1b81-5979-5c12-8c1a-96947ed0106c
+      parameters:
+        exchange: ''
+        routingKey: snapshot.rabbitmq.trigger.multiple.second
+    body: second-queue
+    expectedBody: Triggered
+    interactions:
+    - fixture: multiple-queues-broker
+      expectedRequest:
+        count: 1
+        body: second-queue
+        key: snapshot.rabbitmq.trigger.multiple.second
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+  - id: drains-backlog-from-first-configured-queue
+    driver:
+      provider: rabbitmq-trigger
+      sourceElementId: fb2d1b81-5979-5c12-8c1a-96947ed0106c
+      parameters:
+        exchange: ''
+        routingKey: snapshot.rabbitmq.trigger.multiple.first
+    body: first-backlog
+    expectedBody: Triggered
+    interactions:
+    - fixture: multiple-queues-broker
+      expectedRequest:
+        count: 1
+        body: first-backlog
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+          consumerAction: stop-until-published
+    timeoutSeconds: 90
+  - id: drains-backlog-from-second-configured-queue
+    driver:
+      provider: rabbitmq-trigger
+      sourceElementId: fb2d1b81-5979-5c12-8c1a-96947ed0106c
+      parameters:
+        exchange: ''
+        routingKey: snapshot.rabbitmq.trigger.multiple.second
+    body: second-backlog
+    expectedBody: Triggered
+    interactions:
+    - fixture: multiple-queues-broker
+      expectedRequest:
+        count: 1
+        body: second-backlog
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+          consumerAction: stop-until-published
+    timeoutSeconds: 90
+- id: consumes-fanout-topology
+  reuseBroker: true
+  scope: Long
+  deployment: fanout
+  driver:
+    provider: rabbitmq-trigger
+    sourceElementId: 6dad34b2-5b6c-570c-87f2-da1ffd1682dd
+  invocations:
+  - id: consumes-fanout-delivery-from-preconfigured-bindings
+    driver:
+      provider: rabbitmq-trigger
+      sourceElementId: 6dad34b2-5b6c-570c-87f2-da1ffd1682dd
+      parameters:
+        routingKey: arbitrary.first
+    body: fanout-first
+    expectedBody: Triggered
+    interactions:
+    - fixture: fanout-broker
+      expectedRequest:
+        count: 1
+        body: fanout-first
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+          observeFanout: true
+  - id: consumes-fanout-with-another-key
+    driver:
+      provider: rabbitmq-trigger
+      sourceElementId: 6dad34b2-5b6c-570c-87f2-da1ffd1682dd
+      parameters:
+        routingKey: arbitrary.second
+    body: fanout-second
+    expectedBody: Triggered
+    interactions:
+    - fixture: fanout-broker
+      expectedRequest:
+        count: 1
+        body: fanout-second
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+          observeFanout: true
+- id: consumes-topic-topology
+  reuseBroker: true
+  scope: Long
+  deployment: topic
+  driver:
+    provider: rabbitmq-trigger
+    sourceElementId: 61f91466-aa34-5eaf-920e-25b985f787bd
+  invocations:
+  - id: matches-topic-binding-patterns
+    driver:
+      provider: rabbitmq-trigger
+      sourceElementId: 61f91466-aa34-5eaf-920e-25b985f787bd
+      parameters:
+        routingKey: snapshot.one
+    body: snapshot.one
+    expectedBody: Triggered
+    interactions:
+    - fixture: topic-broker
+      expectedRequest:
+        count: 1
+        body: snapshot.one
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+          bindings:
+          - routingKey: snapshot.*
+          - routingKey: snapshot.#
+  - id: topic-key-1
+    driver:
+      provider: rabbitmq-trigger
+      sourceElementId: 61f91466-aa34-5eaf-920e-25b985f787bd
+      parameters:
+        routingKey: snapshot.one.two
+    body: snapshot.one.two
+    expectedBody: Triggered
+    interactions:
+    - fixture: topic-broker
+      expectedRequest:
+        count: 1
+        body: snapshot.one.two
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+          bindings:
+          - routingKey: snapshot.*
+          - routingKey: snapshot.#
+  - id: topic-key-2
+    driver:
+      provider: rabbitmq-trigger
+      sourceElementId: 61f91466-aa34-5eaf-920e-25b985f787bd
+      parameters:
+        routingKey: outside.one
+        expectedCompletions: 0
+    body: outside.one
+    expectedBody: null
+    interactions:
+    - fixture: topic-broker
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+          bindings:
+          - routingKey: snapshot.*
+          - routingKey: snapshot.#
+- id: consumes-headers-topology
+  reuseBroker: true
+  scope: Long
+  deployment: headers
+  driver:
+    provider: rabbitmq-trigger
+    sourceElementId: 74e337c9-f31f-5393-a06e-c1d64d54ce30
+  invocations:
+  - id: matches-headers-exchange-bindings
+    body: headers-0
+    headers:
+      region: east
+      kind: order
+    expectedBody: Triggered
+    interactions:
+    - fixture: headers-broker
+      expectedRequest:
+        count: 1
+        body: headers-0
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+          bindingArguments:
+            x-match: all
+            region: east
+            kind: order
+  - id: headers-combination-1
+    driver:
+      provider: rabbitmq-trigger
+      sourceElementId: 74e337c9-f31f-5393-a06e-c1d64d54ce30
+      parameters:
+        expectedCompletions: 0
+    body: headers-1
+    headers:
+      region: west
+      kind: order
+    expectedBody: null
+    interactions:
+    - fixture: headers-broker
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+          bindingArguments:
+            x-match: all
+            region: east
+            kind: order
+  - id: headers-combination-2
+    driver:
+      provider: rabbitmq-trigger
+      sourceElementId: 74e337c9-f31f-5393-a06e-c1d64d54ce30
+      parameters:
+        expectedCompletions: 0
+    body: headers-2
+    headers:
+      kind: order
+    expectedBody: null
+    interactions:
+    - fixture: headers-broker
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+          bindingArguments:
+            x-match: all
+            region: east
+            kind: order
+- id: rejects-unhandled-auto-failures-to-configured-dead-letter-queue
+  scope: Long
+  deployment: auto
+  driver:
+    provider: rabbitmq-trigger
+    sourceElementId: 94164c82-e1a7-493c-877b-46f00f286c08
+  invocations:
+  - id: dead-letters-unhandled-auto-failures-and-recovers
+    body: failed-auto
+    headers:
+      snapshotFail: true
+    expectedBody: failed-auto
+    expectedFailure:
+      type: java.lang.IllegalStateException
+      message: RabbitMQ snapshot failure
+      cause: null
+    interactions:
+    - fixture: auto-broker
+      expectedRequest:
+        count: 1
+        body: failed-auto
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 1
+          expectedRedeliveryCount: 0
+          expectedDeadLetterCount: 1
+  - id: consumes-after-auto-rejection
+    body: after-auto-rejection
+    expectedBody: Triggered
+    interactions:
+    - fixture: auto-broker
+      expectedRequest:
+        count: 1
+        body: after-auto-rejection
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+- id: rejects-auto-failures-without-dead-letter-policy
+  scope: Long
+  deployment: auto
+  driver:
+    provider: rabbitmq-trigger
+    sourceElementId: 94164c82-e1a7-493c-877b-46f00f286c08
+  invocations:
+  - id: drops-unhandled-auto-failures-without-dead-letter-policy
+    body: failed-no-policy
+    headers:
+      snapshotFail: true
+    expectedBody: failed-no-policy
+    expectedFailure:
+      type: java.lang.IllegalStateException
+      message: RabbitMQ snapshot failure
+      cause: null
+    interactions:
+    - fixture: auto-broker
+      expectedRequest:
+        count: 1
+        body: failed-no-policy
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 1
+          expectedRedeliveryCount: 0
+          deadLetterPolicy: false
+  - id: consumes-after-rejection-without-policy
+    body: after-no-policy
+    expectedBody: Triggered
+    interactions:
+    - fixture: auto-broker
+      expectedRequest:
+        count: 1
+        body: after-no-policy
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+          deadLetterPolicy: false
+- id: acknowledges-manual-deliveries-before-downstream-work
+  reuseBroker: true
+  scope: Long
+  deployment: manual
+  driver:
+    provider: rabbitmq-trigger
+    sourceElementId: 67cf068e-8e09-5ac8-bf31-c84f26941e6a
+  invocations:
+  - id: acknowledges-manual-deliveries-before-downstream-completion
+    body: held-manual
+    expectedBody: Triggered
+    interactions:
+    - fixture: manual-broker
+      expectedRequest:
+        count: 1
+        body: held-manual
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+          consumerAction: observe-during-processing
+    timeoutSeconds: 90
+  - id: keeps-manual-failures-out-of-redelivery-and-dlq
+    body: failed-manual
+    headers:
+      snapshotFail: true
+    expectedBody: failed-manual
+    expectedFailure:
+      type: java.lang.IllegalStateException
+      message: RabbitMQ snapshot failure
+      cause: null
+    interactions:
+    - fixture: manual-broker
+      expectedRequest:
+        count: 1
+        body: failed-manual
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 1
+          expectedRedeliveryCount: 0
+  - id: consumes-after-manual-failure-and-reconnect
+    body: after-manual-failure
+    expectedBody: Triggered
+    interactions:
+    - fixture: manual-broker
+      expectedRequest:
+        count: 1
+        body: after-manual-failure
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+          consumerAction: restart-route
+    timeoutSeconds: 90
+- id: uses-native-auto-acknowledgment-in-none-mode
+  reuseBroker: true
+  scope: Long
+  deployment: none
+  driver:
+    provider: rabbitmq-trigger
+    sourceElementId: 0c249797-17ae-5d1c-a3c8-3cca40f54c04
+  invocations:
+  - id: uses-native-auto-ack-with-none-mode
+    body: held-none
+    expectedBody: Triggered
+    interactions:
+    - fixture: none-broker
+      expectedRequest:
+        count: 1
+        body: held-none
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+          consumerAction: observe-during-processing
+    timeoutSeconds: 90
+  - id: does-not-redeliver-failed-none-mode-message
+    body: failed-none
+    headers:
+      snapshotFail: true
+    expectedBody: failed-none
+    expectedFailure:
+      type: java.lang.IllegalStateException
+      message: RabbitMQ snapshot failure
+      cause: null
+    interactions:
+    - fixture: none-broker
+      expectedRequest:
+        count: 1
+        body: failed-none
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 1
+          expectedRedeliveryCount: 0
+  - id: consumes-after-none-mode-failure
+    body: after-none-failure
+    expectedBody: Triggered
+    interactions:
+    - fixture: none-broker
+      expectedRequest:
+        count: 1
+        body: after-none-failure
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+          consumerAction: restart-route
+    timeoutSeconds: 90
+- id: recovers-after-broker-access-denials
+  scope: Long
+  deployment: broker-faults
+  driver:
+    provider: rabbitmq-trigger
+    sourceElementId: 494fcc2a-3d1d-5bb1-acf5-2514f7943133
+  invocations:
+  - id: rejects-invalid-credentials-and-recovers
+    body: after-deny-credentials-until-published
+    expectedBody: Triggered
+    interactions:
+    - fixture: broker-faults-broker
+      expectedRequest:
+        count: 1
+        body: after-deny-credentials-until-published
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+          consumerAction: deny-credentials-until-published
+    timeoutSeconds: 90
+  - id: continues-after-deny-credentials-until-published
+    body: healthy-after-deny-credentials-until-published
+    expectedBody: Triggered
+    interactions:
+    - fixture: broker-faults-broker
+      expectedRequest:
+        count: 1
+        body: healthy-after-deny-credentials-until-published
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+  - id: rejects-read-permissions-and-recovers
+    body: after-deny-read-until-published
+    expectedBody: Triggered
+    interactions:
+    - fixture: broker-faults-broker
+      expectedRequest:
+        count: 1
+        body: after-deny-read-until-published
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+          consumerAction: deny-read-until-published
+          expectedChannelCloseCode: 403
+    timeoutSeconds: 90
+  - id: continues-after-deny-read-until-published
+    body: healthy-after-deny-read-until-published
+    expectedBody: Triggered
+    interactions:
+    - fixture: broker-faults-broker
+      expectedRequest:
+        count: 1
+        body: healthy-after-deny-read-until-published
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+  - id: recovers-after-vhost-removal-and-restoration
+    body: after-deny-vhost-until-published
+    expectedBody: Triggered
+    interactions:
+    - fixture: broker-faults-broker
+      expectedRequest:
+        count: 1
+        body: after-deny-vhost-until-published
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+          consumerAction: deny-vhost-until-published
+    timeoutSeconds: 90
+  - id: continues-after-deny-vhost-until-published
+    body: healthy-after-deny-vhost-until-published
+    expectedBody: Triggered
+    interactions:
+    - fixture: broker-faults-broker
+      expectedRequest:
+        count: 1
+        body: healthy-after-deny-vhost-until-published
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+- id: negotiates-tls-and-recovers-after-handshake-failure
+  scope: Long
+  deployment: tls
+  driver:
+    provider: rabbitmq-trigger
+    sourceElementId: c96e5983-163f-57c0-8349-47fd4f825d77
+  invocations:
+  - id: negotiates-the-exported-tls-protocol
+    body: tls-first
+    expectedBody: Triggered
+    interactions:
+    - fixture: tls-broker
+      expectedRequest:
+        count: 1
+        body: tls-first
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+          tls: true
+  - id: recovers-after-tls-handshake-failure
+    body: tls-recovery
+    expectedBody: Triggered
+    interactions:
+    - fixture: tls-broker
+      expectedRequest:
+        count: 1
+        body: tls-recovery
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+          tls: true
+          consumerAction: tls-until-published
+    timeoutSeconds: 90
+  - id: continues-with-the-existing-tls-consumer
+    body: tls-final
+    expectedBody: Triggered
+    interactions:
+    - fixture: tls-broker
+      expectedRequest:
+        count: 1
+        body: tls-final
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+          tls: true
+- id: resolves-maas-and-consumes
+  scope: Long
+  deployment: maas
+  driver:
+    provider: rabbitmq-trigger
+    sourceElementId: b1dc7ea9-38a7-572c-af62-defb99704d7e
+  invocations:
+  - id: resolves-maas-classifiers-and-consumes-from-returned-vhosts
+    body: resolved-maas
+    expectedBody: Triggered
+    interactions:
+    - fixture: maas-broker
+      expectedRequest:
+        count: 1
+        body: resolved-maas
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+          maasClassifier: snapshot-trigger-classifier
+          maasNamespace: snapshot-rabbitmq
+- id: resolves-maas-default-and-consumes
+  scope: Long
+  deployment: maas-default
+  driver:
+    provider: rabbitmq-trigger
+    sourceElementId: e21bcf61-0479-546f-b206-8d69a9bbac40
+  invocations:
+  - id: resolves-default-maas-namespace
+    body: resolved-maas-default
+    expectedBody: Triggered
+    interactions:
+    - fixture: maas-default-broker
+      expectedRequest:
+        count: 1
+        body: resolved-maas-default
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+          maasClassifier: snapshot-trigger-classifier
+          maasNamespace: snapshot-tests
+- id: reports-maas-lookup-failure-and-recovers-on-redeployment
+  scope: Long
+  deployment: maas
+  driver:
+    provider: rabbitmq-trigger
+    sourceElementId: b1dc7ea9-38a7-572c-af62-defb99704d7e
+  invocations:
+  - id: reports-maas-lookup-failure-and-recovers-on-redeployment
+    driver:
+      provider: rabbitmq-trigger
+      sourceElementId: b1dc7ea9-38a7-572c-af62-defb99704d7e
+      parameters:
+        expectedCompletions: 0
+    body: null
+    expectedBody: null
+    interactions:
+    - fixture: maas-broker
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+          maasClassifier: snapshot-trigger-classifier
+          maasNamespace: snapshot-rabbitmq
+          maasMissingVhost: true
+  expectedStartupFailure:
+    type: org.qubership.integration.platform.engine.maas.MaasException
+    message: Failed to get rabbitmq vHost from MaaS
+    cause:
+      type: java.lang.RuntimeException
+      message: vHost not found
+      cause: null
+- id: consumes-after-successful-maas-redeployment
+  scope: Long
+  deployment: maas
+  driver:
+    provider: rabbitmq-trigger
+    sourceElementId: b1dc7ea9-38a7-572c-af62-defb99704d7e
+  invocations:
+  - id: consumes-after-maas-lookup-recovery
+    body: maas-recovered
+    expectedBody: Triggered
+    interactions:
+    - fixture: maas-broker
+      expectedRequest:
+        count: 1
+        body: maas-recovered
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+          maasClassifier: snapshot-trigger-classifier
+          maasNamespace: snapshot-rabbitmq
+- id: reports-a-missing-input-queue-without-declaration
+  scope: Long
+  deployment: auto
+  driver:
+    provider: rabbitmq-trigger
+    sourceElementId: 94164c82-e1a7-493c-877b-46f00f286c08
+  invocations:
+  - id: reports-missing-input-queues-without-creating-them
+    driver:
+      provider: rabbitmq-trigger
+      sourceElementId: 94164c82-e1a7-493c-877b-46f00f286c08
+      parameters:
+        expectedCompletions: 0
+    body: null
+    expectedBody: null
+    interactions:
+    - fixture: auto-broker
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+          topology: missing-queue
+  expectedStartupFailure:
+    type: java.lang.IllegalStateException
+    message: AMQP queue 'snapshot.rabbitmq.trigger.queue' not found. Declare the queue or change the element.
+    cause:
+      type: java.io.IOException
+      ignoreMessage: true
+      cause:
+        type: com.rabbitmq.client.ShutdownSignalException
+        ignoreMessage: true
+        cause:
+          type: com.rabbitmq.client.ShutdownSignalException
+          message: 'channel error; protocol method: #method<channel.close>(reply-code=404, reply-text=NOT_FOUND
+            - no queue ''snapshot.rabbitmq.trigger.queue'' in vhost ''/'', class-id=50, method-id=10)'
+          cause: null
+- id: consumes-after-provisioning-the-missing-queue
+  scope: Long
+  deployment: auto
+  driver:
+    provider: rabbitmq-trigger
+    sourceElementId: 94164c82-e1a7-493c-877b-46f00f286c08
+  invocations:
+  - id: consumes-after-missing-queue-correction
+    body: corrected-queue
+    expectedBody: Triggered
+    interactions:
+    - fixture: auto-broker
+      expectedRequest:
+        count: 1
+        body: corrected-queue
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedFailureCompletions: 0
+          expectedRedeliveryCount: 0
+- id: applies-idempotency-to-business-keys-and-broker-redelivery
+  scope: Long
+  deployment: idempotency
+  driver:
+    provider: rabbitmq-trigger
+    sourceElementId: 8efe42ba-50eb-588f-a961-88673fca22be
+  invocations:
+  - id: deduplicates-business-keys-and-reacquires-expired-keys
+    driver:
+      provider: rabbitmq-trigger
+      sourceElementId: 8efe42ba-50eb-588f-a961-88673fca22be
+    body: first-key
+    headers:
+      businessContext: orders
+      snapshotFail: false
+      businessKey: key-1
+    expectedBody: Triggered
+    interactions:
+    - fixture: idempotency-ignore
+      expectedRequest:
+        count: 1
+        body: first-key
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 0
+    - fixture: store-ignore
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: orders:key-1
+          keyExpiry: 600
+    - fixture: idempotency-throw
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 0
+    - fixture: store-throw
+      expectedRequest:
+        count: 0
+    - fixture: idempotency-subchain
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 0
+    - fixture: store-subchain
+      expectedRequest:
+        count: 0
+    - fixture: store-handler
+      expectedRequest:
+        count: 0
+  - id: suppresses-duplicate-key
+    driver:
+      provider: rabbitmq-trigger
+      sourceElementId: 8efe42ba-50eb-588f-a961-88673fca22be
+    body: duplicate-key
+    headers:
+      businessContext: orders
+      snapshotFail: false
+      businessKey: key-1
+    expectedBody: duplicate-key
+    expectedProperties:
+      CamelDuplicateMessage: true
+    interactions:
+    - fixture: idempotency-ignore
+      expectedRequest:
+        count: 1
+        body: duplicate-key
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedDuplicateCompletions: 1
+          expectedFailureCompletions: 0
+    - fixture: store-ignore
+      expectedRequest:
+        count: 0
+        properties:
+          insertionAttempts: 1
+          key: orders:key-1
+          keyExpiry: 600
+    - fixture: idempotency-throw
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 0
+    - fixture: store-throw
+      expectedRequest:
+        count: 0
+    - fixture: idempotency-subchain
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 0
+    - fixture: store-subchain
+      expectedRequest:
+        count: 0
+    - fixture: store-handler
+      expectedRequest:
+        count: 0
+  - id: isolates-idempotency-contexts
+    driver:
+      provider: rabbitmq-trigger
+      sourceElementId: 8efe42ba-50eb-588f-a961-88673fca22be
+    body: independent-context
+    headers:
+      businessContext: other
+      snapshotFail: false
+      businessKey: key-1
+    expectedBody: Triggered
+    interactions:
+    - fixture: idempotency-ignore
+      expectedRequest:
+        count: 1
+        body: independent-context
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 0
+    - fixture: store-ignore
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: other:key-1
+          keyExpiry: 600
+    - fixture: idempotency-throw
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 0
+    - fixture: store-throw
+      expectedRequest:
+        count: 0
+    - fixture: idempotency-subchain
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 0
+    - fixture: store-subchain
+      expectedRequest:
+        count: 0
+    - fixture: store-handler
+      expectedRequest:
+        count: 0
+  - id: reacquires-expired-business-key
+    driver:
+      provider: rabbitmq-trigger
+      sourceElementId: 8efe42ba-50eb-588f-a961-88673fca22be
+    body: expired-key
+    headers:
+      businessContext: orders
+      snapshotFail: false
+      businessKey: key-1
+    expectedBody: Triggered
+    interactions:
+    - fixture: idempotency-ignore
+      expectedRequest:
+        count: 1
+        body: expired-key
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 0
+    - fixture: store-ignore
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: orders:key-1
+          keyExpiry: 600
+      response:
+        properties:
+          expireKey: orders:key-1
+    - fixture: idempotency-throw
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 0
+    - fixture: store-throw
+      expectedRequest:
+        count: 0
+    - fixture: idempotency-subchain
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 0
+    - fixture: store-subchain
+      expectedRequest:
+        count: 0
+    - fixture: store-handler
+      expectedRequest:
+        count: 0
+  - id: applies-each-configured-duplicate-action
+    driver:
+      provider: rabbitmq-trigger
+      sourceElementId: 8efe42ba-50eb-588f-a961-88673fca22be
+    body: ignore-first
+    headers:
+      businessContext: orders
+      snapshotFail: false
+      businessKey: action-key
+    expectedBody: Triggered
+    interactions:
+    - fixture: idempotency-ignore
+      expectedRequest:
+        count: 1
+        body: ignore-first
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 0
+    - fixture: store-ignore
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: orders:action-key
+          keyExpiry: 600
+    - fixture: idempotency-throw
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 0
+    - fixture: store-throw
+      expectedRequest:
+        count: 0
+    - fixture: idempotency-subchain
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 0
+    - fixture: store-subchain
+      expectedRequest:
+        count: 0
+    - fixture: store-handler
+      expectedRequest:
+        count: 0
+  - id: ignores-configured-duplicate
+    driver:
+      provider: rabbitmq-trigger
+      sourceElementId: 8efe42ba-50eb-588f-a961-88673fca22be
+    body: ignore-duplicate
+    headers:
+      businessContext: orders
+      snapshotFail: false
+      businessKey: action-key
+    expectedBody: ignore-duplicate
+    expectedProperties:
+      CamelDuplicateMessage: true
+    interactions:
+    - fixture: idempotency-ignore
+      expectedRequest:
+        count: 1
+        body: ignore-duplicate
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedDuplicateCompletions: 1
+          expectedFailureCompletions: 0
+    - fixture: store-ignore
+      expectedRequest:
+        count: 0
+        properties:
+          insertionAttempts: 1
+          key: orders:action-key
+          keyExpiry: 600
+    - fixture: idempotency-throw
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 0
+    - fixture: store-throw
+      expectedRequest:
+        count: 0
+    - fixture: idempotency-subchain
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 0
+    - fixture: store-subchain
+      expectedRequest:
+        count: 0
+    - fixture: store-handler
+      expectedRequest:
+        count: 0
+  - id: accepts-original-before-throw-action
+    driver:
+      provider: rabbitmq-trigger
+      sourceElementId: 8073273c-0118-52cc-8961-72cfc7fd3b07
+    body: throw-first
+    headers:
+      businessContext: orders-throw
+      snapshotFail: false
+      businessKey: action-key
+    expectedBody: Triggered
+    interactions:
+    - fixture: idempotency-ignore
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 0
+    - fixture: store-ignore
+      expectedRequest:
+        count: 0
+    - fixture: idempotency-throw
+      expectedRequest:
+        count: 1
+        body: throw-first
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 0
+    - fixture: store-throw
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: orders-throw:action-key
+          keyExpiry: 600
+    - fixture: idempotency-subchain
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 0
+    - fixture: store-subchain
+      expectedRequest:
+        count: 0
+    - fixture: store-handler
+      expectedRequest:
+        count: 0
+  - id: throws-for-configured-duplicate
+    driver:
+      provider: rabbitmq-trigger
+      sourceElementId: 8073273c-0118-52cc-8961-72cfc7fd3b07
+    body: throw-duplicate
+    headers:
+      businessContext: orders-throw
+      snapshotFail: false
+      businessKey: action-key
+    expectedBody: throw-duplicate
+    expectedFailure:
+      type: org.qubership.integration.platform.engine.camel.idempotency.DuplicateException
+      message: Duplicated idempotency key
+      cause: null
+    expectedProperties:
+      CamelDuplicateMessage: true
+    interactions:
+    - fixture: idempotency-ignore
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 0
+    - fixture: store-ignore
+      expectedRequest:
+        count: 0
+    - fixture: idempotency-throw
+      expectedRequest:
+        count: 1
+        body: throw-duplicate
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedDuplicateCompletions: 1
+          expectedFailureCompletions: 1
+          expectedDeadLetterCount: 1
+    - fixture: store-throw
+      expectedRequest:
+        count: 0
+        properties:
+          insertionAttempts: 1
+          key: orders-throw:action-key
+          keyExpiry: 600
+    - fixture: idempotency-subchain
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 0
+    - fixture: store-subchain
+      expectedRequest:
+        count: 0
+    - fixture: store-handler
+      expectedRequest:
+        count: 0
+  - id: accepts-original-before-subchain-action
+    driver:
+      provider: rabbitmq-trigger
+      sourceElementId: 371b0ba7-10eb-5f3c-a7ae-b03e00d5a908
+    body: subchain-first
+    headers:
+      businessContext: orders-subchain
+      snapshotFail: false
+      businessKey: action-key
+    expectedBody: Triggered
+    interactions:
+    - fixture: idempotency-ignore
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 0
+    - fixture: store-ignore
+      expectedRequest:
+        count: 0
+    - fixture: idempotency-throw
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 0
+    - fixture: store-throw
+      expectedRequest:
+        count: 0
+    - fixture: idempotency-subchain
+      expectedRequest:
+        count: 1
+        body: subchain-first
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 0
+    - fixture: store-subchain
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: orders-subchain:action-key
+          keyExpiry: 600
+    - fixture: store-handler
+      expectedRequest:
+        count: 0
+  - id: invokes-exported-duplicate-handler
+    driver:
+      provider: rabbitmq-trigger
+      sourceElementId: 371b0ba7-10eb-5f3c-a7ae-b03e00d5a908
+    body: subchain-duplicate
+    headers:
+      businessContext: orders-subchain
+      snapshotFail: false
+      businessKey: action-key
+    expectedBody: Duplicate handled
+    expectedProperties:
+      CamelDuplicateMessage: true
+    expectedHeaders:
+      snapshotDuplicateHandler: true
+    interactions:
+    - fixture: idempotency-ignore
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 0
+    - fixture: store-ignore
+      expectedRequest:
+        count: 0
+    - fixture: idempotency-throw
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 0
+    - fixture: store-throw
+      expectedRequest:
+        count: 0
+    - fixture: idempotency-subchain
+      expectedRequest:
+        count: 1
+        body: subchain-duplicate
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedDuplicateCompletions: 1
+          expectedFailureCompletions: 0
+    - fixture: store-subchain
+      expectedRequest:
+        count: 0
+        properties:
+          insertionAttempts: 1
+          key: orders-subchain:action-key
+          keyExpiry: 600
+    - fixture: store-handler
+      expectedRequest:
+        count: 1
+  - id: retains-idempotency-keys-after-failed-processing
+    driver:
+      provider: rabbitmq-trigger
+      sourceElementId: 8efe42ba-50eb-588f-a961-88673fca22be
+    body: failed-business
+    headers:
+      businessContext: orders
+      snapshotFail: true
+      businessKey: retained-key
+    expectedBody: failed-business
+    expectedFailure:
+      type: java.lang.IllegalStateException
+      message: RabbitMQ snapshot failure
+      cause: null
+    interactions:
+    - fixture: idempotency-ignore
+      expectedRequest:
+        count: 1
+        body: failed-business
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 1
+          expectedDeadLetterCount: 1
+    - fixture: store-ignore
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: orders:retained-key
+          keyExpiry: 600
+    - fixture: idempotency-throw
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 0
+    - fixture: store-throw
+      expectedRequest:
+        count: 0
+    - fixture: idempotency-subchain
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 0
+    - fixture: store-subchain
+      expectedRequest:
+        count: 0
+    - fixture: store-handler
+      expectedRequest:
+        count: 0
+  - id: does-not-reacquire-retained-key-after-failure
+    driver:
+      provider: rabbitmq-trigger
+      sourceElementId: 8efe42ba-50eb-588f-a961-88673fca22be
+    body: retained-duplicate
+    headers:
+      businessContext: orders
+      snapshotFail: false
+      businessKey: retained-key
+    expectedBody: retained-duplicate
+    expectedProperties:
+      CamelDuplicateMessage: true
+    interactions:
+    - fixture: idempotency-ignore
+      expectedRequest:
+        count: 1
+        body: retained-duplicate
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedDuplicateCompletions: 1
+          expectedFailureCompletions: 0
+    - fixture: store-ignore
+      expectedRequest:
+        count: 0
+        properties:
+          insertionAttempts: 1
+          key: orders:retained-key
+          keyExpiry: 600
+    - fixture: idempotency-throw
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 0
+    - fixture: store-throw
+      expectedRequest:
+        count: 0
+    - fixture: idempotency-subchain
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 0
+    - fixture: store-subchain
+      expectedRequest:
+        count: 0
+    - fixture: store-handler
+      expectedRequest:
+        count: 0
+  - id: suppresses-business-reexecution-during-broker-redelivery
+    driver:
+      provider: rabbitmq-trigger
+      sourceElementId: 8efe42ba-50eb-588f-a961-88673fca22be
+      parameters:
+        expectedCompletions: 2
+    body: completed-before-connection-loss
+    headers:
+      businessContext: orders
+      snapshotFail: false
+      businessKey: redelivered-key
+    expectedBody: completed-before-connection-loss
+    interactions:
+    - fixture: idempotency-ignore
+      expectedRequest:
+        count: 2
+        body: completed-before-connection-loss
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedDuplicateCompletions: 1
+          expectedFailureCompletions: 0
+          consumerAction: close-after-business
+          expectedRedeliveryCount: 1
+          expectedDeadLetterCount: 0
+          expectedCompletions:
+          - body: Triggered
+            headers:
+              CamelSpringRabbitmqRedelivered: false
+            properties:
+              CamelDuplicateMessage: null
+          - body: completed-before-connection-loss
+            headers:
+              CamelSpringRabbitmqRedelivered: true
+            properties:
+              CamelDuplicateMessage: true
+    - fixture: store-ignore
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 2
+          key: orders:redelivered-key
+          keyExpiry: 600
+    - fixture: idempotency-throw
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 0
+    - fixture: store-throw
+      expectedRequest:
+        count: 0
+    - fixture: idempotency-subchain
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 0
+    - fixture: store-subchain
+      expectedRequest:
+        count: 0
+    - fixture: store-handler
+      expectedRequest:
+        count: 0
+- id: handles-missing-and-empty-idempotency-keys-and-recovers
+  scope: Long
+  deployment: idempotency
+  driver:
+    provider: rabbitmq-trigger
+    sourceElementId: 8efe42ba-50eb-588f-a961-88673fca22be
+  invocations:
+  - id: handles-missing-and-empty-idempotency-keys-and-recovers
+    driver:
+      provider: rabbitmq-trigger
+      sourceElementId: 8efe42ba-50eb-588f-a961-88673fca22be
+    body: missing-key
+    headers:
+      businessContext: orders
+      snapshotFail: false
+    interactions:
+    - fixture: idempotency-ignore
+      expectedRequest:
+        count: 1
+        body: missing-key
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 0
+          expectedDeadLetterCount: 0
+    - fixture: store-ignore
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: 'orders:'
+          keyExpiry: 600
+          storedKeys:
+          - 'orders:'
+          updatedKeys:
+          - 'orders:'
+          records:
+          - key: 'orders:'
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+    - fixture: idempotency-throw
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 0
+    - fixture: store-throw
+      expectedRequest:
+        count: 0
+    - fixture: idempotency-subchain
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 0
+    - fixture: store-subchain
+      expectedRequest:
+        count: 0
+    - fixture: store-handler
+      expectedRequest:
+        count: 0
+    expectedBody: Triggered
+    expectedProperties:
+      CamelDuplicateMessage: null
+      systemProperty_idempotencyContext: orders
+  - id: treats-empty-key-as-the-same-composite-key
+    driver:
+      provider: rabbitmq-trigger
+      sourceElementId: 8efe42ba-50eb-588f-a961-88673fca22be
+    body: empty-key
+    headers:
+      businessContext: orders
+      snapshotFail: false
+      businessKey: ''
+    interactions:
+    - fixture: idempotency-ignore
+      expectedRequest:
+        count: 1
+        body: empty-key
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedDuplicateCompletions: 1
+          expectedFailureCompletions: 0
+          expectedDeadLetterCount: 0
+    - fixture: store-ignore
+      expectedRequest:
+        count: 0
+        properties:
+          insertionAttempts: 1
+          key: 'orders:'
+          keyExpiry: 600
+          storedKeys:
+          - 'orders:'
+          updatedKeys: []
+          records:
+          - key: 'orders:'
+            data:
+              status: RECEIVED
+            keyExpiry: 600
+            active: true
+    - fixture: idempotency-throw
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 0
+    - fixture: store-throw
+      expectedRequest:
+        count: 0
+    - fixture: idempotency-subchain
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 0
+    - fixture: store-subchain
+      expectedRequest:
+        count: 0
+    - fixture: store-handler
+      expectedRequest:
+        count: 0
+    expectedBody: empty-key
+    expectedProperties:
+      CamelDuplicateMessage: true
+      systemProperty_idempotencyContext: orders
+  - id: accepts-a-distinct-valid-key-after-the-collision
+    driver:
+      provider: rabbitmq-trigger
+      sourceElementId: 8efe42ba-50eb-588f-a961-88673fca22be
+    body: after-invalid-keys
+    headers:
+      businessContext: orders
+      snapshotFail: false
+      businessKey: valid-key
+    expectedBody: Triggered
+    interactions:
+    - fixture: idempotency-ignore
+      expectedRequest:
+        count: 1
+        body: after-invalid-keys
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 0
+    - fixture: store-ignore
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: orders:valid-key
+          keyExpiry: 600
+          storedKeys:
+          - 'orders:'
+          - orders:valid-key
+          updatedKeys:
+          - orders:valid-key
+    - fixture: idempotency-throw
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 0
+    - fixture: store-throw
+      expectedRequest:
+        count: 0
+    - fixture: idempotency-subchain
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedDuplicateCompletions: 0
+          expectedFailureCompletions: 0
+    - fixture: store-subchain
+      expectedRequest:
+        count: 0
+    - fixture: store-handler
+      expectedRequest:
+        count: 0
+- id: acquires-a-single-business-key-under-competing-consumers
+  scope: Long
+  deployment: competing
+  driver:
+    provider: rabbitmq-trigger
+    sourceElementId: 756bc711-0ff1-5adc-8ec4-76dfafe3dfdc
+  invocations:
+  - id: acquires-one-key-under-competing-trigger-consumers
+    driver:
+      provider: rabbitmq-trigger
+      sourceElementId: 756bc711-0ff1-5adc-8ec4-76dfafe3dfdc
+      parameters:
+        messages:
+        - body: first
+          headers:
+            businessKey: concurrent-key
+            businessContext: concurrent
+        - body: second
+          headers:
+            businessKey: concurrent-key
+            businessContext: concurrent
+    body: null
+    interactions:
+    - fixture: competing-first
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          holdConcurrentConsumers: true
+          sharedQueue: true
+          expectedTotalBusinessCount: 1
+          expectedTotalDuplicateCompletions: 1
+          expectedConsumerCount: 2
+    - fixture: competing-second
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          holdConcurrentConsumers: true
+          sharedQueue: true
+          expectedTotalBusinessCount: 1
+          expectedTotalDuplicateCompletions: 1
+          expectedConsumerCount: 2
+    - fixture: store-competing
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 2
+          storedKeys:
+          - concurrent:concurrent-key

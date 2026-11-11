@@ -61,7 +61,7 @@ public class EngineRoutesResourceBuilder implements ResourceBuilder<List<Snapsho
     // literal (and actually unreachable) to==from.
     private static final String LIVE_EXCHANGES_PATH = "/live-exchanges";
 
-    @Value("${cip.control-plane.routes.public.v1-prefix:/api/v1/qip/engine}")
+    @Value("${cip.control-plane.routes.public.v1-prefix:/api/v1/cip/engine}")
     String publicRoutePrefixV1;
 
     @Value("${cip.gateway.public.name}")

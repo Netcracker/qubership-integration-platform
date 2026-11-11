@@ -11,10 +11,17 @@ import {
   ChainItem,
   DeployMode,
   FolderItem,
+  RestApiError,
   ListFolderRequest,
   UpdateFolderRequest,
 } from "../api/apiTypes.ts";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { api } from "../api/api.ts";
 import { formatTimestamp } from "../misc/format-utils.ts";
 import { EntityLabels } from "../components/labels/EntityLabels.tsx";
@@ -34,6 +41,7 @@ import { mergeUpdatedChainInFolderItems } from "./chains/mergeUpdatedChainInFold
 import {
   collectDescendantFolderIds,
   collectSubtreeBatches,
+  collectSubtreeChainIds,
 } from "./chains/chainSubtree.ts";
 import type { FolderContent } from "./chains/chainSubtree.ts";
 import { copyToClipboard } from "../misc/clipboard-util.ts";
@@ -66,16 +74,20 @@ import {
 } from "../components/table/useColumnSettingsButton.tsx";
 import { useTableDragDrop } from "../hooks/useTableDragDrop.ts";
 import { treeExpandIcon } from "../components/table/TreeExpandIcon.tsx";
-import { useTableConfiguration } from "../components/table/useTableConfiguration.tsx";
+import {
+  EXPAND_COLUMN_WIDTH,
+  SELECTION_COLUMN_WIDTH,
+  useTableConfiguration,
+} from "../components/table/useTableConfiguration.tsx";
 import { tableEmpty } from "../components/table/tableEmpty.tsx";
 import { TableToolbar } from "../components/table/TableToolbar.tsx";
 import commonStyles from "../components/admin_tools/CommonStyle.module.css";
 import { createActionsColumnBase } from "../components/table/actionsColumn.ts";
 import { ChainDetailsDrawer } from "../components/chains/ChainDetailsDrawer.tsx";
 import { useGenerateDds } from "../hooks/useGenerateDds.tsx";
+import { useCatalogRefresh } from "../hooks/useCatalogRefresh.ts";
+import { isVsCode } from "../api/rest/vscodeExtensionApi.ts";
 
-const CHAINS_EXPAND_COLUMN_WIDTH = 48;
-const CHAINS_SELECTION_COLUMN_WIDTH = 48;
 import { Domain } from "../components/SelectDomains.tsx";
 import { ChainDiffPopup } from "../components/chains/diff/ChainDiffPopup.tsx";
 import { useTableRowExpandCollapse } from "../components/table/useTableRowExpandCollapse.ts";
@@ -134,21 +146,46 @@ const chainExpandIcon = treeExpandIcon<ChainTableItem>();
 const Chains = () => {
   const navigate = useNavigate();
   const { showModal } = useModalsContext();
+  const [localOperations, setLocalOperations] = useState(0);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [folderItems, setFolderItems] = useState<FolderItem[]>([]);
   const [tableItems, setTableItems] = useState<ChainTableItem[]>([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [selectedChains, setSelectedChains] = useState<FolderItem[]>([]);
   const [loadedFolders, setLoadedFolders] = useState<Set<string>>(new Set());
+  const [incompleteFolderIds, setIncompleteFolderIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const [pendingFolderIds, setPendingFolderIds] = useState<Set<string>>(
+    new Set(),
+  );
   const [searchParams] = useSearchParams();
   const [folderPath, setFolderPath] = useState<FolderItem[]>([]);
   const [operation, setOperation] = useState<Operation | undefined>(undefined);
   const [searchString, setSearchString] = useState<string>("");
   const [detailsChain, setDetailsChain] = useState<ChainItem | null>(null);
+  const detailsChainRef = useRef(detailsChain);
+  detailsChainRef.current = detailsChain;
   const [isDetailsOpen, setIsDetailsOpen] = useState<boolean>(false);
   const notificationService = useNotificationService();
   const { filters, filterButton } = useChainFilters();
   const { showGenerateDdsModal } = useGenerateDds();
+  const folderSelectionRequestIds = useRef(new Map<string, number>());
+  const nextFolderSelectionRequestId = useRef(0);
+  const hasUnresolvedSelectedFolder = selectedRowKeys.some(
+    (key) =>
+      typeof key === "string" &&
+      (incompleteFolderIds.has(key) || pendingFolderIds.has(key)),
+  );
+  const catalogViewKey = `${searchParams.toString()}:${searchString}:${JSON.stringify(filters)}`;
+  const catalogViewGeneration = useRef({ key: catalogViewKey, value: 0 });
+  if (catalogViewGeneration.current.key !== catalogViewKey) {
+    catalogViewGeneration.current = {
+      key: catalogViewKey,
+      value: catalogViewGeneration.current.value + 1,
+    };
+  }
+  const previousCatalogViewKey = useRef(catalogViewKey);
 
   const getChainSubtreeIds = useCallback(
     (record: ChainTableItem | FolderItem): React.Key[] => {
@@ -160,10 +197,21 @@ const Chains = () => {
     [folderItems],
   );
 
-  const ensureChainSubtreeLoaded = useCallback(
-    async (record: ChainTableItem | FolderItem): Promise<React.Key[]> => {
+  const loadFolderSubtree = useCallback(
+    async (
+      record: ChainTableItem | FolderItem,
+    ): Promise<{
+      folderIds: React.Key[];
+      chainIds: string[];
+      complete: boolean;
+    }> => {
+      const generation = catalogViewGeneration.current.value;
       if (record.itemType !== CatalogItemType.FOLDER) {
-        return [record.id];
+        return {
+          folderIds: [record.id],
+          chainIds: [record.id],
+          complete: true,
+        };
       }
       const knownLoaded = new Set<string>(loadedFolders);
       const visited = new Set<string>();
@@ -172,8 +220,9 @@ const Chains = () => {
         setIsLoading(true);
       }
       let batches: FolderContent[];
+      let complete: boolean;
       try {
-        batches = await collectSubtreeBatches(record.id, {
+        const result = await collectSubtreeBatches(record.id, {
           folderItems,
           knownLoaded,
           visited,
@@ -185,13 +234,27 @@ const Chains = () => {
               error,
             ),
         });
+        batches = result.batches;
+        complete = result.complete;
       } finally {
-        if (needsFetch) {
+        if (needsFetch && catalogViewGeneration.current.value === generation) {
           setIsLoading(false);
         }
       }
+      if (catalogViewGeneration.current.value !== generation) {
+        return { folderIds: [], chainIds: [], complete: false };
+      }
+      // knownLoaded holds every folder the walk fetched, the ticked folder
+      // included. batches holds only that folder's rows.
+      if (knownLoaded.size !== loadedFolders.size) {
+        setLoadedFolders((prev) => new Set([...prev, ...knownLoaded]));
+      }
       if (batches.length === 0) {
-        return collectDescendantFolderIds(record.id, folderItems);
+        return {
+          folderIds: collectDescendantFolderIds(record.id, folderItems),
+          chainIds: collectSubtreeChainIds(record.id, folderItems),
+          complete,
+        };
       }
       const flat = batches.flat();
       setFolderItems((prev) => {
@@ -199,23 +262,22 @@ const Chains = () => {
         const fresh = flat.filter((item) => !prevIds.has(item.id));
         return fresh.length > 0 ? [...prev, ...fresh] : prev;
       });
-      setLoadedFolders((prev) => {
-        const next = new Set(prev);
-        flat.forEach((item) => {
-          if (item.itemType === CatalogItemType.FOLDER) {
-            next.add(item.id);
-          }
-        });
-        return next;
-      });
       const prevIds = new Set(folderItems.map((item) => item.id));
       const freshItems = flat.filter((item) => !prevIds.has(item.id));
-      return collectDescendantFolderIds(record.id, [
-        ...folderItems,
-        ...freshItems,
-      ]);
+      const merged = [...folderItems, ...freshItems];
+      return {
+        folderIds: collectDescendantFolderIds(record.id, merged),
+        chainIds: collectSubtreeChainIds(record.id, merged),
+        complete,
+      };
     },
     [folderItems, loadedFolders, filters, searchString, notificationService],
+  );
+
+  const ensureChainSubtreeLoaded = useCallback(
+    (record: ChainTableItem | FolderItem) =>
+      loadFolderSubtree(record).then((loaded) => loaded.folderIds),
+    [loadFolderSubtree],
   );
 
   const {
@@ -231,27 +293,6 @@ const Chains = () => {
   const getFolderId = useCallback((): string | undefined => {
     return searchParams.get("folder") ?? undefined;
   }, [searchParams]);
-
-  const getPathToFolder = useCallback(
-    async (folderId: string | undefined) => {
-      if (!folderId) {
-        return [];
-      }
-      setIsLoading(true);
-      try {
-        return await api.getPathToFolder(folderId);
-      } catch (error) {
-        notificationService.requestFailed(
-          "Failed to get path to folder",
-          error,
-        );
-        return [];
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [notificationService],
-  );
 
   const listFolder = useCallback(
     async (folderId: string | undefined) => {
@@ -276,18 +317,87 @@ const Chains = () => {
     [notificationService, searchString, filters],
   );
 
-  const updateFolderItems = useCallback(async () => {
-    const folderId = getFolderId();
-    await listFolder(folderId).then((items) => {
+  const { refresh: updateFolderItems } = useCatalogRefresh(
+    catalogViewKey,
+    (change) => !isVsCode && change.chainsListChanged,
+    async (isCurrent) => {
+      const folderId = getFolderId();
       setIsLoading(true);
-      setExpandedRowKeys([]);
-      setLoadedFolders(new Set());
-      setFolderItems(items);
-      setIsLoading(false);
-    });
-
-    await getPathToFolder(folderId).then((path) => setFolderPath(path));
-  }, [getFolderId, getPathToFolder, listFolder, setExpandedRowKeys]);
+      try {
+        const [items, path] = await Promise.all([
+          api.listFolder({ folderId, filters, searchString }),
+          folderId ? api.getPathToFolder(folderId) : Promise.resolve([]),
+        ]);
+        if (!isCurrent()) return;
+        catalogViewGeneration.current.value += 1;
+        setIsLoading(true);
+        setExpandedRowKeys([]);
+        setLoadedFolders(new Set());
+        setIncompleteFolderIds(new Set());
+        setPendingFolderIds(new Set());
+        folderSelectionRequestIds.current.clear();
+        setSelectedRowKeys([]);
+        setFolderItems(items);
+        setFolderPath(path);
+        const detail = detailsChainRef.current;
+        if (detail) {
+          const updated = items.find((item) => item.id === detail.id);
+          if (updated)
+            setDetailsChain((previous) =>
+              previous?.id === detail.id ? (updated as ChainItem) : previous,
+            );
+          else {
+            try {
+              const latest = await api.getChain(detail.id);
+              if (isCurrent() && detailsChainRef.current?.id === detail.id) {
+                setDetailsChain({ ...detail, ...latest });
+              }
+            } catch (error) {
+              if (
+                isCurrent() &&
+                detailsChainRef.current?.id === detail.id &&
+                error instanceof RestApiError &&
+                error.responseCode === 404
+              ) {
+                setIsDetailsOpen(false);
+                setDetailsChain(null);
+                notificationService.info(
+                  "Chain deleted",
+                  "The details panel was closed because the chain no longer exists.",
+                );
+              } else if (isCurrent()) throw error;
+            }
+          }
+        }
+      } catch (error) {
+        if (!isCurrent()) return;
+        if (
+          folderId &&
+          error instanceof RestApiError &&
+          error.responseCode === 404
+        ) {
+          const next = new URLSearchParams(searchParams);
+          next.delete("folder");
+          const query = next.toString();
+          void navigate(`/chains${query ? `?${query}` : ""}`);
+          notificationService.info(
+            "Folder deleted",
+            "The current folder no longer exists. Showing root folders.",
+          );
+          return;
+        }
+        notificationService.requestFailed(
+          "Failed to refresh chains; the previous list is preserved",
+          error,
+          () => void updateFolderItems().catch(() => undefined),
+        );
+        throw error;
+      } finally {
+        if (isCurrent()) setIsLoading(false);
+      }
+    },
+    localOperations > 0,
+  );
 
   const openFolder = async (folderId: string) => {
     return listFolder(folderId).then((response) => {
@@ -315,6 +425,7 @@ const Chains = () => {
     openFolder: boolean,
     newTab: boolean,
   ) => {
+    setLocalOperations((count) => count + 1);
     setIsLoading(true);
     try {
       const response = await api.createFolder(request);
@@ -330,6 +441,7 @@ const Chains = () => {
     } catch (error) {
       notificationService.requestFailed("Failed to create folder", error);
     } finally {
+      setLocalOperations((count) => count - 1);
       setIsLoading(false);
     }
   };
@@ -338,6 +450,7 @@ const Chains = () => {
     folderId: string,
     changes: UpdateFolderRequest,
   ) => {
+    setLocalOperations((count) => count + 1);
     setIsLoading(true);
     try {
       const response = await api.updateFolder(folderId, changes);
@@ -349,11 +462,13 @@ const Chains = () => {
     } catch (error) {
       notificationService.requestFailed("Failed to update folder", error);
     } finally {
+      setLocalOperations((count) => count - 1);
       setIsLoading(false);
     }
   };
 
   const deleteFolder = async (folderId: string) => {
+    setLocalOperations((count) => count + 1);
     setIsLoading(true);
     try {
       await api.deleteFolder(folderId);
@@ -367,6 +482,7 @@ const Chains = () => {
     } catch (error) {
       notificationService.requestFailed("Failed to delete folder", error);
     } finally {
+      setLocalOperations((count) => count - 1);
       setIsLoading(false);
     }
   };
@@ -375,6 +491,7 @@ const Chains = () => {
     if (folderIds.length === 0) {
       return;
     }
+    setLocalOperations((count) => count + 1);
     setIsLoading(true);
     try {
       await api.deleteFolders(folderIds);
@@ -388,6 +505,7 @@ const Chains = () => {
     } catch (error) {
       notificationService.requestFailed("Failed to delete folders", error);
     } finally {
+      setLocalOperations((count) => count - 1);
       setIsLoading(false);
     }
   };
@@ -397,6 +515,7 @@ const Chains = () => {
     openChain: boolean,
     newTab: boolean,
   ) => {
+    setLocalOperations((count) => count + 1);
     setIsLoading(true);
     try {
       const chain = await api.createChain(request);
@@ -415,6 +534,7 @@ const Chains = () => {
     } catch (error) {
       notificationService.requestFailed("Failed to create chain", error);
     } finally {
+      setLocalOperations((count) => count - 1);
       setIsLoading(false);
     }
   };
@@ -425,6 +545,7 @@ const Chains = () => {
     openChain: boolean,
     newTab: boolean,
   ) => {
+    setLocalOperations((count) => count + 1);
     setIsLoading(true);
     try {
       const chain = await api.updateChain(chainId, update);
@@ -442,11 +563,13 @@ const Chains = () => {
     } catch (error) {
       notificationService.requestFailed("Failed to update chain", error);
     } finally {
+      setLocalOperations((count) => count - 1);
       setIsLoading(false);
     }
   };
 
   const deleteChain = async (chainId: string) => {
+    setLocalOperations((count) => count + 1);
     setIsLoading(true);
     try {
       await api.deleteChain(chainId);
@@ -454,6 +577,7 @@ const Chains = () => {
     } catch (error) {
       notificationService.requestFailed("Failed to delete chain", error);
     } finally {
+      setLocalOperations((count) => count - 1);
       setIsLoading(false);
     }
   };
@@ -462,6 +586,7 @@ const Chains = () => {
     if (chainIds.length === 0) {
       return;
     }
+    setLocalOperations((count) => count + 1);
     setIsLoading(true);
     try {
       await api.deleteChains(chainIds);
@@ -469,6 +594,7 @@ const Chains = () => {
     } catch (error) {
       notificationService.requestFailed("Failed to delete chains", error);
     } finally {
+      setLocalOperations((count) => count - 1);
       setIsLoading(false);
     }
   };
@@ -481,9 +607,10 @@ const Chains = () => {
     if (chainIds.length === 0) {
       return [];
     }
+    setLocalOperations((count) => count + 1);
     setIsLoading(true);
     try {
-      return await api.deployToMicroDomain({
+      return await api.bulkDeploy({
         domains: domains.map((domain) => domain.name),
         chainIds,
         snapshotAction,
@@ -493,11 +620,13 @@ const Chains = () => {
       notificationService.requestFailed("Failed to deploy chains", error);
       throw error;
     } finally {
+      setLocalOperations((count) => count - 1);
       setIsLoading(false);
     }
   };
 
   const duplicateChain = async (chainId: string) => {
+    setLocalOperations((count) => count + 1);
     setIsLoading(true);
     try {
       const chain = await api.duplicateChain(chainId);
@@ -508,11 +637,13 @@ const Chains = () => {
     } catch (error) {
       notificationService.requestFailed("Failed to duplicate chain", error);
     } finally {
+      setLocalOperations((count) => count - 1);
       setIsLoading(false);
     }
   };
 
   const copyChain = async (chainId: string, destinationFolderId?: string) => {
+    setLocalOperations((count) => count + 1);
     setIsLoading(true);
     try {
       const chain = await api.copyChain(chainId, destinationFolderId);
@@ -523,6 +654,7 @@ const Chains = () => {
     } catch (error) {
       notificationService.requestFailed("Failed to copy chain", error);
     } finally {
+      setLocalOperations((count) => count - 1);
       setIsLoading(false);
     }
   };
@@ -544,6 +676,7 @@ const Chains = () => {
   );
 
   const moveChain = async (chainId: string, destinationFolderId?: string) => {
+    setLocalOperations((count) => count + 1);
     setIsLoading(true);
     try {
       const chain = await api.moveChain(chainId, destinationFolderId);
@@ -561,11 +694,13 @@ const Chains = () => {
     } catch (error) {
       notificationService.requestFailed("Failed to move chain", error);
     } finally {
+      setLocalOperations((count) => count - 1);
       setIsLoading(false);
     }
   };
 
   const moveFolder = async (folderId: string, destinationFolderId?: string) => {
+    setLocalOperations((count) => count + 1);
     setIsLoading(true);
     try {
       const response = await api.moveFolder(folderId, destinationFolderId);
@@ -589,6 +724,7 @@ const Chains = () => {
     } catch (error) {
       notificationService.requestFailed("Failed to move folder", error);
     } finally {
+      setLocalOperations((count) => count - 1);
       setIsLoading(false);
     }
   };
@@ -845,11 +981,20 @@ const Chains = () => {
   };
 
   const onDeployBtnClick = () => {
-    if (selectedRowKeys.length > 0) {
+    if (hasUnresolvedSelectedFolder) return;
+    const chainIds = folderItems
+      .filter(
+        (i) =>
+          selectedRowKeys.includes(i.id) &&
+          i.itemType === CatalogItemType.CHAIN,
+      )
+      .map((i) => i.id);
+    if (chainIds.length > 0) {
       showModal({
         component: (
           <DeployChains
-            chainCount={selectedRowKeys.length}
+            chainCount={chainIds.length}
+            chainIds={chainIds}
             onSubmit={(request: DeployRequest) => deploySelectedChains(request)}
           />
         ),
@@ -890,13 +1035,25 @@ const Chains = () => {
       )
       .map((i) => i.id);
     await deleteFolders(folderIds);
-    const chainIds = folderItems
+    const selectedFolderIds = new Set(folderIds);
+    const selectedChainIds = folderItems
       .filter(
         (i) =>
           selectedRowKeys.includes(i.id) &&
           i.itemType === CatalogItemType.CHAIN,
       )
       .map((i) => i.id);
+    const itemById = new Map(folderItems.map((item) => [item.id, item]));
+    const chainIds = selectedChainIds.filter((chainId) => {
+      let parentId = itemById.get(chainId)?.parentId;
+      const visited = new Set<string>();
+      while (parentId && !visited.has(parentId)) {
+        if (selectedFolderIds.has(parentId)) return false;
+        visited.add(parentId);
+        parentId = itemById.get(parentId)?.parentId;
+      }
+      return true;
+    });
     await deleteChains(chainIds);
   };
 
@@ -976,8 +1133,58 @@ const Chains = () => {
     }
   };
 
+  const cascadeFolderSelection = async (
+    record: ChainTableItem,
+    requestId: number,
+  ) => {
+    const generation = catalogViewGeneration.current.value;
+    const { chainIds, complete } = await loadFolderSubtree(record);
+    if (catalogViewGeneration.current.value !== generation) return;
+    if (folderSelectionRequestIds.current.get(record.id) !== requestId) return;
+    setIncompleteFolderIds((previous) => {
+      const next = new Set(previous);
+      if (complete) next.delete(record.id);
+      else next.add(record.id);
+      return next;
+    });
+    folderSelectionRequestIds.current.delete(record.id);
+    setPendingFolderIds((previous) => {
+      const next = new Set(previous);
+      next.delete(record.id);
+      return next;
+    });
+    if (chainIds.length === 0) {
+      return;
+    }
+    // The folder may have been unticked, or the selection reset while it fetched.
+    setSelectedRowKeys((prev) =>
+      prev.includes(record.id)
+        ? Array.from(new Set([...prev, ...chainIds]))
+        : prev,
+    );
+  };
+
   const onSelectChange = (newSelectedRowKeys: React.Key[]) => {
+    const prevKeys = new Set(selectedRowKeys);
+    const nextKeys = new Set(newSelectedRowKeys);
+    const checkedFolders = folderItems.filter(
+      (item) =>
+        item.itemType === CatalogItemType.FOLDER &&
+        !prevKeys.has(item.id) &&
+        nextKeys.has(item.id),
+    );
     setSelectedRowKeys(newSelectedRowKeys);
+    if (checkedFolders.length > 0) {
+      setPendingFolderIds(
+        (previous) =>
+          new Set([...previous, ...checkedFolders.map((folder) => folder.id)]),
+      );
+    }
+    checkedFolders.forEach((folder) => {
+      const requestId = ++nextFolderSelectionRequestId.current;
+      folderSelectionRequestIds.current.set(folder.id, requestId);
+      void cascadeFolderSelection(folder, requestId);
+    });
   };
 
   const folderMenuItems: ProtectedMenuItem[] = [
@@ -995,7 +1202,11 @@ const Chains = () => {
     { label: "Expand All", key: "expandAll" },
     { label: "Collapse All", key: "collapseAll" },
     { type: "divider" },
-    { label: "Copy Link", key: "copyFolderLink" },
+    {
+      label: "Copy Link",
+      key: "copyFolderLink",
+      require: { folder: ["update"] },
+    },
     { label: "Edit", key: "editFolder", require: { folder: ["update"] } },
     { label: "Export", key: "export", require: { chain: ["export"] } },
     { type: "divider" },
@@ -1010,13 +1221,17 @@ const Chains = () => {
   ];
 
   const chainMenuItems: ProtectedMenuItem[] = [
-    { label: "Copy Link", key: "copyChainLink" },
+    {
+      label: "Copy Link",
+      key: "copyChainLink",
+      require: { chain: ["update"] },
+    },
     { label: "Edit", key: "editChain", require: { chain: ["update"] } },
     { label: "Export", key: "export", require: { chain: ["export"] } },
     {
       label: "Generate DDS",
       key: "generateDDS",
-      require: { chain: ["read"] },
+      require: { chain: ["read"], designTemplate: ["read"] },
     },
     { type: "divider" },
     { label: "Cut", key: "cut", require: { chain: ["delete"] } },
@@ -1197,8 +1412,8 @@ const Chains = () => {
       modifiedWhen: 168,
     },
     {
-      expandColumnWidth: CHAINS_EXPAND_COLUMN_WIDTH,
-      selectionColumnWidth: CHAINS_SELECTION_COLUMN_WIDTH,
+      expandColumnWidth: EXPAND_COLUMN_WIDTH,
+      selectionColumnWidth: SELECTION_COLUMN_WIDTH,
     },
     "chainsTable",
   );
@@ -1211,7 +1426,23 @@ const Chains = () => {
   };
 
   useEffect(() => {
-    void updateFolderItems();
+    if (previousCatalogViewKey.current !== catalogViewKey) {
+      previousCatalogViewKey.current = catalogViewKey;
+      const invalidatedFolderIds = pendingFolderIds;
+      setSelectedRowKeys((keys) =>
+        keys.filter(
+          (key) => typeof key !== "string" || !invalidatedFolderIds.has(key),
+        ),
+      );
+      setPendingFolderIds(new Set());
+      invalidatedFolderIds.forEach((folderId) =>
+        folderSelectionRequestIds.current.delete(folderId),
+      );
+    }
+  });
+
+  useEffect(() => {
+    void updateFolderItems().catch(() => undefined);
   }, [updateFolderItems]);
 
   useEffect(() => {
@@ -1249,8 +1480,7 @@ const Chains = () => {
               <CompactSearch
                 value={searchString}
                 onChange={setSearchString}
-                placeholder="Full text search"
-                allowClear
+                placeholder="Search chains and folders..."
                 className={commonStyles["searchField"]}
               />
             </Flex>
@@ -1299,6 +1529,8 @@ const Chains = () => {
                 buttonProps={{
                   "data-testid": "chains-deploy",
                   iconName: "send",
+                  disabled:
+                    selectedChains.length === 0 || hasUnresolvedSelectedFolder,
                   onClick: onDeployBtnClick,
                 }}
               />

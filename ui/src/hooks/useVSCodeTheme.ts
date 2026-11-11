@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import VSCodeApiSingleton from "../utils/vscodeApi";
+import { isVsCodeWebview } from "../misc/isVsCodeWebview";
 
 interface ThemeData {
   kind: number;
@@ -111,14 +112,13 @@ const detectVSCodeEnvironment = (): boolean => {
   const globalWindow = window as unknown as {
     vscode?: unknown;
     vscodeApi?: unknown;
-    acquireVsCodeApi?: unknown;
   };
 
   if (globalWindow.vscode || globalWindow.vscodeApi) {
     return true;
   }
 
-  return typeof globalWindow.acquireVsCodeApi === "function";
+  return isVsCodeWebview();
 };
 
 function detectInitialIsDark(): boolean {
@@ -239,7 +239,7 @@ export const useVSCodeTheme = () => {
       if (!isVSCodeWebview) {
         if (theme.colors && Object.keys(theme.colors).length > 0) {
           console.log(
-            "QIP UI: Applying fallback colors for browser mode:",
+            "CIP UI: Applying fallback colors for browser mode:",
             Object.keys(theme.colors).length,
           );
           Object.entries(theme.colors).forEach(([key, value]) => {
@@ -250,7 +250,7 @@ export const useVSCodeTheme = () => {
           });
         } else {
           console.log(
-            "QIP UI: No VSCode colors received for browser mode, using stylesheet fallbacks",
+            "CIP UI: No VSCode colors received for browser mode, using stylesheet fallbacks",
           );
         }
       }
@@ -274,6 +274,10 @@ export const useVSCodeTheme = () => {
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
+      // VS Code's webview host forwards extension messages from the webview's own origin.
+      if (event.origin !== window.origin) {
+        return;
+      }
       const message = event.data as {
         type?: string;
         payload?: ThemeData;

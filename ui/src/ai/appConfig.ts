@@ -2,9 +2,14 @@ import { getAiServiceUrlOverride } from "../config/aiServiceUrlOverride.ts";
 import { useState, useEffect } from "react";
 
 let aiServiceUrl: string | null = null;
+let aiServiceEnabled = true;
 
 export function setAiServiceUrl(url: string | undefined): void {
   aiServiceUrl = url || null;
+}
+
+export function setAiServiceEnabled(enabled: boolean): void {
+  aiServiceEnabled = enabled;
 }
 
 export function getAiServiceUrl(): string | null {
@@ -16,7 +21,7 @@ export function getAiServiceUrl(): string | null {
     return aiServiceUrl;
   }
 
-  const envUrl = import.meta.env.VITE_AI_SERVICE_URL as string | undefined;
+  const envUrl = import.meta.env.VITE_AI_SERVICE_URL;
   if (envUrl) {
     return envUrl;
   }
@@ -37,12 +42,12 @@ export function useIsAiServiceAvailable(): boolean {
 
   useEffect(() => {
     const url = getAiServiceUrl();
-    if (!url) {
+    if (!aiServiceEnabled || !url) {
       setIsAiServiceAvailable(false);
       return;
     }
     const base = url.replace(/\/$/, "");
-    fetch(`${base}/health`, { method: "GET" })
+    fetch(`${base}/q/health`, { method: "GET", credentials: "omit" })
       .then((response) => {
         setIsAiServiceAvailable(response.ok);
       })

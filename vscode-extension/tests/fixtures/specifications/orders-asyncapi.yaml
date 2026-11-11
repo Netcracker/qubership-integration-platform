@@ -1,0 +1,74 @@
+# The AsyncAPI import fixture. AsyncAPI 3.0 over Kafka, which `AsyncApiV3Normalizer` rewrites into
+# the 2.x model the rest of the path reads: two channels, one operation each, one `send` and one
+# `receive`, so the golden records both actions. The first channel declares its message inline with
+# a literal payload, and the second references `components.messages`, whose payload references
+# `components.schemas` in turn, so `AsyncApiSchemaResolver` has a chain of references to resolve.
+#
+# The protocol is Kafka and comes from the server: `extractAsyncProtocolName` reads
+# `servers.<name>.protocol`, since no `info.x-protocol` is declared, and `ASYNC_PROTOCOL_MAP` turns
+# it into the KAFKA specification type. A document with neither would import as the generic ASYNC
+# type instead.
+asyncapi: 3.0.0
+info:
+  title: Orders
+  version: 1.0.0
+  description: The order events the import fixture describes.
+servers:
+  production:
+    host: kafka.orders.qip.test:9092
+    protocol: kafka
+    description: Orders broker
+channels:
+  ordersCreated:
+    address: orders.created
+    messages:
+      OrderCreated:
+        name: OrderCreated
+        payload:
+          type: object
+          required:
+            - orderId
+          properties:
+            orderId:
+              type: string
+            total:
+              type: number
+              format: double
+  ordersShipped:
+    address: orders.shipped
+    messages:
+      OrderShipped:
+        $ref: "#/components/messages/OrderShipped"
+operations:
+  publishOrderCreated:
+    action: send
+    channel:
+      $ref: "#/channels/ordersCreated"
+    summary: Publish an order that was created
+    messages:
+      - $ref: "#/channels/ordersCreated/messages/OrderCreated"
+  consumeOrderShipped:
+    action: receive
+    channel:
+      $ref: "#/channels/ordersShipped"
+    summary: Consume an order that shipped
+    messages:
+      - $ref: "#/channels/ordersShipped/messages/OrderShipped"
+components:
+  messages:
+    OrderShipped:
+      name: OrderShipped
+      payload:
+        $ref: "#/components/schemas/OrderShipped"
+  schemas:
+    OrderShipped:
+      type: object
+      required:
+        - orderId
+        - shippedAt
+      properties:
+        orderId:
+          type: string
+        shippedAt:
+          type: string
+          format: date-time

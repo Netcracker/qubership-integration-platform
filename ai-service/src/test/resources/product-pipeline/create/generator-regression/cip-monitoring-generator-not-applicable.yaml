@@ -1,0 +1,57 @@
+caseId: cip-monitoring-generator-not-applicable
+skillId: cip-monitoring-generator
+expectedApplicability: NOT_APPLICABLE
+requirementBrief:
+  goal: Emit a log record for each request.
+  inputs: []
+  constraints: []
+  assumptions: []
+  citations: []
+  summary: Emit a log record for each request.
+  approvedDraftReference: approved-draft-cip-monitoring-generator-not-applicable
+  approvedDraftText: Emit a log record for each request.
+  facts: []
+upstreamArtifacts:
+  CHAIN_STRUCTURE:
+    schemaVersion: 1
+inputGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Monitoring.Demo.Log
+    description: Log processed requests.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: log-1
+      type: log-record
+      label: Log request
+      parentNodeId: null
+      order: null
+      properties:
+        []
+  edges: []
+capturedPatch:
+  patchId: cip-monitoring-generator-no-changes
+  ownerCapabilityId: cip-monitoring-generator
+  nodePatches: []
+  edgePatches: []
+  propertyPatches: []
+  chainPatches: []
+  usedKnowledgeRefs: []
+  rationale: No patch required for this requirement.
+expectedGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Monitoring.Demo.Log
+    description: Log processed requests.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: log-1
+      type: log-record
+      label: Log request
+      parentNodeId: null
+      order: null
+      properties:
+        []
+  edges: []

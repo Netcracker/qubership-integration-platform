@@ -7,7 +7,7 @@ import {
 } from "react";
 import { parseJsonOrDefault } from "../../misc/json-helper";
 
-const RESET_EVENT = "qip-reset-table-settings";
+const RESET_EVENT = "cip-reset-table-settings";
 
 export function resetTableSettings(storageKey: string) {
   window.dispatchEvent(new CustomEvent(RESET_EVENT, { detail: storageKey }));

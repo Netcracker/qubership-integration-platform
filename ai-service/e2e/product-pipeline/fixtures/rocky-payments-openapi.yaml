@@ -1,0 +1,38 @@
+openapi: 3.0.3
+info:
+  title: Rocky Payments API
+  version: 1.0.0
+paths:
+  /payments:
+    post:
+      operationId: authorizeRockyPayment
+      summary: Authorize a Rocky payment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - orderId
+                - amount
+              properties:
+                orderId:
+                  type: string
+                amount:
+                  type: number
+      responses:
+        "200":
+          description: Payment authorized
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - paymentId
+                  - paymentStatus
+                properties:
+                  paymentId:
+                    type: string
+                  paymentStatus:
+                    type: string

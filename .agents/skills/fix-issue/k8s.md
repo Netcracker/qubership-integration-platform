@@ -4,20 +4,29 @@ Companion to `SKILL.md`, gates 2 and 4. Read it when the issue concerns micro-en
 domain, the Helm chart, Istio, or the Gateway API, or when the fix touches `engine` and its
 `micro-engine` twin. Compose cannot run a micro domain; only the cluster can.
 
-Setting the cluster up (Gateway API, Istio, camel-k, metrics-server, the NodePorts) is in
-`e2e/k8s/README.md`. Changing a cluster needs the user's permission, because the auto-mode
-classifier blocks workload and route changes; ask once at gate 0 when the issue needs the
-cluster. Turning on Docker Desktop's Kubernetes restarts Docker and stops the Compose stack.
+Set the cluster up first with `e2e/k8s/bootstrap-cluster.sh`, which installs the Gateway API,
+Istio, camel-k, and metrics-server; `e2e/k8s/README.md` describes each step and the NodePorts.
+Any change to a cluster, the script included, needs the user's permission, because the auto-mode
+classifier blocks workload and route changes. Ask once at gate 0, in one message that lists every
+mutation the run needs, so the run does not stop at each one:
+
+- the bootstrap script, if the cluster is not set up;
+- the deploy and the delete of the run's own micro domain;
+- `kubectl patch` of that domain's Integration;
+- `kind load docker-image` or `k3d image import` of the branch image;
+- `kubectl exec` into Consul or PostgreSQL, and the rows the run deletes there.
+
+Turning on Docker Desktop's Kubernetes restarts Docker and stops the Compose stack.
 
 ## Where things are
 
 | What | Where |
 |---|---|
-| Namespace | `qip-e2e`, owned by the end-to-end suite; context `docker-desktop` |
+| Namespace | `cip-e2e`, owned by the end-to-end suite; context `docker-desktop`, `kind-<name>`, or `k3d-<name>` (`e2e/k8s/README.md`) |
 | Catalog, classic engine, proxy | NodePorts 30091, 30092, 30080 |
-| A route on a micro domain | `http://localhost:30080/e2e/svc/qip-engine-<domain>-v1/routes/<contextPath>` |
-| The compiled Camel XML of a micro domain | ConfigMaps labeled `qip-domain=<domain>`, field `.data.content`; there is no `deployments/update` for micro |
-| The Integration a domain runs | `kubectl get integration -n qip-e2e qip-engine-<domain>-v1` |
+| A route on a micro domain | `http://localhost:30080/e2e/svc/cip-engine-<domain>-v1/routes/<contextPath>` |
+| The compiled Camel XML of a micro domain | ConfigMaps labeled `cip-domain=<domain>`, field `.data.content`; there is no `deployments/update` for micro |
+| The Integration a domain runs | `kubectl get integration -n cip-e2e cip-engine-<domain>-v1` |
 
 ## Reproduce in a domain of your own
 
@@ -25,9 +34,9 @@ Seed chains through the catalog as on Compose, then deploy them to a micro domai
 run token, so no other session's domain changes under you:
 
 ```bash
-curl -s -X POST localhost:30091/v1/cr/deploy-chains -H 'Content-Type: application/json' \
+curl -s -X POST localhost:30091/v2/catalog/chains/deployments/bulk -H 'Content-Type: application/json' \
   -d '{"chainIds":["<id>"],"domains":["r<N>"]}'
-curl -s -X DELETE localhost:30091/v1/cr/r<N>            # at the end: Integration, Service, ConfigMaps, routes
+curl -s -X DELETE localhost:30091/v1/catalog/domains/r<N>    # at the end: Integration, Service, ConfigMaps, routes
 ```
 
 To run the branch, build the image with the profile the chart supports (`e2e/k8s/README.md`
@@ -36,7 +45,9 @@ says why) and point only your domain's Integration at it:
 ```bash
 mvn -B -f "$WT/pom.xml" -pl micro-engine -am package -DskipTests -Dgpg.skip=true -Dquarkus.profile=development,no-m2m
 docker build -t ghcr.io/netcracker/qubership-integration-micro-engine:r<N> "$WT/micro-engine"
-kubectl patch integration -n qip-e2e qip-engine-r<N>-v1 --type merge \
+kind load docker-image --name <name> ghcr.io/netcracker/qubership-integration-micro-engine:r<N>   # kind only
+k3d image import -c <name> ghcr.io/netcracker/qubership-integration-micro-engine:r<N>             # k3d only
+kubectl patch integration -n cip-e2e cip-engine-r<N>-v1 --type merge \
   -p '{"spec":{"traits":{"container":{"image":"ghcr.io/netcracker/qubership-integration-micro-engine:r<N>"}}}}'
 ```
 
@@ -49,5 +60,7 @@ your own replaces what other sessions are measuring. Run specs with
 
 A fix that spans `engine` and `micro-engine` is verified on both, live. Present the result as one
 table with a column each for classic, micro on `main`, and micro on the branch, so the reviewer
-sees parity and the fix at once. `e2e/support/catalog.ts` and `e2e/support/kube.ts` hold the
+sees parity and the fix at once. Measure the classic engine on the branch on Compose, beside the
+stack (`verification.md`, "Run the branch beside the stack"), never on the cluster's shared
+engine Deployment. `e2e/support/catalog.ts` and `e2e/support/kube.ts` hold the
 helpers the suite uses for the same calls.

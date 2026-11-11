@@ -29,7 +29,7 @@ export default defineConfig({
         inlineDynamicImports: true,
         assetFileNames: (assetInfo) => {
           if (assetInfo.name?.endsWith(".css")) {
-            return "qip-ui.css";
+            return "cip-ui.css";
           }
           return "assets/[name]-[hash][extname]";
         },

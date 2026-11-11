@@ -72,6 +72,20 @@ describe("FolderEdit", () => {
     expect(mockCloseContainingModal).toHaveBeenCalled();
   });
 
+  it("create mode disables In new tab checkbox while the folder is created", async () => {
+    const onSubmit = jest.fn(() => new Promise<void>(() => {}));
+    render(<FolderEdit onSubmit={onSubmit} mode="create" />);
+    fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
+      target: { value: "F" },
+    });
+
+    fireEvent.submit(document.getElementById("folderEditForm")!);
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+    expect(screen.getByLabelText("Open folder")).toBeDisabled();
+    expect(screen.getByLabelText("In new tab")).toBeDisabled();
+  });
+
   it("create mode passes openFolder and newTab checkboxes to onSubmit", async () => {
     const onSubmit = jest.fn();
     render(<FolderEdit onSubmit={onSubmit} mode="create" />);

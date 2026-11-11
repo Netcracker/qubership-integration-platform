@@ -21,7 +21,7 @@ import org.qubership.integration.platform.engine.persistence.shared.entity.Check
 import org.qubership.integration.platform.engine.persistence.shared.entity.SessionInfo;
 import org.qubership.integration.platform.engine.routes.entrypoint.execution.SnapshotFixtureInteraction;
 import org.qubership.integration.platform.engine.routes.entrypoint.execution.SnapshotScenarioInvocation;
-import org.qubership.integration.platform.engine.security.QipSecurityAccessPolicy;
+import org.qubership.integration.platform.engine.security.CipSecurityAccessPolicy;
 import org.qubership.integration.platform.engine.service.CheckpointSessionService;
 import org.qubership.integration.platform.engine.testutils.ObjectMappers;
 
@@ -130,7 +130,7 @@ class CheckpointSnapshotFixtureProvider implements SnapshotFixtureProvider {
             SecurityAccessPolicyConverter securityPolicyConverter =
                     new SecurityAccessPolicyConverter(ObjectMappers.getObjectMapper());
             camelContext.getTypeConverterRegistry().addTypeConverter(
-                    QipSecurityAccessPolicy.class,
+                    CipSecurityAccessPolicy.class,
                     String.class,
                     new TypeConverterSupport() {
                         @Override

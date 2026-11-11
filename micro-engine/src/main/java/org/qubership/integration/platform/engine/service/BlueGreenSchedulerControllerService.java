@@ -6,7 +6,7 @@ import io.quarkus.vertx.ConsumeEvent;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
-import static java.util.Objects.nonNull;
+import static java.util.Objects.isNull;
 
 @ApplicationScoped
 @Unremovable
@@ -15,7 +15,8 @@ public class BlueGreenSchedulerControllerService {
     @Inject
     QuartzSchedulerService quartzSchedulerService;
 
-    @ConsumeEvent(value = BlueGreenStateService.BLUE_GREEN_STATE_EVENT_ADDRESS)
+    // Blocking: it waits on the scheduler lock. Ordered: a quick switch and rollback apply in order.
+    @ConsumeEvent(value = BlueGreenStateService.BLUE_GREEN_STATE_EVENT_ADDRESS, blocking = true, ordered = true)
     public void onStateChange(BlueGreenStateService.BlueGreenStateChange stateChange) {
         resolveBlueGreenState(stateChange.oldState(), stateChange.newState());
     }
@@ -24,18 +25,19 @@ public class BlueGreenSchedulerControllerService {
         BlueGreenState previousState,
         BlueGreenState actualState
     ) {
-        if (nonNull(previousState) && nonNull(previousState.getCurrent())) { // skip initial state event
-            boolean isPrevActive = BlueGreenStateService.isActive(previousState);
-            boolean isActualActive = BlueGreenStateService.isActive(actualState);
+        // The scheduler starts running, so the initial state counts as a change from ACTIVE,
+        // and a pod that starts outside ACTIVE, such as a candidate, suspends its scheduler
+        boolean isInitial = isNull(previousState) || isNull(previousState.getCurrent());
+        boolean isPrevActive = isInitial || BlueGreenStateService.isActive(previousState);
+        boolean isActualActive = BlueGreenStateService.isActive(actualState);
 
-            // active -> other = disable
-            if (isPrevActive && !isActualActive) {
-                quartzSchedulerService.suspendAllSchedulers();
-            } else {
-                // other -> active = resume
-                if (!isPrevActive && isActualActive) {
-                    quartzSchedulerService.resumeAllSchedulers();
-                }
+        // active -> other = disable
+        if (isPrevActive && !isActualActive) {
+            quartzSchedulerService.suspendAllSchedulers();
+        } else {
+            // other -> active = resume
+            if (!isPrevActive && isActualActive) {
+                quartzSchedulerService.resumeAllSchedulers();
             }
         }
     }

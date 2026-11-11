@@ -45,7 +45,7 @@ export interface Discriminator {
   values: SchemaValue[];
 }
 
-/** Property names that look like axes but describe export serialisation, not behaviour. */
+/** Property names that look like axes but describe export serialization, not behavior. */
 const EXPORT_DIRECTIVES = new Set([
   "exportFileExtension",
   "propertiesToExportInSeparateFile",

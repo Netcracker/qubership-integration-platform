@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.engine.errorhandling;
 
 import jakarta.persistence.EntityNotFoundException;
+import jakarta.validation.ConstraintViolationException;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.qubership.integration.platform.engine.rest.v1.dto.ExceptionDTO;
 import org.springframework.http.HttpStatus;
@@ -40,6 +41,11 @@ public class ControllerExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(EntityNotFoundException.class)
     public ResponseEntity<ExceptionDTO> handleEntityNotFoundException(EntityNotFoundException exception) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(getExceptionDTO(exception, false));
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ExceptionDTO> handleConstraintViolationException(ConstraintViolationException exception) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(getExceptionDTO(exception, false));
     }
 
     @ExceptionHandler(ChainNotDeployedOnEngineException.class)

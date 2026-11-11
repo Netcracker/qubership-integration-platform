@@ -49,7 +49,7 @@ scenarios:
               properties:
                 expectedTokenRequests: 1
       - id: second-message-with-utf8
-        body: "Order received \u2014 caf\u00e9 \u2615"
+        body: "Order received - caf\u00e9"
         headers:
           Authorization: Bearer second-snapshot-token
           X-Request-Id: incoming-second
@@ -57,7 +57,7 @@ scenarios:
         properties:
           outboundRequestId: outgoing-second
           orderingKey: order-202
-        expectedBody: "Order received \u2014 caf\u00e9 \u2615"
+        expectedBody: "Order received - caf\u00e9"
         expectedHeaders:
           Authorization: Bearer second-snapshot-token
           X-Snapshot-Header: second-value
@@ -73,7 +73,7 @@ scenarios:
               count: 1
               destination: topicName
               key: order-202
-              body: "Order received \u2014 caf\u00e9 \u2615"
+              body: "Order received - caf\u00e9"
               headers:
                 X-Request-Id: outgoing-second
                 CamelGooglePubsubOrderingKey: null

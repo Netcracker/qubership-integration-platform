@@ -1,0 +1,9 @@
+# $schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/http-trigger
+id: "59870351-a0b4-5f44-bae3-460a2fc3addd"
+name: Schema contract sample
+type: http-trigger
+properties:
+  contextPath: /orders
+  httpMethodRestrict: GET
+  accessControlType: NONE
+  handleChainFailureAction: chain-call

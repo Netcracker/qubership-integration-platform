@@ -338,7 +338,7 @@ describe("MappingTableView", () => {
     expect(screen.getByRole("radio", { name: /Source/i })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /Target/i })).toBeInTheDocument();
     expect(
-      screen.getByPlaceholderText(/Full text search/i),
+      screen.getByPlaceholderText(/Search attributes/i),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /more/i })).toBeInTheDocument();
   });
@@ -455,7 +455,7 @@ describe("MappingTableView", () => {
 
   it("search input triggers updateControlsState", () => {
     renderComponent();
-    const searchInput = screen.getByPlaceholderText(/Full text search/i);
+    const searchInput = screen.getByPlaceholderText(/Search attributes/i);
     fireEvent.change(searchInput, { target: { value: "test" } });
     expect(searchInput).toHaveValue("test");
   });

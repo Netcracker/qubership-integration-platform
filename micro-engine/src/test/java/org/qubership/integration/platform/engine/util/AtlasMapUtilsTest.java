@@ -33,8 +33,8 @@ class AtlasMapUtilsTest {
 
     @Test
     void shouldReturnUuidStringForGetUUID() {
-        String uuid1 = AtlasMapUtils.getuuid(new AtlasMapUtils.QIPGetUUID(), null);
-        String uuid2 = AtlasMapUtils.getuuid(new AtlasMapUtils.QIPGetUUID(), null);
+        String uuid1 = AtlasMapUtils.getuuid(new AtlasMapUtils.CIPGetUUID(), null);
+        String uuid2 = AtlasMapUtils.getuuid(new AtlasMapUtils.CIPGetUUID(), null);
         assertDoesNotThrow(() -> UUID.fromString(uuid1));
         assertDoesNotThrow(() -> UUID.fromString(uuid2));
         assertNotEquals(uuid1, uuid2);
@@ -42,7 +42,7 @@ class AtlasMapUtilsTest {
 
     @Test
     void shouldReturnDefaultWhenInputIsNullOrBlank() {
-        AtlasMapUtils.QIPDefaultValue action = new AtlasMapUtils.QIPDefaultValue();
+        AtlasMapUtils.CIPDefaultValue action = new AtlasMapUtils.CIPDefaultValue();
         action.setDefaultValue("DEF");
         assertEquals("DEF", AtlasMapUtils.defaultValue(action, null));
         assertEquals("DEF", AtlasMapUtils.defaultValue(action, ""));
@@ -51,7 +51,7 @@ class AtlasMapUtilsTest {
 
     @Test
     void shouldReturnOriginalWhenInputNonBlankOrNonString() {
-        AtlasMapUtils.QIPDefaultValue action = new AtlasMapUtils.QIPDefaultValue();
+        AtlasMapUtils.CIPDefaultValue action = new AtlasMapUtils.CIPDefaultValue();
         action.setDefaultValue("DEF");
         assertEquals("abc", AtlasMapUtils.defaultValue(action, "abc"));
         assertEquals(123, AtlasMapUtils.defaultValue(action, 123));
@@ -59,7 +59,7 @@ class AtlasMapUtilsTest {
 
     @Test
     void shouldLookupValueFromDictionaryOrDefault() {
-        AtlasMapUtils.QIPDictionary action = new AtlasMapUtils.QIPDictionary();
+        AtlasMapUtils.CIPDictionary action = new AtlasMapUtils.CIPDictionary();
         Map<String, String> dict = new HashMap<>();
         dict.put("A", "Alpha");
         dict.put("B", "Beta");
@@ -72,7 +72,7 @@ class AtlasMapUtilsTest {
 
     @Test
     void shouldConvertEpochToFormattedDateWhenUnixInputAndFormattedOutput() {
-        AtlasMapUtils.QIPFormatDateTime action = new AtlasMapUtils.QIPFormatDateTime();
+        AtlasMapUtils.CIPFormatDateTime action = new AtlasMapUtils.CIPFormatDateTime();
         action.setReturnUnixTimeInput(true);
         action.setInputFormat("");
         action.setInputLocale("");
@@ -90,7 +90,7 @@ class AtlasMapUtilsTest {
 
     @Test
     void shouldConvertFormattedDateToEpochWhenFormattedInputAndUnixOutput() {
-        AtlasMapUtils.QIPFormatDateTime action = new AtlasMapUtils.QIPFormatDateTime();
+        AtlasMapUtils.CIPFormatDateTime action = new AtlasMapUtils.CIPFormatDateTime();
         action.setReturnUnixTimeInput(false);
         action.setInputFormat("yyyy-MM-dd HH:mm:ss");
         action.setInputLocale("");
@@ -108,7 +108,7 @@ class AtlasMapUtilsTest {
 
     @Test
     void shouldUseBasicIsoDateWhenFormatsAreBlank() {
-        AtlasMapUtils.QIPFormatDateTime action = new AtlasMapUtils.QIPFormatDateTime();
+        AtlasMapUtils.CIPFormatDateTime action = new AtlasMapUtils.CIPFormatDateTime();
         action.setReturnUnixTimeInput(false);
         action.setInputFormat("");
         action.setInputLocale("");
@@ -126,7 +126,7 @@ class AtlasMapUtilsTest {
 
     @Test
     void shouldDefaultLocaleUsWhenLocaleBlank() {
-        AtlasMapUtils.QIPFormatDateTime action = new AtlasMapUtils.QIPFormatDateTime();
+        AtlasMapUtils.CIPFormatDateTime action = new AtlasMapUtils.CIPFormatDateTime();
         action.setReturnUnixTimeInput(false);
         action.setInputFormat("MMM dd, uuuu");
         action.setInputLocale("");
@@ -144,7 +144,7 @@ class AtlasMapUtilsTest {
 
     @Test
     void shouldDefaultTimeAndZoneWhenMissingInInput() {
-        AtlasMapUtils.QIPFormatDateTime action = new AtlasMapUtils.QIPFormatDateTime();
+        AtlasMapUtils.CIPFormatDateTime action = new AtlasMapUtils.CIPFormatDateTime();
         action.setReturnUnixTimeInput(false);
         action.setInputFormat("yyyy-MM-dd");
         action.setInputLocale("");
@@ -162,7 +162,7 @@ class AtlasMapUtilsTest {
 
     @Test
     void shouldKeepSameLocalMidnightWhenTimezonesAreEqual() {
-        AtlasMapUtils.QIPFormatDateTime action = new AtlasMapUtils.QIPFormatDateTime();
+        AtlasMapUtils.CIPFormatDateTime action = new AtlasMapUtils.CIPFormatDateTime();
         action.setReturnUnixTimeInput(false);
         action.setInputFormat("yyyy-MM-dd");
         action.setInputLocale("");
@@ -180,7 +180,7 @@ class AtlasMapUtilsTest {
 
     @Test
     void shouldReturnSameUnixStringWhenBothUnixFlagsTrue() {
-        AtlasMapUtils.QIPFormatDateTime action = new AtlasMapUtils.QIPFormatDateTime();
+        AtlasMapUtils.CIPFormatDateTime action = new AtlasMapUtils.CIPFormatDateTime();
         action.setReturnUnixTimeInput(true);
         action.setInputFormat("");
         action.setInputLocale("");
@@ -216,7 +216,7 @@ class AtlasMapUtilsTest {
 
     @Test
     void shouldFormatDateTimeUsingActionWrapper() {
-        AtlasMapUtils.QIPFormatDateTime action = new AtlasMapUtils.QIPFormatDateTime();
+        AtlasMapUtils.CIPFormatDateTime action = new AtlasMapUtils.CIPFormatDateTime();
         action.setReturnUnixTimeInput(true);
         action.setInputFormat("");
         action.setInputLocale("");
@@ -234,7 +234,7 @@ class AtlasMapUtilsTest {
 
     @Test
     void shouldReturnUnixSecondsForCurrentTimeWhenUnixOutput() {
-        AtlasMapUtils.QIPCurrentTime action = new AtlasMapUtils.QIPCurrentTime();
+        AtlasMapUtils.CIPCurrentTime action = new AtlasMapUtils.CIPCurrentTime();
         action.setReturnUnixTimeOutput(true);
         action.setOutputFormat("");
         action.setOutputLocale("");
@@ -247,7 +247,7 @@ class AtlasMapUtilsTest {
 
     @Test
     void shouldUseExplicitLocaleWhenProvided() {
-        AtlasMapUtils.QIPFormatDateTime action = new AtlasMapUtils.QIPFormatDateTime();
+        AtlasMapUtils.CIPFormatDateTime action = new AtlasMapUtils.CIPFormatDateTime();
         action.setReturnUnixTimeInput(false);
         action.setInputFormat("MMM dd, uuuu");
         action.setInputLocale("en_US");
@@ -278,7 +278,7 @@ class AtlasMapUtilsTest {
 
     @Test
     void shouldFormatCurrentTimeWhenUnixOutputIsFalse() {
-        AtlasMapUtils.QIPCurrentTime action = new AtlasMapUtils.QIPCurrentTime();
+        AtlasMapUtils.CIPCurrentTime action = new AtlasMapUtils.CIPCurrentTime();
         action.setReturnUnixTimeOutput(false);
         action.setOutputFormat("yyyy-MM-dd");
         action.setOutputLocale("");

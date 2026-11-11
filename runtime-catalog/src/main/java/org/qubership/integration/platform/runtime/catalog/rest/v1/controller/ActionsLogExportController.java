@@ -32,7 +32,11 @@ import java.sql.Timestamp;
 @Slf4j
 @RestController
 @CrossOrigin(origins = "*")
-@RequestMapping("/v1/catalog/actions-log/export")
+@RequestMapping({
+    "/v1/catalog/actions-log/export",
+    "/api/v1/cip/systems-catalog/actions-log/export",
+    "/api/v1/cip/catalog/actions-log/export"
+})
 @Tag(name = "actions-log-export-controller", description = "Actions Log Export Controller")
 public class ActionsLogExportController {
     private final ActionsLogExportService actionsLogExportService;

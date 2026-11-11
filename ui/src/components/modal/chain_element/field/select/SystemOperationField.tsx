@@ -235,8 +235,7 @@ const SystemOperationField: React.FC<
           integrationOperationProtocolType: protocolType,
           integrationOperationPathParameters: undefined,
           integrationOperationQueryParameters: undefined,
-          after: undefined,
-          errorThrowing: true,
+          after: [],
         });
       };
 

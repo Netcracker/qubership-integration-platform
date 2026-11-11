@@ -17,24 +17,19 @@ import io.quarkus.arc.profile.IfBuildProfile;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jspecify.annotations.Nullable;
 import org.qubership.integration.platform.engine.configuration.opensearch.OpenSearchProperties;
 
 import java.util.Map;
-import java.util.Optional;
 import java.util.TreeMap;
 
+import static com.netcracker.cloud.dbaas.client.DbaasConst.CUSTOM_KEYS;
 import static com.netcracker.cloud.dbaas.client.DbaasConst.LOGICAL_DB_NAME;
 
 @Slf4j
 @ApplicationScoped
 @IfBuildProfile("development")
 public class FakeDBaaSClient implements DbaasClient {
-    @ConfigProperty(name = "application.prefix")
-    String appPrefix;
-
     @Inject
     OpenSearchProperties openSearchProperties;
 
@@ -83,11 +78,11 @@ public class FakeDBaaSClient implements DbaasClient {
         database.setName("");
         database.setNamespace(namespace);
         database.setClassifier(new TreeMap<>(classifier));
-        String logicalDbName = Optional.ofNullable(classifier.get(LOGICAL_DB_NAME)).toString();
-        PostgresProperties.ConnectionProperties connectionProperties =
-                StringUtils.isBlank(logicalDbName)
-                        ? postgresProperties.serviceDb()
-                        : postgresProperties.schedulerDb();;
+        boolean configs = classifier.get(CUSTOM_KEYS) instanceof Map<?, ?> customKeys
+                && "configs".equals(customKeys.get(LOGICAL_DB_NAME));
+        PostgresProperties.ConnectionProperties connectionProperties = configs
+                ? postgresProperties.schedulerDb()
+                : postgresProperties.serviceDb();
         database.setConnectionProperties(new PostgresDBConnection(
                 connectionProperties.url(),
                 connectionProperties.username(),
@@ -110,7 +105,7 @@ public class FakeDBaaSClient implements DbaasClient {
         connectionProperties.setUrl(openSearchProperties.client().urls());
         connectionProperties.setHost(openSearchProperties.client().host());
         connectionProperties.setPort(openSearchProperties.client().port());
-        connectionProperties.setResourcePrefix(openSearchProperties.client().prefix().orElse(appPrefix));
+        connectionProperties.setResourcePrefix(openSearchProperties.client().prefix().orElse("cip"));
         connectionProperties.setRole("ism");
         connectionProperties.setUsername(openSearchProperties.client().userName().orElse(""));
         connectionProperties.setPassword(openSearchProperties.client().password().orElse(""));

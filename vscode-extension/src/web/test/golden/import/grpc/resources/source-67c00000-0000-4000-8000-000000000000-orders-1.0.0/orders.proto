@@ -1,0 +1,53 @@
+// The gRPC import fixture. One service with two rpcs, the second of them
+// server-streaming, and the structure ProtoTypeDefinitionBuilder exists for: a
+// nested message (Order.Line), an enum (OrderStatus), a repeated field, a map
+// field and a bytes field, each of which takes a different arm of
+// buildFieldSchema and buildTypeNode. The java_package option differs from the
+// proto package, because ProtoOperationResolver builds each operation's path
+// from the java_package while the schema ids come from the proto package.
+
+syntax = "proto3";
+
+package orders.v1;
+
+option java_package = "test.orders.grpc";
+
+// Creates and lists orders.
+service OrderService {
+  // Creates one order.
+  rpc CreateOrder (CreateOrderRequest) returns (Order);
+  // Streams the orders of one customer.
+  rpc ListOrders (ListOrdersRequest) returns (stream Order);
+}
+
+// The states an order moves through.
+enum OrderStatus {
+  ORDER_STATUS_UNSPECIFIED = 0;
+  ORDER_STATUS_NEW = 1;
+  ORDER_STATUS_SHIPPED = 2;
+}
+
+message CreateOrderRequest {
+  Order order = 1;
+}
+
+message ListOrdersRequest {
+  string customer_id = 1;
+  int32 page_size = 2;
+}
+
+// An order with its lines.
+message Order {
+  // One line of an order.
+  message Line {
+    string sku = 1;
+    int32 quantity = 2;
+  }
+
+  string order_id = 1;
+  OrderStatus status = 2;
+  repeated Line lines = 3;
+  double total = 4;
+  map<string, string> attributes = 5;
+  bytes signature = 6;
+}

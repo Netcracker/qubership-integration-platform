@@ -36,7 +36,7 @@ import static org.mockito.Mockito.when;
 
 @QuarkusComponentTest(value = {EngineStateService.class, ConsulKeyValidator.class})
 @TestConfigProperty(key = "consul.keys.prefix", value = "config/test")
-@TestConfigProperty(key = "consul.keys.engine-config-root", value = "/qip-engine-configurations")
+@TestConfigProperty(key = "consul.keys.engine-config-root", value = "/cip-engine-configurations")
 @TestConfigProperty(key = "consul.keys.engines-state", value = "/engines-state")
 @TestConfigProperty(key = "consul.dynamic-state-keys.enabled", value = "false")
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
@@ -76,7 +76,7 @@ class EngineStateServiceTest {
         stubEngineInfo();
         when(objectMapper.writeValueAsString(state)).thenReturn("serialized-state");
         when(consulClient.putValueWithOptions(
-                eq("config/test/qip-engine-configurations/engines-state/engine-deployment-customer-domain-host_example_com"),
+                eq("config/test/cip-engine-configurations/engines-state/engine-deployment-customer-domain-host_example_com"),
                 eq("serialized-state"),
                 any(KeyValueOptions.class)
         )).thenReturn(Uni.createFrom().item(true));
@@ -85,7 +85,7 @@ class EngineStateServiceTest {
 
         ArgumentCaptor<KeyValueOptions> optionsCaptor = ArgumentCaptor.forClass(KeyValueOptions.class);
         verify(consulClient).putValueWithOptions(
-                eq("config/test/qip-engine-configurations/engines-state/engine-deployment-customer-domain-host_example_com"),
+                eq("config/test/cip-engine-configurations/engines-state/engine-deployment-customer-domain-host_example_com"),
                 eq("serialized-state"),
                 optionsCaptor.capture()
         );
@@ -117,7 +117,7 @@ class EngineStateServiceTest {
         );
 
         assertTrue(Pattern.matches(
-                "^config/test/qip-engine-configurations/engines-state/"
+                "^config/test/cip-engine-configurations/engines-state/"
                         + "engine-deployment-customer-domain-host_example_com-[0-9a-f\\-]{36}$",
                 keyCaptor.getValue()
         ));

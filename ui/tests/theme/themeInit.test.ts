@@ -15,7 +15,7 @@ import {
   applyThemeToDOM,
 } from "../../src/theme/themeInit";
 
-const THEME_STORAGE_KEY = "qip-ui-theme-mode"; // must match themeInit.ts
+const THEME_STORAGE_KEY = "cip-ui-theme-mode"; // must match themeInit.ts
 
 describe("themeInit", () => {
   let originalLocalStorage: Storage;

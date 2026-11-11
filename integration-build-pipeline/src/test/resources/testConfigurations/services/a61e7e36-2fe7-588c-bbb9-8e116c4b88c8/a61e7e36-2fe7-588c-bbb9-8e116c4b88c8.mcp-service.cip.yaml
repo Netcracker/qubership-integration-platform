@@ -1,0 +1,8 @@
+---
+id: "a61e7e36-2fe7-588c-bbb9-8e116c4b88c8"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/mcp-service"
+name: "snapshot-mcp-service"
+content:
+  identifier: "snapshot-mcp-service"
+  labels: []
+  migrations: "[100]"

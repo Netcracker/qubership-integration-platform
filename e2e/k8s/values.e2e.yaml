@@ -1,7 +1,11 @@
-# Values for the e2e suite's install of infrastructure/qip-dev into namespace
-# qip-e2e. The provisioner adds the image tags, the micro-engine image, the host
-# ports, and the cluster-specific resolver and dev-server host on the command
-# line.
+# Values for the e2e suite's install of infrastructure/helm/cip-dev into namespace
+# cip-e2e. The provisioner adds the image tags, the micro-engine image, the host
+# ports, the cluster-specific resolver and dev-server host, the broker switches,
+# and the Kafka TLS files and CA on the command line.
+
+gateways:
+  waypoint:
+    enabled: true
 
 global:
   qip:
@@ -10,18 +14,19 @@ global:
     testingService:
       # On in Compose (engine-dev.env); off by default in the chart.
       engineMockingEnabled: true
+    # Off as in Compose, where the AI service runs only under its own profile. Its image
+    # is not published, so the pod would never start; the bundle is built without the
+    # health check (support/ui-server.ts).
+    ai:
+      enabled: false
     ui:
       e2eLocations: true
-      # No sidecar, so nginx's own answers reach the host as Compose serves them: an inbound
-      # sidecar replaces the Server header with istio-envoy.
-      podAnnotations:
-        sidecar.istio.io/inject: "false"
 
 # Recreate on every service: under a rolling update the old pod keeps serving
 # while the new one starts, and a restart spec would see no downtime.
-# The environment and the catalog's JVM sizes match infrastructure/docker-compose.yml.
+# The environment and the catalog's JVM sizes match infrastructure/docker/docker-compose.yml.
 # The engine runs with more heap and Metaspace than that file gives it.
-qip-engine:
+cip-engine:
   strategy:
     type: Recreate
   jvm:
@@ -33,8 +38,15 @@ qip-engine:
       value: always
     - name: MONITORING_ENABLED
       value: "true"
+    # The pubsub check builds its own admin client from `serviceAccountKey` with no emulator
+    # endpoint, so against the local emulator it always reaches real googleapis and fails
+    # UNAUTHENTICATED. Off until the check itself learns about the emulator.
+    - name: CAMEL_PUBSUB_PREDEPLOY_CHECK_ENABLED
+      value: "false"
 
-qip-runtime-catalog:
+cip-runtime-catalog:
+  # The metrics cases read a micro domain's /metrics, as they read the engine's with MONITORING_ENABLED.
+  microDomainMetrics: true
   # The http-out fixture calls the catalog by its Compose name.
   serviceAliases:
     - qip-runtime-catalog
@@ -55,17 +67,13 @@ qip-runtime-catalog:
     - name: MICRO_DOMAIN_CONTAINER_LIMIT_CPU
       value: "4"
 
-qip-sessions-management:
+cip-sessions-management:
   strategy:
     type: Recreate
   extraEnv:
     - name: MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS
       value: always
 
-qip-testing-service:
+cip-testing-service:
   strategy:
     type: Recreate
-  # No sidecar: an inbound one answers a request with an unknown method itself, with 400
-  # "Bad Request", before the service can refuse it.
-  podAnnotations:
-    sidecar.istio.io/inject: "false"

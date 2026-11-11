@@ -1,0 +1,39 @@
+---
+id: "e2e10017-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-kafka-sender-propagate-context-false"
+description: "The Kafka sender with propagateContext=false. An HTTP call carrying X-Request-Id drives it, and a spec reads X-Request-Id off the record headers."
+content:
+  labels: []
+  elements:
+  - id: "e2e10017-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-kafka-sender-propagate-context-false"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e10017-0000-4000-8000-000000000003"
+    name: "propagateContext=false"
+    type: "kafka-sender-2"
+    properties:
+      connectionSourceType: "manual"
+      brokers: "kafka:29092"
+      topics: "e2e-{{RUN}}-kafka-sender-propagate-context-false"
+      securityProtocol: "PLAINTEXT"
+      saslMechanism: "GSSAPI"
+      sslProtocol: "TLS"
+      keySerializer: "org.apache.kafka.common.serialization.StringSerializer"
+      valueSerializer: "org.apache.kafka.common.serialization.StringSerializer"
+      propagateContext: false
+  dependencies:
+  - from: "e2e10017-0000-4000-8000-000000000002"
+    to: "e2e10017-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

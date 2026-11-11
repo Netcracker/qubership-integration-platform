@@ -69,9 +69,9 @@ const consoleErrorSpy = jest
 
 describe("deleteSpecificationModel silent flag", () => {
   const serviceFileUri = {
-    path: "/workspace/svc/svc.service.qip.yaml",
-    fsPath: "/workspace/svc/svc.service.qip.yaml",
-    toString: jest.fn().mockReturnValue("/workspace/svc/svc.service.qip.yaml"),
+    path: "/workspace/svc/svc.service.cip.yaml",
+    fsPath: "/workspace/svc/svc.service.cip.yaml",
+    toString: jest.fn().mockReturnValue("/workspace/svc/svc.service.cip.yaml"),
   } as unknown as Uri;
 
   const mockDeleteFile = (fileApi as any).deleteFile as jest.Mock;
@@ -84,7 +84,7 @@ describe("deleteSpecificationModel silent flag", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockDeleteFile.mockResolvedValue(undefined);
-    mockGetSpecFiles.mockResolvedValue(["spec1.specification.qip.yaml"]);
+    mockGetSpecFiles.mockResolvedValue(["spec1.specification.cip.yaml"]);
     mockParse.mockResolvedValue({
       id: "spec1",
       name: "Spec One",
@@ -107,7 +107,7 @@ describe("deleteSpecificationModel silent flag", () => {
       expect.objectContaining({ path: expect.stringContaining("resources/openapi.yaml") }),
     );
     expect(mockDeleteFile).toHaveBeenCalledWith(
-      expect.objectContaining({ path: expect.stringContaining("spec1.specification.qip.yaml") }),
+      expect.objectContaining({ path: expect.stringContaining("spec1.specification.cip.yaml") }),
     );
     expect(mockShowInfo).toHaveBeenCalledWith('Specification "Spec One" has been deleted successfully!');
     expect(mockShowError).not.toHaveBeenCalled();
@@ -117,14 +117,14 @@ describe("deleteSpecificationModel silent flag", () => {
     await deleteSpecificationModel(serviceFileUri, "spec1", true);
 
     expect(mockDeleteFile).toHaveBeenCalledWith(
-      expect.objectContaining({ path: expect.stringContaining("spec1.specification.qip.yaml") }),
+      expect.objectContaining({ path: expect.stringContaining("spec1.specification.cip.yaml") }),
     );
     expect(mockShowInfo).not.toHaveBeenCalled();
     expect(mockShowError).not.toHaveBeenCalled();
   });
 
   it("should show error when specification is not found and silent is false", async () => {
-    mockGetSpecFiles.mockResolvedValue(["other.specification.qip.yaml"]);
+    mockGetSpecFiles.mockResolvedValue(["other.specification.cip.yaml"]);
     mockParse.mockResolvedValue({ id: "other", name: "Other" });
 
     await expect(deleteSpecificationModel(serviceFileUri, "missing")).rejects.toThrow(
@@ -137,7 +137,7 @@ describe("deleteSpecificationModel silent flag", () => {
   });
 
   it("should throw without showing error when silent is true", async () => {
-    mockGetSpecFiles.mockResolvedValue(["other.specification.qip.yaml"]);
+    mockGetSpecFiles.mockResolvedValue(["other.specification.cip.yaml"]);
     mockParse.mockResolvedValue({ id: "other", name: "Other" });
 
     await expect(deleteSpecificationModel(serviceFileUri, "missing", true)).rejects.toThrow(
@@ -151,7 +151,7 @@ describe("deleteSpecificationModel silent flag", () => {
 
   it("should show error when spec file delete fails and silent is false", async () => {
     mockDeleteFile.mockImplementation((uri: any) => {
-      if ((uri.path as string).includes("spec1.specification.qip.yaml")) {
+      if ((uri.path as string).includes("spec1.specification.cip.yaml")) {
         return Promise.reject(new Error("spec delete fail"));
       }
       return Promise.resolve(undefined);
@@ -165,7 +165,7 @@ describe("deleteSpecificationModel silent flag", () => {
 
   it("should throw without showing error when spec file delete fails and silent is true", async () => {
     mockDeleteFile.mockImplementation((uri: any) => {
-      if ((uri.path as string).includes("spec1.specification.qip.yaml")) {
+      if ((uri.path as string).includes("spec1.specification.cip.yaml")) {
         return Promise.reject(new Error("spec delete fail"));
       }
       return Promise.resolve(undefined);

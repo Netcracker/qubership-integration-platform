@@ -1,0 +1,226 @@
+id: 50a90000-0000-4000-8000-000000000000-orders-1.0.0
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/specification
+name: 1.0.0
+content:
+  deprecated: false
+  version: 1.0.0
+  source: MANUAL
+  operations:
+    - id: 50a90000-0000-4000-8000-000000000000-orders-1.0.0-createOrder
+      name: createOrder
+      method: POST
+      path: ""
+      specification:
+        operationId: createOrder
+      requestSchema:
+        application/xml:
+          type: object
+          properties:
+            createOrderRequest:
+              $ref: "#/definitions/Element_http_orders_qip_test__createOrderRequest"
+          required:
+            - createOrderRequest
+          definitions:
+            Element_http_orders_qip_test__traceId:
+              type: string
+            Type_http_orders_qip_test__Email:
+              type: string
+              pattern: .+@.+
+              maxLength: 128
+            Type_http_orders_qip_test__Customer:
+              type: object
+              properties:
+                id:
+                  type: string
+                email:
+                  $ref: "#/definitions/Type_http_orders_qip_test__Email"
+              required:
+                - id
+                - email
+            Type_http_orders_qip_test__OrderLine:
+              type: object
+              properties:
+                sku:
+                  type: string
+                quantity:
+                  type: integer
+                unitPrice:
+                  type: number
+              required:
+                - sku
+                - quantity
+            Type_http_orders_qip_test__Payment:
+              anyOf:
+                - type: object
+                  properties:
+                    card:
+                      type: string
+                  required:
+                    - card
+                - type: object
+                  properties:
+                    invoiceRef:
+                      type: string
+                  required:
+                    - invoiceRef
+            Type_http_orders_qip_test__Metadata:
+              type: object
+              properties:
+                source:
+                  type: string
+                receivedAt:
+                  type: string
+                  format: date-time
+              required:
+                - source
+                - receivedAt
+            Element_http_orders_qip_test__createOrderRequest:
+              type: object
+              properties:
+                traceId:
+                  $ref: "#/definitions/Element_http_orders_qip_test__traceId"
+                customer:
+                  $ref: "#/definitions/Type_http_orders_qip_test__Customer"
+                lines:
+                  type: array
+                  items:
+                    $ref: "#/definitions/Type_http_orders_qip_test__OrderLine"
+                priority:
+                  type: string
+                  enum:
+                    - LOW
+                    - NORMAL
+                    - HIGH
+                payment:
+                  $ref: "#/definitions/Type_http_orders_qip_test__Payment"
+                metadata:
+                  $ref: "#/definitions/Type_http_orders_qip_test__Metadata"
+                shippingAddress:
+                  type: string
+              required:
+                - traceId
+                - customer
+                - lines
+      responseSchemas:
+        "200":
+          application/xml:
+            type: object
+            properties:
+              createOrderResponse:
+                $ref: "#/definitions/Element_http_orders_qip_test__createOrderResponse"
+            required:
+              - createOrderResponse
+            definitions:
+              Element_http_orders_qip_test__createOrderResponse:
+                type: object
+                properties:
+                  orderId:
+                    type: string
+                  accepted:
+                    type: boolean
+                required:
+                  - orderId
+                  - accepted
+    - id: 50a90000-0000-4000-8000-000000000000-orders-1.0.0-getOrder
+      name: getOrder
+      method: POST
+      path: ""
+      specification:
+        operationId: getOrder
+      requestSchema:
+        application/xml:
+          type: object
+          properties:
+            getOrderRequest:
+              $ref: "#/definitions/Element_http_orders_qip_test__getOrderRequest"
+          required:
+            - getOrderRequest
+          definitions:
+            Element_http_orders_qip_test__getOrderRequest:
+              type: object
+              properties:
+                orderId:
+                  type: string
+              required:
+                - orderId
+      responseSchemas:
+        "200":
+          application/xml:
+            type: object
+            properties:
+              getOrderResponse:
+                $ref: "#/definitions/Element_http_orders_qip_test__getOrderResponse"
+            required:
+              - getOrderResponse
+            definitions:
+              Type_http_orders_qip_test__Amount:
+                type: number
+              Type_http_orders_qip_test__OrderSummary:
+                type: object
+                properties:
+                  orderId:
+                    type: string
+                  total:
+                    $ref: "#/definitions/Type_http_orders_qip_test__Amount"
+                required:
+                  - orderId
+                  - total
+              Type_http_orders_qip_test__Email:
+                type: string
+                pattern: .+@.+
+                maxLength: 128
+              Type_http_orders_qip_test__Customer:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  email:
+                    $ref: "#/definitions/Type_http_orders_qip_test__Email"
+                required:
+                  - id
+                  - email
+              Type_http_orders_qip_test__OrderLine:
+                type: object
+                properties:
+                  sku:
+                    type: string
+                  quantity:
+                    type: integer
+                  unitPrice:
+                    type: number
+                required:
+                  - sku
+                  - quantity
+              Type_http_orders_qip_test__Order:
+                type: object
+                properties:
+                  orderId:
+                    type: string
+                  total:
+                    $ref: "#/definitions/Type_http_orders_qip_test__Amount"
+                  customer:
+                    $ref: "#/definitions/Type_http_orders_qip_test__Customer"
+                  lines:
+                    type: array
+                    items:
+                      $ref: "#/definitions/Type_http_orders_qip_test__OrderLine"
+                required:
+                  - orderId
+                  - total
+                  - customer
+                  - lines
+              Element_http_orders_qip_test__getOrderResponse:
+                $ref: "#/definitions/Type_http_orders_qip_test__Order"
+  specificationSources:
+    - id: 50a9da7a-0000-4000-8000-000000000002
+      name: orders.wsdl
+      sourceHash: 45e0c7db
+      fileName: source-50a90000-0000-4000-8000-000000000000-orders-1.0.0/orders.wsdl
+      mainSource: true
+    - id: 50a9da7a-0000-4000-8000-000000000003
+      name: orders-types.xsd
+      sourceHash: 3dd84fc3
+      fileName: source-50a90000-0000-4000-8000-000000000000-orders-1.0.0/orders-types.xsd
+      mainSource: false
+  parentId: 50a90000-0000-4000-8000-000000000000-orders
+  labels: []

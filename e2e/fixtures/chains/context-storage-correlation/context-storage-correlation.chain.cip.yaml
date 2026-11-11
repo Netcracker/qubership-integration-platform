@@ -1,0 +1,43 @@
+---
+id: "e2e00047-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-context-storage-correlation"
+description: "Calls the seeded context service. A script sets the correlation id from the e2e-correlation header, standing in for a trigger that receives one, and SET stores under it."
+content:
+  labels: []
+  elements:
+  - id: "e2e00047-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-context-storage-correlation"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e00047-0000-4000-8000-000000000003"
+    name: "Set Correlation Id"
+    type: "script"
+    properties:
+      script: "exchange.setProperty('correlationId', exchange.getMessage().getHeader('e2e-correlation'))"
+  - id: "e2e00047-0000-4000-8000-000000000004"
+    name: "Set Context"
+    type: "context-storage"
+    properties:
+      contextServiceId: "e2e00034-0000-4000-8000-000000000001"
+      useCorrelationId: true
+      operation: "SET"
+      key: "e2eKey"
+      value: "${header.e2e-context-value}"
+      ttl: 600
+  dependencies:
+  - from: "e2e00047-0000-4000-8000-000000000002"
+    to: "e2e00047-0000-4000-8000-000000000003"
+  - from: "e2e00047-0000-4000-8000-000000000003"
+    to: "e2e00047-0000-4000-8000-000000000004"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

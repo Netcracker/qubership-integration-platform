@@ -5,7 +5,7 @@ import { methodValues } from "../../../../hooks/useChainFilter.ts";
 import { methodTagStyle } from "../../../services/ui/MethodBadge.tsx";
 
 // Color each selected method tag the same way operations render methods. The
-// qip-method-tag class keeps a white label in every theme and centers the close
+// cip-method-tag class keeps a white label in every theme and centers the close
 // icon (see antd-overrides.css).
 const renderMethodTag: SelectProps["tagRender"] = ({
   value,
@@ -15,7 +15,7 @@ const renderMethodTag: SelectProps["tagRender"] = ({
   const method = String(value).toUpperCase();
   return (
     <Tag
-      className="qip-method-tag"
+      className="cip-method-tag"
       closable={closable}
       onClose={onClose}
       onMouseDown={(e) => {

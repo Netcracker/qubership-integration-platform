@@ -6,6 +6,7 @@ import * as path from "node:path";
 
 // Library build config for VS Code extensions - React and Monaco bundled (self-contained, no CDN)
 export default defineConfig({
+  base: "./",
   plugins: [
     react(),
     sassDts(),
@@ -53,7 +54,7 @@ export default defineConfig({
         inlineDynamicImports: true,
         assetFileNames: (assetInfo) => {
           if (assetInfo.name?.endsWith(".css")) {
-            return "qip-ui.css";
+            return "cip-ui.css";
           }
           return "assets/[name]-[hash][extname]";
         },

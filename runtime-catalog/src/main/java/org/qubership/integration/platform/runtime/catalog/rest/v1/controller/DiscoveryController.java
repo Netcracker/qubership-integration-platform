@@ -30,7 +30,8 @@ import java.util.List;
 
 @RestController
 @CrossOrigin(origins = "*")
-@RequestMapping(value = "/v1/systems/discovery", produces = MediaType.APPLICATION_JSON_VALUE)
+@RequestMapping(value = {"/v1/systems/discovery", "/api/v1/cip/systems-catalog/systems/discovery"},
+    produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "discovery-controller", description = "Discovery Controller")
 public class DiscoveryController {
 

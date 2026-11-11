@@ -1,0 +1,33 @@
+---
+id: 6e761da4-89d8-5e41-a7c5-b083a4efd7c6
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+name: mcp-trigger-typed
+content:
+  labels: []
+  elements:
+  - id: f9ace031-e144-5ddd-aa38-c6b11fcc3045
+    name: MCP Trigger
+    type: mcp-trigger
+    properties:
+      mcpServiceIds:
+      - a61e7e36-2fe7-588c-bbb9-8e116c4b88c8
+      name: snapshot_mcp_typed
+      title: Snapshot MCP typed
+      description: Exercises MCP typed behavior in component tests.
+      destructive: false
+      idempotent: false
+      inputSchema: '{"type":"object","properties":{"message":{"type":"string"},"key":{"type":"string"},"mode":{"type":"string"},"number":{"type":"number"},"enabled":{"type":"boolean"},"items":{"type":"array","items":{}},"metadata":{"type":"object"},"optionalValue":{"type":["string","null"]}},"required":["message"],"additionalProperties":false}'
+      openWorld: false
+      readOnly: false
+  - id: bcadbc59-6f30-5f23-8b16-be991d331d9e
+    name: Script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: bcadbc59-6f30-5f23-8b16-be991d331d9e.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: f9ace031-e144-5ddd-aa38-c6b11fcc3045
+    to: bcadbc59-6f30-5f23-8b16-be991d331d9e
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

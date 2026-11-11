@@ -104,6 +104,50 @@ class AsyncApiV3NormalizerTest {
     }
 
     @Test
+    void normalizeMaasClassifierPrefersOperationOverChannel() throws IOException {
+        AsyncapiV3Specification v3 = readYamlV3("asyncapi/v3/kafka-v3-maas-classifier.yaml");
+        AsyncapiSpecification v2 = normalizer.normalize(v3);
+
+        assertEquals("operation.level.topic",
+                v2.getChannels().get("operation/topic").getPublish().getMaasClassifierName());
+        Channel channel = v2.getChannels().get("channel/topic");
+        assertEquals("channel.level.topic", channel.getPublish().getMaasClassifierName());
+        assertEquals("operation.level.topic", channel.getSubscribe().getMaasClassifierName());
+    }
+
+    @Test
+    void normalizeReplyTakesMaasClassifierFromReplyChannel() throws IOException {
+        AsyncapiV3Specification v3 = readYamlV3("asyncapi/v3/kafka-v3-maas-classifier.yaml");
+        AsyncapiSpecification v2 = normalizer.normalize(v3);
+
+        assertNull(v2.getChannels().get("request/topic").getPublish().getMaasClassifierName());
+        assertEquals("reply.channel.topic",
+                v2.getChannels().get("reply/topic").getSubscribe().getMaasClassifierName());
+    }
+
+    @Test
+    void normalizeReplyKeepsOperationDeclaredOnReplyChannelInEitherOrder() throws IOException {
+        AsyncapiV3Specification v3 = readYamlV3("asyncapi/v3/kafka-v3-reply-slot.yaml");
+        Map<String, V3Operation> declared = v3.getOperations();
+
+        for (Map<String, V3Operation> operations : List.of(declared, new LinkedHashMap<>(declared).reversed())) {
+            v3.setOperations(operations);
+            AsyncapiSpecification v2 = normalizer.normalize(v3);
+
+            assertEquals("receiveOrderReply", v2.getChannels().get("order/reply").getSubscribe().getOperationId(),
+                    "operation order " + operations.keySet());
+        }
+    }
+
+    @Test
+    void normalizeLastReplyTakesSharedReplyChannel() throws IOException {
+        AsyncapiV3Specification v3 = readYamlV3("asyncapi/v3/kafka-v3-reply-slot.yaml");
+        AsyncapiSpecification v2 = normalizer.normalize(v3);
+
+        assertEquals("sendRefundRequestReply", v2.getChannels().get("shared/reply").getSubscribe().getOperationId());
+    }
+
+    @Test
     void normalizeAmqpSimple() throws IOException {
         AsyncapiV3Specification v3 = readYamlV3("asyncapi/v3/amqp-v3-simple.yaml");
         AsyncapiSpecification v2 = normalizer.normalize(v3);
@@ -252,10 +296,8 @@ class AsyncApiV3NormalizerTest {
         Message cancelledMsg = cancellationsChannel.getSubscribe().getMessage();
         assertNotNull(cancelledMsg);
         assertNotNull(cancelledMsg.getPayload());
-        assertNotNull(cancelledMsg.getPayload().getRequired());
-        assertTrue(cancelledMsg.getPayload().getRequired().contains("orderId"));
-        assertTrue(cancelledMsg.getPayload().getRequired().contains("reason"));
-        assertNotNull(cancelledMsg.getPayload().getProperties().get("reason"),
+        assertTrue(((List<?>) cancelledMsg.getPayload().get("required")).containsAll(List.of("orderId", "reason")));
+        assertNotNull(((Map<?, ?>) cancelledMsg.getPayload().get("properties")).get("reason"),
                 "reason property with enum should be preserved");
 
         // inventoryUpdates — inline message with additionalProperties on nested metadata
@@ -264,9 +306,8 @@ class AsyncApiV3NormalizerTest {
         Message stockMsg = inventoryChannel.getSubscribe().getMessage();
         assertNotNull(stockMsg);
         assertNotNull(stockMsg.getPayload());
-        assertNotNull(stockMsg.getPayload().getRequired());
-        assertTrue(stockMsg.getPayload().getRequired().contains("sku"));
-        assertNotNull(stockMsg.getPayload().getProperties().get("metadata"),
+        assertTrue(((List<?>) stockMsg.getPayload().get("required")).contains("sku"));
+        assertNotNull(((Map<?, ?>) stockMsg.getPayload().get("properties")).get("metadata"),
                 "metadata property with additionalProperties should be preserved");
 
         // components: schemas with nested refs, required, constraints
@@ -283,20 +324,12 @@ class AsyncApiV3NormalizerTest {
 
         // Verify schema constraints are preserved
         var orderItemSchema = components.getSchemas().get("OrderItem");
-        assertNotNull(orderItemSchema.getRequired());
-        assertEquals(3, orderItemSchema.getRequired().size());
-        assertTrue(orderItemSchema.getRequired().contains("sku"));
-        assertTrue(orderItemSchema.getRequired().contains("quantity"));
-        assertTrue(orderItemSchema.getRequired().contains("unitPrice"));
-        assertNotNull(orderItemSchema.getProperties());
-        assertTrue(orderItemSchema.getProperties().containsKey("sku"));
-        assertTrue(orderItemSchema.getProperties().containsKey("quantity"));
+        assertEquals(3, ((List<?>) orderItemSchema.get("required")).size());
+        assertTrue(((List<?>) orderItemSchema.get("required")).containsAll(List.of("sku", "quantity", "unitPrice")));
+        assertTrue(((Map<?, ?>) orderItemSchema.get("properties")).keySet().containsAll(List.of("sku", "quantity")));
 
         var addressSchema = components.getSchemas().get("Address");
-        assertNotNull(addressSchema.getRequired());
-        assertTrue(addressSchema.getRequired().contains("street"));
-        assertTrue(addressSchema.getRequired().contains("city"));
-        assertTrue(addressSchema.getRequired().contains("country"));
+        assertTrue(((List<?>) addressSchema.get("required")).containsAll(List.of("street", "city", "country")));
     }
 
     @Test
@@ -342,10 +375,7 @@ class AsyncApiV3NormalizerTest {
         Message emailMsg = emailChannel.getSubscribe().getMessage();
         assertNotNull(emailMsg);
         assertNotNull(emailMsg.getPayload());
-        assertNotNull(emailMsg.getPayload().getRequired());
-        assertTrue(emailMsg.getPayload().getRequired().contains("to"));
-        assertTrue(emailMsg.getPayload().getRequired().contains("subject"));
-        assertTrue(emailMsg.getPayload().getRequired().contains("templateId"));
+        assertTrue(((List<?>) emailMsg.getPayload().get("required")).containsAll(List.of("to", "subject", "templateId")));
 
         // DLQ channel bindings — fanout exchange
         Channel dlqChannel = channels.get("notifications.dlq");
@@ -710,6 +740,38 @@ class AsyncApiV3NormalizerTest {
     private AsyncapiV3Specification readYamlV3(String path) throws IOException {
         String content = readResource(path);
         return yamlMapper.readValue(content, AsyncapiV3Specification.class);
+    }
+
+    // %1$s marks every position that holds a schema, and %2$s every value that is data.
+    private static final String SCHEMA_POSITIONS = """
+            {type: object,
+             properties: {p: %1$s, default: %1$s,
+                          marker: {const: %2$s, enum: [%2$s], default: %2$s, example: %2$s, examples: [%2$s], x-data: %2$s}},
+             patternProperties: {'^a': %1$s}, definitions: {D: %1$s}, dependencies: {p: %1$s, q: [p]},
+             additionalProperties: %1$s, items: [%1$s], additionalItems: %1$s, contains: %1$s, propertyNames: %1$s,
+             not: %1$s, if: %1$s, then: %1$s, else: %1$s, allOf: [%1$s], anyOf: [%1$s], oneOf: [%1$s]}
+            """;
+
+    @Test
+    void rewritesReferencesIntoAnUnwrappedSchemaOnlyWhereASchemaIs() throws IOException {
+        String into = "{$ref: '#/components/schemas/Closed/schema'}";
+        String unwrapped = "{$ref: '#/components/schemas/Closed'}";
+        AsyncapiV3Specification v3 = yamlMapper.readValue("""
+                asyncapi: 3.0.0
+                info: {title: t, version: 1.0.0}
+                channels:
+                  ch: {address: the/topic, messages: {M: {payload: %s}}}
+                operations:
+                  op: {action: receive, channel: {$ref: '#/channels/ch'}}
+                components:
+                  schemas:
+                    Closed: {schemaFormat: 'application/schema+json;version=draft-07', schema: {type: string}}
+                """.formatted(SCHEMA_POSITIONS.formatted(into, into).replace("\n", " ")), AsyncapiV3Specification.class);
+
+        AsyncapiSpecification v2 = normalizer.normalize(v3);
+
+        Object payload = v2.getChannels().get("the/topic").getSubscribe().getMessage().getPayload();
+        assertEquals(yamlMapper.readValue(SCHEMA_POSITIONS.formatted(unwrapped, into), Map.class), payload);
     }
 
     private AsyncapiV3Specification readJsonV3(String path) throws IOException {

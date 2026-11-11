@@ -1,0 +1,60 @@
+---
+id: 5b66176b-c019-5b1e-b583-8d0f5ccbdc96
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+name: http-trigger-duplicate-subchain
+content:
+  labels: []
+  elements:
+  - id: 621b4a2d-15c4-5818-a5fa-461c7a26990a
+    name: HTTP Trigger
+    type: http-trigger
+    properties:
+      accessControlType: NONE
+      allowedContentTypes: []
+      chunked: true
+      connectTimeout: 120000
+      contextPath: duplicate-subchain
+      externalRoute: false
+      handleChainFailureAction: default
+      handleValidationAction: default
+      httpBinding: handlingHttpBinding
+      httpMethodRestrict: POST
+      idempotency:
+        enabled: true
+        keyExpiry: 600
+        keyExpression: ${jsonpath('$.id')}
+        contextExpression: http-duplicate-subchain
+        actionOnDuplicate: execute-subchain
+        chainTriggerParameters:
+          triggerElementId: e5c2075a-be9b-58ad-bf12-865dfc52b1e1
+          chainCallTimeout: 1000
+      killSessionOnTimeout: false
+      privateRoute: false
+      receiveCorrelationId: false
+      rejectRequestIfNonNullBodyGetDelete: true
+  - id: 8afd67a3-12cd-523a-b7f4-e2f0e00db6e2
+    name: Process HTTP request
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 8afd67a3-12cd-523a-b7f4-e2f0e00db6e2.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  - id: e5c2075a-be9b-58ad-bf12-865dfc52b1e1
+    name: Handle HTTP duplicate or failure
+    type: chain-trigger-2
+    properties:
+      elementId: e5c2075a-be9b-58ad-bf12-865dfc52b1e1
+  - id: 091dbfec-4797-52ab-a369-cc037b332e81
+    name: Process HTTP handler
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 091dbfec-4797-52ab-a369-cc037b332e81.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: 621b4a2d-15c4-5818-a5fa-461c7a26990a
+    to: 8afd67a3-12cd-523a-b7f4-e2f0e00db6e2
+  - from: e5c2075a-be9b-58ad-bf12-865dfc52b1e1
+    to: 091dbfec-4797-52ab-a369-cc037b332e81
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

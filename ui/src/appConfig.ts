@@ -1,5 +1,5 @@
 import { resetAiProvider } from "./ai/config.ts";
-import { setAiServiceUrl } from "./ai/appConfig.ts";
+import { setAiServiceEnabled, setAiServiceUrl } from "./ai/appConfig.ts";
 import { setAiServiceUrlOverride } from "./config/aiServiceUrlOverride.ts";
 import { IconOverrides } from "./icons/IconProvider";
 import type { ThemeConfig } from "antd";
@@ -15,14 +15,19 @@ export type UserInfo = {
 
 export type AppConfig = {
   apiGateway?: string;
-  appName?: string;
   aiServiceUrl?: string;
+  /**
+   * Whether the installation runs the AI service. With false the front end
+   * sends no health check to it and hides the AI assistant. Absent means true.
+   */
+  aiServiceEnabled?: boolean;
   aiAssistantName?: string;
   icons?: IconOverrides;
   cssVariables?: Record<string, string>;
   additionalCss?: string[];
   themeOverrides?: Partial<ThemeConfig>;
   documentationBaseUrl?: string;
+  opensearchKafkaEnabled?: boolean;
   /**
    * Whether this is a live installation. Set on every service of the platform,
    * not on the front end alone, and read here to keep the screens that are
@@ -39,28 +44,17 @@ export type AppConfig = {
 };
 
 const appConfigValue: AppConfig = {
-  appName: import.meta.env.VITE_API_APP,
   apiGateway: import.meta.env.VITE_GATEWAY,
-  aiServiceUrl: import.meta.env.VITE_AI_SERVICE_URL as string | undefined,
-  aiAssistantName: import.meta.env.VITE_AI_ASSISTANT_NAME as string | undefined,
+  aiServiceUrl: import.meta.env.VITE_AI_SERVICE_URL,
+  aiAssistantName: import.meta.env.VITE_AI_ASSISTANT_NAME,
   icons: {},
   dev: import.meta.env.DEV,
 };
-
-function setAppName(name: string | undefined | null): void {
-  if (typeof name === "string" && name.length > 0) {
-    appConfigValue.appName = name;
-  }
-}
 
 export function setIcons(icons?: IconOverrides) {
   if (icons) {
     appConfigValue.icons = icons;
   }
-}
-
-export function getAppName(): string {
-  return appConfigValue.appName || import.meta.env.VITE_API_APP || "";
 }
 
 export function getIcons(): IconOverrides {
@@ -96,7 +90,7 @@ function emitConfigChange(): void {
     try {
       listener(snapshot);
     } catch (error) {
-      console.warn("[QIP UI Config] Config change listener failed:", error);
+      console.warn("[CIP UI Config] Config change listener failed:", error);
     }
   }
 }
@@ -104,11 +98,6 @@ function emitConfigChange(): void {
 export function configure(config: Partial<AppConfig>): void {
   const overrides: string[] = [];
 
-  if (config.appName !== undefined) {
-    const oldValue = appConfigValue.appName;
-    setAppName(config.appName);
-    overrides.push(`appName: "${oldValue}" -> "${config.appName}"`);
-  }
   if (config.apiGateway !== undefined) {
     const oldValue = appConfigValue.apiGateway;
     appConfigValue.apiGateway = config.apiGateway;
@@ -121,6 +110,14 @@ export function configure(config: Partial<AppConfig>): void {
     setAiServiceUrl(config.aiServiceUrl);
     resetAiProvider();
     overrides.push(`aiServiceUrl: "${oldValue}" -> "${config.aiServiceUrl}"`);
+  }
+  if (config.aiServiceEnabled !== undefined) {
+    const oldValue = appConfigValue.aiServiceEnabled;
+    appConfigValue.aiServiceEnabled = config.aiServiceEnabled;
+    setAiServiceEnabled(config.aiServiceEnabled);
+    overrides.push(
+      `aiServiceEnabled: ${oldValue} -> ${config.aiServiceEnabled}`,
+    );
   }
   if (config.aiAssistantName !== undefined) {
     const oldValue = appConfigValue.aiAssistantName;
@@ -207,8 +204,19 @@ export function configure(config: Partial<AppConfig>): void {
     overrides.push(`onLogout: handler ${config.onLogout ? "set" : "cleared"}`);
   }
 
+  if (
+    "opensearchKafkaEnabled" in config &&
+    appConfigValue.opensearchKafkaEnabled !== config.opensearchKafkaEnabled
+  ) {
+    const oldValue = appConfigValue.opensearchKafkaEnabled;
+    appConfigValue.opensearchKafkaEnabled = config.opensearchKafkaEnabled;
+    overrides.push(
+      `opensearchKafkaEnabled: ${JSON.stringify(oldValue)} -> ${JSON.stringify(config.opensearchKafkaEnabled)}`,
+    );
+  }
+
   if (overrides.length > 0) {
-    console.log("[QIP UI Config] Configuration overrides applied:", overrides);
+    console.log("[CIP UI Config] Configuration overrides applied:", overrides);
   }
 
   if (overrides.length > 0) {
@@ -238,23 +246,17 @@ export function loadConfigFromEnv(): Partial<AppConfig> {
     config.apiGateway = apiGateway;
   }
 
-  const appName =
-    (import.meta.env.VITE_APP_NAME as string | undefined) ||
-    import.meta.env.VITE_API_APP;
-  if (appName) {
-    config.appName = appName;
-  }
-
-  const aiServiceUrl = import.meta.env.VITE_AI_SERVICE_URL as
-    | string
-    | undefined;
+  const aiServiceUrl = import.meta.env.VITE_AI_SERVICE_URL;
   if (aiServiceUrl) {
     config.aiServiceUrl = aiServiceUrl;
   }
 
-  const aiAssistantName = import.meta.env.VITE_AI_ASSISTANT_NAME as
-    | string
-    | undefined;
+  // Only "false" turns it off, so a misspelled value keeps the health check.
+  if (import.meta.env.VITE_AI_SERVICE_ENABLED === "false") {
+    config.aiServiceEnabled = false;
+  }
+
+  const aiAssistantName = import.meta.env.VITE_AI_ASSISTANT_NAME;
   if (aiAssistantName) {
     config.aiAssistantName = aiAssistantName;
   }
@@ -268,7 +270,7 @@ export function loadConfigFromEnv(): Partial<AppConfig> {
       }
     } catch (error) {
       console.warn(
-        "[QIP UI Config] Failed to parse VITE_CSS_VARIABLES:",
+        "[CIP UI Config] Failed to parse VITE_CSS_VARIABLES:",
         error,
       );
     }
@@ -285,7 +287,7 @@ export function loadConfigFromEnv(): Partial<AppConfig> {
       }
     } catch (error) {
       console.warn(
-        "[QIP UI Config] Failed to parse VITE_ADDITIONAL_CSS:",
+        "[CIP UI Config] Failed to parse VITE_ADDITIONAL_CSS:",
         error,
       );
     }
@@ -301,11 +303,16 @@ export function loadConfigFromEnv(): Partial<AppConfig> {
     config.productionMode = productionMode === "true";
   }
 
+  const opensearchKafkaEnabled = import.meta.env
+    .VITE_OPENSEARCH_KAFKA_ENABLED as string | undefined;
+  if (opensearchKafkaEnabled !== undefined && opensearchKafkaEnabled !== "") {
+    config.opensearchKafkaEnabled = opensearchKafkaEnabled === "true";
+  }
+
   return config;
 }
 
 export type AppExtensionProps = {
-  appName?: string;
   icons?: IconOverrides;
   apiGateway?: string;
   aiServiceUrl?: string;

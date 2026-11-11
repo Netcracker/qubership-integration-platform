@@ -1,20 +1,4 @@
-const createUri = (path: string) => ({
-  path,
-  scheme: "file",
-  fsPath: path,
-  with: jest.fn().mockReturnThis(),
-  toString: jest.fn().mockReturnValue(path),
-});
-
-const Uri = {
-  file: jest.fn(createUri),
-  parse: jest.fn(createUri),
-  joinPath: jest.fn(() => createUri("/joined/path")),
-};
-
-Uri.file.mockImplementation((path: string) => createUri(path));
-Uri.parse.mockImplementation((path: string) => createUri(path));
-
-module.exports = {
-  Uri,
-};
+// What `jest.config.cjs` maps `^vscode$` to. The fake itself lives in `tests/fake-vscode/`, so a
+// test file can import its helpers (`seedWorkspace`, `workspaceUri`, `workspaceTree`, `resetWorkspace`)
+// from there while reading the API through `vscode`; both resolve to one module instance.
+module.exports = require("../fake-vscode");

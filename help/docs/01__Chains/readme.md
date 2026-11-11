@@ -86,14 +86,14 @@ Each **folder** contains the following parameters in the table:
   - **_Paste_** - pastes copied chain/folder.
   - _**Delete**_ - deletes folder with all content under it.
 
-> ℹ️ The **Chains** window **does not validate** the uniqueness of names for folders or chains. It is possible that multiple chains (or folders) have the same name.
+> ℹ️ There is no uniqueness validation for folder/chain names. It is possible that multiple chains (or folders) have the same name.
 
 <ins>VS Code Extension</ins>
 
 All chains configured using VS Code Extension appears under the "Chains" section, which is located by expanding "CIP" in the left bottom. Under "Chains" section, a list of created chains is available. Expand the chain to view a list of included elements.
 
 ### Chain Details Side Panel
-**`⛔ Not available via VS Code extension`**
+**`⛔ Not available via the VS Code extension`**
 
 More chain details are available in the **right side panel**. To open it, click anywhere in the chain row (except the chain name, which leads to the [graph](1__Graph/readme.md)). The following information about the chain is available (in read-only mode):
 
@@ -148,19 +148,21 @@ To create a chain using VS Code Extension, follow the steps outlined below:
 4. At the top of Visual Studio Code enter the name of the chain and click `Enter`. Next, it opens the CIP Extension UI with the "blueprint-like" environment on the "Graph" tab to design and configure the chain logic.
 
 ### Move Chain or Folder
-**`⛔ Not available via VS Code extension`**
+**`⛔ Not available via the VS Code extension`**
 
 To move a chain/folder (instead of Cut and Paste), drag and drop it to the target folder. To **move it to the root directory**, drag and drop the chain or folder to ![home](img/home.svg) at the top right above the table.
 
 ### Import Chain(s)
-**`⛔ Not available via VS Code extension`**
+**`⛔ Not available via the VS Code extension`**
 
 To upload the chain(s), click the icon ![cloud-upload](img/cloud-upload.svg), drag and drop **.zip** or **.yaml** file into import area or click on this area, select the file and click "Next" at the bottom right. The second step allows to specify actions. There are four tabs under one.
 
 #### Chains Tab
 This tab contains all chains that are going to be imported.
 
-The first element is a switcher "Validate By Hash". This option can reduce the import time by comparing the hash of each chain. If the hash matches, the system skips importing that chain.
+The first element is a switcher **"Validate By Hash"**. This option can reduce the import time by comparing the hash of each chain. If the hash matches, the system skips importing that chain.
+
+> ℹ️ Importing a service whose active environment parameters (any of them) differ from the stored ones resets the hash of every chain that uses the service and marks those chains with the "Unsaved changes" label. A chain that already has this label, for example after an import with the **None** action, keeps its hash, so **Validate By Hash** can still skip it on the next import.
 
 Under this option there is a table of chains with the following parameters:
 * Name - name of the imported chain. If a chain with the same ID already exists in the system, a ![diff](img/diff.svg) icon appears next to the name — click it to open the **Chain compare** dialog and preview the differences between the existing chain and the version being imported before proceeding with the import;
@@ -223,7 +225,7 @@ After configuring all actions, click **Import** at the bottom right. Wait for th
 The final step shows the import results. In each tab, the **Status** field is populated with the outcome, as described at the end of each table.
 
 ### Export Chain(s)
-**`⛔ Not available via VS Code extension`**
+**`⛔ Not available via the VS Code extension`**
 
 To export the chain(s), simply select respective rows in the table with checkboxes (use checkbox in table heading if you need to select all/filtered chains) and ![cloud-download](img/cloud-download.svg).
 If no chains are selected, clicking the button exports all chains after confirmation.
@@ -236,7 +238,7 @@ and sub-chains selected as the handler for duplicate idempotency keys on the "Id
 - **Export all common variables** - if selected, the system also exports all common variables, utilized within chains.
 
 ### Deploy Chain(s)
-**`⛔ Not available via VS Code extension`**
+**`⛔ Not available via the VS Code extension`**
 
 To deploy desired chains, mark them via checkboxes (use checkbox in table heading if you need to select all/filtered chains) and click ![send](img/send.svg).
 If no chains are selected, clicking the button deploys all available chains.
@@ -269,6 +271,8 @@ If a folder is deleted, all chains grouped under that folder will also be delete
 
 Under "Chains" folder, right-click on the chain name you want to delete. From the available options, click "Delete Chain". A notification appears in the bottom-right corner of the screen to confirm deletion is successful.
 
+> ℹ️ The extension removes resource files that the chain references, whether they are in the chain directory or its `resources` folder. This includes `.groovy` files that store Script element code and `.json` files that store Mapper configurations, scripts and mappings used in a Service Call's Before or After processing. If the `resources` folder is empty after cleanup, the extension removes it (as well as chain configuration parent folder).
+
 ### Compare Chains
 <ins>Web UI</ins>
 
@@ -286,6 +290,7 @@ You can view the comparison in three modes, switchable at any time:
   - ![plus](img/plus.svg) ![minus](img/minus.svg) - zoom in/out the graph.
   - ![expand](img/expand.svg) - fit view.
   - ![rotate-right](img/rotate-right.svg) - toggles the graph orientation between vertical and horizontal.
+  - ![compass](img/compass.svg) - hides or shows the minimap (visible by default) in that comparison area.
 
   Elements are color-coded by their comparison state:
   - **Identical (grey)** - no differences found in the element or its connections.
@@ -318,7 +323,7 @@ Because the two compared versions are fixed by Git, there is no chain/snapshot s
 ---
 
 - In CIP UI: during the process of chain creation, both chain and its configuration are stored in the CIP Catalog database. The chains are available for export from UI.
-- In CIP VSCode Extension: chains created via CIP VS Code Extension are stored locally under a project folder or workspace directory configured by user on file system of respective machine.
+- In CIP VSCode Extension: chains created via CIP VS Code Extension are stored locally under a project folder or workspace directory configured by user on file system of respective machine. Each chain is a `*.chain.cip.yaml` file, and the extension opens only files with the `.cip.yaml` extension.
 
 ## Configuration
 

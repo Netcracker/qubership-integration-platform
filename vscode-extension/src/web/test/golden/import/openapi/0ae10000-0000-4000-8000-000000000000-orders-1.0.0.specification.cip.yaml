@@ -1,0 +1,174 @@
+id: 0ae10000-0000-4000-8000-000000000000-orders-1.0.0
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/specification
+name: 1.0.0
+content:
+  deprecated: false
+  version: 1.0.0
+  source: MANUAL
+  operations:
+    - id: 0ae10000-0000-4000-8000-000000000000-orders-1.0.0-listOrders
+      name: listOrders
+      method: GET
+      path: /orders
+      specification:
+        summary: List orders
+        responses:
+          "200":
+            description: The orders that match the filter.
+            content:
+              application/json:
+                schema:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/Order"
+        operationId: listOrders
+        parameters:
+          - in: query
+            name: status
+            schema:
+              type: string
+              enum:
+                - NEW
+                - SHIPPED
+            required: false
+      requestSchema:
+        parameters:
+          - in: query
+            name: status
+            schema:
+              type: string
+              enum:
+                - NEW
+                - SHIPPED
+            required: false
+      responseSchemas:
+        "200":
+          application/json:
+            type: array
+            items:
+              $ref: "#/definitions/Order"
+            $id: http://system.catalog/schemas/#/components/schemas/Schema
+            $schema: http://json-schema.org/draft-07/schema#
+            definitions:
+              Order:
+                type: object
+                required:
+                  - orderId
+                  - total
+                properties:
+                  orderId:
+                    type: string
+                  total:
+                    type: number
+                    format: double
+                  customer:
+                    type: string
+    - id: 0ae10000-0000-4000-8000-000000000000-orders-1.0.0-createOrder
+      name: createOrder
+      method: POST
+      path: /orders
+      specification:
+        summary: Create an order
+        responses:
+          "201":
+            description: The order that was created.
+            content:
+              application/json:
+                schema:
+                  $ref: "#/components/schemas/Order"
+        operationId: createOrder
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderRequest"
+      requestSchema:
+        application/json:
+          type: object
+          required:
+            - customer
+          properties:
+            customer:
+              type: string
+            lines:
+              type: array
+              items:
+                type: string
+          $id: http://system.catalog/schemas/#/components/schemas/OrderRequest
+          $schema: http://json-schema.org/draft-07/schema#
+          definitions: {}
+      responseSchemas:
+        "201":
+          application/json:
+            type: object
+            required:
+              - orderId
+              - total
+            properties:
+              orderId:
+                type: string
+              total:
+                type: number
+                format: double
+              customer:
+                type: string
+            $id: http://system.catalog/schemas/#/components/schemas/Order
+            $schema: http://json-schema.org/draft-07/schema#
+            definitions: {}
+    - id: 0ae10000-0000-4000-8000-000000000000-orders-1.0.0-getOrder
+      name: getOrder
+      method: GET
+      path: /orders/{orderId}
+      specification:
+        summary: Read one order
+        responses:
+          "200":
+            description: The order.
+            content:
+              application/json:
+                schema:
+                  $ref: "#/components/schemas/Order"
+          "404":
+            description: No order carries that id.
+        operationId: getOrder
+        parameters:
+          - in: path
+            name: orderId
+            schema:
+              type: string
+            required: true
+      requestSchema:
+        parameters:
+          - in: path
+            name: orderId
+            schema:
+              type: string
+            required: true
+      responseSchemas:
+        "200":
+          application/json:
+            type: object
+            required:
+              - orderId
+              - total
+            properties:
+              orderId:
+                type: string
+              total:
+                type: number
+                format: double
+              customer:
+                type: string
+            $id: http://system.catalog/schemas/#/components/schemas/Order
+            $schema: http://json-schema.org/draft-07/schema#
+            definitions: {}
+        "404": {}
+  specificationSources:
+    - id: 0ae1d0c5-0000-4000-8000-000000000002
+      name: orders-openapi.yaml
+      sourceHash: 55a6071
+      fileName: source-0ae10000-0000-4000-8000-000000000000-orders-1.0.0/orders-openapi.yaml
+      mainSource: true
+  parentId: 0ae10000-0000-4000-8000-000000000000-orders
+  labels: []

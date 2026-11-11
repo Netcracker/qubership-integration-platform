@@ -1,0 +1,82 @@
+package org.qubership.integration.platform.ai.catalog.binding;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+class ResolvedServiceCallBindingTest {
+
+  @Test
+  @DisplayName("two occurrences of the same operation keep distinct serviceCallId owners")
+  void indexesDuplicateOperationsByServiceCallId() {
+    List<String> callIds = List.of("call-a", "call-b");
+    List<ResolvedServiceCallBinding> bindings =
+        List.of(binding("call-a", "op-shared"), binding("call-b", "op-shared"));
+
+    Map<String, ResolvedServiceCallBinding> matched =
+        ResolvedServiceCallBinding.requireExactOwners(callIds, bindings);
+
+    assertEquals(Set.of("call-a", "call-b"), matched.keySet());
+    assertEquals("op-shared", matched.get("call-a").operationId());
+    assertEquals("op-shared", matched.get("call-b").operationId());
+    assertEquals("call-a", matched.get("call-a").serviceCallId());
+    assertEquals("call-b", matched.get("call-b").serviceCallId());
+  }
+
+  @Test
+  @DisplayName("missing, duplicate, or extra bindings fail fast by serviceCallId")
+  void failsFastOnMissingDuplicateOrExtraBinding() {
+    List<String> bothCalls = List.of("call-a", "call-b");
+    List<ResolvedServiceCallBinding> missingBindings = List.of(binding("call-a", "op-shared"));
+    IllegalArgumentException missing =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> ResolvedServiceCallBinding.requireExactOwners(bothCalls, missingBindings));
+    assertEquals("missing catalog binding for serviceCallId=call-b", missing.getMessage());
+
+    List<ResolvedServiceCallBinding> duplicateBindings =
+        List.of(
+            binding("call-a", "op-shared"),
+            binding("call-b", "op-shared"),
+            binding("call-a", "op-other"));
+    IllegalArgumentException duplicate =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> ResolvedServiceCallBinding.requireExactOwners(bothCalls, duplicateBindings));
+    assertEquals("duplicate catalog binding for serviceCallId=call-a", duplicate.getMessage());
+
+    List<String> oneCall = List.of("call-a");
+    List<ResolvedServiceCallBinding> extraBindings =
+        List.of(binding("call-a", "op-shared"), binding("call-b", "op-shared"));
+    IllegalArgumentException extra =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> ResolvedServiceCallBinding.requireExactOwners(oneCall, extraBindings));
+    assertEquals("extra catalog binding for serviceCallId=call-b", extra.getMessage());
+  }
+
+  private static ResolvedServiceCallBinding binding(
+      String serviceCallId, String integrationOperationId) {
+    return new ResolvedServiceCallBinding(
+        serviceCallId,
+        serviceCallId,
+        "INTEGRATION",
+        "sys-1",
+        "sg-1",
+        "spec-1",
+        integrationOperationId,
+        "http",
+        "GET",
+        "/orders/{id}",
+        "getOrder",
+        ResolvedServiceCallBinding.Source.EXISTING_CATALOG,
+        "2024.4",
+        "evidence-" + serviceCallId,
+        "");
+  }
+}

@@ -95,36 +95,7 @@ export function stubLabelUtils() {
   };
 }
 
-export function stubProjectConfigService(
-  configOverrides: Record<string, any> = {},
-) {
-  return {
-    ProjectConfigService: {
-      getConfig: jest.fn().mockReturnValue({
-        schemaUrls: { service: "", specification: "", specificationGroup: "" },
-        extensions: {
-          service: ".qip-service.yaml",
-          specification: ".spec.yaml",
-        },
-        ...configOverrides,
-      }),
-      getInstance: jest.fn().mockReturnValue({
-        setContext: jest.fn(),
-        loadWorkspaceConfig: jest.fn().mockResolvedValue(undefined),
-        getAllConfigs: jest.fn().mockReturnValue([]),
-        buildDefaultConfig: jest.fn().mockReturnValue({
-          extensions: {
-            chain: ".qip-chain.yaml",
-            service: ".qip-service.yaml",
-          },
-        }),
-      }),
-    },
-    CONFIG_FILENAME: "qip-config.yaml",
-  };
-}
-
-import type { IntegrationSystem } from "../../src/web/api-services/servicesTypes";
+import type { IntegrationSystem } from "@netcracker/qip-ui";
 import { IntegrationSystemType } from "../../src/web/api-services/servicesTypes";
 
 export function buildSystem(
@@ -133,8 +104,10 @@ export function buildSystem(
   return {
     id: "sys-1",
     name: "Test System",
+    description: "",
     activeEnvironmentId: "",
-    integrationSystemType: IntegrationSystemType.EXTERNAL,
+    type: IntegrationSystemType.EXTERNAL,
+    internalServiceName: "",
     protocol: "HTTP",
     extendedProtocol: "",
     specification: "",
@@ -153,6 +126,9 @@ export function buildServiceRecord(
   };
 }
 
+// One fixed OpenAPI document in the shape the webview posts, for a suite that mocks the services
+// around the import. A case that drives the import over the fake filesystem uses `serializedFile`
+// in `importHarness.ts` instead, which takes the content and is typed against `SerializedFile`.
 export function buildSerializedOpenApiFile(name = "spec.json") {
   const content = JSON.stringify({
     openapi: "3.0.0",

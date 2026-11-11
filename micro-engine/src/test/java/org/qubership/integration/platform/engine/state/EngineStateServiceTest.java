@@ -38,7 +38,7 @@ class EngineStateServiceTest {
 
     private static final String SESSION_ID = "7289cd81-4380-4850-9145-26541be8b2ce";
     private static final String SERIALIZED_STATE = "{\"state\":\"ACTIVE\"}";
-    private static final String VALID_ENGINE_KEY = "qip-engine-v1-default-localhost";
+    private static final String VALID_ENGINE_KEY = "cip-engine-v1-default-localhost";
 
     @Mock
     private Supplier<ConsulClient> consulClientSupplier;
@@ -66,7 +66,7 @@ class EngineStateServiceTest {
     @BeforeEach
     void setUp() {
         service = new EngineStateService();
-        service.keyPrefix = "qip";
+        service.keyPrefix = "cip";
         service.keyEngineConfigRoot = "/engine-config";
         service.keyEnginesState = "/engines-state";
         service.dynamicStateKeys = false;
@@ -91,13 +91,13 @@ class EngineStateServiceTest {
     void shouldUpdateEngineStateInConsulWithAcquiredSession() throws Exception {
         stubConsulSessionForKvWrite();
         stubEngineInfo();
-        when(consulKeyValidator.makeKeyValid("qip-engine-v1-default-localhost")).thenReturn(VALID_ENGINE_KEY);
+        when(consulKeyValidator.makeKeyValid("cip-engine-v1-default-localhost")).thenReturn(VALID_ENGINE_KEY);
         when(objectMapper.writeValueAsString(state)).thenReturn(SERIALIZED_STATE);
         when(consulClientSupplier.get()).thenReturn(consulClient);
 
         ArgumentCaptor<KeyValueOptions> optionsCaptor = ArgumentCaptor.forClass(KeyValueOptions.class);
         when(consulClient.putValueWithOptions(
-            eq("qip/engine-config/engines-state/" + VALID_ENGINE_KEY),
+            eq("cip/engine-config/engines-state/" + VALID_ENGINE_KEY),
             eq(SERIALIZED_STATE),
             optionsCaptor.capture()
         )).thenReturn(Uni.createFrom().item(true));
@@ -117,7 +117,7 @@ class EngineStateServiceTest {
         when(objectMapper.writeValueAsString(state)).thenReturn(SERIALIZED_STATE);
         when(consulClientSupplier.get()).thenReturn(consulClient);
         when(consulClient.putValueWithOptions(
-            eq("qip/engine-config/engines-state/valid-dynamic-engine-key"),
+            eq("cip/engine-config/engines-state/valid-dynamic-engine-key"),
             eq(SERIALIZED_STATE),
             org.mockito.ArgumentMatchers.any(KeyValueOptions.class)
         )).thenReturn(Uni.createFrom().item(true));
@@ -128,8 +128,8 @@ class EngineStateServiceTest {
         verify(consulKeyValidator).makeKeyValid(keyCaptor.capture());
 
         String rawEngineKey = keyCaptor.getValue();
-        assertTrue(rawEngineKey.startsWith("qip-engine-v1-default-localhost-"));
-        assertTrue(rawEngineKey.length() > "qip-engine-v1-default-localhost-".length());
+        assertTrue(rawEngineKey.startsWith("cip-engine-v1-default-localhost-"));
+        assertTrue(rawEngineKey.length() > "cip-engine-v1-default-localhost-".length());
     }
 
     @Test
@@ -139,7 +139,7 @@ class EngineStateServiceTest {
 
         stubConsulSession();
         stubEngineInfo();
-        when(consulKeyValidator.makeKeyValid("qip-engine-v1-default-localhost")).thenReturn(VALID_ENGINE_KEY);
+        when(consulKeyValidator.makeKeyValid("cip-engine-v1-default-localhost")).thenReturn(VALID_ENGINE_KEY);
         when(objectMapper.writeValueAsString(state)).thenThrow(jsonProcessingException);
 
         RuntimeException exception = assertThrows(RuntimeException.class, () -> service.updateState(state));
@@ -153,12 +153,12 @@ class EngineStateServiceTest {
         stubConsulSession();
         stubEngineInfo();
         when(consulSessionService.getAwaitTimeout()).thenReturn(Duration.ofMillis(100));
-        when(consulKeyValidator.makeKeyValid("qip-engine-v1-default-localhost")).thenReturn(VALID_ENGINE_KEY);
+        when(consulKeyValidator.makeKeyValid("cip-engine-v1-default-localhost")).thenReturn(VALID_ENGINE_KEY);
         when(objectMapper.writeValueAsString(org.mockito.ArgumentMatchers.any(EngineState.class)))
                 .thenReturn(SERIALIZED_STATE);
         when(consulClientSupplier.get()).thenReturn(consulClient);
         when(consulClient.putValueWithOptions(
-                eq("qip/engine-config/engines-state/" + VALID_ENGINE_KEY),
+                eq("cip/engine-config/engines-state/" + VALID_ENGINE_KEY),
                 eq(SERIALIZED_STATE),
                 org.mockito.ArgumentMatchers.any(KeyValueOptions.class)
         )).thenReturn(Uni.createFrom().nothing());
@@ -173,11 +173,11 @@ class EngineStateServiceTest {
 
         stubConsulSessionForKvWrite();
         stubEngineInfo();
-        when(consulKeyValidator.makeKeyValid("qip-engine-v1-default-localhost")).thenReturn(VALID_ENGINE_KEY);
+        when(consulKeyValidator.makeKeyValid("cip-engine-v1-default-localhost")).thenReturn(VALID_ENGINE_KEY);
         when(objectMapper.writeValueAsString(state)).thenReturn(SERIALIZED_STATE);
         when(consulClientSupplier.get()).thenReturn(consulClient);
         when(consulClient.putValueWithOptions(
-            eq("qip/engine-config/engines-state/" + VALID_ENGINE_KEY),
+            eq("cip/engine-config/engines-state/" + VALID_ENGINE_KEY),
             eq(SERIALIZED_STATE),
             org.mockito.ArgumentMatchers.any(KeyValueOptions.class)
         )).thenReturn(Uni.createFrom().failure(consulException));
@@ -201,7 +201,7 @@ class EngineStateServiceTest {
     }
 
     private void stubEngineInfo() {
-        when(engineInfo.getEngineDeploymentName()).thenReturn("qip-engine-v1");
+        when(engineInfo.getEngineDeploymentName()).thenReturn("cip-engine-v1");
         when(engineInfo.getDomain()).thenReturn("default");
         when(engineInfo.getHost()).thenReturn("localhost");
     }

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "baselineId": "experimental-migration",
+  "baselineDigest": "fixture-baseline-digest-0001aaaaaaaaaaaaaaaa",
+  "closureDigest": "fixture-closure-digest-0001aaaaaaaaaaaaaaaaa",
+  "knowledgeVersion": "1.0.0",
+  "languageVersion": "24.4",
+  "requiredEngine": "lancedb",
+  "knowledgeRoot": "ai-service/knowledge-sidecar/tests/fixtures/knowledge",
+  "profiles": [
+    {
+      "tier": "FULL",
+      "sourceDocuments": [],
+      "includeCompleteKnowledgeRoot": true
+    },
+    {
+      "tier": "SLIM",
+      "sourceDocuments": [
+        "patterns/minimal-pattern.md",
+        "corporate/standards.md"
+      ],
+      "includeCompleteKnowledgeRoot": false
+    }
+  ]
+}

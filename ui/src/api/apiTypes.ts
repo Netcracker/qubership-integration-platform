@@ -285,6 +285,7 @@ export type Deployment = {
 
 export type CreateDeploymentRequest = {
   domain: string;
+  domainType?: DomainType;
   snapshotId: string;
   suspended: boolean;
 };
@@ -393,6 +394,17 @@ export type PaginationOptions = {
   count?: number;
 };
 
+export type OperationListOptions = PaginationOptions & {
+  /**
+   * Narrows the list to operations whose method, name, and path together
+   * contain every whitespace-separated term of this value, case-insensitively.
+   * The browser transport applies this in the catalog, which matches with SQL
+   * LIKE, so `%` and `_` act as wildcards there. The VS Code transport reads
+   * the full list and the webview filters it by substring.
+   */
+  searchFilter?: string;
+};
+
 export type SessionSearchResponse = {
   offset: number;
   sessions: Session[];
@@ -492,6 +504,7 @@ export type ImportPreview = {
   chains: ChainImportPreview[];
   systems: SystemImportPreview[];
   contextService?: SystemImportPreview[];
+  mcpService?: SystemImportPreview[];
   variables: VariableImportPreview[];
   instructions: GeneralImportInstructions;
 };
@@ -1152,6 +1165,7 @@ export interface SpecificationGroup {
 export interface Specification {
   id: string;
   name: string;
+  description?: string;
   specificationGroupId: string;
   deprecated?: boolean;
   version: string;
@@ -1163,7 +1177,7 @@ export interface Specification {
   modifiedBy?: User;
   chains?: BaseEntity[];
   labels?: EntityLabel[];
-  operations?: SystemOperation;
+  operations?: SystemOperation[];
 }
 
 export interface SystemOperation {
@@ -1306,11 +1320,6 @@ export type AccessControlProperty = {
   abacParameters?: AbacParameters;
 };
 
-export type CustomResourceBuildRequest = {
-  options: CustomResourceOptions;
-  chainIds: string[];
-};
-
 export type CustomResourceOptions = {
   language?: string;
   name?: string;
@@ -1411,18 +1420,6 @@ export type BulkDeploymentRequest = {
   domains: string[];
   snapshotAction: BulkDeploymentSnapshotAction;
   chainIds: string[];
-};
-
-export type MicroDomainDeployRequest = {
-  name: string;
-  snapshotIds: string[];
-  mode?: DeployMode;
-};
-
-export type BulkMicroDomainDeployResult = {
-  domains: string[];
-  chainIds: string[];
-  snapshotAction: BulkDeploymentSnapshotAction;
   mode?: DeployMode;
 };
 

@@ -1,0 +1,10 @@
+# $schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/rabbitmq-trigger-2
+id: "274220cb-617a-5b8a-9e45-58aab3ed37f0"
+name: Schema contract sample
+type: rabbitmq-trigger-2
+properties:
+  connectionSourceType: manual
+  addresses: localhost
+  exchange: orders
+  queues: orders
+  vhost: { name: orders }

@@ -1,0 +1,713 @@
+package org.qubership.integration.platform.ai.productpipeline.create.design.input;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+import io.smallrye.mutiny.Multi;
+import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
+import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
+import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorLoader;
+import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorTestSupport;
+import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
+import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
+import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticCanonicalizer;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.DefaultChainSemanticRevisionValidator;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.CanonicalPayloadHash;
+import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
+import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.RequirementFactKind;
+import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
+import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
+import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementEntryPoint;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackManifest;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
+
+class DesignInputCapabilityTest {
+
+  private static final CompilerContract CONTRACT =
+      new ClasspathCompilerContractRepository().require(CompilerContract.V1);
+
+  private static final String VALID_IDS =
+      """
+      # Integration Design Specification
+
+      ## Integration Process
+
+      ### Integration flow for CIP Chain - Orders
+
+      ```mermaid
+      sequenceDiagram
+          autonumber
+          participant Client as Client
+          participant Orders as Orders API
+          Client->>Orders: create order
+      ```
+      """;
+
+  @AfterEach
+  void unbind() {
+    ProductCapabilityCaptureContext.unbind();
+  }
+
+  @Test
+  void recoveryKeepsFindingsBeyondTheLogPreviewLimit() {
+    String rejection = "Invalid scoped route. ".repeat(500) + "Missing handler at the final edge.";
+    assertEquals(rejection, DesignInputCapability.captureFailureMessage(rejection));
+  }
+
+  @Test
+  void sharedCapabilitySelectsEnterRouteAndPrepareDesignByStageId() {
+    DesignInputCapability capability = capturingCapability();
+    StageOutcome entry = outcome(capability, context("ids-entry", Map.of("userText", VALID_IDS)));
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, entry.outcomeClass());
+    assertEquals(DesignInputCapability.PROVIDED_IDS_REJECTED, entry.message());
+
+    StageOutcome unsupported = outcome(capability, context("other-stage", Map.of()));
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, unsupported.outcomeClass());
+  }
+
+  @Test
+  void idsEntrySucceedsWithoutIdsDocument() {
+    DesignInputCapability capability = capturingCapability();
+    StageOutcome entry =
+        outcome(
+            capability,
+            context("ids-entry", Map.of("userText", "Create an orders HTTP integration")));
+    assertEquals(StageOutcomeClass.SUCCEEDED, entry.outcomeClass());
+    assertTrue(entry.candidates().stream().noneMatch(c -> c.kind() == Kind.IDS_DOCUMENT));
+  }
+
+  @Test
+  void providedIdsFailsClosed() {
+    DesignInputCapability capability = capturingCapability();
+    StageOutcome entry = outcome(capability, context("ids-entry", Map.of("userText", VALID_IDS)));
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, entry.outcomeClass());
+    assertEquals(DesignInputCapability.PROVIDED_IDS_REJECTED, entry.message());
+    assertTrue(entry.candidates().isEmpty());
+  }
+
+  @Test
+  void agentCaptureEmitsSemanticRevisionAndDerivedIdsWithoutParsing() {
+    DesignInputCapability capability = capturingCapability();
+    StageOutcome prepared =
+        outcome(
+            capability,
+            context(
+                "design-input",
+                Map.of(
+                    "userText",
+                    "ignored agent prose after the tool call",
+                    "requirementBrief",
+                    ChainSemanticCaptureFixtures.approvedBrief())));
+    assertEquals(StageOutcomeClass.SUCCEEDED, prepared.outcomeClass());
+    assertEquals(Set.of(Kind.CHAIN_SEMANTIC_REVISION, Kind.IDS_DOCUMENT), kinds(prepared));
+    ChainSemanticRevision revision = semanticPayload(prepared);
+    IdsDocument ids = idsPayload(prepared);
+    assertTrue(revision.revisionId().startsWith("semantic-"), revision.revisionId());
+    assertTrue(ids.markdown().contains("sequenceDiagram"));
+    assertTrue(ids.markdown().contains("autonumber"));
+    assertEquals(CanonicalPayloadHash.sha256Hex(revision), ids.normalizedFlowHash());
+    assertEquals(IdsDocument.Mode.DERIVED, ids.mode());
+  }
+
+  @Test
+  void entryPointWithoutCapabilityKeyHaltsBeforeTheAgentRuns() {
+    RequirementBrief approved = ChainSemanticCaptureFixtures.approvedBrief();
+    RequirementEntryPoint blank =
+        new RequirementEntryPoint("http-in", "trigger-1", "", "", "POST", "/orders", "createOrder");
+    RequirementBrief withoutKey =
+        new RequirementBrief(
+            approved.goal(),
+            approved.inputs(),
+            approved.constraints(),
+            approved.assumptions(),
+            approved.citations(),
+            approved.summary(),
+            approved.approvedDraftReference(),
+            approved.approvedDraftText(),
+            approved.facts(),
+            List.of(blank),
+            approved.serviceCalls(),
+            approved.requirements(),
+            approved.mappingIntents(),
+            approved.flow(),
+            approved.catalogBindings());
+
+    StageOutcome prepared =
+        outcome(
+            capturingCapability(),
+            context("design-input", Map.of("requirementBrief", withoutKey)));
+
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, prepared.outcomeClass());
+    assertTrue(prepared.message().contains("http-in"), prepared.message());
+    assertEquals(
+        RecoveryCauseCode.MISSING_BRIEF_FACTS, prepared.recoveryCause().causeCode());
+    assertTrue(
+        prepared.recoveryCause().formattedFindings().contains("http-in"),
+        prepared.recoveryCause().formattedFindings());
+  }
+
+  @Test
+  void requestedAdaptationsWaitForMappingGapWithoutCapture() {
+    DesignInputCapability capability = capturingCapability();
+    StageOutcome prepared =
+        outcome(
+            capability,
+            context("design-input", Map.of("requirementBrief", ChainSemanticCaptureFixtures.rockyBriefWithRequestedMappings())));
+    assertEquals(StageOutcomeClass.NEEDS_INPUT, prepared.outcomeClass());
+    assertTrue(prepared.candidates().isEmpty());
+    assertEquals(PipelineGates.MAPPING_GAP, PipelineGates.gateOf(prepared.message()).orElse(""));
+    MappingGapWait.View view = MappingGapWait.parse(PipelineGates.strip(prepared.message()));
+    assertTrue(view.missingEdges().contains("task-start -> create-task"));
+    assertTrue(view.missingEdges().contains("create-task -> task-result"));
+  }
+
+  @Test
+  void skipRecordsCloseTheGateWithoutCapture() {
+    RequirementBrief brief =
+        MappingGapCoverage.skipUncovered(ChainSemanticCaptureFixtures.rockyBrief());
+    StageOutcome prepared =
+        outcome(
+            capturingCapability(),
+            context("design-input", Map.of("requirementBrief", brief)));
+    assertEquals(StageOutcomeClass.SUCCEEDED, prepared.outcomeClass());
+    assertEquals(
+        Set.of(Kind.CHAIN_SEMANTIC_REVISION, Kind.IDS_DOCUMENT), kinds(prepared));
+    String markdown = idsPayload(prepared).markdown();
+    assertTrue(markdown.contains("participant Service1 as OM"), markdown);
+    assertTrue(markdown.contains("participant Service2 as Salesforce"), markdown);
+    assertTrue(markdown.contains("Service1->>CIP: onTaskStart"), markdown);
+    assertTrue(markdown.contains("CIP->>Service2: createTask"), markdown);
+    assertTrue(markdown.contains("CIP->>Service1: onTaskResult"), markdown);
+  }
+
+  @Test
+  void passThroughConfirmationDoesNotCloseTheGate() {
+    RequirementBrief brief = ChainSemanticCaptureFixtures.rockyBriefWithRequestedMappings();
+    MappingGapPassThroughConfirmation confirmation =
+        new MappingGapPassThroughConfirmation(
+            "sha-rocky",
+            MappingGapCoverage.uncovered(brief).stream()
+                .map(t -> new MappingGapPassThroughConfirmation.TransitionRef(
+                    t.sourceInteractionId(), t.targetInteractionId()))
+                .toList());
+    StageOutcome prepared =
+        outcome(
+            capturingCapability(),
+            context(
+                "design-input",
+                Map.of(
+                    "requirementBrief", brief,
+                    "mappingGapPassThrough", confirmation,
+                    "requirementBriefContentHash", "sha-rocky")));
+    assertEquals(StageOutcomeClass.NEEDS_INPUT, prepared.outcomeClass());
+    assertEquals(PipelineGates.MAPPING_GAP, PipelineGates.gateOf(prepared.message()).orElse(""));
+  }
+
+  @Test
+  void inlineHookPromptPinsTheFactToItsCallAfterRepairFeedback() {
+    var brief = ChainSemanticCaptureFixtures.approvedBrief();
+    var facts = new java.util.ArrayList<>(brief.facts());
+    facts.add(new RequirementFact("before-hook", RequirementFactPolarity.POSITIVE, RequirementFactKind.BEHAVIOR,
+        "", "Set the body before the call.", "", "", "", "", "", "", List.of("call-1"), null,
+        new org.qubership.integration.platform.ai.plan.RequirementElementIntent("prepare-body", "script",
+            org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.BEFORE_HOOK,
+            "call-1", null, null, null, List.of(), List.of("{body}"))));
+    var prompt = DesignInputCapability.authoringPrompt(brief.withFacts(facts), CONTRACT, "\nRepair rejected topology.");
+    assertTrue(prompt.indexOf("Inline hook assignment: sourceFactId=before-hook") > prompt.indexOf("Repair rejected topology."));
+    assertTrue(prompt.contains("service-call operation nodeId=call-1"));
+    assertTrue(prompt.contains("Hook elementRef=prepare-body is not an operation nodeId or an edge endpoint"));
+  }
+
+  @Test
+  void authoringPromptCopiesPluralSourceFactIds() {
+    String prompt =
+        DesignInputCapability.authoringPrompt(
+            ChainSemanticCaptureFixtures.approvedBrief(), CONTRACT);
+    assertTrue(prompt.contains("sourceFactIds"), prompt);
+    assertTrue(prompt.contains("when Mapping intents include a mappingIntentId="), prompt);
+    assertTrue(prompt.contains("omit it on every edge"), prompt);
+    assertTrue(prompt.contains("External interaction anchors are server-owned"), prompt);
+    assertTrue(prompt.contains("nodeId=http-in"), prompt);
+    assertTrue(prompt.contains("nodeId=call-1"), prompt);
+    assertTrue(prompt.contains("commandType=completeTask"), prompt);
+    assertTrue(prompt.contains("Do not mint a mapping id"), prompt);
+    assertTrue(prompt.contains("reuse container is a standalone subtree"), prompt);
+    assertTrue(prompt.contains("role=body"), prompt);
+    String allowed = prompt.lines()
+        .filter(line -> line.startsWith("Allowed operation elementType values:"))
+        .findFirst().orElseThrow();
+    assertFalse(allowed.contains("split-element-2"), allowed);
+    assertTrue(allowed.contains("split-2"), allowed);
+    assertTrue(allowed.contains("split-async-2"), allowed);
+  }
+
+  @Test
+  void authoringPromptListsChainCallAsServerOwnedAnchor() {
+    RequirementBrief brief =
+        new RequirementBrief(
+            "Chain call",
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            "Call another chain",
+            "draft-1",
+            "draft",
+            List.of(
+                new RequirementFact(
+                    "http-entry",
+                    RequirementFactPolarity.POSITIVE,
+                    RequirementFactKind.CAPABILITY,
+                    "http-trigger",
+                    "Expose GET /auto-tests/chain-call",
+                    "",
+                    "",
+                    "",
+                    "GET",
+                    "/auto-tests/chain-call"),
+                new RequirementFact(
+                    "call-header-modification-test-chain",
+                    RequirementFactPolarity.POSITIVE,
+                    RequirementFactKind.CAPABILITY,
+                    "chain-call-2",
+                    "Call the header modification chain",
+                    "Chain trigger + Header modification",
+                    "",
+                    "",
+                    "",
+                    "")),
+            List.of(
+                new RequirementEntryPoint(
+                    "http-entry",
+                    "http-entry",
+                    "http-trigger",
+                    "",
+                    "GET",
+                    "/auto-tests/chain-call",
+                    "GET /auto-tests/chain-call")),
+            List.of(),
+            List.of(),
+            List.of(),
+            new RequirementFlow(
+                List.of(
+                    new Interaction(
+                        "http-entry",
+                        Direction.INBOUND,
+                        "External caller",
+                        "GET /auto-tests/chain-call",
+                        ""),
+                    new Interaction(
+                        "call-header-modification-test-chain",
+                        Direction.OUTBOUND,
+                        "Chain trigger + Header modification",
+                        "chain call",
+                        "")),
+                List.of(
+                    new Transition(
+                        "http-entry", "call-header-modification-test-chain"))),
+            List.of());
+    String prompt = DesignInputCapability.authoringPrompt(brief, CONTRACT);
+    assertTrue(
+        prompt.contains("nodeId=call-header-modification-test-chain"), prompt);
+    assertTrue(prompt.contains("capabilityKey=chain-call-2"), prompt);
+    assertFalse(prompt.contains("A chain-call-2 operation invokes"), prompt);
+  }
+
+  @Test
+  void authoringPromptIncludesMappingIntentIdTokenFromTheBrief() {
+    String prompt =
+        DesignInputCapability.authoringPrompt(
+            ChainSemanticCaptureFixtures.briefWithMapping(), CONTRACT);
+    assertTrue(
+        prompt.contains("mappingIntentId=" + ChainSemanticCaptureFixtures.MAPPING_INTENT_ID),
+        prompt);
+  }
+
+  @Test
+  void authoringPromptOmitsTriggerBackedServiceCalls() {
+    String prompt =
+        DesignInputCapability.authoringPrompt(
+            ChainSemanticCaptureFixtures.catalogBoundAsyncApiTriggerBrief(), CONTRACT);
+    assertTrue(prompt.contains("nodeId=async-in"), prompt);
+    assertFalse(prompt.contains("nodeId=consume-om"), prompt);
+  }
+
+  @Test
+  void authoringPromptListsApprovedBusinessTransitions() {
+    String prompt =
+        DesignInputCapability.authoringPrompt(
+            ChainSemanticCaptureFixtures.rockyBrief(), CONTRACT);
+    assertTrue(prompt.contains("nodeId=task-start"), prompt);
+    assertTrue(prompt.contains("nodeId=create-task"), prompt);
+    assertTrue(prompt.contains("nodeId=task-result"), prompt);
+    assertTrue(prompt.contains("task-start -> create-task"), prompt);
+    assertTrue(prompt.contains("create-task -> task-result"), prompt);
+  }
+
+  @Test
+  void editingIdsMarkdownDoesNotChangeStoredSemanticDigest() {
+    DesignInputCapability capability = capturingCapability();
+    StageOutcome prepared =
+        outcome(
+            capability,
+            context(
+                "design-input",
+                Map.of(
+                    "requirementBrief",
+                    ChainSemanticCaptureFixtures.approvedBrief())));
+    ChainSemanticRevision stored = semanticPayload(prepared);
+    IdsDocument ids = idsPayload(prepared);
+    String digest = CanonicalPayloadHash.sha256Hex(stored);
+    IdsDocument edited =
+        new IdsDocument(
+            ids.schemaVersion(),
+            ids.mode(),
+            ids.sourceReference(),
+            ids.sourceHash(),
+            ids.normalizedFlowHash(),
+            ids.rendererVersion(),
+            ids.markdown() + "\n<!-- edited by a reviewer -->\n");
+    assertEquals(digest, CanonicalPayloadHash.sha256Hex(stored));
+    assertNotEquals(ids.markdown(), edited.markdown());
+    assertEquals(digest, edited.normalizedFlowHash());
+  }
+
+  @Test
+  void secondProvidedIdsAttemptDoesNotReplaceCapturedRevision() {
+    DesignInputCapability capability = capturingCapability();
+    StageOutcome prepared =
+        outcome(
+            capability,
+            context(
+                "design-input",
+                Map.of(
+                    "requirementBrief",
+                    ChainSemanticCaptureFixtures.approvedBrief())));
+    ChainSemanticRevision stored = semanticPayload(prepared);
+    String digest = CanonicalPayloadHash.sha256Hex(stored);
+    IdsDocument edited =
+        new IdsDocument(
+            "1",
+            IdsDocument.Mode.PROVIDED,
+            "user-ids",
+            "edited-hash",
+            digest,
+            "reviewer@1",
+            idsPayload(prepared).markdown() + "\n<!-- edited by a reviewer -->\n");
+    StageOutcome second =
+        outcome(
+            capability,
+            context(
+                "design-input",
+                Map.of(
+                    "idsDocument",
+                    edited,
+                    "requirementBrief",
+                    ChainSemanticCaptureFixtures.approvedBrief())));
+    assertEquals(StageOutcomeClass.SUCCEEDED, second.outcomeClass());
+    ChainSemanticRevision secondStored = semanticPayload(second);
+    assertEquals(stored.revisionId(), secondStored.revisionId());
+    assertEquals(digest, CanonicalPayloadHash.sha256Hex(secondStored));
+    assertNotEquals(edited.markdown(), idsPayload(second).markdown());
+  }
+
+  @Test
+  void missingCaptureIsAContractFailureThePipelineCanRepair() {
+    DesignInputCapability capability =
+        new DesignInputCapability(
+            (conversationId, prompt) -> Multi.createFrom().item("prose without a tool call"),
+            new DefaultChainSemanticIdsRenderer());
+    StageOutcome prepared =
+        outcome(
+            capability,
+            context(
+                "design-input",
+                Map.of(
+                    "requirementBrief",
+                    ChainSemanticCaptureFixtures.approvedBrief())));
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, prepared.outcomeClass());
+    assertEquals(DesignInputCapability.MISSING_CAPTURE, prepared.message());
+    assertEquals(
+        RecoveryCauseCode.CONTRACT_SHAPE, prepared.recoveryCause().causeCode());
+    assertEquals(DesignInputCapability.MISSING_CAPTURE, prepared.recoveryCause().findings().getFirst().message());
+    assertTrue(prepared.candidates().isEmpty());
+  }
+
+  @Test
+  void rejectedCaptureIgnoresAMisleadingAgentParaphrase() {
+    ChainSemanticCaptureTool captureTool = captureTool();
+    String paraphrase =
+        "Unable to capture the semantic revision because the proposed failure path is not"
+            + " supported by the linear chain topology.";
+    DesignInputCapability capability =
+        new DesignInputCapability(
+            (conversationId, prompt) -> {
+              String rejection =
+                  captureTool.captureChainSemanticRevision(
+                      ChainSemanticCaptureFixtures.foreignSourceFactCapture());
+              assertTrue(rejection.contains("foreign-fact"), rejection);
+              return Multi.createFrom().item(paraphrase);
+            },
+            new DefaultChainSemanticIdsRenderer());
+    StageOutcome prepared =
+        outcome(
+            capability,
+            context(
+                "design-input",
+                Map.of(
+                    "requirementBrief",
+                    ChainSemanticCaptureFixtures.approvedBrief())));
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, prepared.outcomeClass());
+    assertTrue(prepared.message().contains("foreign-fact"), prepared.message());
+    assertFalse(prepared.message().contains("linear chain topology"), prepared.message());
+    assertEquals(prepared.message(), prepared.recoveryCause().findings().getFirst().message());
+  }
+
+  @Test
+  void missingRuntimeAddonStopsDesignRegeneration() {
+    Map<String, String> addons = ChainSemanticCaptureToolTest.completeAddons();
+    addons.remove("cip-design-executor");
+    ChainSemanticCaptureTool captureTool = ChainSemanticCaptureToolTest.tool(
+        ChainSemanticCaptureToolTest.pack(
+            addons, ChainSemanticCaptureToolTest.packRelativeChecksums()));
+    DesignInputCapability capability = new DesignInputCapability(
+        (conversationId, prompt) -> Multi.createFrom().item(
+            captureTool.captureChainSemanticRevision(
+                ChainSemanticCaptureFixtures.linearCapture())),
+        new DefaultChainSemanticIdsRenderer());
+
+    StageOutcome prepared = outcome(capability, context("design-input", Map.of(
+        "requirementBrief", ChainSemanticCaptureFixtures.approvedBrief())));
+
+    assertEquals(StageOutcomeClass.INTERNAL_FAILURE, prepared.outcomeClass());
+    assertTrue(prepared.message().contains("cip-design-executor"), prepared.message());
+    assertTrue(prepared.candidates().isEmpty());
+  }
+
+  @Test
+  void repairTurnPromptIncludesTheCaptureRejectionAndAuthorCorrection() {
+    java.util.concurrent.atomic.AtomicReference<String> seenPrompt =
+        new java.util.concurrent.atomic.AtomicReference<>();
+    String rejection =
+        "Trigger node 'trigger-om-onTaskResult' must have exactly one outgoing edge";
+    DesignInputCapability capability =
+        new DesignInputCapability(
+            (conversationId, prompt) -> {
+              seenPrompt.set(prompt);
+              return Multi.createFrom().item("prose without a tool call");
+            },
+            new DefaultChainSemanticIdsRenderer());
+    Map<String, Object> attributes = new LinkedHashMap<>();
+    attributes.put("requirementBrief", ChainSemanticCaptureFixtures.approvedBrief());
+    attributes.put("userText", "OM to Salesforce WFM original request");
+    attributes.put(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR, rejection);
+    attributes.put(ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR, "CONTRACT_SHAPE: " + rejection);
+    attributes.put(
+        ProductPipelineRunSupport.HALT_FOLLOW_UP_TEXT_ATTR,
+        "Treat onTaskResult as a Kafka produce, not a trigger");
+    outcome(capability, context("design-input", attributes));
+    String prompt = seenPrompt.get();
+    assertTrue(prompt.contains("Allowed operation elementType values:"), prompt);
+    assertTrue(prompt.contains("checkpoint"), prompt);
+    assertTrue(prompt.contains("try-catch-finally-2"), prompt);
+    assertTrue(prompt.contains(rejection));
+    assertTrue(prompt.contains("Treat onTaskResult as a Kafka produce, not a trigger"));
+    assertTrue(prompt.contains("Rebuild the topology so this rejection cannot recur"));
+    assertTrue(prompt.contains("Preserve the approved element placements"));
+    assertFalse(prompt.contains("OM to Salesforce WFM original request"));
+  }
+
+  @Test
+  void cleanRebuildUsesAFreshConversationAndRetainsTheDiagnosis() {
+    java.util.concurrent.atomic.AtomicReference<String> seenConversationId =
+        new java.util.concurrent.atomic.AtomicReference<>();
+    java.util.concurrent.atomic.AtomicReference<String> seenPrompt =
+        new java.util.concurrent.atomic.AtomicReference<>();
+    DesignInputCapability capability =
+        new DesignInputCapability(
+            (conversationId, prompt) -> {
+              seenConversationId.set(conversationId);
+              seenPrompt.set(prompt);
+              return Multi.createFrom().item("prose without a tool call");
+            },
+            new DefaultChainSemanticIdsRenderer());
+    Map<String, Object> attributes = new LinkedHashMap<>();
+    attributes.put("requirementBrief", ChainSemanticCaptureFixtures.approvedBrief());
+    attributes.put(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR, "rejected topology");
+    attributes.put(ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR, "unknown element type");
+    attributes.put(ProductPipelineRunSupport.HALT_FOLLOW_UP_TEXT_ATTR, "use another node type");
+    attributes.put(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR, "evidence-design");
+    attributes.put(
+        ProductPipelineRunSupport.DESIGN_INPUT_CLEAN_REBUILD_EVIDENCE_REF_ATTR,
+        "evidence-design");
+
+    outcome(capability, context("design-input", attributes));
+
+    assertEquals("conv-1-clean-design-attempt-1", seenConversationId.get());
+    String prompt = seenPrompt.get();
+    assertTrue(prompt.contains("Capture one ChainSemanticRevision"), prompt);
+    assertTrue(prompt.contains("Allowed operation elementType values:"), prompt);
+    assertFalse(prompt.contains("rejected topology"), prompt);
+    assertTrue(prompt.contains("unknown element type"), prompt);
+    assertTrue(prompt.contains("use another node type"), prompt);
+    assertTrue(prompt.contains("The previous capture was rejected"), prompt);
+  }
+
+  @Test
+  void designAgentPromptEscapesQuteBracesFromTheBrief() {
+    java.util.concurrent.atomic.AtomicReference<String> seenPrompt =
+        new java.util.concurrent.atomic.AtomicReference<>();
+    DesignInputCapability capability =
+        new DesignInputCapability(
+            (conversationId, prompt) -> {
+              seenPrompt.set(prompt);
+              return Multi.createFrom().item("prose without a tool call");
+            },
+            new DefaultChainSemanticIdsRenderer());
+    outcome(
+        capability,
+        context(
+            "design-input",
+            Map.of("requirementBrief", ChainSemanticCaptureFixtures.approvedBrief())));
+    String prompt = seenPrompt.get();
+    assertTrue(prompt.contains("path=/orders/\\{id}"), prompt);
+    assertFalse(prompt.contains("path=/orders/{id}"), prompt);
+  }
+
+  private static DesignInputCapability capturingCapability() {
+    ChainSemanticCaptureTool captureTool = captureTool();
+    return new DesignInputCapability(
+        (conversationId, prompt) -> {
+          ChainSemanticCapture capture =
+              prompt != null && prompt.contains("nodeId=task-start")
+                  ? ChainSemanticCaptureFixtures.rockyCapture()
+                  : ChainSemanticCaptureFixtures.linearCapture();
+          captureTool.captureChainSemanticRevision(capture);
+          return Multi.createFrom().item("ignored agent text after the tool call");
+        },
+        new DefaultChainSemanticIdsRenderer());
+  }
+
+  private static ChainSemanticCaptureTool captureTool() {
+    CatalogElementDescriptorLoader descriptors = mock(CatalogElementDescriptorLoader.class);
+    CatalogElementDescriptorTestSupport.stubPermissive(descriptors);
+    CipKnowledgePackRepository pack = mock(CipKnowledgePackRepository.class);
+    Map<String, String> addons = new LinkedHashMap<>();
+    for (String addonId : CONTRACT.requiredAddons()) {
+      addons.put(addonId, "sha-" + addonId);
+    }
+    Map<String, String> files = new LinkedHashMap<>();
+    files.put("knowledge/ai/validation-rules.yaml", "sha-validation-rules");
+    files.put("knowledge/ai/GENERATOR_CONTRACTS.md", "sha-generator-contracts");
+    files.put("knowledge/ai/generator-rule-mapping.md", "sha-generator-rule-mapping");
+    when(pack.loadManifest())
+        .thenReturn(
+            new CipKnowledgePackManifest(
+                new CipKnowledgePackVersion("v1", "v1"),
+                "test",
+                Instant.parse("2026-01-01T00:00:00Z"),
+                files,
+                List.of(),
+                List.of(),
+                List.of(),
+                CONTRACT.contractVersion(),
+                CONTRACT.sha256(),
+                addons));
+    return new ChainSemanticCaptureTool(
+        new ChainSemanticCaptureAdapter(new ChainSemanticCanonicalizer()),
+        new DefaultChainSemanticRevisionValidator(),
+        new ClasspathCompilerContractRepository(),
+        pack,
+        descriptors);
+  }
+
+  private static StageExecutionContext context(String stageId, Map<String, Object> attributes) {
+    return new StageExecutionContext(
+        "run-1",
+        "conv-1",
+        stageId,
+        "exec-1",
+        "attempt-1",
+        new ProductPipelineProfile(1, "fixture", "2", List.of(), List.of(), null, List.of()),
+        new RunManifest(
+            "run-1",
+            null,
+            List.of(),
+            "product",
+            "fixture",
+            "2",
+            "sha",
+            "baseline",
+            "bsha",
+            List.of(),
+            "csha",
+            null,
+            "24.4",
+            List.of(),
+            null),
+        List.of(),
+        attributes);
+  }
+
+  private static StageOutcome outcome(
+      DesignInputCapability capability, StageExecutionContext context) {
+    List<CapabilitySignal> signals =
+        capability.execute(context).collect().asList().await().indefinitely();
+    CapabilitySignal.Completed completed =
+        signals.stream()
+            .filter(CapabilitySignal.Completed.class::isInstance)
+            .map(CapabilitySignal.Completed.class::cast)
+            .findFirst()
+            .orElseThrow();
+    return completed.outcome();
+  }
+
+  private static Set<Kind> kinds(StageOutcome outcome) {
+    return outcome.candidates().stream().map(ArtifactCandidate::kind).collect(Collectors.toSet());
+  }
+
+  private static IdsDocument idsPayload(StageOutcome outcome) {
+    return outcome.candidates().stream()
+        .filter(c -> c.kind() == Kind.IDS_DOCUMENT)
+        .map(c -> (IdsDocument) c.payload())
+        .findFirst()
+        .orElseThrow();
+  }
+
+  private static ChainSemanticRevision semanticPayload(StageOutcome outcome) {
+    return outcome.candidates().stream()
+        .filter(c -> c.kind() == Kind.CHAIN_SEMANTIC_REVISION)
+        .map(c -> (ChainSemanticRevision) c.payload())
+        .findFirst()
+        .orElseThrow();
+  }
+}

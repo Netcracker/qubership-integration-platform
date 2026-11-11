@@ -10,6 +10,7 @@ dependencies:
     - Netcracker/qubership-ai-packages/agent-packages/english-developer-style
     - Netcracker/qubership-ai-packages/agent-packages/codex-review
     - Netcracker/qubership-ai-agent-telemetry/agent-packages/ai-agent-telemetry
+    - Netcracker/qubership-ai-packages/agent-packages/change-description-authoring/.apm/skills/change-description-authoring
 devDependencies:
   apm:
     - Netcracker/qubership-ai-packages/agent-packages/apm-authoring
@@ -18,11 +19,12 @@ includes:
   - .apm/skills/
 compilation:
   exclude:
+    # ai-service reads this private, gitignored package; keep compile out of it.
     - integration-platform-skills/**
     - .claude/**
     - .cursor/**
     - .agents/**
-    - apm_modules/**
+    # apm_modules/ is left in: excluding it drops dependency instructions from AGENTS.md.
     # Build output. Placement scores are ratios over every scanned directory, so
     # leaving these in moves module guidance between AGENTS.md files depending on
     # whether the tree has been built.

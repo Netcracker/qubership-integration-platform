@@ -23,7 +23,7 @@ import static org.mockito.Mockito.when;
  */
 class KubeOperatorDeletionTest {
 
-    private static final String NAMESPACE = "qip";
+    private static final String NAMESPACE = "cip";
     private static final String NAME = "order-chain";
     private static final String CAMEL_K_GROUP = "camel.apache.org";
     private static final String CAMEL_K_VERSION = "v1";

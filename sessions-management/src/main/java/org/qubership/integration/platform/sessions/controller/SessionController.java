@@ -42,7 +42,7 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @RestController
-@RequestMapping("/v1/sessions")
+@RequestMapping({"/v1/sessions", "/api/v1/cip/sessions-management/sessions"})
 @Tag(name = "session-controller", description = "Session Controller")
 public class SessionController {
 

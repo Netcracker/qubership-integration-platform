@@ -60,7 +60,7 @@ class OpenSearchInitializerPolicyBuildersTest {
         );
 
         assertEquals("sessions-rollover-policy", policy.getPolicyId());
-        assertEquals("QIP sessions-* rollover policy.", policy.getDescription());
+        assertEquals("CIP sessions-* rollover policy.", policy.getDescription());
         assertEquals("rollover", policy.getDefaultState());
         assertEquals(2, policy.getStates().size());
 
@@ -135,7 +135,7 @@ class OpenSearchInitializerPolicyBuildersTest {
         );
 
         assertEquals("sessions-old-index-rollover-policy", policy.getPolicyId());
-        assertEquals("QIP old index rollover policy.", policy.getDescription());
+        assertEquals("CIP old index rollover policy.", policy.getDescription());
         assertEquals("schedule_to_delete", policy.getDefaultState());
         assertEquals(2, policy.getStates().size());
 

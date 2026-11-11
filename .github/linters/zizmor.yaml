@@ -10,3 +10,9 @@ rules:
     ignore:
       - cla.yaml
       - pr-assigner.yaml
+  # npm trusted publishing (OIDC) serves only registry.npmjs.org; these
+  # workflows publish to GitHub Packages with GITHUB_TOKEN.
+  use-trusted-publishing:
+    ignore:
+      - _npm-module-release.yaml
+      - snapshot-publish-npm.yaml

@@ -1,5 +1,5 @@
 ---
-id: "e2e0g003-0000-4000-8000-000000000001"
+id: "e2e0a003-0000-4000-8000-000000000001"
 $schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 name: "e2e-{{RUN}}-rabbitmq-trigger-dlq-auto"
 description: "rabbitmq-trigger-2 with acknowledgeMode AUTO (the schema default) into an http-sender\
@@ -12,7 +12,7 @@ description: "rabbitmq-trigger-2 with acknowledgeMode AUTO (the schema default) 
 content:
   labels: []
   elements:
-  - id: "e2e0g003-0000-4000-8000-000000000002"
+  - id: "e2e0a003-0000-4000-8000-000000000002"
     name: "RabbitMQ Trigger"
     type: "rabbitmq-trigger-2"
     properties:
@@ -31,7 +31,7 @@ content:
       deadLetterRoutingKey: "e2e-{{RUN}}-rabbitmq-trigger-dlq-auto-dlk"
       idempotency:
         enabled: false
-  - id: "e2e0g003-0000-4000-8000-000000000003"
+  - id: "e2e0a003-0000-4000-8000-000000000003"
     name: "HTTP Sender"
     type: "http-sender"
     properties:
@@ -43,7 +43,7 @@ content:
       propagateContext: false
       receiveCorrelationId: false
   dependencies:
-  - from: "e2e0g003-0000-4000-8000-000000000002"
-    to: "e2e0g003-0000-4000-8000-000000000003"
+  - from: "e2e0a003-0000-4000-8000-000000000002"
+    to: "e2e0a003-0000-4000-8000-000000000003"
   deployAction: "NONE"
   migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

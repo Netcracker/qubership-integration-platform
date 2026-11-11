@@ -18,6 +18,15 @@ properties:
     allOf:
       - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/rabbitmq-connection-parameters"
       - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/idempotency"
+      - if:
+          properties:
+            connectionSourceType:
+              const: manual
+        then:
+          properties:
+            sslProtocol:
+              type: string
+              title: SSL protocol
     properties:
       queues:
         type: string

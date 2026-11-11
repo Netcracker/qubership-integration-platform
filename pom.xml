@@ -6,7 +6,7 @@
   <parent>
     <groupId>org.qubership.integration.platform</groupId>
     <artifactId>qip-parent-base</artifactId>
-    <version>1.5.1-SNAPSHOT</version>
+    <version>1.7.1-SNAPSHOT</version>
     <relativePath>./parents/base/pom.xml</relativePath>
   </parent>
 
@@ -18,7 +18,7 @@
 
   <properties>
     <!-- The platform version: the last released drop. The parents carry it with -SNAPSHOT appended. -->
-    <revision>1.5.1</revision>
+    <revision>1.7.1</revision>
     <changelist>-SNAPSHOT</changelist>
   </properties>
 
@@ -34,5 +34,6 @@
     <module>sessions-management</module>
     <module>engine</module>
     <module>micro-engine</module>
+    <module>ai-service</module>
   </modules>
 </project>

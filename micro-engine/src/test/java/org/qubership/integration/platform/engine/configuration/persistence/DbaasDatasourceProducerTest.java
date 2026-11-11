@@ -28,7 +28,7 @@ import static org.mockito.Mockito.mockConstruction;
 
 @QuarkusComponentTest
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
-@TestConfigProperty(key = "cloud.microservice.name", value = "qip-engine")
+@TestConfigProperty(key = "cloud.microservice.name", value = "cip-engine")
 @TestConfigProperty(key = "cloud.microservice.namespace", value = "local")
 class DbaasDatasourceProducerTest {
 
@@ -56,7 +56,7 @@ class DbaasDatasourceProducerTest {
             assertSame(creationService, passedCreationService);
 
             assertTrue(containsEntry(classifierBuilder, NAMESPACE, "local"));
-            assertTrue(containsEntry(classifierBuilder, MICROSERVICE_NAME, "qip-engine"));
+            assertTrue(containsEntry(classifierBuilder, MICROSERVICE_NAME, "cip-engine"));
             assertTrue(containsEntry(classifierBuilder, LOGICAL_DB_NAME, "configs"));
         }
     }

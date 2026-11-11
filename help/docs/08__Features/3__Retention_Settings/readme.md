@@ -14,14 +14,17 @@ To avoid extreme space consumptions and be able to follow customer-specific rete
 - Snapshots
 - Context Records
 - Idempotency Records
+- Import Sessions
 
 Settings must be specified for configuring either via Consul or via Environment parameters. Please refer to the specialized section below for parameters details.
+
+> ℹ️ **Note:** The Consul parameters of the engine start with `cip.`. The engine still reads a Consul key that starts with the former `qip.` prefix, for example `qip.opensearch.rollover.min_index_age`.
 
 ### Sessions Retention
 
 ---
 
-**[Sessions]** data is managed via [Index State Management (ISM)](https://opensearch.org/docs/latest/im-plugin/ism/index/) policy (specifically via "[opensearch-index-management](https://opensearch.org/docs/latest/install-and-configure/plugins/)" plugin). Policy start is being controlled by [plugins.index\_state\_management.job\_interval](https://opensearch.org/docs/latest/im-plugin/ism/settings/) parameter, also provided as OOB OpenSearch functionality.
+**[Sessions]** data is managed via [Index State Management (ISM)](https://docs.opensearch.org/latest/im-plugin/ism/index/) policy (specifically via "[opensearch-index-management](https://docs.opensearch.org/latest/install-and-configure/plugins/)" plugin). Policy start is being controlled by [plugins.index\_state\_management.job\_interval](https://docs.opensearch.org/latest/im-plugin/ism/settings/) parameter, also provided as OOB OpenSearch functionality.
 
 ![Sessions retention policy](img/sessions_policy.svg)
 
@@ -29,9 +32,9 @@ Please refer to the detailed description of parameters, involved in session inde
 
 | Consul Parameter                                       | Mandatory   | CIP Microservice                  | Default Value   | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Sample   |
 |:-------------------------------------------------------|:------------|:----------------------------------|:----------------|:------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:---------|
-| qip.opensearch.rollover.min\_index\_age                | O           | cloud-integration-platform-engine | 1d              | Index will be rotated, when current age (period between index creation and current moment) of it meets specified value. <br/> Supported units: <br/>- d (days),<br>- h (hours),<br>- m (minutes),<br>- s (seconds),<br>- ms (milliseconds)<br>- micros (microseconds) When left blank or not specified - default value is going to be applied. <br/> OpenSearch parameter: [min\_index\_age](https://opensearch.org/docs/latest/im-plugin/ism/policies/#rollover) | 12h      |
-| qip.opensearch.rollover.mix\_index\_size               | O           | cloud-integration-platform-engine |                 | Index will be rotated, when current total size of it meets specified value. <br/> Supported units: <br/>- kb (kilobytes),<br>- mb (megabytes),<br>- gb (gigabytes),<br>- tb (terabytes),<br>- pb (petabytes) OpenSearch parameter: [min\_size](https://opensearch.org/docs/latest/im-plugin/ism/policies/#rollover)                                                                                                                                               | 1gb      |
-| qip.opensearch.rollover.min\_rollover\_age\_to\_delete | O           | cloud-integration-platform-engine | 14d             | Previous (rotated) indices will be cleared out, when their age (period between rotation and current moment) meets specified value. <br/> When left blank or not specified - default value is going to be applied. <br/> OpenSearch parameter: [min\_rollover\_age](https://opensearch.org/docs/latest/im-plugin/ism/policies/#rollover)                                                                                                                           | 7d       |
+| cip.opensearch.rollover.min\_index\_age                | O           | cloud-integration-platform-engine | 1d              | Index will be rotated, when current age (period between index creation and current moment) of it meets specified value. <br/> Supported units: <br/>- d (days),<br>- h (hours),<br>- m (minutes),<br>- s (seconds),<br>- ms (milliseconds)<br>- micros (microseconds) When left blank or not specified - default value is going to be applied. <br/> OpenSearch parameter: [min\_index\_age](https://docs.opensearch.org/latest/im-plugin/ism/policies-operations/#rollover) | 12h      |
+| cip.opensearch.rollover.min\_index\_size               | O           | cloud-integration-platform-engine |                 | Index will be rotated, when current total size of it meets specified value. <br/> Supported units: <br/>- kb (kilobytes),<br>- mb (megabytes),<br>- gb (gigabytes),<br>- tb (terabytes),<br>- pb (petabytes) OpenSearch parameter: [min\_size](https://docs.opensearch.org/latest/im-plugin/ism/policies-operations/#rollover)                                                                                                                                               | 1gb      |
+| cip.opensearch.rollover.min\_rollover\_age\_to\_delete | O           | cloud-integration-platform-engine | 14d             | Previous (rotated) indices will be cleared out, when their age (period between rotation and current moment) meets specified value. <br/> When left blank or not specified - default value is going to be applied. <br/> OpenSearch parameter: [min\_rollover\_age](https://docs.opensearch.org/latest/im-plugin/ism/policies/#transitions)                                                                                                                           | 7d       |
 
 > ℹ️
 > Please pay attention to the value, specified for "plugins.index\_state\_management.job\_interval" parameter, as it might collide with the settings above (e.g. if job interval value is higher than "OPENSEARCH\_ROLLOVER\_MIN\_INDEX\_AGE" or "OPENSEARCH\_ROLLOVER\_MIN\_AGE\_TO\_DELETE", then it will lead to the policy logic delay).
@@ -90,7 +93,17 @@ Cloud integration Platform allows to configure proper retention logic for idempo
 
 | Environment Parameter               | Consul Param                                 | CIP Microservice                  | Mandatory | Default Value  | Description                                   | Sample                                             |
 |:------------------------------------|:---------------------------------------------|:----------------------------------|:----------|:---------------|:----------------------------------------------|:---------------------------------------------------|
-| IDEMPOTENCY\_RECORDS\_CLEANUP\_CRON | qip.idempotency.expired-records-cleanup-cron | cloud-integration-platform-engine | O         | 0 0 0 ? \* SAT | When to run idempotency records cleanup task. | **Run at 10:00 each Friday**: ```0 0 10 ? * SAT``` |
+| IDEMPOTENCY\_RECORDS\_CLEANUP\_CRON | cip.idempotency.expired-records-cleanup-cron | cloud-integration-platform-engine | O         | 0 0 0 ? \* SAT | When to run idempotency records cleanup task. | **Run at 10:00 each Friday**: ```0 0 10 ? * SAT``` |
+
+### Import Sessions Retention
+
+Cloud integration Platform stores the metadata of each import session, such as its progress and result, in the catalog database. The **Entity ID** of the **Import** record that a chain import adds to the [Audit](../../03__Admin_Tools/3__Audit/readme.md) log is the ID of that session. Retention is controlled via next parameter, that shall be specified at the time of deployment:
+
+| Environment Parameter          | CIP Microservice                   | Mandatory | Default Value  | Description                                                                                                                     | Sample                     |
+|:-------------------------------|:-----------------------------------|:----------|:---------------|:--------------------------------------------------------------------------------------------------------------------------------|:---------------------------|
+| IMPORT\_LOG\_LIFETIME\_MINUTES | cloud-integration-platform-catalog | O         | 10080 (7 days) | Time in minutes that import session metadata is stored. Sessions older than this value are deleted when the next import starts. | **Three days**: ```4320``` |
+
+> ℹ️ **Note:** Once a session is deleted, its ID stays in the Audit log, but the import result for that ID is no longer available. Before this setting was introduced, the lifetime was fixed at 300 minutes (5 hours).
 
 ## Process Initialization
 

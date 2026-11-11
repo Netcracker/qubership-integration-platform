@@ -24,6 +24,21 @@ properties:
           - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/integer-or-variable-placeholder"
         title: Timeout (ms)
         default: 30000
+      block:
+        type: boolean
+        title: Block until a consumer is available
+        const: true
+        default: true
+        readOnly: true
+      failIfNoConsumers:
+        type: boolean
+        title: Fail if no consumers are available
+        const: false
+        default: false
+        readOnly: true
+    dependencies:
+      failIfNoConsumers:
+        - timeout
     required:
       - elementId
 required:

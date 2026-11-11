@@ -13,8 +13,8 @@ import (
 
 // Values that WithDefaults substitutes for fields left unset.
 const (
-	DefaultCatalogAddress  = "http://qip-runtime-catalog:8080"
-	DefaultEngineAddress   = "http://qip-engine:8080"
+	DefaultCatalogAddress  = "http://cip-runtime-catalog:8080"
+	DefaultEngineAddress   = "http://cip-engine:8080"
 	DefaultPollInterval    = 30 * time.Second
 	DefaultWorkerCount     = 4
 	DefaultLeaseDuration   = time.Minute

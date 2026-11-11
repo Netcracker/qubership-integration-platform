@@ -2,6 +2,7 @@ node_modules/
 target/
 dist/
 dist-lib/
+io/
 __pycache__/
 .idea/
 *.iml
@@ -11,6 +12,7 @@ __pycache__/
 Thumbs.db
 .env
 .env.local
+.env.local*
 .flattened-pom.xml
 *.tgz
 
@@ -23,3 +25,28 @@ pom.xml.next
 
 # APM dependencies
 apm_modules/
+
+# Local dev workspace (task notes, materials); keep out of version control
+.dev/
+.scratch/
+.superpowers/
+.qubership/superpowers-cip-pipeline.drawio
+
+# Private skills, addons, and certified knowledge package supplied out of band
+integration-platform-skills/
+
+# Local design notes, plans, and specs
+docs/
+
+# Local agent skill mirrors
+.cursor/skills/ai-service-e2e/
+.cursor/skills/compiler-skill-addon-maintainer/
+
+# Isolated local git worktrees
+.worktrees/
+
+# Unpacked dependency artifacts and build scratch that land in the repo root
+META-INF/
+graph-to-image.patch
+__pycache__/
+.cursor/debug-*.log

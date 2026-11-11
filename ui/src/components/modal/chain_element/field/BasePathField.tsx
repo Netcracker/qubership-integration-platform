@@ -5,11 +5,10 @@ import { FieldProps } from "@rjsf/utils";
 import { Input } from "antd";
 import { api } from "../../../../api/api";
 import { Environment, IntegrationSystem } from "../../../../api/apiTypes";
-import { getAppName } from "../../../../appConfig";
 import styles from "../ChainElementModification.module.css";
 
 export const buildPrefix = (isExternalRoute: boolean | undefined): string => {
-  return isExternalRoute ? `/${getAppName()}-routes/` : "/routes/";
+  return isExternalRoute ? "/cip-routes/" : "/routes/";
 };
 
 export const concatPaths = (paths: string[]): string => {

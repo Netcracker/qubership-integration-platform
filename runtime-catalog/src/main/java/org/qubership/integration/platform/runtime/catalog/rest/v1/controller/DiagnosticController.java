@@ -39,7 +39,8 @@ import java.util.*;
 
 @Slf4j
 @RestController
-@RequestMapping(value = "/v1/catalog/diagnostic", produces = MediaType.APPLICATION_JSON_VALUE)
+@RequestMapping(value = {"/v1/catalog/diagnostic", "/api/v1/cip/catalog/diagnostic"},
+    produces = MediaType.APPLICATION_JSON_VALUE)
 @CrossOrigin(origins = "*")
 @Tag(name = "diagnostic-controller", description = "Diagnostic Controller")
 public class DiagnosticController {
@@ -62,9 +63,10 @@ public class DiagnosticController {
             log.debug("Request to search diagnostic validations");
         }
 
+        // Read the statuses first: a run saves OK only after its new alerts commit, so OK never pairs with older alerts.
+        Map<String, ValidationStatus> statuses = diagnosticService.getCurrentStatuses();
         List<Pair<AbstractValidation, ValidationAlertsSet>> validations =
                 diagnosticService.getFilteredValidations(filterRequest);
-        Map<String, ValidationStatus> statuses = diagnosticService.getCurrentStatuses();
         List<DiagnosticValidationDTO> result = new ArrayList<>(validations.size());
 
         for (Pair<AbstractValidation, ValidationAlertsSet> pair : validations) {
@@ -90,8 +92,9 @@ public class DiagnosticController {
         if (log.isDebugEnabled()) {
             log.debug("Request to get all diagnostic validation: {}", validationId);
         }
-        Pair<AbstractValidation, ValidationAlertsSet> pair = diagnosticService.getValidationById(validationId);
+        // Read the status before the alerts, for the reason given in searchValidations.
         ValidationStatusDTO status = validationMapper.asStatusDTO(diagnosticService.getCurrentStatus(validationId));
+        Pair<AbstractValidation, ValidationAlertsSet> pair = diagnosticService.getValidationById(validationId);
         ValidationAlertsSet alertsSet = pair.getRight();
         DiagnosticValidationDTO dto = validationMapper.asDTO(pair.getLeft(), status, alertsSet);
         clearEntitiesByState(dto);

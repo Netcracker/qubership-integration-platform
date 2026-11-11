@@ -1,16 +1,14 @@
 import "@xyflow/react/dist/style.css";
 import { Breadcrumb, Col, Flex, Row, Result, Button, Tabs, Tag } from "antd";
-import { ChainHeaderActionsContextProvider } from "./ChainHeaderActionsContext.tsx";
+import { ChainHeaderSlotProvider } from "./ChainHeaderActionsContext.tsx";
 import { Outlet, useLocation, useNavigate, useParams } from "react-router";
 import { useChain } from "../hooks/useChain.tsx";
 import styles from "./Chain.module.css";
 import {
   type FC,
-  type ReactNode,
   createContext,
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
@@ -20,12 +18,17 @@ import { isVsCode } from "../api/rest/vscodeExtensionApi.ts";
 import { OverridableIcon } from "../icons/IconProvider.tsx";
 import { useChainFullscreenContext } from "./ChainFullscreenContext.tsx";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
+import { useCatalogRefresh } from "../hooks/useCatalogRefresh.ts";
+import { RestApiError } from "../api/apiTypes.ts";
 import { useTestingServiceAvailability } from "../hooks/useTestingServiceAvailability.ts";
 
 export type ChainContextData = {
   chain: Chain | undefined;
   update: (changes: Partial<Chain>) => Promise<void>;
   refresh: () => Promise<void>;
+  graphRefreshVersion?: number;
+  beginLocalOperation?: () => () => void;
+  deleted?: boolean;
 };
 
 export const ChainContext = createContext<ChainContextData | undefined>(
@@ -35,25 +38,25 @@ export const ChainContext = createContext<ChainContextData | undefined>(
 const ChainPage = () => {
   const { chainId, sessionId } = useParams();
   const [pathItems, setPathItems] = useState<BreadcrumbProps["items"]>([]);
-  const [headerActions, setHeaderActions] = useState<ReactNode>(null);
+  const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
   const notificationService = useNotificationService();
   const { isAvailable: isTestingAvailable } = useTestingServiceAvailability();
-  const headerActionsRegistrationRef = useRef(0);
-
-  const registerHeaderActions = useCallback((actions: ReactNode) => {
-    const generation = ++headerActionsRegistrationRef.current;
-    setHeaderActions(actions);
+  const [graphRefreshVersion, setGraphRefreshVersion] = useState(0);
+  const [localOperations, setLocalOperations] = useState(0);
+  const operationsRef = useRef(0);
+  const [deleted, setDeleted] = useState(false);
+  const externalRefreshRef = useRef(false);
+  const beginLocalOperation = useCallback(() => {
+    operationsRef.current += 1;
+    setLocalOperations(operationsRef.current);
+    let finished = false;
     return () => {
-      if (headerActionsRegistrationRef.current === generation) {
-        setHeaderActions(null);
-      }
+      if (finished) return;
+      finished = true;
+      operationsRef.current -= 1;
+      setLocalOperations(operationsRef.current);
     };
   }, []);
-
-  const chainHeaderActionsContextValue = useMemo(
-    () => ({ registerHeaderActions }),
-    [registerHeaderActions],
-  );
 
   const location = useLocation();
   const { pathname } = location;
@@ -69,19 +72,50 @@ const ChainPage = () => {
     }
   }, [chain?.name]);
 
-  const refreshChain = useCallback(async () => {
-    if (!chainId) {
-      return;
-    }
-    try {
-      const updatedChain = await getChain();
-      if (updatedChain) {
-        setChain(updatedChain);
+  const { refresh: refreshChain } = useCatalogRefresh(
+    chainId ?? "",
+    (change) => {
+      const matches = Boolean(
+        chainId &&
+          (change.chainIds === null || change.chainIds.includes(chainId)),
+      );
+      if (matches) externalRefreshRef.current = true;
+      return matches;
+    },
+    async (isCurrent) => {
+      const rebuildGraph = externalRefreshRef.current;
+      externalRefreshRef.current = false;
+      try {
+        const updated = await getChain(true, isCurrent);
+        if (!isCurrent() || operationsRef.current > 0) {
+          externalRefreshRef.current ||= rebuildGraph;
+          return;
+        }
+        if (updated) {
+          setChain(updated);
+          setDeleted(false);
+          if (rebuildGraph) setGraphRefreshVersion((version) => version + 1);
+        }
+      } catch (failure) {
+        if (!isCurrent()) return;
+        if (failure instanceof RestApiError && failure.responseCode === 404) {
+          setDeleted(true);
+          return;
+        }
+        notificationService.requestFailed(
+          "Failed to refresh chain; the previous view is preserved",
+          failure,
+          () => void refreshChain().catch(() => undefined),
+        );
+        externalRefreshRef.current ||= rebuildGraph;
+        throw failure;
       }
-    } catch (err) {
-      notificationService.requestFailed("Failed to refresh chain", err);
-    }
-  }, [chainId, getChain, setChain, notificationService]);
+    },
+    localOperations > 0,
+  );
+  useEffect(() => {
+    setDeleted(false);
+  }, [chainId]);
 
   useEffect(() => {
     const link = (href: string, content: React.ReactNode) => (
@@ -135,8 +169,10 @@ const ChainPage = () => {
     ]);
   }, [chain, chainId, sessionId, navigate]);
 
-  const handleTabChange = (key: string) => {
-    void navigate(`/chains/${chainId}/${key}`);
+  const handleTabClick = (key: string) => {
+    const target = `/chains/${chainId}/${key}`;
+    if (pathname === target) return;
+    void navigate(target);
   };
 
   const tabItems = [
@@ -171,15 +207,19 @@ const ChainPage = () => {
     );
   }
 
-  if (error || !chain) {
+  if (error || !chain || (deleted && activeKey !== "properties")) {
     return (
       <Flex className={styles.stretched} gap={"middle"} vertical>
         <Row className={styles.stretched}>
           <Col span={24}>
             <Result
               status="404"
-              title="Chain Not Found"
-              subTitle={`Chain with ID "${chainId}" does not exist.`}
+              title={deleted ? "Chain deleted" : "Chain Not Found"}
+              subTitle={
+                deleted
+                  ? "This chain was deleted from the catalog."
+                  : `Chain with ID "${chainId}" does not exist.`
+              }
               extra={[
                 <Button
                   type="primary"
@@ -197,21 +237,32 @@ const ChainPage = () => {
   }
 
   return (
-    <ChainHeaderActionsContextProvider value={chainHeaderActionsContextValue}>
+    <ChainHeaderSlotProvider value={headerSlot}>
       <ChainContext.Provider
         value={{
           chain,
-          update: async (changes) => updateChain(changes).then(setChain),
+          update: async (changes) => {
+            const finish = beginLocalOperation();
+            try {
+              const updated = await updateChain(changes);
+              if (updated) setChain(updated);
+            } finally {
+              finish();
+            }
+          },
           refresh: refreshChain,
+          graphRefreshVersion,
+          beginLocalOperation,
+          deleted,
         }}
       >
         <Flex className={styles.stretched} gap={4} vertical>
           <ChainPageHeader
             activeKey={activeKey}
             tabItems={tabItems}
-            headerActions={headerActions}
+            headerSlotRef={setHeaderSlot}
             pathItems={pathItems}
-            onTabChange={handleTabChange}
+            onTabClick={handleTabClick}
             showUnsavedChanges={!isVsCode && chain.unsavedChanges}
           />
           <Flex className={styles.stretched}>
@@ -219,25 +270,25 @@ const ChainPage = () => {
           </Flex>
         </Flex>
       </ChainContext.Provider>
-    </ChainHeaderActionsContextProvider>
+    </ChainHeaderSlotProvider>
   );
 };
 
 type ChainPageHeaderProps = {
   activeKey: string;
   tabItems: { key: string; label: string }[];
-  headerActions: ReactNode;
+  headerSlotRef: (slot: HTMLElement | null) => void;
   pathItems: BreadcrumbProps["items"];
-  onTabChange: (key: string) => void;
+  onTabClick: (key: string) => void;
   showUnsavedChanges: boolean;
 };
 
 const ChainPageHeader: FC<ChainPageHeaderProps> = ({
   activeKey,
   tabItems,
-  headerActions,
+  headerSlotRef,
   pathItems,
-  onTabChange,
+  onTabClick,
   showUnsavedChanges,
 }) => {
   const fullscreenCtx = useChainFullscreenContext();
@@ -248,18 +299,18 @@ const ChainPageHeader: FC<ChainPageHeaderProps> = ({
       <Tabs
         className={styles.chainPageTabs}
         activeKey={activeKey}
-        onChange={onTabChange}
+        onTabClick={onTabClick}
         items={tabItems}
         style={{ marginBottom: 0 }}
         tabBarExtraContent={
-          <div className={styles.chainTabBarExtra}>{headerActions}</div>
+          <div className={styles.chainTabBarExtra} ref={headerSlotRef} />
         }
       />
     );
   }
 
   const tabsBarExtra = (
-    <div className={styles.chainTabBarExtra}>{headerActions}</div>
+    <div className={styles.chainTabBarExtra} ref={headerSlotRef} />
   );
 
   return (
@@ -287,7 +338,7 @@ const ChainPageHeader: FC<ChainPageHeaderProps> = ({
       <Tabs
         className={styles.chainPageTabs}
         activeKey={activeKey}
-        onChange={onTabChange}
+        onTabClick={onTabClick}
         items={tabItems}
         tabBarExtraContent={tabsBarExtra}
       />

@@ -1,4 +1,4 @@
-const CSS_VARIABLES_STYLE_ID = "qip-ui-injected-css-variables";
+const CSS_VARIABLES_STYLE_ID = "cip-ui-injected-css-variables";
 const loadedCssFiles = new Set<string>();
 
 export function injectCssVariables(variables: Record<string, string>): void {

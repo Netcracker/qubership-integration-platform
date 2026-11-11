@@ -33,7 +33,7 @@ import { verifyMappingAction } from "../../mapper/verification/actions.ts";
 import { VerificationError } from "../../mapper/verification/model.ts";
 import { LocationRange } from "pegjs";
 
-const MAPPER_ACTIONS_LANGUAGE_ID = "qip-mapper-actions";
+const MAPPER_ACTIONS_LANGUAGE_ID = "cip-mapper-actions";
 
 const MAPPER_ACTIONS_LANGUAGE_CONFIGURATION: languages.LanguageConfiguration =
   {};
@@ -524,7 +524,7 @@ export const MappingActionsTextView: React.FC<MappingActionsTextViewProps> = ({
 
   return (
     <Editor
-      className="qip-editor"
+      className="cip-editor"
       wrapperProps={{ "data-testid": "mapping-actions-editor" }}
       value={value}
       language={MAPPER_ACTIONS_LANGUAGE_ID}

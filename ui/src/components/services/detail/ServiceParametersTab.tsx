@@ -112,8 +112,9 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
   });
 
   const handleSave = async (): Promise<void> => {
-    await saveSystem();
-    setHasChanges(false);
+    if (await saveSystem()) {
+      setHasChanges(false);
+    }
   };
 
   useEffect(() => {

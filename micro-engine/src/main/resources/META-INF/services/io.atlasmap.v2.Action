@@ -1,7 +1,7 @@
-org.qubership.integration.platform.engine.util.AtlasMapUtils$QIPGetUUID
-org.qubership.integration.platform.engine.util.AtlasMapUtils$QIPDictionary
-org.qubership.integration.platform.engine.util.AtlasMapUtils$QIPCurrentTime
-org.qubership.integration.platform.engine.util.AtlasMapUtils$QIPCurrentDate
-org.qubership.integration.platform.engine.util.AtlasMapUtils$QIPDefaultValue
-org.qubership.integration.platform.engine.util.AtlasMapUtils$QIPFormatDateTime
-org.qubership.integration.platform.engine.util.AtlasMapUtils$QIPCurrentDateTime
+org.qubership.integration.platform.engine.util.AtlasMapUtils$CIPGetUUID
+org.qubership.integration.platform.engine.util.AtlasMapUtils$CIPDictionary
+org.qubership.integration.platform.engine.util.AtlasMapUtils$CIPCurrentTime
+org.qubership.integration.platform.engine.util.AtlasMapUtils$CIPCurrentDate
+org.qubership.integration.platform.engine.util.AtlasMapUtils$CIPDefaultValue
+org.qubership.integration.platform.engine.util.AtlasMapUtils$CIPFormatDateTime
+org.qubership.integration.platform.engine.util.AtlasMapUtils$CIPCurrentDateTime

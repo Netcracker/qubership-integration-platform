@@ -5,7 +5,7 @@
 import { expect } from "@playwright/test";
 import { assembleFixture, readDocumentFixture } from "../fixtures/templating.js";
 import { noteChain } from "./diagnostics.js";
-import type { Catalog, ImportResult } from "./catalog.js";
+import type { Catalog, ImportResult, LoggingProperties } from "./catalog.js";
 import type { DeployedChain } from "./corpus.js";
 import type { Env } from "../env/index.js";
 
@@ -40,14 +40,15 @@ function describeFixture(file: string, run: string, dir: string): DeployedChain 
  * `Deployment marked for retry` line, with or without an undeploy first. So a case may assert an
  * exact one-row list rather than hunt for its own deployment id.
  *
- * No logging properties are written: these chains never run, so there is no trace to raise a level
- * for, and no Consul key is left under an id this function deletes.
+ * Logging properties are written only when `logging` is passed, for a chain that runs and whose case
+ * reads its session; most of these chains never run, so there is no trace to raise a level for. A
+ * chain delete leaves that Consul key behind (`support/cleanup.ts`), so the `finally` deletes it first.
  */
 export async function withOwnFixture(
   catalog: Catalog,
   run: string,
   file: string,
-  dir: string,
+  { dir, logging }: { dir: string; logging?: LoggingProperties },
   body: (chain: DeployedChain) => Promise<void>,
 ): Promise<void> {
   const chain = describeFixture(file, run, dir);
@@ -61,10 +62,16 @@ export async function withOwnFixture(
   ]);
 
   try {
+    if (logging) await catalog.saveLoggingProperties(chain.id, logging);
     const snapshot = await catalog.createSnapshot(chain.id);
     await catalog.deploy(chain.id, snapshot.id);
     await body(chain);
   } finally {
+    if (logging) {
+      await catalog.deleteLoggingProperties(chain.id).catch((cause: unknown) => {
+        console.error(`[teardown] ${chain.name} kept its logging properties: ${String(cause)}`);
+      });
+    }
     await catalog.undeployAll(chain.id).catch((cause: unknown) => {
       console.error(`[teardown] ${chain.name} was not undeployed: ${String(cause)}`);
     });

@@ -1,0 +1,7 @@
+# $schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/chain-call-2
+id: ddd324b1-29c1-5aa2-a298-b69f6c4a558a
+name: Chain call without timeout
+type: chain-call-2
+properties:
+  elementId: target-trigger-id
+  block: true

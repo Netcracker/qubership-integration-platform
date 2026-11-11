@@ -56,7 +56,6 @@ properties:
       fileName: "sdfsdf"
       mimeType: "text/plain"
   bodyMimeType: "multipart/form-data"
-  errorThrowing: true
   handleValidationAction: "mapper-2"
   handlerContainer:
     mappingDescription:
@@ -107,8 +106,6 @@ properties:
         properties: []
       actions: []
       constants: []
-  integrationGqlQueryHeader: "CamelGraphQLQuery"
-  integrationGqlVariablesHeader: "CamelGraphQLVariables"
   integrationOperationAsyncProperties: {}
   integrationOperationId: "2d73a4b6-6499-47d5-864f-0c0f86654d90-petstore-1.0.7-findPetsByStatus"
   integrationOperationMethod: "GET"

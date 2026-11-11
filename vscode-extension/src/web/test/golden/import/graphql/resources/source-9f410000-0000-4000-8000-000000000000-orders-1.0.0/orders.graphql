@@ -1,0 +1,55 @@
+# The GraphQL import fixture. A schema definition names the two root types, so
+# resolveOperationTypeName takes its schema-definition arm rather than the Query/Mutation fallback,
+# and extractSchemaSDL has something to print. Each operation's SDL carries the type shapes the
+# parser prints verbatim: a list argument, a non-null wrapper, an argument default, an enum and a
+# custom scalar. The input types reach collectObjectTypes, which skips them, and the scalar reaches
+# collectScalars.
+
+schema {
+  query: OrderQuery
+  mutation: OrderMutation
+}
+
+scalar DateTime
+
+"The states an order moves through."
+enum OrderStatus {
+  NEW
+  SHIPPED
+  CANCELLED
+}
+
+type OrderQuery {
+  "Reads the orders in any of the given states."
+  orders(statuses: [OrderStatus!], limit: Int = 20): [Order!]!
+  order(id: ID!): Order
+}
+
+type OrderMutation {
+  "Places one order."
+  createOrder(input: CreateOrderInput!): Order!
+}
+
+input CreateOrderInput {
+  customer: String!
+  lines: [OrderLineInput!]!
+}
+
+input OrderLineInput {
+  sku: String!
+  quantity: Int!
+}
+
+"An order with its lines."
+type Order {
+  id: ID!
+  customer: String!
+  status: OrderStatus!
+  placedAt: DateTime
+  lines: [OrderLine!]!
+}
+
+type OrderLine {
+  sku: String!
+  quantity: Int!
+}

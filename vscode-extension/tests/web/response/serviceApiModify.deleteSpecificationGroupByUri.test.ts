@@ -3,7 +3,7 @@ import * as vscode from "vscode";
 import { deleteSpecificationGroupByUri } from "../../../src/web/response/serviceApiModify";
 import { fileApi } from "../../../src/web/response/file/fileApiProvider";
 import { ContentParser } from "../../../src/web/api-services/parsers/ContentParser";
-import { getExtensionsForFile } from "../../../src/web/response/file/fileExtensions";
+import { FILE_EXTENSIONS } from "../../../src/web/response/file/fileExtensions";
 import * as serviceApiRead from "../../../src/web/response/serviceApiRead";
 
 jest.mock("../../../src/web/response/file/fileApiProvider", () => ({
@@ -32,10 +32,6 @@ jest.mock("../../../src/web/api-services/parsers/ContentParser", () => ({
 
 jest.mock("../../../src/web/response/serviceApiRead", () => ({
   getMainService: jest.fn(),
-}));
-
-jest.mock("../../../src/web/response/file/fileExtensions", () => ({
-  getExtensionsForFile: jest.fn(),
 }));
 
 jest.mock(
@@ -75,15 +71,15 @@ const consoleErrorSpy = jest
 
 describe("deleteSpecificationGroupByUri", () => {
   const groupFileUri = {
-    path: "/workspace/svc/group1.specification-group.qip.yaml",
-    fsPath: "/workspace/svc/group1.specification-group.qip.yaml",
-    toString: jest.fn().mockReturnValue("/workspace/svc/group1.specification-group.qip.yaml"),
+    path: "/workspace/svc/group1.specification-group.cip.yaml",
+    fsPath: "/workspace/svc/group1.specification-group.cip.yaml",
+    toString: jest.fn().mockReturnValue("/workspace/svc/group1.specification-group.cip.yaml"),
   } as unknown as Uri;
 
   const serviceFileUri = {
-    path: "/workspace/svc/svc.service.qip.yaml",
-    fsPath: "/workspace/svc/svc.service.qip.yaml",
-    toString: jest.fn().mockReturnValue("/workspace/svc/svc.service.qip.yaml"),
+    path: "/workspace/svc/svc.service.cip.yaml",
+    fsPath: "/workspace/svc/svc.service.cip.yaml",
+    toString: jest.fn().mockReturnValue("/workspace/svc/svc.service.cip.yaml"),
   } as unknown as Uri;
 
   const mockDeleteFile = (fileApi as any).deleteFile as jest.Mock;
@@ -92,25 +88,15 @@ describe("deleteSpecificationGroupByUri", () => {
     .getSpecificationGroupFiles as jest.Mock;
   const mockGetSpecFiles = (fileApi as any).getSpecificationFiles as jest.Mock;
   const mockParse = ContentParser.parseContentFromFile as jest.Mock;
-  const mockGetExtensions = getExtensionsForFile as jest.Mock;
   const mockGetMainService = (serviceApiRead as any).getMainService as jest.Mock;
   const mockShowInfo = vscode.window
     .showInformationMessage as unknown as jest.Mock;
   const mockShowError = vscode.window.showErrorMessage as unknown as jest.Mock;
 
-  const extensions = {
-    appName: "qip",
-    chain: ".chain.qip.yaml",
-    service: ".service.qip.yaml",
-    contextService: ".context-service.qip.yaml",
-    mcpService: ".mcp-service.qip.yaml",
-    specificationGroup: ".specification-group.qip.yaml",
-    specification: ".specification.qip.yaml",
-  };
+  const extensions = FILE_EXTENSIONS;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockGetExtensions.mockReturnValue(extensions);
     mockDeleteFile.mockResolvedValue(undefined);
     mockGetMainService.mockResolvedValue({ id: "svc1", name: "svc" });
   });
@@ -125,14 +111,14 @@ describe("deleteSpecificationGroupByUri", () => {
       if (p.includes("group1.specification-group")) {
         return { id: "group1", name: "Group One", content: { parentId: "svc1" } };
       }
-      if (p.includes(".specification.qip.yaml")) {
+      if (p.includes(".specification.cip.yaml")) {
         return { id: "spec1", name: "S1", content: { parentId: "group1" } };
       }
       return { id: "unknown", name: "unknown" };
     });
     mockFindFileById.mockResolvedValue(serviceFileUri);
-    mockGetSpecGroupFiles.mockResolvedValue(["group1.specification-group.qip.yaml"]);
-    mockGetSpecFiles.mockResolvedValue(["spec1.specification.qip.yaml"]);
+    mockGetSpecGroupFiles.mockResolvedValue(["group1.specification-group.cip.yaml"]);
+    mockGetSpecFiles.mockResolvedValue(["spec1.specification.cip.yaml"]);
   }
 
   it("should resolve the parent service and delete the group silently", async () => {
@@ -141,10 +127,9 @@ describe("deleteSpecificationGroupByUri", () => {
     await deleteSpecificationGroupByUri(groupFileUri);
 
     expect(mockParse).toHaveBeenCalledWith(groupFileUri);
-    expect(mockGetExtensions).toHaveBeenCalledWith("group1.specification-group.qip.yaml");
     expect(mockFindFileById).toHaveBeenCalledWith("svc1", extensions.service);
     expect(mockDeleteFile).toHaveBeenCalledWith(
-      expect.objectContaining({ path: expect.stringContaining("group1.specification-group.qip.yaml") }),
+      expect.objectContaining({ path: expect.stringContaining("group1.specification-group.cip.yaml") }),
     );
     // silent=true is forwarded to deleteSpecificationGroup, so no vscode messages
     expect(mockShowInfo).not.toHaveBeenCalled();
@@ -196,7 +181,7 @@ describe("deleteSpecificationGroupByUri", () => {
       return { id: "group1", name: "Group One", content: { parentId: "svc1" } };
     });
     mockFindFileById.mockResolvedValue(serviceFileUri);
-    mockGetSpecGroupFiles.mockResolvedValue(["group1.specification-group.qip.yaml"]);
+    mockGetSpecGroupFiles.mockResolvedValue(["group1.specification-group.cip.yaml"]);
     mockGetSpecFiles.mockResolvedValue([]);
 
     await expect(deleteSpecificationGroupByUri(groupFileUri)).rejects.toThrow(

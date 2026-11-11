@@ -11,11 +11,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @QuarkusComponentTest
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
-@TestConfigProperty(key = "application.name", value = "qip-engine")
-@TestConfigProperty(key = "application.cloud_service_name", value = "qip-engine-v1")
+@TestConfigProperty(key = "application.name", value = "cip-engine")
+@TestConfigProperty(key = "application.cloud_service_name", value = "cip-engine-v1")
 @TestConfigProperty(key = "application.namespace", value = "local")
 @TestConfigProperty(key = "application.default_integration_domain_name", value = "default")
-@TestConfigProperty(key = "application.default_integration_domain_microservice_name", value = "qip-engine")
+@TestConfigProperty(key = "application.default_integration_domain_microservice_name", value = "cip-engine")
 class ApplicationConfigurationTest {
 
     @Inject
@@ -23,13 +23,13 @@ class ApplicationConfigurationTest {
 
     @Test
     void shouldInjectConfigurationProperties() {
-        assertEquals("qip-engine", applicationConfiguration.getMicroserviceName());
-        assertEquals("qip-engine-v1", applicationConfiguration.getCloudServiceName());
+        assertEquals("cip-engine", applicationConfiguration.getMicroserviceName());
+        assertEquals("cip-engine-v1", applicationConfiguration.getCloudServiceName());
         assertEquals("local", applicationConfiguration.getNamespace());
     }
 
     @Test
     void shouldReturnDeploymentNameWhenGetDeploymentNameIsCalled() {
-        assertEquals("qip-engine-v1", applicationConfiguration.getDeploymentName());
+        assertEquals("cip-engine-v1", applicationConfiguration.getDeploymentName());
     }
 }

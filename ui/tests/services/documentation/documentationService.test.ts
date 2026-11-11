@@ -3,6 +3,7 @@
  */
 
 import { DocumentationService } from "../../../src/services/documentation/documentationService";
+import { IntegrationSystemType } from "../../../src/api/apiTypes";
 
 // Mock appConfig to avoid import.meta.env issues in Jest
 jest.mock("../../../src/appConfig", () => ({
@@ -10,6 +11,13 @@ jest.mock("../../../src/appConfig", () => ({
     documentationBaseUrl: "/doc",
   })),
   onConfigChange: jest.fn(() => () => {}),
+}));
+
+const mockGetService = jest.fn();
+jest.mock("../../../src/api/api", () => ({
+  api: {
+    getService: (...args: unknown[]) => mockGetService(...args),
+  },
 }));
 
 describe("DocumentationService - Resource Loading", () => {
@@ -929,6 +937,95 @@ describe("DocumentationService - Element Type Mapping", () => {
         }, 50);
       });
     });
+
+    test("maps service routes to the document of the resolved service type", async () => {
+      const cases = [
+        {
+          route: "/services/systems/service-a/parameters",
+          override: IntegrationSystemType.EXTERNAL,
+          apiType: IntegrationSystemType.EXTERNAL,
+          expected: "/doc/02__Services/1__External/readme#view-parameters",
+        },
+        {
+          route: "/services/systems/service-b/environments",
+          override: null,
+          apiType: IntegrationSystemType.INTERNAL,
+          expected: "/doc/02__Services/2__Inner_Cloud/readme#add-environment",
+        },
+        {
+          route: "/services/systems/service-c",
+          override: null,
+          apiType: IntegrationSystemType.IMPLEMENTED,
+          expected: "/doc/02__Services/3__Implemented/readme",
+        },
+        {
+          route: "/services/systems/service-d/operations",
+          override: null,
+          apiType: IntegrationSystemType.CONTEXT,
+          expected: "/doc/02__Services/4__Context/readme#view-operations",
+        },
+        {
+          route: "/services/systems/service-e/specifications",
+          override: null,
+          apiType: IntegrationSystemType.MCP,
+          expected: "/doc/02__Services/5__MCP/readme#view-specifications",
+        },
+      ];
+
+      for (const { route, override, apiType, expected } of cases) {
+        mockWindowOpen.mockClear();
+        mockGetService.mockReset();
+        mockGetService.mockResolvedValue({ type: apiType });
+        if (override) {
+          service.setServiceTypeOverride("service-a", override);
+        } else {
+          service.clearServiceTypeOverride();
+        }
+        Object.defineProperty(window, "location", {
+          value: { pathname: route, hash: "" },
+          writable: true,
+        });
+
+        service.openContextDocumentation();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(mockWindowOpen).toHaveBeenCalledWith(expected, "_blank");
+      }
+
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    test("falls back to the context mapping when the service type cannot be resolved", async () => {
+      mockGetService.mockRejectedValue(new Error("not found"));
+      mockFetch.mockResolvedValue({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: () =>
+          Promise.resolve([
+            {
+              pattern: "^/services/systems",
+              doc: "/doc/02__Services/readme.md",
+            },
+          ]),
+      });
+
+      Object.defineProperty(window, "location", {
+        value: {
+          pathname: "/services/systems/unknown/parameters",
+          hash: "",
+        },
+        writable: true,
+      });
+
+      service.openContextDocumentation();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(mockGetService).toHaveBeenCalledWith("unknown");
+      expect(mockWindowOpen).toHaveBeenCalledWith(
+        "/doc/02__Services/readme",
+        "_blank",
+      );
+    });
   });
 
   describe("mapElementToDoc", () => {
@@ -975,6 +1072,117 @@ describe("DocumentationService - Element Type Mapping", () => {
 
       const result = await service.mapContextToDoc("/unknown");
       expect(result).toBeNull();
+    });
+  });
+
+  describe("service type override", () => {
+    test("uses override when id matches the parsed service route", async () => {
+      service.setServiceTypeOverride(
+        "service-a",
+        IntegrationSystemType.EXTERNAL,
+      );
+
+      const result = await service.mapContextToDoc(
+        "/services/systems/service-a/parameters",
+      );
+
+      expect(result).toBe(
+        "/doc/02__Services/1__External/readme#view-parameters",
+      );
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    test("ignores override when id does not match the parsed service route", async () => {
+      service.setServiceTypeOverride(
+        "service-a",
+        IntegrationSystemType.EXTERNAL,
+      );
+      mockFetch.mockResolvedValue({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: () => Promise.resolve([]),
+      });
+
+      const result = await service.mapContextToDoc(
+        "/services/systems/service-b/parameters",
+      );
+
+      expect(result).toBeNull();
+      expect(mockFetch).toHaveBeenCalled();
+    });
+  });
+
+  describe("service tab anchors", () => {
+    test.each([
+      {
+        name: "prefers the specifications anchor over the specification groups anchor",
+        type: IntegrationSystemType.EXTERNAL,
+        route:
+          "/services/systems/service-a/specificationGroups/g1/specifications",
+        expected: "/doc/02__Services/1__External/readme#view-specifications",
+      },
+      {
+        name: "resolves the specification groups anchor",
+        type: IntegrationSystemType.EXTERNAL,
+        route: "/services/systems/service-a/specificationGroups",
+        expected:
+          "/doc/02__Services/1__External/readme#view-specification-groups",
+      },
+      {
+        name: "resolves the operations anchor of a specification leaf",
+        type: IntegrationSystemType.EXTERNAL,
+        route:
+          "/services/systems/service-a/specificationGroups/g1/specifications/s1/operations",
+        expected: "/doc/02__Services/1__External/readme#view-operations",
+      },
+      {
+        name: "resolves the environments anchor",
+        type: IntegrationSystemType.EXTERNAL,
+        route: "/services/systems/service-a/environments",
+        expected: "/doc/02__Services/1__External/readme#add-environment",
+      },
+      {
+        name: "resolves the parameters anchor",
+        type: IntegrationSystemType.EXTERNAL,
+        route: "/services/systems/service-a/parameters",
+        expected: "/doc/02__Services/1__External/readme#view-parameters",
+      },
+      {
+        name: "returns the document base when the route has no anchor",
+        type: IntegrationSystemType.EXTERNAL,
+        route: "/services/systems/service-a",
+        expected: "/doc/02__Services/1__External/readme",
+      },
+      {
+        name: "resolves the parameters anchor for inner cloud services",
+        type: IntegrationSystemType.INTERNAL,
+        route: "/services/systems/service-a/parameters",
+        expected: "/doc/02__Services/2__Inner_Cloud/readme#view-parameters",
+      },
+      {
+        name: "resolves the parameters anchor for implemented services",
+        type: IntegrationSystemType.IMPLEMENTED,
+        route: "/services/systems/service-a/parameters",
+        expected: "/doc/02__Services/3__Implemented/readme#view-parameters",
+      },
+      {
+        name: "resolves the parameters anchor for context services",
+        type: IntegrationSystemType.CONTEXT,
+        route: "/services/systems/service-a/parameters",
+        expected: "/doc/02__Services/4__Context/readme#view-parameters",
+      },
+      {
+        name: "resolves the parameters anchor for mcp services",
+        type: IntegrationSystemType.MCP,
+        route: "/services/systems/service-a/parameters",
+        expected: "/doc/02__Services/5__MCP/readme#view-parameters",
+      },
+    ])("$name", async ({ type, route, expected }) => {
+      service.setServiceTypeOverride("service-a", type);
+
+      const result = await service.mapContextToDoc(route);
+
+      expect(result).toBe(expected);
     });
   });
 

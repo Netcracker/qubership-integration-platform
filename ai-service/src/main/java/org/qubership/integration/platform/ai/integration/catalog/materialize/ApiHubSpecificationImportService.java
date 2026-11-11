@@ -1,0 +1,362 @@
+package org.qubership.integration.platform.ai.integration.catalog.materialize;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import org.eclipse.microprofile.rest.client.inject.RestClient;
+import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.integration.apihub.ApiHubDocumentPayload;
+import org.qubership.integration.platform.ai.integration.apihub.ApiHubMcpTools;
+import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
+import org.qubership.integration.platform.ai.integration.catalog.cache.ConversationCatalogCache;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
+import org.qubership.integration.platform.ai.integration.catalog.model.CatalogCreateEnvironmentRequest;
+import org.qubership.integration.platform.ai.integration.catalog.model.CatalogCreateSystemRequest;
+import org.qubership.integration.platform.ai.integration.catalog.model.CatalogSystemSearchRequest;
+import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStrings;
+
+import java.util.Iterator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
+
+/**
+ * Imports a full API Hub source document into runtime-catalog (create/reuse system, multipart
+ * upload, poll). Used by IMPORT_SPECIFICATION scenario only.
+ */
+@ApplicationScoped
+public class ApiHubSpecificationImportService {
+
+  private static final Logger LOG = Logger.getLogger(ApiHubSpecificationImportService.class);
+
+  private final CatalogRestClient catalogRestClient;
+  private final ConversationCatalogCache catalogCache;
+  private final CatalogSpecificationImporter catalogSpecificationImporter;
+  private final ApiHubMcpTools apiHubMcpTools;
+  private final ObjectMapper objectMapper;
+  private final InternalAsyncMaasEnvironmentConfigurer internalAsyncMaasEnvironmentConfigurer;
+
+  @Inject
+  public ApiHubSpecificationImportService(
+      @RestClient CatalogRestClient catalogRestClient,
+      ConversationCatalogCache catalogCache,
+      CatalogSpecificationImporter catalogSpecificationImporter,
+      ApiHubMcpTools apiHubMcpTools,
+      ObjectMapper objectMapper,
+      InternalAsyncMaasEnvironmentConfigurer internalAsyncMaasEnvironmentConfigurer) {
+    this.catalogRestClient = catalogRestClient;
+    this.catalogCache = catalogCache;
+    this.catalogSpecificationImporter = catalogSpecificationImporter;
+    this.apiHubMcpTools = apiHubMcpTools;
+    this.objectMapper = objectMapper;
+    this.internalAsyncMaasEnvironmentConfigurer = internalAsyncMaasEnvironmentConfigurer;
+  }
+
+  public ApiHubSpecificationImportResult importFromRefs(
+      String conversationId, ApiHubRequirementRefs refs) {
+    return importFromRefs(conversationId, refs, ApiHubRequirementRefs.DEFAULT_SYSTEM_TYPE);
+  }
+
+  public ApiHubSpecificationImportResult importFromRefs(
+      String conversationId, ApiHubRequirementRefs refs, String systemType) {
+    if (refs == null || !refs.hasImportableRefs()) {
+      throw new IllegalArgumentException(
+          "API Hub refs are incomplete: packageId, version, and operationId or documentId are"
+              + " required");
+    }
+
+    String systemName = refs.catalogSystemName();
+    String groupName = refs.specificationGroupName();
+
+    ResolvedSystem system = findOrCreateSystem(conversationId, systemName, systemType);
+    ensureDefaultEnvironment(system.id(), system.type(), systemName);
+
+    ApiHubDocumentPayload document =
+        apiHubMcpTools.fetchApiHubDocument(
+            refs.packageId(),
+            refs.version(),
+            refs.documentSlug(),
+            refs.resolvedApiType());
+
+    List<CatalogRestClient.SpecificationDto> specs = catalogRestClient.getApiSpecifications(system.id());
+    List<CatalogRestClient.SpecificationDto> candidates = specs == null ? List.of() : specs.stream()
+        .filter(spec -> spec != null && CatalogStrings.blankToNull(spec.id()) != null
+            && belongsToSpecificationGroup(spec, system.id(), groupName.trim()))
+        .toList();
+    for (CatalogRestClient.SpecificationDto spec : candidates) {
+      if (CatalogSpecificationImporter.sameDocument(document.content(), catalogRestClient.getModelSource(spec.id()))) {
+        var reused = populateCacheAndResolveOperation(conversationId, refs, system.id(), system.type(),
+            groupName, spec.id(), spec.specificationGroupId(), null);
+        internalAsyncMaasEnvironmentConfigurer.configure(system.id());
+        return reused;
+      }
+    }
+
+    CatalogSpecificationImporter.ImportOutcome imported =
+        candidates.isEmpty()
+            ? catalogSpecificationImporter.importOpenApiDocument(
+                system.id(), groupName, null, document.content(), document.fileName())
+            : catalogSpecificationImporter.importOpenApiDocumentIntoGroup(
+                system.id(), candidates.getFirst().specificationGroupId(), document.content(), document.fileName());
+
+    ApiHubSpecificationImportResult result =
+        finalizeImport(conversationId, refs, system.id(), system.type(), groupName, imported);
+    internalAsyncMaasEnvironmentConfigurer.configure(system.id());
+    return result;
+  }
+
+  /**
+   * {@code groupName} is the specification group label passed to catalog import ({@code name}
+   * query param). {@link CatalogRestClient.SpecificationDto#name()} is the imported model name
+   * (for example {@code v4.4}), not the group name.
+   */
+  public static boolean belongsToSpecificationGroup(
+      CatalogRestClient.SpecificationDto spec, String systemId, String groupName) {
+    String groupId = CatalogStrings.blankToNull(spec.specificationGroupId());
+    if (groupId == null) {
+      return false;
+    }
+    String sid = CatalogStrings.blankToNull(systemId);
+    if (sid != null) {
+      String expectedGroupId = sid + "-" + groupName;
+      if (groupId.equals(expectedGroupId)) {
+        return true;
+      }
+    }
+    return groupId.endsWith("-" + groupName);
+  }
+
+  private ApiHubSpecificationImportResult finalizeImport(
+      String conversationId,
+      ApiHubRequirementRefs refs,
+      String systemId,
+      String systemType,
+      String groupName,
+      CatalogSpecificationImporter.ImportOutcome imported) {
+    ApiHubSpecificationImportResult result =
+        populateCacheAndResolveOperation(
+            conversationId,
+            refs,
+            systemId,
+            systemType,
+            groupName,
+            imported.specificationId(),
+            imported.specificationGroupId(),
+            imported.importId());
+
+    LOG.infof(
+        "IMPORT_SPECIFICATION: imported specId=%s systemId=%s packageId=%s version=%s"
+            + " specName=%s documentSlug=%s importId=%s conversationId=%s",
+        imported.specificationId(),
+        systemId,
+        refs.packageId(),
+        refs.version(),
+        groupName,
+        refs.documentSlug(),
+        imported.importId(),
+        conversationId);
+
+    return result;
+  }
+
+  private ApiHubSpecificationImportResult populateCacheAndResolveOperation(
+      String conversationId,
+      ApiHubRequirementRefs refs,
+      String systemId,
+      String systemType,
+      String groupName,
+      String specificationId,
+      String specificationGroupId,
+      String importId) {
+    if (conversationId != null && !conversationId.isBlank()) {
+      catalogCache.rememberSystems(
+          conversationId,
+          List.of(
+              new CatalogRestClient.SystemDto(
+                  systemId, refs.catalogSystemName(), systemType, null)));
+      catalogCache.rememberSpecifications(
+          conversationId,
+          List.of(
+              new CatalogRestClient.SpecificationDto(
+                  specificationId, groupName, specificationGroupId, systemId)));
+      catalogCache.rememberActiveSystemId(conversationId, systemId);
+    }
+
+    Optional<String> catalogOperationId =
+        resolveCatalogOperationId(conversationId, systemId, specificationId, refs);
+
+    return new ApiHubSpecificationImportResult(
+        systemId,
+        specificationId,
+        specificationGroupId,
+        importId,
+        groupName,
+        catalogOperationId,
+        systemType);
+  }
+
+  private Optional<String> resolveCatalogOperationId(
+      String conversationId,
+      String systemId,
+      String specificationId,
+      ApiHubRequirementRefs refs) {
+    if (CatalogStrings.blankToNull(refs.operationId()) == null) {
+      return Optional.empty();
+    }
+    if (conversationId == null || conversationId.isBlank()) {
+      return Optional.empty();
+    }
+    Optional<PathMethod> target = loadApiHubOperationPathMethod(refs);
+    if (target.isEmpty()) {
+      return Optional.empty();
+    }
+    List<CatalogRestClient.OperationDto> operations =
+        catalogCache.refreshOperations(conversationId, specificationId, systemId);
+    PathMethod wanted = target.get();
+    for (CatalogRestClient.OperationDto operation : operations) {
+      if (operation == null || CatalogStrings.blankToNull(operation.id()) == null) {
+        continue;
+      }
+      if (matchesPathMethod(operation, wanted)) {
+        catalogCache.rememberOperation(conversationId, operation);
+        return Optional.of(operation.id());
+      }
+    }
+    return Optional.empty();
+  }
+
+  private Optional<PathMethod> loadApiHubOperationPathMethod(ApiHubRequirementRefs refs) {
+    try {
+      byte[] payload =
+          apiHubMcpTools.fetchOperationOpenApiJson(
+              refs.packageId(),
+              refs.version(),
+              refs.operationId(),
+              refs.resolvedApiType());
+      JsonNode root = objectMapper.readTree(payload);
+      JsonNode paths = root.path("paths");
+      if (!paths.isObject()) {
+        return Optional.empty();
+      }
+      Iterator<String> pathNames = paths.fieldNames();
+      while (pathNames.hasNext()) {
+        String path = pathNames.next();
+        JsonNode methods = paths.get(path);
+        if (!methods.isObject()) {
+          continue;
+        }
+        for (String methodName : List.of("get", "post", "put", "patch", "delete", "head", "options")) {
+          if (methods.has(methodName)) {
+            return Optional.of(new PathMethod(path, methodName.toUpperCase(Locale.ROOT)));
+          }
+        }
+      }
+      return Optional.empty();
+    } catch (Exception e) {
+      LOG.warnf(
+          e,
+          "IMPORT_SPECIFICATION: could not resolve API Hub operation path/method operationId=%s",
+          refs.operationId());
+      return Optional.empty();
+    }
+  }
+
+  private static boolean matchesPathMethod(
+      CatalogRestClient.OperationDto operation, PathMethod wanted) {
+    String opMethod = CatalogStrings.blankToNull(operation.method());
+    String opPath = CatalogStrings.blankToNull(operation.path());
+    if (opMethod == null || opPath == null) {
+      return false;
+    }
+    return opMethod.equalsIgnoreCase(wanted.method()) && opPath.equals(wanted.path());
+  }
+
+  private ResolvedSystem findOrCreateSystem(
+      String conversationId, String systemName, String requestedType) {
+    Optional<ResolvedSystem> existing = findSystemByName(conversationId, systemName);
+    if (existing.isPresent()) {
+      ResolvedSystem system = existing.get();
+      LOG.infof(
+          "IMPORT_SPECIFICATION: reusing catalog system systemId=%s name=%s",
+          system.id(),
+          systemName);
+      return system;
+    }
+
+    String systemType = normalizeSystemType(requestedType);
+    CatalogRestClient.SystemDto created =
+        catalogRestClient.createSystem(new CatalogCreateSystemRequest(systemName, systemType));
+    if (created == null || CatalogStrings.blankToNull(created.id()) == null) {
+      throw new IllegalStateException("createSystem returned no systemId for name=" + systemName);
+    }
+    LOG.infof(
+        "IMPORT_SPECIFICATION: createSystem systemId=%s name=%s type=%s",
+        created.id(),
+        systemName,
+        systemType);
+    if (conversationId != null && !conversationId.isBlank()) {
+      catalogCache.rememberSystems(conversationId, List.of(created));
+      catalogCache.rememberActiveSystemId(conversationId, created.id());
+    }
+    return new ResolvedSystem(created.id(), normalizeSystemType(created.type(), systemType));
+  }
+
+  private Optional<ResolvedSystem> findSystemByName(String conversationId, String systemName) {
+    List<CatalogRestClient.SystemDto> found =
+        catalogRestClient.searchSystems(new CatalogSystemSearchRequest(systemName));
+    if (found == null || found.isEmpty()) {
+      return Optional.empty();
+    }
+    for (CatalogRestClient.SystemDto system : found) {
+      if (system != null
+          && system.name() != null
+          && system.name().equalsIgnoreCase(systemName.trim())
+          && CatalogStrings.blankToNull(system.id()) != null) {
+        if (conversationId != null && !conversationId.isBlank()) {
+          catalogCache.rememberSystems(conversationId, List.of(system));
+        }
+        return Optional.of(
+            new ResolvedSystem(system.id(), normalizeSystemType(system.type(), null)));
+      }
+    }
+    return Optional.empty();
+  }
+
+  private static String normalizeSystemType(String systemType) {
+    return normalizeSystemType(systemType, ApiHubRequirementRefs.DEFAULT_SYSTEM_TYPE);
+  }
+
+  private static String normalizeSystemType(String systemType, String fallback) {
+    String normalized =
+        systemType == null ? "" : systemType.trim().toUpperCase(Locale.ROOT);
+    return normalized.isEmpty() ? fallback : normalized;
+  }
+
+  private void ensureDefaultEnvironment(String systemId, String systemType, String systemName) {
+    if (CatalogStrings.blankToNull(systemId) == null) {
+      return;
+    }
+    String normalizedType = systemType == null ? "" : systemType.trim().toUpperCase(Locale.ROOT);
+    if (!"INTERNAL".equals(normalizedType) && !"IMPLEMENTED".equals(normalizedType)) {
+      return;
+    }
+    List<CatalogRestClient.EnvironmentDto> environments =
+        catalogRestClient.getEnvironments(systemId);
+    if (environments != null && !environments.isEmpty()) {
+      return;
+    }
+    String envName =
+        CatalogStrings.blankToNull(systemName) != null ? systemName.trim() : "Default";
+    catalogRestClient.createEnvironment(
+        systemId, new CatalogCreateEnvironmentRequest(envName, "/"));
+    LOG.infof(
+        "IMPORT_SPECIFICATION: createEnvironment systemId=%s name=%s address=/",
+        systemId,
+        envName);
+  }
+
+  private record PathMethod(String path, String method) {}
+
+  private record ResolvedSystem(String id, String type) {}
+}

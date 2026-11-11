@@ -1,0 +1,514 @@
+package org.qubership.integration.platform.ai.productpipeline.create.design.input;
+
+import io.smallrye.mutiny.Context;
+import io.smallrye.mutiny.Multi;
+import io.smallrye.mutiny.Uni;
+import io.smallrye.mutiny.infrastructure.Infrastructure;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
+import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
+import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
+import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
+import org.qubership.integration.platform.ai.compiler.contract.CompilerContractRepository;
+import org.qubership.integration.platform.ai.llm.agent.ChainSemanticDesignAgent;
+import org.qubership.integration.platform.ai.llm.qute.QuteUserMessageEscaping;
+import org.qubership.integration.platform.ai.logging.AiTraceLog;
+import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.RequirementDraft;
+import org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator;
+import org.qubership.integration.platform.ai.plan.RequirementFactKind;
+import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
+import org.qubership.integration.platform.ai.plan.RequirementFlowValidator;
+import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
+import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
+import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
+import org.qubership.integration.platform.ai.productpipeline.capability.SkillActivitySupport;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageCapability;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
+import org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementEntryPoint;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBriefText;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
+
+/**
+ * Shared create-chain@2 design-input capability for {@code ids-entry} and {@code design-input}.
+ * Design-input captures a typed semantic revision and renders IDS as an approval view.
+ */
+@ApplicationScoped
+public class DesignInputCapability implements StageCapability {
+
+  private static final Logger LOG = Logger.getLogger(DesignInputCapability.class);
+
+  public static final String CAPABILITY_ID = "design-input";
+  public static final String SKILL_ID = "chain-semantic-design";
+  public static final String PROVIDED_IDS_REJECTED =
+      "IDS is an approval view; provide requirements that can produce a semantic revision";
+  public static final String MISSING_CAPTURE =
+      "Design did not capture a chain semantic revision.";
+
+  private static final String IDS_FLOW_MARKER = "Integration flow for CIP Chain";
+
+  private final ChainSemanticDesignAgent designAgent;
+  private final ChainSemanticIdsRenderer idsRenderer;
+  private final CompilerContractRepository contractRepository;
+  private final BiFunction<String, String, Multi<String>> designRunner;
+
+  @Inject
+  org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore captureFeedback =
+      new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore();
+
+  @Inject
+  org.qubership.integration.platform.ai.compiler.capture.ChatMemorySanitizer chatMemorySanitizer;
+
+  @Inject
+  public DesignInputCapability(
+      ChainSemanticDesignAgent designAgent,
+      ChainSemanticIdsRenderer idsRenderer,
+      CompilerContractRepository contractRepository) {
+    this(designAgent, idsRenderer, contractRepository, null);
+  }
+
+  public DesignInputCapability(
+      BiFunction<String, String, Multi<String>> designRunner,
+      ChainSemanticIdsRenderer idsRenderer) {
+    this(null, idsRenderer, new ClasspathCompilerContractRepository(), designRunner);
+  }
+
+  private DesignInputCapability(
+      ChainSemanticDesignAgent designAgent,
+      ChainSemanticIdsRenderer idsRenderer,
+      CompilerContractRepository contractRepository,
+      BiFunction<String, String, Multi<String>> designRunner) {
+    this.designAgent = designAgent;
+    this.idsRenderer = Objects.requireNonNull(idsRenderer, "idsRenderer");
+    this.contractRepository = Objects.requireNonNull(contractRepository, "contractRepository");
+    this.designRunner = designRunner;
+  }
+
+  @Override
+  public String capabilityId() {
+    return CAPABILITY_ID;
+  }
+
+  @Override
+  public Multi<CapabilitySignal> execute(StageExecutionContext context) {
+    Objects.requireNonNull(context, "context");
+    String progressSkillId = progressSkillId(context);
+    if (progressSkillId == null) {
+      return Uni.createFrom()
+          .item(() -> (CapabilitySignal) new CapabilitySignal.Completed(runStage(context)))
+          .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
+          .toMulti();
+    }
+    var turnEmit = SkillActivitySupport.captureTurnEmit(context.conversationId());
+    return Multi.createBy()
+        .concatenating()
+        .streams(
+            Multi.createFrom().item(SkillActivitySupport.running(progressSkillId)),
+            Uni.createFrom()
+                .item(
+                    () -> {
+                      SkillActivitySupport.bindWorker(progressSkillId, turnEmit);
+                      try {
+                        return SkillActivitySupport.wrapTerminal(
+                            progressSkillId,
+                            List.of(new CapabilitySignal.Completed(runStage(context))));
+                      } finally {
+                        SkillActivitySupport.unbindWorker(turnEmit);
+                      }
+                    })
+                .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
+                .onItem()
+                .transformToMulti(signals -> Multi.createFrom().iterable(signals)));
+  }
+
+  private StageOutcome runStage(StageExecutionContext context) {
+    return switch (context.stageId()) {
+      case "ids-entry" -> enterRoute(context);
+      case "design-input" -> prepareDesign(context);
+      default ->
+          StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE, "unsupported design-input stage");
+    };
+  }
+
+  private String progressSkillId(StageExecutionContext context) {
+    if (!"design-input".equals(context.stageId())) {
+      return null;
+    }
+    return SKILL_ID;
+  }
+
+  private StageOutcome enterRoute(StageExecutionContext context) {
+    String userText = context.attributeAsString("userText");
+    if (userText != null && userText.contains(IDS_FLOW_MARKER)) {
+      return StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE, PROVIDED_IDS_REJECTED);
+    }
+    return StageOutcome.of(StageOutcomeClass.SUCCEEDED, "standard route selected");
+  }
+
+  private StageOutcome prepareDesign(StageExecutionContext context) {
+    RequirementBrief brief = requirementBrief(context);
+    if (brief == null) {
+      return StageOutcome.of(
+          StageOutcomeClass.MISSING_MANDATORY_INPUT,
+          "design-input requires an approved RequirementBrief");
+    }
+    var inputFindings = org.qubership.integration.platform.ai.plan.RequirementCaptureEditor.validateElementOrder(
+        brief.flow(), brief.facts());
+    if (!inputFindings.isEmpty()) {
+      var findings = inputFindings.stream().map(issue -> new PlanValidationFinding(
+          issue.code(), issue.path() + ": " + issue.message(), true, null, issue.entityId(), issue.path())).toList();
+      return StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
+          "The accepted brief contains contradictory element order.\n"
+              + String.join("\n", findings.stream().map(PlanValidationFinding::message).toList()),
+          new RecoveryCause(RecoveryCauseCode.BRIEF_CONTRACT, findings, ""));
+    }
+    String blankEntryPoint = entryPointWithoutCapability(brief);
+    if (blankEntryPoint != null) {
+      // Fail before the agent runs: the capture would be rejected anyway, and a typed cause lets
+      // recovery reopen the stage that wrote the field instead of re-projecting the same brief.
+      return StageOutcome.of(
+          StageOutcomeClass.CONTRACT_FAILURE,
+          "Entry point " + blankEntryPoint + " has no capability key in the approved brief.",
+          RecoveryCause.missingBriefFacts(
+              List.of("entry point " + blankEntryPoint + " has no capabilityKey")));
+    }
+    List<Transition> uncovered = MappingGapCoverage.uncovered(brief);
+    var approvedDraft = context.attributes().get("approvedDraft");
+    var omittedMapping = approvedDraft instanceof RequirementDraft draft
+        ? RequirementBriefCoverageValidator.validateAuthoredMappings(draft, brief)
+        : java.util.Optional.<String>empty();
+    if (omittedMapping.isPresent()) {
+      return StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
+          omittedMapping.get(), RecoveryCause.missingBriefFacts(List.of(omittedMapping.get())));
+    }
+    if (MappingGapCoverage.shouldAsk(uncovered)) {
+      String tagged =
+          PipelineGates.tag(
+              PipelineGates.MAPPING_GAP,
+              MappingGapWait.encode(
+                  MappingGapWait.FALLBACK_QUESTION, MappingGapCoverage.readableEdges(uncovered)));
+      return StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, tagged);
+    }
+    AtomicReference<ChainSemanticRevision> captured = new AtomicReference<>();
+    AtomicReference<String> rejection = new AtomicReference<>();
+    AtomicReference<Boolean> terminalRejection = new AtomicReference<>(false);
+    String captureConversationId = captureConversationId(context);
+    if (chatMemorySanitizer != null) {
+      chatMemorySanitizer.clear(captureConversationId);
+    }
+    ToolSession.bind(captureConversationId);
+    ProductCapabilityCaptureContext.bindDesign(
+        context.runId(),
+        captureConversationId,
+        brief,
+        payload -> {
+          if (payload instanceof ChainSemanticRevision revision) {
+            captured.set(revision);
+          }
+        });
+    CompilerContract contract = contractRepository.require(CompilerContract.V1);
+    captureFeedback.beginScope(captureConversationId, CAPABILITY_ID, java.util.Map.of(
+        "runId", context.runId(), "inputs", context.inputRefs(), "brief", brief, "contract", contract),
+        context.conversationId());
+    captureFeedback.clearPlan(captureConversationId);
+    String history = captureFeedback.repairHistory(captureConversationId, CAPABILITY_ID);
+    String agentText;
+    try {
+      agentText =
+          runDesignAgent(captureConversationId, authoringPrompt(brief, contract, context)
+              + org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.block(history));
+      ProductCapabilityCaptureContext.designBinding(captureConversationId).ifPresent(binding -> {
+        rejection.set(binding.captureRejection().get());
+        terminalRejection.set(binding.captureTerminal().get());
+      });
+    } finally {
+      ProductCapabilityCaptureContext.unbind(captureConversationId);
+      ToolSession.clear();
+    }
+    ChainSemanticRevision revision = captured.get();
+    if (revision == null) {
+      String message = captureFailureMessage(rejection.get());
+      LOG.warnf(
+          "design-input captured nothing: runId=%s, conversationId=%s, agentText=%s",
+          context.runId(),
+          captureConversationId,
+          AiTraceLog.previewOneLine(agentText, AiTraceLog.DEFAULT_TOOL_RESULT_CHARS));
+      if (Boolean.TRUE.equals(terminalRejection.get())) {
+        return StageOutcome.of(StageOutcomeClass.INTERNAL_FAILURE, message);
+      }
+      // The stage recovery ledger bounds regeneration of rejected topology.
+      // A rejected capture alone does not establish a defect in the approved brief.
+      return StageOutcome.of(
+          StageOutcomeClass.CONTRACT_FAILURE,
+          message,
+          captureFeedback.lastPlanFailure(captureConversationId)
+              .map(feedback -> RecoveryCause.captureFailure(feedback, List.of(), null))
+              .orElseGet(() -> new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE,
+                  List.of(new PlanValidationFinding("CONTRACT_SHAPE", message, true)), "")));
+    }
+    IdsDocument ids = idsRenderer.render(revision, contract, brief);
+    // The stage carries no approval policy of its own: the topology is approved together with the
+    // implementation plan, so design-input completes instead of opening a gate. The IDS document
+    // stays a planner input either way; whether a reader sees it is decided at the plan gate.
+    return new StageOutcome(
+        StageOutcomeClass.SUCCEEDED,
+        List.of(
+            new ArtifactCandidate(Kind.CHAIN_SEMANTIC_REVISION, revision, List.of()),
+            new ArtifactCandidate(Kind.IDS_DOCUMENT, ids, List.of())),
+        "semantic revision ready for planning",
+        null);
+  }
+
+  private String runDesignAgent(String conversationId, String prompt) {
+    // Quarkus LangChain4j treats @UserMessage as a Qute template. Mapping snippets such as
+    // {subRequestType} must be escaped or render fails before the design agent can capture.
+    String safePrompt = QuteUserMessageEscaping.escapeForAiServiceUserMessage(prompt);
+    Context toolSessionContext = ToolSession.attachedContext();
+    Multi<String> stream;
+    if (designRunner != null) {
+      stream = designRunner.apply(conversationId, safePrompt);
+    } else if (designAgent != null) {
+      // Capture returns directly so only the stage ledger can authorize another model attempt.
+      return designAgent.chat(conversationId, safePrompt);
+    } else {
+      stream = Multi.createFrom().empty();
+    }
+    return String.join(
+        "",
+        ToolSession.propagateBinding(toolSessionContext, stream)
+            .collect()
+            .asList()
+            .await()
+            .indefinitely());
+  }
+
+  static String authoringPrompt(RequirementBrief brief, CompilerContract contract) {
+    return authoringPrompt(brief, contract, "");
+  }
+
+  static String authoringPrompt(
+      RequirementBrief brief, CompilerContract contract, StageExecutionContext context) {
+    return authoringPrompt(brief, contract, repairSection(context));
+  }
+
+  static String authoringPrompt(
+      RequirementBrief brief, CompilerContract contract, String repairSection) {
+    StringBuilder prompt = new StringBuilder();
+    prompt
+        .append("Capture one ChainSemanticRevision from this approved requirement brief.\n\n")
+        .append(RequirementBriefText.format(brief))
+        .append("\n\nUse LOCAL_NODE elementRef as nodeId. Keep inline hook facts exclusively on their Service Call.\n")
+        .append("\n\nCompiler contract version: ")
+        .append(contract.contractVersion())
+        .append("\nSemantic schema version: ")
+        .append(contract.semanticSchemaVersion())
+        .append("\nAllowed operation elementType values: ")
+        .append(String.join(", ", contract.elements().keySet().stream()
+            .filter(type -> !org.qubership.integration.platform.ai.schema.ChainElementFamilies.isProjectedRegionShell(type))
+            .sorted().toList()))
+        .append(
+            "\n\nExternal interaction anchors are server-owned. Reference these node ids from"
+                + " edges:");
+    boolean anyAnchor = false;
+    for (var entryPoint : brief.entryPoints()) {
+      anyAnchor = true;
+      prompt
+          .append("\n- nodeId=")
+          .append(entryPoint.entryPointId())
+          .append(" role=INBOUND capabilityKey=")
+          .append(entryPoint.capabilityKey())
+          .append(" elementType=")
+          .append(entryPoint.capabilityKey());
+    }
+    for (RequirementFact fact : brief.facts()) {
+      if (fact == null || fact.kind() != RequirementFactKind.CAPABILITY
+          || fact.polarity() != RequirementFactPolarity.POSITIVE) {
+        continue;
+      }
+      String outboundKey =
+          RequirementFlowValidator.nativeDirectOutboundCapabilityKey(
+                  fact.owningInteractionId(), brief.facts())
+              .orElse(null);
+      if (outboundKey == null) {
+        continue;
+      }
+      anyAnchor = true;
+      prompt
+          .append("\n- nodeId=")
+          .append(fact.owningInteractionId())
+          .append(" role=OUTBOUND capabilityKey=")
+          .append(outboundKey)
+          .append(" elementType=")
+          .append(outboundKey);
+    }
+    Set<String> triggerFactIds = ChainSemanticCaptureAdapter.triggerFactIds(brief.entryPoints());
+    for (RequirementServiceCall call : brief.serviceCalls()) {
+      CatalogBindingHint hint = call.catalogBinding();
+      if (hint == null
+          || !ChainSemanticCaptureAdapter.materializesServiceCallNode(call, triggerFactIds)) {
+        continue;
+      }
+      anyAnchor = true;
+      prompt
+          .append("\n- nodeId=")
+          .append(call.serviceCallId())
+          .append(" role=OUTBOUND elementType=service-call operation=")
+          .append(call.operation())
+          .append(" failureMode=")
+          .append(call.failureMode())
+          .append(" integrationOperationId=")
+          .append(hint.integrationOperationId());
+    }
+    if (!anyAnchor) {
+      prompt.append("\n- none");
+    }
+    if (!brief.flow().transitions().isEmpty()) {
+      prompt.append("\nApproved business transitions:");
+      for (var transition : brief.flow().transitions()) {
+        prompt
+            .append("\n- ")
+            .append(transition.sourceInteractionId())
+            .append(" -> ")
+            .append(transition.targetInteractionId());
+      }
+    }
+    prompt.append(
+        """
+
+        Call captureChainSemanticRevision once. Copy sourceFactIds from the brief, taking the\
+         value after each matching `=` sign. Copy mappingIntentId the same way when Mapping\
+         intents include a mappingIntentId= token; otherwise omit it on every edge. Place each\
+         mappingIntentId on exactly one edge entering its target external interaction. Omit it\
+         on every earlier edge through internal processing nodes. Field-mapping\
+         shells use elementType script. Do not mint a mapping id and do not reuse a\
+         sourceFactId as mappingIntentId. A skipped mapping hop stays a direct edge unless an\
+         approved positive BEHAVIOR fact or an ErrorScope requires a script. Every positive\
+         BEHAVIOR fact must appear in one semantic node's sourceFactIds. A constant response,\
+         such as commandType=completeTask, or an assembled response is a behavior-owned script\
+         after the producing call and before the outbound result delivery. For an inbound\
+         HTTP response with no delivery interaction, place it after the final call. INLINE_RESPONSE\
+         puts success and failure field facts on that response script; do not create an error scope\
+         or skip the producing call. Combine consecutive input parsing, context retention, and\
+         request mapping in one script on the same branch and in the same error scope. Save original\
+         values to exchange properties before replacing the body with the request. Put all behavior\
+         and field-mapping sourceFactIds on that script. Different fact kinds do not require\
+         separate nodes. Keep separate scripts only for explicitly requested separate steps or\
+         when a service call, branch, loop, retry, or error-scope boundary separates the work.\
+         External interaction anchors are server-owned.\
+         Reference these node ids from edges. To attach extra sourceFactIds to an existing\
+         anchor, list its exact nodeId and elementType under operations. This only extends\
+         provenance; it never creates or replaces an interaction. Attach event and call behavior\
+         facts to their anchors. Keep parsing, retention, field mappings, response constants,\
+         and error payload assembly on their implementing processing nodes. Preserve\
+         every approved business transition. You may insert internal processing nodes between\
+         its source and target, but you may not reverse, omit, or add an external interaction\
+         transition. Do not mint occurrence ids. The server derives the revision id, every edge\
+         id, both versions above, the catalog capability behind each entry point, and every\
+         service call node, so leave them out. List each internal node you do author under\
+         operations, and each control-flow region under the list that matches its kind; omit\
+         the region lists when the chain is linear. A reuse container is a standalone subtree:\
+         attach its first child through containment with role=body. Keep the main execution path\
+         on reuse-reference and continue from that reference to the next node. Do not connect\
+         execution edges to the reuse container or across the reuse containment boundary.\
+         Native outbound capabilities (direct senders and chain-call-2) are server-owned anchors\
+         at nodeId equal to the capability sourceFactId. Reference those ids from edges. Do not\
+         add another operation with the same elementType. You may list that nodeId under\
+         operations to attach every applicable BEHAVIOR sourceFactId; the server keeps one node.\
+         The server initially attaches each anchor's primary fact. Keep LOCAL_NODE script facts\
+         on script nodes separate from external interaction anchors, combining consecutive\
+         processing as described above. Do not invent\
+         the chain-call trigger UUID; gathering already stored it on the capability path.""");
+    if (repairSection != null && !repairSection.isBlank()) {
+      prompt.append(repairSection);
+    }
+    for (RequirementFact fact : brief.facts()) {
+      var intent = fact.elementIntent();
+      if (fact.polarity() != RequirementFactPolarity.POSITIVE || intent == null
+          || intent.placement() != org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.BEFORE_HOOK
+              && intent.placement() != org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.AFTER_HOOK) {
+        continue;
+      }
+      prompt.append("\nInline hook assignment: sourceFactId=").append(fact.sourceFactId())
+          .append(" belongs in sourceFactIds of the service-call operation nodeId=")
+          .append(intent.ownerInteractionId()).append(" (placement=").append(intent.placement())
+          .append("). Hook elementRef=").append(intent.elementRef())
+          .append(" is not an operation nodeId or an edge endpoint. Do not add a Script for this hook.");
+    }
+    return prompt.toString();
+  }
+
+  private static String repairSection(StageExecutionContext context) {
+    StageRepairEvidence repair = StageRepairEvidence.from(context);
+    if (repair == null || !repair.hasEvidence()) {
+      return "";
+    }
+    StringBuilder extra = new StringBuilder();
+    extra.append("\n\nThe previous capture was rejected:\n").append(repair.diagnosticText());
+    if (repair.haltFollowUpText() != null && !repair.haltFollowUpText().isBlank()) {
+      extra.append("\n\nAuthor correction:\n").append(repair.haltFollowUpText().trim());
+    }
+    extra.append(
+        "\nRebuild the topology so this rejection cannot recur. Preserve the approved element"
+            + " placements. Call captureChainSemanticRevision once.");
+    return extra.toString();
+  }
+
+  private static String captureConversationId(StageExecutionContext context) {
+    StageRepairEvidence repair = StageRepairEvidence.from(context);
+    if (StageRepairEvidence.isCleanDesignInputRebuild(context, repair)) {
+      return context.conversationId() + "-clean-design-" + context.attemptId();
+    }
+    return context.conversationId();
+  }
+
+  static String captureFailureMessage(String rejection) {
+    if (rejection != null && !rejection.isBlank()) {
+      return rejection;
+    }
+    return MISSING_CAPTURE;
+  }
+
+  /**
+   * First entry point the approved brief left without a capability key. The brief copies that key
+   * from the approved draft, so a blank one means the draft never carried the fact.
+   */
+  static String entryPointWithoutCapability(RequirementBrief brief) {
+    if (brief == null) {
+      return null;
+    }
+    for (RequirementEntryPoint entryPoint : brief.entryPoints()) {
+      if (entryPoint == null) {
+        continue;
+      }
+      String key = entryPoint.capabilityKey();
+      if (key == null || key.isBlank()) {
+        return entryPoint.entryPointId();
+      }
+    }
+    return null;
+  }
+
+  private static RequirementBrief requirementBrief(StageExecutionContext context) {
+    Object value = context.attributes().get("requirementBrief");
+    return value instanceof RequirementBrief brief ? brief : null;
+  }
+}

@@ -62,7 +62,7 @@ To create any service using VS Code Extension, follow the steps outlined below:
 3. Near the "Services" folder click on appearing button "CIP Create service".
 4. At the top of Visual Studio Code enter the name of the chain, select the type of the service, enter the identifier, enter some description and click Enter. Next, it opens "Common Parameters" tab of the created service.
 
-### View Common Parameters
+### View Parameters
 Parameters tab contains the following information:
 - **Name** - mandatory service name.
 - **Description** - description of service.
@@ -82,7 +82,7 @@ Specify the required fields and click **"Save"**. Notification about successful 
 
 ### Import MCP Service(s)
 
-**`⛔ Not available via VS Code extension`**
+**`⛔ Not available via the VS Code extension`**
 
 To import the service(s), click the icon ![cloud-upload](img/cloud-upload.svg), drag and drop **.zip** file into import area
 or click **"browse"** link and select **single** file with respective format from the explorer menu.
@@ -100,13 +100,23 @@ When import is completed, system displays import result table with the following
 
 ### Export MCP Service(s)
 
-**`⛔ Not available via VS Code extension`**
+**`⛔ Not available via the VS Code extension`**
 
 System allows to export MCP service with its metadata, labels, identifier, and instructions. From **"MCP Services"** page, mark specific services with checkboxes and click ![cloud-download](img/cloud-download.svg) **"Export"**. Or simply click this button to export all services at once after confirmation.
+
+### Delete Service
+<ins>Web UI</ins>
+
+From the "MCP Services" View, click the action menu for the entity to be deleted and then "Delete" ![delete](img/delete.svg). The confirmation pop-up appears on the screen, so click "Yes" to delete or "No" to cancel operation.
+
+<ins>VS Code Extension</ins>
+
+Under the "Services" folder, right-click on the service name you want to delete. From the available options, click "Delete Service". A notification appears in the bottom-right corner of the screen to confirm deletion is successful.
 
 ### Constraints
 
 ---
 
+- Only one MCP server is available per CIP Engine.
 - **Identifier** must be unique within MCP services.
 - **Technical** labels cannot be imported via UI or exported.

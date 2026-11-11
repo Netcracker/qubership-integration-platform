@@ -1,0 +1,57 @@
+asyncapi: 3.0.0
+info:
+  title: Kafka MaaS Classifier API
+  version: 1.0.0
+servers:
+  production:
+    host: kafka.example.com:9092
+    protocol: kafka
+channels:
+  operationLevel:
+    address: operation/topic
+    messages:
+      Event:
+        payload:
+          type: string
+  channelLevel:
+    address: channel/topic
+    x-maas-classifier-name: channel.level.topic
+    messages:
+      Event:
+        payload:
+          type: string
+  requests:
+    address: request/topic
+    messages:
+      Request:
+        payload:
+          type: string
+  replies:
+    address: reply/topic
+    x-maas-classifier-name: reply.channel.topic
+    messages:
+      Reply:
+        payload:
+          type: string
+operations:
+  sendOnOperationLevel:
+    action: send
+    channel:
+      $ref: '#/channels/operationLevel'
+    x-maas-classifier-name: operation.level.topic
+  sendOnChannelLevel:
+    action: send
+    channel:
+      $ref: '#/channels/channelLevel'
+  receiveOnChannelLevel:
+    action: receive
+    channel:
+      $ref: '#/channels/channelLevel'
+    x-maas-classifier-name: operation.level.topic
+  sendRequest:
+    action: send
+    channel:
+      $ref: '#/channels/requests'
+    reply:
+      channel:
+        $ref: '#/channels/replies'

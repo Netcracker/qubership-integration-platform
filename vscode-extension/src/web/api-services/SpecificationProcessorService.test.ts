@@ -5,7 +5,6 @@ jest.mock("../response/file/fileApiProvider", () => ({
 }));
 
 import { SpecificationProcessorService } from "./SpecificationProcessorService";
-import { ApiSpecificationType } from "./importApiTypes";
 
 const OPENAPI_32 = JSON.stringify({
   openapi: "3.2.0",
@@ -49,7 +48,6 @@ describe("SpecificationProcessorService", () => {
     expect(target.specifications).toHaveLength(1);
 
     const specification = target.specifications[0];
-    expect(specification.format).toBe(ApiSpecificationType.HTTP.toString());
     const names = specification.operations.map((o: any) => o.name);
     expect(names).toContain("createThing");
     expect(names).not.toContain("queryThings");

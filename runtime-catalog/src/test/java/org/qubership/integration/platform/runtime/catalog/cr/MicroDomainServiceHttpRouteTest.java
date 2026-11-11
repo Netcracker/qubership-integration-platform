@@ -10,6 +10,7 @@ import org.qubership.integration.platform.camelk.naming.validation.K8sNameValida
 import org.qubership.integration.platform.camelk.naming.validation.K8sNameVerifier;
 import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
 import org.qubership.integration.platform.chain.model.Snapshot;
+import org.qubership.integration.platform.runtime.catalog.configuration.DomainProperties;
 import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationConfigurationSerdes;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.GenericCustomResources;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.KubeCustomObject;
@@ -60,10 +61,11 @@ class MicroDomainServiceHttpRouteTest {
                 mock(IntegrationServiceCatalog.class),
                 false,
                 engineRoutesNamingStrategy,
-                new K8sNameValidator()
+                new K8sNameValidator(),
+                mock(DomainProperties.class)
         );
-        microDomainService.domainLabel = "qip.domain";
-        microDomainService.bgVersionLabel = "qip.bgVersion";
+        microDomainService.domainLabel = "cip.domain";
+        microDomainService.bgVersionLabel = "cip.bgVersion";
         microDomainService.bgVersion = "v1";
     }
 
@@ -84,8 +86,8 @@ class MicroDomainServiceHttpRouteTest {
         microDomainService.deleteHttpRoutes(DOMAIN);
 
         Map<String, String> selector = new HashMap<>();
-        selector.put("qip.domain", DOMAIN);
-        selector.put("qip.bgVersion", "v1");
+        selector.put("cip.domain", DOMAIN);
+        selector.put("cip.bgVersion", "v1");
         selector.put(SNAPSHOT_ID_LABEL, null);
         verify(kubeOperator).getCustomObjectsByLabels(GROUP, VERSION, PLURAL, selector);
     }
@@ -144,7 +146,7 @@ class MicroDomainServiceHttpRouteTest {
                     - matches:
                         - path:
                             type: PathPrefix
-                            value: /qip-routes/a
+                            value: /cip-routes/a
                 """;
 
         List<Object> parsed = io.kubernetes.client.util.Yaml.loadAll(httpRouteYaml);

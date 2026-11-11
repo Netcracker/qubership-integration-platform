@@ -283,10 +283,6 @@ function isInternalMessage(message: Message, chainId: string): boolean {
   return message.fromId === chainId && message.toId === chainId;
 }
 
-function getAppName(): string {
-  return "QIP"; // FIXME
-}
-
 function createBuildContext(
   chain: Chain,
   mode: DiagramMode,
@@ -407,7 +403,7 @@ function collectTriggers(elements: Element[]): Element[] {
 function createChainParticipant(context: DiagramBuildContext): Participant {
   return {
     id: context.chain.id,
-    name: `${getAppName()} chain: ${context.chain.name}`,
+    name: `CIP chain: ${context.chain.name}`,
   };
 }
 
@@ -423,7 +419,7 @@ function getChainTriggerParticipants(
   _element: Element,
   _context: DiagramBuildContext,
 ): Participant[] {
-  return [createSimpleParticipant(`Unknown ${getAppName()} chain`)];
+  return [createSimpleParticipant(`Unknown CIP chain`)];
 }
 
 function getSftpParticipants(
@@ -520,7 +516,7 @@ function getChainCallParticipants(
   return [
     {
       id: elementId,
-      name: `${getAppName()} chain: ${chain?.name ?? EMPTY_PROPERTY_STUB}`,
+      name: `CIP chain: ${chain?.name ?? EMPTY_PROPERTY_STUB}`,
     },
   ];
 }
@@ -620,7 +616,7 @@ function getIdempotencyParticipants(
     ? [
         {
           id: elementId,
-          name: `${getAppName()} chain: ${context.dependencies.chainMap.get(elementId)?.name ?? EMPTY_PROPERTY_STUB}`,
+          name: `CIP chain: ${context.dependencies.chainMap.get(elementId)?.name ?? EMPTY_PROPERTY_STUB}`,
         },
       ]
     : [];
@@ -731,7 +727,7 @@ function getChainCallActions(
       fromId: context.chain.id,
       toId: participant.id,
       arrowType: "arrow-solid",
-      message: `${getAppName()} chain trigger call: ${chain?.name ?? elementId}`,
+      message: `CIP chain trigger call: ${chain?.name ?? elementId}`,
     },
     { type: "activate", participantId: participant.id },
     {
@@ -756,7 +752,7 @@ function getChainTriggerActions(
       fromId: participant.id,
       toId: context.chain.id,
       arrowType: "arrow-solid",
-      message: `${getAppName()} chain call`,
+      message: `CIP chain call`,
     },
     { type: "activate", participantId: context.chain.id },
   ];
@@ -1551,7 +1547,7 @@ function getActionsForIdempotentTrigger(
                               fromId: context.chain.id,
                               toId: idempotencyParticipant.id,
                               arrowType: "arrow-solid",
-                              message: `${getAppName()} chain trigger call: ${chain?.name ?? elementId}`,
+                              message: `CIP chain trigger call: ${chain?.name ?? elementId}`,
                             },
                             {
                               type: "activate",

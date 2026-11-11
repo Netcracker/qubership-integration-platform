@@ -44,7 +44,7 @@ properties:
         title: Ignore file not found or permission error
       jschLoggingLevel:
         type: string
-        default: OFF
+        default: "OFF"
         title: JSCH logging level
       password:
         type: string
@@ -54,7 +54,7 @@ properties:
           entering passwords.
       readLockLoggingLevel:
         type: string
-        default: OFF
+        default: "OFF"
         title: ReadLock logging level
       runLoggingLevel:
         type: string

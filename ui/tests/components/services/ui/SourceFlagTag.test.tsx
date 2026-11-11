@@ -11,14 +11,14 @@ describe("SourceFlagTag", () => {
     render(<SourceFlagTag source="HTTP" kind="protocol" />);
     const tag = screen.getByText("http");
     expect(tag).toBeInTheDocument();
-    expect(tag).toHaveClass("qip-solid-tag");
+    expect(tag).toHaveClass("cip-solid-tag");
     expect(tag).toHaveStyle({ color: "#fff", background: "#0068ff" });
   });
 
   it("capitalizes a source flag and keeps a white label", () => {
     render(<SourceFlagTag source="manual" />);
     const tag = screen.getByText("Manual");
-    expect(tag).toHaveClass("qip-solid-tag");
+    expect(tag).toHaveClass("cip-solid-tag");
     expect(tag).toHaveStyle({ color: "#fff", background: "#0068ff" });
   });
 

@@ -23,7 +23,7 @@ import org.apache.camel.Exchange;
 import org.apache.camel.NoTypeConversionAvailableException;
 import org.apache.camel.TypeConversionException;
 import org.apache.camel.TypeConverter;
-import org.qubership.integration.platform.engine.security.QipSecurityAccessPolicy;
+import org.qubership.integration.platform.engine.security.CipSecurityAccessPolicy;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
@@ -50,7 +50,7 @@ public class SecurityAccessPolicyConverter implements TypeConverter {
     public <T> T convertTo(Class<T> type, Object value) throws TypeConversionException {
         try {
             List<String> attributes = objectMapper.readValue(value.toString(), STRING_LIST_TYPE_REFERENCE);
-            return (T) QipSecurityAccessPolicy.fromStrings(attributes);
+            return (T) CipSecurityAccessPolicy.fromStrings(attributes);
         } catch (JsonProcessingException exception) {
             throw new TypeConversionException(value, type, exception);
         }

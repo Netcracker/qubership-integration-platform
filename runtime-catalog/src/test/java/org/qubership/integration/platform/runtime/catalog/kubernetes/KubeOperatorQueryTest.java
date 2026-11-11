@@ -35,6 +35,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -56,7 +57,7 @@ import static org.mockito.Mockito.when;
  */
 class KubeOperatorQueryTest {
 
-    private static final String NAMESPACE = "qip";
+    private static final String NAMESPACE = "cip";
     private static final String ISTIO_GROUP = "networking.istio.io";
     private static final String ISTIO_VERSION = "v1";
     private static final String SERVICE_ENTRIES_PLURAL = "serviceentries";
@@ -225,12 +226,12 @@ class KubeOperatorQueryTest {
                 stubCustomObjectList(CAMEL_K_GROUP, CAMEL_K_VERSION, INTEGRATIONS_PLURAL);
         when(request.execute()).thenReturn(rawList(List.of(rawObject("Integration", "order-chain"))));
         Map<String, String> labels = new LinkedHashMap<>();
-        labels.put("app.kubernetes.io/part-of", "qip");
-        labels.put("qip.microdomain", "default");
+        labels.put("app.kubernetes.io/part-of", "cip");
+        labels.put("cip.microdomain", "default");
 
         List<CamelKIntegration> integrations = kubeOperator.getIntegrationsByLabels(labels);
 
-        verify(request).labelSelector("app.kubernetes.io/part-of=qip,qip.microdomain=default");
+        verify(request).labelSelector("app.kubernetes.io/part-of=cip,cip.microdomain=default");
         assertEquals(1, integrations.size());
         assertEquals("order-chain", integrations.get(0).getMetadata().getName());
     }
@@ -241,7 +242,7 @@ class KubeOperatorQueryTest {
                 stubCustomObjectList(CAMEL_K_GROUP, CAMEL_K_VERSION, INTEGRATIONS_PLURAL);
         ApiException apiException = new ApiException(500, "Internal Server Error");
         when(request.execute()).thenThrow(apiException);
-        Map<String, String> labels = Map.of("app", "qip");
+        Map<String, String> labels = Map.of("app", "cip");
 
         KubeApiException exception = assertThrows(KubeApiException.class,
                 () -> kubeOperator.getIntegrationsByLabels(labels));
@@ -250,14 +251,27 @@ class KubeOperatorQueryTest {
     }
 
     @Test
+    void getCamelKIntegrationReadsTheCamelKCoordinates() throws ApiException {
+        CustomObjectsApi.APIgetNamespacedCustomObjectRequest request =
+                mock(CustomObjectsApi.APIgetNamespacedCustomObjectRequest.class);
+        when(customObjectsApi.getNamespacedCustomObject(
+                CAMEL_K_GROUP, CAMEL_K_VERSION, NAMESPACE, INTEGRATIONS_PLURAL, "order-chain")).thenReturn(request);
+        when(request.execute()).thenReturn(rawObject("Integration", "order-chain"));
+
+        Optional<KubeCustomObject> integration = kubeOperator.getCamelKIntegration("order-chain");
+
+        assertEquals("order-chain", integration.orElseThrow().getMetadata().getName());
+    }
+
+    @Test
     void getServiceMonitorsByLabelReturnsTheListedItems() throws ApiException {
         CustomObjectsApi.APIlistNamespacedCustomObjectRequest request =
                 stubCustomObjectList(MONITORING_GROUP, MONITORING_VERSION, SERVICE_MONITORS_PLURAL);
         when(request.execute()).thenReturn(rawList(List.of(rawObject("ServiceMonitor", "order-chain-monitor"))));
 
-        List<V1ServiceMonitor> serviceMonitors = kubeOperator.getServiceMonitorsByLabel("app", "qip");
+        List<V1ServiceMonitor> serviceMonitors = kubeOperator.getServiceMonitorsByLabel("app", "cip");
 
-        verify(request).labelSelector("app=qip");
+        verify(request).labelSelector("app=cip");
         assertEquals(1, serviceMonitors.size());
         assertEquals("order-chain-monitor", serviceMonitors.get(0).getMetadata().getName());
     }
@@ -270,7 +284,7 @@ class KubeOperatorQueryTest {
         when(request.execute()).thenThrow(apiException);
 
         KubeApiException exception = assertThrows(KubeApiException.class,
-                () -> kubeOperator.getServiceMonitorsByLabel("app", "qip"));
+                () -> kubeOperator.getServiceMonitorsByLabel("app", "cip"));
 
         assertSame(apiException, exception.getOriginalException());
     }
@@ -279,14 +293,14 @@ class KubeOperatorQueryTest {
     void getCustomObjectsByLabelAndDefinitionQueriesTheCoordinatesOfTheDefinition() throws ApiException {
         CustomObjectsApi.APIlistNamespacedCustomObjectRequest request =
                 stubCustomObjectList(MESH_GROUP, MESH_VERSION, MESHES_PLURAL);
-        when(request.execute()).thenReturn(rawList(List.of(rawObject("Mesh", "qip-mesh"))));
+        when(request.execute()).thenReturn(rawList(List.of(rawObject("Mesh", "cip-mesh"))));
 
         List<KubeCustomObject> customObjects =
-                kubeOperator.getCustomObjectsByLabelAndDefinition("app", "qip", meshDefinition());
+                kubeOperator.getCustomObjectsByLabelAndDefinition("app", "cip", meshDefinition());
 
-        verify(request).labelSelector("app=qip");
+        verify(request).labelSelector("app=cip");
         assertEquals(1, customObjects.size());
-        assertEquals("qip-mesh", customObjects.get(0).getMetadata().getName());
+        assertEquals("cip-mesh", customObjects.get(0).getMetadata().getName());
     }
 
     @Test
@@ -298,7 +312,7 @@ class KubeOperatorQueryTest {
         GenericCustomResources.CustomResourceDefinition definition = meshDefinition();
 
         KubeApiException exception = assertThrows(KubeApiException.class,
-                () -> kubeOperator.getCustomObjectsByLabelAndDefinition("app", "qip", definition));
+                () -> kubeOperator.getCustomObjectsByLabelAndDefinition("app", "cip", definition));
 
         assertSame(apiException, exception.getOriginalException());
     }
@@ -354,9 +368,9 @@ class KubeOperatorQueryTest {
         V1Service service = new V1Service().metadata(new V1ObjectMeta().name("engine-service"));
         when(request.execute()).thenReturn(new V1ServiceList().items(List.of(service)));
 
-        List<V1Service> services = kubeOperator.getServicesByLabel("app", "qip");
+        List<V1Service> services = kubeOperator.getServicesByLabel("app", "cip");
 
-        verify(request).labelSelector("app=qip");
+        verify(request).labelSelector("app=cip");
         assertEquals(List.of(service), services);
     }
 
@@ -367,7 +381,7 @@ class KubeOperatorQueryTest {
         when(request.execute()).thenThrow(apiException);
 
         KubeApiException exception = assertThrows(KubeApiException.class,
-                () -> kubeOperator.getServicesByLabel("app", "qip"));
+                () -> kubeOperator.getServicesByLabel("app", "cip"));
 
         assertSame(apiException, exception.getOriginalException());
     }
@@ -378,9 +392,9 @@ class KubeOperatorQueryTest {
         V1ConfigMap configMap = new V1ConfigMap().metadata(new V1ObjectMeta().name("order-chain-sources"));
         when(request.execute()).thenReturn(new V1ConfigMapList().items(List.of(configMap)));
 
-        List<V1ConfigMap> configMaps = kubeOperator.getConfigMapsByLabel("app", "qip");
+        List<V1ConfigMap> configMaps = kubeOperator.getConfigMapsByLabel("app", "cip");
 
-        verify(request).labelSelector("app=qip");
+        verify(request).labelSelector("app=cip");
         assertEquals(List.of(configMap), configMaps);
     }
 
@@ -391,7 +405,7 @@ class KubeOperatorQueryTest {
         when(request.execute()).thenThrow(apiException);
 
         KubeApiException exception = assertThrows(KubeApiException.class,
-                () -> kubeOperator.getConfigMapsByLabel("app", "qip"));
+                () -> kubeOperator.getConfigMapsByLabel("app", "cip"));
 
         assertSame(apiException, exception.getOriginalException());
     }
@@ -402,9 +416,9 @@ class KubeOperatorQueryTest {
         V1Secret secret = new V1Secret().metadata(new V1ObjectMeta().name("order-chain-credentials"));
         when(request.execute()).thenReturn(new V1SecretList().items(List.of(secret)));
 
-        List<V1Secret> secrets = kubeOperator.getSecretsByLabel("app", "qip");
+        List<V1Secret> secrets = kubeOperator.getSecretsByLabel("app", "cip");
 
-        verify(request).labelSelector("app=qip");
+        verify(request).labelSelector("app=cip");
         assertEquals(List.of(secret), secrets);
     }
 
@@ -415,7 +429,7 @@ class KubeOperatorQueryTest {
         when(request.execute()).thenThrow(apiException);
 
         KubeApiException exception = assertThrows(KubeApiException.class,
-                () -> kubeOperator.getSecretsByLabel("app", "qip"));
+                () -> kubeOperator.getSecretsByLabel("app", "cip"));
 
         assertSame(apiException, exception.getOriginalException());
     }

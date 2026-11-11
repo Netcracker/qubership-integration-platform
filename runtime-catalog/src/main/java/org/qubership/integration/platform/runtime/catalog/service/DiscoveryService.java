@@ -30,10 +30,12 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.http.HttpHeaders;
 import org.jetbrains.annotations.NotNull;
 import org.qubership.integration.platform.runtime.catalog.consul.ContextHeaders;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.AutodiscoveryException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationDiscoveryException;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeOperator;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeService;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
+import org.qubership.integration.platform.runtime.catalog.persistence.TransactionHandler;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.AbstractEntity;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.ConfigParameter;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
@@ -84,6 +86,7 @@ public class DiscoveryService {
     private final DiscoveryServiceMapper discoveryServiceMapper;
     private final ConfigParameterService configParameterService;
     private final ActionsLogService actionLogger;
+    private final TransactionHandler transactionHandler;
 
     @Autowired
     public DiscoveryService(
@@ -98,7 +101,8 @@ public class DiscoveryService {
             RestTemplate restTemplateMS,
             DiscoveryServiceMapper discoveryServiceMapper,
             ConfigParameterService configParameterService,
-            ActionsLogService actionLogger
+            ActionsLogService actionLogger,
+            TransactionHandler transactionHandler
     ) {
         this.operator = operator;
         this.systemService = systemService;
@@ -112,6 +116,7 @@ public class DiscoveryService {
         this.discoveryServiceMapper = discoveryServiceMapper;
         this.configParameterService = configParameterService;
         this.actionLogger = actionLogger;
+        this.transactionHandler = transactionHandler;
     }
 
     private record DiscoveredSpecificationSource(String contentType, String content) {
@@ -170,6 +175,13 @@ public class DiscoveryService {
     private static final String SPEC_FIELD_INFO = "info";
     private static final String DISCOVERY_COMPLETE = "100";
     private static final String DISCOVERY_START = "0";
+    private static final int DISCOVERY_EXPIRATION_MINUTES = 15;
+    private static final String DISCOVERY_NOT_COMPLETED_ERROR_MESSAGE = "Autodiscovery did not complete: no progress for "
+            + DISCOVERY_EXPIRATION_MINUTES + " minutes. Run it again.";
+    private static final String RESULT_NOT_SAVED_ERROR_MESSAGE =
+            "Unable to save the Autodiscovery result. See the runtime-catalog log for the cause.";
+    private static final String NO_STATUS_ERROR_MESSAGE = "Unknown error, no status available";
+    private static final String DISCOVERY_FAILED_ERROR_PREFIX = "Error in Autodiscovery service: ";
     private static final Integer PRIORITY_SERVICE_PORT = 8080;
     private static final Map<OperationProtocol, String> PROTOCOL_POSTFIX_MAP = Map.of(
             OperationProtocol.HTTP, "",
@@ -185,7 +197,11 @@ public class DiscoveryService {
                 throw new RuntimeException("Autodiscovery is in progress");
             }
 
-            setDiscoveryStatus(DISCOVERY_START);
+            // Rewriting an unchanged value keeps the stale modifiedWhen of an abandoned run, so the row is recreated.
+            transactionHandler.runInTransaction(() -> {
+                configParameterService.deleteByName(DISCOVERY_NAMESPACE, DISCOVERY_PROGRESS_NAME);
+                setDiscoveryStatus(DISCOVERY_START);
+            });
             CompletableFuture
                     .supplyAsync(() -> {
                         MDC.put(ContextHeaders.REQUEST_ID, requestId);
@@ -209,7 +225,12 @@ public class DiscoveryService {
                 .entityType(EntityType.SERVICE_DISCOVERY)
                 .operation(LogOperation.EXECUTE)
                 .build());
-        setDiscoveryStatusResult(result, errorMessage);
+        try {
+            setDiscoveryStatusResult(result, errorMessage);
+        } catch (RuntimeException e) {
+            log.error("Unable to save the Autodiscovery result", e);
+            setDiscoveryStatusResult(null, RESULT_NOT_SAVED_ERROR_MESSAGE);
+        }
     }
 
     private DiscoveryResultDTO runDiscoveryAsync() {
@@ -739,15 +760,18 @@ public class DiscoveryService {
     }
 
     private void setDiscoveryStatusResult(DiscoveryResultDTO result, String errorMessage) {
-        setDiscoveryStatus(DISCOVERY_COMPLETE);
         ConfigParameter cp = new ConfigParameter(DISCOVERY_NAMESPACE, DISCOVERY_RESULT_NAME);
         DiscoveryStatusDTO dto = new DiscoveryStatusDTO(result, errorMessage);
         try {
             cp.setString(objectMapper.writeValueAsString(dto));
-            configParameterService.update(cp);
         } catch (JsonProcessingException e) {
             throw new RuntimeException("Unable to set discovery status: " + e.getMessage());
         }
+        // Readers fetch the result once the progress reads 100, so both are committed together.
+        transactionHandler.runInTransaction(() -> {
+            configParameterService.update(cp);
+            setDiscoveryStatus(DISCOVERY_COMPLETE);
+        });
     }
 
     private void setDiscoveryStatus(String discoveryProgress) {
@@ -758,18 +782,23 @@ public class DiscoveryService {
     }
 
     public String getDiscoveryProgress() {
-        final int entityExpiredTimeoutMinutes = 15;
-
         ConfigParameter cp = configParameterService.findByName(DISCOVERY_NAMESPACE, DISCOVERY_PROGRESS_NAME);
-        String progress = cp == null ? null : cp.getString().split("\\.")[0];
+        String progress = cp == null ? null : wholePercent(cp);
 
-        if (progress == null
-                || cp.getModifiedWhen().before(
-                        Timestamp.valueOf(LocalDateTime.now().minusMinutes(entityExpiredTimeoutMinutes)))) {
+        if (progress == null || isExpired(cp)) {
             return DISCOVERY_COMPLETE;
         }
 
         return progress;
+    }
+
+    private static String wholePercent(ConfigParameter progress) {
+        return progress.getString().split("\\.")[0];
+    }
+
+    private static boolean isExpired(ConfigParameter progress) {
+        return progress.getModifiedWhen().before(
+                Timestamp.valueOf(LocalDateTime.now().minusMinutes(DISCOVERY_EXPIRATION_MINUTES)));
     }
 
     public boolean isDiscoveryComplete() {
@@ -778,6 +807,11 @@ public class DiscoveryService {
 
     @SuppressWarnings("checkstyle:EmptyCatchBlock")
     public DiscoveryResultDTO getDiscoveryResult() {
+        ConfigParameter progress = configParameterService.findByName(DISCOVERY_NAMESPACE, DISCOVERY_PROGRESS_NAME);
+        if (progress != null && !DISCOVERY_COMPLETE.equals(wholePercent(progress)) && isExpired(progress)) {
+            throw new AutodiscoveryException(DISCOVERY_NOT_COMPLETED_ERROR_MESSAGE);
+        }
+
         ConfigParameter cp = configParameterService.findByName(DISCOVERY_NAMESPACE, DISCOVERY_RESULT_NAME);
         String rawStatusData = cp == null ? null : cp.getString();
         DiscoveryStatusDTO status = new DiscoveryStatusDTO();
@@ -788,12 +822,12 @@ public class DiscoveryService {
 
 
         if (status == null) {
-            throw new RuntimeException("Unknown error, no status available");
+            throw new AutodiscoveryException(NO_STATUS_ERROR_MESSAGE);
         }
 
         String errorMessage = status.getErrorMessage();
         if (!StringUtils.isBlank(errorMessage)) {
-            throw new RuntimeException("Error in Autodiscovery service: " + errorMessage);
+            throw new AutodiscoveryException(DISCOVERY_FAILED_ERROR_PREFIX + errorMessage);
         }
 
         return status.getResult();

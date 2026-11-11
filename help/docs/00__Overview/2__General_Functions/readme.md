@@ -31,7 +31,7 @@ To open CIP Help:
 3. Use **pages navigation tree** on the left side of CIP Helper to go through the pages and **"Search Documentation... ![search](img/search.svg)"** text field to find particular information by full-text search.
 
 ## Export/Import
-**`⛔ Not available via VS Code extension`**
+**`⛔ Not available via the VS Code extension`**
 
 CIP provides an ability to export ![download](img/cloud-download.svg) and import ![upload](img/cloud-upload.svg) different entities.
 The export function supports both **legacy** and **new** formats for CIP artifacts.
@@ -105,6 +105,62 @@ Project root (git/SVN root, not included in zip-archive)
 
 </details>
 
+### Import Validation Schema Files
+
+An imported chain can reference JSON validation schemas stored in files for these elements:
+
+| Element and tab                        | YAML field for the file reference                        | Inline schema field                    |
+|----------------------------------------|----------------------------------------------------------|----------------------------------------|
+| HTTP Trigger: **Validate Request**     | `properties.validationSchemaFilename`                    | `properties.validationSchema`          |
+| AsyncAPI Trigger: **Validate Request** | `properties.after[n].validationSchemaFilename`           | `properties.after[n].schema`           |
+| Service Call: **Validations**          | `properties.afterValidation[n].validationSchemaFilename` | `properties.afterValidation[n].schema` |
+
+In the table, `[n]` represents an entry in the corresponding list.
+
+Place each schema file in the chain directory or its `resources` folder in the import archive. Set `validationSchemaFilename` to the file name. For a filename without a path, the importer looks in the chain directory first and then in `resources`. A missing referenced file causes the chain import to fail.
+
+The importer reads the specified filename; it does not generate one. The following names are examples:
+
+- HTTP Trigger: `<element-id>.validate-request.schema.cip.json`
+- AsyncAPI Trigger: `<element-id>.validate-<message-id>.schema.cip.json`
+- Service Call: `<element-id>.validate-<code>-<content-type>.schema.cip.json`
+
+For the Service Call example pattern, the content-type part omits parameters and uses a hyphen in place of the slash. For example, `application/json; charset=utf-8` becomes `application-json` in the filename.
+
+The following fragments show where to add the reference in each element's properties. The message and response values are examples.
+
+HTTP Trigger:
+
+```yaml
+properties:
+  validationSchemaFilename: request.schema.cip.json
+```
+
+AsyncAPI Trigger:
+
+```yaml
+properties:
+  after:
+    - code: OrderCreated
+      label: OrderCreated
+      validationSchemaFilename: order-created.schema.cip.json
+```
+
+Service Call:
+
+```yaml
+properties:
+  afterValidation:
+    - id: 200-application/json
+      code: "200"
+      label: 200-application/json
+      contentType: application/json
+      type: responseValidation
+      validationSchemaFilename: response-200-application-json.schema.cip.json
+```
+
+> ℹ️ **Note:** Inline schemas remain supported. If both an inline schema and a file reference are present, import uses the file. Web UI export keeps these schemas in the chain YAML.
+
 ## Filters
 
 There is filtering functionality available for most of the column tables, utilized across different pages. Click the ![filter](img/filter.svg) button and enter the following values in the filter popup:
@@ -129,7 +185,7 @@ For some table columns the following sort options are available:
 Most of the tables in the system can be adjusted not only by extending/shrinking column size, but also by controlling each column's visibility and sequence. To do so, click the gear button ![setting](img/setting.svg) at the top of the table and adjust properties accordingly. Some of the columns can't be hidden or moved - this is explained for exact columns in respective design articles.
 
 ## View User Details
-**`⛔ Not available via VS Code extension`**
+**`⛔ Not available via the VS Code extension`**
 
 Click the user icon ![user](img/user.svg) at the top right of the screen to see user and tenant details:
 - username
@@ -141,17 +197,17 @@ The tenant is set during login, when you select the domain.
 
 
 ## Go to Home Page
-**`⛔ Not available via VS Code extension`**
+**`⛔ Not available via the VS Code extension`**
 
 In the top-left corner, the “CIP” button returns you to the home page, which lists all chains and chain folders.
 
 ## Switch between Blue and Green versions
-**`⛔ Not available via VS Code extension`**
+**`⛔ Not available via the VS Code extension`**
 
 To switch between Blue and Green configuration versions in CIP, use the selector at the top right of the screen. This selector is only visible on environments, properly configured for Blue/Green approach.
 
 ## Reset UI Configuration
-**`⛔ Not available via VS Code extension`**
+**`⛔ Not available via the VS Code extension`**
 
 The system saves the state of some UI elements while the user works with them. Such elements are mentioned below:
 - **Table filters** - selected columns, conditions and values.

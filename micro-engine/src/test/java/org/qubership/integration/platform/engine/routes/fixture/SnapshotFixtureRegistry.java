@@ -37,20 +37,30 @@ public class SnapshotFixtureRegistry {
     public static SnapshotFixtureRegistry withDefaultProviders() {
         return new SnapshotFixtureRegistry(List.of(
                 new CamelEndpointSnapshotFixtureProvider(),
+                new ChainConsumerLifecycleSnapshotFixtureProvider(),
                 new HttpServiceCallSnapshotFixtureProvider(),
                 new HttpSenderSnapshotFixtureProvider(),
+                new HttpDeadlineSnapshotFixtureProvider(),
                 new GraphqlHttpSnapshotFixtureProvider(),
                 new CircuitBreakerSnapshotFixtureProvider(),
                 new CheckpointSnapshotFixtureProvider(),
+                new IdempotencySnapshotFixtureProvider(),
                 new FileOutputSnapshotFixtureProvider(),
                 new LogCaptureSnapshotFixtureProvider(),
                 new AsyncFlowSnapshotFixtureProvider(),
                 new ParallelBarrierSnapshotFixtureProvider(),
                 new SplitTimeoutSnapshotFixtureProvider(),
                 new KafkaContainerSnapshotFixtureProvider(),
+                new KafkaTriggerSnapshotFixtureProvider(),
                 new RabbitMqContainerSnapshotFixtureProvider(),
+                new RabbitMqTriggerSnapshotFixtureProvider(),
+                new SftpTriggerSnapshotFixtureProvider(),
+                new McpTriggerSnapshotFixtureProvider(),
+                new SchedulerSnapshotFixtureProvider(),
                 new ArtemisJmsContainerSnapshotFixtureProvider(),
-                new PubSubGrpcSnapshotFixtureProvider()
+                new ArtemisJmsTriggerSnapshotFixtureProvider(),
+                new PubSubGrpcSnapshotFixtureProvider(),
+                new PubSubTriggerSnapshotFixtureProvider()
         ));
     }
 

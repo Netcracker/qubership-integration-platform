@@ -379,7 +379,7 @@ class EndpointMockTestingServiceTest {
                 }
             }
         }
-        throw new AssertionError("no application.yml on the classpath declares qip");
+        throw new AssertionError("no application.yml on the classpath declares cip");
     }
 
     private static EndpointInfo endpointInfo(String operationPath) {

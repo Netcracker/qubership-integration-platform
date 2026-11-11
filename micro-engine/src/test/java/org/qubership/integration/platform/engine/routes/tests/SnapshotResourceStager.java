@@ -27,7 +27,7 @@ final class SnapshotResourceStager implements AutoCloseable {
             .toAbsolutePath()
             .normalize();
     private static final Path STAGING_LOCK_FILE = CHAIN_TEMP_DIRECTORY.resolveSibling(
-            "qip-snapshot-chain-resources.lock"
+            "cip-snapshot-chain-resources.lock"
     );
     private static final ReentrantLock JVM_STAGING_LOCK = new ReentrantLock(true);
 

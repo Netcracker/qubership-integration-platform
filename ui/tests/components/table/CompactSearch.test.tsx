@@ -63,32 +63,23 @@ describe("CompactSearch", () => {
     expect(onChange).toHaveBeenCalledWith("query");
   });
 
-  it("calls onChange on Search button click", () => {
+  it("calls onChange on Search button click while empty", () => {
     const onChange = jest.fn();
     render(
-      <CompactSearch
-        value="query"
-        onChange={onChange}
-        placeholder="Search..."
-      />,
+      <CompactSearch value="" onChange={onChange} placeholder="Search..." />,
     );
     const button = screen.getByRole("button", { name: /search/i });
     fireEvent.click(button);
-    expect(onChange).toHaveBeenCalledWith("query");
+    expect(onChange).toHaveBeenCalledWith("");
   });
 
-  it("calls onChange with empty string when cleared with allowClear", () => {
+  it("calls onChange with empty string when Clear search is clicked", () => {
     const onChange = jest.fn();
     render(
-      <CompactSearch
-        value="x"
-        onChange={onChange}
-        placeholder="Search..."
-        allowClear
-      />,
+      <CompactSearch value="x" onChange={onChange} placeholder="Search..." />,
     );
-    const input = screen.getByDisplayValue("x");
-    fireEvent.change(input, { target: { value: "" } });
+    const button = screen.getByRole("button", { name: /clear search/i });
+    fireEvent.click(button);
     expect(onChange).toHaveBeenCalledWith("");
   });
 
@@ -101,7 +92,6 @@ describe("CompactSearch", () => {
         onChange={onChange}
         onClear={onClear}
         placeholder="Search..."
-        allowClear
       />,
     );
     const input = screen.getByDisplayValue("x");
@@ -124,11 +114,20 @@ describe("CompactSearch", () => {
     expect(wrapper).toHaveClass("my-search");
   });
 
-  it("Search button has aria-label", () => {
+  it("shows Search action while empty", () => {
     render(
       <CompactSearch value="" onChange={jest.fn()} placeholder="Search..." />,
     );
     expect(screen.getByRole("button", { name: /search/i })).toBeInTheDocument();
+  });
+
+  it("shows Clear search action when value is present", () => {
+    render(
+      <CompactSearch value="x" onChange={jest.fn()} placeholder="Search..." />,
+    );
+    expect(
+      screen.getByRole("button", { name: /clear search/i }),
+    ).toBeInTheDocument();
   });
 
   it("calls onSearchConfirm on Enter when provided", () => {
@@ -153,7 +152,7 @@ describe("CompactSearch", () => {
     const onChange = jest.fn();
     render(
       <CompactSearch
-        value="query"
+        value=""
         onChange={onChange}
         onSearchConfirm={onSearchConfirm}
         placeholder="Search..."
@@ -161,23 +160,7 @@ describe("CompactSearch", () => {
     );
     const button = screen.getByRole("button", { name: /search/i });
     fireEvent.click(button);
-    expect(onSearchConfirm).toHaveBeenCalledWith("query");
+    expect(onSearchConfirm).toHaveBeenCalledWith("");
     expect(onChange).not.toHaveBeenCalled();
-  });
-
-  it("allowClear=false does not show clear control on empty", () => {
-    const onChange = jest.fn();
-    render(
-      <CompactSearch
-        value=""
-        onChange={onChange}
-        placeholder="Search..."
-        allowClear={false}
-      />,
-    );
-    const input = screen.getByPlaceholderText("Search...");
-    expect(input).toBeInTheDocument();
-    fireEvent.change(input, { target: { value: "a" } });
-    expect(onChange).toHaveBeenCalledWith("a");
   });
 });

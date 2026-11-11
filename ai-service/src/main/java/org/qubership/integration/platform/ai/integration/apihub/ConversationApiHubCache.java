@@ -1,0 +1,68 @@
+package org.qubership.integration.platform.ai.integration.apihub;
+
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.Ticker;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import java.time.Duration;
+import java.util.Optional;
+import org.qubership.integration.platform.ai.configuration.AppConfig;
+import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStrings;
+
+/**
+ * Per-conversation cache of the latest importable API Hub hit from gather tools. Backfill only:
+ * used when the agent finds an operation via {@code searchApiOperations} /
+ * {@code getApiOperationSpecification} but forgets to pass {@code apiHubCandidate} on
+ * {@code captureRequirementDraft}. Not the source of truth for chat import (ADR 0001 decision 1);
+ * {@link org.qubership.integration.platform.ai.plan.RequirementDraft#apiHubCandidate()} is.
+ */
+@ApplicationScoped
+public class ConversationApiHubCache {
+
+  private static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofHours(1);
+
+  private final Cache<String, ApiHubRequirementRefs> byConversation;
+
+  public ConversationApiHubCache() {
+    this(DEFAULT_IDLE_TIMEOUT, Ticker.systemTicker());
+  }
+
+  @Inject
+  public ConversationApiHubCache(AppConfig appConfig) {
+    this(appConfig.conversation().idleTimeout(), Ticker.systemTicker());
+  }
+
+  ConversationApiHubCache(Duration idleTimeout, Ticker ticker) {
+    this.byConversation =
+        Caffeine.newBuilder().expireAfterAccess(idleTimeout).ticker(ticker).build();
+  }
+
+  public void rememberCandidate(String conversationId, ApiHubRequirementRefs refs) {
+    String cid = CatalogStrings.blankToNull(conversationId);
+    if (cid == null || refs == null || !refs.hasImportableRefs()) {
+      return;
+    }
+    byConversation.put(cid, refs);
+  }
+
+  public Optional<ApiHubRequirementRefs> latestCandidate(String conversationId) {
+    String cid = CatalogStrings.blankToNull(conversationId);
+    if (cid == null) {
+      return Optional.empty();
+    }
+    return Optional.ofNullable(byConversation.getIfPresent(cid))
+        .filter(ApiHubRequirementRefs::hasImportableRefs);
+  }
+
+  public void clear(String conversationId) {
+    String cid = CatalogStrings.blankToNull(conversationId);
+    if (cid != null) {
+      byConversation.invalidate(cid);
+    }
+  }
+
+  void cleanUp() {
+    byConversation.cleanUp();
+  }
+}

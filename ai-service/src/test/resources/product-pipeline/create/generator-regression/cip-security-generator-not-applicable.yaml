@@ -1,0 +1,59 @@
+caseId: cip-security-generator-not-applicable
+skillId: cip-security-generator
+expectedApplicability: NOT_APPLICABLE
+requirementBrief:
+  goal: Protect the HTTP trigger with RBAC.
+  inputs: []
+  constraints: []
+  assumptions: []
+  citations: []
+  summary: Protect the HTTP trigger with RBAC.
+  approvedDraftReference: approved-draft-cip-security-generator-not-applicable
+  approvedDraftText: Protect the HTTP trigger with RBAC.
+  facts: []
+upstreamArtifacts:
+  CONFIGURED_TRIGGER_SET:
+    schemaVersion: 1
+inputGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Security.Demo.Rbac
+    description: Protect external HTTP trigger with RBAC.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: http-trigger-1
+      type: http-trigger
+      label: GET /secure
+      parentNodeId: null
+      order: null
+      properties:
+        - key: externalRoute
+          value: "true"
+  edges: []
+capturedPatch:
+  patchId: cip-security-generator-no-changes
+  ownerCapabilityId: cip-security-generator
+  nodePatches: []
+  edgePatches: []
+  propertyPatches: []
+  chainPatches: []
+  usedKnowledgeRefs: []
+  rationale: No patch required for this requirement.
+expectedGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Security.Demo.Rbac
+    description: Protect external HTTP trigger with RBAC.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: http-trigger-1
+      type: http-trigger
+      label: GET /secure
+      parentNodeId: null
+      order: null
+      properties:
+        - key: externalRoute
+          value: "true"
+  edges: []

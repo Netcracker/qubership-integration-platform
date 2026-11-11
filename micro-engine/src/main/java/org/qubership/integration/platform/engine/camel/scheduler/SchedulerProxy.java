@@ -37,7 +37,12 @@ public class SchedulerProxy extends DelegatingScheduler {
     private boolean isSuspended = false;
 
     public SchedulerProxy(Scheduler scheduler) {
+        this(scheduler, false);
+    }
+
+    public SchedulerProxy(Scheduler scheduler, boolean suspended) {
         super(scheduler);
+        this.isSuspended = suspended;
     }
 
 

@@ -49,7 +49,8 @@ import static org.mockito.Mockito.when;
 class MicroDomainResourcesBuildServiceTest {
 
     private static final String RESOURCE_TEXT = "---\nkind: Deployment\n";
-    private static final String DEFAULT_IMAGE = "qip/micro-engine:test";
+    private static final String DEFAULT_IMAGE = "cip/micro-engine:test";
+    private static final String DEFAULT_LIMIT_MEMORY = "1280Mi";
 
     private final ChainReader chainReader = mock(ChainReader.class);
     private final IntegrationSystemReader integrationSystemReader = mock(IntegrationSystemReader.class);
@@ -73,7 +74,7 @@ class MicroDomainResourcesBuildServiceTest {
         resourceBuildService,
         resourceWriteService,
         buildContextFactory,
-        new ResourceBuildOptionsFactory(DEFAULT_IMAGE));
+        new ResourceBuildOptionsFactory(DEFAULT_IMAGE, DEFAULT_LIMIT_MEMORY));
 
     @TempDir
     private Path sourceRoot;
@@ -116,9 +117,9 @@ class MicroDomainResourcesBuildServiceTest {
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Consumer<File>> onWrite = ArgumentCaptor.forClass(Consumer.class);
         verify(resourceWriteService).writeResources(any(), any(), onWrite.capture());
-        File written = outputDirectory().resolve("Service-qip-engine-orders-domain.yaml").toFile();
+        File written = outputDirectory().resolve("Service-cip-engine-orders-domain.yaml").toFile();
         onWrite.getValue().accept(written);
-        verify(projectHelper).attachArtifact(project, "yaml", "Service-qip-engine-orders-domain", written);
+        verify(projectHelper).attachArtifact(project, "yaml", "Service-cip-engine-orders-domain", written);
     }
 
     @Test

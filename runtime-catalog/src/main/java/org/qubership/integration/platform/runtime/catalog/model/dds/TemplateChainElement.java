@@ -42,4 +42,8 @@ public class TemplateChainElement {
     public void addProperty(String key, Object value) {
         properties.put(key, value);
     }
+
+    // Lombok generates the members; javadoc runs no annotation processors, so the class must exist in source.
+    public static class TemplateChainElementBuilder {
+    }
 }

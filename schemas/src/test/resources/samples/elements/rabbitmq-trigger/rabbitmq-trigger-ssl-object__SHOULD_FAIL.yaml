@@ -1,0 +1,10 @@
+# $schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/rabbitmq-trigger-2
+id: "b54fe48a-c9fa-5bac-8666-8ff46ad4fa0f"
+name: Schema contract sample
+type: rabbitmq-trigger-2
+properties:
+  connectionSourceType: manual
+  addresses: localhost
+  exchange: orders
+  queues: orders
+  sslProtocol: { version: TLSv1.2 }

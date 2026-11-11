@@ -1,0 +1,68 @@
+caseId: cip-monitoring-generator-applicable
+skillId: cip-monitoring-generator
+expectedApplicability: APPLICABLE
+requirementBrief:
+  goal: Emit a log record for each request.
+  inputs: []
+  constraints: []
+  assumptions: []
+  citations: []
+  summary: Emit a log record for each request.
+  approvedDraftReference: approved-draft-cip-monitoring-generator-applicable
+  approvedDraftText: Emit a log record for each request.
+  facts:
+    - sourceFactId: monitoring-1
+      polarity: POSITIVE
+      kind: BEHAVIOR
+      capabilityKey: monitoring
+      text: Configure log-record message template.
+upstreamArtifacts:
+  CHAIN_STRUCTURE:
+    schemaVersion: 1
+inputGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Monitoring.Demo.Log
+    description: Log processed requests.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: log-1
+      type: log-record
+      label: Log request
+      parentNodeId: null
+      order: null
+      properties:
+        []
+  edges: []
+capturedPatch:
+  patchId: log-record-step
+  ownerCapabilityId: cip-monitoring-generator
+  nodePatches: []
+  edgePatches: []
+  propertyPatches:
+    - operation: ADD
+      targetNodeId: log-1
+      property:
+        key: message
+        value: "Processed request for ${{header.customerId}}"
+  chainPatches: []
+  usedKnowledgeRefs: []
+  rationale: Configure log-record message template for request observability.
+expectedGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Monitoring.Demo.Log
+    description: Log processed requests.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: log-1
+      type: log-record
+      label: Log request
+      parentNodeId: null
+      order: null
+      properties:
+        - key: message
+          value: "Processed request for ${{header.customerId}}"
+  edges: []

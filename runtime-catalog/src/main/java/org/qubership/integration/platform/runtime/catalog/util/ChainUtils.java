@@ -24,13 +24,16 @@ import org.qubership.integration.platform.runtime.catalog.exception.exceptions.C
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.Arrays;
 import java.util.Comparator;
+import java.util.List;
+import java.util.stream.Stream;
 
 public class ChainUtils {
 
@@ -76,7 +79,8 @@ public class ChainUtils {
 
     /**
      * Generate hash value of provided chain configuration files to support uniqueness of chain instance
-     * and reduce same chain states overwrites during import
+     * and reduce same chain states overwrites during import. The hash covers every regular file under
+     * the chain directory, including element property files in the {@code resources} subdirectory.
      *
      * @param filesDir chain configuration files from import
      * @param currentArtifactDescriptorVersion current cip build versions. Uses as salt for hash
@@ -84,24 +88,33 @@ public class ChainUtils {
      */
     public static String getChainFilesHash(File filesDir, String currentArtifactDescriptorVersion) throws NoSuchAlgorithmException, IOException {
         MessageDigest digest = MessageDigest.getInstance(HASH_ALGORITHM);
-        File[] files = filesDir.listFiles();
 
-        if (files == null || files.length == 0) {
+        if (filesDir == null || !filesDir.isDirectory()) {
+            return "0";
+        }
+
+        Path basePath = filesDir.toPath();
+        List<Path> files;
+        try (Stream<Path> stream = Files.walk(basePath)) {
+            files = stream.filter(Files::isRegularFile)
+                    .sorted(Comparator.comparing(path -> basePath.relativize(path).toString()))
+                    .toList();
+        }
+
+        if (files.isEmpty()) {
             return "0";
         }
 
         digest.update(currentArtifactDescriptorVersion.getBytes(StandardCharsets.UTF_8));
 
-        Arrays.sort(files, Comparator.comparing(File::getName));
-
-        for (File file : files) {
-            if (file.isFile()) {
-                try (FileInputStream fis = new FileInputStream(file)) {
-                    byte[] buffer = new byte[BUFFER_SIZE];
-                    int bytesRead;
-                    while ((bytesRead = fis.read(buffer)) != -1) {
-                        digest.update(buffer, 0, bytesRead);
-                    }
+        for (Path file : files) {
+            String relativeName = basePath.relativize(file).toString().replace(File.separatorChar, '/');
+            digest.update(relativeName.getBytes(StandardCharsets.UTF_8));
+            try (InputStream input = Files.newInputStream(file)) {
+                byte[] buffer = new byte[BUFFER_SIZE];
+                int bytesRead;
+                while ((bytesRead = input.read(buffer)) != -1) {
+                    digest.update(buffer, 0, bytesRead);
                 }
             }
         }

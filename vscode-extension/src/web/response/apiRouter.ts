@@ -41,6 +41,7 @@ import {
   getService,
   getServices,
   getSpecificationModel,
+  getSpecificationModelSource,
 } from "./serviceApiRead";
 import {
   createEnvironment,
@@ -69,7 +70,7 @@ import {
   handleImportSpecification,
   handleImportSpecificationGroup,
   handleReadSpecificationFileContent,
-  QipFileType,
+  CipFileType,
 } from "./serviceApiUtils";
 import {
   AppExtensionProps,
@@ -81,8 +82,6 @@ import {
   decodeBase64,
   resolveOutputFileUri,
 } from "../exportImageUtils";
-
-let lastWebviewPath: string | undefined = undefined;
 
 const pendingExportImagesByPanel = new WeakMap<
   WebviewPanel,
@@ -143,10 +142,6 @@ export async function getApiResponse(
       return getExtensionConfiguration(panel);
     case "navigate":
       if (message.payload?.path) {
-        if (lastWebviewPath === message.payload.path) {
-          return;
-        }
-        lastWebviewPath = message.payload.path;
         return await parseNavigatePath(
           message.payload.path,
           fileUri,
@@ -329,6 +324,8 @@ export async function getApiResponse(
         message.payload.serviceId,
         message.payload.groupId,
       );
+    case "getSpecificationModelSource":
+      return await getSpecificationModelSource(message.payload);
     case "getOperations":
       return await getOperations(fileUri, message.payload);
     case "getOperationInfo":
@@ -438,6 +435,11 @@ export async function getApiResponse(
       return undefined;
     }
 
+    // Part of the export protocol for extensions built on this one. This extension reads neither.
+    case "exportImagesStarted":
+    case "exportImagesItemDone":
+      return undefined;
+
     case "exportImagesComplete":
     case "exportImagesDone": {
       const state = panel ? exportProgressByPanel.get(panel) : undefined;
@@ -524,8 +526,6 @@ function getExtensionConfiguration(
     pendingExportImagesByPanel.delete(panel);
   }
   return {
-    // Stays "qip": the UI builds the /qip-routes/ prefix from it, and app.prefix is still qip.
-    appName: "qip",
     ...(exportImages
       ? { operation: "exportImages" as const, exportImages }
       : {}),
@@ -533,28 +533,24 @@ function getExtensionConfiguration(
 }
 
 export async function getNavigateUri(fileUri: vscode.Uri): Promise<string> {
-  try {
-    if (fileUri.path === CHAIN_DIFF_PATH) {
-      return CHAIN_DIFF_PATH;
-    }
+  if (fileUri.path === CHAIN_DIFF_PATH) {
+    return CHAIN_DIFF_PATH;
+  }
 
-    const fileType = await fileApi.getFileType(fileUri);
+  const fileType = await fileApi.getFileType(fileUri);
 
-    switch (fileType) {
-      case QipFileType.CONTEXT_SERVICE:
-        return await getContextServiceUri(fileUri);
-      case QipFileType.MCP_SERVICE:
-        return await getMcpServiceUri(fileUri);
-      case QipFileType.SERVICE:
-        return await getServiceUri(fileUri);
-      case QipFileType.CHAIN:
-        return await getChainUri(fileUri);
-      case QipFileType.UNKNOWN:
-      default:
-        return "/services";
-    }
-  } catch (e) {
-    return "/services";
+  switch (fileType) {
+    case CipFileType.CONTEXT_SERVICE:
+      return await getContextServiceUri(fileUri);
+    case CipFileType.MCP_SERVICE:
+      return await getMcpServiceUri(fileUri);
+    case CipFileType.SERVICE:
+      return await getServiceUri(fileUri);
+    case CipFileType.CHAIN:
+      return await getChainUri(fileUri);
+    case CipFileType.UNKNOWN:
+    default:
+      return "/services";
   }
 }
 

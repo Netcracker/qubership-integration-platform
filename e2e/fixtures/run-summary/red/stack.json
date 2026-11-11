@@ -1,0 +1,75 @@
+{
+  "run": "ms2bcy",
+  "startedAt": "2026-10-13T02:25:28.563Z",
+  "commit": {
+    "sha": "7cc5af2050140596219b7254ad64b31f73c03658",
+    "branch": "ci/e2e-nightly",
+    "dirty": false
+  },
+  "absent": [
+    {
+      "name": "brokers-seed",
+      "reason": "the brokers have no chart on the k8s target"
+    },
+    {
+      "name": "brokers-seed-teardown",
+      "reason": "the brokers have no chart on the k8s target"
+    },
+    {
+      "name": "brokers",
+      "reason": "the brokers have no chart on the k8s target"
+    },
+    {
+      "name": "brokers-restart",
+      "reason": "the brokers have no chart on the k8s target"
+    },
+    {
+      "name": "runtime-micro: specs/runtime/checkpoint-retry.spec.ts",
+      "reason": "classic-only: it deploys its own chains, calls the classic engine, or uses the testing service"
+    },
+    {
+      "name": "runtime-micro: specs/runtime/http-trigger-system-type.spec.ts",
+      "reason": "classic-only: it deploys its own chains, calls the classic engine, or uses the testing service"
+    },
+    {
+      "name": "runtime-micro: specs/runtime/logging-level.spec.ts",
+      "reason": "classic-only: it deploys its own chains, calls the classic engine, or uses the testing service"
+    },
+    {
+      "name": "runtime-micro: specs/runtime/metrics.spec.ts",
+      "reason": "classic-only: it deploys its own chains, calls the classic engine, or uses the testing service"
+    },
+    {
+      "name": "runtime-micro: specs/runtime/misc-elements.spec.ts",
+      "reason": "classic-only: it deploys its own chains, calls the classic engine, or uses the testing service"
+    },
+    {
+      "name": "runtime-micro: specs/runtime/placeholder.spec.ts",
+      "reason": "classic-only: it deploys its own chains, calls the classic engine, or uses the testing service"
+    },
+    {
+      "name": "runtime-micro: specs/runtime/script-external-library.spec.ts",
+      "reason": "classic-only: it deploys its own chains, calls the classic engine, or uses the testing service"
+    },
+    {
+      "name": "runtime-micro: specs/runtime/script-failures.spec.ts",
+      "reason": "classic-only: it deploys its own chains, calls the classic engine, or uses the testing service"
+    },
+    {
+      "name": "runtime-micro: specs/runtime/service-call-axes.spec.ts",
+      "reason": "classic-only: it deploys its own chains, calls the classic engine, or uses the testing service"
+    },
+    {
+      "name": "runtime-micro: specs/runtime/service-call-sync.spec.ts",
+      "reason": "classic-only: it deploys its own chains, calls the classic engine, or uses the testing service"
+    },
+    {
+      "name": "runtime-micro: specs/runtime/testing-service-cases.spec.ts",
+      "reason": "classic-only: it deploys its own chains, calls the classic engine, or uses the testing service"
+    },
+    {
+      "name": "runtime-micro: specs/runtime/testing-service-runs.spec.ts",
+      "reason": "classic-only: it deploys its own chains, calls the classic engine, or uses the testing service"
+    }
+  ]
+}

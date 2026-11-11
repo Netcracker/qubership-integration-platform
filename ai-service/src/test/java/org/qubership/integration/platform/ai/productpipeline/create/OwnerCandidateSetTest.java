@@ -1,0 +1,591 @@
+package org.qubership.integration.platform.ai.productpipeline.create;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.util.List;
+import java.util.Optional;
+import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
+import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPolicy;
+import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
+import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
+import org.qubership.integration.platform.ai.productpipeline.profile.ProfileStage;
+import org.qubership.integration.platform.ai.productpipeline.profile.RetryPolicy;
+import org.qubership.integration.platform.ai.productpipeline.profile.TerminalPolicy;
+
+class OwnerCandidateSetTest {
+
+  @Test
+  void returnCommandsIgnoreInlinedSpecificationsWhenSelectingAStage() throws Exception {
+    try (var source = getClass().getClassLoader().getResourceAsStream("product-pipelines/profiles/create-chain-v2.yaml")) {
+      var profile = org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileParser.parse(source);
+      var candidates = OwnerCandidateSet.deepen(profile, OwnerCandidateSet.firstLayer(profile, "uploaded-spec-import"));
+      String attachment = "\n\n---\n\n- `salesforce.json` (inlined)\n\n"
+          + "{\"openapi\":\"3.0.3\",\"info\":{\"description\":\"Go back to uploaded-spec-import specification\"}}";
+
+      assertEquals(List.of("requirement-discovery"),
+          OwnerCandidateSet.namedStages("Go back to requirement-discovery" + attachment, candidates));
+      assertTrue(OwnerCandidateSet.isBareGoBack("Go back" + attachment));
+      assertFalse(OwnerCandidateSet.requestsNamedStage("Preserve executionId" + attachment));
+      assertEquals(List.of("uploaded-spec-import", "requirement-discovery"),
+          OwnerCandidateSet.namedStages("Go back to requirement-discovery or uploaded-spec-import" + attachment, candidates));
+    }
+  }
+
+  @Test
+  void productionUploadImportRetainsTheConsumedDraftProducerDespiteOptionalBindings() throws Exception {
+    try (var source = getClass().getClassLoader().getResourceAsStream("product-pipelines/profiles/create-chain-v2.yaml")) {
+      var profile = org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileParser.parse(source);
+      var candidates = OwnerCandidateSet.firstLayer(profile, "uploaded-spec-import");
+
+      assertEquals(Optional.of("requirement-discovery"),
+          OwnerCandidateSet.draftProducerStageId(candidates, "uploaded-spec-import"));
+      assertEquals(Optional.of("requirement-discovery"),
+          OwnerCandidateSet.catalogBindingProducerStageId(candidates, "uploaded-spec-import"));
+    }
+  }
+
+  @Test
+  void firstLayerIncludesTheFailedStageAndProducersOfItsInputs() {
+    List<OwnerCandidate> first = OwnerCandidateSet.firstLayer(threeStageProfile(), "planning");
+    assertEquals(List.of("planning", "analysis"), OwnerCandidateSet.stageIds(first));
+    assertTrue(OwnerCandidateSet.format(first).contains("planning:"));
+    assertTrue(OwnerCandidateSet.format(first).contains("analysis:requirement-brief"));
+    assertFalse(OwnerCandidateSet.format(first).contains("discovery"));
+  }
+
+  @Test
+  void deepenAddsProducersOfTheFirstLayer() {
+    List<OwnerCandidate> first = OwnerCandidateSet.firstLayer(threeStageProfile(), "planning");
+    List<OwnerCandidate> deeper = OwnerCandidateSet.deepen(threeStageProfile(), first);
+    assertEquals(List.of("planning", "analysis", "discovery"), OwnerCandidateSet.stageIds(deeper));
+  }
+
+  @Test
+  void firstLayerIsOnlyTheFailedStageWhenInputsHaveNoProducer() {
+    List<OwnerCandidate> first = OwnerCandidateSet.firstLayer(threeStageProfile(), "discovery");
+    assertEquals(List.of("discovery"), OwnerCandidateSet.stageIds(first));
+  }
+
+  @Test
+  void previousGenerativeStageIsTheImmediateEarlierAuthoringStage() {
+    assertEquals(
+        Optional.of("analysis"),
+        OwnerCandidateSet.previousGenerativeStageId(threeStageProfile(), "planning"));
+    assertEquals(
+        Optional.of("discovery"),
+        OwnerCandidateSet.previousGenerativeStageId(threeStageProfile(), "analysis"));
+    assertEquals(
+        Optional.empty(),
+        OwnerCandidateSet.previousGenerativeStageId(threeStageProfile(), "discovery"));
+  }
+
+  @Test
+  void previousGenerativeStageSkipsImportAndMaterialization() {
+    assertEquals(
+        Optional.of("discovery"),
+        OwnerCandidateSet.previousGenerativeStageId(discoveryImportAnalysisProfile(), "analysis"));
+  }
+
+  @Test
+  void namedStagesMapsRequirementsGatheringOntoTheRequirementsStageInTheSet() {
+    List<OwnerCandidate> candidates =
+        List.of(
+            new OwnerCandidate("design-execution", "plan-validation-result"),
+            new OwnerCandidate("design-planning", "implementation-plan"),
+            new OwnerCandidate("requirement-analysis", "requirement-brief"));
+
+    assertEquals(
+        List.of("requirement-analysis"),
+        OwnerCandidateSet.namedStages(
+            "go back to requirements gathering and add that we need RBAC", candidates));
+    assertEquals(
+        List.of("requirement-analysis"),
+        OwnerCandidateSet.namedStages("back to brief", candidates));
+  }
+
+  @Test
+  void catalogBindingProducerPrefersRequirementDiscovery() {
+    List<OwnerCandidate> candidates =
+        List.of(
+            new OwnerCandidate("design-execution", "plan-validation-result"),
+            new OwnerCandidate("uploaded-spec-import", "requirement-draft"),
+            new OwnerCandidate("requirement-discovery", "requirement-draft"));
+
+    assertEquals(
+        Optional.of("requirement-discovery"),
+        OwnerCandidateSet.catalogBindingProducerStageId(candidates, "design-execution"));
+  }
+
+  @Test
+  void catalogBindingProducerIsEmptyWhenNoHintOwnerIsPresent() {
+    assertEquals(
+        Optional.empty(),
+        OwnerCandidateSet.catalogBindingProducerStageId(
+            List.of(
+                new OwnerCandidate("design-execution", "plan-validation-result"),
+                new OwnerCandidate("design-planning", "implementation-plan")),
+            "design-execution"));
+  }
+
+  @Test
+  void semanticRevisionProducerPrefersDesignInput() {
+    List<OwnerCandidate> candidates =
+        List.of(
+            new OwnerCandidate("design-execution", "plan-validation-result"),
+            new OwnerCandidate("design-planning", "implementation-plan"),
+            new OwnerCandidate("design-input", "ids-document"));
+
+    assertEquals(
+        Optional.of("design-input"),
+        OwnerCandidateSet.semanticRevisionProducerStageId(candidates, "design-execution"));
+  }
+
+  @Test
+  void semanticRevisionProducerFallsBackToTheRevisionType() {
+    assertEquals(
+        Optional.of("capture"),
+        OwnerCandidateSet.semanticRevisionProducerStageId(
+            List.of(
+                new OwnerCandidate("design-execution", "plan-validation-result"),
+                new OwnerCandidate("capture", "chain-semantic-revision")),
+            "design-execution"));
+  }
+
+  @Test
+  void namedStagesIsEmptyWhenTheFollowUpNamesAStageOutsideTheSet() {
+    List<OwnerCandidate> candidates =
+        List.of(
+            new OwnerCandidate("design-execution", "plan-validation-result"),
+            new OwnerCandidate("design-planning", "implementation-plan"));
+
+    assertEquals(
+        List.of(),
+        OwnerCandidateSet.namedStages("go back to compiler and add RBAC", candidates));
+    assertTrue(OwnerCandidateSet.requestsNamedStage("go back to compiler and add RBAC"));
+  }
+
+  @Test
+  void namedStagesIsAmbiguousWhenRequirementsMatchesTwoCandidates() {
+    List<OwnerCandidate> candidates =
+        List.of(
+            new OwnerCandidate("requirement-discovery", "requirement-draft"),
+            new OwnerCandidate("requirement-analysis", "requirement-brief"),
+            new OwnerCandidate("design-planning", "implementation-plan"));
+
+    assertEquals(
+        List.of("requirement-discovery", "requirement-analysis"),
+        OwnerCandidateSet.namedStages("go back to requirements and add RBAC", candidates));
+  }
+
+  @Test
+  void aCorrectionWithoutNamingAStageDoesNotLookLikeAStageRequest() {
+    assertEquals(
+        List.of(),
+        OwnerCandidateSet.namedStages(
+            "add rbac",
+            List.of(new OwnerCandidate("requirement-analysis", "requirement-brief"))));
+    assertFalse(OwnerCandidateSet.requestsNamedStage("add rbac"));
+    assertEquals(
+        List.of(),
+        OwnerCandidateSet.namedStages(
+            "go back to compiler and add RBAC", List.of(new OwnerCandidate("work", ""))));
+  }
+
+  @Test
+  void requestsNamedStageMatchesBareGoBackPhrases() {
+    assertTrue(OwnerCandidateSet.requestsNamedStage("go back"));
+    assertTrue(OwnerCandidateSet.requestsNamedStage("back"));
+    assertTrue(OwnerCandidateSet.requestsNamedStage("return to"));
+    assertTrue(OwnerCandidateSet.requestsNamedStage("reopen"));
+    assertFalse(OwnerCandidateSet.requestsNamedStage("callback"));
+  }
+
+  @Test
+  void namedStagesIsEmptyForABareGoBackAndIsBareGoBackIsTrue() {
+    List<OwnerCandidate> candidates =
+        List.of(
+            new OwnerCandidate("design-execution", "plan-validation-result"),
+            new OwnerCandidate("design-planning", "implementation-plan"),
+            new OwnerCandidate("requirement-analysis", "requirement-brief"));
+
+    assertEquals(List.of(), OwnerCandidateSet.namedStages("go back", candidates));
+    assertEquals(List.of(), OwnerCandidateSet.namedStages("reopen", candidates));
+    assertTrue(OwnerCandidateSet.isBareGoBack("go back"));
+    assertTrue(OwnerCandidateSet.isBareGoBack("back"));
+    assertTrue(OwnerCandidateSet.isBareGoBack("reopen"));
+    assertFalse(OwnerCandidateSet.isBareGoBack("go back to compiler and add RBAC"));
+    assertFalse(OwnerCandidateSet.isBareGoBack("add rbac"));
+  }
+
+  @Test
+  void clarifyRoleUsesAShortRoleNotTheStageId() {
+    assertEquals(
+        "the plan",
+        OwnerCandidateSet.clarifyRole(new OwnerCandidate("design-planning", "implementation-plan")));
+    assertEquals(
+        "requirements",
+        OwnerCandidateSet.clarifyRole(
+            new OwnerCandidate("requirement-analysis", "requirement-brief")));
+    assertEquals(
+        "design-planning:the plan,requirement-analysis:requirements",
+        OwnerCandidateSet.formatClarifyRoles(
+            List.of(
+                new OwnerCandidate("design-planning", "implementation-plan"),
+                new OwnerCandidate("requirement-analysis", "requirement-brief"))));
+  }
+
+  @Test
+  void preferNamedOwnerWinsOverAnEarliestSufficientDiagnosis() {
+    OwnerDiagnosis remapped =
+        OwnerDiagnosis.of("Design execution could not complete.", "design-planning");
+    List<OwnerCandidate> candidates =
+        List.of(
+            new OwnerCandidate("design-execution", "plan-validation-result"),
+            new OwnerCandidate("design-planning", "implementation-plan"),
+            new OwnerCandidate("requirement-analysis", "requirement-brief"));
+
+    OwnerDiagnosis named =
+        OwnerCandidateSet.preferNamedOwner(
+            remapped,
+            candidates,
+            "go back to requirements gathering and add that we need RBAC");
+
+    assertEquals("requirement-analysis", named.owner().orElseThrow());
+    assertFalse(named.ambiguous());
+  }
+
+  @Test
+  void preferNamedOwnerAsksWhenTwoRequirementStagesMatch() {
+    OwnerDiagnosis remapped = OwnerDiagnosis.of("The plan omitted RBAC.", "design-planning");
+    OwnerDiagnosis named =
+        OwnerCandidateSet.preferNamedOwner(
+            remapped,
+            List.of(
+                new OwnerCandidate("requirement-discovery", "requirement-draft"),
+                new OwnerCandidate("requirement-analysis", "requirement-brief"),
+                new OwnerCandidate("design-planning", "implementation-plan")),
+            "go back to requirements and add RBAC");
+
+    assertTrue(named.ambiguous());
+    assertTrue(named.owner().isEmpty());
+  }
+
+  @Test
+  void preferNamedOwnerKeepsTheAutomaticOwnerWhenNoStageIsNamed() {
+    OwnerDiagnosis remapped =
+        OwnerDiagnosis.of("Design execution could not complete.", "design-planning");
+
+    OwnerDiagnosis kept =
+        OwnerCandidateSet.preferNamedOwner(
+            remapped,
+            List.of(
+                new OwnerCandidate("design-execution", "plan-validation-result"),
+                new OwnerCandidate("design-planning", "implementation-plan")),
+            "add rbac");
+
+    assertEquals("design-planning", kept.owner().orElseThrow());
+  }
+
+  @Test
+  void ownerForBareGoBackPrefersTheDiagnosedOwnerThenBriefThenPlan() {
+    List<OwnerCandidate> candidates =
+        List.of(
+            new OwnerCandidate("design-execution", "plan-validation-result"),
+            new OwnerCandidate("design-planning", "implementation-plan"),
+            new OwnerCandidate("requirement-analysis", "requirement-brief"));
+
+    assertEquals(
+        "design-planning",
+        OwnerCandidateSet.ownerForBareGoBack("design-planning", candidates, "design-execution")
+            .orElseThrow());
+    assertEquals(
+        "requirement-analysis",
+        OwnerCandidateSet.ownerForBareGoBack(
+                "requirement-analysis", candidates, "design-execution")
+            .orElseThrow());
+    assertEquals(
+        "requirement-analysis",
+        OwnerCandidateSet.ownerForBareGoBack("design-execution", candidates, "design-execution")
+            .orElseThrow());
+    assertEquals(
+        "design-planning",
+        OwnerCandidateSet.ownerForBareGoBack(
+                "design-execution",
+                List.of(
+                    new OwnerCandidate("design-execution", "plan-validation-result"),
+                    new OwnerCandidate("design-planning", "implementation-plan")),
+                "design-execution")
+            .orElseThrow());
+  }
+
+  @Test
+  void preferEarliestSufficientOwnerMapsSecurityPolicyToThePlanProducer() {
+    OwnerDiagnosis remapped =
+        OwnerCandidateSet.selectOwner(
+            "Design execution could not complete.",
+            List.of(
+                new OwnerCandidate("design-execution", "plan-validation-result"),
+                new OwnerCandidate("design-planning", "implementation-plan"),
+                new OwnerCandidate("requirement-analysis", "requirement-brief")),
+            "design-execution",
+            RecoveryCause.of(RecoveryCauseCode.SECURITY_POLICY),
+            "");
+
+    assertEquals("design-execution", remapped.owner().orElseThrow());
+  }
+
+  @Test
+  void preferEarliestSufficientOwnerMapsMissingApprovedBriefFactsToTheBriefProducer() {
+    OwnerDiagnosis remapped =
+        OwnerCandidateSet.selectOwner(
+            "Design input needs more information.",
+            List.of(
+                new OwnerCandidate("design-input", "normalized-design-flow"),
+                new OwnerCandidate("requirement-analysis", "requirement-brief")),
+            "design-input",
+            RecoveryCause.of(RecoveryCauseCode.MISSING_BRIEF_FACTS),
+            "");
+
+    assertEquals("requirement-analysis", remapped.owner().orElseThrow());
+  }
+
+  @Test
+  void preferEarliestSufficientOwnerMapsEmbeddedSecurityCodesInEvidence() {
+    OwnerDiagnosis remapped =
+        OwnerCandidateSet.selectOwner(
+            "Validation failed.",
+            List.of(
+                new OwnerCandidate("design-execution", "plan-validation-result"),
+                new OwnerCandidate("design-planning", "implementation-plan"),
+                new OwnerCandidate("requirement-analysis", "requirement-brief")),
+            "design-execution",
+            RecoveryCause.of(RecoveryCauseCode.SECURITY_POLICY),
+            "");
+
+    assertEquals("design-execution", remapped.owner().orElseThrow());
+  }
+
+  @Test
+  void preferEarliestSufficientOwnerMapsPlanFillFindingsToThePlanProducer() {
+    OwnerDiagnosis remapped =
+        OwnerCandidateSet.selectOwner(
+            "Design execution could not complete.",
+            List.of(
+                new OwnerCandidate("design-execution", "plan-validation-result"),
+                new OwnerCandidate("design-planning", "implementation-plan"),
+                new OwnerCandidate("requirement-analysis", "requirement-brief")),
+            "design-execution",
+            RecoveryCause.of(RecoveryCauseCode.MISSING_REQUIRED_PROPERTY),
+            "");
+
+    assertEquals("design-execution", remapped.owner().orElseThrow());
+  }
+
+  @Test
+  void selectOwnerAsksWhenTheCauseDoesNotNameAProducer() {
+    OwnerDiagnosis asked =
+        OwnerCandidateSet.selectOwner(
+            "Either the brief or the plan could be wrong.",
+            List.of(
+                new OwnerCandidate("design-planning", "implementation-plan"),
+                new OwnerCandidate("requirement-analysis", "requirement-brief")),
+            "design-execution",
+            RecoveryCause.of(RecoveryCauseCode.VALIDATION_BLOCKER),
+            "");
+
+    assertTrue(asked.ambiguous());
+    assertTrue(asked.owner().isEmpty());
+  }
+
+  @Test
+  void selectOwnerIgnoresAModelAskWhenTheCauseNamesThePlan() {
+    OwnerDiagnosis selected =
+        OwnerCandidateSet.selectOwner(
+            "Either the brief or the plan could be wrong.",
+            List.of(
+                new OwnerCandidate("design-execution", "plan-validation-result"),
+                new OwnerCandidate("design-planning", "implementation-plan"),
+                new OwnerCandidate("requirement-analysis", "requirement-brief")),
+            "design-execution",
+            RecoveryCause.of(RecoveryCauseCode.SECURITY_POLICY),
+            "");
+
+    assertEquals("design-execution", selected.owner().orElseThrow());
+    assertFalse(selected.ambiguous());
+  }
+
+  @Test
+  void preferEarliestSufficientOwnerFallsBackToPlanWhenBriefIsAbsent() {
+    OwnerDiagnosis remapped =
+        OwnerCandidateSet.selectOwner(
+            "Design execution could not complete.",
+            List.of(
+                new OwnerCandidate("design-execution", "plan-validation-result"),
+                new OwnerCandidate("design-planning", "implementation-plan")),
+            "design-execution",
+            RecoveryCause.of(RecoveryCauseCode.SECURITY_POLICY),
+            "");
+
+    assertEquals("design-execution", remapped.owner().orElseThrow());
+  }
+
+  @Test
+  void preferEarliestSufficientOwnerKeepsSecurityPolicyOnThePlanProducer() {
+    OwnerDiagnosis remapped =
+        OwnerCandidateSet.selectOwner(
+            "The plan omitted RBAC.",
+            List.of(
+                new OwnerCandidate("design-execution", "plan-validation-result"),
+                new OwnerCandidate("design-planning", "implementation-plan"),
+                new OwnerCandidate("requirement-analysis", "requirement-brief")),
+            "design-execution",
+            RecoveryCause.of(RecoveryCauseCode.SECURITY_POLICY),
+            "");
+
+    assertEquals("design-execution", remapped.owner().orElseThrow());
+  }
+
+  @Test
+  void preferEarliestSufficientOwnerKeepsUnknownPropertyOnTheFailedExecutionStage() {
+    OwnerDiagnosis remapped =
+        OwnerCandidateSet.selectOwner(
+            "Retry the planning stage.",
+            List.of(
+                new OwnerCandidate("design-execution", "plan-validation-result"),
+                new OwnerCandidate("design-planning", "implementation-plan"),
+                new OwnerCandidate("requirement-analysis", "requirement-brief")),
+            "design-execution",
+            RecoveryCause.of(RecoveryCauseCode.UNKNOWN_PROPERTY),
+            "");
+
+    assertEquals("design-execution", remapped.owner().orElseThrow());
+  }
+
+  @Test
+  void planProducerMatchesImplementationPlanWhenItIsNotTheFirstProduce() {
+    ArtifactTypeRef contract = new ArtifactTypeRef("design-plan-contract", 1);
+    ArtifactTypeRef plan = new ArtifactTypeRef("implementation-plan", 2);
+    ArtifactTypeRef validation = new ArtifactTypeRef("plan-validation-result", 1);
+    ProductPipelineProfile profile =
+        new ProductPipelineProfile(
+            1,
+            "create",
+            "1",
+            List.of(),
+            List.of(
+                new ProfileStage(
+                    "design-planning",
+                    "design-planning",
+                    List.of(),
+                    List.of(contract, plan),
+                    null,
+                    null,
+                    new RetryPolicy(0, 1L)),
+                new ProfileStage(
+                    "design-execution",
+                    "design-execution",
+                    List.of(plan),
+                    List.of(validation),
+                    null,
+                    null,
+                    new RetryPolicy(0, 1L))),
+            new TerminalPolicy("design-execution", "DONE"),
+            List.of());
+
+    List<OwnerCandidate> first = OwnerCandidateSet.firstLayer(profile, "design-execution");
+
+    assertEquals(
+        Optional.of("design-planning"),
+        OwnerCandidateSet.planProducerStageId(first, "design-execution"));
+    assertEquals(
+        "implementation-plan", OwnerCandidateSet.recoveryArtifactType(List.of(contract, plan)));
+  }
+
+  private static ProductPipelineProfile threeStageProfile() {
+    ArtifactTypeRef draft = new ArtifactTypeRef("requirement-draft", 1);
+    ArtifactTypeRef brief = new ArtifactTypeRef("requirement-brief", 1);
+    ArtifactTypeRef validation = new ArtifactTypeRef("plan-validation-result", 1);
+    return new ProductPipelineProfile(
+        1,
+        "owner-candidates",
+        "1",
+        List.of(new ArtifactTypeRef("user-input", 1)),
+        List.of(
+            new ProfileStage(
+                "discovery",
+                "discovery-cap",
+                List.of(new ArtifactTypeRef("user-input", 1)),
+                List.of(draft),
+                null,
+                null,
+                new RetryPolicy(0, 1L)),
+            new ProfileStage(
+                "analysis",
+                "analysis-cap",
+                List.of(draft),
+                List.of(brief),
+                new ApprovalPolicy(brief),
+                null,
+                new RetryPolicy(0, 1L)),
+            new ProfileStage(
+                "planning",
+                "planning-cap",
+                List.of(brief),
+                List.of(validation),
+                null,
+                null,
+                new RetryPolicy(0, 1L))),
+        new TerminalPolicy("planning", "PLAN_APPROVED"),
+        List.of("discovery-cap", "analysis-cap", "planning-cap"));
+  }
+
+  private static ProductPipelineProfile discoveryImportAnalysisProfile() {
+    ArtifactTypeRef draft = new ArtifactTypeRef("requirement-draft", 1);
+    ArtifactTypeRef spec = new ArtifactTypeRef("imported-specification", 1);
+    ArtifactTypeRef brief = new ArtifactTypeRef("requirement-brief", 1);
+    return new ProductPipelineProfile(
+        1,
+        "import-skip",
+        "1",
+        List.of(new ArtifactTypeRef("user-input", 1)),
+        List.of(
+            new ProfileStage(
+                "discovery",
+                "discovery-cap",
+                List.of(new ArtifactTypeRef("user-input", 1)),
+                List.of(draft),
+                null,
+                null,
+                new RetryPolicy(0, 1L)),
+            new ProfileStage(
+                "import-stage",
+                "import-cap",
+                List.of(draft),
+                List.of(spec),
+                null,
+                null,
+                new RetryPolicy(0, 1L)),
+            new ProfileStage(
+                "uploaded-spec-import",
+                "uploaded-cap",
+                List.of(draft),
+                List.of(spec),
+                null,
+                null,
+                new RetryPolicy(0, 1L)),
+            new ProfileStage(
+                "analysis",
+                "analysis-cap",
+                List.of(draft),
+                List.of(brief),
+                new ApprovalPolicy(brief),
+                null,
+                new RetryPolicy(0, 1L))),
+        new TerminalPolicy("analysis", "PLAN_APPROVED"),
+        List.of("discovery-cap", "import-cap", "uploaded-cap", "analysis-cap"));
+  }
+}

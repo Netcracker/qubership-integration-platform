@@ -220,6 +220,10 @@ describe("TestCaseRunErrors loading", () => {
 
   it("should reload both requests on refresh", async () => {
     await renderWithErrors([validationError()]);
+    // The refresh button ignores clicks while the first load is in flight.
+    await waitFor(() =>
+      expect(screen.queryByTestId("table-loading")).not.toBeInTheDocument(),
+    );
     mockGetTestCaseRunErrors.mockClear();
     mockGetTestCaseRun.mockClear();
 

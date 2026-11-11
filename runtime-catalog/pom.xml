@@ -5,7 +5,7 @@
   <parent>
     <groupId>org.qubership.integration.platform</groupId>
     <artifactId>qip-parent-spring</artifactId>
-    <version>1.5.1-SNAPSHOT</version>
+    <version>1.7.1-SNAPSHOT</version>
     <relativePath>../parents/spring/pom.xml</relativePath>
   </parent>
 
@@ -18,12 +18,12 @@
   </description>
 
   <properties>
-    <revision>1.5.1</revision>
+    <revision>1.7.1</revision>
     <changelist>-SNAPSHOT</changelist>
 
     <graphql-java.version>21.5</graphql-java.version>
 
-    <qip.integration-build-pipeline.revision>1.5.1</qip.integration-build-pipeline.revision>
+    <qip.integration-build-pipeline.revision>1.7.1</qip.integration-build-pipeline.revision>
 
     <okhttp-bom.version>5.3.2</okhttp-bom.version>
   </properties>
@@ -241,6 +241,10 @@
   </dependencyManagement>
 
   <dependencies>
+    <dependency>
+      <groupId>com.netcracker.cloud.security.core.utils</groupId>
+      <artifactId>k8s-utils</artifactId>
+    </dependency>
     <!--    DbaaS dependencies    -->
     <dependency>
       <groupId>com.netcracker.cloud</groupId>

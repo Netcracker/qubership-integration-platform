@@ -82,8 +82,9 @@ export const ContextServiceParametersTab: React.FC<
   });
 
   const handleSave = async (): Promise<void> => {
-    await saveSystem();
-    setHasChanges(false);
+    if (await saveSystem()) {
+      setHasChanges(false);
+    }
   };
 
   if (loadingSystem)

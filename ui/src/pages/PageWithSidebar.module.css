@@ -27,6 +27,7 @@
   height: 40px;
   line-height: 40px;
   text-align: center;
+  color: var(--vscode-textLink-foreground);
   cursor: pointer;
 
   /* font-size: 16px; */

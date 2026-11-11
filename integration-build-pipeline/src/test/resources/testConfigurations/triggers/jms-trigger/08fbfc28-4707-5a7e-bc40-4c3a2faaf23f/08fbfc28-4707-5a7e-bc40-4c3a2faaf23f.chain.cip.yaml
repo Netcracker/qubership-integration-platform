@@ -1,0 +1,31 @@
+---
+id: 08fbfc28-4707-5a7e-bc40-4c3a2faaf23f
+$schema: http://qubership.org/schemas/product/qip/chain
+name: jms-trigger-anonymous-naming
+content:
+  labels: []
+  elements:
+  - id: 57b9f175-3144-5de0-aa4d-d91033490ee5
+    name: Anonymous naming queue
+    type: jms-trigger
+    properties:
+      acknowledgmentMode: AUTO_ACKNOWLEDGE
+      initialContextFactory: org.qubership.integration.platform.engine.routes.fixture.SnapshotJmsInitialContextFactory
+      providerUrl: snapshot:jms-trigger
+      connectionFactoryName: jms/BulkQuotationRequest/connectionfactory
+      destinationName: jms/snapshot/anonymous
+      destinationType: queue
+  - id: 312c3b12-de47-5588-8bfd-574cbefea262
+    name: Complete anonymous naming message
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 312c3b12-de47-5588-8bfd-574cbefea262.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: 57b9f175-3144-5de0-aa4d-d91033490ee5
+    to: 312c3b12-de47-5588-8bfd-574cbefea262
+  deployments:
+  - domain: default
+  deployAction: DEPLOY
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

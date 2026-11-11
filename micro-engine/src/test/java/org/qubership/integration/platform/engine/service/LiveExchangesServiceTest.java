@@ -20,6 +20,7 @@ import jakarta.persistence.EntityNotFoundException;
 import org.apache.camel.CamelContext;
 import org.apache.camel.Exchange;
 import org.apache.camel.spi.InflightRepository;
+import org.apache.camel.spi.Registry;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -39,6 +40,7 @@ import org.qubership.integration.platform.engine.service.debugger.ChainRuntimePr
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -60,6 +62,9 @@ class LiveExchangesServiceTest {
 
     @Mock
     ChainRuntimePropertiesService propertiesService;
+
+    @Mock
+    Registry registry;
 
     @Mock
     Exchange exchange;
@@ -174,6 +179,7 @@ class LiveExchangesServiceTest {
 
     @Test
     void shouldSetTerminatedExceptionWhenKillingExistingLiveExchange() {
+        stubDeployments("dep-1");
         when(camelContext.getInflightRepository()).thenReturn(inflightRepository);
 
         when(exchange.getExchangeId()).thenReturn("ex-1");
@@ -201,8 +207,22 @@ class LiveExchangesServiceTest {
     }
 
     @Test
-    void shouldThrowEntityNotFoundWhenNoLiveExchangeFound() {
+    void shouldThrowEntityNotFoundWhenDeploymentIsUnknown() {
+        stubDeployments("dep-1");
+
+        EntityNotFoundException ex = assertThrows(
+                EntityNotFoundException.class,
+                () -> service.killLiveExchangeById("dep-777", "ex-1")
+        );
+
+        assertEquals("No deployment found for id dep-777", ex.getMessage());
+    }
+
+    @Test
+    void shouldThrowEntityNotFoundWhenLiveExchangeIsUnknown() {
+        stubDeployments("dep-1");
         when(camelContext.getInflightRepository()).thenReturn(inflightRepository);
+        when(exchange.getExchangeId()).thenReturn("ex-other");
 
         InflightRepository.InflightExchange holder = mock(InflightRepository.InflightExchange.class);
         when(holder.getExchange()).thenReturn(exchange);
@@ -210,18 +230,24 @@ class LiveExchangesServiceTest {
         when(inflightRepository.browse()).thenReturn(List.of(holder));
 
         DeploymentInfo deploymentInfo = mock(DeploymentInfo.class);
-        when(deploymentInfo.getId()).thenReturn("dep-other");
+        when(deploymentInfo.getId()).thenReturn("dep-1");
 
         try (MockedStatic<MetadataUtil> metadataUtil = mockStatic(MetadataUtil.class)) {
             metadataUtil.when(() -> MetadataUtil.getBean(exchange, DeploymentInfo.class)).thenReturn(deploymentInfo);
 
             EntityNotFoundException ex = assertThrows(
                     EntityNotFoundException.class,
-                    () -> service.killLiveExchangeById("dep-777", "ex-1")
+                    () -> service.killLiveExchangeById("dep-1", "ex-1")
             );
 
-            assertTrue(ex.getMessage().contains("dep-777"));
+            assertEquals("No live exchange found for deployment id dep-1", ex.getMessage());
             verify(exchange, never()).setException(any());
         }
+    }
+
+    private void stubDeployments(String deploymentId) {
+        when(camelContext.getRegistry()).thenReturn(registry);
+        when(registry.findByType(DeploymentInfo.class))
+                .thenReturn(Set.of(DeploymentInfo.builder().id(deploymentId).build()));
     }
 }

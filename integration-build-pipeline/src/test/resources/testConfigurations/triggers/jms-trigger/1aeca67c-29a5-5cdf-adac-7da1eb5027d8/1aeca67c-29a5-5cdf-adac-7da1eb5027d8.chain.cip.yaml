@@ -1,0 +1,33 @@
+---
+id: 1aeca67c-29a5-5cdf-adac-7da1eb5027d8
+$schema: http://qubership.org/schemas/product/qip/chain
+name: jms-trigger-transacted
+content:
+  labels: []
+  elements:
+  - id: 75f92caa-0575-513b-8f3c-296253aaea26
+    name: JMS Trigger transacted
+    type: jms-trigger
+    properties:
+      acknowledgmentMode: SESSION_TRANSACTED
+      initialContextFactory: org.qubership.integration.platform.engine.routes.fixture.SnapshotJmsInitialContextFactory
+      providerUrl: snapshot:jms-trigger
+      connectionFactoryName: jms/BulkQuotationRequest/connectionfactory
+      destinationName: jms/snapshot/ack/transacted
+      destinationType: queue
+      username: snapshot
+      password: snapshot
+  - id: 0d9e64f0-8396-5b5c-b350-d0b05ddadbd0
+    name: Process JMS message
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 0d9e64f0-8396-5b5c-b350-d0b05ddadbd0.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: 75f92caa-0575-513b-8f3c-296253aaea26
+    to: 0d9e64f0-8396-5b5c-b350-d0b05ddadbd0
+  deployments:
+  - domain: default
+  deployAction: DEPLOY
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

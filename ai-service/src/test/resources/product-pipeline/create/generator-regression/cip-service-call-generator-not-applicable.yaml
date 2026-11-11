@@ -1,0 +1,57 @@
+caseId: cip-service-call-generator-not-applicable
+skillId: cip-service-call-generator
+expectedApplicability: NOT_APPLICABLE
+requirementBrief:
+  goal: Call cataloged HTTP GET /users.
+  inputs: []
+  constraints: []
+  assumptions: []
+  citations: []
+  summary: Call cataloged HTTP GET /users.
+  approvedDraftReference: approved-draft-cip-service-call-generator-not-applicable
+  approvedDraftText: Call cataloged HTTP GET /users.
+  facts: []
+upstreamArtifacts:
+  CHAIN_STRUCTURE:
+    schemaVersion: 1
+inputGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: ServiceCall.Demo.Users
+    description: Fetch users from cataloged HTTP API.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: call-1
+      type: service-call
+      label: GET /users
+      parentNodeId: null
+      order: null
+      properties:
+        []
+  edges: []
+capturedPatch:
+  patchId: cip-service-call-generator-no-changes
+  ownerCapabilityId: cip-service-call-generator
+  nodePatches: []
+  edgePatches: []
+  propertyPatches: []
+  chainPatches: []
+  usedKnowledgeRefs: []
+  rationale: No patch required for this requirement.
+expectedGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: ServiceCall.Demo.Users
+    description: Fetch users from cataloged HTTP API.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: call-1
+      type: service-call
+      label: GET /users
+      parentNodeId: null
+      order: null
+      properties:
+        []
+  edges: []

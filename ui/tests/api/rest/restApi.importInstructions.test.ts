@@ -14,7 +14,6 @@ jest.mock("axios-rate-limit", () => ({
 }));
 
 jest.mock("../../../src/appConfig", () => ({
-  getAppName: () => "cip",
   getConfig: () => ({ apiGateway: "https://api.example.com" }),
 }));
 

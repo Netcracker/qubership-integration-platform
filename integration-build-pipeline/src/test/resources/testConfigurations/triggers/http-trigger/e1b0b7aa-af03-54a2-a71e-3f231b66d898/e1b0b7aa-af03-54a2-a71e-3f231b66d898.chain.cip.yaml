@@ -1,0 +1,49 @@
+---
+id: e1b0b7aa-af03-54a2-a71e-3f231b66d898
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+name: http-trigger-schema
+content:
+  labels: []
+  elements:
+  - id: ab58f3e6-6c30-5f77-b885-0f78a04a66b8
+    name: HTTP Trigger
+    type: http-trigger
+    properties:
+      accessControlType: NONE
+      allowedContentTypes:
+      - application/json
+      chunked: true
+      connectTimeout: 120000
+      contextPath: schema-test
+      externalRoute: false
+      handleChainFailureAction: default
+      handleValidationAction: script
+      httpBinding: handlingHttpBinding
+      httpMethodRestrict: POST
+      idempotency:
+        enabled: true
+        keyExpiry: 600
+        keyExpression: ${jsonpath('$.id')}
+        contextExpression: http-schema
+        actionOnDuplicate: ignore
+      killSessionOnTimeout: false
+      privateRoute: false
+      receiveCorrelationId: false
+      rejectRequestIfNonNullBodyGetDelete: true
+      validationSchema: '{"type":"object","required":["id","value"],"properties":{"id":{"type":"string","minLength":1},"value":{"type":"integer","minimum":0}},"additionalProperties":false}'
+      handlerContainer:
+        script: exchange.getMessage().setBody('Invalid request')
+        exportFileExtension: groovy
+        propertiesToExportInSeparateFile: script
+  - id: ebb0d535-40ee-5b4d-b2f4-f1ac0c143c09
+    name: Process HTTP request
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: ebb0d535-40ee-5b4d-b2f4-f1ac0c143c09.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: ab58f3e6-6c30-5f77-b885-0f78a04a66b8
+    to: ebb0d535-40ee-5b4d-b2f4-f1ac0c143c09
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

@@ -39,6 +39,8 @@ allOf:
       properties:
         handleChainFailureAction:
           const: chain-call
+      required:
+        - handleChainFailureAction
     then:
       required:
         - chainFailureHandlerContainer

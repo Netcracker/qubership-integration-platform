@@ -16,11 +16,13 @@ import {
   ColumnsTypeWithSettings,
   useColumnSettingsBasedOnColumnsType,
 } from "../../components/table/useColumnSettingsButton.tsx";
-import { useTableConfiguration } from "../../components/table/useTableConfiguration.tsx";
+import {
+  SELECTION_COLUMN_WIDTH,
+  useTableConfiguration,
+} from "../../components/table/useTableConfiguration.tsx";
 import { getTestingPermissions } from "../../components/testing/testingPermissions.ts";
 import { RunStatusTag } from "../../components/testing/TestingTags.tsx";
 import { useTestingBulkActions } from "../../hooks/testing/useTestingBulkActions.ts";
-import { TESTING_SELECTION_COLUMN_WIDTH } from "../../hooks/testing/useTestingEntityList.ts";
 import { useNotificationService } from "../../hooks/useNotificationService.tsx";
 import { downloadFile } from "../../misc/download-utils.ts";
 import { formatOptional, formatTimestamp } from "../../misc/format-utils.ts";
@@ -28,6 +30,7 @@ import { toStringIds } from "../../misc/selection-utils.ts";
 import { RowLink } from "../../components/table/RowLink.tsx";
 import { TestingListActions } from "../../components/testing/TestingListActions.tsx";
 import { useTestingListToolbar } from "../../components/testing/useTestingListToolbar.tsx";
+import { ChainHeaderActions } from "../ChainHeaderActionsContext.tsx";
 
 const COLUMN_WIDTHS = {
   matcher: 260,
@@ -239,7 +242,7 @@ export const TestCaseRunErrors: React.FC = () => {
     orderedColumns,
     COLUMN_WIDTHS,
     {
-      selectionColumnWidth: TESTING_SELECTION_COLUMN_WIDTH,
+      selectionColumnWidth: SELECTION_COLUMN_WIDTH,
     },
     "testCaseRunErrorsTable",
   );
@@ -290,15 +293,6 @@ export const TestCaseRunErrors: React.FC = () => {
     leading: runSummary,
     columnSettingsButton,
     actions: toolbarActions,
-    registerInChainHeader: Boolean(chainId),
-    registerDependencies: [
-      isLoading,
-      chainId,
-      searchString,
-      selectedRowKeys,
-      run,
-      permissions,
-    ],
   });
 
   const caseRunTitle = run?.testCaseName ?? caseRunId ?? "";
@@ -361,6 +355,7 @@ export const TestCaseRunErrors: React.FC = () => {
 
   return chainId ? (
     <Flex vertical gap={8} style={{ flex: 1, minHeight: 0, minWidth: 0 }}>
+      <ChainHeaderActions>{toolbar}</ChainHeaderActions>
       {breadcrumb}
       {table}
     </Flex>
@@ -368,7 +363,6 @@ export const TestCaseRunErrors: React.FC = () => {
     <Flex vertical className={commonStyles.container}>
       <AdminToolsHeader
         title="Validation Errors"
-        iconName="carryOut"
         toolbar={toolbar}
       />
       {breadcrumb}

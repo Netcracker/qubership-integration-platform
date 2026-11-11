@@ -35,7 +35,8 @@ Please find the description for all available tools below:
 - ![shrink](img/shrink.svg) - collapse all existing containers in graph.
 - ![insert-row-right](img/insert-row-right.svg) - expand/hide right panel. The panel is indented to edit chain graph by its text representation.
 - ![insert-row-left](img/insert-row-left.svg) - expand/hide left panel.
-- ![fullscreen](img/fullscreen.svg) ![Exit full screen icon](img/fullscreen-exit.svg) - switch between full screen and collapsed process view. **`⛔ Not available via VS Code extension`**
+- ![fullscreen](img/fullscreen.svg) ![Exit full screen icon](img/fullscreen-exit.svg) - switch between full screen and collapsed process view. **`⛔ Not available via the VS Code extension`**
+- ![compass](img/compass.svg) - hides or shows the minimap in the upper-right corner of the graph.
 
 ### General Actions
 The next actions are available upper right corner:
@@ -56,13 +57,28 @@ The next actions are available upper right corner:
 * ![column-width](img/column-width.svg) - show sequence diagram based on the chain.
 
 ### Add Element to the Graph
-To add a new element, find the suitable one from the left library panel and then drag it to the graph space.
+To add a new element, find the suitable one from the left (elements library) panel and then drag it to the graph space.
+
+To add the element and connect it to an existing one in a single step, drop it on that element. The new element is created in the same swimlane as the element it was dropped on, and a connection from the existing element to the new one is added. See [Connect Elements](#connect-elements) for when a drop connects and when it nests.
 
 ### Place Element to the Containers
 To put the element into containers (e.g. [swimlanes](1__Elements_Library/8__Grouping/1__Swimlane/readme.md) and container-like element as [Loop](1__Elements_Library/1__Routing/8__Loop/readme.md), [Split](1__Elements_Library/1__Routing/4__Split/readme.md), etc.), simply drag the element from the graph or element table to the container.
 
 ### Connect Elements
-To connect the elements simply drop one element on another one or hover the mouse on the white dot (placed on the right border of the one element), click it and drag the connection line to the target element.
+To connect the elements:
+- simply drop one element on another one
+- or hover the mouse on the white dot (placed on the right border of the one element), click it and drag the connection line to the target element.
+
+A drop connects the elements instead of nesting them when the (target) element it lands on cannot hold the dropped one:
+
+- The target is not a container.
+- The target is a container whose allowed children do not include the dropped element type.
+
+>⚠️ **Preventing errors in elements connection**
+>
+> - Every connection of a moved element must lead to an element that is selected and dragged together with it. Otherwise the drop is rejected with an error. For example, in the chain **HTTP Trigger → Script → Service Call**, dragging only **Script** onto a non-container element is rejected, because **Script** is connected to **HTTP Trigger** and **Service Call**, which are not dragged with it.
+> - A moved element that already has an incoming connection keeps it, and no second connection is added.
+> - A moved element that is not allowed inside containers, or that has its input disabled, is rejected with an error when dropped on an element that cannot hold it.
 
 ### Edit Element
 To edit a particular element, either double-click the element or choose "**Edit**" option from the context menu, that could be requested via right-click on the element. It is also possible to control element's window size with ![arrows-alt](img/arrows-alt.svg) and ![shrink](img/shrink.svg) buttons.
@@ -92,12 +108,12 @@ When property record is expanded, it shows related element's information as well
 > ℹ️ **Note:** Please note, that this view might not contain property usage record when property participates in complex scenarios (e.g. when property is declared and then fetched via "GET" as a variable).
 
 ### Open Chain's Text View
-**`⛔ Not available via VS Code extension`**
+**`⛔ Not available via the VS Code extension`**
 
 Chain is also available in a text view, that could be used to compare one chain with another, find specific data or debugging. To open text view, simply click ![insert-row-right](img/insert-row-right.svg) to open right panel and then select respective tab with ![file](img/file.svg) icon.
 
 ### Generate Document by Template
-**`⛔ Not available via VS Code extension`**
+**`⛔ Not available via the VS Code extension`**
 
 To initiate document generation, click ![file](img/file.svg) **"Generate DDS"** on control panel, select desired template from the list, specify document name and click "**Generate**". System will show preview screen, where it is possible to get familiar with the finalized view of the document. Click "**Download**" to get the archive, that contains design document in .md format and other supplementary files, like pictures, etc. Data from the archive can be further processed by Markdown editors or processors to build proper human-readable document, presented on preview step.
 

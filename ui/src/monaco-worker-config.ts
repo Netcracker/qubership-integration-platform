@@ -1,7 +1,7 @@
 /**
  * Runtime configuration for Monaco editor workers (bundled build).
  * Call setMonacoWorkerBasePath() with the base URL of the directory containing
- * worker bundles (e.g. dist-lib/assets/monaco-work) so workers load from same-origin.
+ * worker bundles (e.g. dist-lib/assets/monaco-work). A base on another origin loads through a blob worker.
  */
 
 const WORKER_LABEL_TO_FILENAME: Record<string, string> = {
@@ -19,7 +19,10 @@ const WORKER_LABEL_TO_FILENAME: Record<string, string> = {
 
 let workerBaseUrl: string | null = null;
 
-type MonacoEnv = { getWorkerUrl?: (moduleId: string, label: string) => string };
+type MonacoEnv = {
+  getWorkerUrl?: (moduleId: string, label: string) => string;
+  getWorker?: (moduleId: string, label: string) => Worker;
+};
 declare global {
   interface Window {
     MonacoEnvironment?: MonacoEnv;
@@ -30,13 +33,22 @@ function installMonacoEnvironment(): void {
   if (typeof window === "undefined" || workerBaseUrl === null) return;
   if (window.MonacoEnvironment?.getWorkerUrl) return;
   const base = workerBaseUrl;
-  window.MonacoEnvironment = {
-    getWorkerUrl(_moduleId: string, label: string): string {
-      const filename =
-        WORKER_LABEL_TO_FILENAME[label] ??
-        WORKER_LABEL_TO_FILENAME.editorWorkerService;
-      return `${base}/${filename}`;
-    },
+  const getWorkerUrl = (_moduleId: string, label: string): string => {
+    const filename =
+      WORKER_LABEL_TO_FILENAME[label] ??
+      WORKER_LABEL_TO_FILENAME.editorWorkerService;
+    return `${base}/${filename}`;
+  };
+  window.MonacoEnvironment = { getWorkerUrl };
+  if (new URL(base, window.location.href).origin === window.location.origin) {
+    return;
+  }
+  // A VS Code webview serves resources from another origin, and the browser refuses a cross-origin
+  // worker script. A blob worker has the page's origin and loads the script with importScripts.
+  window.MonacoEnvironment.getWorker = (moduleId, label) => {
+    const script = `importScripts(${JSON.stringify(getWorkerUrl(moduleId, label))});`;
+    const blob = new Blob([script], { type: "text/javascript" });
+    return new Worker(URL.createObjectURL(blob), { name: label });
   };
 }
 

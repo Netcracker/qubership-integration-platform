@@ -14,10 +14,10 @@
 <step id="{{identifier}}">
     {{#if-property 'integrationOperationProtocolType' equals='http'}}
         <setProperty name="serviceCallAddress">
-            <simple>{{integrationAddress}}</simple>
+            <simple>{{#if-property 'systemType' equals='EXTERNAL'}}{{gatewayProtocol}}://{{gatewayUrl}}{{externalRoutePath}}{{else}}{{integrationAddress}}{{/if-property}}</simple>
         </setProperty>
         <setProperty name="serviceCallUrl">
-            <simple>{{integrationAddress}}{{escape (integeratePathAndQueryParams)}}</simple>
+            <simple>{{#if-property 'systemType' equals='EXTERNAL'}}{{gatewayProtocol}}://{{gatewayUrl}}{{externalRoutePath}}{{else}}{{integrationAddress}}{{/if-property}}{{escape (integeratePathAndQueryParams)}}</simple>
         </setProperty>
         <setProperty name="serviceCallMethod">
             <simple>{{property "integrationOperationMethod"}}</simple>
@@ -112,7 +112,7 @@
 
     {{#if-property 'integrationOperationProtocolType' equals='graphql'}}
         <setProperty name="serviceCallAddress">
-            <simple>{{integrationAddress}}</simple>
+            <simple>{{#if-property 'systemType' equals='EXTERNAL'}}{{gatewayProtocol}}://{{gatewayUrl}}{{externalRoutePath}}{{else}}{{integrationAddress}}{{/if-property}}</simple>
         </setProperty>
         <setProperty name="serviceCallMethod">
             <simple>{{property "integrationOperationMethod"}}</simple>
@@ -120,10 +120,6 @@
         <setProperty name="serviceCallPath">
             <simple>{{escape (property "integrationOperationPath")}}</simple>
         </setProperty>
-        <setProperty name="serviceCallVariablesHeader">
-            <simple>{{property 'integrationGqlVariablesHeader'}}</simple>
-        </setProperty>
-
         {{#each (property 'integrationOperationQueryParameters' raw='')}}
             <setProperty name="serviceCallQueryParameter_{{escape @key}}">
                 <simple>{{escape this}}</simple>
@@ -170,10 +166,10 @@
                 {{/if-property}}
 
                 <setProperty name="internalProperty_graphQLEndpointUri">
-                    <simple>graphql-custom:{{integrationAddress}}{{escape (manualQuery
+                    <simple>graphql-custom:{{#if-property 'systemType' equals='EXTERNAL'}}{{gatewayProtocol}}://{{gatewayUrl}}{{externalRoutePath}}{{else}}{{integrationAddress}}{{/if-property}}{{escape (manualQuery
                                                                               operationName=(property 'integrationGqlOperationName')
-                                                                              queryHeader=(property 'integrationGqlQueryHeader')
-                                                                              variablesHeader=(property 'integrationGqlVariablesHeader')
+                                                                              queryHeader="CamelGraphQLQuery"
+                                                                              variablesHeader="CamelGraphQLVariables"
                                                                               httpClientConfigurer=(identifier prefix='#'))}}
                     </simple>
                 </setProperty>
@@ -303,17 +299,22 @@
 
                     <removeHeader name="Content-Type"/>
 
-                    <toD uri="graphql-custom:{{integrationAddress}}{{escape
+                    <toD uri="graphql-custom:{{#if-property 'systemType' equals='EXTERNAL'}}{{gatewayProtocol}}://{{gatewayUrl}}{{externalRoutePath}}{{else}}{{integrationAddress}}{{/if-property}}{{escape
                             (manualQuery
                                     operationName=(property 'integrationGqlOperationName')
-                                    queryHeader=(property 'integrationGqlQueryHeader')
-                                    variablesHeader=(property 'integrationGqlVariablesHeader')
+                                    queryHeader="CamelGraphQLQuery"
+                                    variablesHeader="CamelGraphQLVariables"
                                     httpClientConfigurer=(identifier prefix='#'))}}"/>
                 {{/if-property}}
 
                 {{#if-property 'integrationOperationProtocolType' equals='amqp'}}
                     <process ref="messagingXHeadersPropagationProcessor"/>
-                    <process ref="rabbitMqSenderProcessor" />
+                    {{#if-property 'propagateContext' equals='true'}}
+                        <process ref="rabbitMqSenderProcessor" />
+                    {{/if-property}}
+                    {{#if-property 'propagateContext' not-equals='true'}}
+                        <removeHeader name="Authorization"/>
+                    {{/if-property}}
                     <toD uri="rabbitmq-custom:{{escape (property 'integrationOperationPath')}}{{escape
                             (manualQuery
                                     addresses=(integrationEndpoint)
@@ -504,8 +505,8 @@
         </doTry>
     {{/if-property}}
 
-    {{#if-property 'after' presented=''}}
-        <choice>
+    <choice>
+        {{#if-property 'after' presented=''}}
             {{#with-property 'after'}}
                 {{#if-property 'code' not-equals='default'}}
                     {{#if-property 'wildcard' equals='false'}}
@@ -587,16 +588,16 @@
                     </when>
                 {{/if-property}}
             {{/with-property}}
-            {{#if-property 'errorThrowing' equals='true'}}
-                <when>
-                    <simple>
-                        ${headers.CamelHttpResponseCode} range '400..599'
-                    </simple>
-                    <process ref="throwCaughtExceptionProcessor" />
-                </when>
-            {{/if-property}}
-        </choice>
-    {{/if-property}}
+        {{/if-property}}
+        {{#unless-default-handler}}
+            <when>
+                <simple>
+                    ${headers.CamelHttpResponseCode} range '400..599'{{#if-property 'handleValidationAction' presented=''}}{{#if-property 'handleValidationAction' not-equals='default'}} &amp;&amp; ${exchangeProperty.CamelExceptionCaught} !is 'org.qubership.integration.platform.engine.errorhandling.ResponseValidationException'{{/if-property}}{{/if-property}}
+                </simple>
+                <process ref="throwCaughtExceptionProcessor" />
+            </when>
+        {{/unless-default-handler}}
+    </choice>
 </step>
 
 <removeHeader name="CamelHttpUri"/>
@@ -613,5 +614,4 @@
 <removeProperty name="serviceCallBrokers"/>
 <removeProperty name="serviceCallExchange"/>
 <removeProperty name="serviceCallService"/>
-<removeProperty name="serviceCallVariablesHeader"/>
 <removeProperty name="serviceCallSkipEmptyQueryParams"/>

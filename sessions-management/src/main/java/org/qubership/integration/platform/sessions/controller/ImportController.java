@@ -34,7 +34,7 @@ import java.util.List;
 
 @Slf4j
 @RestController
-@RequestMapping("/v1/sessions/import")
+@RequestMapping({"/v1/sessions/import", "/api/v1/cip/sessions-management/sessions/import"})
 @Tag(name = "import-controller", description = "Import Controller")
 public class ImportController {
 

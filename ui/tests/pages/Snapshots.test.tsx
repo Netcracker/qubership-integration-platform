@@ -245,9 +245,7 @@ describe("Snapshots chain header toolbar", () => {
     expect(
       within(slot).getByPlaceholderText("Search snapshots..."),
     ).toBeInTheDocument();
-    expect(
-      within(slot).getByTestId("protected-btn-compare-selected-snapshots"),
-    ).toBeInTheDocument();
+    expect(within(slot).getByTestId("snapshots-compare")).toBeInTheDocument();
     expect(
       within(slot).getByTestId("protected-btn-delete-selected-snapshots"),
     ).toBeInTheDocument();
@@ -310,9 +308,7 @@ describe("Snapshots chain header toolbar", () => {
     });
 
     const slot = await waitFor(() => screen.getByTestId("chain-header-slot"));
-    const compareBtn = within(slot).getByTestId(
-      "protected-btn-compare-selected-snapshots",
-    );
+    const compareBtn = within(slot).getByTestId("snapshots-compare");
     expect(compareBtn).toBeDisabled();
 
     const rowA = screen.getByRole("row", { name: /snap-a/i });
@@ -321,7 +317,7 @@ describe("Snapshots chain header toolbar", () => {
     await waitFor(() => {
       expect(
         within(screen.getByTestId("chain-header-slot")).getByTestId(
-          "protected-btn-compare-selected-snapshots",
+          "snapshots-compare",
         ),
       ).toBeDisabled();
     });
@@ -332,7 +328,7 @@ describe("Snapshots chain header toolbar", () => {
     await waitFor(() => {
       expect(
         within(screen.getByTestId("chain-header-slot")).getByTestId(
-          "protected-btn-compare-selected-snapshots",
+          "snapshots-compare",
         ),
       ).not.toBeDisabled();
     });

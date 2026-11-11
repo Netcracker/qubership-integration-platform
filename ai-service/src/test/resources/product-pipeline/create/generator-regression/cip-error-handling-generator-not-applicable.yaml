@@ -1,0 +1,57 @@
+caseId: cip-error-handling-generator-not-applicable
+skillId: cip-error-handling-generator
+expectedApplicability: NOT_APPLICABLE
+requirementBrief:
+  goal: Catch exceptions with structured error handling.
+  inputs: []
+  constraints: []
+  assumptions: []
+  citations: []
+  summary: Catch exceptions with structured error handling.
+  approvedDraftReference: approved-draft-cip-error-handling-generator-not-applicable
+  approvedDraftText: Catch exceptions with structured error handling.
+  facts: []
+upstreamArtifacts:
+  CHAIN_STRUCTURE:
+    schemaVersion: 1
+inputGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Errors.Demo.Catch
+    description: Catch exceptions in flow.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: catch-shell
+      type: catch-2
+      label: Catch exceptions
+      parentNodeId: null
+      order: null
+      properties:
+        []
+  edges: []
+capturedPatch:
+  patchId: cip-error-handling-generator-no-changes
+  ownerCapabilityId: cip-error-handling-generator
+  nodePatches: []
+  edgePatches: []
+  propertyPatches: []
+  chainPatches: []
+  usedKnowledgeRefs: []
+  rationale: No patch required for this requirement.
+expectedGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Errors.Demo.Catch
+    description: Catch exceptions in flow.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: catch-shell
+      type: catch-2
+      label: Catch exceptions
+      parentNodeId: null
+      order: null
+      properties:
+        []
+  edges: []

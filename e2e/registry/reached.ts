@@ -16,9 +16,16 @@ import { test, type APIRequestContext } from "@playwright/test";
 import { REACHED_ANNOTATION } from "./elements.js";
 import { matchOperationPath, operationServices, type ServiceName } from "./operations.js";
 
-/** The path of a request, whether the caller has an absolute URL or a bare path. */
-function pathOf(url: string): string {
-  return url.startsWith("http://") || url.startsWith("https://") ? new URL(url).pathname : url;
+/** The proxy's `/e2e/svc/<service>` prefix, which reaches port 8080 of a Service on `k8s`. */
+const PROXIED_SERVICE = /^\/e2e\/svc\/[a-z0-9-]+(?=\/)/;
+
+/**
+ * The path a service serves a request on, whether the caller has an absolute URL or a bare path.
+ * A call through `/e2e/svc/<service>`, such as one to a micro domain's engine, loses that prefix.
+ */
+export function operationPathOf(url: string): string {
+  const path = url.startsWith("http://") || url.startsWith("https://") ? new URL(url).pathname : url;
+  return path.replace(PROXIED_SERVICE, "");
 }
 
 /**
@@ -35,7 +42,7 @@ function pathOf(url: string): string {
  */
 export function noteReached(service: ServiceName, method: string, url: string): void {
   try {
-    const key = matchOperationPath(service, method, pathOf(url));
+    const key = matchOperationPath(service, method, operationPathOf(url));
     if (key === undefined) return;
     const { annotations } = test.info();
     const recorded = annotations.some(

@@ -1,9 +1,93 @@
 export type ChatRole = "system" | "user" | "assistant";
 
+/** Display-only failure marker; never sent to the AI service. */
+export type ChatMessageVariant = "error";
+
+export interface ActivityStepPayload {
+  id: string;
+  kind: "skill" | "pipeline" | "tool" | "llm";
+  status: "running" | "completed" | "error" | "cancelled";
+  label?: string;
+  parentId?: string | null;
+}
+
+/** UI-only activity snapshot persisted with the assistant turn (not sent to the API). */
+export interface PersistedActivitySnapshot {
+  steps: ActivityStepPayload[];
+  summary: string;
+  collapsed: boolean;
+}
+
+export type CatalogSystemType = "INTERNAL" | "EXTERNAL";
+
+/** One uploaded specification listed on an import decision card. */
+export interface ChatDecisionSpec {
+  s3Key: string;
+  displayName: string;
+  systemType?: CatalogSystemType;
+}
+
+/** Server-owned decision (approval gate or clarification) rendered as a card in the transcript. */
+export interface ChatDecision {
+  /** Stable identity of the gate: reuse the server's value, never generate one client-side. */
+  id: string;
+  kind: "approve" | "clarify";
+  /** Server-authored question, already in the language of the conversation. */
+  question: string;
+  /** Approval binding. Present when kind === "approve". */
+  artifactType?: string;
+  artifactHash?: string;
+  revision?: number;
+  /** Clarification detail. Present when kind === "clarify". */
+  reason?: string;
+  missingEvidence?: string[];
+  /** Actions the gate accepts, in display order, e.g. ["approve", "request-changes"]. */
+  actions: string[];
+  /** Localized display labels; action IDs remain the command contract. */
+  actionLabels?: Record<string, string>;
+  /** Uploaded specifications for the import card. Absent on older servers. */
+  specs?: ChatDecisionSpec[];
+  /** Chains the export card offers for download in the browser. */
+  chainIds?: string[];
+  /** Contextual create-chain recovery authored and routed by the server. */
+  recovery?: {
+    category:
+      | "temporary-technical-failure"
+      | "regeneratable-execution-failure"
+      | "requirement-brief-defect"
+      | "design-artifact-defect"
+      | "plan-artifact-defect"
+      | "permanent-environment-failure"
+      | "internal-service-failure"
+      | "repair-allowance-required"
+      | "repeated-identical-failure"
+      | "unclassified-failure";
+    title: string;
+    summary: string;
+    preservedWork: string;
+    technicalDetails: string;
+    retryDelayMs?: number;
+    runId?: string;
+    failedStageId?: string;
+  };
+  /** Set once the reader answered; the card then renders frozen. */
+  answeredAction?: string;
+}
+
 export interface ChatMessage {
   id?: string;
   role: ChatRole;
   content: string;
+  /** Position of this user input in the server transcript, including approval commands. */
+  serverMessageIndex?: number;
+  /** When set to "error", the bubble is a turn-failure notice for the UI only. */
+  variant?: ChatMessageVariant;
+  /** Technical detail shown under the user-facing summary for error variants. */
+  detail?: string;
+  /** Collapsed activity for completed assistant turns (local session storage). */
+  activity?: PersistedActivitySnapshot;
+  /** Pending or answered decision gate riding on this message (UI-side data, not sent to the API). */
+  decision?: ChatDecision;
 }
 
 export interface ChatRequest {
@@ -15,6 +99,24 @@ export interface ChatRequest {
   maxTokens?: number;
   abortSignal?: AbortSignal;
   attachmentUrls?: string[];
+  /** S3/MinIO object keys from POST /api/v1/storage/objects */
+  attachmentObjectKeys?: string[];
+  /**
+   * Optional backend scenario override (Jackson enum name), e.g. IMPLEMENT_CHAIN.
+   */
+  scenarioHint?: string;
+  /**
+   * Answer to a decision card. When set, the server skips the scenario router and the
+   * intent classifier and runs the typed facade command directly.
+   */
+  decision?: {
+    action: string;
+    artifactType?: string;
+    artifactHash?: string;
+    revision?: number;
+    comment?: string;
+    specSystemTypes?: Record<string, CatalogSystemType>;
+  };
   context?: {
     type: "chain" | "service" | "operation";
     chainId?: string;
@@ -54,15 +156,37 @@ export interface ChatResponse {
   conversationId?: string;
 }
 
-export type StreamingChunkType = "done" | "error" | "progress";
+export interface ProviderCapabilities {
+  supportsStreaming: boolean;
+  supportsTools: boolean;
+}
 
-/** SSE chunks from POST /api/chat/with-progress */
+export type StreamingChunkType =
+  | "meta"
+  | "delta"
+  | "step"
+  | "decision"
+  | "catalog-changed"
+  | "done"
+  | "error";
+
+export interface CatalogChangePayload {
+  chainIds: string[] | null;
+  chainsListChanged: boolean;
+}
+
+/** SSE chunks from POST /api/v1/chat */
 export interface StreamingChunk {
   type: StreamingChunkType;
   usage?: ChatUsage;
   finishReason?: string;
   errorMessage?: string;
-  progressMessage?: string;
-  toolName?: string;
-  toolArgs?: Record<string, unknown>;
+  transportError?: boolean;
+  contentDelta?: string;
+  conversationId?: string;
+  userMessageIndex?: number;
+  step?: ActivityStepPayload;
+  decision?: ChatDecision;
+  supportsCatalogChangeEvents?: boolean;
+  catalogChange?: CatalogChangePayload;
 }

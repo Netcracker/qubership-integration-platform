@@ -1,0 +1,465 @@
+contractVersion: create-chain-compiler-contract/v1
+semanticSchemaVersion: chain-semantic-revision/v1
+elements:
+  http-trigger:
+    containmentRoles: {}
+    requiredProperties: []
+    materializationRuleId: materialize-http-trigger
+    runtimeDescriptor:
+      type: http-trigger
+      container: false
+      deprecated: false
+  chain-trigger-2:
+    containmentRoles: {}
+    requiredProperties: []
+    materializationRuleId: materialize-chain-trigger-2
+    runtimeDescriptor:
+      type: chain-trigger-2
+      container: false
+      deprecated: false
+  kafka-trigger-2:
+    containmentRoles: {}
+    requiredProperties:
+      - groupId
+    materializationRuleId: materialize-kafka-trigger-2
+    runtimeDescriptor:
+      type: kafka-trigger-2
+      container: false
+      deprecated: false
+  async-api-trigger:
+    containmentRoles: {}
+    requiredProperties:
+      - integrationOperationId
+    materializationRuleId: materialize-async-api-trigger
+    runtimeDescriptor:
+      type: async-api-trigger
+      container: false
+      deprecated: false
+  quartz-scheduler:
+    containmentRoles: {}
+    requiredProperties:
+      - cron
+      - deleteJob
+    materializationRuleId: materialize-quartz-scheduler
+    runtimeDescriptor:
+      type: quartz-scheduler
+      container: false
+      deprecated: false
+  jms-trigger:
+    containmentRoles: {}
+    requiredProperties:
+      - initialContextFactory
+      - providerUrl
+      - connectionFactoryName
+      - destinationName
+      - destinationType
+      - acknowledgmentMode
+    materializationRuleId: materialize-jms-trigger
+    runtimeDescriptor:
+      type: jms-trigger
+      container: false
+      deprecated: false
+  pubsub-trigger:
+    containmentRoles: {}
+    requiredProperties:
+      - destinationName
+      - projectId
+      - serviceAccountKey
+    materializationRuleId: materialize-pubsub-trigger
+    runtimeDescriptor:
+      type: pubsub-trigger
+      container: false
+      deprecated: false
+  rabbitmq-trigger-2:
+    containmentRoles: {}
+    requiredProperties:
+      - queues
+    materializationRuleId: materialize-rabbitmq-trigger-2
+    runtimeDescriptor:
+      type: rabbitmq-trigger-2
+      container: false
+      deprecated: false
+  sds-trigger:
+    containmentRoles: {}
+    requiredProperties:
+      - jobId
+      - prohibitParallelRun
+    materializationRuleId: materialize-sds-trigger
+    runtimeDescriptor:
+      type: sds-trigger
+      container: false
+      deprecated: false
+  sftp-trigger-2:
+    containmentRoles: {}
+    requiredProperties:
+      - connectUrl
+      - scheduler.cron
+    materializationRuleId: materialize-sftp-trigger-2
+    runtimeDescriptor:
+      type: sftp-trigger-2
+      container: false
+      deprecated: false
+  mcp-trigger:
+    containmentRoles: {}
+    requiredProperties:
+      - mcpServiceIds
+      - name
+      - description
+      - inputSchema
+    materializationRuleId: materialize-mcp-trigger
+    runtimeDescriptor:
+      type: mcp-trigger
+      container: false
+      deprecated: false
+  service-call:
+    containmentRoles: {}
+    requiredProperties:
+      - integrationOperationId
+    materializationRuleId: materialize-service-call
+    runtimeDescriptor:
+      type: service-call
+      container: false
+      deprecated: false
+  kafka-sender-2:
+    containmentRoles: {}
+    requiredProperties:
+      - connectionSourceType
+      - sslProtocol
+      - keySerializer
+      - valueSerializer
+    materializationRuleId: materialize-kafka-sender-2
+    runtimeDescriptor:
+      type: kafka-sender-2
+      container: false
+      deprecated: false
+  graphql-sender:
+    containmentRoles: {}
+    requiredProperties:
+      - query
+    materializationRuleId: materialize-graphql-sender
+    runtimeDescriptor:
+      type: graphql-sender
+      container: false
+      deprecated: false
+  http-sender:
+    containmentRoles: {}
+    requiredProperties:
+      - httpMethod
+    materializationRuleId: materialize-http-sender
+    runtimeDescriptor:
+      type: http-sender
+      container: false
+      deprecated: false
+  jms-sender:
+    containmentRoles: {}
+    requiredProperties:
+      - initialContextFactory
+      - providerUrl
+      - connectionFactoryName
+      - destinationName
+      - destinationType
+      - acknowledgmentMode
+      - jmsMessageType
+    materializationRuleId: materialize-jms-sender
+    runtimeDescriptor:
+      type: jms-sender
+      container: false
+      deprecated: false
+  mail-sender:
+    containmentRoles: {}
+    requiredProperties:
+      - from
+      - url
+    materializationRuleId: materialize-mail-sender
+    runtimeDescriptor:
+      type: mail-sender
+      container: false
+      deprecated: false
+  pubsub-sender:
+    containmentRoles: {}
+    requiredProperties:
+      - projectId
+      - destinationName
+      - serviceAccountKey
+    materializationRuleId: materialize-pubsub-sender
+    runtimeDescriptor:
+      type: pubsub-sender
+      container: false
+      deprecated: false
+  rabbitmq-sender-2:
+    containmentRoles: {}
+    requiredProperties: []
+    materializationRuleId: materialize-rabbitmq-sender-2
+    runtimeDescriptor:
+      type: rabbitmq-sender-2
+      container: false
+      deprecated: false
+  scs-sender:
+    containmentRoles: {}
+    requiredProperties:
+      - useCorrelationId
+      - operation
+    materializationRuleId: materialize-scs-sender
+    runtimeDescriptor:
+      type: scs-sender
+      container: false
+      deprecated: false
+  chain-call-2:
+    containmentRoles: {}
+    requiredProperties:
+      - elementId
+    materializationRuleId: materialize-chain-call-2
+    runtimeDescriptor:
+      type: chain-call-2
+      container: false
+      deprecated: false
+  script:
+    containmentRoles: {}
+    requiredProperties:
+      - script
+    materializationRuleId: materialize-script
+    runtimeDescriptor:
+      type: script
+      container: false
+      deprecated: false
+  mapper-2:
+    containmentRoles: {}
+    requiredProperties:
+      - mappingDescription
+    materializationRuleId: materialize-mapper-2
+    runtimeDescriptor:
+      type: mapper-2
+      container: false
+      deprecated: false
+  header-modification:
+    containmentRoles: {}
+    requiredProperties: []
+    materializationRuleId: materialize-header-modification
+    runtimeDescriptor:
+      type: header-modification
+      container: false
+      deprecated: false
+  context-storage:
+    containmentRoles: {}
+    requiredProperties: []
+    materializationRuleId: materialize-context-storage
+    runtimeDescriptor:
+      type: context-storage
+      container: false
+      deprecated: false
+  file-write:
+    containmentRoles: {}
+    requiredProperties:
+      - fileName
+    materializationRuleId: materialize-file-write
+    runtimeDescriptor:
+      type: file-write
+      container: false
+      deprecated: false
+  sftp-download:
+    containmentRoles: {}
+    requiredProperties:
+      - connectUrl
+    materializationRuleId: materialize-sftp-download
+    runtimeDescriptor:
+      type: sftp-download
+      container: false
+      deprecated: false
+  sftp-upload:
+    containmentRoles: {}
+    requiredProperties:
+      - connectUrl
+    materializationRuleId: materialize-sftp-upload
+    runtimeDescriptor:
+      type: sftp-upload
+      container: false
+      deprecated: false
+  log-record:
+    containmentRoles: {}
+    requiredProperties: []
+    materializationRuleId: materialize-log-record
+    runtimeDescriptor:
+      type: log-record
+      container: false
+      deprecated: false
+  checkpoint:
+    containmentRoles: {}
+    requiredProperties: []
+    materializationRuleId: materialize-checkpoint
+    runtimeDescriptor:
+      type: checkpoint
+      container: false
+      deprecated: false
+  condition:
+    containmentRoles:
+      if:
+        min: 1
+      else:
+        min: 0
+        max: 1
+    requiredProperties: []
+    materializationRuleId: materialize-condition
+    runtimeDescriptor:
+      type: condition
+      container: true
+      deprecated: false
+  if:
+    containmentRoles: {}
+    requiredProperties:
+      - condition
+    materializationRuleId: materialize-condition-if
+    runtimeDescriptor:
+      type: if
+      container: true
+      deprecated: false
+  else:
+    containmentRoles: {}
+    requiredProperties: []
+    materializationRuleId: materialize-condition-else
+    runtimeDescriptor:
+      type: else
+      container: true
+      minimumChildren: 1
+      deprecated: false
+  split-2:
+    containmentRoles:
+      split-element-2:
+        min: 0
+      main-split-element-2:
+        min: 1
+        max: 1
+    requiredProperties: []
+    materializationRuleId: materialize-split-2
+    runtimeDescriptor:
+      type: split-2
+      container: true
+      deprecated: false
+  split-element-2:
+    containmentRoles: {}
+    requiredProperties:
+      - splitName
+    materializationRuleId: materialize-split-element-2
+    runtimeDescriptor:
+      type: split-element-2
+      container: true
+      minimumChildren: 1
+      deprecated: false
+  main-split-element-2:
+    containmentRoles: {}
+    requiredProperties:
+      - splitName
+    materializationRuleId: materialize-main-split-element-2
+    runtimeDescriptor:
+      type: main-split-element-2
+      container: true
+      minimumChildren: 1
+      deprecated: false
+  split-async-2:
+    containmentRoles:
+      async-split-element-2:
+        min: 1
+    requiredProperties: []
+    materializationRuleId: materialize-split-async-2
+    runtimeDescriptor:
+      type: split-async-2
+      container: true
+      minimumChildren: 1
+      deprecated: false
+  async-split-element-2:
+    containmentRoles: {}
+    requiredProperties: []
+    materializationRuleId: materialize-async-split-element-2
+    runtimeDescriptor:
+      type: async-split-element-2
+      container: true
+      minimumChildren: 1
+      deprecated: false
+  loop-2:
+    containmentRoles: {}
+    requiredProperties:
+      - expression
+    materializationRuleId: materialize-loop-2
+    runtimeDescriptor:
+      type: loop-2
+      container: true
+      minimumChildren: 1
+      deprecated: false
+  try-catch-finally-2:
+    containmentRoles:
+      try-2:
+        min: 1
+        max: 1
+      catch-2:
+        min: 1
+      finally-2:
+        min: 0
+        max: 1
+    requiredProperties: []
+    materializationRuleId: materialize-try-catch-finally-2
+    runtimeDescriptor:
+      type: try-catch-finally-2
+      container: true
+      deprecated: false
+  catch-2:
+    containmentRoles: {}
+    requiredProperties:
+      - exception
+      - priority
+    materializationRuleId: materialize-catch-2
+    runtimeDescriptor:
+      type: catch-2
+      container: true
+      deprecated: false
+  reuse:
+    containmentRoles:
+      body:
+        min: 1
+    requiredProperties: []
+    materializationRuleId: materialize-reuse
+    runtimeDescriptor:
+      type: reuse
+      container: true
+      minimumChildren: 1
+      deprecated: false
+  reuse-reference:
+    containmentRoles: {}
+    requiredProperties:
+      - reuseElementId
+    materializationRuleId: materialize-reuse-reference
+    runtimeDescriptor:
+      type: reuse-reference
+      container: false
+      deprecated: false
+topology:
+  split-async-2:
+    supported: true
+    minimumBranches: 1
+    reconvergence: explicit
+  split-2:
+    supported: true
+    reconvergence: explicit
+  condition:
+    supported: true
+  loop-2:
+    supported: true
+  try-catch-finally-2:
+    supported: true
+  reconvergence:
+    supported: true
+    reconvergence: explicit
+  generic-barrier:
+    supported: false
+  generic-aggregate:
+    supported: false
+  choice:
+    supported: false
+requiredArtifacts:
+  - CHAIN_SEMANTIC_REVISION
+  - CHAIN_PLAN_GRAPH
+requiredAddons:
+  - cip-design-executor
+  - cip-structure-generator
+requiredKnowledgeFragments:
+  - validation-rules
+  - generator-contracts
+  - generator-rule-mapping

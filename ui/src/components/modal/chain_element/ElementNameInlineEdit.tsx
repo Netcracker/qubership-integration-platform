@@ -1,4 +1,4 @@
-import React, { forwardRef, useImperativeHandle, useRef } from "react";
+import React, { forwardRef, useImperativeHandle, useMemo, useRef } from "react";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 import type { InlineEditWithButtonsRef } from "../../InlineEditWithButtons.tsx";
 import { InlineEditWithButtons } from "../../InlineEditWithButtons.tsx";
@@ -7,6 +7,7 @@ import styles from "./ElementNameInlineEdit.module.css";
 
 export type ElementNameInlineEditRef = {
   syncIfEditing: () => string | null;
+  isEditing: () => boolean;
 };
 
 export type ElementNameInlineEditProps = {
@@ -23,11 +24,13 @@ export const ElementNameInlineEdit = forwardRef<
   { value, typeLabel, onSave, disabled = false },
   ref,
 ): React.ReactElement {
+  const values = useMemo(() => ({ name: value }), [value]);
   const innerRef = useRef<InlineEditWithButtonsRef<{ name: string }>>(null);
 
   useImperativeHandle(
     ref,
     () => ({
+      isEditing: () => innerRef.current?.isEditing() ?? false,
       syncIfEditing: (): string | null => {
         const values = innerRef.current?.getValuesAndClose();
         return values?.name ?? null;
@@ -39,7 +42,7 @@ export const ElementNameInlineEdit = forwardRef<
   return (
     <InlineEditWithButtons<{ name: string }>
       innerRef={innerRef}
-      values={{ name: value }}
+      values={values}
       disabled={disabled}
       submitOnBlur
       escapeToCancel

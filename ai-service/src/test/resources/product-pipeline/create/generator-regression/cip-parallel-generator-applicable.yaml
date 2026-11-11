@@ -1,0 +1,119 @@
+caseId: cip-parallel-generator-applicable
+skillId: cip-parallel-generator
+expectedApplicability: APPLICABLE
+requirementBrief:
+  goal: Fan out work across async parallel branches.
+  inputs: []
+  constraints: []
+  assumptions: []
+  citations: []
+  summary: Fan out work across async parallel branches.
+  approvedDraftReference: approved-draft-cip-parallel-generator-applicable
+  approvedDraftText: Fan out work across async parallel branches.
+  facts:
+    - sourceFactId: parallel-1
+      polarity: POSITIVE
+      kind: BEHAVIOR
+      capabilityKey: parallel
+      text: Add split-async topology with two async branches.
+upstreamArtifacts:
+  CHAIN_STRUCTURE:
+    schemaVersion: 1
+inputGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Parallel.Demo.Fanout
+    description: Fan out async parallel work.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: http-trigger-1
+      type: http-trigger
+      label: POST /fanout
+      parentNodeId: null
+      order: null
+      properties:
+        - key: externalRoute
+          value: "false"
+  edges: []
+capturedPatch:
+  patchId: split-async-topology
+  ownerCapabilityId: cip-parallel-generator
+  nodePatches:
+    - operation: ADD
+      node:
+        nodeId: split-async-1
+        type: split-async-2
+        label: Async parallel split
+        parentNodeId: null
+        order: null
+        properties: []
+    - operation: ADD
+      node:
+        nodeId: async-branch-a
+        type: async-split-element-2
+        label: Async branch A
+        parentNodeId: split-async-1
+        order: 0
+        properties: []
+    - operation: ADD
+      node:
+        nodeId: async-branch-b
+        type: async-split-element-2
+        label: Async branch B
+        parentNodeId: split-async-1
+        order: 1
+        properties: []
+  edgePatches:
+    - operation: ADD
+      edge:
+        edgeId: trigger-to-split-async
+        fromNodeId: http-trigger-1
+        toNodeId: split-async-1
+        scopeNodeId: null
+  propertyPatches: []
+  chainPatches: []
+  usedKnowledgeRefs: []
+  rationale: Add split-async-2 topology with two async-split-element-2 children and wire it from the existing HTTP trigger.
+expectedGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Parallel.Demo.Fanout
+    description: Fan out async parallel work.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: http-trigger-1
+      type: http-trigger
+      label: POST /fanout
+      parentNodeId: null
+      order: null
+      properties:
+        - key: externalRoute
+          value: "false"
+    - nodeId: split-async-1
+      type: split-async-2
+      label: Async parallel split
+      parentNodeId: null
+      order: null
+      properties:
+        []
+    - nodeId: async-branch-a
+      type: async-split-element-2
+      label: Async branch A
+      parentNodeId: split-async-1
+      order: 0
+      properties:
+        []
+    - nodeId: async-branch-b
+      type: async-split-element-2
+      label: Async branch B
+      parentNodeId: split-async-1
+      order: 1
+      properties:
+        []
+  edges:
+    - edgeId: trigger-to-split-async
+      fromNodeId: http-trigger-1
+      toNodeId: split-async-1
+      scopeNodeId: null

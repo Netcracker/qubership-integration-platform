@@ -40,7 +40,11 @@ import {
 } from "./importInstructionsHandlers.ts";
 import { useModalsContext } from "../../Modals.tsx";
 import { UploadImportInstructionsWarningModal } from "../modal/UploadImportInstructionsWarningModal.tsx";
-import { useTableConfiguration } from "../table/useTableConfiguration.tsx";
+import {
+  EXPAND_COLUMN_WIDTH,
+  SELECTION_COLUMN_WIDTH,
+  useTableConfiguration,
+} from "../table/useTableConfiguration.tsx";
 import {
   ColumnsTypeWithSettings,
   useColumnSettingsBasedOnColumnsType,
@@ -101,11 +105,6 @@ const UPLOAD_RESULT_ENTITY_ICON: Record<ImportEntityType, string> = {
 };
 
 const UPLOAD_RESULT_ENTITY_ORDER = Object.values(ImportEntityType);
-
-/** Injected by rc-table; must match expandable.columnWidth and scroll.x. */
-const IMPORT_INSTRUCTIONS_EXPAND_COLUMN_WIDTH = 48;
-/** Explicit width so scroll.x includes the selection column. */
-const IMPORT_INSTRUCTIONS_SELECTION_COLUMN_WIDTH = 48;
 
 const ENTITY_ICON: Record<InstructionEntityType, string> = {
   Chain: "link",
@@ -489,7 +488,7 @@ export const ImportInstructions: React.FC = () => {
   const columns: ColumnsTypeWithSettings<InstructionRow> = useMemo(() => {
     return [
       {
-        title: "Id",
+        title: "ID",
         dataIndex: "id",
         key: "id",
         settings: {
@@ -689,8 +688,8 @@ export const ImportInstructions: React.FC = () => {
       modifiedWhen: 160,
     },
     {
-      expandColumnWidth: IMPORT_INSTRUCTIONS_EXPAND_COLUMN_WIDTH,
-      selectionColumnWidth: IMPORT_INSTRUCTIONS_SELECTION_COLUMN_WIDTH,
+      expandColumnWidth: EXPAND_COLUMN_WIDTH,
+      selectionColumnWidth: SELECTION_COLUMN_WIDTH,
     },
     "importInstructionsTable",
   );
@@ -700,7 +699,7 @@ export const ImportInstructions: React.FC = () => {
       selectedRowKeys,
       onChange: (keys) => setSelectedRowKeys(keys ?? []),
       getCheckboxProps: (record) => ({ disabled: record.isGroup }),
-      columnWidth: IMPORT_INSTRUCTIONS_SELECTION_COLUMN_WIDTH,
+      columnWidth: SELECTION_COLUMN_WIDTH,
     }),
     [selectedRowKeys],
   );
@@ -711,8 +710,7 @@ export const ImportInstructions: React.FC = () => {
       search={{
         value: searchTerm,
         onChange: setSearchTerm,
-        placeholder: "Search...",
-        allowClear: true,
+        placeholder: "Search import instructions...",
       }}
       filterButton={filterButton}
       columnSettingsButton={columnSettingsWithTestId(columnSettingsButton)}
@@ -775,7 +773,6 @@ export const ImportInstructions: React.FC = () => {
     <Flex vertical className={commonStyles.container}>
       <AdminToolsHeader
         title="Import Instructions"
-        iconName="importInstructions"
         toolbar={importInstructionsToolbar}
       />
 
@@ -797,7 +794,7 @@ export const ImportInstructions: React.FC = () => {
           onChange={handleConfiguredTableChange}
           expandable={{
             expandIcon: treeExpandIcon(),
-            columnWidth: IMPORT_INSTRUCTIONS_EXPAND_COLUMN_WIDTH,
+            columnWidth: EXPAND_COLUMN_WIDTH,
             defaultExpandAllRows: true,
             defaultExpandedRowKeys: ["Chain", "Service", "Common Variable"],
           }}
@@ -896,7 +893,7 @@ export const AddInstructionModal: React.FC<AddInstructionModalProps> = ({
       >
         <Form.Item
           name="id"
-          label="Id"
+          label="ID"
           rules={[{ required: true, message: "Id is required" }]}
         >
           <Input placeholder="Enter id" />
@@ -967,7 +964,7 @@ export const UploadInstructionsModal: React.FC<
   >(
     () => [
       {
-        title: "Id",
+        title: "ID",
         dataIndex: "id",
         key: "id",
         render: (_name: unknown, row: UploadInstructionResultRow) =>
@@ -1007,7 +1004,7 @@ export const UploadInstructionsModal: React.FC<
       status: 200,
     },
     {
-      expandColumnWidth: IMPORT_INSTRUCTIONS_EXPAND_COLUMN_WIDTH,
+      expandColumnWidth: EXPAND_COLUMN_WIDTH,
     },
   );
 
@@ -1081,7 +1078,7 @@ export const UploadInstructionsModal: React.FC<
           components={uploadInstructionsComponents}
           expandable={{
             expandIcon: treeExpandIcon<UploadInstructionResultRow>(),
-            columnWidth: IMPORT_INSTRUCTIONS_EXPAND_COLUMN_WIDTH,
+            columnWidth: EXPAND_COLUMN_WIDTH,
             defaultExpandAllRows: true,
           }}
         />

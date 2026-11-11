@@ -18,7 +18,6 @@ package org.qubership.integration.platform.parsers.model.asyncapi;
 
 import lombok.Getter;
 import lombok.Setter;
-import org.qubership.integration.platform.parsers.model.asyncapi.components.SchemaObject;
 
 import java.util.List;
 import java.util.Map;
@@ -27,8 +26,8 @@ import java.util.Map;
 @Setter
 public class Message {
     private String name;
-    private SchemaObject headers;
-    private SchemaObject payload;
+    private Map<String, Object> headers;
+    private Map<String, Object> payload;
     private List<Map<String, Object>> oneOf;
     private List<Map<String, Object>> allOf;
     private List<Map<String, Object>> anyOf;

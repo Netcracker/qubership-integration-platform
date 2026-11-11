@@ -20,11 +20,15 @@ tags:
   name: actions-log-export-controller
 - description: Bulk Deployment Controller
   name: bulk-deployment-controller
+- description: Bulk Deployment Controller V2
+  name: bulk-deployment-controller-v-2
+- description: Chain Access Control Controller
+  name: chain-access-control-controller
 - description: Chain Controller
   name: chain-controller
 - description: Chain Design Controller
   name: chain-design-controller
-- description: Chain Roles Controller
+- description: Deprecated Chain Roles Controller
   name: chain-roles-controller
 - description: Common Variables Controller
   name: common-variables-controller
@@ -34,8 +38,6 @@ tags:
   name: compiled-library-controller
 - description: Context System Controller
   name: context-system-controller
-- description: Custom Resource Build and Deploy Controller
-  name: custom-resource-controller
 - description: Dependency Controller
   name: dependency-controller
 - description: Deployment Controller
@@ -121,7 +123,7 @@ paths:
     post:
       deprecated: true
       description: Get action logs
-      operationId: findBySearchRequest_3
+      operationId: findBySearchRequest_1
       requestBody:
         content:
           application/json:
@@ -192,7 +194,7 @@ paths:
                 $ref: "#/components/schemas/ChainRolesResponse"
           description: OK
       tags:
-      - chain-roles-controller
+      - chain-access-control-controller
     put:
       description: Make a bulk update on roles configuration for http triggers
       operationId: updateRoles
@@ -209,7 +211,7 @@ paths:
         "204":
           description: No Content
       tags:
-      - chain-roles-controller
+      - chain-access-control-controller
   /v1/catalog/chains/access-control/redeploy:
     put:
       description: Make a bulk redeploy for chains specified in the request
@@ -227,7 +229,7 @@ paths:
         "204":
           description: No Content
       tags:
-      - chain-roles-controller
+      - chain-access-control-controller
   /v1/catalog/chains/deployments/bulk:
     post:
       description: (Re)deploy chains in bulk mode
@@ -251,8 +253,9 @@ paths:
       - bulk-deployment-controller
   /v1/catalog/chains/roles:
     post:
+      deprecated: true
       description: Get all chains with http trigger roles
-      operationId: findBySearchRequest_1
+      operationId: findBySearchRequestDeprecated
       parameters:
       - description: Whether include only http triggers with selected implemented
           service
@@ -278,8 +281,9 @@ paths:
       tags:
       - chain-roles-controller
     put:
+      deprecated: true
       description: Make a bulk update on roles configuration for http triggers
-      operationId: updateRoles_1
+      operationId: updateRolesDeprecated
       requestBody:
         content:
           application/json:
@@ -296,8 +300,9 @@ paths:
       - chain-roles-controller
   /v1/catalog/chains/roles/redeploy:
     put:
+      deprecated: true
       description: Make a bulk redeploy for chains specified in the request
-      operationId: bulkRedeploy_1
+      operationId: bulkRedeployDeprecated
       requestBody:
         content:
           application/json:
@@ -330,7 +335,7 @@ paths:
       - deployment-controller
     get:
       description: Get all deployments for specified chain
-      operationId: findAllByChainId_1
+      operationId: findAllByChainId
       parameters:
       - description: Chain id
         in: path
@@ -351,7 +356,7 @@ paths:
       - deployment-controller
     post:
       description: Create deployment for the chain
-      operationId: create_5
+      operationId: create_2
       parameters:
       - description: Chain id
         in: path
@@ -408,7 +413,7 @@ paths:
   /v1/catalog/chains/{chainId}/deployments/{deploymentId}:
     delete:
       description: Delete specific deployment for the chain
-      operationId: deleteById_3
+      operationId: deleteById_2
       parameters:
       - description: Chain id
         in: path
@@ -429,7 +434,7 @@ paths:
       - deployment-controller
     get:
       description: Get particular deployment of the chain
-      operationId: findById_5
+      operationId: findById_3
       parameters:
       - description: Chain id
         in: path
@@ -511,7 +516,7 @@ paths:
   /v1/catalog/chains/{chainId}/snapshots/{snapshotId}:
     delete:
       description: Delete specified snapshot
-      operationId: deleteById_1
+      operationId: deleteById
       parameters:
       - description: Chain id
         in: path
@@ -532,7 +537,7 @@ paths:
       - snapshot-controller
     get:
       description: Get particular snapshot
-      operationId: findById_2
+      operationId: findById_1
       parameters:
       - description: Chain id
         in: path
@@ -983,6 +988,22 @@ paths:
           description: OK
       tags:
       - engine-controller
+  /v1/catalog/domains/{domainName}:
+    delete:
+      description: Delete Camel-K Integration resource of the domain
+      operationId: deleteDomain
+      parameters:
+      - description: Engine domain name
+        in: path
+        name: domainName
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+      tags:
+      - engine-controller
   /v1/catalog/domains/{domainName}/deployments/count:
     get:
       description: Get amount of deployments on specified domain
@@ -1247,7 +1268,7 @@ paths:
     post:
       deprecated: true
       description: Import chains from file
-      operationId: importFile_1
+      operationId: importFile
       parameters:
       - description: Import requests
         in: query
@@ -1623,7 +1644,7 @@ paths:
       - mcp-system-controller
     post:
       description: Create MCP system
-      operationId: create_4
+      operationId: create
       requestBody:
         content:
           application/json:
@@ -1780,7 +1801,7 @@ paths:
       - mcp-system-controller
     put:
       description: Update MCP system
-      operationId: update_2
+      operationId: update
       parameters:
       - in: path
         name: id
@@ -1962,7 +1983,7 @@ paths:
       - chain-controller
     post:
       description: Create a new chain
-      operationId: create_2
+      operationId: create_4
       requestBody:
         content:
           application/json:
@@ -2012,7 +2033,7 @@ paths:
   /v1/chains/diff:
     post:
       description: Find differences between chains/snapshots
-      operationId: difference_1
+      operationId: difference
       requestBody:
         content:
           application/json:
@@ -2130,7 +2151,7 @@ paths:
   /v1/chains/{chainId}:
     delete:
       description: Delete chain
-      operationId: deleteById
+      operationId: deleteById_1
       parameters:
       - description: Chain id
         in: path
@@ -2145,7 +2166,7 @@ paths:
       - chain-controller
     get:
       description: Find chain with its elements
-      operationId: findById_1
+      operationId: findById_2
       parameters:
       - description: Chain id
         in: path
@@ -2183,7 +2204,7 @@ paths:
       x-api-kind: bwc
     put:
       description: Update existing chain
-      operationId: update_1
+      operationId: update_2
       parameters:
       - description: Chain id
         in: path
@@ -2262,7 +2283,7 @@ paths:
       - dependency-controller
     get:
       description: Find all dependencies by chain
-      operationId: findAllByChainId
+      operationId: findAllByChainId_1
       parameters:
       - description: Chain id
         in: path
@@ -2310,7 +2331,7 @@ paths:
     delete:
       deprecated: true
       description: Delete specific dependency in the chain
-      operationId: deleteById_2
+      operationId: deleteById_3
       parameters:
       - description: Chain id
         in: path
@@ -3118,7 +3139,7 @@ paths:
   /v1/common-variables:
     delete:
       description: Delete set of variables
-      operationId: deleteVariables_2
+      operationId: deleteVariables_1
       parameters:
       - description: Set of variables to remove
         in: query
@@ -3136,7 +3157,7 @@ paths:
       x-api-kind: bwc
     get:
       description: Get all common variables
-      operationId: getVariables_2
+      operationId: getVariables_1
       responses:
         "200":
           content:
@@ -3150,7 +3171,7 @@ paths:
       - common-variables-controller
     post:
       description: Add new common variable(s)
-      operationId: addVariables_2
+      operationId: addVariables_1
       requestBody:
         content:
           application/json:
@@ -3296,96 +3317,6 @@ paths:
       tags:
       - common-variables-controller
       x-api-kind: bwc
-  /v1/cr:
-    post:
-      description: Build K8s resources for specified chain snapshots
-      operationId: buildResource
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ResourceBuildRequest"
-        required: true
-      responses:
-        "200":
-          content:
-            application/yaml:
-              schema:
-                type: string
-          description: OK
-      tags:
-      - custom-resource-controller
-  /v1/cr/deploy:
-    post:
-      description: Deploy as Camel-K Integration resource
-      operationId: deployResource
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ResourceDeployRequest"
-        required: true
-      responses:
-        "200":
-          description: OK
-      tags:
-      - custom-resource-controller
-  /v1/cr/deploy-chains:
-    post:
-      description: Deploy with creation of snapshots as Camel-K Integration resource
-      operationId: deployChains
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/DeployWithSnapshotCreationRequest"
-        required: true
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/BulkDeploymentResponse"
-          description: OK
-      tags:
-      - custom-resource-controller
-  /v1/cr/{name}:
-    delete:
-      description: Delete Camel-K Integration resource
-      operationId: deleteResource
-      parameters:
-      - in: path
-        name: name
-        required: true
-        schema:
-          type: string
-      responses:
-        "200":
-          description: OK
-      tags:
-      - custom-resource-controller
-  /v1/cr/{name}/{snapshotId}:
-    delete:
-      description: Delete integration chain snapshot from Camel-K resource
-      operationId: deleteSnapshotFromResource
-      parameters:
-      - in: path
-        name: name
-        required: true
-        schema:
-          type: string
-      - in: path
-        name: snapshotId
-        required: true
-        schema:
-          type: string
-      responses:
-        "200":
-          description: OK
-      tags:
-      - custom-resource-controller
   /v1/design-generator/chains/{chainId}:
     get:
       deprecated: true
@@ -3815,7 +3746,7 @@ paths:
       - folder-controller
     put:
       description: Update specified folder
-      operationId: update
+      operationId: update_1
       parameters:
       - description: Folder id
         in: path
@@ -4610,7 +4541,7 @@ paths:
   /v1/secured-variables:
     delete:
       description: Delete set of secured variables
-      operationId: deleteVariables_1
+      operationId: deleteVariables
       parameters:
       - description: Set of names of secured variables
         in: query
@@ -4628,7 +4559,7 @@ paths:
       - secured-variable-controller
     get:
       description: Get all secured variables names
-      operationId: getVariables_1
+      operationId: getVariables
       responses:
         "200":
           content:
@@ -4643,7 +4574,7 @@ paths:
       - secured-variable-controller
     post:
       description: Add new secured variable(s)
-      operationId: addVariables_1
+      operationId: addVariables
       requestBody:
         content:
           application/json:
@@ -5261,6 +5192,27 @@ paths:
           description: OK
       tags:
       - actions-log-controller-v2
+  /v2/catalog/chains/deployments/bulk:
+    post:
+      description: Deploy with creation of snapshots as Camel-K Integration resource
+      operationId: deployChains
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeployWithSnapshotCreationRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BulkDeploymentResponse"
+          description: OK
+      tags:
+      - bulk-deployment-controller-v-2
   /v2/catalog/snapshots/bulk-delete:
     post:
       description: Bulk delete snapshots
@@ -5282,7 +5234,7 @@ paths:
   /v2/catalog/snapshots/{snapshotId}/full:
     get:
       description: Get snapshot
-      operationId: findById_3
+      operationId: findById_5
       parameters:
       - description: Snapshot id
         in: path
@@ -5335,7 +5287,7 @@ paths:
   /v2/folders:
     post:
       description: Create a new folder
-      operationId: create
+      operationId: create_5
       requestBody:
         content:
           application/json:
@@ -5684,7 +5636,7 @@ paths:
   /v2/secured-variables:
     delete:
       description: Delete secured variables from multiple specified secrets
-      operationId: deleteVariables
+      operationId: deleteVariables_2
       requestBody:
         content:
           application/json:
@@ -5708,7 +5660,7 @@ paths:
       - secured-variable-controller-v-2
     get:
       description: Get all secured variables names from all secrets
-      operationId: getVariables
+      operationId: getVariables_2
       responses:
         "200":
           content:
@@ -5740,7 +5692,7 @@ paths:
       - secured-variable-controller-v-2
     post:
       description: Add new secured variables
-      operationId: addVariables
+      operationId: addVariables_2
       requestBody:
         content:
           application/json:
@@ -5823,7 +5775,7 @@ paths:
     post:
       description: Import chains and related to them services and variables from an
         archive file
-      operationId: importFile
+      operationId: importFile_1
       parameters:
       - description: Import request object
         in: query
@@ -5888,9 +5840,9 @@ paths:
       x-api-kind: bwc
   /v3/import/chains/diff:
     post:
-      description: Find differences between the chain stored in the QIP database and
+      description: Find differences between the chain stored in the CIP database and
         the imported one
-      operationId: difference
+      operationId: difference_1
       requestBody:
         content:
           multipart/form-data:
@@ -6320,17 +6272,6 @@ components:
           - FAILED_SNAPSHOT
           - CREATED
           - IGNORED
-    CapabilitiesOptions:
-      type: object
-      properties:
-        add:
-          type: array
-          items:
-            type: string
-        drop:
-          type: array
-          items:
-            type: string
     CatalogItem:
       type: object
       description: Catalog item response object
@@ -7067,45 +7008,6 @@ components:
           $ref: "#/components/schemas/ElementDiagramOperation"
           description: "Other operations, optional parameter. If null - will be used\
             \ primaryOperation for all elements"
-    ContainerOptions:
-      type: object
-      properties:
-        allowPrivilegeEscalation:
-          type: boolean
-        args:
-          type: array
-          items:
-            type: string
-        capabilities:
-          $ref: "#/components/schemas/CapabilitiesOptions"
-        image:
-          type: string
-        imagePullPolicy:
-          type: string
-          enum:
-          - Always
-          - Never
-          - IfNotPresent
-        limit:
-          $ref: "#/components/schemas/Limits"
-        readOnlyRootFilesystem:
-          type: boolean
-        request:
-          $ref: "#/components/schemas/Limits"
-        runAsGroup:
-          type: integer
-          format: int32
-        runAsNonRoot:
-          type: boolean
-        runAsUser:
-          type: integer
-          format: int32
-        seccompProfileType:
-          type: string
-          enum:
-          - RuntimeDefault
-          - Unconfined
-          - Localhost
     ContextSystemRequestDTO:
       type: object
       properties:
@@ -7473,6 +7375,13 @@ components:
           type: string
           description: "Domain which was used to deploy to, usually \"default\""
           pattern: "^[-._a-zA-Z0-9]+$"
+        domainType:
+          type: string
+          description: Type of the domain the caller intends. Absent means CLASSIC.
+            MICRO on a domain the catalog has not discovered creates that micro domain
+          enum:
+          - CLASSIC
+          - MICRO
         name:
           type: string
           description: Name
@@ -8905,15 +8814,6 @@ components:
             enum:
             - FULL
             - SIMPLE
-    HealthOptions:
-      type: object
-      properties:
-        liveness:
-          $ref: "#/components/schemas/ProbeOptions"
-        readiness:
-          $ref: "#/components/schemas/ProbeOptions"
-        startup:
-          $ref: "#/components/schemas/ProbeOptions"
     ImportAsyncAcknowledge:
       type: object
       description: Import accepted status object
@@ -9378,27 +9278,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ImportVariableResult"
-    IntegrationsConfigurationOptions:
-      type: object
-      properties:
-        camelKSourcesUtilized:
-          type: boolean
-        configurationConfigMapNeeded:
-          type: boolean
-        configurationLocation:
-          type: string
-        libraryDefinitionsEnabled:
-          type: boolean
     JsonNode: {}
-    JvmOptions:
-      type: object
-      properties:
-        args:
-          type: array
-          items:
-            type: string
-        jar:
-          type: string
     LibraryElementGroup:
       type: object
       description: Group of libraries elements (descriptors)
@@ -9445,13 +9325,6 @@ components:
           description: Library elements groups (folders)
           items:
             $ref: "#/components/schemas/LibraryElementGroup"
-    Limits:
-      type: object
-      properties:
-        cpu:
-          type: string
-        memory:
-          type: string
     ListFolderRequest:
       type: object
       description: List folder request object
@@ -9659,26 +9532,6 @@ components:
         groupsRemoved:
           type: boolean
           description: Whether groups were removed from the chain
-    MonitoringOptions:
-      type: object
-      properties:
-        enabled:
-          type: boolean
-        interval:
-          type: string
-    MountOptions:
-      type: object
-      properties:
-        emptyDirs:
-          type: array
-          items:
-            type: string
-          uniqueItems: true
-        resources:
-          type: array
-          items:
-            type: string
-          uniqueItems: true
     MoveFolderRequest:
       type: object
       description: Move folder request object
@@ -9786,33 +9639,6 @@ components:
         type:
           type: string
           description: Inner element type
-    ProbeOptions:
-      type: object
-      properties:
-        enabled:
-          type: boolean
-        failureThreshold:
-          type: integer
-          format: int32
-        initialDelay:
-          type: integer
-          format: int32
-        period:
-          type: integer
-          format: int32
-        port:
-          type: integer
-          format: int32
-        probe:
-          type: string
-        schema:
-          type: string
-        successThreshold:
-          type: integer
-          format: int32
-        timeout:
-          type: integer
-          format: int32
     PropertyCondition:
       type: object
       description: Property validation condition
@@ -9848,66 +9674,6 @@ components:
           description: 'List of conditions '
           items:
             $ref: "#/components/schemas/PropertyCondition"
-    ResourceBuildOptions:
-      type: object
-      properties:
-        container:
-          $ref: "#/components/schemas/ContainerOptions"
-        environment:
-          type: object
-          additionalProperties:
-            type: string
-        health:
-          $ref: "#/components/schemas/HealthOptions"
-        integrations:
-          $ref: "#/components/schemas/IntegrationsConfigurationOptions"
-        jvm:
-          $ref: "#/components/schemas/JvmOptions"
-        language:
-          type: string
-        monitoring:
-          $ref: "#/components/schemas/MonitoringOptions"
-        mount:
-          $ref: "#/components/schemas/MountOptions"
-        name:
-          type: string
-        namespace:
-          type: string
-        replicas:
-          type: integer
-          format: int32
-        service:
-          $ref: "#/components/schemas/ServiceOptions"
-        serviceAccount:
-          type: string
-    ResourceBuildRequest:
-      type: object
-      properties:
-        options:
-          $ref: "#/components/schemas/ResourceBuildOptions"
-        snapshotIds:
-          type: array
-          items:
-            type: string
-    ResourceDeployRequest:
-      type: object
-      properties:
-        mode:
-          type: string
-          enum:
-          - REWRITE
-          - APPEND
-        name:
-          type: string
-          minLength: 1
-        snapshotIds:
-          type: array
-          items:
-            type: string
-          minItems: 1
-      required:
-      - name
-      - snapshotIds
     RolloutImportConfigurationItem:
       type: object
       properties:
@@ -10070,11 +9836,6 @@ components:
           - MAAS_BY_CLASSIFIER
         systemId:
           type: string
-    ServiceOptions:
-      type: object
-      properties:
-        enabled:
-          type: boolean
     Snapshot:
       type: object
       properties:

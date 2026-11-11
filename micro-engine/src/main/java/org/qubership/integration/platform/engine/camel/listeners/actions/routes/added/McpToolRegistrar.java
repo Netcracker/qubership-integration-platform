@@ -24,6 +24,7 @@ import org.qubership.integration.platform.engine.metadata.util.MetadataUtil;
 import org.qubership.integration.platform.engine.model.ChainElementType;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.StreamSupport;
 
 @Slf4j
@@ -92,6 +93,11 @@ public class McpToolRegistrar implements EventProcessingAction<CamelEvent.RouteA
                     exchange.getExchangeExtension().setFromRouteId(route.getId());
                     exchange.getIn().setBody(arguments.args());
                 });
+                Exception exception = result.getException();
+                if (exception != null) {
+                    return ToolResponse.error(
+                            Objects.toString(exception.getMessage(), exception.getClass().getName()));
+                }
                 return hasOutputSchema
                         ? ToolResponse.structuredSuccess(result.getMessage().getBody())
                         : ToolResponse.success(result.getMessage().getBody(String.class));

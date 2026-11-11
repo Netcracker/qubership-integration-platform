@@ -34,7 +34,7 @@ import static org.mockito.Mockito.*;
 
 class IstioRoutesRegistrationServiceTest {
 
-    private static final String NAMESPACE = "qip";
+    private static final String NAMESPACE = "cip";
     private static final String BASE_PATH = "/api/v1";
     private static final String CLOUD_SERVICE_NAME = "engine-service";
     private static final String CHAIN_ID = "8a7f3c1e-2b4d-4e6f-9a0b-1c2d3e4f5a6b";

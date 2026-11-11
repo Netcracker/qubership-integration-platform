@@ -92,6 +92,8 @@ properties:
         type: string
         title: Scheme
         description: Schema for input message validation.
+      validationSchemaFilename:
+        $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/resource-reference-validation-schema"
       httpBinding:
         type: string
         default: handlingHttpBinding
@@ -104,9 +106,8 @@ definitions:
         type: string
         title: URI
       httpMethodRestrict:
-        type: string
         title: HTTP Methods
-        pattern: "^$|^(POST|GET|PUT|DELETE|PATCH|HEAD|OPTIONS)(,(POST|GET|PUT|DELETE|PATCH|HEAD|OPTIONS))*$"
+        $ref: "#/definitions/HttpMethodRestrict"
     required:
       - contextPath
   ImplementedServiceEndpoint:
@@ -129,8 +130,8 @@ definitions:
         title: Service type
         $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/common-properties/service-type"
       httpMethodRestrict:
-        type: string
         title: Operation method
+        $ref: "#/definitions/HttpMethodRestrict"
       integrationOperationPath:
         type: string
         title: Operation name
@@ -142,5 +143,8 @@ definitions:
       - systemType
       - integrationOperationPath
       - httpMethodRestrict
+  HttpMethodRestrict:
+    type: string
+    pattern: "^$|^(POST|GET|PUT|DELETE|PATCH|HEAD|OPTIONS)(,(POST|GET|PUT|DELETE|PATCH|HEAD|OPTIONS))*$"
 required:
   - type

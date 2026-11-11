@@ -103,17 +103,17 @@ properties:
     - name: jschLoggingLevel
       title: jschLoggingLevel
       type: string
-      default: OFF
+      default: "OFF"
       query: true
     - name: readLockLoggingLevel
       title: readLockLoggingLevel
       type: string
-      default: OFF
+      default: "OFF"
       query: true
     - name: runLoggingLevel
       title: runLoggingLevel
       type: string
-      default: OFF
+      default: "OFF"
       query: true
     - name: ignoreFileNotFoundOrPermissionError
       title: ignoreFileNotFoundOrPermissionError

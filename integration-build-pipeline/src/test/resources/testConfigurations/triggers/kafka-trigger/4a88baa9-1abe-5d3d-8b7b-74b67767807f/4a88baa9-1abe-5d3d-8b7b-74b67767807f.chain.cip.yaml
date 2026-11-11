@@ -1,0 +1,64 @@
+---
+id: 4a88baa9-1abe-5d3d-8b7b-74b67767807f
+$schema: http://qubership.org/schemas/product/qip/chain
+name: kafka-trigger-group
+content:
+  labels: []
+  elements:
+  - id: 0720cdf4-186b-55b7-859e-8fb1ab5ca904
+    name: Kafka Trigger 1
+    type: kafka-trigger-2
+    properties:
+      autoOffsetReset: earliest
+      brokers: localhost:9092
+      connectionSourceType: manual
+      consumersCount: 2
+      groupId: snapshot-kafka-trigger-group
+      keyDeserializer: org.apache.kafka.common.serialization.StringDeserializer
+      maxPollIntervalMs: 300000
+      maxPollRecords: 10
+      reconnectBackoffMaxMs: 1000
+      saslMechanism: GSSAPI
+      securityProtocol: PLAINTEXT
+      sslProtocol: TLS
+      topics: snapshot.kafka.trigger.group
+      valueDeserializer: org.apache.kafka.common.serialization.StringDeserializer
+  - id: d0715e65-aba6-5650-9277-fff6e7527924
+    name: Script 1
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: d0715e65-aba6-5650-9277-fff6e7527924.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  - id: 676695f9-0fc4-5991-9107-26d7781d2f55
+    name: Kafka Trigger 2
+    type: kafka-trigger-2
+    properties:
+      autoOffsetReset: earliest
+      brokers: localhost:9092
+      connectionSourceType: manual
+      consumersCount: 1
+      groupId: snapshot-kafka-trigger-group
+      keyDeserializer: org.apache.kafka.common.serialization.StringDeserializer
+      maxPollIntervalMs: 300000
+      maxPollRecords: 10
+      reconnectBackoffMaxMs: 1000
+      saslMechanism: GSSAPI
+      securityProtocol: PLAINTEXT
+      sslProtocol: TLS
+      topics: snapshot.kafka.trigger.group
+      valueDeserializer: org.apache.kafka.common.serialization.StringDeserializer
+  - id: 78978240-376c-59e9-97b9-98170b887b16
+    name: Script 2
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 78978240-376c-59e9-97b9-98170b887b16.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: 0720cdf4-186b-55b7-859e-8fb1ab5ca904
+    to: d0715e65-aba6-5650-9277-fff6e7527924
+  - from: 676695f9-0fc4-5991-9107-26d7781d2f55
+    to: 78978240-376c-59e9-97b9-98170b887b16
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

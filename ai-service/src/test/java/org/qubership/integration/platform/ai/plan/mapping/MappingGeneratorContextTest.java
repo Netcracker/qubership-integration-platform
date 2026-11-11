@@ -1,0 +1,403 @@
+package org.qubership.integration.platform.ai.plan.mapping;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.when;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import groovy.lang.Binding;
+import groovy.lang.GroovyShell;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import org.qubership.integration.platform.ai.plan.mapping.schema.JsonSchemaMappingContractFactory;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContract;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
+import org.qubership.integration.platform.ai.compiler.CompilerSkillContextBuilder;
+import org.qubership.integration.platform.ai.compiler.CompilerSkillDocument;
+import org.qubership.integration.platform.ai.compiler.CompilerSkillInputSnapshot;
+import org.qubership.integration.platform.ai.compiler.CompilerSkillRuntimeEligibility;
+import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonContext;
+import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonRepository;
+import org.qubership.integration.platform.ai.compiler.catalog.CompilerSkillCatalog;
+import org.qubership.integration.platform.ai.compiler.policy.CompilerGeneratorSpecIndex;
+import org.qubership.integration.platform.ai.plan.mapping.envelope.JsonSchemaMessageSchemaFactory;
+import org.qubership.integration.platform.ai.plan.mapping.envelope.MappingEnvelope;
+import org.qubership.integration.platform.ai.plan.mapping.schema.MappingSchemaSide;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
+import org.qubership.integration.platform.ai.plan.model.ChainSection;
+import org.qubership.integration.platform.ai.productpipeline.knowledge.FakeKnowledgeClient;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackRepository;
+import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
+import org.qubership.integration.platform.ai.qipknowledge.skill.CipKnowledgeCapabilityPhase;
+
+class MappingGeneratorContextTest {
+
+  private static final ObjectMapper MAPPER = new ObjectMapper();
+
+  private CompilerSkillContextBuilder builder;
+  private MappingSchemaSide sourceSide;
+  private MappingSchemaSide targetSide;
+  private MappingEnvelope envelope;
+
+  @BeforeEach
+  void setUp() throws Exception {
+    CipKnowledgePackRepository repository = Mockito.mock(CipKnowledgePackRepository.class);
+    CompilerSkillAddonRepository addonRepository = Mockito.mock(CompilerSkillAddonRepository.class);
+    when(addonRepository.loadForSkill(Mockito.anyString()))
+        .thenReturn(CompilerSkillAddonContext.empty());
+    when(repository.loadCompilerGeneratorSpecIndex())
+        .thenReturn(new CompilerGeneratorSpecIndex(List.of()));
+    when(repository.loadCompilerSkillCatalog()).thenReturn(new CompilerSkillCatalog(List.of()));
+
+    builder =
+        new CompilerSkillContextBuilder(
+            MAPPER,
+            repository,
+            addonRepository,
+            Mockito.mock(CompilerSkillRuntimeEligibility.class),
+            FakeKnowledgeClient.defaultFixture(),
+            FakeKnowledgeClient.defaultFixture());
+
+    JsonNode orderSchema =
+        MAPPER.readTree(
+            """
+            {
+              "type": "object",
+              "properties": { "orderId": { "type": "string" } },
+              "required": ["orderId"]
+            }
+            """);
+    sourceSide = side("trigger-http", MappingPort.OUTPUT, orderSchema, "sha-source-artifact");
+    targetSide = side("call-1", MappingPort.REQUEST, orderSchema, "sha-target-artifact");
+    envelope = new JsonSchemaMessageSchemaFactory(MAPPER).fromSides(sourceSide, targetSide);
+  }
+
+  @Test
+  void userMessageContainsHashesAndIdToPath() {
+    MappingIntent intent = identityOrderId();
+    String mappingContext =
+        builder.renderMappingGenerationContext(intent, envelope, sourceSide, targetSide);
+    CompilerSkillDocument document = transformationGeneratorDocument();
+    CompilerSkillInputSnapshot snapshot =
+        new CompilerSkillInputSnapshot(
+            "Map order id",
+            "Copy orderId to the service call",
+            "",
+            sampleGraph(),
+            "",
+            null,
+            mappingContext);
+
+    String message = builder.buildUserMessage(document, snapshot);
+
+    assertTrue(message.contains("Mapping generation"));
+    assertTrue(message.contains(sourceSide.sha256()));
+    assertTrue(message.contains("$.orderId"));
+    assertTrue(message.contains("Approved hop-body mappingCoverage paths: [\"$.orderId\"]"));
+    assertTrue(message.contains("assign it to exchange.in.body"));
+    assertTrue(message.contains("must be copied unchanged"));
+  }
+
+  @Test
+  void catalogFormatsReachTheGeneratorDespiteTheMapperEnvelopeProjection() throws Exception {
+    var source =
+        side(
+            "trigger-http",
+            MappingPort.OUTPUT,
+            MAPPER.readTree(
+                """
+                {"type":"object","properties":{"parameters":{"type":"object","properties":{
+                  "orderCreationDate":{"type":"string","format":"date-time"}}}}}
+                """),
+            "sha-dated-source");
+    var target =
+        side(
+            "call-1",
+            MappingPort.REQUEST,
+            MAPPER.readTree(
+                """
+                {"type":"object","properties":{"ActivityDate":{"type":"string","format":"date"}}}
+                """),
+            "sha-dated-target");
+    var frozen = new JsonSchemaMessageSchemaFactory(MAPPER).fromSides(source, target);
+    var intent =
+        new MappingIntent(
+            "due-date",
+            "trigger-http",
+            MappingPort.OUTPUT,
+            "call-1",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    "$.parameters.orderCreationDate",
+                    "$.ActivityDate",
+                    null,
+                    MappingRuleStatus.PROPOSED)));
+    var context = builder.renderMappingGenerationContext(intent, frozen, source, target);
+    var snapshot =
+        new CompilerSkillInputSnapshot("Map the due date", "", "", sampleGraph(), "", null, context);
+
+    String message = builder.buildUserMessage(transformationGeneratorDocument(), snapshot);
+
+    assertTrue(message.contains("\"format\":\"date-time\""), message);
+    assertTrue(message.contains("\"format\":\"date\""), message);
+  }
+
+  @Test
+  void offHopProcessIdTellsScriptToUseExchangeProperty() throws Exception {
+    JsonNode salesforceResponse =
+        MAPPER.readTree(
+            """
+            {
+              "type": "object",
+              "properties": { "id": { "type": "string" } }
+            }
+            """);
+    JsonNode omTrigger =
+        MAPPER.readTree(
+            """
+            {
+              "type": "object",
+              "properties": { "processInstanceId": { "type": "string" } },
+              "required": ["processInstanceId"]
+            }
+            """);
+    JsonNode omResult =
+        MAPPER.readTree(
+            """
+            {
+              "type": "object",
+              "properties": { "processId": { "type": "string" } }
+            }
+            """);
+    MappingSchemaSide resultSource =
+        side("createTask", MappingPort.RESPONSE, salesforceResponse, "sha-sf-resp");
+    MappingSchemaSide resultTarget =
+        side("onTaskResult", MappingPort.REQUEST, omResult, "sha-om-result");
+    MappingEnvelope resultEnvelope =
+        new JsonSchemaMessageSchemaFactory(MAPPER).fromSides(resultSource, resultTarget);
+    MappingIntent requestIntent =
+        new MappingIntent(
+            "map-request",
+            "onTaskStart",
+            MappingPort.OUTPUT,
+            "createTask",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    "$.name", "$.Subject", null, MappingRuleStatus.USER_DEFINED)));
+    MappingIntent resultIntent =
+        new MappingIntent(
+            "map-result",
+            "createTask",
+            MappingPort.RESPONSE,
+            "onTaskResult",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    "$.processInstanceId",
+                    "$.processId",
+                    null,
+                    MappingRuleStatus.PROPOSED)));
+    Map<String, MappingContract> sourceContracts =
+        Map.of(
+            "map-request", JsonSchemaMappingContractFactory.from(omTrigger),
+            "map-result", JsonSchemaMappingContractFactory.from(salesforceResponse));
+
+    String mappingContext =
+        builder.renderMappingGenerationContext(
+            resultIntent,
+            resultEnvelope,
+            resultSource,
+            resultTarget,
+            List.of(requestIntent, resultIntent),
+            sourceContracts);
+
+    assertTrue(mappingContext.contains("setProperty"));
+    assertTrue(mappingContext.contains("getProperty"));
+    assertTrue(mappingContext.contains("map-request"));
+    assertTrue(mappingContext.contains("Approved hop-body mappingCoverage paths: [\"$.processId\"]"));
+    assertTrue(mappingContext.contains("must be copied unchanged"));
+  }
+
+  @Test
+  void hyphenatedJsonFieldUsesASafeGroovyAccessor() throws Exception {
+    String mappingContext = offHopExchangeGuidance("$.order-id");
+    Map<String, Object> body = new LinkedHashMap<>();
+    body.put("order-id", "ORDER-42");
+
+    assertEquals("ORDER-42", evaluateBodyAccessor(mappingContext, body));
+    assertFalse(mappingContext.contains("body.order-id"), mappingContext);
+  }
+
+  @Test
+  void quotedJsonFieldEscapesTheGroovyStringLiteral() throws Exception {
+    String mappingContext = offHopExchangeGuidance("$.order'id");
+    Map<String, Object> body = new LinkedHashMap<>();
+    body.put("order'id", "ORDER-42");
+
+    assertEquals("ORDER-42", evaluateBodyAccessor(mappingContext, body));
+    assertFalse(mappingContext.contains("body.order'id"), mappingContext);
+  }
+
+  @Test
+  void nestedSourcePathUsesNestedGroovyBodyAccess() throws Exception {
+    String mappingContext = offHopExchangeGuidance("$.parameters.orderId");
+    Map<String, Object> parameters = new LinkedHashMap<>();
+    parameters.put("orderId", "ORDER-42");
+    Map<String, Object> body = new LinkedHashMap<>();
+    body.put("parameters", parameters);
+
+    assertFalse(mappingContext.contains("body['parameters.orderId']"), mappingContext);
+    assertEquals("ORDER-42", evaluateBodyAccessor(mappingContext, body));
+  }
+
+  @Test
+  void simpleExecutionIdFieldUsesIdentifierAccess() throws Exception {
+    String mappingContext = offHopExchangeGuidance("$.executionId");
+    Map<String, Object> body = new LinkedHashMap<>();
+    body.put("executionId", "ORDER-42");
+
+    assertEquals("ORDER-42", evaluateBodyAccessor(mappingContext, body));
+  }
+
+  private String offHopExchangeGuidance(String sourcePath) throws Exception {
+    JsonNode hopSchema =
+        MAPPER.readTree(
+            """
+            {
+              "type": "object",
+              "properties": { "id": { "type": "string" } }
+            }
+            """);
+    JsonNode upstreamSchema =
+        MAPPER.readTree(
+            """
+            {
+              "type": "object",
+              "properties": {
+                "order-id": { "type": "string" },
+                "order'id": { "type": "string" },
+                "executionId": { "type": "string" },
+                "parameters": {
+                  "type": "object",
+                  "properties": { "orderId": { "type": "string" } }
+                }
+              }
+            }
+            """);
+    JsonNode targetSchema =
+        MAPPER.readTree(
+            """
+            {
+              "type": "object",
+              "properties": { "processId": { "type": "string" } }
+            }
+            """);
+    MappingSchemaSide resultSource = side("createTask", MappingPort.RESPONSE, hopSchema, "sha-hop");
+    MappingSchemaSide resultTarget =
+        side("onTaskResult", MappingPort.REQUEST, targetSchema, "sha-target");
+    MappingEnvelope resultEnvelope =
+        new JsonSchemaMessageSchemaFactory(MAPPER).fromSides(resultSource, resultTarget);
+    MappingIntent requestIntent =
+        new MappingIntent(
+            "map-request",
+            "onTaskStart",
+            MappingPort.OUTPUT,
+            "createTask",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    "$.name", "$.Subject", null, MappingRuleStatus.USER_DEFINED)));
+    MappingIntent resultIntent =
+        new MappingIntent(
+            "map-result",
+            "createTask",
+            MappingPort.RESPONSE,
+            "onTaskResult",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    sourcePath, "$.processId", null, MappingRuleStatus.PROPOSED)));
+    Map<String, MappingContract> sourceContracts =
+        Map.of(
+            "map-request", JsonSchemaMappingContractFactory.from(upstreamSchema),
+            "map-result", JsonSchemaMappingContractFactory.from(hopSchema));
+    return builder.renderMappingGenerationContext(
+        resultIntent,
+        resultEnvelope,
+        resultSource,
+        resultTarget,
+        List.of(requestIntent, resultIntent),
+        sourceContracts);
+  }
+
+  private static String evaluateBodyAccessor(String mappingContext, Map<String, Object> body) {
+    int setProperty = mappingContext.indexOf("exchange.setProperty(");
+    assertTrue(setProperty >= 0, mappingContext);
+    int comma = mappingContext.indexOf(", ", setProperty);
+    int close = mappingContext.indexOf(") on the upstream", comma);
+    assertTrue(comma > setProperty && close > comma, mappingContext);
+    String accessor = mappingContext.substring(comma + 2, close).trim();
+    assertTrue(accessor.startsWith("body"), accessor);
+    Binding binding = new Binding();
+    binding.setVariable("body", body);
+    return String.valueOf(new GroovyShell(binding).evaluate(accessor));
+  }
+
+  private static MappingIntent identityOrderId() {
+    return new MappingIntent(
+        "map-init",
+        "trigger-http",
+        MappingPort.OUTPUT,
+        "call-1",
+        MappingPort.REQUEST,
+        List.of(
+            new MappingIntentRule(
+                "$.orderId", "$.orderId", null, MappingRuleStatus.USER_DEFINED)));
+  }
+
+  private static MappingSchemaSide side(
+      String serviceCallId, MappingPort direction, JsonNode schema, String sha256) {
+    return new MappingSchemaSide(
+        "1",
+        serviceCallId,
+        "op-1",
+        direction,
+        "application/json",
+        null,
+        sha256,
+        "test-provenance",
+        schema);
+  }
+
+  private static CompilerSkillDocument transformationGeneratorDocument() {
+    return new CompilerSkillDocument(
+        "cip-transformation-generator",
+        "cip-transformation-generator",
+        "skills/cip-transformation-generator.md",
+        "Transformation generator",
+        CipKnowledgeCapabilityPhase.GENERATOR,
+        true,
+        new CipKnowledgePackVersion("test", "test-pack"),
+        "generator-id: GEN-TRANSFORM\n");
+  }
+
+  private static ChainPlanGraph sampleGraph() {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection("chain-1", "Chain"),
+        List.of(new ChainPlanNode("mapper-1", "mapper-2", "Mapper", null, null, List.of())),
+        List.of());
+  }
+}

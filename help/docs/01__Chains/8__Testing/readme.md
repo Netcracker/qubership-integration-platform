@@ -155,7 +155,7 @@ Both editors use the same table. A row is one rule, and it has the following col
 
 The toolbar above the table adds a rule, deletes the checked rules, and enables or disables them in bulk. A local search filters the rows already in the table; typing in it clears the checked rows, so a bulk action never reaches a row the search has hidden.
 
-> ℹ️ **Note:** The in-place edited cells - **Name** and **Description** here, and the same cells wherever else the product edits in place - commit on **Enter** only. Clicking away closes the cell and discards what was typed.
+> ℹ️ **Note:** Press **Enter** or click outside the **Name** or **Description** cell to apply a valid edit to the test case or endpoint mock draft. Click **Save** to save the draft.
 
 Conditions and the parameters they take:
 
@@ -309,19 +309,19 @@ A change takes effect when the engine restarts. No chain has to be redeployed.
 
 At startup the engine also loads settings from Consul KV. A key under one of the paths below sets the property named by the rest of the key, with every `/` read as `.`:
 
-- `config/<NAMESPACE>/<MICROSERVICE_NAME>/` - settings of this engine only. `MICROSERVICE_NAME` defaults to `qip-engine`.
+- `config/<NAMESPACE>/<MICROSERVICE_NAME>/` - settings of this engine only. `MICROSERVICE_NAME` defaults to `cip-engine`.
 - `config/<NAMESPACE>/application/` - settings shared by every service of the namespace that loads its configuration from Consul.
 
 For example, these keys switch mocking off and point the engine at another testing service address:
 
 ```text
-config/<NAMESPACE>/qip-engine/qip/testing/enabled = false
-config/<NAMESPACE>/qip-engine/qip/testing/address = http://<TESTING_SERVICE_HOST>:8080
+config/<NAMESPACE>/cip-engine/cip/testing/enabled = false
+config/<NAMESPACE>/cip-engine/cip/testing/address = http://<TESTING_SERVICE_HOST>:8080
 ```
 
 A Consul key takes precedence over `TESTING_SERVICE_ENABLED` and `TESTING_SERVICE_ADDRESS`. A key under the engine path takes precedence over the same key under `application`.
 
-> ℹ️ **Note:** The engine reads a changed key while it runs, but endpoint mocking is switched on or off only when the engine starts. Restart the engine after changing `qip/testing/enabled` or `qip/testing/address` in Consul.
+> ℹ️ **Note:** The engine reads a changed key while it runs, but endpoint mocking is switched on or off only when the engine starts. Restart the engine after changing `cip/testing/enabled` or `cip/testing/address` in Consul.
 
 ## Constraints
 
@@ -330,4 +330,3 @@ A Consul key takes precedence over `TESTING_SERVICE_ENABLED` and `TESTING_SERVIC
 - Only an **HTTP Trigger** can be activated by a test case. A trigger of any other type cannot be tested this way.
 - Test cases and endpoint mocks are not part of the chain export. They are exported and imported from their own tables.
 - Mocking is off by default, and it is environment-wide: the switch covers an engine installation, not a chain. It narrows the traffic it touches to test case runs, so a chain run any other way keeps reaching its real endpoints even while mocking is on. With mocking on and the testing service absent, an outbound call of a test case run fails to connect; with the service present, a call without a matching mock is answered `404`.
-- An in-place edited cell commits on **Enter** only; clicking away discards the edit.

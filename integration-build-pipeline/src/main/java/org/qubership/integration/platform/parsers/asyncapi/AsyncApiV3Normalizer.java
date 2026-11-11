@@ -16,12 +16,12 @@
 
 package org.qubership.integration.platform.parsers.asyncapi;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.parsers.SpecificationParserException;
 import org.qubership.integration.platform.parsers.model.asyncapi.*;
 import org.qubership.integration.platform.parsers.model.asyncapi.components.Components;
-import org.qubership.integration.platform.parsers.model.asyncapi.components.SchemaObject;
 import org.qubership.integration.platform.parsers.model.asyncapi.v3.*;
 
 import java.util.*;
@@ -40,9 +40,17 @@ public class AsyncApiV3Normalizer {
 
     private static final String CHANNELS_REF_PREFIX = "#/channels/";
     private static final String COMPONENTS_MESSAGES_PREFIX = "#/components/messages/";
+    private static final String COMPONENTS_SCHEMAS_PREFIX = "#/components/schemas/";
     private static final String MESSAGES_SEGMENT = "/messages/";
     private static final String ACTION_SEND = MethodType.SEND.getMethodName();
     private static final String ACTION_RECEIVE = MethodType.RECEIVE.getMethodName();
+    private static final List<String> SCHEMA_FORMAT_PREFIXES = List.of("application/vnd.aai.asyncapi", "application/schema+");
+    // Draft-07 keywords whose value is a map of names to schemas, a schema or a list of them, and a list of schemas.
+    private static final Set<String> SCHEMA_MAPS = Set.of("properties", "patternProperties", "definitions", "dependencies");
+    private static final Set<String> SCHEMA_VALUES = Set.of("additionalProperties", "items", "additionalItems", "contains",
+            "propertyNames", "not", "if", "then", "else");
+    private static final Set<String> SCHEMA_LISTS = Set.of("allOf", "anyOf", "oneOf");
+    private static final TypeReference<Map<String, Object>> SCHEMA_TYPE = new TypeReference<>() {};
 
     private final ObjectMapper objectMapper;
 
@@ -51,6 +59,8 @@ public class AsyncApiV3Normalizer {
     }
 
     public AsyncapiSpecification normalize(AsyncapiV3Specification v3) {
+        unwrapMultiFormatSchemas(v3);
+
         AsyncapiSpecification v2 = new AsyncapiSpecification();
         v2.setInfo(normalizeInfo(v3.getInfo()));
         v2.setServers(normalizeServers(v3.getServers()));
@@ -58,6 +68,7 @@ public class AsyncApiV3Normalizer {
 
         Map<String, V3Channel> v3Channels = v3.getChannels();
         Map<String, Channel> v2Channels = new LinkedHashMap<>();
+        Set<OperationObject> declaredOperations = new HashSet<>();
 
         if (v3.getOperations() != null && v3Channels != null) {
             for (Map.Entry<String, V3Operation> entry : v3.getOperations().entrySet()) {
@@ -88,6 +99,7 @@ public class AsyncApiV3Normalizer {
 
                 OperationObject v2Op = convertOperation(entry.getKey(), v3Op, v3Channel, v3Channels);
                 v2Op.setAction(v3Op.getAction());
+                declaredOperations.add(v2Op);
 
                 if (ACTION_SEND.equals(v3Op.getAction())) {
                     v2Channel.setPublish(v2Op);
@@ -95,12 +107,110 @@ public class AsyncApiV3Normalizer {
                     v2Channel.setSubscribe(v2Op);
                 }
 
-                normalizeReplyOperation(entry.getKey(), v3Op, v3, v2Channels);
+                normalizeReplyOperation(entry.getKey(), v3Op, v3, v2Channels, declaredOperations);
             }
         }
 
         v2.setChannels(v2Channels);
         return v2;
+    }
+
+    // A reference into an unwrapped schema, such as #/components/schemas/Order/schema, is rewritten to the path the
+    // schema has after unwrapping, #/components/schemas/Order.
+    private void unwrapMultiFormatSchemas(AsyncapiV3Specification v3) {
+        Map<String, String> movedRefs = new LinkedHashMap<>();
+        if (v3.getChannels() != null) {
+            v3.getChannels().forEach((key, channel) -> {
+                if (channel != null) {
+                    unwrapMultiFormatPayloads(channel.getMessages(), CHANNELS_REF_PREFIX + key + MESSAGES_SEGMENT, movedRefs);
+                }
+            });
+        }
+        if (v3.getComponents() != null) {
+            unwrapMultiFormatPayloads(v3.getComponents().get("messages"), COMPONENTS_MESSAGES_PREFIX, movedRefs);
+            if (v3.getComponents().get("schemas") instanceof Map<?, ?> schemas) {
+                for (String name : asStringObjectMap(schemas).keySet()) {
+                    if (unwrap(schemas, name)) {
+                        movedRefs.put(COMPONENTS_SCHEMAS_PREFIX + name + "/schema", COMPONENTS_SCHEMAS_PREFIX + name);
+                    }
+                }
+            }
+        }
+        if (v3.getChannels() != null) {
+            v3.getChannels().values().forEach(channel -> rewriteMessageRefs(channel == null ? null : channel.getMessages(), movedRefs));
+        }
+        if (v3.getComponents() != null) {
+            rewriteMessageRefs(v3.getComponents().get("messages"), movedRefs);
+            if (v3.getComponents().get("schemas") instanceof Map<?, ?> schemas) {
+                schemas.values().forEach(schema -> rewriteSchemaRefs(schema, movedRefs));
+            }
+        }
+    }
+
+    private void unwrapMultiFormatPayloads(Object messages, String refPrefix, Map<String, String> movedRefs) {
+        if (messages instanceof Map<?, ?> messageMap) {
+            asStringObjectMap(messageMap).forEach((name, message) -> {
+                if (message instanceof Map<?, ?> msgMap && unwrap(msgMap, "payload")) {
+                    movedRefs.put(refPrefix + name + "/payload/schema", refPrefix + name + "/payload");
+                }
+            });
+        }
+    }
+
+    private boolean unwrap(Map<?, ?> owner, String key) {
+        Object value = owner.get(key);
+        Object schema = fromMultiFormat(value);
+        if (schema == value) {
+            return false;
+        }
+        asStringObjectMap(owner).put(key, schema);
+        return true;
+    }
+
+    private void rewriteMessageRefs(Object messages, Map<String, String> movedRefs) {
+        if (messages instanceof Map<?, ?> messageMap) {
+            for (Object message : messageMap.values()) {
+                if (message instanceof Map<?, ?> msgMap) {
+                    rewriteSchemaRefs(msgMap.get("payload"), movedRefs);
+                }
+            }
+        }
+    }
+
+    // Only positions that hold a schema are followed, so data such as const values, examples, and x- extensions
+    // stays as written.
+    private void rewriteSchemaRefs(Object schema, Map<String, String> movedRefs) {
+        if (!(schema instanceof Map<?, ?> map)) {
+            return;
+        }
+        if (map.get("$ref") instanceof String ref) {
+            movedRefs.forEach((from, to) -> {
+                if (ref.equals(from) || ref.startsWith(from + "/")) {
+                    asStringObjectMap(map).put("$ref", to + ref.substring(from.length()));
+                }
+            });
+        }
+        map.forEach((keyword, value) -> {
+            if (SCHEMA_MAPS.contains(keyword) && value instanceof Map<?, ?> named) {
+                named.values().forEach(each -> rewriteSchemaRefs(each, movedRefs));
+            } else if ((SCHEMA_LISTS.contains(keyword) || SCHEMA_VALUES.contains(keyword)) && value instanceof List<?> list) {
+                list.forEach(each -> rewriteSchemaRefs(each, movedRefs));
+            } else if (SCHEMA_VALUES.contains(keyword)) {
+                rewriteSchemaRefs(value, movedRefs);
+            }
+        });
+    }
+
+    // A multi-format schema in an AsyncAPI or JSON Schema format becomes the schema object it holds, and one in any
+    // other format, such as Avro, becomes an empty schema, because the catalog reads no other format.
+    private Object fromMultiFormat(Object schema) {
+        if (!(schema instanceof Map<?, ?> multiFormat)
+                || !(multiFormat.get("schemaFormat") instanceof String schemaFormat)
+                || !multiFormat.containsKey("schema")) {
+            return schema;
+        }
+        boolean known = SCHEMA_FORMAT_PREFIXES.stream().anyMatch(schemaFormat::startsWith);
+        return known && multiFormat.get("schema") instanceof Map<?, ?> inner ? inner : new LinkedHashMap<>();
     }
 
     private Info normalizeInfo(Info v3Info) {
@@ -163,7 +273,8 @@ public class AsyncApiV3Normalizer {
         OperationObject v2Op = new OperationObject();
         v2Op.setSummary(v3Op.getSummary());
         v2Op.setOperationId(v3Op.getOperationId() != null ? v3Op.getOperationId() : operationKey);
-        v2Op.setMaasClassifierName(v3Op.getMaasClassifierName());
+        v2Op.setMaasClassifierName(v3Op.getMaasClassifierName() != null
+                ? v3Op.getMaasClassifierName() : v3Channel.getMaasClassifierName());
         v2Op.setMessage(convertMessages(v3Op, v3Channel, v3Channels));
         return v2Op;
     }
@@ -240,10 +351,10 @@ public class AsyncApiV3Normalizer {
     private Message buildMessageFromMap(Map<String, Object> msgMap, String name) {
         Message message = new Message();
         if (msgMap.containsKey("payload")) {
-            message.setPayload(objectMapper.convertValue(msgMap.get("payload"), SchemaObject.class));
+            message.setPayload(objectMapper.convertValue(msgMap.get("payload"), SCHEMA_TYPE));
         }
         if (msgMap.containsKey("headers")) {
-            message.setHeaders(objectMapper.convertValue(msgMap.get("headers"), SchemaObject.class));
+            message.setHeaders(objectMapper.convertValue(msgMap.get("headers"), SCHEMA_TYPE));
         }
         if (name != null) {
             message.setName(name);
@@ -329,7 +440,8 @@ public class AsyncApiV3Normalizer {
 
     private void normalizeReplyOperation(String operationKey, V3Operation v3Op,
                                          AsyncapiV3Specification v3,
-                                         Map<String, Channel> v2Channels) {
+                                         Map<String, Channel> v2Channels,
+                                         Set<OperationObject> declaredOperations) {
         V3Reply reply = v3Op.getReply();
         if (reply == null || reply.getChannel() == null || reply.getChannel().getRef() == null) {
             return;
@@ -360,6 +472,9 @@ public class AsyncApiV3Normalizer {
         String baseId = v3Op.getOperationId() != null ? v3Op.getOperationId() : operationKey;
         replyOp.setOperationId(baseId + "Reply");
         replyOp.setAction(ACTION_SEND.equals(v3Op.getAction()) ? ACTION_RECEIVE : ACTION_SEND);
+        if (replyV3Channel != null) {
+            replyOp.setMaasClassifierName(replyV3Channel.getMaasClassifierName());
+        }
 
         if (reply.getMessages() != null && !reply.getMessages().isEmpty()) {
             replyOp.setMessage(convertMessageList(reply.getMessages(), v3Channels));
@@ -367,9 +482,12 @@ public class AsyncApiV3Normalizer {
             replyOp.setMessage(convertChannelMessages(replyV3Channel.getMessages()));
         }
 
+        // The generated reply never replaces an operation declared on the reply channel.
         if (ACTION_SEND.equals(v3Op.getAction())) {
-            replyV2Channel.setSubscribe(replyOp);
-        } else {
+            if (!declaredOperations.contains(replyV2Channel.getSubscribe())) {
+                replyV2Channel.setSubscribe(replyOp);
+            }
+        } else if (!declaredOperations.contains(replyV2Channel.getPublish())) {
             replyV2Channel.setPublish(replyOp);
         }
     }

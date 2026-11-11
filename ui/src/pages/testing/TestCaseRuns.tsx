@@ -27,7 +27,10 @@ import {
   ColumnsTypeWithSettings,
   useColumnSettingsBasedOnColumnsType,
 } from "../../components/table/useColumnSettingsButton.tsx";
-import { useTableConfiguration } from "../../components/table/useTableConfiguration.tsx";
+import {
+  SELECTION_COLUMN_WIDTH,
+  useTableConfiguration,
+} from "../../components/table/useTableConfiguration.tsx";
 import { TestCaseRunDrawer } from "../../components/testing/TestCaseRunDrawer.tsx";
 import { getTestingPermissions } from "../../components/testing/testingPermissions.ts";
 import { isTestCaseRunCancellable } from "../../components/testing/runStatus.ts";
@@ -37,7 +40,6 @@ import {
   useTestingFilter,
 } from "../../hooks/filter/useTestingFilter.ts";
 import {
-  TESTING_SELECTION_COLUMN_WIDTH,
   testCaseRunsListSource,
   useTestingEntityList,
 } from "../../hooks/testing/useTestingEntityList.ts";
@@ -48,6 +50,7 @@ import { formatOptional, formatTimestamp } from "../../misc/format-utils.ts";
 import { RowLink } from "../../components/table/RowLink.tsx";
 import { TestingListActions } from "../../components/testing/TestingListActions.tsx";
 import { useTestingListToolbar } from "../../components/testing/useTestingListToolbar.tsx";
+import { ChainHeaderActions } from "../ChainHeaderActionsContext.tsx";
 
 // Every column is held to what it actually renders. The three that carry a uuid
 // take 270: the glyphs of a uuid are not all the same width, so the widest ones
@@ -158,8 +161,6 @@ export const TestCaseRuns: React.FC<TestCaseRunsProps> = ({
     refresh,
     getChainName,
     exportEntities,
-    sortBy,
-    sortOrder,
     tableSort,
     handleTableChange: handleServerTableChange,
     selectedRowKeys,
@@ -266,7 +267,7 @@ export const TestCaseRuns: React.FC<TestCaseRunsProps> = ({
   const columnDefinitions = useMemo<ColumnsTypeWithSettings<TestCaseRunView>>(
     () => [
       {
-        title: "Id",
+        title: "ID",
         dataIndex: "id",
         key: "id",
         sorter: true,
@@ -372,7 +373,7 @@ export const TestCaseRuns: React.FC<TestCaseRunsProps> = ({
     orderedColumns,
     COLUMN_WIDTHS,
     {
-      selectionColumnWidth: TESTING_SELECTION_COLUMN_WIDTH,
+      selectionColumnWidth: SELECTION_COLUMN_WIDTH,
       controlledSort: tableSort,
       onChange: handleServerTableChange,
     },
@@ -428,21 +429,6 @@ export const TestCaseRuns: React.FC<TestCaseRunsProps> = ({
     filterButton,
     columnSettingsButton,
     actions: toolbarActions,
-    registerInChainHeader: variant === "chain-tab",
-    registerDependencies: [
-      isLoading,
-      variant,
-      searchString,
-      sortBy,
-      sortOrder,
-      selectedRowKeys,
-      selectAllMatching,
-      canCancelSelection,
-      allLoaded,
-      filters,
-      permissions,
-      isStarting,
-    ],
   });
 
   const table = (
@@ -483,13 +469,15 @@ export const TestCaseRuns: React.FC<TestCaseRunsProps> = ({
         <Flex vertical className={commonStyles.container}>
           <AdminToolsHeader
             title="Test Case Runs"
-            iconName="carryOut"
             toolbar={toolbar}
           />
           {table}
         </Flex>
       ) : (
-        table
+        <>
+          <ChainHeaderActions>{toolbar}</ChainHeaderActions>
+          {table}
+        </>
       )}
       <TestCaseRunDrawer
         run={detailsRun}

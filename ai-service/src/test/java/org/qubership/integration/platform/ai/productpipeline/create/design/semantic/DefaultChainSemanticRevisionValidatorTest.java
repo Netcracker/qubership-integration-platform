@@ -1,0 +1,1759 @@
+package org.qubership.integration.platform.ai.productpipeline.create.design.semantic;
+
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
+import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
+import org.qubership.integration.platform.ai.plan.BriefMappingValidator;
+import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.RequirementFactKind;
+import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFailureMode;
+
+class DefaultChainSemanticRevisionValidatorTest {
+  @Test
+  void conditionCannotContainItsOwnerInABranch() throws Exception {
+    var mapper = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
+    var revision = mapper.readValue(getClass().getResourceAsStream("/recovery/e024-semantic-revision.json"),
+        ChainSemanticRevision.class);
+
+    var error = assertThrows(IllegalArgumentException.class, () -> validator.validate(revision, CONTRACT));
+
+    assertTrue(error.getMessage().contains("cannot contain its owner"), error.getMessage());
+    var corrected = copy(revision, revision.entryPoints(), revision.nodes(), List.of(),
+        revision.executionEdges(), revision.containment(), revision.mappingIntents());
+    assertDoesNotThrow(() -> validator.validate(corrected, CONTRACT));
+  }
+
+
+  private static final CompilerContract CONTRACT =
+      new ClasspathCompilerContractRepository().require(CompilerContract.V1);
+
+  private final ChainSemanticRevisionValidator validator =
+      new DefaultChainSemanticRevisionValidator();
+
+  @ParameterizedTest
+  @ValueSource(strings = {"scs-sender", "sds-trigger"})
+  void rejectsElementsWithoutRuntimeDescriptorsBeforeGeneration(String type) {
+    var base = SemanticFixtures.linearOrders();
+    List<SemanticNode> nodes = base.nodes().stream().map(node ->
+        node instanceof SemanticNode.ServiceCall
+            ? (SemanticNode) new SemanticNode.Operation(node.nodeId(), type, node.provenance()) : node).toList();
+    var candidate = copy(base, base.entryPoints(), nodes, base.regions(),
+        base.executionEdges(), base.containment(), base.mappingIntents());
+    var error = assertThrows(IllegalArgumentException.class, () -> validator.validate(candidate, CONTRACT));
+    assertTrue(error.getMessage().contains("Runtime descriptor missing for element: " + type), error.getMessage());
+  }
+
+  @Test
+  void containerProvenanceCanDescribeItsOwnBranchWork() {
+    ChainSemanticRevision base = syncSplitRevision();
+    var provenance = new SemanticProvenance(List.of("split-config"));
+    List<SemanticNode> nodes = base.nodes().stream().map(node -> switch (node) {
+      case SemanticNode.Operation operation when operation.nodeId().equals("split-1") ->
+          new SemanticNode.Operation(operation.nodeId(), operation.elementType(), provenance);
+      case SemanticNode.ServiceCall call -> new SemanticNode.ServiceCall(
+          call.nodeId(), call.serviceCallId(), call.operation(), call.failureMode(), provenance);
+      default -> node;
+    }).toList();
+    ChainSemanticRevision candidate = copy(base, base.entryPoints(), nodes, base.regions(),
+        base.executionEdges(), List.of(), base.mappingIntents());
+    RequirementBrief brief = briefWithFact(splitConfigurationFact());
+
+    assertDoesNotThrow(() -> validator.validate(candidate, CONTRACT, brief));
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void containerFactStillRequiresItsNamedOwnerAndRejectsUnrelatedContributors(boolean omitOwner) {
+    ChainSemanticRevision base = syncSplitRevision();
+    var provenance = new SemanticProvenance(List.of("split-config"));
+    List<SemanticNode> nodes = base.nodes().stream().map(node -> {
+      if (node instanceof SemanticNode.Operation operation
+          && (omitOwner ? operation.nodeId().equals("after-split")
+              : operation.nodeId().equals("split-1") || operation.nodeId().equals("after-split"))) {
+        return (SemanticNode) new SemanticNode.Operation(operation.nodeId(), operation.elementType(), provenance);
+      }
+      return node;
+    }).toList();
+    ChainSemanticRevision candidate = copy(base, base.entryPoints(), nodes, base.regions(),
+        base.executionEdges(), base.containment(), base.mappingIntents());
+
+    var error = assertThrows(IllegalArgumentException.class,
+        () -> validator.validate(candidate, CONTRACT, briefWithFact(splitConfigurationFact())));
+    assertTrue(error.getMessage().contains("ELEMENT_INTENT_REALIZATION"), error.getMessage());
+  }
+
+  private static RequirementFact splitConfigurationFact() {
+    var intent = new org.qubership.integration.platform.ai.plan.RequirementElementIntent(
+        "split-1", "split-2", org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.LOCAL_NODE,
+        null, null, null, "Split work", List.of(), List.of());
+    return new RequirementFact("split-config", RequirementFactPolarity.POSITIVE, RequirementFactKind.BEHAVIOR,
+        "", "Run both branches in a Split.", "", "", "", "", "", "", List.of(), null, intent);
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("contractFailures")
+  void rejectsInvalidRevisions(String unused, ChainSemanticRevision revision, String message) {
+    SemanticRevisionValidationException error =
+        assertThrows(
+            SemanticRevisionValidationException.class,
+            () -> validator.validate(revision, CONTRACT, briefFrom(revision)));
+    assertTrue(error.getMessage().startsWith("Invalid chain semantic revision:"));
+    assertTrue(error.getMessage().contains(message), error.getMessage());
+  }
+
+  static Stream<Arguments> contractFailures() {
+    return Stream.of(
+        Arguments.of(
+            "no entries",
+            revisionWithNoEntries(),
+            "entryPoints must contain at least one entry"),
+        Arguments.of(
+            "execution cycle",
+            revisionWithCycle(),
+            "execution edges must form a DAG"),
+        Arguments.of(
+            "async split with zero branches",
+            asyncSplitWithZeroBranches(),
+            "split-async-2 requires at least 1 branch"),
+        Arguments.of(
+            "unknown condition branch",
+            revisionWithUnknownConditionBranch(),
+            "branchId 'ghost' is missing from region"),
+        Arguments.of(
+            "unknown split branch",
+            revisionWithUnknownSplitBranch(),
+            "branchId 'ghost' is missing from region"),
+        Arguments.of(
+            "unknown catch handler",
+            revisionWithUnknownCatchHandler(),
+            "handlerId 'ghost' is missing from region"),
+        Arguments.of(
+            "try-catch without error scope",
+            tryCatchWithoutErrorScope(),
+            "element type 'try-catch-finally-2' requires an ERROR_SCOPE region"),
+        Arguments.of(
+            "error-scope branch path starts inside the branch",
+            errorScopeWithInternalCatchPath(),
+            "must start at owner 'try-catch-1'"),
+        Arguments.of(
+            "unknown reconverge branch",
+            revisionWithUnknownReconvergeBranch(),
+            "branchId 'ghost' is missing from region"),
+        Arguments.of(
+            "unknown containment role",
+            revisionWithUnknownContainmentRole(),
+            "Containment role 'when' is not allowed on parent"),
+        Arguments.of(
+            "condition with zero IF",
+            revisionWithNoIfBranch(),
+            "condition requires at least 1 IF branch"),
+        Arguments.of(
+            "condition with two ELSE",
+            revisionWithTwoElseBranches(),
+            "condition allows at most 1 ELSE branch"),
+        Arguments.of(
+            "duplicate IF priority",
+            revisionWithDuplicateIfPriority(),
+            "requires unique IF priorities"),
+        Arguments.of(
+            "empty IF predicate",
+            revisionWithEmptyIfPredicate(),
+            "requires a non-empty predicate"),
+        Arguments.of(
+            "mapping on reconverge",
+            revisionWithMappingOnReconverge(),
+            "Unsupported topology: generic-aggregate"),
+        Arguments.of(
+            "unreachable node",
+            revisionWithUnreachableNode(),
+            "is not reachable from any entry point"),
+        Arguments.of(
+            "duplicate node id",
+            revisionWithDuplicateNodeId(),
+            "Duplicate node id: op-shared"),
+        Arguments.of(
+            "containment cycle",
+            revisionWithContainmentCycle(),
+            "containment relations must form a DAG"));
+  }
+
+  @Test
+  void acceptsLinearSequenceAndSingleBranchAsyncSplit() {
+    assertDoesNotThrow(() -> validate(linearRevision()));
+    assertDoesNotThrow(() -> validate(asyncSplitOneBranchRevision()));
+    assertDoesNotThrow(() -> validate(typedLoopRevision()));
+  }
+
+  @Test
+  void treatsBlankOptionalAsyncNodeIdsAsAbsent() {
+    ChainSemanticRevision base = asyncSplitOneBranchRevision();
+    SemanticRegion.Split split = (SemanticRegion.Split) base.regions().getFirst();
+    for (String blank : List.of("", " ")) {
+      ChainSemanticRevision candidate = copy(
+          base, base.entryPoints(), base.nodes(),
+          List.of(new SemanticRegion.Split(
+              split.regionId(), split.ownerNodeId(), split.mode(), split.branches(),
+              blank, blank)),
+          base.executionEdges(), base.containment(), base.mappingIntents());
+      assertDoesNotThrow(() -> validate(candidate));
+    }
+    ChainSemanticRevision declaredMain = copy(
+        base, base.entryPoints(), base.nodes(),
+        List.of(new SemanticRegion.Split(
+            split.regionId(), split.ownerNodeId(), split.mode(), split.branches(),
+            split.reconvergenceNodeId(), split.branches().getFirst().branchId())),
+        base.executionEdges(), base.containment(), base.mappingIntents());
+    assertThrows(IllegalArgumentException.class, () -> validate(declaredMain));
+  }
+
+  @Test
+  void acceptsQuartzSchedulerTriggerDeclaredByTheCompilerContract() {
+    ChainSemanticRevision linear = linearRevision();
+    List<SemanticNode> nodes = new ArrayList<>(linear.nodes());
+    nodes.set(
+        0,
+        new SemanticNode.Trigger(
+            "trigger-http", "quartz-scheduler", new SemanticProvenance(List.of())));
+    ChainSemanticRevision scheduled =
+        copy(
+            linear,
+            linear.entryPoints(),
+            nodes,
+            linear.regions(),
+            linear.executionEdges(),
+            linear.containment(),
+            linear.mappingIntents());
+
+    assertDoesNotThrow(() -> validate(scheduled));
+  }
+
+  @Test
+  void acceptsTypedReconvergenceAndSyncSplit() {
+    assertDoesNotThrow(() -> validate(typedReconvergeRevision()));
+    assertDoesNotThrow(() -> validate(syncSplitRevision()));
+  }
+
+  @Test
+  void rejectsSplitModeThatDoesNotMatchItsOwnerElement() {
+    for (ChainSemanticRevision base : List.of(syncSplitRevision(), asyncSplitOneBranchRevision())) {
+      SemanticRegion.Split split = (SemanticRegion.Split) base.regions().getFirst();
+      SplitMode wrongMode = split.mode() == SplitMode.SYNC ? SplitMode.ASYNC : SplitMode.SYNC;
+      ChainSemanticRevision rejected =
+          copy(
+              base,
+              base.entryPoints(),
+              base.nodes(),
+              List.of(new SemanticRegion.Split(
+                  split.regionId(), split.ownerNodeId(), wrongMode, split.branches(),
+                  split.reconvergenceNodeId())),
+              base.executionEdges(),
+              base.containment(),
+              base.mappingIntents());
+
+      IllegalArgumentException error =
+          assertThrows(IllegalArgumentException.class, () -> validate(rejected));
+      assertTrue(error.getMessage().contains("does not match owner element"), error.getMessage());
+    }
+  }
+
+  @Test
+  void acceptsStandaloneReuseSubtree() {
+    assertDoesNotThrow(() -> validate(reuseRevision(true, false)));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"reuse-container", "after-reuse", "missing-container"})
+  void nestedIntentRequiresItsDeclaredContainerWithoutAnExecutionEdge(String parentRef) {
+    ChainSemanticRevision base = reuseRevision(true, false);
+    List<SemanticNode> nodes = base.nodes().stream().map(node ->
+        node.nodeId().equals("reuse-body")
+            ? (SemanticNode) new SemanticNode.Operation("reuse-body", "header-modification",
+                new SemanticProvenance(List.of("nested-work")))
+            : node).toList();
+    ChainSemanticRevision candidate = copy(base, base.entryPoints(), nodes, base.regions(),
+        base.executionEdges(), base.containment(), base.mappingIntents());
+    var intent = new org.qubership.integration.platform.ai.plan.RequirementElementIntent(
+        "reuse-body", "header-modification",
+        org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.LOCAL_NODE,
+        null, null, null, parentRef, "Nested work", List.of(), List.of());
+    var fact = new RequirementFact("nested-work", RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.BEHAVIOR, "", "Perform the work inside Reuse.", "", "", "", "", "", "",
+        List.of(), null, intent);
+
+    if (parentRef.equals("reuse-container")) {
+      assertDoesNotThrow(() -> validator.validate(candidate, CONTRACT, briefWithFact(fact)));
+    } else {
+      var error = assertThrows(IllegalArgumentException.class,
+          () -> validator.validate(candidate, CONTRACT, briefWithFact(fact)));
+      assertTrue(error.getMessage().contains("ELEMENT_INTENT_PARENT"), error.getMessage());
+    }
+  }
+
+  @Test
+  void rejectsReuseWithoutBody() {
+    IllegalArgumentException error =
+        assertThrows(IllegalArgumentException.class, () -> validate(reuseRevision(false, false)));
+
+    assertTrue(
+        error.getMessage().contains("requires at least 1 'body' child"), error.getMessage());
+  }
+
+  @Test
+  void rejectsExecutionAcrossReuseBoundary() {
+    IllegalArgumentException error =
+        assertThrows(IllegalArgumentException.class, () -> validate(reuseRevision(true, true)));
+
+    assertTrue(
+        error.getMessage().contains("crosses reuse containment boundary"), error.getMessage());
+  }
+
+  @Test
+  void acceptsRetryAndErrorScope() {
+    assertDoesNotThrow(() -> validate(retryRevision()));
+    assertDoesNotThrow(() -> validate(errorScopeRevision("catch-all")));
+  }
+
+  @Test
+  void rejectsDuplicateServiceCallId() {
+    IllegalArgumentException error =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> validate(revisionWithDuplicateServiceCallId()));
+    assertTrue(error.getMessage().contains("Duplicate serviceCallId: call-1"), error.getMessage());
+  }
+
+  @Test
+  void rejectsServiceCallNodeForDirectSenderCapability() {
+    ChainSemanticRevision revision = linearRevision();
+    RequirementBrief brief =
+        briefWithFact(
+            new RequirementFact(
+                "call-1",
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.CAPABILITY,
+                "http-sender",
+                "Forward with http-sender"));
+
+    IllegalArgumentException error =
+        assertThrows(
+            IllegalArgumentException.class, () -> validator.validate(revision, CONTRACT, brief));
+
+    assertTrue(error.getMessage().contains("direct sender capability"), error.getMessage());
+    assertTrue(error.getMessage().contains("call-1"), error.getMessage());
+  }
+
+  @Test
+  void rejectsCatalogBindingOnDirectInteraction() {
+    SemanticNode trigger =
+        new SemanticNode.Trigger(
+            "kafka-start", "kafka-trigger-2", new SemanticProvenance(List.of()));
+    SemanticNode call =
+        new SemanticNode.ServiceCall(
+            "node-call", "call-1", "getOrder", new SemanticProvenance(List.of()));
+    ChainSemanticRevision revision =
+        revision(
+            List.of(entry("kafka-start", "kafka-start", "node-call")),
+            List.of(trigger, call),
+            List.of(),
+            List.of(sequence("edge-entry", "kafka-start", "node-call", null, null)),
+            List.of(),
+            List.of());
+    RequirementFlow flow =
+        new RequirementFlow(
+            List.of(
+                new Interaction(
+                    "kafka-start", Direction.INBOUND, "Local Kafka", "onTaskStart", "")),
+            List.of());
+    RequirementFact fact =
+        new RequirementFact(
+            "kafka-start",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "kafka-trigger-2",
+            "Consume the local task.start topic");
+    CatalogBindingHint hint =
+        new CatalogBindingHint(
+            CatalogBindingHint.SCHEMA_VERSION,
+            "kafka-start",
+            "kafka-start",
+            "onTaskStart",
+            "sys-kafka",
+            "sg-kafka",
+            "spec-kafka",
+            "op-kafka",
+            "kafka",
+            "",
+            "",
+            "v1",
+            Instant.EPOCH,
+            "catalog-read:sys-kafka/spec-kafka/op-kafka");
+    RequirementBrief brief =
+        briefWithFact(fact).withFlow(flow).withCatalogBindings(List.of(hint));
+
+    IllegalArgumentException error =
+        assertThrows(
+            IllegalArgumentException.class, () -> validator.validate(revision, CONTRACT, brief));
+
+    assertTrue(error.getMessage().contains("kafka-start"), error.getMessage());
+    assertTrue(error.getMessage().contains("catalog binding"), error.getMessage());
+  }
+
+  @Test
+  void rejectsTriggerCapabilityOnOutboundInteraction() {
+    ChainSemanticRevision revision = linearRevision();
+    RequirementBrief brief =
+        briefWithFact(
+            new RequirementFact(
+                "call-1",
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.CAPABILITY,
+                "http-trigger",
+                "Misplaced trigger capability"))
+            .withFlow(
+                new RequirementFlow(
+                    List.of(
+                        new Interaction("http-in", Direction.INBOUND, "Caller", "start", ""),
+                        new Interaction("call-1", Direction.OUTBOUND, "Target", "send", "")),
+                    List.of()));
+
+    IllegalArgumentException error =
+        assertThrows(
+            IllegalArgumentException.class, () -> validator.validate(revision, CONTRACT, brief));
+
+    assertTrue(error.getMessage().contains("http-trigger"), error.getMessage());
+    assertTrue(error.getMessage().contains("call-1"), error.getMessage());
+  }
+
+  @Test
+  void acceptsHttpTriggerWhenBriefHasNegativeMcpTriggerFact() {
+    ChainSemanticRevision revision = linearRevision();
+    RequirementBrief brief =
+        briefFrom(revision)
+            .withFacts(
+                List.of(
+                    new RequirementFact(
+                        "http-in",
+                        RequirementFactPolarity.NEGATIVE,
+                        RequirementFactKind.CONSTRAINT,
+                        "mcp-trigger",
+                        "No MCP")));
+    assertDoesNotThrow(() -> validator.validate(revision, CONTRACT, brief));
+  }
+
+  @Test
+  void acceptsMcpTriggerCapabilityInSemanticInput() {
+    SemanticNode trigger =
+        new SemanticNode.Trigger("trigger-http", "mcp-trigger", new SemanticProvenance(List.of()));
+    SemanticNode call =
+        new SemanticNode.ServiceCall(
+            "node-call", "call-1", "getOrder", new SemanticProvenance(List.of()));
+    ChainSemanticRevision revision =
+        revision(
+            List.of(entry("http-in", "trigger-http", "node-call")),
+            List.of(trigger, call),
+            List.of(),
+            List.of(sequence("edge-entry", "trigger-http", "node-call", null, null)),
+            List.of(),
+            List.of());
+    RequirementBrief brief =
+        briefWithFact(
+            new RequirementFact(
+                "trigger-1",
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.CAPABILITY,
+                "mcp-trigger",
+                "Expose MCP tools"));
+
+    assertDoesNotThrow(() -> validator.validate(revision, CONTRACT, brief));
+  }
+
+  @Test
+  void rejectsFailureModeThatConflictsWithTheApprovedOccurrence() {
+    ChainSemanticRevision revision = linearRevision();
+    RequirementBrief brief =
+        briefFrom(revision)
+            .withServiceCalls(
+                List.of(
+                    new RequirementServiceCall(
+                        "call-1",
+                        "fact-call",
+                        "Orders Service",
+                        "getOrder",
+                        null,
+                        ServiceCallFailureMode.INLINE_RESPONSE)));
+
+    IllegalArgumentException error =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> validator.validate(revision, CONTRACT, brief));
+
+    assertTrue(
+        error.getMessage().contains("conflicts with approved failureMode=INLINE_RESPONSE"),
+        error.getMessage());
+  }
+
+  @Test
+  void rejectsErrorScopeModeWhenTheOccurrenceIsOutsideAnErrorScope() {
+    ChainSemanticRevision base = linearRevision();
+    List<SemanticNode> nodes = new ArrayList<>();
+    for (SemanticNode node : base.nodes()) {
+      if (node instanceof SemanticNode.ServiceCall call) {
+        nodes.add(
+            new SemanticNode.ServiceCall(
+                call.nodeId(),
+                call.serviceCallId(),
+                call.operation(),
+                ServiceCallFailureMode.ERROR_SCOPE,
+                call.provenance()));
+      } else {
+        nodes.add(node);
+      }
+    }
+    ChainSemanticRevision revision =
+        copy(
+            base,
+            base.entryPoints(),
+            nodes,
+            base.regions(),
+            base.executionEdges(),
+            base.containment(),
+            base.mappingIntents());
+
+    IllegalArgumentException error =
+        assertThrows(IllegalArgumentException.class, () -> validate(revision));
+
+    assertTrue(error.getMessage().contains("is not inside an ErrorScope try path"), error.getMessage());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"ERROR_SCOPE", "INLINE_RESPONSE"})
+  void checksServiceCallFailureModeUsingDeclaredRegionMembership(String mode) {
+    ChainSemanticRevision base = errorScopeRevision("catch-all");
+    List<SemanticNode> nodes = base.nodes().stream().map(node ->
+        node.nodeId().equals("try-body")
+            ? (SemanticNode) new SemanticNode.ServiceCall("try-body", "call-1", "getOrder",
+                ServiceCallFailureMode.valueOf(mode), node.provenance())
+            : node).toList();
+    ChainSemanticRevision candidate = copy(base, base.entryPoints(), nodes, base.regions(),
+        base.executionEdges(), List.of(), base.mappingIntents());
+
+    if (ServiceCallFailureMode.ERROR_SCOPE.name().equals(mode)) {
+      assertDoesNotThrow(() -> validate(candidate));
+    } else {
+      IllegalArgumentException error = assertThrows(IllegalArgumentException.class, () -> validate(candidate));
+      assertTrue(error.getMessage().contains("is inside an ErrorScope but uses failureMode=INLINE_RESPONSE"),
+          error.getMessage());
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void nestedRegionMembershipPreservesErrorScopeAncestryAfterASequenceStep(boolean callAfterLoop) {
+    ChainSemanticRevision base = errorScopeRevision("catch-all");
+    List<SemanticNode> nodes = new ArrayList<>(base.nodes());
+    nodes.add(new SemanticNode.Operation("repeat", "loop-2", new SemanticProvenance(List.of())));
+    nodes.add(new SemanticNode.ServiceCall("nested-call", "call-1", "getOrder",
+        callAfterLoop ? ServiceCallFailureMode.PROPAGATE : ServiceCallFailureMode.ERROR_SCOPE,
+        new SemanticProvenance(List.of())));
+    nodes.add(callAfterLoop
+        ? new SemanticNode.ServiceCall("after-loop", "call-2", "getOrder",
+            ServiceCallFailureMode.ERROR_SCOPE, new SemanticProvenance(List.of()))
+        : new SemanticNode.Operation("after-loop", "script", new SemanticProvenance(List.of())));
+    List<SemanticRegion> regions = new ArrayList<>(base.regions());
+    regions.add(new SemanticRegion.Loop("loop-region", "repeat", "nested-call", List.of("nested-call"),
+        "after-loop", new LoopPolicy(LoopMode.DO_WHILE, "false", 1)));
+    List<SemanticExecutionEdge> edges = new ArrayList<>(base.executionEdges());
+    edges.add(sequence("to-repeat", "try-body", "repeat", null, null));
+    edges.add(new SemanticExecutionEdge("repeat-body", "repeat", "nested-call", "loop-region",
+        new SemanticRoute.LoopBody(), null));
+    edges.add(new SemanticExecutionEdge("repeat-exit", "nested-call", "after-loop", "loop-region",
+        new SemanticRoute.LoopExit(), null));
+
+    assertDoesNotThrow(() -> validate(copy(base, base.entryPoints(), nodes, regions, edges,
+        List.of(), base.mappingIntents())));
+  }
+
+  @Test
+  void errorScopeContinuationDoesNotInheritTheWrapperMembership() {
+    ChainSemanticRevision base = errorScopeRevision("catch-all");
+    List<SemanticNode> nodes = new ArrayList<>(base.nodes());
+    nodes.add(new SemanticNode.ServiceCall("after-scope", "call-1", "getOrder",
+        ServiceCallFailureMode.ERROR_SCOPE, new SemanticProvenance(List.of())));
+    List<SemanticExecutionEdge> edges = new ArrayList<>(base.executionEdges());
+    edges.add(sequence("scope-continuation", "try-catch-1", "after-scope", null, null));
+
+    IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+        () -> validate(copy(base, base.entryPoints(), nodes, base.regions(), edges,
+            List.of(), base.mappingIntents())));
+    assertTrue(error.getMessage().contains("is not inside an ErrorScope try path"), error.getMessage());
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void selfOwnedRetryPreservesOuterScopeInEitherRegionOrder(boolean retryFirst) {
+    ChainSemanticRevision base = errorScopeRevision("catch-all");
+    List<SemanticNode> nodes = new ArrayList<>(base.nodes());
+    nodes.add(new SemanticNode.ServiceCall("retry-call", "call-1", "getOrder",
+        ServiceCallFailureMode.ERROR_SCOPE, new SemanticProvenance(List.of())));
+    nodes.add(new SemanticNode.ServiceCall("after-retry", "call-2", "getOrder",
+        ServiceCallFailureMode.ERROR_SCOPE, new SemanticProvenance(List.of())));
+    SemanticRegion retry = new SemanticRegion.Retry("retry-region", "retry-call", "retry-call",
+        List.of("retry-call"), "after-retry", new RetryPolicy(3, 5000));
+    List<SemanticRegion> regions = new ArrayList<>(base.regions());
+    regions.add(retryFirst ? 0 : regions.size(), retry);
+    List<SemanticExecutionEdge> edges = new ArrayList<>(base.executionEdges());
+    edges.add(new SemanticExecutionEdge("retry-exit", "retry-call", "after-retry", "retry-region",
+        new SemanticRoute.RetryExhausted(), null));
+    edges.add(sequence("to-retry", "try-body", "retry-call", null, null));
+
+    assertDoesNotThrow(() -> validate(copy(base, base.entryPoints(), nodes, regions, edges,
+        List.of(), base.mappingIntents())));
+  }
+
+  @Test
+  void rejectsOrphanMapping() {
+    IllegalArgumentException error =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> validate(revisionWithOrphanMapping()));
+    assertTrue(error.getMessage().contains("orphan mapping intent: map-orphan"), error.getMessage());
+  }
+
+  @Test
+  void rejectsOrphanScript() {
+    IllegalArgumentException error =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> validate(revisionWithOrphanScript()));
+    assertTrue(error.getMessage().contains("orphan script: orphan-script"), error.getMessage());
+  }
+
+  @Test
+  void mappingOwnedScriptStaysOneToOneWithMappingIntent() {
+    assertDoesNotThrow(() -> validate(linearRevision()));
+  }
+
+  @Test
+  void rejectsScriptBoundToTwoMappingIntents() {
+    IllegalArgumentException error =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> validate(revisionWithScriptBoundToTwoIntents()));
+    assertTrue(error.getMessage().contains("op-shared"), error.getMessage());
+    assertTrue(error.getMessage().contains("mapping"), error.getMessage());
+  }
+
+  @Test
+  void acceptsBehaviorOwnedScriptWithPositiveBehaviorProvenance() {
+    RequirementBrief brief =
+        briefWithFact(
+            new RequirementFact(
+                SemanticFixtures.COMPLETE_TASK_FACT_ID,
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.BEHAVIOR,
+                "",
+                "Respond with commandType=completeTask"));
+    assertDoesNotThrow(
+        () -> validator.validate(SemanticFixtures.linearOrdersWithCompleteTask(), CONTRACT, brief));
+  }
+
+  @Test
+  void rejectsScriptWhoseProvenanceIsNotPositiveBehavior() {
+    RequirementBrief brief =
+        briefWithFact(
+            new RequirementFact(
+                SemanticFixtures.COMPLETE_TASK_FACT_ID,
+                RequirementFactPolarity.NEGATIVE,
+                RequirementFactKind.CONSTRAINT,
+                "",
+                "Do not invent a mapping intent"));
+    IllegalArgumentException error =
+        assertThrows(
+            IllegalArgumentException.class,
+            () ->
+                validator.validate(
+                    SemanticFixtures.linearOrdersWithCompleteTask(), CONTRACT, brief));
+    assertTrue(error.getMessage().contains("orphan script:"), error.getMessage());
+  }
+
+  @Test
+  void acceptsErrorHandlingScriptInApprovedRegion() {
+    assertDoesNotThrow(() -> validate(errorScopeRevision("catch-all")));
+  }
+
+  @Test
+  void rejectsUnknownContractElement() {
+    IllegalArgumentException error =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> validate(revisionWithUnknownElement()));
+    assertTrue(error.getMessage().contains("Unknown contract element: choice"), error.getMessage());
+  }
+
+  @Test
+  void rejectsHiddenJoin() {
+    IllegalArgumentException error =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> validate(revisionWithHiddenJoin()));
+    assertTrue(
+        error.getMessage().contains("Unsupported topology: generic-barrier"), error.getMessage());
+  }
+
+  @Test
+  void rejectsOldSemanticSchema() {
+    CompilerContract oldSchema =
+        new CompilerContract(
+            CONTRACT.contractVersion(),
+            "normalized-design-flow/v1",
+            CONTRACT.elements(),
+            CONTRACT.topology(),
+            CONTRACT.requiredArtifacts(),
+            CONTRACT.requiredAddons(),
+            CONTRACT.requiredKnowledgeFragments(),
+            CONTRACT.sha256());
+    IllegalArgumentException error =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> validator.validate(linearRevision(), oldSchema, briefFrom(linearRevision())));
+    assertTrue(error.getMessage().contains("semantic schema version"), error.getMessage());
+    assertTrue(error.getMessage().contains("normalized-design-flow/v1"), error.getMessage());
+  }
+
+  @Test
+  void rejectsMissingExecutionRoute() {
+    IllegalArgumentException error =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> validate(revisionWithMissingRoute()));
+    assertTrue(error.getMessage().contains("missing a route"), error.getMessage());
+  }
+
+  @Test
+  void mappingEndpointPredicateRejectsReconvergenceAndMultiIncoming() {
+    assertTrue(BriefMappingValidator.isMappingEndpoint(1, false));
+    assertFalse(BriefMappingValidator.isMappingEndpoint(1, true));
+    assertFalse(BriefMappingValidator.isMappingEndpoint(2, false));
+  }
+
+  @Test
+  void rejectsCompilerContractVersionMismatch() {
+    CompilerContract otherContract =
+        new CompilerContract(
+            "create-chain-compiler-contract/v0",
+            CONTRACT.semanticSchemaVersion(),
+            CONTRACT.elements(),
+            CONTRACT.topology(),
+            CONTRACT.requiredArtifacts(),
+            CONTRACT.requiredAddons(),
+            CONTRACT.requiredKnowledgeFragments(),
+            CONTRACT.sha256());
+    IllegalArgumentException error =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> validator.validate(linearRevision(), otherContract, briefFrom(linearRevision())));
+    assertTrue(error.getMessage().contains("compiler contract version"), error.getMessage());
+    assertTrue(
+        error.getMessage().contains("create-chain-compiler-contract/v0"), error.getMessage());
+  }
+
+  private static ChainSemanticRevision revisionWithNoEntries() {
+    return copy(linearRevision(), List.of(), linearRevision().nodes(), linearRevision().regions(),
+        linearRevision().executionEdges(), linearRevision().containment(),
+        linearRevision().mappingIntents());
+  }
+
+  private static ChainSemanticRevision revisionWithCycle() {
+    ChainSemanticRevision linear = linearRevision();
+    List<SemanticExecutionEdge> edges = new ArrayList<>(linear.executionEdges());
+    edges.add(
+        new SemanticExecutionEdge(
+            "edge-cycle",
+            "node-call",
+            "op-shared",
+            null,
+            new SemanticRoute.Sequence(),
+            null));
+    return copy(
+        linear,
+        linear.entryPoints(),
+        linear.nodes(),
+        linear.regions(),
+        edges,
+        linear.containment(),
+        linear.mappingIntents());
+  }
+
+  private static ChainSemanticRevision asyncSplitWithZeroBranches() {
+    ChainSemanticRevision linear = linearRevision();
+    List<SemanticNode> nodes = new ArrayList<>(linear.nodes());
+    nodes.add(
+        new SemanticNode.Operation(
+            "split-async-1", "split-async-2", new SemanticProvenance(List.of())));
+    SemanticRegion.Split split =
+        new SemanticRegion.Split("region-async-split", "split-async-1", SplitMode.ASYNC, List.of(),
+            null);
+    List<SemanticExecutionEdge> edges = new ArrayList<>(linear.executionEdges());
+    edges.add(
+        new SemanticExecutionEdge(
+            "edge-to-split",
+            "node-call",
+            "split-async-1",
+            "region-async-split",
+            new SemanticRoute.Sequence(),
+            null));
+    return copy(
+        linear,
+        linear.entryPoints(),
+        nodes,
+        List.of(split),
+        edges,
+        linear.containment(),
+        linear.mappingIntents());
+  }
+
+  private static ChainSemanticRevision revisionWithDuplicateServiceCallId() {
+    ChainSemanticRevision linear = linearRevision();
+    List<SemanticNode> nodes = new ArrayList<>(linear.nodes());
+    nodes.add(
+        new SemanticNode.ServiceCall(
+            "node-call-2", "call-1", "getOrder", new SemanticProvenance(List.of())));
+    List<SemanticExecutionEdge> edges = new ArrayList<>(linear.executionEdges());
+    edges.add(
+        new SemanticExecutionEdge(
+            "edge-call-2",
+            "node-call",
+            "node-call-2",
+            null,
+            new SemanticRoute.Sequence(),
+            null));
+    return copy(
+        linear,
+        linear.entryPoints(),
+        nodes,
+        linear.regions(),
+        edges,
+        linear.containment(),
+        linear.mappingIntents());
+  }
+
+  private static ChainSemanticRevision revisionWithOrphanScript() {
+    SemanticNode trigger =
+        new SemanticNode.Trigger("trigger-http", "http-trigger", new SemanticProvenance(List.of()));
+    SemanticNode orphan =
+        new SemanticNode.Operation("orphan-script", "script", new SemanticProvenance(List.of()));
+    SemanticNode call =
+        new SemanticNode.ServiceCall(
+            "node-call", "call-1", "getOrder", new SemanticProvenance(List.of()));
+    return revision(
+        List.of(entry("http-in", "trigger-http", "orphan-script")),
+        List.of(trigger, orphan, call),
+        List.of(),
+        List.of(
+            sequence("edge-entry", "trigger-http", "orphan-script", null, null),
+            sequence("edge-call", "orphan-script", "node-call", null, null)),
+        List.of(),
+        List.of());
+  }
+
+  private static ChainSemanticRevision revisionWithScriptBoundToTwoIntents() {
+    ChainSemanticRevision linear = linearRevision();
+    List<SemanticExecutionEdge> edges =
+        List.of(
+            sequence("edge-entry", "trigger-http", "op-shared", null, "map-a"),
+            sequence("edge-call", "op-shared", "node-call", null, "map-b"));
+    return copy(
+        linear,
+        linear.entryPoints(),
+        linear.nodes(),
+        linear.regions(),
+        edges,
+        linear.containment(),
+        List.of(mapping("map-a", "edge-entry"), mapping("map-b", "edge-call")));
+  }
+
+  private void validate(ChainSemanticRevision revision) {
+    validator.validate(revision, CONTRACT, briefFrom(revision));
+  }
+
+  private static RequirementBrief briefFrom(ChainSemanticRevision revision) {
+    return new RequirementBrief("Orders", List.of(), List.of(), List.of(), List.of(), "summary")
+        .withMappingIntents(revision.mappingIntents());
+  }
+
+  private static RequirementBrief briefWithFact(RequirementFact fact) {
+    return new RequirementBrief(
+        "Orders",
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        "summary",
+        null,
+        "",
+        List.of(fact),
+        List.of());
+  }
+
+  private static ChainSemanticRevision revisionWithOrphanMapping() {
+    ChainSemanticRevision linear = linearRevision();
+    List<MappingIntent> mappings = new ArrayList<>(linear.mappingIntents());
+    mappings.add(
+        new MappingIntent(
+            "map-orphan",
+            "missing-edge",
+            MappingPort.OUTPUT,
+            "missing-edge",
+            MappingPort.REQUEST,
+            List.of(new MappingIntentRule("id", "orderId", null))));
+    return copy(
+        linear,
+        linear.entryPoints(),
+        linear.nodes(),
+        linear.regions(),
+        linear.executionEdges(),
+        linear.containment(),
+        mappings);
+  }
+
+  private static ChainSemanticRevision revisionWithUnknownElement() {
+    ChainSemanticRevision linear = linearRevision();
+    List<SemanticNode> nodes = new ArrayList<>(linear.nodes());
+    nodes.add(new SemanticNode.Operation("choice-1", "choice", new SemanticProvenance(List.of())));
+    List<SemanticExecutionEdge> edges = new ArrayList<>(linear.executionEdges());
+    edges.add(
+        new SemanticExecutionEdge(
+            "edge-choice",
+            "node-call",
+            "choice-1",
+            null,
+            new SemanticRoute.Sequence(),
+            null));
+    return copy(
+        linear,
+        linear.entryPoints(),
+        nodes,
+        linear.regions(),
+        edges,
+        linear.containment(),
+        linear.mappingIntents());
+  }
+
+  private static ChainSemanticRevision revisionWithHiddenJoin() {
+    SemanticNode trigger =
+        new SemanticNode.Trigger("trigger-http", "http-trigger", new SemanticProvenance(List.of()));
+    SemanticNode condition =
+        new SemanticNode.Operation("condition-1", "condition", new SemanticProvenance(List.of()));
+    SemanticNode callA =
+        new SemanticNode.ServiceCall("call-a", "call-a", "getOrder", new SemanticProvenance(List.of()));
+    SemanticNode callB =
+        new SemanticNode.ServiceCall("call-b", "call-b", "getItem", new SemanticProvenance(List.of()));
+    SemanticNode join =
+        new SemanticNode.Operation("script-common", "script", new SemanticProvenance(List.of()));
+    SemanticRegion.Condition region =
+        new SemanticRegion.Condition(
+            "region-condition",
+            "condition-1",
+            List.of(
+                new SemanticBranch.Condition(
+                    "approved", ConditionBranchRole.IF, "status == 'ok'", 1, "call-a", List.of("call-a")),
+                new SemanticBranch.Condition(
+                    "rejected", ConditionBranchRole.IF, "status != 'ok'", 2, "call-b", List.of("call-b"))),
+            "script-common");
+    List<SemanticExecutionEdge> edges =
+        List.of(
+            sequence("edge-entry", "trigger-http", "condition-1", null, null),
+            new SemanticExecutionEdge(
+                "edge-approved",
+                "condition-1",
+                "call-a",
+                "region-condition",
+                new SemanticRoute.ConditionBranch("approved"),
+                null),
+            new SemanticExecutionEdge(
+                "edge-rejected",
+                "condition-1",
+                "call-b",
+                "region-condition",
+                new SemanticRoute.ConditionBranch("rejected"),
+                null),
+            sequence("edge-join-a", "call-a", "script-common", "region-condition", null),
+            sequence("edge-join-b", "call-b", "script-common", "region-condition", null));
+    return revision(
+        List.of(entry("http-in", "trigger-http", "condition-1")),
+        List.of(trigger, condition, callA, callB, join),
+        List.of(region),
+        edges,
+        List.of(),
+        List.of());
+  }
+
+  private static ChainSemanticRevision revisionWithMissingRoute() {
+    ChainSemanticRevision linear = linearRevision();
+    SemanticExecutionEdge first = linear.executionEdges().getFirst();
+    SemanticExecutionEdge missingRoute =
+        new SemanticExecutionEdge(
+            first.edgeId(),
+            first.sourceNodeId(),
+            first.targetNodeId(),
+            first.regionId(),
+            null,
+            first.mappingId());
+    List<SemanticExecutionEdge> edges = new ArrayList<>(linear.executionEdges());
+    edges.set(0, missingRoute);
+    return copy(
+        linear,
+        linear.entryPoints(),
+        linear.nodes(),
+        linear.regions(),
+        edges,
+        linear.containment(),
+        linear.mappingIntents());
+  }
+
+  private static ChainSemanticRevision linearRevision() {
+    SemanticNode trigger =
+        new SemanticNode.Trigger("trigger-http", "http-trigger", new SemanticProvenance(List.of()));
+    SemanticNode script =
+        new SemanticNode.Operation("op-shared", "script", new SemanticProvenance(List.of()));
+    SemanticNode call =
+        new SemanticNode.ServiceCall(
+            "node-call", "call-1", "getOrder", new SemanticProvenance(List.of()));
+    List<SemanticExecutionEdge> edges =
+        List.of(
+            sequence("edge-entry", "trigger-http", "op-shared", null, null),
+            sequence("edge-call", "op-shared", "node-call", null, "map-body"));
+    MappingIntent mapping =
+        new MappingIntent(
+            "map-body",
+            "edge-call",
+            MappingPort.OUTPUT,
+            "edge-call",
+            MappingPort.REQUEST,
+            List.of(new MappingIntentRule("id", "orderId", null)));
+    return revision(
+        List.of(entry("http-in", "trigger-http", "op-shared")),
+        List.of(trigger, script, call),
+        List.of(),
+        edges,
+        List.of(),
+        List.of(mapping));
+  }
+
+  private static ChainSemanticRevision asyncSplitOneBranchRevision() {
+    SemanticNode trigger =
+        new SemanticNode.Trigger("trigger-http", "http-trigger", new SemanticProvenance(List.of()));
+    SemanticNode split =
+        new SemanticNode.Operation(
+            "split-async-1", "split-async-2", new SemanticProvenance(List.of()));
+    SemanticNode notify =
+        new SemanticNode.ServiceCall(
+            "call-notify", "call-notify", "notify", new SemanticProvenance(List.of()));
+    SemanticRegion.Split region =
+        new SemanticRegion.Split(
+            "region-async-split",
+            "split-async-1",
+            SplitMode.ASYNC,
+            List.of(new SemanticBranch.Split("notify", 0, "call-notify", List.of("call-notify"))),
+            null);
+    List<SemanticExecutionEdge> edges =
+        List.of(
+            sequence("edge-entry", "trigger-http", "split-async-1", null, null),
+            new SemanticExecutionEdge(
+                "edge-notify",
+                "split-async-1",
+                "call-notify",
+                "region-async-split",
+                new SemanticRoute.SplitBranch("notify"),
+                null));
+    return revision(
+        List.of(entry("http-in", "trigger-http", "split-async-1")),
+        List.of(trigger, split, notify),
+        List.of(region),
+        edges,
+        List.of(),
+        List.of());
+  }
+
+  private static ChainSemanticRevision typedLoopRevision() {
+    SemanticNode trigger =
+        new SemanticNode.Trigger("trigger-http", "http-trigger", new SemanticProvenance(List.of()));
+    SemanticNode loop =
+        new SemanticNode.Operation("loop-1", "loop-2", new SemanticProvenance(List.of()));
+    SemanticNode body =
+        new SemanticNode.Operation("body-script", "script", new SemanticProvenance(List.of()));
+    SemanticNode after =
+        new SemanticNode.Operation("after-loop", "script", new SemanticProvenance(List.of()));
+    SemanticRegion.Loop region =
+        new SemanticRegion.Loop(
+            "loop-region",
+            "loop-1",
+            "body-script",
+            List.of("body-script"),
+            "after-loop",
+            new LoopPolicy(LoopMode.COPY, "items", 1500));
+    List<SemanticExecutionEdge> edges =
+        List.of(
+            sequence("edge-entry", "trigger-http", "loop-1", null, null),
+            new SemanticExecutionEdge(
+                "edge-body",
+                "loop-1",
+                "body-script",
+                "loop-region",
+                new SemanticRoute.LoopBody(),
+                null),
+            new SemanticExecutionEdge(
+                "edge-exit",
+                "body-script",
+                "after-loop",
+                "loop-region",
+                new SemanticRoute.LoopExit(),
+                null));
+    return revision(
+        List.of(entry("http-in", "trigger-http", "loop-1")),
+        List.of(trigger, loop, body, after),
+        List.of(region),
+        edges,
+        List.of(),
+        List.of());
+  }
+
+  private static ChainSemanticRevision typedReconvergeRevision() {
+    return twoIfConditionRevision("approved", List.of("approved"), List.of("rejected"), null, "if");
+  }
+
+  private static ChainSemanticRevision revisionWithUnknownConditionBranch() {
+    return twoIfConditionRevision("ghost", List.of("approved"), List.of("rejected"), null, "if");
+  }
+
+  private static ChainSemanticRevision revisionWithUnknownReconvergeBranch() {
+    return twoIfConditionRevision("approved", List.of("ghost"), List.of("rejected"), null, "if");
+  }
+
+  private static ChainSemanticRevision revisionWithUnknownContainmentRole() {
+    return twoIfConditionRevision("approved", List.of("approved"), List.of("rejected"), null, "when");
+  }
+
+  private static ChainSemanticRevision revisionWithMappingOnReconverge() {
+    return twoIfConditionRevision(
+        "approved", List.of("approved"), List.of("rejected"), "map-join", "if");
+  }
+
+  private static ChainSemanticRevision twoIfConditionRevision(
+      String approvedRouteId,
+      List<String> approvedJoinBranchIds,
+      List<String> rejectedJoinBranchIds,
+      String joinMappingId,
+      String containmentRole) {
+    SemanticNode trigger =
+        new SemanticNode.Trigger("trigger-http", "http-trigger", new SemanticProvenance(List.of()));
+    SemanticNode condition =
+        new SemanticNode.Operation("condition-1", "condition", new SemanticProvenance(List.of()));
+    SemanticNode callA =
+        new SemanticNode.ServiceCall("call-a", "call-a", "getOrder", new SemanticProvenance(List.of()));
+    SemanticNode callB =
+        new SemanticNode.ServiceCall("call-b", "call-b", "getItem", new SemanticProvenance(List.of()));
+    SemanticNode join =
+        new SemanticNode.Operation("script-common", "script", new SemanticProvenance(List.of()));
+    SemanticRegion.Condition region =
+        new SemanticRegion.Condition(
+            "region-condition",
+            "condition-1",
+            List.of(
+                new SemanticBranch.Condition(
+                    "approved",
+                    ConditionBranchRole.IF,
+                    "status == 'ok'",
+                    1,
+                    "call-a",
+                    List.of("call-a")),
+                new SemanticBranch.Condition(
+                    "rejected",
+                    ConditionBranchRole.IF,
+                    "status != 'ok'",
+                    2,
+                    "call-b",
+                    List.of("call-b"))),
+            "script-common");
+    List<SemanticExecutionEdge> edges =
+        List.of(
+            sequence("edge-entry", "trigger-http", "condition-1", null, null),
+            new SemanticExecutionEdge(
+                "edge-approved",
+                "condition-1",
+                "call-a",
+                "region-condition",
+                new SemanticRoute.ConditionBranch(approvedRouteId),
+                null),
+            new SemanticExecutionEdge(
+                "edge-rejected",
+                "condition-1",
+                "call-b",
+                "region-condition",
+                new SemanticRoute.ConditionBranch("rejected"),
+                null),
+            new SemanticExecutionEdge(
+                "edge-join-a",
+                "call-a",
+                "script-common",
+                "region-condition",
+                new SemanticRoute.Reconverge(approvedJoinBranchIds),
+                joinMappingId),
+            new SemanticExecutionEdge(
+                "edge-join-b",
+                "call-b",
+                "script-common",
+                "region-condition",
+                new SemanticRoute.Reconverge(rejectedJoinBranchIds),
+                null));
+    List<MappingIntent> mappings =
+        joinMappingId == null
+            ? List.of()
+            : List.of(mapping(joinMappingId, "edge-join-a"));
+    return revision(
+        List.of(entry("http-in", "trigger-http", "condition-1")),
+        List.of(trigger, condition, callA, callB, join),
+        List.of(region),
+        edges,
+        List.of(
+            new SemanticContainment("condition-1", "call-a", containmentRole),
+            new SemanticContainment("condition-1", "call-b", "if")),
+        mappings);
+  }
+
+  private static ChainSemanticRevision revisionWithUnknownSplitBranch() {
+    ChainSemanticRevision base = asyncSplitOneBranchRevision();
+    List<SemanticExecutionEdge> edges = new ArrayList<>();
+    for (SemanticExecutionEdge edge : base.executionEdges()) {
+      if ("edge-notify".equals(edge.edgeId())) {
+        edges.add(
+            new SemanticExecutionEdge(
+                edge.edgeId(),
+                edge.sourceNodeId(),
+                edge.targetNodeId(),
+                edge.regionId(),
+                new SemanticRoute.SplitBranch("ghost"),
+                edge.mappingId()));
+      } else {
+        edges.add(edge);
+      }
+    }
+    return copy(
+        base,
+        base.entryPoints(),
+        base.nodes(),
+        base.regions(),
+        edges,
+        base.containment(),
+        base.mappingIntents());
+  }
+
+  private static ChainSemanticRevision revisionWithUnknownCatchHandler() {
+    return errorScopeRevision("ghost");
+  }
+
+  private static ChainSemanticRevision revisionWithNoIfBranch() {
+    return singleConditionRevision(
+        List.of(
+            new SemanticBranch.Condition(
+                "fallback", ConditionBranchRole.ELSE, null, 0, "call-else", List.of("call-else"))),
+        List.of(
+            new SemanticNode.ServiceCall(
+                "call-else", "call-else", "fallback", new SemanticProvenance(List.of()))),
+        List.of(
+            new SemanticExecutionEdge(
+                "edge-else",
+                "condition-1",
+                "call-else",
+                "region-condition",
+                new SemanticRoute.ConditionBranch("fallback"),
+                null)));
+  }
+
+  private static ChainSemanticRevision revisionWithTwoElseBranches() {
+    return singleConditionRevision(
+        List.of(
+            new SemanticBranch.Condition(
+                "approved",
+                ConditionBranchRole.IF,
+                "status == 'ok'",
+                1,
+                "call-a",
+                List.of("call-a")),
+            new SemanticBranch.Condition(
+                "else-a", ConditionBranchRole.ELSE, null, 0, "call-b", List.of("call-b")),
+            new SemanticBranch.Condition(
+                "else-b", ConditionBranchRole.ELSE, null, 0, "call-c", List.of("call-c"))),
+        List.of(
+            new SemanticNode.ServiceCall(
+                "call-a", "call-a", "getOrder", new SemanticProvenance(List.of())),
+            new SemanticNode.ServiceCall(
+                "call-b", "call-b", "getItem", new SemanticProvenance(List.of())),
+            new SemanticNode.ServiceCall(
+                "call-c", "call-c", "getOther", new SemanticProvenance(List.of()))),
+        List.of(
+            branchEdge("edge-approved", "call-a", "approved"),
+            branchEdge("edge-else-a", "call-b", "else-a"),
+            branchEdge("edge-else-b", "call-c", "else-b")));
+  }
+
+  private static ChainSemanticRevision revisionWithDuplicateIfPriority() {
+    return singleConditionRevision(
+        List.of(
+            new SemanticBranch.Condition(
+                "approved",
+                ConditionBranchRole.IF,
+                "status == 'ok'",
+                1,
+                "call-a",
+                List.of("call-a")),
+            new SemanticBranch.Condition(
+                "rejected",
+                ConditionBranchRole.IF,
+                "status != 'ok'",
+                1,
+                "call-b",
+                List.of("call-b"))),
+        List.of(
+            new SemanticNode.ServiceCall(
+                "call-a", "call-a", "getOrder", new SemanticProvenance(List.of())),
+            new SemanticNode.ServiceCall(
+                "call-b", "call-b", "getItem", new SemanticProvenance(List.of()))),
+        List.of(
+            branchEdge("edge-approved", "call-a", "approved"),
+            branchEdge("edge-rejected", "call-b", "rejected")));
+  }
+
+  private static ChainSemanticRevision revisionWithEmptyIfPredicate() {
+    return singleConditionRevision(
+        List.of(
+            new SemanticBranch.Condition(
+                "approved", ConditionBranchRole.IF, "  ", 1, "call-a", List.of("call-a"))),
+        List.of(
+            new SemanticNode.ServiceCall(
+                "call-a", "call-a", "getOrder", new SemanticProvenance(List.of()))),
+        List.of(branchEdge("edge-approved", "call-a", "approved")));
+  }
+
+  private static ChainSemanticRevision singleConditionRevision(
+      List<SemanticBranch.Condition> branches,
+      List<SemanticNode> branchNodes,
+      List<SemanticExecutionEdge> branchEdges) {
+    SemanticNode trigger =
+        new SemanticNode.Trigger("trigger-http", "http-trigger", new SemanticProvenance(List.of()));
+    SemanticNode condition =
+        new SemanticNode.Operation("condition-1", "condition", new SemanticProvenance(List.of()));
+    List<SemanticNode> nodes = new ArrayList<>();
+    nodes.add(trigger);
+    nodes.add(condition);
+    nodes.addAll(branchNodes);
+    List<SemanticExecutionEdge> edges = new ArrayList<>();
+    edges.add(sequence("edge-entry", "trigger-http", "condition-1", null, null));
+    edges.addAll(branchEdges);
+    List<SemanticContainment> containment = new ArrayList<>();
+    for (SemanticBranch.Condition branch : branches) {
+      String role = branch.role() == ConditionBranchRole.IF ? "if" : "else";
+      containment.add(new SemanticContainment("condition-1", branch.entryNodeId(), role));
+    }
+    return revision(
+        List.of(entry("http-in", "trigger-http", "condition-1")),
+        nodes,
+        List.of(new SemanticRegion.Condition("region-condition", "condition-1", branches, null)),
+        edges,
+        containment,
+        List.of());
+  }
+
+  private static ChainSemanticRevision syncSplitRevision() {
+    SemanticNode trigger =
+        new SemanticNode.Trigger("trigger-http", "http-trigger", new SemanticProvenance(List.of()));
+    SemanticNode split =
+        new SemanticNode.Operation("split-1", "split-2", new SemanticProvenance(List.of()));
+    SemanticNode left =
+        new SemanticNode.ServiceCall(
+            "call-left", "call-left", "getLeft", new SemanticProvenance(List.of()));
+    SemanticNode right =
+        new SemanticNode.ServiceCall(
+            "call-right", "call-right", "getRight", new SemanticProvenance(List.of()));
+    SemanticNode after =
+        new SemanticNode.Operation("after-split", "script", new SemanticProvenance(List.of()));
+    SemanticRegion.Split region =
+        new SemanticRegion.Split(
+            "region-sync-split",
+            "split-1",
+            SplitMode.SYNC,
+            List.of(
+                new SemanticBranch.Split("left", 0, "call-left", List.of("call-left")),
+                new SemanticBranch.Split("right", 1, "call-right", List.of("call-right"))),
+            "after-split");
+    List<SemanticExecutionEdge> edges =
+        List.of(
+            sequence("edge-entry", "trigger-http", "split-1", null, null),
+            new SemanticExecutionEdge(
+                "edge-left",
+                "split-1",
+                "call-left",
+                "region-sync-split",
+                new SemanticRoute.SplitBranch("left"),
+                null),
+            new SemanticExecutionEdge(
+                "edge-right",
+                "split-1",
+                "call-right",
+                "region-sync-split",
+                new SemanticRoute.SplitBranch("right"),
+                null),
+            new SemanticExecutionEdge(
+                "edge-join-left",
+                "call-left",
+                "after-split",
+                "region-sync-split",
+                new SemanticRoute.Reconverge(List.of("left")),
+                null),
+            new SemanticExecutionEdge(
+                "edge-join-right",
+                "call-right",
+                "after-split",
+                "region-sync-split",
+                new SemanticRoute.Reconverge(List.of("right")),
+                null));
+    return revision(
+        List.of(entry("http-in", "trigger-http", "split-1")),
+        List.of(trigger, split, left, right, after),
+        List.of(region),
+        edges,
+        List.of(
+            new SemanticContainment("split-1", "call-left", "split-element-2"),
+            new SemanticContainment("split-1", "call-right", "split-element-2")),
+        List.of());
+  }
+
+  private static ChainSemanticRevision retryRevision() {
+    SemanticNode trigger =
+        new SemanticNode.Trigger("trigger-http", "http-trigger", new SemanticProvenance(List.of()));
+    SemanticNode call =
+        new SemanticNode.ServiceCall(
+            "call-1", "call-1", "getOrder", new SemanticProvenance(List.of()));
+    SemanticNode after =
+        new SemanticNode.Operation("after-retry", "script", new SemanticProvenance(List.of()));
+    SemanticRegion.Retry region =
+        new SemanticRegion.Retry(
+            "retry-region",
+            "call-1",
+            "call-1",
+            List.of("call-1"),
+            "after-retry",
+            new RetryPolicy(3, 5000));
+    List<SemanticExecutionEdge> edges =
+        List.of(
+            new SemanticExecutionEdge(
+                "edge-entry",
+                "trigger-http",
+                "call-1",
+                "retry-region",
+                new SemanticRoute.RetryAttempt(),
+                null),
+            new SemanticExecutionEdge(
+                "edge-exhausted",
+                "call-1",
+                "after-retry",
+                "retry-region",
+                new SemanticRoute.RetryExhausted(),
+                null));
+    return revision(
+        List.of(entry("http-in", "trigger-http", "call-1")),
+        List.of(trigger, call, after),
+        List.of(region),
+        edges,
+        List.of(),
+        List.of());
+  }
+
+  private static ChainSemanticRevision errorScopeRevision(String catchRouteId) {
+    SemanticNode trigger =
+        new SemanticNode.Trigger("trigger-http", "http-trigger", new SemanticProvenance(List.of()));
+    SemanticNode owner =
+        new SemanticNode.Operation(
+            "try-catch-1", "try-catch-finally-2", new SemanticProvenance(List.of()));
+    SemanticNode tryBody =
+        new SemanticNode.Operation("try-body", "script", new SemanticProvenance(List.of()));
+    SemanticNode catchBody =
+        new SemanticNode.Operation("catch-body", "script", new SemanticProvenance(List.of()));
+    SemanticNode finallyBody =
+        new SemanticNode.Operation("finally-script", "script", new SemanticProvenance(List.of()));
+    SemanticRegion.ErrorScope scope =
+        new SemanticRegion.ErrorScope(
+            "error-region",
+            "try-catch-1",
+            "try-body",
+            List.of(
+                new ErrorHandler(
+                    "catch-all", "java.lang.Exception", "catch-body", List.of("catch-body"))),
+            "finally-script",
+            List.of("finally-script"));
+    List<SemanticExecutionEdge> edges =
+        List.of(
+            sequence("edge-entry", "trigger-http", "try-catch-1", null, null),
+            new SemanticExecutionEdge(
+                "edge-try",
+                "try-catch-1",
+                "try-body",
+                "error-region",
+                new SemanticRoute.TryPath(),
+                null),
+            new SemanticExecutionEdge(
+                "edge-catch",
+                "try-catch-1",
+                "catch-body",
+                "error-region",
+                new SemanticRoute.CatchPath(catchRouteId),
+                null),
+            new SemanticExecutionEdge(
+                "edge-finally",
+                "try-catch-1",
+                "finally-script",
+                "error-region",
+                new SemanticRoute.FinallyPath(),
+                null));
+    return revision(
+        List.of(entry("http-in", "trigger-http", "try-catch-1")),
+        List.of(trigger, owner, tryBody, catchBody, finallyBody),
+        List.of(scope),
+        edges,
+        List.of(
+            new SemanticContainment("try-catch-1", "try-body", "try-2"),
+            new SemanticContainment("try-catch-1", "catch-body", "catch-2"),
+            new SemanticContainment("try-catch-1", "finally-script", "finally-2")),
+        List.of());
+  }
+
+  private static ChainSemanticRevision tryCatchWithoutErrorScope() {
+    ChainSemanticRevision scoped = errorScopeRevision("catch-all");
+    List<SemanticExecutionEdge> edges =
+        scoped.executionEdges().stream()
+            .map(
+                edge ->
+                    new SemanticExecutionEdge(
+                        edge.edgeId(),
+                        edge.sourceNodeId(),
+                        edge.targetNodeId(),
+                        null,
+                        new SemanticRoute.Sequence(),
+                        edge.mappingId()))
+            .toList();
+    return copy(
+        scoped,
+        scoped.entryPoints(),
+        scoped.nodes(),
+        List.of(),
+        edges,
+        List.of(),
+        scoped.mappingIntents());
+  }
+
+  private static ChainSemanticRevision errorScopeWithInternalCatchPath() {
+    ChainSemanticRevision scoped = errorScopeRevision("catch-all");
+    List<SemanticExecutionEdge> edges =
+        scoped.executionEdges().stream()
+            .map(
+                edge ->
+                    "edge-catch".equals(edge.edgeId())
+                        ? new SemanticExecutionEdge(
+                            edge.edgeId(),
+                            "try-body",
+                            edge.targetNodeId(),
+                            edge.regionId(),
+                            edge.route(),
+                            edge.mappingId())
+                        : edge)
+            .toList();
+    return copy(
+        scoped,
+        scoped.entryPoints(),
+        scoped.nodes(),
+        scoped.regions(),
+        edges,
+        scoped.containment(),
+        scoped.mappingIntents());
+  }
+
+  private static ChainSemanticRevision revisionWithUnreachableNode() {
+    ChainSemanticRevision linear = linearRevision();
+    List<SemanticNode> nodes = new ArrayList<>(linear.nodes());
+    nodes.add(
+        new SemanticNode.Operation(
+            "orphan-script", "script", new SemanticProvenance(List.of())));
+    return copy(
+        linear,
+        linear.entryPoints(),
+        nodes,
+        linear.regions(),
+        linear.executionEdges(),
+        linear.containment(),
+        linear.mappingIntents());
+  }
+
+  private static ChainSemanticRevision reuseRevision(boolean withBody, boolean crossesBoundary) {
+    SemanticNode trigger =
+        new SemanticNode.Trigger("trigger-http", "http-trigger", new SemanticProvenance(List.of()));
+    SemanticNode reference =
+        new SemanticNode.Operation(
+            "reuse-reference", "reuse-reference", new SemanticProvenance(List.of()));
+    SemanticNode after =
+        new SemanticNode.Operation(
+            "after-reuse", "header-modification", new SemanticProvenance(List.of()));
+    SemanticNode reuse =
+        new SemanticNode.Operation("reuse-container", "reuse", new SemanticProvenance(List.of()));
+    SemanticNode body =
+        new SemanticNode.Operation(
+            "reuse-body", "header-modification", new SemanticProvenance(List.of()));
+    List<SemanticExecutionEdge> edges =
+        new ArrayList<>(
+            List.of(
+                sequence("edge-entry", "trigger-http", "reuse-reference", null, null),
+                sequence("edge-after", "reuse-reference", "after-reuse", null, null)));
+    if (crossesBoundary) {
+      edges.add(sequence("edge-crossing", "reuse-body", "after-reuse", null, null));
+    }
+    return revision(
+        List.of(entry("http-in", "trigger-http", "reuse-reference")),
+        List.of(trigger, reference, after, reuse, body),
+        List.of(),
+        edges,
+        withBody
+            ? List.of(new SemanticContainment("reuse-container", "reuse-body", "body"))
+            : List.of(),
+        List.of());
+  }
+
+  private static ChainSemanticRevision revisionWithDuplicateNodeId() {
+    ChainSemanticRevision linear = linearRevision();
+    List<SemanticNode> nodes = new ArrayList<>(linear.nodes());
+    nodes.add(
+        new SemanticNode.Operation("op-shared", "script", new SemanticProvenance(List.of())));
+    return copy(
+        linear,
+        linear.entryPoints(),
+        nodes,
+        linear.regions(),
+        linear.executionEdges(),
+        linear.containment(),
+        linear.mappingIntents());
+  }
+
+  private static ChainSemanticRevision revisionWithContainmentCycle() {
+    ChainSemanticRevision linear = linearRevision();
+    return copy(
+        linear,
+        linear.entryPoints(),
+        linear.nodes(),
+        linear.regions(),
+        linear.executionEdges(),
+        List.of(
+            new SemanticContainment("op-shared", "node-call", "if"),
+            new SemanticContainment("node-call", "op-shared", "if")),
+        linear.mappingIntents());
+  }
+
+  private static SemanticExecutionEdge branchEdge(String edgeId, String target, String branchId) {
+    return new SemanticExecutionEdge(
+        edgeId,
+        "condition-1",
+        target,
+        "region-condition",
+        new SemanticRoute.ConditionBranch(branchId),
+        null);
+  }
+
+  private static MappingIntent mapping(String mappingId, String edgeId) {
+    return new MappingIntent(
+        mappingId,
+        edgeId,
+        MappingPort.OUTPUT,
+        edgeId,
+        MappingPort.REQUEST,
+        List.of(new MappingIntentRule("id", "orderId", null)));
+  }
+
+  private static SemanticEntryPoint entry(String id, String triggerNodeId, String targetNodeId) {
+    return new SemanticEntryPoint(
+        id, triggerNodeId, targetNodeId, 0, new SemanticProvenance(List.of()), null);
+  }
+
+  private static SemanticExecutionEdge sequence(
+      String edgeId, String from, String to, String regionId, String mappingId) {
+    return new SemanticExecutionEdge(
+        edgeId, from, to, regionId, new SemanticRoute.Sequence(), mappingId);
+  }
+
+  private static ChainSemanticRevision revision(
+      List<SemanticEntryPoint> entryPoints,
+      List<SemanticNode> nodes,
+      List<SemanticRegion> regions,
+      List<SemanticExecutionEdge> edges,
+      List<SemanticContainment> containment,
+      List<MappingIntent> mappings) {
+    return new ChainSemanticRevision(
+        CONTRACT.semanticSchemaVersion(),
+        "revision-1",
+        "chain-greetings",
+        CONTRACT.contractVersion(),
+        entryPoints,
+        nodes,
+        regions,
+        edges,
+        containment,
+        mappings,
+        List.of(),
+        List.of(),
+        List.of());
+  }
+
+  private static ChainSemanticRevision copy(
+      ChainSemanticRevision base,
+      List<SemanticEntryPoint> entryPoints,
+      List<SemanticNode> nodes,
+      List<SemanticRegion> regions,
+      List<SemanticExecutionEdge> edges,
+      List<SemanticContainment> containment,
+      List<MappingIntent> mappings) {
+    return new ChainSemanticRevision(
+        base.schemaVersion(),
+        base.revisionId(),
+        base.chainIdentity(),
+        base.compilerContractVersion(),
+        entryPoints,
+        nodes,
+        regions,
+        edges,
+        containment,
+        mappings,
+        base.constraints(),
+        base.assumptions(),
+        base.citations());
+  }
+}

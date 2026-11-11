@@ -1,8 +1,9 @@
 /**
  * @jest-environment jsdom
  */
-import { render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
+import { RestApiError } from "../../src/api/apiTypes";
 import type { Chain } from "../../src/api/apiTypes";
 import ChainPage from "../../src/pages/ChainPage";
 
@@ -37,13 +38,15 @@ const baseChain: Chain = {
 
 let mockChain: Chain = { ...baseChain };
 let mockIsVsCode = false;
+const mockGetChain = jest.fn();
+const mockSetChain = jest.fn();
 
 jest.mock("../../src/hooks/useChain", () => ({
   useChain: () => ({
     chain: mockChain,
-    setChain: jest.fn(),
+    setChain: mockSetChain,
     updateChain: jest.fn().mockResolvedValue(undefined),
-    getChain: jest.fn().mockResolvedValue(mockChain),
+    getChain: mockGetChain,
     isLoading: false,
     error: null,
   }),
@@ -78,6 +81,7 @@ describe("ChainPage", () => {
     jest.clearAllMocks();
     mockIsVsCode = false;
     mockChain = { ...baseChain, unsavedChanges: false };
+    mockGetChain.mockResolvedValue(mockChain);
     mockTestingAvailability.isAvailable = false;
     mockTestingAvailability.isLoading = false;
   });
@@ -115,5 +119,64 @@ describe("ChainPage", () => {
     expect(
       screen.queryByTestId("chain-unsaved-changes"),
     ).not.toBeInTheDocument();
+  });
+
+  it("should reload the open chain when Rocky reports a catalog write", async () => {
+    render(<ChainPage />);
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent("qip-catalog-changed", {
+          detail: { chainIds: ["chain-1"], chainsListChanged: true },
+        }),
+      );
+    });
+    await waitFor(() => expect(mockGetChain).toHaveBeenCalledTimes(1));
+    expect(mockSetChain).toHaveBeenCalledWith(mockChain);
+  });
+  it("ignores writes to other chains", async () => {
+    render(<ChainPage />);
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent("qip-catalog-changed", {
+          detail: { chainIds: ["other"], chainsListChanged: true },
+        }),
+      );
+    });
+    expect(mockGetChain).not.toHaveBeenCalled();
+  });
+
+  it("preserves the graph on a read failure and offers a read retry", async () => {
+    mockGetChain.mockRejectedValueOnce(new Error("offline"));
+    render(<ChainPage />);
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent("qip-catalog-changed", {
+          detail: { chainIds: null, chainsListChanged: true },
+        }),
+      );
+    });
+    await waitFor(() => expect(mockRequestFailed).toHaveBeenCalled());
+    expect(screen.getByTestId("outlet")).toBeInTheDocument();
+    expect(mockSetChain).not.toHaveBeenCalled();
+    await act(async () => {
+      mockRequestFailed.mock.calls[0][2]();
+    });
+    await waitFor(() => expect(mockGetChain).toHaveBeenCalledTimes(2));
+  });
+
+  it("replaces a deleted graph with a navigation action", async () => {
+    mockGetChain.mockRejectedValueOnce(new RestApiError("missing", 404));
+    render(<ChainPage />);
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent("qip-catalog-changed", {
+          detail: { chainIds: ["chain-1"], chainsListChanged: true },
+        }),
+      );
+    });
+    await waitFor(() =>
+      expect(screen.getByText("Chain deleted")).toBeInTheDocument(),
+    );
+    expect(mockRequestFailed).not.toHaveBeenCalled();
   });
 });

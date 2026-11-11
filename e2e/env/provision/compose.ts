@@ -14,23 +14,22 @@
  * pre-#754 `200`; after `mvn install` and a second `--build`, `204`.
  *
  * A service is also brought to this checkout's **configuration**, not only to its sources. A change
- * to `infrastructure/docker-compose.yml`, to an env file a service reads, or to `infrastructure/nginx/`
- * reaches a running container through none of the above: the container keeps the environment it was
- * started with and nothing says so. Recreating a container costs seconds where a Maven build costs
+ * to `infrastructure/docker/docker-compose.yml`, to an env file a service reads, or to
+ * `infrastructure/docker/nginx/` reaches a running container through none of the above: the
+ * container keeps the environment it was started with and nothing says so. Recreating a container costs seconds where a Maven build costs
  * minutes, so the two reasons are decided separately and stay separate in the report.
  *
  * And nginx resolves `proxy_pass http://engine:8080` once, at config load, with no `resolver` in
  * scope. Recreate a backend and the proxy keeps an address Docker has since handed to a different
  * container. Measured: after the engine and sessions-management containers were recreated,
- * `/api/v1/qip/engine/live-exchanges` answered 500 with a *Session Management* error body. So every
+ * `/api/v1/cip/engine/live-exchanges` answered 500 with a *Session Management* error body. So every
  * created or recreated container is followed by `Env.reloadProxy()`, unconditionally.
  *
  * Provisioning runs in `globalSetup` rather than in a fixture: a cold service costs tens of seconds
  * and a Maven build costs minutes, and neither may be charged to a test's timeout.
  */
-import path from "node:path";
 import { ComposeEnv, composeFile } from "../compose.js";
-import { capture, newestMtimeMs, pollUntil, repoRoot, stream } from "../host.js";
+import { capture, imageTag, newestMtimeMs, pollUntil, repoRoot, stream } from "../host.js";
 import {
   describeOverride,
   forgetOverride,
@@ -46,9 +45,9 @@ import { emptyProvisionReport, mavenInstall } from "./common.js";
 /**
  * A service the suite provisions, and what makes its image stale.
  *
- * `sources` is anything under `<module>/src` or its `pom.xml`, compared against
- * the creation time of the image the container is actually running. No labels and no state file,
- * so it stays correct on a dirty tree, which is the normal state while developing.
+ * `sources` is anything under `<module>/src` or its `pom.xml`. A build tags the image with a hash
+ * over their contents, so the image is stale when the container runs any other image. The hash
+ * covers a dirty tree, which is the normal state while developing.
  *
  * The rule is "what reaches the jar this image runs", so it holds three kinds of path rather than
  * one. `parents/spring/pom.xml` is the parent of all three Spring services — every one of them
@@ -69,7 +68,7 @@ interface Provisionable {
   container: string;
   /** Maven module to install before the image is built, when the jar comes from the host. */
   mavenModule?: string;
-  /** Paths whose mtime decides staleness, relative to the repository root. */
+  /** Paths whose contents decide staleness, relative to the repository root. */
   sources: string[];
   /**
    * The env files this compose service declares, relative to the repository root.
@@ -83,7 +82,7 @@ interface Provisionable {
 /**
  * What makes a container's configuration stale, as against its image.
  *
- * Measured: after `MONITORING_ENABLED=true` was added to `infrastructure/engine-dev.env`, an engine
+ * Measured: after `MONITORING_ENABLED=true` was added to `infrastructure/docker/engine-dev.env`, an engine
  * on a stack that was already up kept running without it — so the metrics spec failed
  * pointing at a file the developer had never touched. A configuration change is answered by
  * recreating the container, never by rebuilding it.
@@ -107,14 +106,14 @@ const PROVISIONED: Provisionable[] = [
       "integration-build-pipeline/src",
       "integration-build-pipeline/pom.xml",
     ],
-    envFiles: ["infrastructure/qip-dev.env"],
+    envFiles: ["infrastructure/docker/qip-dev.env"],
   },
   {
     service: "qip-engine",
     container: "qip-engine",
     mavenModule: "engine",
     sources: ["engine/src", "engine/pom.xml", "engine/Dockerfile", "parents/spring/pom.xml"],
-    envFiles: ["infrastructure/qip-dev.env", "infrastructure/engine-dev.env"],
+    envFiles: ["infrastructure/docker/qip-dev.env", "infrastructure/docker/engine-dev.env"],
   },
   {
     service: "qip-sessions-management",
@@ -126,7 +125,7 @@ const PROVISIONED: Provisionable[] = [
       "sessions-management/Dockerfile",
       "parents/spring/pom.xml",
     ],
-    envFiles: ["infrastructure/qip-dev.env"],
+    envFiles: ["infrastructure/docker/qip-dev.env"],
   },
   // The Go service compiles inside its own Dockerfile, so `--build` alone is enough for it, and its
   // environment is written inline in the compose file rather than in an env file of its own.
@@ -144,7 +143,7 @@ const PROVISIONED: Provisionable[] = [
  * Configuration is where that rule needs a distinction, because a change reaches a running support
  * container through nothing at all. `recreatable` is what decides whether the change is acted on or
  * only reported, and it is a fact about the compose file rather than a preference:
- * `infrastructure/docker-compose.yml` declares no volume for the data of postgres, opensearch or
+ * `infrastructure/docker/docker-compose.yml` declares no volume for the data of postgres, opensearch or
  * consul, so recreating one discards the catalog's rows, the recorded sessions or the deployment
  * state that this stack is holding. The proxy holds nothing but a bind-mounted configuration, so it
  * is recreated like any application service.
@@ -164,15 +163,15 @@ const SUPPORT: Array<
     service: "postgres",
     container: "postgreSQL",
     recreatable: false,
-    config: ["infrastructure/init-db"],
+    config: ["infrastructure/docker/init-db"],
   },
   {
     service: "opensearch",
     container: "opensearch",
     recreatable: false,
-    config: ["infrastructure/opensearch/opensearch.yml"],
+    config: ["infrastructure/docker/opensearch/opensearch.yml"],
   },
-  { service: "consul", container: "consul", recreatable: false, config: ["infrastructure/consul"] },
+  { service: "consul", container: "consul", recreatable: false, config: ["infrastructure/docker/consul"] },
   { service: "ui-proxy", container: "ui-proxy", recreatable: true, config: [] },
 ];
 
@@ -190,8 +189,8 @@ export function supportConfig(): Array<{ service: string; config: string[] }> {
 /**
  * Each provisioned service's staleness sources, for the spec that pins them against the checkout.
  *
- * Exported for the reason `supportConfig` is: `newestMtimeMs` skips a path that does not exist, so
- * an entry that was renamed reads as a service nothing can make stale, and the run says "nothing to
+ * Exported for the reason `supportConfig` is: `imageTag` skips a path that does not exist, so an
+ * entry that was renamed reads as a service nothing can make stale, and the run says "nothing to
  * do" over a jar built before the change.
  */
 export function provisionedSources(): Array<{
@@ -239,11 +238,44 @@ function isUp(state: ContainerState | null): boolean {
   return !!state && state.running && (state.health === "healthy" || state.health === "none");
 }
 
-async function imageCreatedMs(ref: string): Promise<number | null> {
-  const out = await capture("docker", ["image", "inspect", "-f", "{{.Created}}", ref]).catch(() => null);
-  if (!out) return null;
-  const ms = Date.parse(out.trim());
-  return Number.isNaN(ms) ? null : ms;
+async function imageId(reference: string): Promise<string | null> {
+  const out = await capture("docker", ["image", "inspect", "-f", "{{.Id}}", reference]).catch(() => null);
+  return out ? out.trim() : null;
+}
+
+/**
+ * Whether the image a service runs was built from sources other than the ones in the checkout.
+ *
+ * A build tags its image `<repository>:<tag>`, where `tag` is `imageTag` over the service's sources,
+ * so the image is current when that tag exists and names the image the container runs. `running` is
+ * the container's image, or null when there is no container, in which case the image Compose would
+ * start, `<repository>:latest`, is compared. Contents decide rather than modification times: the
+ * testing service's Go build is reproducible, so its image kept an old creation time, and any newer
+ * file under `testing-service/` made the service stale on every run.
+ * `inspect` is `docker image inspect`, passed in so a spec can run this without Docker.
+ */
+export async function imageStale(
+  repository: string,
+  tag: string,
+  running: string | null,
+  inspect: (reference: string) => Promise<string | null> = imageId,
+): Promise<boolean> {
+  const current = await inspect(`${repository}:${tag}`);
+  return current === null || current !== (running ?? (await inspect(repository)));
+}
+
+/**
+ * The references of the hash tags in `tags` other than `current`, which earlier builds wrote.
+ *
+ * `tags` is what `docker image ls` lists for the repository. Each build adds a hash tag and none
+ * removes one, so an image that a rebuild replaced keeps its tag and never turns dangling, and
+ * `docker image prune` cannot reclaim it. `latest`, `<none>`, and a tag a developer wrote are kept.
+ */
+export function supersededTags(repository: string, tags: readonly string[], current: string): string[] {
+  return tags
+    .map((each) => each.trim())
+    .filter((each) => /^e2e-[0-9a-f]{12}$/.test(each) && each !== current)
+    .map((each) => `${repository}:${each}`);
 }
 
 /** Whether anything under `paths` was written after the container read its configuration. */
@@ -267,7 +299,7 @@ async function newerThanContainer(
  * Health is not consulted, and a gate on it was the defect this function exists to hold shut. A
  * container that is not up is started rather than recreated, and `docker compose up -d` starts an
  * existing container with the mounts it already has: postgres runs `/docker-entrypoint-initdb.d`
- * only against an empty data directory, so a schema added under `infrastructure/init-db` stays inert
+ * only against an empty data directory, so a schema added under `infrastructure/docker/init-db` stays inert
  * until the container is replaced. That is the sharpest case the notice exists for, and gating this
  * reading on `isUp` made it the one case the notice could never report.
  */
@@ -357,15 +389,18 @@ export async function provisionCompose(mode: ProvisionMode): Promise<ProvisionRe
     return report;
   }
 
-  // Staleness is decided per service, against the image the container is actually running. With no
-  // container, fall back to the image compose would have tagged; with neither, the service is built.
-  const project = path.basename(path.dirname(composeFile()));
+  // Staleness is decided per service, against the image the container is actually running.
+  // Compose tags an image `<project>-<service>`, and the compose file sets the project with `name:`.
+  const config = await capture("docker", ["compose", "-f", composeFile(), "config", "--format", "json"]);
+  const project = (JSON.parse(config) as { name: string }).name;
+  const repositoryOf = (candidate: Provisionable) => `${project}-${candidate.service}`;
+  // Hashed before the build, so an edit made while it runs leaves the image stale for the next run.
+  const tags = new Map(PROVISIONED.map((each) => [each, imageTag(root, each.sources)]));
   const stale: Provisionable[] = [];
   const reconfigured: Provisionable[] = [];
   for (const candidate of PROVISIONED) {
     const state = before.get(candidate.container) ?? null;
-    const created = await imageCreatedMs(state?.imageId ?? `${project}-${candidate.service}`);
-    if (created === null || (await newestMtimeMs(root, candidate.sources)) > created) {
+    if (await imageStale(repositoryOf(candidate), tags.get(candidate)!, state?.imageId ?? null)) {
       stale.push(candidate);
       continue;
     }
@@ -423,6 +458,19 @@ export async function provisionCompose(mode: ProvisionMode): Promise<ProvisionRe
   if (rebuild.length) {
     console.log(`[provision] docker compose up --build: ${rebuild.join(", ")}`);
     await stream("docker", ["compose", "-f", file, "up", "-d", "--build", ...rebuild], root);
+    for (const candidate of stale) {
+      const repository = repositoryOf(candidate);
+      const current = tags.get(candidate)!;
+      await capture("docker", ["tag", repository, `${repository}:${current}`]);
+      const listed = await capture("docker", ["image", "ls", "--format", "{{.Tag}}", repository]);
+      for (const reference of supersededTags(repository, listed.split("\n"), current)) {
+        // Without -f, Docker removes the tag, deletes the image once no tag and no container is
+        // left, and refuses to remove the last tag of an image a container uses.
+        await capture("docker", ["rmi", reference]).catch((cause: unknown) => {
+          console.warn(`[provision] kept ${reference}: ${String(cause)}`);
+        });
+      }
+    }
     report.rebuilt = rebuild;
   }
   if (recreate.length) {
@@ -461,7 +509,7 @@ export async function provisionCompose(mode: ProvisionMode): Promise<ProvisionRe
   // changed at all.
   report.proxyConfigChanged = await newerThanContainer(
     root,
-    ["infrastructure/nginx"],
+    ["infrastructure/docker/nginx"],
     before.get(PROXY_CONTAINER) ?? null,
   );
   if (changed.length || report.proxyConfigChanged) {

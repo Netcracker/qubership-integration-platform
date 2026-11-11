@@ -20,11 +20,11 @@ import {
   getParsedElementChildren,
 } from "./chainApiUtils";
 import { fileApi } from "./file";
-import { getExtensionsForUri } from "./file/fileExtensions";
+import { FILE_EXTENSIONS } from "./file/fileExtensions";
 import { sanitizeExportOutputName } from "../exportImageUtils";
 
 export async function listChainExportTargets(): Promise<ExportImagesTarget[]> {
-  const extensions = getExtensionsForUri();
+  const extensions = FILE_EXTENSIONS;
   const files = await fileApi.findFiles(extensions.chain);
 
   const parsed = await Promise.all(
@@ -65,9 +65,8 @@ export async function getMainChain(fileUri: Uri): Promise<ChainSchema> {
 
 export async function getChainFileUri(
   chainId: string,
-  currentFileUri?: Uri,
 ): Promise<Uri> {
-  const extensions = getExtensionsForUri(currentFileUri);
+  const extensions = FILE_EXTENSIONS;
   return await fileApi.findFileById(chainId, extensions.chain);
 }
 
@@ -205,7 +204,7 @@ export async function getElementsByType(
   }
 
   if (elementType === "chain-trigger-2" || elementType === "chain-call-2") {
-    const extensions = getExtensionsForUri(fileUri);
+    const extensions = FILE_EXTENSIONS;
     const chainFiles = await fileApi.findFiles(extensions.chain);
     const result: Element[] = [];
 
@@ -467,7 +466,7 @@ export async function getChain(
   chainId: string,
   chainFileUri?: Uri,
 ): Promise<Chain> {
-  const resolvedUri = chainFileUri ?? (await getChainFileUri(chainId, fileUri));
+  const resolvedUri = chainFileUri ?? (await getChainFileUri(chainId));
   const chain = (await fileApi.parseFile(resolvedUri)) as ChainSchema;
   if (chain.id !== chainId) {
     console.error(`ChainId mismatch`);
@@ -544,7 +543,7 @@ export async function findChainByElementId(
 async function findChain(
   predicate: (chain: ChainSchema) => boolean,
 ): Promise<ChainSchema | null> {
-  const extensions = getExtensionsForUri();
+  const extensions = FILE_EXTENSIONS;
   const chainFiles = await fileApi.findFiles(extensions.chain);
 
   for (const chainFile of chainFiles) {

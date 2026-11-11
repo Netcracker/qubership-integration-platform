@@ -1,0 +1,234 @@
+package org.qubership.integration.platform.ai.productpipeline.create;
+
+import java.util.ArrayList;
+import java.util.List;
+import org.qubership.integration.platform.ai.plan.DraftDecision;
+import org.qubership.integration.platform.ai.plan.RequirementDraft;
+import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.RequirementFactKind;
+import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
+
+/** Shared Greetings / LangRouter fact fixtures for Task 10 coverage tests. */
+public final class RequirementFactFixtures {
+
+  public static final String GREETINGS_PROMPT =
+      "Create chain named \"Greetings\", it receives GET call on internal route \"/greetings\""
+          + " and returns \"Hello world!\". Return plain text directly from a script."
+          + " No service calls. No error handling. No MCP. No chain failure handler."
+          + " No file operations. No SFTP. No SDS. No context storage. No messaging."
+          + " No JMS. No Pub/Sub. No XSLT. No ABAC.";
+
+  public static final String LANG_ROUTER_PROMPT =
+      "Create chain named \"LangRouter\". HTTP GET internal \"/lang-router\" with query"
+          + " parameter preferredLang. Flow: http-trigger then condition/if/else routing."
+          + " If preferredLang is fr: script returns French greeting text. Else branch:"
+          + " script returns English greeting text. No service calls. No catalog binding."
+          + " No API Hub import. No error handling wrapper. No RBAC. No MCP.";
+
+  private RequirementFactFixtures() {}
+
+  public static List<RequirementFact> greetingsFacts() {
+    List<RequirementFact> facts = new ArrayList<>();
+    facts.add(
+        RequirementFact.of(
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.GOAL,
+            "chain",
+            "Create chain named \"Greetings\""));
+    facts.add(
+        new RequirementFact(
+            "greetings",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "http-trigger",
+            "GET /greetings",
+            "",
+            "",
+            "",
+            "GET",
+            "/greetings"));
+    facts.add(
+        RequirementFact.of(
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.VISIBILITY,
+            "http-trigger",
+            "internal route"));
+    facts.add(
+        RequirementFact.of(
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.BEHAVIOR,
+            "script",
+            "Return plain text directly from a script"));
+    facts.add(
+        RequirementFact.of(
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.BEHAVIOR,
+            "script",
+            "returns \"Hello world!\""));
+    addNegative(facts, "service-call", "No service calls");
+    addNegative(facts, "error-handling", "No error handling");
+    addNegative(facts, "mcp", "No MCP");
+    addNegative(facts, "chain-failure-handler", "No chain failure handler");
+    addNegative(facts, "file-operations", "No file operations");
+    addNegative(facts, "sftp", "No SFTP");
+    addNegative(facts, "sds", "No SDS");
+    addNegative(facts, "context-storage", "No context storage");
+    addNegative(facts, "messaging", "No messaging");
+    addNegative(facts, "jms", "No JMS");
+    addNegative(facts, "pubsub", "No Pub/Sub");
+    addNegative(facts, "xslt", "No XSLT");
+    addNegative(facts, "abac", "No ABAC");
+    return List.copyOf(facts);
+  }
+
+  public static List<RequirementFact> greetingsNegativeFacts() {
+    return greetingsFacts().stream()
+        .filter(fact -> fact.polarity() == RequirementFactPolarity.NEGATIVE)
+        .toList();
+  }
+
+  public static List<RequirementFact> langRouterFacts() {
+    List<RequirementFact> facts = new ArrayList<>();
+    facts.add(
+        RequirementFact.of(
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.GOAL,
+            "chain",
+            "Create chain named \"LangRouter\""));
+    facts.add(
+        new RequirementFact(
+            "lang-router",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "http-trigger",
+            "GET /lang-router",
+            "",
+            "",
+            "",
+            "GET",
+            "/lang-router"));
+    facts.add(
+        RequirementFact.of(
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.VISIBILITY,
+            "http-trigger",
+            "internal"));
+    facts.add(
+        RequirementFact.of(
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.PARAMETER,
+            "http-trigger",
+            "preferredLang"));
+    facts.add(
+        RequirementFact.of(
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.ROUTING,
+            "condition",
+            "If preferredLang is fr: script returns French greeting text"));
+    facts.add(
+        RequirementFact.of(
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.ROUTING,
+            "else",
+            "Else branch: script returns English greeting text"));
+    addNegative(facts, "service-call", "No service calls");
+    addNegative(facts, "catalog", "No catalog binding");
+    addNegative(facts, "apihub", "No API Hub import");
+    addNegative(facts, "error-handling", "No error handling wrapper");
+    addNegative(facts, "rbac", "No RBAC");
+    addNegative(facts, "mcp", "No MCP");
+    return List.copyOf(facts);
+  }
+
+  public static RequirementFlow nativeHttpInbound(String interactionId, String operation) {
+    return new RequirementFlow(
+        List.of(
+            new Interaction(interactionId, Direction.INBOUND, "Caller", operation, "")),
+        List.of());
+  }
+
+  /** Native HTTP trigger fact for an inbound interaction. Without it the entry point has no
+   * capability key and the draft never reaches READY_FOR_PLAN. */
+  public static RequirementFact httpTriggerFact(String interactionId, String method, String path) {
+    return new RequirementFact(
+        interactionId,
+        RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.CAPABILITY,
+        "http-trigger",
+        method + " " + path,
+        "",
+        "",
+        "",
+        method,
+        path);
+  }
+
+  public static RequirementFact implementedServiceHttpTriggerFact(
+      String interactionId, String participant, String operation) {
+    return new RequirementFact(
+        interactionId,
+        RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.CAPABILITY,
+        "http-trigger",
+        "Implement " + participant + " " + operation,
+        participant,
+        operation,
+        "",
+        "",
+        "");
+  }
+
+  public static RequirementDraft readyDraft(String assembledText) {
+    return new RequirementDraft(
+            true,
+            assembledText,
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            "brainstorming",
+            "1",
+            null,
+            null,
+            false,
+            List.of(httpTriggerFact("http-in", "GET", "/")))
+        .withFlow(nativeHttpInbound("http-in", "GET /"));
+  }
+
+  public static RequirementDraft greetingsApprovedDraft() {
+    return new RequirementDraft(
+            true,
+            GREETINGS_PROMPT,
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            "brainstorming",
+            "1",
+            null,
+            null,
+            false,
+            greetingsFacts())
+        .withFlow(nativeHttpInbound("greetings", "GET /greetings"));
+  }
+
+  public static RequirementDraft langRouterApprovedDraft() {
+    return new RequirementDraft(
+            true,
+            LANG_ROUTER_PROMPT,
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            "brainstorming",
+            "1",
+            null,
+            null,
+            false,
+            langRouterFacts())
+        .withFlow(nativeHttpInbound("lang-router", "GET /lang-router"));
+  }
+
+  private static void addNegative(List<RequirementFact> facts, String key, String text) {
+    facts.add(
+        RequirementFact.of(
+            RequirementFactPolarity.NEGATIVE, RequirementFactKind.CONSTRAINT, key, text));
+  }
+}

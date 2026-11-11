@@ -1,0 +1,768 @@
+package org.qubership.integration.platform.ai.llm.routing;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import jakarta.enterprise.inject.Instance;
+import jakarta.enterprise.util.AnnotationLiteral;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction;
+import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
+import org.qubership.integration.platform.ai.chain.presentation.ChainContextExtractor;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
+import org.qubership.integration.platform.ai.chat.model.ChatRequest;
+import org.qubership.integration.platform.ai.llm.scenario.ScenarioHandler;
+import org.qubership.integration.platform.ai.model.ScenarioType;
+import org.qubership.integration.platform.ai.plan.PlanCompilationTestSupport;
+import org.qubership.integration.platform.ai.plan.RequirementDraft;
+import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
+import org.qubership.integration.platform.ai.productpipeline.create.CreateRunSelectionService;
+import org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures;
+import org.qubership.integration.platform.ai.productpipeline.create.ProductPipelineChatAdapter;
+import org.qubership.integration.platform.ai.productpipeline.create.UnsupportedCreateRunBindingException;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainExecutionSnapshot;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainExecutionStatus;
+
+class ScenarioRouterTest {
+
+  private static final String CONVERSATION_ID = "conv-router-1";
+
+  private PlanCompilationTestSupport.Runtime compilationRuntime;
+  private RequirementDraftStore requirementDraftStore;
+  private RouterAgent routerAgent;
+  private ChainContextExtractor chainContextExtractor;
+  @SuppressWarnings("unchecked")
+  private Instance<ScenarioHandler> handlers = mock(Instance.class);
+  private ScenarioRouter router;
+
+  @BeforeEach
+  void setUp() {
+    compilationRuntime = PlanCompilationTestSupport.memory();
+    requirementDraftStore = compilationRuntime.requirementDraftStore();
+    routerAgent = mock(RouterAgent.class);
+    chainContextExtractor = mock(ChainContextExtractor.class);
+    when(chainContextExtractor.hasChainContext(any(), anyString())).thenReturn(false);
+    when(handlers.select(any(AnnotationLiteral.class))).thenReturn(handlers);
+    when(handlers.isResolvable()).thenReturn(true);
+    router =
+        new ScenarioRouter(
+            routerAgent,
+            compilationRuntime.phaseResolver(),
+            mock(ConversationService.class),
+            chainContextExtractor,
+            requirementDraftStore,
+            handlers);
+  }
+
+  @Test
+  void createChainWithoutReadyDraftOpensGather() {
+    ChatRequest request = new ChatRequest();
+    request.setScenarioHint(ScenarioType.CREATE_CHAIN_PLAN);
+    ScenarioRouter.RoutingOutcome outcome = router.resolveRouting(request, CONVERSATION_ID);
+    assertEquals(ScenarioType.GATHER_REQUIREMENTS, outcome.scenarioType());
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void standaloneImportUsesItsOwnHandlerInsteadOfStartingCreate(boolean explicitHint) {
+    var selection = mock(CreateRunSelectionService.class);
+    var adapter = mock(ProductPipelineChatAdapter.class);
+    var handler = mock(ScenarioHandler.class);
+    when(handlers.get()).thenReturn(handler);
+    when(handler.handle(any(), eq(CONVERSATION_ID), eq(ScenarioType.IMPORT_SPECIFICATION)))
+        .thenReturn(io.smallrye.mutiny.Multi.createFrom().empty());
+    var productRouter = new ScenarioRouter(routerAgent, compilationRuntime.phaseResolver(),
+        mock(ConversationService.class), chainContextExtractor, requirementDraftStore, handlers, selection, adapter);
+    var request = new ChatRequest();
+    request.setMessage("Import the attached OpenAPI specification as an external service. Do not create or deploy a chain."
+        + "\n---\n- `9fc94106-77db-4715-ad84-b48c43e15dd7.json` (inlined)\n{}");
+    if (explicitHint) request.setScenarioHint(ScenarioType.IMPORT_SPECIFICATION);
+
+    productRouter.route(request, CONVERSATION_ID).collect().asList().await().indefinitely();
+
+    verify(handler).handle(request, CONVERSATION_ID, ScenarioType.IMPORT_SPECIFICATION);
+    verify(selection, never()).selectOrCreate(anyString(), anyString());
+    org.mockito.Mockito.verifyNoInteractions(adapter);
+  }
+
+  @Test
+  void createChainWithReadyDraftStaysOnCreateChainPlan() {
+    requirementDraftStore.put(CONVERSATION_ID, RequirementFactFixtures.readyDraft("vision"));
+    ChatRequest request = new ChatRequest();
+    request.setScenarioHint(ScenarioType.CREATE_CHAIN_PLAN);
+    ScenarioRouter.RoutingOutcome outcome = router.resolveRouting(request, CONVERSATION_ID);
+    assertEquals(ScenarioType.CREATE_CHAIN_PLAN, outcome.scenarioType());
+  }
+
+  @Test
+  void implementWithoutReadyDraftOpensGather() {
+    ChatRequest request = new ChatRequest();
+    request.setScenarioHint(ScenarioType.IMPLEMENT_CHAIN);
+    ScenarioRouter.RoutingOutcome outcome = router.resolveRouting(request, CONVERSATION_ID);
+    assertEquals(ScenarioType.GATHER_REQUIREMENTS, outcome.scenarioType());
+  }
+
+  @Test
+  void unsupportedBindingSurfacesLockedSseError() {
+    CreateRunSelectionService selection = mock(CreateRunSelectionService.class);
+    when(selection.existing(CONVERSATION_ID))
+        .thenThrow(new UnsupportedCreateRunBindingException());
+    ProductPipelineChatAdapter adapter = mock(ProductPipelineChatAdapter.class);
+    ScenarioRouter productRouter =
+        new ScenarioRouter(
+            routerAgent,
+            compilationRuntime.phaseResolver(),
+            mock(ConversationService.class),
+            chainContextExtractor,
+            requirementDraftStore,
+            handlers,
+            selection,
+            adapter);
+    ChatRequest request = new ChatRequest();
+    request.setResolvedEffectiveUserText("hello");
+    var events =
+        productRouter.route(request, CONVERSATION_ID).collect().asList().await().indefinitely();
+    assertEquals(
+        UnsupportedCreateRunBindingException.DISPLAY_MESSAGE,
+        ((org.qubership.integration.platform.ai.chat.ChatEvent.Token) events.get(0)).text());
+  }
+
+  @Test
+  void createOwnedHintRoutesToProductAdapter() {
+    CreateRunSelectionService selection = mock(CreateRunSelectionService.class);
+    when(selection.existing(CONVERSATION_ID)).thenReturn(java.util.Optional.empty());
+    when(selection.selectOrCreate(CONVERSATION_ID))
+        .thenReturn(
+            new CreateRunSelectionService.CreateRunSelection(
+                mock(org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest.class),
+                "run-1"));
+    ProductPipelineChatAdapter adapter = mock(ProductPipelineChatAdapter.class);
+    when(adapter.handle(any(), anyString()))
+        .thenReturn(
+            io.smallrye.mutiny.Multi.createFrom()
+                .item(org.qubership.integration.platform.ai.chat.ChatEvent.token("product")));
+    requirementDraftStore.put(CONVERSATION_ID, RequirementFactFixtures.readyDraft("vision"));
+    ScenarioRouter productRouter =
+        new ScenarioRouter(
+            routerAgent,
+            compilationRuntime.phaseResolver(),
+            mock(ConversationService.class),
+            chainContextExtractor,
+            requirementDraftStore,
+            handlers,
+            selection,
+            adapter);
+    ChatRequest request = new ChatRequest();
+    request.setScenarioHint(ScenarioType.CREATE_CHAIN_PLAN);
+    request.setResolvedEffectiveUserText("create");
+    var events =
+        productRouter.route(request, CONVERSATION_ID).collect().asList().await().indefinitely();
+    assertEquals(
+        "product",
+        ((org.qubership.integration.platform.ai.chat.ChatEvent.Token) events.get(0)).text());
+  }
+
+  @Test
+  void unknownGreetingDoesNotStartACreateRun() {
+    when(routerAgent.classify(any(), anyString(), any())).thenReturn(ScenarioType.UNKNOWN);
+    CreateRunSelectionService selection = mock(CreateRunSelectionService.class);
+    when(selection.existing(CONVERSATION_ID)).thenReturn(java.util.Optional.empty());
+    ProductPipelineChatAdapter adapter = mock(ProductPipelineChatAdapter.class);
+    ScenarioRouter productRouter =
+        new ScenarioRouter(
+            routerAgent,
+            compilationRuntime.phaseResolver(),
+            mock(ConversationService.class),
+            chainContextExtractor,
+            requirementDraftStore,
+            handlers,
+            selection,
+            adapter);
+    ChatRequest request = new ChatRequest();
+    request.setResolvedEffectiveUserText("hello");
+
+    var events =
+        productRouter.route(request, CONVERSATION_ID).collect().asList().await().indefinitely();
+
+    assertEquals(
+        "How can I help with your QIP integration?",
+        ((org.qubership.integration.platform.ai.chat.ChatEvent.Token) events.get(0)).text());
+    verify(selection, never()).selectOrCreate(anyString());
+    verify(adapter, never()).handle(any(), anyString());
+  }
+
+  @Test
+  void finishedCreateRunReleasesTheConversationToOtherScenarios() {
+    ProductPipelineChatAdapter adapter = mock(ProductPipelineChatAdapter.class);
+    ScenarioHandler handler = mock(ScenarioHandler.class);
+    when(handler.handle(any(), anyString(), any()))
+        .thenReturn(
+            io.smallrye.mutiny.Multi.createFrom()
+                .item(org.qubership.integration.platform.ai.chat.ChatEvent.token("patch")));
+    when(handlers.get()).thenReturn(handler);
+    ScenarioRouter productRouter = boundRouter(adapter, snapshotWith(CreateChainExecutionStatus.COMPLETED));
+
+    var events =
+        productRouter
+            .route(patchRequest(), CONVERSATION_ID)
+            .collect()
+            .asList()
+            .await()
+            .indefinitely();
+
+    assertEquals(
+        "patch",
+        ((org.qubership.integration.platform.ai.chat.ChatEvent.Token) events.get(0)).text());
+    org.mockito.Mockito.verify(adapter, org.mockito.Mockito.never()).handle(any(), anyString());
+  }
+
+  @Test
+  void unfinishedCreateRunKeepsOwningTheConversation() {
+    ProductPipelineChatAdapter adapter = mock(ProductPipelineChatAdapter.class);
+    when(adapter.handle(any(), anyString()))
+        .thenReturn(
+            io.smallrye.mutiny.Multi.createFrom()
+                .item(org.qubership.integration.platform.ai.chat.ChatEvent.token("product")));
+    ScenarioRouter productRouter = boundRouter(adapter, snapshotWith(CreateChainExecutionStatus.WORKING));
+
+    var events =
+        productRouter
+            .route(patchRequest(), CONVERSATION_ID)
+            .collect()
+            .asList()
+            .await()
+            .indefinitely();
+
+    assertEquals(
+        "product",
+        ((org.qubership.integration.platform.ai.chat.ChatEvent.Token) events.get(0)).text());
+  }
+
+  private static ChatRequest patchRequest() {
+    ChatRequest request = new ChatRequest();
+    request.setScenarioHint(ScenarioType.COMPARE_AND_PATCH);
+    request.setResolvedEffectiveUserText("fix the script in Normalize payload");
+    return request;
+  }
+
+  private static CreateChainExecutionSnapshot snapshotWith(CreateChainExecutionStatus status) {
+    return snapshotWith(status, null);
+  }
+
+  private static CreateChainExecutionSnapshot snapshotWith(
+      CreateChainExecutionStatus status,
+      org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction
+          pendingAction) {
+    return new CreateChainExecutionSnapshot(CONVERSATION_ID, "run-1", status, 1L, pendingAction, "");
+  }
+
+  private ScenarioRouter boundRouter(
+      ProductPipelineChatAdapter adapter, CreateChainExecutionSnapshot snapshot) {
+    CreateRunSelectionService selection = mock(CreateRunSelectionService.class);
+    when(selection.existing(CONVERSATION_ID))
+        .thenReturn(
+            java.util.Optional.of(
+                new CreateRunSelectionService.CreateRunSelection(
+                    mock(org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest.class),
+                    "run-1")));
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.snapshot(CONVERSATION_ID)).thenReturn(java.util.Optional.of(snapshot));
+    return new ScenarioRouter(
+        routerAgent,
+        compilationRuntime.phaseResolver(),
+        mock(ConversationService.class),
+        chainContextExtractor,
+        requirementDraftStore,
+        handlers,
+        selection,
+        adapter,
+        facade);
+  }
+
+  /**
+   * The chain screen still sends IMPLEMENT_CHAIN with some messages. Obeying that hint skipped the
+   * classifier and, with no IMPLEMENT_CHAIN handler, fell through to a new CREATE run. With a chain
+   * open the hint is a screen label, not an instruction: patch the chain that is already there.
+   */
+  @Test
+  void createOwnedHintWithOpenChainBecomesCompareAndPatch() {
+    when(chainContextExtractor.hasChainContext(any(), anyString())).thenReturn(true);
+    when(routerAgent.classify(any(), anyString(), any())).thenReturn(ScenarioType.GATHER_REQUIREMENTS);
+    ChatRequest request = new ChatRequest();
+    request.setScenarioHint(ScenarioType.IMPLEMENT_CHAIN);
+    request.setResolvedEffectiveUserText("delete the audit step");
+
+    ScenarioRouter.RoutingOutcome outcome = router.resolveRouting(request, CONVERSATION_ID);
+
+    assertEquals(ScenarioType.COMPARE_AND_PATCH, outcome.scenarioType());
+    org.mockito.Mockito.verify(routerAgent, org.mockito.Mockito.never())
+        .classify(any(), anyString(), any());
+  }
+
+  /**
+   * The classifier never sees the open-chain attachment, so "add a script" on a catalog chain often
+   * comes back as GATHER_REQUIREMENTS. Starting CREATE would interview the reader about a new
+   * integration instead of patching the chain on screen.
+   */
+  @Test
+  void openChainDoesNotStartCreateWhenClassifierPicksGather() {
+    when(chainContextExtractor.hasChainContext(any(), anyString())).thenReturn(true);
+    when(routerAgent.classify(any(), anyString(), any()))
+        .thenReturn(ScenarioType.GATHER_REQUIREMENTS);
+    CreateRunSelectionService selection = mock(CreateRunSelectionService.class);
+    when(selection.existing(CONVERSATION_ID)).thenReturn(java.util.Optional.empty());
+    ProductPipelineChatAdapter adapter = mock(ProductPipelineChatAdapter.class);
+    ScenarioHandler handler = mock(ScenarioHandler.class);
+    when(handler.handle(any(), anyString(), any()))
+        .thenReturn(
+            io.smallrye.mutiny.Multi.createFrom()
+                .item(org.qubership.integration.platform.ai.chat.ChatEvent.token("patch")));
+    when(handlers.get()).thenReturn(handler);
+    ScenarioRouter productRouter =
+        new ScenarioRouter(
+            routerAgent,
+            compilationRuntime.phaseResolver(),
+            mock(ConversationService.class),
+            chainContextExtractor,
+            requirementDraftStore,
+            handlers,
+            selection,
+            adapter);
+    ChatRequest request = new ChatRequest();
+    request.setResolvedEffectiveUserText("add a script after Return greeting");
+    request.setAttachment("## Current Chain: Demo (ID: 11111111-1111-1111-1111-111111111111)");
+
+    var events =
+        productRouter.route(request, CONVERSATION_ID).collect().asList().await().indefinitely();
+
+    assertEquals(
+        "patch",
+        ((org.qubership.integration.platform.ai.chat.ChatEvent.Token) events.get(0)).text());
+    org.mockito.Mockito.verify(selection, org.mockito.Mockito.never())
+        .selectOrCreate(CONVERSATION_ID);
+    org.mockito.Mockito.verify(adapter, org.mockito.Mockito.never()).handle(any(), anyString());
+    org.mockito.Mockito.verify(handler)
+        .handle(any(), anyString(), org.mockito.Mockito.eq(ScenarioType.COMPARE_AND_PATCH));
+    org.mockito.Mockito.verify(chainContextExtractor, org.mockito.Mockito.times(1))
+        .hasChainContext(any(), anyString());
+  }
+
+  @Test
+  void routeSkipsExtractorWhenOpenChainTurnContextIsSet() {
+    when(chainContextExtractor.hasChainContext(any(), anyString())).thenReturn(false);
+    when(routerAgent.classify(any(), anyString(), any()))
+        .thenReturn(ScenarioType.GATHER_REQUIREMENTS);
+    CreateRunSelectionService selection = mock(CreateRunSelectionService.class);
+    when(selection.existing(CONVERSATION_ID)).thenReturn(java.util.Optional.empty());
+    ProductPipelineChatAdapter adapter = mock(ProductPipelineChatAdapter.class);
+    ScenarioHandler handler = mock(ScenarioHandler.class);
+    when(handler.handle(any(), anyString(), any()))
+        .thenReturn(
+            io.smallrye.mutiny.Multi.createFrom()
+                .item(org.qubership.integration.platform.ai.chat.ChatEvent.token("patch")));
+    when(handlers.get()).thenReturn(handler);
+    ScenarioRouter productRouter =
+        new ScenarioRouter(
+            routerAgent,
+            compilationRuntime.phaseResolver(),
+            mock(ConversationService.class),
+            chainContextExtractor,
+            requirementDraftStore,
+            handlers,
+            selection,
+            adapter);
+    ChatRequest request = new ChatRequest();
+    request.setResolvedEffectiveUserText("add a script after Return greeting");
+    request.setOpenChainTurnContext(
+        new org.qubership.integration.platform.ai.chat.OpenChainTurnContext(
+            CONVERSATION_ID,
+            "11111111-1111-1111-1111-111111111111",
+            "add a script after Return greeting",
+            "",
+            java.util.Optional.empty(),
+            java.util.Optional.empty(),
+            false));
+
+    var events =
+        productRouter.route(request, CONVERSATION_ID).collect().asList().await().indefinitely();
+
+    assertEquals(
+        "patch",
+        ((org.qubership.integration.platform.ai.chat.ChatEvent.Token) events.get(0)).text());
+    org.mockito.Mockito.verify(chainContextExtractor, org.mockito.Mockito.never())
+        .hasChainContext(any(), anyString());
+    org.mockito.Mockito.verify(handler)
+        .handle(any(), anyString(), org.mockito.Mockito.eq(ScenarioType.COMPARE_AND_PATCH));
+  }
+
+  /**
+   * Live log: scenarioHint=IMPLEMENT_CHAIN skipped the classifier, then "no handler" fell back to
+   * CREATE_CHAIN_PLAN and opened a new CREATE interview. An open-chain attachment must force
+   * COMPARE_AND_PATCH instead, even when the UI still sends that hint.
+   */
+  @Test
+  void implementHintWithOpenChainDoesNotStartCreate() {
+    when(chainContextExtractor.hasChainContext(any(), anyString())).thenReturn(true);
+    when(routerAgent.classify(any(), anyString(), any()))
+        .thenReturn(ScenarioType.GATHER_REQUIREMENTS);
+    CreateRunSelectionService selection = mock(CreateRunSelectionService.class);
+    when(selection.existing(CONVERSATION_ID)).thenReturn(java.util.Optional.empty());
+    ProductPipelineChatAdapter adapter = mock(ProductPipelineChatAdapter.class);
+    ScenarioHandler handler = mock(ScenarioHandler.class);
+    when(handler.handle(any(), anyString(), any()))
+        .thenReturn(
+            io.smallrye.mutiny.Multi.createFrom()
+                .item(org.qubership.integration.platform.ai.chat.ChatEvent.token("patch")));
+    when(handlers.get()).thenReturn(handler);
+    ScenarioRouter productRouter =
+        new ScenarioRouter(
+            routerAgent,
+            compilationRuntime.phaseResolver(),
+            mock(ConversationService.class),
+            chainContextExtractor,
+            requirementDraftStore,
+            handlers,
+            selection,
+            adapter);
+    ChatRequest request = new ChatRequest();
+    request.setScenarioHint(ScenarioType.IMPLEMENT_CHAIN);
+    request.setResolvedEffectiveUserText(
+        "add quartz-scheduler to the chain. it has to start every 5 minutes");
+    request.setAttachment("## Current Chain: Demo (ID: 11111111-1111-1111-1111-111111111111)");
+
+    var events =
+        productRouter.route(request, CONVERSATION_ID).collect().asList().await().indefinitely();
+
+    assertEquals(
+        "patch",
+        ((org.qubership.integration.platform.ai.chat.ChatEvent.Token) events.get(0)).text());
+    org.mockito.Mockito.verify(selection, org.mockito.Mockito.never())
+        .selectOrCreate(CONVERSATION_ID);
+    org.mockito.Mockito.verify(adapter, org.mockito.Mockito.never()).handle(any(), anyString());
+    org.mockito.Mockito.verify(handler)
+        .handle(any(), anyString(), org.mockito.Mockito.eq(ScenarioType.COMPARE_AND_PATCH));
+    org.mockito.Mockito.verify(routerAgent, org.mockito.Mockito.never())
+        .classify(any(), anyString(), any());
+    org.mockito.Mockito.verify(chainContextExtractor, org.mockito.Mockito.times(1))
+        .hasChainContext(any(), anyString());
+  }
+
+  @Test
+  void deployChainHintStaysOnDeployChain() {
+    ChatRequest request = new ChatRequest();
+    request.setScenarioHint(ScenarioType.DEPLOY_CHAIN);
+    request.setResolvedEffectiveUserText("take a snapshot");
+
+    ScenarioRouter.RoutingOutcome outcome = router.resolveRouting(request, CONVERSATION_ID);
+
+    assertEquals(ScenarioType.DEPLOY_CHAIN, outcome.scenarioType());
+    org.mockito.Mockito.verify(routerAgent, org.mockito.Mockito.never())
+        .classify(any(), anyString(), any());
+  }
+
+  @Test
+  void freeTextDeployThisChainWithChainContextClassifiesViaRouterAgent() {
+    when(chainContextExtractor.hasChainContext(any(), anyString())).thenReturn(true);
+    when(routerAgent.classify(any(), anyString(), any())).thenReturn(ScenarioType.DEPLOY_CHAIN);
+    ChatRequest request = new ChatRequest();
+    request.setResolvedEffectiveUserText("Deploy this chain");
+
+    ScenarioRouter.RoutingOutcome outcome = router.resolveRouting(request, CONVERSATION_ID);
+
+    assertEquals(ScenarioType.DEPLOY_CHAIN, outcome.scenarioType());
+    org.mockito.Mockito.verify(routerAgent).classify(any(), anyString(), any());
+  }
+
+  @Test
+  void unfinishedCreateRunLetsGoOfASnapshotTurn() {
+    when(chainContextExtractor.hasChainContext(any(), anyString())).thenReturn(true);
+    ProductPipelineChatAdapter adapter = mock(ProductPipelineChatAdapter.class);
+    ScenarioHandler handler = mock(ScenarioHandler.class);
+    when(handler.handle(any(), anyString(), any()))
+        .thenReturn(
+            io.smallrye.mutiny.Multi.createFrom()
+                .item(org.qubership.integration.platform.ai.chat.ChatEvent.token("snapshot-ok")));
+    when(handlers.get()).thenReturn(handler);
+    ScenarioRouter productRouter =
+        boundRouter(adapter, snapshotWith(CreateChainExecutionStatus.WORKING));
+    ChatRequest request = new ChatRequest();
+    request.setScenarioHint(ScenarioType.DEPLOY_CHAIN);
+    request.setResolvedEffectiveUserText("take a snapshot");
+
+    var events =
+        productRouter.route(request, CONVERSATION_ID).collect().asList().await().indefinitely();
+
+    assertEquals(
+        "snapshot-ok",
+        ((org.qubership.integration.platform.ai.chat.ChatEvent.Token) events.get(0)).text());
+    org.mockito.Mockito.verify(adapter, org.mockito.Mockito.never()).handle(any(), anyString());
+    org.mockito.Mockito.verify(handler)
+        .handle(any(), anyString(), org.mockito.Mockito.eq(ScenarioType.DEPLOY_CHAIN));
+  }
+
+  /** A hint outside CREATE names a scenario rather than a screen, so it still decides. */
+  @Test
+  void nonCreateHintStillDecidesWhenAChainIsOpen() {
+    when(chainContextExtractor.hasChainContext(any(), anyString())).thenReturn(true);
+    ChatRequest request = new ChatRequest();
+    request.setScenarioHint(ScenarioType.ASK_CHAIN);
+    request.setResolvedEffectiveUserText("what does this chain do");
+
+    ScenarioRouter.RoutingOutcome outcome = router.resolveRouting(request, CONVERSATION_ID);
+
+    assertEquals(ScenarioType.ASK_CHAIN, outcome.scenarioType());
+  }
+
+  /** Without a chain in context there is nothing to patch, so the hint is honored as before. */
+  @Test
+  void createOwnedHintStillDecidesWithoutAChainInContext() {
+    requirementDraftStore.put(CONVERSATION_ID, RequirementFactFixtures.readyDraft("vision"));
+    ChatRequest request = new ChatRequest();
+    request.setScenarioHint(ScenarioType.CREATE_CHAIN_PLAN);
+    request.setResolvedEffectiveUserText("delete the audit step");
+
+    ScenarioRouter.RoutingOutcome outcome = router.resolveRouting(request, CONVERSATION_ID);
+
+    assertEquals(ScenarioType.CREATE_CHAIN_PLAN, outcome.scenarioType());
+  }
+
+  /**
+   * The chain the run just built is the chain the reader now wants changed. An unfinished run that
+   * kept this turn would answer a change request with the next step of its own plan.
+   */
+  @Test
+  void unfinishedCreateRunLetsGoOfATurnAboutTheChainItBuilt() {
+    when(chainContextExtractor.hasChainContext(any(), anyString())).thenReturn(true);
+    when(routerAgent.classify(any(), anyString(), any())).thenReturn(ScenarioType.COMPARE_AND_PATCH);
+    ProductPipelineChatAdapter adapter = mock(ProductPipelineChatAdapter.class);
+    ScenarioHandler handler = mock(ScenarioHandler.class);
+    when(handler.handle(any(), anyString(), any()))
+        .thenReturn(
+            io.smallrye.mutiny.Multi.createFrom()
+                .item(org.qubership.integration.platform.ai.chat.ChatEvent.token("patch")));
+    when(handlers.get()).thenReturn(handler);
+    ScenarioRouter productRouter =
+        boundRouter(adapter, snapshotWith(CreateChainExecutionStatus.WORKING));
+
+    var events =
+        productRouter
+            .route(patchRequest(), CONVERSATION_ID)
+            .collect()
+            .asList()
+            .await()
+            .indefinitely();
+
+    assertEquals(
+        "patch",
+        ((org.qubership.integration.platform.ai.chat.ChatEvent.Token) events.get(0)).text());
+    org.mockito.Mockito.verify(adapter, org.mockito.Mockito.never()).handle(any(), anyString());
+  }
+
+  /** A turn that is not about the open chain still belongs to the run that is mid-flight. */
+  @Test
+  void unfinishedCreateRunKeepsATurnThatIsNotAboutTheOpenChain() {
+    when(chainContextExtractor.hasChainContext(any(), anyString())).thenReturn(true);
+    when(routerAgent.classify(any(), anyString(), any()))
+        .thenReturn(ScenarioType.GATHER_REQUIREMENTS);
+    ProductPipelineChatAdapter adapter = mock(ProductPipelineChatAdapter.class);
+    when(adapter.handle(any(), anyString()))
+        .thenReturn(
+            io.smallrye.mutiny.Multi.createFrom()
+                .item(org.qubership.integration.platform.ai.chat.ChatEvent.token("product")));
+    ScenarioRouter productRouter =
+        boundRouter(adapter, snapshotWith(CreateChainExecutionStatus.WORKING));
+    ChatRequest request = new ChatRequest();
+    request.setResolvedEffectiveUserText("I also need a second integration for invoices");
+
+    var events =
+        productRouter.route(request, CONVERSATION_ID).collect().asList().await().indefinitely();
+
+    assertEquals(
+        "product",
+        ((org.qubership.integration.platform.ai.chat.ChatEvent.Token) events.get(0)).text());
+  }
+
+  @Test
+  void nonCreateHintDoesNotSelectProductRun() {
+    CreateRunSelectionService selection = mock(CreateRunSelectionService.class);
+    when(selection.existing(CONVERSATION_ID)).thenReturn(java.util.Optional.empty());
+    ProductPipelineChatAdapter adapter = mock(ProductPipelineChatAdapter.class);
+    ScenarioHandler handler = mock(ScenarioHandler.class);
+    when(handler.handle(any(), anyString(), any()))
+        .thenReturn(
+            io.smallrye.mutiny.Multi.createFrom()
+                .item(org.qubership.integration.platform.ai.chat.ChatEvent.token("ask")));
+    when(handlers.get()).thenReturn(handler);
+    ScenarioRouter productRouter =
+        new ScenarioRouter(
+            routerAgent,
+            compilationRuntime.phaseResolver(),
+            mock(ConversationService.class),
+            chainContextExtractor,
+            requirementDraftStore,
+            handlers,
+            selection,
+            adapter);
+    ChatRequest request = new ChatRequest();
+    request.setScenarioHint(ScenarioType.ASK_CHAIN);
+    request.setResolvedEffectiveUserText("explain");
+    var events =
+        productRouter.route(request, CONVERSATION_ID).collect().asList().await().indefinitely();
+    assertEquals(
+        "ask", ((org.qubership.integration.platform.ai.chat.ChatEvent.Token) events.get(0)).text());
+    org.mockito.Mockito.verify(selection, org.mockito.Mockito.never()).selectOrCreate(CONVERSATION_ID);
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    "ASK_PLAN, why this service?, false",
+    "ASK_PLAN, why this service?, true",
+    "ASK_CHAIN, explain this chain, true",
+    "COMPARE_AND_PATCH, delete the audit step from the open chain, true",
+    "DEPLOY_CHAIN, take a snapshot, false"
+  })
+  void haltedCreateRunReleasesQuestionsAndOtherScenarios(
+      ScenarioType scenario, String message, boolean hasChain) {
+    // A ready draft normally short-circuits classification in PLAN_DRAFT.
+    requirementDraftStore.put(CONVERSATION_ID, RequirementFactFixtures.readyDraft("vision"));
+    when(chainContextExtractor.hasChainContext(any(), anyString())).thenReturn(hasChain);
+    when(routerAgent.classify(any(), anyString(), eq(message))).thenReturn(scenario);
+    ProductPipelineChatAdapter adapter = mock(ProductPipelineChatAdapter.class);
+    ScenarioHandler handler = mock(ScenarioHandler.class);
+    when(handlers.get()).thenReturn(handler);
+    when(handler.handle(any(), anyString(), any()))
+        .thenReturn(io.smallrye.mutiny.Multi.createFrom().empty());
+    ScenarioRouter productRouter = boundRouter(adapter, haltedSnapshot(PipelineGates.STAGE_RETRY));
+    ChatRequest request = new ChatRequest();
+    request.setResolvedEffectiveUserText(message);
+    request.setScenarioHint(ScenarioType.IMPLEMENT_CHAIN);
+
+    productRouter.route(request, CONVERSATION_ID).collect().asList().await().indefinitely();
+
+    verify(routerAgent).classify(any(), eq("RECOVERABLE_HALT"), eq(message));
+    verify(handler).handle(request, CONVERSATION_ID, scenario);
+    verify(adapter, never()).handle(any(), anyString());
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    "IMPLEMENT_CHAIN, continue creating the chain, false",
+    "GATHER_REQUIREMENTS, why did validation fail? Do not retry or change anything, false",
+    "GATHER_REQUIREMENTS, use a different service for this integration, true",
+    "CREATE_CHAIN_PLAN, revise the active plan to use the order endpoint, true"
+  })
+  void haltedCreateRunKeepsClassifiedContinuationsAndCorrections(
+      ScenarioType scenario, String message, boolean hasChain) {
+    when(chainContextExtractor.hasChainContext(any(), anyString())).thenReturn(hasChain);
+    when(routerAgent.classify(any(), anyString(), eq(message))).thenReturn(scenario);
+    ProductPipelineChatAdapter adapter = mock(ProductPipelineChatAdapter.class);
+    when(adapter.handle(any(), anyString()))
+        .thenReturn(io.smallrye.mutiny.Multi.createFrom().empty());
+    ScenarioRouter productRouter = boundRouter(adapter, haltedSnapshot(PipelineGates.STAGE_REVISE));
+    ChatRequest request = new ChatRequest();
+    request.setResolvedEffectiveUserText(message);
+
+    productRouter.route(request, CONVERSATION_ID).collect().asList().await().indefinitely();
+
+    verify(routerAgent).classify(any(), eq("RECOVERABLE_HALT"), eq(message));
+    verify(adapter).handle(request, CONVERSATION_ID);
+    verify(handlers, never()).get();
+  }
+
+  @Test
+  void haltedCreateRunDoesNotTakeTheTurnWhenClassificationFails() {
+    when(routerAgent.classify(any(), anyString(), any()))
+        .thenThrow(new IllegalStateException("classifier unavailable"));
+    ProductPipelineChatAdapter adapter = mock(ProductPipelineChatAdapter.class);
+    ScenarioRouter productRouter = boundRouter(adapter, haltedSnapshot(PipelineGates.STAGE_RETRY));
+    ChatRequest request = new ChatRequest();
+    request.setResolvedEffectiveUserText("why this service?");
+
+    var events = productRouter.route(request, CONVERSATION_ID)
+        .collect().asList().await().indefinitely();
+
+    org.junit.jupiter.api.Assertions.assertInstanceOf(
+        org.qubership.integration.platform.ai.chat.ChatEvent.Error.class, events.get(0));
+    verify(adapter, never()).handle(any(), anyString());
+  }
+
+  @Test
+  void haltedCreateRunCanContinueAfterAnsweringAQuestionInTheSameConversation() {
+    when(routerAgent.classify(any(), anyString(), any()))
+        .thenReturn(ScenarioType.ASK_PLAN, ScenarioType.CREATE_CHAIN_PLAN);
+    ProductPipelineChatAdapter adapter = mock(ProductPipelineChatAdapter.class);
+    when(adapter.handle(any(), anyString()))
+        .thenReturn(io.smallrye.mutiny.Multi.createFrom().empty());
+    ScenarioHandler handler = mock(ScenarioHandler.class);
+    when(handlers.get()).thenReturn(handler);
+    when(handler.handle(any(), anyString(), any()))
+        .thenReturn(io.smallrye.mutiny.Multi.createFrom().empty());
+    ScenarioRouter productRouter = boundRouter(adapter, haltedSnapshot(PipelineGates.STAGE_RETRY));
+    ChatRequest question = new ChatRequest();
+    question.setResolvedEffectiveUserText("why this service?");
+    ChatRequest continuation = new ChatRequest();
+    continuation.setResolvedEffectiveUserText("continue creating the chain");
+
+    productRouter.route(question, CONVERSATION_ID).collect().asList().await().indefinitely();
+    verify(adapter, never()).handle(any(), anyString());
+    productRouter.route(continuation, CONVERSATION_ID).collect().asList().await().indefinitely();
+
+    verify(handler).handle(question, CONVERSATION_ID, ScenarioType.ASK_PLAN);
+    verify(adapter).handle(continuation, CONVERSATION_ID);
+  }
+
+  @Test
+  void haltedCreateRunDoesNotUseCreateAsAnUnsupportedScenarioFallback() {
+    when(routerAgent.classify(any(), anyString(), any())).thenReturn(ScenarioType.UNKNOWN);
+    when(handlers.isResolvable()).thenReturn(false);
+    ProductPipelineChatAdapter adapter = mock(ProductPipelineChatAdapter.class);
+    ScenarioRouter productRouter = boundRouter(adapter, haltedSnapshot(PipelineGates.STAGE_RETRY));
+    ChatRequest request = new ChatRequest();
+    request.setResolvedEffectiveUserText("hello");
+
+    var events = productRouter.route(request, CONVERSATION_ID)
+        .collect().asList().await().indefinitely();
+
+    org.junit.jupiter.api.Assertions.assertInstanceOf(
+        org.qubership.integration.platform.ai.chat.ChatEvent.Error.class, events.get(0));
+    verify(adapter, never()).handle(any(), anyString());
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void ordinaryPendingClarificationAndApprovalKeepTheTurn(boolean approval) {
+    CreateChainPendingAction pending = approval
+        ? new CreateChainPendingAction.Approve("plan", "hash", 1L, "Review the plan")
+        : new CreateChainPendingAction.Clarify("Which service?", java.util.List.of("service"));
+    ProductPipelineChatAdapter adapter = mock(ProductPipelineChatAdapter.class);
+    when(adapter.handle(any(), anyString()))
+        .thenReturn(io.smallrye.mutiny.Multi.createFrom().empty());
+    ScenarioRouter productRouter = boundRouter(adapter,
+        snapshotWith(CreateChainExecutionStatus.INPUT_REQUIRED, pending));
+    ChatRequest request = new ChatRequest();
+    request.setResolvedEffectiveUserText("use the order service");
+
+    productRouter.route(request, CONVERSATION_ID).collect().asList().await().indefinitely();
+
+    verify(adapter).handle(request, CONVERSATION_ID);
+    verify(routerAgent, never()).classify(any(), anyString(), any());
+  }
+
+  private static CreateChainExecutionSnapshot haltedSnapshot(String gate) {
+    return snapshotWith(CreateChainExecutionStatus.INPUT_REQUIRED,
+        new CreateChainPendingAction.Clarify(
+            "The catalog could not find that service.", java.util.List.of(), gate));
+  }
+}

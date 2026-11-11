@@ -67,7 +67,7 @@ import static org.mockito.Mockito.*;
 @ExtendWith(SpringExtension.class)
 @ExtendWith(MockitoExtension.class)
 public class SecuredVariablesServiceTest {
-    private static final String DEFAULT_SECRET_NAME = "qip-test-secret";
+    private static final String DEFAULT_SECRET_NAME = "cip-test-secret";
 
     @MockitoBean
     SecretService secretService;

@@ -1,0 +1,25 @@
+package org.qubership.integration.platform.ai.productpipeline.create.design.execution;
+
+import java.util.List;
+import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
+import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+
+/** Projects a validated semantic revision into a chain plan graph. */
+public interface ChainSemanticGraphCompiler {
+
+  ChainPlanGraph compile(
+      ChainSemanticRevision revision,
+      CompilerContract contract,
+      List<ResolvedServiceCallBinding> bindings);
+
+  default ChainPlanGraph compile(
+      ChainSemanticRevision revision,
+      CompilerContract contract,
+      List<ResolvedServiceCallBinding> bindings,
+      RequirementBrief brief) {
+    return compile(revision, contract, bindings);
+  }
+}

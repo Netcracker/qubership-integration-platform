@@ -43,6 +43,8 @@ import static org.qubership.integration.platform.io.readers.chain.ImportConstant
 @Slf4j
 public class ChainElementPropertiesSubstitutor {
 
+    private static final String PROPERTIES_FILE_NOT_FOUND_ERROR_MESSAGE = "Could not find file with properties: ";
+
     private final ObjectMapper objectMapper;
 
     public ChainElementPropertiesSubstitutor(@Qualifier("primaryObjectMapper") ObjectMapper objectMapper) {
@@ -86,6 +88,10 @@ public class ChainElementPropertiesSubstitutor {
                 properties.remove(FILE_NAME_PROPERTY);
             }
             restoreHandlerContainers(properties, fileSource);
+            if (ASYNC_API_TRIGGER.equals(element.getType())) {
+                restoreValidationSchemaEntries(properties.getOrDefault(AFTER, Collections.emptyList()), AFTER, fileSource);
+            }
+            restoreValidationSchema(properties, VALIDATION_SCHEMA, fileSource);
             return;
         }
 
@@ -130,12 +136,43 @@ public class ChainElementPropertiesSubstitutor {
             throw new IllegalArgumentException("Either the 'before' property is missing, or it is not formatted as a key-value pair");
         }
         restoreHandlerContainer(properties, HANDLER_CONTAINER, fileSource);
+        restoreValidationSchemaEntries(properties.getOrDefault(AFTER_VALIDATION, Collections.emptyList()), AFTER_VALIDATION, fileSource);
     }
 
     private void restoreHandlerContainers(Map<String, Object> properties, PropertyFileSource fileSource)
             throws IOException {
         restoreHandlerContainer(properties, HANDLER_CONTAINER, fileSource);
         restoreHandlerContainer(properties, CHAIN_FAILURE_HANDLER_CONTAINER, fileSource);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void restoreValidationSchemaEntries(Object listObj, String propertyName, PropertyFileSource fileSource) throws IOException {
+        if (!(listObj instanceof List<?> entries)) {
+            log.error("Either the '{}' property is missing or it is not in the required format {}",
+                    propertyName, listObj.getClass().getName());
+            throw new IllegalArgumentException("Either the '" + propertyName + "' property is missing or it is not in the required format");
+        }
+        for (Object obj : entries) {
+            if (obj instanceof Map<?, ?> entry) {
+                restoreValidationSchema((Map<String, Object>) entry, SCHEMA, fileSource);
+            } else {
+                log.error("Either the '{}' property is missing, or it is not formatted as a key-value pair {}",
+                        propertyName, obj.getClass().getName());
+                throw new IllegalArgumentException("Either the '" + propertyName + "' property is missing, or it is not formatted as a key-value pair");
+            }
+        }
+    }
+
+    private void restoreValidationSchema(Map<String, Object> target, String schemaField, PropertyFileSource fileSource) throws IOException {
+        if (!(target.get(VALIDATION_SCHEMA_FILENAME) instanceof String schemaFilename)) {
+            return;
+        }
+        String schemaContent = fileSource.getFileContent(schemaFilename);
+        if (schemaContent == null) {
+            throw new IllegalArgumentException(PROPERTIES_FILE_NOT_FOUND_ERROR_MESSAGE + schemaFilename);
+        }
+        target.put(schemaField, schemaContent);
+        target.remove(VALIDATION_SCHEMA_FILENAME);
     }
 
     @SuppressWarnings("unchecked")
@@ -169,7 +206,7 @@ public class ChainElementPropertiesSubstitutor {
             throws IOException {
         String fileContent = fileSource.getFileContent(propertiesFilename);
         if (fileContent == null) {
-            throw new IllegalArgumentException("Could not find file with properties: " + propertiesFilename);
+            throw new IllegalArgumentException(PROPERTIES_FILE_NOT_FOUND_ERROR_MESSAGE + propertiesFilename);
         }
 
         if (isPropertiesFileGroovy(propertiesFilename, properties) || isPropertiesFileSql(propertiesFilename, properties)) {

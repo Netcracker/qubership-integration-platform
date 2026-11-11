@@ -17,7 +17,10 @@ import {
   ColumnsTypeWithSettings,
   useColumnSettingsBasedOnColumnsType,
 } from "../../components/table/useColumnSettingsButton.tsx";
-import { useTableConfiguration } from "../../components/table/useTableConfiguration.tsx";
+import {
+  SELECTION_COLUMN_WIDTH,
+  useTableConfiguration,
+} from "../../components/table/useTableConfiguration.tsx";
 import { TestCaseDetailsDrawer } from "../../components/testing/TestCaseDetailsDrawer.tsx";
 import { isTestCaseReady } from "../../components/testing/testCases.ts";
 import { getTestingPermissions } from "../../components/testing/testingPermissions.ts";
@@ -27,7 +30,6 @@ import {
 } from "../../components/testing/TestingTags.tsx";
 import { useTestingFilter } from "../../hooks/filter/useTestingFilter.ts";
 import {
-  TESTING_SELECTION_COLUMN_WIDTH,
   testCasesListSource,
   useTestingEntityList,
 } from "../../hooks/testing/useTestingEntityList.ts";
@@ -40,6 +42,7 @@ import { TestingListActions } from "../../components/testing/TestingListActions.
 import { useTestingListToolbar } from "../../components/testing/useTestingListToolbar.tsx";
 import type { TestingPageVariant } from "./TestingLayout.tsx";
 import { RowLink } from "../../components/table/RowLink.tsx";
+import { ChainHeaderActions } from "../ChainHeaderActionsContext.tsx";
 
 const COLUMN_WIDTHS = {
   name: 220,
@@ -91,8 +94,6 @@ export const TestCases: React.FC<TestCasesProps> = ({
     getChainName,
     getElementName,
     exportEntities,
-    sortBy,
-    sortOrder,
     tableSort,
     handleTableChange: handleServerTableChange,
     selectedRowKeys,
@@ -304,7 +305,7 @@ export const TestCases: React.FC<TestCasesProps> = ({
     orderedColumns,
     COLUMN_WIDTHS,
     {
-      selectionColumnWidth: TESTING_SELECTION_COLUMN_WIDTH,
+      selectionColumnWidth: SELECTION_COLUMN_WIDTH,
       controlledSort: tableSort,
       onChange: handleServerTableChange,
     },
@@ -365,20 +366,6 @@ export const TestCases: React.FC<TestCasesProps> = ({
     filterButton,
     columnSettingsButton,
     actions: toolbarActions,
-    registerInChainHeader: variant === "chain-tab",
-    registerDependencies: [
-      isLoading,
-      variant,
-      searchString,
-      sortBy,
-      sortOrder,
-      selectedRowKeys,
-      selectAllMatching,
-      allLoaded,
-      filters,
-      permissions,
-      isStarting,
-    ],
   });
 
   const table = (
@@ -419,13 +406,15 @@ export const TestCases: React.FC<TestCasesProps> = ({
         <Flex vertical className={commonStyles.container}>
           <AdminToolsHeader
             title="Test Cases"
-            iconName="checkSquare"
             toolbar={toolbar}
           />
           {table}
         </Flex>
       ) : (
-        table
+        <>
+          <ChainHeaderActions>{toolbar}</ChainHeaderActions>
+          {table}
+        </>
       )}
       <TestCaseDetailsDrawer
         testCase={detailsTestCase}

@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { Form, Input, Flex } from "antd";
-import { message } from "../../../misc/antd-app.ts";
-import { api } from "../../../api/api.ts";
-import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
-import { downloadFile } from "../../../misc/download-utils.ts";
-import { MaasFormActions } from "./MaasFormActions.tsx";
-import { MaasPageHeader } from "./MaasPageHeader.tsx";
-import { NamespaceField } from "./NamespaceField.tsx";
+import React, {useState, useEffect, useCallback, useMemo} from "react";
+import {Form, Input, Flex} from "antd";
+import {message} from "../../../misc/antd-app.ts";
+import {api} from "../../../api/api.ts";
+import {useNotificationService} from "../../../hooks/useNotificationService.tsx";
+import {downloadFile} from "../../../misc/download-utils.ts";
+import {MaasFormActions} from "./MaasFormActions.tsx";
+import {MaasPageHeader} from "./MaasPageHeader.tsx";
+import {NamespaceField} from "./NamespaceField.tsx";
 import {
   KafkaMaasFormData,
   NON_WHITESPACE_PATTERN,
@@ -15,9 +15,8 @@ import {
   isKafkaFormValid,
 } from "./types.ts";
 import sharedStyles from "../DevTools.module.css";
-import styles from "./Maas.module.css";
 
-const { useForm } = Form;
+const {useForm} = Form;
 
 export const KafkaMaasPage: React.FC = () => {
   const [form] = useForm<KafkaMaasFormData>();
@@ -92,46 +91,42 @@ export const KafkaMaasPage: React.FC = () => {
   return (
     <Flex vertical className={sharedStyles["container"]}>
       <MaasPageHeader
-        title="Kafka - MaaS"
+        title="Kafka"
         exportInProgress={exportInProgress}
         isFormValid={isFormValid}
         onExport={() => void handleExport()}
       />
 
-      <div className={styles["parametersSection"]}>
-        <div className={styles["parametersHeading"]}>Parameters</div>
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={() => void handleCreate()}
+
+      <Form
+        form={form}
+        layout="vertical"
+        onFinish={() => void handleCreate()}
+      >
+        <NamespaceField/>
+
+        <Form.Item
+          label="Topic Classifier Name"
+          name={KAFKA_FIELD_NAMES.TOPIC_CLASSIFIER_NAME}
+          required
+          rules={[
+            {required: true, message: "Topic Classifier Name is required"},
+            {
+              pattern: NON_WHITESPACE_PATTERN,
+              message: "Topic Classifier Name cannot be empty",
+            },
+          ]}
         >
-          <NamespaceField />
+          <Input placeholder="Enter topic classifier name"/>
+        </Form.Item>
+      </Form>
 
-          <Form.Item
-            label="Topic Classifier Name"
-            name={KAFKA_FIELD_NAMES.TOPIC_CLASSIFIER_NAME}
-            required
-            rules={[
-              { required: true, message: "Topic Classifier Name is required" },
-              {
-                pattern: NON_WHITESPACE_PATTERN,
-                message: "Topic Classifier Name cannot be empty",
-              },
-            ]}
-          >
-            <Input placeholder="Enter topic classifier name" />
-          </Form.Item>
-        </Form>
-      </div>
-
-      <div className={styles["footer"]}>
-        <MaasFormActions
-          createInProgress={createInProgress}
-          isFormValid={isFormValid}
-          onCreate={() => void handleCreate()}
-          onReset={handleReset}
-        />
-      </div>
+      <MaasFormActions
+        createInProgress={createInProgress}
+        isFormValid={isFormValid}
+        onCreate={() => void handleCreate()}
+        onReset={handleReset}
+      />
     </Flex>
   );
 };

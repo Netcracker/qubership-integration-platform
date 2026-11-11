@@ -2,13 +2,11 @@ export { FileCacheService } from "./FileCacheService";
 export { FileConversionService } from "./FileConversionService";
 export { FileParserService } from "./FileParserService";
 export { ProtocolDetectorService } from "./ProtocolDetectorService";
-export { QipSpecificationGenerator } from "./QipSpecificationGenerator";
+export { CipSpecificationGenerator } from "./CipSpecificationGenerator";
 export {
-  QIP_SCHEMA_URLS,
-  QipSchemaType,
-  getQipSchemaType,
-  isQipSchema,
+  CIP_SCHEMA_URLS,
+  CipSchemaType,
+  getCipSchemaType,
+  isCipSchema,
   getSchemaUrl,
-} from "./qipSchemas";
-export { ConfigApiProvider, ConfigApi } from "./ConfigApiProvider";
-export { ProjectConfig } from "./ProjectConfigService";
+} from "./cipSchemas";

@@ -41,7 +41,8 @@ import java.util.List;
 @Slf4j
 @RestController
 @Validated
-@RequestMapping(value = "/v1/catalog/export", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
+@RequestMapping(value = {"/v1/catalog/export", "/api/v1/cip/catalog/export"},
+    produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
 @CrossOrigin(origins = "*")
 @Tag(name = "export-controller", description = "Export Controller")
 public class ExportController {

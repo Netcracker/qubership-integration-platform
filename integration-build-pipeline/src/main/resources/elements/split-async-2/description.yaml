@@ -31,5 +31,6 @@ designContainerParameters:
         type: PAR_ELSE
         args:
           - "##{ELEMENT_NAME_REF}"
+# Cardinality 1..n. One async branch is valid (fire-and-forget).
 allowedChildren:
   async-split-element-2: one-or-many

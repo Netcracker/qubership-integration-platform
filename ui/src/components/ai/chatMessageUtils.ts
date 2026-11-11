@@ -57,8 +57,34 @@ export function getRoleLabel(
   assistantName?: string,
 ): string {
   if (role === "user") return "You";
-  if (role === "assistant") return assistantName ?? "Assistant";
+  if (role === "assistant") return assistantName ?? "Rocky";
   return "System";
+}
+
+export function looksLikeChainImplementationPlanJson(code: string): boolean {
+  const trimmed = code.trim();
+  if (!trimmed.startsWith("{") || !trimmed.includes('"elements"')) {
+    return false;
+  }
+  return trimmed.includes('"chain"') || trimmed.includes('"name"');
+}
+
+/** Fenced blocks that should render collapsed in chat (expandable by the user). */
+export function isCollapsibleChainPlanJsonBlock(
+  language: string | undefined,
+  code: string,
+): boolean {
+  if (language === "chain-plan-json") {
+    return true;
+  }
+  return language === "json" && looksLikeChainImplementationPlanJson(code);
+}
+
+/** @deprecated use isCollapsibleChainPlanJsonBlock */
+export function isHiddenChainPlanJsonLanguage(
+  language: string | undefined,
+): boolean {
+  return language === "chain-plan-json";
 }
 
 export function extractMarkdownText(children: unknown): string {
@@ -115,14 +141,184 @@ export function buildMetaMessage(
   };
 }
 
+/**
+ * True when the trailing assistant bubble is a reserved shell for the in-flight
+ * turn: no prose, no gate, and no persisted activity from a prior turn.
+ */
+export function isOpenAssistantPlaceholder(
+  message: ChatMessage | undefined,
+): boolean {
+  return (
+    message?.role === "assistant" &&
+    message.variant !== "error" &&
+    !message.content.trim() &&
+    message.decision === undefined &&
+    message.activity === undefined
+  );
+}
+
+/**
+ * Reserve an assistant bubble for the in-flight turn so skill/tool steps have a
+ * place to render before any markdown arrives. A finished assistant (prose, a
+ * gate, or persisted activity) is left alone and a new shell is appended.
+ */
+export function ensureAssistantPlaceholder(
+  messages: ChatMessage[],
+): ChatMessage[] {
+  if (isOpenAssistantPlaceholder(messages[messages.length - 1])) {
+    return messages;
+  }
+  return [...messages, { role: "assistant", content: "" }];
+}
+
+/** Drop a leftover in-flight shell that never received prose, a gate, or activity. */
+export function discardEmptyAssistantPlaceholder(
+  messages: ChatMessage[],
+): ChatMessage[] {
+  if (isOpenAssistantPlaceholder(messages[messages.length - 1])) {
+    return messages.slice(0, -1);
+  }
+  return messages;
+}
+
+/**
+ * Hide only non-last empty shells while a turn is in flight. The last bubble
+ * stays mounted so live skill/tool rows can render before markdown exists.
+ */
+export function shouldHideEmptyStreamingAssistant(
+  message: ChatMessage,
+  options: {
+    isLastVisible: boolean;
+    isTurnInFlight: boolean;
+    hasLiveActivity: boolean;
+  },
+): boolean {
+  if (message.role !== "assistant" || message.variant === "error") {
+    return false;
+  }
+  if (message.content.trim() || message.decision || message.activity) {
+    return false;
+  }
+  if (options.hasLiveActivity && options.isLastVisible) {
+    return false;
+  }
+  return options.isTurnInFlight && !options.isLastVisible;
+}
+
 /** Replace or append the assistant message at the tail of a message array. */
 export function upsertAssistantMessage(
   messages: ChatMessage[],
   content: string,
 ): ChatMessage[] {
   const last = messages[messages.length - 1];
-  if (last?.role === "assistant") {
-    return [...messages.slice(0, -1), { role: "assistant" as const, content }];
+  if (
+    last?.role === "assistant" &&
+    last.variant !== "error" &&
+    (last.decision === undefined || !content.trim())
+  ) {
+    // A trailing empty finalize must not wipe prose (or a decision parked on it).
+    if (!content.trim()) {
+      return messages;
+    }
+    return [
+      ...messages.slice(0, -1),
+      { ...last, role: "assistant" as const, content },
+    ];
   }
   return [...messages, { role: "assistant" as const, content }];
+}
+
+/** User-facing summary for a failed chat turn (reason lives in `detail`). */
+export const TURN_FAILURE_SUMMARY =
+  "The AI service failed to complete this reply.";
+
+export function isErrorVariantMessage(message: ChatMessage): boolean {
+  return message.variant === "error";
+}
+
+export function turnFailureContent(decisionCard?: "valid" | "stale"): string {
+  if (decisionCard === "valid") {
+    return `${TURN_FAILURE_SUMMARY} The decision card above is still valid.`;
+  }
+  if (decisionCard === "stale") {
+    return `${TURN_FAILURE_SUMMARY} Reload this conversation to continue.`;
+  }
+  return TURN_FAILURE_SUMMARY;
+}
+
+export function buildTurnFailureMessage(
+  detail: string,
+  decisionCard?: "valid" | "stale",
+): ChatMessage {
+  const trimmed = detail.trim();
+  return {
+    role: "assistant",
+    variant: "error",
+    content: turnFailureContent(decisionCard),
+    ...(trimmed ? { detail: trimmed } : {}),
+  };
+}
+
+/** Drop display-only error bubbles before sending history to the AI service. */
+export function withoutErrorVariantMessages(
+  messages: ChatMessage[],
+): ChatMessage[] {
+  return messages.filter((message) => !isErrorVariantMessage(message));
+}
+
+/**
+ * Keep any partial assistant reply, then append a turn-failure error bubble.
+ */
+export function appendTurnFailure(
+  messages: ChatMessage[],
+  detail: string,
+  partialAssistantContent?: string,
+  decisionCard?: "valid" | "stale",
+): ChatMessage[] {
+  let next = [...messages];
+  const partial = partialAssistantContent?.trim();
+  if (partial) {
+    next = upsertAssistantMessage(next, partial);
+  } else {
+    const last = next[next.length - 1];
+    if (
+      last?.role === "assistant" &&
+      last.variant !== "error" &&
+      !last.content.trim()
+    ) {
+      next = next.slice(0, -1);
+    }
+  }
+  return [...next, buildTurnFailureMessage(detail, decisionCard)];
+}
+
+export type StreamingDoneOptions = {
+  turnFailed: boolean;
+  durationMs: number;
+  finishReason?: string;
+  usage?: ChatUsage;
+};
+
+/**
+ * Finalize a streaming turn. When the turn already failed, keep the error bubble
+ * and ignore accumulated content / meta from a trailing `done` event.
+ */
+export function applyStreamingDoneMessages(
+  currentMessages: ChatMessage[],
+  accumulatedContent: string,
+  options: StreamingDoneOptions,
+): ChatMessage[] {
+  if (options.turnFailed) {
+    return currentMessages;
+  }
+  let finalMessages = accumulatedContent.trim()
+    ? upsertAssistantMessage(currentMessages, accumulatedContent)
+    : currentMessages;
+  if (options.usage || options.finishReason) {
+    finalMessages = [
+      ...finalMessages,
+      buildMetaMessage(options.durationMs, options.finishReason, options.usage),
+    ];
+  }
+  return finalMessages;
 }

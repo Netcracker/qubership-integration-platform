@@ -40,7 +40,7 @@ import static org.qubership.integration.platform.library.constants.CamelNames.CO
 /**
  * Covers the read endpoints of {@link ElementLibraryController}: the hierarchy pass-through, the
  * single-element lookup that returns 404 when the descriptor is absent, and the element-types
- * endpoint that drops the container type and maps each remaining type to its title.
+ * endpoint that drops the container type and retains types whose descriptors were removed.
  */
 @ExtendWith(MockitoExtension.class)
 class ElementLibraryControllerTest {
@@ -87,15 +87,16 @@ class ElementLibraryControllerTest {
     }
 
     @Test
-    void findAllUsingElementsTypesDropsContainerAndMapsTitles() {
+    void findAllUsingElementsTypesDropsContainerAndKeepsRemovedTypes() {
         ElementDescriptor httpDescriptor = mock(ElementDescriptor.class);
         when(httpDescriptor.getTitle()).thenReturn("HTTP Trigger");
         ElementDescriptor serviceDescriptor = mock(ElementDescriptor.class);
         when(serviceDescriptor.getTitle()).thenReturn("Service Call");
 
-        when(elementService.findAllUsingTypes()).thenReturn(List.of("http-trigger", CONTAINER, "service-call"));
-        when(libraryElementsService.getElementDescriptor("http-trigger")).thenReturn(httpDescriptor);
-        when(libraryElementsService.getElementDescriptor("service-call")).thenReturn(serviceDescriptor);
+        when(elementService.findAllUsingTypes()).thenReturn(List.of("http-trigger", CONTAINER, "service-call", "scs-sender"));
+        when(libraryElementsService.lookupElementDescriptor("http-trigger")).thenReturn(Optional.of(httpDescriptor));
+        when(libraryElementsService.lookupElementDescriptor("service-call")).thenReturn(Optional.of(serviceDescriptor));
+        when(libraryElementsService.lookupElementDescriptor("scs-sender")).thenReturn(Optional.empty());
 
         ResponseEntity<List<ElementsFilterDTO>> response = controller().findAllUsingElementsTypes();
 
@@ -104,6 +105,7 @@ class ElementLibraryControllerTest {
                 .extracting(ElementsFilterDTO::getElementType, ElementsFilterDTO::getElementTitle)
                 .containsExactly(
                         tuple("http-trigger", "HTTP Trigger"),
-                        tuple("service-call", "Service Call"));
+                        tuple("service-call", "Service Call"),
+                        tuple("scs-sender", "scs-sender"));
     }
 }

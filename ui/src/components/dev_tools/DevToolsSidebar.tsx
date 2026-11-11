@@ -2,6 +2,7 @@ import { Menu } from "antd";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
+import styles from "./DevToolsSidebar.module.css";
 
 const menuItems = [
   {
@@ -11,12 +12,10 @@ const menuItems = [
     children: [
       {
         key: "/devtools/maas/kafka",
-        icon: <OverridableIcon name="deploymentUnit" />,
         label: "Kafka",
       },
       {
         key: "/devtools/maas/rabbitmq",
-        icon: <OverridableIcon name="deploymentUnit" />,
         label: "RabbitMQ",
       },
     ],
@@ -55,6 +54,7 @@ export const DevToolsSidebar = ({ collapsed }: { collapsed: boolean }) => {
 
   return (
     <Menu
+      rootClassName={styles.menu}
       style={{ border: "none" }}
       mode="inline"
       selectedKeys={selectedKeys}

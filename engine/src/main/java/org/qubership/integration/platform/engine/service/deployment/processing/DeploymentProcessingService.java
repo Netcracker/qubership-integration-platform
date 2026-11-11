@@ -21,6 +21,7 @@ import org.apache.camel.spring.SpringCamelContext;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentConfiguration;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnAfterDeploymentContextCreated;
+import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnAfterDeploymentContextStarted;
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnBeforeDeploymentContextCreated;
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnStopDeploymentContext;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,16 +34,19 @@ import java.util.Collection;
 public class DeploymentProcessingService {
     private final Collection<DeploymentProcessingAction> beforeContextCreatedActions;
     private final Collection<DeploymentProcessingAction> afterContextCreatedActions;
+    private final Collection<DeploymentProcessingAction> afterContextStartedActions;
     private final Collection<DeploymentProcessingAction> stopContextActions;
 
     @Autowired
     public DeploymentProcessingService(
         @OnBeforeDeploymentContextCreated Collection<DeploymentProcessingAction> beforeContextCreatedActions,
         @OnAfterDeploymentContextCreated Collection<DeploymentProcessingAction> afterContextCreatedActions,
+        @OnAfterDeploymentContextStarted Collection<DeploymentProcessingAction> afterContextStartedActions,
         @OnStopDeploymentContext Collection<DeploymentProcessingAction> stopContextActions
     ) {
         this.beforeContextCreatedActions = beforeContextCreatedActions;
         this.afterContextCreatedActions = afterContextCreatedActions;
+        this.afterContextStartedActions = afterContextStartedActions;
         this.stopContextActions = stopContextActions;
     }
 
@@ -63,6 +67,16 @@ public class DeploymentProcessingService {
         log.debug("Applying deployment processing actions after context created for deployment {}",
             deploymentInfo.getDeploymentId());
         executeActions(afterContextCreatedActions, context, deploymentInfo, deploymentConfiguration);
+    }
+
+    public void processAfterContextStarted(
+        SpringCamelContext context,
+        DeploymentInfo deploymentInfo,
+        DeploymentConfiguration deploymentConfiguration
+    ) {
+        log.debug("Applying deployment processing actions after context started for deployment {}",
+            deploymentInfo.getDeploymentId());
+        executeActions(afterContextStartedActions, context, deploymentInfo, deploymentConfiguration);
     }
 
     public void processStopContext(

@@ -4,6 +4,7 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
+      - '.github/maven-settings.xml'
       - '.github/workflows/snapshot-flow-build.yaml'
       - 'integration-build-pipeline/**'
       - 'runtime-catalog/**'
@@ -18,6 +19,7 @@ on:
     branches:
       - main
     paths:
+      - '.github/maven-settings.xml'
       - '.github/workflows/snapshot-flow-build.yaml'
       - 'integration-build-pipeline/**'
       - 'runtime-catalog/**'

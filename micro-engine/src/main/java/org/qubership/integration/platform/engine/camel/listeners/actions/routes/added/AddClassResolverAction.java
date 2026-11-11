@@ -6,7 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Route;
 import org.apache.camel.spi.CamelEvent;
 import org.apache.camel.spi.ClassResolver;
-import org.qubership.integration.platform.engine.camel.QipCustomClassResolver;
+import org.qubership.integration.platform.engine.camel.CipCustomClassResolver;
 import org.qubership.integration.platform.engine.camel.listeners.EventProcessingAction;
 import org.qubership.integration.platform.engine.camel.listeners.qualifiers.OnRouteAdded;
 import org.qubership.integration.platform.engine.metadata.DeploymentInfo;
@@ -37,7 +37,7 @@ public class AddClassResolverAction implements EventProcessingAction<CamelEvent.
         Collection<String> specificationIds = getSpecificationIds(route);
         ClassLoader classLoader = externalLibraryService.getClassLoaderForSpecifications(
                 specificationIds, route.getCamelContext().getApplicationContextClassLoader());
-        ClassResolver classResolver = new QipCustomClassResolver(classLoader);
+        ClassResolver classResolver = new CipCustomClassResolver(classLoader);
         MetadataUtil.addBean(route, ClassResolver.class, classResolver);
     }
 

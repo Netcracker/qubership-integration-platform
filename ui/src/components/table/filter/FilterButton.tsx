@@ -13,6 +13,7 @@ export const FilterButton = (props: FilterButtonProps) => {
       <span className={styles.wrapper}>
         <Badge count={props.count} size="small" offset={[-2, 2]}>
           <Button
+            aria-label="Filters"
             icon={<OverridableIcon name="filter" />}
             onClick={props.onClick}
           />

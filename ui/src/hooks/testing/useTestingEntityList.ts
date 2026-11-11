@@ -42,9 +42,6 @@ import { useDebouncedValue } from "../useDebouncedValue";
 import { downloadFile } from "../../misc/download-utils";
 import { toStringIds } from "../../misc/selection-utils";
 
-/** Width every testing list gives its checkbox column. */
-export const TESTING_SELECTION_COLUMN_WIDTH = 48;
-
 /** How long the search waits for typing to stop before it reaches the service. */
 const SEARCH_DEBOUNCE_MS = 300;
 

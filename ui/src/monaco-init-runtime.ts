@@ -1,6 +1,7 @@
 import * as monaco from "monaco-editor";
 
 import { configureMonacoLoader } from "./monaco-loader-config";
+import { isVsCodeWebview } from "./misc/isVsCodeWebview";
 import {
   getMonacoWorkerBasePath,
   setMonacoWorkerBasePath,
@@ -13,8 +14,7 @@ let monacoWebviewCompatApplied = false;
  * Patch editor factories once so all editors default to textarea input.
  */
 function applyMonacoWebviewCompat(monacoApi: typeof monaco): void {
-  if (typeof window === "undefined") return;
-  if (window.location?.protocol !== "vscode-webview:") return;
+  if (!isVsCodeWebview()) return;
   if (monacoWebviewCompatApplied) return;
   monacoWebviewCompatApplied = true;
 
@@ -53,34 +53,19 @@ export function initExternalMonaco(): void {
   }
 }
 
-export function initBundledMonaco(): void {
+export function initBundledMonaco(bundleUrl: string): void {
   configureMonacoLoader({ monaco });
   applyMonacoWebviewCompat(monaco);
 
-  if (typeof document === "undefined") return;
-
   const globalBase =
     typeof window !== "undefined"
-      ? (window as Window & { __QIP_MONACO_WORKER_BASE__?: string })
-          .__QIP_MONACO_WORKER_BASE__
+      ? (window as Window & { __CIP_MONACO_WORKER_BASE__?: string })
+          .__CIP_MONACO_WORKER_BASE__
       : undefined;
   if (globalBase) {
     setDefaultWorkerBasePath(globalBase);
     return;
   }
 
-  const script = document.currentScript as HTMLScriptElement | null;
-  if (!script?.src) return;
-
-  try {
-    const scriptUrl = new URL(script.src);
-    const pathname = scriptUrl.pathname;
-    const lastSlash = pathname.lastIndexOf("/");
-    const basePath =
-      lastSlash === -1 ? "" : pathname.slice(0, Math.max(0, lastSlash));
-    scriptUrl.pathname = `${basePath}/assets/monaco-work`;
-    setDefaultWorkerBasePath(scriptUrl.href);
-  } catch {
-    // Ignore invalid URL and keep current config.
-  }
+  setDefaultWorkerBasePath(new URL("assets/monaco-work", bundleUrl).href);
 }

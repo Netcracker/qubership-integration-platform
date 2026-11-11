@@ -39,7 +39,7 @@ import java.util.Optional;
 @Slf4j
 @RestController
 @RequestMapping(
-        value = "/v1/engine/sessions",
+        value = {"/v1/engine/sessions", "/api/v1/cip/engine/sessions"},
         produces = MediaType.APPLICATION_JSON_VALUE
 )
 @Tag(name = "session-controller", description = "Session Controller")

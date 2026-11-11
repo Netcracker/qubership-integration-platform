@@ -23,7 +23,7 @@ import io.smallrye.common.annotation.Identifier;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.apache.camel.*;
-import org.qubership.integration.platform.engine.security.QipSecurityAccessPolicy;
+import org.qubership.integration.platform.engine.security.CipSecurityAccessPolicy;
 
 import java.util.List;
 
@@ -40,12 +40,12 @@ public class SecurityAccessPolicyConverter {
     }
 
     @Converter
-    public QipSecurityAccessPolicy convert(Object value) throws TypeConversionException {
+    public CipSecurityAccessPolicy convert(Object value) throws TypeConversionException {
         try {
             List<String> attributes = objectMapper.readValue(String.valueOf(value), STRING_LIST_TYPE_REFERENCE);
-            return QipSecurityAccessPolicy.fromStrings(attributes);
+            return CipSecurityAccessPolicy.fromStrings(attributes);
         } catch (JsonProcessingException exception) {
-            throw new TypeConversionException(value, QipSecurityAccessPolicy.class, exception);
+            throw new TypeConversionException(value, CipSecurityAccessPolicy.class, exception);
         }
     }
 }

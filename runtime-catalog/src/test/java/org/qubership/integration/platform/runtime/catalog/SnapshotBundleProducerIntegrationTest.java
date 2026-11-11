@@ -40,6 +40,7 @@ import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimpo
 import org.qubership.integration.platform.runtime.catalog.scheduler.TasksScheduler;
 import org.qubership.integration.platform.runtime.catalog.service.ActionsLogService;
 import org.qubership.integration.platform.runtime.catalog.service.EventService;
+import org.qubership.integration.platform.runtime.catalog.service.SnapshotService;
 import org.qubership.integration.platform.runtime.catalog.service.ddsgenerator.elements.DetailedDesignService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.ChainImportService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.ContextExportImportService;
@@ -51,6 +52,7 @@ import org.qubership.integration.platform.runtime.catalog.service.exportimport.i
 import org.qubership.integration.platform.runtime.catalog.service.variables.CommonVariablesService;
 import org.qubership.integration.platform.runtime.catalog.service.variables.RestoreVariablesListener;
 import org.qubership.integration.platform.runtime.catalog.snapshotbundle.SnapshotBundleImportService;
+import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
 import org.qubership.integration.platform.snapshotbundle.SnapshotBundleSource;
 import org.qubership.integration.platform.snapshotbundle.SnapshotBundleWriter;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -150,6 +152,9 @@ class SnapshotBundleProducerIntegrationTest {
     private SnapshotRepository snapshotRepository;
 
     @Autowired
+    private SnapshotService snapshotService;
+
+    @Autowired
     private IntegrationSourceBuilderFactory integrationSourceBuilderFactory;
 
     @Autowired
@@ -202,6 +207,32 @@ class SnapshotBundleProducerIntegrationTest {
         Path outputDirectory = resolveOutputDirectory();
         assertThat(snapshotBundleWriter.write(outputDirectory, sources)).isNotNull();
         assertThat(outputDirectory).isDirectory();
+        writeSecondSchedulerSnapshot(outputDirectory, sources);
+    }
+
+    private void writeSecondSchedulerSnapshot(Path outputDirectory, List<SnapshotBundleSource> primarySources) throws IOException {
+        String chainId = "f7cad007-cad4-4416-a1fc-6586387070c0";
+        SnapshotBundleSource primary = primarySources.stream()
+                .filter(source -> chainId.equals(source.snapshot().getChain().getId())).findFirst().orElseThrow();
+        String snapshotId = snapshotService.build(chainId).getId();
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        transaction.setReadOnly(true);
+        SnapshotBundleSource secondary = Objects.requireNonNull(transaction.execute(status -> {
+            Snapshot snapshot = snapshotRepository.findById(snapshotId).orElseThrow();
+            SourceBuilderContext context = SourceBuilderContext.builder()
+                    .domainName(DOMAIN_NAME)
+                    .buildName(BUILD_NAME)
+                    .buildTimestamp(BUILD_TIMESTAMP)
+                    .integrationServiceCatalog(integrationServiceCatalog)
+                    .build();
+            return buildSnapshotSource(snapshot, context);
+        }));
+        assertThat(secondary.snapshot().getId()).isNotEqualTo(primary.snapshot().getId());
+        assertThat(secondary.snapshot().getChain().getId()).isEqualTo(primary.snapshot().getChain().getId());
+        assertThat(secondary.snapshot().getElements()).extracting(org.qubership.integration.platform.chain.model.Element::getId)
+                .doesNotContainAnyElementsOf(primary.snapshot().getElements().stream()
+                        .map(org.qubership.integration.platform.chain.model.Element::getId).toList());
+        snapshotBundleWriter.write(outputDirectory.resolve("variants").resolve("scheduler-second"), List.of(secondary));
     }
 
     private static ImportRequest createImportRequest(Set<String> chainIds) {
@@ -332,12 +363,15 @@ class SnapshotBundleProducerIntegrationTest {
         try (Stream<Path> sourcePaths = Files.walk(sourceDirectory)) {
             List<Path> chainDefinitions = sourcePaths
                     .filter(Files::isRegularFile)
-                    .filter(path -> path.getFileName().toString().endsWith(".chain.qip.yaml"))
+                    .filter(path -> ExportImportUtils.isChainFileName(path.getFileName().toString()))
                     .toList();
             for (Path chainDefinition : chainDefinitions) {
                 Path chainDirectory = chainDefinition.getParent();
                 String chainId = chainDirectory.getFileName().toString();
-                assertThat(chainDefinition.getFileName().toString()).isEqualTo(chainId + ".chain.qip.yaml");
+                assertThat(chainDefinition.getFileName().toString()).isIn(
+                        ExportImportUtils.generateChainFileExportName(chainId, false),
+                        chainId + ".chain.qip.yaml",
+                        ExportImportUtils.generateChainFileExportName(chainId, true));
                 copyDirectory(chainDirectory, importDirectory.resolve("chains").resolve(chainId));
                 chainIds.add(chainId);
             }

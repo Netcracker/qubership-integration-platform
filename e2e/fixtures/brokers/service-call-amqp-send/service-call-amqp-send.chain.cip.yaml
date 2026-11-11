@@ -1,0 +1,41 @@
+---
+id: "e2e0e016-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-service-call-amqp-send"
+description: "service-call over amqp with integrationOperationMethod send, on the service-call-async-amqp service\
+  \ fixture. An HTTP call drives it and a spec reads what it sent off the broker."
+content:
+  labels: []
+  elements:
+  - id: "e2e0e016-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-service-call-amqp-send"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e0e016-0000-4000-8000-000000000003"
+    name: "Service Call"
+    type: "service-call"
+    properties:
+      systemType: "EXTERNAL"
+      integrationSystemId: "e2e0e004-0000-4000-8000-000000000001"
+      integrationSpecificationGroupId: "e2e0e004-0000-4000-8000-000000000001-amqp-calls"
+      integrationSpecificationId: "e2e0e004-0000-4000-8000-000000000001-amqp-calls-1.0.0"
+      integrationOperationId: "e2e0e004-0000-4000-8000-000000000001-amqp-calls-1.0.0-e2e-{{RUN}}-service-call-amqp-send"
+      integrationOperationPath: "e2e-{{RUN}}-service-call-amqp-send"
+      integrationOperationMethod: "send"
+      integrationOperationProtocolType: "amqp"
+      retryCount: 0
+      retryDelay: 5000
+  dependencies:
+  - from: "e2e0e016-0000-4000-8000-000000000002"
+    to: "e2e0e016-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

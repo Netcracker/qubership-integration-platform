@@ -36,7 +36,7 @@ import static org.qubership.integration.platform.library.constants.CamelNames.CO
 
 @Slf4j
 @RestController
-@RequestMapping(value = "/v1/library", produces = MediaType.APPLICATION_JSON_VALUE)
+@RequestMapping(value = {"/v1/library", "/api/v1/cip/catalog/library"}, produces = MediaType.APPLICATION_JSON_VALUE)
 @CrossOrigin(origins = "*")
 @Tag(name = "element-library-controller", description = "Element Library Controller")
 public class ElementLibraryController {
@@ -76,7 +76,8 @@ public class ElementLibraryController {
         List<ElementsFilterDTO> titles = elementService.findAllUsingTypes()
             .stream()
             .filter(type -> !CONTAINER.equals(type))
-            .map(type -> new ElementsFilterDTO(libraryElementsService.getElementDescriptor(type).getTitle(), type))
+            .map(type -> new ElementsFilterDTO(libraryElementsService.lookupElementDescriptor(type)
+                .map(ElementDescriptor::getTitle).orElse(type), type))
             .toList();
         return ResponseEntity.ok(titles);
     }

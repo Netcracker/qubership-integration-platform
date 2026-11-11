@@ -55,6 +55,7 @@ Table contains current chain's sessions, aggregated by correlation identifier, i
 
 Placed on top of the table. Provides next capabilities:
   - **Search field** - search box, provides ability to find particular session(s) by body field name, body field value, header name or header value.
+  - ![filter](img/filter.svg) - opens the **Filter** dialog. You can filter sessions by **Status**, **Start Time**, **Finish Time**, and **Engine**.
     > ℹ️ **Note**: When searching for long or complex entity name, please consider specifying its **full name** or **first part of the name** for proper search result.
   - ![delete](img/delete.svg) - deletes selected session(s).
   - ![cloud-download](img/cloud-download.svg) - exports the session.

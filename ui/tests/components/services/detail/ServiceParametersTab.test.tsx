@@ -100,7 +100,7 @@ jest.mock("../../../../src/permissions/ProtectedButton.tsx", () => ({
       <button
         type="button"
         data-testid={`param-toolbar-${String(tooltipProps.title).replace(/\s+/g, "-").toLowerCase()}`}
-        {...(rest)}
+        {...rest}
       />
     );
   },
@@ -159,6 +159,7 @@ describe("ServiceParametersTab", () => {
     mockExportServices.mockResolvedValue(new File([], "x"));
     jest.mocked(useNotificationService).mockReturnValue({
       requestFailed: mockRequestFailed,
+      error: jest.fn(),
       info: jest.fn(),
       warning: jest.fn(),
       errorWithDetails: jest.fn(),
@@ -413,7 +414,7 @@ describe("ServiceParametersTab", () => {
     );
   });
 
-  it("shows save error when updateService fails", async () => {
+  it("shows save error and keeps the changes unsaved when updateService fails", async () => {
     mockUpdateService.mockRejectedValue(new Error("save failed"));
     renderTab();
     await waitFor(() =>
@@ -428,6 +429,27 @@ describe("ServiceParametersTab", () => {
     await waitFor(() =>
       expect(screen.getByText(/save failed/)).toBeInTheDocument(),
     );
+    expect(screen.getByRole("button", { name: /save/i })).toBeEnabled();
+    expect(useBlocker).toHaveBeenLastCalledWith(true);
+  });
+
+  it("keeps the changes unsaved when the name is empty", async () => {
+    renderTab();
+    await waitFor(() =>
+      expect(screen.getByRole("textbox", { name: /name/i })).toHaveValue("Svc"),
+    );
+    fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
+      target: { value: "" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /save/i }));
+    await waitFor(() =>
+      expect(screen.getAllByText("Enter service name").length).toBeGreaterThan(
+        0,
+      ),
+    );
+    expect(mockUpdateService).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /save/i })).toBeEnabled();
+    expect(useBlocker).toHaveBeenLastCalledWith(true);
   });
 
   it("VS Code save sends original system type in payload", async () => {

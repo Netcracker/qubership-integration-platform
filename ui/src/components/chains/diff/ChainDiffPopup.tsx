@@ -4,6 +4,7 @@ import { useModalContext } from "../../../ModalContextProvider.tsx";
 
 import { ComparableItem } from "./useChainDiff.tsx";
 import { ChainDiffView } from "./ChainDiffView.tsx";
+import popupStyles from "./ChainDiffPopup.module.css";
 
 export type ChainDiffProps = {
   item1: ComparableItem;
@@ -25,9 +26,11 @@ export const ChainDiffPopup: React.FC<ChainDiffProps> = ({
       open={true}
       onCancel={closeContainingModal}
       footer={null}
+      className={popupStyles.modal}
+      classNames={{ body: popupStyles.modalBody }}
     >
       <ChainDiffView
-        style={{ height: "100%" }}
+        className={popupStyles.view}
         item1={item1}
         item2={item2}
         editable1={editable1}

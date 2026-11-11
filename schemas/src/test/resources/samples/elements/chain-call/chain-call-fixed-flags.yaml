@@ -1,0 +1,9 @@
+# $schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/chain-call-2
+id: "24005da2-dfb8-5dbe-b9fe-3850cd79fb32"
+name: Schema contract sample
+type: chain-call-2
+properties:
+  elementId: target-trigger-id
+  timeout: 30000
+  block: true
+  failIfNoConsumers: false

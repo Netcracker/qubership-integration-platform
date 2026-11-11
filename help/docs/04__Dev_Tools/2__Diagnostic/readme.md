@@ -17,9 +17,10 @@ Current page is available under the "Dev Tools" section.
 
 ---
 ### View Diagnostic Rules
-Navigate to **Admin Tools** -> **Diagnostic** to see the table with last diagnostic run's results. The table consists of the following columns and elements:
 
-- **Name** - clickable validation name. When clicked, system opens pop-up with detailed explanation of the validation.
+"Diagnostic" page shows the table with last diagnostic run's results. The following columns and elements are present:
+
+- **Title** - clickable validation name. When clicked, system opens pop-up with detailed explanation of the validation.
   - **ID** - unique identifier of validation.
   - **Name** - exact validation name, as presented in the table.
   - **Description** - short validation description.
@@ -43,7 +44,7 @@ At the top of the table the following options are available:
   - **Search** field - allows to find validation or validated entity by its name.
   - ![filter](img/filter.svg) - opens filter pop-up.
   - ![setting](img/setting.svg) - opens pop-up with table properties that allows to adjust visibility and sequence of columns except Name.
-  - Button **"Run Diagnostic"** - initiates validation process.
+  - Button **"Run Diagnostic"** - starts validation process by selected items.
 
 ### View Diagnostic Results
 When diagnostic results are available and issues found, each executed validation, that has counter, may be expanded with ![right](img/right.svg) icon near its name. After its expanded, system shows chains and elements, that contain found issues and require attention.

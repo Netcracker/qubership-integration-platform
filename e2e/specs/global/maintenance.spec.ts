@@ -146,195 +146,197 @@ async function untilDeletionLogged(
   return rows;
 }
 
-test("the prune takes a chain's superseded snapshots and leaves the current one", { tag: ["@catalog", "@tier1"] }, async ({ catalog, folder, run }) => {
-  const chain = await versionedChain(catalog, run, folder.id, "superseded", 2);
-  const [older, current] = chain.snapshots;
-  expect(await snapshotNames(catalog, chain.id)).toEqual([older.name, current.name].sort());
-  // The newest build is the chain's current one, which is the half of the protection this case
-  // separates from the deployment half below.
-  expect((await catalog.getChain(chain.id)).currentSnapshot?.id).toBe(current.id);
+test.describe("snapshot prune", { tag: ["@catalog"] }, () => {
+  test("removes superseded snapshots and keeps the current one", async ({ catalog, folder, run }) => {
+    const chain = await versionedChain(catalog, run, folder.id, "superseded", 2);
+    const [older, current] = chain.snapshots;
+    expect(await snapshotNames(catalog, chain.id)).toEqual([older.name, current.name].sort());
+    // The newest build is the chain's current one, which is the half of the protection this case
+    // separates from the deployment half below.
+    expect((await catalog.getChain(chain.id)).currentSnapshot?.id).toBe(current.id);
 
-  // `olderThanDays=0` computes `Instant.now()` as the deletion date, so a snapshot built seconds
-  // ago is already older than it. Nothing can backdate one — `created_when` is
-  // `@Column(updatable = false)` — and nothing needs to.
-  const response = await catalog.pruneSnapshots({ olderThanDays: 0 });
-  expect(response.status(), "the prune is accepted asynchronously and answers no body").toBe(202);
-  expect(await response.text()).toBe("");
+    // `olderThanDays=0` computes `Instant.now()` as the deletion date, so a snapshot built seconds
+    // ago is already older than it. Nothing can backdate one — `created_when` is
+    // `@Column(updatable = false)` — and nothing needs to.
+    const response = await catalog.pruneSnapshots({ olderThanDays: 0 });
+    expect(response.status(), "the prune is accepted asynchronously and answers no body").toBe(202);
+    expect(await response.text()).toBe("");
 
-  await untilPruned(catalog, chain, [current.name]);
-  // The chain still points at the snapshot it did: a prune that took the current one would leave
-  // the chain listing nothing and this reading null.
-  expect((await catalog.getChain(chain.id)).currentSnapshot?.id).toBe(current.id);
-});
-
-test("a deployed snapshot survives the prune even once it is no longer the current one", { tag: ["@catalog", "@engine", "@tier1"] }, async ({ catalog, env, folder, request, run }) => {
-  test.setTimeout(ENGINE_CASE_TIMEOUT);
-  const built = await tokenizedChain(catalog, run, {
-    prefix: "prune",
-    what: "deployed",
-    parentId: folder.id,
-  });
-  const deployedSnapshot = await catalog.createSnapshot(built.id);
-  const deployment = await catalog.deploy(built.id, deployedSnapshot.id);
-  const seeded = [{ id: built.id, name: built.name, contextPath: built.contextPath }];
-  await waitForDeployed(catalog, seeded);
-  await waitForRoutes(env, seeded);
-
-  // Two more builds. The second becomes the chain's current snapshot and the first is left
-  // holding nothing: not deployed, no longer current, and therefore the one row of the three the
-  // query is free to take.
-  const orphan = await catalog.createSnapshot(built.id);
-  const current = await catalog.createSnapshot(built.id);
-  const chain: Versioned = {
-    id: built.id,
-    name: built.name,
-    snapshots: [deployedSnapshot, orphan, current].map((each) => ({ id: each.id, name: each.name })),
-  };
-
-  await catalog.pruneSnapshots({ olderThanDays: 0 });
-  await untilPruned(catalog, chain, [deployedSnapshot.name, current.name]);
-
-  // The deployment is still the record it was, still pointing at a snapshot that still exists.
-  const deployments = await catalog.listDeployments(built.id);
-  expect(deployments.map((each) => each.id)).toEqual([deployment.id]);
-  expect(deployments[0].snapshotId).toBe(deployedSnapshot.id);
-  expect(deployments[0].domain).toBe(DEFAULT_DOMAIN);
-  // And the route is still live, which is the assertion the catalog's own record cannot make. The
-  // trigger is POST-restricted, so a GET answers 405 while the route is up and 404 once it is not.
-  const probe = await request.get(env.chainUrl(built.contextPath));
-  expect(probe.status(), "the prune took a snapshot the engine was serving").toBe(405);
-
-  await catalog.undeploy(built.id, deployment.id);
-});
-
-test("the audit trail names the prune and every snapshot it removed", { tag: ["@catalog", "@tier2"] }, async ({ catalog, folder, run }) => {
-  const chain = await versionedChain(catalog, run, folder.id, "audited", 2);
-  const [older, current] = chain.snapshots;
-  const requestId = tokenized(run, "prune-audited");
-
-  await catalog.pruneSnapshots({ olderThanDays: 0, requestId });
-  const rows = await untilDeletionLogged(catalog, requestId, older.id);
-  await untilPruned(catalog, chain, [current.name]);
-
-  // The run's own row, and the whole of what it carries. `entityId` and `entityName` are absent
-  // rather than null — nothing is passed for either — so the type and the operation are the only
-  // things that identify it, which is what makes this row unfindable except by request id.
-  const executions = rows.filter((row) => row.entityType === "SNAPSHOT_CLEANUP");
-  expect(executions, "one call, one execution row").toHaveLength(1);
-  expect(executions[0]).toMatchObject({ operation: "EXECUTE", username: "developer", requestId });
-  expect(executions[0].entityId).toBeUndefined();
-  expect(executions[0].entityName).toBeUndefined();
-  expect(executions[0].parentId).toBeUndefined();
-  expect(executions[0].parentType).toBeUndefined();
-
-  // Logged before the work starts, which is the ordering that makes the row mean "a prune ran"
-  // rather than "a prune finished".
-  const deletion = rows.find((row) => row.entityId === older.id)!;
-  expect(executions[0].actionTime).toBeLessThanOrEqual(deletion.actionTime);
-
-  // The deletion row identifies the snapshot and the chain it belonged to, which is everything the
-  // row has to carry: the snapshot it names no longer exists to be looked up.
-  expect(deletion).toMatchObject({
-    entityType: "SNAPSHOT",
-    operation: "DELETE",
-    entityId: older.id,
-    entityName: older.name,
-    parentType: "CHAIN",
-    parentId: chain.id,
-    parentName: chain.name,
-    requestId,
-  });
-  // The surviving snapshot was not logged as deleted, which is the other half of "the row names
-  // what the statement removed".
-  expect(rows.some((row) => row.entityId === current.id)).toBe(false);
-  // A prune writes those two kinds of row and no others.
-  expect([...new Set(rows.map((row) => row.entityType))].sort()).toEqual([
-    "SNAPSHOT",
-    "SNAPSHOT_CLEANUP",
-  ]);
-});
-
-test("olderThanDays is a floor: a snapshot minutes old outlives a one-day prune", { tag: ["@catalog", "@tier2"] }, async ({ catalog, folder, run }) => {
-  const chain = await versionedChain(catalog, run, folder.id, "floor", 2);
-  const [older, current] = chain.snapshots;
-  const floored = tokenized(run, "prune-floor-day");
-  const unfloored = tokenized(run, "prune-floor-none");
-
-  // A prune with a one-day floor, then one with none. The proof that the first left the snapshot
-  // alone is that the **second** one's audit row names it: those rows are built from the delete's
-  // `RETURNING`, so only the statement that actually removed the row can have logged it.
-  await catalog.pruneSnapshots({ olderThanDays: 1, requestId: floored });
-  await catalog.pruneSnapshots({ olderThanDays: 0, requestId: unfloored });
-
-  await untilDeletionLogged(catalog, unfloored, older.id);
-  await untilPruned(catalog, chain, [current.name]);
-
-  // The floored prune logged that it ran and deleted nothing of this chain's. It cannot be asserted
-  // to have deleted nothing at all: a stack that has been up for days may hold snapshots a one-day
-  // floor does reach, and they are none of this case's business.
-  const flooredRows = await auditOf(catalog, floored);
-  expect(flooredRows.filter((row) => row.entityType === "SNAPSHOT_CLEANUP")).toHaveLength(1);
-  const mine = new Set(chain.snapshots.map((snapshot) => snapshot.id));
-  expect(flooredRows.filter((row) => row.entityId && mine.has(row.entityId))).toEqual([]);
-});
-
-test("chunk bounds one iteration of the prune rather than the prune", { tag: ["@catalog", "@tier2"] }, async ({ catalog, folder, run }) => {
-  const chain = await versionedChain(catalog, run, folder.id, "chunked", 4);
-  const doomed = chain.snapshots.slice(0, 3);
-  const current = chain.snapshots[3];
-  const requestId = tokenized(run, "prune-chunked");
-
-  // One row per statement. If `chunk` bounded the call, two of these three would survive; the loop
-  // is what makes the smallest chunk the platform accepts remove everything anyway, and it is why
-  // no parameter can be used to narrow the blast radius.
-  await catalog.pruneSnapshots({ olderThanDays: 0, chunk: 1, requestId });
-  await untilPruned(catalog, chain, [current.name]);
-
-  const rows = await auditOf(catalog, requestId);
-  const deleted = rows
-    .filter((row) => row.operation === "DELETE" && row.parentId === chain.id)
-    .map((row) => row.entityName)
-    .sort();
-  expect(deleted).toEqual(doomed.map((snapshot) => snapshot.name).sort());
-});
-
-test("the two parameters are validated, and refuse in two different envelopes", { tag: ["@catalog", "@tier2"] }, async ({ catalog }) => {
-  const path = "/v1/catalog/maintenance/snapshots/prune";
-
-  // `@Min(0)` and `@Min(1)`, both reported through the module's own exception body. Both refusals
-  // go through `pruneSnapshots` rather than around it, which is also what pins the transport: a
-  // client that dropped either value would answer 202 here instead of 400.
-  const negativeDays = await catalog.pruneSnapshots({ olderThanDays: -1 });
-  expect(negativeDays.status()).toBe(400);
-  expect(await negativeDays.json()).toMatchObject({
-    serviceName: "Catalog",
-    errorMessage: "Invalid request content: [pruneSnapshots.olderThanDays must be greater than or equal to 0]",
+    await untilPruned(catalog, chain, [current.name]);
+    // The chain still points at the snapshot it did: a prune that took the current one would leave
+    // the chain listing nothing and this reading null.
+    expect((await catalog.getChain(chain.id)).currentSnapshot?.id).toBe(current.id);
   });
 
-  const zeroChunk = await catalog.pruneSnapshots({ olderThanDays: 0, chunk: 0 });
-  expect(zeroChunk.status()).toBe(400);
-  expect(await zeroChunk.json()).toMatchObject({
-    serviceName: "Catalog",
-    errorMessage: "Invalid request content: [pruneSnapshots.chunk must be greater than or equal to 1]",
+  test("keeps a deployed snapshot that is no longer current", { tag: ["@engine"] }, async ({ catalog, env, folder, request, run }) => {
+    test.setTimeout(ENGINE_CASE_TIMEOUT);
+    const built = await tokenizedChain(catalog, run, {
+      prefix: "prune",
+      what: "deployed",
+      parentId: folder.id,
+    });
+    const deployedSnapshot = await catalog.createSnapshot(built.id);
+    const deployment = await catalog.deploy(built.id, deployedSnapshot.id);
+    const seeded = [{ id: built.id, name: built.name, contextPath: built.contextPath }];
+    await waitForDeployed(catalog, seeded);
+    await waitForRoutes(env, seeded);
+
+    // Two more builds. The second becomes the chain's current snapshot and the first is left
+    // holding nothing: not deployed, no longer current, and therefore the one row of the three the
+    // query is free to take.
+    const orphan = await catalog.createSnapshot(built.id);
+    const current = await catalog.createSnapshot(built.id);
+    const chain: Versioned = {
+      id: built.id,
+      name: built.name,
+      snapshots: [deployedSnapshot, orphan, current].map((each) => ({ id: each.id, name: each.name })),
+    };
+
+    await catalog.pruneSnapshots({ olderThanDays: 0 });
+    await untilPruned(catalog, chain, [deployedSnapshot.name, current.name]);
+
+    // The deployment is still the record it was, still pointing at a snapshot that still exists.
+    const deployments = await catalog.listDeployments(built.id);
+    expect(deployments.map((each) => each.id)).toEqual([deployment.id]);
+    expect(deployments[0].snapshotId).toBe(deployedSnapshot.id);
+    expect(deployments[0].domain).toBe(DEFAULT_DOMAIN);
+    // And the route is still live, which is the assertion the catalog's own record cannot make. The
+    // trigger is POST-restricted, so a GET answers 405 while the route is up and 404 once it is not.
+    const probe = await request.get(env.chainUrl(built.contextPath));
+    expect(probe.status(), "the prune took a snapshot the engine was serving").toBe(405);
+
+    await catalog.undeploy(built.id, deployment.id);
   });
 
-  // A parameter that is missing or does not parse never reaches the constraint, so Spring answers
-  // before the handler and the body is RFC 9457 rather than the module's. A client that reads
-  // `errorMessage` finds nothing on these two. The transport always sends an `olderThanDays` and
-  // always sends a number, so neither shape can be built through it; these two go out raw.
-  const missing = await catalog.raw("post", `${path}?chunk=5`);
-  expect(missing.status()).toBe(400);
-  expect(await missing.json()).toMatchObject({
-    type: "about:blank",
-    title: "Bad Request",
-    status: 400,
-    detail: "Required parameter 'olderThanDays' is not present.",
-    instance: path,
+  test("the audit trail names the prune and each removed snapshot", async ({ catalog, folder, run }) => {
+    const chain = await versionedChain(catalog, run, folder.id, "audited", 2);
+    const [older, current] = chain.snapshots;
+    const requestId = tokenized(run, "prune-audited");
+
+    await catalog.pruneSnapshots({ olderThanDays: 0, requestId });
+    const rows = await untilDeletionLogged(catalog, requestId, older.id);
+    await untilPruned(catalog, chain, [current.name]);
+
+    // The run's own row, and the whole of what it carries. `entityId` and `entityName` are absent
+    // rather than null — nothing is passed for either — so the type and the operation are the only
+    // things that identify it, which is what makes this row unfindable except by request id.
+    const executions = rows.filter((row) => row.entityType === "SNAPSHOT_CLEANUP");
+    expect(executions, "one call, one execution row").toHaveLength(1);
+    expect(executions[0]).toMatchObject({ operation: "EXECUTE", username: "developer", requestId });
+    expect(executions[0].entityId).toBeUndefined();
+    expect(executions[0].entityName).toBeUndefined();
+    expect(executions[0].parentId).toBeUndefined();
+    expect(executions[0].parentType).toBeUndefined();
+
+    // Logged before the work starts, which is the ordering that makes the row mean "a prune ran"
+    // rather than "a prune finished".
+    const deletion = rows.find((row) => row.entityId === older.id)!;
+    expect(executions[0].actionTime).toBeLessThanOrEqual(deletion.actionTime);
+
+    // The deletion row identifies the snapshot and the chain it belonged to, which is everything the
+    // row has to carry: the snapshot it names no longer exists to be looked up.
+    expect(deletion).toMatchObject({
+      entityType: "SNAPSHOT",
+      operation: "DELETE",
+      entityId: older.id,
+      entityName: older.name,
+      parentType: "CHAIN",
+      parentId: chain.id,
+      parentName: chain.name,
+      requestId,
+    });
+    // The surviving snapshot was not logged as deleted, which is the other half of "the row names
+    // what the statement removed".
+    expect(rows.some((row) => row.entityId === current.id)).toBe(false);
+    // A prune writes those two kinds of row and no others.
+    expect([...new Set(rows.map((row) => row.entityType))].sort()).toEqual([
+      "SNAPSHOT",
+      "SNAPSHOT_CLEANUP",
+    ]);
   });
 
-  const unparseable = await catalog.raw("post", `${path}?olderThanDays=abc`);
-  expect(unparseable.status()).toBe(400);
-  expect(await unparseable.json()).toMatchObject({
-    detail: "Failed to convert 'olderThanDays' with value: 'abc'",
+  test("olderThanDays=1 keeps a snapshot minutes old", async ({ catalog, folder, run }) => {
+    const chain = await versionedChain(catalog, run, folder.id, "floor", 2);
+    const [older, current] = chain.snapshots;
+    const floored = tokenized(run, "prune-floor-day");
+    const unfloored = tokenized(run, "prune-floor-none");
+
+    // A prune with a one-day floor, then one with none. The proof that the first left the snapshot
+    // alone is that the **second** one's audit row names it: those rows are built from the delete's
+    // `RETURNING`, so only the statement that actually removed the row can have logged it.
+    await catalog.pruneSnapshots({ olderThanDays: 1, requestId: floored });
+    await catalog.pruneSnapshots({ olderThanDays: 0, requestId: unfloored });
+
+    await untilDeletionLogged(catalog, unfloored, older.id);
+    await untilPruned(catalog, chain, [current.name]);
+
+    // The floored prune logged that it ran and deleted nothing of this chain's. It cannot be asserted
+    // to have deleted nothing at all: a stack that has been up for days may hold snapshots a one-day
+    // floor does reach, and they are none of this case's business.
+    const flooredRows = await auditOf(catalog, floored);
+    expect(flooredRows.filter((row) => row.entityType === "SNAPSHOT_CLEANUP")).toHaveLength(1);
+    const mine = new Set(chain.snapshots.map((snapshot) => snapshot.id));
+    expect(flooredRows.filter((row) => row.entityId && mine.has(row.entityId))).toEqual([]);
+  });
+
+  test("chunk bounds one iteration, not the whole prune", async ({ catalog, folder, run }) => {
+    const chain = await versionedChain(catalog, run, folder.id, "chunked", 4);
+    const doomed = chain.snapshots.slice(0, 3);
+    const current = chain.snapshots[3];
+    const requestId = tokenized(run, "prune-chunked");
+
+    // One row per statement. If `chunk` bounded the call, two of these three would survive; the loop
+    // is what makes the smallest chunk the platform accepts remove everything anyway, and it is why
+    // no parameter can be used to narrow the blast radius.
+    await catalog.pruneSnapshots({ olderThanDays: 0, chunk: 1, requestId });
+    await untilPruned(catalog, chain, [current.name]);
+
+    const rows = await auditOf(catalog, requestId);
+    const deleted = rows
+      .filter((row) => row.operation === "DELETE" && row.parentId === chain.id)
+      .map((row) => row.entityName)
+      .sort();
+    expect(deleted).toEqual(doomed.map((snapshot) => snapshot.name).sort());
+  });
+
+  test("invalid parameters are refused in two different envelopes", async ({ catalog }) => {
+    const path = "/v1/catalog/maintenance/snapshots/prune";
+
+    // `@Min(0)` and `@Min(1)`, both reported through the module's own exception body. Both refusals
+    // go through `pruneSnapshots` rather than around it, which is also what pins the transport: a
+    // client that dropped either value would answer 202 here instead of 400.
+    const negativeDays = await catalog.pruneSnapshots({ olderThanDays: -1 });
+    expect(negativeDays.status()).toBe(400);
+    expect(await negativeDays.json()).toMatchObject({
+      serviceName: "Catalog",
+      errorMessage: "Invalid request content: [pruneSnapshots.olderThanDays must be greater than or equal to 0]",
+    });
+
+    const zeroChunk = await catalog.pruneSnapshots({ olderThanDays: 0, chunk: 0 });
+    expect(zeroChunk.status()).toBe(400);
+    expect(await zeroChunk.json()).toMatchObject({
+      serviceName: "Catalog",
+      errorMessage: "Invalid request content: [pruneSnapshots.chunk must be greater than or equal to 1]",
+    });
+
+    // A parameter that is missing or does not parse never reaches the constraint, so Spring answers
+    // before the handler and the body is RFC 9457 rather than the module's. A client that reads
+    // `errorMessage` finds nothing on these two. The transport always sends an `olderThanDays` and
+    // always sends a number, so neither shape can be built through it; these two go out raw.
+    const missing = await catalog.raw("post", `${path}?chunk=5`);
+    expect(missing.status()).toBe(400);
+    expect(await missing.json()).toMatchObject({
+      type: "about:blank",
+      title: "Bad Request",
+      status: 400,
+      detail: "Required parameter 'olderThanDays' is not present.",
+      instance: path,
+    });
+
+    const unparseable = await catalog.raw("post", `${path}?olderThanDays=abc`);
+    expect(unparseable.status()).toBe(400);
+    expect(await unparseable.json()).toMatchObject({
+      detail: "Failed to convert 'olderThanDays' with value: 'abc'",
+    });
   });
 });

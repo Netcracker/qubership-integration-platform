@@ -1,3 +1,4 @@
+import { Button } from "antd";
 import { ErrorDetails } from "../components/modal/ErrorDetails";
 import { useModalsContext } from "../Modals";
 import {
@@ -27,7 +28,11 @@ const NotificationDescriptionWithDetails = (
 };
 
 interface NotificationService {
-  requestFailed(description: string, exception: unknown): void;
+  requestFailed(
+    description: string,
+    exception: unknown,
+    retry?: () => void,
+  ): void;
 
   errorWithDetails(
     message: string,
@@ -35,8 +40,10 @@ interface NotificationService {
     exception: unknown,
   ): void;
 
+  error(message: string, description?: ReactNode): void;
+
   info(message: string, description?: ReactNode): void;
-  warning(message: string, description?: ReactNode): void;
+  warning(message: string, description?: ReactNode, retry?: () => void): void;
 }
 
 export const useNotificationService = (): NotificationService => {
@@ -105,12 +112,29 @@ export const useNotificationService = (): NotificationService => {
 
   return useMemo(
     () => ({
-      requestFailed: (description: string, error: unknown) => {
+      requestFailed: (
+        description: string,
+        error: unknown,
+        retry?: () => void,
+      ) => {
         const item = buildErrorNotification(
           "Request failed",
           description,
           error,
         );
+        if (retry) {
+          const details = item.description;
+          item.description = (
+            <>
+              {details}
+              <div>
+                <Button type="link" onClick={retry}>
+                  Retry refresh
+                </Button>
+              </div>
+            </>
+          );
+        }
         addToHistory(item);
         notificationApi.error(item);
       },
@@ -123,13 +147,37 @@ export const useNotificationService = (): NotificationService => {
         addToHistory(item);
         notificationApi.error(item);
       },
+      error: (message: string, description?: ReactNode) => {
+        const item: NotificationItem = {
+          type: "error",
+          message,
+          description,
+        };
+        addToHistory(item);
+        notificationApi.error(item);
+      },
       info: (message: string, description?: ReactNode) => {
         const item = buildInfoNotification(message, description);
         addToHistory(item);
         notificationApi.info(item);
       },
-      warning: (message: string, description?: ReactNode) => {
+      warning: (
+        message: string,
+        description?: ReactNode,
+        retry?: () => void,
+      ) => {
         const item = buildWarningNotification(message, description);
+        if (retry)
+          item.description = (
+            <>
+              {description}
+              <div>
+                <Button type="link" onClick={retry}>
+                  Retry refresh
+                </Button>
+              </div>
+            </>
+          );
         addToHistory(item);
         notificationApi.warning(item);
       },

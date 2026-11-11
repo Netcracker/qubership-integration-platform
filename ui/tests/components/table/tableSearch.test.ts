@@ -1,5 +1,6 @@
 import {
   makeSearchHaystack,
+  matchesAllTerms,
   matchesByFields,
   normalizeSearchTerm,
 } from "../../../src/components/table/tableSearch";
@@ -37,6 +38,19 @@ describe("tableSearch", () => {
 
     it("returns false when no match", () => {
       expect(matchesByFields("zzz", ["aaa", "bbb"])).toBe(false);
+    });
+  });
+
+  describe("matchesAllTerms", () => {
+    it("requires every whitespace-separated term to match any field", () => {
+      const fields = ["GET", "List users", "/users"];
+
+      expect(matchesAllTerms("GET /users", fields)).toBe(true);
+      expect(matchesAllTerms("  get   /USERS  ", fields)).toBe(true);
+      expect(matchesAllTerms("list users", fields)).toBe(true);
+      expect(matchesAllTerms("POST /users", fields)).toBe(false);
+      expect(matchesAllTerms("", fields)).toBe(true);
+      expect(matchesAllTerms("   ", fields)).toBe(true);
     });
   });
 });

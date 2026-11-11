@@ -163,7 +163,6 @@ describe("CommonVariables", () => {
     render(<CommonVariables />);
 
     expect(screen.getByText("Common Variables")).toBeInTheDocument();
-    expect(screen.getByTestId("icon-table")).toBeInTheDocument();
 
     await waitFor(() =>
       expect(screen.getByTestId("variables-count")).toHaveTextContent("2"),

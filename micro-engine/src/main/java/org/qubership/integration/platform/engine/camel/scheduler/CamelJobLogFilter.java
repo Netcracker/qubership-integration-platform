@@ -16,14 +16,12 @@
 
 package org.qubership.integration.platform.engine.camel.scheduler;
 
-import io.quarkus.logging.LoggingFilter;
 import org.jboss.logmanager.Level;
 
 import java.util.Optional;
 import java.util.logging.Filter;
 import java.util.logging.LogRecord;
 
-@LoggingFilter(name = "camel-job-filter")
 public class CamelJobLogFilter implements Filter {
     @Override
     public boolean isLoggable(LogRecord record) {

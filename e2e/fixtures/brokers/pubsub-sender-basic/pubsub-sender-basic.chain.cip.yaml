@@ -1,5 +1,5 @@
 ---
-id: "e2e0j003-0000-4000-8000-000000000001"
+id: "e2e0c003-0000-4000-8000-000000000001"
 $schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 name: "e2e-{{RUN}}-pubsub-sender-basic"
 description: "pubsub-sender at its schema defaults: messageOrderingEnabled false. An HTTP call\
@@ -8,7 +8,7 @@ description: "pubsub-sender at its schema defaults: messageOrderingEnabled false
 content:
   labels: []
   elements:
-  - id: "e2e0j003-0000-4000-8000-000000000002"
+  - id: "e2e0c003-0000-4000-8000-000000000002"
     name: "HTTP Trigger"
     type: "http-trigger"
     properties:
@@ -21,7 +21,7 @@ content:
       handleChainFailureAction: "default"
       correlationId: false
       isExternalContextPath: false
-  - id: "e2e0j003-0000-4000-8000-000000000003"
+  - id: "e2e0c003-0000-4000-8000-000000000003"
     name: "PubSub Sender"
     type: "pubsub-sender"
     properties:
@@ -31,7 +31,7 @@ content:
       lazyStartProducer: false
       messageOrderingEnabled: false
   dependencies:
-  - from: "e2e0j003-0000-4000-8000-000000000002"
-    to: "e2e0j003-0000-4000-8000-000000000003"
+  - from: "e2e0c003-0000-4000-8000-000000000002"
+    to: "e2e0c003-0000-4000-8000-000000000003"
   deployAction: "NONE"
   migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

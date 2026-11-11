@@ -1,6 +1,6 @@
 import { detectAsyncApiVersion } from "./asyncApiVersion";
 import { AsyncApiV3Normalizer } from "./AsyncApiV3Normalizer";
-import { AsyncApiV3Data } from "../parserTypes";
+import { AsyncApiV3Data, AsyncApiV3Operation } from "../parserTypes";
 
 function v3(operation: Record<string, any>): AsyncApiV3Data {
   return {
@@ -61,6 +61,37 @@ describe("AsyncApiV3Normalizer", () => {
     expect(op.message?.payload).toEqual({ type: "object" });
   });
 
+  it.each([
+    ["receiver", "sender"],
+    ["sender", "receiver"],
+  ])(
+    "keeps the operation declared on the reply channel (%s first)",
+    (first, second) => {
+      const declared: Record<string, AsyncApiV3Operation> = {
+        receiver: {
+          action: "receive",
+          channel: { $ref: "#/channels/replies" },
+        },
+        sender: {
+          action: "send",
+          channel: { $ref: "#/channels/ch" },
+          reply: { channel: { $ref: "#/channels/replies" } },
+        },
+      };
+      const spec = v3({});
+      spec.channels!.replies = { address: "reply/topic" };
+      spec.operations = {
+        [first]: declared[first],
+        [second]: declared[second],
+      };
+
+      const result = AsyncApiV3Normalizer.normalize(spec);
+      expect(result.channels["reply/topic"].subscribe!.operationId).toBe(
+        "receiver",
+      );
+    },
+  );
+
   it("rejects the v2 keyword 'publish' used as a v3 action", () => {
     expect(() =>
       AsyncApiV3Normalizer.normalize(
@@ -90,5 +121,70 @@ describe("AsyncApiV3Normalizer", () => {
       url: "rabbit:5672/vhost",
       protocol: "amqp",
     });
+  });
+
+  // `schema` fills every position that holds a schema, and `data` every value
+  // that is data.
+  function schemaPositions(schema: () => object, data: () => object) {
+    return {
+      type: "object",
+      properties: {
+        p: schema(),
+        default: schema(),
+        marker: {
+          const: data(),
+          enum: [data()],
+          default: data(),
+          example: data(),
+          examples: [data()],
+          "x-data": data(),
+        },
+      },
+      patternProperties: { "^a": schema() },
+      definitions: { D: schema() },
+      dependencies: { p: schema(), q: ["p"] },
+      additionalProperties: schema(),
+      items: [schema()],
+      additionalItems: schema(),
+      contains: schema(),
+      propertyNames: schema(),
+      not: schema(),
+      if: schema(),
+      then: schema(),
+      else: schema(),
+      allOf: [schema()],
+      anyOf: [schema()],
+      oneOf: [schema()],
+    };
+  }
+
+  it("rewrites references into an unwrapped schema only where a schema is", () => {
+    const into = () => ({ $ref: "#/components/schemas/Closed/schema" });
+    const unwrapped = () => ({ $ref: "#/components/schemas/Closed" });
+    const result = AsyncApiV3Normalizer.normalize({
+      asyncapi: "3.0.0",
+      info: { title: "t", version: "1.0.0" },
+      channels: {
+        ch: {
+          address: "the/topic",
+          messages: { M: { payload: schemaPositions(into, into) } },
+        },
+      },
+      operations: {
+        op: { action: "receive", channel: { $ref: "#/channels/ch" } },
+      },
+      components: {
+        schemas: {
+          Closed: {
+            schemaFormat: "application/schema+json;version=draft-07",
+            schema: { type: "string" },
+          },
+        },
+      },
+    });
+
+    expect(result.channels["the/topic"].subscribe!.message!.payload).toEqual(
+      schemaPositions(unwrapped, into),
+    );
   });
 });

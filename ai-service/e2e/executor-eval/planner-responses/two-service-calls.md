@@ -1,0 +1,15 @@
+1. Analyze requirements and name the chain for the HTTP POST `/orders` flow (cip-requirement-analyzer + cip-naming-generator)
+2. Generate HTTP Trigger element with interface `POST /orders` (cip-trigger-generator)
+3. Configure the existing catalog binding for `Orders Service.createOrder` (cip-service-call-generator)
+4. Configure the existing catalog binding for `Inventory Service.reserveInventory` (cip-service-call-generator)
+5. Generate Script element for Initialization (cip-script-generator)
+6. Generate Script element to convert `Orders Service.createOrder` to `Inventory Service.reserveInventory` (cip-script-generator)
+7. Generate Script element for Response (cip-script-generator)
+8. Generate execution structure and element ordering (cip-structure-generator)
+9. Connect HTTP Trigger → `Orders Service.createOrder` in the execution structure (cip-structure-generator)
+10. Connect `Orders Service.createOrder` → `Inventory Service.reserveInventory` in the execution structure (cip-structure-generator)
+11. Connect `Inventory Service.reserveInventory` → Response in the execution structure (cip-structure-generator)
+12. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
+13. Validate the assembled chain (cip-chain-validator)
+
+If you agree, reply **Agree** or **Execute plan** to proceed.

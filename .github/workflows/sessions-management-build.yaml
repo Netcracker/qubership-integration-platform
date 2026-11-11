@@ -4,6 +4,9 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
+      - '.github/workflows/sessions-management-build.yaml'
+      - '.github/workflows/_maven-module-build.yaml'
+      - '.github/maven-settings.xml'
       - 'sessions-management/**'
       - 'parents/**'
       - 'pom.xml'

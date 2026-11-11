@@ -21,8 +21,8 @@ container: false
 deprecated: true # TODO deprecated since 22.2
 designParameters:
   externalParticipantId: '##{elementName}'
-  externalParticipantName: 'QIP chain: ##{chainName}'
-  requestLineTitle: 'QIP chain call'
+  externalParticipantName: 'CIP chain: ##{chainName}'
+  requestLineTitle: 'CIP chain call'
   directionToChain: false
   hasResponse: true
 properties:

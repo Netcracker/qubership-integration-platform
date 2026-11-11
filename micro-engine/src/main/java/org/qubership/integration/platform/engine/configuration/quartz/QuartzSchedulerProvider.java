@@ -3,6 +3,7 @@ package org.qubership.integration.platform.engine.configuration.quartz;
 import jakarta.annotation.Priority;
 import jakarta.enterprise.inject.Alternative;
 import jakarta.enterprise.inject.Produces;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.quartz.Scheduler;
 import org.quartz.SchedulerException;
 import org.quartz.SchedulerFactory;
@@ -12,11 +13,14 @@ import org.quartz.impl.matchers.EverythingMatcher;
 import java.util.Properties;
 
 public class QuartzSchedulerProvider {
+    @ConfigProperty(name = "cip.camel.component.quartz.scheduler-name")
+    String schedulerName;
+
     @Produces
     @Alternative
     @Priority(1)
     public Scheduler quartzScheduler() throws SchedulerException {
-        SchedulerFactory schedulerFactory = new StdSchedulerFactory(getSchedulerProperties());
+        SchedulerFactory schedulerFactory = new StdSchedulerFactory(getSchedulerProperties(schedulerName));
         Scheduler scheduler = schedulerFactory.getScheduler();
         // Without this, beans that require an active RequestScoped context (e.g. security
         // identity lookups used by context propagation) fail when a chain is triggered by the scheduler
@@ -25,7 +29,7 @@ public class QuartzSchedulerProvider {
         return scheduler;
     }
 
-    private static Properties getSchedulerProperties() {
+    static Properties getSchedulerProperties(String schedulerName) {
         Properties properties = new Properties();
         properties.put("org.quartz.jobStore.useProperties", "true");
         properties.put("org.quartz.scheduler.instanceId", "AUTO");
@@ -44,7 +48,7 @@ public class QuartzSchedulerProvider {
         properties.put("org.quartz.jobStore.acquireTriggersWithinLock", "true");
         properties.put("org.quartz.scheduler.rmi.export", "false");
         properties.put("org.quartz.jobStore.dataSource", "configs");
-        properties.put("org.quartz.scheduler.instanceName", "quartz-scheduler");
+        properties.put("org.quartz.scheduler.instanceName", schedulerName);
         properties.put("org.quartz.threadPool.threadPriority", "5");
         properties.put("org.quartz.jobStore.isClustered", "true");
         properties.put("org.quartz.dataSource.configs.connectionProvider.class", QuartzSchedulerConnectionProvider.class.getName());

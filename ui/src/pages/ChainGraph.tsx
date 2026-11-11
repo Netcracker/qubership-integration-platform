@@ -4,6 +4,7 @@ import "@xyflow/react/dist/style.css";
 import "../styles/reactflow-theme.css";
 import React, {
   useCallback,
+  useEffect,
   useContext,
   useMemo,
   useRef,
@@ -13,7 +14,7 @@ import { ElementsLibrarySidebar } from "../components/elements_library/ElementsL
 import { DnDProvider } from "../components/DndContext.tsx";
 import { Button, Flex, Splitter } from "antd";
 import { useParams } from "react-router-dom";
-import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
+import { ChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
 import {
   ElementFocusContext,
   type FitViewToElementIdFn,
@@ -24,15 +25,11 @@ import controlStyles from "../components/graph/ChainGraphViewControls.module.css
 import { LibraryProvider } from "../components/LibraryContext.tsx";
 import { PageWithRightPanel } from "./PageWithRightPanel.tsx";
 import { SaveAndDeploy } from "../components/modal/SaveAndDeploy.tsx";
-import {
-  CreateDeploymentRequest,
-  DeployMode,
-  DomainType,
-  Element,
-} from "../api/apiTypes.ts";
+import { CreateDeploymentRequest, Element } from "../api/apiTypes.ts";
 import { api } from "../api/api.ts";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import { SequenceDiagram } from "../components/modal/SequenceDiagram.tsx";
+import { traverseElementsDepthFirst } from "../misc/tree-utils.ts";
 import { ChainContext } from "./ChainPage.tsx";
 import { isVsCode } from "../api/rest/vscodeExtensionApi.ts";
 import {
@@ -43,6 +40,7 @@ import { downloadFile, mergeZipArchives } from "../misc/download-utils.ts";
 import { exportAdditionsForChains } from "../misc/export-additions.ts";
 import { generateSequenceDiagrams } from "../diagrams/main.ts";
 import { Domain } from "../components/SelectDomains.tsx";
+import { toDomains } from "../misc/domain-utils.ts";
 import { ProtectedButton } from "../permissions/ProtectedButton.tsx";
 import { usePermissions } from "../permissions/usePermissions.tsx";
 import { hasPermissions } from "../permissions/funcs.ts";
@@ -87,6 +85,23 @@ const ChainGraphInner: React.FC = () => {
     void navigate(`/chains/${chainContext?.chain?.id}/graph`);
   }, [chainContext, navigate]);
 
+  useEffect(() => {
+    if (!elementId || !chainContext?.graphRefreshVersion) return;
+    let exists = false;
+    traverseElementsDepthFirst(
+      chainContext.chain?.elements ?? [],
+      (element) => {
+        if (element.id === elementId) exists = true;
+      },
+    );
+    if (!exists) clearElementPath();
+  }, [
+    elementId,
+    chainContext?.chain,
+    chainContext?.graphRefreshVersion,
+    clearElementPath,
+  ]);
+
   const setElementPath = useCallback(
     (newElementId: string) => {
       void navigate(`/chains/${chainContext?.chain?.id}/graph/${newElementId}`);
@@ -104,6 +119,7 @@ const ChainGraphInner: React.FC = () => {
         setElementPath(node.id);
       }
       const modalId = `chain-element-${node.id}`;
+      const finishOperation = chainContext?.beginLocalOperation?.();
       showModal({
         id: modalId,
         component: (
@@ -113,16 +129,30 @@ const ChainGraphInner: React.FC = () => {
               chainId={chainId!}
               elementId={node.id}
               onSubmit={(e, n) => {
-                updateCallback(e, n);
-                clearElementPath();
+                try {
+                  updateCallback(e, n);
+                  clearElementPath();
+                } finally {
+                  finishOperation?.();
+                }
               }}
-              onClose={clearElementPath}
+              onClose={() => {
+                clearElementPath();
+                finishOperation?.();
+              }}
             />
           </ChainContext.Provider>
         ),
       });
     },
-    [chainContext, chainId, showModal],
+    [
+      chainContext,
+      chainId,
+      showModal,
+      elementId,
+      clearElementPath,
+      setElementPath,
+    ],
   );
 
   const saveAndDeploy = useCallback(
@@ -140,20 +170,13 @@ const ChainGraphInner: React.FC = () => {
         });
         await Promise.all(
           domains.map(async (domain) => {
-            if (domain.type === DomainType.MICRO) {
-              await api.deploySnapshotsToMicroDomain({
-                name: domain.name,
-                snapshotIds: [snapshot.id],
-                mode: DeployMode.APPEND,
-              });
-            } else {
-              const request: CreateDeploymentRequest = {
-                domain: domain.name,
-                snapshotId: snapshot.id,
-                suspended: false,
-              };
-              await api.createDeployment(chainId, request);
-            }
+            const request: CreateDeploymentRequest = {
+              domain: domain.name,
+              domainType: domain.type,
+              snapshotId: snapshot.id,
+              suspended: false,
+            };
+            await api.createDeployment(chainId, request);
             notificationService.info(
               "Deployed snapshot",
               `Deployed snapshot ${snapshot.name}`,
@@ -170,11 +193,19 @@ const ChainGraphInner: React.FC = () => {
     [chainId, chainContext, notificationService],
   );
 
+  const chainDeployments = chainContext?.chain?.deployments;
+
   const openSaveAndDeployDialog = useCallback(() => {
     showModal({
-      component: <SaveAndDeploy chainId={chainId} onSubmit={saveAndDeploy} />,
+      component: (
+        <SaveAndDeploy
+          chainId={chainId}
+          initialDomains={toDomains(chainDeployments)}
+          onSubmit={saveAndDeploy}
+        />
+      ),
     });
-  }, [showModal, chainId, saveAndDeploy]);
+  }, [showModal, chainId, chainDeployments, saveAndDeploy]);
 
   const exportChain = useCallback(
     async (chainIdParam: string | undefined, options: ExportChainOptions) => {
@@ -248,17 +279,18 @@ const ChainGraphInner: React.FC = () => {
     () => (
       <Flex align="center" gap={4}>
         <ProtectedButton
-          require={{ chain: ["read"] }}
+          require={{ chain: ["read"], designTemplate: ["read"] }}
           tooltipProps={{ title: "Show sequence diagram" }}
           buttonProps={{
             iconName: "diagram",
             onClick: openSequenceDiagram,
+            "data-testid": "chain-sequence-diagram",
           }}
         />
         {!isVsCode && (
           <>
             <ProtectedButton
-              require={{ chain: ["read"] }}
+              require={{ chain: ["read"], designTemplate: ["read"] }}
               tooltipProps={{ title: "Generate DDS" }}
               buttonProps={{
                 iconName: "file",
@@ -289,7 +321,6 @@ const ChainGraphInner: React.FC = () => {
     ),
     [openSequenceDiagram, openExportDialog, openSaveAndDeployDialog],
   );
-  useRegisterChainHeaderActions(headerActions, [chainId]);
 
   const toggleLeftPanelVisible = useCallback(() => {
     setLeftPanelVisible((prev) => !prev);
@@ -338,6 +369,7 @@ const ChainGraphInner: React.FC = () => {
 
   return (
     <ElementFocusContext.Provider value={fitViewToElementIdRef}>
+      <ChainHeaderActions>{headerActions}</ChainHeaderActions>
       <Splitter
         className={styles["graph-wrapper"]}
         // Sizes are controlled: antd's Splitter caches per-index pixel sizes on
@@ -357,6 +389,7 @@ const ChainGraphInner: React.FC = () => {
       >
         {showLeftPanel && (
           <Splitter.Panel
+            className={styles["left-panel"]}
             size={leftPanelWidth}
             min={MIN_PANEL_WIDTH}
             max={MAX_PANEL_WIDTH}
@@ -385,12 +418,17 @@ const ChainGraphInner: React.FC = () => {
   );
 };
 
-export const ChainGraph: React.FC = () => (
-  <LibraryProvider>
-    <ReactFlowProvider>
-      <DnDProvider>
-        <ChainGraphInner />
-      </DnDProvider>
-    </ReactFlowProvider>
-  </LibraryProvider>
-);
+export const ChainGraph: React.FC = () => {
+  const context = useContext(ChainContext);
+  return (
+    <LibraryProvider>
+      <ReactFlowProvider
+        key={`${context?.chain?.id ?? ""}:${context?.graphRefreshVersion ?? 0}`}
+      >
+        <DnDProvider>
+          <ChainGraphInner />
+        </DnDProvider>
+      </ReactFlowProvider>
+    </LibraryProvider>
+  );
+};

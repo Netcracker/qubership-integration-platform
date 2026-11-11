@@ -30,7 +30,7 @@ export const UsageStatusTag: React.FC<{ element: ServiceEntity }> = ({
   const status = getUsageStatus(element);
   return (
     <Tag
-      className="qip-solid-tag"
+      className="cip-solid-tag"
       style={{
         background: STATUS_COLORS[status],
         color: "#fff",

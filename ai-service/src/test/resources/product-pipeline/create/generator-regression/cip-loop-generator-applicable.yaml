@@ -1,0 +1,75 @@
+caseId: cip-loop-generator-applicable
+skillId: cip-loop-generator
+expectedApplicability: APPLICABLE
+requirementBrief:
+  goal: Paginate backend results with a do-while loop.
+  inputs: []
+  constraints: []
+  assumptions: []
+  citations: []
+  summary: Paginate backend results with a do-while loop.
+  approvedDraftReference: approved-draft-cip-loop-generator-applicable
+  approvedDraftText: Paginate backend results with a do-while loop.
+  facts:
+    - sourceFactId: loop-1
+      polarity: POSITIVE
+      kind: BEHAVIOR
+      capabilityKey: loop
+      text: Configure loop-2 as do-while over hasMore.
+upstreamArtifacts:
+  CHAIN_STRUCTURE:
+    schemaVersion: 1
+inputGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Loop.Demo.Paginate
+    description: Paginate until exhausted.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: loop-1
+      type: loop-2
+      label: Paginate results
+      parentNodeId: null
+      order: null
+      properties:
+        []
+  edges: []
+capturedPatch:
+  patchId: loop-2-do-while
+  ownerCapabilityId: cip-loop-generator
+  nodePatches: []
+  edgePatches: []
+  propertyPatches:
+    - operation: ADD
+      targetNodeId: loop-1
+      property:
+        key: expression
+        value: "${{exchangeProperty.hasMore}} == true"
+    - operation: ADD
+      targetNodeId: loop-1
+      property:
+        key: doWhile
+        value: "true"
+  chainPatches: []
+  usedKnowledgeRefs: []
+  rationale: Configure a do-while loop over paginated results.
+expectedGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Loop.Demo.Paginate
+    description: Paginate until exhausted.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: loop-1
+      type: loop-2
+      label: Paginate results
+      parentNodeId: null
+      order: null
+      properties:
+        - key: expression
+          value: "${{exchangeProperty.hasMore}} == true"
+        - key: doWhile
+          value: "true"
+  edges: []

@@ -1,0 +1,75 @@
+caseId: cip-routing-generator-applicable
+skillId: cip-routing-generator
+expectedApplicability: APPLICABLE
+requirementBrief:
+  goal: Route by even or odd number field.
+  inputs: []
+  constraints: []
+  assumptions: []
+  citations: []
+  summary: Route by even or odd number field.
+  approvedDraftReference: approved-draft-cip-routing-generator-applicable
+  approvedDraftText: Route by even or odd number field.
+  facts:
+    - sourceFactId: routing-1
+      polarity: POSITIVE
+      kind: BEHAVIOR
+      capabilityKey: routing
+      text: Set if.condition and priority on the if shell.
+upstreamArtifacts:
+  CHAIN_STRUCTURE:
+    schemaVersion: 1
+inputGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Routing.Demo.Parity
+    description: Route by even/odd number.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: if-shell
+      type: if
+      label: Even number branch
+      parentNodeId: null
+      order: null
+      properties:
+        []
+  edges: []
+capturedPatch:
+  patchId: cip-routing-generator-add-if-condition
+  ownerCapabilityId: cip-routing-generator
+  nodePatches: []
+  edgePatches: []
+  propertyPatches:
+    - operation: ADD
+      targetNodeId: if-shell
+      property:
+        key: condition
+        value: "${{numberField}} % 2 == 0"
+    - operation: ADD
+      targetNodeId: if-shell
+      property:
+        key: priority
+        value: "0"
+  chainPatches: []
+  usedKnowledgeRefs: []
+  rationale: Added missing if.condition and priority on the if branch shell; do not put these properties on condition or else nodes.
+expectedGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Routing.Demo.Parity
+    description: Route by even/odd number.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: if-shell
+      type: if
+      label: Even number branch
+      parentNodeId: null
+      order: null
+      properties:
+        - key: condition
+          value: "${{numberField}} % 2 == 0"
+        - key: priority
+          value: "0"
+  edges: []

@@ -140,6 +140,7 @@ jobs:
     needs: prepare
     if: needs.prepare.outputs.release-micro-engine == 'true'
     permissions:
+      actions: read
       contents: write
       packages: write
     uses: ./.github/workflows/micro-engine-release.yaml
@@ -156,6 +157,7 @@ jobs:
     needs: prepare
     if: needs.prepare.outputs.release-integration-build-pipeline == 'true'
     permissions:
+      actions: read
       contents: write
       packages: write
     uses: ./.github/workflows/integration-build-pipeline-release.yaml

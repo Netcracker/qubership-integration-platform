@@ -354,9 +354,11 @@ public class SwaggerSpecificationParser implements SpecificationParser {
                     String ref = processedSchemaPair.left;
                     String schemaAsString = ref != null
                             ? swaggerSchemaResolver.resolveRef(ref, importedComponents)
-                            : processedSchemaPair.right;
+                            : swaggerSchemaResolver.resolveInlineSchema(processedSchemaPair.right, importedComponents);
+                    // process() already built an inline array; ArraySchemaProcessor.applySchemaType would wrap it again.
+                    SchemaProcessor typeProcessor = ref != null ? schemaProcessor : schemaProcessorMap.get(DEFAULT_SCHEMA_CLASS);
 
-                    return new MutablePair<>(mediaType, schemaProcessor.applySchemaType(schemaAsString));
+                    return new MutablePair<>(mediaType, typeProcessor.applySchemaType(schemaAsString));
                 })
                 .filter(entry -> entry.getKey() != null)
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));

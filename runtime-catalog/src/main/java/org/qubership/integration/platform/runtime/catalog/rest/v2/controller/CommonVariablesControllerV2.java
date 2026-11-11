@@ -31,7 +31,7 @@ import java.util.Set;
 
 @Slf4j
 @RestController
-@RequestMapping("/v2/common-variables")
+@RequestMapping({"/v2/common-variables", "/api/cip/v2/common-variables"})
 @CrossOrigin(origins = "*")
 @Validated
 @Tag(name = "common-variables-controller-v-2", description = "Common Variables Controller V2")

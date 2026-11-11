@@ -14,7 +14,7 @@ Engine service uses **Apache Camel** for defining and execution of integration l
 Engine service publishes integration chains deployment state to Consul.
 
 To store recorded sessions of integrated chains execution, the service uses OpenSearch.
-It creates if not exists index in OpenSearch and sets up index rotation policy via [ISM](https://docs.opensearch.org/docs/latest/im-plugin/ism/index/).
+It creates if not exists index in OpenSearch and sets up index rotation policy via [ISM](https://docs.opensearch.org/latest/im-plugin/ism/index/).
 
 ## Installation
 
@@ -70,7 +70,7 @@ Application parameters can be set by environment variables.
 | OPENSEARCH_KAFKA_ENABLED            | false                                                | Enables writing session elements to kafka instead of Opensearch directly.                                                                                                                                                                                                                                                                                                                                                                                            |
 | OPENSEARCH_KAFKA_BOOTSTRAP_SERVERS  |                                                      | Kafka address for writing session elements.                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | OPENSEARCH_KAFKA_TOPIC              | elements                                             | Kafka topic name for writing session elements.                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| TESTING_SERVICE_ENABLED             | false                                                | Enables endpoint mocking. Enable it only where the testing service is deployed: an unmatched call gets a 404.                                                                                                                                                                                                                                                                                                                                                        |
+| TESTING_SERVICE_ENABLED             | false                                                | Enables endpoint mocking: an outbound HTTP call of a test case run goes to the testing service, and one with no matching mock gets a 404. Other calls reach the real endpoint.                                                                                                                                                                                                                                                                                       |
 | TESTING_SERVICE_ADDRESS             | `http://testing-service:8080`                        | Testing service address, used when endpoint mocking is enabled.                                                                                                                                                                                                                                                                                                                                                                                                      |
 
 Configuration can be overridden with values stored in Consul.
@@ -82,7 +82,7 @@ Application has 'development' Spring profile to run service locally with minimum
 
 This service relies on the [Runtime Catalog](../runtime-catalog) service.
 It also requires:
-- Consul
+- Consul. At startup the service retries it as long as `spring.cloud.consul.retry` in `application.yml` allows.
 - OpenSearch
 - PostgreSQL
 - Redis (if idempotency support enabled).

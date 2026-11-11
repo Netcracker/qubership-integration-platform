@@ -1,11 +1,12 @@
 import { Uri } from "vscode";
 import * as vscode from "vscode";
-import { IntegrationSystem, SpecificationGroup } from "./servicesTypes";
+import type { IntegrationSystem, SpecificationGroup } from "@netcracker/qip-ui";
 import { fileApi } from "../response/file/fileApiProvider";
 import { getBaseFolder } from "../response/serviceApiUtils";
 import { YamlFileUtils } from "./YamlFileUtils";
 import { LabelUtils } from "./LabelUtils";
-import { ProjectConfigService } from "../services/ProjectConfigService";
+import { FILE_EXTENSIONS } from "../response/file/fileExtensions";
+import { CIP_SCHEMA_URLS } from "../services/cipSchemas";
 import { ContentParser } from "./parsers/ContentParser";
 
 /**
@@ -26,18 +27,16 @@ export class SpecificationGroupService {
     systemId: string,
   ): Promise<SpecificationGroup | null> {
     try {
-      const config = ProjectConfigService.getConfig();
       const groupFileUri = await fileApi.findFileById(
         groupId,
-        config.extensions.specificationGroup,
+        FILE_EXTENSIONS.specificationGroup,
       );
       const parsed = await ContentParser.parseContentFromFile(groupFileUri);
 
       return {
         id: parsed.id,
         name: parsed.name,
-        description: parsed.description || "",
-        parentId: parsed.content?.parentId || parsed.parentId,
+        systemId: parsed.content?.parentId || parsed.parentId,
         specifications: [],
         synchronization:
           parsed.content?.synchronization || parsed.synchronization || false,
@@ -93,10 +92,9 @@ export class SpecificationGroupService {
         throw new Error("No base folder available");
       }
 
-      const config = ProjectConfigService.getConfig();
       const groupFile = Uri.joinPath(
         baseFolder,
-        `${specificationGroup.id}${config.extensions.specificationGroup}`,
+        `${specificationGroup.id}${FILE_EXTENSIONS.specificationGroup}`,
       );
 
       console.log(
@@ -110,7 +108,7 @@ export class SpecificationGroupService {
 
       const yamlData = {
         id: specificationGroup.id,
-        $schema: config.schemaUrls.specificationGroup,
+        $schema: CIP_SCHEMA_URLS.SPECIFICATION_GROUP,
         name: specificationGroup.name,
         content: {
           synchronization: specificationGroup.synchronization || false,

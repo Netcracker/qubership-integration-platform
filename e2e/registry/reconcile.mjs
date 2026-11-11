@@ -11,20 +11,33 @@
  * person reads before a release; the HTML report is for whoever is debugging one case. It is
  * written even when the reconciliation fails, since a failing run is when the catalog is read.
  *
+ * `--only=vscode-messages` checks the message registry alone, against a run of `--project=vscode`,
+ * and writes neither the catalog nor `coverage.json`.
+ *
+ * `--partial` checks a narrowed run, such as a pull request lane, against the element and operation
+ * registries with `reconcile()`'s `partial` option, and also writes neither file.
+ *
  * Plain JavaScript importing TypeScript on purpose: Node strips the types, and the registry
  * imports nothing at runtime so it loads outside Playwright.
  */
 import fs from "node:fs";
 import path from "node:path";
-import { COMPONENT_TAGS, elementRegistry, reconcile, reportTarget, runsOn } from "./elements.ts";
-import { operationClaims } from "./operations.ts";
+import { COMPONENTS, elementRegistry, reconcile, reconcileArgs, reportTarget, runFilters, runsOn, summarizeElements } from "./elements.ts";
+import { operationClaims, operationRegistry, summarizeOperations } from "./operations.ts";
+import { messageRegistry, reconcileMessages, summarizeMessages } from "./vscode-messages.ts";
 import { STACK_FILE, writeCaseCatalog } from "../support/report.ts";
+import { COVERAGE_FILE } from "../support/run-summary.mjs";
 
+const args = reconcileArgs(process.argv.slice(2));
+if (args.error) {
+  console.error(args.error);
+  process.exit(1);
+}
 // Derived from the run header's own path rather than spelled again here. `playwright.config.ts`
 // writes the report beside it, and three files agreeing by coincidence is how one of them goes
 // stale.
-const reportPath = process.argv[2]
-  ? path.resolve(process.argv[2])
+const reportPath = args.report
+  ? path.resolve(args.report)
   : path.join(path.dirname(STACK_FILE), "report.json");
 
 if (!fs.existsSync(reportPath)) {
@@ -34,18 +47,60 @@ if (!fs.existsSync(reportPath)) {
 
 const report = JSON.parse(fs.readFileSync(reportPath, "utf-8"));
 
+if (args.onlyMessages) {
+  const problems = reconcileMessages(report, messageRegistry, true);
+  if (problems.length > 0) {
+    console.error(`message reconciliation failed (${problems.length}):`);
+    for (const problem of problems) console.error(`  - ${problem}`);
+    process.exit(1);
+  }
+  const { covered, handled, unhandled } = summarizeMessages(messageRegistry);
+  console.log(`message reconciliation passed: ${covered} of ${handled} handled message types covered (${unhandled} unhandled)`);
+  process.exit(0);
+}
+
+if (args.partial) {
+  const problems = reconcile(report, elementRegistry, operationClaims(), { partial: true });
+  const target = reportTarget(report);
+  const narrowed = runFilters(report).join(" ") || "nothing";
+  if (problems.length > 0) {
+    console.error(`partial coverage reconciliation of a ${target} run narrowed by \`${narrowed}\` failed (${problems.length}):`);
+    for (const problem of problems) console.error(`  - ${problem}`);
+    process.exit(1);
+  }
+  console.log(`partial coverage reconciliation of a ${target} run narrowed by \`${narrowed}\` passed`);
+  process.exit(0);
+}
+
 // The catalog reads `test-results/stack.json`, which an interrupted globalSetup leaves half
 // written. That is a document to lose, not a reason to skip the reconciliation the release gates
 // on, so the failure is reported and the run continues.
 try {
-  console.log(`case catalog written to ${writeCaseCatalog(report, COMPONENT_TAGS)}`);
+  console.log(`case catalog written to ${writeCaseCatalog(report, COMPONENTS)}`);
 } catch (cause) {
   console.error(`no case catalog: ${cause instanceof Error ? cause.message : String(cause)}`);
 }
 
 const problems = reconcile(report, elementRegistry, operationClaims());
+// `reconcile()` already refuses a narrowed run, once.
+if (runFilters(report).length === 0) problems.push(...reconcileMessages(report, messageRegistry));
 // Each row is read against a run on its own target, and the report records which target this was.
 const target = reportTarget(report);
+const { covered, inScope, outOfScope, shared } = summarizeElements(
+  elementRegistry.filter((entry) => runsOn(entry.target, target)),
+);
+
+// The registry's claims on this target, for the CI step summary, which says whether they held.
+fs.writeFileSync(
+  path.join(path.dirname(reportPath), COVERAGE_FILE),
+  JSON.stringify({
+    target,
+    elements: { covered, inScope, outOfScope, shared },
+    operations: summarizeOperations(operationRegistry.filter((entry) => runsOn(entry.target, target))),
+    messages: summarizeMessages(messageRegistry),
+    problems: problems.length,
+  }, null, 2) + "\n",
+);
 
 if (problems.length > 0) {
   console.error(`coverage reconciliation of a ${target} run failed (${problems.length}):`);
@@ -53,9 +108,7 @@ if (problems.length > 0) {
   process.exit(1);
 }
 
-const rows = elementRegistry.filter((entry) => runsOn(entry.target, target));
-const covered = rows.filter((entry) => entry.status === "covered").length;
 console.log(
-  `coverage reconciliation of a ${target} run passed: ${covered} of ${rows.length} registry rows ` +
-    `on this target covered`,
+  `coverage reconciliation of a ${target} run passed: ${covered} of ${inScope} registry rows ` +
+    `in scope on this target covered`,
 );

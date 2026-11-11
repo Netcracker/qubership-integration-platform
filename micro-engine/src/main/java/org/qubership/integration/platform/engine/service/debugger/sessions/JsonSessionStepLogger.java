@@ -103,6 +103,7 @@ public class JsonSessionStepLogger extends AbstractTruncatedFieldLogger implemen
         args.add(kv("element_id", logRecord.elementId()));
         args.add(kv("parent_element_id", logRecord.parentElementId()));
         args.add(kv("element_name", logRecord.elementName()));
+        args.add(kv("session_log_details", details.name()));
         args.addAll(logExchangeMarkers.buildExchangeMarkers(
                 logRecord.bodyAfter(), logRecord.headersAfter(), logRecord.propertiesAfter()));
 
@@ -125,6 +126,7 @@ public class JsonSessionStepLogger extends AbstractTruncatedFieldLogger implemen
         args.add(kv("domain", session.getDomain()));
         args.add(kv("domain_type", session.getDomainType() == null ? null : session.getDomainType().name()));
         args.add(kv("snapshot", session.getSnapshotName()));
+        args.add(kv("session_log_details", details.name()));
         LOG.info("Session started", args.toArray());
     }
 

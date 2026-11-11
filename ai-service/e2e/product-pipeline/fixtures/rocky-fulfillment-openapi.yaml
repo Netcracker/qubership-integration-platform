@@ -1,0 +1,38 @@
+openapi: 3.0.3
+info:
+  title: Rocky Fulfillment API
+  version: 1.0.0
+paths:
+  /fulfillments:
+    post:
+      operationId: createRockyFulfillment
+      summary: Create a Rocky fulfillment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - orderId
+                - paymentId
+              properties:
+                orderId:
+                  type: string
+                paymentId:
+                  type: string
+      responses:
+        "200":
+          description: Fulfillment created
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - fulfillmentId
+                  - fulfillmentStatus
+                properties:
+                  fulfillmentId:
+                    type: string
+                  fulfillmentStatus:
+                    type: string

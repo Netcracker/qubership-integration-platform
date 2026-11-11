@@ -8,7 +8,7 @@ import "./styles/antd-overrides.css";
 // Auto-initialize React app for VS Code extension
 const initializeVSCodeApp = () => {
   if (typeof window !== "undefined" && document.getElementById("app-root")) {
-    console.log("QIP UI: Auto-initializing React app for VS Code");
+    console.log("CIP UI: Auto-initializing React app for VS Code");
 
     const rootElement = document.getElementById("app-root");
     if (rootElement) {
@@ -17,9 +17,9 @@ const initializeVSCodeApp = () => {
           <AppExtension />
         </StrictMode>,
       );
-      console.log("QIP UI: React app initialized successfully");
+      console.log("CIP UI: React app initialized successfully");
     } else {
-      console.error("QIP UI: Element with id 'app-root' not found");
+      console.error("CIP UI: Element with id 'app-root' not found");
     }
   }
 };

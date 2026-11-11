@@ -33,7 +33,7 @@ import static java.util.Objects.isNull;
 @Slf4j
 @RestController
 @CrossOrigin(origins = "*")
-@RequestMapping("/v1/models/{modelId}/dto/jar")
+@RequestMapping({"/v1/models/{modelId}/dto/jar", "/api/v1/cip/systems-catalog/models/{modelId}/dto/jar"})
 @Tag(name = "compiled-library-controller", description = "Compiled Library Controller")
 public class CompiledLibraryController {
 

@@ -75,6 +75,9 @@ properties:
             keys:
               type: string
               title: Keys
+            overrideContextParams:
+              $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/headers"
+              title: Override technical context headers
             target:
               type: string
               oneOf:

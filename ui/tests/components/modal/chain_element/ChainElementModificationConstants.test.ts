@@ -85,8 +85,6 @@ describe("getStaleProtocolProperties", () => {
       "integrationGqlQuery",
       "integrationGqlOperationName",
       "integrationGqlVariablesJSON",
-      "integrationGqlQueryHeader",
-      "integrationGqlVariablesHeader",
     ];
     for (const prop of allProps) {
       expect(stale).toContain(prop);
@@ -107,8 +105,6 @@ describe("getStaleProtocolProperties", () => {
       "integrationGqlQuery",
       "integrationGqlOperationName",
       "integrationGqlVariablesJSON",
-      "integrationGqlQueryHeader",
-      "integrationGqlVariablesHeader",
     ];
     for (const p of otherProps) {
       updates[p] = null;

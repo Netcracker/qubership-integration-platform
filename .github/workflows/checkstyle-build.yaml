@@ -4,6 +4,9 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
+      - '.github/workflows/checkstyle-build.yaml'
+      - '.github/workflows/_maven-module-build.yaml'
+      - '.github/maven-settings.xml'
       - 'checkstyle/**'
       - 'parents/**'
       - 'pom.xml'

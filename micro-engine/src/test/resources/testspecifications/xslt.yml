@@ -1,0 +1,71 @@
+# yaml-language-server: $schema=../testspecifications.schema.json
+resources:
+  - source: "classpath:snapshot-fixtures/xslt/transform.xslt"
+    target: "transform.xslt"
+scenarios:
+  - id: "transforms-customer-data"
+    scope: Short
+    endpointUri: "cip-chain:61e9e5d6-696a-450c-829f-4c55b124fd6a"
+    body: |-
+      <?xml version="1.0" encoding="UTF-8"?>
+      <customerData>
+          <customer id="C-1001">
+              <firstName>Ada</firstName>
+              <lastName>Lovelace</lastName>
+              <email>ada@example.com</email>
+              <orders>
+                  <order number="ORD-001">
+                      <date>2026-08-04</date>
+                      <total currency="EUR">129.90</total>
+                      <items>
+                          <item sku="PHONE-01">
+                              <name>Smartphone</name>
+                              <quantity>1</quantity>
+                              <price>99.90</price>
+                          </item>
+                          <item sku="CASE-02">
+                              <name>Protective Case</name>
+                              <quantity>2</quantity>
+                              <price>15.00</price>
+                          </item>
+                      </items>
+                  </order>
+              </orders>
+          </customer>
+      </customerData>
+    expectedBody:
+      "$match": "xml"
+      value: |-
+        <?xml version='1.0' encoding='UTF-8'?>
+        <clients>
+          <client client-id="C-1001">
+            <full-name>
+              <given-name>Ada</given-name>
+              <family-name>Lovelace</family-name>
+            </full-name>
+            <contacts>
+              <email-address>ada@example.com</email-address>
+            </contacts>
+            <purchases>
+              <purchase purchase-id="ORD-001">
+                <created-at>2026-08-04</created-at>
+                <amount>
+                  <value>129.90</value>
+                  <currency>EUR</currency>
+                </amount>
+                <products>
+                  <product product-code="PHONE-01">
+                    <title>Smartphone</title>
+                    <quantity>1</quantity>
+                    <unit-price>99.90</unit-price>
+                  </product>
+                  <product product-code="CASE-02">
+                    <title>Protective Case</title>
+                    <quantity>2</quantity>
+                    <unit-price>15.00</unit-price>
+                  </product>
+                </products>
+              </purchase>
+            </purchases>
+          </client>
+        </clients>

@@ -15,6 +15,7 @@ import org.qubership.integration.platform.camelk.model.ResourceBuilder;
 import org.qubership.integration.platform.camelk.model.options.ContainerOptions;
 import org.qubership.integration.platform.camelk.model.options.HealthOptions;
 import org.qubership.integration.platform.camelk.model.options.ResourceBuildOptions;
+import org.qubership.integration.platform.camelk.model.options.ServiceAccountTokenOptions;
 import org.qubership.integration.platform.camelk.naming.NamingStrategy;
 import org.qubership.integration.platform.camelk.naming.validation.K8sNameValidator;
 import org.qubership.integration.platform.chain.model.Snapshot;
@@ -56,6 +57,7 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
         private List<String> jvmArgs;
         private Collection<String> emptyDirs;
         private Collection<String> resources;
+        private List<ServiceAccountTokenOptions> serviceAccountTokens;
         private Collection<String> properties;
         private Collection<String> environment;
         private boolean propertiesEnabled;
@@ -133,6 +135,8 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
                 .jvmArgs(context.getBuildInfo().getOptions().getJvm().getArgs())
                 .emptyDirs(context.getBuildInfo().getOptions().getMount().getEmptyDirs())
                 .resources(buildResources(context))
+                .serviceAccountTokens(
+                        context.getBuildInfo().getOptions().getMount().getServiceAccountTokens())
                 .propertiesEnabled(!context.getBuildInfo().getOptions()
                         .getIntegrations().isConfigurationConfigMapNeeded())
                 .properties(buildCamelProperties(context))

@@ -21,7 +21,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -35,7 +34,7 @@ public class VersionsGetterService {
         this.strategies = strategies;
     }
 
-    public Collection<Integer> getVersions(JsonNode document) throws Exception {
+    public Optional<List<Integer>> getVersions(JsonNode document) {
         return strategies.stream()
                 .map(strategy -> {
                     log.trace("Applying file migrations getter strategy: {}", strategy.getClass().getName());
@@ -45,7 +44,6 @@ public class VersionsGetterService {
                 })
                 .filter(Optional::isPresent)
                 .map(Optional::get)
-                .findFirst()
-                .orElseThrow(() -> new Exception("Failed to get a migration data"));
+                .findFirst();
     }
 }

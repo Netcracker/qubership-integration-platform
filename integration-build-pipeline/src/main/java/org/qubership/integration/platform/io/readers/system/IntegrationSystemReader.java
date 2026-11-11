@@ -126,7 +126,7 @@ public class IntegrationSystemReader {
             if (hasEmbeddedGroups(dto)) {
                 ObjectNode migratedSystemNode = (ObjectNode) yamlMapper.readTree(migratedYaml);
                 model.setSpecificationGroups(readLegacyGroups(
-                        model, dto, migratedSystemNode, new Versions(originalSystemNode), archiveDirectory));
+                        model, dto, migratedSystemNode, migrationsOf(originalSystemNode), archiveDirectory));
             } else {
                 model.setSpecificationGroups(
                         readSeparateGroupsAndModels(archiveDirectory, model.getId(), originalSystemNode));
@@ -167,7 +167,7 @@ public class IntegrationSystemReader {
             ImportSystem model,
             IntegrationSystemDto dto,
             ObjectNode migratedSystemNode,
-            Versions versions,
+            String migrations,
             File archiveDirectory
     ) {
         List<ImportSpecificationGroup> groups = new ArrayList<>();
@@ -181,7 +181,7 @@ public class IntegrationSystemReader {
             setGroupParentId(groupDto, model.getId());
             applySynchronization(groupDto, groupNode);
 
-            ImportSpecificationGroup group = buildGroup((ObjectNode) yamlMapper.valueToTree(groupDto), versions);
+            ImportSpecificationGroup group = buildGroup((ObjectNode) yamlMapper.valueToTree(groupDto), migrations);
             if (!Objects.equals(group.getParentId(), model.getId())) {
                 continue;
             }
@@ -191,7 +191,7 @@ public class IntegrationSystemReader {
             if (systemModelsArray.isMissingNode() || systemModelsArray.isNull()) {
                 continue;
             }
-            readLegacySystemModels(systemModelsArray, groupDto.getId(), versions, archiveDirectory, groups);
+            readLegacySystemModels(systemModelsArray, groupDto.getId(), migrations, archiveDirectory, groups);
         }
         return groups;
     }
@@ -238,23 +238,23 @@ public class IntegrationSystemReader {
     private void readLegacySystemModels(
             JsonNode systemModelsArray,
             String groupId,
-            Versions versions,
+            String migrations,
             File archiveDirectory,
             List<ImportSpecificationGroup> groups
     ) {
         if (!systemModelsArray.isArray()) {
-            readLegacySystemModel(systemModelsArray, groupId, versions, archiveDirectory, groups);
+            readLegacySystemModel(systemModelsArray, groupId, migrations, archiveDirectory, groups);
             return;
         }
         for (JsonNode systemModelNode : systemModelsArray) {
-            readLegacySystemModel(systemModelNode, groupId, versions, archiveDirectory, groups);
+            readLegacySystemModel(systemModelNode, groupId, migrations, archiveDirectory, groups);
         }
     }
 
     private void readLegacySystemModel(
             JsonNode systemModelNode,
             String groupId,
-            Versions versions,
+            String migrations,
             File archiveDirectory,
             List<ImportSpecificationGroup> groups
     ) {
@@ -262,7 +262,7 @@ public class IntegrationSystemReader {
             return;
         }
         ImportSystemModel systemModel =
-                buildModel(prepareSystemModelNode(systemModelNode, groupId), versions, archiveDirectory);
+                buildModel(prepareSystemModelNode(systemModelNode, groupId), migrations, archiveDirectory);
         groups.stream()
                 .filter(group -> Objects.equals(group.getId(), systemModel.getParentId()))
                 .findFirst()
@@ -312,14 +312,14 @@ public class IntegrationSystemReader {
             JsonNode originalSystemNode
     ) {
         Collection<File> files = listFiles(archiveDirectory);
-        Versions versions = new Versions(originalSystemNode);
+        String migrations = migrationsOf(originalSystemNode);
 
         List<ImportSpecificationGroup> groups = new ArrayList<>();
         Stream.concat(
                         getFilesDataDeprecated(files, SPECIFICATION_GROUP_FILE_PREFIX),
                         getFilesData(files, SPECIFICATION_GROUP_FILE_POSTFIX))
                 .forEach(node -> {
-                    ImportSpecificationGroup group = buildGroup(node, versions);
+                    ImportSpecificationGroup group = buildGroup(node, migrations);
                     if (Objects.equals(group.getParentId(), systemId)) {
                         groups.add(group);
                     }
@@ -329,7 +329,7 @@ public class IntegrationSystemReader {
                         getFilesDataDeprecated(files, SPECIFICATION_FILE_PREFIX),
                         getFilesData(files, SPECIFICATION_FILE_POSTFIX))
                 .forEach(node -> {
-                    ImportSystemModel systemModel = buildModel(node, versions, archiveDirectory);
+                    ImportSystemModel systemModel = buildModel(node, migrations, archiveDirectory);
                     groups.stream()
                             .filter(group -> Objects.equals(group.getId(), systemModel.getParentId()))
                             .findFirst()
@@ -338,9 +338,9 @@ public class IntegrationSystemReader {
         return groups;
     }
 
-    private ImportSpecificationGroup buildGroup(ObjectNode node, Versions versions) {
+    private ImportSpecificationGroup buildGroup(ObjectNode node, String migrations) {
         try {
-            ObjectNode migratedNode = node.has(CONTENT) ? node : migrate(node, versions.get());
+            ObjectNode migratedNode = node.has(CONTENT) ? node : migrate(node, migrations);
             SpecificationGroupDto dto = yamlMapper.treeToValue(migratedNode, SpecificationGroupDto.class);
             return SystemImportModelMapper.toModel(dto);
         } catch (MigrationException exception) {
@@ -350,9 +350,9 @@ public class IntegrationSystemReader {
         }
     }
 
-    private ImportSystemModel buildModel(ObjectNode node, Versions versions, File archiveDirectory) {
+    private ImportSystemModel buildModel(ObjectNode node, String migrations, File archiveDirectory) {
         try {
-            ObjectNode migratedNode = node.has(CONTENT) ? node : migrate(node, versions.get());
+            ObjectNode migratedNode = node.has(CONTENT) ? node : migrate(node, migrations);
             SystemModelDto dto = yamlMapper.treeToValue(migratedNode, SystemModelDto.class);
             ImportSystemModel systemModel = SystemImportModelMapper.toModel(dto);
             for (ImportSpecificationSource source : systemModel.getSpecificationSources()) {
@@ -367,8 +367,10 @@ public class IntegrationSystemReader {
         }
     }
 
-    private ObjectNode migrate(ObjectNode node, Collection<Integer> versions) throws MigrationException {
-        node.set("migrations", TextNode.valueOf(versions.stream().sorted().toList().toString()));
+    private ObjectNode migrate(ObjectNode node, String migrations) throws MigrationException {
+        if (migrations != null) {
+            node.set("migrations", TextNode.valueOf(migrations));
+        }
         return fileMigrationService.migrate(
                 node,
                 serviceImportFileMigrations.stream().map(ImportFileMigration.class::cast).toList());
@@ -448,27 +450,12 @@ public class IntegrationSystemReader {
     }
 
     /**
-     * The migration versions of the system YAML, read once and reused for every separate file that
-     * still needs migrating. A version-less file that carries no separate specification files never
-     * queries this, so the read does not fail on it.
+     * The migrations of the system YAML, stamped on every separate file that still needs migrating.
+     * {@code null} when the system file has none, so the separate files are read as current.
      */
-    private final class Versions {
-        private final JsonNode systemNode;
-        private Collection<Integer> versions;
-
-        private Versions(JsonNode systemNode) {
-            this.systemNode = systemNode;
-        }
-
-        private Collection<Integer> get() {
-            if (versions == null) {
-                try {
-                    versions = versionsGetterService.getVersions(systemNode);
-                } catch (Exception e) {
-                    throw new RuntimeException("Failed to read migration versions from the system file", e);
-                }
-            }
-            return versions;
-        }
+    private String migrationsOf(JsonNode systemNode) {
+        return versionsGetterService.getVersions(systemNode)
+                .map(versions -> versions.stream().sorted().toList().toString())
+                .orElse(null);
     }
 }

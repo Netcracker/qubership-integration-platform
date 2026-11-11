@@ -1,0 +1,27 @@
+id: 0ae10000-0000-4000-8000-000000000000
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/service
+name: import-0ae10000
+content:
+  integrationSystemType: INTERNAL
+  migrations: "[100, 101, 102]"
+  description: ""
+  activeEnvironmentId: 0ae1d0c5-0000-4000-8000-000000000003
+  extendedProtocol: HTTP
+  specification: ""
+  environments:
+    - id: 0ae1d0c5-0000-4000-8000-000000000003
+      name: Orders test stand
+      address: http://orders.qip.test/api/v1
+      description: Environment created for orders specification group
+      sourceType: MANUAL
+      systemId: 0ae10000-0000-4000-8000-000000000000
+      properties:
+        connectTimeout: "120000"
+        soTimeout: "120000"
+        connectionRequestTimeout: "120000"
+        responseTimeout: "120000"
+        getWithBody: "false"
+        deleteWithBody: "false"
+      labels: []
+  labels: []
+  protocol: HTTP

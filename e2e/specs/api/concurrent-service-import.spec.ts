@@ -16,40 +16,42 @@ import { test, expect } from "../../support/fixtures.js";
 import { tokenized } from "../../support/run.js";
 import { entryNames } from "../../support/zip.js";
 
-for (const lane of [1, 2, 3, 4]) {
-  test(`lane ${lane}: a full export and import cycle sees only its own services`, { tag: ["@catalog", "@tier1"] }, async ({ catalog, run }) => {
-    const token = tokenized(run, `iso-${lane}`);
-    const mine: string[] = [];
+test.describe("concurrent service import", { tag: ["@catalog"] }, () => {
+  for (const lane of [1, 2, 3, 4]) {
+    test(`lane ${lane}: an export and import cycle sees only its own services`, async ({ catalog, run }) => {
+      const token = tokenized(run, `iso-${lane}`);
+      const mine: string[] = [];
 
-    try {
-      for (const type of ["EXTERNAL", "INTERNAL", "IMPLEMENTED"]) {
-        const created = await catalog.createSystem(`${token} ${type}`, type, token);
-        mine.push(created.id);
+      try {
+        for (const type of ["EXTERNAL", "INTERNAL", "IMPLEMENTED"]) {
+          const created = await catalog.createSystem(`${token} ${type}`, type, token);
+          mine.push(created.id);
+        }
+        mine.sort();
+
+        const ours = async () => {
+          const all = await catalog.listSystems();
+          return all.map((system) => system.id).filter((id) => mine.includes(id)).sort();
+        };
+        expect(await ours()).toEqual(mine);
+
+        const zip = await catalog.exportSystems(mine);
+        expect(await entryNames(zip)).toEqual(mine.map((id) => `services/${id}/${id}.service.cip.yaml`).sort());
+
+        // Delete before importing: an import over a live id is an update, so the assertion below
+        // would pass whether the import created the services, updated them, or did nothing.
+        for (const id of mine) await catalog.deleteSystem(id);
+        expect(await ours()).toEqual([]);
+
+        // The original bytes, not a re-zipped tree: an archive whose entries sit at the zip root
+        // imports as 204 with an empty body and turns a no-op into a green run. The status is pinned
+        // exactly for that reason — `< 300` accepts the 204 this line exists to catch.
+        const imported = await catalog.importArchive("/v1/import/system", zip);
+        expect(imported.status(), await imported.text()).toBe(200);
+        expect(await ours()).toEqual(mine);
+      } finally {
+        for (const id of mine) await catalog.deleteSystem(id).catch(() => {});
       }
-      mine.sort();
-
-      const ours = async () => {
-        const all = await catalog.listSystems();
-        return all.map((system) => system.id).filter((id) => mine.includes(id)).sort();
-      };
-      expect(await ours()).toEqual(mine);
-
-      const zip = await catalog.exportSystems(mine);
-      expect(await entryNames(zip)).toEqual(mine.map((id) => `services/${id}/${id}.service.cip.yaml`).sort());
-
-      // Delete before importing: an import over a live id is an update, so the assertion below
-      // would pass whether the import created the services, updated them, or did nothing.
-      for (const id of mine) await catalog.deleteSystem(id);
-      expect(await ours()).toEqual([]);
-
-      // The original bytes, not a re-zipped tree: an archive whose entries sit at the zip root
-      // imports as 204 with an empty body and turns a no-op into a green run. The status is pinned
-      // exactly for that reason — `< 300` accepts the 204 this line exists to catch.
-      const imported = await catalog.importArchive("/v1/import/system", zip);
-      expect(imported.status(), await imported.text()).toBe(200);
-      expect(await ours()).toEqual(mine);
-    } finally {
-      for (const id of mine) await catalog.deleteSystem(id).catch(() => {});
-    }
-  });
-}
+    });
+  }
+});

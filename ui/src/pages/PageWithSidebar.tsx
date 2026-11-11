@@ -45,9 +45,6 @@ export const PageWithSidebar: React.FC<PageWithSidebarProps> = ({
           </div>
           {showCollapseToggle && (
             <>
-              <div style={{ padding: "0px 24px" }}>
-                <Divider style={{ margin: 0 }} />
-              </div>
               <div
                 className={styles.sidebarToggleBar}
                 onClick={() => setCollapsed(!collapsed)}

@@ -52,6 +52,15 @@ const SUPPORTED_EXTENSIONS = [
   ".zip",
 ];
 
+// The catalog unpacks an archive server side; the extension does not, and a zip that reaches its
+// import is refused as a format whose protocol cannot be detected. So the offline editor offers one
+// file less, and `validateFiles` names what it does support. The branch lives here rather than in
+// the component, which is already over the cognitive-complexity limit.
+const importableExtensions = (isVsCodeContext: boolean): string[] =>
+  isVsCodeContext
+    ? SUPPORTED_EXTENSIONS.filter((extension) => extension !== ".zip")
+    : SUPPORTED_EXTENSIONS;
+
 interface Props {
   systemId?: string;
   specificationGroupId?: string;
@@ -92,6 +101,7 @@ const ImportSpecificationsModal: React.FC<Props> = ({
 
   const isGroupMode = groupMode ?? (!!systemId && !specificationGroupId);
   const isVsCodeContext = api instanceof VSCodeExtensionApi;
+  const supportedExtensions = importableExtensions(isVsCodeContext);
   const hasApiTab = isVsCodeContext && isGroupMode;
   const defaultTabKey = hasApiTab ? "api" : "file";
   const [activeTabKey, setActiveTabKey] = useState<string>(defaultTabKey);
@@ -101,7 +111,7 @@ const ImportSpecificationsModal: React.FC<Props> = ({
   };
 
   const handleImport = async () => {
-    const validation = validateFiles(files, SUPPORTED_EXTENSIONS);
+    const validation = validateFiles(files, supportedExtensions);
     if (!validation.valid) {
       message.warning(validation.message);
       return;
@@ -151,7 +161,7 @@ const ImportSpecificationsModal: React.FC<Props> = ({
   };
 
   const handleFilesChange = (fileList: RcFile[]) => {
-    const validation = validateFiles(fileList, SUPPORTED_EXTENSIONS);
+    const validation = validateFiles(fileList, supportedExtensions);
     if (!validation.valid) {
       message.warning(validation.message);
       return;
@@ -525,7 +535,7 @@ const ImportSpecificationsModal: React.FC<Props> = ({
                 )}
                 <div style={{ marginBottom: 16 }}>
                   <Typography.Text type="secondary">
-                    Supported file types: {SUPPORTED_EXTENSIONS.join(", ")}
+                    Supported file types: {supportedExtensions.join(", ")}
                   </Typography.Text>
                   <br />
                   <Typography.Text type="secondary">
@@ -535,7 +545,7 @@ const ImportSpecificationsModal: React.FC<Props> = ({
                 <Upload.Dragger
                   name="files"
                   multiple
-                  accept={SUPPORTED_EXTENSIONS.join(",")}
+                  accept={supportedExtensions.join(",")}
                   beforeUpload={(_file, fileList) => {
                     handleFilesChange(fileList);
                     return false;

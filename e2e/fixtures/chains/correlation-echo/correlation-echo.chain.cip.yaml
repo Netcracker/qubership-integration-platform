@@ -1,0 +1,35 @@
+---
+id: "e2e00049-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-correlation-echo"
+description: "The endpoint the generated graphql-sender correlationIdPosition chains call on the\
+  \ engine's own port. It answers one correlation id in the e2e-correlation-id header and another\
+  \ in the body's e2eCorrelationId field, so the id a sender receives names the position it read."
+content:
+  labels: []
+  elements:
+  - id: "e2e00049-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-correlation-echo"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e00049-0000-4000-8000-000000000003"
+    name: "Echo Correlation Ids"
+    type: "script"
+    properties:
+      script: "exchange.getMessage().setHeader('e2e-correlation-id', 'e2e-correlation-in-header');\
+        \ exchange.getMessage().setHeader('Content-Type', 'application/json');\
+        \ exchange.getMessage().setBody('{\"e2eCorrelationId\":\"e2e-correlation-in-body\"}')"
+  dependencies:
+  - from: "e2e00049-0000-4000-8000-000000000002"
+    to: "e2e00049-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

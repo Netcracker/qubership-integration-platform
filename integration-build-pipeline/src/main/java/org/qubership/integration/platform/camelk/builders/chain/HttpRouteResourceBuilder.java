@@ -167,7 +167,8 @@ public class HttpRouteResourceBuilder implements ResourceBuilder<List<Snapshot>>
                 out.append('\n');
             }
         } catch (Exception e) {
-            throw new ResourceBuildError("Failed to build HTTPRoute CR " + name, e);
+            String message = String.format("Failed to build HTTPRoute CR %s: %s", name, e.getMessage());
+            throw new ResourceBuildError(message, e);
         }
     }
 

@@ -23,7 +23,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class MetricsStoreTest {
 
-    private static final String APP_PREFIX = "qip";
     private static final String ENGINE_DOMAIN = "test-domain";
     private static final String CHAIN_ID = "7b990a0c-5da8-4b3e-88d0-1e6d1727756d";
     private static final String CHAIN_NAME = "Test chain";
@@ -40,8 +39,7 @@ class MetricsStoreTest {
         meterRegistry = new SimpleMeterRegistry();
         metricsStore = new MetricsStore(
             EngineInfo.builder().domain(ENGINE_DOMAIN).build(),
-            meterRegistry,
-            APP_PREFIX
+            meterRegistry
         );
         metricsStore.httpPayloadMetricsBuckets = new double[]{100.0, 1000.0};
     }
@@ -60,7 +58,7 @@ class MetricsStoreTest {
         summary.record(42.0);
 
         DistributionSummary registeredSummary = meterRegistry.find(
-                "qip.engine.http.trigger.request.payload.size"
+                "cip.engine.http.trigger.request.payload.size"
             )
             .tag(MetricsStore.CHAIN_ID_TAG, CHAIN_ID)
             .tag(MetricsStore.CHAIN_NAME_TAG, CHAIN_NAME)
@@ -96,7 +94,7 @@ class MetricsStoreTest {
         );
 
         assertSame(firstSummary, secondSummary);
-        assertNotNull(meterRegistry.find("qip.engine.http.senders.response.payload.size").summary());
+        assertNotNull(meterRegistry.find("cip.engine.http.senders.response.payload.size").summary());
     }
 
     @Test
@@ -186,7 +184,7 @@ class MetricsStoreTest {
     }
 
     private Gauge chainDeploymentGauge() {
-        return meterRegistry.find("qip.engine.chains.deployments")
+        return meterRegistry.find("cip.engine.chains.deployments")
             .tag(MetricsStore.CHAIN_ID_TAG, CHAIN_ID)
             .tag(MetricsStore.CHAIN_NAME_TAG, CHAIN_NAME)
             .tag("execution_status", "DEPLOYED")
@@ -197,11 +195,11 @@ class MetricsStoreTest {
     }
 
     private Gauge chainSessionSizeGauge(String chainId, String chainName) {
-        return dataAllocationSizeGauge("qip.engine.chain.session.size", chainId, chainName);
+        return dataAllocationSizeGauge("cip.engine.chain.session.size", chainId, chainName);
     }
 
     private Gauge chainCheckpointSizeGauge() {
-        return dataAllocationSizeGauge("qip.engine.chain.checkpoint.size", "chain-1", "Chain one");
+        return dataAllocationSizeGauge("cip.engine.chain.checkpoint.size", "chain-1", "Chain one");
     }
 
     private Gauge dataAllocationSizeGauge(String metricName, String chainId, String chainName) {

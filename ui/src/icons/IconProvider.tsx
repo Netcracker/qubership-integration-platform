@@ -10,7 +10,7 @@ import React, {
 import Icon from "@ant-design/icons";
 import type { AntdIconProps } from "@ant-design/icons/lib/components/AntdIcon";
 import parse from "html-react-parser";
-import { commonIcons, elementIcons } from "./IconDefenitions";
+import { commonIcons, elementIcons } from "./IconDefinitions";
 import { getConfig, onConfigChange } from "../appConfig.ts";
 import {
   isMonochromeSvgElement,
@@ -30,7 +30,7 @@ const allIcons = {
   ...elementIcons,
 };
 
-/** Configuration merge: deprecated key `icons.qip` substitute `logo`, if `logo` doesn't specified. */
+/** Configuration merge: deprecated key `icons.qip` substitute `logo`, if `logo` isn't specified. */
 function mergeAllIconsWithConfig(
   configIcons: IconOverrides | undefined,
 ): IconOverrides {
