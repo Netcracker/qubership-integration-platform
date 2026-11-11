@@ -73,7 +73,7 @@ jobs:
       ARTIFACT_SUFFIX: ${{ inputs.pull-request && format('-{0}', inputs.name) || '' }}
       # A .e2e-k8s- name, so "Upload the report" carries the log.
       BOOTSTRAP_LOG: ${{ github.workspace }}/e2e/.e2e-k8s-bootstrap.log
-      E2E_HTTP_DIAGNOSTIC_DIR: ${{ runner.temp }}/http-diagnostic
+      E2E_HTTP_DIAGNOSTIC_DIR: ${{ github.workspace }}/e2e/.e2e-k8s-http-diagnostic
     steps:
       - name: Checkout
         id: checkout
