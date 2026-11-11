@@ -1,0 +1,263 @@
+---
+
+# The e2e checks of a pull request. `stack-free` runs on every one; `changes` reads the paths the
+# pull request changes, and each job after it runs only when its paths changed. `kind-result` runs
+# on every pull request and fails when a kind job failed.
+# No `paths` filter: the projects read trees outside `e2e/`, and a required check that never starts
+# blocks the merge, where a skipped job counts as passed.
+
+name: E2E PR
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  stack-free:
+    name: Stack-free checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: e2e
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+          cache-dependency-path: e2e/package-lock.json
+
+      - name: Install e2e dependencies
+        run: npm ci
+
+      - name: Check types
+        run: npm run check-types
+
+      - name: Run the schema and harness projects
+        env:
+          E2E_WORKERS: "4"
+        run: npx playwright test --project=schema --project=harness
+
+  changes:
+    name: Changed paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      vscode: ${{ steps.paths.outputs.vscode }}
+      classic: ${{ steps.paths.outputs.classic }}
+      micro: ${{ steps.paths.outputs.micro }}
+      ui: ${{ steps.paths.outputs.ui }}
+    defaults:
+      run:
+        working-directory: e2e
+        # bash with pipefail, so a failed diff fails the step instead of skipping every job.
+        shell: bash
+    steps:
+      # The pull request's merge commit and its parents: the first parent is the base branch.
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '22.x'
+
+      - name: Decide which jobs run
+        id: paths
+        # --no-renames lists a moved file under its old path too, which may be a watched one.
+        run: git diff --name-only --no-renames HEAD^1 HEAD | node support/pr-changes.mjs | tee -a "$GITHUB_OUTPUT"
+
+  vscode:
+    name: VS Code editors
+    needs: changes
+    if: needs.changes.outputs.vscode == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      actions: read
+      contents: read
+    defaults:
+      run:
+        working-directory: e2e
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            e2e/package-lock.json
+
+      # The suite installs its own Chromium below.
+      - name: Install root dependencies
+        working-directory: .
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+        run: npm ci --legacy-peer-deps
+
+      - name: Install e2e dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      # The VS Code for the web build that `support/vscode-server.ts` pins, about 200 MB.
+      - name: Cache the VS Code build
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: vscode-extension/.vscode-test-web/
+          key: vscode-web-${{ runner.os }}-${{ hashFiles('e2e/support/vscode-server.ts') }}
+
+      # The setups build the schemas, the UI library, and the extension themselves.
+      - name: Run the vscode project
+        run: npx playwright test --project=vscode --max-failures=1
+
+      # After a green run only: a run that stopped at its first failure left the later cases unrun.
+      - name: Reconcile the message registry
+        run: npm run reconcile -- --only=vscode-messages
+
+      - name: Build the HTML report
+        id: html
+        if: ${{ failure() && hashFiles('e2e/blob-report/*.zip') != '' }}
+        env:
+          PLAYWRIGHT_HTML_OPEN: never
+        run: npx playwright merge-reports --reporter html blob-report
+
+      - name: Upload the HTML report
+        id: report-html
+        if: ${{ failure() && steps.html.outcome == 'success' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-playwright-report-vscode
+          path: e2e/playwright-report/
+          retention-days: 14
+
+      - name: Upload the report
+        id: report
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-report-vscode
+          path: |
+            e2e/test-results/
+            e2e/.e2e-vscode-server.log
+          # The server log starts with a dot, and the action drops dotfiles by default.
+          include-hidden-files: true
+          retention-days: 14
+
+      # The last nightly result on main, in place of this branch's history.
+      - name: Write the step summary
+        if: ${{ always() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPORT_URL: ${{ steps.report.outputs.artifact-url }}
+          PLAYWRIGHT_REPORT_URL: ${{ steps.report-html.outputs.artifact-url }}
+        run: |
+          if [ -d test-results ]; then
+            npm run --silent run-summary
+            cat test-results/summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+          nightly=$(gh run list -R "$GITHUB_REPOSITORY" --workflow e2e-k8s.yaml --branch main --event schedule \
+            --status completed --limit 1 --json conclusion,createdAt,url \
+            --jq '.[] | "[\(.conclusion)](\(.url)) on \(.createdAt[:10])"') || nightly=""
+          echo "Last nightly run on \`main\`: ${nightly:-none found}" >> "$GITHUB_STEP_SUMMARY"
+
+  # The lane's projects are in e2e/support/lanes.mjs. Every image a lane runs is built from the
+  # checkout, since the GHCR images lag main until a release. Only the micro lane runs micro-engine,
+  # so the other lanes leave it out of `build`.
+
+  # On CI, provisioning takes about 6 minutes and the classic cases about 10, so both timeouts leave
+  # twice that.
+  classic:
+    needs: changes
+    if: needs.changes.outputs.classic == 'true'
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+    uses: ./.github/workflows/_e2e-kind.yaml
+    with:
+      name: classic
+      lane: classic
+      build: runtime-catalog,engine,sessions-management,testing-service
+      pull-request: true
+      timeout-minutes: 60
+      global-timeout: 45
+
+  # The one lane that runs micro-engine, so it builds every image. On CI, provisioning takes about
+  # 8 minutes and the micro cases about 10, so both timeouts leave twice that.
+  micro:
+    needs: changes
+    if: needs.changes.outputs.micro == 'true'
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+    uses: ./.github/workflows/_e2e-kind.yaml
+    with:
+      name: micro
+      lane: micro
+      pull-request: true
+      timeout-minutes: 60
+      global-timeout: 45
+
+  # Provisioning takes about 6 minutes, the seed about 3 beside the UI bundle build, and the ui
+  # cases about 5 on 4 workers, so both timeouts leave twice that.
+  ui:
+    needs: changes
+    if: needs.changes.outputs.ui == 'true'
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+    uses: ./.github/workflows/_e2e-kind.yaml
+    with:
+      name: ui
+      lane: ui
+      build: runtime-catalog,engine,sessions-management,testing-service
+      brokers: false
+      pull-request: true
+      timeout-minutes: 45
+      global-timeout: 30
+
+  # The one required check for the kind jobs: a caller job's own check is named after the job when
+  # skipped and after the called job when run, so neither can be required. `changes` is here too,
+  # because its failure skips every kind job.
+  kind-result:
+    name: Kind jobs
+    needs: [changes, classic, micro, ui]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check the results
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Results: $RESULTS"
+          case " $RESULTS " in *" failure "* | *" cancelled "*) exit 1 ;; esac

@@ -109,6 +109,7 @@ spec:
             tcpSocket:
               port: 29092
             periodSeconds: 5
+            timeoutSeconds: 5
           resources:
             requests:
               cpu: 100m

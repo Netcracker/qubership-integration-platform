@@ -34,7 +34,6 @@ const mockGetValidations =
 const mockGetValidation =
   jest.fn<(...args: unknown[]) => Promise<DiagnosticValidation>>();
 const mockRunValidations = jest.fn<(...args: unknown[]) => Promise<void>>();
-const mockShowModal = jest.fn();
 const mockInfo = jest.fn();
 const mockRequestFailed = jest.fn();
 
@@ -48,12 +47,6 @@ jest.mock("../../src/api/api", () => ({
     getValidation: (...args: unknown[]) => mockGetValidation(...args),
     runValidations: (...args: unknown[]) => mockRunValidations(...args),
   },
-}));
-
-jest.mock("../../src/Modals", () => ({
-  useModalsContext: () => ({
-    showModal: mockShowModal,
-  }),
 }));
 
 jest.mock("../../src/hooks/useNotificationService", () => ({
@@ -94,10 +87,22 @@ jest.mock("../../src/misc/format-utils", () => ({
   formatTimestamp: (ts: string) => ts,
 }));
 
-jest.mock("../../src/components/dev_tools/DiagnosticValidationModal", () => ({
-  DiagnosticValidationModal: (props: { title: string }) => (
-    <div data-testid="validation-modal">{props.title}</div>
-  ),
+jest.mock("../../src/components/dev_tools/DiagnosticValidationSidebar", () => ({
+  DiagnosticValidationSidebar: ({
+    value,
+    open,
+    onClose,
+  }: {
+    value?: DiagnosticValidation;
+    open: boolean;
+    onClose: () => void;
+  }) =>
+    open ? (
+      <div data-testid="validation-sidebar">
+        {value?.id}
+        <button data-testid="validation-sidebar-close" onClick={onClose} />
+      </div>
+    ) : null,
 }));
 
 import {
@@ -175,14 +180,25 @@ describe("Diagnostic", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders Run Diagnostic button as primary with play icon", async () => {
+  it("renders header title with Run Diagnostic button", async () => {
     await renderAndWaitForLoad();
 
-    const button = screen.getByTitle("Run Diagnostic");
-    expect(button).toBeInTheDocument();
     expect(
-      button.querySelector("[data-testid='icon-caretRightFilled']"),
+      screen.getByRole("heading", { name: "Diagnostic" }),
     ).toBeInTheDocument();
+    expect(screen.getByTitle("Run Diagnostic")).toBeInTheDocument();
+  });
+
+  it("renders validation icon next to validation name", async () => {
+    const { container } = await renderAndWaitForLoad([
+      makeValidation({ id: "v1", title: "With Icon" }),
+    ]);
+
+    await waitFor(() => {
+      expect(
+        container.querySelector("[data-testid='icon-barChart']"),
+      ).toBeInTheDocument();
+    });
   });
 
   it("displays alerts count with colored tag for ERROR severity", async () => {
@@ -229,7 +245,38 @@ describe("Diagnostic", () => {
     });
   });
 
-  it("opens validation modal when clicking validation name", async () => {
+  it("should open validation sidebar when clicking validation name", async () => {
+    await renderAndWaitForLoad([
+      makeValidation({ id: "v1", title: "Clickable Validation" }),
+    ]);
+
+    await waitFor(() => {
+      expect(screen.getByText("Clickable Validation")).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("validation-sidebar")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Clickable Validation"));
+
+    expect(screen.getByTestId("validation-sidebar")).toHaveTextContent("v1");
+  });
+
+  it("should show the clicked validation when another name is clicked", async () => {
+    await renderAndWaitForLoad([
+      makeValidation({ id: "v1", title: "First Validation" }),
+      makeValidation({ id: "v2", title: "Second Validation" }),
+    ]);
+
+    await waitFor(() => {
+      expect(screen.getByText("Second Validation")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("First Validation"));
+    fireEvent.click(screen.getByText("Second Validation"));
+
+    expect(screen.getByTestId("validation-sidebar")).toHaveTextContent("v2");
+  });
+
+  it("should close validation sidebar when sidebar requests close", async () => {
     await renderAndWaitForLoad([
       makeValidation({ id: "v1", title: "Clickable Validation" }),
     ]);
@@ -239,10 +286,9 @@ describe("Diagnostic", () => {
     });
 
     fireEvent.click(screen.getByText("Clickable Validation"));
+    fireEvent.click(screen.getByTestId("validation-sidebar-close"));
 
-    expect(mockShowModal).toHaveBeenCalledWith(
-      expect.objectContaining({ component: expect.anything() }),
-    );
+    expect(screen.queryByTestId("validation-sidebar")).not.toBeInTheDocument();
   });
 
   it("triggers search when entering text in search field", async () => {
@@ -250,7 +296,7 @@ describe("Diagnostic", () => {
 
     const initialCallCount = mockGetValidations.mock.calls.length;
 
-    const searchInput = screen.getByPlaceholderText("Search validations...");
+    const searchInput = screen.getByPlaceholderText("Search validations");
     fireEvent.change(searchInput, { target: { value: "test query" } });
     fireEvent.keyDown(searchInput, { key: "Enter", code: "Enter" });
 
@@ -576,6 +622,9 @@ describe("Diagnostic", () => {
       const chainLink = container.querySelector("a[href='/chains/c1']");
       expect(chainLink).toBeInTheDocument();
       expect(chainLink!.textContent).toBe("My Chain");
+      expect(
+        container.querySelector("[data-testid='icon-chain']"),
+      ).toBeInTheDocument();
     });
   });
 

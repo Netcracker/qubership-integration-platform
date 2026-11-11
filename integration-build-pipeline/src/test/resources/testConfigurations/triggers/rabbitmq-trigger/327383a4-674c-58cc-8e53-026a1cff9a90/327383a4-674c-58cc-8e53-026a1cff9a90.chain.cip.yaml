@@ -1,0 +1,40 @@
+---
+id: 327383a4-674c-58cc-8e53-026a1cff9a90
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+name: rabbitmq-trigger-tls
+content:
+  labels: []
+  elements:
+  - id: c96e5983-163f-57c0-8349-47fd4f825d77
+    name: RabbitMQ Trigger
+    type: rabbitmq-trigger-2
+    properties:
+      acknowledgeMode: AUTO
+      connectionSourceType: manual
+      addresses: localhost:5672
+      username: snapshot
+      password: snapshot
+      vhost: /
+      deadLetterExchange: snapshot.rabbitmq.trigger.tls.dlx
+      deadLetterExchangeType: direct
+      deadLetterQueue: snapshot.rabbitmq.trigger.tls.dlq
+      deadLetterRoutingKey: snapshot.rabbitmq.trigger.tls.dead
+      exchange: snapshot.rabbitmq.trigger.tls
+      exchangeType: direct
+      queues: snapshot.rabbitmq.trigger.tls.queue
+      routingKey: snapshot.rabbitmq.trigger.tls
+      idempotency:
+        enabled: false
+      sslProtocol: TLS
+  - id: a85a2723-c3c7-57a3-9978-e6739e58f922
+    name: Process RabbitMQ message
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: a85a2723-c3c7-57a3-9978-e6739e58f922.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: c96e5983-163f-57c0-8349-47fd4f825d77
+    to: a85a2723-c3c7-57a3-9978-e6739e58f922
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

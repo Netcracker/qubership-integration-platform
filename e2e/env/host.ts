@@ -74,6 +74,22 @@ export function stream(command: string, args: string[], cwd: string): Promise<vo
   });
 }
 
+/** Runs a command to completion and keeps its output, so a failure can quote the end of it. */
+export function runToCompletion(command: string, args: string[], cwd: string, env: NodeJS.ProcessEnv): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { cwd, env, stdio: ["ignore", "pipe", "pipe"] });
+    const output: string[] = [];
+    child.stdout.on("data", (chunk: Buffer) => output.push(chunk.toString()));
+    child.stderr.on("data", (chunk: Buffer) => output.push(chunk.toString()));
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) return resolve();
+      const tail = output.join("").split("\n").slice(-40).join("\n");
+      reject(new Error(`${command} ${args.join(" ")} exited ${code}:\n${tail}`));
+    });
+  });
+}
+
 /** Newest file mtime under the given paths, 0 when none of them exists. */
 export async function newestMtimeMs(root: string, relative: string[]): Promise<number> {
   let newest = 0;

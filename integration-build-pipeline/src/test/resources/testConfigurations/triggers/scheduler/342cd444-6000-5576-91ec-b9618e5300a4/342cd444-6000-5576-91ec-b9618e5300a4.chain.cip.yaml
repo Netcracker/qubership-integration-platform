@@ -1,0 +1,25 @@
+---
+id: 342cd444-6000-5576-91ec-b9618e5300a4
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+name: scheduler-expired
+content:
+  labels: []
+  elements:
+  - id: e2117318-b553-5dcf-8251-a5336b399ead
+    name: Scheduler
+    type: quartz-scheduler
+    properties:
+      cron: 0 0 0 1 1 ? 1970
+      deleteJob: false
+  - id: 91024f6e-9a74-5819-9d5a-8e2ed0412f6a
+    name: Script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 91024f6e-9a74-5819-9d5a-8e2ed0412f6a.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: e2117318-b553-5dcf-8251-a5336b399ead
+    to: 91024f6e-9a74-5819-9d5a-8e2ed0412f6a
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

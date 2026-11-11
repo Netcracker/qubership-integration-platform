@@ -1,0 +1,39 @@
+---
+id: c5dad6e2-03b3-4bf2-ba24-c37e09ddafc3
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+name: rabbitmq-trigger
+content:
+  labels: []
+  elements:
+  - id: 94164c82-e1a7-493c-877b-46f00f286c08
+    name: RabbitMQ Trigger
+    type: rabbitmq-trigger-2
+    properties:
+      acknowledgeMode: AUTO
+      connectionSourceType: manual
+      addresses: localhost:5672
+      username: snapshot
+      password: snapshot
+      vhost: /
+      deadLetterExchange: snapshot.rabbitmq.trigger.dlx
+      deadLetterExchangeType: direct
+      deadLetterQueue: snapshot.rabbitmq.trigger.dlq
+      deadLetterRoutingKey: snapshot.rabbitmq.trigger.dead
+      exchange: snapshot.rabbitmq.trigger
+      exchangeType: direct
+      queues: snapshot.rabbitmq.trigger.queue
+      routingKey: snapshot.rabbitmq.trigger
+      idempotency:
+        enabled: false
+  - id: dc027e92-d1d6-485f-a71b-b5eca95d5218
+    name: Script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: dc027e92-d1d6-485f-a71b-b5eca95d5218.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: 94164c82-e1a7-493c-877b-46f00f286c08
+    to: dc027e92-d1d6-485f-a71b-b5eca95d5218
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

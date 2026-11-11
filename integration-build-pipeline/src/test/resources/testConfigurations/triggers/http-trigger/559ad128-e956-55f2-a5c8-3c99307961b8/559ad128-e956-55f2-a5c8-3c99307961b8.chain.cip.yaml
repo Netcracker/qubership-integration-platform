@@ -1,0 +1,58 @@
+---
+id: 559ad128-e956-55f2-a5c8-3c99307961b8
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+name: http-trigger-failure-subchain
+content:
+  labels: []
+  elements:
+  - id: 2c1bd157-1c1f-586d-bab4-7ee28f35b9f5
+    name: HTTP Trigger
+    type: http-trigger
+    properties:
+      accessControlType: NONE
+      allowedContentTypes: []
+      chunked: true
+      connectTimeout: 120000
+      contextPath: failure-subchain
+      externalRoute: false
+      handleChainFailureAction: chain-call
+      handleValidationAction: default
+      httpBinding: handlingHttpBinding
+      httpMethodRestrict: POST
+      idempotency:
+        enabled: false
+        keyExpiry: 600
+        actionOnDuplicate: ignore
+      killSessionOnTimeout: false
+      privateRoute: false
+      receiveCorrelationId: false
+      rejectRequestIfNonNullBodyGetDelete: true
+      chainFailureHandlerContainer:
+        elementId: 5491591c-839a-56e3-8a5a-7ce5807c62ad
+        timeout: 1000
+  - id: 63a4ce92-3c97-5677-a6a8-3f8200e30810
+    name: Process HTTP request
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 63a4ce92-3c97-5677-a6a8-3f8200e30810.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  - id: 5491591c-839a-56e3-8a5a-7ce5807c62ad
+    name: Handle HTTP duplicate or failure
+    type: chain-trigger-2
+    properties:
+      elementId: 5491591c-839a-56e3-8a5a-7ce5807c62ad
+  - id: bf8431a7-2859-57e5-81a0-52f478fbc2f7
+    name: Process HTTP handler
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: bf8431a7-2859-57e5-81a0-52f478fbc2f7.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: 2c1bd157-1c1f-586d-bab4-7ee28f35b9f5
+    to: 63a4ce92-3c97-5677-a6a8-3f8200e30810
+  - from: 5491591c-839a-56e3-8a5a-7ce5807c62ad
+    to: bf8431a7-2859-57e5-81a0-52f478fbc2f7
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

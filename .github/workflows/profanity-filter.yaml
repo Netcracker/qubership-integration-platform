@@ -28,4 +28,4 @@ jobs:
         # See https://bit.ly/potty-mouth-replacement-strategies
         replacement-strategy: middle-asterisk # See Replacement strategy
         custom-profane-words-url: https://github.com/Hesham-Elbadawi/list-of-banned-words/raw/refs/heads/master/ru
-        exclude-profane-words: mongo,robot
+        exclude-profane-words: mongo,robot,racy,kill

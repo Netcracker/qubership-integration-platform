@@ -39,6 +39,7 @@ spec:
             tcpSocket:
               port: 22
             periodSeconds: 5
+            timeoutSeconds: 5
           resources:
             requests:
               cpu: 10m

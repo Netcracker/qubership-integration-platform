@@ -8,6 +8,8 @@ import org.apache.qpid.jms.JmsTopic;
 import java.util.Hashtable;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+import javax.naming.AuthenticationException;
 import javax.naming.Context;
 import javax.naming.InitialContext;
 import javax.naming.Name;
@@ -24,6 +26,20 @@ public final class SnapshotJmsInitialContextFactory implements InitialContextFac
 
     static void activate(String providerUrl, ConnectionFactory connectionFactory) {
         REGISTRATIONS.put(providerUrl, new Registration(connectionFactory));
+    }
+
+    static void requireCredentials(String providerUrl, String username, String password) {
+        Registration registration = registration(providerUrl);
+        registration.username = username;
+        registration.password = password;
+    }
+
+    static void requireAnonymous(String providerUrl) {
+        registration(providerUrl).anonymous = true;
+    }
+
+    static int anonymousContexts(String providerUrl) {
+        return registration(providerUrl).anonymousContexts.get();
     }
 
     static void deactivate(String providerUrl, ConnectionFactory connectionFactory) {
@@ -57,6 +73,10 @@ public final class SnapshotJmsInitialContextFactory implements InitialContextFac
         return registration(providerUrl).lookupCounts.getOrDefault(name, 0);
     }
 
+    static int authenticationFailures(String providerUrl) {
+        return registration(providerUrl).authenticationFailures.get();
+    }
+
     private static Registration registration(String providerUrl) {
         Registration registration = REGISTRATIONS.get(providerUrl);
         if (registration == null) {
@@ -72,6 +92,18 @@ public final class SnapshotJmsInitialContextFactory implements InitialContextFac
         if (registration == null) {
             throw new NoInitialContextException("No snapshot JMS fixture is registered for '" + providerUrl + "'.");
         }
+        if (registration.username != null && (!registration.username.equals(environment.get(Context.SECURITY_PRINCIPAL))
+                || !registration.password.equals(environment.get(Context.SECURITY_CREDENTIALS)))) {
+            registration.authenticationFailures.incrementAndGet();
+            throw new AuthenticationException("Snapshot JMS naming credentials were rejected.");
+        }
+        if (registration.anonymous) {
+            if (environment.containsKey(Context.SECURITY_PRINCIPAL) || environment.containsKey(Context.SECURITY_CREDENTIALS)) {
+                registration.authenticationFailures.incrementAndGet();
+                throw new AuthenticationException("Anonymous snapshot JMS naming must not receive credentials.");
+            }
+            registration.anonymousContexts.incrementAndGet();
+        }
         return new SnapshotJmsContext(registration, environment);
     }
 
@@ -79,6 +111,11 @@ public final class SnapshotJmsInitialContextFactory implements InitialContextFac
         private final ConnectionFactory connectionFactory;
         private final Map<String, Destination> destinations = new ConcurrentHashMap<>();
         private final Map<String, Integer> lookupCounts = new ConcurrentHashMap<>();
+        private final AtomicInteger authenticationFailures = new AtomicInteger();
+        private final AtomicInteger anonymousContexts = new AtomicInteger();
+        private volatile boolean anonymous;
+        private volatile String username;
+        private volatile String password;
 
         private Registration(ConnectionFactory connectionFactory) {
             this.connectionFactory = connectionFactory;

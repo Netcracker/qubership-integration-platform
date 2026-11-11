@@ -168,3 +168,53 @@ describe("appConfig - productionMode", () => {
     unsubscribe();
   });
 });
+
+describe("appConfig - opensearchKafkaEnabled", () => {
+  afterEach(() => {
+    configure({ opensearchKafkaEnabled: undefined });
+  });
+
+  test("is undefined by default", () => {
+    expect(getConfig().opensearchKafkaEnabled).toBeUndefined();
+  });
+
+  test("should notify listeners when the value changes", () => {
+    const listener = jest.fn();
+    const unsubscribe = onConfigChange(listener);
+
+    configure({ opensearchKafkaEnabled: false });
+
+    expect(getConfig().opensearchKafkaEnabled).toBe(false);
+    expect(listener).toHaveBeenCalledWith(
+      expect.objectContaining({ opensearchKafkaEnabled: false }),
+    );
+    unsubscribe();
+  });
+
+  test("should not notify listeners when the value is unchanged", () => {
+    configure({ opensearchKafkaEnabled: true });
+    const listener = jest.fn();
+    const unsubscribe = onConfigChange(listener);
+
+    configure({ opensearchKafkaEnabled: true });
+
+    expect(listener).not.toHaveBeenCalled();
+    unsubscribe();
+  });
+
+  test("should clear the value when undefined is passed", () => {
+    configure({ opensearchKafkaEnabled: true });
+
+    configure({ opensearchKafkaEnabled: undefined });
+
+    expect(getConfig().opensearchKafkaEnabled).toBeUndefined();
+  });
+
+  test("should keep the value when the key is absent", () => {
+    configure({ opensearchKafkaEnabled: true });
+
+    configure({ documentationBaseUrl: "/doc" });
+
+    expect(getConfig().opensearchKafkaEnabled).toBe(true);
+  });
+});

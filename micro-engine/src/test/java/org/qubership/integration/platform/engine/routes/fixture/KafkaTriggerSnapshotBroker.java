@@ -5,8 +5,13 @@ import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.ConsumerGroupDescription;
 import org.apache.kafka.clients.admin.ListOffsetsOptions;
+import org.apache.kafka.clients.admin.NewPartitions;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.admin.OffsetSpec;
+import org.apache.kafka.clients.admin.RecordsToDelete;
+import org.apache.kafka.clients.admin.ScramCredentialInfo;
+import org.apache.kafka.clients.admin.ScramMechanism;
+import org.apache.kafka.clients.admin.UserScramCredentialUpsertion;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.acl.AccessControlEntry;
@@ -15,6 +20,7 @@ import org.apache.kafka.common.acl.AclBinding;
 import org.apache.kafka.common.acl.AclBindingFilter;
 import org.apache.kafka.common.acl.AclOperation;
 import org.apache.kafka.common.acl.AclPermissionType;
+import org.apache.kafka.common.errors.SaslAuthenticationException;
 import org.apache.kafka.common.errors.UnknownTopicOrPartitionException;
 import org.apache.kafka.common.resource.PatternType;
 import org.apache.kafka.common.resource.ResourcePattern;
@@ -25,6 +31,7 @@ import org.rnorth.ducttape.unreliables.Unreliables;
 import org.testcontainers.images.builder.Transferable;
 import org.testcontainers.utility.MountableFile;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -40,16 +47,20 @@ import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-final class KafkaTriggerSnapshotBroker implements AutoCloseable {
-    private static final int PARTITIONS = 3;
+final class KafkaTriggerSnapshotBroker implements SnapshotWorkerBrokerPool.Resource {
+    private static final int INITIAL_PARTITIONS = 3;
     private final KafkaConnectionProxy proxy = new KafkaConnectionProxy();
     private final Set<String> topics = new LinkedHashSet<>();
+    private final Map<String, Integer> partitionCounts = new LinkedHashMap<>();
     private TriggerContainer container;
     private Admin admin;
     private String securityProtocol = "PLAINTEXT";
+    private String saslMechanism = "PLAIN";
     private KafkaTlsMaterial tls;
+    private boolean reused;
 
     KafkaTriggerSnapshotBroker() {
     }
@@ -60,10 +71,15 @@ final class KafkaTriggerSnapshotBroker implements AutoCloseable {
 
     void configureSecurity(Map<String, String> parameters) throws Exception {
         securityProtocol = parameters.getOrDefault("securityProtocol", "PLAINTEXT");
-        if (!Set.of("PLAINTEXT", "SASL_PLAINTEXT", "SASL_SSL").contains(securityProtocol)) {
-            throw new IllegalArgumentException("Kafka trigger fixture supports PLAINTEXT, SASL_PLAINTEXT, and SASL_SSL.");
+        saslMechanism = parameters.getOrDefault("saslMechanism", "PLAIN");
+        if (!Set.of("PLAINTEXT", "SSL", "SASL_PLAINTEXT", "SASL_SSL").contains(securityProtocol)) {
+            throw new IllegalArgumentException("Kafka trigger fixture requires a supported security protocol.");
         }
-        if ("SASL_SSL".equals(securityProtocol)) {
+        if (securityProtocol.startsWith("SASL")
+                && !Set.of("PLAIN", "SCRAM-SHA-256", "SCRAM-SHA-512").contains(saslMechanism)) {
+            throw new IllegalArgumentException("Kafka trigger fixture requires PLAIN or SCRAM authentication.");
+        }
+        if ("SASL_SSL".equals(securityProtocol) || "SSL".equals(securityProtocol)) {
             tls = KafkaTlsMaterial.create();
             proxy.configureTls(tls.serverContext("valid"), tls.clientContext());
         }
@@ -79,9 +95,19 @@ final class KafkaTriggerSnapshotBroker implements AutoCloseable {
 
     void start() throws Exception {
         proxy.start();
-        container = new TriggerContainer(proxy.port(), securityProtocol, tls);
+        container = new TriggerContainer(proxy.port(), securityProtocol, saslMechanism, tls);
         container.start();
         proxy.connectTo(container.getHost(), container.getMappedPort(9092));
+        beginScenario();
+        if (saslMechanism.startsWith("SCRAM")) {
+            updateScramPassword("reader-password");
+        }
+    }
+
+    void beginScenario() {
+        if (admin != null) {
+            return;
+        }
         Properties properties = new Properties();
         properties.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, producerAddress());
         properties.put(AdminClientConfig.REQUEST_TIMEOUT_MS_CONFIG, 5000);
@@ -89,11 +115,73 @@ final class KafkaTriggerSnapshotBroker implements AutoCloseable {
         admin = Admin.create(properties);
     }
 
+    void enableReuse() {
+        reused = true;
+    }
+
+    void closeScenario() {
+        if (admin != null) {
+            admin.close(Duration.ofSeconds(5));
+            admin = null;
+        }
+    }
+
+    @Override
+    public void resetAfterScenario() throws Exception {
+        KafkaSnapshotBrokerReset.reset(producerAddress());
+        proxy.resetAfterScenario();
+        topics.clear();
+        partitionCounts.clear();
+    }
+
     void applyConsumerAccess(List<String> names, String groupId, boolean allowTopicRead, boolean allowGroupRead) throws Exception {
-        if (!"PLAINTEXT".equals(securityProtocol)) {
+        if (securityProtocol.startsWith("SASL")) {
             setTopicRead(names, allowTopicRead);
             setGroupRead(groupId, allowGroupRead);
         }
+    }
+
+    void awaitAuthentication() {
+        if (saslMechanism.startsWith("SCRAM")) {
+            awaitReaderAuthentication(true);
+            assertTrue(proxy.successfulAuthentications(saslMechanism) > 0,
+                    "Kafka authentication must negotiate " + saslMechanism + ".");
+        }
+    }
+
+    void setScramPassword(String password) throws Exception {
+        updateScramPassword(password);
+        awaitReaderAuthentication("reader-password".equals(password));
+    }
+
+    private void updateScramPassword(String password) throws Exception {
+        ScramMechanism mechanism = "SCRAM-SHA-256".equals(saslMechanism)
+                ? ScramMechanism.SCRAM_SHA_256 : ScramMechanism.SCRAM_SHA_512;
+        admin.alterUserScramCredentials(List.of(new UserScramCredentialUpsertion("reader",
+                new ScramCredentialInfo(mechanism, 4096), password.getBytes(StandardCharsets.UTF_8))))
+                .all().get(10, TimeUnit.SECONDS);
+    }
+
+    private void awaitReaderAuthentication(boolean permitted) {
+        await(() -> {
+            Properties properties = tls == null ? new Properties() : tls.senderProperties();
+            properties.setProperty("bootstrap.servers", consumerAddress());
+            properties.setProperty("security.protocol", securityProtocol);
+            properties.setProperty("sasl.mechanism", saslMechanism);
+            properties.setProperty("sasl.jaas.config", "org.apache.kafka.common.security.scram.ScramLoginModule required "
+                    + "username=\"reader\" password=\"reader-password\";");
+            properties.setProperty("request.timeout.ms", "3000");
+            properties.setProperty("default.api.timeout.ms", "4000");
+            try (Admin client = Admin.create(properties)) {
+                client.describeTopics(List.copyOf(topics)).allTopicNames().get(5, TimeUnit.SECONDS);
+                return permitted;
+            } catch (ExecutionException exception) {
+                if (exception.getCause() instanceof SaslAuthenticationException) {
+                    return !permitted;
+                }
+                throw exception;
+            }
+        }, "Kafka SCRAM credential propagation");
     }
 
     void setTopicRead(List<String> names, boolean allowed) throws Exception {
@@ -142,7 +230,7 @@ final class KafkaTriggerSnapshotBroker implements AutoCloseable {
             Map<String, Set<TopicPartition>> assigned = groupAssignments(groupId);
             Set<TopicPartition> partitions = assigned.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
             Set<TopicPartition> expected = count == 0 ? Set.of() : subscribedTopics.stream()
-                    .flatMap(topic -> java.util.stream.IntStream.range(0, PARTITIONS)
+                    .flatMap(topic -> java.util.stream.IntStream.range(0, partitionCounts.get(topic))
                     .mapToObj(partition -> new TopicPartition(topic, partition))).collect(Collectors.toSet());
             return assigned.size() == count && partitions.equals(expected);
         }, "Kafka group '" + groupId + "' to assign every partition to " + count + " members");
@@ -158,14 +246,60 @@ final class KafkaTriggerSnapshotBroker implements AutoCloseable {
 
     void createTopics(List<String> names) throws Exception {
         List<NewTopic> requested = names.stream().filter(name -> !topics.contains(name))
-                .map(name -> new NewTopic(name, PARTITIONS, (short) 1).configs(Map.of(
+                .map(name -> new NewTopic(name, INITIAL_PARTITIONS, (short) 1).configs(Map.of(
                         "message.timestamp.before.max.ms", Long.toString(Long.MAX_VALUE),
                         "message.timestamp.after.max.ms", Long.toString(Long.MAX_VALUE),
                         "retention.ms", "-1"))).toList();
         if (!requested.isEmpty()) {
             admin.createTopics(requested).all().get(15, TimeUnit.SECONDS);
-            requested.forEach(topic -> topics.add(topic.name()));
+            requested.forEach(topic -> {
+                topics.add(topic.name());
+                partitionCounts.put(topic.name(), INITIAL_PARTITIONS);
+            });
+            await(() -> {
+                try {
+                    admin.describeTopics(requested.stream().map(NewTopic::name).toList()).allTopicNames()
+                            .get(5, TimeUnit.SECONDS).values()
+                            .forEach(topic -> proxy.registerFetchTopic(topic.topicId(), topic.name()));
+                    return true;
+                } catch (ExecutionException exception) {
+                    if (exception.getCause() instanceof UnknownTopicOrPartitionException) {
+                        return false;
+                    }
+                    throw exception;
+                }
+            }, "Kafka created topic metadata");
+            if (reused) {
+                KafkaSnapshotBrokerReset.assertEmptyTopics(admin, requested.stream().map(NewTopic::name).toList());
+            }
         }
+    }
+
+    void expandPartitions(List<String> names, int count) throws Exception {
+        Map<String, NewPartitions> requested = new LinkedHashMap<>();
+        for (String name : names) {
+            assertTrue(count > partitionCounts.get(name), "Kafka partition expansion must add partitions.");
+            requested.put(name, NewPartitions.increaseTo(count));
+        }
+        admin.createPartitions(requested).all().get(15, TimeUnit.SECONDS);
+        names.forEach(name -> partitionCounts.put(name, count));
+        await(() -> admin.describeTopics(names).allTopicNames().get(5, TimeUnit.SECONDS).values().stream()
+                .allMatch(topic -> topic.partitions().size() == count), "Kafka expanded topic metadata");
+    }
+
+    void truncateBeforeOffsets(Map<TopicPartition, Long> offsets) throws Exception {
+        Map<TopicPartition, RecordsToDelete> requested = new LinkedHashMap<>();
+        offsets.forEach((partition, offset) -> requested.put(partition, RecordsToDelete.beforeOffset(offset)));
+        var deleted = admin.deleteRecords(requested);
+        deleted.all().get(15, TimeUnit.SECONDS);
+        for (Map.Entry<TopicPartition, Long> entry : offsets.entrySet()) {
+            assertEquals(entry.getValue().longValue(), deleted.lowWatermarks().get(entry.getKey()).get(5, TimeUnit.SECONDS).lowWatermark(),
+                    "Kafka must delete records before the requested offset.");
+        }
+    }
+
+    void awaitFetchOffsets(Map<TopicPartition, Long> expected) {
+        await(() -> proxy.hasFetchedOffsets(expected), "Kafka consumer Fetch positions " + expected);
     }
 
     Map<TopicPartition, Long> endOffsets(List<String> names) throws Exception {
@@ -179,7 +313,7 @@ final class KafkaTriggerSnapshotBroker implements AutoCloseable {
     private Map<TopicPartition, Long> offsets(List<String> names, OffsetSpec specification) throws Exception {
         Map<TopicPartition, OffsetSpec> requested = new LinkedHashMap<>();
         for (String topic : names) {
-            for (int partition = 0; partition < PARTITIONS; partition++) {
+            for (int partition = 0; partition < partitionCounts.get(topic); partition++) {
                 requested.put(new TopicPartition(topic, partition), specification);
             }
         }
@@ -227,6 +361,10 @@ final class KafkaTriggerSnapshotBroker implements AutoCloseable {
 
     void awaitCommitted(String groupId, Map<TopicPartition, Long> expected) {
         await(() -> offsetsMatch(groupId, expected, false), "Kafka group '" + groupId + "' committed offsets " + expected);
+    }
+
+    boolean hasCommitted(String groupId, Map<TopicPartition, Long> expected) throws Exception {
+        return offsetsMatch(groupId, expected, false);
     }
 
     void awaitOffsetFailure(String groupId, Map<TopicPartition, Long> initialOffsets, BooleanSupplier failureObserved) throws Exception {
@@ -282,8 +420,35 @@ final class KafkaTriggerSnapshotBroker implements AutoCloseable {
         proxy.restore();
     }
 
+    void crashAndRestart() throws Exception {
+        proxy.disconnect();
+        container.restartBroker("KILL");
+        await(45, () -> admin.describeCluster().nodes().get(5, TimeUnit.SECONDS).size() == 1,
+                "Kafka broker to recover after its process is killed");
+        proxy.restore();
+    }
+
     KafkaConnectionProxy.Statistics authenticationStatistics() {
         return proxy.statistics();
+    }
+
+    long commitAuthorizationFailures(String groupId) {
+        return proxy.commitAuthorizationFailures(groupId);
+    }
+
+    void awaitCommitAuthorizationFailure(String groupId, long previous, Map<TopicPartition, Long> expectedOffsets) {
+        await(() -> proxy.hasDeniedCommit(groupId, previous, expectedOffsets),
+                "Kafka group '" + groupId + "' OffsetCommit authorization failure");
+    }
+
+    void rotateTlsCertificate(String profile) throws Exception {
+        assertNotNull(tls, "Kafka certificate rotation requires a TLS deployment.");
+        proxy.rotateTlsCertificate(tls.serverContext(profile), true);
+    }
+
+    void reconnect() {
+        proxy.disconnect();
+        proxy.restore();
     }
 
     void restore() {
@@ -310,9 +475,7 @@ final class KafkaTriggerSnapshotBroker implements AutoCloseable {
     @Override
     public void close() throws Exception {
         try {
-            if (admin != null) {
-                admin.close(Duration.ofSeconds(5));
-            }
+            closeScenario();
         } finally {
             try {
                 proxy.close();
@@ -335,7 +498,7 @@ final class KafkaTriggerSnapshotBroker implements AutoCloseable {
         private static final String RESTART_REQUEST = "/tmp/kafka-trigger-restart";
         private final int proxyPort;
 
-        private TriggerContainer(int proxyPort, String securityProtocol, KafkaTlsMaterial tls) {
+        private TriggerContainer(int proxyPort, String securityProtocol, String mechanism, KafkaTlsMaterial tls) {
             super("apache/kafka:3.8.0");
             this.proxyPort = proxyPort;
             withExposedPorts(9092, 9095);
@@ -344,10 +507,15 @@ final class KafkaTriggerSnapshotBroker implements AutoCloseable {
                     "PLAINTEXT://0.0.0.0:9092,BROKER://0.0.0.0:9093,CONTROLLER://0.0.0.0:9094,ADMIN://0.0.0.0:9095");
             withEnv("KAFKA_LISTENER_SECURITY_PROTOCOL_MAP",
                     "PLAINTEXT:" + securityProtocol + ",ADMIN:PLAINTEXT,BROKER:PLAINTEXT,CONTROLLER:PLAINTEXT");
-            if (!"PLAINTEXT".equals(securityProtocol)) {
+            if (securityProtocol.startsWith("SASL")) {
                 KafkaSaslSupport.configure(this);
                 withEnv("KAFKA_LISTENER_SECURITY_PROTOCOL_MAP",
                         "PLAINTEXT:" + securityProtocol + ",ADMIN:PLAINTEXT,BROKER:PLAINTEXT,CONTROLLER:PLAINTEXT");
+                if (mechanism.startsWith("SCRAM")) {
+                    withEnv("KAFKA_SASL_ENABLED_MECHANISMS", "PLAIN," + mechanism);
+                    withEnv("KAFKA_LISTENER_NAME_PLAINTEXT_" + mechanism.replace("-", "___") + "_SASL_JAAS_CONFIG",
+                            "org.apache.kafka.common.security.scram.ScramLoginModule required;");
+                }
             }
             if (tls != null) {
                 String keyStorePath = "/tmp/kafka-trigger-fixture.p12";
@@ -371,10 +539,14 @@ final class KafkaTriggerSnapshotBroker implements AutoCloseable {
         }
 
         private void restartBroker() throws Exception {
+            restartBroker("TERM");
+        }
+
+        private void restartBroker(String signal) throws Exception {
             // Docker reallocates randomly mapped ports on container restart, so restart Kafka in place.
             String command = "read -r previous < " + PROCESS_ID + "\n"
                     + "touch " + RESTART_REQUEST + "\n"
-                    + "kill -TERM \"$previous\"\n"
+                    + "kill -" + signal + " \"$previous\"\n"
                     + "for ((attempt = 0; attempt < 200; attempt++)); do\n"
                     + "  read -r current < " + PROCESS_ID + "\n"
                     + "  if [ \"$current\" != \"$previous\" ]; then exit 0; fi\n"

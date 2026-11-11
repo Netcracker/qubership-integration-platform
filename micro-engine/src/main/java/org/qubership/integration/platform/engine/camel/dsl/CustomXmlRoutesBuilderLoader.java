@@ -6,17 +6,24 @@ import org.apache.camel.CamelContext;
 import org.apache.camel.api.management.ManagedResource;
 import org.apache.camel.builder.RouteBuilder;
 import org.apache.camel.builder.RouteBuilderLifecycleStrategy;
+import org.apache.camel.dsl.xml.io.XmlModelParser;
 import org.apache.camel.dsl.xml.io.XmlRoutesBuilderLoader;
+import org.apache.camel.model.BeanFactoryDefinition;
+import org.apache.camel.model.app.BeansDefinition;
 import org.apache.camel.spi.Resource;
 import org.apache.camel.spi.annotations.RoutesLoader;
+import org.apache.camel.xml.io.util.XmlStreamDetector;
 import org.qubership.integration.platform.engine.camel.dsl.errorhandling.ErrorHandler;
 import org.qubership.integration.platform.engine.camel.dsl.errorhandling.ErrorHandlerFactory;
 import org.qubership.integration.platform.engine.camel.dsl.notification.SourceProcessingNotifier;
 import org.qubership.integration.platform.engine.camel.dsl.preprocess.ResourceContentPreprocessingService;
 
+import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -41,7 +48,11 @@ public class CustomXmlRoutesBuilderLoader extends XmlRoutesBuilderLoader {
      * fully preprocessed resource.
      * Keep in sync with the Camel source when upgrading Camel.
      */
-    static final Field CAMEL_APP_CACHE_FIELD = resolveCamelAppCacheField();
+    static final Field CAMEL_APP_CACHE_FIELD = resolveCamelField("camelAppCache");
+
+    // Camel consumes builder properties before build() and retains failed definitions for a later attempt.
+    // Keep this private-field access in sync with Camel when upgrading it.
+    private static final Field CAMEL_DELAYED_REGISTRATIONS_FIELD = resolveCamelField("delayedRegistrations");
 
     private ResourceContentPreprocessingService preprocessingService;
     private ErrorHandlerFactory errorHandlerFactory;
@@ -51,9 +62,37 @@ public class CustomXmlRoutesBuilderLoader extends XmlRoutesBuilderLoader {
     public void preParseRoute(Resource resource) throws Exception {
         try {
             getSourceProcessingNotifier().notifySourceProcessingStarted(resource);
-            super.preParseRoute(preprocessForBeans(resource));
+            Resource preprocessed = preprocessForBeans(resource);
+            super.preParseRoute(preprocessed);
+            restoreDeferredBuilderProperties(preprocessed);
         } catch (Exception e) {
             handleError(resource, e);
+        }
+    }
+
+    private void restoreDeferredBuilderProperties(Resource resource) throws Exception {
+        Map<?, ?> cache = (Map<?, ?>) CAMEL_APP_CACHE_FIELD.get(this);
+        BeansDefinition cached = (BeansDefinition) cache.get(resource.getLocation());
+        if (cached == null) {
+            return;
+        }
+        List<?> deferred = (List<?>) CAMEL_DELAYED_REGISTRATIONS_FIELD.get(this);
+        if (cached.getBeans().stream().noneMatch(bean -> bean.getBuilderClass() != null && deferred.contains(bean))) {
+            return;
+        }
+
+        String namespace;
+        try (InputStream input = resource.getInputStream()) {
+            namespace = new XmlStreamDetector(input).information().getRootElementNamespace();
+        }
+        BeansDefinition original = new XmlModelParser(resource, namespace).parseBeansDefinition().orElseThrow();
+        for (int index = 0; index < cached.getBeans().size(); index++) {
+            BeanFactoryDefinition<?> bean = cached.getBeans().get(index);
+            if (bean.getBuilderClass() != null && deferred.contains(bean)) {
+                BeanFactoryDefinition<?> source = original.getBeans().get(index);
+                Map<String, Object> properties = source.getProperties();
+                bean.setProperties(properties == null ? null : new LinkedHashMap<>(properties));
+            }
         }
     }
 
@@ -105,14 +144,14 @@ public class CustomXmlRoutesBuilderLoader extends XmlRoutesBuilderLoader {
         }
     }
 
-    private static Field resolveCamelAppCacheField() {
+    private static Field resolveCamelField(String name) {
         try {
-            Field field = XmlRoutesBuilderLoader.class.getDeclaredField("camelAppCache");
+            Field field = XmlRoutesBuilderLoader.class.getDeclaredField(name);
             field.setAccessible(true);
             return field;
         } catch (NoSuchFieldException e) {
             throw new IllegalStateException(
-                    "Field XmlRoutesBuilderLoader.camelAppCache not found; route preprocessing relies on it. "
+                    "Field XmlRoutesBuilderLoader." + name + " not found; route preprocessing relies on it. "
                             + "Check compatibility when upgrading Camel.", e);
         }
     }

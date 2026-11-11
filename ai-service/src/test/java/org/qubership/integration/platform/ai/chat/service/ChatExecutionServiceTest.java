@@ -236,7 +236,7 @@ class ChatExecutionServiceTest {
     PendingRedeployStore store = new PendingRedeployStore();
     store.put(
         "conv-redeploy",
-        new PendingRedeploy("chain-1", "prod", null, "op-prod", "snap-1", false));
+        new PendingRedeploy("chain-1", "prod", null, null, "op-prod", "snap-1", false));
     ScenarioRouter router = mock(ScenarioRouter.class);
     when(router.route(any(), anyString()))
         .thenReturn(Multi.createFrom().item(ChatEvent.token("ok")));

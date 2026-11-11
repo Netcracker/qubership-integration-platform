@@ -1,0 +1,202 @@
+---
+id: 95ab3eed-f27f-5347-8ac8-3113543e4ecb
+$schema: http://qubership.org/schemas/product/qip/chain
+name: jms-trigger-concurrent-idempotency
+content:
+  labels: []
+  elements:
+  - id: c355195f-51fb-56d2-b084-73848411dd39
+    name: Concurrent main chain trigger
+    type: chain-trigger-2
+    properties:
+      elementId: c355195f-51fb-56d2-b084-73848411dd39
+  - id: 01f75b51-a80b-5b96-a387-eacb6697c127
+    name: Record concurrent main execution
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 01f75b51-a80b-5b96-a387-eacb6697c127.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  - id: 75ef3a79-0a51-5a6c-8dae-a73fc9326729
+    name: Concurrent duplicate chain trigger
+    type: chain-trigger-2
+    properties:
+      elementId: 75ef3a79-0a51-5a6c-8dae-a73fc9326729
+  - id: 3c6403fb-1b04-5537-9760-f8555e319ef9
+    name: Record concurrent duplicate execution
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 3c6403fb-1b04-5537-9760-f8555e319ef9.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  - id: 0e531ab9-6214-5d7e-91e9-1b2a131f4a9c
+    name: Concurrent ignore first
+    type: jms-trigger
+    properties:
+      acknowledgmentMode: AUTO_ACKNOWLEDGE
+      initialContextFactory: org.qubership.integration.platform.engine.routes.fixture.SnapshotJmsInitialContextFactory
+      providerUrl: snapshot:jms-trigger
+      connectionFactoryName: jms/BulkQuotationRequest/connectionfactory
+      destinationName: jms/snapshot/concurrent/ignore
+      destinationType: queue
+      username: snapshot
+      password: snapshot
+      idempotency:
+        enabled: true
+        keyExpiry: 600
+        keyExpression: ${header.businessKey}
+        contextExpression: ${header.businessContext}
+        actionOnDuplicate: ignore
+  - id: 0ccabc9d-ed89-5aed-a3e0-bb0d68463d77
+    name: Call concurrent main first
+    type: chain-call-2
+    properties:
+      elementId: c355195f-51fb-56d2-b084-73848411dd39
+      timeout: 30000
+  - id: 217f57bc-da30-5b55-9dea-fb7df45d16fa
+    name: Concurrent ignore second
+    type: jms-trigger
+    properties:
+      acknowledgmentMode: AUTO_ACKNOWLEDGE
+      initialContextFactory: org.qubership.integration.platform.engine.routes.fixture.SnapshotJmsInitialContextFactory
+      providerUrl: snapshot:jms-trigger
+      connectionFactoryName: jms/BulkQuotationRequest/connectionfactory
+      destinationName: jms/snapshot/concurrent/ignore
+      destinationType: queue
+      username: snapshot
+      password: snapshot
+      idempotency:
+        enabled: true
+        keyExpiry: 600
+        keyExpression: ${header.businessKey}
+        contextExpression: ${header.businessContext}
+        actionOnDuplicate: ignore
+  - id: efac6906-c00e-557d-87fe-0cb7b1d8ea41
+    name: Call concurrent main second
+    type: chain-call-2
+    properties:
+      elementId: c355195f-51fb-56d2-b084-73848411dd39
+      timeout: 30000
+  - id: 87c76aa1-c0e8-509b-863f-a479a9ccee0e
+    name: Concurrent throw-exception first
+    type: jms-trigger
+    properties:
+      acknowledgmentMode: AUTO_ACKNOWLEDGE
+      initialContextFactory: org.qubership.integration.platform.engine.routes.fixture.SnapshotJmsInitialContextFactory
+      providerUrl: snapshot:jms-trigger
+      connectionFactoryName: jms/BulkQuotationRequest/connectionfactory
+      destinationName: jms/snapshot/concurrent/throw-exception
+      destinationType: queue
+      username: snapshot
+      password: snapshot
+      idempotency:
+        enabled: true
+        keyExpiry: 600
+        keyExpression: ${header.businessKey}
+        contextExpression: ${header.businessContext}
+        actionOnDuplicate: throw-exception
+  - id: e81adaf6-1ea5-5176-a3b2-9749d811e037
+    name: Call concurrent main first
+    type: chain-call-2
+    properties:
+      elementId: c355195f-51fb-56d2-b084-73848411dd39
+      timeout: 30000
+  - id: 20d273cf-b098-55f5-8370-d4cf9a5fb9a8
+    name: Concurrent throw-exception second
+    type: jms-trigger
+    properties:
+      acknowledgmentMode: AUTO_ACKNOWLEDGE
+      initialContextFactory: org.qubership.integration.platform.engine.routes.fixture.SnapshotJmsInitialContextFactory
+      providerUrl: snapshot:jms-trigger
+      connectionFactoryName: jms/BulkQuotationRequest/connectionfactory
+      destinationName: jms/snapshot/concurrent/throw-exception
+      destinationType: queue
+      username: snapshot
+      password: snapshot
+      idempotency:
+        enabled: true
+        keyExpiry: 600
+        keyExpression: ${header.businessKey}
+        contextExpression: ${header.businessContext}
+        actionOnDuplicate: throw-exception
+  - id: cddf3a43-7d8f-541f-b225-86ba5a92d33c
+    name: Call concurrent main second
+    type: chain-call-2
+    properties:
+      elementId: c355195f-51fb-56d2-b084-73848411dd39
+      timeout: 30000
+  - id: 21a50cab-5be7-5948-ba4e-4bb9687d7fc1
+    name: Concurrent execute-subchain first
+    type: jms-trigger
+    properties:
+      acknowledgmentMode: AUTO_ACKNOWLEDGE
+      initialContextFactory: org.qubership.integration.platform.engine.routes.fixture.SnapshotJmsInitialContextFactory
+      providerUrl: snapshot:jms-trigger
+      connectionFactoryName: jms/BulkQuotationRequest/connectionfactory
+      destinationName: jms/snapshot/concurrent/execute-subchain
+      destinationType: queue
+      username: snapshot
+      password: snapshot
+      idempotency:
+        enabled: true
+        keyExpiry: 600
+        keyExpression: ${header.businessKey}
+        contextExpression: ${header.businessContext}
+        actionOnDuplicate: execute-subchain
+        chainTriggerParameters:
+          triggerElementId: 75ef3a79-0a51-5a6c-8dae-a73fc9326729
+          chainCallTimeout: 30000
+  - id: 43dc387e-4f37-5cc6-be3a-6000fb077a5f
+    name: Call concurrent main first
+    type: chain-call-2
+    properties:
+      elementId: c355195f-51fb-56d2-b084-73848411dd39
+      timeout: 30000
+  - id: 426bd34d-f2d2-53fc-97fe-9567228ba604
+    name: Concurrent execute-subchain second
+    type: jms-trigger
+    properties:
+      acknowledgmentMode: AUTO_ACKNOWLEDGE
+      initialContextFactory: org.qubership.integration.platform.engine.routes.fixture.SnapshotJmsInitialContextFactory
+      providerUrl: snapshot:jms-trigger
+      connectionFactoryName: jms/BulkQuotationRequest/connectionfactory
+      destinationName: jms/snapshot/concurrent/execute-subchain
+      destinationType: queue
+      username: snapshot
+      password: snapshot
+      idempotency:
+        enabled: true
+        keyExpiry: 600
+        keyExpression: ${header.businessKey}
+        contextExpression: ${header.businessContext}
+        actionOnDuplicate: execute-subchain
+        chainTriggerParameters:
+          triggerElementId: 75ef3a79-0a51-5a6c-8dae-a73fc9326729
+          chainCallTimeout: 30000
+  - id: 6151f679-13da-5c34-ac67-cc315a628a19
+    name: Call concurrent main second
+    type: chain-call-2
+    properties:
+      elementId: c355195f-51fb-56d2-b084-73848411dd39
+      timeout: 30000
+  dependencies:
+  - from: c355195f-51fb-56d2-b084-73848411dd39
+    to: 01f75b51-a80b-5b96-a387-eacb6697c127
+  - from: 75ef3a79-0a51-5a6c-8dae-a73fc9326729
+    to: 3c6403fb-1b04-5537-9760-f8555e319ef9
+  - from: 0e531ab9-6214-5d7e-91e9-1b2a131f4a9c
+    to: 0ccabc9d-ed89-5aed-a3e0-bb0d68463d77
+  - from: 217f57bc-da30-5b55-9dea-fb7df45d16fa
+    to: efac6906-c00e-557d-87fe-0cb7b1d8ea41
+  - from: 87c76aa1-c0e8-509b-863f-a479a9ccee0e
+    to: e81adaf6-1ea5-5176-a3b2-9749d811e037
+  - from: 20d273cf-b098-55f5-8370-d4cf9a5fb9a8
+    to: cddf3a43-7d8f-541f-b225-86ba5a92d33c
+  - from: 21a50cab-5be7-5948-ba4e-4bb9687d7fc1
+    to: 43dc387e-4f37-5cc6-be3a-6000fb077a5f
+  - from: 426bd34d-f2d2-53fc-97fe-9567228ba604
+    to: 6151f679-13da-5c34-ac67-cc315a628a19
+  deployments:
+  - domain: default
+  deployAction: DEPLOY
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

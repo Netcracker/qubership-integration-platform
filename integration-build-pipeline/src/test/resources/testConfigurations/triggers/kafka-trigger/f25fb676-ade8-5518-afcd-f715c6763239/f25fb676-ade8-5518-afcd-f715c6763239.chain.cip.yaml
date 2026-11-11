@@ -1,0 +1,39 @@
+---
+id: f25fb676-ade8-5518-afcd-f715c6763239
+$schema: http://qubership.org/schemas/product/qip/chain
+name: kafka-trigger-ssl-only
+content:
+  labels: []
+  elements:
+  - id: 3c9232ec-bd88-5c80-8626-84e3320de4a7
+    name: Kafka Trigger
+    type: kafka-trigger-2
+    properties:
+      autoOffsetReset: earliest
+      brokers: localhost:9092
+      connectionSourceType: manual
+      consumersCount: 1
+      groupId: snapshot-kafka-trigger-ssl-only
+      keyDeserializer: org.apache.kafka.common.serialization.StringDeserializer
+      maxPollIntervalMs: 300000
+      maxPollRecords: 500
+      reconnectBackoffMaxMs: 1000
+      saslMechanism: GSSAPI
+      securityProtocol: SSL
+      sslEndpointAlgorithm: https
+      sslProtocol: TLS
+      topics: snapshot.kafka.trigger.ssl-only
+      valueDeserializer: org.apache.kafka.common.serialization.StringDeserializer
+      consumerConsistencyMode: EVENTUAL
+  - id: a52ffe30-3eec-58e6-8c29-4c08b485ee84
+    name: Script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: a52ffe30-3eec-58e6-8c29-4c08b485ee84.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: 3c9232ec-bd88-5c80-8626-84e3320de4a7
+    to: a52ffe30-3eec-58e6-8c29-4c08b485ee84
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

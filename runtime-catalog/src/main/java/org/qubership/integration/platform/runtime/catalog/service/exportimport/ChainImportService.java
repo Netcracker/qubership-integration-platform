@@ -543,7 +543,11 @@ public class ChainImportService {
                 || chainResult.getStatus() == ImportEntityStatus.SKIPPED
                 || chainResult.getStatus() == ImportEntityStatus.IGNORED))
             // Attaching a commit request
-            .map(chainResult -> Pair.of(getChainCommitRequest(commitRequests, chainResult.getId()), chainResult))
+            .map(chainResult -> {
+                ChainCommitRequest request = getChainCommitRequest(commitRequests, chainResult.getId());
+                applyRequestedDeployAction(chainResult, request);
+                return Pair.of(request, chainResult);
+            })
             // Filtering out chains with NONE deploy action
             .filter(item -> {
                 ChainCommitRequestAction action = item.getLeft().getDeployAction();
@@ -622,6 +626,22 @@ public class ChainImportService {
                     BulkDeploymentStatus.FAILED_DEPLOY, e.getMessage()).forEach(resultConsumer);
             }
         });
+    }
+
+    // The result holds the archive's action and domains until the request's action replaces them
+    private static void applyRequestedDeployAction(ImportChainResult chainResult, ChainCommitRequest request) {
+        ChainCommitRequestAction action = request.getDeployAction();
+        if (isNull(action)) {
+            return;
+        }
+        chainResult.setDeployAction(action);
+        if (!ChainCommitRequestAction.DEPLOY.equals(action)) {
+            chainResult.setDeployments(Collections.emptyList());
+        } else if (CollectionUtils.isNotEmpty(request.getDomains())) {
+            chainResult.setDeployments(request.getDomains().stream()
+                    .<DeploymentExternalEntity>map(domain -> DeploymentExternalEntity.builder().domain(domain.getName()).build())
+                    .toList());
+        }
     }
 
     private ChainCommitRequest getChainCommitRequest(List<ChainCommitRequest> chainCommitRequests, String id) {

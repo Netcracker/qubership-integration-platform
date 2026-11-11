@@ -1,0 +1,33 @@
+---
+id: af75c5b5-8cbf-4917-9607-724b22038a29
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+name: mcp-trigger
+content:
+  labels: []
+  elements:
+  - id: 6a834d9c-8cb2-4339-80b2-c44ab41b7fa0
+    name: MCP Trigger
+    type: mcp-trigger
+    properties:
+      mcpServiceIds:
+      - a61e7e36-2fe7-588c-bbb9-8e116c4b88c8
+      name: snapshot_mcp_trigger
+      title: Snapshot MCP trigger
+      description: Returns a fixed response for MCP trigger component tests.
+      destructive: false
+      idempotent: false
+      inputSchema: '{"type":"object","properties":{"message":{"type":"string"}},"additionalProperties":false}'
+      openWorld: false
+      readOnly: false
+  - id: a22fa2d4-02fd-472d-be87-82a508859ef5
+    name: Script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: a22fa2d4-02fd-472d-be87-82a508859ef5.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: 6a834d9c-8cb2-4339-80b2-c44ab41b7fa0
+    to: a22fa2d4-02fd-472d-be87-82a508859ef5
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

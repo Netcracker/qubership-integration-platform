@@ -9,6 +9,7 @@ import org.apache.camel.dsl.xml.io.XmlRoutesBuilderLoader;
 import org.apache.camel.impl.DefaultCamelContext;
 import org.apache.camel.model.app.BeansDefinition;
 import org.apache.camel.spi.Resource;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.commons.lang3.reflect.FieldUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
@@ -29,16 +30,21 @@ import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
@@ -379,6 +385,119 @@ class CustomXmlRoutesBuilderLoaderTest {
 
             assertNotNull(result);
             verify(sourceProcessingNotifier).notifySourceLoaded(xmlResource);
+        }
+    }
+
+    @Test
+    void shouldPreserveConfiguredFailureWhenBuilderRegistrationIsRetried() throws Exception {
+        try (DefaultCamelContext context = new DefaultCamelContext()) {
+            AtomicInteger attempts = new AtomicInteger();
+            context.getRegistry().bind("buildAttempts", attempts);
+            loader.setCamelContext(context);
+            Resource input = builderResource("configured-value", Integer.MAX_VALUE);
+            when(errorHandlerFactory.getErrorHandler(input)).thenReturn(errorHandler);
+            doAnswer(invocation -> {
+                throw invocation.getArgument(1, Exception.class);
+            }).when(errorHandler).handleError(eq(context), any(Exception.class));
+
+            loader.preParseRoute(input);
+            assertEquals(1, attempts.get());
+            var builder = loader.loadRoutesBuilder(input);
+            Exception failure = assertThrows(Exception.class, () -> builder.addRoutesToCamelContext(context));
+
+            Throwable cause = ExceptionUtils.getRootCause(failure);
+            assertInstanceOf(IllegalArgumentException.class, cause);
+            assertEquals("Rejected configured-value", cause.getMessage());
+            assertEquals(2, attempts.get());
+            verify(sourceProcessingNotifier).notifySourceLoadFailed(input, failure);
+        }
+    }
+
+    @Test
+    void shouldRegisterConfiguredBeanWhenDeferredBuilderSucceeds() throws Exception {
+        try (DefaultCamelContext context = new DefaultCamelContext()) {
+            AtomicInteger attempts = new AtomicInteger();
+            context.getRegistry().bind("buildAttempts", attempts);
+            loader.setCamelContext(context);
+            Resource input = builderResource("configured-value", 1);
+
+            loader.preParseRoute(input);
+            assertEquals(1, attempts.get());
+            assertNull(context.getRegistry().lookupByName("configuredBean"));
+            loader.loadRoutesBuilder(input).addRoutesToCamelContext(context);
+
+            ConfiguredBean bean = context.getRegistry().lookupByNameAndType("configuredBean", ConfiguredBean.class);
+            assertNotNull(bean);
+            assertEquals("configured-value", bean.value());
+            assertEquals(2, attempts.get());
+            verify(sourceProcessingNotifier).notifySourceLoaded(input);
+        }
+    }
+
+    @Test
+    void shouldBuildBeanOnceWhenInitialRegistrationSucceeds() throws Exception {
+        try (DefaultCamelContext context = new DefaultCamelContext()) {
+            AtomicInteger attempts = new AtomicInteger();
+            context.getRegistry().bind("buildAttempts", attempts);
+            loader.setCamelContext(context);
+            Resource input = builderResource("configured-value", 0);
+
+            loader.preParseRoute(input);
+            ConfiguredBean initial = context.getRegistry().lookupByNameAndType("configuredBean", ConfiguredBean.class);
+            loader.loadRoutesBuilder(input).addRoutesToCamelContext(context);
+
+            assertNotNull(initial);
+            assertEquals("configured-value", initial.value());
+            assertSame(initial, context.getRegistry().lookupByName("configuredBean"));
+            assertEquals(1, attempts.get());
+        }
+    }
+
+    private Resource builderResource(String value, int failures) throws Exception {
+        String xml = """
+                <camel xmlns="https://camel.apache.org/schema/xml-io">
+                    <bean name="configuredBean" type="%s" builderClass="%s" builderMethod="build">
+                        <properties>
+                            <property key="value" value="%s"/>
+                            <property key="failures" value="%d"/>
+                            <property key="attempts" value="#bean:buildAttempts"/>
+                        </properties>
+                    </bean>
+                </camel>
+                """.formatted(ConfiguredBean.class.getName(), ConfiguredBeanBuilder.class.getName(), value, failures);
+        when(preprocessingService.preprocessForPreParse(xml)).thenReturn(xml);
+        when(preprocessingService.preprocess(xml)).thenReturn(xml);
+        return new SimpleResource("classpath", "routes/builder.xml", xml.getBytes(StandardCharsets.UTF_8));
+    }
+
+    public record ConfiguredBean(String value) {
+    }
+
+    public static class ConfiguredBeanBuilder {
+        private String value;
+        private int failures;
+        private AtomicInteger attempts;
+
+        public ConfiguredBeanBuilder value(String value) {
+            this.value = value;
+            return this;
+        }
+
+        public ConfiguredBeanBuilder failures(int failures) {
+            this.failures = failures;
+            return this;
+        }
+
+        public ConfiguredBeanBuilder attempts(AtomicInteger attempts) {
+            this.attempts = attempts;
+            return this;
+        }
+
+        public ConfiguredBean build() {
+            if (attempts.incrementAndGet() <= failures) {
+                throw new IllegalArgumentException("Rejected " + value);
+            }
+            return new ConfiguredBean(value);
         }
     }
 

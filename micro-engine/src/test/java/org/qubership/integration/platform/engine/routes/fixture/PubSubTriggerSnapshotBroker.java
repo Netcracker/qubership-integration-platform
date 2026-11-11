@@ -9,14 +9,15 @@ import com.google.pubsub.v1.TopicName;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.Server;
+import io.grpc.Status;
 import io.grpc.netty.NettyServerBuilder;
 
-import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 final class PubSubTriggerSnapshotBroker implements AutoCloseable {
@@ -26,28 +27,51 @@ final class PubSubTriggerSnapshotBroker implements AutoCloseable {
     private String topic;
     private String subscription;
     private PubSubEmulator emulator;
+    private SnapshotWorkerBrokerPool.Lease<PubSubEmulator> emulatorLease;
     private ManagedChannel channel;
     private PubSubSubscriberForwarder forwarder;
     private Server server;
     private PubSubConnectionProxy proxy;
 
     void start(String project, String topicName, String subscriptionName,
-               boolean missingSubscription, boolean unavailableAtStart) throws IOException {
+               boolean missingSubscription, boolean unavailableAtStart) throws Exception {
+        start(project, topicName, subscriptionName, missingSubscription, unavailableAtStart, null);
+    }
+
+    void start(String project, String topicName, String subscriptionName,
+               boolean missingSubscription, boolean unavailableAtStart, PubSubOAuthServer oauth) throws Exception {
         projectId = project;
         topicId = topicName;
         subscriptionId = subscriptionName;
         topic = TopicName.of(projectId, topicId).toString();
         subscription = SubscriptionName.of(projectId, subscriptionId).toString();
-        emulator = new PubSubEmulator();
-        emulator.start();
+        emulatorLease = SnapshotWorkerBrokerPool.acquire("pubsub-trigger:emulator", () -> {
+            PubSubEmulator created = new PubSubEmulator();
+            try {
+                created.start();
+                return created;
+            } catch (Exception | Error failure) {
+                try {
+                    created.close();
+                } catch (Exception cleanupFailure) {
+                    failure.addSuppressed(cleanupFailure);
+                }
+                throw failure;
+            }
+        });
+        emulator = emulatorLease.resource();
         emulator.createTopicWithoutSubscription(topic);
         if (!missingSubscription) {
             createSubscription();
         }
         channel = ManagedChannelBuilder.forAddress(emulator.host(), emulator.port()).usePlaintext().build();
         forwarder = new PubSubSubscriberForwarder(channel);
-        server = NettyServerBuilder.forAddress(new InetSocketAddress("127.0.0.1", 0))
-                .addService(forwarder.service()).build().start();
+        NettyServerBuilder builder = NettyServerBuilder.forAddress(new InetSocketAddress("127.0.0.1", 0))
+                .addService(forwarder.service());
+        if (oauth != null) {
+            oauth.configureTls(builder).intercept(oauth.interceptor());
+        }
+        server = builder.build().start();
         proxy = new PubSubConnectionProxy();
         proxy.start("127.0.0.1", server.getPort());
         if (unavailableAtStart) {
@@ -57,6 +81,10 @@ final class PubSubTriggerSnapshotBroker implements AutoCloseable {
 
     String endpoint() {
         return "127.0.0.1:" + proxy.port();
+    }
+
+    int port() {
+        return proxy.port();
     }
 
     String projectId() {
@@ -115,8 +143,36 @@ final class PubSubTriggerSnapshotBroker implements AutoCloseable {
         forwarder.maxDeliveriesPerMessage(maximum);
     }
 
+    void expireOutstandingLeases() {
+        forwarder.expireOutstandingLeases(subscription);
+    }
+
+    void rejectStreamingPulls(String code) {
+        forwarder.rejectStreamingPulls(Status.Code.valueOf(code));
+    }
+
+    void allowStreamingPulls() {
+        forwarder.allowStreamingPulls();
+    }
+
+    long injectedStreamingFailures() {
+        return forwarder.injectedStreamingFailures();
+    }
+
+    int streamAckDeadlineSeconds() {
+        return forwarder.streamAckDeadlineSeconds();
+    }
+
+    long leaseExtensions(List<String> messageIds) {
+        return forwarder.leaseExtensions(messageIds);
+    }
+
+    long leaseDeadlineNanos(List<String> messageIds) {
+        return forwarder.leaseDeadlineNanos(messageIds);
+    }
+
     @Override
-    public void close() throws IOException {
+    public void close() throws Exception {
         try {
             if (proxy != null) {
                 proxy.close();
@@ -137,8 +193,17 @@ final class PubSubTriggerSnapshotBroker implements AutoCloseable {
                         awaitChannel();
                     }
                 } finally {
-                    if (emulator != null) {
-                        emulator.close();
+                    if (emulatorLease != null) {
+                        try {
+                            if (forwarder != null) {
+                                assertEquals(0, forwarder.statistics().activeStreams(), "Pub/Sub forwarding streams must close before backend reuse.");
+                            }
+                            if (proxy != null) {
+                                assertEquals(0, proxy.statistics().activeConnections(), "Pub/Sub consumer connections must close before backend reuse.");
+                            }
+                        } finally {
+                            emulatorLease.close();
+                        }
                     }
                 }
             }

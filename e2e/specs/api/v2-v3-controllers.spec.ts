@@ -40,7 +40,7 @@
  * **Secrets are the one residue this suite may not create.** `SecretControllerV2` has create and
  * template and no delete, so a secret named after a run is permanent — and the local store is a
  * `ConcurrentHashMap` in the catalog process, which the `env` project's restart wipes, so it is
- * permanent for the length of a stack rather than of a repository. `e2e/AGENTS.md` states the
+ * permanent for the length of a stack rather than of a repository. `e2e-spec-authoring` states the
  * exemption in its residue section; `secretsCarryingRunToken` in `support/fixtures.ts` is the
  * reading, the case below is where it goes red, and `globalTeardown` prints the same reading for a
  * run this file is not part of.
@@ -48,6 +48,7 @@
 import { randomUUID } from "node:crypto";
 import { test, expect, secretsCarryingRunToken } from "../../support/fixtures.js";
 import { tokenized, SECRET_FIXTURE_NAME } from "../../support/run.js";
+import { DEFAULT_DOMAIN } from "../../support/catalog.js";
 import { ABSENT_UUID } from "../../support/absent.js";
 import { ensureSecretFixture } from "../../support/secret-fixture.js";
 import type {
@@ -556,6 +557,41 @@ test.describe("v2 and v3 controllers", { tag: ["@catalog"] }, () => {
       expect((after.chains ?? []).find((each) => each.id === dropped.id)?.exists).toBe(false);
 
       expect((await catalog.importSessionV3(ABSENT_UUID)).status(), "a session id nothing held").toBe(404);
+    });
+
+    // Both chains are exported with no deployment, so the archive marks both SNAPSHOT. The status
+    // used to report that archive value whatever the request asked for (#1282).
+    test("v3 reports the deploy action the request chose", { tag: ["@v3"] }, async ({ catalog, folder, run }) => {
+      const deployed = await catalog.createChain(tokenized(run, "v3act-deploy"), folder.id);
+      const parked = await catalog.createChain(tokenized(run, "v3act-none"), folder.id);
+      const archive = await catalog.exportChains([deployed.id, parked.id]);
+      await catalog.deleteChain(deployed.id);
+      await catalog.deleteChain(parked.id);
+
+      try {
+        const started = await catalog.importV3(archive, {
+          importRequest: {
+            chainCommitRequests: [
+              { id: deployed.id, deployAction: "DEPLOY", domains: [{ name: DEFAULT_DOMAIN }] },
+              { id: parked.id, deployAction: "NONE" },
+            ],
+          },
+        });
+        expect(started.status()).toBe(202);
+        const { importId } = (await started.json()) as ImportCommitResponseV3;
+
+        const session = await awaitImportV3(catalog, importId);
+        const row = (id: string) => session.result?.chains?.find((each) => each.id === id);
+        expect(row(deployed.id)).toMatchObject({ status: "CREATED", deployAction: "DEPLOY", deployments: [{ domain: DEFAULT_DOMAIN }] });
+        expect(row(parked.id)).toMatchObject({ status: "CREATED", deployAction: "NONE" });
+        expect(row(parked.id)?.deployments).toBeUndefined();
+
+        // The status has to match what the import did, not only what the request asked for.
+        expect((await catalog.listDeployments(deployed.id)).map((each) => each.domain)).toEqual([DEFAULT_DOMAIN]);
+        expect(await catalog.listDeployments(parked.id)).toEqual([]);
+      } finally {
+        await catalog.undeployAll(deployed.id).catch(() => undefined);
+      }
     });
 
     test("deprecated v2 redirects to its result and shares v3 sessions", { tag: ["@v2"] }, async ({ catalog, folder, run }) => {

@@ -32,16 +32,22 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -77,6 +83,36 @@ public final class JmsTriggerSnapshotRuntime implements AutoCloseable {
     private final List<String> receivedIds = new CopyOnWriteArrayList<>();
     private final List<String> completedIds = new CopyOnWriteArrayList<>();
     private AfterPublish afterPublish = messages -> { };
+    private final AtomicBoolean firstDeliveryHeld = new AtomicBoolean();
+    private volatile CountDownLatch deliveryHeld;
+    private volatile CountDownLatch releaseDelivery;
+    private volatile CountDownLatch firstCompletion;
+    private boolean sharedQueue;
+    private final Map<String, Deque<Exchange>> pendingCompletions = new HashMap<>();
+    private final Set<String> invocationConsumers = ConcurrentHashMap.newKeySet();
+    private volatile CountDownLatch concurrentConsumers;
+    private volatile CountDownLatch releaseConcurrentConsumers;
+
+    void sharedQueue() {
+        sharedQueue = true;
+    }
+
+    void holdConcurrentConsumers(int count) {
+        concurrentConsumers = new CountDownLatch(count);
+        releaseConcurrentConsumers = new CountDownLatch(1);
+    }
+
+    void awaitConcurrentConsumers() throws InterruptedException {
+        assertTrue(concurrentConsumers.await(20, TimeUnit.SECONDS), "JMS queue consumers did not receive concurrently.");
+    }
+
+    void releaseConcurrentConsumers() {
+        CountDownLatch release = releaseConcurrentConsumers;
+        if (release != null) {
+            release.countDown();
+        }
+    }
+
 
     @FunctionalInterface
     interface AfterPublish {
@@ -201,6 +237,27 @@ public final class JmsTriggerSnapshotRuntime implements AutoCloseable {
         afterPublish = callback;
     }
 
+    void holdFirstDelivery() {
+        deliveryHeld = new CountDownLatch(1);
+        releaseDelivery = new CountDownLatch(1);
+        firstCompletion = new CountDownLatch(1);
+    }
+
+    void awaitHeldDelivery() throws InterruptedException {
+        assertTrue(deliveryHeld.await(20, TimeUnit.SECONDS), "JMS consumer did not receive the publication before broker shutdown.");
+    }
+
+    void releaseHeldDelivery() {
+        CountDownLatch release = releaseDelivery;
+        if (release != null) {
+            release.countDown();
+        }
+    }
+
+    void awaitFirstCompletion() throws InterruptedException {
+        assertTrue(firstCompletion.await(20, TimeUnit.SECONDS), "JMS consumer did not complete its interrupted delivery.");
+    }
+
     void assertNothingDelivered() {
         assertTrue(received.isEmpty(), "JMS trigger received a message while its consumer was stopped.");
         assertTrue(completed.isEmpty(), "JMS trigger completed a message while its consumer was stopped.");
@@ -279,6 +336,10 @@ public final class JmsTriggerSnapshotRuntime implements AutoCloseable {
     }
 
     void received(Exchange exchange) throws Exception {
+        received(exchange, exchange.getFromRouteId());
+    }
+
+    void received(Exchange exchange, String consumerId) throws Exception {
         assertEquals(ExchangePattern.InOnly, exchange.getPattern(), "JMS trigger must consume messages as InOnly.");
         Exchange snapshot = copy(exchange);
         if (exchange.getIn() instanceof JmsMessage message) {
@@ -301,9 +362,18 @@ public final class JmsTriggerSnapshotRuntime implements AutoCloseable {
         }
         received.add(snapshot);
         receivedIds.add(exchange.getMessage().getHeader("JMSMessageID", String.class));
+        if (consumerId != null && invocationConsumers.add(consumerId) && concurrentConsumers != null) {
+            concurrentConsumers.countDown();
+            assertTrue(releaseConcurrentConsumers.await(30, TimeUnit.SECONDS), "JMS concurrent deliveries were not released.");
+        }
+        if (deliveryHeld != null && firstDeliveryHeld.compareAndSet(false, true)) {
+            deliveryHeld.countDown();
+            assertTrue(releaseDelivery.await(30, TimeUnit.SECONDS), "JMS fixture did not release the interrupted delivery.");
+        }
     }
 
     void completed(Exchange exchange) {
+        CountDownLatch completion = firstCompletion;
         Exchange snapshot = copy(exchange);
         if (snapshot.getException() == null && !exchange.getExchangeExtension().isFailureHandled()) {
             snapshot.setException(exchange.getProperty(Exchange.EXCEPTION_CAUGHT, Exception.class));
@@ -311,6 +381,9 @@ public final class JmsTriggerSnapshotRuntime implements AutoCloseable {
         invocationCompletions.add(snapshot);
         completedIds.add(exchange.getMessage().getHeader("JMSMessageID", String.class));
         completed.add(snapshot);
+        if (completion != null) {
+            completion.countDown();
+        }
     }
 
     private static Exchange copy(Exchange exchange) {
@@ -337,6 +410,14 @@ public final class JmsTriggerSnapshotRuntime implements AutoCloseable {
         sessions.clear();
         collectedCompletions = 0;
         redeliveryCount = 0;
+        invocationConsumers.clear();
+        pendingCompletions.clear();
+        concurrentConsumers = null;
+        releaseConcurrentConsumers = null;
+        firstDeliveryHeld.set(false);
+        deliveryHeld = null;
+        releaseDelivery = null;
+        firstCompletion = null;
         afterPublish = messages -> { };
     }
 
@@ -351,6 +432,18 @@ public final class JmsTriggerSnapshotRuntime implements AutoCloseable {
         assertTrue(completed.isEmpty(), description + " completed an unexpected extra message.");
         assertEquals(expected.getCount(), received.size(), description + " received an unexpected number of messages.");
         Map<String, Object> controls = interaction.getResponse() == null ? Map.of() : interaction.getResponse().getProperties();
+        if (controls.get("expectedConsumerCount") instanceof Number count) {
+            assertEquals(count.intValue(), invocationConsumers.size(), description + " distinct consumer count");
+        }
+        if (controls.get("expectedDuplicateCompletions") instanceof Number count) {
+            assertEquals(count.longValue(), invocationCompletions.stream()
+                    .filter(exchange -> Boolean.TRUE.equals(exchange.getProperty("CamelDuplicateMessage"))).count(),
+                    description + " duplicate completion count");
+        }
+        if (controls.get("expectedFailureCompletions") instanceof Number count) {
+            assertEquals(count.longValue(), invocationCompletions.stream().filter(exchange -> exchange.getException() != null).count(),
+                    description + " failed completion count");
+        }
         if (controls.get("expectedCompletions") instanceof List<?> values) {
             List<SnapshotFixtureExchangeExpectation> expectations = completionExpectations(values);
             assertEquals(expectations.size(), invocationCompletions.size(), description + " completion count");
@@ -481,10 +574,22 @@ public final class JmsTriggerSnapshotRuntime implements AutoCloseable {
     }
 
     private Exchange collectCompletion(String messageId, String invocationId, long deadline) throws Exception {
-        Exchange result = completed.poll(Math.max(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
-        assertNotNull(result, "JMS trigger invocation '" + invocationId + "' did not complete within 20 seconds.");
-        assertEquals(messageId, result.getMessage().getHeader("JMSMessageID"),
-                "JMS trigger completed an unexpected message for invocation '" + invocationId + "'.");
+        Exchange result = null;
+        Deque<Exchange> pending = pendingCompletions.get(messageId);
+        if (pending != null && !pending.isEmpty()) {
+            result = pending.removeFirst();
+        }
+        while (result == null) {
+            Exchange next = completed.poll(Math.max(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
+            assertNotNull(next, "JMS trigger invocation '" + invocationId + "' did not complete within 20 seconds.");
+            String nextId = next.getMessage().getHeader("JMSMessageID", String.class);
+            if (!sharedQueue || messageId.equals(nextId)) {
+                assertEquals(messageId, nextId, "JMS trigger completed an unexpected publication.");
+                result = next;
+            } else {
+                pendingCompletions.computeIfAbsent(nextId, ignored -> new ArrayDeque<>()).addLast(next);
+            }
+        }
         collectedCompletions++;
         return result;
     }
@@ -522,8 +627,16 @@ public final class JmsTriggerSnapshotRuntime implements AutoCloseable {
         assertTrue(receivedIds.stream().noneMatch(expiredIds::contains), "JMS trigger must not receive expired messages.");
         assertTrue(completedIds.stream().noneMatch(expiredIds::contains), "JMS trigger must not complete expired messages.");
         List<String> expectedIds = publishedIds.stream().filter(id -> !expiredIds.contains(id)).toList();
-        assertEquals(expectedIds, receivedIds, "JMS trigger must receive each published message once and in order.");
-        assertEquals(expectedIds, completedIds, "JMS trigger must complete each published message once and in order.");
+        if (sharedQueue) {
+            assertEquals(expectedIds.stream().sorted().toList(), receivedIds.stream().sorted().toList(),
+                    "Competing JMS consumers must receive every publication exactly once.");
+            assertEquals(expectedIds.stream().sorted().toList(), completedIds.stream().sorted().toList(),
+                    "Competing JMS consumers must complete every publication exactly once.");
+            assertTrue(pendingCompletions.values().stream().allMatch(Deque::isEmpty), "JMS has unmatched completions.");
+        } else {
+            assertEquals(expectedIds, receivedIds, "JMS trigger must receive each published message once and in order.");
+            assertEquals(expectedIds, completedIds, "JMS trigger must complete each published message once and in order.");
+        }
         assertTrue(completed.isEmpty(), "JMS trigger completed an unexpected extra message.");
         if (checkDeadLetters && !publishedIds.isEmpty()) {
             try (MessageConsumer deadLetters = deadLetterConsumer(publishedIds.stream().distinct().toList())) {

@@ -13,6 +13,7 @@ import { test, expect } from "../../support/fixtures.js";
 import { corpusFixtureNames } from "../../fixtures/templating.js";
 import {
   BROKERS_FIXTURE_DIR,
+  BROKERS_DEPLOY_TIMEOUT,
   KAFKA_CONSUMER_ATTACH_TIMEOUT,
   seedBrokers,
   writeBrokersCorpusState,
@@ -28,8 +29,8 @@ import { OVERLAY_READY_TIMEOUT } from "../../env/overlays.js";
  *
  * Sized on the same numbers `seedBrokers` actually calls with, not guessed: up to `OVERLAY_NAMES`
  * overlays (four today), `OVERLAY_READY_TIMEOUT` each (`env/overlays.ts`) for the readiness poll,
- * plus `DEPLOY_TIMEOUT` (`support/corpus.ts`) and `KAFKA_CONSUMER_ATTACH_TIMEOUT`
- * (`support/brokers.ts`) for the two waits after the last overlay is up. It leaves out the command
+ * plus `BROKERS_DEPLOY_TIMEOUT` for deployment, `DEPLOY_TIMEOUT` for routes, and
+ * `KAFKA_CONSUMER_ATTACH_TIMEOUT` for Kafka consumers. It leaves out the command
  * before each poll, which on k8s is a rollout wait bounded by `OVERLAY_READY_TIMEOUT` as well. Left
  * at the suite's 120 s default, this test's own budget is smaller than what `Env.ensureOverlay`
  * alone can legitimately take, so a broker that is genuinely slow to start fails on a bare
@@ -37,7 +38,7 @@ import { OVERLAY_READY_TIMEOUT } from "../../env/overlays.js";
  * message this seed exists to make reachable.
  */
 const BROKERS_SEED_TIMEOUT =
-  OVERLAY_NAMES.length * OVERLAY_READY_TIMEOUT + DEPLOY_TIMEOUT + KAFKA_CONSUMER_ATTACH_TIMEOUT;
+  OVERLAY_NAMES.length * OVERLAY_READY_TIMEOUT + BROKERS_DEPLOY_TIMEOUT + DEPLOY_TIMEOUT + KAFKA_CONSUMER_ATTACH_TIMEOUT;
 
 test(
   "the broker fixture corpus is imported, deployed, and answering",

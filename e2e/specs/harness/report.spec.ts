@@ -87,6 +87,7 @@ const HEADER: StackHeader = {
     recreated: [],
     started: [],
     untouched: ["consul"],
+    published: [],
     staleSupport: [],
     proxyReloaded: true,
     proxyConfigChanged: false,
@@ -165,6 +166,16 @@ test.describe("reporting layer", () => {
           status: "deployed",
           chart: "cip-k8s-dev-0.0.1",
         },
+        provision: {
+          ...HEADER.provision,
+          published: [
+            {
+              name: "testing-service",
+              image: "ghcr.io/netcracker/qubership-integration-testing-service:latest",
+              imageId: `ghcr.io/netcracker/qubership-integration-testing-service@sha256:${"cd".repeat(32)}`,
+            },
+          ],
+        },
         services: [
           {
             ...HEADER.services[0],
@@ -174,6 +185,9 @@ test.describe("reporting layer", () => {
         ],
       };
       const catalog = renderCatalog(k8sReport, header, COMPONENT_TAGS);
+      // The tag `latest` names no build, so the digest does.
+      expect(catalog).toContain(`- From GHCR: testing-service \`sha256:${"cd".repeat(32)}\``);
+      expect(renderCatalog(REPORT, HEADER, COMPONENT_TAGS)).not.toContain("From GHCR");
       expect(catalog).toContain(
         "- Helm release: cip in cip-e2e, revision 7, deployed, chart cip-k8s-dev-0.0.1, kube-context docker-desktop",
       );

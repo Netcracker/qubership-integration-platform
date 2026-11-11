@@ -1,0 +1,38 @@
+---
+id: ff1ecd98-a424-5ce4-8b53-d4b20d857fd3
+$schema: http://qubership.org/schemas/product/qip/chain
+name: kafka-trigger-typed-void
+content:
+  labels: []
+  elements:
+  - id: f8db1192-30fa-515c-83d0-48bf010ea891
+    name: Kafka Trigger long
+    type: kafka-trigger-2
+    properties:
+      autoOffsetReset: latest
+      brokers: localhost:9092
+      connectionSourceType: manual
+      consumersCount: 1
+      groupId: snapshot-kafka-trigger-typed-void
+      keyDeserializer: org.apache.kafka.common.serialization.VoidDeserializer
+      maxPollIntervalMs: 300000
+      maxPollRecords: 500
+      reconnectBackoffMaxMs: 30000
+      saslMechanism: GSSAPI
+      securityProtocol: PLAINTEXT
+      sslProtocol: TLS
+      topics: snapshot.kafka.trigger.typed.void
+      valueDeserializer: org.apache.kafka.common.serialization.VoidDeserializer
+      consumerConsistencyMode: EVENTUAL
+  - id: bb0d81e6-7c85-5478-9d26-6819b9ab2556
+    name: Describe typed records
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: bb0d81e6-7c85-5478-9d26-6819b9ab2556.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: f8db1192-30fa-515c-83d0-48bf010ea891
+    to: bb0d81e6-7c85-5478-9d26-6819b9ab2556
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

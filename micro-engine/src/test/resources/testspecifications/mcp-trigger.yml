@@ -1,0 +1,1890 @@
+# yaml-language-server: $schema=../testspecifications.schema.json
+subject: base
+deployments:
+- id: base
+  route: mcp-trigger
+- id: typed
+  route: mcp-trigger-typed
+- id: structured
+  route: mcp-trigger-structured
+- id: hints
+  route: mcp-trigger-hints
+- id: duplicate-handler
+  route: mcp-trigger-duplicate-handler
+- id: idempotency-ignore
+  route: mcp-trigger-idempotency-ignore
+- id: idempotency-throw
+  route: mcp-trigger-idempotency-throw
+- id: idempotency-subchain
+  route: mcp-trigger-idempotency-subchain
+  dependsOn:
+  - duplicate-handler
+- id: idempotency-other-context
+  route: mcp-trigger-idempotency-other-context
+- id: handled-failure
+  route: mcp-trigger-handled-failure
+- id: multi-tool
+  route: mcp-trigger-multi-tool
+- id: invalid-input-schema
+  route: mcp-trigger-invalid-input-schema
+  dependsOn:
+  - base
+- id: invalid-output-schema
+  route: mcp-trigger-invalid-output-schema
+  dependsOn:
+  - base
+- id: redeployed
+  route: mcp-trigger-redeployed
+  dependsOn:
+  - base
+- id: base-with-peer
+  route: mcp-trigger
+  dependsOn:
+  - hints
+fixtures:
+- id: base-tool
+  provider: mcp-trigger
+  deployment: base
+  sourceElementId: 6a834d9c-8cb2-4339-80b2-c44ab41b7fa0
+- id: typed-tool
+  provider: mcp-trigger
+  deployment: typed
+  sourceElementId: f9ace031-e144-5ddd-aa38-c6b11fcc3045
+- id: structured-tool
+  provider: mcp-trigger
+  deployment: structured
+  sourceElementId: bbc3c625-8ffb-5ad7-bdf0-a5a9db833e07
+- id: hints-tool
+  provider: mcp-trigger
+  deployment: hints
+  sourceElementId: db127a7a-5e5d-5379-bfc9-9bc7ec931bd7
+- id: idempotency-ignore-tool
+  provider: mcp-trigger
+  deployment: idempotency-ignore
+  sourceElementId: ec1b8915-93c2-5b1e-97f3-79bb32a7ec95
+- id: idempotency-ignore-store
+  provider: idempotency-postgres
+  deployment: idempotency-ignore
+  sourceElementId: b666d527-2e2a-59e1-a517-2f08e8b2e55d
+- id: idempotency-throw-tool
+  provider: mcp-trigger
+  deployment: idempotency-throw
+  sourceElementId: e8f64d23-38f4-5e48-b828-23c8c80a2eaf
+- id: idempotency-throw-store
+  provider: idempotency-postgres
+  deployment: idempotency-throw
+  sourceElementId: bbf4d765-0ef0-5ae9-9a6d-05bf96aeb309
+- id: idempotency-subchain-tool
+  provider: mcp-trigger
+  deployment: idempotency-subchain
+  sourceElementId: d556ce90-e691-5aa6-b7c7-cd1b2d6f8376
+- id: idempotency-subchain-store
+  provider: idempotency-postgres
+  deployment: idempotency-subchain
+  sourceElementId: b6906f6f-316a-53ac-8af9-699c3c8a4b88
+- id: idempotency-other-context-tool
+  provider: mcp-trigger
+  deployment: idempotency-other-context
+  sourceElementId: 3e4806ee-919a-5da9-ad3f-b328fdb3418e
+- id: idempotency-other-context-second-tool
+  provider: mcp-trigger
+  deployment: idempotency-other-context
+  sourceElementId: 0c966d05-bb06-5a85-91a0-3a45631e97dd
+- id: idempotency-other-context-store
+  provider: idempotency-postgres
+  deployment: idempotency-other-context
+  sourceElementId: 6585ca98-9ead-5be6-83fb-bfc450b13d7d
+- id: idempotency-other-context-second-store
+  provider: idempotency-postgres
+  deployment: idempotency-other-context
+  sourceElementId: c37c7b2f-9476-583a-8450-86ec56e7be9f
+- id: handled-failure-tool
+  provider: mcp-trigger
+  deployment: handled-failure
+  sourceElementId: 7978dc96-0ec1-5904-9a5d-15209e922d70
+- id: multi-tool-tool
+  provider: mcp-trigger
+  deployment: multi-tool
+  sourceElementId: 3bb54f89-9584-5596-9b36-9337326ae270
+- id: multi-tool-second-tool
+  provider: mcp-trigger
+  deployment: multi-tool
+  sourceElementId: e393157e-4224-5627-a4cf-9bde405b367f
+- id: invalid-input-schema-tool
+  provider: mcp-trigger
+  deployment: invalid-input-schema
+  sourceElementId: d77ba751-d21d-5ba2-9ac8-a935e13dcc4e
+- id: invalid-output-schema-tool
+  provider: mcp-trigger
+  deployment: invalid-output-schema
+  sourceElementId: 52fca17f-69c0-5570-92d0-56827fea0d19
+- id: redeployed-tool
+  provider: mcp-trigger
+  deployment: redeployed
+  sourceElementId: 26d63148-31ba-5094-b973-6825ecc53594
+- id: duplicate-handler-entry
+  provider: chain-consumer-lifecycle
+  deployment: duplicate-handler
+  sourceElementId: b053ad1e-04a8-51d6-ab94-da9d381fa062
+- id: peer-base-tool
+  provider: mcp-trigger
+  deployment: base-with-peer
+  sourceElementId: 6a834d9c-8cb2-4339-80b2-c44ab41b7fa0
+scenarios:
+- id: registers-and-invokes-the-generated-tool
+  scope: Short
+  deployment: base
+  driver:
+    provider: mcp-trigger
+    sourceElementId: 6a834d9c-8cb2-4339-80b2-c44ab41b7fa0
+  invocations:
+  - id: registers-generated-tool-metadata
+    body: {}
+    interactions:
+    - fixture: base-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - {}
+          verifyMetadata: true
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Triggered
+        isError: false
+  - id: passes-arguments-and-generated-route-identity
+    body:
+      message: first call
+    interactions:
+    - fixture: base-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - message: first call
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Triggered
+        isError: false
+  - id: preserves-utf8-and-escaped-text-arguments
+    body:
+      message: "café \"quoted\"\nnext line\tend"
+    interactions:
+    - fixture: base-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - message: "café \"quoted\"\nnext line\tend"
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Triggered
+        isError: false
+  - id: returns-text-without-an-output-schema
+    body:
+      message: ''
+    interactions:
+    - fixture: base-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - message: ''
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Triggered
+        isError: false
+  - id: rejects-an-unknown-tool-without-chain-execution
+    body: {}
+    interactions:
+    - fixture: base-tool
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedCapturedArguments: []
+    expectedBody:
+      error:
+        code: -32602
+        message: 'Invalid tool name: snapshot_missing_tool'
+    driver:
+      provider: mcp-trigger
+      sourceElementId: 6a834d9c-8cb2-4339-80b2-c44ab41b7fa0
+      parameters:
+        toolName: snapshot_missing_tool
+  - id: recovers-after-an-unknown-tool-call
+    body:
+      message: after unknown
+    interactions:
+    - fixture: base-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - message: after unknown
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Triggered
+        isError: false
+- id: preserves-arguments-through-the-native-tool-manager
+  scope: Short
+  deployment: typed
+  driver:
+    provider: mcp-trigger
+    sourceElementId: f9ace031-e144-5ddd-aa38-c6b11fcc3045
+  invocations:
+  - id: preserves-typed-and-nested-arguments
+    body:
+      message: typed café
+      number: 3.25
+      enabled: false
+      items:
+      - 1
+      - two
+      - true
+      metadata:
+        nested:
+          value: null
+        empty: []
+    interactions:
+    - fixture: typed-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - message: typed café
+            number: 3.25
+            enabled: false
+            items:
+            - 1
+            - two
+            - true
+            metadata:
+              nested:
+                value: null
+              empty: []
+          verifyMetadata: true
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Triggered
+        isError: false
+  - id: forwards-values-without-schema-enforcement
+    body:
+      message: 7
+      extra: undeclared
+    interactions:
+    - fixture: typed-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - message: 7
+            extra: undeclared
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Triggered
+        isError: false
+  - id: forwards-a-missing-required-field
+    body:
+      enabled: true
+    interactions:
+    - fixture: typed-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - enabled: true
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Triggered
+        isError: false
+  - id: accepts-an-empty-argument-map
+    body: {}
+    interactions:
+    - fixture: typed-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - {}
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Triggered
+        isError: false
+- id: publishes-tool-hints-without-enforcing-business-idempotency
+  scope: Short
+  deployment: hints
+  driver:
+    provider: mcp-trigger
+    sourceElementId: db127a7a-5e5d-5379-bfc9-9bc7ec931bd7
+  invocations:
+  - id: publishes-both-values-of-tool-annotations
+    body: {}
+    interactions:
+    - fixture: hints-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - {}
+          verifyMetadata: true
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Triggered
+        isError: false
+  - id: registers-a-tool-without-an-optional-title
+    body:
+      message: untitled
+    interactions:
+    - fixture: hints-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - message: untitled
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Triggered
+        isError: false
+  - id: repeats-business-work-when-only-the-idempotent-hint-is-set
+    body:
+      message: repeated
+    interactions:
+    - fixture: hints-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - message: repeated
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Triggered
+        isError: false
+  - id: executes-the-same-hinted-arguments-again
+    body:
+      message: repeated
+    interactions:
+    - fixture: hints-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - message: repeated
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Triggered
+        isError: false
+- id: returns-native-structured-results
+  scope: Short
+  deployment: structured
+  driver:
+    provider: mcp-trigger
+    sourceElementId: bbc3c625-8ffb-5ad7-bdf0-a5a9db833e07
+  invocations:
+  - id: returns-structured-content-with-an-output-schema
+    body:
+      message: structured café
+      items:
+      - false
+      - 2
+      metadata:
+        nested:
+          value: kept
+    interactions:
+    - fixture: structured-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - message: structured café
+            items:
+            - false
+            - 2
+            metadata:
+              nested:
+                value: kept
+          verifyMetadata: true
+    expectedBody:
+      result:
+        isError: false
+        structuredContent:
+          received:
+            message: structured café
+            items:
+            - false
+            - 2
+            metadata:
+              nested:
+                value: kept
+          marker: structured
+  - id: preserves-results-without-output-schema-enforcement
+    body:
+      mode: wrong-output
+    interactions:
+    - fixture: structured-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - mode: wrong-output
+    expectedBody:
+      result:
+        isError: false
+        structuredContent:
+          unexpected: 7
+- id: reports-native-call-failures-and-retains-call-isolation
+  scope: Long
+  deployment: base
+  driver:
+    provider: mcp-trigger
+    sourceElementId: 6a834d9c-8cb2-4339-80b2-c44ab41b7fa0
+  invocations:
+  - id: reports-unhandled-chain-failure-and-recovers
+    body:
+      mode: fail
+    interactions:
+    - fixture: base-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - mode: fail
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: MCP snapshot failure
+        isError: true
+  - id: recovers-after-an-unhandled-chain-failure
+    body:
+      message: recovered
+    interactions:
+    - fixture: base-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - message: recovered
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Triggered
+        isError: false
+  - id: uses-the-exception-class-when-its-message-is-null
+    body:
+      mode: no-message
+    interactions:
+    - fixture: base-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - mode: no-message
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: java.lang.IllegalStateException
+        isError: true
+  - id: recovers-after-a-message-less-failure
+    body:
+      message: recovered again
+    interactions:
+    - fixture: base-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - message: recovered again
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Triggered
+        isError: false
+  - id: isolates-arguments-between-sequential-calls
+    body:
+      message: first
+      requestTag: one
+    interactions:
+    - fixture: base-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - message: first
+            requestTag: one
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Triggered
+        isError: false
+  - id: omits-the-previous-call-arguments
+    body: {}
+    interactions:
+    - fixture: base-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - {}
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Triggered
+        isError: false
+  - id: reports-top-level-null-before-chain-entry
+    body:
+      message: null
+    interactions:
+    - fixture: base-tool
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedCapturedArguments: []
+    expectedBody:
+      error:
+        code: -32603
+        message: Internal error
+  - id: recovers-after-a-null-argument-rejection
+    body:
+      message: after null
+    interactions:
+    - fixture: base-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - message: after null
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Triggered
+        isError: false
+- id: correlates-concurrent-native-tool-results
+  scope: Long
+  deployment: structured
+  driver:
+    provider: mcp-trigger
+    sourceElementId: bbc3c625-8ffb-5ad7-bdf0-a5a9db833e07
+  invocations:
+  - id: correlates-concurrent-tool-calls
+    body: {}
+    interactions:
+    - fixture: structured-tool
+      expectedRequest:
+        count: 3
+      response:
+        properties:
+          expectedBusinessCount: 3
+          expectedCapturedArguments:
+          - message: parallel-0
+            number: 0
+          - message: parallel-1
+            number: 1
+          - message: parallel-2
+            number: 2
+          unorderedCapturedArguments: true
+    expectedBody:
+    - result:
+        isError: false
+        structuredContent:
+          received:
+            message: parallel-0
+            number: 0
+          marker: structured
+    - result:
+        isError: false
+        structuredContent:
+          received:
+            message: parallel-1
+            number: 1
+          marker: structured
+    - result:
+        isError: false
+        structuredContent:
+          received:
+            message: parallel-2
+            number: 2
+          marker: structured
+    driver:
+      provider: mcp-trigger
+      sourceElementId: bbc3c625-8ffb-5ad7-bdf0-a5a9db833e07
+      parameters:
+        operation: concurrent
+        parallelArguments:
+        - message: parallel-0
+          number: 0
+        - message: parallel-1
+          number: 1
+        - message: parallel-2
+          number: 2
+- id: returns-content-from-generated-error-handling
+  scope: Long
+  deployment: handled-failure
+  driver:
+    provider: mcp-trigger
+    sourceElementId: 7978dc96-0ec1-5904-9a5d-15209e922d70
+  invocations:
+  - id: returns-fallback-content-after-a-handled-failure
+    body:
+      message: handled
+    interactions:
+    - fixture: handled-failure-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - message: handled
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Fallback
+        isError: false
+- id: suppresses-and-renews-native-business-keys
+  scope: Long
+  deployment: idempotency-ignore
+  driver:
+    provider: mcp-trigger
+    sourceElementId: ec1b8915-93c2-5b1e-97f3-79bb32a7ec95
+  invocations:
+  - id: acquires-the-first-business-key
+    body:
+      key: stable
+    interactions:
+    - fixture: idempotency-ignore-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - key: stable
+    - fixture: idempotency-ignore-store
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: snapshot-mcp-idempotency-ignore:stable
+          keyExpiry: 60
+          storedKeys:
+          - snapshot-mcp-idempotency-ignore:stable
+          updatedKeys:
+          - snapshot-mcp-idempotency-ignore:stable
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Triggered
+        isError: false
+  - id: ignores-a-duplicate-business-key
+    body:
+      key: stable
+    interactions:
+    - fixture: idempotency-ignore-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedCapturedArguments:
+          - key: stable
+    - fixture: idempotency-ignore-store
+      expectedRequest:
+        count: 0
+        properties:
+          insertionAttempts: 1
+          key: snapshot-mcp-idempotency-ignore:stable
+          keyExpiry: 60
+          storedKeys:
+          - snapshot-mcp-idempotency-ignore:stable
+          updatedKeys: []
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: '{key=stable}'
+        isError: false
+  - id: accepts-a-distinct-business-key
+    body:
+      key: other
+    interactions:
+    - fixture: idempotency-ignore-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - key: other
+    - fixture: idempotency-ignore-store
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: snapshot-mcp-idempotency-ignore:other
+          keyExpiry: 60
+          storedKeys:
+          - snapshot-mcp-idempotency-ignore:other
+          - snapshot-mcp-idempotency-ignore:stable
+          updatedKeys:
+          - snapshot-mcp-idempotency-ignore:other
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Triggered
+        isError: false
+  - id: acquires-an-expiring-business-key
+    body:
+      key: expires
+    interactions:
+    - fixture: idempotency-ignore-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - key: expires
+    - fixture: idempotency-ignore-store
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: snapshot-mcp-idempotency-ignore:expires
+          keyExpiry: 60
+          storedKeys:
+          - snapshot-mcp-idempotency-ignore:expires
+          - snapshot-mcp-idempotency-ignore:other
+          - snapshot-mcp-idempotency-ignore:stable
+          updatedKeys:
+          - snapshot-mcp-idempotency-ignore:expires
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Triggered
+        isError: false
+  - id: reacquires-a-business-key-after-expiry
+    body:
+      key: expires
+    interactions:
+    - fixture: idempotency-ignore-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - key: expires
+    - fixture: idempotency-ignore-store
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: snapshot-mcp-idempotency-ignore:expires
+          keyExpiry: 60
+          storedKeys:
+          - snapshot-mcp-idempotency-ignore:expires
+          - snapshot-mcp-idempotency-ignore:other
+          - snapshot-mcp-idempotency-ignore:stable
+          updatedKeys:
+          - snapshot-mcp-idempotency-ignore:expires
+      response:
+        properties:
+          expireKey: snapshot-mcp-idempotency-ignore:expires
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Triggered
+        isError: false
+- id: reports-duplicates-and-retains-failed-business-keys
+  scope: Long
+  deployment: idempotency-throw
+  driver:
+    provider: mcp-trigger
+    sourceElementId: e8f64d23-38f4-5e48-b828-23c8c80a2eaf
+  invocations:
+  - id: acquires-a-throw-on-duplicate-key
+    body:
+      key: stable
+    interactions:
+    - fixture: idempotency-throw-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - key: stable
+    - fixture: idempotency-throw-store
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: snapshot-mcp-idempotency-throw:stable
+          keyExpiry: 60
+          storedKeys:
+          - snapshot-mcp-idempotency-throw:stable
+          updatedKeys:
+          - snapshot-mcp-idempotency-throw:stable
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Triggered
+        isError: false
+  - id: returns-a-tool-error-for-a-duplicate-key
+    body:
+      key: stable
+    interactions:
+    - fixture: idempotency-throw-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedCapturedArguments:
+          - key: stable
+    - fixture: idempotency-throw-store
+      expectedRequest:
+        count: 0
+        properties:
+          insertionAttempts: 1
+          key: snapshot-mcp-idempotency-throw:stable
+          keyExpiry: 60
+          storedKeys:
+          - snapshot-mcp-idempotency-throw:stable
+          updatedKeys: []
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Duplicated idempotency key
+        isError: true
+  - id: reserves-a-key-before-an-unhandled-business-failure
+    body:
+      key: failed
+      mode: fail
+    interactions:
+    - fixture: idempotency-throw-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - key: failed
+            mode: fail
+    - fixture: idempotency-throw-store
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: snapshot-mcp-idempotency-throw:failed
+          keyExpiry: 60
+          storedKeys:
+          - snapshot-mcp-idempotency-throw:failed
+          - snapshot-mcp-idempotency-throw:stable
+          updatedKeys:
+          - snapshot-mcp-idempotency-throw:failed
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: MCP snapshot failure
+        isError: true
+  - id: retains-the-key-after-an-unhandled-business-failure
+    body:
+      key: failed
+    interactions:
+    - fixture: idempotency-throw-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedCapturedArguments:
+          - key: failed
+    - fixture: idempotency-throw-store
+      expectedRequest:
+        count: 0
+        properties:
+          insertionAttempts: 1
+          key: snapshot-mcp-idempotency-throw:failed
+          keyExpiry: 60
+          storedKeys:
+          - snapshot-mcp-idempotency-throw:failed
+          - snapshot-mcp-idempotency-throw:stable
+          updatedKeys: []
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Duplicated idempotency key
+        isError: true
+  - id: recovers-with-a-distinct-key-after-failure
+    body:
+      key: other
+    interactions:
+    - fixture: idempotency-throw-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - key: other
+    - fixture: idempotency-throw-store
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: snapshot-mcp-idempotency-throw:other
+          keyExpiry: 60
+          storedKeys:
+          - snapshot-mcp-idempotency-throw:failed
+          - snapshot-mcp-idempotency-throw:other
+          - snapshot-mcp-idempotency-throw:stable
+          updatedKeys:
+          - snapshot-mcp-idempotency-throw:other
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Triggered
+        isError: false
+- id: runs-the-generated-duplicate-subchain
+  scope: Long
+  deployment: idempotency-subchain
+  driver:
+    provider: mcp-trigger
+    sourceElementId: d556ce90-e691-5aa6-b7c7-cd1b2d6f8376
+  invocations:
+  - id: acquires-a-subchain-business-key
+    body:
+      key: stable
+    interactions:
+    - fixture: idempotency-subchain-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - key: stable
+    - fixture: idempotency-subchain-store
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: snapshot-mcp-idempotency-subchain:stable
+          keyExpiry: 60
+          storedKeys:
+          - snapshot-mcp-idempotency-subchain:stable
+          updatedKeys:
+          - snapshot-mcp-idempotency-subchain:stable
+    - fixture: duplicate-handler-entry
+      expectedRequest:
+        count: 0
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Triggered
+        isError: false
+  - id: executes-the-exported-duplicate-handler
+    body:
+      key: stable
+    interactions:
+    - fixture: idempotency-subchain-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedCapturedArguments:
+          - key: stable
+    - fixture: idempotency-subchain-store
+      expectedRequest:
+        count: 0
+        properties:
+          insertionAttempts: 1
+          key: snapshot-mcp-idempotency-subchain:stable
+          keyExpiry: 60
+          storedKeys:
+          - snapshot-mcp-idempotency-subchain:stable
+          updatedKeys: []
+    - fixture: duplicate-handler-entry
+      expectedRequest:
+        count: 1
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Duplicate handled
+        isError: false
+  - id: executes-the-handler-for-another-duplicate
+    body:
+      key: stable
+    interactions:
+    - fixture: idempotency-subchain-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedCapturedArguments:
+          - key: stable
+    - fixture: idempotency-subchain-store
+      expectedRequest:
+        count: 0
+        properties:
+          insertionAttempts: 1
+          key: snapshot-mcp-idempotency-subchain:stable
+          keyExpiry: 60
+          storedKeys:
+          - snapshot-mcp-idempotency-subchain:stable
+          updatedKeys: []
+    - fixture: duplicate-handler-entry
+      expectedRequest:
+        count: 1
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Duplicate handled
+        isError: false
+  - id: accepts-a-distinct-subchain-business-key
+    body:
+      key: other
+    interactions:
+    - fixture: idempotency-subchain-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - key: other
+    - fixture: idempotency-subchain-store
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: snapshot-mcp-idempotency-subchain:other
+          keyExpiry: 60
+          storedKeys:
+          - snapshot-mcp-idempotency-subchain:other
+          - snapshot-mcp-idempotency-subchain:stable
+          updatedKeys:
+          - snapshot-mcp-idempotency-subchain:other
+    - fixture: duplicate-handler-entry
+      expectedRequest:
+        count: 0
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Triggered
+        isError: false
+- id: acquires-one-business-key-under-concurrent-native-calls
+  scope: Long
+  deployment: idempotency-ignore
+  driver:
+    provider: mcp-trigger
+    sourceElementId: ec1b8915-93c2-5b1e-97f3-79bb32a7ec95
+  invocations:
+  - id: acquires-one-key-under-concurrent-tool-calls
+    body: {}
+    interactions:
+    - fixture: idempotency-ignore-tool
+      expectedRequest:
+        count: 3
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - key: race
+          - key: race
+          - key: race
+          unorderedCapturedArguments: true
+          expectedResponseMultiset:
+          - result:
+              content:
+              - type: text
+                text: Triggered
+              isError: false
+          - result:
+              content:
+              - type: text
+                text: '{key=race}'
+              isError: false
+          - result:
+              content:
+              - type: text
+                text: '{key=race}'
+              isError: false
+    - fixture: idempotency-ignore-store
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 3
+          key: snapshot-mcp-idempotency-ignore:race
+          keyExpiry: 60
+          storedKeys:
+          - snapshot-mcp-idempotency-ignore:race
+          updatedKeys:
+          - snapshot-mcp-idempotency-ignore:race
+    driver:
+      provider: mcp-trigger
+      sourceElementId: ec1b8915-93c2-5b1e-97f3-79bb32a7ec95
+      parameters:
+        operation: concurrent
+        parallelArguments:
+        - key: race
+        - key: race
+        - key: race
+- id: separates-two-tool-contexts-in-one-postgresql-repository
+  scope: Long
+  deployment: idempotency-other-context
+  driver:
+    provider: mcp-trigger
+    sourceElementId: 3e4806ee-919a-5da9-ad3f-b328fdb3418e
+  invocations:
+  - id: acquires-the-key-in-the-first-context
+    body:
+      key: same
+    interactions:
+    - fixture: idempotency-other-context-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - key: same
+    - fixture: idempotency-other-context-second-tool
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedCapturedArguments: []
+    - fixture: idempotency-other-context-store
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: snapshot-mcp-first-context:same
+          keyExpiry: 60
+          storedKeys:
+          - snapshot-mcp-first-context:same
+          updatedKeys:
+          - snapshot-mcp-first-context:same
+    - fixture: idempotency-other-context-second-store
+      expectedRequest:
+        count: 0
+        properties:
+          insertionAttempts: 1
+          key: snapshot-mcp-first-context:same
+          keyExpiry: 60
+          storedKeys:
+          - snapshot-mcp-first-context:same
+          updatedKeys:
+          - snapshot-mcp-first-context:same
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Triggered
+        isError: false
+  - id: separates-idempotency-contexts-between-tools
+    body:
+      key: same
+    interactions:
+    - fixture: idempotency-other-context-tool
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedCapturedArguments: []
+    - fixture: idempotency-other-context-second-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - key: same
+    - fixture: idempotency-other-context-store
+      expectedRequest:
+        count: 0
+        properties:
+          insertionAttempts: 1
+          key: snapshot-mcp-second-context:same
+          keyExpiry: 60
+          storedKeys:
+          - snapshot-mcp-first-context:same
+          - snapshot-mcp-second-context:same
+          updatedKeys:
+          - snapshot-mcp-second-context:same
+    - fixture: idempotency-other-context-second-store
+      expectedRequest:
+        count: 1
+        properties:
+          insertionAttempts: 1
+          key: snapshot-mcp-second-context:same
+          keyExpiry: 60
+          storedKeys:
+          - snapshot-mcp-first-context:same
+          - snapshot-mcp-second-context:same
+          updatedKeys:
+          - snapshot-mcp-second-context:same
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Triggered
+        isError: false
+    driver:
+      provider: mcp-trigger
+      sourceElementId: 3e4806ee-919a-5da9-ad3f-b328fdb3418e
+      parameters:
+        toolName: snapshot_mcp_idempotency_second_context
+  - id: suppresses-the-first-context-duplicate
+    body:
+      key: same
+    interactions:
+    - fixture: idempotency-other-context-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedCapturedArguments:
+          - key: same
+    - fixture: idempotency-other-context-second-tool
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedCapturedArguments: []
+    - fixture: idempotency-other-context-store
+      expectedRequest:
+        count: 0
+        properties:
+          insertionAttempts: 1
+          key: snapshot-mcp-first-context:same
+          keyExpiry: 60
+          storedKeys:
+          - snapshot-mcp-first-context:same
+          - snapshot-mcp-second-context:same
+          updatedKeys: []
+    - fixture: idempotency-other-context-second-store
+      expectedRequest:
+        count: 0
+        properties:
+          insertionAttempts: 1
+          key: snapshot-mcp-first-context:same
+          keyExpiry: 60
+          storedKeys:
+          - snapshot-mcp-first-context:same
+          - snapshot-mcp-second-context:same
+          updatedKeys: []
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: '{key=same}'
+        isError: false
+  - id: suppresses-the-second-context-duplicate
+    body:
+      key: same
+    interactions:
+    - fixture: idempotency-other-context-tool
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedCapturedArguments: []
+    - fixture: idempotency-other-context-second-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedCapturedArguments:
+          - key: same
+    - fixture: idempotency-other-context-store
+      expectedRequest:
+        count: 0
+        properties:
+          insertionAttempts: 1
+          key: snapshot-mcp-second-context:same
+          keyExpiry: 60
+          storedKeys:
+          - snapshot-mcp-first-context:same
+          - snapshot-mcp-second-context:same
+          updatedKeys: []
+    - fixture: idempotency-other-context-second-store
+      expectedRequest:
+        count: 0
+        properties:
+          insertionAttempts: 1
+          key: snapshot-mcp-second-context:same
+          keyExpiry: 60
+          storedKeys:
+          - snapshot-mcp-first-context:same
+          - snapshot-mcp-second-context:same
+          updatedKeys: []
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: '{key=same}'
+        isError: false
+    driver:
+      provider: mcp-trigger
+      sourceElementId: 3e4806ee-919a-5da9-ad3f-b328fdb3418e
+      parameters:
+        toolName: snapshot_mcp_idempotency_second_context
+- id: registers-every-tool-in-one-generated-deployment
+  scope: Long
+  deployment: multi-tool
+  driver:
+    provider: mcp-trigger
+    sourceElementId: 3bb54f89-9584-5596-9b36-9337326ae270
+  invocations:
+  - id: keeps-one-registration-across-repeated-route-events
+    body:
+      message: first
+    interactions:
+    - fixture: multi-tool-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - message: first
+          verifyMetadata: true
+    - fixture: multi-tool-second-tool
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedCapturedArguments: []
+          verifyMetadata: true
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: First tool
+        isError: false
+  - id: calls-the-second-tool-from-the-same-deployment
+    body:
+      message: second
+    interactions:
+    - fixture: multi-tool-tool
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedCapturedArguments: []
+    - fixture: multi-tool-second-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - message: second
+          verifyMetadata: true
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Second tool
+        isError: false
+    driver:
+      provider: mcp-trigger
+      sourceElementId: 3bb54f89-9584-5596-9b36-9337326ae270
+      parameters:
+        toolName: snapshot_mcp_multi_tool_second
+- id: isolates-invalid-input-schema-registration-failure
+  scope: Long
+  deployment: invalid-input-schema
+  driver:
+    provider: mcp-trigger
+    sourceElementId: d77ba751-d21d-5ba2-9ac8-a935e13dcc4e
+  invocations:
+  - id: rejects-malformed-schema-json-during-registration
+    body: {}
+    interactions:
+    - fixture: invalid-input-schema-tool
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedCapturedArguments: []
+          expectedRegistrationFailures: 1
+          registrationFailureKind: schema
+          expectedToolPresent: false
+    - fixture: base-tool
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedCapturedArguments: []
+          verifyMetadata: true
+    driver:
+      provider: mcp-trigger
+      sourceElementId: d77ba751-d21d-5ba2-9ac8-a935e13dcc4e
+      parameters:
+        operation: list
+  - id: keeps-a-valid-tool-callable-after-registration-failure
+    body:
+      message: valid after failure
+    interactions:
+    - fixture: invalid-input-schema-tool
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedCapturedArguments: []
+          expectedToolPresent: false
+    - fixture: base-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - message: valid after failure
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Triggered
+        isError: false
+    driver:
+      provider: mcp-trigger
+      sourceElementId: d77ba751-d21d-5ba2-9ac8-a935e13dcc4e
+      parameters:
+        toolName: snapshot_mcp_trigger
+- id: isolates-invalid-output-schema-registration-failure
+  scope: Long
+  deployment: invalid-output-schema
+  driver:
+    provider: mcp-trigger
+    sourceElementId: 52fca17f-69c0-5570-92d0-56827fea0d19
+  invocations:
+  - id: rejects-malformed-output-schema-json
+    body: {}
+    interactions:
+    - fixture: invalid-output-schema-tool
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedCapturedArguments: []
+          expectedRegistrationFailures: 1
+          registrationFailureKind: schema
+          expectedToolPresent: false
+    - fixture: base-tool
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedCapturedArguments: []
+          verifyMetadata: true
+    driver:
+      provider: mcp-trigger
+      sourceElementId: 52fca17f-69c0-5570-92d0-56827fea0d19
+      parameters:
+        operation: list
+  - id: keeps-a-valid-tool-callable-after-registration-failure
+    body:
+      message: valid after failure
+    interactions:
+    - fixture: invalid-output-schema-tool
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedCapturedArguments: []
+          expectedToolPresent: false
+    - fixture: base-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - message: valid after failure
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Triggered
+        isError: false
+    driver:
+      provider: mcp-trigger
+      sourceElementId: 52fca17f-69c0-5570-92d0-56827fea0d19
+      parameters:
+        toolName: snapshot_mcp_trigger
+- id: retains-one-registration-through-stop-and-start
+  scope: Long
+  deployment: base
+  driver:
+    provider: mcp-trigger
+    sourceElementId: 6a834d9c-8cb2-4339-80b2-c44ab41b7fa0
+  invocations:
+  - id: calls-the-tool-before-route-stop
+    body:
+      message: before stop
+    interactions:
+    - fixture: base-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - message: before stop
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Triggered
+        isError: false
+  - id: preserves-registration-across-route-stop-and-start
+    body:
+      message: after start
+    interactions:
+    - fixture: base-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - message: after start
+          consumerAction: stop-start
+          verifyMetadata: true
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Triggered
+        isError: false
+  - id: cleans-up-tools-and-owned-resources-on-context-close
+    body:
+      message: before close
+    interactions:
+    - fixture: base-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - message: before close
+          verifyContextClose: true
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Triggered
+        isError: false
+- id: removes-the-tool-with-its-generated-deployment
+  scope: Long
+  deployment: base
+  driver:
+    provider: mcp-trigger
+    sourceElementId: 6a834d9c-8cb2-4339-80b2-c44ab41b7fa0
+  invocations:
+  - id: calls-the-tool-before-removal
+    body:
+      message: before removal
+    interactions:
+    - fixture: base-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - message: before removal
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Triggered
+        isError: false
+  - id: removes-tools-when-their-deployment-is-removed
+    body: {}
+    interactions:
+    - fixture: base-tool
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedCapturedArguments: []
+          consumerAction: remove
+          expectedToolPresent: false
+    expectedBody:
+      error:
+        code: -32602
+        message: 'Invalid tool name: snapshot_mcp_trigger'
+- id: isolates-tools-while-removing-one-deployment
+  scope: Long
+  deployment: base-with-peer
+  driver:
+    provider: mcp-trigger
+    sourceElementId: 6a834d9c-8cb2-4339-80b2-c44ab41b7fa0
+  invocations:
+  - id: calls-the-first-independent-deployment
+    body:
+      message: before peer removal
+    interactions:
+    - fixture: peer-base-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - message: before peer removal
+    - fixture: hints-tool
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedCapturedArguments: []
+          verifyMetadata: true
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Triggered
+        isError: false
+  - id: isolates-tools-from-independent-deployments
+    body:
+      message: peer survives removal
+    interactions:
+    - fixture: peer-base-tool
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedCapturedArguments: []
+          consumerAction: remove
+          expectedToolPresent: false
+    - fixture: hints-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - message: peer survives removal
+          verifyMetadata: true
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Triggered
+        isError: false
+    driver:
+      provider: mcp-trigger
+      sourceElementId: 6a834d9c-8cb2-4339-80b2-c44ab41b7fa0
+      parameters:
+        toolName: snapshot_mcp_hints
+  - id: rejects-the-removed-tool-while-the-peer-remains-registered
+    body: {}
+    interactions:
+    - fixture: peer-base-tool
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedCapturedArguments: []
+          expectedToolPresent: false
+    - fixture: hints-tool
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedCapturedArguments: []
+          verifyMetadata: true
+    expectedBody:
+      error:
+        code: -32602
+        message: 'Invalid tool name: snapshot_mcp_trigger'
+- id: preserves-the-original-tool-and-replaces-it-after-removal
+  scope: Long
+  deployment: redeployed
+  driver:
+    provider: mcp-trigger
+    sourceElementId: 26d63148-31ba-5094-b973-6825ecc53594
+  invocations:
+  - id: preserves-the-original-tool-after-a-name-collision
+    body:
+      message: original before replacement
+    interactions:
+    - fixture: redeployed-tool
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          deferRoutesUntilInvocation: true
+          consumerAction: reload
+          expectedBusinessCount: 0
+          expectedCapturedArguments: []
+          expectedToolPresent: false
+          expectedRegistrationFailures: 1
+          registrationFailureKind: duplicate-name
+    - fixture: base-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - message: original before replacement
+          verifyMetadata: true
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Triggered
+        isError: false
+  - id: replaces-the-handler-after-a-successful-redeployment
+    body:
+      message: replacement after removal
+    interactions:
+    - fixture: redeployed-tool
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          expectedBusinessCount: 1
+          expectedCapturedArguments:
+          - message: replacement after removal
+          consumerAction: reload
+          verifyMetadata: true
+    - fixture: base-tool
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedBusinessCount: 0
+          expectedCapturedArguments: []
+          consumerAction: remove
+          expectedToolPresent: false
+    expectedBody:
+      result:
+        content:
+        - type: text
+          text: Redeployed
+        isError: false

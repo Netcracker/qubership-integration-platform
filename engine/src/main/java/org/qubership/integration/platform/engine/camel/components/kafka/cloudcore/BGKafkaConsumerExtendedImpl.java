@@ -231,7 +231,7 @@ public class BGKafkaConsumerExtendedImpl<K, V> implements BGKafkaConsumerExtende
         props.put(GROUP_ID_CONFIG, groupId.toString());
         boolean nativeOffsetReset = groupId instanceof PlainGroupId
                 && "none".equals(props.get(AUTO_OFFSET_RESET_CONFIG));
-        if (!nativeOffsetReset && props.get(AUTO_OFFSET_RESET_CONFIG) != null) {
+        if (groupId instanceof VersionedGroupId && props.get(AUTO_OFFSET_RESET_CONFIG) != null) {
             log.warn("`{}' is not suitable with BGKafkaConsumer usage. Please switch to use OffsetSetupStrategy enum. Ignored.", AUTO_OFFSET_RESET_CONFIG);
             props.remove(AUTO_OFFSET_RESET_CONFIG);
         }

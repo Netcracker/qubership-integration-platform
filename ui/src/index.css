@@ -274,3 +274,15 @@ h1 {
 .ant-table-filter-dropdown {
   z-index: 1050;
 }
+
+.details-sidebar-body {
+  padding: 0 !important;
+}
+
+.details-sidebar-properties-group {
+  text-transform: uppercase;
+}
+
+.ant-listy-item:has(> .details-sidebar-kv-table) {
+  padding: 0 !important;
+}

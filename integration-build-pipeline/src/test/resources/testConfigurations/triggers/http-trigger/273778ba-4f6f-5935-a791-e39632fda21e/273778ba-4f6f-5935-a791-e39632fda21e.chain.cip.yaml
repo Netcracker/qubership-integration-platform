@@ -1,0 +1,42 @@
+---
+id: 273778ba-4f6f-5935-a791-e39632fda21e
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+name: http-trigger-response-filter
+content:
+  labels: []
+  elements:
+  - id: f3100394-9697-5686-9775-e31615e39784
+    name: HTTP Trigger
+    type: http-trigger
+    properties:
+      accessControlType: NONE
+      allowedContentTypes: []
+      chunked: true
+      connectTimeout: 120000
+      contextPath: filtered-response
+      externalRoute: false
+      handleChainFailureAction: default
+      handleValidationAction: default
+      httpBinding: handlingHttpBinding
+      httpMethodRestrict: GET
+      idempotency:
+        enabled: false
+        keyExpiry: 600
+        actionOnDuplicate: ignore
+      killSessionOnTimeout: false
+      privateRoute: false
+      receiveCorrelationId: false
+      rejectRequestIfNonNullBodyGetDelete: true
+      responseFilter: true
+  - id: ff7c5962-a914-52c3-b8af-f6f46b456679
+    name: Process HTTP request
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: ff7c5962-a914-52c3-b8af-f6f46b456679.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: f3100394-9697-5686-9775-e31615e39784
+    to: ff7c5962-a914-52c3-b8af-f6f46b456679
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

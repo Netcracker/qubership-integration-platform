@@ -1,0 +1,40 @@
+---
+id: cc0fcf61-da7f-5bab-9ffa-948d30e69f9b
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+name: scheduler-multi-trigger
+content:
+  labels: []
+  elements:
+  - id: c71d51d8-368f-5100-982d-88e687f415fd
+    name: Scheduler
+    type: quartz-scheduler
+    properties:
+      cron: 0/1 * * ? * *
+      deleteJob: false
+  - id: 7ebec593-dc6f-502f-aadc-3dd218fa5d00
+    name: Script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 7ebec593-dc6f-502f-aadc-3dd218fa5d00.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  - id: 8eb76110-7863-593e-a069-01cd1ef2a1d3
+    name: Scheduler
+    type: quartz-scheduler
+    properties:
+      cron: 0/1 * * ? * *
+      deleteJob: false
+  - id: 50de9fd6-0f66-5d08-91b1-8fad085e8b83
+    name: Script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 50de9fd6-0f66-5d08-91b1-8fad085e8b83.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: c71d51d8-368f-5100-982d-88e687f415fd
+    to: 7ebec593-dc6f-502f-aadc-3dd218fa5d00
+  - from: 8eb76110-7863-593e-a069-01cd1ef2a1d3
+    to: 50de9fd6-0f66-5d08-91b1-8fad085e8b83
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

@@ -1,0 +1,93 @@
+---
+id: e738eefb-5095-51fc-aa51-d982dfb9025e
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+name: http-trigger-failure-mapper
+content:
+  labels: []
+  elements:
+  - id: 13476bc1-b52e-5dab-bb07-56a8cb879fb0
+    name: HTTP Trigger
+    type: http-trigger
+    properties:
+      accessControlType: NONE
+      allowedContentTypes: []
+      chunked: true
+      connectTimeout: 120000
+      contextPath: failure-mapper
+      externalRoute: false
+      handleChainFailureAction: mapper-2
+      handleValidationAction: default
+      httpBinding: handlingHttpBinding
+      httpMethodRestrict: POST
+      idempotency:
+        enabled: false
+        keyExpiry: 600
+        actionOnDuplicate: ignore
+      killSessionOnTimeout: false
+      privateRoute: false
+      receiveCorrelationId: false
+      rejectRequestIfNonNullBodyGetDelete: true
+      chainFailureHandlerContainer:
+        mappingDescription:
+          source:
+            body:
+              name: object
+              schema:
+                id: a091a38fa23b431c9455a83fd47f62fc
+                attributes: []
+              metadata:
+                dataFormat: JSON
+                sourceType: sample
+                sourceFormat: JSON
+              definitions: []
+            headers: []
+            properties: []
+          target:
+            body:
+              name: object
+              schema:
+                id: 64d5d12aa4a848e2b7c0038ae562f7f3
+                attributes:
+                - id: 46609c222ee558d396bba016b1b51ad2
+                  name: handled
+                  type:
+                    name: string
+                  required: false
+              metadata:
+                dataFormat: JSON
+                sourceType: sample
+                sourceFormat: JSON
+              definitions: []
+            headers: []
+            properties: []
+          actions:
+          - id: f44e376750145288a01a41d5a0b8fba9
+            target:
+              kind: body
+              path:
+              - 46609c222ee558d396bba016b1b51ad2
+              type: attribute
+            sources:
+            - type: constant
+              constantId: 5c48c15a03c9513dad37171f28e4a267
+          constants:
+          - id: 5c48c15a03c9513dad37171f28e4a267
+            name: handled
+            type:
+              name: string
+            valueSupplier:
+              kind: given
+              value: chain-failure
+        throwException: true
+  - id: e12d9a24-7834-50ab-8b3a-18c00a32728c
+    name: Process HTTP request
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: e12d9a24-7834-50ab-8b3a-18c00a32728c.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: 13476bc1-b52e-5dab-bb07-56a8cb879fb0
+    to: e12d9a24-7834-50ab-8b3a-18c00a32728c
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

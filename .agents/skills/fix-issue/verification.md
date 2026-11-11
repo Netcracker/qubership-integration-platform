@@ -35,11 +35,11 @@ Companion to `SKILL.md`, gates 2 and 4.
 
 ## ui
 
-The `e2e-decision` instruction decides whether a defect gets an end-to-end case. A browser case
-goes in `e2e/specs/ui/`, following `browser.md` in the `e2e-spec-authoring` skill; the #679
-cases in `e2e/specs/ui/chain-tabs.spec.ts` are the shape. Run it with
-`cd e2e && E2E_PROVISION=never npm test -- --project=ui`, which builds and serves the bundle itself. A defect jsdom
-renders the same way gets a Jest case under `ui/tests/` instead.
+The `e2e-decision` instruction decides whether a defect gets an end-to-end case. Load the
+`e2e-spec-authoring` skill before writing one. A browser case goes in `e2e/specs/ui/`, following
+`browser.md` in that skill; the #679 cases in `e2e/specs/ui/chain-tabs.spec.ts` are the shape.
+Run it from `$WT/e2e` against the running stack, with the commands in "Reproducing one case"
+of `e2e/README.md`. A defect jsdom renders the same way gets a Jest case under `ui/tests/` instead.
 
 Evidence that does not become a case, such as a screenshot for the pull request in both themes,
 comes from a scratch script in `$TMP` that loads the end-to-end suite's Playwright. Never add Playwright
@@ -72,13 +72,8 @@ stale `dist-lib` types, and `tsc` then passed on broken code.
 cd "$WT" && npm ci && npm -w @netcracker/qip-schemas run build
 ```
 
-Static checks, from `ui/` as the working directory (`eslint` fails from the root):
-
-```bash
-cd "$WT/ui" && npx tsc --noEmit && npx eslint src/ && npx prettier --check "src/**/*.{ts,tsx,css}" && npx jest --coverage=false
-```
-
-Or hand the diff to the `npm-verifier` agent.
+Static checks: the Commands of the `ui-core-development` skill, run from `$WT/ui`, or hand the
+diff to the `npm-verifier` agent.
 
 Sonar counts every changed line in a touched file as new code. Extracting constants in a file
 you fixed once moved 27 lines and failed the coverage gate on methods the fix never touched.
@@ -105,7 +100,8 @@ generated mapper method.
 Run each scenario in the four directions the `runtime-catalog` instruction lists, and judge it
 by the body, the log, and the rows the call should have written, not by the status.
 
-When the `e2e-decision` instruction calls for an end-to-end case, it goes in `e2e/specs/api/`.
+When the `e2e-decision` instruction calls for an end-to-end case, load the `e2e-spec-authoring`
+skill; the case goes in `e2e/specs/api/`.
 
 ### See what an element compiles to
 
@@ -200,9 +196,7 @@ Add `EXPLAIN ANALYZE` for the queries that changed, and a table of medians over 
   new attribute to a `@Converter`. An `isEmpty()` added to an import result made every stored
   session unreadable and cost 13 minutes on the stand. Grep for `@Converter` and `@JsonProperty`
   on the class before adding an accessor.
-- MapStruct ignores `defaultExpression` and `SET_TO_DEFAULT` for a null collection; only
-  `@IterableMapping(nullValueMappingStrategy = RETURN_DEFAULT)` works. Read the generated
-  `*MapperImpl` under `target/generated-sources` to see what actually runs.
+- MapStruct traps are in the `monorepo` instruction, under Cross-module change tips.
 - Mutate one part of the fix at a time and record which test catches it; `git show
   origin/main:"$F" > "$F"` restores a file to its unfixed state without `git stash`. Run mutation
   builds with `-Dcheckstyle.skip=true`: an unused import or an empty block fails checkstyle before
@@ -248,7 +242,7 @@ before writing one. A run nearly missed `service-call-soap.yaml` because its she
 into another directory.
 
 ```bash
-cd vscode-extension && npx tsc --noEmit && npx eslint src tests && npx jest -c jest.config.cjs
+cd vscode-extension && npx tsc --noEmit && npx --no-install eslint src && npx jest -c jest.config.cjs
 ```
 
 The extension embeds the UI package for its dialogs. A claim that "the extension renders its own
@@ -257,9 +251,11 @@ form" once justified a stop, and it was wrong: check `@netcracker/qip-ui` import
 ## schemas
 
 A schema change is verified against documents, not against itself: export real entities from
-the catalog and validate them with `ajv` before and after. The `readOnly` keyword is honored by
-the networknt validator on the backend, so a schema edit can change what the catalog accepts;
-say which documents you validated.
+the catalog and validate them with `ajv` before and after, and say which documents you
+validated. `runtime-catalog` reads only a document's `$schema` URI and does not
+validate against these schemas. The UI and the extension
+validate with `ajv`; the networknt validator runs them only in the `schemas` tests and in
+`ai-service`.
 
 ```bash
 cd schemas && npm run build && npx jest
@@ -267,6 +263,12 @@ cd schemas && npm run build && npx jest
 
 The UI reads property descriptions from the built package, so rebuild `dist` before checking a
 form.
+
+## testing-service
+
+Reproduce through the service API at `http://localhost:8095/api/v1` (`qip-testing-service`),
+then run the checks in the `testing-service` instruction, Testing and linting, from
+`$WT/testing-service`.
 
 ## infrastructure
 

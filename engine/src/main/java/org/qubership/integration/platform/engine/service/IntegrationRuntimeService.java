@@ -34,6 +34,7 @@ import org.codehaus.groovy.control.CompilationFailedException;
 import org.jetbrains.annotations.NotNull;
 import org.qubership.integration.platform.engine.camel.CipCustomClassResolver;
 import org.qubership.integration.platform.engine.camel.CustomResilienceReifier;
+import org.qubership.integration.platform.engine.camel.components.sftp.SftpConsumerLifecycleStrategy;
 import org.qubership.integration.platform.engine.camel.context.propagation.constant.BusinessIds;
 import org.qubership.integration.platform.engine.camel.converters.FormDataConverter;
 import org.qubership.integration.platform.engine.camel.converters.SecurityAccessPolicyConverter;
@@ -563,6 +564,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         String configurationXml
     ) throws Exception {
         SpringCamelContext context = new SpringCamelContext(applicationContext);
+        context.addLifecycleStrategy(new SftpConsumerLifecycleStrategy());
 
         context.getTypeConverterRegistry().addTypeConverter(
             FormData.class,

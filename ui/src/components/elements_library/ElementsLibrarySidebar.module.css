@@ -1,10 +1,12 @@
 .sideMenu {
+  height: 100%;
   overflow: hidden;
   scrollbar-gutter: auto;
-  background: var(
-    --vscode-sideBar-background,
-    var(--vscode-editor-background, #fff)
-  ) !important;
+}
+
+.sideMenuContent {
+  display: flex;
+  flex-direction: column;
 }
 
 .sidebarSearchArea {
@@ -13,9 +15,11 @@
 }
 
 .sidebarMenuArea {
-  flex: 1;
+  flex-grow: 1;
+  flex-shrink: 1;
   min-height: 0;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   padding-bottom: 8px;
 }
 
@@ -40,15 +44,6 @@
 
 .sideMenuRight {
   border-radius: 0 8px 8px 0;
-}
-
-.sideMenu :global(.ant-layout-sider-children),
-.sideMenuRight :global(.ant-layout-sider-children) {
-  background: var(
-    --vscode-sideBar-background,
-    var(--vscode-editor-background, #fff)
-  ) !important;
-  display: flex;
 }
 
 .sideMenu :global(.ant-input-affix-wrapper) {
@@ -121,6 +116,10 @@
 
 .libraryElements :global(.ant-menu-submenu-selected > .ant-menu-submenu-title) {
   color: var(--vscode-foreground, rgb(0 0 0 / 88%)) !important;
+}
+
+.libraryElements :global(.folder-icon) {
+  color: var(--vscode-menu-selectionForeground) !important;
 }
 
 .spacedTabs :global(.ant-tabs-nav-list) {
@@ -206,4 +205,15 @@
 .rightPanelCodeBlock :global(.monaco-editor) {
   flex: 1;
   min-height: 0;
+}
+
+.left-panel-content {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.searchbar-wrapper {
+  padding: 16px;
 }

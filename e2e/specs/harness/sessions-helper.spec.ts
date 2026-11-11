@@ -13,7 +13,7 @@
  *
  * The lookup against a stack is not exercised here. It needs port 8093, and this project is defined
  * as needing no stack; `specs/runtime/http-echo.spec.ts` is where the same helper is proven against
- * the engine. The `lookups` cases run `byExternalId` and `onlyOf` over a stubbed transport instead,
+ * the engine. The `lookups` cases run the session readers over a stubbed transport instead,
  * on a base that matches no operation row, so a stubbed call is never recorded as reached.
  */
 import { test, expect, type APIRequestContext } from "@playwright/test";
@@ -178,6 +178,47 @@ test.describe("sessions helper", () => {
   // Shown failing: dropping the step check from `byExternalId` turned its two cases red, and dropping
   // it from `settledOf` turned the `onlyOf` case red.
   test.describe("lookups", () => {
+    // Shown failing: considering only the first fresh session timed out beside an already settled one.
+    for (const state of ["an unfinished execution", "no trace", "a partial trace", "an unfinished step"] as const) {
+      test(`nextOf skips a newer session with ${state}`, async () => {
+        const old = { ...recorded(), id: "before" };
+        const ready = { ...recorded(), id: "ready" };
+        const pending: RecordedSession = {
+          ...(state === "an unfinished step" ? halfIndexed() : recorded()),
+          id: "pending",
+          executionStatus: state === "an unfinished execution" ? "IN_PROGRESS" : "COMPLETED_NORMALLY",
+        };
+        if (state === "no trace") pending.sessionElements = null;
+        if (state === "a partial trace") pending.sessionElements = recorded().sessionElements!.slice(0, 1);
+        const listed = [old, pending, ready];
+        const reads: string[] = [];
+        const api = {
+          fetch(url: string, options: { method?: string } = {}) {
+            const id = url.split("/").at(-1)!;
+            if (options.method !== "POST") reads.push(id);
+            const body = options.method === "POST"
+              ? { offset: listed.length, sessions: listed.map((session) => ({ ...session, sessionElements: null })) }
+              : listed.find((session) => session.id === id);
+            return Promise.resolve({ ok: () => true, status: () => 200, text: () => Promise.resolve(JSON.stringify(body)) });
+          },
+        };
+        const sessions = new Sessions(api as unknown as APIRequestContext, { base: STUB_BASE });
+
+        const found = await sessions.nextOf("chain-1", 3, new Set([old.id]));
+
+        expect(found).toEqual(ready);
+        expect(reads).toEqual([pending.id, ready.id]);
+      });
+    }
+
+    test("nextOf polls until a new session settles", async () => {
+      const { sessions, served } = stubbedSessions([halfIndexed(), recorded()]);
+      const found = await sessions.nextOf("chain-1", 3, new Set());
+
+      expect(served()).toBe(2);
+      expect(stepsInProgress(found)).toEqual([]);
+    });
+
     test("a completed session with a step in progress is not settled", () => {
       expect(stepsInProgress(halfIndexed())).toEqual(["Validate Request"]);
       expect(isSettled(halfIndexed())).toBe(false);

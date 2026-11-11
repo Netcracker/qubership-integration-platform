@@ -1,13 +1,26 @@
 package org.qubership.integration.platform.engine.routes.tests;
 
 import com.netcracker.cloud.bluegreen.api.service.BlueGreenStatePublisher;
+import io.quarkiverse.mcp.server.http.runtime.StreamableHttpMcpMessageHandler;
+import io.quarkiverse.mcp.server.runtime.ConnectionManager;
+import io.quarkiverse.mcp.server.runtime.DefaultSchemaGenerator;
+import io.quarkiverse.mcp.server.runtime.NotificationManagerImpl;
+import io.quarkiverse.mcp.server.runtime.PromptCompletionManagerImpl;
+import io.quarkiverse.mcp.server.runtime.PromptManagerImpl;
+import io.quarkiverse.mcp.server.runtime.ResourceManagerImpl;
+import io.quarkiverse.mcp.server.runtime.ResourceTemplateCompletionManagerImpl;
+import io.quarkiverse.mcp.server.runtime.ResourceTemplateManagerImpl;
+import io.quarkiverse.mcp.server.runtime.ResponseHandlers;
+import io.quarkiverse.mcp.server.runtime.ToolManagerImpl;
 import io.quarkus.test.component.QuarkusComponentTestExtension;
 import io.quarkus.test.component.QuarkusComponentTestExtensionBuilder;
 import io.quarkus.test.component.SkipInject;
+import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import org.apache.camel.RoutesBuilder;
 import org.apache.camel.impl.DefaultCamelContext;
 import org.apache.camel.model.RouteDefinition;
+import org.apache.camel.quarkus.core.RuntimeRegistry;
 import org.apache.camel.spi.Resource;
 import org.apache.camel.support.ResourceHelper;
 import org.junit.jupiter.api.Named;
@@ -19,6 +32,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.qubership.integration.platform.engine.camel.CorrelationIdSetter;
 import org.qubership.integration.platform.engine.camel.JsonMessageValidator;
+import org.qubership.integration.platform.engine.camel.components.servlet.CustomHttpRestServletResolveConsumerStrategy;
 import org.qubership.integration.platform.engine.camel.components.servlet.ServletCustomFilterStrategy;
 import org.qubership.integration.platform.engine.camel.components.servlet.binding.HandlingHttpBinding;
 import org.qubership.integration.platform.engine.camel.components.servlet.exception.ChainGlobalExceptionHandler;
@@ -30,12 +44,21 @@ import org.qubership.integration.platform.engine.camel.dsl.notification.SourcePr
 import org.qubership.integration.platform.engine.camel.dsl.preprocess.ResourceContentPreprocessingService;
 import org.qubership.integration.platform.engine.camel.dsl.preprocess.preprocessors.RouteVariablesResolverPreprocessor;
 import org.qubership.integration.platform.engine.camel.dsl.preprocess.preprocessors.VariablesInjectorPreprocessor;
+import org.qubership.integration.platform.engine.camel.listeners.RouteEventListener;
+import org.qubership.integration.platform.engine.camel.listeners.actions.routes.added.McpToolRegistrar;
+import org.qubership.integration.platform.engine.camel.listeners.actions.routes.removed.McpToolUnregisterAction;
+import org.qubership.integration.platform.engine.camel.listeners.actions.routes.started.CommitSchedulerJobsAction;
+import org.qubership.integration.platform.engine.camel.listeners.actions.routes.stopped.ResetSchedulersProxyOnStopAction;
 import org.qubership.integration.platform.engine.camel.processors.ChainExceptionResponseHandlerProcessor;
 import org.qubership.integration.platform.engine.camel.processors.HttpTriggerFinishProcessor;
 import org.qubership.integration.platform.engine.camel.processors.HttpTriggerProcessor;
 import org.qubership.integration.platform.engine.camel.processors.InterruptExchangeProcessor;
 import org.qubership.integration.platform.engine.camel.processors.KafkaSenderProcessor;
+import org.qubership.integration.platform.engine.camel.processors.NoopProcessor;
 import org.qubership.integration.platform.engine.camel.processors.RabbitMqSenderProcessor;
+import org.qubership.integration.platform.engine.camel.processors.RabbitMqTriggerProcessor;
+import org.qubership.integration.platform.engine.camel.processors.SchedulerProcessor;
+import org.qubership.integration.platform.engine.camel.processors.SftpTriggerProcessor;
 import org.qubership.integration.platform.engine.camel.processors.context.propagation.ContextPropagationProcessor;
 import org.qubership.integration.platform.engine.camel.processors.context.propagation.ContextRestoreProcessor;
 import org.qubership.integration.platform.engine.camel.processors.context.propagation.MessagingXHeadersPropagationProcessorProxy;
@@ -48,10 +71,15 @@ import org.qubership.integration.platform.engine.configuration.tenant.TenantConf
 import org.qubership.integration.platform.engine.maas.MaasService;
 import org.qubership.integration.platform.engine.metadata.DeploymentInfo;
 import org.qubership.integration.platform.engine.routes.entrypoint.CatalogSnapshotExecutionEntryPoint;
+import org.qubership.integration.platform.engine.routes.entrypoint.execution.SnapshotDeployment;
 import org.qubership.integration.platform.engine.routes.entrypoint.execution.SnapshotExecutionPlan;
 import org.qubership.integration.platform.engine.routes.entrypoint.execution.SnapshotExecutionScenario;
 import org.qubership.integration.platform.engine.routes.entrypoint.execution.SnapshotExecutionTarget;
+import org.qubership.integration.platform.engine.routes.fixture.McpTriggerSnapshotDependencies;
+import org.qubership.integration.platform.engine.routes.fixture.SchedulerSnapshotDependencies;
+import org.qubership.integration.platform.engine.routes.fixture.SchedulerSnapshotRequestProbe;
 import org.qubership.integration.platform.engine.routes.runtime.SnapshotRuntimeDependencies;
+import org.qubership.integration.platform.engine.service.BlueGreenSchedulerControllerService;
 import org.qubership.integration.platform.engine.service.MetricTagsHelper;
 import org.qubership.integration.platform.engine.service.VariablesService;
 import org.qubership.integration.platform.engine.service.debugger.metrics.MetricsStore;
@@ -73,6 +101,27 @@ class MicroEngineSnapshotRouteExecutionTest extends SnapshotRouteExecutionTest {
     static final QuarkusComponentTestExtension COMPONENT_TEST = new QuarkusComponentTestExtensionBuilder()
             .addComponentClasses(
                     SnapshotRuntimeDependencies.class,
+                    McpTriggerSnapshotDependencies.class,
+                    SchedulerSnapshotDependencies.class,
+                    SchedulerSnapshotRequestProbe.class,
+                    BlueGreenSchedulerControllerService.class,
+                    CommitSchedulerJobsAction.class,
+                    ResetSchedulersProxyOnStopAction.class,
+                    ToolManagerImpl.class,
+                    ResponseHandlers.class,
+                    ConnectionManager.class,
+                    DefaultSchemaGenerator.class,
+                    PromptManagerImpl.class,
+                    ResourceManagerImpl.class,
+                    ResourceTemplateManagerImpl.class,
+                    PromptCompletionManagerImpl.class,
+                    ResourceTemplateCompletionManagerImpl.class,
+                    NotificationManagerImpl.class,
+                    StreamableHttpMcpMessageHandler.class,
+                    RouteEventListener.class,
+                    McpToolRegistrar.class,
+                    McpToolUnregisterAction.class,
+                    NoopProcessor.class,
                     MetricTagsHelper.class,
                     MetricsStore.class,
                     ApplicationConfiguration.class,
@@ -90,6 +139,7 @@ class MicroEngineSnapshotRouteExecutionTest extends SnapshotRouteExecutionTest {
                     ContextRestoreProcessor.class,
                     HandlingHttpBinding.class,
                     ServletCustomFilterStrategy.class,
+                    CustomHttpRestServletResolveConsumerStrategy.class,
                     ChainStartProcessor.class,
                     ChainFinishProcessor.class,
                     HttpTriggerProcessor.class,
@@ -102,6 +152,9 @@ class MicroEngineSnapshotRouteExecutionTest extends SnapshotRouteExecutionTest {
                     JsonMessageValidator.class,
                     KafkaSenderProcessor.class,
                     RabbitMqSenderProcessor.class,
+                    RabbitMqTriggerProcessor.class,
+                    SftpTriggerProcessor.class,
+                    SchedulerProcessor.class,
                     MessagingXHeadersPropagationProcessorProxy.class,
                     MessagingXHeadersPropagationRestoreProcessorProxy.class,
                     TenantConfiguration.class
@@ -122,14 +175,27 @@ class MicroEngineSnapshotRouteExecutionTest extends SnapshotRouteExecutionTest {
             .configProperty("kubernetes.variables-secret.label", "cip-variable-type")
             .configProperty("kubernetes.variables-secret.name", "snapshot-test-variables")
             .configProperty("tenant.default.id", "default-tenant")
+            .configProperty("quarkus.mcp.server.server-info.name", "snapshot-mcp-server")
+            .configProperty("quarkus.mcp.server.server-info.version", "1")
+            .configProperty("quarkus.mcp.server.connection-idle-timeout", "0s")
             .build();
 
     @Inject
     DefaultCamelContext camelContext;
 
+    // Keep the HTTP handler available for the SDK recorder's programmatic lookup.
+    @Inject
+    Instance<StreamableHttpMcpMessageHandler> mcpMessageHandler;
+
+    @Inject
+    Instance<SchedulerSnapshotRequestProbe> schedulerRequestProbe;
+
     // Keep dependencies resolved by XML bean builders in the component test's CDI container.
     @Inject
     MetricsStore metricsStore;
+
+    @Inject
+    CustomHttpRestServletResolveConsumerStrategy servletResolveConsumerStrategy;
 
     @Inject
     BlueGreenStatePublisher blueGreenStatePublisher;
@@ -170,6 +236,12 @@ class MicroEngineSnapshotRouteExecutionTest extends SnapshotRouteExecutionTest {
     @Override
     protected DefaultCamelContext createCamelContext() {
         return camelContext;
+    }
+
+    @Override
+    protected DefaultCamelContext createCamelContext(SnapshotDeployment deployment) {
+        return deployment.isIsolatedContext()
+                ? new DefaultCamelContext(new RuntimeRegistry(Map.of())) : createCamelContext();
     }
 
     @Override

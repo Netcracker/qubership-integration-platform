@@ -65,6 +65,9 @@ import { readStateFile, writeStateFile } from "./state-file.js";
 
 export { BROKERS_FIXTURE_DIR };
 
+// The 47-chain broker corpus took 94 s on a green nightly and exceeded 107 s on the next run.
+export const BROKERS_DEPLOY_TIMEOUT = 180_000;
+
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 /** Where the brokers seed leaves what it imported, mirroring `support/corpus.ts`'s `CORPUS_STATE_FILE`. */
@@ -908,7 +911,7 @@ export async function seedBrokers(
   });
 
   await deployCorpus(catalog, corpus.chains);
-  await waitForDeployed(catalog, corpus.chains);
+  await waitForDeployed(catalog, corpus.chains, BROKERS_DEPLOY_TIMEOUT);
   await waitForRoutes(env, corpus.chains);
 
   // A kafka-trigger-2 chain with no HTTP trigger carries no route for the wait above to gate on, and
