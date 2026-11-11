@@ -3,6 +3,15 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { subscribe } from "node:diagnostics_channel";
 import type { ClientRequest } from "node:http";
+import type { Socket } from "node:net";
+
+const completedSockets = new Set<Socket>();
+
+/** Called only between completed diagnostic requests. */
+export function resetDiagnosticConnections(): void {
+  for (const socket of completedSockets) socket.destroy();
+  completedSockets.clear();
+}
 import type { APIRequestContext, APIResponse } from "@playwright/test";
 
 function record(event: object): void {
@@ -18,12 +27,15 @@ subscribe("http.client.request.start", (message) => {
   const requestId = String(request.getHeader("X-Request-ID") ?? "");
   if (!requestId.startsWith("diag-")) return;
   const socket = () => ({ localAddress: request.socket?.localAddress, localPort: request.socket?.localPort, remoteAddress: request.socket?.remoteAddress, remotePort: request.socket?.remotePort, bytesRead: request.socket?.bytesRead, bytesWritten: request.socket?.bytesWritten });
-  record({ phase: "node-request", requestId, ...socket() });
+  record({ phase: "node-request", requestId, reusedSocket: request.reusedSocket, ...socket() });
   if (request.socket?.connecting) request.socket.once("connect", () => record({ phase: "connected", requestId, ...socket() }));
   request.once("finish", () => record({ phase: "request-flushed", requestId, ...socket() }));
   request.once("response", (response) => {
     record({ phase: "response-headers", requestId, status: response.statusCode, ...socket() });
-    response.once("end", () => record({ phase: "response-end", requestId, complete: response.complete, ...socket() }));
+    response.once("end", () => {
+      if (request.socket) completedSockets.add(request.socket);
+      record({ phase: "response-end", requestId, complete: response.complete, ...socket() });
+    });
     response.once("aborted", () => record({ phase: "response-aborted", requestId, ...socket() }));
   });
   request.once("error", (error) => record({ phase: "node-error", requestId, error: error.message.split("\n")[0], ...socket() }));

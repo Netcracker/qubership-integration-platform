@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import http from "node:http";
 import { test, expect } from "@playwright/test";
-import { diagnosticFetch } from "../../support/http-diagnostic.js";
+import { diagnosticFetch, resetDiagnosticConnections } from "../../support/http-diagnostic.js";
 
 test.describe("HTTP diagnostics", () => {
   for (const slow of [false, true]) {
@@ -48,4 +48,32 @@ test.describe("HTTP diagnostics", () => {
       }
     });
   }
+  test("cold probes reach the server on distinct TCP connections", async ({ playwright }, testInfo) => {
+    const previousDirectory = process.env.E2E_HTTP_DIAGNOSTIC_DIR;
+    process.env.E2E_HTTP_DIAGNOSTIC_DIR = testInfo.outputPath("cold");
+    const ports = new Set<number>();
+    const connectionHeaders: Array<string | undefined> = [];
+    const server = http.createServer((req, res) => {
+      ports.add(req.socket.remotePort!);
+      connectionHeaders.push(req.headers.connection);
+      res.end("ok");
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const api = await playwright.request.newContext();
+    try {
+      for (let index = 0; index < 10; index++) {
+        resetDiagnosticConnections();
+        const response = await diagnosticFetch(api, `http://127.0.0.1:${(server.address() as { port: number }).port}/v1/folders`, { method: "POST", data: { index } });
+        expect(response.status()).toBe(200);
+      }
+      expect(ports.size).toBe(10);
+      expect(connectionHeaders).not.toContain("close");
+    } finally {
+      await api.dispose();
+      server.closeAllConnections();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      if (previousDirectory === undefined) delete process.env.E2E_HTTP_DIAGNOSTIC_DIR;
+      else process.env.E2E_HTTP_DIAGNOSTIC_DIR = previousDirectory;
+    }
+  });
 });
