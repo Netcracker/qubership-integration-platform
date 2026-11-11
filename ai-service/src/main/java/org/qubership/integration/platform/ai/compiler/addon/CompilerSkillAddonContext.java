@@ -2,7 +2,7 @@ package org.qubership.integration.platform.ai.compiler.addon;
 
 import java.util.List;
 
-/** Runtime addon material appended to a compiler skill agent prompt. */
+/** Supplemental skill examples and legacy addon documents appended to a compiler skill prompt. */
 public record CompilerSkillAddonContext(
     List<CompilerSkillAddonDocument> globalDocuments,
     CompilerSkillAddonDocument skillAddon,

@@ -45,6 +45,8 @@ public class A2aTaskSnapshotPersister {
   private static final TypeReference<List<Map<String, Object>>> ARTIFACT_LIST_TYPE =
       new TypeReference<>() {};
 
+  @Inject org.qubership.integration.platform.ai.chat.service.ChatDecisionService decisionService;
+
   private final A2aTaskRepository taskRepository;
   private final A2aPersistedSnapshotHook snapshotHook;
   private final ObjectMapper objectMapper;
@@ -232,6 +234,19 @@ public class A2aTaskSnapshotPersister {
   }
 
   private Message statusMessage(ProjectedTask projected) {
+    if (decisionService != null && projected.state() == A2aTaskState.INPUT_REQUIRED
+        && projected.pendingAction() instanceof org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction.Clarify) {
+      var policy = decisionService.openDecision(projected.taskId()).filter(card ->
+          org.qubership.integration.platform.ai.chat.decision.PolicyChoiceSelection.ARTIFACT_TYPE.equals(card.artifactType()));
+      if (policy.isPresent()) {
+        var card = policy.get();
+        var data = Map.<String, Object>of("action", "clarify", "artifactType", card.artifactType(),
+            "artifactHash", card.artifactHash(), "revision", card.revision(), "allowedActions", card.actions(),
+            "actionLabels", card.actionLabels());
+        return Message.builder().role(Message.Role.ROLE_AGENT).messageId(java.util.UUID.randomUUID().toString())
+            .parts(List.of(new TextPart(card.question()), new DataPart(data))).build();
+      }
+    }
     List<org.a2aproject.sdk.spec.Part<?>> parts = new java.util.ArrayList<>();
     if (projected.statusText() != null && !projected.statusText().isBlank()) {
       parts.add(new TextPart(projected.statusText()));

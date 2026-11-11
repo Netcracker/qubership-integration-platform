@@ -1,9 +1,15 @@
 package org.qubership.integration.platform.ai.productpipeline.create;
 
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -15,9 +21,13 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
@@ -36,10 +46,14 @@ import org.qubership.integration.platform.ai.productpipeline.knowledge.FakeKnowl
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileCatalog;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileParser;
+import org.qubership.integration.platform.ai.productpipeline.create.orchestration.CreateChainOrchestrator;
+import org.qubership.integration.platform.ai.productpipeline.runtime.AcceptInputCommand;
 import org.qubership.integration.platform.ai.productpipeline.runtime.CreateChainTestOrchestrator;
+import org.qubership.integration.platform.ai.productpipeline.runtime.InputOrigin;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
+import org.qubership.integration.platform.ai.productpipeline.store.RunSnapshot;
 import org.qubership.integration.platform.ai.llm.agent.GateReplyAgent;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
 import org.qubership.integration.platform.ai.productpipeline.facade.ApprovalQuestionStore;
@@ -150,6 +164,59 @@ public class CreateProductPipelineCoordinatorTest {
     assertEquals(
         "requirement-discovery",
         coordinator.loadRun("conv-changes").orElseThrow().run().currentStageId());
+  }
+
+  /**
+   * A browser clarification offer on an existing run is the offer id on the accept-input command.
+   * The coordinator used to resume that run through start and leave the offer id empty.
+   */
+  @ParameterizedTest
+  @ValueSource(strings = {"offer-browser", "offer-7"})
+  void browserClarificationOfferReachesAcceptInput(String offerId) {
+    String conversationId = "conv-offer";
+    ProductPipelineRunDocument waiting =
+        new ProductPipelineRunDocument(
+            new RunSnapshot(
+                "run-offer",
+                conversationId,
+                2L,
+                RunStatus.WAITING_FOR_INPUT,
+                "requirement-discovery",
+                List.of(),
+                null,
+                "flow-1"),
+            List.of(),
+            List.of(),
+            "v1");
+    ProductPipelineRunStore runs = mock(ProductPipelineRunStore.class);
+    when(runs.loadByConversation(conversationId)).thenReturn(Optional.of(waiting));
+    CreateRunBindingStore bindings = mock(CreateRunBindingStore.class);
+    when(bindings.load(conversationId)).thenReturn(Optional.of(mock(CreateRunBinding.class)));
+    CreateChainOrchestrator runtime = mock(CreateChainOrchestrator.class);
+    when(runtime.acceptInput(any())).thenReturn(Multi.createFrom().empty());
+    CreateChainApplicationFacade facade =
+        new CreateChainApplicationFacade(
+            mock(CreateRunSelectionService.class),
+            bindings,
+            runtime,
+            runs,
+            mock(ProductPipelineProfileCatalog.class));
+    CreateProductPipelineCoordinator coordinator = new CreateProductPipelineCoordinator(facade, runs);
+    ChatRequest request = new ChatRequest();
+    request.setResolvedEffectiveUserText("Use HTTPS");
+    request.setClarificationOfferId(offerId);
+
+    coordinator.handle(request, conversationId).collect().asList().await().indefinitely();
+
+    ArgumentCaptor<AcceptInputCommand> submitted =
+        ArgumentCaptor.forClass(AcceptInputCommand.class);
+    verify(runtime).acceptInput(submitted.capture());
+    AcceptInputCommand command = submitted.getValue();
+    assertAll(
+        () -> assertEquals(offerId, command.clarificationOfferId()),
+        () -> assertEquals("Use HTTPS", command.text()),
+        () -> assertEquals(InputOrigin.TRUSTED, command.origin()),
+        () -> assertNull(command.commandId()));
   }
 
   /** A model failure must not advance a stage nobody approved. */

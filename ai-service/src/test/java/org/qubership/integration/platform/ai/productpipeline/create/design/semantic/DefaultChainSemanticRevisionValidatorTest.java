@@ -34,6 +34,47 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFa
 
 class DefaultChainSemanticRevisionValidatorTest {
   @Test
+  void rejectsConditionWithDirectContainmentButNoRegion() {
+    var base = singleConditionRevision(
+        List.of(new SemanticBranch.Condition(
+            "approved", ConditionBranchRole.IF, "${header.minute} == 0", 1, "if", List.of("call-a"))),
+        List.of(new SemanticNode.Operation("if", "condition", new SemanticProvenance(List.of())),
+            new SemanticNode.ServiceCall("call-a", "call-a", "getOrder", new SemanticProvenance(List.of()))),
+        List.of(branchEdge("edge-approved", "if", "approved"),
+            sequence("edge-call", "if", "call-a", null, null)));
+    var candidate = copy(base, base.entryPoints(), base.nodes(), base.regions(), base.executionEdges(),
+        List.of(new SemanticContainment("if", "call-a", "if")), base.mappingIntents());
+
+    var error = assertThrows(SemanticRevisionValidationException.class,
+        () -> validator.validate(candidate, CONTRACT));
+
+    assertTrue(error.getMessage().contains("Node 'if' with element type 'condition' requires a CONDITION region"),
+        error.getMessage());
+    assertDoesNotThrow(() -> validator.validate(singleConditionRevision(
+        List.of(new SemanticBranch.Condition(
+            "approved", ConditionBranchRole.IF, "${header.minute} == 0", 1, "call-a", List.of("call-a"))),
+        List.of(new SemanticNode.ServiceCall("call-a", "call-a", "getOrder", new SemanticProvenance(List.of()))),
+        List.of(branchEdge("edge-approved", "call-a", "approved"))), CONTRACT));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {
+      "${date:now:minute} % 2 == 0", "${header.minute} ==", "${header.minute",
+      "${date:now:minute} == 0", "${date-with-timezone:now:UTC:minute} == 0"
+  })
+  void rejectsMalformedCamelPredicatesBeforeGeneration(String predicate) {
+    var candidate = singleConditionRevision(
+        List.of(new SemanticBranch.Condition(
+            "approved", ConditionBranchRole.IF, predicate, 1, "call-a", List.of("call-a"))),
+        List.of(new SemanticNode.ServiceCall(
+            "call-a", "call-a", "getOrder", new SemanticProvenance(List.of()))),
+        List.of(branchEdge("edge-approved", "call-a", "approved")));
+    var error = assertThrows(IllegalArgumentException.class, () -> validator.validate(candidate, CONTRACT));
+    assertTrue(error.getMessage().contains("approved"), error.getMessage());
+    assertTrue(error.getMessage().contains("Camel Simple"), error.getMessage());
+  }
+
+  @Test
   void conditionCannotContainItsOwnerInABranch() throws Exception {
     var mapper = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
     var revision = mapper.readValue(getClass().getResourceAsStream("/recovery/e024-semantic-revision.json"),
@@ -44,7 +85,7 @@ class DefaultChainSemanticRevisionValidatorTest {
     assertTrue(error.getMessage().contains("cannot contain its owner"), error.getMessage());
     var corrected = copy(revision, revision.entryPoints(), revision.nodes(), List.of(),
         revision.executionEdges(), revision.containment(), revision.mappingIntents());
-    assertDoesNotThrow(() -> validator.validate(corrected, CONTRACT));
+    assertDoesNotThrow(() -> validate(corrected));
   }
 
 
@@ -80,9 +121,13 @@ class DefaultChainSemanticRevisionValidatorTest {
     }).toList();
     ChainSemanticRevision candidate = copy(base, base.entryPoints(), nodes, base.regions(),
         base.executionEdges(), List.of(), base.mappingIntents());
-    RequirementBrief brief = briefWithFact(splitConfigurationFact());
+    var facts = new ArrayList<>(briefFrom(candidate).facts());
+    facts.add(splitConfigurationFact());
+    RequirementBrief brief = briefWithFact(splitConfigurationFact()).withFacts(facts);
 
-    assertDoesNotThrow(() -> validator.validate(candidate, CONTRACT, brief));
+    assertDoesNotThrow(() -> validator.validate(
+        org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures.attachSuppliedFacts(candidate, brief),
+        CONTRACT, brief));
   }
 
   @ParameterizedTest
@@ -649,7 +694,7 @@ class DefaultChainSemanticRevisionValidatorTest {
         assertThrows(
             IllegalArgumentException.class,
             () -> validate(revisionWithOrphanScript()));
-    assertTrue(error.getMessage().contains("orphan script: orphan-script"), error.getMessage());
+    assertTrue(error.getMessage().contains("orphan-script"), error.getMessage());
   }
 
   @Test
@@ -668,7 +713,7 @@ class DefaultChainSemanticRevisionValidatorTest {
   }
 
   @Test
-  void acceptsBehaviorOwnedScriptWithPositiveBehaviorProvenance() {
+  void shouldAllowAnImplementationScriptForApprovedBusinessBehavior() {
     RequirementBrief brief =
         briefWithFact(
             new RequirementFact(
@@ -679,6 +724,60 @@ class DefaultChainSemanticRevisionValidatorTest {
                 "Respond with commandType=completeTask"));
     assertDoesNotThrow(
         () -> validator.validate(SemanticFixtures.linearOrdersWithCompleteTask(), CONTRACT, brief));
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void shouldRequireExecutableBehaviorBeyondCopyAndAnchorProvenance(boolean citeAnchor) {
+    var base = linearRevision();
+    var fact = new RequirementFact("compose-result", RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.BEHAVIOR, "", "Combine the upstream results into the final response.");
+    var nodes = base.nodes().stream().map(node -> "op-shared".equals(node.nodeId())
+        ? (SemanticNode) new SemanticNode.Operation(node.nodeId(), "script", new SemanticProvenance(List.of(fact.sourceFactId())))
+        : citeAnchor && node instanceof SemanticNode.ServiceCall call
+            ? new SemanticNode.ServiceCall(call.nodeId(), call.serviceCallId(), call.operation(),
+                new SemanticProvenance(List.of(fact.sourceFactId()))) : node).toList();
+    var candidate = copy(base, base.entryPoints(), nodes, base.regions(), base.executionEdges(), base.containment(), base.mappingIntents());
+    var brief = briefFrom(candidate).withFacts(List.of(fact));
+
+    var failure = assertThrows(IllegalArgumentException.class, () -> validator.validate(candidate, CONTRACT, brief));
+    assertTrue(failure.getMessage().contains("compose-result"), failure.getMessage());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"http-sender", "kafka-sender-2", "chain-call-2", "log-record", "checkpoint", "header-modification"})
+  void shouldNotTreatUnownedOperationProvenanceAsAdditionalBodyGeneration(String type) {
+    var base = linearRevision();
+    var fact = new RequirementFact("compose-result", RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.BEHAVIOR, "", "Combine the upstream results into the response.");
+    var nodes = new ArrayList<SemanticNode>(base.nodes().stream().map(node -> "op-shared".equals(node.nodeId())
+        ? (SemanticNode) new SemanticNode.Operation(node.nodeId(), "script", new SemanticProvenance(List.of(fact.sourceFactId())))
+        : node).toList());
+    nodes.add(new SemanticNode.Operation("sender", type, new SemanticProvenance(List.of(fact.sourceFactId()))));
+    var candidate = copy(base, base.entryPoints(), nodes, base.regions(), base.executionEdges(), base.containment(), base.mappingIntents());
+    assertThrows(IllegalArgumentException.class, () -> org.qubership.integration.platform.ai.plan.mapping.ScriptExecutionAuthority
+        .requireMappingBehaviorSites(briefFrom(candidate).withFacts(List.of(fact)), candidate));
+  }
+
+  @Test
+  void shouldAllowIntrinsicBehaviorCitedOnlyOnTheNativeAnchor() {
+    var base = linearRevision();
+    var fact = new RequirementFact("native-failure", RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.BEHAVIOR, "", "Use the native service call failure propagation.");
+    var nodes = base.nodes().stream().map(node -> node instanceof SemanticNode.ServiceCall call
+        ? (SemanticNode) new SemanticNode.ServiceCall(call.nodeId(), call.serviceCallId(), call.operation(),
+            new SemanticProvenance(List.of(fact.sourceFactId()))) : node).toList();
+    var candidate = copy(base, base.entryPoints(), nodes, base.regions(), base.executionEdges(), base.containment(), base.mappingIntents());
+    assertDoesNotThrow(() -> validator.validate(candidate, CONTRACT, briefFrom(candidate).withFacts(List.of(fact))));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"Use this exact script: return 'author'", "```groovy\nreturn 'author'\n```"})
+  void shouldNotTreatUnclassifiedAuthorCodeAsGeneratedBusinessBehavior(String source) {
+    var fact = new RequirementFact(SemanticFixtures.COMPLETE_TASK_FACT_ID, RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.BEHAVIOR, "", source);
+    assertThrows(IllegalArgumentException.class, () -> validator.validate(
+        SemanticFixtures.linearOrdersWithCompleteTask(), CONTRACT, briefWithFact(fact)));
   }
 
   @Test
@@ -697,12 +796,91 @@ class DefaultChainSemanticRevisionValidatorTest {
             () ->
                 validator.validate(
                     SemanticFixtures.linearOrdersWithCompleteTask(), CONTRACT, brief));
-    assertTrue(error.getMessage().contains("orphan script:"), error.getMessage());
+    assertTrue(error.getMessage().contains("no executable authority"), error.getMessage());
   }
 
   @Test
-  void acceptsErrorHandlingScriptInApprovedRegion() {
-    assertDoesNotThrow(() -> validate(errorScopeRevision("catch-all")));
+  void rejectsErrorHandlingScriptsWithOnlyRegionMembership() {
+    var revision = errorScopeRevision("catch-all");
+    assertThrows(IllegalArgumentException.class,
+        () -> validator.validate(revision, CONTRACT, new RequirementBrief(
+            "Orders", List.of(), List.of(), List.of(), List.of(), "summary")));
+  }
+
+  @Test
+  void acceptsSourceClassifiedBehaviorForItsOwnScript() {
+    var revision = SemanticFixtures.linearOrdersWithCompleteTask();
+    String nodeId = SemanticFixtures.COMPLETE_TASK_NODE_ID;
+    var fact = org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures.generatedBehavior(
+        nodeId, "Return Hello world");
+    var brief = briefFrom(revision).withFacts(List.of(fact));
+
+    assertDoesNotThrow(() -> validator.validate(
+        org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures.attachSuppliedFacts(revision, brief),
+        CONTRACT, brief));
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"wrong-node", "missing-provenance"})
+  void rejectsApprovedBehaviorOutsideItsOwningScript(String mismatch) {
+    var revision = SemanticFixtures.linearOrdersWithCompleteTask();
+    String nodeId = "wrong-node".equals(mismatch) ? "unrelated-script" : SemanticFixtures.COMPLETE_TASK_NODE_ID;
+    var fact = org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures.generatedBehavior(
+        nodeId, "Return Hello world");
+    var brief = briefFrom(revision).withFacts(List.of(fact));
+
+    var error = assertThrows(IllegalArgumentException.class, () -> validator.validate(revision, CONTRACT, brief));
+    assertTrue(error.getMessage().contains("no executable authority"), error.getMessage());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"BEHAVIOR", "CONSTRAINT"})
+  void everySupplementaryScriptFactNeedsProvenanceOnItsOwner(String kind) throws Exception {
+    var revision = SemanticFixtures.linearOrdersWithCompleteTask();
+    var first = org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures.generatedBehavior(
+        SemanticFixtures.COMPLETE_TASK_NODE_ID, "Return a greeting.");
+    var json = new com.fasterxml.jackson.databind.ObjectMapper();
+    com.fasterxml.jackson.databind.node.ObjectNode data = json.valueToTree(first);
+    data.put("sourceFactId", "supplementary").put("kind", kind).put("text", "Use the approved supplementary requirement.");
+    var second = json.treeToValue(data, RequirementFact.class);
+    var brief = briefFrom(revision).withFacts(List.of(first, second));
+    var complete = org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures
+        .attachSuppliedFacts(revision, brief);
+    var incomplete = org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures
+        .attachSuppliedFacts(revision, brief.withFacts(List.of(first)));
+    assertDoesNotThrow(() -> validator.validate(complete, CONTRACT, brief));
+    var rejected = assertThrows(IllegalArgumentException.class, () -> validator.validate(incomplete, CONTRACT, brief));
+    assertTrue(rejected.getMessage().contains("ELEMENT_INTENT_REALIZATION: fact=supplementary"), rejected.getMessage());
+  }
+
+  @Test
+  void suppliedBodyAuthorizesItsBodylessSemanticShell() {
+    var revision = SemanticFixtures.linearOrdersWithCompleteTask();
+    var brief = briefFrom(revision).withFacts(List.of(
+        org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures.suppliedFact(
+            SemanticFixtures.COMPLETE_TASK_NODE_ID, "  exchange.in.body = [commandType:'completeTask']\n")));
+    assertDoesNotThrow(() -> validator.validate(
+        org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures.attachSuppliedFacts(revision, brief),
+        CONTRACT, brief));
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"generated-candidate", "foreign-node", "invalid-range"})
+  void unsupportedBodyBindingsDoNotAuthorizeSemanticShells(String partition) {
+    var revision = SemanticFixtures.linearOrdersWithCompleteTask();
+    String body = "return 1";
+    var fact = org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures.bodyFact(
+        "foreign-node".equals(partition) ? "another-script" : SemanticFixtures.COMPLETE_TASK_NODE_ID,
+        body, "generated-candidate".equals(partition)
+            ? org.qubership.integration.platform.ai.plan.RequirementBodyBinding.Authority.GENERATED_CANDIDATE
+            : org.qubership.integration.platform.ai.plan.RequirementBodyBinding.Authority.VERBATIM_SOURCE_BODY,
+        "invalid-range".equals(partition) ? -1 : 0, body.length());
+    var brief = briefFrom(revision).withFacts(List.of(fact));
+    var failure = assertThrows(IllegalArgumentException.class,
+        () -> validator.validate(
+            org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures.attachSuppliedFacts(revision, brief),
+            CONTRACT, brief));
+    assertTrue(failure.getMessage().contains("no executable authority"), failure.getMessage());
   }
 
   @Test
@@ -897,12 +1075,19 @@ class DefaultChainSemanticRevisionValidatorTest {
   }
 
   private void validate(ChainSemanticRevision revision) {
-    validator.validate(revision, CONTRACT, briefFrom(revision));
+    var brief = briefFrom(revision);
+    validator.validate(org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures
+        .attachSuppliedFacts(revision, brief), CONTRACT, brief);
   }
 
   private static RequirementBrief briefFrom(ChainSemanticRevision revision) {
     return new RequirementBrief("Orders", List.of(), List.of(), List.of(), List.of(), "summary")
-        .withMappingIntents(revision.mappingIntents());
+        .withMappingIntents(revision.mappingIntents()).withFacts(revision.nodes().stream()
+            .filter(node -> node instanceof SemanticNode.Operation operation && "script".equals(operation.elementType())
+                && !List.of("orphan-script", "op-shared").contains(node.nodeId()))
+            .map(node -> org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures
+                .suppliedFact(node.nodeId(), "return null"))
+            .toList());
   }
 
   private static RequirementBrief briefWithFact(RequirementFact fact) {
@@ -980,9 +1165,9 @@ class DefaultChainSemanticRevisionValidatorTest {
             "condition-1",
             List.of(
                 new SemanticBranch.Condition(
-                    "approved", ConditionBranchRole.IF, "status == 'ok'", 1, "call-a", List.of("call-a")),
+                    "approved", ConditionBranchRole.IF, "${header.status} == 'ok'", 1, "call-a", List.of("call-a")),
                 new SemanticBranch.Condition(
-                    "rejected", ConditionBranchRole.IF, "status != 'ok'", 2, "call-b", List.of("call-b"))),
+                    "rejected", ConditionBranchRole.IF, "${header.status} != 'ok'", 2, "call-b", List.of("call-b"))),
             "script-common");
     List<SemanticExecutionEdge> edges =
         List.of(
@@ -1187,14 +1372,14 @@ class DefaultChainSemanticRevisionValidatorTest {
                 new SemanticBranch.Condition(
                     "approved",
                     ConditionBranchRole.IF,
-                    "status == 'ok'",
+                    "${header.status} == 'ok'",
                     1,
                     "call-a",
                     List.of("call-a")),
                 new SemanticBranch.Condition(
                     "rejected",
                     ConditionBranchRole.IF,
-                    "status != 'ok'",
+                    "${header.status} != 'ok'",
                     2,
                     "call-b",
                     List.of("call-b"))),
@@ -1300,7 +1485,7 @@ class DefaultChainSemanticRevisionValidatorTest {
             new SemanticBranch.Condition(
                 "approved",
                 ConditionBranchRole.IF,
-                "status == 'ok'",
+                "${header.status} == 'ok'",
                 1,
                 "call-a",
                 List.of("call-a")),
@@ -1327,14 +1512,14 @@ class DefaultChainSemanticRevisionValidatorTest {
             new SemanticBranch.Condition(
                 "approved",
                 ConditionBranchRole.IF,
-                "status == 'ok'",
+                "${header.status} == 'ok'",
                 1,
                 "call-a",
                 List.of("call-a")),
             new SemanticBranch.Condition(
                 "rejected",
                 ConditionBranchRole.IF,
-                "status != 'ok'",
+                "${header.status} != 'ok'",
                 1,
                 "call-b",
                 List.of("call-b"))),

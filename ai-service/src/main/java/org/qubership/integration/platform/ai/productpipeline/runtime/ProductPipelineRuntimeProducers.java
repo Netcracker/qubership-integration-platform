@@ -162,6 +162,14 @@ public class ProductPipelineRuntimeProducers {
     return new CompilerRunPinResolver(
         packRepository.loadCompilerPipelineIndex(),
         skillId -> {
+          // These stages run in Java; pin their machine definitions rather than placeholder prompts.
+          if (Set.of("cip-design-planner", "cip-design-executor").contains(skillId)) {
+            String hash = packRepository.loadManifest().addonSha256().get(skillId);
+            if (hash == null || hash.isBlank()) {
+              throw new IllegalStateException("Missing Java stage definition: " + skillId);
+            }
+            return hash;
+          }
           CompilerSkillDocument document = skillDocuments.loadByCapabilityId(skillId);
           return sha256Hex(document.markdown());
         });
@@ -190,6 +198,17 @@ public class ProductPipelineRuntimeProducers {
 
   @Produces
   @ApplicationScoped
+  FailureNarrative failureNarrative(FailureNarrativeAgent agent, AppConfig appConfig) {
+    AppConfig.CreateConfig.FailureNarrativeConfig narrativeConfig = appConfig.create().failureNarrative();
+    return new FailureNarrative(
+        agent,
+        narrativeConfig.maxCallsPerRun(),
+        narrativeConfig.timeout(),
+        appConfig.create().runCacheIdleTimeout());
+  }
+
+  @Produces
+  @ApplicationScoped
   ProductPipelineRunSupport runSupport(
       ProductPipelineRunStore runs,
       ProductPipelineArtifactStore artifacts,
@@ -197,7 +216,7 @@ public class ProductPipelineRuntimeProducers {
       ProductPipelineProfileCatalog profileCatalog,
       CompilerRunPinResolver compilerRunPinResolver,
       ApprovalPromptAgent approvalPromptAgent,
-      FailureNarrativeAgent failureNarrativeAgent,
+      FailureNarrative failureNarrative,
       S3Service s3Service,
       AppConfig appConfig,
       RecoveryOutcomeTelemetry recoveryTelemetry,
@@ -208,9 +227,10 @@ public class ProductPipelineRuntimeProducers {
       SchemaResourceLoader schemaResourceLoader,
       SchemaRefResolver schemaRefResolver,
       DeterministicElementSchemaService schemaService,
-      org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations) {
-    AppConfig.CreateConfig.FailureNarrativeConfig narrativeConfig =
-        appConfig.create().failureNarrative();
+      org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations,
+      org.qubership.integration.platform.ai.plan.RequirementDraftStore requirementDrafts,
+      org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore captureFeedback,
+      org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryTestControl recoveryControl) {
     return new ProductPipelineRunSupport(
         runs,
         artifacts,
@@ -220,11 +240,7 @@ public class ProductPipelineRuntimeProducers {
         Clock.systemUTC(),
         new ApprovalPrompts(approvalPromptAgent),
             s3Service,
-            new FailureNarrative(
-                failureNarrativeAgent,
-                narrativeConfig.maxCallsPerRun(),
-                narrativeConfig.timeout(),
-                appConfig.create().runCacheIdleTimeout()),
+            failureNarrative,
             appConfig.create().runCacheIdleTimeout(),
             appConfig.create().repeatedFailureThreshold(),
             new RecoveryAttemptLedger(
@@ -240,7 +256,9 @@ public class ProductPipelineRuntimeProducers {
             objectMapper,
             schemaResourceLoader,
             schemaRefResolver,
-            schemaService).withConversations(conversations).withLlmBudget(llmRunBudget);
+            schemaService).withConversations(conversations).withLlmBudget(llmRunBudget)
+                .withNativeRequirementCapture(requirementDrafts, captureFeedback)
+                .withRecoveryControl(recoveryControl);
   }
 
   @Produces

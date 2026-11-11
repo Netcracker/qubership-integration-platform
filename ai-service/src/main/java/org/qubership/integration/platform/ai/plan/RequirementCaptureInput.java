@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.plan;
 
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingValue;
 import java.util.List;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFailureMode;
@@ -47,8 +48,21 @@ public final class RequirementCaptureInput {
       @NullableCaptureValue(description = "Only for a CONSTRAINT tied to one interaction: company policy,"
           + " requested and recommended property values, persisted question ID, and the user's decision.")
           RequirementPolicyConflict policyConflict,
-      @NullableCaptureValue(description = "Explicit requested element, local node, inline hook, or chain name. Copy exact author values; null when unspecified.")
-          RequirementElementIntent elementIntent) {
+      @NullableCaptureValue(description = "Element realization for this fact. Preserve explicit author names and values; repair model-selected wiring only through source-bound review. Null when unnecessary.")
+          RequirementElementIntent elementIntent,
+      @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+      @com.fasterxml.jackson.annotation.JsonProperty(required = false)
+      @NullableCaptureValue(description = "Required for a new claim: sourceTurnId and an exact quote from that user turn."
+          + " Omit it when the claim is already in the saved semantic baseline or when replaying a legacy accepted fact."
+          + " During business anchor repair, retain any evidence already recorded on the accepted fact.")
+          ClaimEvidenceInput evidence) {
+
+    public FactInput(
+        String sourceFactId, List<String> interactionIds, FactKind kind, Polarity polarity,
+        String text, FieldMappingInput fieldMapping, RequirementPolicyConflict policyConflict,
+        RequirementElementIntent elementIntent) {
+      this(sourceFactId, interactionIds, kind, polarity, text, fieldMapping, policyConflict, elementIntent, null);
+    }
 
     public FactInput(
         String sourceFactId, List<String> interactionIds, FactKind kind, Polarity polarity,
@@ -69,18 +83,40 @@ public final class RequirementCaptureInput {
     }
   }
 
+  /** Exact quote from one saved user turn. Null on a legacy fact or a claim already in the baseline. */
+  public record ClaimEvidenceInput(String sourceTurnId, String quote) {}
+
   public record FieldMappingInput(
       String sourceInteractionId,
-      @NullableCaptureValue(description = "One source field path, never a field list. Use null and"
-          + " describe the inputs in expression for computed values or retained context.") String sourcePath,
+      @NullableCaptureValue(description = "Legacy source field path. Use null with typed value; retained context"
+          + " keeps its original interaction, port and path in value.source.") String sourcePath,
       String targetInteractionId,
       String targetPath,
-      @NullableCaptureValue String expression) {}
+      @NullableCaptureValue String expression,
+      @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+      @com.fasterxml.jackson.annotation.JsonProperty(required = false)
+      @NullableCaptureValue(description = "COPY value with its exact interaction, port, and source path; null for legacy content.")
+          MappingValue value,
+      @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+      @com.fasterxml.jackson.annotation.JsonProperty(required = false)
+          String missingSourcePolicy) {
+    public FieldMappingInput(String sourceInteractionId, String sourcePath, String targetInteractionId,
+        String targetPath, String expression) {
+      this(sourceInteractionId, sourcePath, targetInteractionId, targetPath, expression, null, null);
+    }
+
+    public FieldMappingInput(String sourceInteractionId, String sourcePath, String targetInteractionId,
+        String targetPath, String expression,
+        MappingValue value) {
+      this(sourceInteractionId, sourcePath, targetInteractionId, targetPath, expression, value, null);
+    }
+  }
 
   public enum FactKind {
     GOAL,
     PARAMETER,
     FIELD_MAPPING,
+    MESSAGE_SCHEMA,
     BEHAVIOR,
     CONSTRAINT,
     VISIBILITY,
@@ -127,7 +163,14 @@ public final class RequirementCaptureInput {
     CONNECT
   }
 
-  public record QuestionInput(String questionId, List<String> interactionIds, String text) {}
+  public record QuestionInput(String questionId, List<String> interactionIds, String text,
+      @NullableCaptureValue(description = "Target field, remaining uncertainty, and every reviewed author source turn ID."
+          + " Re-read saved sources before asking, including the latest answer; null only for legacy questions.")
+      org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence evidence) {
+    public QuestionInput(String questionId, List<String> interactionIds, String text) {
+      this(questionId, interactionIds, text, null);
+    }
+  }
 
   public record DraftSettings(
       @NullableCaptureValue Boolean idsRequested,
@@ -149,21 +192,75 @@ public final class RequirementCaptureInput {
   }
 
   public record DraftUpdate(
-      List<InteractionInput> addInteractions,
-      List<InteractionInput> updateInteractions,
-      List<String> removeInteractionIds,
-      List<TransitionInput> addTransitions,
-      List<TransitionInput> removeTransitions,
-      List<FactInput> addFacts,
-      List<FactInput> updateFacts,
-      List<String> removeFactIds,
-      List<CapabilityInput> setCapabilities,
-      List<String> removeCapabilityInteractionIds,
-      List<QuestionInput> addQuestions,
-      List<QuestionInput> updateQuestions,
-      List<String> removeQuestionIds,
+      @NullableCaptureValue List<InteractionInput> addInteractions,
+      @NullableCaptureValue List<InteractionInput> updateInteractions,
+      @NullableCaptureValue List<String> removeInteractionIds,
+      @NullableCaptureValue List<TransitionInput> addTransitions,
+      @NullableCaptureValue List<TransitionInput> removeTransitions,
+      @NullableCaptureValue List<FactInput> addFacts,
+      @NullableCaptureValue List<FactInput> updateFacts,
+      @NullableCaptureValue List<String> removeFactIds,
+      @NullableCaptureValue List<CapabilityInput> setCapabilities,
+      @NullableCaptureValue List<String> removeCapabilityInteractionIds,
+      @NullableCaptureValue List<QuestionInput> addQuestions,
+      @NullableCaptureValue List<QuestionInput> updateQuestions,
+      @NullableCaptureValue List<String> removeQuestionIds,
       @NullableCaptureValue DraftSettings settings,
-      List<AmendmentInput> amendments) {
+      @NullableCaptureValue List<AmendmentInput> amendments,
+      @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+      @com.fasterxml.jackson.annotation.JsonProperty(required = false)
+      @NullableCaptureValue(description = "Exact pendingProposal.token from readRequirementDraft; only for focused"
+          + " repair of the current rejected initial proposal. Omit or use null for accepted-draft updates.")
+      String pendingProposalToken,
+      @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+      @com.fasterxml.jackson.annotation.JsonProperty(required = false)
+      @NullableCaptureValue(description = "Focused answer-repair disposition for the pinned question."
+          + " Omit it on an ordinary gather call. The server derives ANSWER when the pinned target changes"
+          + " or its question closes.")
+      ClarificationDispositionInput clarificationDisposition) {
+
+    public DraftUpdate {
+      addInteractions = addInteractions == null ? List.of() : addInteractions;
+      updateInteractions = updateInteractions == null ? List.of() : updateInteractions;
+      removeInteractionIds = removeInteractionIds == null ? List.of() : removeInteractionIds;
+      addTransitions = addTransitions == null ? List.of() : addTransitions;
+      removeTransitions = removeTransitions == null ? List.of() : removeTransitions;
+      addFacts = addFacts == null ? List.of() : addFacts;
+      updateFacts = updateFacts == null ? List.of() : updateFacts;
+      removeFactIds = removeFactIds == null ? List.of() : removeFactIds;
+      setCapabilities = setCapabilities == null ? List.of() : setCapabilities;
+      removeCapabilityInteractionIds = removeCapabilityInteractionIds == null ? List.of() : removeCapabilityInteractionIds;
+      addQuestions = addQuestions == null ? List.of() : addQuestions;
+      updateQuestions = updateQuestions == null ? List.of() : updateQuestions;
+      removeQuestionIds = removeQuestionIds == null ? List.of() : removeQuestionIds;
+      amendments = amendments == null ? List.of() : amendments;
+    }
+
+    public DraftUpdate(
+        List<InteractionInput> addInteractions, List<InteractionInput> updateInteractions,
+        List<String> removeInteractionIds, List<TransitionInput> addTransitions,
+        List<TransitionInput> removeTransitions, List<FactInput> addFacts, List<FactInput> updateFacts,
+        List<String> removeFactIds, List<CapabilityInput> setCapabilities,
+        List<String> removeCapabilityInteractionIds, List<QuestionInput> addQuestions,
+        List<QuestionInput> updateQuestions, List<String> removeQuestionIds, DraftSettings settings,
+        List<AmendmentInput> amendments, String pendingProposalToken) {
+      this(addInteractions, updateInteractions, removeInteractionIds, addTransitions, removeTransitions,
+          addFacts, updateFacts, removeFactIds, setCapabilities, removeCapabilityInteractionIds,
+          addQuestions, updateQuestions, removeQuestionIds, settings, amendments, pendingProposalToken, null);
+    }
+
+    public DraftUpdate(
+        List<InteractionInput> addInteractions, List<InteractionInput> updateInteractions,
+        List<String> removeInteractionIds, List<TransitionInput> addTransitions,
+        List<TransitionInput> removeTransitions, List<FactInput> addFacts, List<FactInput> updateFacts,
+        List<String> removeFactIds, List<CapabilityInput> setCapabilities,
+        List<String> removeCapabilityInteractionIds, List<QuestionInput> addQuestions,
+        List<QuestionInput> updateQuestions, List<String> removeQuestionIds, DraftSettings settings,
+        List<AmendmentInput> amendments) {
+      this(addInteractions, updateInteractions, removeInteractionIds, addTransitions, removeTransitions,
+          addFacts, updateFacts, removeFactIds, setCapabilities, removeCapabilityInteractionIds,
+          addQuestions, updateQuestions, removeQuestionIds, settings, amendments, null);
+    }
 
     public DraftUpdate(
         List<InteractionInput> addInteractions, List<InteractionInput> updateInteractions,
@@ -182,4 +279,18 @@ public final class RequirementCaptureInput {
       String path,
       String sourceTurnId,
       String quote) {}
+
+  /**
+   * Ephemeral answer classification. Admission reads it and the accepted draft does not store it.
+   */
+  public record ClarificationDispositionInput(
+      String questionId,
+      org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Disposition disposition,
+      String sourceTurnId,
+      String exactQuote,
+      List<String> candidateValues) {
+    public ClarificationDispositionInput {
+      candidateValues = candidateValues == null ? List.of() : List.copyOf(candidateValues);
+    }
+  }
 }

@@ -20,7 +20,7 @@ class SingleKnowledgeBackendArchitectureTest {
   private static final Path MODULE_ROOT = resolveModuleRoot();
   private static final Path REPO_ROOT = MODULE_ROOT.getParent();
   private static final Path AI_SERVICE = MODULE_ROOT;
-  private static final Path SKILLS = REPO_ROOT.resolve("integration-platform-skills");
+  private static final Path SKILLS = REPO_ROOT.resolve(".private/rocky-skills");
 
   private static final List<String> FORBIDDEN_LEGACY_SYMBOLS =
       List.of(
@@ -74,11 +74,12 @@ class SingleKnowledgeBackendArchitectureTest {
 
   @Test
   @org.junit.jupiter.api.Tag("certified-pack")
-  void certifiedPackKeepsItsKnowledgeSource() {
-    assertTrue(Files.isDirectory(SKILLS.resolve("knowledge/default")));
-    assertTrue(
-        Files.isRegularFile(
-            SKILLS.resolve("knowledge/default/ai/GENERATOR_CONTRACTS.md")));
+  void certifiedKnowledgeIsSeparateFromSkills() {
+    assertFalse(Files.exists(SKILLS.resolve("knowledge")));
+    assertFalse(Files.exists(SKILLS.resolve("knowledge-export")));
+    var export = SKILLS.resolveSibling("rocky-knowledge");
+    assertTrue(Files.isRegularFile(export.resolve("runtime-certification.yaml")));
+    assertTrue(Files.isRegularFile(export.resolve("objects.jsonl")));
   }
 
   @Test

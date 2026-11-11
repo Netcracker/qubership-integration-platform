@@ -2,8 +2,10 @@ package org.qubership.integration.platform.ai.plan;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
@@ -29,7 +31,8 @@ public record RequirementDraft(
     RequirementFlow flow,
     List<CatalogBindingHint> catalogBindings,
     String preferredSystemType,
-    RequirementCaptureInput.DraftInput authoredDraft) {
+    RequirementCaptureInput.DraftInput authoredDraft,
+    @JsonInclude(JsonInclude.Include.NON_EMPTY) Map<String, UploadedSpecOperations.Binding> uploadedSpecBindings) {
 
   public RequirementDraft {
     decision = decision != null ? decision : decisionFromComplete(complete);
@@ -45,7 +48,21 @@ public record RequirementDraft(
     flow = flow == null ? RequirementFlow.EMPTY : flow;
     catalogBindings = catalogBindings == null ? List.of() : List.copyOf(catalogBindings);
     preferredSystemType = normalizePreferredSystemType(preferredSystemType);
+    uploadedSpecBindings = uploadedSpecBindings == null ? Map.of() : Map.copyOf(uploadedSpecBindings);
     complete = decision == DraftDecision.READY_FOR_PLAN && openQuestions.isEmpty();
+  }
+
+  public RequirementDraft(
+      boolean complete, String assembledText, DraftDecision decision, List<String> openQuestions,
+      String sourceSkillId, String sourceSkillVersion, String sourceSkillHash,
+      ApiHubRequirementRefs apiHubCandidate, boolean awaitingPlanContinuation,
+      List<RequirementFact> facts, boolean importIntent, String apiHubCandidateInteractionId,
+      Boolean idsRequested, RequirementFlow flow, List<CatalogBindingHint> catalogBindings,
+      String preferredSystemType, RequirementCaptureInput.DraftInput authoredDraft) {
+    this(complete, assembledText, decision, openQuestions, sourceSkillId, sourceSkillVersion,
+        sourceSkillHash, apiHubCandidate, awaitingPlanContinuation, facts, importIntent,
+        apiHubCandidateInteractionId, idsRequested, flow, catalogBindings, preferredSystemType,
+        authoredDraft, Map.of());
   }
 
   public RequirementDraft(
@@ -424,7 +441,7 @@ public record RequirementDraft(
             authoredDraft.openQuestions(), new RequirementCaptureInput.DraftSettings(
                 authoredDraft.settings().idsRequested(),
                 normalized == null ? null : RequirementCaptureInput.SystemType.valueOf(normalized),
-                authoredDraft.settings().targetFolderPath())));
+                authoredDraft.settings().targetFolderPath())), uploadedSpecBindings);
   }
 
   public boolean readyForPlan() {
@@ -516,7 +533,7 @@ public record RequirementDraft(
             authoredDraft.flow(), authoredDraft.facts(), authoredDraft.capabilities(),
             authoredDraft.openQuestions(), new RequirementCaptureInput.DraftSettings(
                 requested, authoredDraft.settings().preferredSystemType(),
-                authoredDraft.settings().targetFolderPath())));
+                authoredDraft.settings().targetFolderPath())), uploadedSpecBindings);
   }
 
   /** Same draft with a captured business interaction graph. */
@@ -538,7 +555,7 @@ public record RequirementDraft(
         nextFlow,
         catalogBindings,
         preferredSystemType,
-        authoredDraft);
+        authoredDraft, uploadedSpecBindings);
   }
 
   /**
@@ -590,7 +607,7 @@ public record RequirementDraft(
         flow,
         List.copyOf(next),
         preferredSystemType,
-        authoredDraft);
+        authoredDraft, uploadedSpecBindings);
   }
 
   public RequirementDraft withBoundServiceCall(String interactionId, CatalogBindingHint hint) {
@@ -615,7 +632,7 @@ public record RequirementDraft(
         flow,
         catalogBindings,
         preferredSystemType,
-        authoredDraft);
+        authoredDraft, uploadedSpecBindings);
   }
 
   /**
@@ -645,7 +662,7 @@ public record RequirementDraft(
         flow,
         catalogBindings,
         preferredSystemType,
-        authoredDraft);
+        authoredDraft, uploadedSpecBindings);
   }
 
   /** Clears the pending candidate while keeping {@link #importIntent()} for re-gather. */
@@ -667,7 +684,7 @@ public record RequirementDraft(
         flow,
         catalogBindings,
         preferredSystemType,
-        authoredDraft);
+        authoredDraft, uploadedSpecBindings);
   }
 
   public RequirementDraft withImportIntent(boolean intent) {
@@ -688,7 +705,7 @@ public record RequirementDraft(
         flow,
         catalogBindings,
         preferredSystemType,
-        authoredDraft);
+        authoredDraft, uploadedSpecBindings);
   }
 
   public RequirementDraft withFacts(List<RequirementFact> nextFacts) {
@@ -709,7 +726,7 @@ public record RequirementDraft(
         flow,
         catalogBindings,
         preferredSystemType,
-        authoredDraft);
+        authoredDraft, uploadedSpecBindings);
   }
 
   public RequirementDraft withAssembledText(String next) {
@@ -730,7 +747,7 @@ public record RequirementDraft(
         flow,
         catalogBindings,
         preferredSystemType,
-        authoredDraft);
+        authoredDraft, uploadedSpecBindings);
   }
 
   public java.util.Optional<CatalogBindingHint> catalogBinding(String interactionId) {

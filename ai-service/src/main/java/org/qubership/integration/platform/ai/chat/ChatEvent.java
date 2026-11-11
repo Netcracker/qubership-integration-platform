@@ -7,6 +7,7 @@ import java.util.Objects;
 import org.qubership.integration.platform.ai.chat.activity.ActivityDisplayLabels;
 import org.qubership.integration.platform.ai.productpipeline.facade.PendingAction;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
+import org.qubership.integration.platform.ai.productpipeline.runtime.HaltRecoveryGuard;
 
 /**
  * One item a {@code ScenarioHandler} emits during a chat turn. Handlers produce typed events only;
@@ -18,6 +19,10 @@ public sealed interface ChatEvent {
   String APPROVE_ACTION = "approve";
 
   String REQUEST_CHANGES_ACTION = "request-changes";
+
+  String KEEP_REQUESTED_ACTION = "keep-requested";
+
+  String USE_RECOMMENDED_ACTION = "use-recommended";
 
   /** Leaves requirement discussion and starts planning from the ready draft. */
   String CONTINUE_TO_PLANNING_ACTION = "continue-to-planning";
@@ -47,6 +52,8 @@ public sealed interface ChatEvent {
   String UPLOADED_IMPORT_EXTERNAL_MARKER =
       "Import the uploaded specification as an external service";
 
+  String UPLOADED_IMPORT_CONFIRMED_MARKER = "Import the uploaded specifications";
+
   static boolean isImportAction(String action) {
     return IMPORT_ACTION.equals(action)
         || IMPORT_INTERNAL_ACTION.equals(action)
@@ -73,7 +80,8 @@ public sealed interface ChatEvent {
         || stripped.startsWith("Answered ")
         || stripped.startsWith(IMPORT_MARKER)
         || stripped.startsWith(UPLOADED_IMPORT_MARKER)
-        || stripped.startsWith(UPLOADED_IMPORT_EXTERNAL_MARKER);
+        || stripped.startsWith(UPLOADED_IMPORT_EXTERNAL_MARKER)
+        || stripped.startsWith(UPLOADED_IMPORT_CONFIRMED_MARKER);
   }
 
   /** Writes a proposed change into a chain the user already has: irreversible, so never a model's. */
@@ -434,8 +442,10 @@ public sealed interface ChatEvent {
           null);
     }
     if (pending instanceof PendingAction.Clarify clarify) {
+      String offerId = clarify.clarificationOfferId();
+      String id = offerId == null || offerId.isBlank() ? "clarify:" + revision : offerId;
       return new Decision(
-          "clarify:" + revision,
+          id,
           clarify.action(),
           text,
           null,
@@ -695,20 +705,23 @@ public sealed interface ChatEvent {
       case PipelineGates.MAPPING_GAP -> MAPPING_GAP_ACTIONS;
       case PipelineGates.STAGE_RETRY -> List.of(PipelineGates.RETRY_ACTION);
       case PipelineGates.RECOVERY_RETRY_TECHNICAL,
-              PipelineGates.RECOVERY_REGENERATE_EXECUTION ->
+              PipelineGates.RECOVERY_REGENERATE_EXECUTION,
+              PipelineGates.RECOVERY_CATALOG_RECHECK ->
           List.of(RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION);
       case PipelineGates.RECOVERY_REVISE_BRIEF ->
           List.of(EDIT_REQUIREMENTS_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION);
+      // Retry creation reruns the design with a fresh budget; a Rebuild design click would rerun it without one.
       case PipelineGates.RECOVERY_REBUILD_DESIGN ->
-          List.of(REBUILD_DESIGN_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION);
+          List.of(RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION);
       case PipelineGates.RECOVERY_REBUILD_PLAN ->
-          List.of(REBUILD_PLAN_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION);
+          List.of(REBUILD_PLAN_ACTION, RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION);
       case PipelineGates.RECOVERY_REPAIR_ALLOWANCE ->
           List.of(PipelineGates.CONTINUE_REPAIR_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION);
-      case PipelineGates.RECOVERY_ENVIRONMENT,
-              PipelineGates.RECOVERY_INTERNAL,
-              PipelineGates.RECOVERY_REPEATED,
+      case PipelineGates.RECOVERY_REPEATED,
               PipelineGates.RECOVERY_UNCLASSIFIED ->
+          List.of(RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION);
+      case PipelineGates.RECOVERY_ENVIRONMENT,
+              PipelineGates.RECOVERY_INTERNAL ->
           List.of(PipelineGates.STOP_WITH_REPORT_ACTION);
       case PipelineGates.STAGE_REVISE ->
           List.of(PipelineGates.RETRY_ACTION, PipelineGates.REVISE_ACTION);
@@ -726,6 +739,7 @@ public sealed interface ChatEvent {
       return null;
     }
     return switch (gateId) {
+      case PipelineGates.RECOVERY_CATALOG_RECHECK -> "catalog-read-back";
       case PipelineGates.RECOVERY_RETRY_TECHNICAL -> "temporary-technical-failure";
       case PipelineGates.RECOVERY_REGENERATE_EXECUTION -> "regeneratable-execution-failure";
       case PipelineGates.RECOVERY_REVISE_BRIEF -> "requirement-brief-defect";
@@ -749,6 +763,10 @@ public sealed interface ChatEvent {
     String title;
     String preservedWork;
     switch (gate) {
+      case PipelineGates.RECOVERY_CATALOG_RECHECK -> {
+        title = "Catalog verification paused";
+        preservedWork = "The existing chain and its approved plan are saved.";
+      }
       case PipelineGates.RECOVERY_RETRY_TECHNICAL -> {
         title = "Creation paused temporarily";
         preservedWork = "Your requirements and saved progress remain available.";
@@ -815,7 +833,34 @@ public sealed interface ChatEvent {
         && mappingGapSourceIsMissing(clarify.missingEvidence())) {
       return List.of();
     }
-    return actionsForGate(clarify.gateId());
+    List<String> actions = actionsForGate(clarify.gateId());
+    String refused = refusedAction(clarify);
+    return actions == null || refused == null
+        ? actions : actions.stream().filter(action -> !refused.equals(action)).toList();
+  }
+
+  /**
+   * The action the card's guard says cannot work, or {@code null}. Retry creation reruns a stage, and no rerun can
+   * undo a chain the catalog already holds. On the Rebuild plan card, the ledger refuses the author's reopen of a plan
+   * this run already reopened for the defect, or once the recovery ceiling is spent, while Retry creation still
+   * returns to the plan. On the Edit requirements card, a defect no stage owns leaves nothing to reopen. On any other
+   * card, a guard naming an earlier owner the ledger will not reopen leaves Retry creation rerunning the current
+   * stage, which cannot correct that owner's defect.
+   */
+  private static String refusedAction(PendingAction.Clarify clarify) {
+    String guard = clarify.guard();
+    if (HaltRecoveryGuard.CATALOG_ALREADY_WRITTEN.name().equals(guard)) {
+      return RETRY_CREATION_ACTION;
+    }
+    if (PipelineGates.RECOVERY_REBUILD_PLAN.equals(clarify.gateId())) {
+      return HaltRecoveryGuard.OWNER_ALREADY_REOPENED.name().equals(guard)
+          || HaltRecoveryGuard.RUN_RECOVERY_CEILING.name().equals(guard) ? REBUILD_PLAN_ACTION : null;
+    }
+    if (PipelineGates.RECOVERY_REVISE_BRIEF.equals(clarify.gateId())) {
+      return HaltRecoveryGuard.BLANK_OR_UNAPPROVED_OWNER.name().equals(guard) ? EDIT_REQUIREMENTS_ACTION : null;
+    }
+    return HaltRecoveryGuard.OWNER_ALREADY_REOPENED.name().equals(guard)
+        || HaltRecoveryGuard.MAX_CAUSAL_REOPENS.name().equals(guard) ? RETRY_CREATION_ACTION : null;
   }
 
   /** True for an internal blank wait that must not become an empty decision card. */

@@ -311,8 +311,11 @@ class MappingContractExhaustedRecoveryTest {
     assertEquals(PipelineGates.RECOVERY_REPEATED, PipelineGates.gateOf(prompt).orElse(""));
     assertEquals(
         HaltRecoveryGuard.MAX_CAUSAL_REOPENS.name(), PipelineGates.guardOf(prompt).orElse(""));
-    List<String> actions = ChatEvent.actionsForGate(PipelineGates.gateOf(prompt).orElseThrow());
-    assertFalse(actions.contains(ChatEvent.EDIT_REQUIREMENTS_ACTION), actions.toString());
+    List<String> actions = ChatEvent.actionsForClarify(
+        new org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction.Clarify(
+            PipelineGates.strip(prompt), List.of(), PipelineGates.gateOf(prompt).orElseThrow(), "", null, "", "", "",
+            PipelineGates.guardOf(prompt).orElse("")));
+    assertEquals(List.of(PipelineGates.STOP_WITH_REPORT_ACTION), actions);
   }
 
   private CreateChainTestOrchestrator haltAfterRepeatedMappingFailure(FailureNarrative narrative) {

@@ -26,6 +26,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.qubership.integration.platform.ai.chat.attachment.UploadedSpecAttachment;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
@@ -39,11 +41,14 @@ import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogM
 import org.qubership.integration.platform.ai.integration.catalog.materialize.UploadedSpecImportOutcome;
 import org.qubership.integration.platform.ai.integration.catalog.pipeline.CatalogMutationGateway;
 import org.qubership.integration.platform.ai.plan.DraftDecision;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureProjection;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
+import org.qubership.integration.platform.ai.plan.UploadedSpecOperations;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
@@ -852,15 +857,46 @@ class AutoUploadedSpecImportCapabilityTest {
   }
 
   @Test
+  void importsIntoStagedCorrectionWithoutPersistingIt() {
+    var gateway = mock(CatalogMutationGateway.class);
+    var conversations = mock(ConversationService.class);
+    var artifacts = mock(ProductPipelineArtifactStore.class);
+    var handler = new UploadedSpecsApprovalHandler(conversations, mock(S3Service.class));
+    var drafts = admittingStore();
+    var staged = draft();
+    var accepted = omWfmDraft();
+    var authority = new RequirementDraftStore.WriteAuthority(null, "generation", "turn");
+    when(drafts.writeAuthority("conv-1")).thenReturn(authority);
+    when(drafts.get("conv-1")).thenReturn(Optional.of(accepted));
+    when(drafts.isCurrentSourceCorrection("conv-1", authority, staged)).thenReturn(true);
+    var draftRef = requirementDraftRef();
+    stubRequirementDraft(artifacts, draftRef, staged);
+    when(conversations.getAllowedAttachmentKeys("conv-1")).thenReturn(List.of("uploads/orders-api.yaml"));
+    when(gateway.importUploadedSpec(eq("conv-1"), any(UploadedSpecAttachment.class), eq("INTERNAL")))
+        .thenReturn(Uni.createFrom().item(new UploadedSpecImportOutcome("key", "sys", "group", "spec", false)));
+    var approval = approvalRef();
+    stubApprovedRecord(artifacts, approval, handler.attachmentHash("conv-1"));
+    var capability = new AutoUploadedSpecImportCapability(gateway, conversations, artifacts, handler,
+        mock(CatalogBindingMatcher.class), drafts);
+
+    var result = run(capability, staged, List.of(draftRef, approval));
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, result.outcome().outcomeClass(), result.outcome().message());
+    assertEquals(staged, result.outcome().candidates().getFirst().payload());
+    verify(drafts, never()).putIfCurrent(any(), any(), any());
+  }
+
+  @Test
   void importsAttachmentsWhenInputDraftHasNoCatalogBinding() {
     CatalogMutationGateway gateway = mock(CatalogMutationGateway.class);
     ConversationService conversationService = mock(ConversationService.class);
     ProductPipelineArtifactStore artifactStore = mock(ProductPipelineArtifactStore.class);
     UploadedSpecsApprovalHandler handler =
         new UploadedSpecsApprovalHandler(conversationService, mock(S3Service.class));
+    var drafts = admittingStore();
     AutoUploadedSpecImportCapability capability =
         new AutoUploadedSpecImportCapability(
-            gateway, conversationService, artifactStore, handler, mock(CatalogBindingMatcher.class), admittingStore());
+            gateway, conversationService, artifactStore, handler, mock(CatalogBindingMatcher.class), drafts);
     RequirementDraft draft = draft();
     CompilationArtifacts.Reference draftRef = requirementDraftRef();
     stubRequirementDraft(artifactStore, draftRef, draft);
@@ -878,6 +914,7 @@ class AutoUploadedSpecImportCapabilityTest {
 
     assertEquals(StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass());
     assertEquals(1, completed.outcome().candidates().size());
+    verify(drafts).putIfCurrent(any(), any(), any());
     verify(gateway)
         .importUploadedSpec(
             eq("conv-1"),
@@ -1098,7 +1135,7 @@ class AutoUploadedSpecImportCapabilityTest {
                     "op-task-start",
                     "OM",
                     "kafka",
-                    "publish",
+                    "send",
                     "onTaskStart",
                     "onTaskStart",
                     "catalog-read:sys-om/spec-om/op-task-start")));
@@ -1466,6 +1503,57 @@ class AutoUploadedSpecImportCapabilityTest {
         .orElseThrow();
   }
 
+  @ParameterizedTest
+  @CsvSource({"POST, /orders, true", "GET, /orders, false", "POST, /orders/preview, false"})
+  void bindsOnlyThePinnedAttachmentAndExactImportedRoute(String method, String path, boolean bound) {
+    String pinnedKey = "uploads/orders.yaml";
+    String otherKey = "uploads/other.yaml";
+    var conversations = new ConversationService();
+    conversations.registerAllowedAttachmentKeys("conv-1", List.of(pinnedKey, otherKey));
+    var artifacts = mock(ProductPipelineArtifactStore.class);
+    var handler = new UploadedSpecsApprovalHandler(conversations, mock(S3Service.class));
+    var gateway = mock(CatalogMutationGateway.class);
+    var matcher = mock(CatalogBindingMatcher.class);
+    var capability = new AutoUploadedSpecImportCapability(gateway, conversations, artifacts, handler, matcher, admittingStore());
+    var input = new RequirementCaptureInput.DraftInput(new RequirementCaptureInput.FlowInput(List.of(
+        new RequirementCaptureInput.InteractionInput("entry", Direction.INBOUND, "Caller", "GET /start", null, null, null),
+        new RequirementCaptureInput.InteractionInput("orders", Direction.OUTBOUND, "Orders API", "Create an order", null, null, null)),
+        List.of(new RequirementCaptureInput.TransitionInput("entry", "orders"))),
+        List.of(new RequirementCaptureInput.FactInput("goal", List.of("orders"), RequirementCaptureInput.FactKind.GOAL,
+            RequirementCaptureInput.Polarity.POSITIVE, "Create an order.")),
+        List.of(new RequirementCaptureInput.CapabilityInput("entry", "http-trigger", RequirementCaptureInput.HttpMode.CUSTOM,
+            RequirementCaptureInput.HttpMethod.GET, "/start", null, null, null)), List.of(),
+        new RequirementCaptureInput.DraftSettings(null, null));
+    var draft = RequirementCaptureProjection.toDraft(input, null, List.of(), "1", "sha", Map.of(),
+        Map.of("orders", new UploadedSpecOperations.Binding(pinnedKey, "POST", "/orders")));
+    var draftRef = requirementDraftRef();
+    stubRequirementDraft(artifacts, draftRef, draft);
+    var approvalRef = approvalRef();
+    stubApprovedRecord(artifacts, approvalRef, handler.attachmentHash("conv-1"));
+    when(gateway.importUploadedSpec(eq("conv-1"), any(UploadedSpecAttachment.class), eq("INTERNAL")))
+        .thenAnswer(invocation -> {
+          UploadedSpecAttachment attachment = invocation.getArgument(1);
+          String id = attachment.s3Key().equals(pinnedKey) ? "orders" : "other";
+          return Uni.createFrom().item(new UploadedSpecImportOutcome(attachment.s3Key(),
+              id, "group-" + id, "spec-" + id, false));
+        });
+    when(matcher.matchImported("service-call", "orders", "group-orders", "spec-orders", "POST /orders", "conv-1"))
+        .thenReturn(new CatalogBindingMatcher.MatchResult.Exact(new CatalogMatch("orders", "group-orders",
+            "spec-orders", "orders-operation", "Orders API", "http", method, path, "createOrder", "catalog-read:orders")));
+
+    var completed = run(capability, draft, List.of(draftRef, approvalRef));
+
+    assertEquals(bound ? StageOutcomeClass.SUCCEEDED : StageOutcomeClass.MISSING_MANDATORY_INPUT,
+        completed.outcome().outcomeClass(), completed.outcome().message());
+    var updated = (RequirementDraft) completed.outcome().candidates().stream()
+        .filter(candidate -> candidate.kind() == CompilationArtifacts.Kind.REQUIREMENT_DRAFT)
+        .findFirst().orElseThrow().payload();
+    assertEquals(bound ? Optional.of("orders-operation") : Optional.empty(),
+        updated.catalogBinding("orders").map(CatalogBindingHint::integrationOperationId));
+    verify(matcher, never()).matchImported(any(), eq("other"), any(), any(), any(), any());
+    verify(matcher, never()).match(any(), any(), any(), any());
+  }
+
   @Test
   void identicalOperationsBindToTheNamedImportedService() {
     var gateway = mock(CatalogMutationGateway.class);
@@ -1541,7 +1629,7 @@ class AutoUploadedSpecImportCapabilityTest {
             "sf-result", "Salesforce", "http", "POST", "/result", "onTaskResult", "catalog-read:sf")));
     when(matcher.match("service-call", "OM", "onTaskResult", "conv-1"))
         .thenReturn(new CatalogBindingMatcher.MatchResult.Exact(new CatalogMatch("om", "om-group", "om-spec",
-            "om-result", "OM", "kafka", "subscribe", "om.results", "onTaskResult", "catalog-read:om")));
+            "om-result", "OM", "kafka", "receive", "om.results", "onTaskResult", "catalog-read:om")));
     var approval = approvalRef();
     stubApprovedRecord(artifacts, approval, handler.attachmentHash("conv-1"));
 

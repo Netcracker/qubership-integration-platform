@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.ai.plan;
 
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingValue;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -21,6 +23,26 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementSe
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFailureMode;
 
 class RequirementBriefProjectorTest {
+
+  @Test
+  void keepsDistinctOriginsWhenMergingRulesOnOneExecutionHop() {
+    var origin = new MappingSource.Message(
+        "task-start", MappingPort.OUTPUT, "$.processId");
+    var response = new MappingSource.Message(
+        "create-task", MappingPort.RESPONSE, "$.processId");
+    var first = new MappingIntentRule("first", List.of("first-fact"), "$.processId",
+        new MappingValue.Copy(origin), null, null);
+    var second = new MappingIntentRule("second", List.of("second-fact"), "$.processId",
+        new MappingValue.Copy(response), null, null);
+    var firstIntent = new MappingIntent("first-origin", "create-task", MappingPort.RESPONSE,
+        "task-result", MappingPort.REQUEST, List.of(first));
+    var secondIntent = new MappingIntent("second-origin", "create-task", MappingPort.RESPONSE,
+        "task-result", MappingPort.REQUEST, List.of(second));
+    var projected = RequirementBriefProjector.canonicalizeMappingIntents(
+        rockyBriefCandidate().withMappingIntents(List.of(firstIntent, secondIntent)));
+    assertEquals(List.of(origin, response), projected.mappingIntents().getFirst().rules().stream()
+        .flatMap(rule -> rule.sources().stream()).toList());
+  }
 
   @Test
   void projectsRockyInboundAndOutboundRolesFromApprovedFlow() {
@@ -165,7 +187,8 @@ class RequirementBriefProjectorTest {
 
     assertEquals(1, projected.entryPoints().size());
     assertEquals("http-trigger", projected.entryPoints().getFirst().capabilityKey());
-    assertTrue(projected.entryPoints().getFirst().path().isBlank());
+    assertEquals("/tasks", projected.entryPoints().getFirst().path());
+    assertEquals("POST", projected.entryPoints().getFirst().httpMethod());
     assertEquals("retrieveGeographicSite", projected.entryPoints().getFirst().operation());
     assertEquals("op-geo", projected.catalogBindings().getFirst().integrationOperationId());
   }
@@ -679,7 +702,7 @@ class RequirementBriefProjectorTest {
             "spec-om",
             "op-start",
             "kafka",
-            "publish",
+            "send",
             "env05-bss.task.wfms_createWorkOrder.start",
             observedAt);
     CatalogBindingHint createHint =
@@ -705,7 +728,7 @@ class RequirementBriefProjectorTest {
             "spec-om",
             "op-result",
             "kafka",
-            "subscribe",
+            "receive",
             "env05-bss.order.command.queue",
             observedAt);
     MappingIntent response =

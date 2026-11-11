@@ -49,6 +49,21 @@ The suite brings the Compose stack up itself, so nothing has to be started first
 throwaway compose override and restores the container on every exit path, so it never edits `qip-dev.env` — which
 `qip-engine` and `qip-sessions-management` read too. See [e2e/README.md](../../e2e/README.md) for how to read a failure.
 
+## AI documentation sidecar
+
+The `ai` Compose profile includes the AI service and its knowledge sidecar.
+The sidecar image packages public documentation from `help/docs/` using the UI's existing Markdown generator.
+Build it from the repository root with the sidecar Dockerfile; the Compose build uses the same root context.
+The runtime image contains the prepared corpus and full-text index and runs without Node.js or write access.
+
+Public documentation is available through `/v1/documentation/manifest`,
+`/v1/documentation/search`, and `/v1/documentation/read` on the sidecar.
+The manifest also serves as the Compose readiness probe for public documentation.
+The AI service requires this corpus.
+
+The image includes the corpus at `/documentation`. Set `QIP_DOCUMENTATION_PATH` to change its location.
+Rebuild the sidecar image after changing the manuals so that its source links match the UI documentation.
+
 ## Contribution
 
 For the details on contribution, see [Contribution Guide](../../CONTRIBUTING.md). For details on reporting of security issues

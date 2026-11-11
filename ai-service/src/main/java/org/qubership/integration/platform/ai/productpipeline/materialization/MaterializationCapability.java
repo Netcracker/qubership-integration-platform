@@ -51,6 +51,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryFaultInjector;
 import org.qubership.integration.platform.ai.productpipeline.recovery.SupersededBriefLineageGuard;
+import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.patch.CanonicalGraphDigest;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ApprovedHttpEndpointValidator;
@@ -73,6 +74,10 @@ public class MaterializationCapability implements StageCapability {
   private final CanonicalGraphDigest canonicalGraphDigest;
   private final CipDesignExecutorJavaAdapter designExecutor;
   private final E2eRecoveryFaultInjector recoveryFaultInjector;
+
+  @Inject org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryTestControl recoveryControl;
+  @Inject org.qubership.integration.platform.ai.plan.mapping.CopyMappingMaterializationValidator copyMappings;
+  @Inject org.qubership.integration.platform.ai.plan.BriefCopyMappingValidator copySchemas;
 
   @Inject
   public MaterializationCapability(
@@ -160,7 +165,22 @@ public class MaterializationCapability implements StageCapability {
               new CapabilitySignal.Completed(
                   StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE, resolved.error())));
     }
-    if (resolved.v2()) {
+    if (!resolved.v2()) {
+      return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(
+          StageOutcomeClass.CONTRACT_FAILURE,
+          "Legacy create-chain@1 materialization is unsupported. Recapture the requirements and approve a new create-chain@2 plan before catalog writes.",
+          RecoveryCause.of(RecoveryCauseCode.CONTRACT_SHAPE))));
+    }
+    MaterializationCheckpoint checkpoint = artifactStore.materializationCheckpoint(context.runId()).orElse(null);
+    boolean readBack = checkpoint != null && checkpoint.canReadBack()
+        && resolved.graph().nodes().stream().allMatch(node ->
+            checkpoint.materializationMap().nodeIdToElementId().containsKey(node.nodeId()));
+    if (!readBack && Boolean.TRUE.equals(context.attributes().get(ProductPipelineRunSupport.CATALOG_RECHECK_ATTR))) {
+      return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
+          "The Catalog checkpoint does not identify every element in the approved graph.",
+          RecoveryCause.of(RecoveryCauseCode.CONTRACT_SHAPE))));
+    }
+    if (!readBack) {
       try {
         var approvedPlan = artifactStore.get(context.runId(), resolved.implementationPlanRef()).orElseThrow();
         var briefRef = SupersededBriefLineageGuard
@@ -169,11 +189,24 @@ public class MaterializationCapability implements StageCapability {
         var semanticRef = SupersededBriefLineageGuard
             .originatingRevision(artifactStore, context.runId(), approvedPlan, Kind.CHAIN_SEMANTIC_REVISION)
             .orElseThrow(() -> new IllegalStateException("Approved plan has no semantic revision lineage."));
-        var issues = ApprovedHttpEndpointValidator.validate(
-            resolved.graph(),
-            artifactStore.payload(briefRef, RequirementBrief.class),
-            artifactStore.payload(semanticRef,
-                ChainSemanticRevision.class));
+        var brief = artifactStore.payload(briefRef, RequirementBrief.class);
+        var semantic = artifactStore.payload(semanticRef, ChainSemanticRevision.class);
+        if (copyMappings == null) {
+          throw new IllegalStateException("Script execution validation is required before materialization.");
+        }
+        copyMappings.validate(context.conversationId(), brief, semantic, resolved.graph());
+        var ordinary = org.qubership.integration.platform.ai.plan.mapping.CopyMappingMaterializationValidator
+            .ordinaryMappings(brief, resolved.graph());
+        if (!ordinary.isEmpty()) {
+          if (copySchemas == null) {
+            throw new IllegalStateException("Approved mapping schemas must be revalidated before materialization.");
+          }
+          var schemaIssues = copySchemas.validateApproved(brief.withMappingIntents(ordinary));
+          if (!schemaIssues.isEmpty()) {
+            throw new IllegalArgumentException(schemaIssues.getFirst().message());
+          }
+        }
+        var issues = ApprovedHttpEndpointValidator.validate(resolved.graph(), brief, semantic);
         if (!issues.isEmpty()) {
           var validation = CompilerPlanningRunner
               .buildValidationResult(new ValidationResult(
@@ -204,6 +237,11 @@ public class MaterializationCapability implements StageCapability {
                       RecoveryCause.of(causeCode))));
     }
 
+    if (resolved.v2() && recoveryControl != null
+        && recoveryControl.materializationInputsAccepted(context, resolved.graphRef(), materializationInputs(resolved))) {
+      return Multi.createFrom().emitter(ignored -> {});
+    }
+
     // Capture the SSE emit consumer on this thread (ToolInvocationSink bound by chat turn), then
     // re-bind on the worker so CatalogOutboundLoggingFilter can emit kind=tool steps.
     var turnEmit = SkillActivitySupport.captureTurnEmit(context.conversationId());
@@ -219,7 +257,7 @@ public class MaterializationCapability implements StageCapability {
                         SkillActivitySupport.bindWorker(CAPABILITY_ID, turnEmit, context.conversationId());
                         try {
                           return SkillActivitySupport.wrapTerminal(
-                              CAPABILITY_ID, completeMaterialization(context, resolved));
+                              CAPABILITY_ID, completeMaterialization(context, resolved, checkpoint));
                         } finally {
                           org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink.flushCatalogChanges();
                           SkillActivitySupport.unbindWorker(turnEmit);
@@ -232,7 +270,7 @@ public class MaterializationCapability implements StageCapability {
   }
 
   private List<CapabilitySignal> completeMaterialization(
-      StageExecutionContext context, ResolvedInputs resolved) {
+      StageExecutionContext context, ResolvedInputs resolved, MaterializationCheckpoint checkpoint) {
     if (resolved.error() != null) {
       return List.of(
           new CapabilitySignal.Completed(
@@ -244,7 +282,6 @@ public class MaterializationCapability implements StageCapability {
             resolved.graph(),
             resolved.runManifest(),
             resolved.graphAssemblyResult().graphDigest());
-    MaterializationCheckpoint checkpoint = latestCheckpoint(context.runId());
     MaterializationResult core = materializer.resume(inputs, checkpoint);
     ChainCatalogFacts facts = factsService.load(core.chainId());
     MaterializationResult reconciledCore = materializer.markReconciled(inputs, core);
@@ -728,13 +765,6 @@ public class MaterializationCapability implements StageCapability {
       }
     }
     return null;
-  }
-
-  private MaterializationCheckpoint latestCheckpoint(String runId) {
-    return artifactStore
-        .latest(runId, Kind.MATERIALIZATION_CHECKPOINT)
-        .map(revision -> artifactStore.payload(revision, MaterializationCheckpoint.class))
-        .orElse(null);
   }
 
   private Optional<Reference> findSchemaV2Approval(String runId, List<Reference> refs) {

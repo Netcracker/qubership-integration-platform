@@ -2,7 +2,6 @@ package org.qubership.integration.platform.ai.productpipeline.create.design.plan
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import dev.langchain4j.agent.tool.ReturnBehavior;
 import dev.langchain4j.agent.tool.Tool;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -51,10 +50,16 @@ public class DesignPlanCaptureTool {
           Capture optional descriptions for approved planning targets. Use notes=[] when no
           descriptions are needed. Do not send steps, owners, claims, dependencies, release, or
           revision fields. The server builds the complete plan from the approved semantic design
-          and pinned compiler DAG. Call once; if rejected, correct only the listed notes.""",
-      returnBehavior = ReturnBehavior.IMMEDIATE)
+          and pinned compiler DAG. If the tool rejects the capture, correct every listed issue
+          and call the tool again.""")
   public String captureDesignPlan(DesignPlanCapture capture) {
-    return encode(capture(capture, ToolSession.resolveConversationId()));
+    Result outcome = capture(capture, ToolSession.resolveConversationId());
+    String result = encode(outcome);
+    // A correctable rejection stays in the tool loop; an accepted or terminal outcome ends it.
+    if (outcome.accepted() || "STOP".equals(outcome.nextAction())) {
+      throw new org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException(result);
+    }
+    return result;
   }
 
   public String rejectArguments(String conversationId, StructuredCaptureArguments.Issue issue) {
@@ -100,6 +105,7 @@ public class DesignPlanCaptureTool {
       binding.rejection().set(null);
       binding.rejectionFindings().set(List.of());
       binding.candidate().set(contract);
+      feedbackStore.clearPlan(conversationId);
       return new Result(true, true, "HANDOFF", List.of(), CAPTURED_MESSAGE);
     } catch (PlannerContractException ex) {
       String message = ex.getMessage() == null ? "Planning inputs are unresolved." : ex.getMessage();

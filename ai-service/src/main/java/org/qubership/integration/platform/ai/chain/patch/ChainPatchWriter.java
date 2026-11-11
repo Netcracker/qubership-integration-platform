@@ -13,6 +13,7 @@ import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.skills.RockySkills;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.CatalogGraphMaterializeResult;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.CatalogGraphMaterializer;
@@ -38,6 +39,9 @@ import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
 @ApplicationScoped
 public class ChainPatchWriter {
 
+  @jakarta.inject.Inject
+  RockySkills rockySkills = new RockySkills();
+
   private static final Logger LOG = Logger.getLogger(ChainPatchWriter.class);
 
   private final CatalogGraphMaterializer catalogGraphMaterializer;
@@ -61,6 +65,7 @@ public class ChainPatchWriter {
   }
 
   public ChainPatchWriteResult write(PatchedChain patched, GraphPatch patch) {
+    rockySkills.requireAvailable();
     Objects.requireNonNull(patched, "patched");
     Objects.requireNonNull(patch, "patch");
 

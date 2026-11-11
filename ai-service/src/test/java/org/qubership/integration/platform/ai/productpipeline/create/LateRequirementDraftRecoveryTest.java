@@ -1,5 +1,8 @@
 package org.qubership.integration.platform.ai.productpipeline.create;
 
+import static org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures.withNativeAnchors;
+
+import dev.langchain4j.model.chat.request.ChatRequestParameters;
 import org.qubership.integration.platform.ai.productpipeline.runtime.CreateChainTestOrchestrator;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -21,6 +24,9 @@ import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationArchive;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
+import org.qubership.integration.platform.ai.chat.decision.PolicyChoiceSelection;
+import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
+import org.qubership.integration.platform.ai.chat.service.ChatDecisionService;
 import org.qubership.integration.platform.ai.compiler.artifact.*;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.plan.*;
@@ -103,7 +109,7 @@ class LateRequirementDraftRecoveryTest {
   }
 
   private static DraftInput draft(String text, RequirementPolicyConflict.Decision decision) {
-    return new DraftInput(new FlowInput(List.of(new InteractionInput("entry", Direction.INBOUND,
+    return withNativeAnchors(new DraftInput(new FlowInput(List.of(new InteractionInput("entry", Direction.INBOUND,
         "Caller", "POST /tasks", null, null, null)), List.of()),
         List.of(new FactInput("retain-id", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE, text),
             new FactInput("sibling", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE, "Preserve all inputs."),
@@ -113,7 +119,7 @@ class LateRequirementDraftRecoveryTest {
         List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.POST,
             "/tasks", null, null, null)),
         decision == null ? List.of(new QuestionInput("choice", List.of("entry"), "Keep NONE or use RBAC?")) : List.of(),
-        new DraftSettings(false, null));
+        new DraftSettings(false, null)));
   }
 
   private static DraftUpdate edit(List<FactInput> facts, List<String> removeQuestions) {
@@ -146,13 +152,25 @@ class LateRequirementDraftRecoveryTest {
     Harness(String observingStage, boolean briefOnly, boolean rejectedCandidate,
         boolean omitBriefCandidate, boolean mixedFindings) throws Exception {
       when(conversations.archive()).thenReturn(archive);
-      drafts = new RequirementDraftStore(storage, new CompilationSessions(blobs, JSON, clock), conversations);
+      var sessions = new CompilationSessions(blobs, JSON, clock);
+      drafts = new RequirementDraftStore(storage, sessions, conversations);
       tools = new RequirementCaptureTools(drafts, mock(RequirementDraftTool.class), JSON);
       source("Create POST /tasks. Preserve request IDs and all inputs. Use NONE access control. Proceed without IDS.");
       String initialText = briefOnly ? CORRECT : WRONG;
       try (var ignored = ToolSession.open(CHAT)) {
         accepted(tools.captureRequirementDraft(draft(initialText, null)));
-        source("Keep NONE despite the RBAC recommendation.");
+        var choices = new PolicyChoiceSelection(storage, sessions, conversations);
+        var offered = choices.pending(CHAT, 7).orElseThrow();
+        var command = new ChatDecisionCommand();
+        command.setAction(ChatEvent.KEEP_REQUESTED_ACTION);
+        command.setArtifactType(PolicyChoiceSelection.ARTIFACT_TYPE);
+        command.setArtifactHash(offered.hash());
+        command.setRevision(7);
+        String marker = ChatDecisionService.transcriptMarker(command);
+        var selectedSource = archive.beginInput(CHAT, marker, JSON.valueToTree(command));
+        archive.resolveInput(CHAT, selectedSource, marker, JSON.valueToTree(command));
+        drafts.beginTurn(CHAT, marker);
+        assertTrue(choices.confirm(CHAT, command, 7).isPresent());
         accepted(tools.updateRequirementDraft(edit(List.of(
             draft(initialText, RequirementPolicyConflict.Decision.KEEP_REQUESTED).facts().get(2)), List.of("choice"))));
       }
@@ -209,7 +227,8 @@ class LateRequirementDraftRecoveryTest {
           invalid((RequirementBrief) context.attributes().get("requirementBrief"))
               ? rejected(List.of()) : outcome(StageOutcomeClass.SUCCEEDED, List.of(), null));
       var agent = mock(org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent.class);
-      when(agent.recover(anyString(), anyString())).thenAnswer(invocation -> {
+      when(agent.recover(anyString(), anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class))).thenAnswer(invocation -> {
         diagnoses.incrementAndGet();
         var context = JSON.readTree((String) invocation.getArgument(1));
         rejectedSemanticRead = context.path("rejectedArtifact").has("nodes");

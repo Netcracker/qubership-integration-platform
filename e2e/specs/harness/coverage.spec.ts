@@ -394,6 +394,7 @@ test.describe("coverage registry", () => {
       expect(untaggedSpecs(taggedReportOf(["engine"], "expected"))).toEqual([]);
       // A project that is a component of its own needs no tag, and the tag is no longer offered.
       expect(untaggedSpecs(inProject(taggedReportOf([], "expected"), "harness"))).toEqual([]);
+      expect(untaggedSpecs(inProject(taggedReportOf([], "expected"), "ai-tests"))).toEqual([]);
       expect(untaggedSpecs(inProject(taggedReportOf([], "expected"), "runtime"))).toHaveLength(1);
       expect(untaggedSpecs(taggedReportOf(["engine", "ui"], "expected"))).toEqual([
         "specs/runtime/condition.spec.ts › condition › a spec: the tag @ui is not in the closed list",

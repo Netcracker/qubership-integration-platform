@@ -35,6 +35,24 @@ import org.qubership.integration.platform.ai.productpipeline.store.StageSnapshot
 import org.qubership.integration.platform.ai.productpipeline.store.StageStatus;
 
 class ProductPipelineDerivedRunTest {
+  @Test
+  void aManuallyConstructedExecutorReceivesTheDiagnosticControl(
+      @org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws Exception {
+    var mapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    java.nio.file.Files.writeString(directory.resolve("plan.json"),
+        "{\"schemaVersion\":1,\"conversationId\":\"owned\",\"boundary\":\"checkpoint\"}");
+    runSupport.withRecoveryControl(
+        new org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryTestControl(directory, mapper));
+    runtime.startOrResume(new StartOrResumeCommand("owned", "observed-run", profile,
+        sampleManifest("observed-run"))).collect().asList().await().indefinitely();
+    var recorded = mapper.readTree(directory.resolve("provider-context.json").toFile());
+    assertEquals("observed-run", recorded.path("runId").asText());
+    assertEquals("owned", recorded.path("conversationId").asText());
+    assertEquals("collect", recorded.path("stageId").asText());
+    assertTrue(!recorded.path("attemptId").asText().isBlank());
+    assertTrue(recorded.path("inputRefs").isArray());
+  }
+
 
   private static final Instant FIXED = Instant.parse("2026-07-22T12:30:00Z");
 
@@ -361,6 +379,12 @@ class ProductPipelineDerivedRunTest {
                 List.of(plan.reference(), graph.reference()),
                 null,
                 provenance(parentRunId, "design-planning")));
+    artifactStore.append(new AppendCommand(parentRunId, CompilationArtifacts.Kind.MAPPING_ENVELOPE, "1",
+        "previous-compiler", "1", java.util.Map.of("legacyFrozenPlan", true), List.of(), null,
+        provenance(parentRunId, "design-execution")));
+    artifactStore.append(new AppendCommand(parentRunId, CompilationArtifacts.Kind.CHAIN_PLAN_GRAPH, "1",
+        "previous-compiler", "1", java.util.Map.of("script", "previous generated COPY body"), List.of(), null,
+        provenance(parentRunId, "design-execution")));
     List<StageSnapshot> stages =
         createProfile.stages().stream()
             .map(
@@ -420,6 +444,9 @@ class ProductPipelineDerivedRunTest {
                 .latest("child-plan-run", CompilationArtifacts.Kind.APPROVAL_RECORD)
                 .orElseThrow(),
             ApprovalRecordV2.class);
+    assertTrue(artifactStore.history("child-plan-run", CompilationArtifacts.Kind.MAPPING_ENVELOPE).isEmpty());
+    assertEquals(java.util.Map.of("nodes", List.of()), artifactStore.payload(
+        artifactStore.latest("child-plan-run", CompilationArtifacts.Kind.CHAIN_PLAN_GRAPH).orElseThrow(), java.util.Map.class));
     assertEquals("design-execution", prepared.document().run().currentStageId());
     assertNotEquals(plan.reference(), childApproval.target());
     assertEquals(childApproval.target().contentHash(), childApproval.targetContentHash());

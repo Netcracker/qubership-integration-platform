@@ -1,0 +1,175 @@
+{
+  "conversationId": "56599127-e1e0-4927-bda9-50c8114b1da3",
+  "runId": "56599127-e1e0-4927-bda9-50c8114b1da3-create-chain-2",
+  "budget": {
+    "requests": 7,
+    "tokens": 130680,
+    "activeMillis": 18607,
+    "grants": 0,
+    "grantCommands": [],
+    "active": {},
+    "refusal": null
+  },
+  "strictFailure": {
+    "reason": "Unexpected question in a strict recovery case: What exact path should the internal HTTP route use?",
+    "question": "What exact path should the internal HTTP route use?",
+    "kind": "clarify"
+  },
+  "interactions": [
+    {
+      "kind": "initial",
+      "text": "Create chain named \"RecoveryPilot.5e4fb1e1.20261020T123904.r1\". Receive GET on the internal route whose exact path I have not supplied; ask me for that path (externalRoute=false). Use accessControlType=RBAC with exactly the role qip-viewer. Connect the HTTP trigger directly to one Groovy script returning exactly the plain text Hello world. No mapping or transformation is needed on the connection. No service calls, APIHub, MCP, error handling, ABAC, or chain failure handler. No target folder. Generate a full IDS and an implementation plan for approval."
+    },
+    {
+      "kind": "clarification",
+      "text": "/greetings",
+      "question": "What exact path should the internal HTTP route use?"
+    }
+  ],
+  "pipelineArtifacts": [
+    {
+      "artifactId": "77f1c64d-bebd-4624-a23b-f0493f080f0b",
+      "compilationId": "56599127-e1e0-4927-bda9-50c8114b1da3-create-chain-2",
+      "kind": "USER_INPUT",
+      "lineageId": "911e68c0-b7f4-4899-9309-3dfc70256995",
+      "sequence": 2,
+      "schemaVersion": "1",
+      "createdAt": 1792499948.43577,
+      "producerId": "product-pipeline-runtime",
+      "producerVersion": "1",
+      "contentHash": "0ed61099b57b11a672b68c1e405386c435d695d4f64e50f87bae5b63920ede68",
+      "inputs": [],
+      "revisesArtifactId": null,
+      "payload": {
+        "inputId": "62eaddf1-0932-408d-856f-ddfa7cc56562",
+        "targetStageId": "ids-entry",
+        "text": "Create chain named \"RecoveryPilot.5e4fb1e1.20261020T123904.r1\". Receive GET on the internal route whose exact path I have not supplied; ask me for that path (externalRoute=false). Use accessControlType=RBAC with exactly the role qip-viewer. Connect the HTTP trigger directly to one Groovy script returning exactly the plain text Hello world. No mapping or transformation is needed on the connection. No service calls, APIHub, MCP, error handling, ABAC, or chain failure handler. No target folder. Generate a full IDS and an implementation plan for approval.",
+        "receivedAt": "2026-10-20T12:39:08.434476292Z",
+        "draftReference": null,
+        "sourceTurnIds": []
+      },
+      "provenance": {
+        "runId": "56599127-e1e0-4927-bda9-50c8114b1da3-create-chain-2",
+        "stageId": "ids-entry",
+        "profileId": "create-chain",
+        "profileVersion": "2",
+        "profileDigest": "create-chain@2",
+        "capabilityId": "design-input",
+        "capabilityVersion": "1",
+        "closureDigest": "closure"
+      }
+    },
+    {
+      "artifactId": "0a6cdcc4-cba1-4caa-8a66-f21036359427",
+      "compilationId": "56599127-e1e0-4927-bda9-50c8114b1da3-create-chain-2",
+      "kind": "USER_INPUT",
+      "lineageId": "6c502e23-7f33-4aed-8561-1d62aee34d58",
+      "sequence": 3,
+      "schemaVersion": "1",
+      "createdAt": 1792499962.7212353,
+      "producerId": "product-pipeline-runtime",
+      "producerVersion": "1",
+      "contentHash": "24eadc2556b55846e75dd43a7d0ef80c3e0e422dfef52642fb27d15275499a5d",
+      "inputs": [],
+      "revisesArtifactId": null,
+      "payload": {
+        "inputId": "4734949d-f800-4e0b-a298-77a78a02b50d",
+        "targetStageId": "requirement-discovery",
+        "text": "/greetings",
+        "receivedAt": "2026-10-20T12:39:22.720972257Z",
+        "draftReference": null,
+        "sourceTurnIds": []
+      },
+      "provenance": {
+        "runId": "56599127-e1e0-4927-bda9-50c8114b1da3-create-chain-2",
+        "stageId": "requirement-discovery",
+        "profileId": "create-chain",
+        "profileVersion": "2",
+        "profileDigest": "create-chain@2",
+        "capabilityId": "requirement-discovery",
+        "capabilityVersion": "1",
+        "closureDigest": "closure"
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "fromRevision": 1,
+      "toRevision": 2,
+      "fromStatus": "RUNNING",
+      "toStatus": "WAITING_FOR_INPUT",
+      "stageId": "ids-entry",
+      "at": 1792499948.359812,
+      "reason": "",
+      "commandId": null,
+      "commandPayloadHash": null
+    },
+    {
+      "fromRevision": 2,
+      "toRevision": 3,
+      "fromStatus": "WAITING_FOR_INPUT",
+      "toStatus": "RUNNING",
+      "stageId": "ids-entry",
+      "at": 1792499948.4462383,
+      "reason": "accepted input",
+      "commandId": null,
+      "commandPayloadHash": "bfcbaad0122e138ca9eb032619580ed522c6b95f580746cb2aa381350b1fd3f2"
+    },
+    {
+      "fromRevision": 3,
+      "toRevision": 4,
+      "fromStatus": "RUNNING",
+      "toStatus": "RUNNING",
+      "stageId": "ids-entry",
+      "at": 1792499948.6134388,
+      "reason": "standard route selected",
+      "commandId": null,
+      "commandPayloadHash": null
+    },
+    {
+      "fromRevision": 4,
+      "toRevision": 5,
+      "fromStatus": "RUNNING",
+      "toStatus": "RUNNING",
+      "stageId": "requirement-discovery",
+      "at": 1792499948.6260614,
+      "reason": "advance after success",
+      "commandId": null,
+      "commandPayloadHash": null
+    },
+    {
+      "fromRevision": 5,
+      "toRevision": 6,
+      "fromStatus": "RUNNING",
+      "toStatus": "WAITING_FOR_INPUT",
+      "stageId": "requirement-discovery",
+      "at": 1792499961.2270706,
+      "reason": "__GATE:stage-clarification__What exact path should the internal HTTP route use?",
+      "commandId": null,
+      "commandPayloadHash": null
+    },
+    {
+      "fromRevision": 6,
+      "toRevision": 7,
+      "fromStatus": "WAITING_FOR_INPUT",
+      "toStatus": "RUNNING",
+      "stageId": "requirement-discovery",
+      "at": 1792499962.7334998,
+      "reason": "producer-repair:requirement-discovery\u0000VALIDATION_BLOCKER\u00006e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d\u0000\u00000",
+      "commandId": null,
+      "commandPayloadHash": "a2c32d7a42057d1b1c68c026323d6ad7482a31535be2ec0cf568c8212f32b0fc"
+    },
+    {
+      "fromRevision": 7,
+      "toRevision": 8,
+      "fromStatus": "RUNNING",
+      "toStatus": "WAITING_FOR_INPUT",
+      "stageId": "requirement-discovery",
+      "at": 1792499969.084543,
+      "reason": "__GATE:stage-clarification__What exact path should the internal HTTP route use?",
+      "commandId": null,
+      "commandPayloadHash": null
+    }
+  ],
+  "events": []
+}

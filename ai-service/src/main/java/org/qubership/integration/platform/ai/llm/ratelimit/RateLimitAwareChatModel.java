@@ -97,6 +97,7 @@ public final class RateLimitAwareChatModel implements ChatModel {
       var ticket = runBudget == null ? null : runBudget.reserve(runId,
           requestBudget.estimateInputTokens(chatRequest),
           chatRequest.maxOutputTokens() == null ? 8192 : chatRequest.maxOutputTokens());
+      String evidenceId = requestBudget == null ? null : requestBudget.recordProviderRequest(chatRequest, runId);
       try {
         ChatRequest sent = chatRequest;
         ChatResponse response = runBudget == null ? delegate.chat(sent)
@@ -106,8 +107,14 @@ public final class RateLimitAwareChatModel implements ChatModel {
               if (refusal != null) { throw new LlmRunBudget.Exhausted(refusal); }
               return completed;
             });
+        if (requestBudget != null) requestBudget.recordProviderOutcome(evidenceId, "response", ProviderBoundaryEvidence.response(response));
+        if (response != null && response.finishReason() == dev.langchain4j.model.output.FinishReason.LENGTH) {
+          throw new IllegalStateException("LLM_OUTPUT_INCOMPLETE: model output limit reached");
+        }
         return response;
       } catch (RuntimeException error) {
+        if (requestBudget != null) requestBudget.recordProviderOutcome(evidenceId, "error",
+            rateLimitClassifier.errorEvidence(error));
         if (!contextRebuilt && requestBudget != null && LlmRequestBudget.isOverflow(error)) {
           ChatRequest rebuilt = requestBudget.rebuild(chatRequest);
           if (!rebuilt.messages().equals(chatRequest.messages())) {
@@ -122,6 +129,7 @@ public final class RateLimitAwareChatModel implements ChatModel {
           int waitSeconds =
               rateLimitPolicy.resolveWaitSeconds(
                   rateLimitClassifier.extractWait(error), rateLimitAttempt);
+          RateLimitRetryDeadline.deferIfOutsideDeadline(RateLimitRetryDeadline.current(), waitSeconds, error);
           onBackoff.accept(new BackoffEvent(rateLimitAttempt + 1, waitSeconds));
           sleeper.sleepSeconds(waitSeconds);
           rateLimitAttempt++;

@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
@@ -85,6 +86,12 @@ public final class ChainPatchSummary {
           .append(". **Adds** ")
           .append(elementLabel(nodePatch.node(), nodePatch.node().nodeId()))
           .append("\n\n");
+      if ("script".equals(nodePatch.node().type())) {
+        String script = currentValue(nodePatch.node(), "script");
+        if (script != null) {
+          text.append("after:\n").append(block(script, true)).append("\n\n");
+        }
+      }
     }
     for (EdgePatch edgePatch : addedEdges) {
       text.append(++itemNumber)
@@ -109,15 +116,16 @@ public final class ChainPatchSummary {
         continue;
       }
       ChainPlanNode node = nodesById.get(propertyPatch.targetNodeId());
+      boolean fullBody = node != null && "script".equals(node.type()) && "script".equals(propertyPatch.property().key());
       text.append(++itemNumber)
           .append(". **Updates** ")
           .append(elementLabel(node, propertyPatch.targetNodeId()))
           .append(" — ")
           .append(MarkdownText.code(propertyPatch.property().key()))
           .append("\n\nnow:\n")
-          .append(block(currentValue(node, propertyPatch.property().key())))
+          .append(block(currentValue(node, propertyPatch.property().key()), fullBody))
           .append("\n\nafter:\n")
-          .append(block(propertyPatch.property().value()))
+          .append(block(propertyPatch.property().value(), fullBody))
           .append("\n\n");
     }
     text.append("Apply this to the chain?");
@@ -224,18 +232,20 @@ public final class ChainPatchSummary {
         .orElse(null);
   }
 
-  private static String block(String value) {
+  private static String block(String value, boolean fullBody) {
     if (value == null) {
       return "(not set)";
     }
-    String trimmed = value.strip();
-    if (trimmed.isEmpty()) {
+    String displayed = fullBody ? value : value.strip();
+    if (displayed.isBlank()) {
       return "(empty)";
     }
-    if (trimmed.length() > MAX_VALUE_CHARS) {
-      trimmed = trimmed.substring(0, MAX_VALUE_CHARS) + "\n… (" + value.length() + " characters)";
+    if (!fullBody && displayed.length() > MAX_VALUE_CHARS) {
+      displayed = displayed.substring(0, MAX_VALUE_CHARS) + "\n… (" + value.length() + " characters)";
     }
-    return "```\n" + trimmed + "\n```";
+    String fence = "`".repeat(Math.max(3, Pattern.compile("`+").matcher(displayed).results()
+        .mapToInt(match -> match.group().length() + 1).max().orElse(3)));
+    return fence + "\n" + displayed + "\n" + fence;
   }
 
   private static Map<String, ChainPlanNode> nodesById(ChainPlanGraph graph) {

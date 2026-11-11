@@ -21,7 +21,7 @@ class DesignPlanCaptureAgentTest {
 
     assertNotNull(registration);
     assertArrayEquals(new Class<?>[] {DesignPlanCaptureTool.class}, registration.tools());
-    assertEquals(4, registration.maxSequentialToolInvocations());
+    assertEquals(6, registration.maxSequentialToolInvocations());
   }
 
   @Test

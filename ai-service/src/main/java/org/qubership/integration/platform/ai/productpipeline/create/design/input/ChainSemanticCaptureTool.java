@@ -2,7 +2,6 @@ package org.qubership.integration.platform.ai.productpipeline.create.design.inpu
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import dev.langchain4j.agent.tool.ReturnBehavior;
 import dev.langchain4j.agent.tool.Tool;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -64,6 +63,8 @@ public class ChainSemanticCaptureTool {
   private final CatalogElementDescriptorLoader descriptorLoader;
   private final E2eRecoveryFaultInjector recoveryFaultInjector;
 
+  @Inject org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryTestControl recoveryControl;
+
   @Inject
   public ChainSemanticCaptureTool(
       ChainSemanticCaptureAdapter adapter,
@@ -102,6 +103,15 @@ public class ChainSemanticCaptureTool {
 
   @Tool(value = """
       Capture the chain topology for this design-input turn.
+      Generated processing scripts may implement approved positive BEHAVIOR facts bound on the
+      operation through sourceFactIds; the author need not preselect that processing topology.
+      Explicit author script bodies and element intents remain binding. Do not replace supplied code.
+      Native COPY scripts implement only their admitted mapping; extra behavior needs a separate operation.
+      Copy the owning fact ID into sourceFactIds. The native compiler derives mapping retention.
+      sourceFactIds record provenance; citing a behavior on a call does not implement extra processing.
+      Data transformations and response composition need their authorized executable step or approved hook.
+      Plan preservation before body replacement when a later step uses an earlier result.
+      An external anchor alone implements only its native behavior.
       Split branches are metadata in splitRegions. Their entryNodeId and exitNodeIds refer to
       executable work. The server creates branch containers. A requested Split with three Script
       branches uses one split-2 owner, three script operations, and three branch metadata entries.
@@ -130,16 +140,35 @@ public class ChainSemanticCaptureTool {
       Every scoped edge also names its regionId and the branch or handler where applicable.
       For a region, fill its owner and
       branch/body entry fields from the actual topology; a regionId alone is insufficient.
-      Submit one candidate per runtime attempt, then finish the turn. If rejected, return
-      the findings; the runtime supplies them on a bounded regeneration attempt.""",
-      returnBehavior = ReturnBehavior.IMMEDIATE)
+      If the tool rejects the capture, correct every listed issue and call the tool again.""")
   public String captureChainSemanticRevision(ChainSemanticCapture capture) {
     long startMs = System.currentTimeMillis();
     String conversationId = ToolSession.resolveConversationId();
     ToolTraceLog.logToolInvoke(LOG, TOOL_NAME, conversationId, shape(capture));
-    String result = encode(capture(capture, conversationId));
+    if (recoveryControl != null) {
+      var original = capture;
+      capture = recoveryControl.semantic(conversationId, capture, () -> {
+        var binding = ProductCapabilityCaptureContext.designBinding(conversationId).orElse(null);
+        if (binding == null || binding.approvedBrief() == null) return false;
+        try {
+          var contract = contractRepository.require(CompilerContract.V1);
+          validator.validate(adapter.adapt(original, binding.runId(), binding.approvedBrief(), contract),
+              contract, binding.approvedBrief());
+          return true;
+        } catch (IllegalArgumentException rejectedOriginal) { return false; }
+      });
+    }
+    CaptureResult outcome = capture(capture, conversationId);
+    String result = encode(outcome);
+    if (recoveryControl != null) recoveryControl.semanticOutcome(conversationId, capture, result);
     ToolTraceLog.logToolComplete(
         LOG, TOOL_NAME, conversationId, System.currentTimeMillis() - startMs, result);
+    // A correctable rejection goes back to the model as the tool result so it can call again in
+    // this turn. An accepted or terminal outcome ends the tool loop, and the caller harvests the
+    // binding without waiting for the model to close the turn.
+    if (outcome.accepted() || "STOP".equals(outcome.nextAction())) {
+      throw new org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException(result);
+    }
     return result;
   }
 
@@ -195,7 +224,17 @@ public class ChainSemanticCaptureTool {
       validator.validate(revision, contract, brief);
     } catch (org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException repeated) {
       String summary = feedbackStore.lastPlanFailure(conversationId).orElseThrow().summary();
-      ProductCapabilityCaptureContext.offerSemanticRejection(binding, summary);
+      boolean terminal = feedbackStore.identicalFailureCount(conversationId, "design-input") >= 3;
+      if (!terminal) {
+        ProductCapabilityCaptureContext.offerSemanticRejection(binding, summary, false);
+        return rejected("UNCHANGED_PROPOSAL", "/capture",
+            "This proposal is unchanged. " + summary
+                + " Change the capture. Sending this same proposal again ends the correction.",
+            false);
+      }
+      // A repeated proposal ends this turn but is the model's defect, not the service's: the stage
+      // recovery ledger decides whether a clean regeneration follows.
+      ProductCapabilityCaptureContext.offerSemanticRejection(binding, summary, false);
       return rejected("REPAIR_NO_PROGRESS", "/capture", summary, true);
     } catch (IllegalArgumentException ex) {
       feedbackStore.recordClassifiedPlanFailure(conversationId,
@@ -217,6 +256,7 @@ public class ChainSemanticCaptureTool {
       return rejected("RUNTIME_CONFIGURATION_ERROR", "/capture", preflightError, true);
     }
     ProductCapabilityCaptureContext.offerSemantic(binding, revision);
+    feedbackStore.clearPlan(conversationId);
     return new CaptureResult(true, true, "HANDOFF", List.of(), CAPTURED_MESSAGE);
   }
 
@@ -281,6 +321,14 @@ public class ChainSemanticCaptureTool {
   }
 
   private static boolean fragmentPresent(CipKnowledgePackManifest manifest, String fragment) {
+    if (manifest.fileChecksums().containsKey("runtime/generator-contracts.json")) {
+      String path = switch (fragment) {
+        case "validation-rules" -> "runtime/validation-rules.yaml";
+        case "generator-contracts", "generator-rule-mapping" -> "runtime/generator-contracts.json";
+        default -> fragment;
+      };
+      return manifest.fileChecksums().containsKey(path);
+    }
     String fileName = knowledgeFileName(fragment);
     for (String path : manifest.fileChecksums().keySet()) {
       if (fileName.equals(path) || fileName.equals(lastSegment(path))) {

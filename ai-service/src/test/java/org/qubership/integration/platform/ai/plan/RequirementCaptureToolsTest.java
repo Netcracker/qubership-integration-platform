@@ -1,8 +1,17 @@
 package org.qubership.integration.platform.ai.plan;
 
+import static org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures.assertAuthoredContentEquals;
+
+import static org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures.nativeAnchorFact;
+import static org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures.withNativeAnchors;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -10,9 +19,12 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -20,8 +32,10 @@ import dev.langchain4j.model.chat.request.json.JsonEnumSchema;
 import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.Test;
@@ -31,10 +45,12 @@ import org.qubership.integration.platform.ai.chain.folder.CatalogFolders;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationArchive;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
+import org.qubership.integration.platform.ai.chat.decision.PolicyChoiceSelection;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationSessions;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException;
 import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway;
 import org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore;
 import org.qubership.integration.platform.ai.integration.catalog.cache.CatalogOperationsLookupService;
@@ -45,6 +61,7 @@ import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogO
 import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogSystemFinder;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemReadTool;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.CapabilityInput;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.ClaimEvidenceInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftSettings;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftUpdate;
@@ -57,12 +74,1649 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Intera
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polarity;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.TransitionInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureResult.NextAction;
+import org.qubership.integration.platform.ai.plan.model.PlanProperty;
+import org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition;
+import org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingValue;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 
 class RequirementCaptureToolsTest {
+
+  @Test
+  void acceptedDraftRetiresStalledClarificationFeedback() throws Exception {
+    var store = new RequirementDraftStore();
+    var bindings = mock(RequirementDraftTool.class);
+    when(bindings.canonicalBindings(any(), nullable(RequirementDraft.class), anyString())).thenReturn(List.of());
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var feedback = new CaptureAttemptFeedbackStore();
+    var tools = new RequirementCaptureTools(store, bindings, mapper,
+        new CaptureToolOutcomeGateway(feedback.fingerprintStore(), feedback), feedback, null);
+    String chat = "accepted-clarification";
+    store.beginTurn(chat, "Accept POST /test and return success.");
+    feedback.beginScope(chat, "requirement-discovery", Map.of("source", "author-turn"));
+    var projection = mapper.createObjectNode().put("interactionId", "entry").put("propertyKey", "path");
+    var key = new CaptureAttemptFeedbackStore.ClarificationFailureKey(
+        "answer-turn", "offer", "entry", "path", projection, projection);
+    feedback.recordClarificationFailure(chat, "requirement-discovery", key, List.of(
+        new CaptureToolOutcomeGateway.TypedIssue("CLARIFICATION_ANSWER_NO_PROGRESS", "/draft/path", "Apply the answer.")));
+    assertTrue(feedback.repeatedClarificationFailure(chat, key), "Recorded stalled clarification");
+
+    try (var ignored = ToolSession.open(chat)) {
+      var result = mapper.readValue(tools.captureRequirementDraft(readyHttpDraft()), RequirementCaptureResult.class);
+      assertTrue(result.accepted(), result.toString());
+    }
+
+    assertEquals("", feedback.repairHistory(chat, "requirement-discovery"));
+    assertFalse(feedback.repeatedClarificationFailure(chat, key), "Accepted clarification target");
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void catalogCopyPinsNewDraftsAndReplaysPreviouslyAdmittedLegacyDrafts(boolean legacy) throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var store = new RequirementDraftStore();
+    var bindings = mock(RequirementDraftTool.class);
+    when(bindings.canonicalBindings(any(), nullable(RequirementDraft.class), anyString())).thenReturn(List.of());
+    var tools = new RequirementCaptureTools(store, bindings, mapper);
+    String chat = UUID.randomUUID().toString();
+    String author = "Map taskId to id.";
+    var base = readyHttpDraft();
+    var fact = new FactInput("copy-id", List.of("entry", "submit"), FactKind.FIELD_MAPPING, Polarity.POSITIVE,
+        author, new RequirementCaptureInput.FieldMappingInput("entry", "taskId", "submit", "id", null));
+    var input = new DraftInput(base.flow(), List.of(base.facts().getFirst(), fact),
+        List.of(base.capabilities().getFirst()), List.of(), base.settings());
+    store.beginTurn(chat, author);
+    if (legacy) store.put(chat, RequirementCaptureProjection.toDraft(input, null, List.of(), null, null));
+
+    try (var ignored = ToolSession.open(chat)) {
+      var accepted = mapper.readValue(tools.captureRequirementDraft(input), RequirementCaptureResult.class);
+      assertTrue(accepted.accepted(), accepted.toString());
+      var saved = store.get(chat).orElseThrow().authoredDraft();
+      var copy = saved.facts().getLast().fieldMapping();
+      if (legacy) {
+        assertEquals(input, saved);
+      } else {
+        assertEquals(new MappingValue.Copy(
+            new MappingSource.Message("entry",
+                MappingPort.OUTPUT, "$.taskId")), copy.value());
+        assertEquals("ERROR", copy.missingSourcePolicy());
+      }
+    }
+  }
+
+  @Test
+  void shouldPinNewMappingInDraftWithAnAnsweredPolicy() {
+    var store = new RequirementDraftStore();
+    String chat = UUID.randomUUID().toString();
+    String author = "Map taskId to id.";
+    store.beginTurn(chat, author);
+    var base = readyHttpDraft();
+    var policy = new RequirementPolicyConflict("access-policy", "accessControlType", "NONE", "RBAC",
+        "security-choice", RequirementPolicyConflict.Decision.KEEP_REQUESTED);
+    var answered = new FactInput("security", List.of("entry"), FactKind.CONSTRAINT, Polarity.POSITIVE,
+        "Keep accessControlType=NONE.", null, policy, null);
+    var saved = new DraftInput(base.flow(), List.of(base.facts().getFirst(), answered),
+        List.of(base.capabilities().getFirst()), List.of(), base.settings());
+    var mapping = new FactInput("copy-id", List.of("entry", "submit"), FactKind.FIELD_MAPPING,
+        Polarity.POSITIVE, author,
+        new RequirementCaptureInput.FieldMappingInput("entry", "taskId", "submit", "id", null));
+    var update = new DraftInput(saved.flow(), List.of(saved.facts().getFirst(), answered, mapping),
+        saved.capabilities(), saved.openQuestions(), saved.settings());
+    var previous = RequirementCaptureProjection.toDraft(saved, null, List.of(), null, null);
+
+    var pinned = store.discardUnconfirmedRuntimeSchemas(chat, update, previous);
+
+    assertEquals(answered, pinned.facts().get(1));
+    assertEquals(new MappingValue.Copy(new MappingSource.Message("entry", MappingPort.OUTPUT, "$.taskId")),
+        pinned.facts().getLast().fieldMapping().value());
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void freshInapplicablePolicyDoesNotProtectMetadataWhileRetainingAllOtherRequirements(boolean reload)
+      throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var archive = new ConversationArchive(blobs, mapper);
+    var conversations = mock(ConversationService.class);
+    when(conversations.archive()).thenReturn(archive);
+    String chat = "fresh-policy-" + UUID.randomUUID();
+    String text = policyApplicabilitySource("false");
+    var source = archive.beginInput(chat, text, null);
+    archive.resolveInput(chat, source, text);
+    var h = policyApplicabilityHarness(blobs, mapper, conversations, chat, text);
+    var original = policyApplicabilityDraft("false", true, true, source.turnId());
+    var artifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
+    try (var ignored = ToolSession.open(chat)) {
+      var refused = mapper.readValue(h.tools().captureRequirementDraft(original), RequirementCaptureResult.class);
+      assertFalse(refused.accepted(), refused.toString());
+      assertTrue(refused.issues().stream().anyMatch(issue -> "INVALID_ELEMENT_OWNER".equals(issue.code())
+          && "prepare".equals(issue.entityId())), refused.toString());
+      assertTrue(refused.issues().stream().anyMatch(issue -> "INVALID_POLICY_CONFLICT".equals(issue.code())
+          && "/draft/facts/access-policy/policyConflict".equals(issue.path())), refused.toString());
+      assertTrue(h.store().get(chat).isEmpty());
+      var rejectedRef = h.store().rejectedCaptureRevision(chat).orElseThrow();
+      var immutableAttempt = mapper.valueToTree(artifacts.payload(rejectedRef,
+          RequirementDraftStore.RequirementCaptureAttempt.class));
+      assertEquals(mapper.valueToTree(original), immutableAttempt.path("arguments"));
+      assertEquals(mapper.valueToTree(refused.issues()), immutableAttempt.path("issues"));
+      assertEquals(source.turnId(), immutableAttempt.path("sourceTurnId").asText());
+      assertTrue(h.store().rejectedCaptureFacts(chat).isEmpty());
+      var protection = mapper.valueToTree(h.store().repairConstraints(chat));
+      assertNull(h.store().repairConstraints(chat));
+      if (reload) {
+        h = policyApplicabilityHarness(blobs, mapper, conversations, chat, text);
+        assertEquals(protection, mapper.valueToTree(h.store().repairConstraints(chat)));
+        assertEquals(immutableAttempt, mapper.valueToTree(artifacts.payload(rejectedRef,
+            RequirementDraftStore.RequirementCaptureAttempt.class)));
+      }
+      var corrected = policyApplicabilityDraft("false", false, false, source.turnId());
+      var accepted = mapper.readValue(h.tools().captureRequirementDraft(corrected), RequirementCaptureResult.class);
+      assertTrue(accepted.accepted(), accepted.toString());
+      assertAuthoredContentEquals(corrected, h.store().get(chat).orElseThrow().authoredDraft());
+      var finished = mapper.readValue(h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE),
+          RequirementCaptureResult.class);
+      assertTrue(finished.accepted(), finished.toString());
+      var restored = policyApplicabilityHarness(blobs, mapper, conversations, chat, text);
+      assertAuthoredContentEquals(corrected, restored.store().get(chat).orElseThrow().authoredDraft());
+      assertEquals(immutableAttempt, mapper.valueToTree(artifacts.payload(rejectedRef,
+          RequirementDraftStore.RequirementCaptureAttempt.class)));
+      assertEquals(source.turnId(), ConversationArchive.latestInputId(archive.read(chat)));
+      assertEquals(text, archive.read(chat).activeTurns().getFirst().message().content());
+      assertTrue(new PolicyChoiceSelection(artifacts,
+          new CompilationSessions(blobs, mapper, Clock.systemUTC()), conversations).pending(chat, 8).isEmpty());
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"true", "TRUE", " true "})
+  void explicitSameOwnerExternalRouteRetainsTheNormalTypedPolicyCardAfterReload(String exposure) throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var archive = new ConversationArchive(blobs, mapper);
+    var conversations = mock(ConversationService.class);
+    when(conversations.archive()).thenReturn(archive);
+    String chat = "applicable-policy-" + UUID.randomUUID();
+    String text = policyApplicabilitySource(exposure);
+    var source = archive.beginInput(chat, text, null);
+    archive.resolveInput(chat, source, text);
+    var h = policyApplicabilityHarness(blobs, mapper, conversations, chat, text);
+    var input = policyApplicabilityDraft(exposure, false, true, source.turnId());
+    try (var ignored = ToolSession.open(chat)) {
+      var captured = mapper.readValue(h.tools().captureRequirementDraft(input), RequirementCaptureResult.class);
+      assertTrue(captured.accepted(), captured.toString());
+      var finished = mapper.readValue(h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY),
+          RequirementCaptureResult.class);
+      assertTrue(finished.accepted(), finished.toString());
+      var artifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
+      var choices = new PolicyChoiceSelection(artifacts,
+          new CompilationSessions(blobs, mapper, Clock.systemUTC()), conversations);
+      var offered = choices.pending(chat, 7).orElseThrow();
+      assertEquals(h.store().latestRevision(chat).orElseThrow().reference(), offered.draftReference());
+      assertEquals(input.facts().get(2), offered.fact());
+      assertEquals(input.openQuestions().getFirst(), offered.question());
+      var card = choices.decision(offered, 7);
+      assertEquals(List.of("keep-requested", "use-recommended"), card.actions());
+      assertEquals(Map.of("keep-requested", "Keep NONE", "use-recommended", "Use recommended RBAC"), card.actionLabels());
+      var restored = policyApplicabilityHarness(blobs, mapper, conversations, chat, text);
+      assertAuthoredContentEquals(input, restored.store().get(chat).orElseThrow().authoredDraft());
+      assertEquals(offered, new PolicyChoiceSelection(artifacts,
+          new CompilationSessions(blobs, mapper, Clock.systemUTC()), conversations).pending(chat, 7).orElseThrow());
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"missing", "foreign", "conflicting", "invalid", "unsupported", "duplicate",
+      "negative", "local", "null-value"})
+  void policyApplicabilityRequiresItsOwnValidNativeCondition(String defect) throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var archive = new ConversationArchive(blobs, mapper);
+    var conversations = mock(ConversationService.class);
+    when(conversations.archive()).thenReturn(archive);
+    String chat = "unproved-policy-" + UUID.randomUUID();
+    String text = policyApplicabilitySource("true");
+    var source = archive.beginInput(chat, text, null);
+    archive.resolveInput(chat, source, text);
+    var h = policyApplicabilityHarness(blobs, mapper, conversations, chat, text);
+    var base = policyApplicabilityDraft("true", false, true, source.turnId());
+    var facts = new ArrayList<>(base.facts());
+    var anchor = facts.get(1);
+    var intent = anchor.elementIntent();
+    var properties = new ArrayList<>(intent.requestedProperties());
+    if (List.of("missing", "foreign", "invalid", "unsupported", "null-value").contains(defect)) {
+      properties.removeIf(property -> property.key().equals("externalRoute"));
+    }
+    if (defect.equals("invalid")) properties.add(new PlanProperty("externalRoute", "not-a-boolean"));
+    if (defect.equals("unsupported")) properties.add(new PlanProperty("publicRoute", "true"));
+    if (defect.equals("null-value")) properties.add(new PlanProperty("externalRoute", null));
+    if (defect.equals("duplicate")) properties.add(new PlanProperty("externalRoute", "true"));
+    var changed = new RequirementElementIntent(defect.equals("local") ? "nested-route" : intent.elementRef(),
+        intent.elementType(), defect.equals("local") ? RequirementElementIntent.Placement.LOCAL_NODE : intent.placement(),
+        intent.ownerInteractionId(), intent.successorElementRef(), intent.predecessorElementRef(),
+        intent.parentElementRef(), intent.requestedName(), properties, intent.exactValues());
+    facts.set(1, new FactInput(anchor.sourceFactId(), anchor.interactionIds(), anchor.kind(),
+        defect.equals("negative") ? Polarity.NEGATIVE : anchor.polarity(), anchor.text(), null, null, changed));
+    var flow = base.flow();
+    var capabilities = base.capabilities();
+    if (defect.equals("conflicting")) {
+      facts.add(new FactInput("contradictory-exposure", List.of("entry"), FactKind.PARAMETER, Polarity.POSITIVE,
+          "The same route is internal.", null, null, new RequirementElementIntent("entry", "http-trigger",
+              RequirementElementIntent.Placement.ANCHOR, "entry", null, null, null,
+              List.of(new PlanProperty("externalRoute", "false")), List.of())));
+    }
+    if (defect.equals("foreign")) {
+      flow = new FlowInput(List.of(base.flow().interactions().getFirst(),
+          new InteractionInput("other-entry", Direction.INBOUND, "Other caller", "POST /other", null, null, null)),
+          base.flow().transitions());
+      capabilities = List.of(base.capabilities().getFirst(),
+          new CapabilityInput("other-entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.POST, "/other", null, null, null));
+      facts.add(new FactInput("other-route", List.of("other-entry"), FactKind.PARAMETER, Polarity.POSITIVE,
+          "Another route has a separate exposure setting.", null, null,
+          new RequirementElementIntent("other-entry", "http-trigger", RequirementElementIntent.Placement.ANCHOR,
+              "other-entry", null, null, null, List.of(new PlanProperty("externalRoute", "true")), List.of())));
+    }
+    var input = new DraftInput(flow, facts, capabilities, base.openQuestions(), base.settings());
+    try (var ignored = ToolSession.open(chat)) {
+      var refused = mapper.readValue(h.tools().captureRequirementDraft(input), RequirementCaptureResult.class);
+      assertFalse(refused.accepted(), refused.toString());
+      assertTrue(refused.issues().stream().anyMatch(issue -> "INVALID_POLICY_CONFLICT".equals(issue.code())
+          && "/draft/facts/access-policy/policyConflict".equals(issue.path())), refused.toString());
+      assertTrue(h.store().get(chat).isEmpty());
+      assertTrue(h.store().rejectedCaptureFacts(chat).isEmpty());
+      assertEquals(source.turnId(), ConversationArchive.latestInputId(archive.read(chat)));
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"facts-null", "null-fact", "flow-null", "properties-null"})
+  void malformedPolicyContextFailsClosedWithoutThrowing(String defect) throws Exception {
+    var h = harness();
+    h.tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+        .createForUnitTests(h.mapper());
+    h.store().beginTurn(h.conversationId(), policyApplicabilitySource("true"));
+    var base = policyApplicabilityDraft("true", false, true, "source");
+    List<FactInput> facts = new ArrayList<>(base.facts());
+    if (defect.equals("null-fact")) facts.set(1, null);
+    if (defect.equals("properties-null")) {
+      var fact = facts.get(1);
+      var intent = fact.elementIntent();
+      facts.set(1, withIntent(fact, new RequirementElementIntent(intent.elementRef(), intent.elementType(),
+          intent.placement(), intent.ownerInteractionId(), null, null, null, intent.requestedName(), null, intent.exactValues())));
+    }
+    var input = new DraftInput(defect.equals("flow-null") ? null : base.flow(),
+        defect.equals("facts-null") ? null : facts, base.capabilities(), base.openQuestions(), base.settings());
+    try (var ignored = ToolSession.open(h.conversationId())) {
+      var refused = assertDoesNotThrow(() -> h.mapper().readValue(h.tools().captureRequirementDraft(input),
+          RequirementCaptureResult.class));
+      assertFalse(refused.accepted(), refused.toString());
+      assertFalse(refused.issues().isEmpty());
+      assertTrue(h.store().get(h.conversationId()).isEmpty());
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"literal", "name", "property", "text", "target", "order", "fact"})
+  void correctingFreshInvalidPolicyRejectsAMissingTargetAndAllowsAnUngroundedFactDrop(String loss) throws Exception {
+    var h = harness();
+    h.tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+        .createForUnitTests(h.mapper());
+    h.store().beginTurn(h.conversationId(), policyApplicabilitySource("false"));
+    var original = policyApplicabilityDraft("false", true, true, "source");
+    try (var ignored = ToolSession.open(h.conversationId())) {
+      assertFalse(h.mapper().readValue(h.tools().captureRequirementDraft(original), RequirementCaptureResult.class).accepted());
+      var corrected = policyApplicabilityDraft("false", false, false, "source");
+      var facts = new ArrayList<>(corrected.facts());
+      var audit = facts.get(4);
+      var intent = audit.elementIntent();
+      var properties = new ArrayList<>(intent.requestedProperties());
+      if (loss.equals("property")) properties.removeIf(property -> property.key().equals("logLevel"));
+      var changedIntent = new RequirementElementIntent(intent.elementRef(), intent.elementType(), intent.placement(),
+          intent.ownerInteractionId(), intent.successorElementRef(), loss.equals("order") ? "prepare-step" : intent.predecessorElementRef(),
+          intent.parentElementRef(), loss.equals("name") ? null : intent.requestedName(), properties,
+          loss.equals("literal") ? List.of() : intent.exactValues());
+      facts.set(4, new FactInput(audit.sourceFactId(), loss.equals("target") ? List.of() : audit.interactionIds(),
+          audit.kind(), audit.polarity(), loss.equals("text") ? audit.text() + " Revised." : audit.text(), null, null, changedIntent));
+      if (loss.equals("fact")) facts.remove(4);
+      var input = new DraftInput(corrected.flow(), facts, corrected.capabilities(), corrected.openQuestions(), corrected.settings());
+      var refused = h.mapper().readValue(h.tools().captureRequirementDraft(input), RequirementCaptureResult.class);
+      // A missing interaction target is still invalid. Dropping the audit fact is allowed: its exact value
+      // lived only on the rejected capture, and that capture saved no claim.
+      if (loss.equals("target")) {
+        assertFalse(refused.accepted(), refused.toString());
+        assertTrue(refused.issues().stream().anyMatch(issue -> "audit".equals(issue.entityId())), refused.toString());
+        assertTrue(h.store().rejectedCaptureFacts(h.conversationId()).isEmpty());
+        assertTrue(h.store().get(h.conversationId()).isEmpty());
+      } else {
+        assertTrue(refused.accepted(), refused.toString());
+        assertAuthoredContentEquals(input, h.store().get(h.conversationId()).orElseThrow().authoredDraft());
+      }
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void rejectedPolicyMetadataCanBeReplacedByAFreshShapeValidDraft(boolean reload) throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var archive = new ConversationArchive(blobs, mapper);
+    var conversations = mock(ConversationService.class);
+    when(conversations.archive()).thenReturn(archive);
+    String chat = "historical-policy-" + UUID.randomUUID();
+    String text = policyApplicabilitySource("false");
+    var source = archive.beginInput(chat, text, null);
+    archive.resolveInput(chat, source, text);
+    var h = policyApplicabilityHarness(blobs, mapper, conversations, chat, text);
+    var legacy = policyApplicabilityDraft("false", false, true, source.turnId());
+    // This negative starts with metadata persisted by the earlier metadata-only validation contract.
+    h.store().rememberRejectedCaptureFacts(chat, legacy.facts());
+    if (reload) h = policyApplicabilityHarness(blobs, mapper, conversations, chat, text);
+    try (var ignored = ToolSession.open(chat)) {
+      var removal = policyApplicabilityDraft("false", false, false, source.turnId());
+      var refused = mapper.readValue(h.tools().captureRequirementDraft(removal), RequirementCaptureResult.class);
+      assertTrue(refused.accepted(), refused.toString());
+      assertAuthoredContentEquals(removal, h.store().get(chat).orElseThrow().authoredDraft());
+      assertEquals(source.turnId(), ConversationArchive.latestInputId(archive.read(chat)));
+    }
+  }
+
+  @Test
+  void oneExternalOwnerCannotAuthorizeAMultiOwnerPolicyConflict() throws Exception {
+    var h = harness();
+    h.store().beginTurn(h.conversationId(), policyApplicabilitySource("true"));
+    var base = policyApplicabilityDraft("true", false, true, "source");
+    var facts = new ArrayList<>(base.facts());
+    var policy = facts.get(2);
+    facts.set(2, new FactInput(policy.sourceFactId(), List.of("entry", "other-entry"), policy.kind(),
+        policy.polarity(), policy.text(), null, policy.policyConflict(), null));
+    var input = new DraftInput(new FlowInput(List.of(base.flow().interactions().getFirst(),
+        new InteractionInput("other-entry", Direction.INBOUND, "Other caller", "POST /other", null, null, null)), List.of()),
+        facts, List.of(base.capabilities().getFirst(), new CapabilityInput("other-entry", "http-trigger",
+            HttpMode.CUSTOM, HttpMethod.POST, "/other", null, null, null)),
+        List.of(new RequirementCaptureInput.QuestionInput("security-choice", List.of("entry", "other-entry"), "Keep NONE or choose RBAC?")),
+        base.settings());
+    try (var ignored = ToolSession.open(h.conversationId())) {
+      var refused = h.mapper().readValue(h.tools().captureRequirementDraft(input), RequirementCaptureResult.class);
+      assertFalse(refused.accepted(), refused.toString());
+      assertTrue(refused.issues().stream().anyMatch(issue -> "INVALID_POLICY_CONFLICT".equals(issue.code())
+          && issue.path().endsWith("/policyConflict")), refused.toString());
+      assertTrue(h.store().get(h.conversationId()).isEmpty());
+    }
+  }
+
+  private static Harness policyApplicabilityHarness(InMemoryArtifactBlobStore blobs, ObjectMapper mapper,
+      ConversationService conversations, String chat, String text) {
+    var h = persistentHarness(blobs, mapper, conversations, chat);
+    h.tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+        .createForUnitTests(mapper);
+    h.store().beginTurn(chat, text);
+    return h;
+  }
+
+  private static String policyApplicabilitySource(String exposure) {
+    return "Create chain Policy validation. Use an HTTP trigger named Receive checks with externalRoute=" + exposure
+        + " and accessControlType=NONE. Receive POST /checks. Use the local Script Prepare response to leave the body unchanged."
+        + " After entry, Audit completion logs kept-value at logLevel Info. No IDS.";
+  }
+
+  private static DraftInput policyApplicabilityDraft(String exposure, boolean invalidOwner, boolean policyPresent,
+      String sourceId) {
+    var policy = new RequirementPolicyConflict("CORPORATE_CIP_STANDARDS:12.4", "accessControlType", "NONE", "RBAC",
+        "security-choice", null);
+    var properties = new ArrayList<>(List.of(new PlanProperty("accessControlType", "NONE")));
+    if (exposure != null) properties.add(new PlanProperty("externalRoute", exposure));
+    return new DraftInput(new FlowInput(List.of(new InteractionInput("entry", Direction.INBOUND, "Caller",
+        "POST /checks", "Receive the request.", null, null)), List.of()), List.of(
+        new FactInput("chain-name", List.of(), FactKind.PARAMETER, Polarity.POSITIVE, "Chain name: Policy validation.",
+            null, null, new RequirementElementIntent("chain", "chain", RequirementElementIntent.Placement.CHAIN,
+                null, null, null, null, "Policy validation", List.of(), List.of())),
+        new FactInput("route-anchor", List.of("entry"), FactKind.PARAMETER, Polarity.POSITIVE,
+            "Receive checks uses externalRoute=" + exposure + " and accessControlType=NONE.", null, null,
+            new RequirementElementIntent("entry", "http-trigger", RequirementElementIntent.Placement.ANCHOR,
+                "entry", null, null, null, "Receive checks", properties, List.of("NONE"))),
+        new FactInput("access-policy", List.of("entry"), FactKind.CONSTRAINT, Polarity.POSITIVE,
+            "Keep accessControlType=NONE.", null, policyPresent ? policy : null, null),
+        new FactInput("prepare", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+            "Prepare response leaves the body unchanged.", null, null,
+            new RequirementElementIntent("prepare-step", "script", RequirementElementIntent.Placement.LOCAL_NODE,
+                invalidOwner ? "foreign-owner" : "entry", null, null, null, "Prepare response", List.of(), List.of())),
+        new FactInput("audit", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+            "Audit completion logs kept-value at logLevel Info.", null, null,
+            new RequirementElementIntent("audit-step", "log-record", RequirementElementIntent.Placement.LOCAL_NODE,
+                "entry", null, "entry", null, "Audit completion",
+                List.of(new PlanProperty("message", "kept-value"), new PlanProperty("logLevel", "Info")), List.of("kept-value")))),
+        List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.POST, "/checks", null, null, null)),
+        policyPresent ? List.of(new RequirementCaptureInput.QuestionInput("security-choice", List.of("entry"),
+            "Keep NONE or choose RBAC?", new AuthorQuestionEvidence("entry", "accessControlType",
+                AuthorQuestionEvidence.Kind.POLICY_CHOICE, List.of(sourceId)))) : List.of(), new DraftSettings(false, null));
+  }
+
+  private static FactInput withPolicy(FactInput fact, RequirementPolicyConflict policy) {
+    return new FactInput(fact.sourceFactId(), fact.interactionIds(), fact.kind(), fact.polarity(), fact.text(),
+        fact.fieldMapping(), policy, fact.elementIntent());
+  }
+
+  private static FactInput withIntent(FactInput fact, RequirementElementIntent intent) {
+    return new FactInput(fact.sourceFactId(), fact.interactionIds(), fact.kind(), fact.polarity(), fact.text(),
+        fact.fieldMapping(), fact.policyConflict(), intent);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void aRejectedMappingMayBecomeLocalBehaviorWithoutLosingItsAuthorFact(boolean intermediateMissingMapping)
+      throws Exception {
+    var h = harness();
+    String chat = "rejected-mapping-kind";
+    var fact = new FactInput("reply", List.of("entry", "remote"), FactKind.FIELD_MAPPING,
+        Polarity.POSITIVE, "Return the remote response to the caller.",
+        new RequirementCaptureInput.FieldMappingInput("remote", "status", "entry", "status", null));
+    var flow = new FlowInput(List.of(
+        new InteractionInput("entry", Direction.INBOUND, "Caller", "POST /work", null, null, null),
+        new InteractionInput("remote", Direction.OUTBOUND, "Remote", "POST /submit", null, null, null)),
+        List.of(new RequirementCaptureInput.TransitionInput("entry", "remote")));
+    var original = new DraftInput(flow, List.of(fact), List.of(), List.of(), new DraftSettings(false, null));
+    try (var ignored = ToolSession.open(chat)) {
+      h.store().beginTurn(chat, "Receive POST /work, submit it, and return the remote response to the caller. No IDS.");
+      var refused = h.mapper().readValue(h.tools().captureRequirementDraft(original), RequirementCaptureResult.class);
+      assertFalse(refused.accepted());
+      assertTrue(refused.issues().stream().anyMatch(issue -> "MAPPING_TRANSITION_REQUIRED".equals(issue.code())));
+      if (intermediateMissingMapping) {
+        var incomplete = new FactInput(fact.sourceFactId(), fact.interactionIds(), fact.kind(),
+            fact.polarity(), fact.text());
+        var stillRefused = h.mapper().readValue(h.tools().captureRequirementDraft(new DraftInput(flow,
+            List.of(incomplete), original.capabilities(), original.openQuestions(), original.settings())),
+            RequirementCaptureResult.class);
+        assertFalse(stillRefused.accepted());
+        assertTrue(stillRefused.issues().stream().anyMatch(issue -> "MAPPING_FIELDS_REQUIRED".equals(issue.code())));
+      }
+      var corrected = new FactInput(fact.sourceFactId(), fact.interactionIds(), FactKind.BEHAVIOR,
+          fact.polarity(), fact.text());
+      var accepted = h.mapper().readValue(h.tools().captureRequirementDraft(new DraftInput(flow,
+          List.of(corrected), original.capabilities(), original.openQuestions(), original.settings())),
+          RequirementCaptureResult.class);
+      assertTrue(accepted.accepted(), accepted.toString());
+      assertEquals(fact.text(), accepted.draft().facts().getFirst().text());
+      assertEquals(FactKind.BEHAVIOR, accepted.draft().facts().getFirst().kind());
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void partialDraftCannotAskBeforeCompletingNativeMetadata(boolean suppliedRole) throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var archive = new ConversationArchive(blobs, mapper);
+    var conversations = mock(ConversationService.class);
+    when(conversations.archive()).thenReturn(archive);
+    String chat = "partial-anchor-" + UUID.randomUUID();
+    String text = "Accept POST /tasks and submit it."
+        + (suppliedRole ? " Allow exactly the role task-operator." : " Ask which role may access the route.");
+    var turn = archive.beginInput(chat, text, null);
+    archive.resolveInput(chat, turn, text);
+    var h = persistentHarness(blobs, mapper, conversations, chat);
+    h.store().beginTurn(chat, text);
+    var base = readyHttpDraft();
+    var question = new RequirementCaptureInput.QuestionInput("route-role", List.of("entry"), "Which role?",
+        new org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence("entry", "roles",
+            org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.MISSING_VALUE,
+            List.of(turn.turnId())));
+    var input = new DraftInput(base.flow(), List.of(base.facts().getFirst(),
+        new FactInput("access", List.of("entry"), FactKind.CONSTRAINT, Polarity.POSITIVE,
+            suppliedRole ? "Allow exactly the role task-operator." : "Ask which role may access the route.")),
+        base.capabilities(), List.of(question), base.settings());
+    try (var ignored = ToolSession.open(chat)) {
+      assertTrue(mapper.readValue(h.tools().captureRequirementDraft(input), RequirementCaptureResult.class).accepted());
+      var refused = mapper.readValue(h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY),
+          RequirementCaptureResult.class);
+      assertFalse(refused.accepted(), refused.toString());
+      assertTrue(refused.issues().stream().anyMatch(issue -> "MISSING_ANCHOR_INTENT".equals(issue.code())),
+          refused.toString());
+      var entry = quoted(nativeAnchorFact("entry", "http-trigger"), turn.turnId(), "POST /tasks");
+      var intent = entry.elementIntent();
+      if (suppliedRole) {
+        entry = quoted(new FactInput(entry.sourceFactId(), entry.interactionIds(), entry.kind(), entry.polarity(),
+            "Allow exactly the role task-operator.", null, null,
+            new RequirementElementIntent(intent.elementRef(), intent.elementType(), intent.placement(),
+                intent.ownerInteractionId(), null, null, null,
+                List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty("roles", "[\"task-operator\"]")),
+                List.of("task-operator"))), turn.turnId(), "POST /tasks");
+      }
+      var changes = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(),
+          List.of(entry, quoted(nativeAnchorFact("submit", "http-sender"), turn.turnId(), "POST /tasks")), List.of(), List.of(), List.of(), List.of(),
+          List.of(), List.of(), suppliedRole ? List.of(question.questionId()) : List.of(), null);
+      var corrected = mapper.readValue(h.tools().updateRequirementDraft(changes), RequirementCaptureResult.class);
+      assertTrue(corrected.accepted(), corrected.toString());
+      var finished = mapper.readValue(h.tools().finishRequirementDiscoveryTurn(suppliedRole
+          ? RequirementDiscoveryDirective.CONTINUE : RequirementDiscoveryDirective.STAY), RequirementCaptureResult.class);
+      assertTrue(finished.accepted(), finished.toString());
+      assertEquals(suppliedRole, h.store().get(chat).orElseThrow().openQuestions().isEmpty());
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void referencesToRejectedIdentitiesRemainRepairable(boolean predecessor) throws Exception {
+    var h = harness();
+    h.tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+        .createForUnitTests(h.mapper());
+    h.store().beginTurn(h.conversationId(),
+        "Accept POST /tasks. Use a Script named Prepare stage and a Log Record named Audit stage with message audit-event.");
+    var base = readyHttpDraft();
+    RequirementCaptureResult rejected = null;
+    try (var ignored = ToolSession.open(h.conversationId())) {
+      for (String target : List.of("invalid target", "prepare-step")) {
+        var prepare = new FactInput("prepare-behavior", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+            "Prepare stage leaves the body unchanged.", null, null, new RequirementElementIntent(target, "script",
+                RequirementElementIntent.Placement.LOCAL_NODE, "entry", null, null, null, "Prepare stage", List.of(), List.of()));
+        var audit = new FactInput("audit-behavior", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+            "Audit stage logs audit-event.", null, null, new RequirementElementIntent("audit-step", "log-record",
+                RequirementElementIntent.Placement.LOCAL_NODE, "entry", predecessor ? null : target,
+                predecessor ? target : null, null, "Audit stage",
+                List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty("message", "audit-event")),
+                List.of("audit-event")));
+        var facts = new ArrayList<>(base.facts());
+        facts.addAll(List.of(prepare, audit));
+        var result = h.mapper().readValue(h.tools().captureRequirementDraft(withNativeAnchors(new DraftInput(
+            base.flow(), facts, base.capabilities(), base.openQuestions(), base.settings()))), RequirementCaptureResult.class);
+        if (target.equals("invalid target")) {
+          assertFalse(result.accepted());
+          rejected = result;
+        } else {
+          assertTrue(result.accepted(), result.toString());
+          var capturedFacts = h.store().get(h.conversationId()).orElseThrow().authoredDraft().facts().stream()
+              .filter(fact -> facts.stream().anyMatch(expected -> expected.sourceFactId().equals(fact.sourceFactId())))
+              .toList();
+          assertAuthoredContentEquals(facts, capturedFacts);
+          assertTrue(h.mapper().readValue(h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE),
+              RequirementCaptureResult.class).accepted());
+        }
+      }
+      assertNotNull(rejected);
+      String field = predecessor ? "predecessorElementRef" : "successorElementRef";
+      assertTrue(rejected.issues().stream().anyMatch(issue -> issue.code().equals("UNKNOWN_ELEMENT_REFERENCE")
+          && issue.path().equals("/draft/facts/audit-behavior/elementIntent/" + field)), rejected.toString());
+    }
+  }
+
+  @Test
+  void rejectedPropertyCarriesItsRuntimeSchemaAndCorrectedJsonTextCanContinue() throws Exception {
+    var h = harness();
+    h.tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+        .createForUnitTests(h.mapper());
+    h.store().beginTurn(h.conversationId(),
+        "Accept POST /tasks with RBAC role qip-auditor, then submit one task to https://example.com/tasks.");
+    var base = readyHttpDraft();
+    try (var ignored = ToolSession.open(h.conversationId())) {
+      for (String roles : List.of("{}", "[\"qip-auditor\"]")) {
+        var intent = new RequirementElementIntent("entry", "http-trigger", RequirementElementIntent.Placement.ANCHOR,
+            "entry", null, null, null, List.of(
+                new org.qubership.integration.platform.ai.plan.model.PlanProperty("accessControlType", "RBAC"),
+                new org.qubership.integration.platform.ai.plan.model.PlanProperty("roles", roles)), List.of());
+        var fact = new FactInput("access", List.of("entry"), FactKind.CONSTRAINT, Polarity.POSITIVE,
+            "Use RBAC role qip-auditor.", null, null, intent);
+        var facts = new ArrayList<>(base.facts());
+        facts.add(fact);
+        var result = h.mapper().readValue(h.tools().captureRequirementDraft(withNativeAnchors(new DraftInput(
+            base.flow(), facts, base.capabilities(), base.openQuestions(), base.settings()))), RequirementCaptureResult.class);
+        if (roles.equals("{}")) {
+          assertFalse(result.accepted());
+          var issue = result.issues().stream().filter(i -> i.code().equals("INVALID_REQUESTED_PROPERTY"))
+              .findFirst().orElseThrow();
+          assertTrue(issue.message().contains(h.tools().elementSchemas.describeElementProperty("http-trigger", "roles")),
+              issue.message());
+        } else {
+          assertTrue(result.accepted(), result.toString());
+          assertTrue(h.mapper().readValue(h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE),
+              RequirementCaptureResult.class).accepted());
+        }
+      }
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"invalid local ref", "9invalid"})
+  void rejectedLocalIdentityDoesNotBecomeAProtectedValue(String invalidRef) throws Exception {
+    var h = harness();
+    h.tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+        .createForUnitTests(h.mapper());
+    h.store().beginTurn(h.conversationId(),
+        "Accept POST /tasks, log audit-event with a Log Record named Audit stage, then submit one task.");
+    var base = readyHttpDraft();
+    RequirementCaptureResult rejected = null;
+    try (var ignored = ToolSession.open(h.conversationId())) {
+      for (String ref : List.of(invalidRef, "audit-step")) {
+        var intent = new RequirementElementIntent(ref, "log-record", RequirementElementIntent.Placement.LOCAL_NODE,
+            "entry", null, "entry", null, "Audit stage",
+            List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty("message", "audit-event")),
+            List.of("audit-event"));
+        var fact = new FactInput("audit-requirement", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+            "Log audit-event in Audit stage.", null, null, intent);
+        var facts = new ArrayList<>(base.facts());
+        facts.add(fact);
+        var result = h.mapper().readValue(h.tools().captureRequirementDraft(new DraftInput(base.flow(), facts,
+            base.capabilities(), base.openQuestions(), base.settings())), RequirementCaptureResult.class);
+        if (ref.equals(invalidRef)) {
+          assertFalse(result.accepted());
+          assertTrue(result.issues().stream().anyMatch(issue -> issue.code().equals("INVALID_VALUE")
+              && issue.path().equals("/draft/facts/audit-requirement/elementIntent/elementRef")
+              && issue.entityId() == null), result.toString());
+          rejected = result;
+        } else {
+          assertTrue(result.accepted(), result.toString());
+          assertEquals(facts, h.store().get(h.conversationId()).orElseThrow().authoredDraft().facts());
+        }
+      }
+      assertNotNull(rejected);
+      assertNull(rejected.repairConstraints());
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"derived-disabled-mapper", "explicit-disabled-mapper", "supported-script"})
+  void draftKeepsAnExplicitElementChoiceAndRejectsAnUnsupportedGuess(String selection) throws Exception {
+    var h = harness();
+    boolean explicit = selection.equals("explicit-disabled-mapper");
+    String type = selection.equals("supported-script") ? "script" : "mapper-2";
+    String request = "Accept POST /tasks and return the response as JSON."
+        + (explicit ? " Use mapper-2." : "");
+    h.store().beginTurn(h.conversationId(), request);
+    var base = readyHttpDraft();
+    var intent = new RequirementElementIntent("reply", type, RequirementElementIntent.Placement.LOCAL_NODE,
+        "entry", null, null, null, List.of(), List.of());
+    var fact = new FactInput("reply", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+        "Return the response as JSON.", null, null, intent);
+    try (var ignored = ToolSession.open(h.conversationId())) {
+      var result = h.mapper().readValue(h.tools().captureRequirementDraft(new DraftInput(base.flow(),
+          List.of(base.facts().getFirst(), fact), base.capabilities(), base.openQuestions(), base.settings())),
+          RequirementCaptureResult.class);
+      boolean derived = selection.equals("derived-disabled-mapper");
+      assertEquals(derived ? List.of("/draft/facts/reply/elementIntent") : List.of(), result.issues().stream()
+          .filter(issue -> "DERIVED_UNSUPPORTED_ELEMENT".equals(issue.code())).map(issue -> issue.path()).toList(),
+          result::toString);
+      assertEquals(!derived, result.accepted(), result::toString);
+      if (!derived) assertAuthoredContentEquals(intent, h.store().get(h.conversationId()).orElseThrow().authoredDraft()
+          .facts().stream().filter(candidate -> candidate.sourceFactId().equals("reply"))
+          .findFirst().orElseThrow().elementIntent());
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void topLevelElementCannotUseTheChainAsItsParent(boolean useChainParent) throws Exception {
+    var h = harness();
+    h.store().beginTurn(h.conversationId(), "Accept POST /tasks and route the response.");
+    var base = readyHttpDraft();
+    var chain = new FactInput("chain-name", List.of(), FactKind.GOAL, Polarity.POSITIVE,
+        "Create a chain.", null, null, new RequirementElementIntent("root", "chain",
+            RequirementElementIntent.Placement.CHAIN, null, null, null, null, List.of(), List.of()));
+    var routing = new FactInput("route", List.of("entry"), FactKind.ROUTING, Polarity.POSITIVE,
+        "Route the response.", null, null, new RequirementElementIntent("routing", "condition",
+            RequirementElementIntent.Placement.LOCAL_NODE, "entry", null, null,
+            useChainParent ? "root" : null, null, List.of(), List.of()));
+    try (var ignored = ToolSession.open(h.conversationId())) {
+      var result = h.mapper().readValue(h.tools().captureRequirementDraft(new DraftInput(base.flow(),
+          List.of(base.facts().getFirst(), chain, routing), base.capabilities(), base.openQuestions(), base.settings())),
+          RequirementCaptureResult.class);
+      assertEquals(useChainParent ? List.of("/draft/facts/route/elementIntent/parentElementRef") : List.of(),
+          result.issues().stream().filter(issue -> "CHAIN_IS_NOT_AN_ELEMENT_PARENT".equals(issue.code()))
+              .map(issue -> issue.path()).toList(), result::toString);
+      assertEquals(!useChainParent, result.accepted(), result::toString);
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"Return 1000 orders.", "Set the connection timeout to 3000 ms.",
+      "Set the connection timeout to 1000 seconds.", "Set the read timeout to 1000 ms.",
+      "Set connectTimeout to 1000 ms.", "Set the connection timeout to 1 second."})
+  void connectionTimeoutRequiresMatchingAuthorEvidence(String setting) throws Exception {
+    var h = harness();
+    h.store().beginTurn(h.conversationId(), "Accept POST /tasks. " + setting);
+    var base = readyHttpDraft();
+    var intent = new RequirementElementIntent("entry", "http-trigger", RequirementElementIntent.Placement.ANCHOR,
+        "entry", null, null, null, List.of(new PlanProperty("connectTimeout", "1000")), List.of());
+    var fact = new FactInput("entry-settings", List.of("entry"), FactKind.CONSTRAINT, Polarity.POSITIVE,
+        "Accept POST /tasks.", null, null, intent);
+    try (var ignored = ToolSession.open(h.conversationId())) {
+      var result = h.mapper().readValue(h.tools().captureRequirementDraft(new DraftInput(base.flow(),
+          List.of(base.facts().getFirst(), fact), base.capabilities(), base.openQuestions(), base.settings())),
+          RequirementCaptureResult.class);
+      boolean supported = setting.startsWith("Set connectTimeout")
+          || setting.equals("Set the connection timeout to 1 second.");
+      assertEquals(supported ? List.of() : List.of("/draft/facts/entry-settings/elementIntent/requestedProperties"),
+          result.issues().stream().filter(issue -> "UNPROVEN_ELEMENT_PROPERTY".equals(issue.code()))
+              .map(issue -> issue.path()).toList(), result::toString);
+      assertEquals(supported, result.accepted(), result::toString);
+    }
+  }
+
+  @Test
+  void scriptBehaviorBindsToItsOwnedArtifactBeforeTheScriptIsGenerated() throws Exception {
+    var h = harness();
+    h.tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+        .createForUnitTests(h.mapper());
+    h.store().beginTurn(h.conversationId(), "Accept POST /tasks and use a Script to respond with accepted-body.");
+    var base = readyHttpDraft();
+    var intent = new RequirementElementIntent("reply", "script", RequirementElementIntent.Placement.LOCAL_NODE,
+        "entry", null, "entry", null, List.of(), List.of("accepted-body"));
+    var fact = new FactInput("reply", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+        "The Script responds with accepted-body.", null, null, intent);
+    try (var ignored = ToolSession.open(h.conversationId())) {
+      var result = h.mapper().readValue(h.tools().captureRequirementDraft(new DraftInput(base.flow(),
+          List.of(base.facts().getFirst(), fact), base.capabilities(), base.openQuestions(), base.settings())),
+          RequirementCaptureResult.class);
+      assertTrue(result.accepted(), result.toString());
+      assertAuthoredContentEquals(intent, h.store().get(h.conversationId()).orElseThrow().authoredDraft().facts().getLast().elementIntent());
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"audit-value", "POST"})
+  void requiredLiteralNeedsAnOwnedRuntimeBinding(String literal) throws Exception {
+    var h = harness();
+    h.tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+        .createForUnitTests(h.mapper());
+    h.store().beginTurn(h.conversationId(), "Accept POST /tasks and log exactly " + literal + ".");
+    var base = readyHttpDraft();
+    var intent = new RequirementElementIntent("audit", "log-record", RequirementElementIntent.Placement.LOCAL_NODE,
+        "entry", null, "entry", null, List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty("logLevel", "Info")), List.of(literal));
+    var fact = new FactInput("audit", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+        "Log exactly " + literal + ".", null, null, intent);
+    var input = new DraftInput(base.flow(), List.of(base.facts().getFirst(), fact),
+        base.capabilities(), base.openQuestions(), base.settings());
+    try (var ignored = ToolSession.open(h.conversationId())) {
+      var result = h.mapper().readValue(h.tools().captureRequirementDraft(input), RequirementCaptureResult.class);
+      assertFalse(result.accepted(), result.toString());
+      assertTrue(result.issues().stream().anyMatch(i -> "UNBOUND_REQUIRED_LITERAL".equals(i.code())), result.toString());
+      assertTrue(result.issues().stream().anyMatch(i -> i.message().contains("message")
+          && i.message().contains("describeElementProperty")), result.toString());
+      var props = new ArrayList<org.qubership.integration.platform.ai.plan.model.PlanProperty>();
+      props.add(new org.qubership.integration.platform.ai.plan.model.PlanProperty("message", literal));
+      var corrected = new RequirementElementIntent(intent.elementRef(), intent.elementType(), intent.placement(),
+          intent.ownerInteractionId(), intent.successorElementRef(), intent.predecessorElementRef(), null, props, intent.exactValues());
+      var candidate = new DraftInput(base.flow(), List.of(base.facts().getFirst(), new FactInput(fact.sourceFactId(),
+          fact.interactionIds(), fact.kind(), fact.polarity(), fact.text(), null, null, corrected)),
+          base.capabilities(), base.openQuestions(), base.settings());
+      var outcome = h.mapper().readValue(h.tools().captureRequirementDraft(candidate), RequirementCaptureResult.class);
+      assertTrue(outcome.accepted(), outcome.toString());
+      assertTrue(outcome.draft().facts().get(1).elementIntent().requestedProperties().stream()
+          .anyMatch(property -> "message".equals(property.key()) && literal.equals(property.value())));
+      assertTrue(outcome.draft().facts().get(1).elementIntent().requestedProperties().stream()
+          .noneMatch(property -> "logLevel".equals(property.key())));
+    }
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void aSavedAnswerMustResolveItsQuestionOrExplainTheRemainingAmbiguity(boolean ambiguous) throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var archive = new ConversationArchive(blobs, mapper);
+    var conversations = mock(ConversationService.class);
+    when(conversations.archive()).thenReturn(archive);
+    String chat = "answer-" + UUID.randomUUID();
+    String text = "Accept POST /tasks and submit it. Ask for the target URI.";
+    var first = archive.beginInput(chat, text, null);
+    archive.resolveInput(chat, first, text);
+    var h = persistentHarness(blobs, mapper, conversations, chat);
+    h.store().beginTurn(chat, text);
+    var captured = missingUriDraft(first.turnId());
+    try (var ignored = ToolSession.open(chat)) {
+      assertTrue(mapper.readValue(h.tools().captureRequirementDraft(captured.input()),
+          RequirementCaptureResult.class).accepted());
+      assertTrue(mapper.readValue(h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY),
+          RequirementCaptureResult.class).accepted());
+      String reply = ambiguous
+          ? "I have not chosen the URI yet. https://example.com/tasks or https://example.com/other."
+          : "Use https://example.com/tasks";
+      var answer = pinAnswer(blobs, mapper, archive, h, chat, reply);
+      assertEquals("UNAPPLIED_AUTHOR_ANSWER", h.store().validateAuthorQuestions(chat).getFirst().code());
+      var restored = persistentHarness(blobs, mapper, conversations, chat);
+      restored.store().useRunJournal(new org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore(
+          blobs, mapper, Clock.systemUTC()));
+      restored.store().beginTurn(chat, reply);
+      assertEquals("UNAPPLIED_AUTHOR_ANSWER", restored.store().validateAuthorQuestions(chat).getFirst().code());
+      RequirementCaptureResult result;
+      if (ambiguous) {
+        restored.tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+            .createForUnitTests(mapper);
+        var disposition = new RequirementCaptureInput.ClarificationDispositionInput(captured.question().questionId(),
+            org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Disposition.AMBIGUOUS,
+            answer.turnId(), "I have not chosen the URI yet.",
+            List.of("https://example.com/tasks", "https://example.com/other"));
+        var unauthorized = questionUpdate(List.of(), List.of(), List.of(), disposition);
+        var firstRejection = mapper.readValue(restored.tools().updateRequirementDraft(unauthorized),
+            RequirementCaptureResult.class);
+        var repeated = mapper.readValue(restored.tools().updateRequirementDraft(unauthorized),
+            RequirementCaptureResult.class);
+        assertFalse(firstRejection.accepted() || repeated.accepted(), firstRejection + " then " + repeated);
+        var opened = mapper.readValue(restored.tools().updateRequirementDraft(
+            questionUpdate(List.of(), List.of(), List.of(), null)), RequirementCaptureResult.class);
+        assertFalse(opened.accepted(), opened.toString());
+        var reviewed = new RequirementCaptureInput.QuestionInput(captured.question().questionId(),
+            captured.question().interactionIds(), "Which exact target URI should be used?",
+            new org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence(
+                "submit", "path",
+                org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.AMBIGUOUS_ANSWER,
+                List.of(first.turnId(), answer.turnId()),
+                new org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.AmbiguityEvidence(
+                    answer.turnId(), "I have not chosen the URI yet.",
+                    List.of("https://example.com/tasks", "https://example.com/other"))));
+        result = mapper.readValue(restored.tools().updateRequirementDraft(
+            questionUpdate(List.of(), List.of(reviewed), List.of(), disposition)), RequirementCaptureResult.class);
+      } else {
+        result = mapper.readValue(restored.tools().updateRequirementDraft(questionUpdate(
+            List.of(captured.answeredCapability()), List.of(), List.of(captured.question().questionId()), null)),
+            RequirementCaptureResult.class);
+      }
+      assertTrue(result.accepted(), result.toString());
+      assertTrue(restored.store().validateAuthorQuestions(chat).isEmpty(),
+          restored.store().validateAuthorQuestions(chat).toString());
+      assertEquals(ambiguous, !restored.store().get(chat).orElseThrow().openQuestions().isEmpty());
+      var disposition = restored.store().latestClarificationAnswer(chat).orElseThrow().disposition();
+      assertEquals(ambiguous
+          ? org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Disposition.AMBIGUOUS
+          : org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Disposition.ANSWER,
+          disposition);
+    }
+  }
+
+  @Test
+  void anExplicitDeliveryAnswerProjectsItsCapabilityAndPreservesQueuedQuestions() throws Exception {
+    var setup = pinnedDeliveryQuestion("delivery-answer", "Use chain-trigger-2 for internal invocation.");
+    var mapper = setup.mapper();
+    var restored = setup.harness();
+    String chat = setup.chat();
+    var answer = setup.answer();
+    try (var ignored = ToolSession.open(chat)) {
+      var anchor = nativeAnchorFact("entry", "chain-trigger-2");
+      var evidenced = new FactInput(anchor.sourceFactId(), anchor.interactionIds(), anchor.kind(), anchor.polarity(),
+          anchor.text(), null, null, anchor.elementIntent(),
+          new ClaimEvidenceInput(answer.turnId(), "Use chain-trigger-2 for internal invocation."));
+      var update = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(evidenced), List.of(),
+          List.of(), List.of(new CapabilityInput("entry", "chain-trigger-2", null, null, null, null, null, null)),
+          List.of(), List.of(), List.of(), List.of("delivery"), null, List.of(), null, null);
+
+      var applied = mapper.readValue(restored.tools().updateRequirementDraft(update), RequirementCaptureResult.class);
+
+      assertTrue(applied.accepted(), applied.toString());
+      var saved = restored.store().get(chat).orElseThrow();
+      assertEquals("chain-trigger-2", saved.authoredDraft().capabilities().getFirst().capabilityKey());
+      assertEquals(List.of(setup.queued()), saved.authoredDraft().openQuestions());
+      assertEquals(ClarificationTransition.Disposition.ANSWER,
+          restored.store().latestClarificationAnswer(chat).orElseThrow().disposition());
+      assertEquals(List.of(), restored.store().validateAuthorQuestions(chat));
+    }
+  }
+
+  @Test
+  void anExplicitHttpModeAnswerProjectsItsModeAndPreservesQueuedQuestions() throws Exception {
+    var setup = pinnedDeliveryQuestion("http-mode-answer", "Use CUSTOM mode.", "httpMode");
+    try (var ignored = ToolSession.open(setup.chat())) {
+      var update = questionUpdate(List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM,
+          null, null, null, null, null)), List.of(), List.of("delivery"), null);
+
+      var applied = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(update),
+          RequirementCaptureResult.class);
+
+      assertTrue(applied.accepted(), applied.toString());
+      var saved = setup.harness().store().get(setup.chat()).orElseThrow();
+      assertEquals(HttpMode.CUSTOM, saved.authoredDraft().capabilities().getFirst().httpMode());
+      assertEquals(List.of(setup.queued()), saved.authoredDraft().openQuestions());
+      assertEquals(ClarificationTransition.Disposition.ANSWER,
+          setup.harness().store().latestClarificationAnswer(setup.chat()).orElseThrow().disposition());
+    }
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.EnumSource(value = ClarificationTransition.Disposition.class,
+      names = {"AMBIGUOUS", "NON_ANSWER"})
+  void anUnresolvedDeliveryAnswerKeepsTheTransportUnselected(
+      ClarificationTransition.Disposition disposition)
+      throws Exception {
+    boolean ambiguous = disposition == ClarificationTransition.Disposition.AMBIGUOUS;
+    String reply = ambiguous ? "Use chain-trigger-2 or kafka-trigger-2." : "I have not chosen the transport.";
+    var setup = pinnedDeliveryQuestion("unresolved-delivery-" + disposition, reply);
+    var evidenceKind = ambiguous
+        ? AuthorQuestionEvidence.Kind.AMBIGUOUS_ANSWER
+        : AuthorQuestionEvidence.Kind.MISSING_VALUE;
+    var candidates = ambiguous ? List.of("chain-trigger-2", "kafka-trigger-2") : List.<String>of();
+    var ambiguity = ambiguous
+        ? new AuthorQuestionEvidence.AmbiguityEvidence(
+            setup.answer().turnId(), reply, candidates) : null;
+    var reviewed = new RequirementCaptureInput.QuestionInput("delivery", List.of("entry"),
+        ambiguous ? "Should another chain invoke it, or should it consume Kafka?" : "How does the payload reach this chain?",
+        new AuthorQuestionEvidence("entry", "capabilityKey",
+            evidenceKind, List.of(setup.firstTurnId(), setup.answer().turnId()), ambiguity));
+    var input = new RequirementCaptureInput.ClarificationDispositionInput("delivery", disposition,
+        setup.answer().turnId(), reply, candidates);
+    setup.harness().tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+        .createForUnitTests(setup.mapper());
+    try (var ignored = ToolSession.open(setup.chat())) {
+      var opened = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(
+          questionUpdate(List.of(), List.of(), List.of(), null)), RequirementCaptureResult.class);
+      assertFalse(opened.accepted(), opened.toString());
+      var result = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(
+          questionUpdate(List.of(), List.of(reviewed), List.of(), input)), RequirementCaptureResult.class);
+
+      assertTrue(result.accepted(), result.toString());
+      var saved = setup.harness().store().get(setup.chat()).orElseThrow();
+      assertEquals(List.of(), saved.authoredDraft().capabilities());
+      assertEquals(List.of("delivery", "participant"), saved.authoredDraft().openQuestions().stream()
+          .map(RequirementCaptureInput.QuestionInput::questionId).toList());
+      assertEquals(disposition, setup.harness().store().latestClarificationAnswer(setup.chat()).orElseThrow().disposition());
+      assertFalse(saved.readyForPlan(), saved.toString());
+    }
+  }
+
+  @Test
+  void anAmbiguousHttpModeAnswerKeepsTheModeUnselected() throws Exception {
+    String reply = "Use CUSTOM or CATALOG mode.";
+    var setup = pinnedDeliveryQuestion("ambiguous-http-mode", reply, "httpMode");
+    var candidates = List.of("CUSTOM", "CATALOG");
+    var reviewed = new RequirementCaptureInput.QuestionInput("delivery", List.of("entry"),
+        "Should the HTTP trigger use its own endpoint or a catalog operation?",
+        new AuthorQuestionEvidence("entry", "httpMode", AuthorQuestionEvidence.Kind.AMBIGUOUS_ANSWER,
+            List.of(setup.firstTurnId(), setup.answer().turnId()),
+            new AuthorQuestionEvidence.AmbiguityEvidence(setup.answer().turnId(), reply, candidates)));
+    var input = new RequirementCaptureInput.ClarificationDispositionInput("delivery",
+        ClarificationTransition.Disposition.AMBIGUOUS, setup.answer().turnId(), reply, candidates);
+    setup.harness().tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+        .createForUnitTests(setup.mapper());
+    try (var ignored = ToolSession.open(setup.chat())) {
+      var opened = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(
+          questionUpdate(List.of(), List.of(), List.of(), null)), RequirementCaptureResult.class);
+      assertFalse(opened.accepted(), opened.toString());
+
+      var result = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(
+          questionUpdate(List.of(), List.of(reviewed), List.of(), input)), RequirementCaptureResult.class);
+
+      assertTrue(result.accepted(), result.toString());
+      var saved = setup.harness().store().get(setup.chat()).orElseThrow();
+      assertEquals("http-trigger", saved.authoredDraft().capabilities().getFirst().capabilityKey());
+      assertNull(saved.authoredDraft().capabilities().getFirst().httpMode());
+      assertEquals(List.of("delivery", "participant"), saved.authoredDraft().openQuestions().stream()
+          .map(RequirementCaptureInput.QuestionInput::questionId).toList());
+      assertEquals(ClarificationTransition.Disposition.AMBIGUOUS,
+          setup.harness().store().latestClarificationAnswer(setup.chat()).orElseThrow().disposition());
+    }
+  }
+
+  @Test
+  void aStaleDeliveryDispositionCannotChangeThePinnedDraft() throws Exception {
+    String reply = "Use chain-trigger-2 or kafka-trigger-2.";
+    var setup = pinnedDeliveryQuestion("stale-delivery", reply);
+    var candidates = List.of("chain-trigger-2", "kafka-trigger-2");
+    var reviewed = new RequirementCaptureInput.QuestionInput("delivery", List.of("entry"),
+        "Should another chain invoke it, or should it consume Kafka?",
+        new AuthorQuestionEvidence("entry", "capabilityKey", AuthorQuestionEvidence.Kind.AMBIGUOUS_ANSWER,
+            List.of(setup.firstTurnId(), setup.answer().turnId()),
+            new AuthorQuestionEvidence.AmbiguityEvidence(setup.answer().turnId(), reply, candidates)));
+    var stale = new RequirementCaptureInput.ClarificationDispositionInput("delivery",
+        ClarificationTransition.Disposition.AMBIGUOUS, setup.firstTurnId(), reply, candidates);
+    setup.harness().tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+        .createForUnitTests(setup.mapper());
+    try (var ignored = ToolSession.open(setup.chat())) {
+      var opened = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(
+          questionUpdate(List.of(), List.of(), List.of(), null)), RequirementCaptureResult.class);
+      assertFalse(opened.accepted(), opened.toString());
+      var before = setup.harness().store().get(setup.chat()).orElseThrow();
+
+      var rejected = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(
+          questionUpdate(List.of(), List.of(reviewed), List.of(), stale)), RequirementCaptureResult.class);
+
+      assertFalse(rejected.accepted(), rejected.toString());
+      assertEquals(List.of("AMBIGUOUS_DISPOSITION_INVALID"),
+          rejected.issues().stream().map(RequirementCaptureResult.CaptureIssue::code).toList());
+      assertEquals(before, setup.harness().store().get(setup.chat()).orElseThrow());
+      assertEquals(java.util.Optional.empty(), setup.harness().store().latestClarificationAnswer(setup.chat()));
+    }
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @ValueSource(strings = {"http-sender", "sds-trigger", "unknown-trigger"})
+  void aDeliveryAmbiguityCannotOfferAnUnsupportedEntry(String invalid) throws Exception {
+    rejectsUnsupportedDeliveryChoice("capabilityKey", "chain-trigger-2", invalid);
+  }
+
+  @Test
+  void anHttpModeAmbiguityCannotOfferAnUnknownMode() throws Exception {
+    rejectsUnsupportedDeliveryChoice("httpMode", "CUSTOM", "INVENTED");
+  }
+
+  private static void rejectsUnsupportedDeliveryChoice(String propertyKey, String valid, String invalid) throws Exception {
+    String reply = "Use " + valid + " or " + invalid + ".";
+    var setup = pinnedDeliveryQuestion("invalid-delivery-" + invalid, reply, propertyKey);
+    var candidates = List.of(valid, invalid);
+    var reviewed = new RequirementCaptureInput.QuestionInput("delivery", List.of("entry"),
+        "Which of these transports should deliver the payload?",
+        new AuthorQuestionEvidence("entry", propertyKey, AuthorQuestionEvidence.Kind.AMBIGUOUS_ANSWER,
+            List.of(setup.firstTurnId(), setup.answer().turnId()),
+            new AuthorQuestionEvidence.AmbiguityEvidence(setup.answer().turnId(), reply, candidates)));
+    var input = new RequirementCaptureInput.ClarificationDispositionInput("delivery",
+        ClarificationTransition.Disposition.AMBIGUOUS, setup.answer().turnId(), reply, candidates);
+    setup.harness().tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+        .createForUnitTests(setup.mapper());
+    try (var ignored = ToolSession.open(setup.chat())) {
+      var opened = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(
+          questionUpdate(List.of(), List.of(), List.of(), null)), RequirementCaptureResult.class);
+      assertFalse(opened.accepted(), opened.toString());
+      var before = setup.harness().store().get(setup.chat()).orElseThrow();
+
+      var rejected = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(
+          questionUpdate(List.of(), List.of(reviewed), List.of(), input)), RequirementCaptureResult.class);
+
+      assertFalse(rejected.accepted(), rejected.toString());
+      assertEquals(List.of("AMBIGUOUS_DISPOSITION_INVALID"),
+          rejected.issues().stream().map(RequirementCaptureResult.CaptureIssue::code).toList());
+      assertEquals(before, setup.harness().store().get(setup.chat()).orElseThrow());
+    }
+  }
+
+  private record DeliveryQuestionSetup(ObjectMapper mapper, Harness harness, String chat, String firstTurnId,
+      ConversationArchive.Input answer, RequirementCaptureInput.QuestionInput question,
+      RequirementCaptureInput.QuestionInput queued) {}
+
+  private static DeliveryQuestionSetup pinnedDeliveryQuestion(String name, String reply) throws Exception {
+    return pinnedDeliveryQuestion(name, reply, "capabilityKey");
+  }
+
+  private static DeliveryQuestionSetup pinnedDeliveryQuestion(String name, String reply, String choiceProperty)
+      throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var archive = new ConversationArchive(blobs, mapper);
+    var conversations = mock(ConversationService.class);
+    when(conversations.archive()).thenReturn(archive);
+    String chat = name;
+    boolean httpMode = "httpMode".equals(choiceProperty);
+    String text = httpMode
+        ? "Accept the payload. Use http-trigger. The httpMode and participant are not selected. Proceed without IDS."
+        : "Accept the payload. The delivery and participant are not selected. Proceed without IDS.";
+    var source = archive.beginInput(chat, text, null);
+    archive.resolveInput(chat, source, text);
+    var h = persistentHarness(blobs, mapper, conversations, chat);
+    h.store().beginTurn(chat, text);
+    var asked = new RequirementCaptureInput.QuestionInput("delivery", List.of("entry"),
+        httpMode ? "Should HTTP use a custom endpoint or a catalog operation?" : "How does the payload reach this chain?",
+        new AuthorQuestionEvidence("entry", choiceProperty,
+            AuthorQuestionEvidence.Kind.MISSING_VALUE,
+            List.of(source.turnId())));
+    var queued = new RequirementCaptureInput.QuestionInput("participant", List.of("entry"), "Who sends the payload?",
+        new AuthorQuestionEvidence("entry", "participant",
+            AuthorQuestionEvidence.Kind.MISSING_VALUE,
+            List.of(source.turnId())));
+    var input = new DraftInput(new FlowInput(List.of(
+        new InteractionInput("entry", Direction.INBOUND, null, null, null, null, null)), List.of()),
+        httpMode ? List.of(new FactInput("goal", List.of("entry"), FactKind.GOAL, Polarity.POSITIVE, "Accept the payload."),
+            nativeAnchorFact("entry", "http-trigger"))
+            : List.of(new FactInput("goal", List.of("entry"), FactKind.GOAL, Polarity.POSITIVE, "Accept the payload.")),
+        httpMode ? List.of(new CapabilityInput("entry", "http-trigger", null, null, null, null, null, null)) : List.of(),
+        List.of(asked, queued), new DraftSettings(false, null));
+    try (var ignored = ToolSession.open(chat)) {
+      h.tools().readRequirementSource(new RequirementCaptureTools.SourceRead(source.turnId(), 0, 16000));
+      var captured = mapper.readValue(h.tools().captureRequirementDraft(input), RequirementCaptureResult.class);
+      assertTrue(captured.accepted(), captured.toString());
+      var waiting = mapper.readValue(h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY),
+          RequirementCaptureResult.class);
+      assertTrue(waiting.accepted(), waiting.toString());
+      var answer = pinAnswer(blobs, mapper, archive, h, chat, reply);
+      var restored = persistentHarness(blobs, mapper, conversations, chat);
+      restored.store().useRunJournal(new org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore(
+          blobs, mapper, Clock.systemUTC()));
+      restored.store().beginTurn(chat, reply);
+      restored.tools().readRequirementSource(new RequirementCaptureTools.SourceRead(answer.turnId(), 0, 16000));
+      return new DeliveryQuestionSetup(mapper, restored, chat, source.turnId(), answer, asked, queued);
+    }
+  }
+
+  @Test
+  void oneValidCandidateIsAnAnswerRatherThanAmbiguous() throws Exception {
+    var setup = pinnedUriQuestion("one-candidate", "Use https://example.com/tasks");
+    try (var ignored = ToolSession.open(setup.chat())) {
+      setup.harness().tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+          .createForUnitTests(setup.mapper());
+      var opened = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(
+          questionUpdate(List.of(), List.of(), List.of(), null)), RequirementCaptureResult.class);
+      assertFalse(opened.accepted(), opened.toString());
+      var reviewed = new RequirementCaptureInput.QuestionInput(setup.captured().question().questionId(),
+          setup.captured().question().interactionIds(), "Which exact target URI should be used?",
+          new org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence(
+              "submit", "path",
+              org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.AMBIGUOUS_ANSWER,
+              List.of(setup.firstTurnId(), setup.answer().turnId())));
+      var ambiguous = questionUpdate(List.of(), List.of(reviewed), List.of(),
+          new RequirementCaptureInput.ClarificationDispositionInput(setup.captured().question().questionId(),
+              org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Disposition.AMBIGUOUS,
+              setup.answer().turnId(), "Use https://example.com/tasks",
+              List.of("https://example.com/tasks")));
+      var focused = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(ambiguous),
+          RequirementCaptureResult.class);
+      assertFalse(focused.accepted(), focused.toString());
+      assertTrue(focused.issues().stream().anyMatch(issue -> issue.message().contains("One valid candidate")),
+          focused.toString());
+      var applied = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(questionUpdate(
+          List.of(setup.captured().answeredCapability()), List.of(),
+          List.of(setup.captured().question().questionId()), null)), RequirementCaptureResult.class);
+      assertTrue(applied.accepted(), applied.toString());
+      assertEquals(
+          org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Disposition.ANSWER,
+          setup.harness().store().latestClarificationAnswer(setup.chat()).orElseThrow().disposition());
+    }
+  }
+
+  @Test
+  void removingThePinnedQuestionWithoutItsAnswerIsRejected() throws Exception {
+    var setup = pinnedUriQuestion("remove-unapplied", "Use https://example.com/tasks");
+    try (var ignored = ToolSession.open(setup.chat())) {
+      var result = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(questionUpdate(
+          List.of(), List.of(), List.of(setup.captured().question().questionId()), null)),
+          RequirementCaptureResult.class);
+      assertFalse(result.accepted(), result.toString());
+      assertTrue(result.issues().stream().anyMatch(issue -> "UNAPPLIED_AUTHOR_ANSWER".equals(issue.code())),
+          result.toString());
+    }
+  }
+
+  @Test
+  void discussCannotBypassAPinnedAnswer() throws Exception {
+    var setup = pinnedUriQuestion("discuss-bypass", "Use https://example.com/tasks");
+    try (var ignored = ToolSession.open(setup.chat())) {
+      setup.harness().store().allowDiscussion(setup.chat());
+      var finished = setup.mapper().readValue(setup.harness().tools().finishRequirementDiscoveryTurn(
+          RequirementDiscoveryDirective.DISCUSS), RequirementCaptureResult.class);
+      assertFalse(finished.accepted(), finished.toString());
+      assertTrue(finished.issues().stream().anyMatch(issue -> "UNAPPLIED_AUTHOR_ANSWER".equals(issue.code())),
+          finished.toString());
+    }
+  }
+
+  @Test
+  void anUntouchedQueuedQuestionSurvivesThePinnedAnswer() throws Exception {
+    var setup = pinnedUriQuestion("queued", "Use https://example.com/tasks", true);
+    try (var ignored = ToolSession.open(setup.chat())) {
+      var applied = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(questionUpdate(
+          List.of(setup.captured().answeredCapability()), List.of(),
+          List.of(setup.captured().question().questionId()), null)), RequirementCaptureResult.class);
+      assertTrue(applied.accepted(), applied.toString());
+      var open = setup.harness().store().get(setup.chat()).orElseThrow().authoredDraft().openQuestions();
+      assertEquals(List.of("later-question"), open.stream().map(RequirementCaptureInput.QuestionInput::questionId).toList());
+      assertEquals(List.of(setup.firstTurnId()), open.getFirst().evidence().reviewedInputIds());
+      assertTrue(setup.harness().store().validateAuthorQuestions(setup.chat()).isEmpty(),
+          setup.harness().store().validateAuthorQuestions(setup.chat()).toString());
+    }
+  }
+
+  @Test
+  void oneTurnResolvesTwoQueuedQuestions() throws Exception {
+    String reply = "Use https://example.com/tasks. Name the sender Billing.";
+    var setup = pinnedUriQuestion("two-questions", reply, true);
+    try (var ignored = ToolSession.open(setup.chat())) {
+      var saved = setup.harness().store().get(setup.chat()).orElseThrow().authoredDraft();
+      var sender = saved.facts().stream().filter(item -> "native-submit".equals(item.sourceFactId()))
+          .findFirst().orElseThrow();
+      var intent = sender.elementIntent();
+      var named = new RequirementElementIntent(intent.elementRef(), intent.elementType(), intent.placement(),
+          intent.ownerInteractionId(), intent.successorElementRef(), intent.predecessorElementRef(),
+          "Billing", intent.requestedProperties(), intent.exactValues());
+      var replacement = new FactInput(sender.sourceFactId(), sender.interactionIds(), sender.kind(),
+          sender.polarity(), sender.text(), sender.fieldMapping(), sender.policyConflict(), named);
+      var update = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+          List.of(replacement), List.of(), List.of(setup.captured().answeredCapability()), List.of(), List.of(),
+          List.of(), List.of("target-uri", "later-question"), null,
+          List.of(new RequirementCaptureInput.AmendmentInput("/facts/native-submit/elementIntent",
+              setup.answer().turnId(), "Name the sender Billing.")));
+      var result = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(update),
+          RequirementCaptureResult.class);
+      assertTrue(result.accepted(), result.toString());
+      assertTrue(setup.harness().store().get(setup.chat()).orElseThrow().authoredDraft().openQuestions().isEmpty());
+    }
+  }
+
+  @Test
+  void movingAnUntouchedQuestionAheadOfThePinnedQuestionIsRejected() throws Exception {
+    var setup = pinnedUriQuestion("reorder", "Use https://example.com/tasks", true);
+    try (var ignored = ToolSession.open(setup.chat())) {
+      var current = setup.harness().store().get(setup.chat()).orElseThrow();
+      var authored = current.authoredDraft();
+      var questions = authored.openQuestions();
+      var candidate = new DraftInput(authored.flow(), authored.facts(), authored.capabilities(),
+          List.of(questions.get(1), questions.get(0)), authored.settings());
+      var projected = RequirementCaptureProjection.toDraft(candidate, current, List.of(),
+          current.sourceSkillVersion(), current.sourceSkillHash(), Map.of());
+      var context = setup.harness().store().clarificationContext(setup.chat(), null);
+      var admission = setup.harness().store().admitCaptureDecision(setup.chat(),
+          setup.harness().store().latestRevision(setup.chat()).map(revision -> revision.reference()).orElse(null),
+          projected, null, Map.of(), context, null);
+      assertFalse(admission.issues().isEmpty(), admission.toString());
+      assertTrue(admission.issues().stream().anyMatch(issue -> "PINNED_QUESTION_REORDERED".equals(issue.code())),
+          admission.toString());
+    }
+  }
+
+  @Test
+  void aSourceBackedAmendmentIsAdmittedWhileThePinnedQuestionStaysOpen() throws Exception {
+    String reply = "Leave the URI open. The caller is the billing service.";
+    var setup = pinnedUriQuestion("non-answer", reply);
+    try (var ignored = ToolSession.open(setup.chat())) {
+      var reviewed = new RequirementCaptureInput.QuestionInput(setup.captured().question().questionId(),
+          setup.captured().question().interactionIds(), setup.captured().question().text(),
+          new org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence(
+              "submit", "path",
+              org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.MISSING_VALUE,
+              List.of(setup.firstTurnId(), setup.answer().turnId())));
+      var fact = new FactInput("caller", List.of("entry"), FactKind.CONSTRAINT, Polarity.POSITIVE,
+          "The caller is the billing service.", null, null, null,
+          new RequirementCaptureInput.ClaimEvidenceInput(setup.answer().turnId(),
+              "The caller is the billing service."));
+      var update = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(fact), List.of(),
+          List.of(), List.of(), List.of(), List.of(), List.of(reviewed), List.of(), null, List.of(), null,
+          new RequirementCaptureInput.ClarificationDispositionInput(setup.captured().question().questionId(),
+              org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Disposition.NON_ANSWER,
+              setup.answer().turnId(), "Leave the URI open.", List.of()));
+      var opened = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(
+          questionUpdate(List.of(), List.of(), List.of(), null)), RequirementCaptureResult.class);
+      assertFalse(opened.accepted(), opened.toString());
+      var admitted = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(update),
+          RequirementCaptureResult.class);
+      assertTrue(admitted.accepted(), admitted.toString());
+      assertTrue(setup.harness().store().get(setup.chat()).orElseThrow().authoredDraft().facts().stream()
+          .anyMatch(item -> "caller".equals(item.sourceFactId())),
+          setup.harness().store().get(setup.chat()).orElseThrow().authoredDraft().facts().toString());
+      assertEquals(
+          org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Disposition.NON_ANSWER,
+          setup.harness().store().latestClarificationAnswer(setup.chat()).orElseThrow().disposition());
+    }
+  }
+
+  @Test
+  void changingOnlyQuestionWordingIsNoProgress() throws Exception {
+    var setup = pinnedUriQuestion("wording-only", "Use https://example.com/tasks");
+    try (var ignored = ToolSession.open(setup.chat())) {
+      var before = setup.harness().store().latestRevision(setup.chat()).orElseThrow().reference();
+      var reworded = reword(setup.captured().question(), "Which exact target URI should the helper use?",
+          List.of(setup.firstTurnId()));
+      var result = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(
+          questionUpdate(List.of(), List.of(reworded), List.of(), null)), RequirementCaptureResult.class);
+
+      assertFalse(result.accepted(), result.toString());
+      assertTrue(result.issues().stream().anyMatch(issue -> "CLARIFICATION_ANSWER_NO_PROGRESS".equals(issue.code())),
+          result.toString());
+      assertTrue(result.issues().stream().anyMatch(issue -> "UNAPPLIED_AUTHOR_ANSWER".equals(issue.code())),
+          result.toString());
+      assertEquals(before, setup.harness().store().latestRevision(setup.chat()).orElseThrow().reference());
+      assertEquals("Which URI?", setup.harness().store().get(setup.chat()).orElseThrow()
+          .authoredDraft().openQuestions().getFirst().text());
+    }
+  }
+
+  @Test
+  void expandingOnlyReviewedInputIdsIsNoProgress() throws Exception {
+    var setup = pinnedUriQuestion("reviewed-ids", "Use https://example.com/tasks");
+    try (var ignored = ToolSession.open(setup.chat())) {
+      var before = setup.harness().store().latestRevision(setup.chat()).orElseThrow().reference();
+      var expanded = reword(setup.captured().question(), setup.captured().question().text(),
+          List.of(setup.firstTurnId(), setup.answer().turnId()));
+      var result = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(
+          questionUpdate(List.of(), List.of(expanded), List.of(), null)), RequirementCaptureResult.class);
+
+      assertFalse(result.accepted(), result.toString());
+      assertTrue(result.issues().stream().anyMatch(issue -> "CLARIFICATION_ANSWER_NO_PROGRESS".equals(issue.code())),
+          result.toString());
+      assertEquals(before, setup.harness().store().latestRevision(setup.chat()).orElseThrow().reference());
+      assertEquals(List.of(setup.firstTurnId()), setup.harness().store().get(setup.chat()).orElseThrow()
+          .authoredDraft().openQuestions().getFirst().evidence().reviewedInputIds());
+    }
+  }
+
+  @Test
+  void aLaterQueuedAnswerStillRequiresTheActiveDisposition() throws Exception {
+    String reply = "Use https://example.com/tasks. Name the sender Billing.";
+    var setup = pinnedUriQuestion("later-answer", reply, true);
+    try (var ignored = ToolSession.open(setup.chat())) {
+      var before = setup.harness().store().latestRevision(setup.chat()).orElseThrow().reference();
+      var saved = setup.harness().store().get(setup.chat()).orElseThrow().authoredDraft();
+      var sender = saved.facts().stream().filter(item -> "native-submit".equals(item.sourceFactId()))
+          .findFirst().orElseThrow();
+      var intent = sender.elementIntent();
+      var named = new RequirementElementIntent(intent.elementRef(), intent.elementType(), intent.placement(),
+          intent.ownerInteractionId(), intent.successorElementRef(), intent.predecessorElementRef(),
+          "Billing", intent.requestedProperties(), intent.exactValues());
+      var replacement = new FactInput(sender.sourceFactId(), sender.interactionIds(), sender.kind(),
+          sender.polarity(), sender.text(), sender.fieldMapping(), sender.policyConflict(), named);
+      var update = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+          List.of(replacement), List.of(), List.of(), List.of(), List.of(), List.of(),
+          List.of("later-question"), null,
+          List.of(new RequirementCaptureInput.AmendmentInput("/facts/native-submit/elementIntent",
+              setup.answer().turnId(), "Name the sender Billing.")),
+          null, null);
+      var result = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(update),
+          RequirementCaptureResult.class);
+
+      assertFalse(result.accepted(), result.toString());
+      assertTrue(result.issues().stream().anyMatch(issue -> "CLARIFICATION_ANSWER_NO_PROGRESS".equals(issue.code())
+          && "target-uri".equals(issue.entityId())), result.toString());
+      assertTrue(result.issues().stream().anyMatch(issue -> "UNAPPLIED_AUTHOR_ANSWER".equals(issue.code())
+          && "target-uri".equals(issue.entityId())), result.toString());
+      assertEquals(before, setup.harness().store().latestRevision(setup.chat()).orElseThrow().reference());
+      var open = setup.harness().store().get(setup.chat()).orElseThrow().authoredDraft().openQuestions();
+      assertEquals(List.of("target-uri", "later-question"),
+          open.stream().map(RequirementCaptureInput.QuestionInput::questionId).toList());
+    }
+  }
+
+  @Test
+  void theSameTargetProjectionKeepsRebuildingAfterTheFirstRebuild() throws Exception {
+    var setup = pinnedUriQuestion("same-projection", "Use https://example.com/tasks");
+    var telemetry = new org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryOutcomeTelemetry();
+    setup.harness().tools().recoveryTelemetry = telemetry;
+    try (var ignored = ToolSession.open(setup.chat())) {
+      var before = setup.harness().store().latestRevision(setup.chat()).orElseThrow().reference();
+      var first = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(
+          questionUpdate(List.of(), List.of(reword(setup.captured().question(),
+              "Which exact target URI should the helper use?", List.of(setup.firstTurnId()))),
+              List.of(), null)), RequirementCaptureResult.class);
+      var second = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(
+          questionUpdate(List.of(), List.of(reword(setup.captured().question(),
+              "Which runtime address should the helper call?", List.of(setup.firstTurnId(), setup.answer().turnId()))),
+              List.of(), null)), RequirementCaptureResult.class);
+      var third = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(
+          questionUpdate(List.of(), List.of(reword(setup.captured().question(),
+              "Which helper address is required?", List.of(setup.firstTurnId()))),
+              List.of(), null)), RequirementCaptureResult.class);
+
+      assertFalse(first.accepted(), first.toString());
+      assertEquals(NextAction.REPAIR_CAPTURE, first.nextAction(), first.toString());
+      assertTrue(first.issues().stream().anyMatch(issue -> "CLARIFICATION_ANSWER_NO_PROGRESS".equals(issue.code())),
+          first.toString());
+      assertEquals(NextAction.PROJECTION_REBUILD, second.nextAction(), second.toString());
+      assertEquals(NextAction.PROJECTION_REBUILD, third.nextAction(), third.toString());
+      assertNotEquals(NextAction.ASK_USER, third.nextAction());
+      assertEquals(before, setup.harness().store().latestRevision(setup.chat()).orElseThrow().reference());
+      assertEquals("Which URI?", setup.harness().store().get(setup.chat()).orElseThrow()
+          .authoredDraft().openQuestions().getFirst().text());
+      assertEquals(List.of("NO_PROGRESS", "PROJECTION_REBUILD", "PROJECTION_REBUILD"),
+          telemetry.clarificationOutcomes().stream()
+              .map(org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryOutcomeTelemetry
+                  .ClarificationOutcome::outcomeCode).toList());
+      assertTrue(telemetry.clarificationOutcomes().stream().allMatch(event ->
+          event.runId().equals("run-" + setup.chat())
+              && "target-uri".equals(event.questionId())
+              && event.feedbackEvidenceReference() != null
+              && !event.feedbackEvidenceReference().isBlank()
+              && !event.toString().contains("Which URI")
+              && !event.toString().contains("https://example.com")),
+          telemetry.clarificationOutcomes().toString());
+    }
+  }
+
+  @Test
+  void theFirstStalledTargetStaysRepairableUntilTheSameTargetRepeats() throws Exception {
+    var setup = pinnedUriQuestion("first-stall", "Use https://example.com/tasks");
+    try (var ignored = ToolSession.open(setup.chat())) {
+      var stalled = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(
+          questionUpdate(List.of(), List.of(reword(setup.captured().question(),
+              "Which exact target URI should the helper use?", List.of(setup.firstTurnId()))),
+              List.of(), null)), RequirementCaptureResult.class);
+      assertEquals(NextAction.REPAIR_CAPTURE, stalled.nextAction(), stalled.toString());
+
+      var finished = setup.mapper().readValue(setup.harness().tools().finishRequirementDiscoveryTurn(
+          RequirementDiscoveryDirective.STAY), RequirementCaptureResult.class);
+      assertTrue(finished.issues().stream().noneMatch(issue -> "REPEATED_REJECTION".equals(issue.code())),
+          finished.toString());
+
+      var repeated = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(
+          questionUpdate(List.of(), List.of(reword(setup.captured().question(),
+              "Which runtime address should the helper call?", List.of(setup.firstTurnId()))),
+              List.of(), null)), RequirementCaptureResult.class);
+      assertEquals(NextAction.PROJECTION_REBUILD, repeated.nextAction(), repeated.toString());
+    }
+  }
+
+  @Test
+  void anAdmittedNonAnswerIsExemptFromNoProgress() throws Exception {
+    String reply = "Leave the URI open. The caller is the billing service.";
+    var setup = pinnedUriQuestion("non-answer-exempt", reply);
+    var telemetry = new org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryOutcomeTelemetry();
+    setup.harness().tools().recoveryTelemetry = telemetry;
+    try (var ignored = ToolSession.open(setup.chat())) {
+      var stalled = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(
+          questionUpdate(List.of(), List.of(reword(setup.captured().question(),
+              "Which exact target URI should the helper use?", List.of(setup.firstTurnId()))),
+              List.of(), null)), RequirementCaptureResult.class);
+      assertFalse(stalled.accepted(), stalled.toString());
+      var reviewed = new RequirementCaptureInput.QuestionInput(setup.captured().question().questionId(),
+          setup.captured().question().interactionIds(), setup.captured().question().text(),
+          new org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence(
+              "submit", "path",
+              org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.MISSING_VALUE,
+              List.of(setup.firstTurnId(), setup.answer().turnId())));
+      var fact = new FactInput("caller", List.of("entry"), FactKind.CONSTRAINT, Polarity.POSITIVE,
+          "The caller is the billing service.", null, null, null,
+          new RequirementCaptureInput.ClaimEvidenceInput(setup.answer().turnId(),
+              "The caller is the billing service."));
+      var update = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(fact), List.of(),
+          List.of(), List.of(), List.of(), List.of(), List.of(reviewed), List.of(), null, List.of(), null,
+          new RequirementCaptureInput.ClarificationDispositionInput(setup.captured().question().questionId(),
+              org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Disposition.NON_ANSWER,
+              setup.answer().turnId(), "Leave the URI open.", List.of()));
+      var admitted = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(update),
+          RequirementCaptureResult.class);
+
+      assertTrue(admitted.accepted(), admitted.toString());
+      assertTrue(admitted.issues().stream().noneMatch(issue ->
+          "CLARIFICATION_ANSWER_NO_PROGRESS".equals(issue.code())));
+      assertEquals(
+          org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Disposition.NON_ANSWER,
+          setup.harness().store().latestClarificationAnswer(setup.chat()).orElseThrow().disposition());
+      assertEquals("NON_ANSWER", telemetry.clarificationOutcomes().getLast().outcomeCode());
+    }
+  }
+
+  @Test
+  void anAdmittedAmbiguousAnswerIsExemptFromNoProgress() throws Exception {
+    String reply = "I have not chosen the URI yet. https://example.com/tasks or https://example.com/other.";
+    var setup = pinnedUriQuestion("ambiguous-exempt", reply);
+    var telemetry = new org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryOutcomeTelemetry();
+    setup.harness().tools().recoveryTelemetry = telemetry;
+    try (var ignored = ToolSession.open(setup.chat())) {
+      setup.harness().tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+          .createForUnitTests(setup.mapper());
+      var stalled = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(
+          questionUpdate(List.of(), List.of(reword(setup.captured().question(),
+              "Which exact target URI should the helper use?", List.of(setup.firstTurnId()))),
+              List.of(), null)), RequirementCaptureResult.class);
+      assertFalse(stalled.accepted(), stalled.toString());
+      var reviewed = new RequirementCaptureInput.QuestionInput(setup.captured().question().questionId(),
+          setup.captured().question().interactionIds(), "Which exact target URI should be used?",
+          new org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence(
+              "submit", "path",
+              org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.AMBIGUOUS_ANSWER,
+              List.of(setup.firstTurnId(), setup.answer().turnId()),
+              new org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.AmbiguityEvidence(
+                  setup.answer().turnId(), "I have not chosen the URI yet.",
+                  List.of("https://example.com/tasks", "https://example.com/other"))));
+      var disposition = new RequirementCaptureInput.ClarificationDispositionInput(
+          setup.captured().question().questionId(),
+          org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Disposition.AMBIGUOUS,
+          setup.answer().turnId(), "I have not chosen the URI yet.",
+          List.of("https://example.com/tasks", "https://example.com/other"));
+      var admitted = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(
+          questionUpdate(List.of(), List.of(reviewed), List.of(), disposition)), RequirementCaptureResult.class);
+
+      assertTrue(admitted.accepted(), admitted.toString());
+      assertTrue(admitted.issues().stream().noneMatch(issue ->
+          "CLARIFICATION_ANSWER_NO_PROGRESS".equals(issue.code())));
+      assertEquals("AMBIGUOUS", telemetry.clarificationOutcomes().getLast().outcomeCode());
+    }
+  }
+
+  @Test
+  void validatedContinuationPreservesTheAcceptedClarificationProof() throws Exception {
+    var setup = pinnedUriQuestion("continued-answer", "Use https://example.com/tasks");
+    var h = setup.harness();
+    try (var ignored = ToolSession.open(setup.chat())) {
+      var applied = setup.mapper().readValue(h.tools().updateRequirementDraft(questionUpdate(
+          List.of(setup.captured().answeredCapability()), List.of(),
+          List.of(setup.captured().question().questionId()), null)), RequirementCaptureResult.class);
+      assertTrue(applied.accepted(), applied.toString());
+      var acceptedAnswer = h.store().latestClarificationAnswer(setup.chat()).orElseThrow();
+      var draft = h.store().get(setup.chat()).orElseThrow();
+
+      var finished = setup.mapper().readValue(h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE),
+          RequirementCaptureResult.class);
+
+      assertTrue(finished.accepted(), finished.toString());
+      assertEquals(acceptedAnswer, h.store().latestClarificationAnswer(setup.chat()).orElseThrow());
+      assertEquals(draft, h.store().get(setup.chat()).orElseThrow());
+      var artifacts = new CompilationArtifacts(setup.blobs(), setup.mapper(), Clock.systemUTC());
+      var continuation = artifacts.payload(artifacts.latest(h.store().activeCompilationId(setup.chat()),
+          CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_ATTEMPT).orElseThrow(), RequirementDraftStore.RequirementCaptureAttempt.class);
+      org.junit.jupiter.api.Assertions.assertAll(
+          () -> assertEquals("finishRequirementDiscoveryTurn", continuation.toolName()),
+          () -> assertEquals("CONTINUE", continuation.arguments()),
+          () -> org.junit.jupiter.api.Assertions.assertNull(continuation.clarificationAnswer()),
+          () -> org.junit.jupiter.api.Assertions.assertNull(continuation.sourceRestoration()),
+          () -> org.junit.jupiter.api.Assertions.assertNull(continuation.resolvedCandidate()));
+    }
+  }
+
+  @Test
+  void anAppliedAnswerRecordsSuccessTelemetry() throws Exception {
+    var setup = pinnedUriQuestion("applied-answer", "Use https://example.com/tasks");
+    var telemetry = new org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryOutcomeTelemetry();
+    setup.harness().tools().recoveryTelemetry = telemetry;
+    try (var ignored = ToolSession.open(setup.chat())) {
+      var applied = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(questionUpdate(
+          List.of(setup.captured().answeredCapability()), List.of(),
+          List.of(setup.captured().question().questionId()), null)), RequirementCaptureResult.class);
+
+      assertTrue(applied.accepted(), applied.toString());
+      var event = telemetry.clarificationOutcomes().getFirst();
+      assertEquals("SUCCESS", event.outcomeCode());
+      assertEquals("run-" + setup.chat(), event.runId());
+      assertEquals("target-uri", event.questionId());
+      assertFalse(event.toString().contains("https://example.com"));
+      assertFalse(event.toString().contains("Which URI"));
+    }
+  }
+
+  @Test
+  void aMissingElementIntentUsesTheCapabilitySchema() throws Exception {
+    String reply = "The method is POST or TRACE.";
+    var setup = pinnedUriQuestion("missing-element-intent", reply, false, "httpMethod", true);
+    try (var ignored = ToolSession.open(setup.chat())) {
+      setup.harness().tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+          .createForUnitTests(setup.mapper());
+      var opened = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(
+          questionUpdate(List.of(), List.of(), List.of(), null)), RequirementCaptureResult.class);
+      assertFalse(opened.accepted(), opened.toString());
+      var reviewed = new RequirementCaptureInput.QuestionInput(setup.captured().question().questionId(),
+          setup.captured().question().interactionIds(), "Which HTTP method should the sender use?",
+          new org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence(
+              "submit", "httpMethod",
+              org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.AMBIGUOUS_ANSWER,
+              List.of(setup.firstTurnId(), setup.answer().turnId())));
+      var ambiguous = questionUpdate(List.of(), List.of(reviewed), List.of(),
+          new RequirementCaptureInput.ClarificationDispositionInput(setup.captured().question().questionId(),
+              org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Disposition.AMBIGUOUS,
+              setup.answer().turnId(), reply, List.of("POST", "TRACE")));
+      var focused = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(ambiguous),
+          RequirementCaptureResult.class);
+      assertFalse(focused.accepted(), focused.toString());
+      assertTrue(focused.issues().stream().anyMatch(issue ->
+          "AMBIGUOUS_DISPOSITION_INVALID".equals(issue.code())
+              && issue.message().contains("One valid candidate is an answer")), focused.toString());
+    }
+  }
+
+  @Test
+  void anUnrelatedFocusedRepairLeavesTheDispositionUnauthorized() throws Exception {
+    String reply = "Leave the URI open. The caller is the billing service.";
+    var setup = pinnedUriQuestion("unrelated-repair", reply);
+    try (var ignored = ToolSession.open(setup.chat())) {
+      setup.harness().store().recordCaptureOutcome(setup.chat(), "updateRequirementDraft", "unrelated-repair",
+          new RequirementCaptureResult(false, false, null, RequirementCaptureResult.Readiness.PARTIAL,
+              NextAction.REPAIR_CAPTURE,
+              List.of(new RequirementCaptureResult.CaptureIssue("REPAIR_FACT_LOSS", "/draft/facts/goal", "goal",
+                  null, "Keep the accepted fact.")),
+              List.of(), null, List.of(), List.of()),
+          null, null, RequirementRepairPolicy.Strategy.FOCUSED_REPAIR);
+      var reviewed = new RequirementCaptureInput.QuestionInput(setup.captured().question().questionId(),
+          setup.captured().question().interactionIds(), setup.captured().question().text(),
+          new org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence(
+              "submit", "path",
+              org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.MISSING_VALUE,
+              List.of(setup.firstTurnId(), setup.answer().turnId())));
+      var fact = new FactInput("caller", List.of("entry"), FactKind.CONSTRAINT, Polarity.POSITIVE,
+          "The caller is the billing service.", null, null, null,
+          new RequirementCaptureInput.ClaimEvidenceInput(setup.answer().turnId(),
+              "The caller is the billing service."));
+      var update = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(fact), List.of(),
+          List.of(), List.of(), List.of(), List.of(), List.of(reviewed), List.of(), null, List.of(), null,
+          new RequirementCaptureInput.ClarificationDispositionInput(setup.captured().question().questionId(),
+              org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Disposition.NON_ANSWER,
+              setup.answer().turnId(), "Leave the URI open.", List.of()));
+      var rejected = setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(update),
+          RequirementCaptureResult.class);
+      assertFalse(rejected.accepted(), rejected.toString());
+      assertTrue(rejected.issues().stream().anyMatch(issue -> "DISPOSITION_NOT_AUTHORIZED".equals(issue.code())),
+          rejected.toString());
+    }
+  }
+
+  @Test
+  void aConfirmedNonAnswerIsDiscussedAndTheSameQuestionIsPresentedAgain() throws Exception {
+    String reply = "What does this URI field mean?";
+    var setup = pinnedUriQuestion("discuss-again", reply);
+    var capability = new org.qubership.integration.platform.ai.productpipeline.create.RequirementDiscoveryCapability(
+        null, setup.harness().store(), (chat, text) -> {
+          var reviewed = new RequirementCaptureInput.QuestionInput(setup.captured().question().questionId(),
+              setup.captured().question().interactionIds(), setup.captured().question().text(),
+              new org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence(
+                  "submit", "path",
+                  org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.MISSING_VALUE,
+                  List.of(setup.firstTurnId(), setup.answer().turnId())));
+          var update = questionUpdate(List.of(), List.of(reviewed), List.of(),
+              new RequirementCaptureInput.ClarificationDispositionInput(setup.captured().question().questionId(),
+                  org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition.Disposition.NON_ANSWER,
+                  setup.answer().turnId(), "What does this URI field mean?", List.of()));
+          try {
+            setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(
+                questionUpdate(List.of(), List.of(), List.of(), null)), RequirementCaptureResult.class);
+            setup.mapper().readValue(setup.harness().tools().updateRequirementDraft(update), RequirementCaptureResult.class);
+            setup.mapper().readValue(setup.harness().tools().finishRequirementDiscoveryTurn(
+                RequirementDiscoveryDirective.DISCUSS), RequirementCaptureResult.class);
+          } catch (com.fasterxml.jackson.core.JsonProcessingException exception) {
+            throw new IllegalStateException(exception);
+          }
+          return io.smallrye.mutiny.Multi.createFrom().item(
+              org.qubership.integration.platform.ai.chat.ChatEvent.token("The URI is the address that receives the task."));
+        }, null);
+    var signals = capability.execute(new org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext(
+        "discuss-run", setup.chat(), "requirement-discovery", "execution", "attempt", null, null, List.of(),
+        Map.of("userText", reply, "admittedInputGate",
+            org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates.STAGE_CLARIFICATION,
+            "admittedInputRevision", 2L))).collect().asList().await().indefinitely();
+    int messageAt = -1;
+    int completedAt = -1;
+    for (int index = 0; index < signals.size(); index++) {
+      if (signals.get(index) instanceof org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal.Message message
+          && message.text().contains("The URI is the address")) {
+        messageAt = index;
+      }
+      if (signals.get(index) instanceof org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal.Completed completed
+          && completed.outcome().message().contains("Which URI?")) {
+        completedAt = index;
+      }
+    }
+    assertTrue(messageAt >= 0 && completedAt > messageAt, signals.toString());
+  }
+
   @ParameterizedTest
   @org.junit.jupiter.params.provider.CsvSource({"false,true", "true,true", "false,false", "true,false"})
-  void nativeChainCallClarificationUsesTheCatalogPickerWithoutChangingAuthorQuestions(
+  void unresolvedChainCallKeepsModelAuthoredQuestionTextWithoutChangingAuthorDraft(
       boolean selected, boolean otherQuestions)
       throws Exception {
     var mapper = new ObjectMapper().findAndRegisterModules();
@@ -107,8 +1761,7 @@ class RequirementCaptureToolsTest {
       var saved = store.get(chat).orElseThrow();
       var expectedQuestions = new ArrayList<String>();
       if (otherQuestions) expectedQuestions.add(methodQuestion.text());
-      if (!selected) expectedQuestions.add(
-          "Chain-call call has no unique chain-trigger yet. Choose the catalog chain to call.");
+      expectedQuestions.add(targetQuestion.text());
       if (otherQuestions) expectedQuestions.add(rolesQuestion.text());
       assertEquals(expectedQuestions, saved.openQuestions());
       assertEquals(selected ? Map.of("call", second.id) : Map.of(),
@@ -119,8 +1772,128 @@ class RequirementCaptureToolsTest {
       assertEquals(saved.openQuestions(), store.get(chat).orElseThrow().openQuestions());
       assertEquals(!selected, refreshed.pendingWork().stream()
           .anyMatch(work -> work.code().equals("TARGET_LOOKUP_REQUIRED")));
-      assertEquals(selected && !otherQuestions, saved.readyForPlan());
-      if (selected && !otherQuestions) assertTrue(refreshed.pendingWork().isEmpty(), refreshed.toString());
+      assertFalse(saved.readyForPlan());
+    }
+  }
+
+  @Test
+  void exactChainCallAnswerWritesTheTriggerElementAndKeepsTheOtherQuestions() throws Exception {
+    var chains = mock(org.qubership.integration.platform.ai.catalog.binding.CompositionCatalogBinder.class);
+    var matcher = mock(org.qubership.integration.platform.ai.productpipeline.create.design.execution.CatalogBindingMatcher.class);
+    var first = chainTrigger("first-trigger", "chain-1", "Chain trigger + Header modification");
+    var second = chainTrigger("second-trigger", "chain-2", first.chainName);
+    when(chains.listChainTriggers()).thenReturn(List.of(first, second));
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var store = new RequirementDraftStore();
+    var bindings = mock(RequirementDraftTool.class);
+    when(bindings.canonicalBindings(any(), nullable(RequirementDraft.class), anyString())).thenReturn(List.of());
+    var feedback = new CaptureAttemptFeedbackStore(new ToolCallFingerprintStore(mapper));
+    var tools = new RequirementCaptureTools(store, bindings, mapper,
+        new CaptureToolOutcomeGateway(feedback.fingerprintStore(), feedback), feedback,
+        new RequirementTargetResolver(chains,
+            mock(org.qubership.integration.platform.ai.catalog.binding.McpSystemCatalogBinder.class)));
+    var methodQuestion = new RequirementCaptureInput.QuestionInput("method", List.of("entry"),
+        "Which HTTP method should the custom HTTP trigger accept?");
+    var targetQuestion = new RequirementCaptureInput.QuestionInput("target", List.of("call"),
+        "Please select the specific chain-trigger element ID for the Chain trigger + Header modification chain.",
+        new org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence("call",
+            "targetReference",
+            org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.CATALOG_CHOICE,
+            List.of("turn-1")));
+    var rolesQuestion = new RequirementCaptureInput.QuestionInput("roles", List.of("entry"),
+        "Which roles may access the HTTP trigger?");
+    var input = chainCallCapture(first.chainName, null, List.of(methodQuestion, targetQuestion, rolesQuestion));
+    String chat = "chain-answer-" + UUID.randomUUID();
+    store.beginTurn(chat, "Call the Chain trigger + Header modification chain through an HTTP trigger.");
+    try (var ignored = ToolSession.open(chat)) {
+      var captured = mapper.readValue(tools.captureRequirementDraft(input), RequirementCaptureResult.class);
+      assertTrue(captured.accepted(), captured.toString());
+      assertEquals(List.of(methodQuestion.text(), targetQuestion.text(), rolesQuestion.text()),
+          store.get(chat).orElseThrow().openQuestions(), "captureRequirementDraft(chain-call queue)");
+      assertFalse(store.get(chat).orElseThrow().readyForPlan(), "readyForPlan(unresolved chain call)");
+      var unknown = tools.chainCallAnswerUpdate(input, targetQuestion, "operation-42");
+      assertTrue(unknown.isEmpty(), "chainCallAnswerUpdate(operation-42)");
+      var sharedName = tools.chainCallAnswerUpdate(input, targetQuestion, first.chainName);
+      assertTrue(sharedName.isEmpty(), "chainCallAnswerUpdate(shared chain name)");
+      assertEquals(List.of("method", "target", "roles"),
+          store.get(chat).orElseThrow().authoredDraft().openQuestions().stream()
+              .map(RequirementCaptureInput.QuestionInput::questionId).toList(),
+          "openQuestions(unknown chain-call answer)");
+      var exact = tools.chainCallAnswerUpdate(input, targetQuestion, first.id).orElseThrow();
+      var applied = mapper.readValue(tools.updateRequirementDraft(exact), RequirementCaptureResult.class);
+      assertTrue(applied.accepted(), applied.toString());
+      var saved = store.get(chat).orElseThrow().authoredDraft();
+      assertEquals(first.id, saved.capabilities().get(1).targetReference(),
+          "chainCallAnswerUpdate(first-trigger)");
+      assertEquals(List.of("method", "roles"), saved.openQuestions().stream()
+          .map(RequirementCaptureInput.QuestionInput::questionId).toList(),
+          "openQuestions(exact chain-call answer)");
+    }
+    verify(chains, atLeastOnce()).listChainTriggers();
+    verifyNoMoreInteractions(chains);
+    verifyNoInteractions(matcher);
+    assertTrue(Arrays.stream(RequirementCaptureTools.class.getDeclaredFields())
+        .noneMatch(field -> org.qubership.integration.platform.ai.productpipeline.create.design.execution
+            .CatalogBindingMatcher.class.equals(field.getType())),
+        "RequirementCaptureTools fields");
+    var fact = new org.qubership.integration.platform.ai.plan.RequirementFact(
+        null, org.qubership.integration.platform.ai.plan.RequirementFactPolarity.POSITIVE,
+        org.qubership.integration.platform.ai.plan.RequirementFactKind.CAPABILITY,
+        "chain-call-2", "Call the chain.", "Billing", "", "", "", first.id);
+    assertEquals(Set.of(), org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionAdmission
+        .suppliedValues(fact, "targetReference"), "suppliedValues(targetReference)");
+  }
+
+  @Test
+  void chainCallQuestionLeavesTheQueueOnlyWhenTheTargetIsSupplied() throws Exception {
+    var chains = mock(org.qubership.integration.platform.ai.catalog.binding.CompositionCatalogBinder.class);
+    var shared = chainTrigger("first-trigger", "chain-1", "Shared Chain");
+    var other = chainTrigger("second-trigger", "chain-2", "Shared Chain");
+    when(chains.listChainTriggers()).thenReturn(List.of(shared, other));
+    var unresolved = pinnedChainCall("chain-unresolved", "first-trigger", chains);
+    try (var ignored = ToolSession.open(unresolved.chat())) {
+      var removed = unresolved.mapper().readValue(unresolved.harness().tools().updateRequirementDraft(
+          questionUpdate(List.of(), List.of(), List.of("target"), null)), RequirementCaptureResult.class);
+      assertFalse(removed.accepted(), removed.toString());
+      assertTrue(removed.issues().stream().anyMatch(issue -> "UNAPPLIED_AUTHOR_ANSWER".equals(issue.code())
+          && "target".equals(issue.entityId())), removed.toString());
+      assertEquals(List.of("target", "roles"), unresolved.harness().store().get(unresolved.chat()).orElseThrow()
+          .authoredDraft().openQuestions().stream().map(RequirementCaptureInput.QuestionInput::questionId).toList(),
+          "openQuestions(unsupplied chain call)");
+      assertFalse(unresolved.harness().store().get(unresolved.chat()).orElseThrow().readyForPlan(),
+          "readyForPlan(unsupplied chain call)");
+      var answered = new CapabilityInput("call", "chain-call-2", null, null, null, null, null, shared.id);
+      var applied = unresolved.mapper().readValue(unresolved.harness().tools().updateRequirementDraft(
+          questionUpdate(List.of(answered), List.of(), List.of("target"), null)), RequirementCaptureResult.class);
+      assertTrue(applied.accepted(), applied.toString());
+      var saved = unresolved.harness().store().get(unresolved.chat()).orElseThrow();
+      assertEquals(shared.id, saved.authoredDraft().capabilities().stream()
+          .filter(capability -> "call".equals(capability.interactionId())).findFirst().orElseThrow()
+          .targetReference(), "updateRequirementDraft(targetReference)");
+      assertEquals(List.of("roles"), saved.authoredDraft().openQuestions().stream()
+          .map(RequirementCaptureInput.QuestionInput::questionId).toList(),
+          "openQuestions(supplied targetReference)");
+      assertTrue(unresolved.harness().store().validateAuthorQuestions(unresolved.chat()).isEmpty(),
+          unresolved.harness().store().validateAuthorQuestions(unresolved.chat()).toString());
+    }
+
+    var only = chainTrigger("only-trigger", "chain-only", "Only Chain");
+    var uniqueChains = mock(org.qubership.integration.platform.ai.catalog.binding.CompositionCatalogBinder.class);
+    when(uniqueChains.listChainTriggers()).thenReturn(List.of(only));
+    var resolved = pinnedChainCall("chain-resolved", "only-trigger", uniqueChains);
+    assertEquals(Map.of("call", only.id),
+        RequirementCaptureProjection.resolvedTargets(resolved.harness().store().get(resolved.chat()).orElseThrow()),
+        "resolvedTargets(only-trigger)");
+    assertNull(resolved.harness().store().get(resolved.chat()).orElseThrow().authoredDraft().capabilities().stream()
+        .filter(capability -> "call".equals(capability.interactionId())).findFirst().orElseThrow()
+        .targetReference(), "targetReference(resolved by catalog name)");
+    try (var ignored = ToolSession.open(resolved.chat())) {
+      var applied = resolved.mapper().readValue(resolved.harness().tools().updateRequirementDraft(
+          questionUpdate(List.of(), List.of(), List.of("target"), null)), RequirementCaptureResult.class);
+      assertTrue(applied.accepted(), applied.toString());
+      assertEquals(List.of("roles"), resolved.harness().store().get(resolved.chat()).orElseThrow()
+          .authoredDraft().openQuestions().stream().map(RequirementCaptureInput.QuestionInput::questionId).toList(),
+          "openQuestions(one resolved chain trigger)");
     }
   }
 
@@ -138,8 +1911,8 @@ class RequirementCaptureToolsTest {
     when(catalog.getApiSpecifications("om")).thenReturn(List.of(
         new CatalogRestClient.SpecificationDto("om-spec", "1.33", "om-group", "om", "1.33")));
     when(catalog.getOperations(eq("om-spec"), eq(0), anyInt(), isNull())).thenReturn(List.of(
-        new CatalogRestClient.OperationDto("om-onTaskStart", "onTaskStart", "publish", "task.start", "om-spec"),
-        new CatalogRestClient.OperationDto("om-onTaskResult", "onTaskResult", "subscribe", "order.command", "om-spec")));
+        new CatalogRestClient.OperationDto("om-onTaskStart", "onTaskStart", "subscribe", "task.start", "om-spec"),
+        new CatalogRestClient.OperationDto("om-onTaskResult", "onTaskResult", "publish", "order.command", "om-spec")));
     var cache = new ConversationCatalogCache(new CatalogOperationsReadCache(catalog));
     var reads = new CatalogSystemReadTool(catalog, new CatalogOperationsLookupService(cache), null);
     var lookup = new CatalogOperationLookup(new CatalogSystemFinder(catalog), reads);
@@ -189,14 +1962,6 @@ class RequirementCaptureToolsTest {
       assertTrue(issue.message().contains("catalog operation"), issue.message());
       assertTrue(issue.message().contains("exactValues"), issue.message());
       assertTrue(issue.message().contains("elementIntent"), issue.message());
-
-      var lost = new DraftInput(original.flow(), original.facts().stream()
-          .filter(fact -> !"async-trigger-anchor".equals(fact.sourceFactId())).toList(),
-          original.capabilities(), original.openQuestions(), original.settings());
-      var loss = h.mapper().readValue(h.tools().captureRequirementDraft(lost), RequirementCaptureResult.class);
-      assertFalse(loss.accepted());
-      assertTrue(loss.issues().stream().anyMatch(finding -> "REPAIR_FACT_LOSS".equals(finding.code())
-          && "async-trigger-anchor".equals(finding.entityId())));
 
       var facts = original.facts().stream().map(fact -> {
         if (!"async-trigger-anchor".equals(fact.sourceFactId())) return fact;
@@ -450,6 +2215,150 @@ class RequirementCaptureToolsTest {
     }
   }
 
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void invalidMappingRepairRetainsProposalWithoutProtectingUnrelatedAdditions(boolean reload) throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var archive = new ConversationArchive(blobs, mapper);
+    var conversations = mock(ConversationService.class);
+    when(conversations.archive()).thenReturn(archive);
+    String chat = "mapping-retention-" + UUID.randomUUID();
+    String mappingText = "Map Subject from the input to the task request.";
+    String text = mappingText + " Map id to ExternalId. Retain request context.";
+    var source = archive.beginInput(chat, text, null);
+    archive.resolveInput(chat, source, text);
+    var h = persistentHarness(blobs, mapper, conversations, chat);
+    var ready = readyHttpDraft();
+    java.util.function.Function<String, FactInput> mapping = path -> new FactInput(
+        "subject", List.of("entry", "submit"), FactKind.FIELD_MAPPING, Polarity.POSITIVE, mappingText,
+        new RequirementCaptureInput.FieldMappingInput("entry", "$.Subject", "submit", path, null));
+    var sibling = new FactInput("external-id", List.of("entry", "submit"), FactKind.FIELD_MAPPING,
+        Polarity.POSITIVE, "Map id to ExternalId.",
+        new RequirementCaptureInput.FieldMappingInput("entry", "$.id", "submit", "$.ExternalId", null));
+    var unrelated = new FactInput("context-extra", List.of("entry"), FactKind.BEHAVIOR,
+        Polarity.POSITIVE, "Retain request context.");
+    var initial = new DraftInput(ready.flow(),
+        List.of(ready.facts().getFirst(), mapping.apply("$.Task.Subject"), sibling),
+        ready.capabilities(), ready.openQuestions(), ready.settings());
+    var corrected = mapping.apply("$.Subject");
+    var malformed = new DraftUpdate(List.of(), List.of(), List.of(),
+        List.of(initial.flow().transitions().getFirst()), List.of(), List.of(unrelated),
+        List.of(corrected), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null);
+    var focused = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+        List.of(corrected), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null);
+    var expectedPending = new DraftInput(initial.flow(),
+        List.of(initial.facts().getFirst(), corrected, sibling, unrelated),
+        initial.capabilities(), initial.openQuestions(), initial.settings());
+    var expectedAccepted = new DraftInput(initial.flow(),
+        List.of(initial.facts().getFirst(), corrected, sibling),
+        initial.capabilities(), initial.openQuestions(), initial.settings());
+    try (var ignored = ToolSession.open(chat)) {
+      h.store().beginTurn(chat, text);
+      var captured = mapper.readValue(h.tools().captureRequirementDraft(initial), RequirementCaptureResult.class);
+      assertTrue(captured.accepted(), captured.toString());
+      var selected = h.store().get(chat).orElseThrow();
+      var acceptedRef = h.store().latestRevision(chat).orElseThrow().reference();
+      var sourceBefore = mapper.valueToTree(archive.read(chat));
+      var paths = Map.of("subject", java.util.Set.of("targetPath"));
+      org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext.bindDiscovery(
+          "mapping-retention-run", chat, selected, paths, value -> {});
+      try {
+        var rejected = mapper.readValue(h.tools().updateRequirementDraft(malformed), RequirementCaptureResult.class);
+        assertFalse(rejected.accepted(), rejected.toString());
+        assertTrue(rejected.issues().stream().anyMatch(issue -> "CONFLICTING_EDIT".equals(issue.code())
+            && "/changes/addTransitions/0".equals(issue.path())), rejected.toString());
+        assertTrue(rejected.issues().stream().anyMatch(issue -> "REPAIR_FACT_LOSS".equals(issue.code())
+            && "/draft/facts/context-extra".equals(issue.path()) && "context-extra".equals(issue.entityId())
+            && issue.message().contains("Accepted value: <absent>")
+            && issue.message().contains(unrelated.text())
+            && issue.message().contains("/draft/facts/subject/fieldMapping/targetPath")), rejected.toString());
+        var rejectedRef = h.store().rejectedCaptureRevision(chat).orElseThrow().reference();
+        var pendingBefore = mapper.readValue(h.tools().readRequirementDraft(), RequirementCaptureResult.class)
+            .pendingProposal();
+        assertNotNull(pendingBefore);
+        assertEquals(expectedPending, pendingBefore.draft());
+        assertEquals(rejectedRef, pendingBefore.attempt());
+        assertEquals(acceptedRef, pendingBefore.base());
+        assertEquals(source.turnId(), pendingBefore.sourceTurnId());
+        assertEquals(archive.read(chat).generation(), pendingBefore.sourceGeneration());
+        assertEquals("updateRequirementDraft", pendingBefore.toolName());
+        assertEquals(rejected.issues(), pendingBefore.issues());
+        if (reload) {
+          org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext.unbind();
+          h = persistentHarness(blobs, mapper, conversations, chat);
+          h.store().beginTurn(chat, text);
+          org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext.bindDiscovery(
+              "mapping-retention-run", chat, selected, paths, value -> {});
+        }
+        assertEquals(initial, h.store().get(chat).orElseThrow().authoredDraft());
+        assertEquals(acceptedRef, h.store().latestRevision(chat).orElseThrow().reference());
+        assertEquals(sourceBefore, mapper.valueToTree(archive.read(chat)));
+        assertEquals(pendingBefore, mapper.readValue(h.tools().readRequirementDraft(), RequirementCaptureResult.class)
+            .pendingProposal());
+        var protectedBeforeRepair = h.store().rejectedCaptureFacts(chat);
+        var repaired = mapper.readValue(h.tools().updateRequirementDraft(focused), RequirementCaptureResult.class);
+        var active = h;
+        org.junit.jupiter.api.Assertions.assertAll(
+            () -> assertFalse(protectedBeforeRepair.contains(unrelated),
+                "An out-of-scope proposal remains readable but must not become a protected fact"),
+            () -> assertTrue(repaired.accepted(), repaired.toString()),
+            () -> assertEquals(expectedAccepted, active.store().get(chat).orElseThrow().authoredDraft()));
+        assertEquals(source.turnId(), ConversationArchive.latestInputId(archive.read(chat)));
+        assertEquals(text, h.store().currentAuthorText(chat).orElseThrow());
+      } finally {
+        org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext.unbind();
+      }
+    }
+  }
+
+  @Test
+  void malformedInScopeMappingRepairRetainsNativeFeedbackAndAcceptedBase() throws Exception {
+    var h = harness();
+    var ready = readyHttpDraft();
+    java.util.function.Function<String, FactInput> mapping = path -> new FactInput(
+        "subject", List.of("entry", "submit"), FactKind.FIELD_MAPPING, Polarity.POSITIVE,
+        "Map Subject to the task request.",
+        new RequirementCaptureInput.FieldMappingInput("entry", "$.Subject", "submit", path, null));
+    var initial = new DraftInput(ready.flow(), List.of(ready.facts().getFirst(), mapping.apply("$.Task.Subject")),
+        ready.capabilities(), ready.openQuestions(), ready.settings());
+    java.util.function.Function<String, DraftUpdate> update = path -> new DraftUpdate(
+        List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(mapping.apply(path)), List.of(),
+        List.of(), List.of(), List.of(), List.of(), List.of(), null);
+    var paths = Map.of("subject", java.util.Set.of("targetPath"));
+    for (List<FactInput> invalidFacts : java.util.Arrays.<List<FactInput>>asList(
+        null, java.util.Collections.singletonList(null))) {
+      assertFalse(org.qubership.integration.platform.ai.productpipeline.create.RequirementDiscoveryCapability
+          .preservesMappingRepair(paths, List.of(), initial, new DraftInput(initial.flow(), invalidFacts,
+              initial.capabilities(), initial.openQuestions(), initial.settings())));
+    }
+    try (var ignored = ToolSession.open(h.conversationId())) {
+      h.store().beginTurn(h.conversationId(), "Submit one task. Map Subject to the task request.");
+      assertTrue(h.mapper().readValue(h.tools().captureRequirementDraft(initial),
+          RequirementCaptureResult.class).accepted());
+      var selected = h.store().get(h.conversationId()).orElseThrow();
+      var acceptedRef = h.store().latestRevision(h.conversationId()).orElseThrow().reference();
+      org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext.bindDiscovery(
+          "malformed-mapping-run", h.conversationId(), selected, paths, value -> {});
+      try {
+        var encoded = assertDoesNotThrow(() -> h.tools().updateRequirementDraft(update.apply(null)));
+        var rejected = h.mapper().readValue(encoded, RequirementCaptureResult.class);
+        assertFalse(rejected.accepted(), rejected.toString());
+        assertTrue(rejected.issues().stream().anyMatch(issue -> "MAPPING_FIELD_REQUIRED".equals(issue.code())),
+            rejected.toString());
+        assertFalse(rejected.issues().stream().anyMatch(issue -> "REPAIR_FACT_LOSS".equals(issue.code())),
+            rejected.toString());
+        assertEquals(initial, h.store().get(h.conversationId()).orElseThrow().authoredDraft());
+        assertEquals(acceptedRef, h.store().latestRevision(h.conversationId()).orElseThrow().reference());
+        var repaired = h.mapper().readValue(h.tools().updateRequirementDraft(update.apply("$.Subject")),
+            RequirementCaptureResult.class);
+        assertTrue(repaired.accepted(), repaired.toString());
+      } finally {
+        org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext.unbind();
+      }
+    }
+  }
+
   @Test
   void finishingARepeatedCaptureRetainsTheOriginalIssue() throws Exception {
     var h = harness();
@@ -459,13 +2368,30 @@ class RequirementCaptureToolsTest {
     try (var ignored = ToolSession.open(h.conversationId())) {
       h.store().beginTurn(h.conversationId(), "Submit one task.");
       h.tools().captureRequirementDraft(invalid);
-      var rejected = h.mapper().readValue(h.tools().captureRequirementDraft(invalid), RequirementCaptureResult.class);
-      String original = rejected.issues().stream().filter(issue -> !"REPEATED_REJECTION".equals(issue.code()))
-          .findFirst().orElseThrow().code();
-      var finished = h.mapper().readValue(h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE),
-          RequirementCaptureResult.class);
-      assertTrue(finished.issues().stream().anyMatch(issue -> original.equals(issue.code())), finished.toString());
-      assertTrue(finished.issues().stream().anyMatch(issue -> "REPEATED_REJECTION".equals(issue.code())));
+      var noticed = h.mapper().readValue(h.tools().captureRequirementDraft(invalid), RequirementCaptureResult.class);
+      assertEquals(NextAction.REPAIR_CAPTURE, noticed.nextAction());
+      assertTrue(noticed.issues().stream().anyMatch(issue -> "UNCHANGED_PROPOSAL".equals(issue.code())));
+      var rebuilt = h.mapper().readValue(h.tools().captureRequirementDraft(invalid), RequirementCaptureResult.class);
+      assertEquals(NextAction.PROJECTION_REBUILD, rebuilt.nextAction());
+      assertNotEquals(NextAction.ASK_USER, rebuilt.nextAction());
+      String original = rebuilt.issues().stream().map(RequirementCaptureResult.CaptureIssue::code)
+          .filter(code -> "DUPLICATE_ENTITY".equals(code)).findFirst().orElseThrow();
+      assertTrue(h.store().rejectedCaptureRevision(h.conversationId()).isEmpty());
+      var authorText = h.store().currentAuthorText(h.conversationId());
+      var acceptedBefore = h.store().latestRevision(h.conversationId());
+      for (var directive : List.of(RequirementDiscoveryDirective.CONTINUE, RequirementDiscoveryDirective.STAY)) {
+        var encoded = assertDoesNotThrow(() -> h.tools().finishRequirementDiscoveryTurn(directive));
+        var finished = h.mapper().readValue(encoded, RequirementCaptureResult.class);
+        assertFalse(finished.accepted(), finished.toString());
+        assertFalse(finished.changed());
+        assertEquals(NextAction.STOP, finished.nextAction());
+        assertEquals(RequirementDiscoveryDirective.STAY, h.store().turnDirective(h.conversationId()));
+        assertTrue(finished.issues().stream().anyMatch(issue -> original.equals(issue.code())), finished.toString());
+        assertTrue(finished.issues().stream().anyMatch(issue -> "REPEATED_REJECTION".equals(issue.code())));
+        assertEquals(acceptedBefore, h.store().latestRevision(h.conversationId()));
+        assertTrue(h.store().rejectedCaptureRevision(h.conversationId()).isEmpty());
+        assertEquals(authorText, h.store().currentAuthorText(h.conversationId()));
+      }
     }
   }
 
@@ -534,7 +2460,7 @@ class RequirementCaptureToolsTest {
       var script = new FactInput("prepare-script", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
           "Run Prepare request in Groovy; export the script as groovy.", null, null,
           new RequirementElementIntent("prepare", "script", RequirementElementIntent.Placement.LOCAL_NODE,
-              "entry", "submit", "entry", "Prepare request", properties, List.of("Groovy")));
+              "entry", "submit", "entry", "Prepare request", properties, List.of("groovy")));
       return new DraftInput(base.flow(), List.of(base.facts().getFirst(), trigger, script),
           base.capabilities(), base.openQuestions(), base.settings());
     };
@@ -554,24 +2480,10 @@ class RequirementCaptureToolsTest {
       assertTrue(propertyFailure.issues().stream()
           .anyMatch(issue -> "INVALID_REQUESTED_PROPERTY".equals(issue.code())));
       var repaired = candidate.apply("entry", false);
-      var lost = new DraftInput(repaired.flow(), repaired.facts().subList(0, 2),
-          repaired.capabilities(), repaired.openQuestions(), repaired.settings());
-      assertTrue(RequirementCaptureEditor.validateFactPreservation(
-          harness.store().rejectedCaptureFacts(chat), lost, false).stream()
-          .anyMatch(issue -> "REPAIR_FACT_LOSS".equals(issue.code()) && "prepare-script".equals(issue.entityId())));
-      var script = repaired.facts().getLast();
-      var intent = script.elementIntent();
-      var changed = new FactInput(script.sourceFactId(), script.interactionIds(), script.kind(), script.polarity(),
-          script.text(), null, null, new RequirementElementIntent(intent.elementRef(), intent.elementType(),
-              intent.placement(), intent.ownerInteractionId(), intent.successorElementRef(),
-              intent.predecessorElementRef(), intent.requestedName(), List.of(), intent.exactValues()));
-      assertTrue(RequirementCaptureEditor.validateFactPreservation(harness.store().rejectedCaptureFacts(chat),
-          new DraftInput(repaired.flow(), List.of(repaired.facts().getFirst(), repaired.facts().get(1), changed),
-              repaired.capabilities(), repaired.openQuestions(), repaired.settings()), false).stream()
-          .anyMatch(issue -> "REPAIR_FACT_LOSS".equals(issue.code())));
+      assertTrue(harness.store().rejectedCaptureFacts(chat).isEmpty());
       var accepted = mapper.readValue(harness.tools().captureRequirementDraft(repaired), RequirementCaptureResult.class);
       assertTrue(accepted.accepted(), accepted.issues().toString());
-      assertEquals(repaired.facts(), harness.store().get(chat).orElseThrow().authoredDraft().facts());
+      assertAuthoredContentEquals(repaired.facts(), harness.store().get(chat).orElseThrow().authoredDraft().facts());
     }
   }
 
@@ -614,8 +2526,109 @@ class RequirementCaptureToolsTest {
       var again = persistentHarness(blobs, mapper, conversations, chat);
       again.tools().elementSchemas = first.tools().elementSchemas;
       again.store().beginTurn(chat, "Repair the generated property.");
-      assertEquals(NextAction.STOP, mapper.readValue(
-          again.tools().captureRequirementDraft(candidate.apply(propertyKey)), RequirementCaptureResult.class).nextAction());
+      var noticed = mapper.readValue(again.tools().captureRequirementDraft(candidate.apply(propertyKey)),
+          RequirementCaptureResult.class);
+      assertEquals(NextAction.REPAIR_CAPTURE, noticed.nextAction());
+      assertTrue(noticed.issues().stream().anyMatch(issue -> "UNCHANGED_PROPOSAL".equals(issue.code())));
+      var stopped = persistentHarness(blobs, mapper, conversations, chat);
+      stopped.tools().elementSchemas = first.tools().elementSchemas;
+      stopped.store().beginTurn(chat, "Repair the generated property.");
+      var rebuilt = mapper.readValue(stopped.tools().captureRequirementDraft(candidate.apply(propertyKey)),
+          RequirementCaptureResult.class);
+      assertEquals(NextAction.PROJECTION_REBUILD, rebuilt.nextAction());
+      assertNotEquals(NextAction.ASK_USER, rebuilt.nextAction());
+      assertTrue(rebuilt.issues().stream().anyMatch(issue -> "INVALID_REQUESTED_PROPERTY".equals(issue.code())));
+    }
+  }
+
+  @Test
+  void partialNativeCorrectionKeepsTheRemainingFindingRepairable() throws Exception {
+    var h = harness();
+    var ready = readyHttpDraft();
+    var factA = new FactInput("factA", List.of("missingA"), FactKind.BEHAVIOR,
+        Polarity.POSITIVE, "Keep the original request context.");
+    var factB = new FactInput("factB", List.of("missingB"), FactKind.BEHAVIOR,
+        Polarity.POSITIVE, "Prepare the outgoing task.");
+    var original = new DraftInput(ready.flow(), List.of(ready.facts().getFirst(), factA, factB),
+        ready.capabilities(), ready.openQuestions(), ready.settings());
+    var correctedA = new FactInput(factA.sourceFactId(), List.of("entry"), factA.kind(), factA.polarity(), factA.text());
+    var partial = new DraftInput(ready.flow(), List.of(ready.facts().getFirst(), correctedA, factB),
+        ready.capabilities(), ready.openQuestions(), ready.settings());
+    try (var ignored = ToolSession.open(h.conversationId())) {
+      h.store().beginTurn(h.conversationId(), "Submit one task. Keep the context and prepare the outgoing task.");
+      var initial = h.mapper().readValue(h.tools().captureRequirementDraft(original), RequirementCaptureResult.class);
+      assertEquals(List.of("factA", "factB"), initial.issues().stream().map(issue -> issue.entityId()).toList());
+      var corrected = h.mapper().readValue(h.tools().captureRequirementDraft(partial), RequirementCaptureResult.class);
+      assertEquals(NextAction.REPAIR_CAPTURE, corrected.nextAction());
+      assertEquals(List.of("factB"), corrected.issues().stream().map(issue -> issue.entityId()).toList());
+      var unfinished = h.mapper().readValue(h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY),
+          RequirementCaptureResult.class);
+      assertFalse(unfinished.issues().stream().anyMatch(issue -> "REPEATED_REJECTION".equals(issue.code())));
+      assertFalse(unfinished.nextAction() == NextAction.STOP);
+      var noticed = h.mapper().readValue(h.tools().captureRequirementDraft(partial), RequirementCaptureResult.class);
+      assertEquals(NextAction.REPAIR_CAPTURE, noticed.nextAction());
+      assertTrue(noticed.issues().stream().anyMatch(issue -> "UNCHANGED_PROPOSAL".equals(issue.code())));
+      assertTrue(noticed.issues().stream().anyMatch(issue -> "factB".equals(issue.entityId())));
+      var rebuilt = h.mapper().readValue(h.tools().captureRequirementDraft(partial), RequirementCaptureResult.class);
+      assertEquals(NextAction.PROJECTION_REBUILD, rebuilt.nextAction());
+      assertNotEquals(NextAction.ASK_USER, rebuilt.nextAction());
+      assertTrue(rebuilt.issues().stream().anyMatch(issue -> "factB".equals(issue.entityId())));
+    }
+  }
+
+  @Test
+  void identicalRejectedUpdateLeavesTheProducerWithStoredNativeEvidence() throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var archive = new ConversationArchive(blobs, mapper);
+    var conversations = mock(ConversationService.class);
+    when(conversations.archive()).thenReturn(archive);
+    String chat = "no-progress-evidence-" + UUID.randomUUID();
+    String text = "Accept POST /tasks and submit the task. Keep its request context.";
+    var source = archive.beginInput(chat, text, null);
+    archive.resolveInput(chat, source, text);
+    var h = persistentHarness(blobs, mapper, conversations, chat);
+    h.store().beginTurn(chat, text);
+    var ready = readyHttpDraft();
+    var changes = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(),
+        List.of(new FactInput("context", List.of("missing"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+            "Keep its request context.")), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+        List.of(), null);
+    try (var ignored = ToolSession.open(chat)) {
+      assertTrue(mapper.readValue(h.tools().captureRequirementDraft(ready), RequirementCaptureResult.class).accepted());
+      var accepted = h.store().latestRevision(chat).orElseThrow().reference();
+      var first = mapper.readValue(h.tools().updateRequirementDraft(changes), RequirementCaptureResult.class);
+      assertEquals(NextAction.REPAIR_CAPTURE, first.nextAction());
+      var noticed = mapper.readValue(h.tools().updateRequirementDraft(changes), RequirementCaptureResult.class);
+      assertEquals(NextAction.REPAIR_CAPTURE, noticed.nextAction());
+      assertTrue(noticed.issues().stream().anyMatch(issue -> "UNCHANGED_PROPOSAL".equals(issue.code())));
+      var beforeSource = archive.read(chat);
+      var artifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
+      var credits = new ToolCallFingerprintStore(mapper, artifacts, new CompilationSessions(blobs, mapper, Clock.systemUTC()));
+      var beforeCredits = credits.softFingerprints(chat);
+
+      var rebuilt = mapper.readValue(h.tools().updateRequirementDraft(changes), RequirementCaptureResult.class);
+      assertEquals(NextAction.PROJECTION_REBUILD, rebuilt.nextAction());
+      assertNotEquals(NextAction.ASK_USER, rebuilt.nextAction());
+      assertFalse(rebuilt.issues().stream().anyMatch(issue -> "REPAIR_NO_PROGRESS".equals(issue.code())));
+      assertTrue(h.store().rejectedCaptureRevision(chat).isEmpty());
+      var restoredFeedback = new CaptureAttemptFeedbackStore(credits, artifacts,
+          new CompilationSessions(blobs, mapper, Clock.systemUTC()));
+      var feedback = restoredFeedback.lastRequirementRejection(chat).orElseThrow().feedback();
+      assertNotNull(feedback.evidenceReference());
+      assertTrue(artifacts.get(h.store().activeCompilationId(chat), feedback.evidenceReference()).isPresent());
+      assertFalse(feedback.noProgress());
+      assertTrue(feedback.outerAllowed());
+      assertEquals(org.qubership.integration.platform.ai.productpipeline.recovery.RequirementRecoveryLadder.Stage
+          .PROJECTION_REBUILD, feedback.ladderStage());
+      assertTrue(feedback.issues().stream().anyMatch(issue -> "UNKNOWN_INTERACTION_REFERENCE".equals(issue.code())
+          && "context".equals(issue.entityId())));
+      assertFalse(feedback.issues().stream().anyMatch(issue -> "REPAIR_NO_PROGRESS".equals(issue.code())));
+      assertEquals(feedback, restoredFeedback.lastRequirementRejection(chat).orElseThrow().feedback());
+      assertEquals(ready, h.store().get(chat).orElseThrow().authoredDraft());
+      assertEquals(accepted, h.store().latestRevision(chat).orElseThrow().reference());
+      assertEquals(beforeSource, archive.read(chat));
+      assertEquals(beforeCredits, credits.softFingerprints(chat));
     }
   }
 
@@ -656,7 +2669,7 @@ class RequirementCaptureToolsTest {
       assertEquals(NextAction.REPAIR_CAPTURE, resultB.nextAction());
       var reordered = new DraftInput(ready.flow(), List.of(invalidB, correctedA, ready.facts().getFirst()),
           ready.capabilities(), ready.openQuestions(), ready.settings());
-      assertEquals(NextAction.STOP,
+      assertEquals(NextAction.REPAIR_CAPTURE,
           mapper.readValue(restored.tools().captureRequirementDraft(reordered), RequirementCaptureResult.class).nextAction());
     }
   }
@@ -684,8 +2697,12 @@ class RequirementCaptureToolsTest {
       var restored = persistentHarness(blobs, mapper, conversations, chat);
       restored.store().beginTurn(chat, "Repair the generated draft.");
       assertTrue(restored.store().lastCaptureRejection(chat).orElseThrow().contains("INVALID_VALUE"));
-      assertEquals(NextAction.STOP,
-          mapper.readValue(restored.tools().captureRequirementDraft(invalid), RequirementCaptureResult.class).nextAction());
+      var noticed = mapper.readValue(restored.tools().captureRequirementDraft(invalid), RequirementCaptureResult.class);
+      assertEquals(NextAction.REPAIR_CAPTURE, noticed.nextAction());
+      assertTrue(noticed.issues().stream().anyMatch(issue -> "UNCHANGED_PROPOSAL".equals(issue.code())));
+      var rebuilt = mapper.readValue(restored.tools().captureRequirementDraft(invalid), RequirementCaptureResult.class);
+      assertEquals(NextAction.PROJECTION_REBUILD, rebuilt.nextAction());
+      assertTrue(restored.store().rejectedCaptureRevision(chat).isEmpty());
       restored.store().recordCaptureRejection(chat, "Repeated invalid sourceFactId.");
 
       var next = archive.beginInput(chat, text, null);
@@ -696,7 +2713,7 @@ class RequirementCaptureToolsTest {
           mapper.readValue(restored.tools().captureRequirementDraft(invalid), RequirementCaptureResult.class).nextAction());
       assertTrue(mapper.readValue(restored.tools().captureRequirementDraft(ready), RequirementCaptureResult.class).accepted());
       var artifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
-      assertEquals(4, artifacts.history(first.store().activeCompilationId(chat),
+      assertEquals(6, artifacts.history(first.store().activeCompilationId(chat),
           CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_ATTEMPT).size());
     }
   }
@@ -740,8 +2757,15 @@ class RequirementCaptureToolsTest {
       assertEquals("INVALID_VALUE", candidate.path("issues").get(0).path("code").asText());
       var restored = persistentHarness(blobs, mapper, conversations, chat);
       restored.store().beginTurn(chat, "Repair the generated draft.");
-      var repeated = mapper.readValue(restored.tools().captureRequirementDraft(invalid), RequirementCaptureResult.class);
-      assertEquals(commitBeforeFailure ? NextAction.STOP : NextAction.REPAIR_CAPTURE, repeated.nextAction());
+      if (commitBeforeFailure) {
+        var noticed = mapper.readValue(restored.tools().captureRequirementDraft(invalid), RequirementCaptureResult.class);
+        assertEquals(NextAction.REPAIR_CAPTURE, noticed.nextAction());
+        var rebuilt = mapper.readValue(restored.tools().captureRequirementDraft(invalid), RequirementCaptureResult.class);
+        assertEquals(NextAction.PROJECTION_REBUILD, rebuilt.nextAction());
+      } else {
+        var repeated = mapper.readValue(restored.tools().captureRequirementDraft(invalid), RequirementCaptureResult.class);
+        assertEquals(NextAction.REPAIR_CAPTURE, repeated.nextAction());
+      }
       assertTrue(mapper.readValue(restored.tools().captureRequirementDraft(ready), RequirementCaptureResult.class).accepted());
       assertEquals(1, new ToolCallFingerprintStore(mapper, artifacts,
           new CompilationSessions(blobs, mapper, Clock.systemUTC())).softCreditsUsed(chat));
@@ -793,7 +2817,7 @@ class RequirementCaptureToolsTest {
 
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
-  void rejectedInitializationProtectsFactsAfterStoreReconstruction(boolean clearPriorAttempt) throws Exception {
+  void rejectedInitializationCanNarrowAfterRestart(boolean clearPriorAttempt) throws Exception {
     var mapper = new ObjectMapper().findAndRegisterModules();
     var blobs = new InMemoryArtifactBlobStore();
     var archive = new ConversationArchive(blobs, mapper);
@@ -824,12 +2848,100 @@ class RequirementCaptureToolsTest {
       var restored = persistentHarness(blobs, mapper, conversations, chat);
       restored.store().beginTurn(chat, "Repair the generated draft.");
       var loss = mapper.readValue(restored.tools().captureRequirementDraft(ready), RequirementCaptureResult.class);
-      assertFalse(loss.accepted(), loss.toString());
-      assertEquals("REPAIR_FACT_LOSS", loss.issues().getFirst().code());
+      assertTrue(loss.accepted(), loss.toString());
+      assertEquals(ready, restored.store().get(chat).orElseThrow().authoredDraft());
       var corrected = new DraftInput(ready.flow(), List.of(goal, visibility), ready.capabilities(),
           ready.openQuestions(), ready.settings());
-      assertTrue(mapper.readValue(restored.tools().captureRequirementDraft(corrected),
-          RequirementCaptureResult.class).accepted());
+      var again = mapper.readValue(restored.tools().captureRequirementDraft(corrected), RequirementCaptureResult.class);
+      assertFalse(again.accepted(), again.toString());
+      assertTrue(again.issues().stream().anyMatch(issue -> "DRAFT_ALREADY_EXISTS".equals(issue.code())), again.toString());
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void rejectedRenamingCannotExpandRepairConstraints(boolean structuralFailure) throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var archive = new ConversationArchive(blobs, mapper);
+    var conversations = mock(ConversationService.class);
+    when(conversations.archive()).thenReturn(archive);
+    String chat = "repair-constraints-" + UUID.randomUUID();
+    String text = "Submit one task. Keep the external route with RBAC.";
+    var source = archive.beginInput(chat, text, null);
+    archive.resolveInput(chat, source, text);
+    var h = persistentHarness(blobs, mapper, conversations, chat);
+    h.store().beginTurn(chat, text);
+    var ready = readyHttpDraft();
+    var goal = ready.facts().getFirst();
+    var visibility = new FactInput("visibility", List.of("entry"), FactKind.VISIBILITY,
+        Polarity.POSITIVE, "Keep the external route with RBAC.");
+    var invalid = new DraftInput(ready.flow(), List.of(new FactInput("1", goal.interactionIds(),
+        goal.kind(), goal.polarity(), goal.text()), visibility), ready.capabilities(),
+        ready.openQuestions(), ready.settings());
+    try (var ignored = ToolSession.open(chat)) {
+      assertFalse(mapper.readValue(h.tools().captureRequirementDraft(invalid), RequirementCaptureResult.class).accepted());
+      var facts = new ArrayList<>(List.of(structuralFailure ? invalid.facts().getFirst() : goal,
+          new FactInput("renamed-visibility", visibility.interactionIds(),
+          visibility.kind(), visibility.polarity(), visibility.text())));
+      var changed = new DraftInput(ready.flow(), facts, ready.capabilities(), ready.openQuestions(), ready.settings());
+      var renamed = mapper.readValue(h.tools().captureRequirementDraft(changed), RequirementCaptureResult.class);
+      if (!structuralFailure) {
+        assertTrue(renamed.accepted(), renamed.toString());
+        assertEquals(changed, h.store().get(chat).orElseThrow().authoredDraft());
+        return;
+      }
+      assertFalse(renamed.accepted(), renamed.toString());
+      assertTrue(h.store().rejectedCaptureFacts(chat).isEmpty());
+      h = persistentHarness(blobs, mapper, conversations, chat);
+      h.store().beginTurn(chat, "Repair the generated draft from the saved source.");
+      var corrected = new DraftInput(ready.flow(), List.of(goal, visibility), ready.capabilities(),
+          ready.openQuestions(), ready.settings());
+      var result = mapper.readValue(h.tools().captureRequirementDraft(corrected), RequirementCaptureResult.class);
+      assertTrue(result.accepted(), result.toString());
+    }
+  }
+
+  @Test
+  void freshRepairCanReadAllValidatedFieldsWithoutAnAcceptedDraft() throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var archive = new ConversationArchive(blobs, mapper);
+    var conversations = mock(ConversationService.class);
+    when(conversations.archive()).thenReturn(archive);
+    String chat = "repair-view-" + UUID.randomUUID();
+    String text = "Submit one task. Keep the external route with RBAC.";
+    var source = archive.beginInput(chat, text, null);
+    archive.resolveInput(chat, source, text);
+    var h = persistentHarness(blobs, mapper, conversations, chat);
+    h.store().beginTurn(chat, text);
+    var ready = readyHttpDraft();
+    var goal = ready.facts().getFirst();
+    var visibility = new FactInput("visibility", List.of("entry"), FactKind.VISIBILITY,
+        Polarity.POSITIVE, "Keep the external route with RBAC.");
+    var invalid = new DraftInput(ready.flow(), List.of(new FactInput("1", goal.interactionIds(),
+        goal.kind(), goal.polarity(), goal.text()), visibility), ready.capabilities(),
+        ready.openQuestions(), ready.settings());
+    try (var ignored = ToolSession.open(chat)) {
+      assertFalse(mapper.readValue(h.tools().captureRequirementDraft(invalid), RequirementCaptureResult.class).accepted());
+      h = persistentHarness(blobs, mapper, conversations, chat);
+      h.store().beginTurn(chat, "Repair the generated draft from the saved source.");
+      var view = mapper.readTree(h.tools().readRequirementDraft());
+      assertTrue(view.path("draft").isNull());
+      assertEquals("EMPTY", view.path("readiness").asText());
+      assertTrue(view.path("pendingProposal").isObject());
+      assertEquals("REPAIR_CAPTURE", view.path("nextAction").asText());
+      assertTrue(view.path("repairConstraints").isMissingNode() || view.path("repairConstraints").isNull());
+      var builder = new org.qubership.integration.platform.ai.llm.scenario.GatherRequirementsPromptBuilder(
+          null, null, h.store(), conversations);
+      var renderer = io.quarkus.qute.Engine.builder().addDefaults()
+          .addParserHook(new io.quarkiverse.langchain4j.QuarkusPromptTemplateFactory
+              .MustacheTemplateVariableStyleParserHook()).build();
+      String prompt = renderer.parse(builder.wrap(chat, "Repair the generated draft.", "en")).render();
+      assertFalse(prompt.contains("Pending preservation constraints copied from rejected proposals"), prompt);
+      assertFalse(prompt.contains("retain every validated fact ID, text, and elementIntent"), prompt);
+      assertFalse(prompt.contains("Preserve the listed IDs and constrained fields"), prompt);
+      assertTrue(h.store().get(chat).isEmpty(), "Reading constraints must not admit a draft");
     }
   }
 
@@ -871,9 +2983,16 @@ class RequirementCaptureToolsTest {
       }
       var restored = persistentHarness(blobs, mapper, conversations, chat);
       restored.store().beginTurn(chat, "Repair the generated draft.");
-      var loss = mapper.readValue(restored.tools().updateRequirementDraft(removal), RequirementCaptureResult.class);
-      assertFalse(loss.accepted(), loss.toString());
-      assertEquals("REPAIR_FACT_LOSS", loss.issues().getFirst().code());
+      if (sourceAcknowledgmentFails) {
+        var noticed = mapper.readValue(restored.tools().updateRequirementDraft(removal), RequirementCaptureResult.class);
+        assertEquals(NextAction.PROJECTION_REBUILD, noticed.nextAction());
+        var repeated = assertThrows(CaptureNoProgressException.class, () -> restored.tools().updateRequirementDraft(removal));
+        assertEquals("REPAIR_FACT_LOSS", repeated.evidence().feedback().issues().getFirst().code());
+      } else {
+        var loss = mapper.readValue(restored.tools().updateRequirementDraft(removal), RequirementCaptureResult.class);
+        assertFalse(loss.accepted(), loss.toString());
+        assertEquals("REPAIR_FACT_LOSS", loss.issues().getFirst().code());
+      }
       assertEquals(input.facts(), restored.store().get(chat).orElseThrow().authoredDraft().facts());
 
       var next = archive.beginInput(chat, "Remove the external route requirement.", null);
@@ -886,6 +3005,107 @@ class RequirementCaptureToolsTest {
           List.of(new RequirementCaptureInput.AmendmentInput("/facts/visibility", next.turnId(),
               "Remove the external route requirement.")));
       assertTrue(mapper.readValue(restored.tools().updateRequirementDraft(authorRemoval), RequirementCaptureResult.class).accepted());
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void shouldOfferOnlyCurrentCaptureSourceIdsWhenRequestedSourceIsUnavailable(boolean foreignId) {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var archive = new ConversationArchive(blobs, mapper);
+    var conversations = mock(ConversationService.class);
+    when(conversations.archive()).thenReturn(archive);
+    String chat = "source-read-" + UUID.randomUUID();
+    var source = archive.beginInput(chat, "Current author requirement", null);
+    archive.resolveInput(chat, source, "Current author requirement");
+    var foreign = archive.beginInput("foreign-chat", "Private foreign requirement", null);
+    archive.resolveInput("foreign-chat", foreign, "Private foreign requirement");
+    var unresolved = archive.beginInput(chat, "Unresolved private input", null);
+    var h = persistentHarness(blobs, mapper, conversations, chat);
+    h.store().beginTurn(chat);
+    try (var ignored = ToolSession.open(chat)) {
+      var failure = assertThrows(IllegalArgumentException.class, () -> h.tools().readRequirementSource(
+          new RequirementCaptureTools.SourceRead(foreignId ? foreign.turnId() : "mistyped-source-id", 0, 16000)));
+      assertEquals("Source turn is not in this conversation. Available source turn IDs in the current capture context: ["
+          + source.turnId() + "]. Copy an exact ID, read it with readRequirementSource, then retry captureRequirementDraft"
+          + " with that sourceTurnId and its exact quote.", failure.getMessage());
+      assertEquals(archive.readSource(chat, source.turnId(), 0, 16000), h.tools().readRequirementSource(
+          new RequirementCaptureTools.SourceRead(source.turnId(), 0, 16000)));
+      assertFalse(failure.getMessage().contains(foreign.turnId()));
+      assertFalse(failure.getMessage().contains(unresolved.turnId()));
+      assertTrue(h.store().get(chat).isEmpty());
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"empty", "unknown", "not-started", "superseded"})
+  void shouldKeepUnavailableSourceErrorWhenNoCurrentCaptureSourcesExist(String context) {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var archive = new ConversationArchive(blobs, mapper);
+    var conversations = mock(ConversationService.class);
+    when(conversations.archive()).thenReturn(archive);
+    String chat = "source-context-" + UUID.randomUUID();
+    var source = archive.beginInput(chat, "Author requirement", null);
+    if (!"empty".equals(context)) archive.resolveInput(chat, source, "Author requirement");
+    var h = persistentHarness(blobs, mapper, conversations, chat);
+    if (!"not-started".equals(context)) h.store().beginTurn(chat);
+    if ("superseded".equals(context)) archive.beginInput(chat, "Later author requirement", null);
+    try (var ignored = ToolSession.open("unknown".equals(context) ? "unknown-chat" : chat)) {
+      var failure = assertThrows(IllegalArgumentException.class, () -> h.tools().readRequirementSource(
+          new RequirementCaptureTools.SourceRead("mistyped-source-id", 0, 16000)));
+      assertEquals("Source turn is not in this conversation.", failure.getMessage());
+    }
+  }
+
+  @ParameterizedTest
+  @org.junit.jupiter.params.provider.CsvSource({"-1, 16000", "2147483647, 16000", "0, 0", "0, 16001"})
+  void shouldPreserveSourceRangeErrorsWithoutOfferingSourceIds(int offset, int maxChars) {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var archive = new ConversationArchive(blobs, mapper);
+    var conversations = mock(ConversationService.class);
+    when(conversations.archive()).thenReturn(archive);
+    String chat = "source-range-" + UUID.randomUUID();
+    var source = archive.beginInput(chat, "Author requirement", null);
+    archive.resolveInput(chat, source, "Author requirement");
+    var h = persistentHarness(blobs, mapper, conversations, chat);
+    h.store().beginTurn(chat);
+    try (var ignored = ToolSession.open(chat)) {
+      var rangeFailure = assertThrows(IllegalArgumentException.class, () -> h.tools().readRequirementSource(
+          new RequirementCaptureTools.SourceRead(source.turnId(), offset, maxChars)));
+      assertEquals("Use a valid source offset and 1 to 16000 characters.", rangeFailure.getMessage());
+      var failure = assertThrows(IllegalArgumentException.class, () -> h.tools().readRequirementSource(
+          new RequirementCaptureTools.SourceRead("mistyped-source-id", -1, maxChars)));
+      assertEquals("Source turn is not in this conversation.", failure.getMessage());
+    }
+  }
+
+  @Test
+  void shouldBoundSourceIdHintToTheLatestTwentyEligibleSources() {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var archive = new ConversationArchive(blobs, mapper);
+    var conversations = mock(ConversationService.class);
+    when(conversations.archive()).thenReturn(archive);
+    String chat = "source-bound-" + UUID.randomUUID();
+    var sources = new ArrayList<String>();
+    for (int index = 0; index < 21; index++) {
+      var source = archive.beginInput(chat, "Author requirement " + index, null);
+      archive.resolveInput(chat, source, "Author requirement " + index);
+      sources.add(source.turnId());
+    }
+    var h = persistentHarness(blobs, mapper, conversations, chat);
+    h.store().beginTurn(chat);
+    try (var ignored = ToolSession.open(chat)) {
+      var failure = assertThrows(IllegalArgumentException.class, () -> h.tools().readRequirementSource(
+          new RequirementCaptureTools.SourceRead("mistyped-source-id", 0, 16000)));
+      String hint = failure.getMessage();
+      assertEquals("Source turn is not in this conversation. Available source turn IDs in the current capture context: "
+          + sources.subList(1, 21) + ". Copy an exact ID, read it with readRequirementSource, then retry"
+          + " captureRequirementDraft with that sourceTurnId and its exact quote.", hint);
+      assertFalse(hint.contains(sources.getFirst()));
     }
   }
 
@@ -902,7 +3122,7 @@ class RequirementCaptureToolsTest {
     var fingerprints = new ToolCallFingerprintStore(mapper, artifacts, sessions);
     var feedback = new CaptureAttemptFeedbackStore(fingerprints, artifacts, sessions);
     return new Harness(store, new RequirementCaptureTools(store, adapter, mapper,
-        new CaptureToolOutcomeGateway(fingerprints, feedback), feedback, null), mapper, chat);
+        new CaptureToolOutcomeGateway(fingerprints, feedback), feedback, null), mapper, chat, feedback);
   }
 
   @Test
@@ -958,7 +3178,8 @@ class RequirementCaptureToolsTest {
             attempts.get(attempt), List.of());
         var fact = new FactInput("http-config", List.of("entry"), FactKind.PARAMETER, Polarity.POSITIVE,
             "Accept POST /tasks.", null, null, intent);
-        var input = new DraftInput(base.flow(), List.of(base.facts().getFirst(), fact),
+        var input = new DraftInput(base.flow(), List.of(base.facts().getFirst(), fact,
+            nativeAnchorFact("submit", "http-sender")),
             base.capabilities(), base.openQuestions(), base.settings());
         var result = h.mapper().readValue(h.tools().captureRequirementDraft(input), RequirementCaptureResult.class);
         assertFalse(result.issues().stream().anyMatch(issue -> issue.code().equals("REPEATED_REJECTION")),
@@ -1071,11 +3292,15 @@ class RequirementCaptureToolsTest {
           List.of(), List.of(), null)), RequirementCaptureResult.class);
       assertFalse(rejected.accepted());
       assertTrue(rejected.issues().stream().anyMatch(issue -> issue.code().equals("REPAIR_FACT_LOSS")
+          && issue.message().contains("Accepted fact records")
+          && issue.message().contains("Retain accepted values")
+          && issue.message().contains("keep accepted elementIntent unchanged")
           && issue.message().contains("addFacts")), rejected.toString());
-      var extra = new FactInput("additional-setting", List.of(owner), FactKind.PARAMETER, Polarity.POSITIVE,
+      var extra = quoted(new FactInput("additional-setting", List.of(owner), FactKind.PARAMETER, Polarity.POSITIVE,
           "Retain the supplied setting.", null, null,
           new RequirementElementIntent(owner, type, RequirementElementIntent.Placement.ANCHOR, owner, null, null, null,
-              List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty(key, value)), List.of()));
+              List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty(key, value)), List.of())),
+          "current", "/tasks");
       var repaired = h.mapper().readValue(h.tools().updateRequirementDraft(new DraftUpdate(List.of(), List.of(),
           List.of(), List.of(), List.of(), List.of(extra), List.of(), List.of(), List.of(), List.of(), List.of(),
           List.of(), List.of(), null)), RequirementCaptureResult.class);
@@ -1147,13 +3372,17 @@ class RequirementCaptureToolsTest {
       assertTrue(store.get(chat).isEmpty());
       String literal = "{\"error\":\"test-header incorrect value\"}";
       var correct = new RequirementElementIntent(wrong.elementRef(), wrong.elementType(), wrong.placement(),
-          wrong.ownerInteractionId(), null, null, null, List.of(), List.of(literal));
+          wrong.ownerInteractionId(), null, null, null, null,
+          List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty("script", "return '" + literal + "'")),
+          List.of(literal), new RequirementBodyBinding(RequirementBodyBinding.Authority.GENERATED_CANDIDATE,
+              wrong.elementRef(), "script", RequirementBodyBinding.NativeBodyKind.GROOVY_SCRIPT,
+              null, null, null, null, null));
       var accepted = mapper.readValue(tools.captureRequirementDraft(new DraftInput(input.flow(),
           List.of(new FactInput("error-body", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
               "Respond with " + literal, null, null, correct)), input.capabilities(), input.openQuestions(),
           input.settings())), RequirementCaptureResult.class);
       assertTrue(accepted.accepted(), accepted.issues().toString());
-      assertEquals(correct, store.get(chat).orElseThrow().authoredDraft().facts().getFirst().elementIntent());
+      assertAuthoredContentEquals(correct, store.get(chat).orElseThrow().authoredDraft().facts().getFirst().elementIntent());
     }
   }
 
@@ -1278,6 +3507,47 @@ class RequirementCaptureToolsTest {
   }
 
   @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void acceptedStayAsksAboutAnUnresolvedCatalogChoiceInsteadOfRepeatingLookup(boolean withQuestion) throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var archive = new ConversationArchive(blobs, mapper);
+    var conversations = mock(ConversationService.class);
+    when(conversations.archive()).thenReturn(archive);
+    String chat = "catalog-choice-finish-" + UUID.randomUUID();
+    String text = "Receive POST /tasks, call Task API submit, and return its response. No APIHub.";
+    var turn = archive.beginInput(chat, text, null);
+    archive.resolveInput(chat, turn, text);
+    var store = new RequirementDraftStore(new CompilationArtifacts(blobs, mapper, Clock.systemUTC()),
+        new CompilationSessions(blobs, mapper, Clock.systemUTC()), conversations);
+    var adapter = mock(RequirementDraftTool.class);
+    when(adapter.canonicalBindings(any(), nullable(RequirementDraft.class), anyString())).thenReturn(List.of());
+    var tools = new RequirementCaptureTools(store, adapter, mapper);
+    var base = readyHttpDraft();
+    var question = new RequirementCaptureInput.QuestionInput("missing-service", List.of("submit"),
+        "Task API is absent from the catalog. How should this dependency be provided?",
+        new org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence("submit",
+            "participant",
+            org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.CATALOG_CHOICE,
+            List.of(turn.turnId())));
+    var input = withNativeAnchors(new DraftInput(base.flow(), base.facts(),
+        List.of(base.capabilities().getFirst()), withQuestion ? List.of(question) : List.of(), base.settings()));
+    store.beginTurn(chat, text);
+    try (var ignored = ToolSession.open(chat)) {
+      var captured = mapper.readValue(tools.captureRequirementDraft(input), RequirementCaptureResult.class);
+      assertTrue(captured.accepted(), captured.toString());
+      assertEquals(NextAction.LOOKUP, captured.nextAction(), captured.toString());
+      var finished = mapper.readValue(tools.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY),
+          RequirementCaptureResult.class);
+      assertTrue(finished.accepted(), finished.toString());
+      assertEquals(withQuestion ? NextAction.ASK_USER : NextAction.LOOKUP, finished.nextAction(), finished.toString());
+      assertTrue(finished.pendingWork().stream().anyMatch(work -> "OPERATION_LOOKUP_REQUIRED".equals(work.code())),
+          finished.toString());
+      assertEquals(input, store.get(chat).orElseThrow().authoredDraft());
+    }
+  }
+
+  @ParameterizedTest
   @org.junit.jupiter.params.provider.EnumSource(value = RequirementDiscoveryDirective.class,
       names = {"STAY", "CONTINUE"})
   void finishRefreshesTheCatalogBindingResolvedAfterCapture(RequirementDiscoveryDirective directive) throws Exception {
@@ -1286,8 +3556,8 @@ class RequirementCaptureToolsTest {
     var mapper = new ObjectMapper().findAndRegisterModules();
     var tools = new RequirementCaptureTools(store, adapter, mapper);
     var base = readyHttpDraft();
-    var input = new DraftInput(base.flow(), base.facts(), List.of(base.capabilities().getFirst()),
-        base.openQuestions(), base.settings());
+    var input = withNativeAnchors(new DraftInput(base.flow(), base.facts(), List.of(base.capabilities().getFirst()),
+        base.openQuestions(), base.settings()));
     var binding = new org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint(
         "3", "submit", "submit", "Task API submit", "sys", "group", "spec", "operation",
         "http", "POST", "/tasks", "2026.1",
@@ -1311,12 +3581,141 @@ class RequirementCaptureToolsTest {
     }
   }
 
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void readyStayOffersAnActionAllowedForTheCurrentTurn(boolean discussion) throws Exception {
+    Harness h = harness();
+    try (ToolSession.Handle ignored = ToolSession.open(h.conversationId())) {
+      var captured = h.mapper().readValue(h.tools().captureRequirementDraft(withNativeAnchors(readyHttpDraft())),
+          RequirementCaptureResult.class);
+      assertEquals(RequirementCaptureResult.Readiness.READY, captured.readiness(), captured.toString());
+      if (discussion) h.store().allowDiscussion(h.conversationId());
+      else h.store().markAutomaticRepair(h.conversationId());
+      var finished = h.mapper().readValue(h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY),
+          RequirementCaptureResult.class);
+      assertTrue(finished.accepted(), finished.toString());
+      assertEquals(discussion ? NextAction.DISCUSS : NextAction.REQUEST_IDS_CHOICE, finished.nextAction(),
+          finished.toString());
+    }
+  }
+
+  @Test
+  void recoveryGuidanceUsesOnlyTheCurrentSourceBoundAttempt() throws Exception {
+    Harness h = harness();
+    try (ToolSession.Handle ignored = ToolSession.open(h.conversationId())) {
+      var accepted = h.mapper().readValue(h.tools().captureRequirementDraft(withNativeAnchors(readyHttpDraft())),
+          RequirementCaptureResult.class);
+      h.store().beginTurn(h.conversationId(), "Submit a task.");
+      var before = h.store().get(h.conversationId()).orElseThrow();
+      var revision = h.store().latestRevision(h.conversationId()).orElseThrow().reference();
+      var old = RequirementCaptureResult.view(before, revision, false, false,
+          List.of(new RequirementCaptureEditor.Issue("CONFLICTING_ELEMENT_INTENT",
+              "/draft/facts/loop-config/elementIntent/requestedProperties", "loop-config", "Repair the property.")),
+          RequirementDiscoveryDirective.NONE);
+      h.store().recordCaptureOutcome(h.conversationId(), "updateRequirementDraft", "old", old);
+      var current = RequirementCaptureResult.view(before, revision, false, false,
+          List.of(new RequirementCaptureEditor.Issue("INVALID_TYPE", "/draft/facts/entry-route/kind",
+              "entry-route", "Repair the fact.")), RequirementDiscoveryDirective.NONE)
+          .withNextAction(NextAction.PROJECTION_REBUILD);
+      h.store().recordCaptureOutcome(h.conversationId(), "updateRequirementDraft", "current", current);
+      var guidance = h.store().recoveryGuidance(h.conversationId()).orElseThrow();
+      assertEquals(org.qubership.integration.platform.ai.productpipeline.recovery.RequirementRecoveryLadder.Stage.PROJECTION_REBUILD,
+          guidance.strategy());
+      assertEquals(List.of("entry-route"), guidance.participants());
+      assertEquals(List.of("/draft/facts/entry-route/kind"), guidance.editablePaths());
+      h.store().recordCaptureOutcome(h.conversationId(), "captureRequirementDraft", "accepted", accepted);
+      assertEquals(java.util.Optional.empty(), h.store().recoveryGuidance(h.conversationId()),
+          "Accepted attempt clears recovery guidance");
+      h.store().recordCaptureOutcome(h.conversationId(), "updateRequirementDraft", "current", current);
+      h.store().beginTurn(h.conversationId(), "Use a new author instruction.");
+      assertEquals(java.util.Optional.empty(), h.store().recoveryGuidance(h.conversationId()),
+          "New source clears recovery guidance");
+    }
+  }
+
+  @Test
+  void unauthorizedDiscussionDoesNotReviveOlderFactRepairGuidance() throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    Harness h = persistentHarness(blobs, mapper, null, "repaired-discussion");
+    try (ToolSession.Handle ignored = ToolSession.open(h.conversationId())) {
+      var captured = h.mapper().readValue(h.tools().captureRequirementDraft(withNativeAnchors(readyHttpDraft())),
+          RequirementCaptureResult.class);
+      assertEquals(RequirementCaptureResult.Readiness.READY, captured.readiness(), captured.toString());
+      h.store().beginTurn(h.conversationId(), "Submit a task.");
+      var before = h.store().get(h.conversationId()).orElseThrow();
+      var old = RequirementCaptureResult.view(before, h.store().latestRevision(h.conversationId()).orElseThrow().reference(),
+          false, false, List.of(new RequirementCaptureEditor.Issue("CONFLICTING_ELEMENT_INTENT",
+              "/draft/facts/loop-config/elementIntent/requestedProperties", "loop-config", "Repair the property.")),
+          RequirementDiscoveryDirective.NONE);
+      h.store().recordCaptureOutcome(h.conversationId(), "updateRequirementDraft", "old-fact-repair", old);
+      var builder = new org.qubership.integration.platform.ai.llm.scenario.GatherRequirementsPromptBuilder(
+          null, null, h.store(), null);
+      String factPrompt = builder.wrap(h.conversationId(), "Repair.", "en");
+      assertTrue(factPrompt.contains("/draft/facts/loop-config/elementIntent/requestedProperties"), factPrompt);
+      h.store().markAutomaticRepair(h.conversationId());
+      var refused = h.mapper().readValue(h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.DISCUSS),
+          RequirementCaptureResult.class);
+      assertFalse(refused.accepted(), refused.toString());
+      assertTrue(refused.issues().stream().anyMatch(issue -> "DISCUSSION_NOT_AUTHORIZED".equals(issue.code())),
+          refused.toString());
+      String prompt = builder.wrap(h.conversationId(), "Repair.", "en");
+      assertTrue(prompt.contains("The accepted draft is ready. Finish with CONTINUE"), prompt);
+      assertFalse(prompt.contains("Editable paths: /draft/facts/loop-config"), prompt);
+      assertEquals(before, h.store().get(h.conversationId()).orElseThrow());
+      var rejected = h.feedback().lastRequirementRejection(h.conversationId()).orElseThrow();
+      assertEquals("DISCUSSION_NOT_AUTHORIZED", rejected.issues().getFirst().code());
+      var credits = h.feedback().fingerprintStore().softFingerprints(h.conversationId());
+      assertEquals(1, credits.size());
+      h.store().recordCaptureRejection(h.conversationId(), "DISCUSSION_NOT_AUTHORIZED");
+      var finished = h.mapper().readValue(h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE),
+          RequirementCaptureResult.class);
+      assertTrue(finished.accepted(), finished.toString());
+      assertEquals(java.util.Optional.empty(), h.feedback().lastRequirementRejection(h.conversationId()));
+      assertEquals(credits, h.feedback().fingerprintStore().softFingerprints(h.conversationId()));
+      assertTrue(h.feedback().isResolved(h.conversationId(), rejected.feedback().evidenceReference()), rejected::toString);
+      assertEquals(java.util.Optional.empty(), h.store().lastCaptureRejection(h.conversationId()));
+      assertEquals("", h.store().rejectedProposalHistory(h.conversationId()));
+      assertEquals(before, h.store().get(h.conversationId()).orElseThrow());
+      var restoredArtifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
+      var restoredSessions = new CompilationSessions(blobs, mapper, Clock.systemUTC());
+      var restored = new CaptureAttemptFeedbackStore(new ToolCallFingerprintStore(mapper, restoredArtifacts, restoredSessions),
+          restoredArtifacts, restoredSessions);
+      assertEquals(java.util.Optional.empty(), restored.lastRequirementRejection(h.conversationId()));
+      assertEquals(credits, restored.fingerprintStore().softFingerprints(h.conversationId()));
+      assertTrue(restored.isResolved(h.conversationId(), rejected.feedback().evidenceReference()), rejected::toString);
+    }
+  }
+
+  @Test
+  void acceptedStayKeepsTheRejectedDraftCaptureUnresolved() throws Exception {
+    Harness h = harness();
+    try (ToolSession.Handle ignored = ToolSession.open(h.conversationId())) {
+      var captured = h.mapper().readValue(h.tools().captureRequirementDraft(partialKafkaSenderDraft()),
+          RequirementCaptureResult.class);
+      assertTrue(captured.accepted(), captured.toString());
+      assertEquals(RequirementCaptureResult.Readiness.PARTIAL, captured.readiness());
+      var before = h.store().get(h.conversationId()).orElseThrow();
+      var refused = h.mapper().readValue(h.tools().captureRequirementDraft(readyHttpDraft()),
+          RequirementCaptureResult.class);
+      assertFalse(refused.accepted(), refused.toString());
+      var rejected = h.feedback().lastRequirementRejection(h.conversationId()).orElseThrow();
+
+      var finished = h.mapper().readValue(h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY),
+          RequirementCaptureResult.class);
+
+      assertTrue(finished.accepted(), finished.toString());
+      assertEquals(rejected, h.feedback().lastRequirementRejection(h.conversationId()).orElseThrow());
+      assertEquals(before, h.store().get(h.conversationId()).orElseThrow());
+    }
+  }
+
   @Test
   void continueIsAcceptedWhenTheSavedDraftIsReady() throws Exception {
     Harness harness = harness();
     try (ToolSession.Handle ignored = ToolSession.open(harness.conversationId())) {
       RequirementCaptureResult captured = harness.mapper().readValue(
-          harness.tools().captureRequirementDraft(readyHttpDraft()), RequirementCaptureResult.class);
+          harness.tools().captureRequirementDraft(withNativeAnchors(readyHttpDraft())), RequirementCaptureResult.class);
       assertEquals(RequirementCaptureResult.Readiness.READY, captured.readiness(), captured.toString());
 
       RequirementCaptureResult finished = harness.mapper().readValue(
@@ -1435,16 +3834,17 @@ class RequirementCaptureToolsTest {
       var source = archive.beginInput(chat, text, null);
       archive.resolveInput(chat, source, text);
       h.store().beginTurn(chat, text);
-      var role = new FactInput("role", List.of("entry"), FactKind.VISIBILITY, Polarity.POSITIVE,
-          "Use RBAC with roles [\"qip-viewer\"].");
-      java.util.function.Function<Boolean, FactInput> context = repaired -> new FactInput("context",
+      var role = quoted(new FactInput("role", List.of("entry"), FactKind.VISIBILITY, Polarity.POSITIVE,
+          "Use RBAC with roles [\"qip-viewer\"]."), source.turnId(), "qip-viewer");
+      java.util.function.Function<Boolean, FactInput> context = repaired -> quoted(new FactInput("context",
           List.of("submit"), FactKind.PARAMETER, Polarity.POSITIVE,
           "Override X-Request-Id with override-request-id.", null, null,
           new RequirementElementIntent("submit", "http-sender", RequirementElementIntent.Placement.ANCHOR,
               !repaired && defect.equals("owner") ? "wrong-submit" : "submit", null, null, null,
               List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty(
                   "overrideContextParams", !repaired && defect.equals("property")
-                      ? "X-Request-Id=override-request-id" : "{\"X-Request-Id\":\"override-request-id\"}")), List.of()));
+                      ? "X-Request-Id=override-request-id" : "{\"X-Request-Id\":\"override-request-id\"}")), List.of())),
+          source.turnId(), "override-request-id");
       java.util.function.Function<List<FactInput>, DraftUpdate> add = facts -> new DraftUpdate(
           List.of(), List.of(), List.of(), List.of(), List.of(), facts, List.of(), List.of(),
           List.of(), List.of(), List.of(), List.of(), List.of(), null);
@@ -1464,11 +3864,11 @@ class RequirementCaptureToolsTest {
       var repairedContext = context.apply(true);
       var lost = h.mapper().readValue(h.tools().updateRequirementDraft(add.apply(List.of(repairedContext))),
           RequirementCaptureResult.class);
-      assertFalse(lost.accepted(), "Repair must not silently lose the newly supplied role");
-      assertTrue(lost.issues().stream().anyMatch(issue -> "REPAIR_FACT_LOSS".equals(issue.code())
-          && "role".equals(issue.entityId())));
-      var repaired = h.mapper().readValue(h.tools().updateRequirementDraft(
-          add.apply(List.of(role, repairedContext))), RequirementCaptureResult.class);
+      assertTrue(lost.accepted(), lost.toString());
+      assertFalse(lost.draft().facts().stream().anyMatch(fact -> "role".equals(fact.sourceFactId())));
+      assertTrue(lost.draft().facts().stream().anyMatch(fact -> "context".equals(fact.sourceFactId())));
+      var repaired = h.mapper().readValue(h.tools().updateRequirementDraft(add.apply(List.of(role))),
+          RequirementCaptureResult.class);
       assertTrue(repaired.accepted(), repaired.toString());
       assertTrue(repaired.draft().facts().contains(role));
     }
@@ -1578,16 +3978,17 @@ class RequirementCaptureToolsTest {
 
       RequirementCaptureResult lost = harness.mapper().readValue(
           harness.tools().captureRequirementDraft(ready), RequirementCaptureResult.class);
-      assertFalse(lost.accepted(), lost.toString());
-      assertEquals("REPAIR_FACT_LOSS", lost.issues().getFirst().code());
-      assertTrue(harness.store().get(harness.conversationId()).isEmpty());
+      assertTrue(lost.accepted(), lost.toString());
+      assertEquals(ready.facts(), harness.store().get(harness.conversationId()).orElseThrow()
+          .authoredDraft().facts());
 
       DraftInput corrected = new DraftInput(ready.flow(), List.of(goal, visibility),
           ready.capabilities(), ready.openQuestions(), ready.settings());
       RequirementCaptureResult repaired = harness.mapper().readValue(
           harness.tools().captureRequirementDraft(corrected), RequirementCaptureResult.class);
-      assertTrue(repaired.accepted(), repaired.toString());
-      assertEquals(corrected.facts(), repaired.draft().facts());
+      assertFalse(repaired.accepted(), repaired.toString());
+      assertTrue(repaired.issues().stream().anyMatch(issue -> "DRAFT_ALREADY_EXISTS".equals(issue.code())),
+          repaired.toString());
     }
   }
 
@@ -1641,6 +4042,49 @@ class RequirementCaptureToolsTest {
     }
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {"http-trigger", "http-sender"})
+  void escapedQuotesMatchTheSameAuthorLiteral(String elementType) throws Exception {
+    String author = "Configure " + elementType + " with value=\"[\\\"qip-viewer\\\"]\".";
+    String supplied = "[\"qip-viewer\"]";
+    String absent = "[\"qip-admin\"]";
+    for (String literal : List.of(supplied, absent)) {
+      var result = captureLiteral(elementType, author, literal);
+      assertEquals(literal.equals(supplied), result.accepted(), result.toString());
+      if (!result.accepted()) {
+        assertTrue(result.issues().stream().anyMatch(issue -> "ELEMENT_LITERAL_SOURCE_MISMATCH".equals(issue.code())
+            && issue.path().contains("/exactValues/")), result.toString());
+      }
+    }
+  }
+
+  @Test
+  void roleWordAloneDoesNotSupplyAJsonArrayLiteral() throws Exception {
+    var result = captureLiteral("http-trigger", "Use RBAC with the explicit role qip-viewer.",
+        "[\"qip-viewer\"]");
+    assertFalse(result.accepted(), result.toString());
+    assertTrue(result.issues().stream().anyMatch(issue -> "ELEMENT_LITERAL_SOURCE_MISMATCH".equals(issue.code())
+        && issue.path().contains("/exactValues/")), result.toString());
+  }
+
+  private RequirementCaptureResult captureLiteral(String elementType, String author, String literal) throws Exception {
+    var h = harness();
+    h.store().beginTurn(h.conversationId(), author);
+    String owner = "http-sender".equals(elementType) ? "submit" : "entry";
+    var intent = new RequirementElementIntent(owner, elementType,
+        RequirementElementIntent.Placement.ANCHOR, owner, null, null, null,
+        List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty("roles", literal)),
+        List.of(literal));
+    var fact = new FactInput("security", List.of(owner), FactKind.CONSTRAINT, Polarity.POSITIVE,
+        "Use roles " + literal + ".", null, null, intent);
+    var base = readyHttpDraft();
+    var input = new DraftInput(base.flow(), List.of(base.facts().getFirst(), fact),
+        base.capabilities(), base.openQuestions(), base.settings());
+    try (var ignored = ToolSession.open(h.conversationId())) {
+      return h.mapper().readValue(h.tools().captureRequirementDraft(input), RequirementCaptureResult.class);
+    }
+  }
+
   private static Harness uploadedHarness() {
     var conversations = new ConversationService();
     var s3 = mock(org.qubership.integration.platform.ai.storage.S3Service.class);
@@ -1652,6 +4096,11 @@ class RequirementCaptureToolsTest {
           .getBytes(java.nio.charset.StandardCharsets.UTF_8);
     });
     return harness(conversations, s3);
+  }
+
+  private static FactInput quoted(FactInput fact, String turnId, String quote) {
+    return new FactInput(fact.sourceFactId(), fact.interactionIds(), fact.kind(), fact.polarity(), fact.text(),
+        fact.fieldMapping(), fact.policyConflict(), fact.elementIntent(), new ClaimEvidenceInput(turnId, quote));
   }
 
   private static Harness harness() {
@@ -1667,19 +4116,21 @@ class RequirementCaptureToolsTest {
     ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
     var feedback = new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore(
         new org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore());
-    var tools = conversations == null ? new RequirementCaptureTools(store, bindingAdapter, mapper)
+    var tools = conversations == null ? new RequirementCaptureTools(store, bindingAdapter, mapper,
+            new CaptureToolOutcomeGateway(feedback.fingerprintStore(), feedback), feedback, null)
         : new RequirementCaptureTools(store, bindingAdapter, mapper,
             new org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway(
                 feedback.fingerprintStore(), feedback), feedback, null, null,
             new UploadedSpecOperations(conversations, s3), conversations);
-    return new Harness(store, tools, mapper, "capture-test-" + UUID.randomUUID());
+    return new Harness(store, tools, mapper, "capture-test-" + UUID.randomUUID(), feedback);
   }
 
   private record Harness(
       RequirementDraftStore store,
       RequirementCaptureTools tools,
       ObjectMapper mapper,
-      String conversationId) {}
+      String conversationId,
+      CaptureAttemptFeedbackStore feedback) {}
 
   private static DraftInput partialKafkaSenderDraft() {
     return new DraftInput(
@@ -1707,6 +4158,184 @@ class RequirementCaptureToolsTest {
         new DraftSettings(null, null));
   }
 
+  @Test
+  void catalogParticipantAndOperationNeedNoRuntimeProperty() throws Exception {
+    var base = readyHttpDraft();
+    var interactions = new ArrayList<>(base.flow().interactions());
+    interactions.add(new InteractionInput("billing", Direction.OUTBOUND, "billing-system", "list-accounts",
+        null, null, null));
+    var flow = new FlowInput(interactions, base.flow().transitions());
+    assertFalse(unbound(literalDraft(flow, base, "billing", "billing-system")));
+    assertFalse(unbound(literalDraft(flow, base, "billing", "list-accounts")));
+    assertFalse(unbound(literalDraft(flow, base, "submit", "Task API")));
+    assertTrue(unbound(literalDraft(flow, base, "billing", "Client")));
+    var longerName = literalDraft(flow, base, "billing", "billing-system-west");
+    assertTrue(unbound(longerName), longerName.toString());
+    assertTrue(longerName.issues().stream().anyMatch(issue -> issue.message().contains("interaction participant")
+        && !issue.message().contains("integrationSystemId")), longerName.toString());
+  }
+
+  private static RequirementCaptureResult literalDraft(FlowInput flow, DraftInput base,
+      String interactionId, String literal) throws Exception {
+    var h = harness();
+    h.tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+        .createForUnitTests(h.mapper());
+    h.store().beginTurn(h.conversationId(),
+        "Call billing-system operation list-accounts. Log Task API, Client, and billing-system-west.");
+    var intent = new RequirementElementIntent("audit", "log-record", RequirementElementIntent.Placement.LOCAL_NODE,
+        interactionId, null, null, null,
+        List.of(new PlanProperty("logLevel", "Info")), List.of(literal));
+    var fact = new FactInput("audit", List.of(interactionId), FactKind.BEHAVIOR, Polarity.POSITIVE,
+        "Log exactly " + literal + ".", null, null, intent);
+    var input = new DraftInput(flow, List.of(base.facts().getFirst(), fact),
+        base.capabilities(), base.openQuestions(), base.settings());
+    try (var ignored = ToolSession.open(h.conversationId())) {
+      return h.mapper().readValue(h.tools().captureRequirementDraft(input), RequirementCaptureResult.class);
+    }
+  }
+
+  private static boolean unbound(RequirementCaptureResult result) {
+    return result.issues().stream().anyMatch(issue -> "UNBOUND_REQUIRED_LITERAL".equals(issue.code()));
+  }
+
+  private record CapturedUri(DraftInput input, RequirementCaptureInput.QuestionInput question,
+      CapabilityInput answeredCapability) {}
+
+  private record PinnedUri(ObjectMapper mapper, Harness harness, String chat, String firstTurnId,
+      ConversationArchive.Input answer, CapturedUri captured, InMemoryArtifactBlobStore blobs) {}
+
+  private static PinnedUri pinnedUriQuestion(String name, String reply) throws Exception {
+    return pinnedUriQuestion(name, reply, false);
+  }
+
+  private static PinnedUri pinnedUriQuestion(String name, String reply, boolean queued) throws Exception {
+    return pinnedUriQuestion(name, reply, queued, "path", false);
+  }
+
+  private static PinnedUri pinnedUriQuestion(String name, String reply, boolean queued, String propertyKey,
+      boolean nullElementType) throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var archive = new ConversationArchive(blobs, mapper);
+    var conversations = mock(ConversationService.class);
+    when(conversations.archive()).thenReturn(archive);
+    String chat = name + "-" + UUID.randomUUID();
+    String text = "Accept POST /tasks and submit it. Ask for the target URI.";
+    var first = archive.beginInput(chat, text, null);
+    archive.resolveInput(chat, first, text);
+    var harness = persistentHarness(blobs, mapper, conversations, chat);
+    harness.store().beginTurn(chat, text);
+    var captured = missingUriDraft(first.turnId(), queued, propertyKey, nullElementType);
+    try (var ignored = ToolSession.open(chat)) {
+      assertTrue(mapper.readValue(harness.tools().captureRequirementDraft(captured.input()),
+          RequirementCaptureResult.class).accepted(), name);
+      if (!nullElementType) {
+        assertTrue(mapper.readValue(harness.tools().finishRequirementDiscoveryTurn(
+            RequirementDiscoveryDirective.STAY), RequirementCaptureResult.class).accepted(), name);
+      }
+    }
+    var answer = pinAnswer(blobs, mapper, archive, harness, chat, reply);
+    return new PinnedUri(mapper, harness, chat, first.turnId(), answer, captured, blobs);
+  }
+
+  private static CapturedUri missingUriDraft(String firstTurnId) {
+    return missingUriDraft(firstTurnId, false);
+  }
+
+  private static CapturedUri missingUriDraft(String firstTurnId, boolean queued) {
+    return missingUriDraft(firstTurnId, queued, "path", false);
+  }
+
+  private static CapturedUri missingUriDraft(String firstTurnId, boolean queued, String propertyKey,
+      boolean nullElementType) {
+    var base = readyHttpDraft();
+    var missing = new CapabilityInput("submit", "http-sender", null, HttpMethod.POST, null, null, null, null);
+    var question = new RequirementCaptureInput.QuestionInput("target-uri", List.of("submit"), "Which URI?",
+        new org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence("submit", propertyKey,
+            org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.MISSING_VALUE,
+            List.of(firstTurnId)));
+    var questions = queued ? List.of(question, new RequirementCaptureInput.QuestionInput("later-question",
+        List.of("submit"), "Which sender name?",
+        new org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence("submit", "name",
+            org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.MISSING_VALUE,
+            List.of(firstTurnId)))) : List.of(question);
+    var drafted = withNativeAnchors(new DraftInput(base.flow(), base.facts(),
+        List.of(base.capabilities().getFirst(), missing), questions, base.settings()));
+    if (nullElementType) {
+      drafted = clearElementType(drafted, "submit");
+    }
+    return new CapturedUri(drafted, question, base.capabilities().getLast());
+  }
+
+  private static DraftInput clearElementType(DraftInput input, String elementRef) {
+    var facts = new ArrayList<>(input.facts());
+    for (int index = 0; index < facts.size(); index++) {
+      var fact = facts.get(index);
+      var intent = fact.elementIntent();
+      if (intent == null || !elementRef.equals(intent.elementRef())) {
+        continue;
+      }
+      facts.set(index, new FactInput(fact.sourceFactId(), fact.interactionIds(), fact.kind(), fact.polarity(),
+          fact.text(), fact.fieldMapping(), fact.policyConflict(), null, fact.evidence()));
+    }
+    return new DraftInput(input.flow(), facts, input.capabilities(), input.openQuestions(), input.settings());
+  }
+
+  private static RequirementCaptureInput.QuestionInput reword(RequirementCaptureInput.QuestionInput question,
+      String text, List<String> reviewedInputIds) {
+    var evidence = question.evidence();
+    return new RequirementCaptureInput.QuestionInput(question.questionId(), question.interactionIds(), text,
+        new org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence(
+            evidence.interactionId(), evidence.propertyKey(), evidence.kind(), reviewedInputIds));
+  }
+
+  private static DraftUpdate questionUpdate(List<CapabilityInput> capabilities,
+      List<RequirementCaptureInput.QuestionInput> questions, List<String> removeQuestionIds,
+      RequirementCaptureInput.ClarificationDispositionInput disposition) {
+    return new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+        capabilities, List.of(), List.of(), questions, removeQuestionIds, null, List.of(), null, disposition);
+  }
+
+  private static ConversationArchive.Input pinAnswer(InMemoryArtifactBlobStore blobs, ObjectMapper mapper,
+      ConversationArchive archive, Harness harness, String chat, String reply) {
+    var coordinator = new RequirementClarificationCoordinator();
+    var revision = harness.store().latestRevision(chat).orElseThrow();
+    var draft = harness.store().get(chat).orElseThrow();
+    var active = coordinator.activeQuestion(revision, draft, archive.read(chat).generation()).orElseThrow();
+    var offer = coordinator.createOffer(active, 2L);
+    var runs = new org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore(
+        blobs, mapper, Clock.systemUTC());
+    var stages = List.of(new org.qubership.integration.platform.ai.productpipeline.store.StageSnapshot(
+        "requirement-discovery",
+        org.qubership.integration.platform.ai.productpipeline.store.StageStatus.RUNNING, List.of(), null));
+    var created = runs.create(new org.qubership.integration.platform.ai.productpipeline.store.RunSnapshot(
+        "run-" + chat, chat, 1L,
+        org.qubership.integration.platform.ai.productpipeline.store.RunStatus.RUNNING,
+        "requirement-discovery", stages, null));
+    var now = java.time.Instant.parse("2026-01-01T00:00:00Z");
+    var transition = new org.qubership.integration.platform.ai.productpipeline.store.RunTransition(
+        1L, 2L,
+        org.qubership.integration.platform.ai.productpipeline.store.RunStatus.RUNNING,
+        org.qubership.integration.platform.ai.productpipeline.store.RunStatus.WAITING_FOR_INPUT,
+        "requirement-discovery", now, "clarification", null, null,
+        new org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition(offer, null));
+    var attempt = new org.qubership.integration.platform.ai.productpipeline.store.StageAttempt(
+        "attempt-2", "requirement-discovery", 2L,
+        org.qubership.integration.platform.ai.productpipeline.store.StageStatus.WAITING_FOR_INPUT,
+        now, now, List.of(), null);
+    runs.commit(1L, org.qubership.integration.platform.ai.productpipeline.store.LogicalCommit.statusChange(
+        created.run(),
+        org.qubership.integration.platform.ai.productpipeline.store.StageStatus.WAITING_FOR_INPUT,
+        created.run().stages(), attempt, transition));
+    harness.store().useRunJournal(runs);
+    String turnId = ConversationArchive.deterministicAnswerTurnId(offer.offerId(), reply);
+    var metadata = mapper.createObjectNode().put("clarificationOfferId", offer.offerId());
+    var answer = archive.beginInput(chat, turnId, reply, metadata);
+    archive.resolveInput(chat, answer, reply);
+    harness.store().beginTurn(chat, reply);
+    return answer;
+  }
+
   private static DraftInput readyHttpDraft() {
     return new DraftInput(
         new FlowInput(
@@ -1726,5 +4355,77 @@ class RequirementCaptureToolsTest {
                 null, null, null)),
         List.of(),
         new DraftSettings(null, null));
+  }
+
+  private static org.qubership.integration.platform.ai.integration.catalog.model.CatalogElementResponseDto chainTrigger(
+      String id, String chainId, String chainName) {
+    var trigger = new org.qubership.integration.platform.ai.integration.catalog.model.CatalogElementResponseDto();
+    trigger.id = id;
+    trigger.chainId = chainId;
+    trigger.chainName = chainName;
+    trigger.type = "chain-trigger-2";
+    return trigger;
+  }
+
+  private static DraftInput chainCallCapture(String chainName, String targetReference,
+      List<RequirementCaptureInput.QuestionInput> questions) {
+    return new DraftInput(new FlowInput(List.of(
+        new InteractionInput("entry", Direction.INBOUND, "Client", "HTTP /call", null, null, null),
+        new InteractionInput("call", Direction.OUTBOUND, chainName, "Invoke", null, null, null)),
+        List.of(new TransitionInput("entry", "call"))),
+        List.of(new FactInput("goal", List.of("call"), FactKind.GOAL, Polarity.POSITIVE,
+            "Call the header chain.")),
+        List.of(
+            new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, null, "/call", null, null, null),
+            new CapabilityInput("call", "chain-call-2", null, null, null, null, null, targetReference)),
+        questions, new DraftSettings(null, null));
+  }
+
+  private static PinnedUri pinnedChainCall(String name, String reply,
+      org.qubership.integration.platform.ai.catalog.binding.CompositionCatalogBinder chains) throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var archive = new ConversationArchive(blobs, mapper);
+    var conversations = mock(ConversationService.class);
+    when(conversations.archive()).thenReturn(archive);
+    String chat = name + "-" + UUID.randomUUID();
+    String text = "Call the catalog chain and ask which trigger element to use.";
+    var first = archive.beginInput(chat, text, null);
+    archive.resolveInput(chat, first, text);
+    var artifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
+    var sessions = new CompilationSessions(blobs, mapper, Clock.systemUTC());
+    var store = new RequirementDraftStore(artifacts, sessions, conversations);
+    var adapter = mock(RequirementDraftTool.class);
+    when(adapter.canonicalBindings(any(), nullable(RequirementDraft.class), anyString())).thenReturn(List.of());
+    var fingerprints = new ToolCallFingerprintStore(mapper, artifacts, sessions);
+    var feedback = new CaptureAttemptFeedbackStore(fingerprints, artifacts, sessions);
+    var tools = new RequirementCaptureTools(store, adapter, mapper,
+        new CaptureToolOutcomeGateway(fingerprints, feedback), feedback,
+        new RequirementTargetResolver(chains,
+            mock(org.qubership.integration.platform.ai.catalog.binding.McpSystemCatalogBinder.class)));
+    var harness = new Harness(store, tools, mapper, chat, feedback);
+    harness.store().beginTurn(chat, text);
+    var target = new RequirementCaptureInput.QuestionInput("target", List.of("call"),
+        "Which chain-trigger element id should this chain call use?",
+        new org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence("call",
+            "targetReference",
+            org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.CATALOG_CHOICE,
+            List.of(first.turnId())));
+    var roles = new RequirementCaptureInput.QuestionInput("roles", List.of("entry"),
+        "Which roles may access the HTTP trigger?",
+        new org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence("entry", "roles",
+            org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.MISSING_VALUE,
+            List.of(first.turnId())));
+    var input = withNativeAnchors(chainCallCapture(chains.listChainTriggers().getFirst().chainName, null,
+        List.of(target, roles)));
+    try (var ignored = ToolSession.open(chat)) {
+      var captured = mapper.readValue(tools.captureRequirementDraft(input), RequirementCaptureResult.class);
+      assertTrue(captured.accepted(), captured.toString());
+      var finished = mapper.readValue(tools.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY),
+          RequirementCaptureResult.class);
+      assertTrue(finished.accepted(), finished.toString());
+    }
+    var answer = pinAnswer(blobs, mapper, archive, harness, chat, reply);
+    return new PinnedUri(mapper, harness, chat, first.turnId(), answer, new CapturedUri(input, target, null), blobs);
   }
 }

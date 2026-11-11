@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.productpipeline.create;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditIntent;
@@ -20,6 +21,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.SelectedPatte
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifact;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactPayload;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
+import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecutionContext.ScriptEditDraft;
 
 /**
  * Everything a compiler run starts from, stated rather than inherited.
@@ -40,7 +42,8 @@ public record CompilerExecutionSeed(
     boolean isolated,
     String seedText,
     List<SkillArtifact> artifacts,
-    Set<String> preSatisfiedSkillIds) {
+    Set<String> preSatisfiedSkillIds,
+    Map<String, ScriptEditDraft> scriptEditDrafts) {
 
   /**
    * Producer id of every artifact an edit run seeds before any skill has run.
@@ -75,7 +78,13 @@ public record CompilerExecutionSeed(
           TRIGGER_GENERATOR_SKILL,
           STRUCTURE_GENERATOR_SKILL);
 
+  public CompilerExecutionSeed(String workspaceId, boolean isolated, String seedText,
+      List<SkillArtifact> artifacts, Set<String> preSatisfiedSkillIds) {
+    this(workspaceId, isolated, seedText, artifacts, preSatisfiedSkillIds, Map.of());
+  }
+
   public CompilerExecutionSeed {
+    scriptEditDrafts = scriptEditDrafts == null ? Map.of() : Map.copyOf(scriptEditDrafts);
     workspaceId = Objects.requireNonNull(workspaceId, "workspaceId");
     seedText = seedText == null ? "" : seedText;
     artifacts = artifacts == null ? List.of() : List.copyOf(artifacts);
@@ -270,7 +279,11 @@ public record CompilerExecutionSeed(
     List<SkillArtifact> extended = new ArrayList<>(artifacts);
     extended.add(Objects.requireNonNull(artifact, "artifact"));
     return new CompilerExecutionSeed(
-        workspaceId, isolated, seedText, extended, preSatisfiedSkillIds);
+        workspaceId, isolated, seedText, extended, preSatisfiedSkillIds, scriptEditDrafts);
+  }
+
+  public CompilerExecutionSeed withScriptEditDrafts(Map<String, ScriptEditDraft> drafts) {
+    return new CompilerExecutionSeed(workspaceId, isolated, seedText, artifacts, preSatisfiedSkillIds, drafts);
   }
 
   /** Artifact type names the run already holds, in scheduler spelling. */

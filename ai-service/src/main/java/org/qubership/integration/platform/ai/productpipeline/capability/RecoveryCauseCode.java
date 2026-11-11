@@ -50,6 +50,8 @@ public enum RecoveryCauseCode {
   /** Technical retries on this stage are spent. */
   TECHNICAL_RETRY_EXHAUSTED,
 
+  PROVIDER_QUOTA_EXHAUSTED,
+
   /** An invariant inside the service broke. */
   INTERNAL
 }

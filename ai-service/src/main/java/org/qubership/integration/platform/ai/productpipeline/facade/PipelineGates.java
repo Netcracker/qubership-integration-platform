@@ -44,6 +44,7 @@ public final class PipelineGates {
   public static final String STAGE_RETRY = "stage-retry";
 
   /** A temporary dependency failure for which another create attempt can change the outcome. */
+  public static final String RECOVERY_CATALOG_RECHECK = "recovery-catalog-recheck";
   public static final String RECOVERY_RETRY_TECHNICAL = "recovery-retry-technical";
 
   /** A failed execution output that can be regenerated from the approved inputs. */
@@ -78,6 +79,12 @@ public final class PipelineGates {
    * producer; it is not a recoverable halt card.
    */
   public static final String STAGE_CLARIFICATION = "stage-clarification";
+
+  /** The author picks one catalog folder when the requested name matches several. */
+  public static final String TARGET_FOLDER_CHOICE = "target-folder-choice";
+
+  /** Recovery asks the author to repair one focused requirement finding. */
+  public static final String REQUIREMENT_RECOVERY_CLARIFICATION = "requirement-recovery-clarification";
 
   /**
    * Validation, domain, or contract halt with a diagnosed owner. Retry and Revise are both on the
@@ -190,12 +197,30 @@ public final class PipelineGates {
         || STAGE_INTERNAL_FAILURE.equals(gateId)
         || STAGE_ESCALATED.equals(gateId)
         || OWNER_CHOICE.equals(gateId)
-        || STAGE_CLARIFICATION.equals(gateId);
+        || admitsAuthoredClarification(gateId);
+  }
+
+  /**
+   * Author text at this wait resumes requirement discovery and is stamped
+   * {@code admittedInputGate}.
+   */
+  public static boolean admitsAuthoredClarification(String gateId) {
+    return STAGE_CLARIFICATION.equals(gateId)
+        || TARGET_FOLDER_CHOICE.equals(gateId)
+        || REQUIREMENT_RECOVERY_CLARIFICATION.equals(gateId);
+  }
+
+  /** An answer at this wait must not be stored as the generic requirement offer. */
+  public static boolean withholdsGenericRequirementOffer(String gateId) {
+    return TARGET_FOLDER_CHOICE.equals(gateId)
+        || REQUIREMENT_RECOVERY_CLARIFICATION.equals(gateId)
+        || IDS_PATH_CHOICE.equals(gateId);
   }
 
   /** True when the wait is a server-owned contextual recovery dialog. */
   public static boolean isContextualRecoveryGate(String gateId) {
-    return RECOVERY_RETRY_TECHNICAL.equals(gateId)
+    return RECOVERY_CATALOG_RECHECK.equals(gateId)
+        || RECOVERY_RETRY_TECHNICAL.equals(gateId)
         || RECOVERY_REGENERATE_EXECUTION.equals(gateId)
         || RECOVERY_REVISE_BRIEF.equals(gateId)
         || RECOVERY_REBUILD_DESIGN.equals(gateId)

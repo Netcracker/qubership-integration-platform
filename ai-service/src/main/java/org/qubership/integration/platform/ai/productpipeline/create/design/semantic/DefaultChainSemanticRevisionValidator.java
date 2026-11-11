@@ -11,15 +11,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import org.qubership.integration.platform.ai.schema.CamelSimplePredicateValidator;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract.ContainmentRole;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract.ElementContract;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract.TopologyContract;
+import org.qubership.integration.platform.ai.plan.mapping.ScriptExecutionAuthority;
 import org.qubership.integration.platform.ai.plan.BriefMappingValidator;
 import org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
-import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.plan.RequirementFlowValidator;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
@@ -64,6 +65,7 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
     validateReachability(revision, index, errors);
     validateContainment(revision, contract, index, errors);
     validateRegions(revision, contract, index, errors);
+    validateRequiredConditions(revision, errors);
     validateRequiredErrorScopes(revision, errors);
     validateServiceCallFailureModes(revision, brief, errors);
     validateHiddenJoins(revision, index, errors);
@@ -569,6 +571,24 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
     }
   }
 
+  private static void validateRequiredConditions(
+      ChainSemanticRevision revision, List<String> errors) {
+    Set<String> owners = new HashSet<>();
+    for (SemanticRegion region : revision.regions()) {
+      if (region instanceof SemanticRegion.Condition condition) {
+        owners.add(condition.ownerNodeId());
+      }
+    }
+    for (SemanticNode node : revision.nodes()) {
+      if (node instanceof SemanticNode.Operation operation
+          && "condition".equals(operation.elementType())
+          && !owners.contains(operation.nodeId())) {
+        errors.add(
+            "Node '" + operation.nodeId() + "' with element type 'condition' requires a CONDITION region");
+      }
+    }
+  }
+
   private static void validateRequiredErrorScopes(
       ChainSemanticRevision revision, List<String> errors) {
     Set<String> owners = new HashSet<>();
@@ -643,6 +663,9 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
       if (branch.predicate() == null || branch.predicate().isBlank()) {
         errors.add(
             "Condition IF branch '" + branch.branchId() + "' requires a non-empty predicate");
+      } else {
+        CamelSimplePredicateValidator.validate(branch.predicate())
+            .ifPresent(error -> errors.add("Condition IF branch '" + branch.branchId() + "': " + error));
       }
       if (!ifPriorities.add(branch.priority())) {
         errors.add("Condition '" + condition.regionId() + "' requires unique IF priorities");
@@ -963,30 +986,6 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
     }
   }
 
-  /**
-   * Script shells on the approved semantic graph are mapping-owned, behavior-owned, or rejected.
-   * Ownership is derived from {@link SemanticNode.Operation}, {@link SemanticProvenance}, {@link
-   * MappingIntent} sites, and region membership. There is no parallel ownership registry.
-   */
-  public static List<String> behaviorOwnedScriptNodeIds(ChainSemanticRevision revision) {
-    if (revision == null) {
-      return List.of();
-    }
-    Index index = Index.build(revision, new ArrayList<>());
-    Map<String, String> siteByIntent = mappingSiteByIntent(revision, index);
-    Map<String, List<String>> intentsBySite = invertSites(siteByIntent);
-    Set<String> regionRequired = regionRequiredNodeIds(revision);
-    List<String> ids = new ArrayList<>();
-    for (SemanticNode node : revision.nodes()) {
-      if (node instanceof SemanticNode.Operation operation
-          && isScript(operation)
-          && isBehaviorOwned(operation, intentsBySite, regionRequired, null)) {
-        ids.add(operation.nodeId());
-      }
-    }
-    return List.copyOf(ids);
-  }
-
   private static void validateBindingPolicy(
       ChainSemanticRevision revision, RequirementBrief brief, List<String> errors) {
     if (brief == null) {
@@ -1054,9 +1053,13 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
 
   private static void validateScriptOwnership(
       ChainSemanticRevision revision, Index index, RequirementBrief brief, List<String> errors) {
-    Map<String, String> siteByIntent = mappingSiteByIntent(revision, index);
+    Map<String, String> siteByIntent = mappingSiteByIntent(revision, index, brief);
     Map<String, List<String>> intentsBySite = invertSites(siteByIntent);
-    Set<String> regionRequired = regionRequiredNodeIds(revision);
+    try {
+      ScriptExecutionAuthority.requireMappingBehaviorSites(brief, revision);
+    } catch (IllegalArgumentException unsupported) {
+      errors.add(unsupported.getMessage());
+    }
     for (SemanticNode node : revision.nodes()) {
       if (!(node instanceof SemanticNode.Operation operation) || !isScript(operation)) {
         continue;
@@ -1073,59 +1076,22 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
       if (boundIntents.size() == 1) {
         continue;
       }
-      if (!isBehaviorOwned(operation, intentsBySite, regionRequired, brief)) {
-        errors.add("orphan script: " + operation.nodeId()
-            + ". Bind its mappingIntentId on an adjacent edge; when both endpoints are scripts,"
-            + " the source script owns the mapping. Place the mapping on this script's outgoing"
-            + " edge to its destination call, or keep an approved BEHAVIOR fact on a behavior script.");
+      if (ScriptExecutionAuthority.declaredSuppliedBody(brief, operation.nodeId()).isEmpty()
+          && ScriptExecutionAuthority.declaredGeneratedBehavior(brief, operation.nodeId(), ScriptExecutionAuthority.behaviorSites(revision, brief))
+              .filter(fact -> operation.provenance().sourceFactIds().contains(fact.sourceFactId())).isEmpty()) {
+        errors.add(ScriptExecutionAuthority.unsupportedMessage(operation.nodeId()));
       }
     }
-  }
-
-  private static boolean isBehaviorOwned(
-      SemanticNode.Operation operation,
-      Map<String, List<String>> intentsBySite,
-      Set<String> regionRequired,
-      RequirementBrief brief) {
-    if (!intentsBySite.getOrDefault(operation.nodeId(), List.of()).isEmpty()) {
-      return false;
-    }
-    if (regionRequired.contains(operation.nodeId())) {
-      return true;
-    }
-    List<String> factIds = operation.provenance().sourceFactIds();
-    if (factIds.isEmpty()) {
-      return false;
-    }
-    if (brief == null) {
-      return true;
-    }
-    return resolvesToPositiveBehavior(factIds, brief);
-  }
-
-  private static boolean resolvesToPositiveBehavior(
-      List<String> sourceFactIds, RequirementBrief brief) {
-    Set<String> wanted = new HashSet<>(sourceFactIds);
-    for (RequirementFact fact : brief.facts()) {
-      if (fact == null || !wanted.contains(fact.sourceFactId())) {
-        continue;
-      }
-      if (fact.polarity() == RequirementFactPolarity.POSITIVE
-          && fact.kind() == RequirementFactKind.BEHAVIOR) {
-        return true;
-      }
-    }
-    return false;
   }
 
   private static Map<String, String> mappingSiteByIntent(
-      ChainSemanticRevision revision, Index index) {
+      ChainSemanticRevision revision, Index index, RequirementBrief brief) {
     Map<String, String> siteByIntent = new LinkedHashMap<>();
     for (SemanticExecutionEdge edge : revision.executionEdges()) {
       if (edge.mappingId() == null || edge.mappingId().isBlank()) {
         continue;
       }
-      String siteId = transformSiteNodeId(edge, index.nodes);
+      String siteId = transformSiteNodeId(edge, index.nodes, brief);
       if (siteId != null) {
         siteByIntent.put(edge.mappingId(), siteId);
       }
@@ -1153,7 +1119,8 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
     return "script".equals(type) || "mapper-2".equals(type);
   }
 
-  static String transformSiteNodeId(SemanticExecutionEdge edge, Map<String, SemanticNode> nodes) {
+  /** Returns the mapping shell on an edge, preferring its source when both endpoints are shells. */
+  public static String transformSiteNodeId(SemanticExecutionEdge edge, Map<String, SemanticNode> nodes) {
     SemanticNode source = nodes.get(edge.sourceNodeId());
     if (isTransformShell(source)) {
       return source.nodeId();
@@ -1165,57 +1132,20 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
     return null;
   }
 
-  private static Set<String> regionRequiredNodeIds(ChainSemanticRevision revision) {
-    Set<String> ids = new LinkedHashSet<>();
-    for (SemanticRegion region : revision.regions()) {
-      switch (region) {
-        case SemanticRegion.ErrorScope scope -> {
-          ids.add(scope.tryEntryNodeId());
-          if (scope.finallyEntryNodeId() != null) {
-            ids.add(scope.finallyEntryNodeId());
-          }
-          ids.addAll(scope.exitNodeIds());
-          for (ErrorHandler handler : scope.handlers()) {
-            ids.add(handler.entryNodeId());
-            ids.addAll(handler.exitNodeIds());
-          }
+  public static String transformSiteNodeId(
+      SemanticExecutionEdge edge, Map<String, SemanticNode> nodes, RequirementBrief brief) {
+    if (brief != null) {
+      for (MappingIntent intent : brief.mappingIntents()) {
+        if (intent.mappingIntentId().equals(edge.mappingId())
+            && intent.targetRef().equals(edge.targetNodeId())
+            && org.qubership.integration.platform.ai.plan.mapping.LocalMappingTarget
+                .resolve(brief.facts(), brief.flow(), intent.targetRef()).isPresent()
+            && isTransformShell(nodes.get(edge.targetNodeId()))) {
+          return edge.targetNodeId();
         }
-        case SemanticRegion.Condition condition -> {
-          if (condition.reconvergenceNodeId() != null) {
-            ids.add(condition.reconvergenceNodeId());
-          }
-          for (SemanticBranch.Condition branch : condition.branches()) {
-            ids.add(branch.entryNodeId());
-            ids.addAll(branch.exitNodeIds());
-          }
-        }
-        case SemanticRegion.Split split -> {
-          if (split.reconvergenceNodeId() != null) {
-            ids.add(split.reconvergenceNodeId());
-          }
-          for (SemanticBranch.Split branch : split.branches()) {
-            ids.add(branch.entryNodeId());
-            ids.addAll(branch.exitNodeIds());
-          }
-        }
-        case SemanticRegion.Loop loop -> {
-          ids.add(loop.bodyEntryNodeId());
-          ids.addAll(loop.bodyExitNodeIds());
-          ids.add(loop.exitNodeId());
-        }
-        case SemanticRegion.Retry retry -> {
-          ids.add(retry.bodyEntryNodeId());
-          ids.addAll(retry.bodyExitNodeIds());
-          ids.add(retry.exhaustedNodeId());
-        }
-        case SemanticRegion.Sequence sequence -> ids.addAll(sequence.memberNodeIds());
-        default -> {}
       }
     }
-    for (SemanticContainment containment : revision.containment()) {
-      ids.add(containment.childNodeId());
-    }
-    return ids;
+    return transformSiteNodeId(edge, nodes);
   }
 
   private static void validateMappingRefs(

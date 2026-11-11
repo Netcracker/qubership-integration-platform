@@ -80,6 +80,21 @@ class CatalogVersionDecisionTest {
   }
 
   @Test
+  void deliveringTheSameVersionApprovalTwiceDoesNotRepeatContinuation() {
+    var card = service.openDecision("chat").orElseThrow();
+    var approval = command(card, "approve");
+    service.apply("chat", approval).collect().asList().await().indefinitely();
+
+    var repeated = service.apply("chat", approval).collect().asList().await().indefinitely();
+
+    assertEquals(List.of(), repeated);
+    verify(facade, times(1)).continueWithInput(any());
+    assertEquals(match("new", "2.0.0"), selections.confirmed("chat", interaction).orElseThrow());
+    assertEquals(Optional.empty(), selections.pending("chat"));
+    assertEquals(Optional.empty(), service.openDecision("chat"));
+  }
+
+  @Test
   void aCardForAnOlderDraftReissuesTheCurrentProposal() {
     var card = service.openDecision("chat").orElseThrow();
     drafts.put("chat", new RequirementDraft(false, "Preserve the task ID")

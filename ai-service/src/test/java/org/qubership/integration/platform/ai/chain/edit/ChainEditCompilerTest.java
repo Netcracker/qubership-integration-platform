@@ -610,11 +610,58 @@ class ChainEditCompilerTest {
         configureCapture(
             List.of("normalize"), "return the customer id in the body", List.of("script"));
 
-    assertInstanceOf(ChainEditOutcome.Proposal.class, compiler.compile(request()));
+    assertInstanceOf(ChainEditOutcome.Proposal.class, compiler.compile(request("Return the customer ID from Normalize")));
     assertEquals(
         List.of("cip-script-generator"), engine.lastRequest.get().approvedOwningSkillIds());
     assertEquals(
         List.of("normalize"), scopedTargets(engine.lastRequest.get()));
+    var drafts = engine.lastRequest.get().seed().scriptEditDrafts();
+    assertEquals(Set.of("normalize"), drafts.keySet());
+    assertNull(drafts.get("normalize").suppliedBody());
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+  void preservesAnExactAuthorBodyInTheScopedEditSeed(boolean revision) {
+    intentReply = configureCapture(List.of("normalize"), "replace Normalize script", List.of("script"));
+    String body = "  return 42\n";
+    String source = "Replace Normalize using this script:\n```groovy\n" + body + "```";
+    var request = revision ? request("Earlier draft:\n```groovy\nreturn 1\n```\n" + source)
+        .withScriptAuthorSource(source) : request(source);
+
+    assertInstanceOf(ChainEditOutcome.Proposal.class, compiler.compile(request));
+
+    var drafts = engine.lastRequest.get().seed().scriptEditDrafts();
+    assertEquals(Set.of("normalize"), drafts.keySet());
+    assertEquals(body, drafts.get("normalize").suppliedBody());
+  }
+
+  @Test
+  void preservesSourceWhenClarificationNamesTheSelectedScript() {
+    intentReply = configureCapture(List.of("normalize"), "replace Normalize script", List.of("script"));
+    var held = new ChainEditIntent(ChainEditAction.CONFIGURE, List.of(), "replace a script", null,
+        null, null, List.of("script"), List.of("Select a Script"));
+    String body = "  return 42\n";
+    String original = "Replace the Script with this body:\n```groovy\n" + body + "```";
+
+    var outcome = compiler.resumeAfterClarification(request("normalize"), held, "Which Script?",
+        null, null, original);
+
+    assertInstanceOf(ChainEditOutcome.Proposal.class, outcome);
+    assertEquals(body, engine.lastRequest.get().seed().scriptEditDrafts().get("normalize").suppliedBody());
+  }
+
+  @Test
+  void anUnrelatedEditDoesNotInheritTheHeldScriptBody() {
+    var held = new ChainEditIntent(ChainEditAction.CONFIGURE, List.of(), "replace a script", null,
+        null, null, List.of("script"), List.of("Select a Script"));
+    intentReply = configureCapture(List.of(TARGET), "set retry count to five", List.of("retryCount"));
+    String original = "Replace the Script with this body:\n```groovy\nreturn 42\n```";
+
+    compiler.resumeAfterClarification(request("Set Call orders to retry five times"), held,
+        "Which Script?", null, null, original);
+
+    assertEquals(Map.of(), engine.lastRequest.get().seed().scriptEditDrafts());
   }
 
   @Test
@@ -1038,6 +1085,7 @@ class ChainEditCompilerTest {
         List.of(STRUCTURE_GENERATOR, SCRIPT_GENERATOR),
         engine.requests.get(1).approvedOwningSkillIds());
     assertEquals(List.of("new-script"), scopedTargets(engine.requests.get(1), SCRIPT_GENERATOR));
+    assertEquals(Set.of("new-script"), engine.requests.get(1).seed().scriptEditDrafts().keySet());
     assertEquals(
         "return 1", properties(node(proposal.finalGraph(), "new-script")).get("script"));
   }

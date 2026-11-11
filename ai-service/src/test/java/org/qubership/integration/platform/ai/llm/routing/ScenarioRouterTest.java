@@ -20,6 +20,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.chain.presentation.ChainContextExtractor;
+import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
 import org.qubership.integration.platform.ai.llm.scenario.ScenarioHandler;
@@ -756,6 +757,25 @@ class ScenarioRouterTest {
 
     productRouter.route(request, CONVERSATION_ID).collect().asList().await().indefinitely();
 
+    verify(adapter).handle(request, CONVERSATION_ID);
+    verify(routerAgent, never()).classify(any(), anyString(), any());
+  }
+
+  @Test
+  void confirmedClarificationGoesToTheBoundCreateRunWithoutClassification() {
+    var adapter = mock(ProductPipelineChatAdapter.class);
+    when(adapter.handle(any(), anyString()))
+        .thenReturn(io.smallrye.mutiny.Multi.createFrom().item(ChatEvent.token("Accepted")));
+    var pending = new CreateChainPendingAction.Clarify("Provide the schema", java.util.List.of(),
+        PipelineGates.STAGE_CLARIFICATION, "", null, "bound-run", "requirement-discovery", "offer-current");
+    var productRouter = boundRouter(adapter, snapshotWith(CreateChainExecutionStatus.INPUT_REQUIRED, pending));
+    var request = new ChatRequest();
+    request.setClarificationOfferId("offer-current");
+    request.setResolvedEffectiveUserText("{\"type\":\"object\"}");
+
+    var events = productRouter.route(request, CONVERSATION_ID).collect().asList().await().indefinitely();
+
+    assertEquals(java.util.List.of(ChatEvent.token("Accepted")), events);
     verify(adapter).handle(request, CONVERSATION_ID);
     verify(routerAgent, never()).classify(any(), anyString(), any());
   }

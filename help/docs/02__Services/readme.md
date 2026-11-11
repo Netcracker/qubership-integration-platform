@@ -67,10 +67,6 @@ specification version. A changed version or API definition is handled as a diffe
 When several files are submitted, the result identifies each imported, reused, or failed file.
 A partial import reports the failures and keeps the successfully imported specifications in the catalog.
 
-For chain creation, Rocky uses the same import pipeline for attached specifications that are needed
-and binds operations to their catalog IDs before planning. Operations from other services remain
-available through catalog search. If a required import fails, chain creation pauses for correction.
-
 ## Data Storage
 
 ---

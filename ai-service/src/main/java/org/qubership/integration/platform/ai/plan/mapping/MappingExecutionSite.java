@@ -22,7 +22,8 @@ public final class MappingExecutionSite {
   private MappingExecutionSite() {}
 
   public static boolean isCompilerMetadataKey(String key) {
-    return MAPPING_INTENT_ID_PROPERTY.equals(key)
+    return "nativeRetentionSite".equals(key)
+        || MAPPING_INTENT_ID_PROPERTY.equals(key)
         || SEMANTIC_EDGE_ID_PROPERTY.equals(key)
         || MAPPING_ID_PROPERTY.equals(key)
         || MAPPING_SOURCE_PORT_PROPERTY.equals(key)

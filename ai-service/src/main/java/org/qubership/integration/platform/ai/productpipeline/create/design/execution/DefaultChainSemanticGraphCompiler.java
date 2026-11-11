@@ -117,7 +117,7 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
     StructuralRegionProjection structuralRegions =
         projectStructuralRegions(revision, nodesById, parentByChild, extraByNode, orderByNode);
     applyHttpTriggerProperties(revision, brief, nodesById, extraByNode);
-    applyMappingSites(revision, nodesById, extraByNode);
+    applyMappingSites(revision, nodesById, extraByNode, brief);
     applyServiceCallProperties(revision.revisionId(), calls, extraByNode);
 
     List<ChainPlanNode> planNodes = new ArrayList<>();
@@ -154,7 +154,10 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
     for (ResolvedServiceCallBinding binding : bindings) {
       graph = ServiceCallCatalogIdentity.upsert(graph, binding);
     }
-    return graph;
+    return org.qubership.integration.platform.ai.plan.mapping.CopyRetentionStructurePhase.placeApproved(
+        graph, brief, (ref, port) ->
+            org.qubership.integration.platform.ai.plan.mapping.schema.DefaultMappingBoundarySchemaResolver
+                .semanticNodeId(revision, ref, port));
   }
 
   /**
@@ -362,12 +365,18 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
   private static void applyMappingSites(
       ChainSemanticRevision revision,
       Map<String, SemanticNode> nodesById,
-      Map<String, List<PlanProperty>> extraByNode) {
+      Map<String, List<PlanProperty>> extraByNode,
+      RequirementBrief brief) {
     for (SemanticExecutionEdge edge : revision.executionEdges()) {
       if (edge.mappingId() == null) {
         continue;
       }
-      String siteId = transformSiteId(edge, nodesById);
+      String siteId = org.qubership.integration.platform.ai.productpipeline.create.design.semantic.DefaultChainSemanticRevisionValidator
+          .transformSiteNodeId(edge, nodesById, brief);
+      if (siteId == null) {
+        throw new IllegalStateException("Cannot materialize execution edge '" + edge.edgeId()
+            + "': mapping intent '" + edge.mappingId() + "' has no mapper-2 or script execution site.");
+      }
       addProperty(
           extraByNode, siteId, MappingExecutionSite.MAPPING_INTENT_ID_PROPERTY, edge.mappingId());
       addProperty(
@@ -804,33 +813,6 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
         }
       }
     }
-  }
-
-  private static String transformSiteId(
-      SemanticExecutionEdge edge, Map<String, SemanticNode> nodesById) {
-    SemanticNode source = nodesById.get(edge.sourceNodeId());
-    if (isTransform(source)) {
-      return source.nodeId();
-    }
-    SemanticNode target = nodesById.get(edge.targetNodeId());
-    if (isTransform(target)) {
-      return target.nodeId();
-    }
-    throw new IllegalStateException(
-        "Cannot materialize execution edge '"
-            + edge.edgeId()
-            + "': mapping intent '"
-            + edge.mappingId()
-            + "' has no mapper-2 or script execution site.");
-  }
-
-  private static boolean isTransform(SemanticNode node) {
-    if (!(node instanceof SemanticNode.Operation operation)) {
-      return false;
-    }
-    String type = operation.elementType();
-    return MappingExecutionSite.ELEMENT_TYPE.equals(type)
-        || MappingExecutionSite.SCRIPT_ELEMENT_TYPE.equals(type);
   }
 
   private static void applyServiceCallProperties(

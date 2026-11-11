@@ -1,12 +1,18 @@
 package org.qubership.integration.platform.ai.llm.ratelimit;
 
+import dev.langchain4j.agent.tool.ToolExecutionRequest;
+import dev.langchain4j.data.message.AiMessage;
+import dev.langchain4j.data.message.ToolExecutionResultMessage;
+import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.ModelProvider;
 import dev.langchain4j.model.chat.Capability;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.chat.listener.ChatModelListener;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.request.ChatRequestParameters;
+import dev.langchain4j.model.chat.request.ToolChoice;
 import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -32,6 +38,12 @@ public class RateLimitStreamingChatModel implements StreamingChatModel {
   private final RateLimitWaitPolicy policy;
   private final TransientWaitPolicy transientPolicy;
   private LlmRunBudget runBudget;
+  private ToolReadProgress readProgress;
+
+  RateLimitStreamingChatModel withToolReadProgress(ToolReadProgress progress) {
+    this.readProgress = progress;
+    return this;
+  }
 
   RateLimitStreamingChatModel withRunBudget(LlmRunBudget budget) {
     this.runBudget = budget;
@@ -79,11 +91,32 @@ public class RateLimitStreamingChatModel implements StreamingChatModel {
 
   @Override
   public void chat(ChatRequest chatRequest, StreamingChatResponseHandler handler) {
-    ChatRequest requestWithDefaults =
-        requestBudget.prepare(chatRequest
-            .toBuilder()
-            .parameters(delegate.defaultRequestParameters().overrideWith(chatRequest.parameters()))
-            .build());
+    // Runtime feedback continues the caller's turn, so normalize its tool protocol before adding feedback.
+    ChatRequest original = normalizeToolHistory(chatRequest);
+    chatRequest = original;
+    if (readProgress != null) {
+      try {
+        chatRequest = readProgress.prepare(chatRequest,
+            org.qubership.integration.platform.ai.chat.ToolSession.resolveConversationId(),
+            org.jboss.logmanager.MDC.get(org.qubership.integration.platform.ai.compiler.CompilerSkillMdc.CAPABILITY_ID),
+            runBudget == null ? null : runBudget.currentRun());
+      } catch (ReadNoProgressException repeated) {
+        handler.onError(repeated);
+        return;
+      }
+    }
+    boolean hasRetainedReads = chatRequest != original;
+    ChatRequest requestWithDefaults;
+    try {
+      requestWithDefaults = prepareProviderRequest(chatRequest);
+    } catch (LlmRequestBudget.Overflow overflow) {
+      if (!hasRetainedReads) throw overflow;
+      chatRequest = readProgress.prepare(original,
+          org.qubership.integration.platform.ai.chat.ToolSession.resolveConversationId(),
+          org.jboss.logmanager.MDC.get(org.qubership.integration.platform.ai.compiler.CompilerSkillMdc.CAPABILITY_ID),
+          runBudget == null ? null : runBudget.currentRun(), 0);
+      requestWithDefaults = prepareProviderRequest(chatRequest);
+    }
     boolean rateLimitEnabled = appConfig.llm().rateLimit().enabled();
     int rateLimitMaxAttempts = appConfig.llm().rateLimit().maxAttempts();
     boolean transientEnabled = appConfig.llm().transientRetry().enabled();
@@ -105,7 +138,40 @@ public class RateLimitStreamingChatModel implements StreamingChatModel {
             transientMaxAttempts,
             onBackoff).withRunBudget(runBudget, runBudget == null ? null : runBudget.currentRun(), requestBudget);
     rateLimited.chat(
-        requestWithDefaults, RateLimitSinkSupport.completionAwareHandler(handler, backoffInCall));
+        requestWithDefaults, RateLimitSinkSupport.completionAwareHandler(handler, backoffInCall,
+            chatRequest.parameters().toolChoice() == ToolChoice.REQUIRED));
+  }
+
+  private static ChatRequest normalizeToolHistory(ChatRequest request) {
+    return firstToolProtocol(
+        org.qubership.integration.platform.ai.compiler.capture.ChatMemorySanitizer.repairRejectedArguments(request));
+  }
+
+  private ChatRequest prepareProviderRequest(ChatRequest request) {
+    return requestBudget.prepare(request.toBuilder()
+        .parameters(delegate.defaultRequestParameters().overrideWith(request.parameters())).build());
+  }
+
+  private static ChatRequest firstToolProtocol(ChatRequest request) {
+    if (request.parameters().toolChoice() != ToolChoice.REQUIRED) {
+      return request;
+    }
+    // Quarkus reapplies invocation parameters after tools; only a real current-turn result releases REQUIRED.
+    List<ToolExecutionRequest> calls = new ArrayList<>();
+    boolean executed = false;
+    for (var message : request.messages()) {
+      if (message instanceof UserMessage) {
+        calls.clear();
+        executed = false;
+      } else if (message instanceof AiMessage ai && ai.hasToolExecutionRequests()) {
+        calls.addAll(ai.toolExecutionRequests());
+      } else if (message instanceof ToolExecutionResultMessage result && calls.stream().anyMatch(call ->
+          Objects.equals(call.id(), result.id()) && Objects.equals(call.name(), result.toolName()))) {
+        executed = true;
+      }
+    }
+    return executed ? request.toBuilder().parameters(request.parameters().overrideWith(
+        ChatRequestParameters.builder().toolChoice(ToolChoice.AUTO).build())).build() : request;
   }
 
   @Override

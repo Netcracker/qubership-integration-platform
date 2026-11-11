@@ -18,7 +18,8 @@ public record ChainEditCapture(
     @Description(
             "Existing element ids this edit acts on or attaches next to. For KEEP, one or two ids:"
                 + " the element the insertion follows, optionally followed by the element it"
-                + " precedes. For REMOVE, only the element being replaced. Empty for a new root"
+                + " precedes. For NEST, every existing element moved into any branch of the new structure,"
+                + " including intermediate elements retained on its happy path. For REMOVE, only the element being replaced. Empty for a new root"
                 + " trigger unless the request names the start that trigger should fan into.")
         List<String> targetNodeIds,
     @Description("One sentence saying what should be different.") String requestedChange,

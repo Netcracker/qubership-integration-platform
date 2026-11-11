@@ -34,6 +34,52 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 class MappingTurnApplicatorTest {
 
   @Test
+  void approvedCopyCannotBecomeUnverifiedBehaviorThroughAnEdit() {
+    var value = new MappingValue.Copy(new MappingSource.Message("task-start", MappingPort.OUTPUT, "$.name"));
+    var rule = new MappingIntentRule("typed", List.of("author-rule"), "$.Subject", value, null, null)
+        .withMissingSourcePolicy("ERROR").withSchemaPins(java.util.Map.of("source", "source", "target", "target"));
+    var brief = briefWithRequestMapping();
+    var intent = brief.mappingIntents().getFirst();
+    brief = brief.withMappingIntents(List.of(intent.withRules(List.of(rule))));
+    var result = MappingTurnApplicator.apply(brief, MappingTurnResult.changes(
+        new UpdateRule(intent.mappingIntentId(), "$.Subject", "$.name", null, "Use a different value")));
+    assertFalse(result.applied(), result.toString());
+    assertEquals(brief, result.brief());
+  }
+
+  @Test
+  void typedSourceEditPreservesOriginAndInvalidatesSchemaPins() {
+    var source = new MappingSource.Message("task-start", MappingPort.OUTPUT, "$.name");
+    var rule = new MappingIntentRule("typed", List.of("author-rule"), "$.Subject",
+        new MappingValue.Copy(source), null, MappingRuleStatus.USER_DEFINED)
+        .withMissingSourcePolicy("ERROR").withSchemaPins(java.util.Map.of("source", "old-source", "target", "old-target"));
+    var brief = briefWithRequestMapping();
+    var intent = brief.mappingIntents().getFirst();
+    brief = brief.withMappingIntents(List.of(intent.withRules(List.of(rule))));
+    var application = MappingTurnApplicator.apply(brief, MappingTurnResult.changes(
+        new UpdateRule(intent.mappingIntentId(), "$.Subject", "$.title", "$.Summary", null)));
+    assertTrue(application.applied(), application.toString());
+    var changed = application.brief().mappingIntents().getFirst().rules().getFirst();
+    assertEquals(new MappingValue.Copy(new MappingSource.Message("task-start", MappingPort.OUTPUT, "$.title")),
+        changed.value());
+    assertEquals("ERROR", changed.missingSourcePolicy());
+    assertEquals("$.Summary", changed.targetPath());
+    assertEquals(null, changed.schemaPins());
+  }
+
+  @Test
+  void typedOperandsAndPoliciesSurviveArtifactSerialization() throws Exception {
+    var value = new MappingValue.Copy(new MappingSource.Message("task-start", MappingPort.OUTPUT, "$.name"));
+    var original = new MappingIntentRule("typed", List.of("author-rule"), "$.Subject", value, null, null)
+        .withMissingSourcePolicy("ERROR").withSchemaPins(java.util.Map.of("source", "source-digest", "target", "target-digest"));
+    var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+    var restored = mapper.readValue(mapper.writeValueAsBytes(original), MappingIntentRule.class);
+    assertEquals(original, restored);
+    assertEquals(original.schemaPins(), restored.withStatus(MappingRuleStatus.USER_DEFINED).schemaPins());
+    assertEquals("ERROR", restored.withRequirementIds(List.of("amended")).missingSourcePolicy());
+  }
+
+  @Test
   void addIntentAssignsRuntimeIdAndPortsFromApprovedTransition() {
     RequirementBrief brief = rockyBrief();
     MappingTurnResult typed =

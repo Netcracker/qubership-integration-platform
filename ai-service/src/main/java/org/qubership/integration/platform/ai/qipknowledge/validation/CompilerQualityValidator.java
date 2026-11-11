@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.qipknowledge.validation;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
@@ -18,6 +19,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.NamingManifes
 @ApplicationScoped
 public class CompilerQualityValidator {
 
+  private static final ObjectMapper JSON = new ObjectMapper();
   private static final String OWNER = "cip-quality-validator";
   private static final Pattern CHAIN_NAME_PATTERN =
       Pattern.compile("^[A-Z][A-Za-z0-9]*\\.[A-Z][A-Za-z0-9]*\\.[A-Z][A-Za-z0-9]*$");
@@ -71,12 +73,38 @@ public class CompilerQualityValidator {
                 + " blocker(s)");
   }
 
+  /** True when every issue is a missing author literal in an owned script. */
+  public static boolean onlyMissingScriptLiterals(List<ValidationIssue> issues) {
+    return issues != null && !issues.isEmpty()
+        && issues.stream().allMatch(issue -> issue != null
+            && "MISSING_REQUIRED_SCRIPT_LITERAL".equals(issue.findingCode()));
+  }
+
   /** Checks protected author values without requiring unrelated generated properties to be valid. */
   public static List<ValidationIssue> validateApprovedValues(ChainPlanGraph graph,
       org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief brief) {
     List<ValidationIssue> issues = new ArrayList<>();
     if (brief != null && graph != null) {
       issues.addAll(MaterializationRequirementsValidator.validateRequestedHooks(graph, brief.facts()));
+      for (var fact : brief.facts()) {
+        var missing = RequiredLiteralBindings.missingScriptLiterals(fact, graph);
+        if (!missing.isEmpty()) issues.add(new ValidationIssue(
+            "missing-required-script-literal", ValidationSeverity.BLOCKER,
+            "The owned script has no verified literal binding for " + missing + " from fact " + fact.sourceFactId(),
+            "cip-script-generator", List.of(fact.elementIntent().elementRef()), List.of(),
+            "Restore the required values in this script using the approved behavior and saved author source.",
+            "MISSING_REQUIRED_SCRIPT_LITERAL", fact.sourceFactId(), "/elementIntent/exactValues"));
+        var interactions = brief.flow() == null ? List.<org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction>of()
+            : brief.flow().interactions();
+        var unbound = RequiredLiteralBindings.unbound(fact, brief.facts(), interactions);
+        if (!unbound.isEmpty()) issues.add(new ValidationIssue(
+            "unbound-required-literal", ValidationSeverity.BLOCKER,
+            "Required literals at /elementIntent/exactValues lack an implementation binding: "
+                + JSON.valueToTree(unbound) + " from fact " + fact.sourceFactId(), OWNER,
+            List.of(fact.elementIntent().elementRef()), List.of(),
+            "Complete the source owner's typed requirement binding before regenerating.",
+            "UNBOUND_REQUIRED_LITERAL", fact.sourceFactId(), "/elementIntent/requestedProperties"));
+      }
       java.util.stream.Stream.concat(brief.facts().stream(), brief.requirements().stream())
           .filter(fact -> fact.policyConflict() != null && fact.policyConflict().decision() != null)
           .forEach(fact -> fact.interactionIds().forEach(id -> {

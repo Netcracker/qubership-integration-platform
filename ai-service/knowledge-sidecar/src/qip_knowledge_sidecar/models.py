@@ -77,6 +77,20 @@ class ContextQueryRequest(PinnedRequest):
     maxChars: int = Field(default=20_000, ge=1, le=100_000)
 
 
+class DocumentationSearchRequest(BaseModel):
+    expectedChecksum: str
+    query: str = Field(min_length=1, max_length=2000)
+    elementTypes: list[str] = Field(default_factory=list)
+    limit: int = Field(default=5, ge=1, le=50)
+
+
+class DocumentationReadRequest(BaseModel):
+    expectedChecksum: str
+    id: str
+    cursor: str | None = None
+    maxBytes: int = Field(default=12_000, ge=1, le=64_000)
+
+
 class PackageResponse(BaseModel):
     packageRef: PackageRefModel
 

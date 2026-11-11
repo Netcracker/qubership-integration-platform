@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.llm;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -15,7 +16,7 @@ class OpenAiStreamingReasoningCustomizerTest {
   void appliesConfiguredReasoningEffortToStreamingModel() {
     OpenAiStreamingChatModel.OpenAiStreamingChatModelBuilder builder = mock();
 
-    new OpenAiStreamingReasoningCustomizer("none", Optional.empty()).customize(builder);
+    new OpenAiStreamingReasoningCustomizer(Optional.of("none"), Optional.empty()).customize(builder);
 
     verify(builder).reasoningEffort("none");
     verify(builder, never()).customParameters(Map.of());
@@ -25,8 +26,17 @@ class OpenAiStreamingReasoningCustomizerTest {
   void appliesTheThinkingBudgetWhenOneIsConfigured() {
     OpenAiStreamingChatModel.OpenAiStreamingChatModelBuilder builder = mock();
 
-    new OpenAiStreamingReasoningCustomizer("none", Optional.of(2048)).customize(builder);
+    new OpenAiStreamingReasoningCustomizer(Optional.of("none"), Optional.of(2048)).customize(builder);
 
     verify(builder).customParameters(Map.of("thinking", Map.of("type", "enabled", "budget_tokens", 2048)));
+  }
+
+  @Test
+  void omitsReasoningEffortWhenExplicitlyDisabled() {
+    OpenAiStreamingChatModel.OpenAiStreamingChatModelBuilder builder = mock();
+
+    new OpenAiStreamingReasoningCustomizer(Optional.empty(), Optional.empty()).customize(builder);
+
+    verify(builder, never()).reasoningEffort(any());
   }
 }

@@ -1,0 +1,181 @@
+{
+  "source": "Create chain named \"Accept.PreKimi.h01-manifest-natural.193a8dc6.cac50ed3.20261021T230208.r1\". Use exactly two elements: HTTP trigger named \"Receive Manifest 193a8dc6\" then Groovy script named \"Summarize Parcels 193a8dc6\". Receive POST on internal route /acceptance/manifests/193a8dc6, externalRoute=false, accessControlType=RBAC, exactly role qip-viewer. The incoming JSON object has batchId, urgent, and items (an array of objects with integer qty). The script replaces the body with JSON containing exactly batchId copied from input, units equal to the sum of every items[].qty (zero for an empty array), and priority equal to RUSH when urgent=true and STANDARD otherwise. Do not wrap the response as a string. Connect the two elements directly. No service calls, direct HTTP senders, catalog operation lookup, APIHub, MCP, retries, branching, error handlers, mapping elements, target folder, or extra elements. Create only; do not deploy or execute. Generate the full IDS and implementation plan for ordinary approval.",
+  "draft": {
+    "flow": {
+      "interactions": [
+        {
+          "interactionId": "entry",
+          "direction": "INBOUND",
+          "participant": "Caller",
+          "operation": "Receive Manifest 193a8dc6",
+          "description": "HTTP trigger named \"Receive Manifest 193a8dc6\" that receives POST requests on internal route /acceptance/manifests/193a8dc6.",
+          "failureMode": null,
+          "retryPolicy": null
+        },
+        {
+          "interactionId": "summarizeParcels",
+          "direction": "OUTBOUND",
+          "participant": null,
+          "operation": "Summarize Parcels 193a8dc6",
+          "description": "Groovy script named \"Summarize Parcels 193a8dc6\" that processes the incoming JSON object.",
+          "failureMode": null,
+          "retryPolicy": null
+        }
+      ],
+      "transitions": [
+        {
+          "sourceInteractionId": "entry",
+          "targetInteractionId": "summarizeParcels"
+        }
+      ]
+    },
+    "facts": [
+      {
+        "sourceFactId": "chain-name",
+        "interactionIds": [],
+        "kind": "PARAMETER",
+        "polarity": "POSITIVE",
+        "text": "Chain name: Accept.PreKimi.h01-manifest-natural.193a8dc6.cac50ed3.20261021T230208.r1.",
+        "fieldMapping": null,
+        "policyConflict": null,
+        "elementIntent": {
+          "elementRef": "chain",
+          "elementType": "chain",
+          "placement": "CHAIN",
+          "ownerInteractionId": null,
+          "successorElementRef": null,
+          "predecessorElementRef": null,
+          "parentElementRef": null,
+          "requestedName": "Accept.PreKimi.h01-manifest-natural.193a8dc6.cac50ed3.20261021T230208.r1",
+          "requestedProperties": [],
+          "exactValues": []
+        }
+      },
+      {
+        "sourceFactId": "http-trigger-name",
+        "interactionIds": [
+          "entry"
+        ],
+        "kind": "PARAMETER",
+        "polarity": "POSITIVE",
+        "text": "HTTP trigger name: Receive Manifest 193a8dc6.",
+        "fieldMapping": null,
+        "policyConflict": null,
+        "elementIntent": {
+          "elementRef": "entry",
+          "elementType": "http-trigger",
+          "placement": "ANCHOR",
+          "ownerInteractionId": "entry",
+          "successorElementRef": "summarizeParcels",
+          "predecessorElementRef": null,
+          "parentElementRef": null,
+          "requestedName": "Receive Manifest 193a8dc6",
+          "requestedProperties": [
+            {
+              "key": "externalRoute",
+              "value": "false"
+            },
+            {
+              "key": "accessControlType",
+              "value": "RBAC"
+            },
+            {
+              "key": "roles",
+              "value": "[\"qip-viewer\"]"
+            }
+          ],
+          "exactValues": []
+        }
+      },
+      {
+        "sourceFactId": "script-name",
+        "interactionIds": [
+          "summarizeParcels"
+        ],
+        "kind": "PARAMETER",
+        "polarity": "POSITIVE",
+        "text": "Script name: Summarize Parcels 193a8dc6.",
+        "fieldMapping": null,
+        "policyConflict": null,
+        "elementIntent": {
+          "elementRef": "summarizeParcels",
+          "elementType": "script",
+          "placement": "LOCAL_NODE",
+          "ownerInteractionId": "summarizeParcels",
+          "successorElementRef": null,
+          "predecessorElementRef": "entry",
+          "parentElementRef": null,
+          "requestedName": "Summarize Parcels 193a8dc6",
+          "requestedProperties": [],
+          "exactValues": []
+        }
+      },
+      {
+        "sourceFactId": "incoming-json",
+        "interactionIds": [
+          "entry"
+        ],
+        "kind": "PARAMETER",
+        "polarity": "POSITIVE",
+        "text": "Incoming JSON object has batchId, urgent, and items (an array of objects with integer qty).",
+        "fieldMapping": null,
+        "policyConflict": null,
+        "elementIntent": null
+      },
+      {
+        "sourceFactId": "script-behavior",
+        "interactionIds": [
+          "summarizeParcels"
+        ],
+        "kind": "BEHAVIOR",
+        "polarity": "POSITIVE",
+        "text": "The script replaces the body with JSON containing exactly batchId copied from input, units equal to the sum of every items[].qty (zero for an empty array), and priority equal to RUSH when urgent=true and STANDARD otherwise. Do not wrap the response as a string.",
+        "fieldMapping": null,
+        "policyConflict": null,
+        "elementIntent": null
+      }
+    ],
+    "capabilities": [
+      {
+        "interactionId": "entry",
+        "capabilityKey": "http-trigger",
+        "httpMode": "CUSTOM",
+        "httpMethod": "POST",
+        "path": "/acceptance/manifests/193a8dc6",
+        "topic": null,
+        "mcpServerId": null,
+        "targetReference": null
+      },
+      {
+        "interactionId": "summarizeParcels",
+        "capabilityKey": "jms-sender",
+        "httpMode": null,
+        "httpMethod": null,
+        "path": null,
+        "topic": null,
+        "mcpServerId": null,
+        "targetReference": null
+      }
+    ],
+    "openQuestions": [],
+    "settings": {
+      "idsRequested": null,
+      "preferredSystemType": null,
+      "targetFolderPath": null
+    }
+  },
+  "origin": {
+    "runId": "a722dcce-e981-4849-b16b-3416ec601d2c-create-chain-2",
+    "toolCallId": "call_OgJCu0doRQjfZlzjT15L3nSe",
+    "sourceTurnId": "d34e9672-84ca-4d18-8080-1d390054da7c",
+    "captureAttemptRef": {
+      "kind": "REQUIREMENT_CAPTURE_ATTEMPT",
+      "artifactId": "2d146ed5-a3e0-425b-9863-182032ade0c3",
+      "contentHash": "184724545a0019942f692cd961e08952e51e900903a1957bc860a811a1545f95"
+    },
+    "evidenceSha256": "e97ca1dd4cccecded963dcbea601df3e58b0d92a0d88405063c0057fbe4ddec6",
+    "providerResponseSha256": "ab509ac5ffa5f84256c027031c5919adf3c626d73519bb5a96e4a3ebbac00383",
+    "rawArgumentsSha256": "74337a54d6356933b132e542471edfac32574aa213677782dfcf9cfc0e9926ba",
+    "sourceSha256": "d55f4528ccd841c281b8306a3c5d2637389b1f8924dfa4a8f819e83fd5b34b51"
+  }
+}

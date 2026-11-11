@@ -372,6 +372,10 @@ public class RequirementDraftTool {
       catalog miss. Never invent UUIDs.
       When this conversation has uploaded API specifications already approved for import, capture
       the flow from those documents and set READY_FOR_PLAN without catalog bindings.
+      For an uploaded OpenAPI service call, capture request mapping as a BEHAVIOR fact scoped to
+      the INBOUND caller interaction, and response mapping as a BEHAVIOR fact scoped to the
+      OUTBOUND API interaction. Set interactionIds explicitly on both facts; keep the response
+      mapping on the target interaction rather than creating another caller interaction.
       Do not search API Hub for operations the attached spec already defines; import after
       discovery binds them.
       When catalog lookup misses but API Hub returns a match, call selectApiHubCandidate with
@@ -388,7 +392,7 @@ public class RequirementDraftTool {
       {
         "complete": true,
         "decision": "READY_FOR_PLAN",
-        "assembledText": "Receive an order and create it in the target system.",
+        "assembledText": "Use the uploaded Orders API specification to receive an order and create it.",
         "openQuestions": [],
         "flow": {
           "interactions": [
@@ -402,7 +406,7 @@ public class RequirementDraftTool {
             {
               "interactionId": "create-order",
               "direction": "OUTBOUND",
-              "participant": "Order System",
+              "participant": "Orders API",
               "operation": "createOrder",
               "description": "The chain creates the order."
             }
@@ -422,7 +426,22 @@ public class RequirementDraftTool {
             "capabilityKey": "http-trigger",
             "text": "Expose POST /orders.",
             "httpMethod": "POST",
-            "path": "/orders"
+            "path": "/orders",
+            "interactionIds": ["order-received"]
+          },
+          {
+            "sourceFactId": "order-request-mapping",
+            "polarity": "POSITIVE",
+            "kind": "BEHAVIOR",
+            "text": "Map caller order fields to the Orders API request.",
+            "interactionIds": ["order-received"]
+          },
+          {
+            "sourceFactId": "order-response-mapping",
+            "polarity": "POSITIVE",
+            "kind": "BEHAVIOR",
+            "text": "Map the Orders API response fields to the caller response.",
+            "interactionIds": ["create-order"]
           }
         ]
       }""")
@@ -511,7 +530,7 @@ public class RequirementDraftTool {
       RequirementFlow capturedFlow =
           capture.flow() == null ? RequirementFlow.EMPTY : capture.flow();
       if (!capturedFlow.interactions().isEmpty()) {
-        Optional<String> structureError = RequirementFlowValidator.validateStructure(capturedFlow);
+        Optional<String> structureError = RequirementFlowValidator.validateStructure(capturedFlow, facts);
         if (structureError.isPresent()) {
           LOG.warnf(
               "captureRequirementDraft: validation failed conversationId=%s reason=%s",
@@ -1655,7 +1674,7 @@ public class RequirementDraftTool {
         fact.topic(),
         fact.httpMethod(),
         fact.path(),
-        fact.serviceCallId(), fact.interactionIds(), fact.policyConflict(), fact.elementIntent());
+        fact.serviceCallId(), fact.interactionIds(), fact.policyConflict(), fact.elementIntent(), fact.httpMode());
   }
 
   private static String rejectTopologyFacts(List<RequirementFact> facts) {
@@ -2036,9 +2055,15 @@ public class RequirementDraftTool {
   }
 
   List<CatalogBindingHint> canonicalBindings(
+      RequirementCaptureInput.DraftInput input, RequirementDraft previous, String conversationId) {
+    return canonicalBindings(input, previous, conversationId, Map.of());
+  }
+
+  List<CatalogBindingHint> canonicalBindings(
       RequirementCaptureInput.DraftInput input,
       RequirementDraft previous,
-      String conversationId) {
+      String conversationId,
+      Map<String, UploadedSpecOperations.Binding> uploadedSpecBindings) {
     Map<String, RequirementCaptureInput.InteractionInput> oldInteractions = new HashMap<>();
     Map<String, RequirementCaptureInput.CapabilityInput> oldCapabilities = new HashMap<>();
     if (previous != null && previous.authoredDraft() != null) {
@@ -2085,13 +2110,19 @@ public class RequirementDraftTool {
     }
     RequirementFlow flow = RequirementCaptureProjection.flow(input);
     List<RequirementFact> facts = RequirementCaptureProjection.facts(input);
-    Set<String> catalogInteractions = RequirementCaptureProjection.pending(input, List.of()).stream()
+    Set<String> catalogInteractions = RequirementCaptureProjection.pending(
+        input, List.of(), Map.of(), uploadedSpecBindings.keySet()).stream()
         .filter(work -> "OPERATION_LOOKUP_REQUIRED".equals(work.code()))
         .map(RequirementCaptureProjection.PendingWork::interactionId)
         .collect(Collectors.toSet());
     resolveUnboundFromCatalog(flow, facts, conversationId, catalogInteractions);
     return reconcileCatalogBindings(flow, previous, conversationId).stream()
         .filter(hint -> {
+          var uploaded = uploadedSpecBindings.get(hint.interactionId());
+          if (uploaded != null) {
+            return previous != null && uploaded.equals(previous.uploadedSpecBindings().get(hint.interactionId()))
+                && previous.catalogBinding(hint.interactionId()).filter(hint::equals).isPresent();
+          }
           RequirementFlow.Interaction owner = flow.interaction(hint.interactionId()).orElse(null);
           if (owner == null
               || RequirementFlowValidator.isNativeDirectInteraction(owner, facts)) {
