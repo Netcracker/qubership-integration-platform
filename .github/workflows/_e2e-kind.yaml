@@ -177,19 +177,37 @@ jobs:
         working-directory: e2e
         run: npm ci
 
-      # Temporary validation setup; the minimal candidate does not contain this step.
-      - name: Prepare the validation runner's apt sources
-        run: |
-          printf '%s\n' 'https://archive.ubuntu.com/ubuntu/' | sudo tee /etc/apt/apt-mirrors.txt
-          printf '%s\n' 'Acquire::ForceIPv4 "true";' 'Acquire::Retries "1";' \
-            'Acquire::http::Timeout "15";' 'Acquire::https::Timeout "15";' | \
-            sudo tee /etc/apt/apt.conf.d/zz-e2e-validation
-          timeout 10 getent ahostsv4 archive.ubuntu.com
-
-      - name: Install Chromium
+      # Temporary validation browser; the minimal candidate keeps the standard setup.
+      - name: Start the validation browser
         id: chromium
         working-directory: e2e
-        run: npx playwright install --with-deps chromium
+        run: |
+          browser_image="mcr.microsoft.com/playwright:v1.62.1-resolute@sha256:af843e6c2a9ad4df5daa8a68268fb59d28ab5ef55203f67c1573e4d0e154e176"
+          docker pull "$browser_image"
+          browser_container_id=$(docker run --detach --name cip-e2e-validation-browser \
+            --network host --ipc host --init \
+            --mount "type=bind,source=$GITHUB_WORKSPACE/e2e/node_modules,target=/work/node_modules,readonly" \
+            --workdir /work "$browser_image" \
+            node node_modules/playwright/cli.js run-server --host 127.0.0.1 --port 39001)
+          echo "$browser_container_id" > "$RUNNER_TEMP/e2e-browser.cid"
+          echo 'PW_TEST_CONNECT_WS_ENDPOINT=ws://127.0.0.1:39001/' >> "$GITHUB_ENV"
+          node --input-type=module <<'NODE'
+          import { chromium } from 'playwright';
+          let browser;
+          for (let attempt = 0; attempt < 30; attempt++) {
+            try {
+              browser = await chromium.connect('ws://127.0.0.1:39001/', { timeout: 1000 });
+              break;
+            } catch (error) {
+              if (attempt === 29) throw error;
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+          }
+          const page = await browser.newPage();
+          await page.setContent('<button>ready</button>');
+          if (await page.getByRole('button').innerText() !== 'ready') throw new Error('The validation browser did not render the control page');
+          await browser.close();
+          NODE
 
       # E2E_SAMPLE_MAX_MS bounds the resource sampler and, as --global-timeout, the suite.
       # At the global timeout the reporters still write; a job cancel gives them about 7.5 s.
@@ -215,6 +233,16 @@ jobs:
           if [ "$PULL_REQUEST" = true ]; then args+=(--max-failures=1); fi
           # shellcheck disable=SC2086 # one --project flag per word
           npm run test:k8s -- $PROJECTS "${args[@]}"
+
+      - name: Stop the validation browser
+        if: ${{ always() }}
+        run: |
+          if [ -f "$RUNNER_TEMP/e2e-browser.cid" ]; then
+            browser_container_id=$(cat "$RUNNER_TEMP/e2e-browser.cid")
+            docker logs "$browser_container_id" > e2e/.e2e-k8s-validation-browser.log 2>&1 || true
+            docker stop "$browser_container_id" || true
+            docker rm "$browser_container_id" || true
+          fi
 
       - name: Reconcile the coverage registry
         id: reconcile
