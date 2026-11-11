@@ -20,10 +20,10 @@ tags:
   name: actions-log-export-controller
 - description: Bulk Deployment Controller
   name: bulk-deployment-controller
-- description: Chain Access Control Controller
-  name: chain-access-control-controller
 - description: Bulk Deployment Controller V2
   name: bulk-deployment-controller-v-2
+- description: Chain Access Control Controller
+  name: chain-access-control-controller
 - description: Chain Controller
   name: chain-controller
 - description: Chain Design Controller

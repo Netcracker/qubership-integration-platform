@@ -318,10 +318,6 @@ jest.mock("../../src/misc/selection-utils", () => ({
   toStringIds: (keys: React.Key[]) => keys.map(String),
 }));
 
-jest.mock("../../src/misc/confirm-utils", () => ({
-  confirmAndRun: (options: { onOk?: () => void }) => options.onOk?.(),
-}));
-
 jest.mock("../../src/misc/tree-utils", () => ({
   traverseElementsDepthFirst: jest.fn(),
 }));
@@ -2174,6 +2170,9 @@ describe("Chains page", () => {
       fireEvent.click(
         screen.getByTestId("protected-btn-delete-selected-chains-and-folders"),
       );
+      await act(async () => {
+        await mockConfirmAndRun.mock.calls.at(-1)![0].onOk();
+      });
 
       await waitFor(() =>
         expect(mockApi.deleteFolders).toHaveBeenCalledWith(["folder-1"]),
@@ -2196,6 +2195,9 @@ describe("Chains page", () => {
       fireEvent.click(
         screen.getByTestId("protected-btn-delete-selected-chains-and-folders"),
       );
+      await act(async () => {
+        await mockConfirmAndRun.mock.calls.at(-1)![0].onOk();
+      });
 
       await waitFor(() =>
         expect(mockApi.deleteFolders).toHaveBeenCalledWith(["folder-1"]),
