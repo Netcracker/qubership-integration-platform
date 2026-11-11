@@ -8,15 +8,29 @@ collect_access() {
   timeout 10 kubectl -n cip-e2e exec deploy/cip-runtime-catalog-v1 -- cat /tmp/http-access/access.log > "$1/access.log" 2>&1
 }
 pod_netns() {
-  local pod sandbox relative node_pid
+  local pod sandbox
   pod=$(kubectl -n cip-e2e get pods -l app=cip-runtime-catalog-v1 -o jsonpath='{.items[0].metadata.name}')
   sandbox=$(docker exec qip-control-plane crictl pods --namespace cip-e2e --name "$pod" -q | head -1)
   [ -n "$sandbox" ] || return 1
   docker exec qip-control-plane crictl inspectp "$sandbox" > "$base/pod-sandbox.json"
-  relative=$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(next(n["path"] for n in d["info"]["runtimeSpec"]["linux"]["namespaces"] if n["type"]=="network"))' "$base/pod-sandbox.json")
-  [ -n "$relative" ] || return 1
-  node_pid=$(docker inspect -f '{{.State.Pid}}' qip-control-plane)
-  printf '/proc/%s/root%s\n' "$node_pid" "$relative"
+  local sandbox_pid
+  sandbox_pid=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["info"]["pid"])' "$base/pod-sandbox.json")
+  echo "$sandbox_pid" > "$base/pod-node.pid"
+  sudo -n python3 - "$sandbox_pid" <<'PYNS'
+import pathlib,sys
+wanted=int(sys.argv[1])
+for entry in pathlib.Path('/proc').glob('[0-9]*'):
+    try:
+        row=next(line for line in (entry/'status').read_text().splitlines() if line.startswith('NSpid:'))
+        ids=list(map(int,row.split()[1:]))
+        if len(ids)==3 and ids[1]==wanted and ids[2]==1:
+            print(str(entry/'ns/net'))
+            break
+    except (OSError,StopIteration):
+        pass
+else:
+    raise SystemExit('Cannot resolve the pod sandbox PID on the runner')
+PYNS
 }
 snapshot() {
   local out=$1
@@ -33,6 +47,7 @@ snapshot() {
   if [ -s "$base/pod-netns.path" ]; then
     timeout 8 sudo -n nsenter --net="$(cat "$base/pod-netns.path")" ss -tinop > "$out/pod-sockets.txt" 2>&1 &
     timeout 8 sudo -n nsenter --net="$(cat "$base/pod-netns.path")" iptables-save > "$out/pod-iptables.txt" 2>&1 &
+    timeout 8 docker exec qip-control-plane nsenter -t "$(cat "$base/pod-node.pid")" -n conntrack -L -o extended > "$out/pod-conntrack.txt" 2>&1 &
   fi
   timeout 10 kubectl -n istio-system logs ds/ztunnel --all-containers --since=30m --tail=10000 > "$out/ztunnel.log" 2>&1 &
   timeout 10 kubectl -n istio-system logs ds/istio-cni-node --all-containers --since=30m --tail=1000 > "$out/cni.log" 2>&1 &
