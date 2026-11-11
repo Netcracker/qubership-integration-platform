@@ -183,6 +183,7 @@ jobs:
 
       - name: Install Chromium
         id: chromium
+        if: ${{ !inputs.probe-only }}
         working-directory: e2e
         run: npx playwright install --with-deps chromium
 
@@ -197,7 +198,7 @@ jobs:
         working-directory: e2e
         env:
           E2E_WORKERS: ${{ inputs.workers || '4' }}
-          E2E_BUILD: ${{ inputs.build }}
+          E2E_BUILD: ${{ inputs.probe-only && 'runtime-catalog,engine,sessions-management,testing-service' || inputs.build }}
           E2E_BROKERS: ${{ inputs.brokers && '1' || '0' }}
           E2E_KEEP: ${{ inputs.pull-request && '1' || '' }}
           GLOBAL_TIMEOUT_MINUTES: ${{ inputs.global-timeout }}
