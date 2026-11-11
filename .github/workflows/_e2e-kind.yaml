@@ -177,6 +177,15 @@ jobs:
         working-directory: e2e
         run: npm ci
 
+      # Temporary validation setup; the minimal candidate does not contain this step.
+      - name: Prepare the validation runner's apt sources
+        run: |
+          printf '%s\n' 'https://archive.ubuntu.com/ubuntu/' | sudo tee /etc/apt/apt-mirrors.txt
+          printf '%s\n' 'Acquire::ForceIPv4 "true";' 'Acquire::Retries "1";' \
+            'Acquire::http::Timeout "15";' 'Acquire::https::Timeout "15";' | \
+            sudo tee /etc/apt/apt.conf.d/zz-e2e-validation
+          timeout 10 getent ahostsv4 archive.ubuntu.com
+
       - name: Install Chromium
         id: chromium
         working-directory: e2e
