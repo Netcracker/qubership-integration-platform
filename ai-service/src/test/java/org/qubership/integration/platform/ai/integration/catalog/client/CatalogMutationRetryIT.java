@@ -52,7 +52,7 @@ class CatalogMutationRetryIT {
   @Test
   void deploymentCreateFailureDoesNotRepeatAnUnresolvedWrite() {
     assertThrows(RuntimeException.class, () -> catalog.createDeployment("chain-1",
-        new CatalogRestClient.CreateDeploymentRequest("default", "snapshot-1")));
+        new CatalogRestClient.CreateDeploymentRequest("default", "snapshot-1", "CLASSIC")));
 
     assertEquals(1, Endpoint.deploymentCreates.get());
   }

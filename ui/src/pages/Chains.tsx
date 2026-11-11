@@ -41,6 +41,7 @@ import { mergeUpdatedChainInFolderItems } from "./chains/mergeUpdatedChainInFold
 import {
   collectDescendantFolderIds,
   collectSubtreeBatches,
+  collectSubtreeChainIds,
 } from "./chains/chainSubtree.ts";
 import type { FolderContent } from "./chains/chainSubtree.ts";
 import { copyToClipboard } from "../misc/clipboard-util.ts";
@@ -152,6 +153,12 @@ const Chains = () => {
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [selectedChains, setSelectedChains] = useState<FolderItem[]>([]);
   const [loadedFolders, setLoadedFolders] = useState<Set<string>>(new Set());
+  const [incompleteFolderIds, setIncompleteFolderIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const [pendingFolderIds, setPendingFolderIds] = useState<Set<string>>(
+    new Set(),
+  );
   const [searchParams] = useSearchParams();
   const [folderPath, setFolderPath] = useState<FolderItem[]>([]);
   const [operation, setOperation] = useState<Operation | undefined>(undefined);
@@ -163,6 +170,22 @@ const Chains = () => {
   const notificationService = useNotificationService();
   const { filters, filterButton } = useChainFilters();
   const { showGenerateDdsModal } = useGenerateDds();
+  const folderSelectionRequestIds = useRef(new Map<string, number>());
+  const nextFolderSelectionRequestId = useRef(0);
+  const hasUnresolvedSelectedFolder = selectedRowKeys.some(
+    (key) =>
+      typeof key === "string" &&
+      (incompleteFolderIds.has(key) || pendingFolderIds.has(key)),
+  );
+  const catalogViewKey = `${searchParams.toString()}:${searchString}:${JSON.stringify(filters)}`;
+  const catalogViewGeneration = useRef({ key: catalogViewKey, value: 0 });
+  if (catalogViewGeneration.current.key !== catalogViewKey) {
+    catalogViewGeneration.current = {
+      key: catalogViewKey,
+      value: catalogViewGeneration.current.value + 1,
+    };
+  }
+  const previousCatalogViewKey = useRef(catalogViewKey);
 
   const getChainSubtreeIds = useCallback(
     (record: ChainTableItem | FolderItem): React.Key[] => {
@@ -174,10 +197,21 @@ const Chains = () => {
     [folderItems],
   );
 
-  const ensureChainSubtreeLoaded = useCallback(
-    async (record: ChainTableItem | FolderItem): Promise<React.Key[]> => {
+  const loadFolderSubtree = useCallback(
+    async (
+      record: ChainTableItem | FolderItem,
+    ): Promise<{
+      folderIds: React.Key[];
+      chainIds: string[];
+      complete: boolean;
+    }> => {
+      const generation = catalogViewGeneration.current.value;
       if (record.itemType !== CatalogItemType.FOLDER) {
-        return [record.id];
+        return {
+          folderIds: [record.id],
+          chainIds: [record.id],
+          complete: true,
+        };
       }
       const knownLoaded = new Set<string>(loadedFolders);
       const visited = new Set<string>();
@@ -186,8 +220,9 @@ const Chains = () => {
         setIsLoading(true);
       }
       let batches: FolderContent[];
+      let complete: boolean;
       try {
-        batches = await collectSubtreeBatches(record.id, {
+        const result = await collectSubtreeBatches(record.id, {
           folderItems,
           knownLoaded,
           visited,
@@ -199,13 +234,27 @@ const Chains = () => {
               error,
             ),
         });
+        batches = result.batches;
+        complete = result.complete;
       } finally {
-        if (needsFetch) {
+        if (needsFetch && catalogViewGeneration.current.value === generation) {
           setIsLoading(false);
         }
       }
+      if (catalogViewGeneration.current.value !== generation) {
+        return { folderIds: [], chainIds: [], complete: false };
+      }
+      // knownLoaded holds every folder the walk fetched, the ticked folder
+      // included. batches holds only that folder's rows.
+      if (knownLoaded.size !== loadedFolders.size) {
+        setLoadedFolders((prev) => new Set([...prev, ...knownLoaded]));
+      }
       if (batches.length === 0) {
-        return collectDescendantFolderIds(record.id, folderItems);
+        return {
+          folderIds: collectDescendantFolderIds(record.id, folderItems),
+          chainIds: collectSubtreeChainIds(record.id, folderItems),
+          complete,
+        };
       }
       const flat = batches.flat();
       setFolderItems((prev) => {
@@ -213,23 +262,22 @@ const Chains = () => {
         const fresh = flat.filter((item) => !prevIds.has(item.id));
         return fresh.length > 0 ? [...prev, ...fresh] : prev;
       });
-      setLoadedFolders((prev) => {
-        const next = new Set(prev);
-        flat.forEach((item) => {
-          if (item.itemType === CatalogItemType.FOLDER) {
-            next.add(item.id);
-          }
-        });
-        return next;
-      });
       const prevIds = new Set(folderItems.map((item) => item.id));
       const freshItems = flat.filter((item) => !prevIds.has(item.id));
-      return collectDescendantFolderIds(record.id, [
-        ...folderItems,
-        ...freshItems,
-      ]);
+      const merged = [...folderItems, ...freshItems];
+      return {
+        folderIds: collectDescendantFolderIds(record.id, merged),
+        chainIds: collectSubtreeChainIds(record.id, merged),
+        complete,
+      };
     },
     [folderItems, loadedFolders, filters, searchString, notificationService],
+  );
+
+  const ensureChainSubtreeLoaded = useCallback(
+    (record: ChainTableItem | FolderItem) =>
+      loadFolderSubtree(record).then((loaded) => loaded.folderIds),
+    [loadFolderSubtree],
   );
 
   const {
@@ -270,7 +318,7 @@ const Chains = () => {
   );
 
   const { refresh: updateFolderItems } = useCatalogRefresh(
-    `${searchParams.toString()}:${searchString}:${JSON.stringify(filters)}`,
+    catalogViewKey,
     (change) => !isVsCode && change.chainsListChanged,
     async (isCurrent) => {
       const folderId = getFolderId();
@@ -281,9 +329,13 @@ const Chains = () => {
           folderId ? api.getPathToFolder(folderId) : Promise.resolve([]),
         ]);
         if (!isCurrent()) return;
+        catalogViewGeneration.current.value += 1;
         setIsLoading(true);
         setExpandedRowKeys([]);
         setLoadedFolders(new Set());
+        setIncompleteFolderIds(new Set());
+        setPendingFolderIds(new Set());
+        folderSelectionRequestIds.current.clear();
         setSelectedRowKeys([]);
         setFolderItems(items);
         setFolderPath(path);
@@ -558,7 +610,7 @@ const Chains = () => {
     setLocalOperations((count) => count + 1);
     setIsLoading(true);
     try {
-      return await api.deployToMicroDomain({
+      return await api.bulkDeploy({
         domains: domains.map((domain) => domain.name),
         chainIds,
         snapshotAction,
@@ -929,6 +981,7 @@ const Chains = () => {
   };
 
   const onDeployBtnClick = () => {
+    if (hasUnresolvedSelectedFolder) return;
     const chainIds = folderItems
       .filter(
         (i) =>
@@ -982,13 +1035,25 @@ const Chains = () => {
       )
       .map((i) => i.id);
     await deleteFolders(folderIds);
-    const chainIds = folderItems
+    const selectedFolderIds = new Set(folderIds);
+    const selectedChainIds = folderItems
       .filter(
         (i) =>
           selectedRowKeys.includes(i.id) &&
           i.itemType === CatalogItemType.CHAIN,
       )
       .map((i) => i.id);
+    const itemById = new Map(folderItems.map((item) => [item.id, item]));
+    const chainIds = selectedChainIds.filter((chainId) => {
+      let parentId = itemById.get(chainId)?.parentId;
+      const visited = new Set<string>();
+      while (parentId && !visited.has(parentId)) {
+        if (selectedFolderIds.has(parentId)) return false;
+        visited.add(parentId);
+        parentId = itemById.get(parentId)?.parentId;
+      }
+      return true;
+    });
     await deleteChains(chainIds);
   };
 
@@ -1068,8 +1133,58 @@ const Chains = () => {
     }
   };
 
+  const cascadeFolderSelection = async (
+    record: ChainTableItem,
+    requestId: number,
+  ) => {
+    const generation = catalogViewGeneration.current.value;
+    const { chainIds, complete } = await loadFolderSubtree(record);
+    if (catalogViewGeneration.current.value !== generation) return;
+    if (folderSelectionRequestIds.current.get(record.id) !== requestId) return;
+    setIncompleteFolderIds((previous) => {
+      const next = new Set(previous);
+      if (complete) next.delete(record.id);
+      else next.add(record.id);
+      return next;
+    });
+    folderSelectionRequestIds.current.delete(record.id);
+    setPendingFolderIds((previous) => {
+      const next = new Set(previous);
+      next.delete(record.id);
+      return next;
+    });
+    if (chainIds.length === 0) {
+      return;
+    }
+    // The folder may have been unticked, or the selection reset while it fetched.
+    setSelectedRowKeys((prev) =>
+      prev.includes(record.id)
+        ? Array.from(new Set([...prev, ...chainIds]))
+        : prev,
+    );
+  };
+
   const onSelectChange = (newSelectedRowKeys: React.Key[]) => {
+    const prevKeys = new Set(selectedRowKeys);
+    const nextKeys = new Set(newSelectedRowKeys);
+    const checkedFolders = folderItems.filter(
+      (item) =>
+        item.itemType === CatalogItemType.FOLDER &&
+        !prevKeys.has(item.id) &&
+        nextKeys.has(item.id),
+    );
     setSelectedRowKeys(newSelectedRowKeys);
+    if (checkedFolders.length > 0) {
+      setPendingFolderIds(
+        (previous) =>
+          new Set([...previous, ...checkedFolders.map((folder) => folder.id)]),
+      );
+    }
+    checkedFolders.forEach((folder) => {
+      const requestId = ++nextFolderSelectionRequestId.current;
+      folderSelectionRequestIds.current.set(folder.id, requestId);
+      void cascadeFolderSelection(folder, requestId);
+    });
   };
 
   const folderMenuItems: ProtectedMenuItem[] = [
@@ -1311,6 +1426,22 @@ const Chains = () => {
   };
 
   useEffect(() => {
+    if (previousCatalogViewKey.current !== catalogViewKey) {
+      previousCatalogViewKey.current = catalogViewKey;
+      const invalidatedFolderIds = pendingFolderIds;
+      setSelectedRowKeys((keys) =>
+        keys.filter(
+          (key) => typeof key !== "string" || !invalidatedFolderIds.has(key),
+        ),
+      );
+      setPendingFolderIds(new Set());
+      invalidatedFolderIds.forEach((folderId) =>
+        folderSelectionRequestIds.current.delete(folderId),
+      );
+    }
+  });
+
+  useEffect(() => {
     void updateFolderItems().catch(() => undefined);
   }, [updateFolderItems]);
 
@@ -1398,7 +1529,8 @@ const Chains = () => {
                 buttonProps={{
                   "data-testid": "chains-deploy",
                   iconName: "send",
-                  disabled: selectedChains.length === 0,
+                  disabled:
+                    selectedChains.length === 0 || hasUnresolvedSelectedFolder,
                   onClick: onDeployBtnClick,
                 }}
               />

@@ -299,6 +299,5 @@
 <removeProperty name="serviceCallBrokers"/>
 <removeProperty name="serviceCallExchange"/>
 <removeProperty name="serviceCallService"/>
-<removeProperty name="serviceCallVariablesHeader"/>
 <removeProperty name="serviceCallSkipEmptyQueryParams"/>
 </route>

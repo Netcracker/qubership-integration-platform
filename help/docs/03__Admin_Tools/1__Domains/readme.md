@@ -40,7 +40,7 @@ Cloud integration Platform provides view-only window where domain's information 
 **"Domains"** tab is intended to provide the ability for monitoring of currently working engine domains and tracking the information about which chains on which engine domains were deployed (with snapshot and deployment status). To adjust domain workload, Admin is able to redeploy particular chains or scale up/down (not from <ins>Web UI</ins>) particular engine domain.
 
 **Domain table** structure:
-- **Domain** - name of the engine domain. Domains of **Micro** type display a **`micro`** tag and a ![delete](img/delete.svg) button next to the name; click the button to delete the micro domain.
+- **Domain** - name of the engine domain. Domains of **Micro** type display a **`micro`** tag and a ![delete](img/delete.svg) button to delete the micro domain instance.
 - **Version** - current build of Cloud Integration Platform.
 - **Desired engines** - count of engines under domain.
 - **Namespace** - K8S namespace.

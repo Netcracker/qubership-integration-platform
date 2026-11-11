@@ -18,9 +18,11 @@ This type of logs is being produced by Cloud Integration Platform in a **stdout*
 
 **Message format:**
 
-CIP Microservice log can be produced either in `json` (default) or `text` format (configurable via ```LOG_FORMAT``` environment parameter).
+`LOG_FORMAT` selects the microservice log format for the Engine, Micro-Engine, Runtime Catalog, and Sessions Management: `json` (default) or `text`.
 
-Message consist from two different parts:
+The testing service uses `CIP_TESTING_LOG_FORMAT`. See [Configuration](#configuration) for service-specific settings.
+
+Message consists from two different parts:
 
 - *standardized part* with parameters specified in accordance to [Logging-Development guide]
 - *custom part* with specific Cloud Integration Platform parameters, that described below
@@ -44,19 +46,31 @@ Following table contains list of CIP-specific parameters, that will be added **o
 | element\_name         | JSON session step entries   | Name of the chain element or step.                                                                              |
 | session\_log\_details | JSON session detail entries | Selected detail mode: `SENDERS` or `FULL`.                                                                      |
 | log\_type             | Inbound and outbound calls  | Constant, always equals to "int". This parameter is being set only for inbound and outbound calls.              |
-| `url`                 | REST outbound calls         | URL, to where call has been passed.                                                                             |
+| url                   | REST outbound calls         | URL, to where call has been passed.                                                                             |
 | responseCode          | REST outbound calls         | Response code, received from source. Blank if direction = request                                               |
 | responseTime          | REST outbound calls         | Response time, shows call processing time in **milliseconds**. Blank if direction = request                     |
 | direction             | REST outbound calls         | Shows the direction of the call. Possible values: <br/>- request<br>- response                                  |
 
 When **Session log details** is set to **Senders** or **Full** on the chain [Logging](../../01__Chains/5__Logging/readme.md) tab, the engine writes a session start entry and a session step entry after a step finishes. These entries are available only in JSON microservice logs.
 
-#### JSON format
+#### Value Length and Padding
 
-*Session step entry:**
+Where the limit applies, values longer than value of `LOG_FIELDS_MAX_SIZE` plus 3 characters are cut to the first `LOG_FIELDS_MAX_SIZE` characters, followed by `...`.
+
+> ⚠️ Warning
+> - In `text` format, error messages, failed HTTP operations, and outbound service-call requests logged. with external service details bypass this limit.
+> - In any log format, messages written by **Log Record** elements or custom scripts are not truncated.
+
+Apart from these fields, the formats differ:
+
+- `json` adds no padding and writes all other values in full.
+- `text` pads each value to a fixed width and limits `thread`, `class`, and `method` to 15, 60, and 30 characters. The classic Engine also prints at most five stack frames of an exception.
+
+#### JSON format
 
 The following example contains every field emitted by the JSON session-step logger. Parameters that apply to inbound or outbound HTTP calls are not included.
 
+**Session step entry:**
 ```json
 {
   "time": "2026-10-15T09:41:36.528+0000",
@@ -783,4 +797,12 @@ According to the requirements and contracts, Cloud Integration Platform handles 
 
 ---
 
-Chain-specific log level can be settled during the deployment. Please refer to the [respective article] for more details. For Tracing parameters, global settings (including retention and log probabilistic variables), please refer to the Installation guide.
+Chain-specific log level can be settled during the [chain deployment](../../01__Chains/3__Deployments/readme.md). For Tracing parameters, global settings (including retention and log probabilistic variables), please refer to the Installation guide.
+
+Microservice logs are configured with the parameters below:
+
+| Environment Parameter     | Mandatory | Default Value | Description                                                                                                                                                                                                                                                                                                                                             | Sample  |
+|:--------------------------|:----------|:--------------|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:--------|
+| LOG\_FORMAT               | O         | json          | Format of the microservice logs for the Engine, Micro-Engine, Runtime Catalog, and Sessions Management: `json` or `text`. See [Microservice Logs](#microservice-logs) for the differences between the formats.<br><br>ℹ️ For the Micro-Engine, set `LOG_FORMAT` to the intended value when building the application, and use the same value at runtime. | `text`  |
+| CIP\_TESTING\_LOG\_FORMAT | O         | json          | Testing service log format: `json` or `text`. Overrides `log.format` in the configuration file, `application.yaml` by default.                                                                                                                                                                                                                          | `text`  |
+| LOG\_FIELDS\_MAX\_SIZE    | O         | 4096          | Maximum number of characters kept from the logged exchange body, headers, and properties in the Engine and Micro-Engine. See [Value Length and Padding](#value-length-and-padding) for scope and exceptions. A value longer than this number plus 3 characters is cut to this length and followed by `...`. A negative value turns the limit off.       | `16384` |

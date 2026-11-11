@@ -76,4 +76,4 @@ available through catalog search. If a required import fails, chain creation pau
 ---
 
 - In CIP UI: during the process of services creation, all the services will be stored in CIP catalog database and are available for export from UI.
-- In VS Code Extension: service based configurations in VS Code are saved locally under a project folder or workspace directory configured by the user on file system of that machine.
+- In VS Code Extension: service based configurations in VS Code are saved locally under a project folder or workspace directory configured by the user on file system of that machine. A service is a `*.service.cip.yaml`, `*.context-service.cip.yaml`, or `*.mcp-service.cip.yaml` file, and the extension opens only files with the `.cip.yaml` extension.

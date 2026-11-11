@@ -7,8 +7,6 @@ properties:
   afterValidation: []
   errorThrowing: true
   handleValidationAction: "default"
-  integrationGqlQueryHeader: "CamelGraphQLQuery"
-  integrationGqlVariablesHeader: "CamelGraphQLVariables"
   integrationOperationAsyncProperties:
     queues: "sendStatusUpdate"
     maas.classifier.name: "public"

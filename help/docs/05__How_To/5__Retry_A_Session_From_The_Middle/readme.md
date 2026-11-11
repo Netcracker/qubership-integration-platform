@@ -43,7 +43,7 @@ The 3rd diagram shows process of session retry by support team from *Checkpoint 
 > - Checkpoint shouldn't be placed in alternative branches (routing) because CIP is not able to store full context in this case.
 > - In case checkpoint have more than one input flow only the session context from lastly added one will be stored.
 > - Header ***TraceMe*** (allows full logging of session data regardless of deployment configuration)is available for checkpoint triggering endpoint.
-> - Triggering of checkpoints is available only for consumers with **`ROLE_CIP_SESSION_RETRY`** accessrole.
+> - Triggering of checkpoints is available only for consumers with the **`ROLE_CIP_SESSION_RETRY`** or **`ROLE_M2M`** access role.
 > - When the retry will be initiated, new exchange property ***checkpointOriginalSessionId*** with id of failed session will be created.
 > - Checkpoint cannot be processed within the sub-chain (chain with start element [Chain Trigger]).
 > - Checkpoint cannot be processed within the [Loop] element.

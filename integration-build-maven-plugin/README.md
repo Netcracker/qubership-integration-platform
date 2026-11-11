@@ -193,6 +193,8 @@ Depending on the chains and options, a domain yields:
 - a ConfigMap with the integrations configuration, unless `options.integrations` points elsewhere;
 - a `Service`, unless `options.service.enabled` is `false`;
 - a `ServiceMonitor`, when `options.monitoring.enabled` is `true`;
+- two DBaaS Operator `InternalDatabase` resources, `configs` and `checkpoints`, when `options.dbaas.operatorType`
+  is `DBAAS`;
 - `HTTPRoute` resources for the public, private, and engine routes, and for egress an `HTTPRoute`,
   `ServiceEntry`, and `DestinationRule`, all with `controlPlaneType` set to `ISTIO`.
 
@@ -224,6 +226,9 @@ straight to `kubectl apply`.
 | `monitoring.enabled` | `false` | Generates a `ServiceMonitor` and sets `MONITORING_ENABLED` for the engine. |
 | `monitoring.interval` | `30s` | Scrape interval. |
 | `service.enabled` | `true` | Generates a `Service`. |
+| `dbaas.enabled` | `true` | Generates the engine's database declarations, together with `dbaas.operatorType`. |
+| `dbaas.operatorType` | `CORE` | `CORE` or `DBAAS`. Only `DBAAS` generates resources: an `InternalDatabase` for the `configs` database and one for the `checkpoints` database, named `cip-engine-<domain>-configs` and `cip-engine-<domain>-checkpoints`. `CORE` generates none. |
+| `dbaas.operatorNamespace` | `dbaas` | Namespace the DBaaS Operator runs in, written to `spec.operatorNamespace`. The operator skips a resource that names another namespace and writes no status to it. |
 | `mount.emptyDirs`, `mount.resources` | empty | Volumes to mount. |
 | `integrations.camelKSourcesUtilized` | `false` | The engine reads chains from Camel K sources, so no integrations configuration ConfigMap is generated. |
 | `integrations.configurationLocation` | none | Location the engine loads the integrations configuration from; also suppresses the ConfigMap. |
@@ -255,6 +260,10 @@ A configuration that exercises most of them:
       <enabled>true</enabled>
       <interval>15s</interval>
     </monitoring>
+    <dbaas>
+      <operatorType>DBAAS</operatorType>
+      <operatorNamespace>dbaas</operatorNamespace>
+    </dbaas>
     <environment>
       <LOG_LEVEL>INFO</LOG_LEVEL>
     </environment>

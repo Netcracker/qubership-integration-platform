@@ -120,14 +120,6 @@ oneOf:
         type: string
         title: Query
         description: The query text.
-      integrationGqlQueryHeader:
-        type: string
-        default: CamelGraphQLQuery
-        title: Query header
-      integrationGqlVariablesHeader:
-        type: string
-        default: CamelGraphQLVariables
-        title: Variables header
       integrationGqlVariablesJSON:
         type: string
         title: Variables JSON
