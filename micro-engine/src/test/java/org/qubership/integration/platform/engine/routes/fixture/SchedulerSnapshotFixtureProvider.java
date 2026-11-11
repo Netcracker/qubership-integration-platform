@@ -200,12 +200,12 @@ class SchedulerSnapshotFixtureProvider implements SnapshotFixtureProvider {
                 Object action = controls.getOrDefault("action", "observe");
                 if (controls.get("blueGreenState") instanceof String state) {
                     java.util.Set<JobKey> before = scheduler.getJobKeys(GroupMatcher.anyJobGroup());
-                    scheduler.resumeTrigger(item.endpoint().getTriggerKey());
                     BlueGreenState previous = dependencies.currentState();
                     BlueGreenState next = SchedulerSnapshotDependencies.state(state);
                     CDI.current().select(BlueGreenSchedulerControllerService.class).get()
                             .onStateChange(new BlueGreenStateService.BlueGreenStateChange(previous, next));
                     dependencies.currentState(next);
+                    scheduler.resumeTrigger(item.endpoint().getTriggerKey());
                     assertEquals(before, scheduler.getJobKeys(GroupMatcher.anyJobGroup()),
                             "Blue-green transitions must retain the same registered jobs.");
                     service.getSchedulerProxy().start();

@@ -798,6 +798,11 @@ class KafkaTriggerSnapshotFixtureProvider implements SnapshotFixtureProvider {
                     assertEquals(invocationOffsets.get(groupId(consumer)), broker.snapshotCommittedOffsets(groupId(consumer)),
                             "Kafka consumer failure must preserve offsets from the beginning of this invocation.");
                 }
+                if (controls(interaction).get("minFailedTlsHandshakes") instanceof Number count) {
+                    // The client can report its TLS failure before the proxy receives the fatal alert.
+                    await(() -> broker.authenticationStatistics().failedTlsHandshakes() >= count.longValue(),
+                            "Kafka trigger failed TLS handshakes");
+                }
                 KafkaConnectionProxy.Statistics statistics = broker.authenticationStatistics();
                 for (String key : List.of("minSuccessfulAuthentications", "minFailedAuthentications",
                         "minSuccessfulTlsHandshakes", "minFailedTlsHandshakes")) {
