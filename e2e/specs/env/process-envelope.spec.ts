@@ -7,21 +7,13 @@
  * than through any API. A catalog killed by an import surfaces today as dozens of unrelated red
  * specs across four files; this turns it into one named failure that says which service and when.
  *
- * **This file runs first inside the `env` project, and that is load-bearing.** The project's whole
- * purpose is restarting services, so the identity reading has to be taken before any spec here has
- * restarted one. Playwright collects files in sorted order and `process-envelope` sorts before
- * `restart-resilience` and `service-type-roundtrip`. The first case asserts that ordering off the
- * directory listing before it reads anything, so a rename or a new sibling ahead of it fails here,
- * naming the ordering, instead of turning the identity reading into a report about a service that
- * a neighbor restarted on purpose.
+ * The `process-envelope` project runs this file before the `env` project can restart a service.
+ * Its dependency on api, runtime, and ui puts the readings after those projects finish.
  *
  * Nothing here names `docker` or `jcmd`. The reading comes through `Env.processEnvelope`, because
  * "did the services survive the run" is exactly the question that has to be answerable against a
  * cluster too, and a cluster has neither command.
  */
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { test, expect } from "../../support/fixtures.js";
 import { ROLES } from "../../env/containers.js";
 import {
@@ -33,11 +25,6 @@ import {
 } from "../../env/resources.js";
 import { METASPACE_ATTACHMENT, PEAKS_ATTACHMENT } from "../../support/run-summary.mjs";
 import type { Env, ProcessEnvelope } from "../../env/index.js";
-
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-
-/** This file's own name, asserted against the collection order rather than trusted. */
-const THIS_SPEC = path.basename(fileURLToPath(import.meta.url));
 
 /** `role startedAt restarts`, which is the whole of the identity and reads as a diff. */
 function identity(envelope: ProcessEnvelope): string {
@@ -64,16 +51,6 @@ function envelopes(env: Env): Promise<ProcessEnvelope[]> {
 
 test.describe("process envelope", { tag: ["@infra"] }, () => {
   test("every service is still the process the run started", async ({ env }) => {
-    // The ordering the reading below rests on, asserted rather than commented. Playwright collects a
-    // project's files in sorted order, so what keeps this file ahead of the two `env` specs that
-    // restart a service is its name — and a rename, or a sibling added ahead of it, would change what
-    // the assertion at the end of this test means without changing a line of it.
-    expect(
-      fs.readdirSync(HERE).filter((name) => name.endsWith(".spec.ts")).sort()[0],
-      "another env spec now sorts ahead of this one. The env project restarts services on purpose, " +
-        "so the identity reading below would be taken after whatever that spec did to them",
-    ).toBe(THIS_SPEC);
-
     const baseline = readRunResources()?.baseline ?? [];
     expect(
       baseline.map((each) => each.role).sort(),
