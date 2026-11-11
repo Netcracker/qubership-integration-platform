@@ -35,6 +35,9 @@ public class ResourceBuildOptions {
     private ServiceOptions service = new ServiceOptions();
 
     @Builder.Default
+    private DBaaSOptions dbaas = new DBaaSOptions();
+
+    @Builder.Default
     private MountOptions mount = new MountOptions();
 
     @Builder.Default
