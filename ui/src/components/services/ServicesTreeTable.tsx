@@ -483,7 +483,6 @@ function ActionMenu<T>({
     .filter((a) => a.visible === undefined || a.visible(record))
     .map((action) => ({
       key: action.key,
-      icon: action.icon,
       label: action.label,
       require: action.require,
       onClick: () => {

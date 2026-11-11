@@ -154,14 +154,12 @@ export const ContextServiceList: React.FC = () => {
               {
                 key: "edit",
                 label: "Edit",
-                icon: <OverridableIcon name="edit" />,
                 onClick: () => handleEdit(system),
                 require: { service: ["update"] },
               },
               {
                 key: "delete",
                 label: "Delete",
-                icon: <OverridableIcon name={"delete"} />,
                 onClick: () => {
                   confirmAndRun({
                     title: "Are you sure you want to delete this service?",
@@ -175,7 +173,6 @@ export const ContextServiceList: React.FC = () => {
               {
                 key: "export",
                 label: "Export",
-                icon: <OverridableIcon name={"cloudDownload"} />,
                 onClick: () => void handleExportSelected([system]),
                 require: { service: ["export"] },
               },

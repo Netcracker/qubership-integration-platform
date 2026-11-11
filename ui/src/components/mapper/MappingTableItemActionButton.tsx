@@ -80,7 +80,6 @@ export const MappingTableItemActionButton: React.FC<
       items.push({
         key: "load",
         label: "Load",
-        icon: <OverridableIcon name="cloudUpload" />,
         onClick: () => {
           showModal({
             component: (
@@ -100,7 +99,6 @@ export const MappingTableItemActionButton: React.FC<
       items.push({
         key: "edit",
         label: "Edit",
-        icon: <OverridableIcon name="edit" />,
         onClick: () => {
           onEdit?.();
         },
@@ -110,7 +108,6 @@ export const MappingTableItemActionButton: React.FC<
       items.push({
         key: "export",
         label: "Export",
-        icon: <OverridableIcon name="cloudDownload" />,
         onClick: () => {
           onExport?.();
         },
@@ -125,7 +122,6 @@ export const MappingTableItemActionButton: React.FC<
       items.push({
         key: "namespaces",
         label: "Namespaces",
-        icon: <span style={{ fontSize: "9px" }}>{"</>"}</span>,
         onClick: () => {
           showModal({
             component: (
@@ -148,7 +144,6 @@ export const MappingTableItemActionButton: React.FC<
         {
           key: "add",
           label: "Add",
-          icon: <OverridableIcon name="plusCircle" />,
           onClick: () => {
             onAdd?.();
           },
@@ -156,7 +151,6 @@ export const MappingTableItemActionButton: React.FC<
         {
           key: "clear",
           label: "Clear",
-          icon: <OverridableIcon name="clear" />,
           onClick: () => {
             confirmAndRun({
               title: "Clear tree",
@@ -171,7 +165,6 @@ export const MappingTableItemActionButton: React.FC<
       items.push({
         key: "delete",
         label: "Delete",
-        icon: <OverridableIcon name="delete" />,
         onClick: () => {
           const title = `Delete ${isConstantItem(item) ? "constant" : "attribute"}`;
           const content = `Are you sure you want to delete this ${isConstantItem(item) ? "constant" : "attribute"} and all related connections?`;

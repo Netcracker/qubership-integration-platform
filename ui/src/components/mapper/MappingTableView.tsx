@@ -1837,7 +1837,6 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
                 items: [
                   {
                     key: "saveAsMarkdown",
-                    icon: <OverridableIcon name="fileMarkdown" />,
                     label: "Save as markdown",
                     onClick: () => {
                       exportMappingAsMarkdown(mappingDescription);
@@ -1845,7 +1844,6 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
                   },
                   {
                     key: "clearFilters",
-                    icon: <OverridableIcon name="clear" />,
                     label: "Clear filters",
                     onClick: () => {
                       updateControlsState({ filters: {} });
@@ -1853,7 +1851,6 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
                   },
                   {
                     key: "clearSorts",
-                    icon: <OverridableIcon name="clear" />,
                     label: "Clear sorters",
                     onClick: () => {
                       updateControlsState({ sorts: {} });
