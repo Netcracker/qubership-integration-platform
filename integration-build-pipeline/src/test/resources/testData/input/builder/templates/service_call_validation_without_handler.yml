@@ -1,0 +1,47 @@
+id: "7c4e2a91-3f6b-4d82-a1e5-0b9d6f2c8e37"
+name: "V1"
+description: ""
+modifiedWhen: 1683113761033
+elements:
+  - id: "e19b5d73-6a04-4c2f-9e81-d3a7c5f0b246"
+    name: "Service Call"
+    element-type: "service-call"
+    original-id: "5c7569e5-b969-4adb-a7a8-9ee67dc6cf5f"
+    properties:
+      after:
+        - id: "200"
+          code: "200"
+          label: "200"
+          type: "script"
+          wildcard: false
+          script: "exchange.setProperty(\"handled\", \"200\")"
+      afterValidation:
+        - id: "200-application/json"
+          code: "200"
+          label: "200-application/json"
+          type: "responseValidation"
+          contentType: "application/json"
+          schema: "{}"
+      retryCount: 0
+      retryDelay: 5000
+      systemType: "EXTERNAL"
+      integrationSystemId: "5c7569e5-b969-4adb-a7a8-9ee67dc6cf5f"
+      integrationSpecificationGroupId: "78a90c20-9d90-424c-a0a9-5b37de84933d"
+      integrationSpecificationId: "06933856-1571-4605-9cdc-0b93cb846ed2"
+      integrationOperationId: "c024c64d-eca4-4a45-b728-c4a7a35a5f61"
+      integrationOperationPath: "/RestNotify_1"
+      integrationOperationMethod: "POST"
+      integrationOperationProtocolType: "http"
+      integrationOperationPathParameters: {}
+      integrationOperationSkipEmptyQueryParameters: false
+    service-environment:
+      id: "0c151b35-1a38-4032-af81-77d1385c2c04"
+      name: "[Stub] ITF"
+      address: "http://external.service"
+      systemId: "5c7569e5-b969-4adb-a7a8-9ee67dc6cf5f"
+      properties: {}
+      sourceType: "MANUAL"
+      createdWhen: 1666715855740
+      description: null
+      modifiedWhen: 1669643915590
+      notActivated: false

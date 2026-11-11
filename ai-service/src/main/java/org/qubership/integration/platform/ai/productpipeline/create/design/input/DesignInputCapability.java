@@ -6,12 +6,14 @@ import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.skills.RockySkills;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
@@ -22,7 +24,10 @@ import org.qubership.integration.platform.ai.llm.qute.QuteUserMessageEscaping;
 import org.qubership.integration.platform.ai.logging.AiTraceLog;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
+import org.qubership.integration.platform.ai.plan.AuthorSourceEvidence;
 import org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureEditor;
+import org.qubership.integration.platform.ai.plan.RequirementElementConstraints;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.plan.RequirementFlowValidator;
@@ -66,6 +71,9 @@ public class DesignInputCapability implements StageCapability {
 
   private static final String IDS_FLOW_MARKER = "Integration flow for CIP Chain";
 
+  @jakarta.inject.Inject
+  org.qubership.integration.platform.ai.productpipeline.knowledge.DocumentationTools documentation;
+
   private final ChainSemanticDesignAgent designAgent;
   private final ChainSemanticIdsRenderer idsRenderer;
   private final CompilerContractRepository contractRepository;
@@ -77,6 +85,9 @@ public class DesignInputCapability implements StageCapability {
 
   @Inject
   org.qubership.integration.platform.ai.compiler.capture.ChatMemorySanitizer chatMemorySanitizer;
+
+  @Inject
+  org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations;
 
   @Inject
   public DesignInputCapability(
@@ -171,13 +182,21 @@ public class DesignInputCapability implements StageCapability {
           StageOutcomeClass.MISSING_MANDATORY_INPUT,
           "design-input requires an approved RequirementBrief");
     }
-    var inputFindings = org.qubership.integration.platform.ai.plan.RequirementCaptureEditor.validateElementOrder(
-        brief.flow(), brief.facts());
+    var approvedDraft = context.attributes().get("approvedDraft");
+    var inputFindings = new ArrayList<>(RequirementCaptureEditor.validateElementOrder(brief.flow(), brief.facts()));
+    if (approvedDraft instanceof RequirementDraft draft
+        && Objects.equals(brief.approvedDraftReference(), context.attributes().get("approvedDraftArtifactId"))) {
+      String source = conversations == null ? null
+          : AuthorSourceEvidence.authoredPacket(conversations.archive().read(context.conversationId())).inputs().stream()
+              .map(AuthorSourceEvidence.Input::text).collect(java.util.stream.Collectors.joining("\n"));
+      inputFindings.addAll(RequirementElementConstraints.issues(draft.authoredDraft(), source).stream()
+          .filter(issue -> !"UNPROVEN_ELEMENT_PROPERTY".equals(issue.code())).toList());
+    }
     if (!inputFindings.isEmpty()) {
       var findings = inputFindings.stream().map(issue -> new PlanValidationFinding(
           issue.code(), issue.path() + ": " + issue.message(), true, null, issue.entityId(), issue.path())).toList();
       return StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
-          "The accepted brief contains contradictory element order.\n"
+          "The accepted brief contains element constraints that prevent design.\n"
               + String.join("\n", findings.stream().map(PlanValidationFinding::message).toList()),
           new RecoveryCause(RecoveryCauseCode.BRIEF_CONTRACT, findings, ""));
     }
@@ -192,7 +211,6 @@ public class DesignInputCapability implements StageCapability {
               List.of("entry point " + blankEntryPoint + " has no capabilityKey")));
     }
     List<Transition> uncovered = MappingGapCoverage.uncovered(brief);
-    var approvedDraft = context.attributes().get("approvedDraft");
     var omittedMapping = approvedDraft instanceof RequirementDraft draft
         ? RequirementBriefCoverageValidator.validateAuthoredMappings(draft, brief)
         : java.util.Optional.<String>empty();
@@ -229,13 +247,15 @@ public class DesignInputCapability implements StageCapability {
     captureFeedback.beginScope(captureConversationId, CAPABILITY_ID, java.util.Map.of(
         "runId", context.runId(), "inputs", context.inputRefs(), "brief", brief, "contract", contract),
         context.conversationId());
-    captureFeedback.clearPlan(captureConversationId);
+    captureFeedback.resetPlan(captureConversationId);
     String history = captureFeedback.repairHistory(captureConversationId, CAPABILITY_ID);
     String agentText;
     try {
       agentText =
           runDesignAgent(captureConversationId, authoringPrompt(brief, contract, context)
-              + org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.block(history));
+              + org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.block(history)
+              + (documentation == null ? "" : documentation.context(context.conversationId(),
+                  brief.goal() + " " + brief.summary() + " " + brief.approvedDraftText(), List.of())));
       ProductCapabilityCaptureContext.designBinding(captureConversationId).ifPresent(binding -> {
         rejection.set(binding.captureRejection().get());
         terminalRejection.set(binding.captureTerminal().get());
@@ -278,7 +298,38 @@ public class DesignInputCapability implements StageCapability {
         null);
   }
 
+  /**
+   * Runs one design turn and returns the text it ended with: the model's closing text, the capture
+   * result when a capture ends the turn, or the limit error when the turn runs out of tool calls.
+   * The caller reads the outcome from the design binding in every case.
+   */
   private String runDesignAgent(String conversationId, String prompt) {
+    try {
+      return streamDesignAgent(conversationId, prompt);
+    } catch (RuntimeException error) {
+      String ended = endedCapture(error);
+      if (ended != null) {
+        return ended;
+      }
+      // Every call the limit counted was a rejection the binding recorded, so the last one is
+      // this turn's outcome, as it is for a turn that ends after a single rejection.
+      if (error.getMessage() != null && error.getMessage().contains("sequential tool executions")) {
+        return error.getMessage();
+      }
+      throw error;
+    }
+  }
+
+  private static String endedCapture(Throwable error) {
+    for (Throwable current = error; current != null; current = current.getCause()) {
+      if (current instanceof org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException ended) {
+        return ended.getMessage();
+      }
+    }
+    return null;
+  }
+
+  private String streamDesignAgent(String conversationId, String prompt) {
     // Quarkus LangChain4j treats @UserMessage as a Qute template. Mapping snippets such as
     // {subRequestType} must be escaped or render fails before the design agent can capture.
     String safePrompt = QuteUserMessageEscaping.escapeForAiServiceUserMessage(prompt);
@@ -287,8 +338,9 @@ public class DesignInputCapability implements StageCapability {
     if (designRunner != null) {
       stream = designRunner.apply(conversationId, safePrompt);
     } else if (designAgent != null) {
-      // Capture returns directly so only the stage ledger can authorize another model attempt.
-      return designAgent.chat(conversationId, safePrompt);
+      return designAgent.chat(conversationId, QuteUserMessageEscaping.escapeForAiServiceUserMessage(
+          new RockySkills()
+              .instructions("cip-conf-semantic-design") + "\n\n" + prompt));
     } else {
       stream = Multi.createFrom().empty();
     }
@@ -317,6 +369,8 @@ public class DesignInputCapability implements StageCapability {
         .append("Capture one ChainSemanticRevision from this approved requirement brief.\n\n")
         .append(RequirementBriefText.format(brief))
         .append("\n\nUse LOCAL_NODE elementRef as nodeId. Keep inline hook facts exclusively on their Service Call.\n")
+        .append("When a service response already satisfies the response requirement, return it directly. ")
+        .append("Add processing only if the required response differs from that contract.\n")
         .append("\n\nCompiler contract version: ")
         .append(contract.contractVersion())
         .append("\nSemantic schema version: ")
@@ -394,31 +448,38 @@ public class DesignInputCapability implements StageCapability {
     prompt.append(
         """
 
-        Call captureChainSemanticRevision once. Copy sourceFactIds from the brief, taking the\
+        Submit the topology with captureChainSemanticRevision. If it returns REPAIR_CAPTURE,\
+         correct the listed issues and call it again. Copy sourceFactIds from the brief, taking the\
          value after each matching `=` sign. Copy mappingIntentId the same way when Mapping\
          intents include a mappingIntentId= token; otherwise omit it on every edge. Place each\
          mappingIntentId on exactly one edge entering its target external interaction. Omit it\
          on every earlier edge through internal processing nodes. Field-mapping\
          shells use elementType script. Do not mint a mapping id and do not reuse a\
-         sourceFactId as mappingIntentId. A skipped mapping hop stays a direct edge unless an\
-         approved positive BEHAVIOR fact or an ErrorScope requires a script. Every positive\
-         BEHAVIOR fact must appear in one semantic node's sourceFactIds. A constant response,\
-         such as commandType=completeTask, or an assembled response is a behavior-owned script\
-         after the producing call and before the outbound result delivery. For an inbound\
-         HTTP response with no delivery interaction, place it after the final call. INLINE_RESPONSE\
-         puts success and failure field facts on that response script; do not create an error scope\
-         or skip the producing call. Combine consecutive input parsing, context retention, and\
-         request mapping in one script on the same branch and in the same error scope. Save original\
-         values to exchange properties before replacing the body with the request. Put all behavior\
-         and field-mapping sourceFactIds on that script. Different fact kinds do not require\
-         separate nodes. Keep separate scripts only for explicitly requested separate steps or\
-         when a service call, branch, loop, retry, or error-scope boundary separates the work.\
+         sourceFactId as mappingIntentId. A generated processing Script can implement an approved\
+         positive BEHAVIOR by binding its sourceFactId on that operation; the author need not\
+         preselect the Script topology. Explicit author Script bodies and element intents remain\
+         binding and cannot be replaced by this path. Native COPY sites implement only their\
+         admitted mapping. Put additional behavior on a separate operation with its own edges.\
+         A skipped mapping hop stays a direct edge unless separate behavior needs processing. Preserve every positive BEHAVIOR fact on its\
+         implementing node or anchor. Constants such as commandType=completeTask and response\
+         assembly remain requirements. Attach them to the authorized Script that implements them.\
+         sourceFactIds are provenance, not proof that a node executes the behavior. A call or\
+         trigger does not gain data transformation or response composition by citing a fact.\
+         For each data-changing behavior, include the authorized executable processing step or\
+         approved hook that implements it. Use an anchor alone only for its native behavior.\
+         When approved behavior needs an earlier response after another call replaces the body,\
+         design where its values are saved before replacement and where they are read.\
+         Include both operations in the topology or use an approved existing producer.\
+         The native compiler derives context retention from admitted mapping origins;\
+         do not combine extra parsing, constants, or manual retention into a mapping script.\
+         Keep supplied bodies exact and preserve their approved execution placement. Native\
+         non-script operations and control-flow regions retain their approved structure.\
          External interaction anchors are server-owned.\
          Reference these node ids from edges. To attach extra sourceFactIds to an existing\
          anchor, list its exact nodeId and elementType under operations. This only extends\
          provenance; it never creates or replaces an interaction. Attach event and call behavior\
-         facts to their anchors. Keep parsing, retention, field mappings, response constants,\
-         and error payload assembly on their implementing processing nodes. Preserve\
+         facts to their anchors. Keep admitted mappings and supplied script requirements on\
+         their implementing processing nodes. Preserve\
          every approved business transition. You may insert internal processing nodes between\
          its source and target, but you may not reverse, omit, or add an external interaction\
          transition. Do not mint occurrence ids. The server derives the revision id, every edge\
@@ -440,6 +501,18 @@ public class DesignInputCapability implements StageCapability {
     if (repairSection != null && !repairSection.isBlank()) {
       prompt.append(repairSection);
     }
+    prompt.append("""
+
+        Preserve every approved branch decision and outcome when authoring or repairing predicates.
+        Branch policy facts attached to a control element belong in its sourceFactIds. Realize the
+        branch policy in the condition or error-scope region, including its predicate, exception and
+        ordering. The server generates branch shells; do not create separate control nodes for them.
+        Correct syntax or date formats without weakening the condition or replacing it with a
+        convenient comparison. Recheck the predicate against the approved behavior, including the
+        opposite branch. Camel Simple date functions use SimpleDateFormat patterns; mm is minutes.
+        For example, even minutes can use `${date:now:mm} regex '.*[02468]'`, with ELSE for odd minutes.
+        This is a syntax example; derive each actual condition from its approved requirement.
+        """);
     for (RequirementFact fact : brief.facts()) {
       var intent = fact.elementIntent();
       if (fact.polarity() != RequirementFactPolarity.POSITIVE || intent == null
@@ -468,7 +541,7 @@ public class DesignInputCapability implements StageCapability {
     }
     extra.append(
         "\nRebuild the topology so this rejection cannot recur. Preserve the approved element"
-            + " placements. Call captureChainSemanticRevision once.");
+            + " placements.");
     return extra.toString();
   }
 

@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.ai.plan;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.JsonNode;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -22,7 +24,66 @@ public record RequirementCaptureResult(
     List<RequirementCaptureProjection.PendingWork> pendingWork,
     DraftInput draft,
     List<ResolutionSummary> resolutions,
-    List<RequirementCaptureProjection.AppliedDefault> defaults) {
+    List<RequirementCaptureProjection.AppliedDefault> defaults,
+    @JsonInclude(JsonInclude.Include.NON_NULL) RepairConstraints repairConstraints,
+    @JsonInclude(JsonInclude.Include.NON_NULL) PendingProposal pendingProposal) {
+
+  public RequirementCaptureResult(boolean accepted, boolean changed, Reference revision, Readiness readiness,
+      NextAction nextAction, List<CaptureIssue> issues, List<RequirementCaptureProjection.PendingWork> pendingWork,
+      DraftInput draft, List<ResolutionSummary> resolutions, List<RequirementCaptureProjection.AppliedDefault> defaults,
+      RepairConstraints repairConstraints) {
+    this(accepted, changed, revision, readiness, nextAction, issues, pendingWork, draft, resolutions, defaults,
+        repairConstraints, null);
+  }
+
+  public RequirementCaptureResult(boolean accepted, boolean changed, Reference revision, Readiness readiness,
+      NextAction nextAction, List<CaptureIssue> issues, List<RequirementCaptureProjection.PendingWork> pendingWork,
+      DraftInput draft, List<ResolutionSummary> resolutions, List<RequirementCaptureProjection.AppliedDefault> defaults) {
+    this(accepted, changed, revision, readiness, nextAction, issues, pendingWork, draft, resolutions, defaults, null);
+  }
+
+  public record RepairConstraints(List<RequirementCaptureInput.FactInput> facts, JsonNode values) {
+    public RepairConstraints {
+      facts = List.copyOf(facts);
+      values = values == null ? null : values.deepCopy();
+    }
+  }
+
+  /** A rejected candidate is a repair base, never an admitted draft or amendment authority. */
+  public record PendingProposal(Reference attempt, String sourceGeneration, String sourceTurnId, Reference base,
+      String toolName, DraftInput draft, List<CaptureIssue> issues,
+      @JsonInclude(JsonInclude.Include.NON_NULL) String token) {
+    public PendingProposal(Reference attempt, String sourceGeneration, String sourceTurnId, Reference base,
+        String toolName, DraftInput draft, List<CaptureIssue> issues) {
+      this(attempt, sourceGeneration, sourceTurnId, base, toolName, draft, issues, null);
+    }
+    public PendingProposal {
+      issues = List.copyOf(issues);
+    }
+  }
+
+  public RequirementCaptureResult withPendingProposal(PendingProposal proposal) {
+    NextAction action = proposal != null && readiness == Readiness.EMPTY && nextAction == NextAction.DISCUSS
+        ? NextAction.REPAIR_CAPTURE : nextAction;
+    return new RequirementCaptureResult(accepted, changed, revision, readiness, action, issues, pendingWork,
+        draft, resolutions, defaults, repairConstraints, proposal);
+  }
+
+  public RequirementCaptureResult withNextAction(NextAction action) {
+    if (action == nextAction) {
+      return this;
+    }
+    return new RequirementCaptureResult(accepted, changed, revision, readiness, action, issues, pendingWork,
+        draft, resolutions, defaults, repairConstraints, pendingProposal);
+  }
+
+  public RequirementCaptureResult withRepairConstraints(RepairConstraints constraints) {
+    if (constraints == null) return this;
+    NextAction action = readiness == Readiness.EMPTY && nextAction == NextAction.DISCUSS
+        ? NextAction.REPAIR_CAPTURE : nextAction;
+    return new RequirementCaptureResult(accepted, changed, revision, readiness, action, issues, pendingWork,
+        draft, resolutions, defaults, constraints, pendingProposal);
+  }
 
   public enum Readiness {
     EMPTY,
@@ -42,6 +103,7 @@ public record RequirementCaptureResult(
     HANDOFF,
     REFRESH_DRAFT,
     REPAIR_CAPTURE,
+    PROJECTION_REBUILD,
     STOP
   }
 
@@ -68,11 +130,18 @@ public record RequirementCaptureResult(
       RequirementDraft acceptedDraft, Reference revision, boolean accepted, boolean changed,
       List<RequirementCaptureEditor.Issue> editorIssues, RequirementDiscoveryDirective directive,
       Set<String> uploadedSpecInteractions) {
+    return view(acceptedDraft, revision, accepted, changed, editorIssues, directive, uploadedSpecInteractions, List.of());
+  }
+
+  static RequirementCaptureResult view(
+      RequirementDraft acceptedDraft, Reference revision, boolean accepted, boolean changed,
+      List<RequirementCaptureEditor.Issue> editorIssues, RequirementDiscoveryDirective directive,
+      Set<String> uploadedSpecInteractions, List<RequirementCaptureProjection.PendingWork> mappingPending) {
     DraftInput draft = acceptedDraft == null ? null : acceptedDraft.authoredDraft();
     List<CaptureIssue> issues = editorIssues.stream()
         .map(issue -> new CaptureIssue(
             issue.code(), issue.path(), issue.entityId(),
-            new IssueDetails(null, List.of(), List.of()), issue.message()))
+            new IssueDetails(null, List.of(), issue.relatedEntityIds()), issue.message()))
         .toList();
     if (draft == null) {
       return new RequirementCaptureResult(
@@ -82,10 +151,10 @@ public record RequirementCaptureResult(
               "DRAFT_CONTENT_REQUIRED", null, null, "No requirement draft has been saved.")),
           null, List.of(), List.of());
     }
-    List<RequirementCaptureProjection.PendingWork> pending =
-        RequirementCaptureProjection.pending(draft, acceptedDraft.catalogBindings(),
-            RequirementCaptureProjection.resolvedTargets(acceptedDraft), uploadedSpecInteractions);
-    Readiness readiness = acceptedDraft.readyForPlan() ? Readiness.READY : Readiness.PARTIAL;
+    List<RequirementCaptureProjection.PendingWork> pending = new java.util.ArrayList<>(
+        RequirementCaptureProjection.pending(acceptedDraft, uploadedSpecInteractions));
+    pending.addAll(mappingPending);
+    Readiness readiness = acceptedDraft.readyForPlan() && pending.isEmpty() ? Readiness.READY : Readiness.PARTIAL;
     NextAction action = nextAction(issues, pending, readiness, draft, directive);
     if (action == NextAction.COMPLETE_DRAFT && !acceptedDraft.openQuestions().isEmpty()) {
       action = NextAction.ASK_USER;
@@ -138,7 +207,8 @@ public record RequirementCaptureResult(
     if (pending.stream().anyMatch(work -> work.code().endsWith("LOOKUP_REQUIRED"))) {
       return NextAction.LOOKUP;
     }
-    if (pending.stream().anyMatch(work -> "BUSINESS_CHOICE_REQUIRED".equals(work.code()))) {
+    if (pending.stream().anyMatch(work -> Set.of("BUSINESS_CHOICE_REQUIRED", "COPY_INPUT_SCHEMA_REQUIRED")
+        .contains(work.code()))) {
       return NextAction.ASK_USER;
     }
     return pending.isEmpty() ? NextAction.DISCUSS : NextAction.COMPLETE_DRAFT;

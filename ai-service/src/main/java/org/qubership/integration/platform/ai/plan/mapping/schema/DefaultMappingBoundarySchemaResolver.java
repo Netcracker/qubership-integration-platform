@@ -8,12 +8,17 @@ import java.util.Objects;
 import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
+import org.qubership.integration.platform.ai.plan.MessageSchemaContract;
 import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
+import org.qubership.integration.platform.ai.plan.mapping.LocalMappingTarget;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingValue;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 
 public class DefaultMappingBoundarySchemaResolver implements MappingBoundarySchemaResolver {
 
@@ -21,9 +26,23 @@ public class DefaultMappingBoundarySchemaResolver implements MappingBoundarySche
 
   private final CompilationArtifacts artifacts;
   private final String compilationId;
+  private final Map<String, String> catalogTriggerOwners;
+  private final RequirementBrief brief;
 
   public DefaultMappingBoundarySchemaResolver(
       CompilationArtifacts artifacts, String compilationId) {
+    this(artifacts, compilationId, Map.of());
+  }
+
+  public DefaultMappingBoundarySchemaResolver(CompilationArtifacts artifacts, String compilationId,
+      Map<String, String> catalogTriggerOwners) {
+    this(artifacts, compilationId, catalogTriggerOwners, null);
+  }
+
+  public DefaultMappingBoundarySchemaResolver(CompilationArtifacts artifacts, String compilationId,
+      Map<String, String> catalogTriggerOwners, RequirementBrief brief) {
+    this.catalogTriggerOwners = Map.copyOf(catalogTriggerOwners);
+    this.brief = brief;
     this.artifacts = Objects.requireNonNull(artifacts, "artifacts");
     if (compilationId == null || compilationId.isBlank()) {
       throw new IllegalArgumentException("compilationId is required");
@@ -51,15 +70,44 @@ public class DefaultMappingBoundarySchemaResolver implements MappingBoundarySche
             outputSchemas,
             intent.sourceRef(),
             intent.sourcePort());
-    MappingSchemaSide target =
-        resolveSide(
-            revision,
-            bindingList,
-            persisted,
-            outputSchemas,
-            intent.targetRef(),
-            intent.targetPort());
+    MappingSchemaSide target;
+    if (brief != null && LocalMappingTarget.resolve(brief.facts(), brief.flow(), intent.targetRef()).isPresent()
+        && intent.targetPort() == MappingPort.OUTPUT) {
+      Map<MappingSource.Message, MappingSchemaSide> origins = new java.util.LinkedHashMap<>();
+      for (var rule : intent.rules()) {
+        if (!(rule.value() instanceof MappingValue.Copy copy)
+            || !(copy.source() instanceof MappingSource.Message origin)) {
+          throw new IllegalArgumentException("Local output needs verified COPY origins");
+        }
+        origins.put(origin, resolveSide(revision, bindingList, persisted, outputSchemas,
+            origin.interactionId(), origin.port()));
+      }
+      target = LocalMappingTarget.outputSchema(intent, origins);
+    } else {
+      target = resolveSide(revision, bindingList, persisted, outputSchemas, intent.targetRef(), intent.targetPort());
+    }
     return new MappingBoundarySchemas(source, target);
+  }
+
+  public MappingSchemaSide resolveOrigin(
+      ChainSemanticRevision revision, List<ResolvedServiceCallBinding> bindings,
+      String ref, MappingPort port, Map<String, MappingSchemaSide> outputs) {
+    if (port == null) {
+      throw new IllegalArgumentException("Mapping origin port is required");
+    }
+    SemanticNode node = findNode(revision, ref, port);
+    if (node instanceof SemanticNode.Trigger && port != MappingPort.OUTPUT) {
+      throw new IllegalArgumentException("Trigger origin requires OUTPUT");
+    }
+    if (node instanceof SemanticNode.ServiceCall && port == MappingPort.OUTPUT) {
+      throw new IllegalArgumentException("Service origin requires REQUEST or RESPONSE");
+    }
+    return resolveSide(revision, bindings == null ? List.of() : bindings, persistedSides(),
+        outputs == null ? Map.of() : outputs, ref, port);
+  }
+
+  public static String semanticNodeId(ChainSemanticRevision revision, String ref, MappingPort port) {
+    return findNode(revision, ref, port).nodeId();
   }
 
   private MappingSchemaSide resolveSide(
@@ -84,13 +132,25 @@ public class DefaultMappingBoundarySchemaResolver implements MappingBoundarySche
       List<ResolvedServiceCallBinding> bindings,
       List<MappingSchemaSide> persisted,
       MappingPort resultDirection) {
+    if (catalogTriggerOwners.containsKey(trigger.nodeId())) {
+      return selectUnique(persisted, catalogTriggerOwners.get(trigger.nodeId()), MappingPort.REQUEST, resultDirection);
+    }
     for (ResolvedServiceCallBinding binding : bindings) {
       if (trigger.nodeId().equals(binding.targetNodeId())) {
         return selectUnique(
             persisted, binding.serviceCallId(), MappingPort.REQUEST, resultDirection);
       }
     }
-    return selectUnique(persisted, trigger.nodeId(), MappingPort.OUTPUT, resultDirection);
+    if (brief != null) {
+      var approved = MessageSchemaContract.requestSchema(brief.facts(), trigger.interactionId());
+      if (approved.isPresent()) return approved.orElseThrow();
+    }
+    MappingSchemaSide stored = selectUnique(persisted, trigger.nodeId(), MappingPort.OUTPUT, resultDirection);
+    if (stored.schema() == null && brief != null && "http-trigger".equals(trigger.capabilityKey())
+        && MessageSchemaContract.isCustomHttp(brief, trigger.interactionId())) {
+      return MappingSchemaSide.runtimeJson(trigger.interactionId());
+    }
+    return stored;
   }
 
   private static MappingSchemaSide sideFromTransformOutput(
@@ -159,6 +219,9 @@ public class DefaultMappingBoundarySchemaResolver implements MappingBoundarySche
               + ": "
               + String.join(", ", types));
     }
+    if (matching.stream().map(MappingSchemaSide::sha256).distinct().count() != 1) {
+      throw new IllegalStateException("Conflicting schema digests for " + ownerId + " " + persistDirection);
+    }
     MappingSchemaSide chosen = matching.getFirst();
     if (chosen.direction() == resultDirection) {
       return chosen;
@@ -186,6 +249,9 @@ public class DefaultMappingBoundarySchemaResolver implements MappingBoundarySche
       }
     }
     for (SemanticNode node : revision.nodes()) {
+      if (node instanceof SemanticNode.Trigger trigger && ref.equals(trigger.interactionId())) {
+        return node;
+      }
       if (node instanceof SemanticNode.ServiceCall call && ref.equals(call.serviceCallId())) {
         return call;
       }

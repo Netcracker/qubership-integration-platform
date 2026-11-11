@@ -265,6 +265,9 @@ const CORPUS_MARKERS: Record<string, CorpusMarkers> = {
   ),
   "service-call-graphql-no-before": { labels: ["GraphQL request (query/mutation)"], groups: ["Service Call"] },
   "service-call-retry": { labels: ["POST /e2e-"], groups: ["Service Call"] },
+  ...Object.fromEntries(
+    ["service-call-no-handlers", "service-call-default-handler", "service-call-extension-format"].map((name) => [name, { labels: ["POST /orders/{orderId}"], groups: ["Service Call"] }]),
+  ),
   // A generated log record is drawn as a line named after the branch.
   ...Object.fromEntries(
     LOG_LEVELS.map((value) => [axisFixtureName({ family: "log-record", axisPath: "logLevel", value }), { labels: [`logLevel=${value}`] }]),

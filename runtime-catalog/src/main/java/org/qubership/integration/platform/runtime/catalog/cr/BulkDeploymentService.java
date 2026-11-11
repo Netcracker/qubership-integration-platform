@@ -8,7 +8,6 @@ import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.Resourc
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceDeployRequest;
 import org.qubership.integration.platform.runtime.catalog.cr.services.ResourceBuildOptionsProvider;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DomainTypeDisabledException;
-import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiConflictException;
 import org.qubership.integration.platform.runtime.catalog.model.domains.DomainType;
 import org.qubership.integration.platform.runtime.catalog.model.domains.EngineDomain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
@@ -35,11 +34,6 @@ import static java.util.Objects.nonNull;
 @Slf4j
 @Service
 public class BulkDeploymentService {
-    /**
-     * Attempts any single write sequence gets before a lost concurrency race is surfaced.
-     */
-    private static final int MAX_CONFLICT_ATTEMPTS = 3;
-
     private final MicroDomainResourceBuildService microDomainResourceBuildService;
     private final MicroDomainService microDomainService;
     private final ResourceBuildOptionsProvider resourceBuildOptionsProvider;
@@ -180,7 +174,8 @@ public class BulkDeploymentService {
 
     /**
      * Builds the resources for {@code request} and writes them, rebuilding from scratch and retrying
-     * up to {@link #MAX_CONFLICT_ATTEMPTS} times when a write loses an optimistic-concurrency race.
+     * up to {@link ConflictRetry#MAX_ATTEMPTS} attempts when a write loses an optimistic-concurrency
+     * race.
      *
      * <p>The build request is constructed inside the loop, not hoisted out of it. The build mutates
      * the options it is handed -- {@code MicroDomainResourceBuildContextFactory} unions the live
@@ -191,7 +186,7 @@ public class BulkDeploymentService {
      * binding plus customizers, so rebuilding it per attempt is cheap.
      */
     public void deployResource(ResourceDeployRequest request) {
-        for (int attempt = 1; ; attempt++) {
+        ConflictRetry.run("Deploy of micro-domain '" + request.getName() + "'", () -> {
             ResourceBuildRequest buildRequest = ResourceBuildRequest.builder()
                 .options(resourceBuildOptionsProvider.getOptions(request))
                 .snapshotIds(request.getSnapshotIds())
@@ -199,21 +194,11 @@ public class BulkDeploymentService {
             MicroDomainService.BuiltResources built = microDomainResourceBuildService.buildResources(
                 buildRequest,
                 DeployMode.APPEND.equals(request.getMode()));
-            try {
-                microDomainService.deploy(built);
-                if (!DeployMode.APPEND.equals(request.getMode())) {
-                    microDomainService.deleteHttpRoutesOfOtherSnapshots(request.getName(), request.getSnapshotIds());
-                }
-                return;
-            } catch (KubeApiConflictException conflict) {
-                if (attempt == MAX_CONFLICT_ATTEMPTS) {
-                    throw conflict;
-                }
-                log.warn("Deploy of micro-domain '{}' lost a concurrency race on attempt {}/{}; "
-                        + "rebuilding against current cluster state and retrying",
-                    request.getName(), attempt, MAX_CONFLICT_ATTEMPTS);
+            microDomainService.deploy(built);
+            if (!DeployMode.APPEND.equals(request.getMode())) {
+                microDomainService.deleteHttpRoutesOfOtherSnapshots(request.getName(), request.getSnapshotIds());
             }
-        }
+        });
     }
 
     public Map<DomainType, List<String>> groupDomainsByType(Collection<String> domainNames) {
@@ -226,6 +211,13 @@ public class BulkDeploymentService {
             .stream()
             .collect(Collectors.groupingBy(
                 name -> domainTypeMap.getOrDefault(name, DomainType.MICRO)));
+    }
+
+    public Optional<DomainType> discoverDomainType(String domainName) {
+        return engineService.getDomains().stream()
+            .filter(domain -> domain.getName().equals(domainName))
+            .map(EngineDomain::getType)
+            .findFirst();
     }
 
     public void forClassicAndMicroDomains(

@@ -15,6 +15,7 @@ import org.qubership.integration.platform.ai.integration.catalog.tool.ElementSch
  * <p>Uses catalog write and schema tools only. No ChainPlanGraph or graph patch capture.
  */
 @RegisterAiService(
+    toolHallucinationStrategy = org.qubership.integration.platform.ai.llm.tool.RecoverableToolNameStrategy.class,
     tools = {CatalogElementWriteTools.class, ElementSchemaTools.class})
 @ApplicationScoped
 public interface HarnessSkillAgent {

@@ -229,9 +229,9 @@ public class RequirementBriefTool {
    */
   static RequirementBrief pinApprovedDraft(RequirementBrief brief, RequirementDraft approved) {
     return brief
-        .withFacts(approved.facts())
+        .withFacts(RequirementCaptureProjection.factsForBrief(approved))
         .withApprovedDraftText(approved.planningText())
-        .withFlow(approved.flow())
+        .withFlow(RequirementCaptureProjection.flowForBrief(approved))
         .withCatalogBindings(approved.catalogBindings());
   }
 

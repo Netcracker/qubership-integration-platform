@@ -118,7 +118,7 @@ class CompilerCreateSeedProjectorTest {
   }
 
   @Test
-  void completeTaskSkeletonKeepsBehaviorOwnedScriptRole() {
+  void skeletonPreservesScriptTypeWithoutEstablishingExecutableAuthority() {
     ChainPlanGraph graph =
         graph(
             new ChainPlanNode("http-in", "http-trigger", "In", null, null, List.of()),

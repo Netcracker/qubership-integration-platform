@@ -5,10 +5,7 @@ type: "service-call"
 properties:
   after: []
   afterValidation: []
-  errorThrowing: true
   handleValidationAction: "default"
-  integrationGqlQueryHeader: "CamelGraphQLQuery"
-  integrationGqlVariablesHeader: "CamelGraphQLVariables"
   integrationOperationAsyncProperties:
     maas.classifier.name: "cls"
   integrationOperationId: "17deaac7-0ba7-4d6a-9be9-a31a8f70807b-async-kafka-1.0.0-publishUserSignedUp"

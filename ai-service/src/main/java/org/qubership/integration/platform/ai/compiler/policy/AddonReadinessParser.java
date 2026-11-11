@@ -23,6 +23,17 @@ public final class AddonReadinessParser {
   private final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
 
   public CompilerGeneratorReadiness parseAddonContent(String content, String sourceLabel) {
+    if (content.stripLeading().startsWith("{")) {
+      try {
+        JsonNode root = yamlMapper.readTree(content);
+        if (root.path("readiness").isMissingNode() || root.path("readiness").isNull()) {
+          return null;
+        }
+        return parseYamlBlock(content, sourceLabel);
+      } catch (IOException e) {
+        throw new CompilerGeneratorPolicyParseException("Invalid readiness definition: " + sourceLabel, e);
+      }
+    }
     Matcher sectionMatcher = READINESS_SECTION.matcher(content);
     if (!sectionMatcher.find()) {
       return null;

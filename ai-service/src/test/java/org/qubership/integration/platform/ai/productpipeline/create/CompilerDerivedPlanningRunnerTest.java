@@ -468,6 +468,24 @@ class CompilerDerivedPlanningRunnerTest {
             "downstream generators were not started"));
   }
 
+  @Test
+  void contractWrapperPreservesProviderQuotaExhaustionWithAndWithoutProgress() {
+    var runner = CompilerDerivedPlanningRunner.forTests((request, progress) -> {
+      throw new IllegalStateException("contract failure: planning stopped",
+          new dev.langchain4j.exception.HttpException(429, "{\"error\":{\"code\":\"insufficient_quota\"}}"));
+    });
+
+    StageOutcome outcome = runner.plan(request()).await().indefinitely();
+    StageOutcome outcomeWithProgress = runner.planWithProgress(request()).collect().asList().await()
+        .indefinitely().stream()
+        .filter(CapabilitySignal.Completed.class::isInstance)
+        .map(CapabilitySignal.Completed.class::cast)
+        .findFirst().orElseThrow().outcome();
+
+    assertEquals(StageOutcomeClass.PROVIDER_QUOTA_EXHAUSTED, outcome.outcomeClass());
+    assertEquals(StageOutcomeClass.PROVIDER_QUOTA_EXHAUSTED, outcomeWithProgress.outcomeClass());
+  }
+
   private static CompilerPlanningRequest request() {
     return new CompilerPlanningRequest(
         "conv-1",

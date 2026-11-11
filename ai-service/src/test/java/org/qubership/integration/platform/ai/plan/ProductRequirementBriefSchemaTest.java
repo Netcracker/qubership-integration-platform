@@ -16,10 +16,6 @@ import io.quarkiverse.langchain4j.runtime.tool.QuarkusToolExecutor;
 import io.quarkiverse.langchain4j.runtime.tool.QuarkusToolExecutorFactory;
 import io.quarkiverse.langchain4j.runtime.tool.ToolMethodCreateInfo;
 import io.quarkus.test.junit.QuarkusTest;
-import io.quarkus.test.InjectMock;
-import org.junit.jupiter.api.BeforeEach;
-import org.qubership.integration.platform.ai.compiler.artifact.ArtifactBlobStore;
-import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import jakarta.inject.Inject;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -35,24 +31,9 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBr
 
 /** Checks the generated product tool schema and the actual argument boundary. */
 @QuarkusTest
+@io.quarkus.test.junit.TestProfile(
+    org.qubership.integration.platform.ai.compiler.artifact.TestArtifactBlobStoreProducer.Profile.class)
 class ProductRequirementBriefSchemaTest {
-
-  @InjectMock ArtifactBlobStore blobs;
-
-  @BeforeEach
-  void useLocalArtifactStorage() {
-    var local = new InMemoryArtifactBlobStore();
-    org.mockito.Mockito.doAnswer(call -> { local.put(call.getArgument(0), call.getArgument(1)); return null; })
-        .when(blobs).put(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
-    org.mockito.Mockito.when(blobs.get(org.mockito.ArgumentMatchers.anyString()))
-        .thenAnswer(call -> local.get(call.getArgument(0)));
-    org.mockito.Mockito.when(blobs.getVersioned(org.mockito.ArgumentMatchers.anyString()))
-        .thenAnswer(call -> local.getVersioned(call.getArgument(0)));
-    org.mockito.Mockito.doAnswer(call -> {
-      local.putIfVersion(call.getArgument(0), call.getArgument(1), call.getArgument(2)); return null;
-    }).when(blobs).putIfVersion(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(),
-        org.mockito.ArgumentMatchers.nullable(String.class));
-  }
 
   private static final String CONVERSATION = "product-brief-schema-test";
 
@@ -75,7 +56,8 @@ class ProductRequirementBriefSchemaTest {
     collect(root, root.definitions(), fields);
 
     assertTrue(fields.containsAll(Set.of("goal", "summary", "inputs", "assumptions",
-        "citations", "mappingIntents", "sourceRef", "targetRef", "rules")), fields.toString());
+        "citations", "mappingIntents", "sourceRef", "targetRef", "rules", "sourceOmissions",
+        "sourceTurnId", "quote", "explanation")), fields.toString());
     for (String owned : Set.of("facts", "constraints", "flow", "catalogBindings",
         "approvedDraftText", "approvedDraftReference", "mappingIntentId", "sourcePort",
         "targetPort", "status")) {
@@ -89,7 +71,7 @@ class ProductRequirementBriefSchemaTest {
 
     String result = execute("""
         {"capture":{"goal":"Greetings","summary":"Return Hello world!",
-          "inputs":["GET /greetings"],"assumptions":[],"citations":[],"mappingIntents":[]}}
+          "inputs":["GET /greetings"],"assumptions":[],"citations":[],"mappingIntents":[],"sourceOmissions":[]}}
         """);
 
     assertTrue(result.contains("Requirement brief captured"), result);
@@ -175,8 +157,21 @@ class ProductRequirementBriefSchemaTest {
     }
     var capture = (JsonObjectSchema) schema;
     assertFalse(capture.required().contains("mappingIntents"), capture.toString());
-    assertTrue(capture.required().containsAll(List.of("goal", "summary", "inputs", "assumptions", "citations")),
+    assertTrue(capture.required().containsAll(
+        List.of("goal", "summary", "inputs", "assumptions", "citations", "sourceOmissions")),
         capture.toString());
+  }
+
+  @Test
+  void rejectsMissingSourceReviewBeforeRecordDefaultsHideIt() {
+    bind();
+    String result = execute("""
+        {"capture":{"goal":"Greetings","summary":"Return Hello", "inputs":["GET /greetings"],
+          "assumptions":[],"citations":[]}}
+        """);
+    assertTrue(result.contains("/capture/sourceOmissions"), result);
+    assertTrue(ProductCapabilityCaptureContext.binding(CONVERSATION)
+        .orElseThrow().briefCandidate().get() == null);
   }
 
   private void bind() {

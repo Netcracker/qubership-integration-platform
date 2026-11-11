@@ -9,6 +9,7 @@
  * `k8s-adapter.spec.ts`.
  */
 import fs from "node:fs";
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test, expect, type FullConfig } from "@playwright/test";
@@ -36,6 +37,7 @@ const E2E_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", ".
  * `schemas-build` added ahead of `ui-server`, `vscode-server` with its teardown added, and `vscode`.
  */
 const COMPOSE_PROJECTS = [
+  "ai-tests",
   "schema",
   "harness",
   "api",
@@ -59,7 +61,9 @@ const COMPOSE_PROJECTS = [
 ];
 
 function composeProjects(brokers: string | undefined): SuiteProject[] {
-  return withEnv({ E2E_BROKERS: brokers }, () => suiteProjects(targetSetup("compose")));
+  return withEnv({ E2E_BROKERS: brokers, E2E_AI_RECOVERY: undefined }, () =>
+    suiteProjects(targetSetup("compose")),
+  );
 }
 
 /**
@@ -68,6 +72,7 @@ function composeProjects(brokers: string | undefined): SuiteProject[] {
  * this table in the same commit.
  */
 const COMPOSE_SCHEDULE: Record<string, string> = {
+  "ai-tests": "./specs/ai-tests",
   schema: "./specs/schema; parallel",
   harness: "./specs/harness; parallel",
   api: "./specs/api; after seed; parallel",
@@ -75,7 +80,7 @@ const COMPOSE_SCHEDULE: Record<string, string> = {
   "seed-teardown": "./specs/seed /.*\\.teardown\\.ts$/",
   tooling: "./specs/tooling; after seed",
   runtime: "./specs/runtime; after seed, tooling; parallel",
-  env: "./specs/env; after api, runtime, ui; 1 worker",
+  env: "./specs/env except **/ai-recovery-lifecycle.spec.ts; after api, runtime, ui; 1 worker",
   "schemas-build": "./specs/schemas-build /.*\\.setup\\.ts$/",
   "ui-server": "./specs/ui-server /.*\\.setup\\.ts$/; after schemas-build; teardown ui-server-teardown",
   "ui-server-teardown": "./specs/ui-server /.*\\.teardown\\.ts$/",
@@ -138,6 +143,24 @@ test.describe("target", () => {
   });
 
   test.describe("projects", () => {
+    for (const on of ["compose", "k8s"] as const) {
+      for (const enabled of [false, true]) {
+        test(`${on} collects AI recovery (${enabled ? "enabled" : "default"})`, () => {
+          const report = JSON.parse(execFileSync(
+            path.join(E2E_DIR, "node_modules/.bin/playwright"),
+            ["test", "--project=env", "--no-deps", "--list", "--reporter=json"],
+            {
+              cwd: E2E_DIR,
+              env: { ...process.env, CIP_TARGET: on, E2E_AI_RECOVERY: enabled ? "1" : undefined },
+              encoding: "utf8",
+            },
+          )) as { suites: { file: string }[] };
+          expect(report.suites.map((suite) => path.basename(suite.file)).filter(
+            (file) => file === "ai-recovery-lifecycle.spec.ts",
+          )).toEqual(on === "compose" && enabled ? ["ai-recovery-lifecycle.spec.ts"] : []);
+        });
+      }
+    }
     test("Compose declares the projects it had before the seam", () => {
       const projects = composeProjects(undefined);
       expect(projects.map((each) => each.name).sort()).toEqual([...COMPOSE_PROJECTS].sort());
@@ -190,7 +213,7 @@ test.describe("target", () => {
         expect(lifecycle.length).toBeGreaterThan(0);
         for (const each of lifecycle) expect(each.metadata?.group, each.name).toBe("setup");
         const groups = Object.fromEntries(projects.map((each) => [each.name, each.metadata?.group ?? "product"]));
-        expect(groups).toMatchObject({ schema: "suite", harness: "suite", tooling: "setup", api: "product", ui: "product", vscode: "product" });
+        expect(groups).toMatchObject({ "ai-tests": "suite", schema: "suite", harness: "suite", tooling: "setup", api: "product", ui: "product", vscode: "product" });
       }
     });
 
@@ -213,7 +236,10 @@ test.describe("target", () => {
       for (const on of ["compose", "k8s"] as const) {
         withEnv({ E2E_BROKERS: "0" }, () => {
           const setup = targetSetup(on);
-          expect(setup.absent, on).toEqual(dropped[on].map((name) => ({ name, reason: "E2E_BROKERS=0" })));
+          expect(setup.absent, on).toEqual([
+            ...(on === "k8s" ? [{ name: "env: specs/env/ai-recovery-lifecycle.spec.ts", reason: "owned Compose AI-service lifecycle" }] : []),
+            ...dropped[on].map((name) => ({ name, reason: "E2E_BROKERS=0" })),
+          ]);
           // A dependency or a teardown naming a dropped project would fail the config.
           const projects = suiteProjects(setup);
           const names = projects.map((each) => each.name);

@@ -29,6 +29,28 @@ class ChainEditStructuralPlanParserTest {
   private final ChainEditStructuralPlanValidator validator = new ChainEditStructuralPlanValidator();
 
   @Test
+  void originalTargetsCanBeDistributedAcrossTryAndFinally() {
+    var plan = assignedPlan(List.of("call-1", "success-1"), List.of("task-result"));
+    org.junit.jupiter.api.Assertions.assertDoesNotThrow(() -> validator.validate(plan, omGraph(), Map.of()));
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"omitted-reporter", "overlapping-reporter"})
+  void everyOriginalTargetMustHaveExactlyOneBranch(String defect) {
+    var plan = assignedPlan("overlapping-reporter".equals(defect)
+        ? List.of("call-1", "success-1", "task-result") : List.of("call-1", "success-1"),
+        "omitted-reporter".equals(defect) ? List.of() : List.of("task-result"));
+    assertThrows(IllegalArgumentException.class, () -> validator.validate(plan, omGraph(), Map.of()));
+  }
+
+  private static ChainEditStructuralPlan assignedPlan(List<String> tryNodes, List<String> finallyNodes) {
+    return new ChainEditStructuralPlan(FailureDeliveryStrategy.EXPLICIT_HANDLER,
+        List.of("call-1", "success-1", "task-result"), tryNodes, CatchBranchRole.NEW_SCRIPT,
+        "Prepare failed task result", finallyNodes, null, null, List.of(), null, List.of(),
+        "Keep the success path and move the existing reporter to finally.");
+  }
+
+  @Test
   void parsesAValidHttpPlan() {
     ChainEditStructuralPlan plan =
         parser.parse(

@@ -120,10 +120,6 @@
         <setProperty name="serviceCallPath">
             <simple>{{escape (property "integrationOperationPath")}}</simple>
         </setProperty>
-        <setProperty name="serviceCallVariablesHeader">
-            <simple>{{property 'integrationGqlVariablesHeader'}}</simple>
-        </setProperty>
-
         {{#each (property 'integrationOperationQueryParameters' raw='')}}
             <setProperty name="serviceCallQueryParameter_{{escape @key}}">
                 <simple>{{escape this}}</simple>
@@ -172,8 +168,8 @@
                 <setProperty name="internalProperty_graphQLEndpointUri">
                     <simple>graphql-custom:{{#if-property 'systemType' equals='EXTERNAL'}}{{gatewayProtocol}}://{{gatewayUrl}}{{externalRoutePath}}{{else}}{{integrationAddress}}{{/if-property}}{{escape (manualQuery
                                                                               operationName=(property 'integrationGqlOperationName')
-                                                                              queryHeader=(property 'integrationGqlQueryHeader')
-                                                                              variablesHeader=(property 'integrationGqlVariablesHeader')
+                                                                              queryHeader="CamelGraphQLQuery"
+                                                                              variablesHeader="CamelGraphQLVariables"
                                                                               httpClientConfigurer=(identifier prefix='#'))}}
                     </simple>
                 </setProperty>
@@ -306,8 +302,8 @@
                     <toD uri="graphql-custom:{{#if-property 'systemType' equals='EXTERNAL'}}{{gatewayProtocol}}://{{gatewayUrl}}{{externalRoutePath}}{{else}}{{integrationAddress}}{{/if-property}}{{escape
                             (manualQuery
                                     operationName=(property 'integrationGqlOperationName')
-                                    queryHeader=(property 'integrationGqlQueryHeader')
-                                    variablesHeader=(property 'integrationGqlVariablesHeader')
+                                    queryHeader="CamelGraphQLQuery"
+                                    variablesHeader="CamelGraphQLVariables"
                                     httpClientConfigurer=(identifier prefix='#'))}}"/>
                 {{/if-property}}
 
@@ -509,8 +505,8 @@
         </doTry>
     {{/if-property}}
 
-    {{#if-property 'after' presented=''}}
-        <choice>
+    <choice>
+        {{#if-property 'after' presented=''}}
             {{#with-property 'after'}}
                 {{#if-property 'code' not-equals='default'}}
                     {{#if-property 'wildcard' equals='false'}}
@@ -592,16 +588,16 @@
                     </when>
                 {{/if-property}}
             {{/with-property}}
-            {{#if-property 'errorThrowing' equals='true'}}
-                <when>
-                    <simple>
-                        ${headers.CamelHttpResponseCode} range '400..599'
-                    </simple>
-                    <process ref="throwCaughtExceptionProcessor" />
-                </when>
-            {{/if-property}}
-        </choice>
-    {{/if-property}}
+        {{/if-property}}
+        {{#unless-default-handler}}
+            <when>
+                <simple>
+                    ${headers.CamelHttpResponseCode} range '400..599'{{#if-property 'handleValidationAction' presented=''}}{{#if-property 'handleValidationAction' not-equals='default'}} &amp;&amp; ${exchangeProperty.CamelExceptionCaught} !is 'org.qubership.integration.platform.engine.errorhandling.ResponseValidationException'{{/if-property}}{{/if-property}}
+                </simple>
+                <process ref="throwCaughtExceptionProcessor" />
+            </when>
+        {{/unless-default-handler}}
+    </choice>
 </step>
 
 <removeHeader name="CamelHttpUri"/>
@@ -618,5 +614,4 @@
 <removeProperty name="serviceCallBrokers"/>
 <removeProperty name="serviceCallExchange"/>
 <removeProperty name="serviceCallService"/>
-<removeProperty name="serviceCallVariablesHeader"/>
 <removeProperty name="serviceCallSkipEmptyQueryParams"/>

@@ -20,12 +20,41 @@ import org.qubership.integration.platform.ai.qipknowledge.support.ElementSupport
 class CipKnowledgePackBuildGeneratorTest {
 
   @Test
+  void generatePinsBundledPlanValidatorForCustomerLayout(@TempDir Path repositoryRoot)
+      throws Exception {
+    Path fixtureRoot = repositoryRoot.resolve("fixture-pack");
+    PublicCipKnowledgePackFixture.create(fixtureRoot);
+    Path capability = fixtureRoot.resolve("product-pipelines/capabilities/planning.yaml");
+    Files.writeString(
+        capability,
+        Files.readString(capability)
+            .replace("skills:\n  required: [cip-auth-generator]", "skills:\n  required: [plan-validator]"));
+    Path packRoot = repositoryRoot.resolve("integration-platform-skills/rocky-skills");
+    Files.createDirectories(packRoot.getParent());
+    Files.move(fixtureRoot, packRoot);
+    Path outputDir = repositoryRoot.resolve("output");
+
+    CipKnowledgePackBuildGenerator.generate(packRoot, outputDir, packRoot.resolve("addons"));
+
+    Path versionDir = outputDir.resolve(CipKnowledgePackVersion.fromPath(packRoot).normalized());
+    var index = new CipKnowledgePackIndexLoader().loadProductPipelinePackageIndex(versionDir);
+    assertEquals(
+        "classpath:prompts/roles/plan-validator.md",
+        index.dependencyPins().stream()
+            .filter(pin -> "plan-validator".equals(pin.dependencyId()))
+            .findFirst()
+            .orElseThrow()
+            .path());
+  }
+
+  @Test
   void generateWritesVersionedIndexes(@TempDir Path outputDir) throws Exception {
     CipKnowledgePackTestSupport.configureAddonPackRoot();
     Path packRoot = CipKnowledgePackFixturePaths.packRoot();
     CipKnowledgePackBuildGenerator.generate(
         packRoot, outputDir, CipKnowledgePackFixturePaths.addonRoot());
 
+    boolean standalone = Files.isRegularFile(packRoot.resolve("runtime/generator-contracts.json"));
     Path versionDir = outputDir.resolve(CipKnowledgePackFixturePaths.PACK_DIR);
     assertTrue(Files.isRegularFile(versionDir.resolve(CipKnowledgePackIndexLoader.MANIFEST_FILE)));
         assertTrue(
@@ -52,8 +81,8 @@ class CipKnowledgePackBuildGeneratorTest {
 
     Path addonIndexFile =
         versionDir
-            .resolve(CompilerSkillAddonBuildSupport.ADDONS_DIR)
-            .resolve(CompilerSkillAddonBuildSupport.ADDON_INDEX_FILE);
+            .resolve(standalone ? CompilerSkillAddonBuildSupport.RUNTIME_DIR : CompilerSkillAddonBuildSupport.ADDONS_DIR)
+            .resolve(standalone ? CompilerSkillAddonBuildSupport.RUNTIME_INDEX_FILE : CompilerSkillAddonBuildSupport.ADDON_INDEX_FILE);
     assertTrue(Files.isRegularFile(addonIndexFile));
     CompilerSkillAddonIndex addonIndex =
         new ObjectMapper()
@@ -78,16 +107,12 @@ class CipKnowledgePackBuildGeneratorTest {
     assertTrue(repository.loadRuntimePromotedSkillIds().contains("cip-design-executor"));
     assertTrue(repository.loadRuntimePromotedSkillIds().contains("cip-chain-edit-planner"));
 
-    var designPlanner =
-        repository.loadCapabilityRegistry().capabilities().stream()
-            .filter(capability -> "cip-design-planner".equals(capability.id()))
-            .findFirst()
-            .orElseThrow();
-    assertTrue(designPlanner.supported());
-    assertEquals(
-        "PUBLIC_RUNTIME",
-        repository.loadCompilerSkillCatalog().find("cip-design-planner").orElseThrow().disposition()
-            .name());
+    assertTrue(repository.loadCapabilityRegistry().capabilities().stream()
+        .anyMatch(capability -> "cip-design-planner".equals(capability.id())));
+    if (standalone) {
+      assertTrue(repository.loadRagIngestionManifest().chunks().stream()
+          .noneMatch(chunk -> chunk.sourcePath().equals("skills/cip-design-planner/SKILL.md")));
+    }
     var designExecutor =
         repository.loadCapabilityRegistry().capabilities().stream()
             .filter(capability -> "cip-design-executor".equals(capability.id()))

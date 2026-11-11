@@ -4,6 +4,7 @@ import io.smallrye.mutiny.Multi;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.Objects;
+import org.qubership.integration.platform.ai.skills.RockySkills;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
 
@@ -17,6 +18,9 @@ import org.qubership.integration.platform.ai.chat.model.ChatRequest;
  */
 @ApplicationScoped
 public class ProductPipelineChatAdapter {
+
+  @jakarta.inject.Inject
+  RockySkills rockySkills = new RockySkills();
 
   private final CreateRunSelectionService selectionService;
   private final CreateProductPipelineCoordinator coordinator;
@@ -34,6 +38,10 @@ public class ProductPipelineChatAdapter {
   }
 
   public Multi<ChatEvent> handle(ChatRequest request, String conversationId) {
+    if (!rockySkills.available()) {
+      return Multi.createFrom().item(ChatEvent.token(
+          RockySkills.UNAVAILABLE));
+    }
     return coordinator.handle(request, conversationId);
   }
 }

@@ -17,7 +17,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubg
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainEditSubgraphBranch;
 
 /**
- * Checks that a structural plan names real graph ids, keeps original targets in try, and matches
+ * Checks that a structural plan names real graph ids, assigns each original target to one branch, and matches
  * a later structure capture.
  */
 public final class ChainEditStructuralPlanValidator {
@@ -47,8 +47,15 @@ public final class ChainEditStructuralPlanValidator {
     if (plan.reporterNodeId() != null) {
       requireKnownIds("reporterNodeId", List.of(plan.reporterNodeId()), nodes);
     }
-    if (!plan.tryMoveSet().containsAll(plan.originalTargetNodeIds())) {
-      throw invalid("original target ids must stay in tryMoveExisting");
+    Set<String> moved = new LinkedHashSet<>(plan.tryMoveSet());
+    Set<String> overlap = new LinkedHashSet<>(plan.tryMoveSet());
+    overlap.retainAll(plan.finallyMoveSet());
+    if (!overlap.isEmpty()) {
+      throw invalid("existing ids must belong to one branch, not both try and finally: " + overlap);
+    }
+    moved.addAll(plan.finallyMoveSet());
+    if (!moved.containsAll(plan.originalTargetNodeIds())) {
+      throw invalid("original target ids must be assigned to tryMoveExisting or finallyMoveExisting");
     }
     requireConnected(graph, plan.expandedTargetNodeIds());
     switch (plan.failureDelivery()) {

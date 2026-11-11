@@ -99,10 +99,10 @@ jobs:
           if [ "$OPENAPI_CHECK" = true ]; then
             rm -f -- "$MODULE_NAME/api-spec/openapi.yaml"
           fi
-          update_args=()
-          if [ "$FORCE_UPDATE" = true ]; then update_args=(-U); fi
+          set -- verify
+          if [ "$FORCE_UPDATE" = true ]; then set -- "$@" -U; fi
           mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
-            verify "${update_args[@]}" \
+            "$@" \
             -pl "$MODULE_NAME" -am -Dgpg.skip=true
 
       - name: Save the Maven repository

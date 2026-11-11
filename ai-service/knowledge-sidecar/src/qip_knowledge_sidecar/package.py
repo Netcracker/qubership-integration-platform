@@ -175,7 +175,7 @@ def validate_package(package: Path) -> ValidatedPackage:
             "KNOWLEDGE_PACKAGE_INCOMPLETE",
             f"Missing package files: {', '.join(missing_files)}",
         )
-    _checksums(package)
+    checksums = _checksums(package)
 
     capability_code = "KNOWLEDGE_CAPABILITY_INDEX_INVALID"
     catalog = _yaml_mapping(
@@ -265,6 +265,54 @@ def validate_package(package: Path) -> ValidatedPackage:
         _fail(
             "KNOWLEDGE_INTEGRITY_FAILURE",
             "Certification manifest hash does not match the package checksum",
+        )
+    algorithm = integrity.get("checksum_algorithm", "")
+    profile = certification.get("profile", "")
+    if algorithm != "rocky-export-v1" or profile != "rocky-export-v1":
+        _fail(
+            "KNOWLEDGE_CERTIFICATION_REQUIRED",
+            "Unsupported knowledge certification profile",
+        )
+    if (package / "lancedb").exists():
+        _fail(
+            "KNOWLEDGE_INTEGRITY_FAILURE",
+            "Certified export must not contain an unbound LanceDB store",
+        )
+    if certified_package.get("key") != f"{product}@{manifest.get('knowledge_version')}":
+        _fail(
+            "KNOWLEDGE_INTEGRITY_FAILURE",
+            "Certification package identity does not match the manifest",
+        )
+    if certification.get("manifest_sha256") != checksums["manifest.yaml"]:
+        _fail(
+            "KNOWLEDGE_INTEGRITY_FAILURE",
+            "Certified manifest checksum does not match the contents",
+        )
+    gates = certification.get("gates")
+    if not isinstance(gates, dict) or any(
+        gates.get(name) != "PASS"
+        for name in (
+            "IR",
+            "CAPABILITIES",
+            "RELATIONS",
+            "EMBEDDINGS",
+            "LANCEDB",
+            "RETRIEVAL",
+        )
+    ):
+        _fail(
+            "KNOWLEDGE_CERTIFICATION_REQUIRED",
+            "Knowledge certification gate did not pass",
+        )
+    payload = "\n".join(
+        f"{name}:{checksums[name]}"
+        for name in sorted(("objects.jsonl", *CAPABILITY_FILES))
+    )
+    actual = "sha256:" + hashlib.sha256(payload.encode("utf-8")).hexdigest()
+    if actual != package_checksum:
+        _fail(
+            "KNOWLEDGE_INTEGRITY_FAILURE",
+            "Certified package checksum does not match the contents",
         )
     expected_count = manifest.get("total_objects")
     if (

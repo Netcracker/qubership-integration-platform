@@ -183,18 +183,15 @@ elements:
       retryDelay: 5000
       systemType: "EXTERNAL"
       bodyFormData: []
-      errorThrowing: true
       connectionTimeout: 120000
       correlationIdName: "test_correlation_id"
       integrationSystemId: "0842c42f-9c40-4372-8101-ce1cd0fdb52b"
       correlationIdPosition: "Body"
       integrationOperationId: "c024c64d-eca4-4a45-b728-c4a7a35a5f61"
       integrationOperationPath: "/RestNotify_1"
-      integrationGqlQueryHeader: "CamelGraphQLQuery"
       integrationOperationMethod: "POST"
       integrationSpecificationId: "06933856-1571-4605-9cdc-0b93cb846ed2"
       createRelatedEntitiesViaMaas: "false"
-      integrationGqlVariablesHeader: "CamelGraphQLVariables"
       integrationSpecificationGroupId: "78a90c20-9d90-424c-a0a9-5b37de84933d"
       integrationOperationProtocolType: "http"
       integrationOperationPathParameters: {}

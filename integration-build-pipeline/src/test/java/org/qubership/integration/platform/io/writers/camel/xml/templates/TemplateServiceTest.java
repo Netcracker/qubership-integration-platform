@@ -254,6 +254,36 @@ public class TemplateServiceTest {
                         "/testData/output/builder/templates/service_call_multi_response_handlers.xml"
                 ),
                 Arguments.of(
+                        "Service Call element without response handlers",
+                        "/testData/input/builder/templates/service_call_no_after.yml",
+                        "/testData/output/builder/templates/service_call_no_after.xml"
+                ),
+                Arguments.of(
+                        "Service Call element with a validation handler and no Default handler",
+                        "/testData/input/builder/templates/service_call_validation_handler_no_default.yml",
+                        "/testData/output/builder/templates/service_call_validation_handler_no_default.xml"
+                ),
+                Arguments.of(
+                        "Service Call element with a response validation and no validation handler",
+                        "/testData/input/builder/templates/service_call_validation_without_handler.yml",
+                        "/testData/output/builder/templates/service_call_validation_without_handler.xml"
+                ),
+                Arguments.of(
+                        "Service Call element with null response handlers",
+                        "/testData/input/builder/templates/service_call_after_null.yml",
+                        "/testData/output/builder/templates/service_call_after_null.xml"
+                ),
+                Arguments.of(
+                        "Service Call element with the Default handler",
+                        "/testData/input/builder/templates/service_call_default_handler_error_throwing_true.yml",
+                        "/testData/output/builder/templates/service_call_default_handler_error_throwing_true.xml"
+                ),
+                Arguments.of(
+                        "Service Call element with a single response handler object",
+                        "/testData/input/builder/templates/service_call_single_object_after.yml",
+                        "/testData/output/builder/templates/service_call_single_object_after.xml"
+                ),
+                Arguments.of(
                         "HTTP Trigger element with a chain call failure handler",
                         "/testData/input/builder/templates/http_trigger_chain_failure_chain_call.yml",
                         "/testData/output/builder/templates/http_trigger_chain_failure_chain_call.xml"

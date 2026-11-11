@@ -167,13 +167,13 @@ function defaultRecoveryActions(
   category: NonNullable<ChatDecision["recovery"]>["category"],
 ): string[] {
   switch (category) {
+    // The design card's Retry creation grants a fresh budget, so the server offers no Rebuild design.
     case "temporary-technical-failure":
     case "regeneratable-execution-failure":
+    case "design-artifact-defect":
       return ["retry-creation", "stop-with-report"];
     case "requirement-brief-defect":
       return ["edit-requirements", "stop-with-report"];
-    case "design-artifact-defect":
-      return ["rebuild-design", "stop-with-report"];
     case "plan-artifact-defect":
       return ["rebuild-plan", "stop-with-report"];
     default:

@@ -369,7 +369,7 @@ class CreateChainBindingPolicyCatalogSpyTest {
         "op-onTaskStart",
         "Auto tests kafka service",
         "kafka",
-        "publish",
+        "send",
         "cip-auto-tests-topic2",
         "onTaskStart",
         "catalog-read:auto-kafka-onTaskStart");

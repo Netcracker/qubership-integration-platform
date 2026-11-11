@@ -338,28 +338,24 @@ export const Snapshots: React.FC = () => {
               items: [
                 {
                   key: "delete",
-                  icon: <OverridableIcon name="delete" />,
                   label: "Delete",
                   onClick: () => deleteSnapshotWithConfirmation(snapshot),
                   require: { snapshot: ["delete"] },
                 },
                 {
                   key: "revert",
-                  icon: <OverridableIcon name="rollback" />,
                   label: "Revert to",
                   onClick: () => revertToSnapshotWithConfirmation(snapshot),
                   require: { snapshot: ["read"], chain: ["update"] },
                 },
                 {
                   key: "showXml",
-                  icon: <OverridableIcon name="fileText" />,
                   label: "Show XML",
                   onClick: () => showSnapshotXml(snapshot),
                   require: { snapshot: ["read"] },
                 },
                 {
                   key: "showDiagram",
-                  icon: <OverridableIcon name="diagram" />,
                   label: "Show diagram",
                   onClick: () => showSnapshotDiagram(snapshot),
                   require: { snapshot: ["read"] },

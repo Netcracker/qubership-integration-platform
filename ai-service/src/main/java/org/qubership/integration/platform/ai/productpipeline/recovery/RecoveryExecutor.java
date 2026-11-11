@@ -139,13 +139,13 @@ public final class RecoveryExecutor {
   private static StageDecision.WaitForInput park(String stageId, String summary) {
     String body = summary.isBlank() ? PARK_MESSAGE : summary;
     return new StageDecision.WaitForInput(
-        stageId, PipelineGates.tag(PipelineGates.STAGE_RETRY, body));
+        stageId, PipelineGates.retag(PipelineGates.STAGE_RETRY, body));
   }
 
   private static StageDecision.WaitForInput askUser(String stageId, String body) {
     String question = body == null || body.isBlank() ? CAPTURE_STILL_INVALID : body;
     return new StageDecision.WaitForInput(
-        stageId, PipelineGates.tag(PipelineGates.STAGE_CLARIFICATION, question));
+        stageId, PipelineGates.retag(PipelineGates.STAGE_CLARIFICATION, question));
   }
 
   private static String summary(RecoveryDecision decision) {

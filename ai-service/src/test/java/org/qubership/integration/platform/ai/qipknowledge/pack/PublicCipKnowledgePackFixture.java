@@ -28,6 +28,28 @@ public final class PublicCipKnowledgePackFixture {
     Path root = Path.of(args[0]).resolve("integration-platform-skills");
     create(root);
     CipKnowledgePackBuildGenerator.generate(root, Path.of(args[1]), root.resolve("addons"));
+    stageAvailabilityFixture(Path.of(args[1]).getParent());
+  }
+
+  private static void stageAvailabilityFixture(Path output) throws Exception {
+    Path resources = output.resolve("META-INF/rocky-skills");
+    var json = new com.fasterxml.jackson.databind.ObjectMapper();
+    var manifest = json.createObjectNode();
+    manifest.put("schemaVersion", 1).put("package", "rocky-skills")
+        .put("runtimeCompatibilityId", "integration-platform-skills");
+    var ids = manifest.putArray("activePromptIds");
+    var files = manifest.putObject("files");
+    for (String id : List.of("brainstorming", "cip-chain-edit-planner",
+        "cip-conf-requirement-analysis", "cip-conf-semantic-design")) {
+      ids.add(id);
+      String relative = "skills/" + id + "/SKILL.md";
+      Path path = resources.resolve(relative);
+      Files.createDirectories(path.getParent());
+      Files.writeString(path, "# Synthetic test capability\n");
+      files.putObject(relative).put("sha256", HexFormat.of().formatHex(
+          MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(path))));
+    }
+    json.writeValue(resources.resolve("manifest.json").toFile(), manifest);
   }
 
   static void create(Path root) throws Exception {
@@ -76,8 +98,7 @@ public final class PublicCipKnowledgePackFixture {
     put(root, "product-pipelines/capabilities/planning.yaml", "schemaVersion: 1\ncapabilityId: planning\ncapabilityVersion: '1'\nskills:\n  required: [cip-auth-generator]\naddons:\n  required: [cip-auth-generator]\nrules:\n  required: []\n");
     canonicalSources(root);
     var resolver = new org.qubership.integration.platform.ai.productpipeline.packageindex.ProductPipelineDependencyResolver();
-    var pins = resolver.resolveClosure(
-        root,
+    var pins = resolver.resolveClosure(root.getParent(), root,
         resolver.loadCapabilities(root.resolve("product-pipelines")),
         GENERATORS.stream().map(name -> "cip-" + name + "-generator").toList());
     StringBuilder baseline = new StringBuilder("schemaVersion: 1\nbaselineId: experimental-migration\nbaselineVersion: '1'\nroot: integration-platform-skills\nreferenceEvidence: {}\nmapping: {}\nartifacts:\n");
@@ -177,7 +198,7 @@ public final class PublicCipKnowledgePackFixture {
       case "cip-trigger-generator" -> List.of("http_trigger_nodes", "incomplete_http_trigger_endpoint");
       case "cip-error-handling-generator" -> List.of("explicit_error_handling", "incomplete_try_catch_nodes");
       case "cip-auth-generator" -> List.of("credentials", "tls");
-      case "cip-service-call-generator" -> List.of("service_call_nodes", "backend_integration_intent", "incomplete_service_call_bindings", "incomplete_service_call_error_throwing");
+      case "cip-service-call-generator" -> List.of("service_call_nodes", "backend_integration_intent", "incomplete_service_call_bindings");
       case "cip-routing-generator" -> List.of("routing_nodes", "branching_without_routing_nodes", "incomplete_routing_nodes");
       case "cip-script-generator" -> List.of("script_nodes_missing_body");
       case "cip-security-generator" -> List.of("rbac", "external_route", "rbac_roles_missing");
@@ -276,6 +297,26 @@ public final class PublicCipKnowledgePackFixture {
             manifest_hash: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
           total_objects: 1
         """);
+
+    List<String> payload = List.of("capabilities/capability-catalog.yaml", "capabilities/capability-index.yaml",
+        "capabilities/capability-relations.yaml", "objects.jsonl");
+    StringBuilder payloadHashes = new StringBuilder();
+    for (String name : payload) {
+      if (!payloadHashes.isEmpty()) payloadHashes.append('\n');
+      payloadHashes.append(name).append(':').append(sha256(export.resolve(name)));
+    }
+    String digest = "sha256:" + HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+        .digest(payloadHashes.toString().getBytes(StandardCharsets.UTF_8)));
+    Path manifestFile = export.resolve("manifest.yaml");
+    write(manifestFile, Files.readString(manifestFile)
+        .replace("package_checksum:", "checksum_algorithm: rocky-export-v1\n  package_checksum:")
+        .replace("sha256:" + "a".repeat(64), digest));
+    Path certificateFile = export.resolve("runtime-certification.yaml");
+    write(certificateFile, Files.readString(certificateFile)
+        .replace("status: CERTIFIED", "status: CERTIFIED\n  profile: rocky-export-v1\n"
+            + "  manifest_sha256: " + sha256(manifestFile) + "\n"
+            + "  gates: {IR: PASS, CAPABILITIES: PASS, RELATIONS: PASS, EMBEDDINGS: PASS, LANCEDB: PASS, RETRIEVAL: PASS}")
+        .replace("sha256:" + "a".repeat(64), digest));
 
     List<String> checkedFiles =
         List.of(

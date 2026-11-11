@@ -18,7 +18,7 @@ class InfrastructureLayoutTest {
   private static final ObjectMapper YAML = new ObjectMapper(new YAMLFactory());
 
   @ParameterizedTest
-  @ValueSource(strings = {"docker-compose.yml", "docker-compose.a2a-lab.yml", "docker-compose.local-env.yml"})
+  @ValueSource(strings = {"docker-compose.yml", "docker-compose.local-env.yml"})
   void composePathsResolveFromTheBaseComposeDirectory(String fileName) throws Exception {
     JsonNode services = YAML.readTree(COMPOSE_DIRECTORY.resolve(fileName).toFile()).path("services");
     for (JsonNode service : services) {

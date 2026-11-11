@@ -26,14 +26,21 @@ public final class MappingStructurePhase {
       throw new IllegalArgumentException("graph is required");
     }
     List<MappingIntent> intents = brief == null ? List.of() : brief.mappingIntents();
-    return reconcile(graph, intents);
+    ChainPlanGraph reconciled = reconcileMappings(graph, intents);
+    return CopyRetentionStructurePhase.placeApproved(reconciled, brief, (ref, port) -> ref);
   }
 
   public static ChainPlanGraph reconcile(ChainPlanGraph graph, List<MappingIntent> mappingIntents) {
+    List<MappingIntent> intents = mappingIntents == null ? List.of() : mappingIntents;
+    return CopyRetentionStructurePhase.place(reconcileMappings(graph, intents), intents, (ref, port) -> ref);
+  }
+
+  private static ChainPlanGraph reconcileMappings(ChainPlanGraph graph, List<MappingIntent> mappingIntents) {
     if (graph == null) {
       throw new IllegalArgumentException("graph is required");
     }
     List<MappingIntent> desired = mappingIntents == null ? List.of() : mappingIntents;
+    graph = CopyRetentionStructurePhase.remove(graph);
     Map<String, MappingIntent> byId = indexIntents(desired);
     Map<String, List<ChainPlanNode>> sitesByIntent = indexTaggedSites(graph);
     rejectDuplicateSites(sitesByIntent);

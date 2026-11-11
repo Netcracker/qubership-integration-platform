@@ -154,7 +154,12 @@ class CompilerSkillRuntimeTest {
             Map.of("chainName", "{subRequestType} task for {orderId}"));
         feedbackStore.recordPlanValidationFailure(CONVERSATION_ID, "Keep {subRequestType} literal.");
       } else {
-        assertTrue(rendered.contains("{subRequestType}"));
+        if (call == 2) {
+          assertTrue(rendered.contains("{subRequestType}"), rendered);
+        } else {
+          assertFalse(rendered.contains(
+              org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.START), rendered);
+        }
         var graph = greetingsGraph();
         captureSession.accept(CaptureKey.conversation(CaptureSlot.NAMING_MANIFEST, CONVERSATION_ID),
             new NamingManifest(1, graph.chain().name(), graph.nodes().stream()
@@ -490,6 +495,36 @@ class CompilerSkillRuntimeTest {
   }
 
   @Test
+  void generatorPromptUsesBoundOwnershipInsteadOfTheStaleManifestNodeList() {
+    var graph = greetingsGraph();
+    var policy = new GraphPatchOwnershipPolicy(false, false, Set.of("mapper-2", "header-modification"), Set.of(),
+        Map.of("mapper-2", Set.of("mappingDescription"), "header-modification", Set.of("headerModificationToAdd")));
+    executionContextStore.set(CONVERSATION_ID, GENERATOR_ID,
+        new GraphPatchExecutionContext("run", GENERATOR_ID, "req", "graph", "compiler", "1", null,
+            List.of(), graph, policy, ""));
+    var workspace = workspaceWithGraph(graph);
+    var stale = new org.qubership.integration.platform.ai.compiler.plan.GeneratorPlan("generator", GENERATOR_ID,
+        org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanStatus.READY,
+        List.of("approved_producer"), List.of("http-trigger-1", "script-1"));
+    workspace.put(SkillArtifact.of(SkillArtifactType.GENERATOR_PLAN_MANIFEST, "test",
+        new SkillArtifactPayload.GeneratorPlanManifestPayload(
+            new org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanManifest("1", List.of(stale)))));
+    when(generatorAgent.chat(eq(memoryId(GENERATOR_ID)), any())).thenAnswer(invocation -> {
+      putGraphPatch(GENERATOR_ID, GraphPatchFixtures.wrapHttpTriggerFlow("http-trigger-1", "script-1"));
+      return Multi.createFrom().empty();
+    });
+
+    runtime.runStreaming(runContext(GENERATOR_ID, 2), workspace, GENERATOR_ID).collect().asList().await().indefinitely();
+
+    var prompt = ArgumentCaptor.forClass(String.class);
+    verify(generatorAgent).chat(eq(memoryId(GENERATOR_ID)), prompt.capture());
+    String message = prompt.getValue();
+    assertTrue(message.contains("Current generator ownership:"), message);
+    assertTrue(message.contains("\"propertyTargets\":[]"), message);
+    assertFalse(message.contains("Active generator plan slice:"), message);
+  }
+
+  @Test
   void executionRepairUsesFreshSkillMemoryWithoutChangingKnowledgeRetrieval() {
     String approvedTask = "Return the greeting from the approved HTTP entry.";
     String cause = "{\"causeCode\":\"GRAPH_STRUCTURE\",\"findings\":[{"
@@ -735,6 +770,9 @@ class CompilerSkillRuntimeTest {
           assertEquals(approved.brief(), captureSession.get(
               CaptureKey.conversation(CaptureSlot.APPROVED_REQUIREMENT_BRIEF, CONVERSATION_ID),
               org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief.class).orElseThrow());
+          String prompt = invocation.getArgument(1, String.class);
+          assertTrue(prompt.contains("Active capture tool: captureHttpTriggers"));
+          assertFalse(prompt.contains("This tool replaces"));
           var binding = HttpTriggerCaptureSession.get(CONVERSATION_ID).orElseThrow();
           var triggers = new HttpTriggerCaptureAdapter().adapt(
               new HttpTriggerCapture(List.of(new HttpTriggerCapture.Endpoint(
@@ -787,7 +825,7 @@ class CompilerSkillRuntimeTest {
     ArgumentCaptor<String> message = ArgumentCaptor.forClass(String.class);
     verify(scriptBodyRepairAgent).chat(eq(memoryId(SCRIPT_GENERATOR_ID)), message.capture());
     assertTrue(message.getValue().contains("Runtime Context Package"));
-    assertTrue(message.getValue().contains("package: fixture@1.0.0"));
+    assertFalse(message.getValue().contains("package: fixture@1.0.0"));
     assertEquals(1, knowledgeClient.contextCalls());
   }
 

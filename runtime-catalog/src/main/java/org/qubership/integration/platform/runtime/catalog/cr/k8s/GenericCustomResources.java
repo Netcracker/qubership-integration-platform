@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.runtime.catalog.cr.k8s;
 
 import io.kubernetes.client.util.ModelMapper;
+import org.qubership.integration.platform.camelk.model.options.DBaaSOperatorType;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -20,6 +21,12 @@ public final class GenericCustomResources {
     @Value("${spring.profiles.active}")
     private String activeProfile;
 
+    @Value("${cip.cr.build.dbaas.enabled:true}")
+    private boolean dbaasEnabled;
+
+    @Value("${cip.cr.build.dbaas.operatorType:CORE}")
+    private DBaaSOperatorType dbaasOperatorType;
+
     public record CustomResourceDefinition(
             String group,
             String version,
@@ -36,14 +43,26 @@ public final class GenericCustomResources {
         return "localdev".equals(activeProfile);
     }
 
+    // DBaaSResourcesBuilder generates InternalDatabase only in this mode. Outside it, a cluster
+    // may lack the CRD, and listing a domain's resources would fail with 404.
+    private boolean isInternalDatabaseGenerated() {
+        return dbaasEnabled && DBaaSOperatorType.DBAAS.equals(dbaasOperatorType);
+    }
+
     public Map<String, CustomResourceDefinition> getCustomResourceDefinitions() {
         return isLocalDev()
                 ? Collections.emptyMap()
                 : Collections.unmodifiableMap(
-                        Stream.of(
-                            new CustomResourceDefinition("netcracker.com", "v1alpha", "FacadeService", "facadeservices", false),
-                            new CustomResourceDefinition("core.netcracker.com", "v1", "Mesh", "meshes", true),
-                            new CustomResourceDefinition("core.netcracker.com", "v1", "DBaaS", "dbaases", false)
+                        Stream.concat(
+                            Stream.of(
+                                new CustomResourceDefinition("netcracker.com", "v1alpha", "FacadeService", "facadeservices", false),
+                                new CustomResourceDefinition("core.netcracker.com", "v1", "Mesh", "meshes", true),
+                                new CustomResourceDefinition("core.netcracker.com", "v1", "DBaaS", "dbaases", false)
+                            ),
+                            isInternalDatabaseGenerated()
+                                ? Stream.of(new CustomResourceDefinition(
+                                        "dbaas.netcracker.com", "v1", "InternalDatabase", "internaldatabases", false))
+                                : Stream.empty()
                         ).collect(Collectors.toMap(CustomResourceDefinition::kind, Function.identity())));
     }
 

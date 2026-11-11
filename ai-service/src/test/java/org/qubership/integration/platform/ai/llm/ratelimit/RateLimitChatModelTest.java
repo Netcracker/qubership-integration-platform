@@ -41,6 +41,29 @@ class RateLimitChatModelTest {
   }
 
   @Test
+  void compactionReusesIdenticalKnowledgeResponsesAndKeepsDistinctAndFailedReads() {
+    var config = mock(AppConfig.class, org.mockito.Mockito.RETURNS_DEEP_STUBS);
+    var messages = new java.util.ArrayList<dev.langchain4j.data.message.ChatMessage>();
+    messages.add(UserMessage.from("Find the contract."));
+    var results = java.util.List.of("QIP knowledge context:\n\nSame source", "QIP knowledge context:\n\nSame source",
+        "QIP knowledge context:\n\nDifferent source", "QIP knowledge lookup unavailable (TEMPORARY): retry");
+    for (int i = 0; i < results.size(); i++) {
+      var call = dev.langchain4j.agent.tool.ToolExecutionRequest.builder().id("knowledge-" + i)
+          .name("searchRequirementKnowledge").arguments("{\"question\":\"q" + i + "\"}").build();
+      messages.add(dev.langchain4j.data.message.AiMessage.from(call));
+      messages.add(dev.langchain4j.data.message.ToolExecutionResultMessage.from(call, results.get(i)));
+    }
+    var request = ChatRequest.builder().messages(messages).build();
+    var rebuilt = new LlmRequestBudget(config).rebuild(request);
+    var reads = rebuilt.messages().stream().filter(dev.langchain4j.data.message.ToolExecutionResultMessage.class::isInstance)
+        .map(dev.langchain4j.data.message.ToolExecutionResultMessage.class::cast).toList();
+    assertTrue(reads.get(0).text().contains("knowledge-1"), reads.toString());
+    assertEquals(results.get(1), reads.get(1).text());
+    assertEquals(results.get(2), reads.get(2).text());
+    assertEquals(results.get(3), reads.get(3).text());
+  }
+
+  @Test
   void configuredRequestBudgetOmitsOptionalHistoryAndKeepsMandatoryContext() throws Exception {
     AppConfig config = mock(AppConfig.class, org.mockito.Mockito.RETURNS_DEEP_STUBS);
     when(config.llm().contextTokens()).thenReturn(2000);

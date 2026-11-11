@@ -86,7 +86,7 @@ class MaterializationRequirementsValidatorTest {
   void rejectsInlineScriptHooksWithoutTheirExecutableBody() {
     ChainPlanGraph graph = new ChainPlanGraph("1.0", new ChainSection("demo", null),
         List.of(new ChainPlanNode("call", "service-call", "Call", null, null,
-            List.of(new PlanProperty("integrationOperationId", "operation-id"), new PlanProperty("errorThrowing", "true"),
+            List.of(new PlanProperty("integrationOperationId", "operation-id"),
                 new PlanProperty("before", "{\"type\":\"script\",\"propertiesFilename\":\"before.groovy\"}")))), List.of());
     var issues = validator.validate(graph);
     assertEquals(1, issues.size());
@@ -94,7 +94,7 @@ class MaterializationRequirementsValidatorTest {
     assertTrue(issues.get(0).message().contains("before.script"));
     ChainPlanGraph complete = new ChainPlanGraph("1.0", graph.chain(),
         List.of(new ChainPlanNode("call", "service-call", "Call", null, null,
-            List.of(new PlanProperty("integrationOperationId", "operation-id"), new PlanProperty("errorThrowing", "true"),
+            List.of(new PlanProperty("integrationOperationId", "operation-id"),
                 new PlanProperty("before", "{\"type\":\"script\",\"script\":\"exchange.message.body = '{}'\"}")))), List.of());
     assertTrue(validator.validate(complete).isEmpty());
   }
