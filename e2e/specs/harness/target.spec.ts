@@ -45,6 +45,7 @@ const COMPOSE_PROJECTS = [
   "seed-teardown",
   "tooling",
   "runtime",
+  "process-envelope",
   "env",
   "schemas-build",
   "ui-server",
@@ -80,7 +81,8 @@ const COMPOSE_SCHEDULE: Record<string, string> = {
   "seed-teardown": "./specs/seed /.*\\.teardown\\.ts$/",
   tooling: "./specs/tooling; after seed",
   runtime: "./specs/runtime; after seed, tooling; parallel",
-  env: "./specs/env except **/ai-recovery-lifecycle.spec.ts; after api, runtime, ui; 1 worker",
+  "process-envelope": "./specs/env /process-envelope\\.spec\\.ts$/; after api, runtime, ui; 1 worker",
+  env: "./specs/env except **/process-envelope.spec.ts,**/ai-recovery-lifecycle.spec.ts; after process-envelope; 1 worker",
   "schemas-build": "./specs/schemas-build /.*\\.setup\\.ts$/",
   "ui-server": "./specs/ui-server /.*\\.setup\\.ts$/; after schemas-build; teardown ui-server-teardown",
   "ui-server-teardown": "./specs/ui-server /.*\\.teardown\\.ts$/",
@@ -165,6 +167,39 @@ test.describe("target", () => {
       const projects = composeProjects(undefined);
       expect(projects.map((each) => each.name).sort()).toEqual([...COMPOSE_PROJECTS].sort());
       expect(Object.fromEntries(projects.map((each) => [each.name, schedule(each)]))).toEqual(COMPOSE_SCHEDULE);
+    });
+
+    test("process readings finish before any restart spec", () => {
+      for (const on of ["compose", "k8s"] as const) {
+        for (const enabled of [false, true]) {
+          const projects = withEnv({ E2E_AI_RECOVERY: enabled ? "1" : undefined }, () =>
+            suiteProjects(targetSetup(on)),
+          );
+          const readings = projects.find((each) => each.name === "process-envelope");
+          const restarts = projects.find((each) => each.name === "env");
+          expect(readings?.dependencies).toEqual(["api", "runtime", "ui"]);
+          expect(readings?.workers).toBe(1);
+          expect(restarts?.dependencies).toEqual(["process-envelope"]);
+          const collected = (project: string) => {
+            const report = JSON.parse(execFileSync(
+              path.join(E2E_DIR, "node_modules/.bin/playwright"),
+              ["test", `--project=${project}`, "--no-deps", "--list", "--reporter=json"],
+              {
+                cwd: E2E_DIR,
+                env: { ...process.env, CIP_TARGET: on, E2E_AI_RECOVERY: enabled ? "1" : undefined },
+                encoding: "utf8",
+              },
+            )) as { suites: { file: string }[] };
+            return report.suites.map((suite) => path.basename(suite.file));
+          };
+          expect(collected("process-envelope")).toEqual(["process-envelope.spec.ts"]);
+          const restartFiles = collected("env");
+          expect(restartFiles).not.toContain("process-envelope.spec.ts");
+          expect(restartFiles).toContain("restart-resilience.spec.ts");
+          expect(restartFiles).toContain("service-type-roundtrip.spec.ts");
+          expect(restartFiles.includes("ai-recovery-lifecycle.spec.ts")).toBe(on === "compose" && enabled);
+        }
+      }
     });
 
     test("both targets declare the harness project with no stack", () => {
