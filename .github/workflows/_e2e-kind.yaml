@@ -378,6 +378,20 @@ jobs:
           E2E_KEEP: "1"
         run: npx playwright test --config http-diagnostic.config.ts --workers=4 --max-failures=1
 
+      - name: Compare the pod loopback path
+        if: ${{ !cancelled() && inputs.probe-only }}
+        working-directory: e2e
+        env:
+          CIP_TARGET: k8s
+          CIP_CATALOG_URL: http://127.0.0.1:39091
+          E2E_PROVISION: never
+          E2E_SWEEP: never
+          E2E_KEEP: "1"
+          E2E_HTTP_STAGE: forwarded
+        run: |
+          bash support/http-diagnostic.sh forward
+          npx playwright test --config http-diagnostic.config.ts --workers=4 --max-failures=1
+
       - name: Stop HTTP diagnostics
         if: ${{ always() }}
         run: bash e2e/support/http-diagnostic.sh stop

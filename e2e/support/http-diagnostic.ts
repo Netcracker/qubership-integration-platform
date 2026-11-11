@@ -9,7 +9,7 @@ function record(event: object): void {
   const directory = process.env.E2E_HTTP_DIAGNOSTIC_DIR;
   if (!directory) return;
   fs.mkdirSync(directory, { recursive: true });
-  fs.appendFileSync(path.join(directory, `client-${process.pid}.jsonl`), JSON.stringify({ at: new Date().toISOString(), pid: process.pid, ...event }) + "\n");
+  fs.appendFileSync(path.join(directory, `client-${process.pid}.jsonl`), JSON.stringify({ at: new Date().toISOString(), pid: process.pid, stage: process.env.E2E_HTTP_STAGE ?? "nodeport", ...event }) + "\n");
 }
 
 subscribe("http.client.request.start", (message) => {
@@ -40,7 +40,7 @@ export async function diagnosticFetch(api: APIRequestContext, url: string, optio
   record({ phase: "begin", requestId, method: options.method, url });
   const timer = setTimeout(() => {
     record({ phase: "slow", requestId, elapsedMs: performance.now() - started });
-    fs.writeFileSync(path.join(directory, `slow-${process.pid}-${randomUUID()}.trigger`), requestId);
+    fs.writeFileSync(path.join(directory, `slow-${process.env.E2E_HTTP_STAGE ?? "nodeport"}-${process.pid}-${randomUUID()}.trigger`), requestId);
   }, 5_000);
   timer.unref();
   try {

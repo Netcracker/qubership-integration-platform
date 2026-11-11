@@ -1,7 +1,7 @@
 import path from "node:path";
 import { defineConfig } from "@playwright/test";
 import base from "./playwright.config.js";
-const output = process.env.E2E_HTTP_DIAGNOSTIC_DIR!;
+const output = path.join(process.env.E2E_HTTP_DIAGNOSTIC_DIR!, process.env.E2E_HTTP_STAGE ?? "nodeport");
 export default defineConfig({
   ...base,
   outputDir: path.join(output, "probe-results"),

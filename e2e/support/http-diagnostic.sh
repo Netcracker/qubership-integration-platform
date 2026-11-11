@@ -7,6 +7,17 @@ script=$(realpath "$0")
 collect_access() {
   timeout 10 kubectl -n cip-e2e exec deploy/cip-runtime-catalog-v1 -- cat /tmp/http-access/access.log > "$1/access.log" 2>&1
 }
+pod_netns() {
+  local pod sandbox relative node_pid
+  pod=$(kubectl -n cip-e2e get pods -l app=cip-runtime-catalog-v1 -o jsonpath='{.items[0].metadata.name}')
+  sandbox=$(docker exec qip-control-plane crictl pods --namespace cip-e2e --name "$pod" -q | head -1)
+  [ -n "$sandbox" ] || return 1
+  docker exec qip-control-plane crictl inspectp "$sandbox" > "$base/pod-sandbox.json"
+  relative=$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(next(n["path"] for n in d["info"]["runtimeSpec"]["linux"]["namespaces"] if n["type"]=="network"))' "$base/pod-sandbox.json")
+  [ -n "$relative" ] || return 1
+  node_pid=$(docker inspect -f '{{.State.Pid}}' qip-control-plane)
+  printf '/proc/%s/root%s\n' "$node_pid" "$relative"
+}
 snapshot() {
   local out=$1
   mkdir -p "$out"
@@ -19,6 +30,12 @@ snapshot() {
   node_pid=$(docker inspect -f '{{.State.Pid}}' qip-control-plane)
   timeout 8 sudo -n nsenter -t "$node_pid" -n ss -tinop > "$out/node-sockets.txt" 2>&1 &
   timeout 8 sudo -n nsenter -t "$node_pid" -n sh -c 'cat /proc/net/stat/nf_conntrack; sysctl net.netfilter.nf_conntrack_count net.netfilter.nf_conntrack_max' > "$out/conntrack.txt" 2>&1 &
+  if [ -s "$base/pod-netns.path" ]; then
+    timeout 8 sudo -n nsenter --net="$(cat "$base/pod-netns.path")" ss -tinop > "$out/pod-sockets.txt" 2>&1 &
+    timeout 8 sudo -n nsenter --net="$(cat "$base/pod-netns.path")" iptables-save > "$out/pod-iptables.txt" 2>&1 &
+  fi
+  timeout 10 kubectl -n istio-system logs ds/ztunnel --all-containers --since=30m --tail=10000 > "$out/ztunnel.log" 2>&1 &
+  timeout 10 kubectl -n istio-system logs ds/istio-cni-node --all-containers --since=30m --tail=1000 > "$out/cni.log" 2>&1 &
   wait
 }
 case ${1:?} in
@@ -29,9 +46,11 @@ case ${1:?} in
   watch)
     host_capture=
     node_capture=
+    pod_capture=
     finish() {
       if [ -n "$host_capture" ]; then sudo -n kill "$host_capture" 2>/dev/null || true; fi
       if [ -n "$node_capture" ]; then sudo -n kill "$node_capture" 2>/dev/null || true; fi
+      if [ -n "$pod_capture" ]; then sudo -n kill "$pod_capture" 2>/dev/null || true; fi
       wait || true
     }
     trap finish EXIT
@@ -47,10 +66,19 @@ case ${1:?} in
           node_capture=$!
         fi
       fi
+      if [ -z "$pod_capture" ]; then
+        netns=$(pod_netns 2>/dev/null || true)
+        if [ -n "$netns" ]; then
+          echo "$netns" > "$base/pod-netns.path"
+          sudo -n timeout 3300 nsenter --net="$netns" tcpdump -nn -tttt -q -l -i any 'tcp port 8080 or tcp port 15006 or tcp port 15008' > "$base/pod-packets.txt" 2>&1 &
+          pod_capture=$!
+        fi
+      fi
       for trigger in "$base"/slow-*.trigger; do
-        if [ -f "$trigger" ] && mkdir "$base/slow-snapshot" 2>/dev/null; then
-          cp "$trigger" "$base/slow-snapshot/request-id.txt"
-          snapshot "$base/slow-snapshot" &
+        stage=$(basename "$trigger" | cut -d- -f2)
+        if [ -f "$trigger" ] && mkdir "$base/slow-$stage-snapshot" 2>/dev/null; then
+          cp "$trigger" "$base/slow-$stage-snapshot/request-id.txt"
+          snapshot "$base/slow-$stage-snapshot" &
         fi
       done
       sleep 1
@@ -63,10 +91,21 @@ case ${1:?} in
       sleep 0.1
     done
     mkdir -p "$base/final"
-    collect_access "$base/final"
+    snapshot "$base/final"
+    if [ -f "$base/forward.pid" ]; then kill "$(cat "$base/forward.pid")" 2>/dev/null || true; fi
     grep -q 'rid=diag-' "$base/final/access.log" || exit 1
     test -s "$base/node-packets.txt" || exit 1
     test -s "$base/host-packets.txt" || exit 1
+    grep -q '^[0-9].* IP' "$base/pod-packets.txt" || exit 1
+    ;;
+  forward)
+    kubectl -n cip-e2e port-forward --address 127.0.0.1 deploy/cip-runtime-catalog-v1 39091:8080 > "$base/port-forward.log" 2>&1 &
+    echo "$!" > "$base/forward.pid"
+    for ((i=0; i<30; i++)); do
+      if curl --max-time 1 -fsS http://127.0.0.1:39091/actuator/health/readiness > /dev/null; then exit 0; fi
+      sleep 1
+    done
+    exit 1
     ;;
   snapshot)
     snapshot "$base/manual-snapshot"
