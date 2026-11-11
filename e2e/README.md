@@ -196,7 +196,7 @@ of the `e2e-spec-authoring` skill) and its issue.
 | Full run, against a stack already up | 12.4 min | 12.8 min |
 | Full run, installing the release first | | 15.5 min |
 | Installing the release, images already built | | 75.6 s |
-| Micro readiness, `deploy-chains` until all 48 micro routes answer | | 62.7 to 75.9 s over nine runs |
+| Micro readiness, `v2 /bulk` until all 48 micro routes answer | | 62.7 to 75.9 s over nine runs |
 
 The case counts date the table. `npx playwright test --list` starts nothing and prints the current
 total and the projects it is spread over; give it the target, as in

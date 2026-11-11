@@ -3,7 +3,14 @@
  */
 
 import React from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  act,
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import DomainsTable from "../../../../src/components/admin_tools/domains/DomainsTable.tsx";
 import {
@@ -85,14 +92,29 @@ jest.mock(
   }),
 );
 
+type ConfirmOptions = {
+  title: string;
+  content: string;
+  onOk: () => void | Promise<void>;
+};
+
+const mockDeleteDomain = jest.fn<Promise<void>, [string]>();
+const mockRequestFailed = jest.fn<void, unknown[]>();
+const mockNotificationService = { requestFailed: mockRequestFailed };
+const mockConfirmAndRun = jest.fn<void, [ConfirmOptions]>();
+
 jest.mock("../../../../src/api/api.ts", () => ({
   api: {
-    deleteMicroDomain: jest.fn().mockResolvedValue(undefined),
+    deleteDomain: (...args: [string]) => mockDeleteDomain(...args),
   },
 }));
 
 jest.mock("../../../../src/hooks/useNotificationService.tsx", () => ({
-  useNotificationService: () => ({ requestFailed: jest.fn() }),
+  useNotificationService: () => mockNotificationService,
+}));
+
+jest.mock("../../../../src/misc/confirm-utils.ts", () => ({
+  confirmAndRun: (options: ConfirmOptions) => mockConfirmAndRun(options),
 }));
 
 jest.mock("../../../../src/icons/IconProvider.tsx", () => ({
@@ -108,8 +130,35 @@ const nativeDomain = {
   type: DomainType.CLASSIC,
 } satisfies EngineDomain;
 
+const microDomain = {
+  id: "d2",
+  name: "beta-domain",
+  replicas: 22,
+  namespace: "ns-beta",
+  version: "2.2.2",
+  type: DomainType.MICRO,
+} satisfies EngineDomain;
+
+const otherDomain = {
+  id: "d3",
+  name: "gamma-domain",
+  replicas: 55,
+  namespace: "ns-gamma",
+  version: "3.3.3",
+  type: DomainType.CLASSIC,
+} satisfies EngineDomain;
+
+const unversionedDomain = {
+  id: "d4",
+  name: "delta-domain",
+  replicas: 77,
+  namespace: "ns-delta",
+  type: DomainType.CLASSIC,
+} satisfies EngineDomain;
+
 describe("DomainsTable", () => {
   beforeEach(() => {
+    mockDeleteDomain.mockResolvedValue(undefined);
     mockUseEngines.mockReturnValue({
       engines: [],
       isLoading: false,
@@ -191,5 +240,140 @@ describe("DomainsTable", () => {
       const scroll = JSON.parse(raw!) as { x: number; y?: string };
       expect("y" in scroll).toBe(false);
     });
+  });
+
+  test("filters domains by name, version, namespace and replicas", async () => {
+    render(
+      <DomainsTable
+        domains={[nativeDomain, microDomain, otherDomain, unversionedDomain]}
+      />,
+    );
+
+    const search = screen.getByPlaceholderText("Search domains...");
+    const allNames = [
+      "alpha-domain",
+      "beta-domain",
+      "gamma-domain",
+      "delta-domain",
+    ];
+    const cases: [string, string][] = [
+      ["ALPHA", "alpha-domain"],
+      ["2.2.2", "beta-domain"],
+      ["ns-gamma", "gamma-domain"],
+      ["55", "gamma-domain"],
+      ["ns-delta", "delta-domain"],
+    ];
+
+    for (const [term, expected] of cases) {
+      fireEvent.change(search, { target: { value: term } });
+      await waitFor(() =>
+        expect(screen.queryByText(expected)).toBeInTheDocument(),
+      );
+      allNames
+        .filter((name) => name !== expected)
+        .forEach((name) =>
+          expect(screen.queryByText(name)).not.toBeInTheDocument(),
+        );
+    }
+  });
+
+  test("shows micro tag and delete button only for micro domains", () => {
+    const { container } = render(
+      <DomainsTable domains={[nativeDomain, microDomain]} />,
+    );
+
+    expect(screen.getAllByText("micro")).toHaveLength(1);
+
+    const microRow = container.querySelector<HTMLTableRowElement>(
+      `tr[data-row-key="${microDomain.id}"]`,
+    );
+    const classicRow = container.querySelector<HTMLTableRowElement>(
+      `tr[data-row-key="${nativeDomain.id}"]`,
+    );
+
+    expect(within(microRow!).getByText("delete")).toBeInTheDocument();
+    expect(within(classicRow!).queryByText("delete")).not.toBeInTheDocument();
+  });
+
+  test("deletes micro domain after confirmation and removes its row", async () => {
+    const { container } = render(<DomainsTable domains={[microDomain]} />);
+
+    const row = container.querySelector<HTMLTableRowElement>(
+      `tr[data-row-key="${microDomain.id}"]`,
+    );
+    fireEvent.click(within(row!).getByText("delete").closest("button")!);
+
+    expect(mockConfirmAndRun).toHaveBeenCalledWith({
+      title: "Delete domain",
+      content: "Are you sure you want to permanently delete this domain?",
+      onOk: expect.any(Function),
+    });
+
+    act(() => void mockConfirmAndRun.mock.calls[0][0].onOk());
+
+    await waitFor(() =>
+      expect(screen.queryByText("beta-domain")).not.toBeInTheDocument(),
+    );
+    expect(mockDeleteDomain).toHaveBeenCalledWith("beta-domain");
+  });
+
+  test("reports a failed delete and keeps the row", async () => {
+    const error = new Error("unavailable");
+    mockDeleteDomain.mockRejectedValueOnce(error);
+    const { container } = render(<DomainsTable domains={[microDomain]} />);
+
+    const row = container.querySelector<HTMLTableRowElement>(
+      `tr[data-row-key="${microDomain.id}"]`,
+    );
+    fireEvent.click(within(row!).getByText("delete").closest("button")!);
+
+    act(() => void mockConfirmAndRun.mock.calls[0][0].onOk());
+
+    await waitFor(() =>
+      expect(mockRequestFailed).toHaveBeenCalledWith(
+        "Failed to delete micro domain beta-domain",
+        error,
+      ),
+    );
+    expect(screen.getByText("beta-domain")).toBeInTheDocument();
+  });
+
+  test("wires the refresh button and loading state to props", async () => {
+    const onRefresh = jest.fn<Promise<void>, []>().mockResolvedValue(undefined);
+    const { rerender } = render(
+      <DomainsTable domains={[nativeDomain]} onRefresh={onRefresh} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    await waitFor(() => expect(onRefresh).toHaveBeenCalledTimes(1));
+
+    rerender(
+      <DomainsTable domains={[nativeDomain]} onRefresh={onRefresh} isLoading />,
+    );
+    expect(screen.getByTestId("table-loading")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Refresh" })).toHaveClass(
+      "ant-btn-loading",
+    );
+
+    rerender(<DomainsTable domains={[nativeDomain]} />);
+    expect(
+      screen.queryByRole("button", { name: "Refresh" }),
+    ).not.toBeInTheDocument();
+  });
+
+  test("replaces rows when the domains prop changes", async () => {
+    const { rerender } = render(<DomainsTable domains={[nativeDomain]} />);
+    expect(screen.getByText("alpha-domain")).toBeInTheDocument();
+
+    rerender(<DomainsTable domains={[otherDomain]} />);
+    await waitFor(() =>
+      expect(screen.queryByText("alpha-domain")).not.toBeInTheDocument(),
+    );
+    expect(screen.getByText("gamma-domain")).toBeInTheDocument();
+
+    rerender(<DomainsTable domains={[]} />);
+    await waitFor(() =>
+      expect(screen.queryByText("gamma-domain")).not.toBeInTheDocument(),
+    );
   });
 });
