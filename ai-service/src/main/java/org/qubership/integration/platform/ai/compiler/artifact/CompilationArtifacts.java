@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.compiler.artifact;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -313,7 +314,8 @@ public class CompilationArtifacts {
   }
 
   private static ObjectMapper canonicalMapper(ObjectMapper source) {
-    return source.copy().enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
+    return source.copy().enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
+        .enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS);
   }
 
   private static String sha256(byte[] content) {
@@ -374,9 +376,13 @@ public class CompilationArtifacts {
     REQUIREMENT_DRAFT,
     REQUIREMENT_CAPTURE_PROTECTION,
     REQUIREMENT_CAPTURE_ATTEMPT,
+    REQUIREMENT_POLICY_CHOICE,
     REQUIREMENT_CAPTURE_FEEDBACK,
     CAPTURE_CREDITS,
     CAPTURE_ATTEMPT_FEEDBACK,
+    TOOL_READ_PROGRESS,
+    DOCUMENTATION_PIN,
+    DOCUMENTATION_READ,
     CHAIN_PLAN_GRAPH,
     IMPLEMENTATION_PLAN,
     RUN_MANIFEST,
@@ -415,7 +421,8 @@ public class CompilationArtifacts {
     DESIGN_EXECUTION_RESULT,
     MAPPING_SCHEMA_SIDE,
     MAPPING_ENVELOPE,
-    CHAIN_WORK_DOCUMENT
+    CHAIN_WORK_DOCUMENT,
+    REQUIREMENT_SEMANTIC_BASELINE
   }
 
   public enum Decision {

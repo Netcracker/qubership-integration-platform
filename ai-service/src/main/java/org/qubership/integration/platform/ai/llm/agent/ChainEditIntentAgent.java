@@ -14,6 +14,7 @@ import org.qubership.integration.platform.ai.chain.edit.ChainEditCapture;
  * request.
  */
 @RegisterAiService(
+    toolHallucinationStrategy = org.qubership.integration.platform.ai.llm.tool.RecoverableToolNameStrategy.class,
     chatMemoryProviderSupplier = RegisterAiService.NoChatMemoryProviderSupplier.class)
 @ApplicationScoped
 public interface ChainEditIntentAgent {

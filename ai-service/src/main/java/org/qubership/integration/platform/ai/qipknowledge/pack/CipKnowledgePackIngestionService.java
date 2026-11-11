@@ -113,6 +113,24 @@ public class CipKnowledgePackIngestionService {
       }
     }
 
+    Path stagesPath = packRoot.resolve("runtime/java-stages.json");
+    if (Files.isRegularFile(stagesPath)) {
+      try {
+        var stages = ARTIFACT_MAPPER.readValue(stagesPath.toFile(), CapabilityDescriptor[].class);
+        for (var stage : stages) {
+          if (capabilities.stream().anyMatch(value -> value.id().equals(stage.id()))) {
+            throw new IllegalArgumentException("Duplicate capability: " + stage.id());
+          }
+          capabilities.add(stage);
+          (stage.supported() ? supportedIds : unsupportedIds).add(stage.id());
+        }
+      } catch (IOException e) {
+        throw new IllegalStateException("Failed to load Java stage metadata", e);
+      }
+    }
+    capabilities.sort(java.util.Comparator.comparing(CapabilityDescriptor::id));
+    supportedIds.sort(String::compareTo);
+    unsupportedIds.sort(String::compareTo);
     CapabilityRegistry registry =
         new CapabilityRegistry(scanResult.version(), List.copyOf(capabilities));
 
@@ -201,7 +219,7 @@ public class CipKnowledgePackIngestionService {
         versionDir.resolve(CipKnowledgePackIndexLoader.COMPILER_PIPELINE_INDEX_FILE),
         pipelineIndex);
     Path packRoot = Path.of(result.manifest().sourcePath());
-    Path repoRoot = packRoot.getParent() == null ? packRoot : packRoot.getParent();
+    Path repoRoot = repositoryRoot(packRoot);
     CompilerContract compilerContract =
         new ClasspathCompilerContractRepository().require(CompilerContract.V1);
     ElementSupportMatrix supportMatrix =
@@ -209,7 +227,8 @@ public class CipKnowledgePackIngestionService {
     writeJson(
         versionDir.resolve(CipKnowledgePackIndexLoader.ELEMENT_SUPPORT_MATRIX_FILE),
         supportMatrix);
-    Path profilesDir = packRoot.resolve("product-pipelines").resolve("profiles");
+    Path profilesDir =
+        ProductPipelinePackageIndexBuilder.productPipelinesRoot(packRoot).resolve("profiles");
     PipelineCompatibilityReport compatibilityReport =
         new CompilerPipelineCompatibilityAnalyzer()
             .compare(loadPreviousCertifiedPipelineIndex(), pipelineIndex);
@@ -231,14 +250,23 @@ public class CipKnowledgePackIngestionService {
         result.compatibilityReportMarkdown());
   }
 
+  private static Path repositoryRoot(Path packRoot) {
+    Path parent = packRoot.toAbsolutePath().normalize().getParent();
+    if (parent == null) return packRoot;
+    String parentName = parent.getFileName().toString();
+    return ".private".equals(parentName) || "integration-platform-skills".equals(parentName)
+        ? parent.getParent()
+        : parent;
+  }
+
   private void writeProductPipelineIndexes(
       Path packRoot, Path versionDir, CompilerGeneratorPolicy policy) throws IOException {
-    Path productPipelines = packRoot.resolve("product-pipelines");
+    Path productPipelines = ProductPipelinePackageIndexBuilder.productPipelinesRoot(packRoot);
     if (!Files.isDirectory(productPipelines)) {
       return;
     }
     copyProductPipelineResources(productPipelines, versionDir);
-    Path repoRoot = packRoot.getParent() == null ? packRoot : packRoot.getParent();
+    Path repoRoot = repositoryRoot(packRoot);
     List<String> dynamicSkills =
         policy == null || policy.generators() == null
             ? List.of()

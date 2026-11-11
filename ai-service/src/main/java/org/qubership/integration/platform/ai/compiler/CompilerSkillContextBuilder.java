@@ -12,7 +12,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecutionContext.ScriptEditDraft;
 import org.qubership.integration.platform.ai.chat.evidence.EvidenceEmitter;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.compiler.addon.AddonPromptMaterialStripper;
 import org.qubership.integration.platform.ai.compiler.addon.CaptureTool;
 import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonContext;
@@ -27,13 +29,20 @@ import org.qubership.integration.platform.ai.llm.qute.QuteUserMessageEscaping;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.mapping.MappingCaptureValidator;
+import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
 import org.qubership.integration.platform.ai.plan.mapping.MappingMechanismSelector;
 import org.qubership.integration.platform.ai.plan.mapping.envelope.MappingEnvelope;
 import org.qubership.integration.platform.ai.plan.mapping.schema.JsonSchemaMappingContractFactory;
 import org.qubership.integration.platform.ai.plan.mapping.schema.MappingSchemaSide;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.mapping.ScriptExecutionAuthority;
+import org.qubership.integration.platform.ai.plan.mapping.CopyMappingMaterializationValidator;
+import org.qubership.integration.platform.ai.plan.mapping.CopyMappingPlanner;
+import org.qubership.integration.platform.ai.plan.AuthorSourceEvidence;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingValue;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContract;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
@@ -62,6 +71,9 @@ public class CompilerSkillContextBuilder {
   private final KnowledgeClient knowledgeClient;
   private final KnowledgeContextProvider knowledgeContextProvider;
   private final EvidenceEmitter evidenceEmitter;
+
+  @Inject ConversationService conversations;
+  @Inject org.qubership.integration.platform.ai.productpipeline.knowledge.DocumentationTools documentation;
 
   @Inject
   public CompilerSkillContextBuilder(
@@ -107,7 +119,7 @@ public class CompilerSkillContextBuilder {
         readSelectedPatternText(workspace),
         readGraph(workspace),
         readGeneratorPlanManifestSummary(workspace),
-        ChainEditSkillContext.render(workspace));
+        ChainEditSkillContext.render(workspace, addonRepository.hasStandaloneSkills()));
   }
 
   public String buildUserMessage(CompilerSkillDocument document, CompilerSkillInputSnapshot snapshot) {
@@ -128,14 +140,28 @@ public class CompilerSkillContextBuilder {
       CompilerSkillInputSnapshot snapshot,
       GeneratorPlan activePlan,
       CaptureTool captureTool) {
+    return buildUserMessage(conversationId, document, snapshot, activePlan, captureTool, null);
+  }
+
+  public String buildUserMessage(
+      String conversationId,
+      CompilerSkillDocument document,
+      CompilerSkillInputSnapshot snapshot,
+      GeneratorPlan activePlan,
+      CaptureTool captureTool,
+      org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecutionContext executionContext) {
     runtimeEligibility.requirePromptContext(document.capabilityId());
 
     StringBuilder body = new StringBuilder();
     appendPipelineContract(body, document, captureTool);
-    appendCatalogContext(body, document);
+    if (!addonRepository.hasStandaloneSkills()) {
+      appendCatalogContext(body, document);
+    }
 
-    body.append("User request:\n").append(nullToEmpty(snapshot.rawUserRequest())).append("\n\n");
+    body.append("Approved requirement interpretation:\n")
+        .append(nullToEmpty(snapshot.rawUserRequest())).append("\n\n");
     body.append("Requirement brief:\n").append(nullToEmpty(snapshot.requirementBrief())).append("\n\n");
+    appendAuthorSource(body, conversationId);
     if (!nullToEmpty(snapshot.selectedPatternId()).isBlank()) {
       body.append("Selected golden pattern:\n").append(snapshot.selectedPatternId()).append("\n\n");
     }
@@ -156,7 +182,12 @@ public class CompilerSkillContextBuilder {
                   withTruncatedScriptBodies(snapshot.chainPlanGraph(), document.capabilityId())))
           .append("\n\n");
 
-      if (document.phase() == CipKnowledgeCapabilityPhase.GENERATOR && activePlan != null) {
+      if (document.phase() == CipKnowledgeCapabilityPhase.GENERATOR && executionContext != null) {
+        body.append("Current generator ownership:\n");
+        body.append(formatOwnedWork(executionContext, snapshot)).append("\n");
+        body.append("Property targets describe permissions, not required edits or all legal topology targets. "
+            + "An empty list does not establish inapplicability. Preserve named edit scope and other validation.\n\n");
+      } else if (document.phase() == CipKnowledgeCapabilityPhase.GENERATOR && activePlan != null) {
         body.append("Active generator plan slice:\n");
         body.append(formatActivePlan(activePlan)).append("\n\n");
       }
@@ -177,13 +208,20 @@ public class CompilerSkillContextBuilder {
       body.append(snapshot.generatorPlanManifestSummary()).append("\n\n");
     }
 
+    appendServiceCallMappingContext(body, document, snapshot.chainPlanGraph());
     appendAddonSections(body, document);
 
-    body.append("Compiler skill document (").append(document.sourcePath()).append("):\n");
+    if (addonRepository.hasStandaloneSkills()) {
+      body.append("Skill instructions:\n");
+    } else {
+      body.append("Compiler skill document (").append(document.sourcePath()).append("):\n");
+    }
     body.append(document.markdown());
     appendRuntimeContextPackage(body, conversationId, document, snapshot);
     appendGeneratorConstraints(body, document, snapshot);
-    appendFinalEditConstraint(body, document, snapshot);
+    if (!addonRepository.hasStandaloneSkills()) {
+      appendFinalEditConstraint(body, document, snapshot);
+    }
 
     return QuteUserMessageEscaping.escapeForAiServiceUserMessage(body.toString());
   }
@@ -291,8 +329,7 @@ public class CompilerSkillContextBuilder {
   }
 
   /**
-   * Prompt overlay for behavior-owned script shells that have no {@code MappingIntent}. Empty
-   * mapping intents still require this section when those shells need a body.
+   * Renders the approved requirements for the targeted script bodies.
    */
   public String renderBehaviorScriptGenerationContext(
       RequirementBrief brief,
@@ -301,7 +338,7 @@ public class CompilerSkillContextBuilder {
       ChainSemanticRevision revision) {
     List<String> ids = nodeIds == null ? List.of() : nodeIds;
     StringBuilder section = new StringBuilder();
-    section.append("Behavior-owned script generation:\n\n");
+    section.append("Native script tasks:\n\n");
     section.append("Required script node ids:\n");
     if (ids.isEmpty()) {
       section.append("- none\n");
@@ -314,12 +351,46 @@ public class CompilerSkillContextBuilder {
     section.append("Element roles:\n");
     appendBehaviorRoles(section, ids, graph);
     section.append('\n');
-    section.append("Approved behavior facts:\n");
+    section.append("Approved requirement context:\n");
     appendBehaviorFacts(section, brief, ids, revision);
     section.append('\n');
+    for (String nodeId : ids) {
+      ScriptExecutionAuthority.declaredGeneratedBehavior(brief, nodeId, ScriptExecutionAuthority.behaviorSites(revision, brief)).ifPresent(fact ->
+          section.append("Behavior-owned script generation for ").append(nodeId)
+              .append(": ").append(fact.text()).append('\n'));
+    }
+    if (brief != null && graph != null) {
+      section.append("Compiler-preserved COPY origins (complete original JSON bodies, before replacement):\n");
+      var seen = new HashSet<String>();
+      for (MappingIntent intent : CopyMappingMaterializationValidator.ordinaryMappings(brief, graph)) {
+        for (MappingIntentRule rule : intent.rules()) {
+          if (rule.value() instanceof MappingValue.Copy copy
+              && copy.source() instanceof MappingSource.Message origin) {
+            String key = CopyMappingPlanner.bodyContextId(origin);
+            String populationNode = graph.nodes().stream()
+                .filter(node -> CopyMappingPlanner.nativeRetentionSite(node)
+                    && CopyMappingPlanner.retentionSiteId(origin).equals(node.nodeId()))
+                .map(ChainPlanNode::nodeId).findFirst().orElseGet(() -> graph.nodes().stream()
+                    .filter(node -> intent.mappingIntentId().equals(
+                        org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite.mappingIntentId(node)))
+                    .map(ChainPlanNode::nodeId).findFirst().orElse(null));
+            if (populationNode != null && seen.add(key)) {
+              section.append("- ").append(origin.interactionId()).append('/').append(origin.port())
+                  .append(": exchange.getProperty('").append(key).append("'); populated by node '")
+                  .append(populationNode).append("'. Only readable downstream of that node.\n");
+            }
+          }
+        }
+      }
+      section.append("Read these JSON strings with JsonSlurper for approved downstream behavior. "
+          + "Use the current message only for its current producer; earlier bodies are replaced by mappings and calls. "
+          + "Do not invent exchange properties or assume an earlier API response remains in the message.\n");
+    }
     section.append(
-        "Fill the existing script property on those nodes. Do not add nodes or edges. "
-            + "Do not invent a MappingIntent.");
+        "Use only the frozen native mapping or compiler-derived retention plan for mapping or retention nodes. "
+            + "For a behavior-owned node, generate only its approved behavior. "
+            + "Unbound requirement text does not authorize extra generated behavior. "
+            + "Preserve exact source-bound supplied bodies. Do not add nodes or edges or invent a MappingIntent.");
     return section.toString();
   }
 
@@ -573,10 +644,58 @@ public class CompilerSkillContextBuilder {
       CompilerSkillInputSnapshot snapshot,
       List<String> requiredNodeIds,
       boolean editsExistingBodies) {
-    runtimeEligibility.requirePromptContext(document.capabilityId());
+    return buildScriptRepairMessage(conversationId, document, snapshot, requiredNodeIds, editsExistingBodies, Map.of());
+  }
 
+  public String buildScriptRepairMessage(
+      String conversationId,
+      CompilerSkillDocument document,
+      CompilerSkillInputSnapshot snapshot,
+      List<String> requiredNodeIds,
+      boolean editsExistingBodies,
+      Map<String, ScriptEditDraft> editDrafts) {
+    boolean scopedEditDraft = !editDrafts.isEmpty();
+    runtimeEligibility.requirePromptContext(document.capabilityId());
+    Map<String, String> supplied = new LinkedHashMap<>();
+    for (String id : requiredNodeIds) {
+      var draft = editDrafts.get(id);
+      if (draft != null && draft.suppliedBody() != null) {
+        supplied.put(id, draft.suppliedBody());
+      }
+    }
+    String editDraftInstructions = scopedEditDraft
+        ? "Prepare an unapplied edit draft for the listed Script targets. Implement the requested change, "
+            + "retain unrelated behavior, and copy any complete source body from the user exactly. "
+            + "The user reviews the resulting patch before it is applied.\n"
+            + (supplied.isEmpty() ? "" : "Exact supplied bodies by target ID: " + formatJson(supplied) + "\n")
+            + "\n"
+        : "";
+
+    if (addonRepository.hasStandaloneSkills()) {
+      StringBuilder prompt = new StringBuilder(editDraftInstructions)
+          .append(scopedEditDraft ? "Requested edit:\n" : "Approved requirement interpretation:\n")
+          .append(nullToEmpty(snapshot.rawUserRequest())).append("\n\nRequirement brief:\n")
+          .append(nullToEmpty(snapshot.requirementBrief())).append("\n\n")
+          .append(nullToEmpty(snapshot.mappingGenerationContext())).append("\n\n")
+          .append(nullToEmpty(snapshot.editContext())).append("\n\n")
+          .append(editsExistingBodies ? "Update existing bodies.\n" : "Fill missing bodies.\n")
+          .append("Required script node IDs:\n").append(formatJson(requiredNodeIds)).append("\n\n");
+      appendAuthorSource(prompt, conversationId);
+      appendScriptNodeSlice(prompt, snapshot.chainPlanGraph(), requiredNodeIds);
+      if (editsExistingBodies && snapshot.chainPlanGraph() != null) {
+        prompt.append("\nOriginal script nodes:\n").append(formatJson(
+            snapshot.chainPlanGraph().nodes().stream()
+                .filter(node -> requiredNodeIds.contains(node.nodeId()) && "script".equals(node.type()))
+                .toList()));
+      }
+      appendAddonSections(prompt, document);
+      prompt.append("\n\nSkill instructions:\n").append(document.markdown());
+      appendRuntimeContextPackage(prompt, conversationId, document, snapshot);
+      appendGeneratorConstraints(prompt, document, snapshot);
+      return QuteUserMessageEscaping.escapeForAiServiceUserMessage(prompt.toString());
+    }
     StringBuilder body = new StringBuilder();
-    body.append("Pipeline instruction:\n");
+    body.append("Script repair task:\n").append(editDraftInstructions);
     body.append(
         "You are executing compiler skill '"
             + document.capabilityId()
@@ -589,8 +708,10 @@ public class CompilerSkillContextBuilder {
       body.append("Submit only script bodies for the listed targetNodeIds.\n");
     }
     body.append("Do not call captureGraphPatch.\n\n");
-    body.append("User request:\n").append(nullToEmpty(snapshot.rawUserRequest())).append("\n\n");
+    body.append("Approved requirement interpretation:\n")
+        .append(nullToEmpty(snapshot.rawUserRequest())).append("\n\n");
     body.append("Requirement brief:\n").append(nullToEmpty(snapshot.requirementBrief())).append("\n\n");
+    appendAuthorSource(body, conversationId);
     if (!nullToEmpty(snapshot.selectedPatternId()).isBlank()) {
       body.append("Selected golden pattern:\n").append(snapshot.selectedPatternId()).append("\n\n");
     }
@@ -599,10 +720,13 @@ public class CompilerSkillContextBuilder {
     }
     if (editsExistingBodies) {
       body.append(nullToEmpty(snapshot.editContext())).append("\n\n");
-      body.append("Update the existing script bodies for the listed target node IDs. Use each original body")
-          .append(" as the basis for the requested change. Preserve unrelated logic. Return the complete")
-          .append(" updated body for each listed ID through repairScriptBodies. Change only the selected")
-          .append(" scripts and the requested behavior.\n\n");
+      if (!scopedEditDraft) {
+        body.append("For each listed target node, use only its frozen native mapping or compiler-derived retention plan")
+            .append(" or its exact currently approved source-bound supplied body. Original bodies are reference evidence,")
+            .append(" not permission to generate a replacement. A supplied-body edit requires its newly approved exact body.")
+            .append(" If the requested edit exceeds that authority, report it as unsupported; do not generate replacement code.")
+            .append(" Return only authorized complete bodies through repairScriptBodies.\n\n");
+      }
       List<Map<String, String>> originals = new ArrayList<>();
       for (ChainPlanNode node : snapshot.chainPlanGraph().nodes()) {
         if (requiredNodeIds.contains(node.nodeId()) && "script".equals(node.type())) {
@@ -655,8 +779,29 @@ public class CompilerSkillContextBuilder {
     return QuteUserMessageEscaping.escapeForAiServiceUserMessage(body.toString());
   }
 
+  private void appendAuthorSource(StringBuilder body, String conversationId) {
+    if (conversations != null && conversationId != null && !conversationId.isBlank()) {
+      body.append(AuthorSourceEvidence.render(conversations.archive().read(conversationId)));
+    }
+  }
+
   private void appendGeneratorConstraints(
       StringBuilder body, CompilerSkillDocument document, CompilerSkillInputSnapshot snapshot) {
+    if (document.phase() == CipKnowledgeCapabilityPhase.GENERATOR) {
+      body.append("""
+          For generated Groovy code, bindings include exchange, in, body, headers, variables, and exchangeProperties.
+          Use the documented runtime bindings or explicitly declared local variables. message is not an implicit binding;
+          access exchange.getMessage() or exchange.in, or declare a local alias. This applies to standalone and inline scripts.
+          Use resolved bindings, the supplied native schema, and defaults stated in the skill as evidence for your patch.
+          Search documentation when a fact needed for the patch is still missing. If a search adds no evidence,
+          continue with the facts you have or look for a different missing fact that would change the patch.
+          When the author excludes a custom handler, use the normal failure behavior stated in the skill.
+          For a value read after body replacement, check that the plan writes it before replacement and that the
+          producer and consumer use the same key. Report a missing producer as a plan issue.
+          If capture rejects a proposal, use the finding to choose a supported correction and preserve the approved behavior.
+
+          """);
+    }
     if ("cip-naming-generator".equals(document.capabilityId())
         && snapshot.chainPlanGraph() != null && snapshot.chainPlanGraph().chain() != null
         && !nullToEmpty(snapshot.chainPlanGraph().chain().name()).isBlank()) {
@@ -671,21 +816,55 @@ public class CompilerSkillContextBuilder {
     if ("cip-script-generator".equals(document.capabilityId())) {
       body.append("""
 
+          Script execution eligibility:
+          Apply the following runtime patterns only within this node's admitted native mapping,
+          compiler-derived retention plan, exact currently approved source-bound supplied body,
+          explicitly listed behavior-owned script task, or scoped unapplied edit draft.
+          Patterns and requirement prose do not authorize extra generated code or changes to exact
+          supplied bodies or deterministic native emission. Use constants, formulas, and response
+          assembly only when the selected task authorizes them.
+          Preserve supplied bytes exactly. For a task with an approved brief, a
+          supplied-body replacement requires its newly approved exact body. For a scoped edit draft, copy the
+          supplied replacement body assigned to its target ID.
+
           Script runtime contract:
+          Implement each approved exactValues scalar in its owned script as an executable Groovy
+          constant with exactly that value, including whitespace and quotation marks in the value.
+          Use the constant in the required output or expression. Compose requested separators and
+          runtime expressions outside that constant; do not merge it into a longer GString segment.
+          Preserve the complete approved behavior and field mappings. Their prose is not a runtime
+          string to emit. Comments, unused constants, and values in unrelated scripts do not implement
+          a requirement. Do not remove or rewrite approved exactValues to bypass a rejected body.
+          A literal-presence finding does not authorize changing a required runtime output value or
+          field binding. Preserve both the approved behavior and the exact constant contract.
+          If they cannot both be satisfied, preserve the required behavior and report the
+          incompatibility in the capture rationale; do not emit a different value or an unused constant.
           Incoming JSON bodies can be strings or maps. Parse a string before reading event fields.
+          Use only approved success and failure predicates; examples do not define business policy.
+          Missing, null, empty, blank, false, and numeric zero are distinct. Groovy truth and Elvis
+          defaults can conflate them. Whitespace-only strings are truthy; empty collections and
+          numeric zero are falsy. Use explicit presence, type, value, and whitespace checks when
+          the source distinguishes them. Follow the source's definition of blankness and preserve
+          accepted strings unchanged unless normalization is required. Check booleans and numbers by
+          their required types and values. Apply conversions and defaults only when the approved
+          source requests them; do not discard valid false or zero values.
+          Preserve the approved grouping and order of conditions and arithmetic, comparison
+          boundaries, rounding, and first-match error reasons. Do not simplify them through truthiness.
           Groovy 4 has no groovy-dateutil module in this runtime. Use Java time APIs for dates.
           Today's ISO date is java.time.LocalDate.now().toString(); Date.format() and Date.parse()
           are unavailable.
           An approved INLINE_RESPONSE HTTP call has a Default response handler, so a failed response
           can arrive without CamelExceptionCaught. Check the HTTP status and the actual body.
-          A successful response with errors=[] is success. A plain-text error must still reach the
+          Use the complete approved success predicate, including any status, shape, and errors checks.
+          A plain-text error must still reach the
           requested result delivery. Preserve the error response text and all retained input fields.
           Build the approved response envelope once with its constants and correlation fields on
           both success and failure paths. Add the requested error fields to that envelope on failure.
           Do not return an error-only body before assembling the approved fields. A handled inline
           error does not require session or element failure markers unless an approved behavior
           fact explicitly requests them; keep the downstream delivery reachable.
-          Use this normalization pattern, then build only the approved output fields:
+          This pattern normalizes representation only; derive success and failure from the approved
+          predicates. Keep parsed so arrays, scalars, and null remain distinguishable:
 
           ```groovy
           def raw = exchange.in.body
@@ -694,11 +873,8 @@ public class CompilerSkillContextBuilder {
               try { parsed = new groovy.json.JsonSlurper().parseText(raw) }
               catch (Exception ignored) { parsed = null }
           }
-          def response = parsed instanceof Map ? parsed : [:]
-          def errors = parsed instanceof Collection ? parsed : response.errors
+          def response = parsed instanceof Map ? parsed : null
           def status = exchange.in.getHeader('CamelHttpResponseCode', Integer)
-          def failed = (status != null && status >= 400) || response.success == false ||
-              (errors instanceof Collection && !errors.isEmpty())
           def errorText = raw instanceof String ? raw : groovy.json.JsonOutput.toJson(raw)
           ```
 
@@ -728,6 +904,10 @@ public class CompilerSkillContextBuilder {
                 20_000));
     KnowledgePackageRef ref = contextPackage.identity().packageRef();
     body.append("\n\n").append(contextPackage.renderMarkdown());
+    if (documentation != null) {
+      body.append(documentation.context(conversationId, snapshot.rawUserRequest(),
+          activeElementTypes(snapshot.chainPlanGraph())));
+    }
 
     if (evidenceEmitter != null && conversationId != null) {
       evidenceEmitter.knowledge(
@@ -754,6 +934,10 @@ public class CompilerSkillContextBuilder {
 
   private void appendPipelineContract(
       StringBuilder body, CompilerSkillDocument document, CaptureTool captureTool) {
+    if (addonRepository.hasStandaloneSkills()) {
+      body.append("Execute the skill instructions below for this turn.\n\n");
+      return;
+    }
     body.append("Pipeline instruction:\n");
     body.append(
         "You are executing compiler skill '"
@@ -892,6 +1076,52 @@ public class CompilerSkillContextBuilder {
     body.append(snapshot.editContext()).append('\n');
   }
 
+  private static void appendServiceCallMappingContext(
+      StringBuilder body, CompilerSkillDocument document, ChainPlanGraph graph) {
+    if (!"cip-service-call-generator".equals(document.capabilityId())
+        || graph == null || graph.nodes() == null || graph.edges() == null) {
+      return;
+    }
+    for (var edge : graph.edges()) {
+      ChainPlanNode source = graph.nodes().stream()
+          .filter(node -> node.nodeId().equals(edge.fromNodeId())).findFirst().orElse(null);
+      ChainPlanNode target = graph.nodes().stream()
+          .filter(node -> node.nodeId().equals(edge.toNodeId())).findFirst().orElse(null);
+      if (MappingExecutionSite.isTransformShell(source)
+          && target != null && "service-call".equals(target.type())) {
+        String intentId = MappingExecutionSite.mappingIntentId(source);
+        if (intentId != null && !intentId.isBlank()) {
+          body.append("service-call ").append(target.nodeId())
+              .append(": incoming request body is prepared by ").append(source.nodeId())
+              .append(" (mappingIntentId=").append(intentId).append(").\n")
+              .append("Use the target paths of that mapping as the incoming body contract; "
+                  + "do not implement the same mapping again in before. "
+                  + "An independently requested inline hook remains valid.\n\n");
+        }
+      }
+      if (source != null && "service-call".equals(source.type()) && target != null
+          && "script".equals(target.type()) && CopyMappingPlanner.nativeRetentionSite(target)) {
+        body.append("service-call ").append(source.nodeId())
+            .append(": response retention is assigned to ").append(target.nodeId()).append(".\n")
+            .append("The compiler-owned site retains the response for approved COPY origins. "
+                + "Do not add an after hook solely to retain that response or repeat an assigned mapping. "
+                + "An independently requested inline hook remains valid; preserve the source it needs.\n\n");
+      }
+      if (source != null && "service-call".equals(source.type())
+          && MappingExecutionSite.isTransformShell(target)) {
+        String intentId = MappingExecutionSite.mappingIntentId(target);
+        if (intentId != null && !intentId.isBlank()) {
+          body.append("service-call ").append(source.nodeId())
+              .append(": response body is consumed by ").append(target.nodeId())
+              .append(" (mappingIntentId=").append(intentId).append(").\n")
+              .append("Preserve the source paths needed by that mapping in after; "
+                  + "do not implement the same mapping again there. "
+                  + "An independently requested inline hook remains valid.\n\n");
+        }
+      }
+    }
+  }
+
   private void appendAddonSections(StringBuilder body, CompilerSkillDocument document) {
     CompilerSkillAddonContext addon = addonRepository.loadForSkill(document.capabilityId());
     if (!addon.hasContent()) {
@@ -916,12 +1146,21 @@ public class CompilerSkillContextBuilder {
       }
     }
 
+    boolean standalone = addonRepository.hasStandaloneSkills();
+    if (standalone && !addon.examples().isEmpty()) {
+      body.append("Runtime examples are reference cases, not additional author requirements. "
+          + "Follow the current capture-tool schema, approved requirements, and ownership constraints. "
+          + "Counterexamples demonstrate rejected output and must not be copied.\n\n");
+    }
     for (CompilerSkillAddonDocument example : addon.examples()) {
-      String label =
-          document.phase() == CipKnowledgeCapabilityPhase.GENERATOR
-              ? "GraphPatch example"
-              : "Example";
-      body.append(label).append(" (").append(example.relativePath()).append("):\n");
+      if (standalone) {
+        String name = example.relativePath().substring(example.relativePath().lastIndexOf('/') + 1);
+        body.append(name.startsWith("invalid-") ? "Counterexample (must be rejected; " : "Runtime example (")
+            .append(example.relativePath()).append("):\n");
+      } else {
+        String label = document.phase() == CipKnowledgeCapabilityPhase.GENERATOR ? "GraphPatch example" : "Example";
+        body.append(label).append(" (").append(example.relativePath()).append("):\n");
+      }
       body.append(example.content()).append("\n\n");
     }
   }
@@ -955,7 +1194,41 @@ public class CompilerSkillContextBuilder {
     }
   }
 
+  private String formatOwnedWork(
+      org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecutionContext context,
+      CompilerSkillInputSnapshot snapshot) {
+    var ownership = context.ownership();
+    var propertyTargets = new ArrayList<Map<String, Object>>();
+    var graph = context.inputGraph();
+    boolean scopedEdit = snapshot.editContext() != null && !snapshot.editContext().isBlank()
+        && !context.editTargetNodeIds().isEmpty();
+    if (graph != null && graph.nodes() != null) {
+      for (var node : graph.nodes()) {
+        if (node == null || node.nodeId() == null || node.type() == null
+            || scopedEdit && !context.editTargetNodeIds().contains(node.nodeId())) continue;
+        var keys = ownership.properties().get(node.type());
+        if (keys != null && !keys.isEmpty()) {
+          propertyTargets.add(Map.of("nodeId", node.nodeId(), "propertyKeys", keys.stream().sorted().toList()));
+        }
+      }
+    }
+    Map<String, Object> work = new LinkedHashMap<>();
+    work.put("propertyTargets", propertyTargets);
+    work.put("ownedNodeTypes", ownership.nodeTypes().stream().sorted().toList());
+    work.put("chainFields", ownership.chainFields().stream().sorted().toList());
+    work.put("mayAddNodes", ownership.mayAddNodes());
+    work.put("mayAddEdges", ownership.mayAddEdges());
+    work.put("mayRemoveNodes", ownership.mayRemoveNodes());
+    work.put("mayRemoveEdges", ownership.mayRemoveEdges());
+    if (!context.editTargetNodeIds().isEmpty()) work.put("namedTargetNodeIds", context.editTargetNodeIds());
+    return formatJson(work);
+  }
+
   private String formatActivePlan(GeneratorPlan activePlan) {
+    if (addonRepository.hasStandaloneSkills()) {
+      return formatJson(Map.of("targetNodeIds",
+          activePlan.targetNodeIds() == null ? List.of() : activePlan.targetNodeIds()));
+    }
     try {
       return objectMapper.writeValueAsString(activePlan);
     } catch (JsonProcessingException e) {

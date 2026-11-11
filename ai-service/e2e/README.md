@@ -1,7 +1,7 @@
 # ai-service end-to-end
 
-CREATE and COMPARE_AND_PATCH acceptance tests live under `product-pipeline/`.
-Isolated design-planner evaluations live under `planner-eval/`.
+Use [the shared test runner](test-system.md) for agent, terminal, and browser runs.
+This directory contains the runner, results UI, regression tests, and acceptance drivers.
 
 Run the [deployment and logging smoke test](deployment-logging-smoke.md) once per live browser campaign
 on a retained HTTP chain. It checks the automatic logging question, chat reload, logging settings, and engine deployment.
@@ -11,22 +11,13 @@ It checks creation results, patch review, and import cards for multiple specific
 
 ## Offline
 
-```bash
-ai-service/e2e/test-offline.sh
-```
+Run the service regression suite without calling an LLM.
 
-This command runs the live-runner contract tests and the stubbed quality gate without Docker,
-network access, or a private knowledge package.
+```bash
+python3 ai-service/e2e/run.py run core-regression
+```
 
 ## Live
 
-```bash
-ai-service/e2e/product-pipeline/run-quality-gate.sh \
-  --runs 1 \
-  --knowledge-package integration-platform-skills/.apm/skills/cip-runtime-context-loader/assets/knowledge-export \
-  --report-dir /tmp/ai-service-create-gate \
-  --base-url http://localhost:8094
-```
-
-The live gate requires the private `integration-platform-skills` directory and local LLM
-credentials. See `product-pipeline/README.md` for the evidence and catalog-retention contracts.
+See the [product-pipeline quality gate](product-pipeline/README.md#live-gate) for live prerequisites,
+evidence, and catalog retention.

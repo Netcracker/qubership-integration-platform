@@ -1,0 +1,86 @@
+{
+  "semanticRevision": {
+    "schemaVersion": "chain-semantic-revision/v1",
+    "revisionId": "executor-eval-two-calls-v1",
+    "chainIdentity": "Orders Inventory Eval",
+    "compilerContractVersion": "create-chain-compiler-contract/v1",
+    "entryPoints": [
+      {
+        "entryPointId": "http-in",
+        "triggerNodeId": "trigger-http",
+        "initialTargetNodeId": "init-script",
+        "order": 0,
+        "provenance": {"sourceFactIds": []},
+        "presentation": {"label": "POST /orders", "description": "Create and reserve"}
+      }
+    ],
+    "nodes": [
+      {"nodeId": "trigger-http", "kind": "TRIGGER", "interactionId": "http-in", "capabilityKey": "http-trigger", "provenance": {"sourceFactIds": []}},
+      {"nodeId": "init-script", "kind": "OPERATION", "elementType": "script", "provenance": {"sourceFactIds": ["init-fact"]}},
+      {"nodeId": "orders-call", "kind": "SERVICE_CALL", "serviceCallId": "orders-create", "operation": "createOrder", "provenance": {"sourceFactIds": ["orders-fact"]}},
+      {"nodeId": "inventory-map-script", "kind": "OPERATION", "elementType": "script", "provenance": {"sourceFactIds": ["inventory-map-fact"]}},
+      {"nodeId": "inventory-call", "kind": "SERVICE_CALL", "serviceCallId": "inventory-reserve", "operation": "reserveInventory", "provenance": {"sourceFactIds": ["inventory-fact"]}},
+      {"nodeId": "response-script", "kind": "OPERATION", "elementType": "script", "provenance": {"sourceFactIds": ["response-fact"]}}
+    ],
+    "regions": [],
+    "executionEdges": [
+      {"edgeId": "edge-1", "sourceNodeId": "trigger-http", "targetNodeId": "init-script", "route": {"kind": "SEQUENCE"}},
+      {"edgeId": "edge-2", "sourceNodeId": "init-script", "targetNodeId": "orders-call", "route": {"kind": "SEQUENCE"}},
+      {"edgeId": "edge-3", "sourceNodeId": "orders-call", "targetNodeId": "inventory-map-script", "route": {"kind": "SEQUENCE"}},
+      {"edgeId": "edge-4", "sourceNodeId": "inventory-map-script", "targetNodeId": "inventory-call", "route": {"kind": "SEQUENCE"}},
+      {"edgeId": "edge-5", "sourceNodeId": "inventory-call", "targetNodeId": "response-script", "route": {"kind": "SEQUENCE"}}
+    ],
+    "containment": [],
+    "mappingIntents": [],
+    "constraints": ["Use both existing catalog bindings"],
+    "assumptions": [],
+    "citations": []
+  },
+  "requirementBrief": {
+    "goal": "Expose POST /orders, create the order, reserve inventory, and return the result.",
+    "inputs": ["HTTP POST /orders"],
+    "constraints": ["Use both existing catalog bindings"],
+    "assumptions": [],
+    "citations": [],
+    "summary": "One HTTP trigger, two service calls, and three scripts in sequence.",
+    "approvedDraftText": "exchange.setProperty('request', exchange.message.body)\nexchange.message.body = [orderId: exchange.message.body.id]\nexchange.message.body = [reserved: true]",
+    "facts": [
+      {"sourceFactId": "endpoint-fact", "polarity": "POSITIVE", "kind": "ENDPOINT", "capabilityKey": "http-trigger", "text": "Expose POST /orders.", "httpMethod": "POST", "path": "/orders"},
+      {"sourceFactId": "init-fact", "polarity": "POSITIVE", "kind": "BEHAVIOR", "capabilityKey": "script", "text": "Initialize the request.", "elementIntent": {"elementRef": "init-script", "elementType": "script", "placement": "LOCAL_NODE", "requestedProperties": [{"key": "script", "value": "exchange.setProperty('request', exchange.message.body)"}], "bodyBinding": {"authority": "VERBATIM_SOURCE_BODY", "elementRef": "init-script", "propertyKey": "script", "bodyKind": "GROOVY_SCRIPT", "sourceGeneration": "fixture-generation", "sourceTurnId": "author-turn", "startOffset": 0, "endOffset": 54, "encoding": "RAW"}}},
+      {"sourceFactId": "inventory-map-fact", "polarity": "POSITIVE", "kind": "BEHAVIOR", "capabilityKey": "script", "text": "Convert the order result into an inventory reservation request.", "elementIntent": {"elementRef": "inventory-map-script", "elementType": "script", "placement": "LOCAL_NODE", "requestedProperties": [{"key": "script", "value": "exchange.message.body = [orderId: exchange.message.body.id]"}], "bodyBinding": {"authority": "VERBATIM_SOURCE_BODY", "elementRef": "inventory-map-script", "propertyKey": "script", "bodyKind": "GROOVY_SCRIPT", "sourceGeneration": "fixture-generation", "sourceTurnId": "author-turn", "startOffset": 55, "endOffset": 114, "encoding": "RAW"}}},
+      {"sourceFactId": "response-fact", "polarity": "POSITIVE", "kind": "BEHAVIOR", "capabilityKey": "script", "text": "Build the HTTP response.", "elementIntent": {"elementRef": "response-script", "elementType": "script", "placement": "LOCAL_NODE", "requestedProperties": [{"key": "script", "value": "exchange.message.body = [reserved: true]"}], "bodyBinding": {"authority": "VERBATIM_SOURCE_BODY", "elementRef": "response-script", "propertyKey": "script", "bodyKind": "GROOVY_SCRIPT", "sourceGeneration": "fixture-generation", "sourceTurnId": "author-turn", "startOffset": 115, "endOffset": 155, "encoding": "RAW"}}}
+    ],
+    "entryPoints": [
+      {
+        "entryPointId": "http-in",
+        "sourceFactId": "endpoint-fact",
+        "capabilityKey": "http-trigger",
+        "topic": "",
+        "httpMethod": "POST",
+        "path": "/orders",
+        "operation": ""
+      }
+    ],
+    "serviceCalls": [],
+    "requirements": [],
+    "mappingIntents": [],
+    "catalogBindings": [],
+    "skippedTransitions": []
+  },
+  "bindings": [
+    {
+      "targetNodeId": "orders-call", "serviceCallId": "orders-create", "systemType": "EXTERNAL",
+      "systemId": "orders-service", "specificationGroupId": "orders-api", "specificationId": "orders-api-v1",
+      "operationId": "createOrder", "protocolType": "HTTP", "method": "POST", "path": "/orders",
+      "displayName": "Orders Service.createOrder", "source": "EXISTING_CATALOG", "release": "2024.4",
+      "evidenceRef": "executor-eval", "packageId": "orders-package"
+    },
+    {
+      "targetNodeId": "inventory-call", "serviceCallId": "inventory-reserve", "systemType": "EXTERNAL",
+      "systemId": "inventory-service", "specificationGroupId": "inventory-api", "specificationId": "inventory-api-v1",
+      "operationId": "reserveInventory", "protocolType": "HTTP", "method": "POST", "path": "/reservations",
+      "displayName": "Inventory Service.reserveInventory", "source": "EXISTING_CATALOG", "release": "2024.4",
+      "evidenceRef": "executor-eval", "packageId": "inventory-package"
+    }
+  ]
+}

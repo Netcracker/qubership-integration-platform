@@ -11,6 +11,7 @@ import org.qubership.integration.platform.ai.plan.MappingTurnCapture;
  * the requirement brief.
  */
 @RegisterAiService(
+    toolHallucinationStrategy = org.qubership.integration.platform.ai.llm.tool.RecoverableToolNameStrategy.class,
     chatMemoryProviderSupplier = RegisterAiService.NoChatMemoryProviderSupplier.class)
 @ApplicationScoped
 public interface MappingTurnAgent {

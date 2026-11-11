@@ -375,25 +375,47 @@ class MappingContractBriefProducerRecoveryTest {
     assertTrue(findings.contains("MAPPING_UNKNOWN_TARGET"), findings);
   }
 
+  /**
+   * Once the automatic reopen of requirement-analysis is spent, its Edit requirements card reopens the stage that
+   * produced the committed requirement draft. The card used to name requirement-analysis itself, already approved,
+   * and the ledger refused the click with {@code BLANK_OR_UNAPPROVED_OWNER}.
+   */
   @Test
-  void spentAutomaticReopenCaptureRejectOffersEditRequirementsAndEndRun() throws Exception {
-    repairedBrief.set(rewordedUnknownTargetBrief());
-    CreateChainTestOrchestrator runtime =
-        runtime(
-            FakeFailureNarrativeAgent.narrates("unused"),
-            validatingExecution(new AtomicInteger(), new AtomicReference<>()));
-    haltAtMappingContract(runtime);
-    StageExecutionResult failed = execute(runtime, "design-execution");
-    applyLifecycle(runtime, failed);
+  void spentAutomaticReopenCaptureRejectOffersEditRequirementsThatReopensTheDraftOwner() throws Exception {
+    withRequirementDiscovery();
+    authoredDraft = new org.qubership.integration.platform.ai.plan.RequirementDraft(true, "draft");
+    CreateChainTestOrchestrator runtime = haltAtSpentBriefProducerReopen();
+    StageDecision.WaitForInput wait =
+        assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "requirement-analysis").decision());
+    assertEquals(PipelineGates.RECOVERY_REVISE_BRIEF, PipelineGates.gateOf(wait.prompt()).orElse(""), wait.prompt());
+    assertEquals(List.of(ChatEvent.EDIT_REQUIREMENTS_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
+        cardActions(wait.prompt()));
 
-    StageExecutionResult repaired = execute(runtime, "requirement-analysis");
+    runtime.recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.REVISE_ACTION, "edit-click", "edit-hash",
+        org.qubership.integration.platform.ai.productpipeline.runtime.InputOrigin.TRUSTED))
+        .collect().asList().await().indefinitely();
+
+    String reason = run().transitions().getLast().reason();
+    assertTrue(reason.startsWith(
+        org.qubership.integration.platform.ai.productpipeline.runtime.RecoveryAttemptLedger.AUTHOR_REOPEN_REASON_PREFIX
+            + "requirement-discovery"), reason);
+    assertEquals(RunStatus.RUNNING, run().run().status());
+    assertEquals("requirement-discovery", run().run().currentStageId());
+  }
+
+  /**
+   * In a profile without a draft producer, the Edit requirements card of requirement-analysis has no stage to reopen,
+   * so it offers End run only.
+   */
+  @Test
+  void spentAutomaticReopenCaptureRejectWithoutADraftOwnerOffersOnlyEndRun() throws Exception {
+    CreateChainTestOrchestrator runtime = haltAtSpentBriefProducerReopen();
 
     StageDecision.WaitForInput wait =
-        assertInstanceOf(StageDecision.WaitForInput.class, repaired.decision());
-    assertEquals(PipelineGates.RECOVERY_REVISE_BRIEF, PipelineGates.gateOf(wait.prompt()).orElse(""));
-    assertEquals(
-        List.of(ChatEvent.EDIT_REQUIREMENTS_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
-        ChatEvent.actionsForGate(PipelineGates.gateOf(wait.prompt()).orElseThrow()));
+        assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "requirement-analysis").decision());
+
+    assertEquals(PipelineGates.RECOVERY_REVISE_BRIEF, PipelineGates.gateOf(wait.prompt()).orElse(""), wait.prompt());
+    assertEquals(List.of(PipelineGates.STOP_WITH_REPORT_ACTION), cardActions(wait.prompt()));
     assertEquals(
         RecoveryCauseCode.MAPPING_CONTRACT.name(),
         String.valueOf(
@@ -408,6 +430,37 @@ class MappingContractBriefProducerRecoveryTest {
                 .support()
                 .runAttributes(RUN_ID)
                 .get(ProductPipelineRunSupport.STAGE_ERROR_CAUSE_CODE_ATTR)));
+  }
+
+  /** Runs the mapping contract failure until design-execution has reopened requirement-analysis once. */
+  private CreateChainTestOrchestrator haltAtSpentBriefProducerReopen() throws Exception {
+    repairedBrief.set(rewordedUnknownTargetBrief());
+    CreateChainTestOrchestrator runtime =
+        runtime(
+            FakeFailureNarrativeAgent.narrates("unused"),
+            validatingExecution(new AtomicInteger(), new AtomicReference<>()));
+    haltAtMappingContract(runtime);
+    StageExecutionResult failed = execute(runtime, "design-execution");
+    assertEquals("requirement-analysis",
+        assertInstanceOf(StageDecision.ReopenProducer.class, failed.decision()).producerStageId());
+    applyLifecycle(runtime, failed);
+    return runtime;
+  }
+
+  private void withRequirementDiscovery() {
+    var stages = new java.util.ArrayList<ProfileStage>();
+    stages.add(new ProfileStage("requirement-discovery", "requirement-discovery", List.of(),
+        List.of(new ArtifactTypeRef("requirement-draft", 2)), null, null, new RetryPolicy(0, 1L)));
+    stages.addAll(profile.stages());
+    profile = new ProductPipelineProfile(profile.schemaVersion(), profile.profileId(),
+        profile.profileVersion(), profile.runInputs(), stages, profile.terminal(), profile.dependencyRoots());
+  }
+
+  private static List<String> cardActions(String prompt) {
+    return ChatEvent.actionsForClarify(
+        new org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction.Clarify(
+            PipelineGates.strip(prompt), List.of(), PipelineGates.gateOf(prompt).orElseThrow(), "", null, "", "", "",
+            PipelineGates.guardOf(prompt).orElse("")));
   }
 
   @Test

@@ -1,9 +1,13 @@
 package org.qubership.integration.platform.ai.integration.apihub;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationMessage;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStrings;
 
 /**
@@ -42,6 +46,38 @@ public class ApiHubSearchAuthorizations {
     }
   }
 
+  public static final String DISABLED_MESSAGE = "API Hub is disabled for this request.";
+  private static final String API_HUB = "(?:the\\h+)?api[\\h_-]*hub";
+  private static final Pattern CATALOG_ONLY = Pattern.compile(
+      "(?iu)\\b(?:no|without|do not (?:use|search|call|query)|don't (?:use|search|call|query)"
+          + "|never (?:use|search|call|query))\\h+"
+          + API_HUB + "\\b|\\b(?:runtime[\\h_-]+catalog[\\h_-]+only|only\\h+(?:the\\h+)?runtime\\h+catalog)\\b");
+  private static final Pattern API_HUB_ALLOWED = Pattern.compile(
+      "(?iu)(?:^|[.!?]|\\R)\\h*(?:now\\h+)?(?:please\\h+)?"
+          + "(?:use|search|call|query|you (?:may|can) (?:use|search)|i authorize (?:using|searching))\\h+"
+          + API_HUB + "\\b");
+  private final ConversationService conversations;
+
+  public ApiHubSearchAuthorizations() {
+    this(null);
+  }
+
+  @Inject
+  public ApiHubSearchAuthorizations(ConversationService conversations) {
+    this.conversations = conversations;
+  }
+
+  public boolean prohibitsApiHub(String conversationId) {
+    if (conversations == null || CatalogStrings.blankToNull(conversationId) == null) return false;
+    for (var turn : conversations.archive().read(conversationId).activeTurns().reversed()) {
+      String text = turn.rawText();
+      if (turn.message().role() != ConversationMessage.Role.USER || text == null) continue;
+      if (CATALOG_ONLY.matcher(text).find()) return true;
+      if (API_HUB_ALLOWED.matcher(text).find()) return false;
+    }
+    return false;
+  }
+
   private final Map<String, Authorization> byConversation = new ConcurrentHashMap<>();
 
   /** Authorizes one scoped search run after a confirmed catalog miss. */
@@ -66,6 +102,10 @@ public class ApiHubSearchAuthorizations {
   public Optional<Authorization> consume(String conversationId) {
     String id = CatalogStrings.blankToNull(conversationId);
     if (id == null) {
+      return Optional.empty();
+    }
+    if (prohibitsApiHub(id)) {
+      revoke(id);
       return Optional.empty();
     }
     Authorization authorization = byConversation.get(id);

@@ -191,11 +191,11 @@ public final class MappingTurnEvalScorer {
     StringBuilder text = new StringBuilder();
     text.append("Multilingual mapping capture evaluation\n");
     text.append("Live-model slice: ").append(report.liveModelSlice()).append('\n');
-    text.append("Compiler-repair pass rate: ")
+    text.append("Native COPY admission pass rate: ")
         .append(format(report.compilerRepairPassRate()))
         .append('\n');
     for (RepairScore repair : report.repairs()) {
-      text.append("- repair ")
+      text.append("- native COPY ")
           .append(repair.id())
           .append(" passed=")
           .append(repair.passed())
@@ -320,7 +320,7 @@ public final class MappingTurnEvalScorer {
       }
     }
     if (repairPass != 1.0) {
-      failures.add("COMPILER_REPAIR pass rate " + format(repairPass) + " < 1.00");
+      failures.add("NATIVE_COPY_ADMISSION pass rate " + format(repairPass) + " < 1.00");
     }
     return failures;
   }

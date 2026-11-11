@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.ai.plan;
 
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingValue;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -205,6 +207,13 @@ public final class MappingTurnApplicator {
     if (update.sourcePath().isBlank() && update.expression() == null) {
       rules.set(matches.getFirst(), current.withTargetPath(newTargetPath)
           .withStatus(MappingRuleStatus.USER_DEFINED));
+    } else if (current.value() instanceof MappingValue.Copy copy
+        && copy.source() instanceof MappingSource.Message message
+        && message.interactionId() != null && !message.interactionId().isBlank()) {
+      var replacement = update.expression() == null
+          ? current.withMessageSourcePath(update.sourcePath())
+          : current.withLegacyMessageBehavior(update.sourcePath(), update.expression());
+      rules.set(matches.getFirst(), replacement.withTargetPath(newTargetPath).withStatus(MappingRuleStatus.USER_DEFINED));
     } else if (current.descriptive()) {
       rules.set(matches.getFirst(), updatedDescriptive(current, update, newTargetPath));
     } else {

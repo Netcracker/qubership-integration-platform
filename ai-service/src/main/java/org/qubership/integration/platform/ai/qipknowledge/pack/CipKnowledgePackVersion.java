@@ -13,6 +13,10 @@ public record CipKnowledgePackVersion(String raw, String normalized) {
     if (packRoot == null) {
       throw new IllegalArgumentException("packRoot is required");
     }
+    // Keep existing run pins valid during the mechanical IPS extraction.
+    if (packRoot.getFileName() != null && "rocky-skills".equals(packRoot.getFileName().toString())) {
+      return new CipKnowledgePackVersion("integration-platform-skills", "integration-platform-skills");
+    }
     String dirName = packRoot.getFileName() != null ? packRoot.getFileName().toString() : packRoot.toString();
     Matcher matcher = VERSION_DIR.matcher(dirName);
     if (matcher.find()) {

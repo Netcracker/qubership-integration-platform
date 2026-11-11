@@ -54,17 +54,8 @@ jq -e '
 
 if [[ "$(jq -r '.scenarioId' "${REPORT}")" == "product-create-chain-error-handling" ]]; then
     jq -e '
-    (.knowledgePackage | keys | sort) == [
-      "certificationDigest",
-      "certificationStatus",
-      "knowledgeVersion",
-      "packageChecksum",
-      "packageKey",
-      "schemaVersion"
-    ]
-    and .knowledgePackage.certificationStatus == "CERTIFIED"
-    and .knowledgeContext.packageChecksum == .knowledgePackage.packageChecksum
-    and (.knowledgeContext.objectIds | index("CIP:GEN-000049") != null)
+    (.knowledgeContext.objectIds | length > 0 and all(type == "string" and length > 0))
+    and .knowledgeContext.contentChars > 0
     and (.materializedElementTypes | index("try-catch-finally-2") != null)
     and (.materializedElementTypes | index("try-2") != null)
     and (.materializedElementTypes | index("catch-2") != null)

@@ -152,6 +152,48 @@ class CompilerGraphPatchToolTest {
   }
 
   @Test
+  void controlledElementFaultUsesNativeRejectionAndAdmission(@org.junit.jupiter.api.io.TempDir java.nio.file.Path directory)
+      throws Exception {
+    String capability = "cip-monitoring-generator";
+    MDC.put(CompilerSkillMdc.CAPABILITY_ID, capability);
+    var graph = new ChainPlanGraph("1.0", new ChainSection("Log", "Log an event"), List.of(
+        new ChainPlanNode("log", "log-record", "Log", null, 1,
+            List.of(new PlanProperty("logLevel", "Error"), new PlanProperty("message", "keep")))), List.of());
+    planStore.put(CONVERSATION_ID, graph);
+    executionContextStore.set(new GraphPatchExecutionContext("run", capability, "", null, "", "2026.1",
+        null, List.of(), graph, GraphPatchOwnershipPolicy.denyAll().withAdditionalProperties(
+            Map.of("log-record", Set.of("logLevel", "message"))), "attempt"));
+    feedbackStore.beginScope(CONVERSATION_ID, capability, Map.of("graph", graph));
+    objectMapper.writeValue(directory.resolve("plan.json").toFile(), Map.of("schemaVersion", 1,
+        "conversationId", CONVERSATION_ID, "boundary", "completion", "mutation", "element-property-values",
+        "propertyValues", Map.of("logLevel", "unsupported")));
+    tool.recoveryControl = new org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryTestControl(
+        directory, objectMapper);
+    var patch = new GraphPatchCapture("log-patch", capability, List.of(), List.of(), List.of(
+        new PropertyPatchCapture(GraphPatchOperation.UPDATE, "log", "logLevel", objectMapper.createObjectNode(), "Info")),
+        List.of(), List.of(), "Use the requested level");
+
+    String rejected = tool.captureGraphPatch(patch);
+    assertTrue(rejected.contains("Remaining validation issues"), rejected);
+    var failure = feedbackStore.lastPatchFailure(CONVERSATION_ID, capability).orElseThrow();
+    assertEquals("/properties/logLevel", failure.issues().getFirst().path());
+    assertEquals("unsupported", failure.issues().getFirst().details().path("rejectedValue").asText());
+    assertEquals(3, failure.issues().getFirst().details().path("constraint").path("enum").size(),
+        failure.issues().getFirst().toString());
+    var fault = objectMapper.readTree(directory.resolve("events/000001.json").toFile());
+    var refusal = objectMapper.readTree(directory.resolve("events/000002.json").toFile());
+    assertEquals("FAULT_APPLIED", fault.path("type").asText());
+    assertEquals(fault.get("mutated"), refusal.get("proposal"));
+    assertFalse(refusal.path("nativeResult").path("accepted").asBoolean());
+
+    assertThrows(CaptureValidationException.class, () -> tool.captureGraphPatch(patch));
+    assertTrue(captureSession.isPresent(CaptureKey.capability(CaptureSlot.GRAPH_PATCH, CONVERSATION_ID, capability)));
+    var accepted = objectMapper.readTree(directory.resolve("events/000003.json").toFile());
+    assertEquals("CAPTURE_ACCEPTED", accepted.path("type").asText());
+    assertTrue(accepted.path("nativeResult").path("accepted").asBoolean());
+  }
+
+  @Test
   void repeatWithANewTraceIdIsBlockedBeforePatchConversion() {
     feedbackStore.beginScope(CONVERSATION_ID, CAPABILITY_ID, Map.of("inputs", "v1"));
     var invalid = new GraphPatchCapture("first", "wrong-owner", List.of(), List.of(), List.of(),
@@ -583,7 +625,7 @@ class CompilerGraphPatchToolTest {
     String result = tool.captureGraphPatch(patch);
 
     assertTrue(result.contains("Invalid property value"));
-    assertTrue(result.contains("received value: [\"GET\"]"));
+    assertTrue(result.contains("rejectedValue\":[\"GET\"]"));
     assertTrue(captureSession.get(CaptureKey.capability(CaptureSlot.GRAPH_PATCH, CONVERSATION_ID, CAPABILITY_ID), GraphPatch.class).isEmpty());
   }
 
@@ -960,7 +1002,7 @@ class CompilerGraphPatchToolTest {
     CaptureValidationException failure =
         assertThrows(CaptureValidationException.class, () -> tool.captureGraphPatch(patch));
 
-    assertTrue(failure.getMessage().contains("Repeated graph patch conversion failure"));
+    assertTrue(failure.getMessage().contains("Invalid property value"));
     assertTrue(failure.getMessage().contains("Invalid property value"));
   }
 

@@ -100,19 +100,11 @@ export const FilterItem = (props: FilterItemProps) => {
   const actionItems: ItemType[] = [
     {
       key: "remove",
-      label: (
-        <>
-          <OverridableIcon name="delete" /> Remove
-        </>
-      ),
+      label: "Remove",
     },
     {
       key: "duplicate",
-      label: (
-        <>
-          <OverridableIcon name="copy" /> Duplicate
-        </>
-      ),
+      label: "Duplicate",
     },
   ];
 

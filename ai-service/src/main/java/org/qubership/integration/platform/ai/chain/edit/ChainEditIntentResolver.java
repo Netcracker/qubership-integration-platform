@@ -25,13 +25,12 @@ import org.qubership.integration.platform.ai.schema.ChainElementPropertyKeys;
  * the chain and that required fields of the capture are filled. It does not read the user's
  * wording to choose an action, a type, a target, or a disposition.
  *
- * <p>A wrap gets one check more: its named elements must form a connected run. An element the chain
- * puts between two of them would move into the container along with them, so the reader is asked
- * about it by name rather than having it wrapped or the edit refused. See
+ * <p>A wrap's named elements must form a connected run. An incomplete capture returns to the model
+ * with the graph and request before any remaining ambiguity becomes a question for the reader. See
  * {@link #gapInTheWrappedRun}.
  *
  * <p>The underlying {@link ChainEditIntentAgent} holds no chat memory: {@link #resolve} and
- * {@link #resume} are both single-shot calls. A clarifying question answered across turns is not
+ * {@link #resume} supply all context on each bounded capture attempt. A clarifying question answered across turns is not
  * read from history. {@link #resume} carries the held capture and the question into the same call
  * as explicit, structured input alongside the reply.
  */
@@ -42,6 +41,8 @@ public class ChainEditIntentResolver {
 
   /** Longest property value the listing shows before it is cut short. */
   static final int MAX_VALUE_CHARS = 80;
+  private static final int MAX_CAPTURE_ATTEMPTS = 3;
+  private static final com.fasterxml.jackson.databind.ObjectMapper JSON = new com.fasterxml.jackson.databind.ObjectMapper();
 
   private final ChainEditIntentAgent agent;
   private final ChainElementPropertyKeys propertyKeys;
@@ -65,19 +66,7 @@ public class ChainEditIntentResolver {
   public ChainEditIntent resolve(
       ChainPlanGraph graph, String userRequest, String transcriptWindow, String pinnedFailure) {
     Objects.requireNonNull(graph, "graph");
-    ChainEditCapture capture;
-    try {
-      capture =
-          agent.resolve(
-              renderElements(graph),
-              transcriptWindow == null ? "" : transcriptWindow,
-              pinnedFailure == null ? "" : pinnedFailure,
-              userRequest == null ? "" : userRequest);
-    } catch (OutputParsingException e) {
-      LOG.warnf(e, "Chain edit capture could not be parsed; treating as no change");
-      return noChange();
-    }
-    return fromCapture(capture, graph);
+    return captureWithRepair(graph, userRequest, transcriptWindow, pinnedFailure);
   }
 
   /**
@@ -85,7 +74,7 @@ public class ChainEditIntentResolver {
    * its own.
    *
    * <p>The classifier gets no chat memory and no transcript. {@code held} and {@code question} are
-   * rendered as one self-contained block ahead of {@code answer}, in the same single-shot call
+   * rendered as one self-contained block ahead of {@code answer}, in the same capture request
    * {@link #resolve} makes. The classifier either completes {@code held} with what the answer
    * resolves, or, when the answer is unrelated, classifies it as its own new request.
    */
@@ -93,16 +82,32 @@ public class ChainEditIntentResolver {
       ChainPlanGraph graph, ChainEditIntent held, String question, String answer) {
     Objects.requireNonNull(graph, "graph");
     Objects.requireNonNull(held, "held");
-    ChainEditCapture capture;
-    try {
-      capture =
-          agent.resolve(
-              renderElements(graph), "", "", composeResumeRequest(held, question, answer));
-    } catch (OutputParsingException e) {
-      LOG.warnf(e, "Chain edit capture could not be parsed while resuming a clarification; treating as no change");
-      return noChange();
+    return captureWithRepair(graph, composeResumeRequest(held, question, answer), "", "");
+  }
+
+  private ChainEditIntent captureWithRepair(ChainPlanGraph graph, String request, String transcript, String failure) {
+    String original = request == null ? "" : request;
+    String feedback = "";
+    String elements = renderElements(graph);
+    ChainEditIntent result = unresolved(List.of("The edit capture could not be read. Retry the same request."));
+    for (int attempt = 0; attempt < MAX_CAPTURE_ATTEMPTS; attempt++) {
+      try {
+        var capture = agent.resolve(elements, transcript == null ? "" : transcript,
+            failure == null ? "" : failure, original + feedback);
+        result = fromCapture(capture, graph);
+        if (result.resolved()) return result;
+        feedback = "\n\nCAPTURE VALIDATION FEEDBACK\nRejected capture: " + JSON.valueToTree(capture)
+            + "\nFindings: " + result.unresolvedAmbiguities()
+            + "\nRecheck the original request and graph. Correct your capture when those inputs already resolve"
+            + " the findings. Preserve the complete requested change. Do not ask the author to supply an element"
+            + " or decision already specified there. Keep ambiguities only for genuinely missing author choices.";
+      } catch (OutputParsingException e) {
+        LOG.warnf(e, "Chain edit capture could not be parsed on attempt %d", attempt + 1);
+        feedback = "\n\nCAPTURE VALIDATION FEEDBACK\nThe previous response could not be parsed as ChainEditCapture."
+            + " Return a complete capture using the declared field types and enum values.";
+      }
     }
-    return fromCapture(capture, graph);
+    return result;
   }
 
   static String composeResumeRequest(ChainEditIntent held, String question, String answer) {
@@ -168,6 +173,11 @@ public class ChainEditIntentResolver {
           .append(node.label() == null ? "" : node.label())
           .append('\n');
       appendProperties(text, node);
+      if (node.parentNodeId() != null) text.append("    parent: ").append(node.parentNodeId()).append('\n');
+    }
+    text.append("Execution edges:\n");
+    for (var edge : edgesOf(graph)) {
+      if (edge != null) text.append(edge.fromNodeId()).append(" -> ").append(edge.toNodeId()).append('\n');
     }
     return text.toString();
   }
@@ -354,16 +364,12 @@ public class ChainEditIntentResolver {
   /**
    * The question a wrap gets when the elements it names leave one out of the run they enclose.
    *
-   * <p>A wrap moves its elements into one branch, so an element sitting on a path between two of
-   * them ends up inside the container as well, whether the reader meant it or not. The alternatives
-   * are both worse than asking: wrapping it silently gives the reader a container they never
-   * reviewed, and refusing spends a repair turn on a rule no capture can meet, since a capture may
-   * move only the elements this intent names. The element in the gap is known here by name, so the
-   * reader gets to decide.
+   * <p>A wrap moves a connected run into the new structure. A missing intermediate element must be resolved
+   * from the request during capture repair, or presented to the reader when the request leaves it open.
    *
    * <p>Closure lives with the target set rather than with the capture. The assembly already
    * requires the elements named across the branches to be exactly these targets, so a capture is
-   * closed when the targets are, and asking here costs no generator turn.
+   * closed when the targets are.
    */
   private static List<String> gapInTheWrappedRun(ChainPlanGraph graph, List<String> targets) {
     List<String> gap = elementsBetweenTargets(graph, targets);

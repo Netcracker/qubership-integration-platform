@@ -8,6 +8,7 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
+import org.qubership.integration.platform.ai.productpipeline.materialization.MaterializationCheckpoint;
 
 /**
  * Product-pipeline facade over {@link CompilationArtifacts} that requires provenance on every
@@ -41,13 +42,16 @@ public final class ProductPipelineArtifactStore {
     return artifacts.history(compilationId, kind);
   }
 
+  public Optional<MaterializationCheckpoint> materializationCheckpoint(String runId) {
+    return latest(runId, Kind.MATERIALIZATION_CHECKPOINT)
+        .map(revision -> payload(revision, MaterializationCheckpoint.class));
+  }
+
   /** Includes partial catalog writes and unresolved element delivery when guarding upstream edits. */
   public boolean hasCatalogWriteEvidence(String runId) {
     return latest(runId, Kind.MATERIALIZATION_RESULT).isPresent()
         || latest(runId, Kind.CATALOG_CHAIN_SNAPSHOT).isPresent()
-        || latest(runId, Kind.MATERIALIZATION_CHECKPOINT)
-            .map(revision -> payload(revision,
-                org.qubership.integration.platform.ai.productpipeline.materialization.MaterializationCheckpoint.class))
+        || materializationCheckpoint(runId)
             .map(checkpoint -> (checkpoint.chainId() != null && !checkpoint.chainId().isBlank())
                 || !checkpoint.materializationMap().nodeIdToElementId().isEmpty()
                 || (checkpoint.pendingNodeId() != null && !checkpoint.pendingNodeId().isBlank()))

@@ -8,7 +8,6 @@ import java.util.Objects;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.logging.ToolTraceLog;
-import org.qubership.integration.platform.ai.plan.RequirementDiscoveryDirective;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 
 /** Bounded knowledge-package lookup for conversational requirement discovery. */
@@ -54,9 +53,6 @@ public class RequirementDiscoveryKnowledgeTool {
               KnowledgeFailureKind.KNOWLEDGE_INVALID_REQUEST,
               "No active conversation is bound to this lookup."));
     }
-    // A knowledge lookup is a consultation turn. An explicit CONTINUE call later in the same turn
-    // can override this safe default.
-    draftStore.finishTurn(conversationId, RequirementDiscoveryDirective.STAY);
     if (question == null || question.isBlank()) {
       return complete(
           conversationId,

@@ -27,6 +27,12 @@ public class CompilerSkillAddonRepository {
   private final ClassLoader classLoader;
   private final ObjectMapper objectMapper;
   private volatile CompilerSkillAddonIndex cachedIndex;
+  private String dataDirectory = CompilerSkillAddonBuildSupport.ADDONS_DIR;
+
+  public boolean hasStandaloneSkills() {
+    loadIndex();
+    return CompilerSkillAddonBuildSupport.RUNTIME_DIR.equals(dataDirectory);
+  }
 
   @Inject
   public CompilerSkillAddonRepository(CipKnowledgePackRepository repository) {
@@ -65,7 +71,7 @@ public class CompilerSkillAddonRepository {
     }
 
     CompilerSkillAddonDocument skillAddon =
-        readDocument(skillIndex.addonDocument()).orElse(null);
+        skillIndex.addonDocument() == null ? null : readDocument(skillIndex.addonDocument()).orElse(null);
     List<CompilerSkillAddonDocument> examples = new ArrayList<>();
     for (String examplePath : skillIndex.examples()) {
       readDocument(examplePath).ifPresent(examples::add);
@@ -87,6 +93,7 @@ public class CompilerSkillAddonRepository {
 
   /** Reads a global data document such as {@code global/materialization-requirements.yaml}. */
   public Optional<String> readGlobalDataDocument(String relativePath) {
+    loadIndex();
     return readTextDocument(relativePath);
   }
 
@@ -106,6 +113,23 @@ public class CompilerSkillAddonRepository {
 
   private CompilerSkillAddonIndex readIndex() {
     try {
+      String runtimeResource = CLASSPATH_ROOT + activeVersion.normalized() + "/"
+          + CompilerSkillAddonBuildSupport.RUNTIME_DIR + "/" + CompilerSkillAddonBuildSupport.RUNTIME_INDEX_FILE;
+      if (filesystemBaseDir != null) {
+        Path runtimeIndex = filesystemBaseDir.resolve(activeVersion.normalized())
+            .resolve(CompilerSkillAddonBuildSupport.RUNTIME_DIR).resolve(CompilerSkillAddonBuildSupport.RUNTIME_INDEX_FILE);
+        if (Files.isRegularFile(runtimeIndex)) {
+          dataDirectory = CompilerSkillAddonBuildSupport.RUNTIME_DIR;
+          return objectMapper.readValue(runtimeIndex.toFile(), CompilerSkillAddonIndex.class);
+        }
+      } else {
+        try (InputStream runtime = openClasspathResource(runtimeResource)) {
+          if (runtime != null) {
+            dataDirectory = CompilerSkillAddonBuildSupport.RUNTIME_DIR;
+            return objectMapper.readValue(runtime, CompilerSkillAddonIndex.class);
+          }
+        }
+      }
       if (filesystemBaseDir != null) {
         Path indexFile = addonsDir().resolve(CompilerSkillAddonBuildSupport.ADDON_INDEX_FILE);
         if (!Files.isRegularFile(indexFile)) {
@@ -164,14 +188,14 @@ public class CompilerSkillAddonRepository {
   private Path addonsDir() {
     return filesystemBaseDir
         .resolve(activeVersion.normalized())
-        .resolve(CompilerSkillAddonBuildSupport.ADDONS_DIR);
+        .resolve(dataDirectory);
   }
 
   private String classpathAddonsRoot() {
     return CLASSPATH_ROOT
         + activeVersion.normalized()
         + "/"
-        + CompilerSkillAddonBuildSupport.ADDONS_DIR
+        + dataDirectory
         + "/";
   }
 

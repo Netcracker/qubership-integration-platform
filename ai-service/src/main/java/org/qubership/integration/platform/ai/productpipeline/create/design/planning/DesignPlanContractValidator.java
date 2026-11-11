@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import org.qubership.integration.platform.ai.plan.mapping.ScriptExecutionAuthority;
 import org.qubership.integration.platform.ai.plan.RequirementFlowValidator;
 import org.qubership.integration.platform.ai.plan.mapping.MappingMechanism;
 import org.qubership.integration.platform.ai.plan.mapping.MappingMechanismSelector;
@@ -22,7 +23,6 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract.OwnerKind;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract.TargetKind;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
-import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.DefaultChainSemanticRevisionValidator;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticRegion;
@@ -244,7 +244,14 @@ public final class DesignPlanContractValidator {
         }
       }
     }
-    for (MappingIntent intent : revision.mappingBodies(brief)) {
+    for (SemanticNode node : revision.nodes()) {
+      if (node instanceof SemanticNode.Operation operation && "script".equals(operation.elementType())
+          && ScriptExecutionAuthority.declaredGeneratedBehavior(brief, node.nodeId(), ScriptExecutionAuthority.behaviorSites(revision, brief))
+              .filter(fact -> node.provenance().sourceFactIds().contains(fact.sourceFactId())).isPresent()) {
+        owners.put(new TargetKey(TargetKind.ELEMENT_NODE, node.nodeId()), DesignPlanProjector.SCRIPT_GENERATOR_SKILL_ID);
+      }
+    }
+    for (MappingIntent intent : ScriptExecutionAuthority.mappingsRequiringGeneration(revision, brief)) {
       MappingMechanism mechanism = MappingMechanismSelector.select(intent)
           .orElseThrow(() -> new PlannerContractException(
               "mapping intent " + intent.mappingIntentId() + " has no selected mechanism"));
@@ -256,11 +263,6 @@ public final class DesignPlanContractValidator {
     }
     for (SemanticRegion region : revision.regions()) {
       owners.put(new TargetKey(TargetKind.REGION, region.regionId()), ownerForRegion(region));
-    }
-    for (String nodeId : DefaultChainSemanticRevisionValidator.behaviorOwnedScriptNodeIds(revision)) {
-      owners.put(
-          new TargetKey(TargetKind.BEHAVIOR_NODE, nodeId),
-          DesignPlanProjector.SCRIPT_GENERATOR_SKILL_ID);
     }
     return owners;
   }

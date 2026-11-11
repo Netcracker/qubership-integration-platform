@@ -26,11 +26,16 @@ public final class A2aAgentCardFactory {
   private A2aAgentCardFactory() {}
 
   public static AgentCard createChainMvpCard(String publicBaseUrl) {
+    return createChainMvpCard(publicBaseUrl, true);
+  }
+
+  public static AgentCard createChainMvpCard(String publicBaseUrl, boolean canCreate) {
     String base = trimTrailingSlash(publicBaseUrl);
     String jsonRpcUrl = base + A2aProtocolConstants.JSONRPC_PATH;
     return AgentCard.builder()
         .name(A2aProtocolConstants.AGENT_NAME)
-        .description("Answer integration questions and build chains over A2A.")
+        .description(canCreate ? "Answer integration questions and build chains over A2A."
+            : "Answer integration questions over A2A.")
         .version("0.5.0-SNAPSHOT")
         .supportedInterfaces(
             List.of(
@@ -62,7 +67,7 @@ public final class A2aAgentCardFactory {
             List.of(A2aProtocolConstants.TEXT_MODE, A2aProtocolConstants.STRUCTURED_DATA_MODE))
         .defaultOutputModes(
             List.of(A2aProtocolConstants.TEXT_MODE, A2aProtocolConstants.STRUCTURED_DATA_MODE))
-        .skills(List.of(assistSkill(), createChainSkill()))
+        .skills(canCreate ? List.of(assistSkill(), createChainSkill()) : List.of(assistSkill()))
         .build();
   }
 

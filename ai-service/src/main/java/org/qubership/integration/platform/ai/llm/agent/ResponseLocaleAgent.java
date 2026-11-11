@@ -6,6 +6,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 
 /** Identifies the language of the first substantive user prompt. */
 @RegisterAiService(
+    toolHallucinationStrategy = org.qubership.integration.platform.ai.llm.tool.RecoverableToolNameStrategy.class,
     chatMemoryProviderSupplier = RegisterAiService.NoChatMemoryProviderSupplier.class)
 @ApplicationScoped
 public interface ResponseLocaleAgent {

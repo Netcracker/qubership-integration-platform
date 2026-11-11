@@ -3,9 +3,12 @@ package org.qubership.integration.platform.ai.qipknowledge.artifact;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.List;
+import java.util.Map;
+import java.util.Collections;
+import java.util.TreeMap;
 
 /**
- * An interpreted requirement. A rule is either the temporary typed form or the descriptive form,
+ * An interpreted requirement. A rule uses either typed operands or the descriptive form,
  * never both. Validation owns its status.
  */
 public record MappingIntentRule(
@@ -17,7 +20,9 @@ public record MappingIntentRule(
     MappingRuleStatus status,
     @JsonInclude(JsonInclude.Include.NON_EMPTY) List<MappingFieldRef> fieldRefs,
     @JsonInclude(JsonInclude.Include.NON_EMPTY) List<MappingConstant> constants,
-    @JsonInclude(JsonInclude.Include.NON_EMPTY) String behavior) {
+    @JsonInclude(JsonInclude.Include.NON_EMPTY) String behavior,
+    @JsonInclude(JsonInclude.Include.NON_NULL) String missingSourcePolicy,
+    @JsonInclude(JsonInclude.Include.NON_NULL) Map<String, String> schemaPins) {
 
   public MappingIntentRule {
     id = id == null ? "" : id.trim();
@@ -28,10 +33,27 @@ public record MappingIntentRule(
     fieldRefs = fieldRefs == null ? List.of() : List.copyOf(fieldRefs);
     constants = constants == null ? List.of() : List.copyOf(constants);
     behavior = behavior == null ? "" : behavior;
+    schemaPins = schemaPins == null ? null : Collections.unmodifiableMap(new TreeMap<>(schemaPins));
+    if (missingSourcePolicy != null && !"ERROR".equals(missingSourcePolicy)) {
+      throw new IllegalArgumentException("Unsupported missing source policy: " + missingSourcePolicy);
+    }
     if (value != null && (!fieldRefs.isEmpty() || !constants.isEmpty() || !behavior.isBlank())) {
       throw new IllegalArgumentException(
           "A mapping rule has one representation. Remove the typed value or the descriptive sources, constants, and behavior.");
     }
+  }
+
+  public MappingIntentRule(String id, List<String> requirementIds, String targetPath, MappingValue value,
+      MappingCondition condition, MappingRuleStatus status, List<MappingFieldRef> fieldRefs,
+      List<MappingConstant> constants, String behavior, String missingSourcePolicy) {
+    this(id, requirementIds, targetPath, value, condition, status, fieldRefs, constants, behavior,
+        missingSourcePolicy, null);
+  }
+
+  public MappingIntentRule(String id, List<String> requirementIds, String targetPath, MappingValue value,
+      MappingCondition condition, MappingRuleStatus status, List<MappingFieldRef> fieldRefs,
+      List<MappingConstant> constants, String behavior) {
+    this(id, requirementIds, targetPath, value, condition, status, fieldRefs, constants, behavior, null);
   }
 
   public MappingIntentRule(
@@ -122,22 +144,56 @@ public record MappingIntentRule(
 
   public MappingIntentRule withStatus(MappingRuleStatus newStatus) {
     return new MappingIntentRule(
-        id, requirementIds, targetPath, value, condition, newStatus, fieldRefs, constants, behavior);
+        id, requirementIds, targetPath, value, condition, newStatus, fieldRefs, constants, behavior, missingSourcePolicy, schemaPins);
   }
 
   public MappingIntentRule withRequirementIds(List<String> ids) {
     return new MappingIntentRule(
-        id, ids, targetPath, value, condition, status, fieldRefs, constants, behavior);
+        id, ids, targetPath, value, condition, status, fieldRefs, constants, behavior, missingSourcePolicy, schemaPins);
   }
 
   public MappingIntentRule withTargetPath(String path) {
     return new MappingIntentRule(
-        id, requirementIds, path, value, condition, status, fieldRefs, constants, behavior);
+        id, requirementIds, path, value, condition, status, fieldRefs, constants, behavior, missingSourcePolicy,
+        java.util.Objects.equals(MappingContract.canonicalPath(path), MappingContract.canonicalPath(targetPath))
+            ? schemaPins : null);
   }
 
   public MappingIntentRule withBehavior(String nextBehavior) {
     return new MappingIntentRule(
-        id, requirementIds, targetPath, value, condition, status, fieldRefs, constants, nextBehavior);
+        id, requirementIds, targetPath, value, condition, status, fieldRefs, constants, nextBehavior, missingSourcePolicy, schemaPins);
+  }
+
+  public MappingIntentRule withMissingSourcePolicy(String policy) {
+    return new MappingIntentRule(id, requirementIds, targetPath, value, condition, status,
+        fieldRefs, constants, behavior, policy, schemaPins);
+  }
+
+  /** Preserves the message origin and missing policy; changing its path invalidates schema pins. */
+  public MappingIntentRule withMessageSourcePath(String path) {
+    if (!(value instanceof MappingValue.Copy copy) || !(copy.source() instanceof MappingSource.Message message)) {
+      throw new IllegalArgumentException("A message COPY is required to edit its source path.");
+    }
+    return new MappingIntentRule(id, requirementIds, targetPath,
+        new MappingValue.Copy(new MappingSource.Message(message.interactionId(), message.port(), path)),
+        condition, status, fieldRefs, constants, behavior, missingSourcePolicy, null);
+  }
+
+  /** Keeps legacy message references when adding behavior; a pinned COPY policy requires recapture. */
+  public MappingIntentRule withLegacyMessageBehavior(String path, String expression) {
+    if (missingSourcePolicy != null || !(value instanceof MappingValue.Copy copy)
+        || !(copy.source() instanceof MappingSource.Message message)) {
+      throw new IllegalArgumentException("Recapture the typed mapping before replacing its value with an expression.");
+    }
+    return new MappingIntentRule(id, requirementIds, targetPath, null, condition, status,
+        List.of(new MappingFieldRef(message.interactionId(),
+            message.port() == null ? "" : message.port().name(), MappingContract.canonicalPath(path), "")),
+        List.of(), expression);
+  }
+
+  public MappingIntentRule withSchemaPins(Map<String, String> pins) {
+    return new MappingIntentRule(id, requirementIds, targetPath, value, condition, status,
+        fieldRefs, constants, behavior, missingSourcePolicy, pins);
   }
 
   @JsonIgnore
@@ -180,6 +236,7 @@ public record MappingIntentRule(
     return condition.when() == MappingCondition.When.ALWAYS
         && value instanceof MappingValue.Copy copy
         && copy.source() instanceof MappingSource.Message message
+        && (message.interactionId() == null || message.interactionId().isBlank())
         && message.path() != null && message.path().equals(targetPath);
   }
 }

@@ -217,14 +217,12 @@ export const McpServiceList: React.FC = () => {
               {
                 key: "delete",
                 label: "Delete",
-                icon: <OverridableIcon name={"delete"} />,
                 onClick: () => void deleteSystem(system.id),
                 require: { service: ["delete"] },
               },
               {
                 key: "export",
                 label: "Export",
-                icon: <OverridableIcon name={"cloudDownload"} />,
                 onClick: () => void exportSystems([system.id]),
                 require: { service: ["export"] },
               },

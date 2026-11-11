@@ -803,7 +803,9 @@ class MappingGapResumeTest {
   @Test
   void savedMappingGateWithAnOmittedAuthoredRuleResumesForProducerRepair() {
     var input = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput(
-        null, List.of(new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput(
+        new ObjectMapper().convertValue(uncoveredBrief().flow(),
+            org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FlowInput.class),
+        List.of(new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput(
             "mapping-create-task", List.of("task-start", "create-task"),
             org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactKind.FIELD_MAPPING,
             org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polarity.POSITIVE,

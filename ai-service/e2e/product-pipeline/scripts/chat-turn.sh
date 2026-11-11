@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # POST one chat turn and capture the SSE stream.
-# Usage: chat-turn.sh <base_url> <conversation_id|-> <message> <out_sse> [scenario_hint] [decision_json]
+# Usage: chat-turn.sh <base_url> <conversation_id|-> <message> <out_sse> [scenario_hint] [decision_json] [clarification_offer_id]
 #
 # Optional env (production chat fields the UI also sends):
 #   E2E_CHAT_ATTACHMENT     open-chain context, e.g. "## Current Chain: Name (ID: uuid)"
@@ -21,6 +21,7 @@ SCENARIO_HINT="${5:-}"
 ATTACHMENT="${E2E_CHAT_ATTACHMENT:-}"
 ATTACHMENT_KEYS_JSON="${E2E_CHAT_ATTACHMENT_KEYS_JSON:-}"
 DECISION_JSON="${6:-${E2E_CHAT_DECISION_JSON:-}}"
+CLARIFICATION_OFFER_ID="${7:-}"
 
 e2e_require_cmds curl python3
 
@@ -33,11 +34,11 @@ trap 'rm -f "$payload_file"' EXIT
 
 python3 - \
     "$CONV_ID" "$MESSAGE" "$SCENARIO_HINT" "$ATTACHMENT" \
-    "$ATTACHMENT_KEYS_JSON" "$DECISION_JSON" > "$payload_file" << 'PY'
+    "$ATTACHMENT_KEYS_JSON" "$DECISION_JSON" "$CLARIFICATION_OFFER_ID" > "$payload_file" << 'PY'
 import json
 import sys
 
-conv_id, message, hint, attachment, attachment_keys_json, decision_json = sys.argv[1:7]
+conv_id, message, hint, attachment, attachment_keys_json, decision_json, clarification_offer_id = sys.argv[1:8]
 body = {"message": message}
 if conv_id and conv_id != "-":
     body["conversationId"] = conv_id
@@ -54,6 +55,8 @@ if attachment_keys_json:
     body["attachmentObjectKeys"] = attachment_keys
 if decision_json:
     body["decision"] = json.loads(decision_json)
+if clarification_offer_id:
+    body["clarificationOfferId"] = clarification_offer_id
 print(json.dumps(body))
 PY
 

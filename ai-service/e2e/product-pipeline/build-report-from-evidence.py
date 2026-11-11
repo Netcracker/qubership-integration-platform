@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
+from pathlib import Path
 from typing import Any
 
 # Required facts such as "GET /greetings" may appear as a contiguous substring, as split plan
@@ -29,6 +31,24 @@ def _first_decoded(decoded: dict[str, Any], kind_prefix: str) -> Any | None:
         if key.startswith(kind_prefix + "#") or key == kind_prefix:
             return value
     return None
+
+
+def _latest_attempt_decoded(
+    decoded: dict[str, Any], attempts: list[dict[str, Any]], kind: str
+) -> Any | None:
+    references = [
+        (attempt.get("runRevision", 0), output["artifactId"])
+        for attempt in attempts
+        for output in attempt.get("outputs", [])
+        if output.get("kind") == kind
+    ]
+    if not references:
+        return _first_decoded(decoded, kind)
+    revision = max(revision for revision, _ in references)
+    artifact_ids = {artifact_id for at, artifact_id in references if at == revision}
+    if len(artifact_ids) != 1:
+        raise ValueError(f"conflicting {kind} output references at revision {revision}")
+    return decoded.get(f"{kind}#{artifact_ids.pop()}")
 
 
 def _http_endpoint_parts(fact: str) -> tuple[str, str] | None:
@@ -184,28 +204,6 @@ def _fact_texts(requirement: Any) -> list[str]:
     return texts
 
 
-def _positive_fact_texts(requirement: Any) -> list[str]:
-    """Return only POSITIVE requirement fact texts (negations must not trip forbidden checks)."""
-    texts: list[str] = []
-    if not isinstance(requirement, dict):
-        return texts
-    facts = requirement.get("facts")
-    if not isinstance(facts, list):
-        return texts
-    for fact in facts:
-        if not isinstance(fact, dict):
-            continue
-        polarity = str(fact.get("polarity") or "").strip().upper()
-        if polarity == "NEGATIVE":
-            continue
-        for field in ("text", "value", "name", "id"):
-            value = fact.get(field)
-            if isinstance(value, str) and value.strip():
-                texts.append(value.strip())
-                break
-    return texts
-
-
 def _halt_card(transitions: list[Any]) -> dict[str, Any]:
     """Last WAITING_FOR_INPUT reason as the author-visible halt card, or empty fields."""
     reason = ""
@@ -299,28 +297,70 @@ def _haystack(
     return "\n".join(parts)
 
 
-def _forbidden_haystack(decoded: dict[str, Any], requirement: Any) -> str:
-    """Haystack for forbidden facts: topology and positive facts only.
+def _element_schema_types() -> set[str]:
+    root = Path(os.environ.get("QIP_SERVICE_ROOT", "."))
+    directory = root / "schemas/src/main/resources/conf-model/element"
+    schemas = list(directory.glob("*.schema.yaml"))
+    if not schemas:
+        raise ValueError(f"element schemas not found in {directory}")
+    return {path.name.removesuffix(".schema.yaml") for path in schemas}
 
-    Skill metadata, negativeConstraints, and phrases such as "No APIHub" must not count as
-    present forbidden facts. Match against plan/catalog topology and POSITIVE requirement texts.
-    """
-    parts: list[str] = []
-    for kind in ("CHAIN_PLAN_GRAPH", "CATALOG_CHAIN_SNAPSHOT"):
-        artifact = _first_decoded(decoded, kind)
-        if artifact is not None:
-            parts.append(json.dumps(artifact, ensure_ascii=False))
+
+def _forbidden_haystack(decoded: dict[str, Any], _requirement: Any) -> str:
+    parts = _materialized_element_types(decoded)
     plan = _first_decoded(decoded, "IMPLEMENTATION_PLAN")
     if isinstance(plan, dict):
-        # Exclude planText, negativeConstraints, and serviceBindings. Planner LLM text often
-        # invents "cip-service-call-generator" step labels for script-only flows; real topology
-        # lives in CHAIN_PLAN_GRAPH / CATALOG_CHAIN_SNAPSHOT above.
         for field in ("endpointFacts", "branchFacts", "scriptOutcomes"):
             value = plan.get(field)
             if value is not None:
                 parts.append(json.dumps(value, ensure_ascii=False))
-    parts.extend(_positive_fact_texts(requirement))
     return "\n".join(parts)
+
+
+def _exhausted_halt(transitions: list[Any]) -> bool:
+    exhausted = False
+    for transition in transitions:
+        if (
+            not isinstance(transition, dict)
+            or transition.get("toStatus") != "WAITING_FOR_INPUT"
+        ):
+            continue
+        reason = transition.get("reason") or ""
+        if "__GUARD__NAMED_STAGE_OUTSIDE_CANDIDATE_SET" in reason:
+            return exhausted and "__GATE:recovery-repeated__" in reason
+        if all(
+            marker in reason
+            for marker in (
+                "__GATE:recovery-repeated__",
+                "__GUARD__MAX_SEMANTIC_REPAIRS",
+                "Repairs remaining: 0.",
+                "Clean regenerations remaining: 0.",
+                "Automatic reopens remaining: 0.",
+            )
+        ):
+            exhausted = True
+    return False
+
+
+def _sse_tool_invocations(directory: str) -> list[str]:
+    result = []
+    for path in Path(directory).glob("*.sse"):
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if not line.startswith("data:data: "):
+                continue
+            try:
+                event = json.loads(line[len("data:data: ") :])
+            except json.JSONDecodeError:
+                continue
+            if (
+                isinstance(event, dict)
+                and event.get("kind") == "tool"
+                and event.get("status") == "running"
+            ):
+                tool_id = event.get("id", "")
+                if isinstance(tool_id, str) and tool_id.startswith("tool:"):
+                    result.append(tool_id[len("tool:") :])
+    return result
 
 
 def _forbidden_fact_present(fact: str, haystack: str) -> bool:
@@ -357,7 +397,7 @@ def build_report(
         raise ValueError("transitions must be an array")
 
     plan = _first_decoded(decoded, "IMPLEMENTATION_PLAN")
-    validation = _first_decoded(decoded, "PLAN_VALIDATION_RESULT")
+    validation = _latest_attempt_decoded(decoded, attempts, "PLAN_VALIDATION_RESULT")
     approval = _first_decoded(decoded, "APPROVAL_RECORD")
     requirement = _first_decoded(decoded, "REQUIREMENT_BRIEF")
     requirement_facts = _fact_texts(requirement)
@@ -533,15 +573,50 @@ def build_report(
         decoded, requirement_facts, findings, attempts, transitions, validation_verdict
     )
     forbidden_haystack = _forbidden_haystack(decoded, requirement)
+    negative_facts = (
+        requirement.get("facts", []) if isinstance(requirement, dict) else []
+    )
+    no_apihub = any(
+        isinstance(f, dict)
+        and f.get("kind") == "CONSTRAINT"
+        and f.get("polarity") == "NEGATIVE"
+        and "apihub" in re.sub(r"\s+", "", str(f.get("text", "")).lower())
+        for f in negative_facts
+    )
+    apihub_tools = {
+        "searchApiOperations",
+        "getApiOperationSpecification",
+        "listApiHubPackages",
+        "getApiHubDocument",
+        "importApiHubSpecToSystem",
+    }
+    invoked_apihub = bool(
+        apihub_tools.intersection(evidence.get("toolInvocations", []))
+    )
     missing_required = [
         fact
         for fact in required_facts
-        if not _required_fact_present(fact, haystack, decoded)
+        if not (
+            no_apihub
+            if fact == "No APIHub"
+            else _required_fact_present(fact, haystack, decoded)
+        )
     ]
+    if "APIHub" in forbidden_facts and not evidence.get("toolInvocations"):
+        missing_required.append("observable tool activity")
+    schema_types = _element_schema_types()
     present_forbidden = [
         fact
         for fact in forbidden_facts
-        if _forbidden_fact_present(fact, forbidden_haystack)
+        if (
+            invoked_apihub
+            if fact == "APIHub"
+            else (
+                fact in _materialized_element_types(decoded)
+                if fact in schema_types
+                else _forbidden_fact_present(fact, forbidden_haystack)
+            )
+        )
     ]
 
     kinds = evidence.get("committedArtifactKinds") or []
@@ -596,6 +671,8 @@ def build_report(
         "forbiddenFacts": forbidden_facts,
         "missingRequiredFacts": missing_required,
         "presentForbiddenFacts": present_forbidden,
+        "observedToolInvocations": evidence.get("toolInvocations", []),
+        "toolActivityObserved": bool(evidence.get("toolInvocations")),
         "committedArtifactKinds": kinds,
         "hasGeneratedBundle": False,  # legacy bundle kind removed after cutover
         "hasPublicationReceipt": False,  # legacy publication receipt removed after cutover
@@ -614,6 +691,7 @@ def build_report(
 
 def main() -> int:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--sse-dir")
     parser.add_argument("--evidence", required=True)
     parser.add_argument("--scenario-id", required=True)
     parser.add_argument("--rep", type=int, required=True)
@@ -630,6 +708,8 @@ def main() -> int:
     args = parser.parse_args()
 
     evidence = json.loads(open(args.evidence, encoding="utf-8").read())
+    if args.sse_dir:
+        evidence["toolInvocations"] = _sse_tool_invocations(args.sse_dir)
     required = json.loads(args.required_facts)
     forbidden = json.loads(args.forbidden_facts)
     try:

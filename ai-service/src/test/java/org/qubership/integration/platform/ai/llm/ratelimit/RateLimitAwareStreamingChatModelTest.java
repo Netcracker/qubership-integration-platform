@@ -61,6 +61,46 @@ class RateLimitAwareStreamingChatModelTest {
   }
 
   @Test
+  void providerCallbackKeepsTheConversationOnAnotherThreadAndRestoresItsContext() throws Exception {
+    var delegate = new FakeStreamingChatModel();
+    var observed = new java.util.concurrent.CompletableFuture<String>();
+    try (var ignored = org.qubership.integration.platform.ai.chat.ToolSession.open("original-conversation")) {
+      var model = new RateLimitAwareStreamingChatModel(delegate, classifier, policy,
+          new RateLimitAwareChatModelTest.RecordingSleeper(), true, 3, events::add);
+      model.chat(request, new StreamingChatResponseHandler() {
+        @Override public void onPartialResponse(String text) {}
+        @Override public void onCompleteResponse(ChatResponse response) {
+          observed.complete(org.qubership.integration.platform.ai.chat.ToolSession.resolveConversationId());
+        }
+        @Override public void onError(Throwable failure) { observed.completeExceptionally(failure); }
+      });
+    }
+    java.util.concurrent.CompletableFuture.runAsync(() -> {
+      delegate.handlers.getFirst().onCompleteResponse(successResponse);
+      assertNull(org.qubership.integration.platform.ai.chat.ToolSession.resolveConversationId());
+    }).get(5, java.util.concurrent.TimeUnit.SECONDS);
+    assertEquals("original-conversation", observed.get(5, java.util.concurrent.TimeUnit.SECONDS));
+  }
+
+  @Test
+  void asynchronousErrorKeepsTheOriginalBoundedDeadline() {
+    FakeStreamingChatModel delegate = new FakeStreamingChatModel();
+    var sleeper = new RateLimitAwareChatModelTest.RecordingSleeper();
+    var model = new RateLimitAwareStreamingChatModel(delegate, classifier, policy, sleeper, true, 3, events::add);
+    var outer = new CapturingHandler();
+    RateLimitRetryDeadline.withDeadline(java.time.Duration.ofSeconds(20), () -> {
+      model.chat(request, outer);
+      return null;
+    });
+    delegate.handlers.getFirst().onError(new RateLimitHttpException("quota exhausted",
+        java.util.Map.of("Retry-After", "60")));
+    assertTrue(outer.error instanceof RateLimitRetryDeferredException);
+    assertEquals(1, delegate.chatCallCount);
+    assertTrue(sleeper.sleptSeconds.isEmpty());
+    assertTrue(events.isEmpty());
+  }
+
+  @Test
   void doesNotRetryAfterPartialToken() {
     FakeStreamingChatModel delegate = new FakeStreamingChatModel();
     RateLimitAwareChatModelTest.RecordingSleeper sleeper = new RateLimitAwareChatModelTest.RecordingSleeper();

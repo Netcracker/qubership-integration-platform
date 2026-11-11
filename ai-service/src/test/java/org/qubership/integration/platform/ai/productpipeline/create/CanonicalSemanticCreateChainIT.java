@@ -448,13 +448,11 @@ class CanonicalSemanticCreateChainIT {
         new ChainPlanGraphImporter(objectMapper, new CanonicalGraphDigest(objectMapper));
     ProductChainMaterializer materializer =
         new ProductChainMaterializer(catalog, artifacts, factsService, graphImporter);
-    return new MaterializationCapability(
-        artifacts,
-        materializer,
-        factsService,
-        new ChainReconcileService(),
-        new CanonicalGraphDigest(mapper),
-        designExecutorAdapter);
+    return org.qubership.integration.platform.ai.productpipeline.materialization.MaterializationTestWiring.withCopyValidation(
+        new MaterializationCapability(
+            artifacts, materializer, factsService, new ChainReconcileService(),
+            new CanonicalGraphDigest(mapper), designExecutorAdapter),
+        new CompilationArtifacts(blobStore, mapper, clock));
   }
 
   private void stubCatalogHits() {
@@ -477,8 +475,10 @@ class CanonicalSemanticCreateChainIT {
           ChainSemanticRevision revision = invocation.getArgument(1);
           compiledRevisions.add(revision);
           List<ResolvedServiceCallBinding> bindings = invocation.getArgument(2);
-          return compiledResult(
-              graphCompiler.compile(revision, CONTRACT, bindings == null ? List.of() : bindings));
+          var brief = approvedBrief();
+          var shell = graphCompiler.compile(revision, CONTRACT, bindings == null ? List.of() : bindings, brief);
+          return compiledResult(org.qubership.integration.platform.ai.qipknowledge.validation.RequestedElementValues
+              .seedBodies(shell, brief.facts()));
         };
     org.mockito.Mockito.doAnswer(compile)
         .when(approvedCompilerExecutionRunner)
@@ -614,7 +614,9 @@ class CanonicalSemanticCreateChainIT {
   private DesignInputCapability designInputCapability() {
     return new DesignInputCapability(
         (conversationId, prompt) -> {
-          ProductCapabilityCaptureContext.offerSemantic(offeredRevision);
+          ProductCapabilityCaptureContext.offerSemantic(
+              org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures
+                  .attachSuppliedFacts(offeredRevision, approvedBrief()));
           if (repairedRevision != null) {
             offeredRevision = repairedRevision;
           }
@@ -943,8 +945,8 @@ class CanonicalSemanticCreateChainIT {
         null);
   }
 
-  private static RequirementBrief approvedBrief() {
-    return new RequirementBrief(
+  private RequirementBrief approvedBrief() {
+    var brief = new RequirementBrief(
         "Pets",
         List.of("HTTP GET /pets"),
         List.of(),
@@ -967,6 +969,16 @@ class CanonicalSemanticCreateChainIT {
                 "List pets from Petstore Ext",
                 "Petstore Ext",
                 "GET /pets")));
+    var facts = new ArrayList<>(brief.facts());
+    if (offeredRevision != null) {
+      offeredRevision.nodes().stream().filter(node ->
+          node instanceof org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode.Operation operation
+              && "script".equals(operation.elementType()))
+          .map(node -> org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures
+              .suppliedFact(node.nodeId(), "return null"))
+          .forEach(facts::add);
+    }
+    return brief.withFacts(facts);
   }
 
   private static CatalogBindingHint petsBindingHint() {

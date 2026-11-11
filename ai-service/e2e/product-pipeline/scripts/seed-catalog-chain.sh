@@ -44,6 +44,7 @@ python3 - "$CATALOG_URL" "$chain_id" "$seed_json" << 'PY'
 import json
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 
 catalog_url, chain_id, seed_raw = sys.argv[1:4]
@@ -91,6 +92,32 @@ for spec in seed.get("elements") or []:
     _, current = request("GET", f"/v1/chains/{chain_id}/elements/{element_id}")
     properties = dict(current.get("properties") or {})
     properties.update(spec.get("properties") or {})
+    binding = spec.get("catalogOperation")
+    if binding:
+        _, systems = request("POST", "/v1/systems/search", {"searchCondition": binding["system"]})
+        systems = [item for item in systems if item.get("name") == binding["system"]]
+        if len(systems) != 1:
+            raise SystemExit(f"FAIL: expected one catalog system {binding['system']!r}, found {len(systems)}")
+        system = systems[0]
+        _, models = request("GET", "/v1/models?" + urllib.parse.urlencode({"systemId": system["id"]}))
+        matches = []
+        for model in models:
+            offset = 0
+            while True:
+                _, page = request("GET", "/v1/operations?" + urllib.parse.urlencode(
+                    {"modelId": model["id"], "offset": offset, "count": 100}))
+                matches.extend((model, operation) for operation in page if all(
+                    str(operation.get(key, "")).upper() == str(value).upper()
+                    for key, value in binding.items() if key != "system"))
+                if len(page) < 100:
+                    break
+                offset += len(page)
+        if len(matches) != 1:
+            raise SystemExit(f"FAIL: expected one catalog operation {binding!r}, found {len(matches)}")
+        model, operation = matches[0]
+        properties.update({"integrationSystemId": system["id"], "integrationSpecificationId": model["id"],
+            "integrationOperationId": operation["id"], "integrationOperationPath": operation.get("path"),
+            "integrationOperationMethod": operation.get("method")})
     patch = {
         "name": spec.get("name") or current.get("name") or element_type,
         "properties": properties,

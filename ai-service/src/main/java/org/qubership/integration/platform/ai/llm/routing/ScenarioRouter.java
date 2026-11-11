@@ -7,6 +7,7 @@ import jakarta.enterprise.inject.Instance;
 import jakarta.enterprise.inject.UnsatisfiedResolutionException;
 import org.jboss.logging.Logger;
 import org.jboss.logmanager.MDC;
+import org.qubership.integration.platform.ai.skills.RockySkills;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.ChatMdc;
 import org.qubership.integration.platform.ai.chat.TranscriptWindow;
@@ -36,6 +37,9 @@ import java.util.Optional;
  */
 @ApplicationScoped
 public class ScenarioRouter {
+
+  @jakarta.inject.Inject
+  RockySkills rockySkills = new RockySkills();
 
   private static final Logger LOG = Logger.getLogger(ScenarioRouter.class);
 
@@ -113,12 +117,21 @@ public class ScenarioRouter {
   }
 
   public Multi<ChatEvent> route(ChatRequest request, String conversationId) {
+    if (!rockySkills.available()) return routePublic(request, conversationId);
     boolean atRecoverableHalt = false;
     if (createRunSelectionService != null && productPipelineChatAdapter != null) {
       try {
-        atRecoverableHalt =
-            createRunSelectionService.existing(conversationId).isPresent()
-                && recoverableHalt(conversationId);
+        if (createRunSelectionService.existing(conversationId).isPresent()) {
+          var pending = pendingClarification(conversationId);
+          String offerId = request.getClarificationOfferId();
+          if (offerId != null && !offerId.isBlank()
+              && pending.filter(wait -> offerId.equals(wait.clarificationOfferId())
+                  && PipelineGates.admitsAuthoredClarification(wait.gateId())).isPresent()) {
+            return productPipelineChatAdapter.handle(request, conversationId);
+          }
+          atRecoverableHalt = pending.map(PendingAction.Clarify::gateId)
+              .filter(PipelineGates::isRecoverableHaltGate).isPresent();
+        }
       } catch (UnsupportedCreateRunBindingException e) {
         LOG.warnf(
             "Unsupported CREATE binding conversationId=%s errorId=%s",
@@ -249,6 +262,32 @@ public class ScenarioRouter {
             });
   }
 
+  private Multi<ChatEvent> routePublic(ChatRequest request, String conversationId) {
+    boolean hasChain = hasOpenChain(request, conversationId);
+    ScenarioType type = request.getScenarioHint();
+    if (type == null) {
+      try {
+        type = routerAgent.classify(buildRouterTranscript(conversationId), "COLD", request.getEffectiveUserText());
+      } catch (RuntimeException e) {
+        type = ScenarioType.CONSULTATION;
+      }
+    }
+    if (type == ScenarioType.COMPARE_AND_PATCH || type == ScenarioType.CREATE_CHAIN_PLAN
+        || type == ScenarioType.IMPLEMENT_CHAIN || (hasChain && type == ScenarioType.GATHER_REQUIREMENTS)) {
+      return Multi.createFrom().item(ChatEvent.token(
+          RockySkills.UNAVAILABLE));
+    }
+    if (type == null || type == ScenarioType.UNKNOWN || type == ScenarioType.GATHER_REQUIREMENTS) {
+      type = ScenarioType.CONSULTATION;
+    }
+    Instance<ScenarioHandler> selected = handlers.select(new ForScenarioLiteral(resolveHandlerType(type)));
+    if (!selected.isResolvable()) {
+      type = ScenarioType.CONSULTATION;
+      selected = handlers.select(new ForScenarioLiteral(type));
+    }
+    return selected.get().handle(request, conversationId, type);
+  }
+
   /**
    * Whether the CREATE run bound to this conversation has nothing left to do.
    *
@@ -265,20 +304,12 @@ public class ScenarioRouter {
             .orElse(false);
   }
 
-  /** True when the bound CREATE run is paused and each typed follow-up needs classification. */
-  private boolean recoverableHalt(String conversationId) {
-    if (createChainFacade == null) {
-      return false;
-    }
-    return createChainFacade
-        .snapshot(conversationId)
+  private Optional<PendingAction.Clarify> pendingClarification(String conversationId) {
+    return createChainFacade == null ? Optional.empty() : createChainFacade.snapshot(conversationId)
         .filter(snapshot -> !snapshot.finished())
         .map(ExecutionSnapshot::pendingAction)
         .filter(PendingAction.Clarify.class::isInstance)
-        .map(PendingAction.Clarify.class::cast)
-        .map(PendingAction.Clarify::gateId)
-        .filter(PipelineGates::isRecoverableHaltGate)
-        .isPresent();
+        .map(PendingAction.Clarify.class::cast);
   }
 
   private RoutingOutcome resolveHaltRouting(ChatRequest request, String conversationId) {

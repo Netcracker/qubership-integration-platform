@@ -31,6 +31,7 @@ import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.plan.RequirementFlowValidator;
+import org.qubership.integration.platform.ai.plan.UploadedSpecOperations;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
@@ -137,7 +138,7 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
           "auto-uploaded-spec-import: no attachment keys conversationId=%s; skipping import",
           conversationId);
       return Multi.createFrom()
-          .item(succeeded(context, "No uploaded API specifications to import", null));
+          .item(succeeded(context, "No uploaded API specifications to import", List.of()));
     }
 
     boolean approved =
@@ -345,7 +346,8 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
         rewriteFactsAndHints(updatedDraft, context.conversationId(), imported);
     RequirementDraft rewrittenDraft = rewrite.draft();
     if (draftStore != null) {
-      if (!draftStore.putIfCurrent(context.conversationId(), authority, rewrittenDraft)) {
+      boolean staged = draftStore.isCurrentSourceCorrection(context.conversationId(), authority, rewrittenDraft);
+      if (!staged && !draftStore.putIfCurrent(context.conversationId(), authority, rewrittenDraft)) {
         return completed(StageOutcome.of(StageOutcomeClass.MISSING_MANDATORY_INPUT,
             "Requirement inputs changed during import. Resume from the current admitted draft.",
             new RecoveryCause(RecoveryCauseCode.MISSING_BRIEF_FACTS,
@@ -501,13 +503,11 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
       if (operationQuery == null) {
         continue;
       }
-      CatalogBindingMatcher.MatchResult match =
-          matchImportedSpecs(
-              serviceName,
-              operationQuery,
-              flowBindingEvidence(interaction, facts),
-              conversationId,
-              imported);
+      var uploaded = draft.uploadedSpecBindings().get(interaction.interactionId());
+      CatalogBindingMatcher.MatchResult match = uploaded == null
+          ? matchImportedSpecs(serviceName, operationQuery, flowBindingEvidence(interaction, facts),
+              conversationId, imported)
+          : matchPinnedOperation(uploaded, conversationId, imported);
       LOG.infof(
           "auto-uploaded-spec-import: probing flow interactionId=%s service=%s query=%s match=%s",
           interaction.interactionId(),
@@ -533,6 +533,21 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
             interaction.interactionId());
       }
     }
+  }
+
+  private CatalogBindingMatcher.MatchResult matchPinnedOperation(UploadedSpecOperations.Binding binding,
+      String conversationId, List<UploadedSpecImportOutcome> imported) {
+    for (var outcome : imported) {
+      if (!binding.attachmentKey().equals(outcome.s3Key())) continue;
+      var result = catalogBindingMatcher.matchImported("service-call", outcome.systemId(),
+          outcome.specificationGroupId(), outcome.specificationId(), binding.route(), conversationId);
+      if (result instanceof CatalogBindingMatcher.MatchResult.Exact exact
+          && binding.method().equalsIgnoreCase(exact.match().method())
+          && binding.path().equals(exact.match().path())) {
+        return exact;
+      }
+    }
+    return new CatalogBindingMatcher.MatchResult.None();
   }
 
   private CatalogBindingMatcher.MatchResult matchImportedSpecs(
@@ -671,6 +686,8 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
     if (input.isPresent() && stored.isPresent()) {
       RequirementDraft inputDraft = input.orElseThrow();
       RequirementDraft storedDraft = stored.orElseThrow();
+      if (draftStore.isCurrentSourceCorrection(context.conversationId(),
+          draftStore.writeAuthority(context.conversationId()), inputDraft)) return Optional.of(inputDraft);
       RequirementDraft current = moreAdvanced(inputDraft, storedDraft) ? inputDraft : storedDraft;
       RequirementDraft other = current == inputDraft ? storedDraft : inputDraft;
       for (CatalogBindingHint hint : other.catalogBindings()) {

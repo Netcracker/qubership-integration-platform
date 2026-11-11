@@ -5,6 +5,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import type {
   DomainFacts,
+  AiRecoveryLifecycleReport,
   Env,
   Evidence,
   Overlay,
@@ -114,6 +115,16 @@ export function overlayDefinition(name: string): OverlayDefinition {
 }
 
 export class ComposeEnv implements Env {
+  async verifyAiRecoveryLifecycle(output: string): Promise<AiRecoveryLifecycleReport> {
+    const { stdout } = await run("docker", ["inspect", "qip-ai-service"]);
+    const baseline = JSON.parse(stdout)[0] as { Image: string };
+    await run("python3", [
+      path.resolve(repoRoot(), "ai-service/e2e/product-pipeline/recovery_campaign.py"),
+      "lifecycle-check", "--image", process.env.CIP_RECOVERY_AI_IMAGE ?? baseline.Image, "--out", output,
+    ], { maxBuffer: 1024 * 1024, timeout: 360_000 });
+    return JSON.parse(await fs.readFile(path.join(output, "lifecycle.json"), "utf8")) as AiRecoveryLifecycleReport;
+  }
+
   readonly name = "compose";
   readonly generatedRequestId = null;
 

@@ -13,6 +13,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import org.qubership.integration.platform.ai.skills.RockySkills;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.evidence.EvidenceEmitter;
@@ -28,6 +29,7 @@ import org.qubership.integration.platform.ai.llm.agent.DiscoveryAgent;
 import org.qubership.integration.platform.ai.llm.agent.ProductDiscoveryAgent;
 import org.qubership.integration.platform.ai.llm.qute.QuteUserMessageEscaping;
 import org.qubership.integration.platform.ai.plan.BriefMappingValidator;
+import org.qubership.integration.platform.ai.plan.AuthorSourceEvidence;
 import org.qubership.integration.platform.ai.plan.MappingTurnAdapter;
 import org.qubership.integration.platform.ai.plan.MappingTurnApplication;
 import org.qubership.integration.platform.ai.plan.MappingTurnInterpreter;
@@ -37,7 +39,11 @@ import org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValida
 import org.qubership.integration.platform.ai.plan.RequirementBriefProjector;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
+import org.qubership.integration.platform.ai.plan.BriefCopyMappingValidator;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureProjection.PendingWork;
+import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool.SourceReview;
 import org.qubership.integration.platform.ai.plan.mapping.MappingMechanismSelector;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
@@ -69,15 +75,19 @@ import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
 import org.qubership.integration.platform.ai.skill.workspace.SkillWorkspace;
 
 /**
- * Product-pipeline requirement analysis. Consumes only the approved draft planning text and one
- * compiled runtime context package via {@link KnowledgeClient}; never re-reads the conversation
- * transcript.
+ * Product-pipeline analysis preserves approved requirements while reviewing the bound author source
+ * and one compiled runtime context package via {@link KnowledgeClient}.
  */
 @ApplicationScoped
 public class RequirementAnalysisCapability implements StageCapability {
 
   public static final String CAPABILITY_ID = "requirement-analysis";
   public static final String SKILL_ID = "cip-requirement-analyzer";
+
+  @jakarta.inject.Inject
+  org.qubership.integration.platform.ai.productpipeline.knowledge.DocumentationTools documentation;
+
+  @Inject BriefCopyMappingValidator copyMappings;
 
   private final KnowledgeClient knowledgeClient;
   private final KnowledgeContextProvider knowledgeContextProvider;
@@ -325,7 +335,16 @@ public class RequirementAnalysisCapability implements StageCapability {
         .voidItem()
         .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
         .onItem()
-        .transformToMulti(ignored -> continueAfterKnowledge(context, prepared, authority));
+        .transformToMulti(ignored -> {
+          List<PendingWork> pending = copyMappings == null ? List.of() : copyMappings.pending(prepared);
+          if (!pending.isEmpty()) {
+            var findings = pending.stream()
+                .map(work -> new PlanValidationFinding(work.code(), work.message(), true)).toList();
+            return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(
+                StageOutcomeClass.CONTRACT_FAILURE, pending.getFirst().message(), RecoveryCause.mappingContract(findings))));
+          }
+          return continueAfterKnowledge(context, prepared, authority);
+        });
   }
 
   /**
@@ -369,6 +388,7 @@ public class RequirementAnalysisCapability implements StageCapability {
 
     SkillWorkspace workspace = seedWorkspaceWithApprovedDraftOnly(approved);
     AtomicReference<RequirementBrief> captured = new AtomicReference<>();
+    AtomicReference<SourceReview> sourceReview = new AtomicReference<>();
     java.util.function.Supplier<Context> startCapture = () -> {
       Context installed = ProductCapabilityCaptureContext.bindAnalysis(
         context.runId(),
@@ -384,6 +404,8 @@ public class RequirementAnalysisCapability implements StageCapability {
         payload -> {
           if (payload instanceof RequirementBrief brief) {
             captured.set(brief);
+          } else if (payload instanceof SourceReview review) {
+            sourceReview.set(review);
           }
         });
 
@@ -428,7 +450,8 @@ public class RequirementAnalysisCapability implements StageCapability {
     Multi<ChatEvent> agentStream;
     try {
       agentStream =
-          ToolSession.propagateBinding(toolSessionContext, runAnalyzer(context, approved, binding));
+          ToolSession.propagateBinding(toolSessionContext,
+              runAnalyzer(context, approved, binding, AuthorSourceEvidence.authoredPacket(authority), sourceReview));
     } catch (KnowledgeClientException e) {
       ProductCapabilityCaptureContext.unbind(binding);
       ToolSession.clear();
@@ -462,7 +485,7 @@ public class RequirementAnalysisCapability implements StageCapability {
                                       : captureSession == null ? null : captureSession.get(CaptureKey.conversation(
                                           CaptureSlot.REQUIREMENT_BRIEF, context.conversationId()), RequirementBrief.class)
                                           .orElse(null);
-                                  return completeWithBrief(context, approved, workspace, brief);
+                                  return completeWithBrief(context, approved, workspace, brief, sourceReview.get());
                                 });
                         var completed = authority == null ? finish.get() : conversations.archive()
                             .withAuthority(context.conversationId(), authority.generation(),
@@ -509,7 +532,7 @@ public class RequirementAnalysisCapability implements StageCapability {
       chatMemorySanitizer.clear(conversationId);
     }
     if (feedbackStore != null) {
-      feedbackStore.clearPlan(conversationId);
+      feedbackStore.resetPlan(conversationId);
     }
     if (captureSession != null) {
       captureSession.clear(
@@ -522,6 +545,31 @@ public class RequirementAnalysisCapability implements StageCapability {
       RequirementDraft approved,
       SkillWorkspace workspace,
       RequirementBrief brief) {
+    return completeWithBrief(context, approved, workspace, brief, null);
+  }
+
+  private CapabilitySignal.Completed completeWithBrief(
+      StageExecutionContext context, RequirementDraft approved, SkillWorkspace workspace,
+      RequirementBrief brief, SourceReview sourceReview) {
+    if (sourceReview != null) {
+      var findings = sourceReview.omissions().stream().map(omission -> {
+        boolean interpretation = omission.kind()
+            == org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceDiscrepancyKind.INTERPRETATION_CONFLICT;
+        boolean addition = omission.kind()
+            == org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceDiscrepancyKind.UNSUPPORTED_ADDITION;
+        return new org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding(
+            interpretation ? "SOURCE_INTERPRETATION_CONFLICT"
+                : addition ? "SOURCE_UNSUPPORTED_ADDITION" : RecoveryCauseCode.MISSING_BRIEF_FACTS.name(),
+            "Source review in generation " + sourceReview.generation() + "; sourceTurnId=" + omission.sourceTurnId()
+                + "; exact quote:\n" + omission.quote() + "\nReported discrepancy:\n" + omission.explanation()
+                + "\nThis report is diagnostic evidence, not permission to change approved requirements.",
+            true, null, addition || interpretation ? omission.sourceFactId() : "",
+            interpretation ? omission.path() : addition ? "/facts/" + omission.sourceFactId() + "/text" : "");
+      }).toList();
+      var cause = new RecoveryCause(RecoveryCauseCode.MISSING_BRIEF_FACTS, findings, "", false, null, sourceReview);
+      return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
+          "Source requirements need guarded reconciliation before brief creation.\n" + cause.formattedFindings(), cause));
+    }
     if (brief == null) {
       if (feedbackStore != null) {
         var lastFailure = feedbackStore.lastPlanFailure(context.conversationId());
@@ -630,7 +678,8 @@ public class RequirementAnalysisCapability implements StageCapability {
 
   private Multi<ChatEvent> runAnalyzer(
       StageExecutionContext context, RequirementDraft approved,
-      ProductCapabilityCaptureContext.Binding binding) {
+      ProductCapabilityCaptureContext.Binding binding, AuthorSourceEvidence.Packet source,
+      AtomicReference<SourceReview> sourceReview) {
     KnowledgeContextPackage contextPackage =
         knowledgeClient.context(
             knowledgeContextProvider.forConversation(context.conversationId()),
@@ -647,9 +696,12 @@ public class RequirementAnalysisCapability implements StageCapability {
                 context.attributeAsString("userText"),
                 responseLocale(context),
                 repairEvidence(context))
+            + "\n\n" + AuthorSourceEvidence.render(source)
             + "\n\nSelected artifact references: " + context.inputRefs()
             + "\nStage: " + context.stageId() + "\nAttempt: " + context.attemptId()
-            + "\n\n" + contextPackage.renderMarkdown();
+            + "\n\n" + contextPackage.renderMarkdown()
+            + (documentation == null ? "" : documentation.context(context.conversationId(),
+                approved.planningText(), List.of()));
     if (evidenceEmitter != null) {
       evidenceEmitter.knowledge(
           context.conversationId(),
@@ -661,8 +713,10 @@ public class RequirementAnalysisCapability implements StageCapability {
     }
     java.util.function.Function<String, Multi<String>> agentChat =
         message -> {
+          var invocationParameters = ProductCapabilityCaptureContext.invocationParameters(binding);
+          invocationParameters.put(AuthorSourceEvidence.PARAMETER_KEY, source);
           ProductCapabilityCaptureContext.withBinding(context.conversationId(),
-              ProductCapabilityCaptureContext.invocationParameters(binding),
+              invocationParameters,
               ProductCapabilityCaptureContext.Mode.ANALYSIS, current -> null);
           if (conversations != null) {
             conversations.archive().withAuthority(context.conversationId(), binding.resetGeneration(),
@@ -681,8 +735,10 @@ public class RequirementAnalysisCapability implements StageCapability {
                 .transform(RequirementAnalysisCapability::tokenText);
           }
           if (productDiscoveryAgent != null) {
-            return productDiscoveryAgent.chat(context.conversationId(), message,
-                ProductCapabilityCaptureContext.invocationParameters(binding));
+            return productDiscoveryAgent.chat(context.conversationId(),
+                QuteUserMessageEscaping.escapeForAiServiceUserMessage(
+                    new RockySkills().instructions("cip-conf-requirement-analysis")) + "\n\n" + message,
+                invocationParameters);
           }
           if (discoveryAgent == null) {
             return Multi.createFrom().empty();
@@ -698,13 +754,13 @@ public class RequirementAnalysisCapability implements StageCapability {
     return captureRepairRunner
         .runWithRepair(
             agentChat,
-            () -> captureSession.isPresent(briefKey),
+            () -> captureSession.isPresent(briefKey) || sourceReview.get() != null,
             () -> feedbackStore.lastPlanFailure(context.conversationId()),
             () -> repairDanglingToolCalls(context.conversationId()),
             "captureRequirementBrief",
             safeMessage,
             true,
-            failure -> userMessage + "\n\nRepair captureRequirementBrief:\n" + failure.summary(),
+            failure -> userMessage + "\n\nRepair captureRequirementBrief:\n" + failure.modelSummary(),
             () -> repairDanglingToolCalls(context.conversationId()),
             1)
         .onItem()
@@ -722,7 +778,7 @@ public class RequirementAnalysisCapability implements StageCapability {
                 .lastPlanFailure(conversationId)
                 .map(
                     org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedback
-                        ::summary)
+                        ::modelSummary)
                 .orElse(null);
     chatMemorySanitizer.repairDanglingToolCalls(conversationId, feedback);
   }
@@ -828,6 +884,8 @@ public class RequirementAnalysisCapability implements StageCapability {
             .append(interaction.participant())
             .append(" operation=")
             .append(interaction.operation())
+            .append(" failureMode=")
+            .append(interaction.failureMode())
             .append('\n');
       }
       if (!flow.transitions().isEmpty()) {
@@ -874,6 +932,7 @@ public class RequirementAnalysisCapability implements StageCapability {
     appendNamedField(sb, "operation", fact.operation());
     appendNamedField(sb, "topic", fact.topic());
     appendNamedField(sb, "httpMethod", fact.httpMethod());
+    appendNamedField(sb, "httpMode", fact.httpMode() == null ? null : fact.httpMode().name());
     appendNamedField(sb, "path", fact.path());
   }
 

@@ -9,9 +9,13 @@ import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.U
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.element.ElementResponse;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.element.PatchElementRequest;
 import org.qubership.integration.platform.runtime.catalog.util.StringTrimmer;
 import org.qubership.integration.platform.verification.properties.verifiers.MandatoryPropertyVerificationHelper;
 import org.springframework.test.util.ReflectionTestUtils;
+
+import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -38,6 +42,23 @@ class ElementMapperTest {
         ReflectionTestUtils.setField(mapper, "userMapper", mock(UserMapper.class));
         ReflectionTestUtils.setField(mapper, "mandatoryPropertyVerificationHelper", verificationHelper);
         elementMapper = mapper;
+    }
+
+    @Test
+    void shouldPreserveElementPropertyContentOnWriteAndRead() {
+        String script = "  return exchange.in.body\n";
+        Map<String, Object> properties = Map.of("script", script,
+                "after", Map.of("script", "\n  return 1\r\n", "values", List.of(" x ", " ")));
+        var request = new PatchElementRequest();
+        request.setName("  Step  ");
+        request.setProperties(properties);
+        var element = element("script-1");
+
+        elementMapper.patch(element, request);
+
+        assertThat(element.getProperties()).isEqualTo(properties);
+        assertThat(element.getName()).isEqualTo("Step");
+        assertThat(elementMapper.toElementResponse(element).getProperties()).isEqualTo(properties);
     }
 
     @Test

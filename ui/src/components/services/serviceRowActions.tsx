@@ -1,7 +1,5 @@
-import React from "react";
 import type { ServiceEntity } from "./ServicesTreeTable";
 import { IntegrationSystemType } from "../../api/apiTypes";
-import { OverridableIcon } from "../../icons/IconProvider.tsx";
 import type { RequiredPermissions } from "../../permissions/types.ts";
 
 /** Same rule as `isIntegrationSystem` in ServicesTreeTable (avoid runtime import cycle). */
@@ -12,7 +10,6 @@ function isIntegrationServiceRow(record: ServiceEntity): boolean {
 export interface ActionConfig<T = never> {
   key: string;
   label: string;
-  icon?: React.ReactNode;
   onClick: (record: T) => void;
   confirm?: {
     title: string;
@@ -48,14 +45,12 @@ export function getServiceActions({
       {
         key: "edit",
         label: "Edit",
-        icon: <OverridableIcon name="edit" />,
         onClick: onEdit,
         require: { service: ["update"] },
       },
       {
         key: "delete",
         label: "Delete",
-        icon: <OverridableIcon name="delete" />,
         onClick: onDelete,
         confirm: {
           title: "Are you sure you want to delete this service?",
@@ -69,7 +64,6 @@ export function getServiceActions({
       actions.push({
         key: "addSpecificationGroup",
         label: "Add Specification Group",
-        icon: <OverridableIcon name="plus" />,
         onClick: onAddSpecificationGroup,
         require: { specificationGroup: ["import"] },
       });
@@ -79,13 +73,11 @@ export function getServiceActions({
         {
           key: "expandAll",
           label: "Expand All",
-          icon: <OverridableIcon name="columnHeight" />,
           onClick: onExpandAll,
         },
         {
           key: "collapseAll",
           label: "Collapse All",
-          icon: <OverridableIcon name="verticalAlignMiddle" />,
           onClick: onCollapseAll,
         },
       );
@@ -95,7 +87,6 @@ export function getServiceActions({
       actions.push({
         key: "export",
         label: "Export",
-        icon: <OverridableIcon name="cloudDownload" />,
         onClick: (rec) => onExportSelected([rec]),
         require: { service: ["export"] },
       });
