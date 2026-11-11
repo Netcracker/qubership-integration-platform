@@ -510,55 +510,38 @@ async function parseOperations(
   operations: any[],
   modelId: string,
 ): Promise<SystemOperation[]> {
-  const result: SystemOperation[] = [];
-
-  if (operations && Array.isArray(operations)) {
-    for (const op of operations) {
-      const operation: SystemOperation = {
-        id: op.id,
-        name: op.name,
-        description: op.description || "",
-        method: op.method || "",
-        path: op.path || "",
-        modelId: modelId,
-        chains: await getChainsUsingOperation(modelId, op.id),
-      };
-      result.push(operation);
-    }
+  if (!Array.isArray(operations) || operations.length === 0) {
+    return [];
   }
 
-  return result;
-}
-
-async function getChainsUsingOperation(
-  specificationId: string,
-  operationId: string,
-): Promise<BaseEntity[]> {
-  const result: BaseEntity[] = [];
-
-  await fileApi.findAndBuildChainsRecursively<BaseEntity>(
+  const chains: any[] = [];
+  await fileApi.findAndBuildChainsRecursively(
     fileApi.getRootDirectory(),
-    (chainYaml: any): BaseEntity | undefined => {
-      if (chainYaml.content.elements) {
-        for (const element of chainYaml.content.elements) {
-          if (
-            element?.properties?.integrationOperationId === operationId &&
-            element?.properties?.integrationSpecificationId === specificationId
-          ) {
-            return {
-              id: chainYaml.id,
-              name: chainYaml.name,
-              description: chainYaml.content.description,
-            };
-          }
-        }
-      }
-      return undefined;
-    },
-    result,
+    (chainYaml: any) => chainYaml,
+    chains,
   );
 
-  return result;
+  return operations.map((op) => ({
+    id: op.id,
+    name: op.name,
+    description: op.description || "",
+    method: op.method || "",
+    path: op.path || "",
+    modelId: modelId,
+    chains: chains
+      .filter((chainYaml) =>
+        chainYaml.content?.elements?.some(
+          (element: any) =>
+            element?.properties?.integrationOperationId === op.id &&
+            element?.properties?.integrationSpecificationId === modelId,
+        ),
+      )
+      .map((chainYaml) => ({
+        id: chainYaml.id,
+        name: chainYaml.name,
+        description: chainYaml.content.description,
+      })),
+  }));
 }
 
 async function getChainsUsingSpecificationGroup(
