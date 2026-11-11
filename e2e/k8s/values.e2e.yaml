@@ -57,6 +57,20 @@ cip-runtime-catalog:
     metaspaceSize: 320m
     maxMetaspaceSize: 320m
   extraEnv:
+    - name: SERVER_TOMCAT_ACCESSLOG_ENABLED
+      value: "true"
+    - name: SERVER_TOMCAT_ACCESSLOG_DIRECTORY
+      value: /tmp/http-access
+    - name: SERVER_TOMCAT_ACCESSLOG_PREFIX
+      value: access
+    - name: SERVER_TOMCAT_ACCESSLOG_SUFFIX
+      value: .log
+    - name: SERVER_TOMCAT_ACCESSLOG_ROTATE
+      value: "false"
+    - name: SERVER_TOMCAT_ACCESSLOG_BUFFERED
+      value: "false"
+    - name: SERVER_TOMCAT_ACCESSLOG_PATTERN
+      value: 'begin=%{begin:msec}t end=%{end:msec}t rid=%{X-Request-ID}i remote=%a:%{remote}p local=%A:%p method=%m path=%U status=%s bytes=%B duration_ms=%{ms}T thread=%I connection=%X'
     - name: MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS
       value: always
     # The development profile Compose runs sets this level; the audit lines a spec reads are DEBUG.

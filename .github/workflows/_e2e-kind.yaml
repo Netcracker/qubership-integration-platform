@@ -73,6 +73,7 @@ jobs:
       ARTIFACT_SUFFIX: ${{ inputs.pull-request && format('-{0}', inputs.name) || '' }}
       # A .e2e-k8s- name, so "Upload the report" carries the log.
       BOOTSTRAP_LOG: ${{ github.workspace }}/e2e/.e2e-k8s-bootstrap.log
+      E2E_HTTP_DIAGNOSTIC_DIR: ${{ runner.temp }}/http-diagnostic
     steps:
       - name: Checkout
         id: checkout
@@ -183,6 +184,9 @@ jobs:
       # E2E_SAMPLE_MAX_MS bounds the resource sampler and, as --global-timeout, the suite.
       # At the global timeout the reporters still write; a job cancel gives them about 7.5 s.
       # MAVEN_ARGS needs Maven 3.9 or later.
+      - name: Start HTTP diagnostics
+        run: bash e2e/support/http-diagnostic.sh start
+
       - name: Run the suite
         id: suite
         working-directory: e2e
@@ -352,6 +356,28 @@ jobs:
           name: e2e-outcomes${{ env.ARTIFACT_SUFFIX }}
           path: e2e/test-results/outcomes.json
           retention-days: 30
+
+      - name: Repeat the concurrent folder writes
+        if: ${{ success() }}
+        working-directory: e2e
+        env:
+          CIP_TARGET: k8s
+          E2E_PROVISION: never
+          E2E_SWEEP: never
+          E2E_KEEP: "1"
+        run: npx playwright test --config http-diagnostic.config.ts --workers=4 --max-failures=1
+
+      - name: Stop HTTP diagnostics
+        if: ${{ always() }}
+        run: bash e2e/support/http-diagnostic.sh stop
+
+      - name: Upload HTTP diagnostics
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: http-diagnostic${{ env.ARTIFACT_SUFFIX }}
+          path: ${{ env.E2E_HTTP_DIAGNOSTIC_DIR }}
+          retention-days: 7
 
       - name: Dump the cluster
         if: ${{ failure() || cancelled() }}

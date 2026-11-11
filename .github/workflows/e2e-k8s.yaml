@@ -31,7 +31,10 @@ jobs:
       packages: read
     uses: ./.github/workflows/_e2e-kind.yaml
     with:
-      name: Full suite on kind
+      name: ui
+      lane: ui
+      brokers: false
+      pull-request: true
       workers: ${{ inputs.workers }}
       timeout-minutes: 180
       global-timeout: 140

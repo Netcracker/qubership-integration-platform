@@ -120,10 +120,13 @@ test.describe("kind workflow", () => {
     expect(Object.keys(callers(NIGHTLY)[0][1].secrets ?? {}), "the email steps need the password and the recipients").toEqual(["EMAIL_PASSWORD", "EMAIL_TO"]);
   });
 
-  test("the nightly runs the whole suite", () => {
+  test("the diagnostic dispatch runs the UI lane", () => {
     const [[, nightly]] = callers(NIGHTLY);
     expect(nightly.with).toEqual({
-      name: "Full suite on kind",
+      name: "ui",
+      lane: "ui",
+      brokers: false,
+      "pull-request": true,
       workers: "${{ inputs.workers }}",
       "timeout-minutes": 180,
       "global-timeout": 140,

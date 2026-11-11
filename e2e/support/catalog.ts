@@ -35,6 +35,7 @@
  */
 import type { APIRequestContext, APIResponse } from "@playwright/test";
 import { noteReached } from "../registry/reached.js";
+import { diagnosticFetch } from "./http-diagnostic.js";
 import { serviceUrl } from "../env/containers.js";
 import { sleep } from "./poll.js";
 
@@ -197,7 +198,7 @@ export class Catalog {
   ): Promise<APIResponse> {
     const url = `${this.base}${path}`;
     noteReached("catalog", method, url);
-    return await this.api.fetch(url, { method: method.toUpperCase(), ...options });
+    return await diagnosticFetch(this.api, url, { method: method.toUpperCase(), ...options });
   }
 
   /** A call that must succeed, returning parsed JSON. A 204 answers `undefined`. */
