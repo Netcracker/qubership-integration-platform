@@ -84,7 +84,6 @@ import { TransformationInfoCard } from "./TransformationInfo.tsx";
 import { TRANSFORMATIONS } from "../../mapper/model/transformations.ts";
 import { ElementReferencesList } from "./ElementReferencesList.tsx";
 import { traverseElementsDepthFirst } from "../../misc/tree-utils.ts";
-import { OverridableIcon } from "../../icons/IconProvider.tsx";
 import { treeExpandIcon } from "../table/TreeExpandIcon.tsx";
 
 const MAPPER_DND_REFERENCE_MEDIA_TYPE = "mapper/reference-json";
@@ -1447,7 +1446,6 @@ export const MappingGraphView: React.FC<MappingGraphViewProps> = ({
                 {
                   label: "Delete",
                   key: "delete",
-                  icon: <OverridableIcon name="delete" />,
                   onClick: () => {
                     deleteSelectedConnections();
                   },

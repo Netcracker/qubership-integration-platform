@@ -30,7 +30,6 @@ import {
   Specification,
   SystemOperation,
 } from "../../../api/apiTypes";
-import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 import { ProtectedButton } from "../../../permissions/ProtectedButton.tsx";
 import { endpointColumnTitleForProtocol } from "../endpointColumnTitle.ts";
 import { CompactSearch } from "../../table/CompactSearch.tsx";
@@ -152,11 +151,6 @@ const getGroupActions =
       {
         key: expandedRowKeys.includes(group.id) ? "collapse" : "expand",
         label: expandedRowKeys.includes(group.id) ? "Collapse" : "Expand",
-        icon: expandedRowKeys.includes(group.id) ? (
-          <OverridableIcon name="up" />
-        ) : (
-          <OverridableIcon name="down" />
-        ),
         onClick: () => {
           setExpandedRowKeys(
             expandedRowKeys.includes(group.id)
@@ -168,7 +162,6 @@ const getGroupActions =
       {
         key: "add",
         label: "Add Specification",
-        icon: <OverridableIcon name="plus" />,
         require: { specificationGroup: ["create"] },
         onClick: () => {
           showModal({
@@ -190,7 +183,6 @@ const getGroupActions =
       {
         key: "delete",
         label: "Delete",
-        icon: <OverridableIcon name="delete" />,
         require: { specificationGroup: ["delete"] },
         onClick: () =>
           void (async () => {
@@ -228,11 +220,6 @@ const getSpecActions =
       {
         key: expandedRowKeys.includes(spec.id) ? "collapse" : "expand",
         label: expandedRowKeys.includes(spec.id) ? "Collapse" : "Expand",
-        icon: expandedRowKeys.includes(spec.id) ? (
-          <OverridableIcon name="up" />
-        ) : (
-          <OverridableIcon name="down" />
-        ),
         onClick: () => {
           setExpandedRowKeys(
             expandedRowKeys.includes(spec.id)
@@ -246,7 +233,6 @@ const getSpecActions =
             {
               key: "delete",
               label: "Delete",
-              icon: <OverridableIcon name="delete" />,
               require: { specification: ["delete" as const] },
               onClick: async () => {
                 try {
@@ -270,7 +256,6 @@ const getSpecActions =
             {
               key: "deprecate",
               label: "Deprecate",
-              icon: <OverridableIcon name="stop" />,
               require: { specification: ["execute" as const] },
               onClick: async () => {
                 try {
@@ -292,7 +277,6 @@ const getSpecActions =
       {
         key: "export",
         label: "Export",
-        icon: <OverridableIcon name="cloudDownload" />,
         require: { specification: ["export" as const] },
         onClick: () => void handleExportSpecifications([spec], notify),
       },
