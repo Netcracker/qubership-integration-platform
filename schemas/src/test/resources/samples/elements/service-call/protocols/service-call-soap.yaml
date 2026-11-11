@@ -8,8 +8,6 @@ properties:
   bodyFormData: []
   errorThrowing: true
   handleValidationAction: "default"
-  integrationGqlQueryHeader: "CamelGraphQLQuery"
-  integrationGqlVariablesHeader: "CamelGraphQLVariables"
   integrationOperationAsyncProperties: {}
   integrationOperationId: "c242cd6a-7513-4060-90c3-a882848621ec-SampleSoap-1.1-1.0.0-ListOfContinentsByName"
   integrationOperationMethod: "POST"
