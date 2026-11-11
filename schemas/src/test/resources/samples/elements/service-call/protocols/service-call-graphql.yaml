@@ -9,8 +9,6 @@ properties:
   integrationGqlQuery: "query bookDetails {\r\n  bookById(id: \"book-1\") {\r\n\
       \    id\r\n    name\r\n    pageCount\r\n    author {\r\n      firstName\r\n\
       \      lastName\r\n    }\r\n  }\r\n}"
-  integrationGqlQueryHeader: "CamelGraphQLQuery"
-  integrationGqlVariablesHeader: "CamelGraphQLVariables"
   integrationOperationAsyncProperties: {}
   integrationOperationPathParameters: {}
   integrationOperationProtocolType: "graphql"

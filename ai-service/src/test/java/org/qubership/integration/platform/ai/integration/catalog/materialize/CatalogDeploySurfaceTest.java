@@ -116,7 +116,8 @@ class CatalogDeploySurfaceTest {
   void createListDeleteDeploymentsAllowsDuplicateDomain() {
     ChainDto chain = catalog.createChain(CatalogCreateChainRequest.of("demo", "Demo"));
     SnapshotDto snapshot = catalog.createSnapshot(chain.id());
-    CreateDeploymentRequest request = new CreateDeploymentRequest("default", snapshot.id());
+    CreateDeploymentRequest request =
+        new CreateDeploymentRequest("default", snapshot.id(), "CLASSIC");
 
     DeploymentDto first = catalog.createDeployment(chain.id(), request);
     DeploymentDto second = catalog.createDeployment(chain.id(), request);

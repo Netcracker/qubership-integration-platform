@@ -7,8 +7,6 @@ properties:
   afterValidation: []
   bodyFormData: []
   handleValidationAction: "default"
-  integrationGqlQueryHeader: "CamelGraphQLQuery"
-  integrationGqlVariablesHeader: "CamelGraphQLVariables"
   integrationOperationAsyncProperties: {}
   integrationOperationId: "955909b0-c14a-4b2c-af87-87dd1c45ad8c-sample-api-inline-0.0.4-getUsers"
   integrationOperationMethod: "GET"

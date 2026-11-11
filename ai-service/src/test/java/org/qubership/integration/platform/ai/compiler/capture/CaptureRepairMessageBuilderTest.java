@@ -176,8 +176,6 @@ class CaptureRepairMessageBuilderTest {
             "synchronousGrpcCall",
             "integrationGqlQuery",
             "integrationGqlOperationName",
-            "integrationGqlQueryHeader",
-            "integrationGqlVariablesHeader",
             "integrationGqlVariablesJSON");
     for (String key : catalogIdentityKeys) {
       assertFalse(message.contains(key), () -> "instruction must not mention " + key + ": " + message);

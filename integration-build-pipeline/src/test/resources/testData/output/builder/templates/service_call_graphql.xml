@@ -9,9 +9,6 @@
         <setProperty name="serviceCallPath">
             <simple>/graphql</simple>
         </setProperty>
-        <setProperty name="serviceCallVariablesHeader">
-            <simple>CamelGraphQLVariables</simple>
-        </setProperty>
         <removeHeader name="CamelHttpQuery"/>
         <step id="Prepare request--537229ca-486a-4a6a-b2cc-53d30fbc9a50">
             <script>
@@ -160,6 +157,5 @@
     <removeProperty name="serviceCallBrokers"/>
     <removeProperty name="serviceCallExchange"/>
     <removeProperty name="serviceCallService"/>
-    <removeProperty name="serviceCallVariablesHeader"/>
     <removeProperty name="serviceCallSkipEmptyQueryParams"/>
 </route>

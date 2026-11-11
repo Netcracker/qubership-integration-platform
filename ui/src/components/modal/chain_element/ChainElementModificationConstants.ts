@@ -250,12 +250,6 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
         rows: 6,
       },
     },
-    integrationGqlQueryHeader: {
-      "ui:title": "Query Header",
-    },
-    integrationGqlVariablesHeader: {
-      "ui:title": "Variables Header",
-    },
     idempotency: {
       "ui:order": ["*", "actionOnDuplicate", "chainTriggerParameters"],
       keyExpiry: {
@@ -580,8 +574,6 @@ export const pathToTabMap: Record<string, string> = {
   "properties.integrationGqlQuery": "Endpoint",
   "properties.integrationGqlOperationName": "Endpoint",
   "properties.integrationGqlVariablesJSON": "Endpoint",
-  "properties.integrationGqlQueryHeader": "Endpoint",
-  "properties.integrationGqlVariablesHeader": "Endpoint",
   "properties.handleValidationAction": "Handle Validation Failure",
   "properties.handlerContainer": "Handle Validation Failure",
   "properties.handlerContainer.script": "Handle Validation Failure",
@@ -721,8 +713,6 @@ export const PROTOCOL_SPECIFIC_PROPERTIES: Record<string, string[]> = {
     "integrationGqlQuery",
     "integrationGqlOperationName",
     "integrationGqlVariablesJSON",
-    "integrationGqlQueryHeader",
-    "integrationGqlVariablesHeader",
   ],
 };
 
