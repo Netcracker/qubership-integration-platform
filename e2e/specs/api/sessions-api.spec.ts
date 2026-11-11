@@ -129,9 +129,11 @@ async function record(
   await waitForRoutes(env, [chain]);
 
   const recorded: RecordedSession[] = [];
+  // TraceMe records these calls even if the chain's logging settings have not reached the engine.
   for (let index = 0; index < calls; index++) {
     const call = await callChain(request, env.chainUrl(chain.contextPath), {
       data: { call: index },
+      headers: { TraceMe: "true" },
     });
     expect(call.response.status(), `call ${index} of ${chain.name}`).toBe(200);
     recorded.push(await sessions.byExternalId(call.token, { elements: SCRIPT_CHAIN_STEPS }));

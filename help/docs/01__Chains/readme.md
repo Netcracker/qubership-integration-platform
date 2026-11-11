@@ -323,7 +323,7 @@ Because the two compared versions are fixed by Git, there is no chain/snapshot s
 ---
 
 - In CIP UI: during the process of chain creation, both chain and its configuration are stored in the CIP Catalog database. The chains are available for export from UI.
-- In CIP VSCode Extension: chains created via CIP VS Code Extension are stored locally under a project folder or workspace directory configured by user on file system of respective machine.
+- In CIP VSCode Extension: chains created via CIP VS Code Extension are stored locally under a project folder or workspace directory configured by user on file system of respective machine. Each chain is a `*.chain.cip.yaml` file, and the extension opens only files with the `.cip.yaml` extension.
 
 ## Configuration
 

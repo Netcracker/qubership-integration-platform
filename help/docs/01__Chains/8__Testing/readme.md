@@ -321,7 +321,7 @@ config/<NAMESPACE>/cip-engine/cip/testing/address = http://<TESTING_SERVICE_HOST
 
 A Consul key takes precedence over `TESTING_SERVICE_ENABLED` and `TESTING_SERVICE_ADDRESS`. A key under the engine path takes precedence over the same key under `application`.
 
-> ℹ️ **Note:** The engine reads a changed key while it runs, but endpoint mocking is switched on or off only when the engine starts. Restart the engine after changing `qip/testing/enabled` or `qip/testing/address` in Consul.
+> ℹ️ **Note:** The engine reads a changed key while it runs, but endpoint mocking is switched on or off only when the engine starts. Restart the engine after changing `cip/testing/enabled` or `cip/testing/address` in Consul.
 
 ## Constraints
 
