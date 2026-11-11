@@ -45,7 +45,8 @@ class ArtemisJmsContainerSnapshotFixtureProvider implements SnapshotFixtureProvi
         private final String deploymentId;
         private final List<SnapshotFixtureBinding> bindings;
         private final Map<String, JmsFixtureRuntime> runtimesByFixtureId = new LinkedHashMap<>();
-        private final SnapshotJmsBrokerControl broker = new SnapshotJmsBrokerControl();
+        private SnapshotJmsBrokerControl broker;
+        private SnapshotWorkerBrokerPool.Lease<SnapshotJmsBrokerControl> brokerLease;
         private final SnapshotContextRuntime contextRuntime;
         private Connection verificationConnection;
 
@@ -66,6 +67,9 @@ class ArtemisJmsContainerSnapshotFixtureProvider implements SnapshotFixtureProvi
 
         @Override
         public void start() throws Exception {
+            SnapshotJmsBrokerControl.validateReuse(bindings);
+            brokerLease = SnapshotWorkerBrokerPool.acquire(SnapshotJmsBrokerControl.POOL_KEY, SnapshotJmsBrokerControl::new);
+            broker = brokerLease.resource();
             broker.start();
             verificationConnection = broker.createVerificationConnection();
         }
@@ -148,7 +152,9 @@ class ArtemisJmsContainerSnapshotFixtureProvider implements SnapshotFixtureProvi
 
         @Override
         public void close() throws Exception {
-            SnapshotJmsInitialContextFactory.deactivate(SnapshotJmsInitialContextFactory.PROVIDER_URL, broker.connectionFactory());
+            if (broker != null) {
+                SnapshotJmsInitialContextFactory.deactivate(SnapshotJmsInitialContextFactory.PROVIDER_URL, broker.connectionFactory());
+            }
             Exception cleanupFailure = null;
             try {
                 closeObservers();
@@ -156,7 +162,9 @@ class ArtemisJmsContainerSnapshotFixtureProvider implements SnapshotFixtureProvi
                 cleanupFailure = exception;
             }
             try {
-                broker.close();
+                if (brokerLease != null) {
+                    brokerLease.close();
+                }
             } catch (Exception exception) {
                 cleanupFailure = appendFailure(cleanupFailure, exception);
             } finally {

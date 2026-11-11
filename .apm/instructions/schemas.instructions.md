@@ -52,6 +52,9 @@ mvn -pl schemas test      # JUnit 5 + networknt json-schema-validator
   holds. `src/test/resources/samples/` is read the same way, for the migration floors
   `e2e/specs/schema/frozen-corpus.spec.ts` measures. After changing either tree, run
   `npx playwright test --project=schema --project=harness` in `e2e/`; neither project needs a stack.
+- A pull request that changes `vscode-extension/`, `ui/`, `schemas/`, or the root `package.json` or lockfile runs
+  the `vscode` job of `.github/workflows/e2e-pr.yaml`, about 10 minutes. Run it before pushing with
+  `cd e2e && npm test -- --project=vscode`: it needs no stack, and it never takes `--no-deps`.
 - AJV is configured with `discriminator: true` and `allErrors: true`; keep schemas Draft-07 compatible (the Java side rejects unknown keywords).
 - `common-properties/*` `$id`s never reach a document as `$schema`; only top-level entity schemas do. So these
   files can be merged, renamed, or moved freely. A top-level `$id` is different: documents carry it as `$schema`,

@@ -1,5 +1,5 @@
 /**
- * What the `schema` and `harness` projects are allowed to import, read off their directories.
+ * What the stackless projects are allowed to import, read off their directories.
  *
  * Their whole value is that they need no stack: `--project=schema --project=harness` runs on a
  * machine with no Docker. `support/fixtures.js` is what would take that
@@ -10,6 +10,9 @@
  * Nothing else says so. Every sibling gets it right today and each was written by reading the
  * others, which is the arrangement that holds until it doesn't. Importing a *helper* from
  * `support/` stays fine and several siblings do: `test` and `expect` are what carry the fixtures.
+ *
+ * The `vscode` project needs no stack either, and its specs take `test` and `expect` from
+ * `support/vscode-guard.js`, which builds on `@playwright/test` and carries the page guard.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -18,11 +21,22 @@ import { test, expect } from "@playwright/test";
 
 const SPECS = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-/** The spec directories of the projects that need no stack. */
-const STACKLESS_DIRS = ["schema", "harness"];
+/** The spec directories of the projects that need no stack, each with the one module its specs may take `test` or `expect` from. */
+const ALLOWED: Record<string, string> = {
+  schema: "@playwright/test",
+  harness: "@playwright/test",
+  vscode: path.join(SPECS, "..", "support", "vscode-guard.js"),
+};
 
-/** The only module a stackless spec may take `test` or `expect` from. */
-const ALLOWED = "@playwright/test";
+const STACKLESS_DIRS = Object.keys(ALLOWED);
+
+/** A relative specifier resolved against the spec's directory, and a package name as it is. */
+function moduleOf(spec: string, from: string): string {
+  return from.startsWith(".") ? path.resolve(SPECS, path.dirname(spec), from) : from;
+}
+
+/** How a message names a module: relative to `e2e/`, or by its package name. */
+const shown = (module: string) => (path.isAbsolute(module) ? path.relative(path.join(SPECS, ".."), module) : module);
 
 /** Every static import in a source file, as the clause it binds and the module it names. */
 const IMPORT = /import\s+(type\s+)?([\s\S]*?)\s+from\s+["']([^"']+)["']/g;
@@ -55,8 +69,9 @@ interface Offense {
 function offensesIn(spec: string): Offense[] {
   const source = fs.readFileSync(path.join(SPECS, spec), "utf-8");
   const found: Offense[] = [];
+  const allowed = ALLOWED[spec.split("/")[0]];
   for (const [, , clause, from] of source.matchAll(IMPORT)) {
-    if (from === ALLOWED) continue;
+    if (moduleOf(spec, from) === allowed) continue;
     for (const name of importedNames(clause)) {
       if (name === "test" || name === "expect") found.push({ spec, name, from });
     }
@@ -70,14 +85,14 @@ const specs = STACKLESS_DIRS.flatMap((dir) =>
 );
 
 test.describe("stackless imports", () => {
-  test("stackless specs take test and expect from Playwright only", () => {
+  test("a stackless spec takes test and expect from its own module", () => {
     // A scan over an empty directory passes for the worst possible reason.
     for (const dir of STACKLESS_DIRS) expect(specs.filter((spec) => spec.startsWith(`${dir}/`)).length, dir).toBeGreaterThan(0);
 
     const offenses = specs.flatMap(offensesIn);
     expect(
-      offenses.map((each) => `${each.spec} imports ${each.name} from ${each.from}`),
-      `a specs/schema/ or specs/harness/ spec may take test and expect from ${ALLOWED} only: ` +
+      offenses.map((each) => `${each.spec} imports ${each.name} from ${each.from}, where only ${shown(ALLOWED[each.spec.split("/")[0]])} is allowed`),
+      `a stackless spec may take test and expect from its directory's module only: ` +
         `any other module can install fixtures, and support/fixtures.js installs ones that need a running stack`,
     ).toEqual([]);
   });

@@ -726,6 +726,7 @@ export const ServiceApiSpecsTab: React.FC = () => {
                 require={{ specification: ["import"] }}
                 tooltipProps={{ title: "Import Specification" }}
                 buttonProps={{
+                  "data-testid": "api-specs-import-specification",
                   iconName: "cloudUpload",
                   onClick: onImportSpecClick,
                 }}

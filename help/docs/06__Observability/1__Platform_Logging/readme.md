@@ -18,9 +18,11 @@ This type of logs is being produced by Cloud Integration Platform in a **stdout*
 
 **Message format:**
 
-CIP Microservice log can be produced either in `json` (default) or `text` format (configurable via ```LOG_FORMAT``` environment parameter).
+`LOG_FORMAT` selects the microservice log format for the Engine, Micro-Engine, Runtime Catalog, and Sessions Management: `json` (default) or `text`.
 
-Message consist from two different parts:
+The testing service uses `CIP_TESTING_LOG_FORMAT`. See [Configuration](#configuration) for service-specific settings.
+
+Message consists from two different parts:
 
 - *standardized part* with parameters specified in accordance to [Logging-Development guide]
 - *custom part* with specific Cloud Integration Platform parameters, that described below
@@ -44,19 +46,31 @@ Following table contains list of CIP-specific parameters, that will be added **o
 | element\_name         | JSON session step entries   | Name of the chain element or step.                                                                              |
 | session\_log\_details | JSON session detail entries | Selected detail mode: `SENDERS` or `FULL`.                                                                      |
 | log\_type             | Inbound and outbound calls  | Constant, always equals to "int". This parameter is being set only for inbound and outbound calls.              |
-| `url`                 | REST outbound calls         | URL, to where call has been passed.                                                                             |
+| url                   | REST outbound calls         | URL, to where call has been passed.                                                                             |
 | responseCode          | REST outbound calls         | Response code, received from source. Blank if direction = request                                               |
 | responseTime          | REST outbound calls         | Response time, shows call processing time in **milliseconds**. Blank if direction = request                     |
 | direction             | REST outbound calls         | Shows the direction of the call. Possible values: <br/>- request<br>- response                                  |
 
 When **Session log details** is set to **Senders** or **Full** on the chain [Logging](../../01__Chains/5__Logging/readme.md) tab, the engine writes a session start entry and a session step entry after a step finishes. These entries are available only in JSON microservice logs.
 
-#### JSON format
+#### Value Length and Padding
 
-*Session step entry:**
+Where the limit applies, values longer than value of `LOG_FIELDS_MAX_SIZE` plus 3 characters are cut to the first `LOG_FIELDS_MAX_SIZE` characters, followed by `...`.
+
+> ⚠️ Warning
+> - In `text` format, error messages, failed HTTP operations, and outbound service-call requests logged. with external service details bypass this limit.
+> - In any log format, messages written by **Log Record** elements or custom scripts are not truncated.
+
+Apart from these fields, the formats differ:
+
+- `json` adds no padding and writes all other values in full.
+- `text` pads each value to a fixed width and limits `thread`, `class`, and `method` to 15, 60, and 30 characters. The classic Engine also prints at most five stack frames of an exception.
+
+#### JSON format
 
 The following example contains every field emitted by the JSON session-step logger. Parameters that apply to inbound or outbound HTTP calls are not included.
 
+**Session step entry:**
 ```json
 {
   "time": "2026-10-15T09:41:36.528+0000",
@@ -297,6 +311,14 @@ java.lang.IllegalArgumentException: AMQP addresses has invalid format, check con
 [Consumer clientId=XXX, groupId=<groupId>-XXX] consumer poll timeout has expired. This means the time between subsequent calls to poll() was longer than the configured max.poll.interval.ms, which typically implies that the poll loop is spending too much time processing messages. You can address this either by increasing max.poll.interval.ms or by reducing the maximum size of batches returned in poll() with max.poll.records.
 ...
 ```
+
+#### GraphQL
+
+When chain **Log Level** is **Info** and **Log Payload** includes **Body**, the GraphQL logging processor assembles JSON for [GraphQL Sender](../../01__Chains/1__Graph/1__Elements_Library/7__Senders/7__GraphQL_Sender/readme.md) and [GraphQL Service Call](../../01__Chains/1__Graph/1__Elements_Library/7__Senders/6__Service_Call/readme.md) request logs.
+
+The assembled body contains `query`, `operationName`, and `variables`. The processor runs before the route applies the configured **Variables JSON**, so the logged `variables` can differ from the variables the request sends. In most cases the log records `"variables": {}`.
+
+The same processor assembles the body for [session logging](#session-logs).
 
 #### Sub-Chains
 
@@ -775,4 +797,12 @@ According to the requirements and contracts, Cloud Integration Platform handles 
 
 ---
 
-Chain-specific log level can be settled during the deployment. Please refer to the [respective article] for more details. For Tracing parameters, global settings (including retention and log probabilistic variables), please refer to the Installation guide.
+Chain-specific log level can be settled during the [chain deployment](../../01__Chains/3__Deployments/readme.md). For Tracing parameters, global settings (including retention and log probabilistic variables), please refer to the Installation guide.
+
+Microservice logs are configured with the parameters below:
+
+| Environment Parameter     | Mandatory | Default Value | Description                                                                                                                                                                                                                                                                                                                                             | Sample  |
+|:--------------------------|:----------|:--------------|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:--------|
+| LOG\_FORMAT               | O         | json          | Format of the microservice logs for the Engine, Micro-Engine, Runtime Catalog, and Sessions Management: `json` or `text`. See [Microservice Logs](#microservice-logs) for the differences between the formats.<br><br>ℹ️ For the Micro-Engine, set `LOG_FORMAT` to the intended value when building the application, and use the same value at runtime. | `text`  |
+| CIP\_TESTING\_LOG\_FORMAT | O         | json          | Testing service log format: `json` or `text`. Overrides `log.format` in the configuration file, `application.yaml` by default.                                                                                                                                                                                                                          | `text`  |
+| LOG\_FIELDS\_MAX\_SIZE    | O         | 4096          | Maximum number of characters kept from the logged exchange body, headers, and properties in the Engine and Micro-Engine. See [Value Length and Padding](#value-length-and-padding) for scope and exceptions. A value longer than this number plus 3 characters is cut to this length and followed by `...`. A negative value turns the limit off.       | `16384` |

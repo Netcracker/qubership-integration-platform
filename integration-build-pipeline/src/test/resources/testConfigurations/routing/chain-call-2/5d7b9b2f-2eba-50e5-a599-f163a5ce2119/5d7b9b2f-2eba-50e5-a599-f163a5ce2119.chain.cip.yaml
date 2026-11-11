@@ -1,0 +1,35 @@
+id: 5d7b9b2f-2eba-50e5-a599-f163a5ce2119
+$schema: http://qubership.org/schemas/product/qip/chain
+name: chain-trigger-consumer-wait
+content:
+  labels: []
+  elements:
+  - id: cc2a9c2f-f198-5854-9e9e-2468fe2096a8
+    name: Chain Trigger
+    type: chain-trigger-2
+    properties:
+      elementId: cc2a9c2f-f198-5854-9e9e-2468fe2096a8
+  - id: 84ccadf0-7411-5a2c-a375-a89c48468d6e
+    name: Chain Call
+    type: chain-call-2
+    properties:
+      block: true
+      elementId: ec738992-9f5b-4368-92d2-0e4c461b7bb6
+      failIfNoConsumers: false
+      timeout: 1500
+  - id: d57c6524-3617-555a-adb0-61e91559d49d
+    name: Script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: script-d57c6524-3617-555a-adb0-61e91559d49d.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: cc2a9c2f-f198-5854-9e9e-2468fe2096a8
+    to: 84ccadf0-7411-5a2c-a375-a89c48468d6e
+  - from: 84ccadf0-7411-5a2c-a375-a89c48468d6e
+    to: d57c6524-3617-555a-adb0-61e91559d49d
+  deployments:
+  - domain: default
+  deployAction: DEPLOY
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

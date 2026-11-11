@@ -1,0 +1,126 @@
+---
+id: 4958e79e-39f6-5d5e-b44e-79902ca50c7a
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+name: rabbitmq-trigger-idempotency
+content:
+  labels: []
+  elements:
+  - id: 8efe42ba-50eb-588f-a961-88673fca22be
+    name: RabbitMQ Trigger ignore
+    type: rabbitmq-trigger-2
+    properties:
+      acknowledgeMode: AUTO
+      connectionSourceType: manual
+      addresses: localhost:5672
+      username: snapshot
+      password: snapshot
+      vhost: /
+      deadLetterExchange: snapshot.rabbitmq.trigger.idempotency.ignore.dlx
+      deadLetterExchangeType: direct
+      deadLetterQueue: snapshot.rabbitmq.trigger.idempotency.ignore.dlq
+      deadLetterRoutingKey: snapshot.rabbitmq.trigger.idempotency.ignore.dead
+      exchange: snapshot.rabbitmq.trigger.idempotency.ignore
+      exchangeType: direct
+      queues: snapshot.rabbitmq.trigger.idempotency.ignore.queue
+      routingKey: snapshot.rabbitmq.trigger.idempotency.ignore
+      idempotency:
+        enabled: true
+        keyExpiry: 600
+        keyExpression: ${header.businessKey}
+        contextExpression: ${header.businessContext}
+        actionOnDuplicate: ignore
+  - id: 851de195-442c-5a4c-8aed-d04dbff7da13
+    name: Process ignore message
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 851de195-442c-5a4c-8aed-d04dbff7da13.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  - id: 8073273c-0118-52cc-8961-72cfc7fd3b07
+    name: RabbitMQ Trigger throw
+    type: rabbitmq-trigger-2
+    properties:
+      acknowledgeMode: AUTO
+      connectionSourceType: manual
+      addresses: localhost:5672
+      username: snapshot
+      password: snapshot
+      vhost: /
+      deadLetterExchange: snapshot.rabbitmq.trigger.idempotency.throw.dlx
+      deadLetterExchangeType: direct
+      deadLetterQueue: snapshot.rabbitmq.trigger.idempotency.throw.dlq
+      deadLetterRoutingKey: snapshot.rabbitmq.trigger.idempotency.throw.dead
+      exchange: snapshot.rabbitmq.trigger.idempotency.throw
+      exchangeType: direct
+      queues: snapshot.rabbitmq.trigger.idempotency.throw.queue
+      routingKey: snapshot.rabbitmq.trigger.idempotency.throw
+      idempotency:
+        enabled: true
+        keyExpiry: 600
+        keyExpression: ${header.businessKey}
+        contextExpression: ${header.businessContext}
+        actionOnDuplicate: throw-exception
+  - id: 21317329-b2ca-559b-84c8-05d91173682f
+    name: Process throw message
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 21317329-b2ca-559b-84c8-05d91173682f.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  - id: 371b0ba7-10eb-5f3c-a7ae-b03e00d5a908
+    name: RabbitMQ Trigger subchain
+    type: rabbitmq-trigger-2
+    properties:
+      acknowledgeMode: AUTO
+      connectionSourceType: manual
+      addresses: localhost:5672
+      username: snapshot
+      password: snapshot
+      vhost: /
+      deadLetterExchange: snapshot.rabbitmq.trigger.idempotency.subchain.dlx
+      deadLetterExchangeType: direct
+      deadLetterQueue: snapshot.rabbitmq.trigger.idempotency.subchain.dlq
+      deadLetterRoutingKey: snapshot.rabbitmq.trigger.idempotency.subchain.dead
+      exchange: snapshot.rabbitmq.trigger.idempotency.subchain
+      exchangeType: direct
+      queues: snapshot.rabbitmq.trigger.idempotency.subchain.queue
+      routingKey: snapshot.rabbitmq.trigger.idempotency.subchain
+      idempotency:
+        enabled: true
+        keyExpiry: 600
+        keyExpression: ${header.businessKey}
+        contextExpression: ${header.businessContext}
+        actionOnDuplicate: execute-subchain
+        chainTriggerParameters:
+          triggerElementId: 1197cf9a-1a1c-54b7-a305-a7837175925c
+          chainCallTimeout: 30000
+  - id: 7724c2b2-85ef-5ab0-af68-20125400b1f8
+    name: Process subchain message
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 7724c2b2-85ef-5ab0-af68-20125400b1f8.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  - id: 1197cf9a-1a1c-54b7-a305-a7837175925c
+    name: Duplicate handler
+    type: chain-trigger-2
+    properties:
+      elementId: 1197cf9a-1a1c-54b7-a305-a7837175925c
+  - id: ac27018c-525d-589b-a4b6-55c204b14714
+    name: Handle duplicate
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: ac27018c-525d-589b-a4b6-55c204b14714.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: 8efe42ba-50eb-588f-a961-88673fca22be
+    to: 851de195-442c-5a4c-8aed-d04dbff7da13
+  - from: 8073273c-0118-52cc-8961-72cfc7fd3b07
+    to: 21317329-b2ca-559b-84c8-05d91173682f
+  - from: 371b0ba7-10eb-5f3c-a7ae-b03e00d5a908
+    to: 7724c2b2-85ef-5ab0-af68-20125400b1f8
+  - from: 1197cf9a-1a1c-54b7-a305-a7837175925c
+    to: ac27018c-525d-589b-a4b6-55c204b14714
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

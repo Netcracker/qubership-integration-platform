@@ -1,0 +1,34 @@
+---
+id: 8003bbd5-cdcb-593b-ae10-c53a3044ac93
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+name: mcp-trigger-structured
+content:
+  labels: []
+  elements:
+  - id: bbc3c625-8ffb-5ad7-bdf0-a5a9db833e07
+    name: MCP Trigger
+    type: mcp-trigger
+    properties:
+      mcpServiceIds:
+      - a61e7e36-2fe7-588c-bbb9-8e116c4b88c8
+      name: snapshot_mcp_structured
+      title: Snapshot MCP structured
+      description: Exercises MCP structured behavior in component tests.
+      destructive: false
+      idempotent: false
+      inputSchema: '{"type":"object","properties":{"message":{"type":"string"},"key":{"type":"string"},"mode":{"type":"string"},"number":{"type":"number"},"enabled":{"type":"boolean"},"items":{"type":"array","items":{}},"metadata":{"type":"object"},"optionalValue":{"type":["string","null"]}},"required":["message"],"additionalProperties":false}'
+      openWorld: false
+      readOnly: false
+      outputSchema: '{"type":"object","properties":{"received":{"type":"object"},"marker":{"const":"structured"}},"required":["received","marker"],"additionalProperties":false}'
+  - id: 6a74812c-83df-5e8f-99b2-474a81948919
+    name: Script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 6a74812c-83df-5e8f-99b2-474a81948919.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: bbc3c625-8ffb-5ad7-bdf0-a5a9db833e07
+    to: 6a74812c-83df-5e8f-99b2-474a81948919
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

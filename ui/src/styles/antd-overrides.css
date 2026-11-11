@@ -78,7 +78,7 @@
 }
 
 .ant-layout-sider {
-  background: var(--vscode-editor-background) !important;
+  background: var(--vscode-panel-background) !important;
 }
 
 /* Drawer theming (content bg/text come from Drawer.colorBgElevated/colorText tokens) */

@@ -1,0 +1,5 @@
+exchange.getMessage().setHeader('Content-Type', 'application/json')
+exchange.getMessage().setHeader('X-Snapshot-Response', 'visible')
+exchange.getMessage().setHeader('span-id', 'private-span')
+exchange.getMessage().setHeader('trace-id', 'private-trace')
+exchange.getMessage().setBody('{"id":7,"name":"sample","secret":"hidden","nested":{"keep":1,"secret":2}}')

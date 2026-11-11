@@ -1,0 +1,51 @@
+---
+id: a1d49611-88bc-5917-a194-3f1ade909695
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+name: http-trigger-failure-script
+content:
+  labels: []
+  elements:
+  - id: 1585f190-0181-50d6-bb08-55895ec1373c
+    name: HTTP Trigger
+    type: http-trigger
+    properties:
+      accessControlType: NONE
+      allowedContentTypes: []
+      chunked: true
+      connectTimeout: 120000
+      contextPath: failure-script
+      externalRoute: false
+      handleChainFailureAction: script
+      handleValidationAction: default
+      httpBinding: handlingHttpBinding
+      httpMethodRestrict: POST
+      idempotency:
+        enabled: false
+        keyExpiry: 600
+        actionOnDuplicate: ignore
+      killSessionOnTimeout: false
+      privateRoute: false
+      receiveCorrelationId: false
+      rejectRequestIfNonNullBodyGetDelete: true
+      chainFailureHandlerContainer:
+        script: 'exchange.getMessage().setHeader(''snapshotFailureHandler'', true)
+
+          exchange.getMessage().setHeader(''CamelHttpResponseCode'', 503)
+
+          exchange.getMessage().setBody(''Handled chain failure'')
+
+          '
+        exportFileExtension: groovy
+        propertiesToExportInSeparateFile: script
+  - id: 03fde40f-aecf-55f8-a143-54c5f0d8b114
+    name: Process HTTP request
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 03fde40f-aecf-55f8-a143-54c5f0d8b114.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: 1585f190-0181-50d6-bb08-55895ec1373c
+    to: 03fde40f-aecf-55f8-a143-54c5f0d8b114
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

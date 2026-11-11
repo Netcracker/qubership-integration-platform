@@ -219,6 +219,7 @@ class BulkDeploymentServiceTest {
         BulkDeploymentResponse created = BulkDeploymentResponse.builder()
                 .chainId("chain-1")
                 .status(BulkDeploymentStatus.CREATED)
+                .domain(EngineDomain.builder().name("classic-domain").type(DomainType.CLASSIC).build())
                 .build();
         when(deploymentService.deploySnapshot(snapshot, List.of("classic-domain"), List.of())).thenReturn(List.of(created));
 
@@ -352,6 +353,26 @@ class BulkDeploymentServiceTest {
         // Read once, before the first deploy: a later read would also return deployments the batch created.
         verify(deploymentService, times(1)).findAllByChainId("chain-1");
         verify(deploymentService, times(1)).findAllByChainId("chain-2");
+    }
+
+    @Test
+    void deployChainsDeploysToMicroDomainsWithoutTriggerChecks() {
+        classicDomainEnabled(true);
+        microDomainEnabled(true);
+        domainsExist(engineDomain("micro-domain", DomainType.MICRO));
+        resourceBuildSucceeds();
+        Chain chain = chain("chain-1");
+        when(chainRepository.findAllById(List.of("chain-1"))).thenReturn(List.of(chain));
+        Snapshot snapshot = snapshot("s1", chain);
+        when(deploymentService.provideSnapshots(any(), any(), any())).thenReturn(Map.of("chain-1", snapshot));
+
+        List<BulkDeploymentResponse> result = deployChains(bulkDeployRequest(List.of("chain-1"), "micro-domain"));
+
+        assertThat(result)
+                .extracting(BulkDeploymentResponse::getStatus, response -> response.getDomain().getType())
+                .containsExactly(tuple(BulkDeploymentStatus.CREATED, DomainType.MICRO));
+        verify(deploymentService, never()).checkTriggers(any(), any(), any(), any());
+        verify(deploymentService, never()).deleteById(any());
     }
 
     @Test

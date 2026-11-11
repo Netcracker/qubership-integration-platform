@@ -42,6 +42,10 @@ npm test -- --testNamePattern="should parse"
 `eslint`, `prettier`, and `jest` resolve config from the working directory — run them from `ui/`,
 not from the repository root, where `eslint` fails with a migration-guide error instead of linting.
 
+A pull request that changes `ui/` also runs the `vscode` job of `.github/workflows/e2e-pr.yaml`,
+about 10 minutes, since the VS Code extension embeds the UI library. Run it before pushing with
+`cd e2e && npm test -- --project=vscode`: it needs no stack, and it never takes `--no-deps`.
+
 Keep your own changes clean of lint and format issues. Pre-existing violations in files outside your
 change stay as they are unless the user asks for them.
 
@@ -157,6 +161,10 @@ const { isDark, isVSCodeWebview, palette } = useVSCodeTheme();
 - `isVSCodeWebview` for behavior that differs inside the extension host.
 - `palette` for resolved VS Code colors, with the browser fallbacks applied when a variable is
   absent.
+
+Outside a component, detect the webview with `isVsCodeWebview()` from `misc/isVsCodeWebview.ts`,
+which checks that `acquireVsCodeApi` is a function. The protocol is `vscode-webview:` on desktop
+and `http:` or `https:` in VS Code for the web.
 
 The hook also returns `isHighContrast`, `colors`, and `fonts`, which come from the theme the host
 sends, so in the browser they keep their defaults and `isHighContrast` is `false`. Code that has to

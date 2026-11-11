@@ -278,6 +278,7 @@ export const Masking: React.FC = () => {
                 iconName: "delete",
                 onClick: () => void onDeleteBtnClick(),
                 disabled: selectedRowKeys.length === 0,
+                "data-testid": "masking-delete",
               }}
             />
             <ProtectedButton

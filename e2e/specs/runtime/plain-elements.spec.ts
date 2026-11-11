@@ -8,7 +8,11 @@
  * - `xslt` reads its stylesheet off the same directory, so its chain writes one with a `file-write`
  *   step first. The XSLT step is traced after the steps that prepare it.
  * - `split-async-2` answers without waiting for its branches, which run in parallel, so the branches
- *   are compared as a set. One branch sleeps, and the answer has to arrive before that branch ends.
+ *   are compared as a set. The engine's `syncDuration` measures the main exchange from the session's
+ *   start. Its completion must precede the sleeping branch's finish, independently of client delays.
+ *
+ * Shown failing: a 3500 ms client pause broke the old timer. The server-time check passed with the
+ * same pause and failed when the recorded main completion matched the sleeping branch's finish.
  */
 import { test, expect } from "../../support/fixtures.js";
 import { readCorpusState, seedChain } from "../../support/corpus.js";
@@ -82,9 +86,6 @@ test.describe("plain elements", { tag: ["@engine", "@sessions"] }, () => {
     expect(names).toEqual([...BEFORE_XSLT, "XSLT"]);
   });
 
-  /** How long the fixture's second branch sleeps. */
-  const SLEEP_MS = 3_000;
-
   const BRANCHES: Record<string, { script: string; body: unknown }> = {
     "First Async Branch": { script: "First Async Script", body: { branch: "first" } },
     "Second Async Branch": { script: "Second Async Script", body: { branch: "second" } },
@@ -94,11 +95,9 @@ test.describe("plain elements", { tag: ["@engine", "@sessions"] }, () => {
     covers("split-async-2");
     covers("async-split-element-2");
 
-    const sent = Date.now();
     const call = await callChain(request, env.chainUrl(seedChain(readCorpusState(), "split-async").contextPath), { data: {} });
     expect(call.response.status()).toBe(200);
     expect(JSON.parse(await call.response.text())).toEqual({ split: "answered" });
-    expect(Date.now() - sent, "the answer waited for the sleeping branch").toBeLessThan(SLEEP_MS);
 
     const session = await sessions.byExternalId(call.token, { elements: 8 });
     // Checked first, because a misplaced step also breaks the tree assertions below it.
@@ -124,5 +123,7 @@ test.describe("plain elements", { tag: ["@engine", "@sessions"] }, () => {
     expect(trace(session).every((each) => each.executionStatus === "COMPLETED_NORMALLY")).toBe(true);
     const finished = (name: string): number => Date.parse(element(session, name)?.finished ?? "");
     expect(finished("After Split"), "the step after the split ended after the sleeping branch").toBeLessThan(finished("Second Async Script"));
+    const mainFinished = Date.parse(session.started) + session.syncDuration;
+    expect(mainFinished, "the main exchange waited for the sleeping branch").toBeLessThan(finished("Second Async Script"));
   });
 });

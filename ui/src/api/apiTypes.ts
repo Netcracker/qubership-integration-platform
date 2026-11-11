@@ -285,6 +285,7 @@ export type Deployment = {
 
 export type CreateDeploymentRequest = {
   domain: string;
+  domainType?: DomainType;
   snapshotId: string;
   suspended: boolean;
 };
@@ -1319,11 +1320,6 @@ export type AccessControlProperty = {
   abacParameters?: AbacParameters;
 };
 
-export type CustomResourceBuildRequest = {
-  options: CustomResourceOptions;
-  chainIds: string[];
-};
-
 export type CustomResourceOptions = {
   language?: string;
   name?: string;
@@ -1424,18 +1420,6 @@ export type BulkDeploymentRequest = {
   domains: string[];
   snapshotAction: BulkDeploymentSnapshotAction;
   chainIds: string[];
-};
-
-export type MicroDomainDeployRequest = {
-  name: string;
-  snapshotIds: string[];
-  mode?: DeployMode;
-};
-
-export type BulkMicroDomainDeployResult = {
-  domains: string[];
-  chainIds: string[];
-  snapshotAction: BulkDeploymentSnapshotAction;
   mode?: DeployMode;
 };
 

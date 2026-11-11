@@ -1,0 +1,25 @@
+---
+id: 0740c20c-8edd-56a0-8d8f-3c9b2a067278
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+name: scheduler-unhandled-failure
+content:
+  labels: []
+  elements:
+  - id: 780b450e-fddb-5078-bd59-87f2a548eeb9
+    name: Scheduler
+    type: quartz-scheduler
+    properties:
+      cron: 0/1 * * ? * *
+      deleteJob: false
+  - id: 38613d7a-5205-5558-afd1-afd08098464a
+    name: Script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 38613d7a-5205-5558-afd1-afd08098464a.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: 780b450e-fddb-5078-bd59-87f2a548eeb9
+    to: 38613d7a-5205-5558-afd1-afd08098464a
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

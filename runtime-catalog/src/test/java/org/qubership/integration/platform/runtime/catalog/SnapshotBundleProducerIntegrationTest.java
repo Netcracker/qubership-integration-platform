@@ -40,6 +40,7 @@ import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimpo
 import org.qubership.integration.platform.runtime.catalog.scheduler.TasksScheduler;
 import org.qubership.integration.platform.runtime.catalog.service.ActionsLogService;
 import org.qubership.integration.platform.runtime.catalog.service.EventService;
+import org.qubership.integration.platform.runtime.catalog.service.SnapshotService;
 import org.qubership.integration.platform.runtime.catalog.service.ddsgenerator.elements.DetailedDesignService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.ChainImportService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.ContextExportImportService;
@@ -151,6 +152,9 @@ class SnapshotBundleProducerIntegrationTest {
     private SnapshotRepository snapshotRepository;
 
     @Autowired
+    private SnapshotService snapshotService;
+
+    @Autowired
     private IntegrationSourceBuilderFactory integrationSourceBuilderFactory;
 
     @Autowired
@@ -203,6 +207,32 @@ class SnapshotBundleProducerIntegrationTest {
         Path outputDirectory = resolveOutputDirectory();
         assertThat(snapshotBundleWriter.write(outputDirectory, sources)).isNotNull();
         assertThat(outputDirectory).isDirectory();
+        writeSecondSchedulerSnapshot(outputDirectory, sources);
+    }
+
+    private void writeSecondSchedulerSnapshot(Path outputDirectory, List<SnapshotBundleSource> primarySources) throws IOException {
+        String chainId = "f7cad007-cad4-4416-a1fc-6586387070c0";
+        SnapshotBundleSource primary = primarySources.stream()
+                .filter(source -> chainId.equals(source.snapshot().getChain().getId())).findFirst().orElseThrow();
+        String snapshotId = snapshotService.build(chainId).getId();
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        transaction.setReadOnly(true);
+        SnapshotBundleSource secondary = Objects.requireNonNull(transaction.execute(status -> {
+            Snapshot snapshot = snapshotRepository.findById(snapshotId).orElseThrow();
+            SourceBuilderContext context = SourceBuilderContext.builder()
+                    .domainName(DOMAIN_NAME)
+                    .buildName(BUILD_NAME)
+                    .buildTimestamp(BUILD_TIMESTAMP)
+                    .integrationServiceCatalog(integrationServiceCatalog)
+                    .build();
+            return buildSnapshotSource(snapshot, context);
+        }));
+        assertThat(secondary.snapshot().getId()).isNotEqualTo(primary.snapshot().getId());
+        assertThat(secondary.snapshot().getChain().getId()).isEqualTo(primary.snapshot().getChain().getId());
+        assertThat(secondary.snapshot().getElements()).extracting(org.qubership.integration.platform.chain.model.Element::getId)
+                .doesNotContainAnyElementsOf(primary.snapshot().getElements().stream()
+                        .map(org.qubership.integration.platform.chain.model.Element::getId).toList());
+        snapshotBundleWriter.write(outputDirectory.resolve("variants").resolve("scheduler-second"), List.of(secondary));
     }
 
     private static ImportRequest createImportRequest(Set<String> chainIds) {

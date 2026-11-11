@@ -11,6 +11,7 @@ export function emptyProvisionReport(mode: ProvisionMode): ProvisionReport {
     recreated: [],
     started: [],
     untouched: [],
+    published: [],
     staleSupport: [],
     proxyReloaded: false,
     proxyConfigChanged: false,

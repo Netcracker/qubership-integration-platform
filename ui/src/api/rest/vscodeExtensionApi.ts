@@ -90,11 +90,12 @@ import {
 import { Api } from "../api.ts";
 import { DiffDocumentType } from "../../components/chains/diff/DiffDocumentContext.tsx";
 import { EntityFilterModel } from "../../components/table/filter/filterTypes.ts";
+import { isVsCodeWebview } from "../../misc/isVsCodeWebview.ts";
 
 export const NAVIGATE_EVENT = "navigate";
 export const STARTUP_EVENT = "startup";
 export const COMPARED_DOCUMENTS_REQUEST_EVENT = "comparedDocumentsRequest";
-export const isVsCode = window.location.protocol === "vscode-webview:";
+export const isVsCode = isVsCodeWebview();
 
 export class VSCodeExtensionApi implements Api {
   vscode: VSCodeApi<never>;
@@ -980,10 +981,6 @@ export class VSCodeExtensionApi implements Api {
     throw new Error("Method moveFolder not implemented.");
   }
 
-  buildCR(): Promise<string> {
-    throw new Error("Method buildCR not implemented.");
-  }
-
   getSpecApiFiles = async (): Promise<SpecApiFile[]> => {
     return <SpecApiFile[]>(
       (await this.sendMessageToExtension("getSpecApiFiles")).payload
@@ -1223,17 +1220,8 @@ export class VSCodeExtensionApi implements Api {
   getElementsAsCode(_chainId: string): Promise<ChainElementCodeResponse> {
     throw new Error("Method getElementsAsCode not implemented.");
   }
-  deployToMicroDomain(): Promise<BulkDeploymentResult[]> {
-    throw new Error("Method deployToMicroDomain not implemented.");
-  }
-  deploySnapshotsToMicroDomain(): Promise<void> {
-    throw new Error("Method deploySnapshotsToMicroDomain not implemented.");
-  }
-  deleteMicroDomain(): Promise<void> {
-    throw new Error("Method deleteMicroDomain not implemented.");
-  }
-  deleteSnapshotFromMicroDomain(): Promise<void> {
-    throw new Error("Method deleteSnapshotFromMicroDomain not implemented.");
+  deleteDomain(): Promise<void> {
+    throw new Error("Method deleteDomain not implemented.");
   }
 
   getMcpSystems = async (): Promise<MCPSystem[]> => {

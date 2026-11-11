@@ -25,6 +25,33 @@ spec:
         app: {{ .Release.Name }}-engine-{{ .Values.global.blueGreenVersion }}
     spec:
       serviceAccountName: {{ .Release.Name }}-service-account
+      # The engine creates its session index and write alias only at startup, so it starts
+      # after OpenSearch answers, as docker-compose.yml orders it.
+      initContainers:
+        - name: wait-for-opensearch
+          image: hashicorp/consul:1.15.4
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: OPENSEARCH_HOST
+              valueFrom:
+                configMapKeyRef:
+                  key: OPENSEARCH_HOST
+                  name: {{ .Release.Name }}-env
+            - name: OPENSEARCH_PORT
+              valueFrom:
+                configMapKeyRef:
+                  key: OPENSEARCH_PORT
+                  name: {{ .Release.Name }}-env
+          command:
+            - /bin/sh
+            - -c
+            - |
+              until curl --silent --fail --max-time 15 --output /dev/null \
+                "http://$OPENSEARCH_HOST:$OPENSEARCH_PORT/_cluster/health"; do
+                echo "Waiting for OpenSearch at $OPENSEARCH_HOST:$OPENSEARCH_PORT"
+                sleep 2
+              done
+              echo "OpenSearch answers at $OPENSEARCH_HOST:$OPENSEARCH_PORT"
       containers:
         - args:
             - /usr/lib/jvm/java-21-openjdk/bin/java

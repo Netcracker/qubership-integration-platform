@@ -1,16 +1,22 @@
 package org.qubership.integration.platform.engine.routes.fixture;
 
+import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.protocol.ApiKeys;
 import org.apache.kafka.common.protocol.ByteBufferAccessor;
 import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.record.RecordBatch;
 import org.apache.kafka.common.record.Records;
+import org.apache.kafka.common.requests.FetchRequest;
+import org.apache.kafka.common.requests.OffsetCommitRequest;
+import org.apache.kafka.common.requests.OffsetCommitResponse;
 import org.apache.kafka.common.requests.ProduceRequest;
 import org.apache.kafka.common.requests.ProduceResponse;
 import org.apache.kafka.common.requests.RequestHeader;
 import org.apache.kafka.common.requests.ResponseHeader;
 import org.apache.kafka.common.requests.SaslAuthenticateRequest;
 import org.apache.kafka.common.requests.SaslAuthenticateResponse;
+import org.apache.kafka.common.requests.SaslHandshakeRequest;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -47,6 +53,11 @@ final class KafkaConnectionProxy implements AutoCloseable {
     private final List<String> failures = new ArrayList<>();
     private final Map<Short, Long> produceRequestsByAcks = new LinkedHashMap<>();
     private final Map<String, Long> recordBatchesByCompression = new LinkedHashMap<>();
+    private final Map<Uuid, String> fetchTopics = new LinkedHashMap<>();
+    private final Map<TopicPartition, Long> fetchedOffsets = new LinkedHashMap<>();
+    private final Map<String, Long> commitAuthorizationFailures = new LinkedHashMap<>();
+    private final Map<String, Map<TopicPartition, Long>> deniedCommitOffsets = new LinkedHashMap<>();
+    private final Map<String, Long> successfulAuthenticationsByMechanism = new LinkedHashMap<>();
     private volatile boolean closed;
     private ServerSocket listener;
     private InetSocketAddress upstreamAddress;
@@ -56,6 +67,8 @@ final class KafkaConnectionProxy implements AutoCloseable {
     private boolean unavailable;
     private boolean disconnectBeforeProduce;
     private boolean remainUnavailableAfterProduce;
+    private boolean resetting;
+    private int activeConnectionTasks;
     private int responsesToDrop;
     private long produceAttempts;
     private long forwardedProduceRequests;
@@ -110,6 +123,47 @@ final class KafkaConnectionProxy implements AutoCloseable {
         }
     }
 
+    void registerFetchTopic(Uuid id, String name) {
+        synchronized (lock) {
+            fetchTopics.put(id, name);
+        }
+    }
+
+    boolean hasFetchedOffsets(Map<TopicPartition, Long> expected) {
+        synchronized (lock) {
+            return expected.entrySet().stream().allMatch(entry -> fetchedOffsets.containsKey(entry.getKey())
+                    && fetchedOffsets.get(entry.getKey()) >= entry.getValue());
+        }
+    }
+
+    long commitAuthorizationFailures(String groupId) {
+        synchronized (lock) {
+            return commitAuthorizationFailures.getOrDefault(groupId, 0L);
+        }
+    }
+
+    boolean hasDeniedCommit(String groupId, long previous, Map<TopicPartition, Long> expectedOffsets) {
+        synchronized (lock) {
+            Map<TopicPartition, Long> actual = deniedCommitOffsets.getOrDefault(groupId, Map.of());
+            return commitAuthorizationFailures.getOrDefault(groupId, 0L) > previous
+                    && expectedOffsets.entrySet().stream().allMatch(entry -> actual.containsKey(entry.getKey())
+                    && actual.get(entry.getKey()) >= entry.getValue());
+        }
+    }
+
+    private void observeFetchRequest(byte[] frame, short version) {
+        ByteBuffer buffer = ByteBuffer.wrap(frame);
+        RequestHeader.parse(buffer);
+        FetchRequest request = FetchRequest.parse(new ByteBufferAccessor(buffer), version);
+        synchronized (lock) {
+            request.fetchData(fetchTopics).forEach((partition, data) -> {
+                if (partition.topic() != null && fetchTopics.containsValue(partition.topic())) {
+                    fetchedOffsets.put(partition.topicPartition(), data.fetchOffset);
+                }
+            });
+        }
+    }
+
     void disconnectBeforeNextProduce() {
         disconnectBeforeNextProduce(false);
     }
@@ -152,6 +206,12 @@ final class KafkaConnectionProxy implements AutoCloseable {
                     successfulAuthentications, failedAuthentications, authenticatedProduceRequests,
                     successfulTlsHandshakes, failedTlsHandshakes, tlsProduceRequests,
                     Map.copyOf(produceRequestsByAcks), Map.copyOf(recordBatchesByCompression));
+        }
+    }
+
+    long successfulAuthentications(String mechanism) {
+        synchronized (lock) {
+            return successfulAuthenticationsByMechanism.getOrDefault(mechanism, 0L);
         }
     }
 
@@ -223,6 +283,66 @@ final class KafkaConnectionProxy implements AutoCloseable {
         }
     }
 
+    void resetAfterScenario() throws InterruptedException {
+        List<Connection> openConnections;
+        synchronized (lock) {
+            verify();
+            resetting = true;
+            openConnections = List.copyOf(connections);
+        }
+        openConnections.forEach(connection -> connection.close(false));
+        synchronized (lock) {
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            while (activeConnectionTasks > 0) {
+                long remaining = deadline - System.nanoTime();
+                assertTrue(remaining > 0, "Kafka proxy connections did not stop before broker reuse.");
+                TimeUnit.NANOSECONDS.timedWait(lock, remaining);
+            }
+            verify();
+            assertTrue(connections.isEmpty(), "Kafka proxy retained a connection before broker reuse.");
+            failures.clear();
+            produceRequestsByAcks.clear();
+            recordBatchesByCompression.clear();
+            fetchTopics.clear();
+            fetchedOffsets.clear();
+            commitAuthorizationFailures.clear();
+            deniedCommitOffsets.clear();
+            successfulAuthenticationsByMechanism.clear();
+            produceAttempts = 0;
+            forwardedProduceRequests = 0;
+            successfulProduceResponses = 0;
+            droppedProduceResponses = 0;
+            disconnectedProduceRequests = 0;
+            rejectedConnections = 0;
+            connectionResets = 0;
+            successfulAuthentications = 0;
+            failedAuthentications = 0;
+            authenticatedProduceRequests = 0;
+            successfulTlsHandshakes = 0;
+            failedTlsHandshakes = 0;
+            tlsProduceRequests = 0;
+            unavailable = false;
+            remainUnavailableAfterProduce = false;
+            resetting = false;
+        }
+    }
+
+    private void executeConnectionTask(Runnable task) {
+        synchronized (lock) {
+            activeConnectionTasks++;
+            workers.execute(() -> {
+                try {
+                    task.run();
+                } finally {
+                    synchronized (lock) {
+                        activeConnectionTasks--;
+                        lock.notifyAll();
+                    }
+                }
+            });
+        }
+    }
+
     @Override
     public void close() throws IOException {
         List<Connection> openConnections;
@@ -261,6 +381,10 @@ final class KafkaConnectionProxy implements AutoCloseable {
                     closeSocket(client, false);
                     return;
                 }
+                if (resetting) {
+                    closeSocket(client, false);
+                    continue;
+                }
                 if (unavailable) {
                     rejectedConnections++;
                     connectionResets++;
@@ -269,7 +393,7 @@ final class KafkaConnectionProxy implements AutoCloseable {
                 }
                 Connection connection = new Connection(client, serverTlsContext, upstreamTlsContext);
                 connections.add(connection);
-                workers.execute(connection::connect);
+                executeConnectionTask(connection::connect);
             }
         }
     }
@@ -368,8 +492,11 @@ final class KafkaConnectionProxy implements AutoCloseable {
         private volatile Socket upstream = upstreamTransport;
         private final AtomicBoolean connectionClosed = new AtomicBoolean();
         private final Map<Integer, Short> pendingProduceRequests = new ConcurrentHashMap<>();
-        private final Map<Integer, Short> pendingAuthentications = new ConcurrentHashMap<>();
+        private final Map<Integer, AuthenticationObservation> pendingAuthentications = new ConcurrentHashMap<>();
+        private final Map<Integer, OffsetCommitObservation> pendingOffsetCommits = new ConcurrentHashMap<>();
         private volatile boolean authenticated;
+        private String saslMechanism = "PLAIN";
+        private boolean scramClientFirstSeen;
         private boolean tlsEstablished;
 
         private Connection(Socket client, SSLContext clientTlsContext, SSLContext brokerTlsContext) {
@@ -393,8 +520,8 @@ final class KafkaConnectionProxy implements AutoCloseable {
                 }
                 synchronized (lock) {
                     if (!closed && !connectionClosed.get()) {
-                        workers.execute(this::forwardRequests);
-                        workers.execute(this::forwardResponses);
+                        executeConnectionTask(this::forwardRequests);
+                        executeConnectionTask(this::forwardResponses);
                     }
                 }
             } catch (IOException | RuntimeException exception) {
@@ -468,8 +595,27 @@ final class KafkaConnectionProxy implements AutoCloseable {
                     short apiKey = header.getShort();
                     short version = header.getShort();
                     int correlationId = header.getInt();
+                    if (apiKey == ApiKeys.SASL_HANDSHAKE.id) {
+                        ByteBuffer buffer = ByteBuffer.wrap(frame);
+                        RequestHeader.parse(buffer);
+                        saslMechanism = SaslHandshakeRequest.parse(new ByteBufferAccessor(buffer), version).data().mechanism();
+                        scramClientFirstSeen = false;
+                    }
                     if (apiKey == ApiKeys.SASL_AUTHENTICATE.id) {
                         observeAuthenticationRequest(frame, version, correlationId);
+                    }
+                    if (apiKey == ApiKeys.FETCH.id) {
+                        observeFetchRequest(frame, version);
+                    }
+                    if (apiKey == ApiKeys.OFFSET_COMMIT.id) {
+                        ByteBuffer buffer = ByteBuffer.wrap(frame);
+                        RequestHeader.parse(buffer);
+                        OffsetCommitRequest request = OffsetCommitRequest.parse(new ByteBufferAccessor(buffer), version);
+                        Map<TopicPartition, Long> offsets = new LinkedHashMap<>();
+                        request.data().topics().forEach(topic -> topic.partitions().forEach(partition -> offsets.put(
+                                new TopicPartition(topic.name(), partition.partitionIndex()), partition.committedOffset())));
+                        pendingOffsetCommits.put(correlationId,
+                                new OffsetCommitObservation(version, request.data().groupId(), Map.copyOf(offsets)));
                     }
                     boolean produce = apiKey == ApiKeys.PRODUCE.id;
                     if (produce) {
@@ -512,9 +658,21 @@ final class KafkaConnectionProxy implements AutoCloseable {
                 while (!connectionClosed.get()) {
                     byte[] frame = readFrame(input);
                     int correlationId = ByteBuffer.wrap(frame).getInt();
-                    Short authenticationVersion = pendingAuthentications.remove(correlationId);
-                    if (authenticationVersion != null) {
-                        observeAuthenticationResponse(frame, authenticationVersion);
+                    AuthenticationObservation authentication = pendingAuthentications.remove(correlationId);
+                    if (authentication != null) {
+                        observeAuthenticationResponse(frame, authentication);
+                    }
+                    OffsetCommitObservation commit = pendingOffsetCommits.remove(correlationId);
+                    if (commit != null) {
+                        ByteBuffer buffer = ByteBuffer.wrap(frame);
+                        ResponseHeader.parse(buffer, ApiKeys.OFFSET_COMMIT.responseHeaderVersion(commit.version()));
+                        OffsetCommitResponse response = OffsetCommitResponse.parse(new ByteBufferAccessor(buffer), commit.version());
+                        if (response.errorCounts().containsKey(Errors.GROUP_AUTHORIZATION_FAILED)) {
+                            synchronized (lock) {
+                                commitAuthorizationFailures.merge(commit.groupId(), 1L, Long::sum);
+                                deniedCommitOffsets.put(commit.groupId(), commit.offsets());
+                            }
+                        }
                     }
                     Short produceVersion = pendingProduceRequests.remove(correlationId);
                     if (produceVersion != null && shouldDropProduceResponse(frame, produceVersion)) {
@@ -537,30 +695,40 @@ final class KafkaConnectionProxy implements AutoCloseable {
             RequestHeader.parse(buffer);
             byte[] credentials = SaslAuthenticateRequest.parse(new ByteBufferAccessor(buffer), version)
                     .data().authBytes();
-            int usernameStart = 0;
-            while (usernameStart < credentials.length && credentials[usernameStart] != 0) {
+            if ("PLAIN".equals(saslMechanism)) {
+                int usernameStart = 0;
+                while (usernameStart < credentials.length && credentials[usernameStart] != 0) {
+                    usernameStart++;
+                }
                 usernameStart++;
+                int usernameEnd = usernameStart;
+                while (usernameEnd < credentials.length && credentials[usernameEnd] != 0) {
+                    usernameEnd++;
+                }
+                String username = new String(credentials, usernameStart, usernameEnd - usernameStart, StandardCharsets.UTF_8);
+                if (KafkaSaslSupport.ADMIN_USERNAME.equals(username)) {
+                    return;
+                }
             }
-            usernameStart++;
-            int usernameEnd = usernameStart;
-            while (usernameEnd < credentials.length && credentials[usernameEnd] != 0) {
-                usernameEnd++;
-            }
-            String username = new String(credentials, usernameStart, usernameEnd - usernameStart, StandardCharsets.UTF_8);
-            if (!KafkaSaslSupport.ADMIN_USERNAME.equals(username)) {
-                authenticated = false;
-                pendingAuthentications.put(correlationId, version);
-            }
+            boolean completesAuthentication = !saslMechanism.startsWith("SCRAM") || scramClientFirstSeen;
+            scramClientFirstSeen = true;
+            authenticated = false;
+            pendingAuthentications.put(correlationId, new AuthenticationObservation(version, completesAuthentication));
         }
 
-        private void observeAuthenticationResponse(byte[] frame, short version) {
+        private void observeAuthenticationResponse(byte[] frame, AuthenticationObservation authentication) {
             ByteBuffer buffer = ByteBuffer.wrap(frame);
-            ResponseHeader.parse(buffer, ApiKeys.SASL_AUTHENTICATE.responseHeaderVersion(version));
-            SaslAuthenticateResponse response = SaslAuthenticateResponse.parse(new ByteBufferAccessor(buffer), version);
+            ResponseHeader.parse(buffer, ApiKeys.SASL_AUTHENTICATE.responseHeaderVersion(authentication.version()));
+            SaslAuthenticateResponse response = SaslAuthenticateResponse.parse(
+                    new ByteBufferAccessor(buffer), authentication.version());
+            if (response.error() == Errors.NONE && !authentication.completesAuthentication()) {
+                return;
+            }
             authenticated = response.error() == Errors.NONE;
             synchronized (lock) {
                 if (authenticated) {
                     successfulAuthentications++;
+                    successfulAuthenticationsByMechanism.merge(saslMechanism, 1L, Long::sum);
                 } else {
                     failedAuthentications++;
                 }
@@ -585,6 +753,12 @@ final class KafkaConnectionProxy implements AutoCloseable {
                 }
             }
         }
+    }
+
+    private record AuthenticationObservation(short version, boolean completesAuthentication) {
+    }
+
+    private record OffsetCommitObservation(short version, String groupId, Map<TopicPartition, Long> offsets) {
     }
 
     record Statistics(

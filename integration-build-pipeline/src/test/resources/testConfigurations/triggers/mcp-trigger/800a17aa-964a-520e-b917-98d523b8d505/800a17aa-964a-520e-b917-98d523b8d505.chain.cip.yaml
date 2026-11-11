@@ -1,0 +1,56 @@
+---
+id: 800a17aa-964a-520e-b917-98d523b8d505
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+name: mcp-trigger-multi-tool
+content:
+  labels: []
+  elements:
+  - id: 3bb54f89-9584-5596-9b36-9337326ae270
+    name: MCP Trigger
+    type: mcp-trigger
+    properties:
+      mcpServiceIds:
+      - a61e7e36-2fe7-588c-bbb9-8e116c4b88c8
+      name: snapshot_mcp_multi_tool
+      title: Snapshot MCP multi-tool
+      description: Exercises MCP multi-tool behavior in component tests.
+      destructive: false
+      idempotent: false
+      inputSchema: '{"type":"object","properties":{"message":{"type":"string"}},"additionalProperties":false}'
+      openWorld: false
+      readOnly: false
+  - id: a89b5239-5c77-5c99-9771-fb62c76037dc
+    name: Script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: a89b5239-5c77-5c99-9771-fb62c76037dc.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  - id: e393157e-4224-5627-a4cf-9bde405b367f
+    name: MCP Trigger
+    type: mcp-trigger
+    properties:
+      mcpServiceIds:
+      - a61e7e36-2fe7-588c-bbb9-8e116c4b88c8
+      name: snapshot_mcp_multi_tool_second
+      title: Snapshot MCP second tool
+      description: Exercises MCP multi-tool behavior in component tests.
+      destructive: false
+      idempotent: false
+      inputSchema: '{"type":"object","properties":{"message":{"type":"string"}},"additionalProperties":false}'
+      openWorld: false
+      readOnly: false
+  - id: 02491888-3e07-5e2d-a781-8540bef7de9b
+    name: Second script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 02491888-3e07-5e2d-a781-8540bef7de9b.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: 3bb54f89-9584-5596-9b36-9337326ae270
+    to: a89b5239-5c77-5c99-9771-fb62c76037dc
+  - from: e393157e-4224-5627-a4cf-9bde405b367f
+    to: 02491888-3e07-5e2d-a781-8540bef7de9b
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

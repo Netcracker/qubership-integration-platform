@@ -96,6 +96,12 @@ describe("SelectAndNavigateField", () => {
     expect(container.querySelector("label")?.htmlFor).toBe(captured.id);
   });
 
+  it("should name the icon-only navigate button by its title", () => {
+    const { getByRole } = render(<SelectAndNavigateField {...baseProps} />);
+
+    expect(getByRole("button", { name: "Go to chain" })).toBeInTheDocument();
+  });
+
   it("should leave search off when neither is given", () => {
     render(<SelectAndNavigateField {...baseProps} />);
 

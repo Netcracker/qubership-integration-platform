@@ -1,15 +1,5 @@
-import { Table } from "antd";
 import React, { useMemo, useState, UIEvent } from "react";
-import {
-  Flex,
-  Button,
-  Tag,
-  Tooltip,
-  Drawer,
-  Descriptions,
-  Space,
-  Typography,
-} from "antd";
+import { Flex, Button, Table, Tag, Tooltip, Typography } from "antd";
 import { useResizeHeight } from "../../../hooks/useResizeHeigth.tsx";
 import commonStyles from "../CommonStyle.module.css";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
@@ -25,10 +15,7 @@ import { AddDeleteRolesPopUp } from "./AddDeleteRolesPopUp.tsx";
 import { chainIdsOf } from "./accessControlRequests.ts";
 import { api } from "../../../api/api.ts";
 import { useNavigate } from "react-router";
-import {
-  DeploymentsCumulativeState,
-  getCumulativeStatus,
-} from "../../deployment_runtime_states/DeploymentsCumulativeState.tsx";
+import { DeploymentsCumulativeState } from "../../deployment_runtime_states/DeploymentsCumulativeState.tsx";
 import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
 import { ProtectedButton } from "../../../permissions/ProtectedButton.tsx";
 import {
@@ -44,6 +31,8 @@ import { TableToolbar } from "../../table/TableToolbar.tsx";
 import { AdminToolsHeader } from "../AdminToolsHeader.tsx";
 import { confirmAndRun } from "../../../misc/confirm-utils.ts";
 import { useAccessControlFilter } from "../../../hooks/filter/useAccessControlFilter.ts";
+import { AccessControlSidebar } from "./AccessControlSidebar.tsx";
+import { hasUnsavedChanges } from "./access-control-utils.ts";
 
 function routeTypeLabel(record: AccessControlData): string {
   const properties = record.properties as unknown as
@@ -344,13 +333,6 @@ export const AccessControl: React.FC = () => {
       columns,
     );
 
-  const hasUnsavedChanges = (data: AccessControlData): boolean => {
-    return (
-      data.unsavedChanges &&
-      getCumulativeStatus(new Set(data.deploymentStatus)) === "DEPLOYED"
-    );
-  };
-
   const buildRowKey = (row: AccessControlData): string => {
     return `${row.chainId}-${row.elementId}`;
   };
@@ -563,10 +545,7 @@ export const AccessControl: React.FC = () => {
 
   return (
     <Flex vertical className={commonStyles["container"]}>
-      <AdminToolsHeader
-        title="Access Control"
-        toolbar={accessControlToolbar}
-      />
+      <AdminToolsHeader title="Access Control" toolbar={accessControlToolbar} />
       <Flex
         style={{
           flex: "1 1 auto",
@@ -577,142 +556,6 @@ export const AccessControl: React.FC = () => {
           overflow: "hidden",
         }}
       >
-        {currentRecord && (
-          <Drawer
-            title="Endpoint Details"
-            placement="right"
-            open={openSidebar}
-            closable={false}
-            onClose={onClose}
-          >
-            <Descriptions column={1} size="small" layout="vertical">
-              {hasUnsavedChanges(currentRecord) && (
-                <Descriptions.Item>
-                  <Tag color="blue" style={{ fontSize: 13 }}>
-                    <Space>
-                      <OverridableIcon name="warning" />
-                      Unsaved Changes
-                    </Space>
-                  </Tag>
-                </Descriptions.Item>
-              )}
-              <Descriptions.Item label="Endpoint">
-                {currentRecord.chainId ? (
-                  <a
-                    href={`/chains/${currentRecord?.chainId}/graph/${currentRecord?.elementId}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {(
-                      currentRecord.properties as unknown as AccessControlProperty
-                    )?.contextPath || "—"}
-                  </a>
-                ) : (
-                  "—"
-                )}
-              </Descriptions.Item>
-              <Descriptions.Item label="Type">
-                {(() => {
-                  const properties = currentRecord.properties as unknown as
-                    | AccessControlProperty
-                    | undefined;
-                  const { externalRoute, privateRoute } = properties ?? {};
-                  return externalRoute && privateRoute
-                    ? "External, Private"
-                    : externalRoute
-                      ? "External"
-                      : privateRoute
-                        ? "Private"
-                        : "Internal";
-                })()}
-              </Descriptions.Item>
-              <Descriptions.Item label="Access Control Type">
-                {(() => {
-                  const properties = currentRecord.properties as unknown as
-                    | AccessControlProperty
-                    | undefined;
-                  const val = properties?.accessControlType;
-                  return typeof val === "string"
-                    ? val
-                    : val != null
-                      ? String(val)
-                      : "—";
-                })()}
-              </Descriptions.Item>
-              <Descriptions.Item label="Roles">
-                {(() => {
-                  const properties = currentRecord.properties as unknown as
-                    | AccessControlProperty
-                    | undefined;
-                  const roles = properties?.roles;
-                  return roles && Array.isArray(roles) && roles.length > 0 ? (
-                    <span>
-                      {roles.map((role, idx) => (
-                        <Tag
-                          key={`${role}-${idx}`}
-                          color="blue"
-                          style={{ marginBottom: 4 }}
-                        >
-                          {role}
-                        </Tag>
-                      ))}
-                    </span>
-                  ) : (
-                    "—"
-                  );
-                })()}
-              </Descriptions.Item>
-              <Descriptions.Item label="Attributes">
-                {(currentRecord.properties as unknown as AccessControlProperty)
-                  ?.accessControlType === AccessControlType.ABAC ? (
-                  <Typography.Link
-                    onClick={() => {
-                      if (currentRecord) {
-                        showModal({
-                          component: (
-                            <AbacAttributesPopUp record={currentRecord} />
-                          ),
-                        });
-                      }
-                    }}
-                  >
-                    Details
-                  </Typography.Link>
-                ) : (
-                  "—"
-                )}
-              </Descriptions.Item>
-              <Descriptions.Item label="Chain">
-                {currentRecord.chainId ? (
-                  <a
-                    onClick={() =>
-                      void navigate(`/chains/${currentRecord?.chainId}`)
-                    }
-                  >
-                    {currentRecord.chainName}
-                  </a>
-                ) : (
-                  "—"
-                )}
-              </Descriptions.Item>
-              <Descriptions.Item label="Chain Status">
-                {currentRecord.chainId ? (
-                  <DeploymentsCumulativeState
-                    chainId={currentRecord.chainId}
-                    isNotificationEnabled={
-                      !deployedChainIds.has(currentRecord.chainId)
-                    }
-                  />
-                ) : (
-                  "—"
-                )}
-              </Descriptions.Item>
-              <Descriptions.Item label="Chain ID">
-                {currentRecord.chainId || "—"}
-              </Descriptions.Item>
-            </Descriptions>
-          </Drawer>
-        )}
         <Flex
           style={{
             width: "100%",
@@ -779,6 +622,12 @@ export const AccessControl: React.FC = () => {
           </div>
         </Flex>
       </Flex>
+      <AccessControlSidebar
+        value={currentRecord}
+        open={openSidebar}
+        onClose={onClose}
+        deployedChainIds={deployedChainIds}
+      />
     </Flex>
   );
 };

@@ -18,6 +18,7 @@ jest.mock("../../../src/api/api", () => ({
 import {
   collectDescendantFolderIds,
   collectSubtreeBatches,
+  collectSubtreeChainIds,
   fetchFolderContent,
   findUnvisitedChildFolderIds,
   findUnvisitedFolderIds,
@@ -153,7 +154,10 @@ describe("collectSubtreeBatches", () => {
   it("should return empty array when the folder was already visited", async () => {
     const ctx = makeContext({ visited: new Set(["root"]) });
 
-    await expect(collectSubtreeBatches("root", ctx)).resolves.toEqual([]);
+    await expect(collectSubtreeBatches("root", ctx)).resolves.toEqual({
+      batches: [],
+      complete: true,
+    });
     expect(mockListFolder).not.toHaveBeenCalled();
   });
 
@@ -167,7 +171,10 @@ describe("collectSubtreeBatches", () => {
       knownLoaded: new Set(["root", "child"]),
     });
 
-    await expect(collectSubtreeBatches("root", ctx)).resolves.toEqual([]);
+    await expect(collectSubtreeBatches("root", ctx)).resolves.toEqual({
+      batches: [],
+      complete: true,
+    });
     expect(mockListFolder).not.toHaveBeenCalled();
     expect(ctx.visited).toEqual(new Set(["root", "child"]));
   });
@@ -179,9 +186,12 @@ describe("collectSubtreeBatches", () => {
     mockListFolder.mockImplementationOnce(async () => childContent);
     const ctx = makeContext();
 
-    const batches = await collectSubtreeBatches("root", ctx);
+    const result = await collectSubtreeBatches("root", ctx);
 
-    expect(batches).toEqual([rootContent, childContent]);
+    expect(result).toEqual({
+      batches: [rootContent, childContent],
+      complete: true,
+    });
     expect(mockListFolder).toHaveBeenCalledTimes(2);
     expect(mockListFolder).toHaveBeenNthCalledWith(1, {
       folderId: "root",
@@ -202,8 +212,68 @@ describe("collectSubtreeBatches", () => {
     const notifyLoadFailed = jest.fn();
     const ctx = makeContext({ notifyLoadFailed });
 
-    await expect(collectSubtreeBatches("root", ctx)).resolves.toEqual([]);
+    await expect(collectSubtreeBatches("root", ctx)).resolves.toEqual({
+      batches: [],
+      complete: false,
+    });
     expect(notifyLoadFailed).toHaveBeenCalledWith(failure);
     expect(ctx.knownLoaded.has("root")).toBe(false);
+  });
+
+  it("should report incomplete when a nested folder fails but keep successful batches", async () => {
+    const rootContent = [folder("child", "root"), chain("direct", "root")];
+    mockListFolder.mockImplementation(async (request: unknown) => {
+      const { folderId } = request as { folderId?: string };
+      if (folderId === "root") return rootContent;
+      if (folderId === "child") throw new Error("denied");
+      return [];
+    });
+    const notifyLoadFailed = jest.fn();
+
+    const result = await collectSubtreeBatches(
+      "root",
+      makeContext({ notifyLoadFailed }),
+    );
+
+    expect(result).toEqual({ batches: [rootContent], complete: false });
+    expect(notifyLoadFailed).toHaveBeenCalledWith(expect.any(Error));
+  });
+});
+
+describe("collectSubtreeChainIds", () => {
+  it("returns an empty array for a folder with no chain descendants", () => {
+    const items = [folder("root")];
+
+    expect(collectSubtreeChainIds("root", items)).toEqual([]);
+  });
+
+  it("collects direct chains and chains in nested subfolders", () => {
+    const items = [
+      folder("root"),
+      chain("c1", "root"),
+      folder("sub", "root"),
+      chain("c2", "sub"),
+    ];
+
+    expect(collectSubtreeChainIds("root", items)).toEqual(
+      expect.arrayContaining(["c1", "c2"]),
+    );
+    expect(collectSubtreeChainIds("root", items)).toHaveLength(2);
+  });
+
+  it("ignores chains outside the subtree", () => {
+    const items = [
+      folder("root"),
+      chain("c1", "root"),
+      chain("other", "elsewhere"),
+    ];
+
+    expect(collectSubtreeChainIds("root", items)).toEqual(["c1"]);
+  });
+
+  it("does not loop forever when folders reference each other", () => {
+    const items = [folder("a", "b"), folder("b", "a"), chain("c", "a")];
+
+    expect(collectSubtreeChainIds("a", items)).toEqual(["c"]);
   });
 });
