@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -22,14 +21,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
-import org.mockito.ArgumentCaptor;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
-import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineCompatibilityAnalyzer;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
@@ -71,11 +66,10 @@ class ProductPipelineProfileCatalogCutoverTest {
       """;
 
   @Test
-  void catalogContainsCreateChainV1AndV2() throws Exception {
-    ProductPipelineProfile v1 = parseClasspath("create-chain-v1.yaml");
+  void catalogContainsOnlyTheCurrentBundledCreateProfile() throws Exception {
     ProductPipelineProfile v2 = parseClasspath("create-chain-v2.yaml");
-    ProductPipelineProfileCatalog catalog = new ProductPipelineProfileCatalog(List.of(v1, v2));
-    assertEquals(v1, catalog.require("create-chain", "1"));
+    ProductPipelineProfileCatalog catalog = new ProductPipelineProfileCatalog(List.of(v2));
+    assertFalse(catalog.supports("create-chain", "1"));
     assertEquals(v2, catalog.require("create-chain", "2"));
     assertTrue(
         getClass().getResource("/product-pipelines/profiles/create-plan-v1.yaml") == null,
@@ -165,10 +159,9 @@ class ProductPipelineProfileCatalogCutoverTest {
   }
 
   @Test
-  void newRunsSelectV2WhilePersistedV1BindingsRemainReadable() throws Exception {
-    ProductPipelineProfile v1 = parseClasspath("create-chain-v1.yaml");
+  void newRunsSelectV2WhilePersistedV1BindingsAreRejected() throws Exception {
     ProductPipelineProfile v2 = parseClasspath("create-chain-v2.yaml");
-    ProductPipelineProfileCatalog catalog = new ProductPipelineProfileCatalog(List.of(v1, v2));
+    ProductPipelineProfileCatalog catalog = new ProductPipelineProfileCatalog(List.of(v2));
     InMemoryArtifactBlobStore blobs = new InMemoryArtifactBlobStore();
     ObjectMapper mapper = new ObjectMapper();
     CreateRunBindingStore bindingStore = new CreateRunBindingStore(blobs, mapper);
@@ -204,22 +197,9 @@ class ProductPipelineProfileCatalogCutoverTest {
             "2026.1", knowledge, bindingStore, catalog, pinResolver, clock);
 
     assertEquals("2", selectionService.selectOrCreate("conv-new-v2").runManifest().profileVersion());
-    assertEquals(
-        "1",
-        bindingStore.load("conv-v1-historical").orElseThrow().runManifest().profileVersion());
-    assertEquals(
-        "1", selectionService.selectOrCreate("conv-v1-historical").runManifest().profileVersion());
-  }
-
-  @Test
-  void compatibilityAnalyzerDefaultsIncludeCreateChainV1AndV2() {
-    assertEquals(
-        List.of(
-            CompilerPipelineCompatibilityAnalyzer.PROFILE_CREATE_CHAIN_V1,
-            CompilerPipelineCompatibilityAnalyzer.PROFILE_CREATE_CHAIN_V2),
-        List.of(
-            CompilerPipelineCompatibilityAnalyzer.PROFILE_CREATE_CHAIN_V1,
-            CompilerPipelineCompatibilityAnalyzer.PROFILE_CREATE_CHAIN_V2));
+    org.junit.jupiter.api.Assertions.assertThrows(
+        org.qubership.integration.platform.ai.productpipeline.create.UnsupportedCreateRunBindingException.class,
+        () -> selectionService.selectOrCreate("conv-v1-historical"));
   }
 
   @Test
@@ -366,7 +346,6 @@ class ProductPipelineProfileCatalogCutoverTest {
 
   private static List<String> allProfileArtifactNames() throws Exception {
     List<String> names = new ArrayList<>();
-    addProfileArtifactNames(names, parseClasspath("create-chain-v1.yaml"));
     addProfileArtifactNames(names, parseClasspath("create-chain-v2.yaml"));
     return names;
   }

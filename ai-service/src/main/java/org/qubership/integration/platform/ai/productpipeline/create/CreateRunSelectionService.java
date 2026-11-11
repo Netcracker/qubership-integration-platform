@@ -19,7 +19,7 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipe
 
 /**
  * Pins CREATE to product create-chain@2 once per conversation for new runs. Existing supported
- * bindings (create-chain@1 or @2) remain pinned across restarts until a conversation reset; unsupported historical bindings
+ * bindings remain pinned across restarts until a conversation reset; unsupported historical bindings
  * fail closed.
  */
 @ApplicationScoped
@@ -84,8 +84,7 @@ public class CreateRunSelectionService {
   }
 
   /**
-   * Test constructor that pins new runs to an explicit profile version. Use {@code "1"} for
-   * fixtures that still exercise the create-chain@1 capability graph.
+   * Test constructor that pins new runs to an explicit profile version.
    */
   public CreateRunSelectionService(
       String languageVersion,

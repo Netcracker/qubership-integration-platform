@@ -5,11 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -21,7 +18,6 @@ import static org.mockito.Mockito.when;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.smallrye.mutiny.Multi;
-import io.smallrye.mutiny.Uni;
 import java.io.InputStream;
 import java.time.Clock;
 import java.time.Instant;
@@ -29,7 +25,6 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -37,18 +32,14 @@ import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
-import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
-import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerNodeExecutionMode;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubMcpTools;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
-import org.qubership.integration.platform.ai.integration.catalog.materialize.ApiHubSpecificationImportResult;
 import org.qubership.integration.platform.ai.integration.catalog.pipeline.CatalogMutationGateway;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemReadTool;
-import org.qubership.integration.platform.ai.plan.ImplementationPlan;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
@@ -85,12 +76,8 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.input
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.DesignInputCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.ApiOperationBindings;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
 import org.qubership.integration.platform.ai.productpipeline.create.design.planning.CipDesignPlannerAdapter;
-import org.qubership.integration.platform.ai.productpipeline.create.design.planning.CipDesignPlannerReportParser;
-import org.qubership.integration.platform.ai.productpipeline.create.design.planning.DesignImplementationPlanRenderer;
-import org.qubership.integration.platform.ai.productpipeline.create.design.planning.DesignPlanProjector;
 import org.qubership.integration.platform.ai.productpipeline.create.design.planning.DesignPlanningCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
@@ -100,7 +87,6 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticProvenance;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
 import org.qubership.integration.platform.ai.productpipeline.materialization.MaterializationCapability;
-import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPolicy;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileCatalog;
@@ -121,7 +107,7 @@ import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
 
 /**
  * create-chain@2 shared design runtime lifecycle gate. Shell product E2E pins create-chain@2 for
- * new CREATE runs; create-chain@1 backward-compat coverage is CreateChainProductPipelineRestartIT.
+ * new CREATE runs.
  */
 class CreateChainSharedDesignRuntimeIT {
 
@@ -152,7 +138,6 @@ class CreateChainSharedDesignRuntimeIT {
   private ProductPipelineRunStore runStore;
   private ProductPipelineArtifactStore artifactStore;
   private ProductPipelineProfile v2Profile;
-  private ProductPipelineProfile v1Profile;
 
   private CatalogSystemReadTool catalogReadTool;
   private ApiHubMcpTools apiHubMcpTools;
@@ -176,10 +161,6 @@ class CreateChainSharedDesignRuntimeIT {
     try (InputStream in =
         getClass().getResourceAsStream("/product-pipelines/profiles/create-chain-v2.yaml")) {
       v2Profile = ProductPipelineProfileParser.parse(in);
-    }
-    try (InputStream in =
-        getClass().getResourceAsStream("/product-pipelines/profiles/create-chain-v1.yaml")) {
-      v1Profile = ProductPipelineProfileParser.parse(in);
     }
     catalogReadTool = mock(CatalogSystemReadTool.class);
     apiHubMcpTools = mock(ApiHubMcpTools.class);
@@ -793,32 +774,6 @@ class CreateChainSharedDesignRuntimeIT {
     // WAITING_FOR_INPUT rather than recording a design-execution result.
     assertEquals(RunStatus.WAITING_FOR_INPUT, loadRun().run().status());
     assertFalse(hasKind(Kind.DESIGN_EXECUTION_RESULT));
-  }
-
-  @Test
-  void persistedV1ProfileKeepsDraftAndPlanApprovalGates() {
-    assertNotNull(v1Profile.stages().stream()
-        .filter(s -> "requirement-discovery".equals(s.stageId()))
-        .findFirst()
-        .orElseThrow()
-        .approval());
-    assertNotNull(v1Profile.stages().stream()
-        .filter(s -> "requirement-analysis".equals(s.stageId()))
-        .findFirst()
-        .orElseThrow()
-        .approval());
-    assertEquals("1", v1Profile.profileVersion());
-    assertTrue(
-        v2Profile.stages().stream()
-            .filter(s -> "requirement-discovery".equals(s.stageId()))
-            .findFirst()
-            .orElseThrow()
-            .approval()
-            == null);
-  }
-
-  private static void assertNotNull(Object value) {
-    org.junit.jupiter.api.Assertions.assertNotNull(value);
   }
 
   private Runnable catalogHitStubs() {

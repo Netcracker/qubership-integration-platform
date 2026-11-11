@@ -2695,7 +2695,7 @@ class RequirementDiscoveryCapabilityTest {
     RequirementDraft approved = petstoreServiceCallDraft();
     RequirementDiscoveryCapability capability = discovery(store, approved);
 
-    // create-chain@1 shape: produces requirement-draft only — no catalog-binding-hint declaration.
+    // This profile declares only requirement-draft, so catalog hints must stay out of candidates.
     ProductPipelineProfile v1Like =
         discoveryProfile(
             List.of(new ArtifactTypeRef("requirement-draft", 2)), List.of());

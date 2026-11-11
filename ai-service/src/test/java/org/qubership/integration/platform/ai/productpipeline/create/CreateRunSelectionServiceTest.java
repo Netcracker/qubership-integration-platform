@@ -38,7 +38,6 @@ class CreateRunSelectionServiceTest {
   private InMemoryArtifactBlobStore blobs;
   private FakeKnowledgeClient knowledge;
   private ObjectMapper mapper;
-  private ProductPipelineProfile createChainProfile;
   private ProductPipelineProfile createChainV2Profile;
   private CompilerRunPinResolver pinResolver;
   private CompilerRunPin stubPin;
@@ -48,10 +47,6 @@ class CreateRunSelectionServiceTest {
     blobs = new InMemoryArtifactBlobStore();
     knowledge = FakeKnowledgeClient.defaultFixture();
     mapper = new ObjectMapper();
-    try (InputStream in =
-        getClass().getResourceAsStream("/product-pipelines/profiles/create-chain-v1.yaml")) {
-      createChainProfile = ProductPipelineProfileParser.parse(in);
-    }
     try (InputStream in =
         getClass().getResourceAsStream("/product-pipelines/profiles/create-chain-v2.yaml")) {
       createChainV2Profile = ProductPipelineProfileParser.parse(in);
@@ -186,7 +181,7 @@ class CreateRunSelectionServiceTest {
   }
 
   private ProductPipelineProfileCatalog catalogWithCreateChain() {
-    return new ProductPipelineProfileCatalog(List.of(createChainProfile, createChainV2Profile));
+    return new ProductPipelineProfileCatalog(List.of(createChainV2Profile));
   }
 
   private CreateRunSelectionService service(

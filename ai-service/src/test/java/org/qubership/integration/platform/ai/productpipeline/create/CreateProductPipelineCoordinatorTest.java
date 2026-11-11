@@ -343,22 +343,17 @@ public class CreateProductPipelineCoordinatorTest {
 
     static Fixture create() throws Exception {
       ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
-      ProductPipelineProfile profileV1;
-      ProductPipelineProfile profileV2;
+      ProductPipelineProfile approvalProfile;
       try (InputStream in =
-          Fixture.class.getResourceAsStream("/product-pipelines/profiles/create-chain-v1.yaml")) {
-        profileV1 = ProductPipelineProfileParser.parse(in);
-      }
-      try (InputStream in =
-          Fixture.class.getResourceAsStream("/product-pipelines/profiles/create-chain-v2.yaml")) {
-        profileV2 = ProductPipelineProfileParser.parse(in);
+          Fixture.class.getResourceAsStream("/product-pipelines/profiles/approval-gates.yaml")) {
+        approvalProfile = ProductPipelineProfileParser.parse(in);
       }
       return new Fixture(
           new InMemoryArtifactBlobStore(),
           mapper,
           FakeKnowledgeClient.defaultFixture(),
-          profileV1,
-          new ProductPipelineProfileCatalog(List.of(profileV1, profileV2)));
+          approvalProfile,
+          new ProductPipelineProfileCatalog(List.of(approvalProfile)));
     }
 
     CreateProductPipelineCoordinator coordinator() {
@@ -406,7 +401,7 @@ public class CreateProductPipelineCoordinatorTest {
               catalog,
               stubPinResolver(),
               clock,
-              "1");
+              "2");
       CompilationArtifacts artifacts = new CompilationArtifacts(store, mapper, clock);
       ProductPipelineArtifactStore storeFacade = new ProductPipelineArtifactStore(artifacts);
       this.selectionService = selection;
@@ -554,7 +549,7 @@ public class CreateProductPipelineCoordinatorTest {
       return new StageCapability() {
         @Override
         public String capabilityId() {
-          return PlanningCapability.CAPABILITY_ID;
+          return "test-planning";
         }
 
         @Override

@@ -49,18 +49,13 @@ class CreateProductPipelineContractIT {
     InMemoryArtifactBlobStore blobs = new InMemoryArtifactBlobStore();
     ObjectMapper mapper = new ObjectMapper();
     CreateRunBindingStore bindingStore = new CreateRunBindingStore(blobs, mapper);
-    ProductPipelineProfile profileV1;
     ProductPipelineProfile profileV2;
-    try (java.io.InputStream in =
-        getClass().getResourceAsStream("/product-pipelines/profiles/create-chain-v1.yaml")) {
-      profileV1 = ProductPipelineProfileParser.parse(in);
-    }
     try (java.io.InputStream in =
         getClass().getResourceAsStream("/product-pipelines/profiles/create-chain-v2.yaml")) {
       profileV2 = ProductPipelineProfileParser.parse(in);
     }
     ProductPipelineProfileCatalog catalog =
-        new ProductPipelineProfileCatalog(List.of(profileV1, profileV2));
+        new ProductPipelineProfileCatalog(List.of(profileV2));
     CompilerRunPinResolver pinResolver = stubPinResolver();
     CreateRunSelectionService first =
         new CreateRunSelectionService(
@@ -189,7 +184,7 @@ class CreateProductPipelineContractIT {
             RequirementFactFixtures.greetingsApprovedDraft().facts(), graph);
     assertFalse(exclusions.isEmpty());
     PlanValidationResult validation =
-        CompilerPlanningRunner.buildValidationResult(
+        PlanValidationResult.fromCompiler(
             new ValidationResult(true, List.of(), "ok"), exclusions);
     assertFalse(validation.approvalEligible());
     assertEquals(StageOutcomeClass.VALIDATION_FAILURE.name(), "VALIDATION_FAILURE");

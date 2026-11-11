@@ -35,7 +35,6 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.CatalogGraphMaterializeResult;
-import org.qubership.integration.platform.ai.integration.catalog.materialize.CatalogGraphMaterializer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.MaterializationMap;
 import org.qubership.integration.platform.ai.integration.catalog.pipeline.CatalogMutationGateway;
 import org.qubership.integration.platform.ai.plan.ImplementationPlan;
@@ -48,7 +47,6 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.DesignExecutionCheckpoint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.DesignExecutionPhase;
 import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPolicy;
-import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
@@ -64,12 +62,9 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValida
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
-import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
-import org.qubership.integration.platform.ai.productpipeline.capability.StageCapability;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageCapabilityRegistry;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
-import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.materialization.MaterializationCapability;
 import org.qubership.integration.platform.ai.productpipeline.materialization.MaterializationCheckpoint;
@@ -80,15 +75,8 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTyp
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileCatalog;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileParser;
-import org.qubership.integration.platform.ai.productpipeline.runtime.AcceptInputCommand;
-import org.qubership.integration.platform.ai.productpipeline.runtime.ApproveCommand;
-import org.qubership.integration.platform.ai.productpipeline.runtime.ImplementCommand;
-import org.qubership.integration.platform.ai.productpipeline.runtime.PipelineSignal;
-import org.qubership.integration.platform.ai.productpipeline.runtime.CreateChainTestOrchestrator;
-import org.qubership.integration.platform.ai.productpipeline.runtime.StartOrResumeCommand;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
-import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.patch.CanonicalGraphDigest;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
@@ -107,7 +95,6 @@ class CreateChainProductPipelineRestartIT {
   private ProductPipelineArtifactStore artifactStore;
   private CatalogMutationGateway catalog;
   private ChainCatalogFactsService factsService;
-  private ProductPipelineProfile createChainProfile;
   private ProductPipelineProfile createChainV2Profile;
   private final AtomicInteger chainCreates = new AtomicInteger();
   private final AtomicInteger elementCreates = new AtomicInteger();
@@ -122,10 +109,6 @@ class CreateChainProductPipelineRestartIT {
     artifactStore = new ProductPipelineArtifactStore(artifacts);
     catalog = mock(CatalogMutationGateway.class);
     factsService = mock(ChainCatalogFactsService.class);
-    try (InputStream in =
-        getClass().getResourceAsStream("/product-pipelines/profiles/create-chain-v1.yaml")) {
-      createChainProfile = ProductPipelineProfileParser.parse(in);
-    }
     try (InputStream in =
         getClass().getResourceAsStream("/product-pipelines/profiles/create-chain-v2.yaml")) {
       createChainV2Profile = ProductPipelineProfileParser.parse(in);
@@ -155,53 +138,6 @@ class CreateChainProductPipelineRestartIT {
     assertInstanceOf(
         MaterializationCapability.class,
         registry.require(MaterializationCapability.CAPABILITY_ID));
-  }
-
-  @Test
-  void historicalProductCreateChainBindingResumesAfterRestart() throws Exception {
-    RunManifest originalManifest = runManifest();
-    String historicalJson =
-        """
-        {
-          "conversationId":"%s",
-          "mode":"PRODUCT",
-          "productRunId":"%s",
-          "runManifest":%s,
-          "createdAt":"2026-07-24T12:00:00Z"
-        }
-        """
-            .formatted(
-                CONVERSATION_ID,
-                originalManifest.runId(),
-                mapper.writeValueAsString(originalManifest));
-    blobStore.put(
-        "product-pipeline-create-bindings/" + CONVERSATION_ID + ".json",
-        historicalJson.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-
-    // Recreate store and selection objects after "restart".
-    CreateRunBindingStore restartedStore = new CreateRunBindingStore(blobStore, mapper);
-    CompilerRunPinResolver pinResolver = org.mockito.Mockito.mock(CompilerRunPinResolver.class);
-    org.mockito.Mockito.when(
-            pinResolver.resolve(
-                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
-        .thenThrow(new IllegalStateException("must not resolve a new pin on resume"));
-    CreateRunSelectionService selection =
-        new CreateRunSelectionService(
-            "2026.1",
-            conversationId -> {
-              throw new IllegalStateException("must not create a new binding on resume");
-            },
-            restartedStore,
-            new ProductPipelineProfileCatalog(List.of(createChainProfile)),
-            pinResolver,
-            clock);
-
-    CreateRunSelectionService.CreateRunSelection resumed =
-        selection.selectOrCreate(CONVERSATION_ID);
-
-    assertEquals(originalManifest.runId(), resumed.productRunId());
-    assertEquals(originalManifest, resumed.runManifest());
-    assertEquals("1", resumed.runManifest().profileVersion());
   }
 
   @Test
@@ -238,7 +174,7 @@ class CreateChainProductPipelineRestartIT {
               throw new IllegalStateException("must not create a new binding on resume");
             },
             restartedStore,
-            new ProductPipelineProfileCatalog(List.of(createChainProfile, createChainV2Profile)),
+            new ProductPipelineProfileCatalog(List.of(createChainV2Profile)),
             pinResolver,
             clock);
 
@@ -284,7 +220,7 @@ class CreateChainProductPipelineRestartIT {
             org.qubership.integration.platform.ai.productpipeline.knowledge.FakeKnowledgeClient
                 .defaultFixture(),
             bindingStore,
-            new ProductPipelineProfileCatalog(List.of(createChainProfile, createChainV2Profile)),
+            new ProductPipelineProfileCatalog(List.of(createChainV2Profile)),
             pinResolver,
             clock);
 
@@ -382,69 +318,6 @@ class CreateChainProductPipelineRestartIT {
             artifactStore,
             mock(org.qubership.integration.platform.ai.qipknowledge.validation.CompilerPlanValidator.class))),
         new CompilationArtifacts(blobStore, mapper, clock));
-  }
-
-  private CreateChainTestOrchestrator runtimeWith(StageCapability materialization) {
-    return new CreateChainTestOrchestrator(
-        CreateChainTestOrchestrator.supportBuilder(
-                runStore,
-                artifactStore,
-                new StageCapabilityRegistry(
-                    List.of(
-                        discovery(),
-                        importStage(),
-                        UploadedSpecImportPassthrough.capability(),
-                        analysis(),
-                        planning(),
-                        materialization)),
-                clock)
-            .profileCatalog(new ProductPipelineProfileCatalog(List.of(createChainProfile)))
-            .build(),
-        runStore);
-  }
-
-  private String runToWaitingForImplement(CreateChainTestOrchestrator runtime) {
-    runtime
-        .startOrResume(
-            new StartOrResumeCommand(
-                CONVERSATION_ID, RUN_ID, createChainProfile, runManifest()))
-        .collect()
-        .asList()
-        .await()
-        .indefinitely();
-    List<PipelineSignal> afterInput =
-        runtime
-            .acceptInput(new AcceptInputCommand(RUN_ID, "create greetings API"))
-            .collect()
-            .asList()
-            .await()
-            .indefinitely();
-    Reference draft =
-        afterInput.stream()
-            .filter(PipelineSignal.WaitingForApproval.class::isInstance)
-            .map(PipelineSignal.WaitingForApproval.class::cast)
-            .findFirst()
-            .orElseThrow()
-            .candidate();
-    List<PipelineSignal> afterDraft =
-        runtime.approve(new ApproveCommand(RUN_ID, draft, loadRun().run().runRevision())).collect().asList().await().indefinitely();
-    Reference plan =
-        afterDraft.stream()
-            .filter(PipelineSignal.WaitingForApproval.class::isInstance)
-            .map(PipelineSignal.WaitingForApproval.class::cast)
-            .findFirst()
-            .orElseThrow()
-            .candidate();
-    runtime.approve(new ApproveCommand(RUN_ID, plan, loadRun().run().runRevision())).collect().asList().await().indefinitely();
-    assertEquals(RunStatus.WAITING_FOR_IMPLEMENT, loadRun().run().status());
-    return artifactStore
-        .payload(
-            artifactStore.history(RUN_ID, Kind.APPROVAL_RECORD).stream()
-                .filter(item -> "2".equals(item.schemaVersion()))
-                .reduce((a, b) -> b)
-                .orElseThrow(),
-            ApprovalRecordV2.class)
-        .targetContentHash();
   }
 
   private void stubCatalogHappyPath() {
@@ -721,7 +594,7 @@ class CreateChainProductPipelineRestartIT {
 
   private ArtifactProvenance provenance() {
     return new ArtifactProvenance(
-        RUN_ID, "materialization", "create-chain", "1", "profile-sha", "test", "1", "closure-sha");
+        RUN_ID, "materialization", "create-chain", "2", "profile-sha", "test", "1", "closure-sha");
   }
 
   private static CapabilitySignal.Completed completed(Multi<CapabilitySignal> stream) {
@@ -768,31 +641,6 @@ class CreateChainProductPipelineRestartIT {
         "built_in_catalog");
   }
 
-  private RunManifest runManifest() {
-    return new RunManifest(
-        RUN_ID,
-        null,
-        List.of(),
-        "product",
-        createChainProfile.profileId(),
-        createChainProfile.profileVersion(),
-        "profile-sha",
-        "baseline",
-        "baseline-sha",
-        List.of(new DependencyClosureEntry("materialization", "1", "skill-catalog-sha")),
-        "closure-sha",
-        new KnowledgePackageRef(
-            "knowledge-1",
-            "1",
-            "1.0.0",
-            "checksum",
-            "CERTIFIED",
-            "sha256:certificate"),
-        "24.4",
-        List.of(new ArtifactTypeRef("implementation-plan", 2)),
-        null);
-  }
-
   private RunManifest runManifestV2() {
     return new RunManifest(
         RUN_ID,
@@ -816,140 +664,6 @@ class CreateChainProductPipelineRestartIT {
         "24.4",
         List.of(new ArtifactTypeRef("user-input", 1)),
         null);
-  }
-
-  private static StageCapability discovery() {
-    AtomicInteger calls = new AtomicInteger();
-    return new StageCapability() {
-      @Override
-      public String capabilityId() {
-        return RequirementDiscoveryCapability.CAPABILITY_ID;
-      }
-
-      @Override
-      public Multi<CapabilitySignal> execute(StageExecutionContext context) {
-        if (calls.incrementAndGet() == 1 && context.attributeAsString("userText") == null) {
-          return Multi.createFrom()
-              .item(
-                  new CapabilitySignal.Completed(
-                      StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "need input")));
-        }
-        RequirementDraft draft = RequirementFactFixtures.greetingsApprovedDraft();
-        return Multi.createFrom()
-            .item(
-                new CapabilitySignal.Completed(
-                    new StageOutcome(
-                        StageOutcomeClass.CANDIDATE,
-                        List.of(new ArtifactCandidate(Kind.REQUIREMENT_DRAFT, draft, List.of())),
-                        "draft ready",
-                        null)));
-      }
-    };
-  }
-
-  private static StageCapability importStage() {
-    return new StageCapability() {
-      @Override
-      public String capabilityId() {
-        return SpecificationImportCapability.CAPABILITY_ID;
-      }
-
-      @Override
-      public Multi<CapabilitySignal> execute(StageExecutionContext context) {
-        Object approved = context.attributes().get("approvedDraft");
-        RequirementDraft draft =
-            approved instanceof RequirementDraft requirementDraft
-                ? requirementDraft
-                : RequirementFactFixtures.greetingsApprovedDraft();
-        return Multi.createFrom()
-            .item(
-                new CapabilitySignal.Completed(
-                    new StageOutcome(
-                        StageOutcomeClass.SUCCEEDED,
-                        List.of(new ArtifactCandidate(Kind.REQUIREMENT_DRAFT, draft, List.of())),
-                        "import skipped",
-                        null)));
-      }
-    };
-  }
-
-  private static StageCapability analysis() {
-    return new StageCapability() {
-      @Override
-      public String capabilityId() {
-        return RequirementAnalysisCapability.CAPABILITY_ID;
-      }
-
-      @Override
-      public Multi<CapabilitySignal> execute(StageExecutionContext context) {
-        return Multi.createFrom()
-            .item(
-                new CapabilitySignal.Completed(
-                    new StageOutcome(
-                        StageOutcomeClass.SUCCEEDED,
-                        List.of(
-                            new ArtifactCandidate(
-                                Kind.REQUIREMENT_BRIEF,
-                                new RequirementBrief(
-                                    "brief", List.of("fact"), List.of(), List.of(), List.of(), "ok"),
-                                List.of())),
-                        "analyzed",
-                        null)));
-      }
-    };
-  }
-
-  private static StageCapability planning() {
-    ChainPlanGraph graph = graph();
-    String graphDigest = new CanonicalGraphDigest(new ObjectMapper()).sha256(graph);
-    GraphAssemblyResult assembly =
-        new GraphAssemblyResult(1, graph, graphDigest, List.of(), List.of(), List.of());
-    CompilerValidationBundle bundle =
-        new CompilerValidationBundle(
-            1,
-            graphDigest,
-            List.of(new CompilerValidationPass("validator", new ValidationResult(true, List.of(), "ok"))));
-    ImplementationPlan plan =
-        ImplementationPlan.schemaVersion2(
-            "Plan",
-            "planning",
-            "1",
-            List.of(),
-            List.of(),
-            List.of(),
-            List.of(),
-            List.of(),
-            List.of(),
-            List.of(),
-            List.of());
-    return new StageCapability() {
-      @Override
-      public String capabilityId() {
-        return PlanningCapability.CAPABILITY_ID;
-      }
-
-      @Override
-      public Multi<CapabilitySignal> execute(StageExecutionContext context) {
-        return Multi.createFrom()
-            .item(
-                new CapabilitySignal.Completed(
-                    new StageOutcome(
-                        StageOutcomeClass.CANDIDATE,
-                        List.of(
-                            new ArtifactCandidate(Kind.IMPLEMENTATION_PLAN, plan, context.inputRefs()),
-                            new ArtifactCandidate(
-                                Kind.PLAN_VALIDATION_RESULT,
-                                new PlanValidationResult(List.of()),
-                                context.inputRefs()),
-                            new ArtifactCandidate(Kind.CHAIN_PLAN_GRAPH, graph, context.inputRefs()),
-                            new ArtifactCandidate(
-                                Kind.GRAPH_ASSEMBLY_RESULT, assembly, context.inputRefs()),
-                            new ArtifactCandidate(
-                                Kind.COMPILER_VALIDATION_BUNDLE, bundle, context.inputRefs())),
-                        "plan ready",
-                        null)));
-      }
-    };
   }
 
   private record PreparedInputs(

@@ -25,7 +25,6 @@ import java.time.ZoneOffset;
 import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
@@ -53,22 +52,15 @@ import org.qubership.integration.platform.ai.productpipeline.create.CreateProduc
 import org.qubership.integration.platform.ai.productpipeline.create.CreateRunBindingStore;
 import org.qubership.integration.platform.ai.productpipeline.create.CreateRunSelectionService;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
-import org.qubership.integration.platform.ai.productpipeline.create.PlanningCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.RequirementAnalysisCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.RequirementDiscoveryCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.SpecificationImportCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.FakeKnowledgeClient;
-import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPolicy;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
-import org.qubership.integration.platform.ai.productpipeline.profile.BypassPolicy;
-import org.qubership.integration.platform.ai.productpipeline.profile.ImplementationGatePolicy;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileCatalog;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileParser;
-import org.qubership.integration.platform.ai.productpipeline.profile.ProfileStage;
-import org.qubership.integration.platform.ai.productpipeline.profile.RetryPolicy;
-import org.qubership.integration.platform.ai.productpipeline.profile.TerminalPolicy;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
@@ -157,9 +149,9 @@ class ProductPipelineImplementationGateTest {
 
     assertEquals(RunStatus.WAITING_FOR_IMPLEMENT, loadRun().run().status());
     verify(materializationCapability, never()).execute(any());
-    // Backward-compat: this suite exercises create-chain@1. Shell product E2E pins @2 for new
+    // This suite isolates approval gates. Shell product E2E pins @2 for new
     // CREATE; v2 cutover evidence lives in CreateChainSharedDesignRuntimeIT.
-    assertEquals("1", createChainProfile.profileVersion());
+    assertEquals("2", createChainProfile.profileVersion());
   }
 
   @Test
@@ -351,8 +343,7 @@ class ProductPipelineImplementationGateTest {
             bindingStore,
             catalogForSelection,
             stubPinResolver(),
-            java.time.Clock.systemUTC(),
-            "1");
+            java.time.Clock.systemUTC());
     selection.selectOrCreate(CONVERSATION_ID);
     CreateChainApplicationFacade facade =
         new CreateChainApplicationFacade(selection, bindingStore, runtime, runStore, catalogForSelection);
@@ -371,8 +362,7 @@ class ProductPipelineImplementationGateTest {
             bindingStore,
             catalog,
             stubPinResolver(),
-            java.time.Clock.systemUTC(),
-            "1");
+            java.time.Clock.systemUTC());
     selection.selectOrCreate(CONVERSATION_ID);
     // Durable run document at WAITING_FOR_IMPLEMENT with fixed revision.
     runStore.create(
@@ -402,93 +392,11 @@ class ProductPipelineImplementationGateTest {
 
   private ProductPipelineProfile loadCreateChainProfileOrFallback() {
     try (InputStream in =
-        getClass().getResourceAsStream("/product-pipelines/profiles/create-chain-v1.yaml")) {
-      if (in != null) {
-        return ProductPipelineProfileParser.parse(in);
-      }
-    } catch (Exception ignored) {
-      // Fall through to in-memory profile for RED phase before profile file exists.
+        getClass().getResourceAsStream("/product-pipelines/profiles/approval-gates.yaml")) {
+      return ProductPipelineProfileParser.parse(in);
+    } catch (Exception e) {
+      throw new IllegalStateException(e);
     }
-    return inMemoryCreateChainProfile();
-  }
-
-  private static ProductPipelineProfile inMemoryCreateChainProfile() {
-    return new ProductPipelineProfile(
-        1,
-        "create-chain",
-        "1",
-        List.of(new ArtifactTypeRef("user-input", 1)),
-        List.of(
-            new ProfileStage(
-                "requirement-discovery",
-                RequirementDiscoveryCapability.CAPABILITY_ID,
-                List.of(new ArtifactTypeRef("user-input", 1)),
-                List.of(new ArtifactTypeRef("requirement-draft", 2)),
-                new ApprovalPolicy(new ArtifactTypeRef("requirement-draft", 2)),
-                null,
-                new RetryPolicy(0, 1000)),
-            new ProfileStage(
-                "requirement-analysis",
-                RequirementAnalysisCapability.CAPABILITY_ID,
-                List.of(new ArtifactTypeRef("requirement-draft", 2)),
-                List.of(new ArtifactTypeRef("requirement-brief", 1)),
-                null,
-                null,
-                new RetryPolicy(1, 1000)),
-            new ProfileStage(
-                "ids-bypass",
-                null,
-                List.of(new ArtifactTypeRef("requirement-brief", 1)),
-                List.of(new ArtifactTypeRef("ids-bypass", 1)),
-                null,
-                new BypassPolicy(new ArtifactTypeRef("ids-bypass", 1)),
-                new RetryPolicy(0, 1000)),
-            new ProfileStage(
-                "planning",
-                PlanningCapability.CAPABILITY_ID,
-                List.of(
-                    new ArtifactTypeRef("requirement-brief", 1),
-                    new ArtifactTypeRef("ids-bypass", 1)),
-                List.of(
-                    new ArtifactTypeRef("implementation-plan", 2),
-                    new ArtifactTypeRef("plan-validation-result", 1),
-                    new ArtifactTypeRef("chain-plan-graph", 1),
-                    new ArtifactTypeRef("graph-assembly-result", 1),
-                    new ArtifactTypeRef("compiler-validation-bundle", 1)),
-                new ApprovalPolicy(
-                    new ArtifactTypeRef("implementation-plan", 2),
-                    List.of(
-                        new ArtifactTypeRef("implementation-plan", 2),
-                        new ArtifactTypeRef("plan-validation-result", 1),
-                        new ArtifactTypeRef("chain-plan-graph", 1),
-                        new ArtifactTypeRef("graph-assembly-result", 1),
-                        new ArtifactTypeRef("compiler-validation-bundle", 1))),
-                null,
-                new RetryPolicy(1, 1000)),
-            new ProfileStage(
-                "materialization",
-                "materialization",
-                List.of(
-                    new ArtifactTypeRef("implementation-plan", 2),
-                    new ArtifactTypeRef("plan-validation-result", 1),
-                    new ArtifactTypeRef("chain-plan-graph", 1),
-                    new ArtifactTypeRef("graph-assembly-result", 1),
-                    new ArtifactTypeRef("compiler-validation-bundle", 1),
-                    new ArtifactTypeRef("approval-record", 2)),
-                List.of(
-                    new ArtifactTypeRef("materialization-result", 1),
-                    new ArtifactTypeRef("catalog-chain-snapshot", 1),
-                    new ArtifactTypeRef("reconcile-result", 1)),
-                null,
-                null,
-                new RetryPolicy(0, 1000))),
-        new TerminalPolicy("materialization", "CHAIN_MATERIALIZED"),
-        List.of("requirement-discovery", "requirement-analysis", "planning", "materialization"),
-        null,
-        new ImplementationGatePolicy(
-            "planning",
-            new ArtifactTypeRef("implementation-plan", 2),
-            "WAITING_FOR_IMPLEMENT"));
   }
 
   private RunManifest sampleManifest(ProductPipelineProfile profile) {
@@ -596,7 +504,7 @@ class ProductPipelineImplementationGateTest {
 
   private static StageCapability planning() {
     return new ScriptedCapability(
-        PlanningCapability.CAPABILITY_ID,
+        "test-planning",
         new StageOutcome(
             StageOutcomeClass.CANDIDATE,
             List.of(

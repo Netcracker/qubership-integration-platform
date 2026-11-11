@@ -48,7 +48,6 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.productpipeline.knowledge.FakeKnowledgeClient;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
 import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileParser;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
@@ -1160,7 +1159,7 @@ class RequirementAnalysisCapabilityTest {
 
     ProductPipelineProfile profile;
     try (java.io.InputStream in =
-        getClass().getResourceAsStream("/product-pipelines/profiles/create-chain-v1.yaml")) {
+        getClass().getResourceAsStream("/product-pipelines/profiles/create-chain-v2.yaml")) {
       profile = ProductPipelineProfileParser.parse(in);
     }
 
@@ -1230,7 +1229,7 @@ class RequirementAnalysisCapabilityTest {
 
     ProductPipelineProfile profile;
     try (java.io.InputStream in =
-        getClass().getResourceAsStream("/product-pipelines/profiles/create-chain-v1.yaml")) {
+        getClass().getResourceAsStream("/product-pipelines/profiles/create-chain-v2.yaml")) {
       profile = ProductPipelineProfileParser.parse(in);
     }
 
@@ -1403,7 +1402,7 @@ class RequirementAnalysisCapabilityTest {
 
     ProductPipelineProfile profile;
     try (java.io.InputStream in =
-        getClass().getResourceAsStream("/product-pipelines/profiles/create-chain-v1.yaml")) {
+        getClass().getResourceAsStream("/product-pipelines/profiles/create-chain-v2.yaml")) {
       profile = ProductPipelineProfileParser.parse(in);
     }
 
@@ -1502,7 +1501,7 @@ class RequirementAnalysisCapabilityTest {
 
     ProductPipelineProfile profile;
     try (java.io.InputStream in =
-        getClass().getResourceAsStream("/product-pipelines/profiles/create-chain-v1.yaml")) {
+        getClass().getResourceAsStream("/product-pipelines/profiles/create-chain-v2.yaml")) {
       profile = ProductPipelineProfileParser.parse(in);
     }
 

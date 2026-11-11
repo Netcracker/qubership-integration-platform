@@ -40,15 +40,6 @@ public final class HaltProducerCauseTable {
               RecoveryCauseCode.CONTRACT_SHAPE,
               RecoveryCauseCode.VALIDATION_BLOCKER,
               RecoveryCauseCode.MISSING_MANDATORY_INPUT);
-      case PLANNING ->
-          Set.of(
-              RecoveryCauseCode.SECURITY_POLICY,
-              RecoveryCauseCode.UNKNOWN_PROPERTY,
-              RecoveryCauseCode.MISSING_REQUIRED_PROPERTY,
-              RecoveryCauseCode.VALIDATION_BLOCKER,
-              RecoveryCauseCode.CONTRACT_SHAPE,
-              RecoveryCauseCode.MISSING_MANDATORY_INPUT,
-              RecoveryCauseCode.TECHNICAL_RETRY_EXHAUSTED);
       case DESIGN_EXECUTION ->
           Set.of(
               RecoveryCauseCode.SECURITY_POLICY,

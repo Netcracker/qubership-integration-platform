@@ -11,7 +11,6 @@ import static org.mockito.Mockito.when;
 
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
-import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -24,10 +23,7 @@ import org.qubership.integration.platform.ai.compiler.ChainStructureCaptureTool;
 import org.qubership.integration.platform.ai.compiler.CompilerGraphPatchTool;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerNodeExecutionMode;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRunPin;
-import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerValidationBundle;
-import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerValidationPass;
 import org.qubership.integration.platform.ai.productpipeline.artifact.GraphAssemblyResult;
-import org.qubership.integration.platform.ai.productpipeline.artifact.IdsBypass;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerDag;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerNode;
@@ -57,14 +53,14 @@ import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactPayloa
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
 import org.qubership.integration.platform.ai.skill.workspace.SkillWorkspace;
 
-class CompilerDerivedPlanningSpineTest {
+class CompilerDagExecutionRegressionTest {
 
   private InMemorySkillWorkspaceStore workspaceStore;
   private SkillExecutorRegistry skillRegistry;
   private CompilerNodeExecutionAdapterRegistry javaAdapterRegistry;
-  private CreateRunBindingStore bindingStore;
+  private java.util.Map<String, RunManifest> manifests;
   private CipKnowledgePackRepository packRepository;
-  private CompilerDerivedPlanningSpine spine;
+  private DefaultCompilerDagExecutionEngine engine;
 
   @BeforeEach
   void setUp() {
@@ -72,7 +68,7 @@ class CompilerDerivedPlanningSpineTest {
     workspaceStore = new InMemorySkillWorkspaceStore(runtime.chainPlanStore());
     skillRegistry = mock(SkillExecutorRegistry.class);
     javaAdapterRegistry = mock(CompilerNodeExecutionAdapterRegistry.class);
-    bindingStore = mock(CreateRunBindingStore.class);
+    manifests = new java.util.HashMap<>();
     packRepository = mock(CipKnowledgePackRepository.class);
     when(packRepository.activeVersion()).thenReturn(new CipKnowledgePackVersion("v1", "v1"));
     CanonicalGraphDigest digest = new CanonicalGraphDigest(new com.fasterxml.jackson.databind.ObjectMapper());
@@ -90,12 +86,11 @@ class CompilerDerivedPlanningSpineTest {
             graph -> new ValidationResult(true, List.of(), "ok"),
             securityValidator,
             qualityValidator);
-    spine =
-        new CompilerDerivedPlanningSpine(
+    engine =
+        new DefaultCompilerDagExecutionEngine(
             workspaceStore,
             skillRegistry,
             javaAdapterRegistry,
-            bindingStore,
             packRepository,
             graphAssemblyService,
             validationPipeline,
@@ -106,8 +101,7 @@ class CompilerDerivedPlanningSpineTest {
   void streamsLlmSkillBeforeHarvestingCapture() {
     String conversationId = "conv-stream-first";
     ResolvedCompilerDag dag = dagWithMandatoryValidation();
-    when(bindingStore.load(conversationId))
-        .thenReturn(OptionalBinding.present(bindingFor(conversationId, dag)));
+    manifests.put(conversationId, manifestFor(dag));
 
     AtomicBoolean streamed = new AtomicBoolean(false);
     AtomicInteger runAfterStream = new AtomicInteger(0);
@@ -141,7 +135,7 @@ class CompilerDerivedPlanningSpineTest {
             new SkillArtifactPayload.ChainStructurePayload(
                 new ChainStructure(graphForAssembly(), List.of(), List.of()))));
 
-    var outcome = spine.execute(request(conversationId)).await().indefinitely();
+    var outcome = engine.execute(request(conversationId), null).await().indefinitely();
 
     assertTrue(streamed.get(), "LLM_SKILL must call runStreaming before harvest");
     assertEquals(1, runAfterStream.get(), "run() must harvest after streaming");
@@ -154,8 +148,7 @@ class CompilerDerivedPlanningSpineTest {
   void executesPinnedDagAndStopsAfterMandatoryValidation() {
     String conversationId = "conv-derived";
     ResolvedCompilerDag dag = dagWithMandatoryValidation();
-    when(bindingStore.load(conversationId))
-        .thenReturn(OptionalBinding.present(bindingFor(conversationId, dag)));
+    manifests.put(conversationId, manifestFor(dag));
     SkillExecutor patternExecutor = new PatternExecutor();
     when(skillRegistry.require("cip-pattern-selector")).thenReturn(patternExecutor);
 
@@ -185,7 +178,7 @@ class CompilerDerivedPlanningSpineTest {
             new SkillArtifactPayload.ChainStructurePayload(
                 new ChainStructure(graphForAssembly(), List.of(), List.of()))));
 
-    var outcome = spine.execute(request(conversationId)).await().indefinitely();
+    var outcome = engine.execute(request(conversationId), null).await().indefinitely();
 
     assertEquals(
         List.of("cip-pattern-selector", "cip-chain-assembler", "cip-structural-validator"),
@@ -193,115 +186,6 @@ class CompilerDerivedPlanningSpineTest {
     SkillWorkspace workspace = workspaceStore.getOrCreate(conversationId);
     assertTrue(workspace.get(SkillArtifactType.REQUIREMENT_BRIEF).isPresent());
     assertTrue(workspace.get(SkillArtifactType.PRE_BUILD_VALIDATION).isPresent());
-  }
-
-  @Test
-  void v1Characterization_recordsStableOutcomeArtifactsAndMetadata() {
-    String conversationId = "conv-v1-characterization";
-    ResolvedCompilerDag dag = dagWithMandatoryValidation();
-    when(bindingStore.load(conversationId))
-        .thenReturn(OptionalBinding.present(bindingFor(conversationId, dag)));
-    when(skillRegistry.require("cip-pattern-selector")).thenReturn(new PatternExecutor());
-
-    CompilerNodeExecutionAdapter assemblyAdapter = mock(CompilerNodeExecutionAdapter.class);
-    when(javaAdapterRegistry.require("graph-assembly")).thenReturn(assemblyAdapter);
-    when(assemblyAdapter.execute(eq(node(dag, "cip-chain-assembler")), org.mockito.Mockito.any()))
-        .thenReturn(new CompilerNodeExecutionResult(List.of(), List.of()));
-
-    CompilerNodeExecutionAdapter validatorAdapter = mock(CompilerNodeExecutionAdapter.class);
-    when(javaAdapterRegistry.require("structural-validation")).thenReturn(validatorAdapter);
-    when(validatorAdapter.execute(eq(node(dag, "cip-structural-validator")), org.mockito.Mockito.any()))
-        .thenReturn(
-            new CompilerNodeExecutionResult(
-                List.of(
-                    SkillArtifact.of(
-                        SkillArtifactType.PRE_BUILD_VALIDATION,
-                        "cip-structural-validator",
-                        new SkillArtifactPayload.ValidationResultPayload(
-                            new ValidationResult(true, List.of(), "ok")))),
-                List.of()));
-
-    workspaceStore.putArtifact(
-        conversationId,
-        SkillArtifact.of(
-            SkillArtifactType.CHAIN_STRUCTURE,
-            "seed",
-            new SkillArtifactPayload.ChainStructurePayload(
-                new ChainStructure(graphForAssembly(), List.of(), List.of()))));
-
-    CanonicalGraphDigest digest =
-        new CanonicalGraphDigest(new com.fasterxml.jackson.databind.ObjectMapper());
-    String expectedGraphDigest = digest.sha256(graphForAssembly());
-
-    CompilerPlanningRunner.PlanningSpineOutcome outcome =
-        spine.execute(request(conversationId)).await().indefinitely();
-
-    assertEquals(
-        List.of("cip-pattern-selector", "cip-chain-assembler", "cip-structural-validator"),
-        outcome.executedSkillIds());
-    assertEquals("GP-01", outcome.selectedPatternId());
-    assertEquals("summary", outcome.selectedPatternSummary());
-    assertEquals(graphForAssembly(), outcome.graph());
-    assertEquals(expectedGraphDigest, digest.sha256(outcome.graph()));
-    assertTrue(outcome.validationResult().valid());
-    assertEquals("ok", outcome.validationResult().summary());
-    assertEquals(List.of(), outcome.ownerSkills());
-
-    SkillWorkspace workspace = workspaceStore.getOrCreate(conversationId);
-    GraphAssemblyResult assembly =
-        workspace
-            .get(SkillArtifactType.GRAPH_ASSEMBLY_RESULT)
-            .map(a -> ((SkillArtifactPayload.GraphAssemblyResultPayload) a.payload()).result())
-            .orElseThrow();
-    assertEquals(1, assembly.schemaVersion());
-    assertEquals(expectedGraphDigest, assembly.graphDigest());
-    assertEquals(List.of(), assembly.orderedPatchReferences());
-    assertEquals(List.of(), assembly.ownershipFacts());
-    assertEquals(List.of(), assembly.rejectedPatches());
-
-    CompilerValidationBundle validationBundle =
-        workspace
-            .get(SkillArtifactType.COMPILER_VALIDATION_BUNDLE)
-            .map(a -> ((SkillArtifactPayload.CompilerValidationBundlePayload) a.payload()).bundle())
-            .orElseThrow();
-    assertEquals(1, validationBundle.schemaVersion());
-    assertEquals(expectedGraphDigest, validationBundle.graphDigest());
-    assertTrue(validationBundle.approvalEligible());
-    assertEquals(
-        List.of("cip-structural-validator"),
-        validationBundle.passes().stream().map(CompilerValidationPass::validatorSkillId).toList());
-
-    assertTrue(workspace.get(SkillArtifactType.GRAPH_PATCH_ARTIFACT).isEmpty());
-    assertEquals(
-        "cip-requirement-analyzer",
-        workspace.get(SkillArtifactType.REQUIREMENT_BRIEF).orElseThrow().producerSkillId());
-    assertEquals(
-        "planning-seed",
-        workspace.get(SkillArtifactType.RAW_USER_REQUEST).orElseThrow().producerSkillId());
-  }
-
-  @Test
-  void v1Characterization_structureFailureClassificationIsUnavailable() {
-    String conversationId = "conv-v1-characterization-fail";
-    ResolvedCompilerDag dag = dagWithStructureThenAssembly();
-    when(bindingStore.load(conversationId))
-        .thenReturn(OptionalBinding.present(bindingFor(conversationId, dag)));
-    when(skillRegistry.require("cip-structure-generator"))
-        .thenReturn(new FailedStructureExecutor());
-
-    PlanningSkillArtifactUnavailableException failure =
-        assertThrows(
-            PlanningSkillArtifactUnavailableException.class,
-            () -> spine.execute(request(conversationId)).await().indefinitely());
-
-    assertEquals("cip-structure-generator", failure.skillId());
-    assertEquals(
-        Set.of(SkillArtifactType.CHAIN_STRUCTURE.name()), failure.missingArtifactTypes());
-    assertTrue(
-        failure.getMessage() == null
-            || failure.getMessage().contains("cip-structure-generator")
-            || failure.getMessage().contains("CHAIN_STRUCTURE"));
-    verifyNoInteractions(javaAdapterRegistry);
   }
 
   @Test
@@ -329,10 +213,9 @@ class CompilerDerivedPlanningSpineTest {
                     null)),
             List.of(),
             "empty");
-    when(bindingStore.load(conversationId))
-        .thenReturn(OptionalBinding.present(bindingFor(conversationId, dag)));
+    manifests.put(conversationId, manifestFor(dag));
 
-    var outcome = spine.execute(request(conversationId)).await().indefinitely();
+    var outcome = engine.execute(request(conversationId), null).await().indefinitely();
 
     assertTrue(outcome.executedSkillIds().isEmpty());
   }
@@ -341,8 +224,7 @@ class CompilerDerivedPlanningSpineTest {
   void persistsAssemblyAndBundleOnlyAfterMandatoryValidatorsComplete() {
     String conversationId = "conv-assembly-bundle";
     ResolvedCompilerDag dag = dagWithAssemblyAndValidationPasses();
-    when(bindingStore.load(conversationId))
-        .thenReturn(OptionalBinding.present(bindingFor(conversationId, dag)));
+    manifests.put(conversationId, manifestFor(dag));
     when(skillRegistry.require("cip-structure-generator")).thenReturn(new StructureExecutor());
 
     CompilerNodeExecutionAdapter adapter = mock(CompilerNodeExecutionAdapter.class);
@@ -357,7 +239,7 @@ class CompilerDerivedPlanningSpineTest {
         new SkillArtifactPayload.NamingManifestPayload(
             new org.qubership.integration.platform.ai.qipknowledge.artifact.NamingManifest(
                 1, "sales", Map.of("trigger", "Receive sales request"), List.of(), List.of()))));
-    spine.execute(request(conversationId)).await().indefinitely();
+    engine.execute(request(conversationId), null).await().indefinitely();
 
     SkillWorkspace workspace = workspaceStore.getOrCreate(conversationId);
     assertTrue(workspace.get(SkillArtifactType.GRAPH_ASSEMBLY_RESULT).isPresent());
@@ -372,8 +254,7 @@ class CompilerDerivedPlanningSpineTest {
   void doesNotPersistBundleWhenMandatoryValidatorFails() {
     String conversationId = "conv-validator-fail";
     ResolvedCompilerDag dag = dagWithAssemblyAndValidationPasses();
-    when(bindingStore.load(conversationId))
-        .thenReturn(OptionalBinding.present(bindingFor(conversationId, dag)));
+    manifests.put(conversationId, manifestFor(dag));
     when(skillRegistry.require("cip-structure-generator")).thenReturn(new StructureExecutor());
 
     CompilerNodeExecutionAdapter adapter = mock(CompilerNodeExecutionAdapter.class);
@@ -385,10 +266,10 @@ class CompilerDerivedPlanningSpineTest {
         .thenReturn(new CompilerNodeExecutionResult(List.of(), List.of()))
         .thenThrow(new IllegalStateException("validator failed"));
 
-    CompilerPlanningRequest planningRequest = request(conversationId);
+    CompilerDagExecutionRequest planningRequest = request(conversationId);
     IllegalStateException failure =
         org.junit.jupiter.api.Assertions.assertThrows(
-            IllegalStateException.class, () -> spine.execute(planningRequest).await().indefinitely());
+            IllegalStateException.class, () -> engine.execute(planningRequest, null).await().indefinitely());
     assertTrue(failure.getMessage().contains("validator failed"));
 
     SkillWorkspace workspace = workspaceStore.getOrCreate(conversationId);
@@ -399,8 +280,7 @@ class CompilerDerivedPlanningSpineTest {
   void continuesWhenMandatoryLlmGeneratorFailsWithContractFailure() {
     String conversationId = "conv-llm-fail-open";
     ResolvedCompilerDag dag = dagWithMandatoryNamingThenAssembly();
-    when(bindingStore.load(conversationId))
-        .thenReturn(OptionalBinding.present(bindingFor(conversationId, dag)));
+    manifests.put(conversationId, manifestFor(dag));
     FailedNamingExecutor namingExecutor = new FailedNamingExecutor();
     when(skillRegistry.require("cip-naming-generator")).thenReturn(namingExecutor);
 
@@ -438,7 +318,7 @@ class CompilerDerivedPlanningSpineTest {
                 new org.qubership.integration.platform.ai.qipknowledge.artifact.NamingManifest(
                     1, "Prior.Internal.Chain", Map.of("http-trigger", "Receive"), List.of(), List.of()))));
 
-    var outcome = spine.execute(request(conversationId)).await().indefinitely();
+    var outcome = engine.execute(request(conversationId), null).await().indefinitely();
 
     assertEquals(
         List.of("cip-naming-generator", "cip-chain-assembler", "cip-structural-validator"),
@@ -481,8 +361,7 @@ class CompilerDerivedPlanningSpineTest {
     String conversationId = "conv-graph-patch-fail-closed";
     String skillId = "cip-error-handling-generator";
     ResolvedCompilerDag dag = dagWithGraphPatchThenAssembly(skillId);
-    when(bindingStore.load(conversationId))
-        .thenReturn(OptionalBinding.present(bindingFor(conversationId, dag)));
+    manifests.put(conversationId, manifestFor(dag));
     FailedGraphPatchExecutor executor = new FailedGraphPatchExecutor(skillId);
     when(skillRegistry.require(skillId)).thenReturn(executor);
     seedStructureAndGraph(conversationId);
@@ -490,7 +369,7 @@ class CompilerDerivedPlanningSpineTest {
     IllegalStateException failure =
         assertThrows(
             IllegalStateException.class,
-            () -> spine.execute(request(conversationId)).await().indefinitely());
+            () -> engine.execute(request(conversationId), null).await().indefinitely());
 
     assertEquals(2, executor.runCount());
     assertTrue(failure.getMessage().contains(skillId), failure.getMessage());
@@ -506,8 +385,7 @@ class CompilerDerivedPlanningSpineTest {
     String conversationId = "conv-graph-patch-retry";
     String skillId = "cip-script-generator";
     ResolvedCompilerDag dag = dagWithGraphPatchThenAssembly(skillId);
-    when(bindingStore.load(conversationId))
-        .thenReturn(OptionalBinding.present(bindingFor(conversationId, dag)));
+    manifests.put(conversationId, manifestFor(dag));
     RetryingGraphPatchExecutor executor = new RetryingGraphPatchExecutor(skillId);
     when(skillRegistry.require(skillId)).thenReturn(executor);
 
@@ -530,7 +408,7 @@ class CompilerDerivedPlanningSpineTest {
                 List.of()));
     seedStructureAndGraph(conversationId);
 
-    var outcome = spine.execute(request(conversationId)).await().indefinitely();
+    var outcome = engine.execute(request(conversationId), null).await().indefinitely();
 
     assertEquals(2, executor.runCount());
     assertEquals(
@@ -547,8 +425,7 @@ class CompilerDerivedPlanningSpineTest {
   void keepsPlanningAliveWhenFailedStructureSkillHasAcceptedFallbackArtifacts() {
     String conversationId = "conv-structure-fallback";
     ResolvedCompilerDag dag = dagWithStructureThenAssembly();
-    when(bindingStore.load(conversationId))
-        .thenReturn(OptionalBinding.present(bindingFor(conversationId, dag)));
+    manifests.put(conversationId, manifestFor(dag));
     when(skillRegistry.require("cip-structure-generator"))
         .thenReturn(new FailedStructureExecutor());
     CompilerNodeExecutionAdapter assemblyAdapter =
@@ -577,8 +454,8 @@ class CompilerDerivedPlanningSpineTest {
             "prior-structure",
             new SkillArtifactPayload.ChainStructurePayload(
                 priorStructure)));
-    CompilerPlanningRunner.PlanningSpineOutcome outcome =
-        spine.execute(request(conversationId)).await().indefinitely();
+    CompilerDagExecutionResult outcome =
+        engine.execute(request(conversationId), null).await().indefinitely();
 
     assertTrue(
         outcome.executedSkillIds().contains("cip-chain-assembler"));
@@ -608,15 +485,14 @@ class CompilerDerivedPlanningSpineTest {
   void stopsBeforeDownstreamWhenFailedStructureSkillHasNoFallbackArtifacts() {
     String conversationId = "conv-structure-missing";
     ResolvedCompilerDag dag = dagWithStructureThenAssembly();
-    when(bindingStore.load(conversationId))
-        .thenReturn(OptionalBinding.present(bindingFor(conversationId, dag)));
+    manifests.put(conversationId, manifestFor(dag));
     when(skillRegistry.require("cip-structure-generator"))
         .thenReturn(new FailedStructureExecutor());
 
     PlanningSkillArtifactUnavailableException failure =
         assertThrows(
             PlanningSkillArtifactUnavailableException.class,
-            () -> spine.execute(request(conversationId)).await().indefinitely());
+            () -> engine.execute(request(conversationId), null).await().indefinitely());
 
     assertEquals("cip-structure-generator", failure.skillId());
     assertEquals(
@@ -630,25 +506,19 @@ class CompilerDerivedPlanningSpineTest {
     verifyNoInteractions(javaAdapterRegistry);
   }
 
-  private static CompilerPlanningRequest request(String conversationId) {
-    return new CompilerPlanningRequest(
+  private CompilerDagExecutionRequest request(String conversationId) {
+    RunManifest manifest = manifests.get(conversationId);
+    return new CompilerDagExecutionRequest(
+        manifest.runId(),
         conversationId,
-        "run-1",
+        manifest,
         new RequirementBrief(
-            "Greetings",
-            List.of(),
-            List.of(),
-            List.of(),
-            List.of(),
-            "summary",
-            "draft",
-            "Create greetings chain",
-            List.of()),
-        new IdsBypass("skip", "create-chain-v1", "1"),
-        "24.4",
+            "Greetings", List.of(), List.of(), List.of(), List.of(), "summary", "draft",
+            "Create greetings chain", List.of()),
+        null,
+        manifest.compilerRunPin().resolvedDag(),
         List.of(),
-        List.of(),
-        null);
+        List.of());
   }
 
   private static ResolvedCompilerDag dagWithMandatoryValidation() {
@@ -984,7 +854,7 @@ class CompilerDerivedPlanningSpineTest {
         "assembly-validation");
   }
 
-  private static CreateRunBinding bindingFor(String conversationId, ResolvedCompilerDag dag) {
+  private static RunManifest manifestFor(ResolvedCompilerDag dag) {
     CompilerRunPin pin =
         new CompilerRunPin(
             "compiler-v2",
@@ -1010,9 +880,9 @@ class CompilerDerivedPlanningSpineTest {
             null,
             List.of(),
             "product",
-            "create-chain-v1",
-            "1",
-            "create-chain-v1@1",
+            "create-chain",
+            "2",
+            "create-chain@2",
             "reference-baseline-v1",
             "reference-baseline-v1",
             List.of(),
@@ -1027,8 +897,7 @@ class CompilerDerivedPlanningSpineTest {
             "24.4",
             List.of(),
             pin);
-    return new CreateRunBinding(
-        conversationId, manifest.runId(), manifest, Instant.now());
+    return manifest;
   }
 
   private static ResolvedCompilerNode node(ResolvedCompilerDag dag, String skillId) {
@@ -1333,14 +1202,6 @@ class CompilerDerivedPlanningSpineTest {
                           new SkillArtifactPayload.ChainStructurePayload(
                               new ChainStructure(graph, List.of(), List.of())))),
                   "ok"));
-    }
-  }
-
-  private static final class OptionalBinding {
-    private OptionalBinding() {}
-
-    private static java.util.Optional<CreateRunBinding> present(CreateRunBinding binding) {
-      return java.util.Optional.of(binding);
     }
   }
 
