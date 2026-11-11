@@ -2,7 +2,9 @@
 scenarios:
   - id: "maps-customer-and-generates-values"
     scope: Short
-    endpointUri: "cip-chain:dd1278ad-01e6-4748-998e-b4653776682a"
+    driver:
+      provider: routeSelector
+      sourceElementId: 49e5f58d-bc48-4c85-adbd-0aa107a9a95e
     body: |-
       {"personId":"person-123","phone":"+1-202-555-0100","firstName":"Ada","lastName":"Lovelace","marketingConsent":true,"email":"ada@example.com","countryCode":"US","city":"London"}
     headers:
@@ -36,3 +38,991 @@ scenarios:
     expectedProperties:
       "personId": "person-123"
       "unrelatedProperty": "preserved"
+      internalProperty_mappingConfig: null
+      internalProperty_mappingId: null
+      internalProperty_mappingThrowException: null
+
+  - id: maps-all-dictionary-entries-and-unknown-country-fallback
+    scope: Short
+    driver:
+      provider: routeSelector
+      sourceElementId: 49e5f58d-bc48-4c85-adbd-0aa107a9a95e
+    invocations:
+      - id: looks-up-the-netherlands
+        body: '{"personId":"person-nl","phone":"nl-phone","firstName":"Ada","lastName":"Dutch","marketingConsent":true,"email":"nl@example.com","countryCode":"NL","city":"Amsterdam"}'
+        headers:
+          Content-Type: text/plain
+          X-Person-Id: stale-header-id
+          X-Unchanged-Header: preserved
+        properties:
+          personId: stale-property-id
+          unrelatedProperty: preserved
+        expectedBody:
+          customerId: person-nl
+          phoneNumber: nl-phone
+          displayName: Ada_Dutch
+          marketingAllowed: true
+          emailAddress: nl@example.com
+          residence: Netherland
+          city: Amsterdam
+          preferredContactChannel: PHONE
+          loyaltyProgramId:
+            $match: uuid
+          registeredAt:
+            $match: date-time
+            format: uuuu-MM-dd'T'HH:mm:ss'Z'
+        expectedHeaders:
+          Content-Type: application/json
+          X-Person-Id: person-nl
+          X-Unchanged-Header: preserved
+        expectedProperties:
+          personId: person-nl
+          unrelatedProperty: preserved
+          internalProperty_mappingConfig: null
+          internalProperty_mappingId: null
+          internalProperty_mappingThrowException: null
+      - id: looks-up-antarctica
+        body: '{"personId":"person-aq","phone":"aq-phone","firstName":"Grace","lastName":"Polar","marketingConsent":true,"email":"aq@example.com","countryCode":"AQ","city":"McMurdo"}'
+        headers:
+          Content-Type: text/plain
+          X-Person-Id: stale-header-id
+          X-Unchanged-Header: preserved
+        properties:
+          personId: stale-property-id
+          unrelatedProperty: preserved
+        expectedBody:
+          customerId: person-aq
+          phoneNumber: aq-phone
+          displayName: Grace_Polar
+          marketingAllowed: true
+          emailAddress: aq@example.com
+          residence: Antarctica
+          city: McMurdo
+          preferredContactChannel: PHONE
+          loyaltyProgramId:
+            $match: uuid
+          registeredAt:
+            $match: date-time
+            format: uuuu-MM-dd'T'HH:mm:ss'Z'
+        expectedHeaders:
+          Content-Type: application/json
+          X-Person-Id: person-aq
+          X-Unchanged-Header: preserved
+        expectedProperties:
+          personId: person-aq
+          unrelatedProperty: preserved
+          internalProperty_mappingConfig: null
+          internalProperty_mappingId: null
+          internalProperty_mappingThrowException: null
+      - id: uses-the-dictionary-fallback-for-an-unknown-key
+        body: '{"personId":"person-gb","phone":"gb-phone","firstName":"Alan","lastName":"Turing","marketingConsent":true,"email":"gb@example.com","countryCode":"GB","city":"London"}'
+        headers:
+          Content-Type: text/plain
+          X-Person-Id: stale-header-id
+          X-Unchanged-Header: preserved
+        properties:
+          personId: stale-property-id
+          unrelatedProperty: preserved
+        expectedBody:
+          customerId: person-gb
+          phoneNumber: gb-phone
+          displayName: Alan_Turing
+          marketingAllowed: true
+          emailAddress: gb@example.com
+          residence: Planet Earth
+          city: London
+          preferredContactChannel: PHONE
+          loyaltyProgramId:
+            $match: uuid
+          registeredAt:
+            $match: date-time
+            format: uuuu-MM-dd'T'HH:mm:ss'Z'
+        expectedHeaders:
+          Content-Type: application/json
+          X-Person-Id: person-gb
+          X-Unchanged-Header: preserved
+        expectedProperties:
+          personId: person-gb
+          unrelatedProperty: preserved
+          internalProperty_mappingConfig: null
+          internalProperty_mappingId: null
+          internalProperty_mappingThrowException: null
+  - id: preserves-false-consent-and-excludes-unmapped-source-fields
+    scope: Short
+    driver:
+      provider: routeSelector
+      sourceElementId: 49e5f58d-bc48-4c85-adbd-0aa107a9a95e
+    invocations:
+      - id: maps-false-without-dropping-it-or-copying-birth-date
+        body: '{"personId":"person-false","phone":"false-phone","firstName":"Grace","lastName":"Hopper","marketingConsent":false,"email":"grace@example.com","countryCode":"US","city":"New
+          York","birthDate":"1906-12-09"}'
+        headers:
+          Content-Type: text/plain
+          X-Person-Id: stale-header-id
+          X-Unchanged-Header: preserved
+        properties:
+          personId: stale-property-id
+          unrelatedProperty: preserved
+        expectedBody:
+          customerId: person-false
+          phoneNumber: false-phone
+          displayName: Grace_Hopper
+          marketingAllowed: false
+          emailAddress: grace@example.com
+          residence: United States
+          city: New York
+          preferredContactChannel: PHONE
+          loyaltyProgramId:
+            $match: uuid
+          registeredAt:
+            $match: date-time
+            format: uuuu-MM-dd'T'HH:mm:ss'Z'
+        expectedHeaders:
+          Content-Type: application/json
+          X-Person-Id: person-false
+          X-Unchanged-Header: preserved
+        expectedProperties:
+          personId: person-false
+          unrelatedProperty: preserved
+          internalProperty_mappingConfig: null
+          internalProperty_mappingId: null
+          internalProperty_mappingThrowException: null
+  - id: preserves-unicode-and-json-special-characters
+    scope: Short
+    driver:
+      provider: routeSelector
+      sourceElementId: 49e5f58d-bc48-4c85-adbd-0aa107a9a95e
+    invocations:
+      - id: round-trips-quotes-backslashes-and-line-breaks
+        body: '{"personId":"person-café","phone":"+1-202-555-0199","firstName":"José \"Pepe\"","lastName":"O\\Connor
+          & <family>","marketingConsent":false,"email":"jose+test@example.com","countryCode":"NL","city":"Café\nRoom
+          \"A\" \\ HQ"}'
+        headers:
+          Content-Type: text/plain
+          X-Person-Id: stale-header-id
+          X-Unchanged-Header: preserved
+        properties:
+          personId: stale-property-id
+          unrelatedProperty: preserved
+        expectedBody:
+          customerId: person-café
+          phoneNumber: +1-202-555-0199
+          displayName: José "Pepe"_O\Connor & <family>
+          marketingAllowed: false
+          emailAddress: jose+test@example.com
+          residence: Netherland
+          city: |-
+            Café
+            Room "A" \ HQ
+          preferredContactChannel: PHONE
+          loyaltyProgramId:
+            $match: uuid
+          registeredAt:
+            $match: date-time
+            format: uuuu-MM-dd'T'HH:mm:ss'Z'
+        expectedHeaders:
+          Content-Type: application/json
+          X-Person-Id: person-café
+          X-Unchanged-Header: preserved
+        expectedProperties:
+          personId: person-café
+          unrelatedProperty: preserved
+          internalProperty_mappingConfig: null
+          internalProperty_mappingId: null
+          internalProperty_mappingThrowException: null
+  - id: handles-missing-optional-fields
+    scope: Short
+    driver:
+      provider: routeSelector
+      sourceElementId: 49e5f58d-bc48-4c85-adbd-0aa107a9a95e
+    invocations:
+      - id: maps-a-minimal-customer-with-a-missing-last-name
+        body: '{"personId":"person-minimal","firstName":"Grace"}'
+        headers:
+          Content-Type: text/plain
+          X-Person-Id: stale-header-id
+          X-Unchanged-Header: preserved
+        properties:
+          personId: stale-property-id
+          unrelatedProperty: preserved
+        expectedBody:
+          customerId: person-minimal
+          displayName: Grace_
+          residence: Planet Earth
+          preferredContactChannel: PHONE
+          loyaltyProgramId:
+            $match: uuid
+          registeredAt:
+            $match: date-time
+            format: uuuu-MM-dd'T'HH:mm:ss'Z'
+        expectedHeaders:
+          Content-Type: application/json
+          X-Person-Id: person-minimal
+          X-Unchanged-Header: preserved
+        expectedProperties:
+          personId: person-minimal
+          unrelatedProperty: preserved
+          internalProperty_mappingConfig: null
+          internalProperty_mappingId: null
+          internalProperty_mappingThrowException: null
+      - id: maps-an-empty-object-and-retains-incoming-target-metadata
+        body: '{}'
+        headers:
+          Content-Type: text/plain
+          X-Person-Id: stale-header-id
+          X-Unchanged-Header: preserved
+        properties:
+          personId: stale-property-id
+          unrelatedProperty: preserved
+        expectedBody:
+          displayName: _
+          residence: Planet Earth
+          preferredContactChannel: PHONE
+          loyaltyProgramId:
+            $match: uuid
+          registeredAt:
+            $match: date-time
+            format: uuuu-MM-dd'T'HH:mm:ss'Z'
+        expectedHeaders:
+          Content-Type: application/json
+          X-Person-Id: stale-header-id
+          X-Unchanged-Header: preserved
+        expectedProperties:
+          personId: stale-property-id
+          unrelatedProperty: preserved
+          internalProperty_mappingConfig: null
+          internalProperty_mappingId: null
+          internalProperty_mappingThrowException: null
+  - id: handles-null-optional-fields
+    scope: Short
+    driver:
+      provider: routeSelector
+      sourceElementId: 49e5f58d-bc48-4c85-adbd-0aa107a9a95e
+    invocations:
+      - id: omits-null-direct-fields-and-evaluates-the-expression
+        body: '{"personId":"person-null","phone":null,"firstName":null,"lastName":"Hopper","marketingConsent":null,"email":null,"countryCode":null,"city":null}'
+        headers:
+          Content-Type: text/plain
+          X-Person-Id: stale-header-id
+          X-Unchanged-Header: preserved
+        properties:
+          personId: stale-property-id
+          unrelatedProperty: preserved
+        expectedBody:
+          customerId: person-null
+          displayName: _Hopper
+          residence: Planet Earth
+          preferredContactChannel: PHONE
+          loyaltyProgramId:
+            $match: uuid
+          registeredAt:
+            $match: date-time
+            format: uuuu-MM-dd'T'HH:mm:ss'Z'
+        expectedHeaders:
+          Content-Type: application/json
+          X-Person-Id: person-null
+          X-Unchanged-Header: preserved
+        expectedProperties:
+          personId: person-null
+          unrelatedProperty: preserved
+          internalProperty_mappingConfig: null
+          internalProperty_mappingId: null
+          internalProperty_mappingThrowException: null
+      - id: retains-incoming-target-metadata-when-person-id-is-null
+        body: '{"personId":null,"phone":null,"firstName":null,"lastName":null,"marketingConsent":null,"email":null,"countryCode":null,"city":null}'
+        headers:
+          Content-Type: text/plain
+          X-Person-Id: stale-header-id
+          X-Unchanged-Header: preserved
+        properties:
+          personId: stale-property-id
+          unrelatedProperty: preserved
+        expectedBody:
+          displayName: _
+          residence: Planet Earth
+          preferredContactChannel: PHONE
+          loyaltyProgramId:
+            $match: uuid
+          registeredAt:
+            $match: date-time
+            format: uuuu-MM-dd'T'HH:mm:ss'Z'
+        expectedHeaders:
+          Content-Type: application/json
+          X-Person-Id: stale-header-id
+          X-Unchanged-Header: preserved
+        expectedProperties:
+          personId: stale-property-id
+          unrelatedProperty: preserved
+          internalProperty_mappingConfig: null
+          internalProperty_mappingId: null
+          internalProperty_mappingThrowException: null
+  - id: preserves-empty-strings-and-overwrites-target-metadata
+    scope: Short
+    driver:
+      provider: routeSelector
+      sourceElementId: 49e5f58d-bc48-4c85-adbd-0aa107a9a95e
+    invocations:
+      - id: keeps-empty-values-distinct-from-null
+        body: '{"personId":"","phone":"","firstName":"","lastName":"","marketingConsent":false,"email":"","countryCode":"","city":""}'
+        headers:
+          Content-Type: text/plain
+          X-Person-Id: stale-header-id
+          X-Unchanged-Header: preserved
+        properties:
+          personId: stale-property-id
+          unrelatedProperty: preserved
+        expectedBody:
+          customerId: ''
+          phoneNumber: ''
+          displayName: _
+          marketingAllowed: false
+          emailAddress: ''
+          residence: Planet Earth
+          city: ''
+          preferredContactChannel: PHONE
+          loyaltyProgramId:
+            $match: uuid
+          registeredAt:
+            $match: date-time
+            format: uuuu-MM-dd'T'HH:mm:ss'Z'
+        expectedHeaders:
+          Content-Type: application/json
+          X-Person-Id: ''
+          X-Unchanged-Header: preserved
+        expectedProperties:
+          personId: ''
+          unrelatedProperty: preserved
+          internalProperty_mappingConfig: null
+          internalProperty_mappingId: null
+          internalProperty_mappingThrowException: null
+  - id: isolates-cached-mapping-between-invocations
+    scope: Short
+    driver:
+      provider: routeSelector
+      sourceElementId: 49e5f58d-bc48-4c85-adbd-0aa107a9a95e
+    invocations:
+      - id: maps-the-first-complete-customer
+        body: '{"personId":"cache-first","phone":"first-phone","firstName":"First","lastName":"Customer","marketingConsent":true,"email":"first@example.com","countryCode":"NL","city":"First
+          city"}'
+        headers:
+          Content-Type: text/plain
+          X-Person-Id: stale-header-id
+          X-Unchanged-Header: first
+        properties:
+          personId: stale-property-id
+          unrelatedProperty: first
+        expectedBody:
+          customerId: cache-first
+          phoneNumber: first-phone
+          displayName: First_Customer
+          marketingAllowed: true
+          emailAddress: first@example.com
+          residence: Netherland
+          city: First city
+          preferredContactChannel: PHONE
+          loyaltyProgramId:
+            $match: uuid
+          registeredAt:
+            $match: date-time
+            format: uuuu-MM-dd'T'HH:mm:ss'Z'
+        expectedHeaders:
+          Content-Type: application/json
+          X-Person-Id: cache-first
+          X-Unchanged-Header: first
+        expectedProperties:
+          personId: cache-first
+          unrelatedProperty: first
+          internalProperty_mappingConfig: null
+          internalProperty_mappingId: null
+          internalProperty_mappingThrowException: null
+      - id: does-not-reuse-fields-from-the-first-customer
+        body: '{"personId":"cache-second","firstName":"Second"}'
+        headers:
+          Content-Type: text/plain
+          X-Person-Id: stale-header-id
+          X-Unchanged-Header: second
+        properties:
+          personId: stale-property-id
+          unrelatedProperty: second
+        expectedBody:
+          customerId: cache-second
+          displayName: Second_
+          residence: Planet Earth
+          preferredContactChannel: PHONE
+          loyaltyProgramId:
+            $match: uuid
+          registeredAt:
+            $match: date-time
+            format: uuuu-MM-dd'T'HH:mm:ss'Z'
+        expectedHeaders:
+          Content-Type: application/json
+          X-Person-Id: cache-second
+          X-Unchanged-Header: second
+        expectedProperties:
+          personId: cache-second
+          unrelatedProperty: second
+          internalProperty_mappingConfig: null
+          internalProperty_mappingId: null
+          internalProperty_mappingThrowException: null
+      - id: maps-fresh-values-after-the-sparse-customer
+        body: '{"personId":"cache-third","phone":"third-phone","firstName":"Third","lastName":"Customer","marketingConsent":false,"email":"third@example.com","countryCode":"AQ","city":"Third
+          city"}'
+        headers:
+          Content-Type: text/plain
+          X-Person-Id: stale-header-id
+          X-Unchanged-Header: third
+        properties:
+          personId: stale-property-id
+          unrelatedProperty: third
+        expectedBody:
+          customerId: cache-third
+          phoneNumber: third-phone
+          displayName: Third_Customer
+          marketingAllowed: false
+          emailAddress: third@example.com
+          residence: Antarctica
+          city: Third city
+          preferredContactChannel: PHONE
+          loyaltyProgramId:
+            $match: uuid
+          registeredAt:
+            $match: date-time
+            format: uuuu-MM-dd'T'HH:mm:ss'Z'
+        expectedHeaders:
+          Content-Type: application/json
+          X-Person-Id: cache-third
+          X-Unchanged-Header: third
+        expectedProperties:
+          personId: cache-third
+          unrelatedProperty: third
+          internalProperty_mappingConfig: null
+          internalProperty_mappingId: null
+          internalProperty_mappingThrowException: null
+
+  - id: maps-body-and-metadata-sources-without-state-leakage
+    scope: Short
+    driver:
+      provider: routeSelector
+      sourceElementId: 2b66944e-4a13-517d-80b1-9803e27cad00
+    invocations:
+      - id: maps-body-header-and-property-into-the-json-body
+        body: '{"customerId":"M-1"}'
+        headers:
+          Content-Type: text/plain
+          X-Unchanged-Header: preserved
+          X-Region: header-region
+        properties:
+          unrelatedProperty: preserved
+          correlationId: property-correlation
+        expectedBody:
+          id: M-1
+          region: header-region
+          correlationId: property-correlation
+        expectedHeaders:
+          Content-Type: application/json
+          X-Unchanged-Header: preserved
+          X-Region: header-region
+        expectedProperties:
+          unrelatedProperty: preserved
+          correlationId: property-correlation
+          internalProperty_mappingConfig: null
+          internalProperty_mappingId: null
+          internalProperty_mappingThrowException: null
+      - id: omits-missing-metadata-without-reusing-the-previous-input
+        body: '{"customerId":"M-2"}'
+        headers:
+          Content-Type: text/plain
+          X-Unchanged-Header: preserved
+        properties:
+          unrelatedProperty: preserved
+        expectedBody:
+          id: M-2
+        expectedHeaders:
+          Content-Type: application/json
+          X-Unchanged-Header: preserved
+        expectedProperties:
+          unrelatedProperty: preserved
+          internalProperty_mappingConfig: null
+          internalProperty_mappingId: null
+          internalProperty_mappingThrowException: null
+          correlationId: null
+        expectedAbsentHeaders:
+          - X-Region
+      - id: uses-fresh-unicode-and-empty-metadata-values
+        body: '{"customerId":"M-3"}'
+        headers:
+          Content-Type: text/plain
+          X-Unchanged-Header: preserved
+          X-Region: café & <region>
+        properties:
+          unrelatedProperty: preserved
+          correlationId: ''
+        expectedBody:
+          id: M-3
+          region: café & <region>
+          correlationId: ''
+        expectedHeaders:
+          Content-Type: application/json
+          X-Unchanged-Header: preserved
+          X-Region: café & <region>
+        expectedProperties:
+          unrelatedProperty: preserved
+          correlationId: ''
+          internalProperty_mappingConfig: null
+          internalProperty_mappingId: null
+          internalProperty_mappingThrowException: null
+  - id: distinguishes-schema-and-transformation-defaults-and-conditional-branches
+    scope: Short
+    driver:
+      provider: routeSelector
+      sourceElementId: 3ad880d6-8a3b-5ddb-a6d4-d0b4252346ee
+    invocations:
+      - id: uses-both-defaults-for-missing-fields
+        body: '{"status":"active"}'
+        headers:
+          Content-Type: text/plain
+          X-Unchanged-Header: preserved
+        properties:
+          unrelatedProperty: preserved
+        expectedBody:
+          schemaDefault: schema-default
+          fallbackValue: fallback-value
+          state: enabled
+        expectedHeaders:
+          Content-Type: application/json
+          X-Unchanged-Header: preserved
+        expectedProperties:
+          unrelatedProperty: preserved
+          internalProperty_mappingConfig: null
+          internalProperty_mappingId: null
+          internalProperty_mappingThrowException: null
+      - id: distinguishes-explicit-null-from-a-missing-schema-field
+        body: '{"schemaInput":null,"fallbackInput":null,"status":"inactive"}'
+        headers:
+          Content-Type: text/plain
+          X-Unchanged-Header: preserved
+        properties:
+          unrelatedProperty: preserved
+        expectedBody:
+          fallbackValue: fallback-value
+          state: disabled
+        expectedHeaders:
+          Content-Type: application/json
+          X-Unchanged-Header: preserved
+        expectedProperties:
+          unrelatedProperty: preserved
+          internalProperty_mappingConfig: null
+          internalProperty_mappingId: null
+          internalProperty_mappingThrowException: null
+      - id: preserves-an-empty-schema-value-and-applies-the-transformation-default
+        body: '{"schemaInput":"","fallbackInput":"","status":"active"}'
+        headers:
+          Content-Type: text/plain
+          X-Unchanged-Header: preserved
+        properties:
+          unrelatedProperty: preserved
+        expectedBody:
+          schemaDefault: ''
+          fallbackValue: fallback-value
+          state: enabled
+        expectedHeaders:
+          Content-Type: application/json
+          X-Unchanged-Header: preserved
+        expectedProperties:
+          unrelatedProperty: preserved
+          internalProperty_mappingConfig: null
+          internalProperty_mappingId: null
+          internalProperty_mappingThrowException: null
+      - id: uses-supplied-values-and-the-false-condition-branch
+        body: '{"schemaInput":"provided-schema","fallbackInput":"provided-fallback","status":"inactive"}'
+        headers:
+          Content-Type: text/plain
+          X-Unchanged-Header: preserved
+        properties:
+          unrelatedProperty: preserved
+        expectedBody:
+          schemaDefault: provided-schema
+          fallbackValue: provided-fallback
+          state: disabled
+        expectedHeaders:
+          Content-Type: application/json
+          X-Unchanged-Header: preserved
+        expectedProperties:
+          unrelatedProperty: preserved
+          internalProperty_mappingConfig: null
+          internalProperty_mappingId: null
+          internalProperty_mappingThrowException: null
+      - id: restores-defaults-after-a-fully-populated-request
+        body: '{"status":"active"}'
+        headers:
+          Content-Type: text/plain
+          X-Unchanged-Header: preserved
+        properties:
+          unrelatedProperty: preserved
+        expectedBody:
+          schemaDefault: schema-default
+          fallbackValue: fallback-value
+          state: enabled
+        expectedHeaders:
+          Content-Type: application/json
+          X-Unchanged-Header: preserved
+        expectedProperties:
+          unrelatedProperty: preserved
+          internalProperty_mappingConfig: null
+          internalProperty_mappingId: null
+          internalProperty_mappingThrowException: null
+  - id: maps-nested-objects-and-collections-with-stable-item-association
+    scope: Short
+    driver:
+      provider: routeSelector
+      sourceElementId: cd429e00-0415-5441-80cd-13a24bfbd763
+    invocations:
+      - id: preserves-order-and-association-across-nested-array-items
+        body: '{"profile":{"name":"Multiple orders","active":true},"orders":[{"id":"ORDER-B","quantity":2,"items":[{"sku":"SKU-B2","count":5},{"sku":"SKU-B1","count":0}]},{"id":"ORDER-A","quantity":0,"items":[{"sku":"SKU-A1","count":3}]}],"tags":["priority","café","priority"],"unmapped":"drop-me"}'
+        headers:
+          Content-Type: text/plain
+          X-Unchanged-Header: preserved
+        properties:
+          unrelatedProperty: preserved
+        expectedBody:
+          customer:
+            displayName: Multiple orders
+            enabled: true
+          purchases:
+            - purchaseId: ORDER-B
+              units: 2
+              lines:
+                - productCode: SKU-B2
+                  amount: 5
+                - productCode: SKU-B1
+                  amount: 0
+            - purchaseId: ORDER-A
+              units: 0
+              lines:
+                - productCode: SKU-A1
+                  amount: 3
+          labels:
+            - priority
+            - café
+            - priority
+        expectedHeaders:
+          Content-Type: application/json
+          X-Unchanged-Header: preserved
+        expectedProperties:
+          unrelatedProperty: preserved
+          internalProperty_mappingConfig: null
+          internalProperty_mappingId: null
+          internalProperty_mappingThrowException: null
+      - id: maps-one-order-and-omits-its-empty-nested-array
+        body: '{"profile":{"name":"No lines","active":false},"orders":[{"id":"ORDER-EMPTY","quantity":0,"items":[]}],"tags":["single"]}'
+        headers:
+          Content-Type: text/plain
+          X-Unchanged-Header: preserved
+        properties:
+          unrelatedProperty: preserved
+        expectedBody:
+          customer:
+            displayName: No lines
+            enabled: false
+          purchases:
+            - purchaseId: ORDER-EMPTY
+              units: 0
+          labels:
+            - single
+        expectedHeaders:
+          Content-Type: application/json
+          X-Unchanged-Header: preserved
+        expectedProperties:
+          unrelatedProperty: preserved
+          internalProperty_mappingConfig: null
+          internalProperty_mappingId: null
+          internalProperty_mappingThrowException: null
+      - id: omits-empty-arrays-and-clears-the-previous-mapping-result
+        body: '{"profile":{"name":"Empty cart","active":false},"orders":[],"tags":[]}'
+        headers:
+          Content-Type: text/plain
+          X-Unchanged-Header: preserved
+        properties:
+          unrelatedProperty: preserved
+        expectedBody:
+          customer:
+            displayName: Empty cart
+            enabled: false
+        expectedHeaders:
+          Content-Type: application/json
+          X-Unchanged-Header: preserved
+        expectedProperties:
+          unrelatedProperty: preserved
+          internalProperty_mappingConfig: null
+          internalProperty_mappingId: null
+          internalProperty_mappingThrowException: null
+      - id: maps-one-item-after-empty-collections
+        body: '{"profile":{"name":"New order","active":true},"orders":[{"id":"ORDER-NEW","quantity":1,"items":[{"sku":"SKU-NEW","count":1}]}],"tags":["new"]}'
+        headers:
+          Content-Type: text/plain
+          X-Unchanged-Header: preserved
+        properties:
+          unrelatedProperty: preserved
+        expectedBody:
+          customer:
+            displayName: New order
+            enabled: true
+          purchases:
+            - purchaseId: ORDER-NEW
+              units: 1
+              lines:
+                - productCode: SKU-NEW
+                  amount: 1
+          labels:
+            - new
+        expectedHeaders:
+          Content-Type: application/json
+          X-Unchanged-Header: preserved
+        expectedProperties:
+          unrelatedProperty: preserved
+          internalProperty_mappingConfig: null
+          internalProperty_mappingId: null
+          internalProperty_mappingThrowException: null
+  - id: maps-json-to-xml-with-attributes-and-namespaces
+    scope: Short
+    driver:
+      provider: routeSelector
+      sourceElementId: fb976e37-c385-5614-8058-e2af509c70eb
+    invocations:
+      - id: maps-attributes-and-namespaced-elements
+        body: '{"customerId":"C-100","displayName":"Ada Lovelace","enabled":true,"unmapped":"drop-me"}'
+        headers:
+          Content-Type: text/plain
+          X-Unchanged-Header: preserved
+        properties:
+          unrelatedProperty: preserved
+        expectedBody:
+          $match: xml
+          value: <c:customer xmlns:c="urn:qip:customer" id="C-100"><c:active>true</c:active><c:name>Ada Lovelace</c:name></c:customer>
+        expectedHeaders:
+          Content-Type: application/xml
+          X-Unchanged-Header: preserved
+        expectedProperties:
+          unrelatedProperty: preserved
+          internalProperty_mappingConfig: null
+          internalProperty_mappingId: null
+          internalProperty_mappingThrowException: null
+      - id: preserves-unicode-and-xml-special-characters
+        body: '{"customerId":"C&\"<200>","displayName":"José & <Café>","enabled":false,"unmapped":"drop-me"}'
+        headers:
+          Content-Type: text/plain
+          X-Unchanged-Header: preserved
+        properties:
+          unrelatedProperty: preserved
+        expectedBody:
+          $match: xml
+          value: <c:customer xmlns:c="urn:qip:customer" id='C&amp;"&lt;200&gt;'><c:active>false</c:active><c:name>José
+            &amp; &lt;Café&gt;</c:name></c:customer>
+        expectedHeaders:
+          Content-Type: application/xml
+          X-Unchanged-Header: preserved
+        expectedProperties:
+          unrelatedProperty: preserved
+          internalProperty_mappingConfig: null
+          internalProperty_mappingId: null
+          internalProperty_mappingThrowException: null
+      - id: maps-a-new-document-and-excludes-unmapped-fields
+        body: '{"customerId":"C-300","displayName":"Grace Hopper","enabled":true,"unmapped":"drop-me"}'
+        headers:
+          Content-Type: text/plain
+          X-Unchanged-Header: preserved
+        properties:
+          unrelatedProperty: preserved
+        expectedBody:
+          $match: xml
+          value: <c:customer xmlns:c="urn:qip:customer" id="C-300"><c:active>true</c:active><c:name>Grace Hopper</c:name></c:customer>
+        expectedHeaders:
+          Content-Type: application/xml
+          X-Unchanged-Header: preserved
+        expectedProperties:
+          unrelatedProperty: preserved
+          internalProperty_mappingConfig: null
+          internalProperty_mappingId: null
+          internalProperty_mappingThrowException: null
+  - id: maps-xml-to-json-with-attributes-and-namespaces
+    scope: Short
+    driver:
+      provider: routeSelector
+      sourceElementId: 48fedc9a-5be7-5113-94b0-3f189f2e3832
+    invocations:
+      - id: maps-attributes-and-namespaced-elements
+        body: <c:customer xmlns:c="urn:qip:customer" id="C-100"><c:active>true</c:active><c:name>Ada Lovelace</c:name><c:unmapped>drop-me</c:unmapped></c:customer>
+        headers:
+          Content-Type: text/plain
+          X-Unchanged-Header: preserved
+        properties:
+          unrelatedProperty: preserved
+        expectedBody:
+          customerId: C-100
+          displayName: Ada Lovelace
+          enabled: true
+        expectedHeaders:
+          Content-Type: application/json
+          X-Unchanged-Header: preserved
+        expectedProperties:
+          unrelatedProperty: preserved
+          internalProperty_mappingConfig: null
+          internalProperty_mappingId: null
+          internalProperty_mappingThrowException: null
+      - id: preserves-unicode-and-xml-special-characters
+        body: <c:customer xmlns:c="urn:qip:customer" id='C&amp;"&lt;200&gt;'><c:active>false</c:active><c:name>José
+          &amp; &lt;Café&gt;</c:name><c:unmapped>drop-me</c:unmapped></c:customer>
+        headers:
+          Content-Type: text/plain
+          X-Unchanged-Header: preserved
+        properties:
+          unrelatedProperty: preserved
+        expectedBody:
+          customerId: C&"<200>
+          displayName: José & <Café>
+          enabled: false
+        expectedHeaders:
+          Content-Type: application/json
+          X-Unchanged-Header: preserved
+        expectedProperties:
+          unrelatedProperty: preserved
+          internalProperty_mappingConfig: null
+          internalProperty_mappingId: null
+          internalProperty_mappingThrowException: null
+      - id: maps-a-new-document-and-excludes-unmapped-fields
+        body: <c:customer xmlns:c="urn:qip:customer" id="C-300"><c:active>true</c:active><c:name>Grace Hopper</c:name><c:unmapped>drop-me</c:unmapped></c:customer>
+        headers:
+          Content-Type: text/plain
+          X-Unchanged-Header: preserved
+        properties:
+          unrelatedProperty: preserved
+        expectedBody:
+          customerId: C-300
+          displayName: Grace Hopper
+          enabled: true
+        expectedHeaders:
+          Content-Type: application/json
+          X-Unchanged-Header: preserved
+        expectedProperties:
+          unrelatedProperty: preserved
+          internalProperty_mappingConfig: null
+          internalProperty_mappingId: null
+          internalProperty_mappingThrowException: null
+  - id: throws-on-conversion-failure-and-recovers
+    scope: Short
+    driver:
+      provider: routeSelector
+      sourceElementId: 67072068-dc19-5b48-bae0-42cd16df5a86
+    invocations:
+      - id: maps-valid-numeric-text
+        body: '{"id":"first","amount":"12.5"}'
+        headers:
+          Content-Type: text/plain
+          X-Trace-Id: first
+        properties:
+          marker: first
+        expectedBody:
+          id: first
+          amount: 12.5
+        expectedHeaders:
+          Content-Type: application/json
+          X-Trace-Id: first
+        expectedProperties:
+          marker: first
+          internalProperty_mappingConfig: null
+          internalProperty_mappingId: null
+          internalProperty_mappingThrowException: null
+      - id: reports-invalid-numeric-text
+        body: '{"id":"invalid","amount":"not-a-number"}'
+        headers:
+          Content-Type: text/plain
+          X-Trace-Id: invalid
+        properties:
+          marker: invalid
+        expectedBody: '{"id":"invalid","amount":"not-a-number"}'
+        expectedFailure:
+          type: java.lang.Exception
+          message: "Failed to perform mapping: path: /amount, message: \"Failed to convert field value 'not-a-number' into type 'NUMBER'\""
+          cause: null
+        expectedHeaders:
+          Content-Type: text/plain
+          X-Trace-Id: invalid
+        expectedProperties:
+          marker: invalid
+      - id: recovers-with-fresh-valid-text
+        body: '{"id":"fresh","amount":"3.25"}'
+        headers:
+          Content-Type: text/plain
+          X-Trace-Id: fresh
+        properties:
+          marker: fresh
+        expectedBody:
+          id: fresh
+          amount: 3.25
+        expectedHeaders:
+          Content-Type: application/json
+          X-Trace-Id: fresh
+        expectedProperties:
+          marker: fresh
+          internalProperty_mappingConfig: null
+          internalProperty_mappingId: null
+          internalProperty_mappingThrowException: null
+  - id: continues-on-conversion-failure-and-recovers
+    scope: Short
+    driver:
+      provider: routeSelector
+      sourceElementId: 9639349a-94eb-5fda-b537-92749fba6b23
+    invocations:
+      - id: maps-valid-numeric-text
+        body: '{"id":"first","amount":"12.5"}'
+        headers:
+          Content-Type: text/plain
+          X-Trace-Id: first
+        properties:
+          marker: first
+        expectedBody:
+          id: first
+          amount: 12.5
+        expectedHeaders:
+          Content-Type: application/json
+          X-Trace-Id: first
+        expectedProperties:
+          marker: first
+          internalProperty_mappingConfig: null
+          internalProperty_mappingId: null
+          internalProperty_mappingThrowException: null
+      - id: continues-after-invalid-numeric-text
+        body: '{"id":"invalid","amount":"not-a-number"}'
+        headers:
+          Content-Type: text/plain
+          X-Trace-Id: invalid
+        properties:
+          marker: invalid
+        expectedBody:
+          id: invalid
+        expectedHeaders:
+          Content-Type: application/json
+          X-Trace-Id: invalid
+        expectedProperties:
+          marker: invalid
+          internalProperty_mappingConfig: null
+          internalProperty_mappingId: null
+          internalProperty_mappingThrowException: null
+      - id: recovers-with-fresh-valid-text
+        body: '{"id":"fresh","amount":"3.25"}'
+        headers:
+          Content-Type: text/plain
+          X-Trace-Id: fresh
+        properties:
+          marker: fresh
+        expectedBody:
+          id: fresh
+          amount: 3.25
+        expectedHeaders:
+          Content-Type: application/json
+          X-Trace-Id: fresh
+        expectedProperties:
+          marker: fresh
+          internalProperty_mappingConfig: null
+          internalProperty_mappingId: null
+          internalProperty_mappingThrowException: null

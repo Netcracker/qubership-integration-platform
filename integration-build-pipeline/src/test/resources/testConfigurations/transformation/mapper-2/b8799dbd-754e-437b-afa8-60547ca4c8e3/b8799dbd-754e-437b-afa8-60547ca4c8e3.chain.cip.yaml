@@ -18,9 +18,79 @@ content:
     type: "chain-trigger-2"
     properties:
       elementId: "dd1278ad-01e6-4748-998e-b4653776682a"
+  - id: "2b66944e-4a13-517d-80b1-9803e27cad00"
+    name: "Metadata sources"
+    type: "mapper-2"
+    properties:
+      exportFileExtension: "json"
+      propertiesFilename: "mappingDescription-2b66944e-4a13-517d-80b1-9803e27cad00.json"
+      propertiesToExportInSeparateFile: "mappingDescription"
+      throwException: true
+  - id: "3ad880d6-8a3b-5ddb-a6d4-d0b4252346ee"
+    name: "Defaults and conditions"
+    type: "mapper-2"
+    properties:
+      exportFileExtension: "json"
+      propertiesFilename: "mappingDescription-3ad880d6-8a3b-5ddb-a6d4-d0b4252346ee.json"
+      propertiesToExportInSeparateFile: "mappingDescription"
+      throwException: true
+  - id: "cd429e00-0415-5441-80cd-13a24bfbd763"
+    name: "Nested collections"
+    type: "mapper-2"
+    properties:
+      exportFileExtension: "json"
+      propertiesFilename: "mappingDescription-cd429e00-0415-5441-80cd-13a24bfbd763.json"
+      propertiesToExportInSeparateFile: "mappingDescription"
+      throwException: true
+  - id: "fb976e37-c385-5614-8058-e2af509c70eb"
+    name: "JSON to XML"
+    type: "mapper-2"
+    properties:
+      exportFileExtension: "json"
+      propertiesFilename: "mappingDescription-fb976e37-c385-5614-8058-e2af509c70eb.json"
+      propertiesToExportInSeparateFile: "mappingDescription"
+      throwException: true
+  - id: "48fedc9a-5be7-5113-94b0-3f189f2e3832"
+    name: "XML to JSON"
+    type: "mapper-2"
+    properties:
+      exportFileExtension: "json"
+      propertiesFilename: "mappingDescription-48fedc9a-5be7-5113-94b0-3f189f2e3832.json"
+      propertiesToExportInSeparateFile: "mappingDescription"
+      throwException: true
+  - id: "67072068-dc19-5b48-bae0-42cd16df5a86"
+    name: "Strict numeric conversion"
+    type: "mapper-2"
+    properties:
+      exportFileExtension: "json"
+      propertiesFilename: "mappingDescription-67072068-dc19-5b48-bae0-42cd16df5a86.json"
+      propertiesToExportInSeparateFile: "mappingDescription"
+      throwException: true
+  - id: "9639349a-94eb-5fda-b537-92749fba6b23"
+    name: "Tolerant numeric conversion"
+    type: "mapper-2"
+    properties:
+      exportFileExtension: "json"
+      propertiesFilename: "mappingDescription-9639349a-94eb-5fda-b537-92749fba6b23.json"
+      propertiesToExportInSeparateFile: "mappingDescription"
+      throwException: false
   dependencies:
   - from: "dd1278ad-01e6-4748-998e-b4653776682a"
     to: "49e5f58d-bc48-4c85-adbd-0aa107a9a95e"
+  - from: "dd1278ad-01e6-4748-998e-b4653776682a"
+    to: "2b66944e-4a13-517d-80b1-9803e27cad00"
+  - from: "dd1278ad-01e6-4748-998e-b4653776682a"
+    to: "3ad880d6-8a3b-5ddb-a6d4-d0b4252346ee"
+  - from: "dd1278ad-01e6-4748-998e-b4653776682a"
+    to: "cd429e00-0415-5441-80cd-13a24bfbd763"
+  - from: "dd1278ad-01e6-4748-998e-b4653776682a"
+    to: "fb976e37-c385-5614-8058-e2af509c70eb"
+  - from: "dd1278ad-01e6-4748-998e-b4653776682a"
+    to: "48fedc9a-5be7-5113-94b0-3f189f2e3832"
+  - from: "dd1278ad-01e6-4748-998e-b4653776682a"
+    to: "67072068-dc19-5b48-bae0-42cd16df5a86"
+  - from: "dd1278ad-01e6-4748-998e-b4653776682a"
+    to: "9639349a-94eb-5fda-b537-92749fba6b23"
   deployments:
   - domain: "default"
   deployAction: "DEPLOY"

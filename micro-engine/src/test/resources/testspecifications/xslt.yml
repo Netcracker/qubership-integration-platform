@@ -2,10 +2,22 @@
 resources:
   - source: "classpath:snapshot-fixtures/xslt/transform.xslt"
     target: "transform.xslt"
+  - source: "classpath:snapshot-fixtures/xslt/namespace-parameters.xslt"
+    target: "xslt/namespace-parameters.xslt"
+  - source: "classpath:snapshot-fixtures/xslt/included-text.xslt"
+    target: "xslt/included-text.xslt"
+  - source: "classpath:snapshot-fixtures/xslt/shared/customer-label.xslt"
+    target: "xslt/shared/customer-label.xslt"
+  - source: "classpath:snapshot-fixtures/xslt/invalid-template.xslt"
+    target: "xslt/invalid-template.xslt"
+  - source: "classpath:snapshot-fixtures/xslt/terminating-template.xslt"
+    target: "xslt/terminating-template.xslt"
 scenarios:
   - id: "transforms-customer-data"
     scope: Short
-    endpointUri: "cip-chain:61e9e5d6-696a-450c-829f-4c55b124fd6a"
+    driver:
+      provider: "routeSelector"
+      sourceElementId: "85718c16-bb01-47d6-8eeb-f3046ff0a318"
     body: |-
       <?xml version="1.0" encoding="UTF-8"?>
       <customerData>
@@ -69,3 +81,311 @@ scenarios:
             </purchases>
           </client>
         </clients>
+
+  - id: transforms-multiple-customers-and-orders
+    scope: Short
+    driver:
+      provider: routeSelector
+      sourceElementId: 85718c16-bb01-47d6-8eeb-f3046ff0a318
+    invocations:
+      - id: keeps-each-customer-order-and-product-in-source-order
+        body: |-
+          <customerData>
+            <customer id="C-1">
+              <firstName>Ada</firstName><lastName>Lovelace</lastName><email>ada@example.com</email>
+              <orders>
+                <order number="O-1"><date>2026-11-01</date><total currency="EUR">10.50</total>
+                  <items><item sku="A"><name>Tea</name><quantity>2</quantity><price>5.25</price></item></items>
+                </order>
+                <order number="O-2"><date>2026-11-02</date><total currency="USD">0</total><items/></order>
+              </orders>
+            </customer>
+            <customer id="C-2">
+              <firstName>Grace</firstName><lastName>Hopper</lastName><email>grace@example.com</email>
+            </customer>
+          </customerData>
+        headers:
+          X-Trace-Id: multiple
+          X-Count: 2
+        properties:
+          marker: preserved
+        expectedBody:
+          $match: xml
+          value: |-
+            <clients>
+              <client client-id="C-1">
+                <full-name><given-name>Ada</given-name><family-name>Lovelace</family-name></full-name>
+                <contacts><email-address>ada@example.com</email-address></contacts>
+                <purchases>
+                  <purchase purchase-id="O-1">
+                    <created-at>2026-11-01</created-at><amount><value>10.50</value><currency>EUR</currency></amount>
+                    <products><product product-code="A"><title>Tea</title><quantity>2</quantity><unit-price>5.25</unit-price></product></products>
+                  </purchase>
+                  <purchase purchase-id="O-2">
+                    <created-at>2026-11-02</created-at><amount><value>0</value><currency>USD</currency></amount><products/>
+                  </purchase>
+                </purchases>
+              </client>
+              <client client-id="C-2">
+                <full-name><given-name>Grace</given-name><family-name>Hopper</family-name></full-name>
+                <contacts><email-address>grace@example.com</email-address></contacts><purchases/>
+              </client>
+            </clients>
+        expectedHeaders:
+          X-Trace-Id: multiple
+          X-Count: 2
+        expectedProperties:
+          marker: preserved
+  - id: handles-empty-collections-and-missing-customer-fields
+    scope: Short
+    driver:
+      provider: routeSelector
+      sourceElementId: 85718c16-bb01-47d6-8eeb-f3046ff0a318
+    invocations:
+      - id: transforms-an-empty-customer-collection
+        body: <customerData/>
+        expectedBody:
+          $match: xml
+          value: <clients/>
+      - id: emits-empty-values-for-absent-optional-fields
+        body: <customerData><customer/></customerData>
+        expectedBody:
+          $match: xml
+          value: <clients><client client-id=""><full-name><given-name/><family-name/></full-name><contacts><email-address/></contacts><purchases/></client></clients>
+  - id: preserves-unicode-and-xml-special-characters
+    scope: Short
+    driver:
+      provider: routeSelector
+      sourceElementId: 85718c16-bb01-47d6-8eeb-f3046ff0a318
+    invocations:
+      - id: escapes-text-and-attributes-without-changing-their-values
+        body: |-
+          <customerData><customer id="C&amp;200">
+            <firstName>José</firstName><lastName>A&amp;B</lastName><email>cafe@example.com</email>
+            <orders><order number="ORD-&quot;2&quot;"><date>2026-11-03</date><total currency="EUR">1.00</total>
+              <items><item sku="A&lt;B"><name><![CDATA[Café & <Tea>]]></name><quantity>1</quantity><price>1.00</price></item></items>
+            </order></orders>
+          </customer></customerData>
+        expectedBody:
+          $match: xml
+          value: |-
+            <clients><client client-id="C&amp;200">
+              <full-name><given-name>José</given-name><family-name>A&amp;B</family-name></full-name>
+              <contacts><email-address>cafe@example.com</email-address></contacts>
+              <purchases><purchase purchase-id="ORD-&quot;2&quot;">
+                <created-at>2026-11-03</created-at><amount><value>1.00</value><currency>EUR</currency></amount>
+                <products><product product-code="A&lt;B"><title>Café &amp; &lt;Tea&gt;</title><quantity>1</quantity><unit-price>1.00</unit-price></product></products>
+              </purchase></purchases>
+            </client></clients>
+  - id: transforms-namespaced-input-and-isolates-xslt-parameters
+    scope: Short
+    driver:
+      provider: routeSelector
+      sourceElementId: e3bbe9ff-7292-5f07-983c-6b53ad59266d
+    invocations:
+      - id: uses-headers-before-properties-and-preserves-the-message-context
+        body: <customerData xmlns="urn:qip:customer"><customer id="N-1"><name>Ada</name></customer></customerData>
+        headers:
+          region: header-region
+          X-Trace-Id: N-1
+        properties:
+          region: property-region
+          label: property-label
+        expectedBody:
+          $match: xml
+          value: <r:summary xmlns:r="urn:qip:report" region="header-region" label="property-label"><r:customer id="N-1">Ada</r:customer></r:summary>
+        expectedHeaders:
+          region: header-region
+          X-Trace-Id: N-1
+        expectedProperties:
+          region: property-region
+          label: property-label
+      - id: restores-one-default-and-uses-a-fresh-header-parameter
+        body: <c:customerData xmlns:c="urn:qip:customer"><c:customer id="N-2"><c:name>Grace</c:name></c:customer></c:customerData>
+        headers:
+          label: header-label
+        expectedBody:
+          $match: xml
+          value: <r:summary xmlns:r="urn:qip:report" region="default-region" label="header-label"><r:customer id="N-2">Grace</r:customer></r:summary>
+        expectedHeaders:
+          label: header-label
+      - id: uses-both-defaults-without-parameters-from-prior-invocations
+        body: <customerData xmlns="urn:qip:customer"><customer id="N-3"><name>José</name></customer></customerData>
+        expectedBody:
+          $match: xml
+          value: <r:summary xmlns:r="urn:qip:report" region="default-region" label="default-label"><r:customer id="N-3">José</r:customer></r:summary>
+        expectedAbsentHeaders:
+          - region
+          - label
+  - id: renders-utf8-text-with-a-relative-stylesheet-include
+    scope: Short
+    driver:
+      provider: routeSelector
+      sourceElementId: 55b9f1e6-ca18-5483-b0ca-6792d0dd7290
+    invocations:
+      - id: loads-the-included-template-relative-to-the-main-stylesheet
+        body: <customerData><customer id="C-1"><firstName>Ada</firstName><lastName>Lovelace</lastName></customer><customer
+          id="C-2"><firstName>José</firstName><lastName>Café</lastName></customer></customerData>
+        expectedBody: 'C-1: Ada Lovelace;C-2: José Café'
+      - id: returns-empty-text-for-an-empty-collection
+        body: <customerData/>
+        expectedBody: ''
+  - id: reports-malformed-source-xml-and-recovers-on-the-same-route
+    scope: Short
+    driver:
+      provider: routeSelector
+      sourceElementId: 85718c16-bb01-47d6-8eeb-f3046ff0a318
+    invocations:
+      - id: rejects-mismatched-xml-tags
+        body: <customerData><customer></customerData>
+        expectedBody: <customerData><customer></customerData>
+        expectedFailure:
+          type: javax.xml.transform.TransformerException
+          ignoreMessage: true
+          cause:
+            type: javax.xml.transform.TransformerException
+            ignoreMessage: true
+            cause:
+              type: com.sun.org.apache.xml.internal.utils.WrappedRuntimeException
+              message: The end-tag for element type "customer" must end with a '>' delimiter.
+              cause: null
+      - id: transforms-valid-input-after-failure
+        body: <customerData/>
+        headers:
+          X-Trace-Id: fresh
+        properties:
+          marker: fresh
+        expectedBody:
+          $match: xml
+          value: <clients/>
+        expectedHeaders:
+          X-Trace-Id: fresh
+        expectedProperties:
+          marker: fresh
+  - id: reports-empty-source-xml-and-recovers-on-the-same-route
+    scope: Short
+    driver:
+      provider: routeSelector
+      sourceElementId: 85718c16-bb01-47d6-8eeb-f3046ff0a318
+    invocations:
+      - id: rejects-an-empty-xml-document
+        body: ''
+        expectedBody: ''
+        expectedFailure:
+          type: javax.xml.transform.TransformerException
+          ignoreMessage: true
+          cause:
+            type: javax.xml.transform.TransformerException
+            ignoreMessage: true
+            cause:
+              type: com.sun.org.apache.xml.internal.utils.WrappedRuntimeException
+              message: Premature end of file.
+              cause: null
+      - id: transforms-valid-input-after-failure
+        body: <customerData/>
+        headers:
+          X-Trace-Id: fresh
+        properties:
+          marker: fresh
+        expectedBody:
+          $match: xml
+          value: <clients/>
+        expectedHeaders:
+          X-Trace-Id: fresh
+        expectedProperties:
+          marker: fresh
+  - id: reports-missing-stylesheet-and-keeps-valid-route-available
+    scope: Short
+    driver:
+      provider: routeSelector
+      sourceElementId: d9a69e12-9dce-5b10-99a2-0eb1525fdcd0
+    invocations:
+      - id: reports-the-missing-template-file
+        body: <customerData/>
+        expectedBody: <customerData/>
+        expectedFailure:
+          type: org.apache.camel.ResolveEndpointFailedException
+          ignoreMessage: true
+          cause:
+            type: org.apache.camel.RuntimeCamelException
+            ignoreMessage: true
+            cause:
+              type: javax.xml.transform.TransformerException
+              ignoreMessage: true
+              cause:
+                type: java.io.FileNotFoundException
+                message: /tmp/chain_tmp/xslt/missing-component-stylesheet.xslt does not exist
+                cause: null
+      - id: transforms-valid-input-after-failure
+        body: <customerData/>
+        headers:
+          X-Trace-Id: fresh
+        properties:
+          marker: fresh
+        expectedBody:
+          $match: xml
+          value: <clients/>
+        expectedHeaders:
+          X-Trace-Id: fresh
+        expectedProperties:
+          marker: fresh
+        driver:
+          provider: routeSelector
+          sourceElementId: 85718c16-bb01-47d6-8eeb-f3046ff0a318
+  - id: reports-invalid-stylesheet-and-keeps-valid-route-available
+    scope: Short
+    driver:
+      provider: routeSelector
+      sourceElementId: fa30fc3b-b97a-54c7-a1d3-ae3aded27cf2
+    invocations:
+      - id: rejects-well-formed-xml-that-is-not-valid-xslt
+        body: <customerData/>
+        expectedBody: <customerData/>
+        expectedFailure:
+          type: org.apache.camel.ResolveEndpointFailedException
+          ignoreMessage: true
+          cause:
+            type: org.apache.camel.RuntimeCamelException
+            ignoreMessage: true
+            cause:
+              type: javax.xml.transform.TransformerConfigurationException
+              message: 'file:/tmp/chain_tmp/xslt/invalid-template.xslt: line 5: Required attribute ''select'' is
+                missing.'
+              cause: null
+      - id: transforms-valid-input-after-failure
+        body: <customerData/>
+        headers:
+          X-Trace-Id: fresh
+        properties:
+          marker: fresh
+        expectedBody:
+          $match: xml
+          value: <clients/>
+        expectedHeaders:
+          X-Trace-Id: fresh
+        expectedProperties:
+          marker: fresh
+        driver:
+          provider: routeSelector
+          sourceElementId: 85718c16-bb01-47d6-8eeb-f3046ff0a318
+  - id: reports-terminating-xslt-message-and-recovers-on-the-same-route
+    scope: Short
+    driver:
+      provider: routeSelector
+      sourceElementId: 77b80a5b-968a-5ae5-ba09-56da563e19b4
+    invocations:
+      - id: rejects-data-through-the-stylesheet-termination-branch
+        body: <customerData reject="true"><customer id="R-1"/></customerData>
+        expectedBody: <customerData reject="true"><customer id="R-1"/></customerData>
+        expectedFailure:
+          type: javax.xml.transform.TransformerException
+          message: 'java.lang.RuntimeException: Termination forced by an xsl:message instruction'
+          cause:
+            type: java.lang.RuntimeException
+            message: Termination forced by an xsl:message instruction
+            cause: null
+      - id: transforms-fresh-accepted-data-with-the-existing-stylesheet
+        body: <customerData><customer id="R-2"/></customerData>
+        expectedBody:
+          $match: xml
+          value: <accepted id="R-2"/>

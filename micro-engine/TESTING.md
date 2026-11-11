@@ -13,7 +13,7 @@ Set `SNAPSHOT_BUNDLE_DIRECTORY` to use another output directory outside
 `micro-engine/target`, which the consumer build cleans. Additional arguments
 are passed to each Maven invocation, for example `-s /path/to/settings.xml`.
 
-The manifests declare 345 scenarios across 31 targets and 162 exported chains.
+The manifests declare 376 scenarios across 31 targets and 162 exported chains.
 Scheduler isolation also uses a second catalog-generated snapshot of the same chain.
 The latest complete verified baseline contains 269 passing scenarios. The RabbitMQ
 trigger target passed all 22 added scenarios separately. The SFTP trigger target
@@ -21,7 +21,7 @@ passed all 17 scenarios after the failed-download key recovery fix in both engin
 The MCP target passed all 19 scenarios and 61 invocations separately.
 The shared-runner regression passed all 155 Short scenarios and 621 invocations
 across 32 targets in 353.298 seconds. The scheduler target passed all 18 scenarios
-and 36 executed invocations. The complete 345-scenario suite has not been run.
+and 36 executed invocations. The complete 376-scenario suite has not been run.
 
 The `snapshotTests` and `snapshotTestsShort` profiles run micro-engine scenarios in four separate JVMs by default.
 This also applies to an ordinary build from the repository root:
@@ -44,7 +44,7 @@ when used in a sequential reactor build. With an existing bundle, run either pro
 Every scenario must declare `scope: Short` or `scope: Long`. Use `Short` for scenarios that
 normally take at most one second, or that cover an element's basic behavior. Use `Long` for
 the remaining scenarios. Classification is explicit in YAML; a run's timing does not change it.
-The short suite contains 155 scenarios, including broker-backed senders whose fixture
+The short suite contains 186 scenarios, including broker-backed senders whose fixture
 startup takes longer than one second. The remaining 190 scenarios are `Long`.
 
 ```yaml
