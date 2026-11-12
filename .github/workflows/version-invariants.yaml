@@ -1,7 +1,8 @@
 ---
-# The platform version lives in six POMs and is written by three release scripts.
-# This gate catches a drift on the PR that introduces it, not on the release that
-# trips over it.
+# The platform version, the library pins, and the BOM entries live in many POMs
+# and are written by the release scripts. This gate catches a drift on the PR
+# that introduces it, not on the release that trips over it, and tests the
+# scripts that write them.
 
 name: "Version Invariants"
 
@@ -30,3 +31,6 @@ jobs:
 
       - name: Check versions
         run: bash scripts/check-version-invariants.sh
+
+      - name: Test the version scripts
+        run: python3 scripts/test_version_scripts.py

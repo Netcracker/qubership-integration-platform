@@ -6,15 +6,18 @@
 # drop.
 #
 # VERSION is the platform version of the wave: the root <revision> bumped by the
-# wave's release-type. The caller (release-all) computes it once; this
-# script writes it into the platform POMs (root <revision>, parent, and the
-# children that pin the parent), commits, tags that commit, and cuts the release.
+# wave's release-type. The caller (release-all) computes it once; this script
+# publishes the parent POMs at it (publish-parents.sh), writes it into the
+# platform POMs (root <revision>, the parents, and every POM that pins a parent),
+# commits, tags that commit, and cuts the release.
 #
 # The tag rides the bump commit, matching every module tag: `git checkout v1.3.0`
 # then reproduces the tree whose root <revision> is 1.3.0.
 #
 # Env: VERSION, REPO, GH_TOKEN (required); BRANCH (push target for the bump);
-#      TARGET_SHA (default HEAD); PRERELEASE=true|false; DRY_RUN=true|1.
+#      TARGET_SHA (default HEAD); PRERELEASE=true|false; DRY_RUN=true|1;
+#      MAVEN_GITHUB_USERNAME, MAVEN_GITHUB_PASSWORD, MAVEN_GPG_PASSPHRASE (for
+#      publish-parents.sh).
 #
 #   VERSION=1.3.0 REPO=Netcracker/qubership-integration-platform DRY_RUN=1 \
 #   GH_TOKEN=$(gh auth token) bash scripts/build-drop-release.sh
@@ -80,6 +83,11 @@ if [ "$DRY_RUN" = "true" ] || [ "$DRY_RUN" = "1" ]; then
     cat "$notes"
     exit 0
 fi
+
+# Publish the parents at the platform version before the bump below moves them
+# to the next development version. A parent already published is skipped, so a
+# rerun of a failed drop resumes here.
+bash scripts/publish-parents.sh "$version"
 
 # Write + push the version BEFORE cutting the release: a blocked push fails cleanly
 # and retries next wave instead of wedging an already-created release. Command

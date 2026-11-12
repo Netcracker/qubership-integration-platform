@@ -50,7 +50,7 @@ public class ApiHubSearchAuthorizations {
   private static final String API_HUB = "(?:the\\h+)?api[\\h_-]*hub";
   private static final Pattern CATALOG_ONLY = Pattern.compile(
       "(?iu)\\b(?:no|without|do not (?:use|search|call|query)|don't (?:use|search|call|query)"
-          + "|never (?:use|search|call|query)|без|не (?:используй|использовать|вызывай|вызывать))\\h+"
+          + "|never (?:use|search|call|query))\\h+"
           + API_HUB + "\\b|\\b(?:runtime[\\h_-]+catalog[\\h_-]+only|only\\h+(?:the\\h+)?runtime\\h+catalog)\\b");
   private static final Pattern API_HUB_ALLOWED = Pattern.compile(
       "(?iu)(?:^|[.!?]|\\R)\\h*(?:now\\h+)?(?:please\\h+)?"

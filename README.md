@@ -22,7 +22,8 @@ This repository is a **monorepo** that consolidates the previously separate `qub
 | `schemas/`             | JSON Schema definitions for chains, services, elements                                        | TypeScript, JSON Schema, Gulp                                               |
 | `checkstyle/`          | Shared Checkstyle rules (`qip-checkstyle` artifact)                                           | XML, Maven                                                                  |
 | `help/`                | Documentation consumed by UI and VS Code extension                                            | Markdown                                                                    |
-| `parent/`              | Shared Maven parent POM for Spring Boot modules                                               | Maven                                                                       |
+| `parents/`             | Shared Maven parent POMs: base, Spring Boot, and Quarkus                                      | Maven                                                                       |
+| `bom/`                 | `qip-bom`, the BOM that lists every published Maven module at its version                     | Maven                                                                       |
 | `e2e/`                 | End-to-end suite: the whole local stack, which it provisions, and the VS Code editors         | TypeScript, Playwright                                                      |
 
 ## Getting started
