@@ -198,9 +198,14 @@ func TestOpenDatabaseRequiresDsnOnlyOutsideDbaaSMode(t *testing.T) {
 	_, _, err := openDatabase(cfg)
 	require.EqualError(t, err, "postgres.dsn is not set")
 
+	t.Setenv("MICROSERVICE_NAME", "")
+	t.Setenv("MICROSERVICE_NAMESPACE", "")
+	cfg.DbaaS.Enabled = true
+	_, _, err = openDatabase(cfg)
+	require.EqualError(t, err, "DBaaS requires environment variables: MICROSERVICE_NAME, MICROSERVICE_NAMESPACE")
+
 	t.Setenv("MICROSERVICE_NAME", serviceName)
 	t.Setenv("MICROSERVICE_NAMESPACE", "test")
-	cfg.DbaaS.Enabled = true
 	database, closeDatabase, err := openDatabase(cfg)
 	require.NoError(t, err)
 	assert.NotNil(t, database)

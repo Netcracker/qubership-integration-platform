@@ -429,6 +429,9 @@ func prepareDatabase(ctx context.Context, bunDB *bun.DB, schema string, logger *
 
 func openDatabase(cfg appConfig) (testingservice.DB, func() error, error) {
 	if cfg.DbaaS.Enabled {
+		if err := validateDbaaSEnvironment(); err != nil {
+			return nil, nil, err
+		}
 		if !configloader.IsConfigLoaderInited() {
 			configloader.Init(configloader.EnvPropertySource())
 		}
@@ -450,6 +453,20 @@ func openDatabase(cfg appConfig) (testingservice.DB, func() error, error) {
 		return nil, nil, err
 	}
 	return database, database.Close, nil
+}
+
+func validateDbaaSEnvironment() error {
+	required := []string{"MICROSERVICE_NAME", "MICROSERVICE_NAMESPACE"}
+	var missing []string
+	for _, name := range required {
+		if strings.TrimSpace(os.Getenv(name)) == "" {
+			missing = append(missing, name)
+		}
+	}
+	if len(missing) != 0 {
+		return fmt.Errorf("DBaaS requires environment variables: %s", strings.Join(missing, ", "))
+	}
+	return nil
 }
 
 func main() {
