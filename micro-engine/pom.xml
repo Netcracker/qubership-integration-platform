@@ -1068,7 +1068,7 @@
         <profile>
             <id>snapshotTests</id>
             <properties>
-                <snapshot.workers>6</snapshot.workers>
+                <snapshot.workers>4</snapshot.workers>
                 <snapshot.bundle.directory>
                     ${maven.multiModuleProjectDirectory}/runtime-catalog/target/snapshotbundle
                 </snapshot.bundle.directory>
@@ -1144,7 +1144,7 @@
             <id>snapshotTestsShort</id>
             <properties>
                 <snapshot.scope>Short</snapshot.scope>
-                <snapshot.workers>6</snapshot.workers>
+                <snapshot.workers>4</snapshot.workers>
                 <snapshot.bundle.directory>
                     ${maven.multiModuleProjectDirectory}/runtime-catalog/target/snapshotbundle
                 </snapshot.bundle.directory>

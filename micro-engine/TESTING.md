@@ -217,7 +217,7 @@ include the producer in a micro-engine build.
 ## What the flow executes
 
 `SnapshotBundleProducerIntegrationTest` generates the bundle. With the default worker count,
-Maven generates `MicroEngineSnapshotShard0Test` through `MicroEngineSnapshotShard7Test`.
+Maven generates `MicroEngineSnapshotShard0Test` through `MicroEngineSnapshotShard3Test`.
 The `snapshot.workers` property controls how many classes it generates. They inherit the scenario runner from
 `MicroEngineSnapshotRouteExecutionTest` and divide the selected manifest scenarios between them.
 The other snapshot classes provide shared execution support.
