@@ -48,7 +48,6 @@ import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
-import org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactProvenance;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRunPin;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerValidationBundle;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerValidationPass;
@@ -1288,11 +1287,6 @@ class CreateChainSharedDesignRuntimeIT {
             null));
   }
 
-  private static ArtifactProvenance provenance(String capabilityId) {
-    return new ArtifactProvenance(
-        RUN_ID, capabilityId, "create-chain", "2", "profile-sha", capabilityId, "1", "closure");
-  }
-
   private static ChainCatalogFacts sampleFacts() {
     return new ChainCatalogFacts(
         "catalog-chain-1", "Pets", "", 1, 0, "", List.of(), List.of(), "built_in_catalog");
@@ -1640,17 +1634,6 @@ class CreateChainSharedDesignRuntimeIT {
                 "GET /pets")));
   }
 
-  private static RequirementFact fact(
-      String id, RequirementFactKind kind, String capabilityKey) {
-    return fact(id, kind, capabilityKey, "statement " + id);
-  }
-
-  private static RequirementFact fact(
-      String id, RequirementFactKind kind, String capabilityKey, String text) {
-    return new RequirementFact(
-        id, RequirementFactPolarity.POSITIVE, kind, capabilityKey, text);
-  }
-
   private static RequirementFact httpTrigger(
       String id,
       String capabilityKey,
@@ -1697,9 +1680,4 @@ class CreateChainSharedDesignRuntimeIT {
         serviceCallId);
   }
 
-  private static String singleApiHubHitJson() {
-    return """
-        {"operations":[{"operationId":"findPets","packageId":"pkg.petstore","version":"2024.4","name":"findPets","method":"GET","path":"/pets","apiType":"rest"}]}
-        """;
-  }
 }

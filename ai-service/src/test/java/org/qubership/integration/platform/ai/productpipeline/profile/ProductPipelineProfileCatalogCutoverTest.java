@@ -240,14 +240,6 @@ class ProductPipelineProfileCatalogCutoverTest {
         getClass().getResourceAsStream("/product-pipelines/profiles/create-plan-v1.yaml") == null);
   }
 
-  private static List<String> waitingStages(StageOutcome outcome, String stageId) {
-    List<String> stages = new ArrayList<>();
-    if (outcome.outcomeClass() == StageOutcomeClass.CANDIDATE) {
-      stages.add(stageId);
-    }
-    return stages;
-  }
-
   private static StageOutcome outcome(StageCapability capability, StageExecutionContext context) {
     return capability.execute(context).collect().asList().await().indefinitely().stream()
         .filter(CapabilitySignal.Completed.class::isInstance)
@@ -309,23 +301,6 @@ class ProductPipelineProfileCatalogCutoverTest {
         List.of(
             fact("trigger-1", RequirementFactKind.ENDPOINT, "http-trigger"),
             fact("call-1", RequirementFactKind.SERVICE_CALL, "http-service-call")));
-  }
-
-  private static RequirementBrief deriveBrief() {
-    return new RequirementBrief(
-        "Orders",
-        List.of("HTTP POST /orders"),
-        List.of(),
-        List.of(),
-        List.of(),
-        "Create order",
-        "draft-1",
-        "draft",
-        List.of(
-            fact("fact-trigger", RequirementFactKind.ENDPOINT, "async-api-trigger"),
-            fact("fact-step", RequirementFactKind.SERVICE_CALL, "http-service-call"),
-            fact("fact-p", RequirementFactKind.BEHAVIOR, null),
-            fact("fact-map", RequirementFactKind.BEHAVIOR, null)));
   }
 
   private static RequirementFact fact(

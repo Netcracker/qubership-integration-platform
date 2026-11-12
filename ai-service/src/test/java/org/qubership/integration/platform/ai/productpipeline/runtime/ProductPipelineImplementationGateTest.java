@@ -72,9 +72,6 @@ class ProductPipelineImplementationGateTest {
   private static final Instant FIXED = Instant.parse("2026-07-22T12:00:00Z");
   private static final String RUN_ID = "run-implement-gate-1";
   private static final String CONVERSATION_ID = "conv-implement-gate-1";
-  private static final String APPROVED_PLAN_SHA =
-      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-  private static final long WAITING_FOR_IMPLEMENT_REVISION = 4L;
 
   private static final ChainCatalogFacts MATERIALIZED_FACTS =
       new ChainCatalogFacts(
@@ -348,40 +345,6 @@ class ProductPipelineImplementationGateTest {
     CreateChainApplicationFacade facade =
         new CreateChainApplicationFacade(selection, bindingStore, runtime, runStore, catalogForSelection);
     return new CreateProductPipelineCoordinator(facade, runStore);
-  }
-
-  private CreateProductPipelineCoordinator coordinatorWithRunAtWaitingForImplement(
-      CreateChainTestOrchestrator mockedRuntime, String planHash) {
-    CreateRunBindingStore bindingStore = new CreateRunBindingStore(blobStore, mapper);
-    ProductPipelineProfileCatalog catalog =
-        new ProductPipelineProfileCatalog(List.of(createChainProfile));
-    CreateRunSelectionService selection =
-        new CreateRunSelectionService(
-            "2026.1",
-            FakeKnowledgeClient.defaultFixture(),
-            bindingStore,
-            catalog,
-            stubPinResolver(),
-            java.time.Clock.systemUTC());
-    selection.selectOrCreate(CONVERSATION_ID);
-    // Durable run document at WAITING_FOR_IMPLEMENT with fixed revision.
-    runStore.create(
-        new org.qubership.integration.platform.ai.productpipeline.store.RunSnapshot(
-            RUN_ID,
-            CONVERSATION_ID,
-            WAITING_FOR_IMPLEMENT_REVISION,
-            RunStatus.WAITING_FOR_IMPLEMENT,
-            "planning",
-            List.of(
-                new org.qubership.integration.platform.ai.productpipeline.store.StageSnapshot(
-                    "planning",
-                    org.qubership.integration.platform.ai.productpipeline.store.StageStatus.SUCCEEDED,
-                    List.of(),
-                    null)),
-            null));
-    return new CreateProductPipelineCoordinator(
-        new CreateChainApplicationFacade(selection, bindingStore, mockedRuntime, runStore, catalog),
-        runStore);
   }
 
   private static ChatRequest implementChat(String text) {

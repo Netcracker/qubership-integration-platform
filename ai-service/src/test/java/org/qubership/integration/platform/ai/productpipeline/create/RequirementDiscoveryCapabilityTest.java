@@ -1905,7 +1905,6 @@ class RequirementDiscoveryCapabilityTest {
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
   void automaticMappingRepairUsesEvidenceWhileManualChangesKeepAuthorText(boolean automatic) throws Exception {
-    var mapper = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
     var authored = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput(
         new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FlowInput(List.of(), List.of()),
         List.of(new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput("goal", List.of(),

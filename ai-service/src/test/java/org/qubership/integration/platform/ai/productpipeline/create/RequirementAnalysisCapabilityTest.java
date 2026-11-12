@@ -54,10 +54,6 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput;

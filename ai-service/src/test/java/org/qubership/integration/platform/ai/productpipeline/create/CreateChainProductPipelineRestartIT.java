@@ -75,8 +75,6 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTyp
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileCatalog;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileParser;
-import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
-import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.patch.CanonicalGraphDigest;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
@@ -91,7 +89,6 @@ class CreateChainProductPipelineRestartIT {
   private InMemoryArtifactBlobStore blobStore;
   private ObjectMapper mapper;
   private Clock clock;
-  private ProductPipelineRunStore runStore;
   private ProductPipelineArtifactStore artifactStore;
   private CatalogMutationGateway catalog;
   private ChainCatalogFactsService factsService;
@@ -105,7 +102,6 @@ class CreateChainProductPipelineRestartIT {
     blobStore = new InMemoryArtifactBlobStore();
     clock = Clock.fixed(FIXED, ZoneOffset.UTC);
     CompilationArtifacts artifacts = new CompilationArtifacts(blobStore, mapper, clock);
-    runStore = new ProductPipelineRunStore(blobStore, mapper, clock);
     artifactStore = new ProductPipelineArtifactStore(artifacts);
     catalog = mock(CatalogMutationGateway.class);
     factsService = mock(ChainCatalogFactsService.class);
@@ -448,7 +444,7 @@ class CreateChainProductPipelineRestartIT {
     Reference planRef =
         append(Kind.DESIGN_EXECUTION_PLAN, "1", Map.of("flowId", "flow-1"), List.of());
     Reference graphRef = append(Kind.CHAIN_PLAN_GRAPH, "1", graph, List.of(semanticRef));
-    Reference assemblyRef = append(Kind.GRAPH_ASSEMBLY_RESULT, "1", assembly, List.of(graphRef));
+    append(Kind.GRAPH_ASSEMBLY_RESULT, "1", assembly, List.of(graphRef));
     Reference orderedPatchesRef =
         append(Kind.ORDERED_GRAPH_PATCHES, "1", new OrderedGraphPatches("1", List.of()), List.of());
     Reference compilerBundleRef =
@@ -574,14 +570,6 @@ class CreateChainProductPipelineRestartIT {
     return artifactStore.payload(
         artifactStore.latest(RUN_ID, Kind.MATERIALIZATION_RESULT).orElseThrow(),
         MaterializationResult.class);
-  }
-
-  private ProductPipelineRunDocument loadRun() {
-    return runStore.load(RUN_ID).orElseThrow();
-  }
-
-  private Reference append(Kind kind, String schemaVersion, Object payload) {
-    return append(kind, schemaVersion, payload, List.of());
   }
 
   private Reference append(Kind kind, String schemaVersion, Object payload, List<Reference> inputs) {

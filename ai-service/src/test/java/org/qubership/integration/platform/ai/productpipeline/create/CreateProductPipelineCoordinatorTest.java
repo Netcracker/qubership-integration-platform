@@ -33,7 +33,6 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
-import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerDag;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRunPin;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
@@ -317,7 +316,6 @@ public class CreateProductPipelineCoordinatorTest {
     private final InMemoryArtifactBlobStore blobs;
     private final ObjectMapper mapper;
     private final FakeKnowledgeClient knowledge;
-    private final ProductPipelineProfile profile;
     private final ProductPipelineProfileCatalog catalog;
     private final Clock clock = Clock.fixed(Instant.parse("2026-07-22T12:00:00Z"), ZoneOffset.UTC);
     private final AtomicInteger materializationCalls = new AtomicInteger();
@@ -332,12 +330,10 @@ public class CreateProductPipelineCoordinatorTest {
         InMemoryArtifactBlobStore blobs,
         ObjectMapper mapper,
         FakeKnowledgeClient knowledge,
-        ProductPipelineProfile profile,
         ProductPipelineProfileCatalog catalog) {
       this.blobs = blobs;
       this.mapper = mapper;
       this.knowledge = knowledge;
-      this.profile = profile;
       this.catalog = catalog;
     }
 
@@ -352,7 +348,6 @@ public class CreateProductPipelineCoordinatorTest {
           new InMemoryArtifactBlobStore(),
           mapper,
           FakeKnowledgeClient.defaultFixture(),
-          approvalProfile,
           new ProductPipelineProfileCatalog(List.of(approvalProfile)));
     }
 

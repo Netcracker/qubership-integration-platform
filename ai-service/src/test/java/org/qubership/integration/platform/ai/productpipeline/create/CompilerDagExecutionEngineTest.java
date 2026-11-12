@@ -1291,13 +1291,6 @@ class CompilerDagExecutionEngineTest {
   }
 
   private CompilerDagExecutionResult executeCompleteTaskDag(
-      DefaultCompilerDagExecutionEngine mapped,
-      String conversationId,
-      ResolvedCompilerDag dag) {
-    return executeCompleteTaskDag(mapped, conversationId, dag, completeTaskBrief());
-  }
-
-  private CompilerDagExecutionResult executeCompleteTaskDag(
       DefaultCompilerDagExecutionEngine mapped, String conversationId, ResolvedCompilerDag dag,
       RequirementBrief completeTaskBrief) {
     ChainSemanticRevision revision = SemanticFixtures.linearOrdersWithCompleteTask();

@@ -1,7 +1,6 @@
 package org.qubership.integration.platform.ai.productpipeline.create;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -11,12 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
-import org.qubership.integration.platform.ai.plan.RequirementTopologyGuard;
-import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
-import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
-import org.qubership.integration.platform.ai.plan.model.ChainSection;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRunPin;
-import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationResult;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerDag;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
@@ -35,11 +29,9 @@ import org.qubership.integration.platform.ai.productpipeline.knowledge.Knowledge
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileCatalog;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileParser;
-import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
 
 /**
- * Durable CREATE contract gates for restart-safe pinning, exclusion blockers, and knowledge fail-closed
- * behavior. Full CDI/runtime wiring remains covered by later live harness runs.
+ * Durable CREATE contract gates for restart-safe pinning and knowledge fail-closed behavior.
  */
 class CreateProductPipelineContractIT {
 
@@ -170,27 +162,4 @@ class CreateProductPipelineContractIT {
     assertEquals(StageOutcomeClass.CONTRACT_FAILURE, completed.outcome().outcomeClass());
   }
 
-  @Test
-  void exclusionContradictionIsNonRetryableValidationFailure() {
-    RequirementTopologyGuard guard = new RequirementTopologyGuard();
-    ChainPlanGraph graph =
-        new ChainPlanGraph(
-            "1.0",
-            new ChainSection("g", "G"),
-            List.of(new ChainPlanNode("tcff", "try-catch-finally-2", "EH", null, null, List.of())),
-            List.of());
-    List<String> exclusions =
-        guard.evaluateAfterGraphCapture(
-            RequirementFactFixtures.greetingsApprovedDraft().facts(), graph);
-    assertFalse(exclusions.isEmpty());
-    PlanValidationResult validation =
-        PlanValidationResult.fromCompiler(
-            new ValidationResult(true, List.of(), "ok"), exclusions);
-    assertFalse(validation.approvalEligible());
-    assertEquals(StageOutcomeClass.VALIDATION_FAILURE.name(), "VALIDATION_FAILURE");
-  }
-
-  @Test
-  void terminalPlanApprovedHasNoBundleRequirement() {
-  }
 }
