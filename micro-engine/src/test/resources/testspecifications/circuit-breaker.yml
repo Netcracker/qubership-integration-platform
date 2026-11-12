@@ -22,10 +22,14 @@ fixtures:
     deployment: "circuit-breaker-timing"
 scenarios:
   - id: "waits-for-minimum-call-count"
+    expectedBehavior: "Keep the breaker closed for the first ninety-nine failed calls and open it on the hundredth call."
     scope: Long
     endpointUri: "cip-chain:0453266a-e2e6-4722-af8b-bf563754984c"
     invocations:
       - id: "keeps-closed-before-hundredth-failure"
+        expectedBehavior: >-
+          Forward ninety-nine failing requests, return fallback each time, and keep the breaker closed below its
+          minimum call count.
         repeat: 99
         body: "Original"
         expectedBody: "On Fallback"
@@ -53,6 +57,7 @@ scenarios:
           - fixture: "timed-breaker"
             expectedState: "CLOSED"
       - id: "opens-on-hundredth-failure"
+        expectedBehavior: "Forward the hundredth failed request, return fallback, and open the breaker."
         body: "Original"
         expectedBody: "On Fallback"
         expectedProperties:
@@ -80,10 +85,14 @@ scenarios:
             expectedState: "CLOSED"
 
   - id: "evicts-old-successes-from-sliding-window"
+    expectedBehavior: >-
+      Evict earlier successes from the count window and open the breaker when failures reach half of the current
+      window.
     scope: Long
     endpointUri: "cip-chain:0453266a-e2e6-4722-af8b-bf563754984c"
     invocations:
       - id: "fills-window-with-successes"
+        expectedBehavior: "Fill the count window with one hundred successful upstream calls while the breaker stays closed."
         repeat: 100
         body: "Original"
         expectedBody: { "id": 1, "name": "doggie", "photoUrls": [] }
@@ -113,6 +122,9 @@ scenarios:
           - fixture: "timed-breaker"
             expectedState: "CLOSED"
       - id: "keeps-closed-below-window-failure-threshold"
+        expectedBehavior: >-
+          Forward forty-nine failing calls and return fallback while failures remain below half of the sliding
+          window.
         repeat: 49
         body: "Original"
         expectedBody: "On Fallback"
@@ -140,6 +152,7 @@ scenarios:
           - fixture: "timed-breaker"
             expectedState: "CLOSED"
       - id: "opens-when-half-of-window-has-failed"
+        expectedBehavior: "Open the breaker when the next failed call raises the current window's failure rate to fifty percent."
         body: "Original"
         expectedBody: "On Fallback"
         expectedProperties:
@@ -167,10 +180,14 @@ scenarios:
             expectedState: "CLOSED"
 
   - id: "opens-and-recovers"
+    expectedBehavior: >-
+      Open at the configured failure threshold, short-circuit without upstream requests, and close only after
+      successful half-open probes.
     scope: Short
     endpointUri: "cip-chain:0453266a-e2e6-4722-af8b-bf563754984c"
     invocations:
       - id: "records-successes-while-closed"
+        expectedBehavior: "Forward fifty successful calls and return the upstream responses while the breaker stays closed."
         repeat: 50
         body: "Original"
         headers:
@@ -207,6 +224,9 @@ scenarios:
           - fixture: "timed-breaker"
             expectedState: "CLOSED"
       - id: "records-failures-below-minimum-call-count"
+        expectedBehavior: >-
+          Forward forty-nine failed calls with fallback while the total call count remains below the minimum for
+          opening.
         repeat: 49
         body: "Original"
         headers:
@@ -245,6 +265,7 @@ scenarios:
           - fixture: "timed-breaker"
             expectedState: "CLOSED"
       - id: "opens-at-failure-rate-threshold"
+        expectedBehavior: "Return fallback for the next failed upstream call and open the breaker at the configured failure rate."
         body: "Original"
         headers:
           "X-Test-Request": "request-value"
@@ -282,6 +303,7 @@ scenarios:
           - fixture: "timed-breaker"
             expectedState: "CLOSED"
       - id: "short-circuits-while-open"
+        expectedBehavior: "Return fallback while open without issuing an upstream request."
         body: "Original"
         headers:
           "X-Test-Request": "request-value"
@@ -317,6 +339,7 @@ scenarios:
           - fixture: "timed-breaker"
             expectedState: "CLOSED"
       - id: "records-failed-half-open-probes"
+        expectedBehavior: "Forward nine failed recovery probes with fallback while the breaker remains half-open."
         repeat: 9
         body: "Original"
         headers:
@@ -356,6 +379,7 @@ scenarios:
           - fixture: "timed-breaker"
             expectedState: "CLOSED"
       - id: "reopens-after-failed-half-open-calls"
+        expectedBehavior: "Forward the final failed recovery probe and reopen the breaker."
         body: "Original"
         headers:
           "X-Test-Request": "request-value"
@@ -393,6 +417,7 @@ scenarios:
           - fixture: "timed-breaker"
             expectedState: "CLOSED"
       - id: "short-circuits-after-failed-recovery"
+        expectedBehavior: "Return fallback after failed recovery without forwarding another upstream request."
         body: "Original"
         headers:
           "X-Test-Request": "request-value"
@@ -428,6 +453,9 @@ scenarios:
           - fixture: "timed-breaker"
             expectedState: "CLOSED"
       - id: "permits-half-open-probes"
+        expectedBehavior: >-
+          Forward nine successful recovery probes and return their responses while the breaker remains half-
+          open.
         repeat: 9
         body: "Original"
         headers:
@@ -465,6 +493,7 @@ scenarios:
           - fixture: "timed-breaker"
             expectedState: "CLOSED"
       - id: "closes-after-permitted-half-open-calls"
+        expectedBehavior: "Close the breaker after the final permitted successful probe and return its upstream response."
         body: "Original"
         headers:
           "X-Test-Request": "request-value"
@@ -500,6 +529,7 @@ scenarios:
           - fixture: "timed-breaker"
             expectedState: "CLOSED"
       - id: "serves-requests-after-recovery"
+        expectedBehavior: "Forward and return a normal successful request through the recovered closed breaker."
         body: "Original"
         headers:
           "X-Test-Request": "request-value"
@@ -536,10 +566,14 @@ scenarios:
             expectedState: "CLOSED"
 
   - id: automatically-transitions-from-open-to-half-open
+    expectedBehavior: >-
+      Open after the minimum failed calls, wait for the native recovery interval, and close after two successful
+      half-open probes.
     scope: Long
     endpointUri: cip-chain:1a76f830-1b79-47d0-ac8f-3811a556572c
     invocations:
       - id: records-failures-before-minimum-call-count
+        expectedBehavior: "Forward three failing requests with fallback and keep the timed breaker closed."
         repeat: 3
         body: Original
         expectedBody: On Fallback
@@ -569,6 +603,7 @@ scenarios:
           - fixture: timed-breaker
             expectedState: CLOSED
       - id: opens-after-fourth-failure
+        expectedBehavior: "Forward the fourth failed request and open the timed breaker."
         body: Original
         expectedBody: On Fallback
         expectedProperties:
@@ -597,6 +632,7 @@ scenarios:
           - fixture: timed-breaker
             expectedState: OPEN
       - id: rejects-requests-before-recovery
+        expectedBehavior: "Return fallback before the recovery interval ends, with zero upstream requests."
         body: Original
         expectedBody: On Fallback
         expectedProperties:
@@ -627,6 +663,7 @@ scenarios:
           - fixture: timed-breaker
             expectedState: OPEN
       - id: observes-half-open-before-first-recovery-request
+        expectedBehavior: "Observe the native transition to half-open before forwarding the first successful recovery request."
         body: Original
         expectedBody:
           id: 1
@@ -663,6 +700,7 @@ scenarios:
             awaitState: HALF_OPEN
             expectedState: HALF_OPEN
       - id: closes-after-second-recovery-request
+        expectedBehavior: "Forward the second successful recovery request and close the timed breaker."
         body: Original
         expectedBody:
           id: 1
@@ -698,10 +736,14 @@ scenarios:
           - fixture: timed-breaker
             expectedState: CLOSED
   - id: opens-when-half-of-successful-calls-are-slow
+    expectedBehavior: >-
+      Count slow successful calls toward the slow-call threshold, open the breaker, and use fallback without
+      another upstream call.
     scope: Long
     endpointUri: cip-chain:1a76f830-1b79-47d0-ac8f-3811a556572c
     invocations:
       - id: records-two-fast-successful-calls
+        expectedBehavior: "Forward two fast successful calls and keep the timed breaker closed."
         repeat: 2
         body: Original
         expectedBody:
@@ -738,6 +780,9 @@ scenarios:
           - fixture: timed-breaker
             expectedState: CLOSED
       - id: records-first-slow-successful-call
+        expectedBehavior: >-
+          Return the first delayed successful response while the slow-call rate remains below the opening
+          threshold.
         body: Original
         expectedBody:
           id: 1
@@ -774,6 +819,9 @@ scenarios:
           - fixture: timed-breaker
             expectedState: CLOSED
       - id: opens-after-second-slow-successful-call
+        expectedBehavior: >-
+          Return the second delayed successful response and open when slow calls reach half of the recorded
+          calls.
         body: Original
         expectedBody:
           id: 1
@@ -810,6 +858,7 @@ scenarios:
           - fixture: timed-breaker
             expectedState: OPEN
       - id: uses-fallback-after-slow-call-threshold
+        expectedBehavior: "Return fallback from the open breaker without making another upstream request."
         body: Original
         expectedBody: On Fallback
         expectedProperties:

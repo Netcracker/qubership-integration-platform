@@ -5,6 +5,9 @@ fixtures:
 
 scenarios:
   - id: "retries-failed-session-from-checkpoint"
+    expectedBehavior: >-
+      Save the failed session's checkpoint and resume from it with original or replacement payloads and restored
+      session identifiers.
     scope: Short
     driver:
       provider: "http-trigger"
@@ -13,6 +16,7 @@ scenarios:
         path: "/routes/checkpoint-start"
     invocations:
       - id: "fails-after-saving-checkpoint"
+        expectedBehavior: "Save the checkpoint before propagating the scripted RuntimeException."
         body: "original payload"
         headers:
           X-Checkpoint-Test: "original header"
@@ -27,6 +31,9 @@ scenarios:
             expectedState: "SAVED"
 
       - id: "restores-checkpoint-and-completes"
+        expectedBehavior: >-
+          Resume the stored checkpoint with its original body and property, preserving the original and parent
+          session identifiers.
         driver:
           provider: "http-trigger"
           parameters:
@@ -48,6 +55,9 @@ scenarios:
             expectedState: "RESTORED"
 
       - id: "restores-checkpoint-with-replacement-payload"
+        expectedBehavior: >-
+          Resume the checkpoint with replacement body and property while retaining the failed session as
+          original and parent.
         driver:
           provider: "http-trigger"
           parameters:
@@ -71,10 +81,12 @@ scenarios:
             expectedState: "RESTORED"
 
   - id: "skips-checkpoint-when-triggered-by-chain-call"
+    expectedBehavior: "Propagate the child failure without storing a checkpoint when execution starts through Chain Call."
     scope: Short
     endpointUri: "cip-chain:1fdf8320-5663-41b5-b121-8c7ff75b50ae"
     invocations:
       - id: "skips-checkpoint-storage"
+        expectedBehavior: "Propagate the child failure without storing a checkpoint when execution starts through Chain Call."
         body: "unsaved payload"
         expectedFailure:
           type: "java.lang.RuntimeException"

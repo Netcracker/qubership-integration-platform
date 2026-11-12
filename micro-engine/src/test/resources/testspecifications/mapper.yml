@@ -1,6 +1,9 @@
 # yaml-language-server: $schema=../testspecifications.schema.json
 scenarios:
   - id: "maps-customer-and-generates-values"
+    expectedBehavior: >-
+      Map customer fields, dictionary values, constants, and generated UUID/date-time formats; update target
+      metadata and clear internal mapping properties.
     scope: Short
     driver:
       provider: routeSelector
@@ -43,12 +46,16 @@ scenarios:
       internalProperty_mappingThrowException: null
 
   - id: maps-all-dictionary-entries-and-unknown-country-fallback
+    expectedBehavior: >-
+      Map each configured country dictionary entry and use its default for an unknown key while preserving
+      unrelated metadata.
     scope: Short
     driver:
       provider: routeSelector
       sourceElementId: 49e5f58d-bc48-4c85-adbd-0aa107a9a95e
     invocations:
       - id: looks-up-the-netherlands
+        expectedBehavior: "Map country code NL to the configured Netherland dictionary value and update the customer ID metadata."
         body: '{"personId":"person-nl","phone":"nl-phone","firstName":"Ada","lastName":"Dutch","marketingConsent":true,"email":"nl@example.com","countryCode":"NL","city":"Amsterdam"}'
         headers:
           Content-Type: text/plain
@@ -82,6 +89,9 @@ scenarios:
           internalProperty_mappingId: null
           internalProperty_mappingThrowException: null
       - id: looks-up-antarctica
+        expectedBehavior: >-
+          Map country code AQ to Antarctica while producing the current customer's mapped fields and generated
+          value formats.
         body: '{"personId":"person-aq","phone":"aq-phone","firstName":"Grace","lastName":"Polar","marketingConsent":true,"email":"aq@example.com","countryCode":"AQ","city":"McMurdo"}'
         headers:
           Content-Type: text/plain
@@ -115,6 +125,7 @@ scenarios:
           internalProperty_mappingId: null
           internalProperty_mappingThrowException: null
       - id: uses-the-dictionary-fallback-for-an-unknown-key
+        expectedBehavior: "Map an unconfigured country code to Planet Earth rather than omitting the residence field."
         body: '{"personId":"person-gb","phone":"gb-phone","firstName":"Alan","lastName":"Turing","marketingConsent":true,"email":"gb@example.com","countryCode":"GB","city":"London"}'
         headers:
           Content-Type: text/plain
@@ -148,12 +159,14 @@ scenarios:
           internalProperty_mappingId: null
           internalProperty_mappingThrowException: null
   - id: preserves-false-consent-and-excludes-unmapped-source-fields
+    expectedBehavior: "Preserve false consent in the mapped output and omit source fields with no mapping action."
     scope: Short
     driver:
       provider: routeSelector
       sourceElementId: 49e5f58d-bc48-4c85-adbd-0aa107a9a95e
     invocations:
       - id: maps-false-without-dropping-it-or-copying-birth-date
+        expectedBehavior: "Preserve false consent in the mapped output and omit source fields with no mapping action."
         body: '{"personId":"person-false","phone":"false-phone","firstName":"Grace","lastName":"Hopper","marketingConsent":false,"email":"grace@example.com","countryCode":"US","city":"New
           York","birthDate":"1906-12-09"}'
         headers:
@@ -188,12 +201,14 @@ scenarios:
           internalProperty_mappingId: null
           internalProperty_mappingThrowException: null
   - id: preserves-unicode-and-json-special-characters
+    expectedBehavior: "Preserve Unicode, quotes, backslashes, and line breaks in mapped JSON fields and target metadata."
     scope: Short
     driver:
       provider: routeSelector
       sourceElementId: 49e5f58d-bc48-4c85-adbd-0aa107a9a95e
     invocations:
       - id: round-trips-quotes-backslashes-and-line-breaks
+        expectedBehavior: "Preserve Unicode, quotes, backslashes, and line breaks in mapped JSON fields and target metadata."
         body: '{"personId":"person-café","phone":"+1-202-555-0199","firstName":"José \"Pepe\"","lastName":"O\\Connor
           & <family>","marketingConsent":false,"email":"jose+test@example.com","countryCode":"NL","city":"Café\nRoom
           \"A\" \\ HQ"}'
@@ -231,12 +246,18 @@ scenarios:
           internalProperty_mappingId: null
           internalProperty_mappingThrowException: null
   - id: handles-missing-optional-fields
+    expectedBehavior: >-
+      Omit absent direct fields, apply the configured expression and dictionary fallback, and retain incoming
+      target metadata when its source is absent.
     scope: Short
     driver:
       provider: routeSelector
       sourceElementId: 49e5f58d-bc48-4c85-adbd-0aa107a9a95e
     invocations:
       - id: maps-a-minimal-customer-with-a-missing-last-name
+        expectedBehavior: >-
+          Map the supplied ID and first name, use an empty last-name expression operand and country fallback,
+          and omit absent direct fields.
         body: '{"personId":"person-minimal","firstName":"Grace"}'
         headers:
           Content-Type: text/plain
@@ -266,6 +287,9 @@ scenarios:
           internalProperty_mappingId: null
           internalProperty_mappingThrowException: null
       - id: maps-an-empty-object-and-retains-incoming-target-metadata
+        expectedBehavior: >-
+          Map an empty source object using the configured constants, expression, and dictionary fallback while
+          retaining incoming target ID metadata.
         body: '{}'
         headers:
           Content-Type: text/plain
@@ -294,12 +318,16 @@ scenarios:
           internalProperty_mappingId: null
           internalProperty_mappingThrowException: null
   - id: handles-null-optional-fields
+    expectedBehavior: >-
+      Omit null direct fields, evaluate configured expressions and fallback, and preserve incoming target
+      metadata for a null person ID.
     scope: Short
     driver:
       provider: routeSelector
       sourceElementId: 49e5f58d-bc48-4c85-adbd-0aa107a9a95e
     invocations:
       - id: omits-null-direct-fields-and-evaluates-the-expression
+        expectedBehavior: "Omit null direct fields while evaluating the name expression and using the dictionary fallback."
         body: '{"personId":"person-null","phone":null,"firstName":null,"lastName":"Hopper","marketingConsent":null,"email":null,"countryCode":null,"city":null}'
         headers:
           Content-Type: text/plain
@@ -329,6 +357,7 @@ scenarios:
           internalProperty_mappingId: null
           internalProperty_mappingThrowException: null
       - id: retains-incoming-target-metadata-when-person-id-is-null
+        expectedBehavior: "Preserve the incoming target ID header and property when the source person ID is explicitly null."
         body: '{"personId":null,"phone":null,"firstName":null,"lastName":null,"marketingConsent":null,"email":null,"countryCode":null,"city":null}'
         headers:
           Content-Type: text/plain
@@ -357,12 +386,18 @@ scenarios:
           internalProperty_mappingId: null
           internalProperty_mappingThrowException: null
   - id: preserves-empty-strings-and-overwrites-target-metadata
+    expectedBehavior: >-
+      Keep mapped empty strings distinct from null and overwrite existing target metadata with an explicitly
+      empty source ID.
     scope: Short
     driver:
       provider: routeSelector
       sourceElementId: 49e5f58d-bc48-4c85-adbd-0aa107a9a95e
     invocations:
       - id: keeps-empty-values-distinct-from-null
+        expectedBehavior: >-
+          Keep mapped empty strings distinct from null and overwrite existing target metadata with an explicitly
+          empty source ID.
         body: '{"personId":"","phone":"","firstName":"","lastName":"","marketingConsent":false,"email":"","countryCode":"","city":""}'
         headers:
           Content-Type: text/plain
@@ -396,12 +431,18 @@ scenarios:
           internalProperty_mappingId: null
           internalProperty_mappingThrowException: null
   - id: isolates-cached-mapping-between-invocations
+    expectedBehavior: >-
+      Reuse the cached mapping without retaining fields or target metadata from earlier complete or sparse
+      requests.
     scope: Short
     driver:
       provider: routeSelector
       sourceElementId: 49e5f58d-bc48-4c85-adbd-0aa107a9a95e
     invocations:
       - id: maps-the-first-complete-customer
+        expectedBehavior: >-
+          Map every configured field of the first complete customer and replace incoming target metadata with
+          its ID.
         body: '{"personId":"cache-first","phone":"first-phone","firstName":"First","lastName":"Customer","marketingConsent":true,"email":"first@example.com","countryCode":"NL","city":"First
           city"}'
         headers:
@@ -436,6 +477,9 @@ scenarios:
           internalProperty_mappingId: null
           internalProperty_mappingThrowException: null
       - id: does-not-reuse-fields-from-the-first-customer
+        expectedBehavior: >-
+          Map only fields available in the sparse customer without leaking direct fields or ID metadata from the
+          first request.
         body: '{"personId":"cache-second","firstName":"Second"}'
         headers:
           Content-Type: text/plain
@@ -465,6 +509,9 @@ scenarios:
           internalProperty_mappingId: null
           internalProperty_mappingThrowException: null
       - id: maps-fresh-values-after-the-sparse-customer
+        expectedBehavior: >-
+          Populate all mapped fields from the third customer's fresh input rather than either preceding cached-
+          session result.
         body: '{"personId":"cache-third","phone":"third-phone","firstName":"Third","lastName":"Customer","marketingConsent":false,"email":"third@example.com","countryCode":"AQ","city":"Third
           city"}'
         headers:
@@ -500,12 +547,18 @@ scenarios:
           internalProperty_mappingThrowException: null
 
   - id: maps-body-and-metadata-sources-without-state-leakage
+    expectedBehavior: >-
+      Build JSON from body, header, and property sources without reusing missing metadata from prior
+      invocations.
     scope: Short
     driver:
       provider: routeSelector
       sourceElementId: 2b66944e-4a13-517d-80b1-9803e27cad00
     invocations:
       - id: maps-body-header-and-property-into-the-json-body
+        expectedBehavior: >-
+          Combine the current body ID, region header, and correlation property into JSON while preserving
+          unrelated metadata.
         body: '{"customerId":"M-1"}'
         headers:
           Content-Type: text/plain
@@ -529,6 +582,7 @@ scenarios:
           internalProperty_mappingId: null
           internalProperty_mappingThrowException: null
       - id: omits-missing-metadata-without-reusing-the-previous-input
+        expectedBehavior: "Omit absent header/property source fields without retaining values from the previous request."
         body: '{"customerId":"M-2"}'
         headers:
           Content-Type: text/plain
@@ -549,6 +603,9 @@ scenarios:
         expectedAbsentHeaders:
           - X-Region
       - id: uses-fresh-unicode-and-empty-metadata-values
+        expectedBehavior: >-
+          Map the fresh Unicode region and explicitly empty correlation property without replacing them with
+          previous values.
         body: '{"customerId":"M-3"}'
         headers:
           Content-Type: text/plain
@@ -572,12 +629,18 @@ scenarios:
           internalProperty_mappingId: null
           internalProperty_mappingThrowException: null
   - id: distinguishes-schema-and-transformation-defaults-and-conditional-branches
+    expectedBehavior: >-
+      Distinguish missing, null, empty, and supplied inputs for both kinds of defaults and select both
+      conditional branches.
     scope: Short
     driver:
       provider: routeSelector
       sourceElementId: 3ad880d6-8a3b-5ddb-a6d4-d0b4252346ee
     invocations:
       - id: uses-both-defaults-for-missing-fields
+        expectedBehavior: >-
+          Apply both the schema default and transformation default to missing fields and select the active
+          conditional branch.
         body: '{"status":"active"}'
         headers:
           Content-Type: text/plain
@@ -597,6 +660,9 @@ scenarios:
           internalProperty_mappingId: null
           internalProperty_mappingThrowException: null
       - id: distinguishes-explicit-null-from-a-missing-schema-field
+        expectedBehavior: >-
+          Omit the explicitly null schema field, apply the transformation default to null, and select the
+          inactive conditional branch.
         body: '{"schemaInput":null,"fallbackInput":null,"status":"inactive"}'
         headers:
           Content-Type: text/plain
@@ -615,6 +681,9 @@ scenarios:
           internalProperty_mappingId: null
           internalProperty_mappingThrowException: null
       - id: preserves-an-empty-schema-value-and-applies-the-transformation-default
+        expectedBehavior: >-
+          Preserve the empty schema field while replacing the empty transformation input with its default and
+          selecting the active branch.
         body: '{"schemaInput":"","fallbackInput":"","status":"active"}'
         headers:
           Content-Type: text/plain
@@ -634,6 +703,7 @@ scenarios:
           internalProperty_mappingId: null
           internalProperty_mappingThrowException: null
       - id: uses-supplied-values-and-the-false-condition-branch
+        expectedBehavior: "Keep both supplied values rather than their defaults and select the inactive conditional branch."
         body: '{"schemaInput":"provided-schema","fallbackInput":"provided-fallback","status":"inactive"}'
         headers:
           Content-Type: text/plain
@@ -653,6 +723,9 @@ scenarios:
           internalProperty_mappingId: null
           internalProperty_mappingThrowException: null
       - id: restores-defaults-after-a-fully-populated-request
+        expectedBehavior: >-
+          Apply the defaults again to missing fields without retaining supplied values from the previous
+          request.
         body: '{"status":"active"}'
         headers:
           Content-Type: text/plain
@@ -672,12 +745,18 @@ scenarios:
           internalProperty_mappingId: null
           internalProperty_mappingThrowException: null
   - id: maps-nested-objects-and-collections-with-stable-item-association
+    expectedBehavior: >-
+      Map nested objects and collections while preserving item order and association, omitting empty arrays, and
+      clearing prior results.
     scope: Short
     driver:
       provider: routeSelector
       sourceElementId: cd429e00-0415-5441-80cd-13a24bfbd763
     invocations:
       - id: preserves-order-and-association-across-nested-array-items
+        expectedBehavior: >-
+          Preserve order, duplicate primitive values, nested item association, and zero quantities while
+          renaming the mapped collection fields.
         body: '{"profile":{"name":"Multiple orders","active":true},"orders":[{"id":"ORDER-B","quantity":2,"items":[{"sku":"SKU-B2","count":5},{"sku":"SKU-B1","count":0}]},{"id":"ORDER-A","quantity":0,"items":[{"sku":"SKU-A1","count":3}]}],"tags":["priority","café","priority"],"unmapped":"drop-me"}'
         headers:
           Content-Type: text/plain
@@ -714,6 +793,9 @@ scenarios:
           internalProperty_mappingId: null
           internalProperty_mappingThrowException: null
       - id: maps-one-order-and-omits-its-empty-nested-array
+        expectedBehavior: >-
+          Map one order and primitive label, preserve false and zero, and omit the order's empty nested item
+          array.
         body: '{"profile":{"name":"No lines","active":false},"orders":[{"id":"ORDER-EMPTY","quantity":0,"items":[]}],"tags":["single"]}'
         headers:
           Content-Type: text/plain
@@ -738,6 +820,9 @@ scenarios:
           internalProperty_mappingId: null
           internalProperty_mappingThrowException: null
       - id: omits-empty-arrays-and-clears-the-previous-mapping-result
+        expectedBehavior: >-
+          Return the current profile without purchases or labels when both arrays are empty, with no previous
+          collection data retained.
         body: '{"profile":{"name":"Empty cart","active":false},"orders":[],"tags":[]}'
         headers:
           Content-Type: text/plain
@@ -757,6 +842,9 @@ scenarios:
           internalProperty_mappingId: null
           internalProperty_mappingThrowException: null
       - id: maps-one-item-after-empty-collections
+        expectedBehavior: >-
+          Map a fresh single order, nested item, and label after empty collections without reusing earlier item
+          data.
         body: '{"profile":{"name":"New order","active":true},"orders":[{"id":"ORDER-NEW","quantity":1,"items":[{"sku":"SKU-NEW","count":1}]}],"tags":["new"]}'
         headers:
           Content-Type: text/plain
@@ -784,12 +872,18 @@ scenarios:
           internalProperty_mappingId: null
           internalProperty_mappingThrowException: null
   - id: maps-json-to-xml-with-attributes-and-namespaces
+    expectedBehavior: >-
+      Generate namespaced XML elements and attributes from JSON, preserving booleans, Unicode, and escaped
+      values while excluding unmapped fields.
     scope: Short
     driver:
       provider: routeSelector
       sourceElementId: fb976e37-c385-5614-8058-e2af509c70eb
     invocations:
       - id: maps-attributes-and-namespaced-elements
+        expectedBehavior: >-
+          Map the customer ID attribute, namespaced fields, and true boolean into the expected namespaced XML
+          result.
         body: '{"customerId":"C-100","displayName":"Ada Lovelace","enabled":true,"unmapped":"drop-me"}'
         headers:
           Content-Type: text/plain
@@ -808,6 +902,9 @@ scenarios:
           internalProperty_mappingId: null
           internalProperty_mappingThrowException: null
       - id: preserves-unicode-and-xml-special-characters
+        expectedBehavior: >-
+          Preserve Unicode, false, quotes, ampersands, and angle brackets when converting the customer to
+          namespaced XML.
         body: '{"customerId":"C&\"<200>","displayName":"José & <Café>","enabled":false,"unmapped":"drop-me"}'
         headers:
           Content-Type: text/plain
@@ -827,6 +924,9 @@ scenarios:
           internalProperty_mappingId: null
           internalProperty_mappingThrowException: null
       - id: maps-a-new-document-and-excludes-unmapped-fields
+        expectedBehavior: >-
+          Map a fresh customer document into namespaced XML, excluding unmapped input fields and previous
+          customer values.
         body: '{"customerId":"C-300","displayName":"Grace Hopper","enabled":true,"unmapped":"drop-me"}'
         headers:
           Content-Type: text/plain
@@ -845,12 +945,16 @@ scenarios:
           internalProperty_mappingId: null
           internalProperty_mappingThrowException: null
   - id: maps-xml-to-json-with-attributes-and-namespaces
+    expectedBehavior: >-
+      Read namespaced XML elements and attributes into JSON, preserving booleans and decoded special characters
+      while excluding unmapped fields.
     scope: Short
     driver:
       provider: routeSelector
       sourceElementId: 48fedc9a-5be7-5113-94b0-3f189f2e3832
     invocations:
       - id: maps-attributes-and-namespaced-elements
+        expectedBehavior: "Map the customer ID attribute, namespaced fields, and true boolean into the expected JSON result."
         body: <c:customer xmlns:c="urn:qip:customer" id="C-100"><c:active>true</c:active><c:name>Ada Lovelace</c:name><c:unmapped>drop-me</c:unmapped></c:customer>
         headers:
           Content-Type: text/plain
@@ -870,6 +974,7 @@ scenarios:
           internalProperty_mappingId: null
           internalProperty_mappingThrowException: null
       - id: preserves-unicode-and-xml-special-characters
+        expectedBehavior: "Preserve Unicode, false, quotes, ampersands, and angle brackets when converting the customer to JSON."
         body: <c:customer xmlns:c="urn:qip:customer" id='C&amp;"&lt;200&gt;'><c:active>false</c:active><c:name>José
           &amp; &lt;Café&gt;</c:name><c:unmapped>drop-me</c:unmapped></c:customer>
         headers:
@@ -890,6 +995,7 @@ scenarios:
           internalProperty_mappingId: null
           internalProperty_mappingThrowException: null
       - id: maps-a-new-document-and-excludes-unmapped-fields
+        expectedBehavior: "Map a fresh customer document into JSON, excluding unmapped input fields and previous customer values."
         body: <c:customer xmlns:c="urn:qip:customer" id="C-300"><c:active>true</c:active><c:name>Grace Hopper</c:name><c:unmapped>drop-me</c:unmapped></c:customer>
         headers:
           Content-Type: text/plain
@@ -909,12 +1015,18 @@ scenarios:
           internalProperty_mappingId: null
           internalProperty_mappingThrowException: null
   - id: throws-on-conversion-failure-and-recovers
+    expectedBehavior: >-
+      Throw the exact numeric source-conversion error in strict mode without replacing the input, then map a
+      fresh valid request successfully.
     scope: Short
     driver:
       provider: routeSelector
       sourceElementId: 67072068-dc19-5b48-bae0-42cd16df5a86
     invocations:
       - id: maps-valid-numeric-text
+        expectedBehavior: >-
+          Convert valid numeric text to a JSON number, preserve the current ID, and remove internal mapping
+          properties.
         body: '{"id":"first","amount":"12.5"}'
         headers:
           Content-Type: text/plain
@@ -933,6 +1045,9 @@ scenarios:
           internalProperty_mappingId: null
           internalProperty_mappingThrowException: null
       - id: reports-invalid-numeric-text
+        expectedBehavior: >-
+          Throw the exact conversion exception without a cause, retaining the original body, content type, and
+          unrelated request metadata.
         body: '{"id":"invalid","amount":"not-a-number"}'
         headers:
           Content-Type: text/plain
@@ -950,6 +1065,9 @@ scenarios:
         expectedProperties:
           marker: invalid
       - id: recovers-with-fresh-valid-text
+        expectedBehavior: >-
+          Convert a fresh valid amount after the failed conversion, returning the new ID and clearing internal
+          mapping properties.
         body: '{"id":"fresh","amount":"3.25"}'
         headers:
           Content-Type: text/plain
@@ -968,12 +1086,18 @@ scenarios:
           internalProperty_mappingId: null
           internalProperty_mappingThrowException: null
   - id: continues-on-conversion-failure-and-recovers
+    expectedBehavior: >-
+      Continue after numeric source-conversion failure in tolerant mode, omit the invalid field, and map the
+      next valid request successfully.
     scope: Short
     driver:
       provider: routeSelector
       sourceElementId: 9639349a-94eb-5fda-b537-92749fba6b23
     invocations:
       - id: maps-valid-numeric-text
+        expectedBehavior: >-
+          Convert valid numeric text to a JSON number, preserve the current ID, and remove internal mapping
+          properties.
         body: '{"id":"first","amount":"12.5"}'
         headers:
           Content-Type: text/plain
@@ -992,6 +1116,9 @@ scenarios:
           internalProperty_mappingId: null
           internalProperty_mappingThrowException: null
       - id: continues-after-invalid-numeric-text
+        expectedBehavior: >-
+          Complete without an execution exception, omit the invalid amount, retain the current ID, and clear
+          internal mapping properties.
         body: '{"id":"invalid","amount":"not-a-number"}'
         headers:
           Content-Type: text/plain
@@ -1009,6 +1136,9 @@ scenarios:
           internalProperty_mappingId: null
           internalProperty_mappingThrowException: null
       - id: recovers-with-fresh-valid-text
+        expectedBehavior: >-
+          Convert a fresh valid amount after the failed conversion, returning the new ID and clearing internal
+          mapping properties.
         body: '{"id":"fresh","amount":"3.25"}'
         headers:
           Content-Type: text/plain

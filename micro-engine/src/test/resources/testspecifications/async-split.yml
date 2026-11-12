@@ -14,6 +14,9 @@ fixtures:
     deployment: "async-split-isolation"
 scenarios:
   - id: "returns-before-branches-and-executes-all-branches"
+    expectedBehavior: >-
+      Return the original message before asynchronous branches finish, then observe both branch results with
+      their inherited metadata.
     scope: Short
     endpointUri: "cip-chain:bb9d39c1-7457-4c89-9856-27aa84313212"
     body: "Original"
@@ -48,6 +51,9 @@ scenarios:
         expectedExchanges: []
 
   - id: "keeps-string-properties-independent-across-async-branches"
+    expectedBehavior: >-
+      Give each asynchronous branch independent string properties while preserving the caller's original body
+      and property.
     scope: Short
     endpointUri: "cip-chain:493a2c37-61ce-4939-b2b6-cd62d33cf404"
     body: "Original"
@@ -69,6 +75,9 @@ scenarios:
               test: "Secondary asynch branch"
 
   - id: "completes-successful-branch-when-another-async-branch-fails"
+    expectedBehavior: >-
+      Complete the main asynchronous branch and capture the secondary branch failure without failing or
+      modifying the caller.
     scope: Short
     endpointUri: "cip-chain:493a2c37-61ce-4939-b2b6-cd62d33cf404"
     body: "Original"

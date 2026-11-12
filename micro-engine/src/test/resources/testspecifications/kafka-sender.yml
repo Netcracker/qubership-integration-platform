@@ -46,12 +46,14 @@ fixtures:
   deployment: kafka-sender-header-keys
 scenarios:
 - id: publishes-scalar-values-with-context-keys-and-routing
+  expectedBehavior: "Publish scalar values with exact keys, routing, partition offsets, and context headers."
   reuseBroker: true
   scope: Short
   deployment: kafka-sender
   endpointUri: cip-chain:20e7a133-e482-4ac0-afdf-26ae1f1f152d
   invocations:
   - id: first
+    expectedBehavior: "Publish the first record with its configured key and context headers."
     body: Kafka message
     headers:
       Authorization: Bearer snapshot-first
@@ -96,6 +98,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: first
   - id: second
+    expectedBehavior: "Publish a fresh record without reusing the previous request context."
     body: "Order received - caf\u00e9"
     headers:
       Authorization: Bearer snapshot-second
@@ -139,6 +142,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: second
   - id: empty
+    expectedBehavior: "Deliver an empty string as a Kafka record rather than a tombstone."
     body: ''
     headers:
       Authorization: Bearer snapshot-empty
@@ -182,6 +186,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: empty
   - id: tombstone
+    expectedBehavior: "Publish a null record value as a tombstone while preserving its configured key."
     body: null
     headers:
       Authorization: Bearer snapshot-tombstone
@@ -225,6 +230,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: tombstone
   - id: header-key
+    expectedBehavior: "Use the Kafka key supplied by the incoming header."
     body: Header key
     headers:
       Authorization: Bearer snapshot-header-key
@@ -267,6 +273,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: header-key
   - id: empty-header-key
+    expectedBehavior: "Preserve an explicitly empty header key instead of falling back to the configured key."
     body: Empty key
     headers:
       Authorization: Bearer snapshot-empty-header-key
@@ -309,6 +316,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: empty-header-key
   - id: no-key
+    expectedBehavior: "Publish with a null key when neither configuration nor headers provide one."
     body: No key
     headers:
       Authorization: Bearer snapshot-no-key
@@ -350,6 +358,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: no-key
   - id: number
+    expectedBehavior: "Convert the numeric scalar to its expected textual Kafka value."
     body: 42
     headers:
       Authorization: Bearer snapshot-number
@@ -394,6 +403,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: number
   - id: boolean
+    expectedBehavior: "Convert the boolean scalar to its expected textual Kafka value."
     body: true
     headers:
       Authorization: Bearer snapshot-boolean
@@ -438,6 +448,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: boolean
   - id: object
+    expectedBehavior: "Publish the expected map string representation rather than JSON serialization."
     body:
       orderId: order-303
       quantity: 2
@@ -488,6 +499,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: object
   - id: overridden
+    expectedBehavior: "Honor the incoming topic, partition, and timestamp overrides for this publication."
     body: Redirected message
     headers:
       Authorization: Bearer snapshot-overridden
@@ -534,6 +546,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: overridden
   - id: default-again
+    expectedBehavior: "Return to the configured destination after the previous request's routing overrides."
     body: Default destination
     headers:
       Authorization: Bearer snapshot-default-again
@@ -577,6 +590,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: default-again
   - id: p0-1
+    expectedBehavior: "Preserve publication order on partition 0 with exact offset 1."
     body: partition 0, message 1
     headers:
       Authorization: Bearer snapshot-p0-1
@@ -620,6 +634,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: p0-1
   - id: p2-1
+    expectedBehavior: "Preserve publication order on partition 2 with exact offset 0."
     body: partition 2, message 1
     headers:
       Authorization: Bearer snapshot-p2-1
@@ -663,6 +678,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: p2-1
   - id: p0-2
+    expectedBehavior: "Preserve publication order on partition 0 with exact offset 2."
     body: partition 0, message 2
     headers:
       Authorization: Bearer snapshot-p0-2
@@ -706,6 +722,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: p0-2
   - id: p2-2
+    expectedBehavior: "Preserve publication order on partition 2 with exact offset 1."
     body: partition 2, message 2
     headers:
       Authorization: Bearer snapshot-p2-2
@@ -749,6 +766,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: p2-2
   - id: p0-3
+    expectedBehavior: "Preserve publication order on partition 0 with exact offset 3."
     body: partition 0, message 3
     headers:
       Authorization: Bearer snapshot-p0-3
@@ -792,6 +810,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: p0-3
   - id: p2-3
+    expectedBehavior: "Preserve publication order on partition 2 with exact offset 2."
     body: partition 2, message 3
     headers:
       Authorization: Bearer snapshot-p2-3
@@ -835,11 +854,14 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: p2-3
 - id: publishes-records-with-context-and-recovers-after-failures
+  expectedBehavior: >-
+    Preserve routing and context across publication, conversion failures, broker faults, and recovery.
   scope: Long
   deployment: kafka-sender
   endpointUri: cip-chain:20e7a133-e482-4ac0-afdf-26ae1f1f152d
   invocations:
   - id: missing-topic
+    expectedBehavior: "Time out without publishing when the destination topic does not exist."
     body: Rejected without topic
     headers:
       Authorization: Bearer snapshot-missing-topic
@@ -891,6 +913,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: missing-topic
   - id: created-topic
+    expectedBehavior: "Publish after the destination topic is created using refreshed topic metadata."
     body: Accepted after topic creation
     headers:
       Authorization: Bearer snapshot-created-topic
@@ -935,6 +958,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: created-topic
   - id: before-deletion
+    expectedBehavior: "Publish a record successfully before deleting the destination topic."
     body: Before deletion
     headers:
       Authorization: Bearer snapshot-before-deletion
@@ -983,6 +1007,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: before-deletion
   - id: deleted-topic
+    expectedBehavior: "Time out without publishing after the destination topic is deleted."
     body: Rejected after deletion
     headers:
       Authorization: Bearer snapshot-deleted-topic
@@ -1026,6 +1051,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: deleted-topic
   - id: recreated-topic
+    expectedBehavior: "Publish to the recreated destination topic with a fresh partition offset."
     body: Accepted after recreation
     headers:
       Authorization: Bearer snapshot-recreated-topic
@@ -1070,6 +1096,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: recreated-topic
   - id: client-near-limit
+    expectedBehavior: "Publish the payload just below the client size limit with one Produce attempt."
     body: x
     headers:
       Authorization: Bearer snapshot-client-near-limit
@@ -1120,6 +1147,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: client-near-limit
   - id: client-oversized
+    expectedBehavior: "Reject the oversized record on the client without attempting Produce."
     body: x
     headers:
       Authorization: Bearer snapshot-client-oversized
@@ -1168,6 +1196,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: client-oversized
   - id: client-recovered
+    expectedBehavior: "Publish a valid record after the client rejected an oversized payload."
     body: Accepted after client size rejection
     headers:
       Authorization: Bearer snapshot-client-recovered
@@ -1212,6 +1241,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: client-recovered
   - id: broker-initial
+    expectedBehavior: "Publish a small record below the configured topic message-size limit."
     body: Accepted below the topic limit
     headers:
       Authorization: Bearer snapshot-broker-initial
@@ -1257,6 +1287,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: broker-initial
   - id: broker-oversized
+    expectedBehavior: "Propagate the broker size rejection after one Produce attempt and store no record."
     body: x
     headers:
       Authorization: Bearer snapshot-broker-oversized
@@ -1304,6 +1335,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: broker-oversized
   - id: broker-recovered
+    expectedBehavior: "Publish a valid record after the broker rejected an oversized payload."
     body: Accepted after broker size rejection
     headers:
       Authorization: Bearer snapshot-broker-recovered
@@ -1348,6 +1380,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: broker-recovered
   - id: broker-raised-limit
+    expectedBehavior: "Publish the larger payload after increasing the topic message-size limit."
     body: x
     headers:
       Authorization: Bearer snapshot-broker-raised-limit
@@ -1399,6 +1432,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: broker-raised-limit
   - id: connection-reset-before-reset
+    expectedBehavior: "Publish a baseline record before interrupting the producer connection."
     body: Before reset
     headers:
       Authorization: Bearer snapshot-before-reset
@@ -1447,6 +1481,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: before-reset
   - id: connection-reset-during-reset
+    expectedBehavior: "Retry the publication after its connection is reset and store one record."
     body: Retried message
     headers:
       Authorization: Bearer snapshot-during-reset
@@ -1491,6 +1526,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: during-reset
   - id: connection-reset-after-reset
+    expectedBehavior: "Publish a fresh record over the recovered producer connection."
     body: After reset
     headers:
       Authorization: Bearer snapshot-after-reset
@@ -1534,6 +1570,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: after-reset
   - id: lost-response-lost-ack
+    expectedBehavior: "Retry the lost acknowledgment and retain both records accepted by the broker."
     body: Accepted twice after a lost acknowledgment
     headers:
       Authorization: Bearer snapshot-lost-ack
@@ -1586,6 +1623,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: lost-ack
   - id: lost-response-after-lost-ack
+    expectedBehavior: "Publish a fresh record after recovery from a lost acknowledgment."
     body: Next message
     headers:
       Authorization: Bearer snapshot-after-lost-ack
@@ -1629,6 +1667,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: after-lost-ack
   - id: before-outage
+    expectedBehavior: "Publish successfully before the simulated producer transport outage."
     body: Before outage
     headers:
       Authorization: Bearer snapshot-before-outage
@@ -1677,6 +1716,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: before-outage
   - id: during-outage
+    expectedBehavior: "Time out during the transport outage without storing the rejected record."
     body: Expired during outage
     headers:
       Authorization: Bearer snapshot-during-outage
@@ -1721,6 +1761,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: during-outage
   - id: after-outage
+    expectedBehavior: "Reconnect and publish successfully after the transport outage ends."
     body: Accepted after reconnection
     headers:
       Authorization: Bearer snapshot-after-outage
@@ -1765,6 +1806,8 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: after-outage
   - id: typed-headers-retry-before-reset
+    expectedBehavior: >-
+      Publish typed Kafka headers with their exact byte representations before resetting the connection.
     body: Before reset
     headers:
       Authorization: Bearer snapshot-before-reset
@@ -1846,6 +1889,7 @@ scenarios:
           X-Long: long
           X-Double: double
   - id: typed-headers-retry-during-reset
+    expectedBehavior: "Preserve the typed header bytes when retrying after a connection reset."
     body: Retried message
     headers:
       Authorization: Bearer snapshot-during-reset
@@ -1921,6 +1965,7 @@ scenarios:
           X-Long: long
           X-Double: double
   - id: typed-headers-retry-after-reset
+    expectedBehavior: "Publish fresh typed header values after recovering the connection."
     body: After reset
     headers:
       Authorization: Bearer snapshot-after-reset
@@ -1997,6 +2042,7 @@ scenarios:
           X-Long: long
           X-Double: double
   - id: typed-headers-retry-lost-ack
+    expectedBehavior: "Preserve typed headers on both accepted copies after a lost acknowledgment."
     body: Accepted twice after a lost acknowledgment
     headers:
       Authorization: Bearer snapshot-lost-ack
@@ -2087,6 +2133,7 @@ scenarios:
           X-Long: long
           X-Double: double
   - id: typed-headers-retry-after-lost-ack
+    expectedBehavior: "Publish fresh typed headers without retaining values from the retried record."
     body: Next message
     headers:
       Authorization: Bearer snapshot-after-lost-ack
@@ -2161,6 +2208,7 @@ scenarios:
           X-Long: long
           X-Double: double
   - id: message-configured-key
+    expectedBehavior: "Apply the configured key to each Message batch item."
     body:
     - body: first
       headers:
@@ -2237,6 +2285,7 @@ scenarios:
         itemType: message
         containerType: list
   - id: exchange-configured-key
+    expectedBehavior: "Apply the configured key to each Exchange batch item."
     driver:
       provider: kafkaBatchInput
       parameters:
@@ -2313,6 +2362,7 @@ scenarios:
             timestamp: 1700000000123
           verifyMetadata: true
   - id: invalid-partition
+    expectedBehavior: "Reject the invalid partition header before any publication reaches Kafka."
     body: Rejected
     headers:
       Authorization: Bearer snapshot-invalid-partition
@@ -2355,6 +2405,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: invalid-partition
   - id: after-invalid-partition
+    expectedBehavior: "Publish successfully after rejecting an invalid partition header."
     body: Accepted
     headers:
       Authorization: Bearer snapshot-valid-partition
@@ -2398,6 +2449,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: valid-partition
   - id: invalid-timestamp
+    expectedBehavior: "Reject the invalid timestamp header before any publication reaches Kafka."
     body: Rejected
     headers:
       Authorization: Bearer snapshot-invalid-timestamp
@@ -2441,6 +2493,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: invalid-timestamp
   - id: after-invalid-timestamp
+    expectedBehavior: "Publish successfully after rejecting an invalid timestamp header."
     body: Accepted
     headers:
       Authorization: Bearer snapshot-valid-partition
@@ -2484,6 +2537,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: valid-partition
   - id: maximum-values
+    expectedBehavior: "Preserve maximum Integer and Long header values, the double value, and exact binary headers."
     body: Typed headers 0
     headers:
       Authorization: Bearer snapshot-first
@@ -2561,6 +2615,8 @@ scenarios:
           X-Long: long
           X-Double: double
   - id: minimum-values-and-empty-bytes
+    expectedBehavior: >-
+      Preserve minimum Integer and Long header values, negative zero, and explicitly empty binary headers.
     body: Typed headers 1
     headers:
       Authorization: Bearer snapshot-first
@@ -2636,6 +2692,7 @@ scenarios:
           X-Long: long
           X-Double: double
   - id: partial-batch
+    expectedBehavior: "Propagate serialization failure after delivering only the valid batch prefix."
     body:
     - accepted-before-error
     - invalid: value
@@ -2689,6 +2746,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: partial-batch
   - id: after-batch-error
+    expectedBehavior: "Publish a fresh record after the previous batch failed serialization."
     body: Accepted after batch error
     headers:
       Authorization: Bearer snapshot-after-batch-error
@@ -2727,6 +2785,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: after-batch-error
   - id: typed-headers-batch
+    expectedBehavior: "Preserve each batch item's expected typed Kafka header bytes."
     body:
     - first
     - null
@@ -2822,6 +2881,7 @@ scenarios:
           X-Long: long
           X-Double: double
   - id: batch-batch
+    expectedBehavior: "Deliver all batch entries in their expected order and preserve request context."
     body:
     - first
     - null
@@ -2874,6 +2934,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: batch
   - id: empty-batch
+    expectedBehavior: "Accept the empty batch without sending any Kafka records."
     body: []
     headers:
       Authorization: Bearer snapshot-empty-batch
@@ -2910,12 +2971,14 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: empty-batch
 - id: partitions-records-by-configured-and-header-keys
+  expectedBehavior: "Route repeated configured and header keys consistently across four partitions with exact offsets."
   reuseBroker: true
   scope: Long
   deployment: kafka-sender
   endpointUri: cip-chain:20e7a133-e482-4ac0-afdf-26ae1f1f152d
   invocations:
   - id: configured-key-1
+    expectedBehavior: "Route the configured key \"order-a\" to partition 1 at offset 0."
     body: Automatic configured key 1
     headers:
       Authorization: Bearer snapshot-configured-key-1
@@ -2960,6 +3023,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: configured-key-1
   - id: configured-key-2
+    expectedBehavior: "Route the configured key \"order-b\" to partition 3 at offset 0."
     body: Automatic configured key 2
     headers:
       Authorization: Bearer snapshot-configured-key-2
@@ -3004,6 +3068,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: configured-key-2
   - id: configured-key-3
+    expectedBehavior: "Route the configured key \"order-a\" to partition 1 at offset 1."
     body: Automatic configured key 3
     headers:
       Authorization: Bearer snapshot-configured-key-3
@@ -3048,6 +3113,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: configured-key-3
   - id: configured-key-4
+    expectedBehavior: "Route the configured key \"order-café-201\" to partition 0 at offset 0."
     body: Automatic configured key 4
     headers:
       Authorization: Bearer snapshot-configured-key-4
@@ -3092,6 +3158,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: configured-key-4
   - id: configured-key-5
+    expectedBehavior: "Route the configured key \"order-b\" to partition 3 at offset 1."
     body: Automatic configured key 5
     headers:
       Authorization: Bearer snapshot-configured-key-5
@@ -3136,6 +3203,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: configured-key-5
   - id: configured-key-6
+    expectedBehavior: "Route the configured key \"order-café-201\" to partition 0 at offset 1."
     body: Automatic configured key 6
     headers:
       Authorization: Bearer snapshot-configured-key-6
@@ -3180,6 +3248,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: configured-key-6
   - id: header-key-1
+    expectedBehavior: "Route the header key \"order-a\" to partition 1 at offset 2."
     body: Automatic header key 1
     headers:
       Authorization: Bearer snapshot-header-key-1
@@ -3224,6 +3293,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: header-key-1
   - id: header-key-2
+    expectedBehavior: "Route the header key \"order-b\" to partition 3 at offset 2."
     body: Automatic header key 2
     headers:
       Authorization: Bearer snapshot-header-key-2
@@ -3268,6 +3338,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: header-key-2
   - id: header-key-3
+    expectedBehavior: "Route the header key \"order-a\" to partition 1 at offset 3."
     body: Automatic header key 3
     headers:
       Authorization: Bearer snapshot-header-key-3
@@ -3312,6 +3383,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: header-key-3
   - id: header-key-4
+    expectedBehavior: "Route the header key \"order-café-201\" to partition 0 at offset 2."
     body: Automatic header key 4
     headers:
       Authorization: Bearer snapshot-header-key-4
@@ -3356,6 +3428,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: header-key-4
   - id: header-key-5
+    expectedBehavior: "Route the header key \"order-b\" to partition 3 at offset 3."
     body: Automatic header key 5
     headers:
       Authorization: Bearer snapshot-header-key-5
@@ -3400,6 +3473,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: header-key-5
   - id: header-key-6
+    expectedBehavior: "Route the header key \"order-café-201\" to partition 0 at offset 3."
     body: Automatic header key 6
     headers:
       Authorization: Bearer snapshot-header-key-6
@@ -3444,11 +3518,15 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: header-key-6
 - id: refreshes-metadata-after-partition-expansion
+  expectedBehavior: >-
+    Reject an unavailable partition, refresh metadata after expansion, and publish to both new and original
+    partitions.
   scope: Long
   deployment: kafka-sender
   endpointUri: cip-chain:20e7a133-e482-4ac0-afdf-26ae1f1f152d
   invocations:
   - id: partition-initial
+    expectedBehavior: "Publish to an existing partition before expanding the topic."
     body: Accepted in the original partition
     headers:
       Authorization: Bearer snapshot-partition-initial
@@ -3499,6 +3577,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: partition-initial
   - id: partition-missing
+    expectedBehavior: "Time out before Produce when the selected partition does not yet exist."
     body: Rejected before partition creation
     headers:
       Authorization: Bearer snapshot-partition-missing
@@ -3543,6 +3622,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: partition-missing
   - id: partition-created
+    expectedBehavior: "Refresh topic metadata and publish to the newly created partition."
     body: Accepted in the new partition
     headers:
       Authorization: Bearer snapshot-partition-created
@@ -3589,6 +3669,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: partition-created
   - id: partition-original
+    expectedBehavior: "Continue publishing to an original partition after topic expansion."
     body: Accepted again in the original partition
     headers:
       Authorization: Bearer snapshot-partition-original
@@ -3634,6 +3715,9 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: partition-original
 - id: publishes-values-from-iterator-and-recovers-after-invalid-or-empty-input
+  expectedBehavior: >-
+    Publish iterator entries in order, accept an empty iterator, and recover after partial serialization
+    failure.
   reuseBroker: true
   scope: Long
   deployment: kafka-sender
@@ -3645,6 +3729,7 @@ scenarios:
       containerType: iterator
   invocations:
   - id: values
+    expectedBehavior: "Deliver every iterator value in order, preserving ordinary text, empty text, and null."
     body:
     - first
     - null
@@ -3703,6 +3788,7 @@ scenarios:
           verifyMetadata: true
           topicPartitions: 1
   - id: empty
+    expectedBehavior: "Accept an empty iterator without making any Produce attempt."
     body: []
     headers:
       Authorization: Bearer snapshot-empty
@@ -3741,6 +3827,7 @@ scenarios:
           verifyMetadata: true
           expectedProduceAttempts: 0
   - id: after-empty
+    expectedBehavior: "Publish a valid record after the empty iterator produced no records."
     body:
     - next
     headers:
@@ -3783,6 +3870,7 @@ scenarios:
             offset: 4
           verifyMetadata: true
   - id: partial-iterator
+    expectedBehavior: "Deliver the valid iterator prefix, then propagate the invalid item's serialization error."
     body:
     - accepted-before-error
     - invalid: value
@@ -3837,6 +3925,7 @@ scenarios:
           are in module java.base of loader 'bootstrap')
         cause: null
   - id: after-error
+    expectedBehavior: "Publish a fresh record after the iterator's serialization error."
     body:
     - accepted-after-error
     headers:
@@ -3879,11 +3968,15 @@ scenarios:
             offset: 6
           verifyMetadata: true
 - id: deduplicates-idempotent-retry-after-a-lost-response
+  expectedBehavior: >-
+    Retry a lost acknowledgment with idempotence and all acknowledgments enabled without duplicating the stored
+    record.
   scope: Long
   deployment: kafka-sender
   endpointUri: cip-chain:20e7a133-e482-4ac0-afdf-26ae1f1f152d
   invocations:
   - id: before-idempotent-retry
+    expectedBehavior: "Publish one record with idempotence enabled and acks=all."
     body: Before idempotent retry
     headers:
       Authorization: Bearer snapshot-before-idempotent-retry
@@ -3939,6 +4032,8 @@ scenarios:
             retryBackoffMs: 100
           expectedProduceAttempts: 1
   - id: idempotent-lost-response
+    expectedBehavior: >-
+      Retry a lost acknowledgment with idempotence and store exactly one record after two Produce attempts.
     body: Retried with idempotence
     headers:
       Authorization: Bearer snapshot-idempotent-lost-response
@@ -3989,6 +4084,7 @@ scenarios:
           dropProduceResponses: 1
           expectedProduceAttempts: 2
   - id: after-idempotent-retry
+    expectedBehavior: "Publish the next record without duplicating the idempotently retried publication."
     body: After idempotent retry
     headers:
       Authorization: Bearer snapshot-after-idempotent-retry
@@ -4038,11 +4134,14 @@ scenarios:
             offset: 2
           expectedProduceAttempts: 1
 - id: retries-with-acks-one-after-a-lost-response
+  expectedBehavior: >-
+    Retry a lost acknowledgment with acks=1 and idempotence disabled, retaining both accepted records.
   scope: Long
   deployment: kafka-sender
   endpointUri: cip-chain:20e7a133-e482-4ac0-afdf-26ae1f1f152d
   invocations:
   - id: before-acks-one-retry
+    expectedBehavior: "Publish one record with acks=1 and idempotence disabled."
     body: Before acks one retry
     headers:
       Authorization: Bearer snapshot-before-acks-one-retry
@@ -4098,6 +4197,7 @@ scenarios:
             retryBackoffMs: 100
           expectedProduceAttempts: 1
   - id: acks-one-lost-response
+    expectedBehavior: "Retry a lost acknowledgment with acks=1 and retain the two accepted records."
     body: Retried with acks one
     headers:
       Authorization: Bearer snapshot-acks-one-lost-response
@@ -4152,6 +4252,7 @@ scenarios:
           dropProduceResponses: 1
           expectedProduceAttempts: 2
   - id: after-acks-one-retry
+    expectedBehavior: "Publish a fresh record after the non-idempotent retry."
     body: After acks one retry
     headers:
       Authorization: Bearer snapshot-after-acks-one-retry
@@ -4201,12 +4302,14 @@ scenarios:
             offset: 3
           expectedProduceAttempts: 1
 - id: publishes-scalar-and-batch-without-acknowledgments
+  expectedBehavior: "Deliver scalar and batch records with acks=0 while omitting returned record metadata."
   reuseBroker: true
   scope: Long
   deployment: kafka-sender
   endpointUri: cip-chain:20e7a133-e482-4ac0-afdf-26ae1f1f152d
   invocations:
   - id: acks-zero-scalar
+    expectedBehavior: "Deliver one scalar record with acks=0 and omit returned record metadata."
     body: Scalar without acknowledgments
     headers:
       Authorization: Bearer snapshot-acks-zero-scalar
@@ -4264,6 +4367,7 @@ scenarios:
             retryBackoffMs: 100
           expectedProduceAttempts: 1
   - id: acks-zero-batch
+    expectedBehavior: "Deliver every batch record with acks=0 and omit returned record metadata."
     body:
     - first without acknowledgments
     - null
@@ -4331,12 +4435,14 @@ scenarios:
             partition: 0
             offset: 3
 - id: publishes-gzip-compressed-records
+  expectedBehavior: "Deliver scalar and batch records using gzip compression verified in Kafka Produce requests."
   reuseBroker: true
   scope: Long
   deployment: kafka-sender
   endpointUri: cip-chain:20e7a133-e482-4ac0-afdf-26ae1f1f152d
   invocations:
   - id: gzip-scalar
+    expectedBehavior: "Deliver the scalar using gzip compression verified in the outgoing Produce request."
     body: "Compression payload | caf\u00e9 | "
     headers:
       Authorization: Bearer snapshot-gzip-scalar
@@ -4390,6 +4496,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: gzip-scalar
   - id: gzip-batch
+    expectedBehavior: "Deliver the batch using gzip compression verified in the outgoing Produce request."
     body:
     - "Order received | caf\u00e9"
     - null
@@ -4455,12 +4562,14 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: gzip-batch
 - id: publishes-snappy-compressed-records
+  expectedBehavior: "Deliver scalar and batch records using Snappy compression verified in Kafka Produce requests."
   reuseBroker: true
   scope: Long
   deployment: kafka-sender
   endpointUri: cip-chain:20e7a133-e482-4ac0-afdf-26ae1f1f152d
   invocations:
   - id: snappy-scalar
+    expectedBehavior: "Deliver the scalar using snappy compression verified in the outgoing Produce request."
     body: "Compression payload | caf\u00e9 | "
     headers:
       Authorization: Bearer snapshot-snappy-scalar
@@ -4514,6 +4623,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: snappy-scalar
   - id: snappy-batch
+    expectedBehavior: "Deliver the batch using snappy compression verified in the outgoing Produce request."
     body:
     - "Order received | caf\u00e9"
     - null
@@ -4579,12 +4689,14 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: snappy-batch
 - id: publishes-lz4-compressed-records
+  expectedBehavior: "Deliver scalar and batch records using LZ4 compression verified in Kafka Produce requests."
   reuseBroker: true
   scope: Long
   deployment: kafka-sender
   endpointUri: cip-chain:20e7a133-e482-4ac0-afdf-26ae1f1f152d
   invocations:
   - id: lz4-scalar
+    expectedBehavior: "Deliver the scalar using lz4 compression verified in the outgoing Produce request."
     body: "Compression payload | caf\u00e9 | "
     headers:
       Authorization: Bearer snapshot-lz4-scalar
@@ -4638,6 +4750,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: lz4-scalar
   - id: lz4-batch
+    expectedBehavior: "Deliver the batch using lz4 compression verified in the outgoing Produce request."
     body:
     - "Order received | caf\u00e9"
     - null
@@ -4703,12 +4816,14 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: lz4-batch
 - id: publishes-zstd-compressed-records
+  expectedBehavior: "Deliver scalar and batch records using Zstandard compression verified in Kafka Produce requests."
   reuseBroker: true
   scope: Long
   deployment: kafka-sender
   endpointUri: cip-chain:20e7a133-e482-4ac0-afdf-26ae1f1f152d
   invocations:
   - id: zstd-scalar
+    expectedBehavior: "Deliver the scalar using zstd compression verified in the outgoing Produce request."
     body: "Compression payload | caf\u00e9 | "
     headers:
       Authorization: Bearer snapshot-zstd-scalar
@@ -4762,6 +4877,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: zstd-scalar
   - id: zstd-batch
+    expectedBehavior: "Deliver the batch using zstd compression verified in the outgoing Produce request."
     body:
     - "Order received | caf\u00e9"
     - null
@@ -4827,11 +4943,15 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: zstd-batch
 - id: recovers-after-authentication-permission-and-connection-failures
+  expectedBehavior: >-
+    Reject invalid SASL credentials and denied writes, then recover from restored access, transport faults, and
+    lost acknowledgments.
   scope: Long
   deployment: kafka-sender-sasl-plain
   endpointUri: cip-chain:704c5d76-2978-4d1e-ba94-14851e1d220b
   invocations:
   - id: wrong-password
+    expectedBehavior: "Reject the invalid SASL password without delivering a record."
     body: Rejected password
     headers:
       Authorization: Bearer snapshot-wrong-password
@@ -4877,6 +4997,7 @@ scenarios:
       message: 'Authentication failed: Invalid username or password'
       cause: null
   - id: correct-password
+    expectedBehavior: "Authenticate with the restored SASL password and publish successfully."
     body: Accepted with corrected password
     headers:
       Authorization: Bearer snapshot-correct-password
@@ -4917,6 +5038,7 @@ scenarios:
             offset: 0
           verifyMetadata: true
   - id: first
+    expectedBehavior: "Publish the first record with its configured key and context headers."
     body: Authenticated publication
     headers:
       Authorization: Bearer snapshot-first
@@ -4962,6 +5084,7 @@ scenarios:
             deliveryTimeoutMs: 6000
             retryBackoffMs: 100
   - id: second
+    expectedBehavior: "Publish a fresh record without reusing the previous request context."
     body: "Order received - caf\u00e9"
     headers:
       Authorization: Bearer snapshot-second
@@ -5001,6 +5124,7 @@ scenarios:
             offset: 2
           verifyMetadata: true
   - id: unknown-user
+    expectedBehavior: "Reject the unknown SASL user without delivering a record."
     body: Rejected unknown user
     headers:
       Authorization: Bearer snapshot-unknown-user
@@ -5046,6 +5170,7 @@ scenarios:
       message: 'Authentication failed: Invalid username or password'
       cause: null
   - id: known-user
+    expectedBehavior: "Publish successfully after returning to a known SASL user."
     body: Accepted with known user
     headers:
       Authorization: Bearer snapshot-known-user
@@ -5085,6 +5210,7 @@ scenarios:
             offset: 3
           verifyMetadata: true
   - id: reader-denied
+    expectedBehavior: "Reject publication by an authenticated user that lacks topic Write permission."
     body: Rejected without Write permission
     headers:
       Authorization: Bearer snapshot-reader-denied
@@ -5130,6 +5256,7 @@ scenarios:
       message: 'Not authorized to access topics: [test-topic]'
       cause: null
   - id: reader-allowed
+    expectedBehavior: "Publish successfully after granting topic Write permission to the reader user."
     body: Accepted after granting Write permission
     headers:
       Authorization: Bearer snapshot-reader-allowed
@@ -5171,6 +5298,7 @@ scenarios:
             offset: 4
           verifyMetadata: true
   - id: before-revocation
+    expectedBehavior: "Publish successfully before revoking topic Write permission."
     body: Accepted before revocation
     headers:
       Authorization: Bearer snapshot-before-revocation
@@ -5216,6 +5344,7 @@ scenarios:
             deliveryTimeoutMs: 6000
             retryBackoffMs: 100
   - id: write-revoked
+    expectedBehavior: "Propagate topic authorization failure and deliver no record while Write permission is revoked."
     body: Rejected after revocation
     headers:
       Authorization: Bearer snapshot-write-revoked
@@ -5255,6 +5384,7 @@ scenarios:
       message: 'Not authorized to access topics: [test-topic]'
       cause: null
   - id: write-restored
+    expectedBehavior: "Publish successfully after restoring topic Write permission."
     body: Accepted after restoring Write permission
     headers:
       Authorization: Bearer snapshot-write-restored
@@ -5295,6 +5425,7 @@ scenarios:
             offset: 6
           verifyMetadata: true
   - id: before-reset
+    expectedBehavior: "Publish successfully before resetting the authenticated producer connection."
     body: Accepted before reset
     headers:
       Authorization: Bearer snapshot-before-reset
@@ -5340,6 +5471,7 @@ scenarios:
             deliveryTimeoutMs: 6000
             retryBackoffMs: 100
   - id: retried-after-reset
+    expectedBehavior: "Reauthenticate after a connection reset and retry the record successfully."
     body: Accepted after reset and authentication
     headers:
       Authorization: Bearer snapshot-retried-after-reset
@@ -5381,6 +5513,7 @@ scenarios:
             offset: 8
           verifyMetadata: true
   - id: after-reset
+    expectedBehavior: "Publish a fresh record after recovering the authenticated connection."
     body: Next authenticated publication
     headers:
       Authorization: Bearer snapshot-after-reset
@@ -5420,6 +5553,7 @@ scenarios:
             offset: 9
           verifyMetadata: true
   - id: before-lost-ack
+    expectedBehavior: "Publish successfully before dropping a broker acknowledgment."
     body: Accepted before acknowledgment loss
     headers:
       Authorization: Bearer snapshot-before-lost-ack
@@ -5465,6 +5599,7 @@ scenarios:
             deliveryTimeoutMs: 6000
             retryBackoffMs: 100
   - id: lost-ack
+    expectedBehavior: "Retry the lost acknowledgment and observe both accepted copies of the record."
     body: Accepted twice after lost acknowledgment
     headers:
       Authorization: Bearer snapshot-lost-ack
@@ -5509,6 +5644,7 @@ scenarios:
             offset: 12
           verifyMetadata: true
   - id: after-lost-ack
+    expectedBehavior: "Publish a fresh record after the acknowledgment retry."
     body: Next publication after acknowledgment loss
     headers:
       Authorization: Bearer snapshot-after-lost-ack
@@ -5548,6 +5684,7 @@ scenarios:
             offset: 13
           verifyMetadata: true
   - id: before-outage
+    expectedBehavior: "Publish successfully before the simulated producer transport outage."
     body: Accepted before outage
     headers:
       Authorization: Bearer snapshot-before-outage
@@ -5593,6 +5730,7 @@ scenarios:
             deliveryTimeoutMs: 6000
             retryBackoffMs: 100
   - id: during-outage
+    expectedBehavior: "Time out during the transport outage without storing the rejected record."
     body: Expired during outage
     headers:
       Authorization: Bearer snapshot-during-outage
@@ -5633,6 +5771,7 @@ scenarios:
       message: Expiring 1 record(s) for test-topic-1:<elapsed-ms> ms has passed since batch creation
       cause: null
   - id: after-outage
+    expectedBehavior: "Reconnect and publish successfully after the transport outage ends."
     body: Accepted after connection recovery
     headers:
       Authorization: Bearer snapshot-after-outage
@@ -5674,11 +5813,15 @@ scenarios:
             offset: 15
           verifyMetadata: true
 - id: switches-valid-invalid-valid-credentials
+  expectedBehavior: >-
+    Publish with valid SASL credentials, reject an invalid password, and resume publication after restoring the
+    password.
   scope: Long
   deployment: kafka-sender-sasl-plain
   endpointUri: cip-chain:704c5d76-2978-4d1e-ba94-14851e1d220b
   invocations:
   - id: before-password-change
+    expectedBehavior: "Publish successfully before replacing valid producer credentials with an invalid password."
     body: Accepted before password change
     headers:
       Authorization: Bearer snapshot-before-password-change
@@ -5725,6 +5868,7 @@ scenarios:
             deliveryTimeoutMs: 6000
             retryBackoffMs: 100
   - id: wrong-password
+    expectedBehavior: "Reject the invalid SASL password without delivering a record."
     body: Rejected password
     headers:
       Authorization: Bearer snapshot-wrong-password
@@ -5764,6 +5908,7 @@ scenarios:
       message: 'Authentication failed: Invalid username or password'
       cause: null
   - id: correct-password
+    expectedBehavior: "Authenticate with the restored SASL password and publish successfully."
     body: Accepted with corrected password
     headers:
       Authorization: Bearer snapshot-correct-password
@@ -5803,11 +5948,15 @@ scenarios:
             offset: 1
           verifyMetadata: true
 - id: publishes-synchronous-records-and-recovers-after-failures
+  expectedBehavior: >-
+    Publish synchronous scalar and batch records and recover after empty input, serialization errors, and denied
+    writes.
   scope: Long
   deployment: kafka-sender-sasl-plain
   endpointUri: cip-chain:704c5d76-2978-4d1e-ba94-14851e1d220b
   invocations:
   - id: sync-scalar
+    expectedBehavior: "Deliver the scalar record and preserve the expected request context."
     body: Synchronous publication
     headers:
       Authorization: Bearer snapshot-sync-scalar
@@ -5861,6 +6010,7 @@ scenarios:
             retryBackoffMs: 100
           minSuccessfulAuthentications: 1
   - id: sync-batch
+    expectedBehavior: "Deliver all three batch records in order with their expected keys."
     body:
     - first
     - null
@@ -5923,6 +6073,7 @@ scenarios:
             partition: 0
             offset: 3
   - id: sync-empty-batch
+    expectedBehavior: "Accept an empty batch without delivering Kafka records."
     body: []
     headers:
       Authorization: Bearer snapshot-sync-empty-batch
@@ -5965,6 +6116,7 @@ scenarios:
           verifyMetadata: true
           expectedRecords: []
   - id: sync-after-empty-batch
+    expectedBehavior: "Deliver a valid scalar record after accepting the empty batch."
     body: Accepted after the synchronous empty batch
     headers:
       Authorization: Bearer snapshot-sync-after-empty-batch
@@ -6010,6 +6162,7 @@ scenarios:
             partition: 0
             offset: 4
   - id: sync-invalid-first-value
+    expectedBehavior: "Reject the first invalid value with a serialization error and deliver no batch records."
     body:
     - invalid: value
     - not-sent-after-error
@@ -6074,6 +6227,7 @@ scenarios:
           are in module java.base of loader 'bootstrap')
         cause: null
   - id: sync-after-invalid-first-value
+    expectedBehavior: "Deliver a valid record after rejecting the first invalid batch value."
     body: Accepted after the invalid first value
     headers:
       Authorization: Bearer snapshot-sync-after-invalid-first-value
@@ -6119,6 +6273,7 @@ scenarios:
             partition: 0
             offset: 5
   - id: sync-partial-batch
+    expectedBehavior: "Deliver the valid batch prefix and propagate the later serialization error."
     body:
     - accepted-before-error
     - invalid: value
@@ -6190,6 +6345,7 @@ scenarios:
           are in module java.base of loader 'bootstrap')
         cause: null
   - id: sync-after-partial-batch
+    expectedBehavior: "Deliver a fresh record after the partial batch failed serialization."
     body: Accepted after the partial synchronous batch
     headers:
       Authorization: Bearer snapshot-sync-after-partial-batch
@@ -6235,6 +6391,7 @@ scenarios:
             partition: 0
             offset: 7
   - id: sync-before-revocation
+    expectedBehavior: "Deliver a baseline record before revoking topic Write permission."
     body: Accepted before synchronous Write permission revocation
     headers:
       Authorization: Bearer snapshot-sync-before-revocation
@@ -6287,6 +6444,7 @@ scenarios:
             deliveryTimeoutMs: 6000
             retryBackoffMs: 100
   - id: sync-write-revoked
+    expectedBehavior: "Propagate the synchronous send's authorization failure without delivering a record."
     body: Rejected after synchronous Write permission revocation
     headers:
       Authorization: Bearer snapshot-sync-write-revoked
@@ -6337,6 +6495,7 @@ scenarios:
         message: 'Not authorized to access topics: [test-topic]'
         cause: null
   - id: sync-write-restored
+    expectedBehavior: "Deliver a record after restoring topic Write permission."
     body: Accepted after synchronous Write permission restoration
     headers:
       Authorization: Bearer snapshot-sync-write-restored
@@ -6383,11 +6542,16 @@ scenarios:
             offset: 9
           aclAction: allow
 - id: omits-record-metadata-for-asynchronous-scalar-and-batch-sends
+  expectedBehavior: >-
+    Omit record metadata from asynchronous scalar and batch results while retaining delivery and serialization-
+    failure behavior.
   scope: Long
   deployment: kafka-sender-sasl-plain
   endpointUri: cip-chain:704c5d76-2978-4d1e-ba94-14851e1d220b
   invocations:
   - id: sync-scalar
+    expectedBehavior: >-
+      Deliver the scalar record and preserve the expected request context. Omit returned record metadata.
     body: Synchronous publication
     headers:
       Authorization: Bearer snapshot-sync-scalar
@@ -6444,6 +6608,8 @@ scenarios:
           producerProperties:
             recordMetadata: false
   - id: sync-batch
+    expectedBehavior: >-
+      Deliver all three batch records in order with their expected keys. Omit returned record metadata.
     body:
     - first
     - null
@@ -6509,6 +6675,7 @@ scenarios:
           producerProperties:
             recordMetadata: false
   - id: sync-empty-batch
+    expectedBehavior: "Accept an empty batch without delivering Kafka records. Omit returned record metadata."
     body: []
     headers:
       Authorization: Bearer snapshot-sync-empty-batch
@@ -6553,6 +6720,7 @@ scenarios:
           producerProperties:
             recordMetadata: false
   - id: sync-after-empty-batch
+    expectedBehavior: "Deliver a valid scalar record after accepting the empty batch. Omit returned record metadata."
     body: Accepted after the synchronous empty batch
     headers:
       Authorization: Bearer snapshot-sync-after-empty-batch
@@ -6601,6 +6769,8 @@ scenarios:
           producerProperties:
             recordMetadata: false
   - id: sync-partial-batch
+    expectedBehavior: >-
+      Deliver the valid batch prefix and propagate the later serialization error. Omit returned record metadata.
     body:
     - accepted-before-error
     - invalid: value
@@ -6674,6 +6844,8 @@ scenarios:
           are in module java.base of loader 'bootstrap')
         cause: null
   - id: sync-after-partial-batch
+    expectedBehavior: >-
+      Deliver a fresh record after the partial batch failed serialization. Omit returned record metadata.
     body: Accepted after the partial synchronous batch
     headers:
       Authorization: Bearer snapshot-sync-after-partial-batch
@@ -6722,11 +6894,16 @@ scenarios:
           producerProperties:
             recordMetadata: false
 - id: omits-record-metadata-for-synchronous-scalar-and-batch-sends
+  expectedBehavior: >-
+    Omit record metadata from synchronous scalar and batch results while retaining delivery and serialization-
+    failure behavior.
   scope: Long
   deployment: kafka-sender-sasl-plain
   endpointUri: cip-chain:704c5d76-2978-4d1e-ba94-14851e1d220b
   invocations:
   - id: sync-scalar
+    expectedBehavior: >-
+      Deliver the scalar record and preserve the expected request context. Omit returned record metadata.
     body: Synchronous publication
     headers:
       Authorization: Bearer snapshot-sync-scalar
@@ -6783,6 +6960,8 @@ scenarios:
           producerProperties:
             recordMetadata: false
   - id: sync-batch
+    expectedBehavior: >-
+      Deliver all three batch records in order with their expected keys. Omit returned record metadata.
     body:
     - first
     - null
@@ -6848,6 +7027,7 @@ scenarios:
           producerProperties:
             recordMetadata: false
   - id: sync-empty-batch
+    expectedBehavior: "Accept an empty batch without delivering Kafka records. Omit returned record metadata."
     body: []
     headers:
       Authorization: Bearer snapshot-sync-empty-batch
@@ -6892,6 +7072,7 @@ scenarios:
           producerProperties:
             recordMetadata: false
   - id: sync-after-empty-batch
+    expectedBehavior: "Deliver a valid scalar record after accepting the empty batch. Omit returned record metadata."
     body: Accepted after the synchronous empty batch
     headers:
       Authorization: Bearer snapshot-sync-after-empty-batch
@@ -6940,6 +7121,8 @@ scenarios:
           producerProperties:
             recordMetadata: false
   - id: sync-partial-batch
+    expectedBehavior: >-
+      Deliver the valid batch prefix and propagate the later serialization error. Omit returned record metadata.
     body:
     - accepted-before-error
     - invalid: value
@@ -7013,6 +7196,8 @@ scenarios:
           are in module java.base of loader 'bootstrap')
         cause: null
   - id: sync-after-partial-batch
+    expectedBehavior: >-
+      Deliver a fresh record after the partial batch failed serialization. Omit returned record metadata.
     body: Accepted after the partial synchronous batch
     headers:
       Authorization: Bearer snapshot-sync-after-partial-batch
@@ -7061,11 +7246,15 @@ scenarios:
           producerProperties:
             recordMetadata: false
 - id: rejects-untrusted-tls-and-recovers-after-authentication-and-connection-failures
+  expectedBehavior: >-
+    Reject an untrusted TLS certificate, then publish through restored TLS, SASL authentication, and connection
+    recovery.
   scope: Long
   deployment: kafka-sender-sasl-ssl
   endpointUri: cip-chain:c7964994-5071-4197-9f73-83e8405b335d
   invocations:
   - id: untrusted-certificate
+    expectedBehavior: "Reject the untrusted TLS certificate before any Kafka record is delivered."
     body: Rejected untrusted certificate
     headers:
       Authorization: Bearer snapshot-untrusted-certificate
@@ -7123,6 +7312,7 @@ scenarios:
             message: unable to find valid certification path to requested target
             cause: null
   - id: trusted-certificate
+    expectedBehavior: "Complete TLS and SASL authentication with the trusted certificate and publish successfully."
     body: Accepted with trusted certificate
     headers:
       Authorization: Bearer snapshot-trusted-certificate
@@ -7165,6 +7355,7 @@ scenarios:
             offset: 0
           verifyMetadata: true
   - id: first-tls
+    expectedBehavior: "Publish a baseline record through the authenticated TLS connection."
     body: Authenticated TLS publication
     headers:
       Authorization: Bearer snapshot-first-tls
@@ -7210,6 +7401,7 @@ scenarios:
             deliveryTimeoutMs: 6000
             retryBackoffMs: 100
   - id: second-tls
+    expectedBehavior: "Publish fresh payload and context through the established TLS connection."
     body: "Order received - caf\u00e9"
     headers:
       Authorization: Bearer snapshot-second-tls
@@ -7249,6 +7441,7 @@ scenarios:
             offset: 2
           verifyMetadata: true
   - id: wrong-password-tls
+    expectedBehavior: "Complete TLS but reject invalid SASL credentials without delivering a record."
     body: Rejected credentials over TLS
     headers:
       Authorization: Bearer snapshot-wrong-password-tls
@@ -7295,6 +7488,7 @@ scenarios:
       message: 'Authentication failed: Invalid username or password'
       cause: null
   - id: correct-password-tls
+    expectedBehavior: "Publish over TLS after restoring valid SASL credentials."
     body: Accepted with corrected credentials over TLS
     headers:
       Authorization: Bearer snapshot-correct-password-tls
@@ -7334,6 +7528,7 @@ scenarios:
             offset: 3
           verifyMetadata: true
   - id: before-tls-reset
+    expectedBehavior: "Publish successfully before resetting the TLS connection."
     body: Accepted before TLS reset
     headers:
       Authorization: Bearer snapshot-before-tls-reset
@@ -7379,6 +7574,7 @@ scenarios:
             deliveryTimeoutMs: 6000
             retryBackoffMs: 100
   - id: retried-tls-send
+    expectedBehavior: "Establish a new authenticated TLS connection and retry publication after the reset."
     body: Accepted after TLS reset
     headers:
       Authorization: Bearer snapshot-retried-tls-send
@@ -7421,6 +7617,7 @@ scenarios:
             offset: 5
           verifyMetadata: true
   - id: after-tls-reset
+    expectedBehavior: "Publish a fresh record after TLS transport recovery."
     body: Next publication after TLS reset
     headers:
       Authorization: Bearer snapshot-after-tls-reset
@@ -7460,11 +7657,15 @@ scenarios:
             offset: 6
           verifyMetadata: true
 - id: rejects-tls-hostname-mismatch-and-recovers-after-rotation-and-lost-acknowledgment
+  expectedBehavior: >-
+    Reject the wrong TLS hostname, accept valid certificate rotation, and recover after a lost publication
+    acknowledgment.
   scope: Long
   deployment: kafka-sender-sasl-ssl
   endpointUri: cip-chain:c7964994-5071-4197-9f73-83e8405b335d
   invocations:
   - id: wrong-hostname
+    expectedBehavior: "Reject the certificate whose hostname does not match the Kafka endpoint."
     body: Rejected certificate hostname
     headers:
       Authorization: Bearer snapshot-wrong-hostname
@@ -7517,6 +7718,7 @@ scenarios:
           message: No subject alternative names matching IP address 127.0.0.1 found
           cause: null
   - id: correct-hostname
+    expectedBehavior: "Publish after restoring a trusted certificate with the correct hostname."
     body: Accepted with matching hostname
     headers:
       Authorization: Bearer snapshot-correct-hostname
@@ -7559,6 +7761,7 @@ scenarios:
             offset: 0
           verifyMetadata: true
   - id: before-rotation
+    expectedBehavior: "Publish successfully before rotating the server certificate."
     body: Accepted before certificate rotation
     headers:
       Authorization: Bearer snapshot-before-rotation
@@ -7604,6 +7807,7 @@ scenarios:
             deliveryTimeoutMs: 6000
             retryBackoffMs: 100
   - id: rotated-certificate
+    expectedBehavior: "Reconnect with the rotated trusted certificate and publish successfully."
     body: Accepted with rotated certificate
     headers:
       Authorization: Bearer snapshot-rotated-certificate
@@ -7646,6 +7850,7 @@ scenarios:
             offset: 2
           verifyMetadata: true
   - id: after-rotation
+    expectedBehavior: "Publish a fresh record after successful certificate rotation."
     body: Next publication after rotation
     headers:
       Authorization: Bearer snapshot-after-rotation
@@ -7685,6 +7890,7 @@ scenarios:
             offset: 3
           verifyMetadata: true
   - id: before-tls-lost-ack
+    expectedBehavior: "Publish successfully over TLS before dropping an acknowledgment."
     body: Accepted before TLS acknowledgment loss
     headers:
       Authorization: Bearer snapshot-before-tls-lost-ack
@@ -7730,6 +7936,8 @@ scenarios:
             deliveryTimeoutMs: 6000
             retryBackoffMs: 100
   - id: tls-lost-ack
+    expectedBehavior: >-
+      Reconnect over authenticated TLS and retain duplicate records after retrying a lost acknowledgment.
     body: Accepted twice after TLS acknowledgment loss
     headers:
       Authorization: Bearer snapshot-tls-lost-ack
@@ -7775,6 +7983,7 @@ scenarios:
             offset: 6
           verifyMetadata: true
   - id: after-tls-lost-ack
+    expectedBehavior: "Publish a fresh record over TLS after the lost acknowledgment retry."
     body: Next publication after TLS acknowledgment loss
     headers:
       Authorization: Bearer snapshot-after-tls-lost-ack
@@ -7814,11 +8023,15 @@ scenarios:
             offset: 7
           verifyMetadata: true
 - id: rejects-expired-tls-and-recovers-before-rejecting-an-untrusted-certificate
+  expectedBehavior: >-
+    Reject expired TLS, recover with a renewed certificate and after an outage, then reject an untrusted
+    reconnect.
   scope: Long
   deployment: kafka-sender-sasl-ssl
   endpointUri: cip-chain:c7964994-5071-4197-9f73-83e8405b335d
   invocations:
   - id: expired-certificate
+    expectedBehavior: "Reject the expired TLS certificate before delivering a record."
     body: Rejected expired certificate on new connection
     headers:
       Authorization: Bearer snapshot-expired-certificate
@@ -7878,6 +8091,8 @@ scenarios:
               message: 'NotAfter: <certificate-expiry:2019-01-01T00:00:00Z>'
               cause: null
   - id: renewed-certificate
+    expectedBehavior: >-
+      Publish successfully after replacing the expired certificate with a renewed trusted certificate.
     body: Accepted after certificate renewal
     headers:
       Authorization: Bearer snapshot-renewed-certificate
@@ -7920,6 +8135,7 @@ scenarios:
             offset: 0
           verifyMetadata: true
   - id: before-tls-outage
+    expectedBehavior: "Publish successfully over TLS before the simulated transport outage."
     body: Accepted before TLS outage
     headers:
       Authorization: Bearer snapshot-before-tls-outage
@@ -7965,6 +8181,7 @@ scenarios:
             deliveryTimeoutMs: 6000
             retryBackoffMs: 100
   - id: during-tls-outage
+    expectedBehavior: "Time out during the TLS transport outage without delivering the record."
     body: Expired during TLS outage
     headers:
       Authorization: Bearer snapshot-during-tls-outage
@@ -8005,6 +8222,7 @@ scenarios:
       message: Expiring 1 record(s) for test-topic-1:<elapsed-ms> ms has passed since batch creation
       cause: null
   - id: after-tls-outage
+    expectedBehavior: "Reestablish TLS and SASL authentication and publish after the outage."
     body: Accepted after TLS connection recovery
     headers:
       Authorization: Bearer snapshot-after-tls-outage
@@ -8047,6 +8265,7 @@ scenarios:
             offset: 2
           verifyMetadata: true
   - id: before-certificate-failure
+    expectedBehavior: "Publish successfully before installing an untrusted certificate for the next reconnect."
     body: Accepted before certificate replacement
     headers:
       Authorization: Bearer snapshot-before-certificate-failure
@@ -8092,6 +8311,8 @@ scenarios:
             deliveryTimeoutMs: 6000
             retryBackoffMs: 100
   - id: invalid-certificate-on-reconnect
+    expectedBehavior: >-
+      Fail publication after reconnecting to an untrusted TLS certificate and observe the failed handshake.
     body: Expired delivery after certificate trust failure
     headers:
       Authorization: Bearer snapshot-invalid-certificate-on-reconnect
@@ -8133,11 +8354,15 @@ scenarios:
       message: Expiring 1 record(s) for test-topic-1:<elapsed-ms> ms has passed since batch creation
       cause: null
 - id: publishes-numeric-values-and-recovers-after-invalid-input-and-connection-failures
+  expectedBehavior: >-
+    Preserve Integer keys and Long values exactly, reject incompatible types, and recover after serialization
+    and transport failures.
   scope: Long
   deployment: kafka-sender-numeric
   endpointUri: cip-chain:20198a64-a8c2-475a-ae8d-187f3fce78a4
   invocations:
   - id: numeric-zero
+    expectedBehavior: "Preserve zero Integer keys and Long values exactly through their configured serializers."
     body: 0
     headers:
       Authorization: Bearer snapshot-numeric-zero
@@ -8184,6 +8409,7 @@ scenarios:
           minSuccessfulTlsHandshakes: 1
           verifyMetadata: true
   - id: numeric-negative-one
+    expectedBehavior: "Preserve negative Integer keys and Long values exactly."
     body: -1
     headers:
       Authorization: Bearer snapshot-numeric-negative-one
@@ -8228,6 +8454,7 @@ scenarios:
             offset: 1
           verifyMetadata: true
   - id: numeric-minimum
+    expectedBehavior: "Preserve the minimum Integer key and Long value without narrowing."
     body: -9223372036854775808
     headers:
       Authorization: Bearer snapshot-numeric-minimum
@@ -8272,6 +8499,7 @@ scenarios:
             offset: 2
           verifyMetadata: true
   - id: numeric-maximum
+    expectedBehavior: "Preserve the maximum Integer key and Long value without narrowing."
     body: 9223372036854775807
     headers:
       Authorization: Bearer snapshot-numeric-maximum
@@ -8316,6 +8544,7 @@ scenarios:
             offset: 3
           verifyMetadata: true
   - id: numeric-exact-above-double-precision
+    expectedBehavior: "Preserve the Long value above the exact double-precision range without rounding."
     body: 9007199254740993
     headers:
       Authorization: Bearer snapshot-numeric-exact-above-double-precision
@@ -8360,6 +8589,7 @@ scenarios:
             offset: 4
           verifyMetadata: true
   - id: numeric-tombstone
+    expectedBehavior: "Deliver a numeric-keyed Kafka tombstone with a null value."
     body: null
     headers:
       Authorization: Bearer snapshot-numeric-tombstone
@@ -8400,6 +8630,7 @@ scenarios:
             offset: 5
           verifyMetadata: true
   - id: numeric-null-key
+    expectedBehavior: "Preserve a null Kafka key with the configured Long value serializer."
     body: 2147483648
     headers:
       Authorization: Bearer snapshot-numeric-null-key
@@ -8439,6 +8670,7 @@ scenarios:
             offset: 6
           verifyMetadata: true
   - id: numeric-null-key-and-value
+    expectedBehavior: "Deliver a record with both null key and null value."
     body: null
     headers:
       Authorization: Bearer snapshot-numeric-null-key-and-value
@@ -8478,6 +8710,7 @@ scenarios:
             offset: 7
           verifyMetadata: true
   - id: empty-numeric-batch
+    expectedBehavior: "Accept an empty numeric batch without delivering records."
     body: []
     headers:
       Authorization: Bearer snapshot-empty-numeric-batch
@@ -8514,6 +8747,7 @@ scenarios:
           expectedRecords: []
           verifyMetadata: true
   - id: publishes-numeric-boundaries-null-values-and-empty-batches-after-serialization-error
+    expectedBehavior: "Publish a valid numeric record after boundary and empty-input checks."
     body: 2147483648
     headers:
       Authorization: Bearer snapshot-after-serialization-error
@@ -8554,6 +8788,7 @@ scenarios:
             offset: 8
           verifyMetadata: true
   - id: string-key
+    expectedBehavior: "Reject a String key that the configured IntegerSerializer cannot serialize."
     body: unused
     headers:
       Authorization: Bearer snapshot-string-key
@@ -8598,6 +8833,7 @@ scenarios:
           are in module java.base of loader 'bootstrap')
         cause: null
   - id: after-string-key-error
+    expectedBehavior: "Publish with a valid Integer key after rejecting the String key."
     body: 2147483648
     headers:
       Authorization: Bearer snapshot-after-serialization-error
@@ -8638,6 +8874,7 @@ scenarios:
             offset: 9
           verifyMetadata: true
   - id: wide-key
+    expectedBehavior: "Reject a Long key outside the Integer range without delivering a record."
     body: 2147483648
     headers:
       Authorization: Bearer snapshot-wide-key
@@ -8682,6 +8919,7 @@ scenarios:
           in module java.base of loader 'bootstrap')
         cause: null
   - id: long-key-in-integer-range
+    expectedBehavior: "Reject a Long key even when its value fits within the Integer range."
     body: 2147483648
     headers:
       Authorization: Bearer snapshot-long-key-in-integer-range
@@ -8732,6 +8970,7 @@ scenarios:
           in module java.base of loader 'bootstrap')
         cause: null
   - id: after-long-key-error
+    expectedBehavior: "Publish with a valid Integer key after rejecting Long key objects."
     body: 2147483648
     headers:
       Authorization: Bearer snapshot-after-serialization-error
@@ -8772,6 +9011,7 @@ scenarios:
             offset: 10
           verifyMetadata: true
   - id: configured-order-key
+    expectedBehavior: "Reject the configured nonnumeric String key with IntegerSerializer."
     body: 2147483648
     headers:
       Authorization: Bearer snapshot-configured-order-key
@@ -8817,6 +9057,7 @@ scenarios:
           are in module java.base of loader 'bootstrap')
         cause: null
   - id: configured-numeric-text-key
+    expectedBehavior: "Reject the configured numeric String key rather than coercing it into an Integer."
     body: 2147483648
     headers:
       Authorization: Bearer snapshot-configured-numeric-text-key
@@ -8862,6 +9103,7 @@ scenarios:
           are in module java.base of loader 'bootstrap')
         cause: null
   - id: after-configured-key-error
+    expectedBehavior: "Publish a valid numeric record after configured String keys failed serialization."
     body: 2147483648
     headers:
       Authorization: Bearer snapshot-after-serialization-error
@@ -8902,6 +9144,7 @@ scenarios:
             offset: 11
           verifyMetadata: true
   - id: numeric-text-value
+    expectedBehavior: "Reject numeric text because LongSerializer requires a Long object."
     body: '42'
     headers:
       Authorization: Bearer snapshot-numeric-text-value
@@ -8946,6 +9189,7 @@ scenarios:
           module java.base of loader 'bootstrap')
         cause: null
   - id: invalid-text-value
+    expectedBehavior: "Reject nonnumeric text with the configured LongSerializer."
     body: not-a-number
     headers:
       Authorization: Bearer snapshot-invalid-text-value
@@ -8990,6 +9234,7 @@ scenarios:
           module java.base of loader 'bootstrap')
         cause: null
   - id: empty-text-value
+    expectedBehavior: "Reject empty text with the configured LongSerializer."
     body: ''
     headers:
       Authorization: Bearer snapshot-empty-text-value
@@ -9034,6 +9279,7 @@ scenarios:
           module java.base of loader 'bootstrap')
         cause: null
   - id: out-of-range-text-value
+    expectedBehavior: "Reject oversized numeric text without coercing or truncating it into a Long."
     body: '9223372036854775808'
     headers:
       Authorization: Bearer snapshot-out-of-range-text-value
@@ -9078,6 +9324,7 @@ scenarios:
           module java.base of loader 'bootstrap')
         cause: null
   - id: after-text-value-error
+    expectedBehavior: "Publish a valid Long value after rejecting textual values."
     body: 2147483648
     headers:
       Authorization: Bearer snapshot-after-serialization-error
@@ -9118,6 +9365,7 @@ scenarios:
             offset: 12
           verifyMetadata: true
   - id: integer-value
+    expectedBehavior: "Reject an Integer object because the configured value serializer requires Long."
     body: 42
     headers:
       Authorization: Bearer snapshot-integer-value
@@ -9162,6 +9410,7 @@ scenarios:
           in module java.base of loader 'bootstrap')
         cause: null
   - id: after-integer-value-error
+    expectedBehavior: "Publish a valid Long value after rejecting the Integer object."
     body: 2147483648
     headers:
       Authorization: Bearer snapshot-after-serialization-error
@@ -9202,6 +9451,7 @@ scenarios:
             offset: 13
           verifyMetadata: true
   - id: fractional-value
+    expectedBehavior: "Reject a fractional value with the configured LongSerializer."
     body: 1.5
     headers:
       Authorization: Bearer snapshot-fractional-value
@@ -9246,6 +9496,7 @@ scenarios:
           module java.base of loader 'bootstrap')
         cause: null
   - id: boolean-value
+    expectedBehavior: "Reject a boolean value with the configured LongSerializer."
     body: true
     headers:
       Authorization: Bearer snapshot-boolean-value
@@ -9290,6 +9541,7 @@ scenarios:
           in module java.base of loader 'bootstrap')
         cause: null
   - id: after-fractional-and-boolean-errors
+    expectedBehavior: "Publish a valid Long after rejecting fractional and boolean values."
     body: 2147483648
     headers:
       Authorization: Bearer snapshot-after-serialization-error
@@ -9330,6 +9582,7 @@ scenarios:
             offset: 14
           verifyMetadata: true
   - id: numeric-reset
+    expectedBehavior: "Retry the numeric publication through a new authenticated TLS connection after a reset."
     body: -9223372036854775808
     headers:
       Authorization: Bearer snapshot-numeric-reset
@@ -9378,6 +9631,7 @@ scenarios:
           minSuccessfulTlsHandshakes: 1
           verifyMetadata: true
   - id: retries-numeric-publication-after-connection-reset-after-serialization-error
+    expectedBehavior: "Publish fresh numeric data after connection-reset recovery."
     body: 2147483648
     headers:
       Authorization: Bearer snapshot-after-serialization-error
@@ -9418,6 +9672,7 @@ scenarios:
             offset: 16
           verifyMetadata: true
   - id: numeric-lost-ack
+    expectedBehavior: "Preserve exact numeric key and value bytes on both accepted copies after a lost acknowledgment."
     body: 9223372036854775807
     headers:
       Authorization: Bearer snapshot-numeric-lost-ack
@@ -9470,6 +9725,7 @@ scenarios:
           minSuccessfulTlsHandshakes: 1
           verifyMetadata: true
   - id: retries-numeric-publication-after-lost-acknowledgment-after-serialization-error
+    expectedBehavior: "Publish fresh numeric data after retrying the lost acknowledgment."
     body: 2147483648
     headers:
       Authorization: Bearer snapshot-after-serialization-error
@@ -9510,11 +9766,15 @@ scenarios:
             offset: 19
           verifyMetadata: true
 - id: publishes-numeric-batches-and-recovers-after-partial-failure
+  expectedBehavior: >-
+    Deliver numeric batch boundaries and null values, retain the accepted prefix on serialization failure, and
+    recover.
   scope: Long
   deployment: kafka-sender-numeric
   endpointUri: cip-chain:20198a64-a8c2-475a-ae8d-187f3fce78a4
   invocations:
   - id: long-batch
+    expectedBehavior: "Preserve numeric boundaries, values above double precision, and nulls across the Long batch."
     body:
     - 0
     - -1
@@ -9581,6 +9841,7 @@ scenarios:
           topicPartitions: 1
           verifyMetadata: true
   - id: partial-numeric-batch
+    expectedBehavior: "Deliver the valid numeric batch prefix and stop when a later item cannot be serialized."
     body:
     - 2147483648
     - invalid
@@ -9636,6 +9897,7 @@ scenarios:
           module java.base of loader 'bootstrap')
         cause: null
   - id: after-serialization-error
+    expectedBehavior: "Publish a valid numeric record after the partial batch failed serialization."
     body: 2147483648
     headers:
       Authorization: Bearer snapshot-after-serialization-error
@@ -9676,11 +9938,15 @@ scenarios:
             offset: 6
           verifyMetadata: true
 - id: publishes-binary-values-and-recovers-after-invalid-input-and-connection-failures
+  expectedBehavior: >-
+    Preserve binary bytes and charset conversions, reject unsupported inputs, and recover after conversion and
+    transport failures.
   scope: Long
   deployment: kafka-sender-binary
   endpointUri: cip-chain:7d878112-0520-4866-b7a6-8f0b7078dc37
   invocations:
   - id: binary-all-byte-values
+    expectedBehavior: "Deliver every byte value from 0 through 255 unchanged."
     body: 000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff
     headers:
       Authorization: Bearer snapshot-binary-all-byte-values
@@ -9728,6 +9994,7 @@ scenarios:
           minSuccessfulTlsHandshakes: 1
           verifyMetadata: true
   - id: binary-invalid-utf8
+    expectedBehavior: "Preserve bytes that are invalid UTF-8 without decoding them as text."
     body: c328ff0080eda080f4908080
     headers:
       Authorization: Bearer snapshot-binary-invalid-utf8
@@ -9773,6 +10040,7 @@ scenarios:
             offset: 1
           verifyMetadata: true
   - id: binary-zero-inside-payload
+    expectedBehavior: "Preserve embedded zero bytes inside the binary payload."
     body: 41004200ff
     headers:
       Authorization: Bearer snapshot-binary-zero-inside-payload
@@ -9818,6 +10086,7 @@ scenarios:
             offset: 2
           verifyMetadata: true
   - id: binary-empty
+    expectedBehavior: "Deliver an empty byte array as a non-null record value."
     body: ''
     headers:
       Authorization: Bearer snapshot-binary-empty
@@ -9863,6 +10132,7 @@ scenarios:
             offset: 3
           verifyMetadata: true
   - id: binary-tombstone
+    expectedBehavior: "Preserve a null binary value as a Kafka tombstone."
     body: null
     headers:
       Authorization: Bearer snapshot-binary-tombstone
@@ -9908,6 +10178,7 @@ scenarios:
             offset: 4
           verifyMetadata: true
   - id: binary-single-zero
+    expectedBehavior: "Deliver one zero byte without treating it as an empty or null payload."
     body: '00'
     headers:
       Authorization: Bearer snapshot-binary-single-zero
@@ -9953,6 +10224,7 @@ scenarios:
             offset: 5
           verifyMetadata: true
   - id: binary-unicode-string
+    expectedBehavior: "Encode the Unicode string into the expected binary bytes."
     body: "Order received - caf\u00e9"
     headers:
       Authorization: Bearer snapshot-binary-unicode-string
@@ -9994,6 +10266,7 @@ scenarios:
             offset: 6
           verifyMetadata: true
   - id: binary-integer-scalar
+    expectedBehavior: "Convert the integer scalar into the expected textual bytes for ByteArraySerializer."
     body: 42
     headers:
       Authorization: Bearer snapshot-binary-integer-scalar
@@ -10035,6 +10308,7 @@ scenarios:
             offset: 7
           verifyMetadata: true
   - id: binary-boolean-scalar
+    expectedBehavior: "Convert the boolean scalar into the expected textual bytes for ByteArraySerializer."
     body: true
     headers:
       Authorization: Bearer snapshot-binary-boolean-scalar
@@ -10076,6 +10350,7 @@ scenarios:
             offset: 8
           verifyMetadata: true
   - id: binary-object-scalar
+    expectedBehavior: "Convert the map scalar into the expected textual bytes for ByteArraySerializer."
     body:
       id: 42
     headers:
@@ -10120,6 +10395,7 @@ scenarios:
               id: 42
           verifyMetadata: true
   - id: binary-byte-buffer
+    expectedBehavior: "Preserve the full byte array from an unpositioned ByteBuffer."
     body: c328ff0080eda080f4908080
     headers:
       Authorization: Bearer snapshot-binary-byte-buffer
@@ -10165,6 +10441,7 @@ scenarios:
             offset: 10
           verifyMetadata: true
   - id: binary-input-stream
+    expectedBehavior: "Read and publish every byte from the input stream."
     body: 000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff
     headers:
       Authorization: Bearer snapshot-binary-input-stream
@@ -10210,6 +10487,7 @@ scenarios:
             offset: 11
           verifyMetadata: true
   - id: binary-empty-buffer
+    expectedBehavior: "Deliver an empty ByteBuffer as an empty non-null record value."
     body: ''
     headers:
       Authorization: Bearer snapshot-binary-empty-buffer
@@ -10255,6 +10533,7 @@ scenarios:
             offset: 12
           verifyMetadata: true
   - id: binary-empty-stream
+    expectedBehavior: "Deliver an empty input stream as an empty non-null record value."
     body: ''
     headers:
       Authorization: Bearer snapshot-binary-empty-stream
@@ -10300,6 +10579,7 @@ scenarios:
             offset: 13
           verifyMetadata: true
   - id: binary-default-charset
+    expectedBehavior: "Encode the text with the sender's default charset."
     body: "\u00e9"
     headers:
       Authorization: Bearer snapshot-binary-default-charset
@@ -10341,6 +10621,7 @@ scenarios:
             offset: 14
           verifyMetadata: true
   - id: binary-charset-property
+    expectedBehavior: "Encode the text with the charset selected by the exchange property."
     body: "\u00e9"
     headers:
       Authorization: Bearer snapshot-binary-charset-property
@@ -10383,6 +10664,7 @@ scenarios:
             offset: 15
           verifyMetadata: true
   - id: binary-charset-header-priority
+    expectedBehavior: "Use the charset header in preference to the charset property."
     body: "\u00e9"
     headers:
       Authorization: Bearer snapshot-binary-charset-header-priority
@@ -10426,6 +10708,8 @@ scenarios:
             offset: 16
           verifyMetadata: true
   - id: binary-positioned-buffer
+    expectedBehavior: >-
+      Reject the positioned ByteBuffer that cannot be converted to the serializer's expected byte array.
     body: 0001ff
     headers:
       Authorization: Bearer snapshot-binary-positioned-buffer
@@ -10476,6 +10760,7 @@ scenarios:
           of loader 'bootstrap')
         cause: null
   - id: after-byte-buffer-error
+    expectedBehavior: "Publish valid binary data after rejecting the positioned ByteBuffer."
     body: 00ff807f
     headers:
       Authorization: Bearer snapshot-binary-after-error
@@ -10521,6 +10806,7 @@ scenarios:
             offset: 17
           verifyMetadata: true
   - id: binary-invalid-first-entry
+    expectedBehavior: "Reject the first unsupported binary batch entry without publishing any record."
     body:
     - 42
     - hex: 00ff
@@ -10572,6 +10858,7 @@ scenarios:
           'bootstrap')
         cause: null
   - id: after-first-entry-error
+    expectedBehavior: "Publish valid binary data after rejecting the first batch entry."
     body: 00ff807f
     headers:
       Authorization: Bearer snapshot-binary-after-error
@@ -10617,6 +10904,7 @@ scenarios:
             offset: 18
           verifyMetadata: true
   - id: binary-empty-batch
+    expectedBehavior: "Accept the empty binary batch without producing a record."
     body: []
     headers:
       Authorization: Bearer snapshot-binary-empty-batch
@@ -10658,6 +10946,7 @@ scenarios:
           expectedRecords: []
           verifyMetadata: true
   - id: after-empty-batch
+    expectedBehavior: "Publish a fresh record after the empty batch produced no records."
     body: 00ff807f
     headers:
       Authorization: Bearer snapshot-binary-after-error
@@ -10703,6 +10992,7 @@ scenarios:
             offset: 19
           verifyMetadata: true
   - id: binary-reset
+    expectedBehavior: "Preserve binary payload bytes when retrying after a TLS connection reset."
     body: 000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff
     headers:
       Authorization: Bearer snapshot-binary-reset
@@ -10756,6 +11046,7 @@ scenarios:
           minSuccessfulTlsHandshakes: 1
           verifyMetadata: true
   - id: retries-binary-publication-after-connection-reset-binary-after-error
+    expectedBehavior: "Publish fresh binary data after recovering from the TLS connection reset."
     body: 00ff807f
     headers:
       Authorization: Bearer snapshot-binary-after-error
@@ -10801,6 +11092,7 @@ scenarios:
             offset: 21
           verifyMetadata: true
   - id: binary-lost-ack
+    expectedBehavior: "Preserve binary payload bytes on both accepted copies after a lost acknowledgment."
     body: c328ff0080eda080f4908080
     headers:
       Authorization: Bearer snapshot-binary-lost-ack
@@ -10858,6 +11150,7 @@ scenarios:
           minSuccessfulTlsHandshakes: 1
           verifyMetadata: true
   - id: retries-binary-publication-after-lost-acknowledgment-binary-after-error
+    expectedBehavior: "Publish fresh binary data after the lost acknowledgment retry."
     body: 00ff807f
     headers:
       Authorization: Bearer snapshot-binary-after-error
@@ -10903,11 +11196,15 @@ scenarios:
             offset: 24
           verifyMetadata: true
 - id: publishes-binary-batches-and-recovers-after-partial-failure
+  expectedBehavior: >-
+    Deliver binary batch values, retain the accepted prefix on serialization failure, and recover on the same
+    sender.
   scope: Long
   deployment: kafka-sender-binary
   endpointUri: cip-chain:7d878112-0520-4866-b7a6-8f0b7078dc37
   invocations:
   - id: binary-batch
+    expectedBehavior: "Deliver every binary batch entry, including empty and null values, in its expected order."
     body:
     - hex: 00ff80
     - hex: ''
@@ -10970,6 +11267,7 @@ scenarios:
           topicPartitions: 1
           verifyMetadata: true
   - id: partial-binary-batch
+    expectedBehavior: "Deliver the valid binary batch prefix and propagate the later serialization failure."
     body:
     - hex: 00ff80
     - invalid
@@ -11027,6 +11325,7 @@ scenarios:
           'bootstrap')
         cause: null
   - id: binary-after-error
+    expectedBehavior: "Publish a fresh binary record after the partial batch failed."
     body: 00ff807f
     headers:
       Authorization: Bearer snapshot-binary-after-error
@@ -11072,11 +11371,16 @@ scenarios:
             offset: 5
           verifyMetadata: true
 - id: publishes-without-context-and-recovers-after-authentication-permission-and-connection-failures
+  expectedBehavior: >-
+    Exclude propagated context from Kafka records while recovering from credential, permission, and connection
+    failures.
   scope: Long
   deployment: kafka-sender-no-context
   endpointUri: cip-chain:676eacde-f793-4795-bb87-fc54653cb778
   invocations:
   - id: wrong-password
+    expectedBehavior: >-
+      Reject the invalid SASL password without delivering a record. Exclude propagated context headers.
     body: Rejected password
     headers:
       Authorization: Bearer snapshot-wrong-password
@@ -11122,6 +11426,8 @@ scenarios:
       message: 'Authentication failed: Invalid username or password'
       cause: null
   - id: correct-password
+    expectedBehavior: >-
+      Authenticate with the restored SASL password and publish successfully. Exclude propagated context headers.
     body: Accepted with corrected password
     headers:
       Authorization: Bearer snapshot-correct-password
@@ -11162,6 +11468,7 @@ scenarios:
             offset: 0
           verifyMetadata: true
   - id: first
+    expectedBehavior: "Publish the first record with its configured key and context headers."
     body: Authenticated publication
     headers:
       Authorization: Bearer snapshot-first
@@ -11207,6 +11514,7 @@ scenarios:
             deliveryTimeoutMs: 6000
             retryBackoffMs: 100
   - id: second
+    expectedBehavior: "Publish a fresh record without reusing the previous request context."
     body: "Order received - caf\u00e9"
     headers:
       Authorization: Bearer snapshot-second
@@ -11246,6 +11554,7 @@ scenarios:
             offset: 2
           verifyMetadata: true
   - id: missing-context
+    expectedBehavior: "Deliver the record without inventing outgoing Authorization or request-ID context headers."
     body: Publication without incoming context
     headers:
       X-Snapshot-Header: missing-context
@@ -11283,6 +11592,8 @@ scenarios:
             offset: 3
           verifyMetadata: true
   - id: before-revocation
+    expectedBehavior: >-
+      Publish successfully before revoking topic Write permission. Exclude propagated context headers.
     body: Accepted before revocation
     headers:
       Authorization: Bearer snapshot-before-revocation
@@ -11328,6 +11639,9 @@ scenarios:
             deliveryTimeoutMs: 6000
             retryBackoffMs: 100
   - id: write-revoked
+    expectedBehavior: >-
+      Propagate topic authorization failure and deliver no record while Write permission is revoked. Exclude
+      propagated context headers.
     body: Rejected after revocation
     headers:
       Authorization: Bearer snapshot-write-revoked
@@ -11367,6 +11681,8 @@ scenarios:
       message: 'Not authorized to access topics: [test-topic]'
       cause: null
   - id: write-restored
+    expectedBehavior: >-
+      Publish successfully after restoring topic Write permission. Exclude propagated context headers.
     body: Accepted after restoring Write permission
     headers:
       Authorization: Bearer snapshot-write-restored
@@ -11407,6 +11723,9 @@ scenarios:
             offset: 5
           verifyMetadata: true
   - id: before-reset
+    expectedBehavior: >-
+      Publish successfully before resetting the authenticated producer connection. Exclude propagated context
+      headers.
     body: Accepted before reset
     headers:
       Authorization: Bearer snapshot-before-reset
@@ -11452,6 +11771,9 @@ scenarios:
             deliveryTimeoutMs: 6000
             retryBackoffMs: 100
   - id: retried-after-reset
+    expectedBehavior: >-
+      Reauthenticate after a connection reset and retry the record successfully. Exclude propagated context
+      headers.
     body: Accepted after reset and authentication
     headers:
       Authorization: Bearer snapshot-retried-after-reset
@@ -11493,6 +11815,8 @@ scenarios:
             offset: 7
           verifyMetadata: true
   - id: after-reset
+    expectedBehavior: >-
+      Publish a fresh record after recovering the authenticated connection. Exclude propagated context headers.
     body: Next authenticated publication
     headers:
       Authorization: Bearer snapshot-after-reset
@@ -11532,6 +11856,8 @@ scenarios:
             offset: 8
           verifyMetadata: true
   - id: before-lost-ack
+    expectedBehavior: >-
+      Publish successfully before dropping a broker acknowledgment. Exclude propagated context headers.
     body: Accepted before acknowledgment loss
     headers:
       Authorization: Bearer snapshot-before-lost-ack
@@ -11577,6 +11903,9 @@ scenarios:
             deliveryTimeoutMs: 6000
             retryBackoffMs: 100
   - id: lost-ack
+    expectedBehavior: >-
+      Retry the lost acknowledgment and observe both accepted copies of the record. Exclude propagated context
+      headers.
     body: Accepted twice after lost acknowledgment
     headers:
       Authorization: Bearer snapshot-lost-ack
@@ -11621,6 +11950,7 @@ scenarios:
             offset: 11
           verifyMetadata: true
   - id: after-lost-ack
+    expectedBehavior: "Publish a fresh record after the acknowledgment retry. Exclude propagated context headers."
     body: Next publication after acknowledgment loss
     headers:
       Authorization: Bearer snapshot-after-lost-ack
@@ -11660,11 +11990,17 @@ scenarios:
             offset: 12
           verifyMetadata: true
 - id: publishes-batches-without-context-and-recovers-after-partial-failure
+  expectedBehavior: >-
+    Exclude propagated context from batch records and recover after empty input and partial serialization
+    failure.
   scope: Long
   deployment: kafka-sender-no-context
   endpointUri: cip-chain:676eacde-f793-4795-bb87-fc54653cb778
   invocations:
   - id: batch
+    expectedBehavior: >-
+      Deliver all batch records while excluding propagated Authorization and request-ID headers. Exclude
+      propagated context headers.
     body:
     - first
     - null
@@ -11734,6 +12070,7 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: batch
   - id: empty-batch
+    expectedBehavior: "Accept the empty batch without sending any Kafka records. Exclude propagated context headers."
     body: []
     headers:
       Authorization: Bearer snapshot-empty-batch
@@ -11774,6 +12111,8 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: empty-batch
   - id: after-empty-batch
+    expectedBehavior: >-
+      Publish a fresh record after the empty batch produced no records. Exclude propagated context headers.
     body: Accepted after the empty batch
     headers:
       Authorization: Bearer snapshot-after-empty-batch
@@ -11813,6 +12152,9 @@ scenarios:
             offset: 3
           verifyMetadata: true
   - id: partial-batch
+    expectedBehavior: >-
+      Propagate serialization failure after delivering only the valid batch prefix. Exclude propagated context
+      headers.
     body:
     - accepted-before-error
     - invalid: value
@@ -11881,6 +12223,8 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: partial-batch
   - id: after-batch-error
+    expectedBehavior: >-
+      Publish a fresh record after the previous batch failed serialization. Exclude propagated context headers.
     body: Accepted after batch error
     headers:
       Authorization: Bearer snapshot-after-batch-error
@@ -11924,12 +12268,16 @@ scenarios:
     expectedHeaders:
       X-Snapshot-Header: after-batch-error
 - id: publishes-message-and-exchange-batches-with-per-item-routing-and-recovers
+  expectedBehavior: >-
+    Honor each Message and Exchange batch item's topic, key, partition, and timestamp, then recover after an
+    invalid item.
   reuseBroker: true
   scope: Long
   deployment: kafka-sender-header-keys
   endpointUri: cip-chain:b1fa0faf-03f1-45a9-a8b6-dde58f19a46e
   invocations:
   - id: message-list-per-item-routing
+    expectedBehavior: "Honor each Message list item's topic, key, partition, and timestamp independently."
     body:
     - body: first
       headers:
@@ -12025,6 +12373,7 @@ scenarios:
         itemType: message
         containerType: list
   - id: message-after-list-batch
+    expectedBehavior: "Publish a fresh record without retaining Message list routing overrides."
     body:
     - body: next
       headers:
@@ -12080,6 +12429,7 @@ scenarios:
         itemType: message
         containerType: list
   - id: message-iterator-per-item-routing
+    expectedBehavior: "Honor each Message iterator item's independent Kafka routing and timestamp."
     driver:
       provider: kafkaBatchInput
       parameters:
@@ -12175,6 +12525,7 @@ scenarios:
             timestamp: 1700000000890
           verifyMetadata: true
   - id: message-after-iterator-batch
+    expectedBehavior: "Publish a fresh record after the Message iterator batch."
     driver:
       provider: kafkaBatchInput
       parameters:
@@ -12230,6 +12581,7 @@ scenarios:
             timestamp: 1700000000123
           verifyMetadata: true
   - id: message-partial-batch
+    expectedBehavior: "Deliver the valid Message batch prefix and reject the later invalid routing value."
     body:
     - body: accepted-before-error
       headers:
@@ -12300,6 +12652,7 @@ scenarios:
         itemType: message
         containerType: list
   - id: message-after-error
+    expectedBehavior: "Publish successfully after the Message batch failed on an invalid item."
     body:
     - body: accepted-after-error
       headers:
@@ -12354,6 +12707,7 @@ scenarios:
         itemType: message
         containerType: list
   - id: exchange-list-per-item-routing
+    expectedBehavior: "Honor each Exchange list item's topic, key, partition, and timestamp independently."
     body:
     - body: first
       headers:
@@ -12449,6 +12803,7 @@ scenarios:
         itemType: exchange
         containerType: list
   - id: exchange-after-list-batch
+    expectedBehavior: "Publish a fresh record without retaining Exchange list routing overrides."
     body:
     - body: next
       headers:
@@ -12504,6 +12859,7 @@ scenarios:
         itemType: exchange
         containerType: list
   - id: exchange-iterator-per-item-routing
+    expectedBehavior: "Honor each Exchange iterator item's independent Kafka routing and timestamp."
     driver:
       provider: kafkaBatchInput
       parameters:
@@ -12599,6 +12955,7 @@ scenarios:
             timestamp: 1700000000890
           verifyMetadata: true
   - id: exchange-after-iterator-batch
+    expectedBehavior: "Publish a fresh record after the Exchange iterator batch."
     driver:
       provider: kafkaBatchInput
       parameters:
@@ -12654,6 +13011,7 @@ scenarios:
             timestamp: 1700000000123
           verifyMetadata: true
   - id: exchange-partial-batch
+    expectedBehavior: "Deliver the valid Exchange batch prefix and reject the later invalid routing value."
     body:
     - body: accepted-before-error
       headers:
@@ -12724,6 +13082,7 @@ scenarios:
         itemType: exchange
         containerType: list
   - id: exchange-after-error
+    expectedBehavior: "Publish successfully after the Exchange batch failed on an invalid item."
     body:
     - body: accepted-after-error
       headers:
@@ -12778,6 +13137,7 @@ scenarios:
         itemType: exchange
         containerType: list
 - id: omits-record-metadata-on-message-batch-items
+  expectedBehavior: "Deliver independently routed Message batch items without adding record metadata to their results."
   reuseBroker: true
   scope: Long
   deployment: kafka-sender-header-keys
@@ -12789,6 +13149,7 @@ scenarios:
       containerType: iterator
   invocations:
   - id: per-item-routing
+    expectedBehavior: "Deliver independently routed batch items without adding record metadata to the results."
     body:
     - body: first
       headers:
@@ -12882,6 +13243,7 @@ scenarios:
           producerProperties:
             recordMetadata: false
   - id: after-batch
+    expectedBehavior: "Publish a fresh scalar record without adding record metadata after the routed batch."
     body:
     - body: next
       headers:
@@ -12935,6 +13297,9 @@ scenarios:
           producerProperties:
             recordMetadata: false
 - id: omits-record-metadata-on-exchange-batch-items-synchronously
+  expectedBehavior: >-
+    Deliver independently routed Exchange batch items synchronously without adding record metadata to their
+    results.
   reuseBroker: true
   scope: Long
   deployment: kafka-sender-header-keys
@@ -12946,6 +13311,7 @@ scenarios:
       containerType: list
   invocations:
   - id: per-item-routing
+    expectedBehavior: "Deliver independently routed batch items without adding record metadata to the results."
     body:
     - body: first
       headers:
@@ -13039,6 +13405,7 @@ scenarios:
           producerProperties:
             recordMetadata: false
   - id: after-batch
+    expectedBehavior: "Publish a fresh scalar record without adding record metadata after the routed batch."
     body:
     - body: next
       headers:

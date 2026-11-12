@@ -5,6 +5,7 @@ resources:
 
 scenarios:
   - id: "reads-staged-file-content"
+    expectedBehavior: "Read the staged local file and return its exact content, including the final line break."
     scope: Short
     driver:
       provider: "file-read"

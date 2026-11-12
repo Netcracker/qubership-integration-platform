@@ -7,6 +7,7 @@ deployments:
     route: "try-catch-finally unexpected errors"
 scenarios:
   - id: "completes-try-and-runs-finally"
+    expectedBehavior: "Complete Try successfully, execute Finally, and leave the element warning flag false."
     scope: Short
     endpointUri: "cip-chain:7bb7fece-7b9e-440b-abe7-ac736163df59"
     body: "Original"
@@ -18,6 +19,7 @@ scenarios:
     expectedProperties:
       internalProperty_element_warning: "false"
   - id: "handles-arithmetic-exception-and-runs-finally"
+    expectedBehavior: "Handle ArithmeticException in its matching Catch, execute Finally, and set the element warning flag."
     scope: Short
     endpointUri: "cip-chain:7bb7fece-7b9e-440b-abe7-ac736163df59"
     body: "Original"
@@ -29,6 +31,7 @@ scenarios:
     expectedProperties:
       internalProperty_element_warning: "true"
   - id: "handles-index-out-of-bounds-exception-and-runs-finally"
+    expectedBehavior: "Handle IndexOutOfBoundsException in its matching Catch, execute Finally, and set the element warning flag."
     scope: Short
     endpointUri: "cip-chain:7bb7fece-7b9e-440b-abe7-ac736163df59"
     body: "Original"
@@ -40,6 +43,9 @@ scenarios:
     expectedProperties:
       internalProperty_element_warning: "true"
   - id: "handles-generic-exception-and-runs-finally"
+    expectedBehavior: >-
+      Handle the generic exception in Catch, execute Finally, and return the configured handled-error body and
+      warning flag.
     scope: Short
     endpointUri: "cip-chain:7bb7fece-7b9e-440b-abe7-ac736163df59"
     body: "Original"
@@ -51,6 +57,7 @@ scenarios:
     expectedProperties:
       internalProperty_element_warning: "true"
   - id: "handles-missing-exception-type-and-runs-finally"
+    expectedBehavior: "Use the Catch with no exception type to handle the failure, execute Finally, and set the warning flag."
     scope: Short
     endpointUri: "cip-chain:7bb7fece-7b9e-440b-abe7-ac736163df59"
     body: "Original"
@@ -61,10 +68,16 @@ scenarios:
       internalProperty_element_warning: "true"
 
   - id: "propagates-unmatched-exception-and-runs-finally"
+    expectedBehavior: >-
+      Propagate an unmatched ArrayIndexOutOfBoundsException without entering Catch and execute Finally exactly
+      once.
     scope: Short
     endpointUri: "cip-chain:9632d452-1209-4922-b1a7-7303fbd15f14"
     invocations:
       - id: "fails-in-try"
+        expectedBehavior: >-
+          Propagate an unmatched ArrayIndexOutOfBoundsException without entering Catch and execute Finally
+          exactly once.
         body: "Original"
         properties:
           exceptionType: "index"
@@ -82,10 +95,12 @@ scenarios:
           finallyCount: 1
 
   - id: "propagates-catch-failure-and-runs-finally"
+    expectedBehavior: "Propagate the exception thrown inside Catch and execute Finally exactly once after Catch is entered."
     scope: Short
     endpointUri: "cip-chain:9632d452-1209-4922-b1a7-7303fbd15f14"
     invocations:
       - id: "fails-in-catch"
+        expectedBehavior: "Propagate the exception thrown inside Catch and execute Finally exactly once after Catch is entered."
         body: "Original"
         properties:
           exceptionType: "arithmetic"
@@ -103,10 +118,16 @@ scenarios:
           finallyCount: 1
 
   - id: "propagates-finally-failure-after-successful-try"
+    expectedBehavior: >-
+      Propagate the exception thrown by Finally after successful Try, without entering Catch or losing the
+      completed body.
     scope: Short
     endpointUri: "cip-chain:9632d452-1209-4922-b1a7-7303fbd15f14"
     invocations:
       - id: "fails-in-finally"
+        expectedBehavior: >-
+          Propagate the exception thrown by Finally after successful Try, without entering Catch or losing the
+          completed body.
         body: "Original"
         properties:
           exceptionType: ""

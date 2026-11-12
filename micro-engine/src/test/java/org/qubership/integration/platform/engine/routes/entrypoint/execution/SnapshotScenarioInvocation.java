@@ -27,6 +27,7 @@ public class SnapshotScenarioInvocation {
     private final List<String> expectedAbsentExchangeHeaders;
     private final Map<String, Object> expectedProperties;
     private final List<SnapshotFixtureInteraction> interactions;
+    private String expectedBehavior;
 
     @JsonCreator
     public SnapshotScenarioInvocation(
@@ -86,6 +87,15 @@ public class SnapshotScenarioInvocation {
 
     public String getId() {
         return id;
+    }
+
+    public String getExpectedBehavior() {
+        return expectedBehavior;
+    }
+
+    @JsonProperty("expectedBehavior")
+    public void setExpectedBehavior(String expectedBehavior) {
+        this.expectedBehavior = optionalNonBlank(expectedBehavior, "expectedBehavior");
     }
 
     public int getRepeat() {

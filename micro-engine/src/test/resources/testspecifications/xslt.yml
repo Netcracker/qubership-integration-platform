@@ -14,6 +14,7 @@ resources:
     target: "xslt/terminating-template.xslt"
 scenarios:
   - id: "transforms-customer-data"
+    expectedBehavior: "Transform the customer XML into the expected output and preserve the request headers and properties."
     scope: Short
     driver:
       provider: "routeSelector"
@@ -83,12 +84,18 @@ scenarios:
         </clients>
 
   - id: transforms-multiple-customers-and-orders
+    expectedBehavior: >-
+      Transform multiple customers, orders, and products without changing their source order or associating
+      items with the wrong parent.
     scope: Short
     driver:
       provider: routeSelector
       sourceElementId: 85718c16-bb01-47d6-8eeb-f3046ff0a318
     invocations:
       - id: keeps-each-customer-order-and-product-in-source-order
+        expectedBehavior: >-
+          Transform multiple customers, orders, and products without changing their source order or associating
+          items with the wrong parent.
         body: |-
           <customerData>
             <customer id="C-1">
@@ -137,28 +144,40 @@ scenarios:
         expectedProperties:
           marker: preserved
   - id: handles-empty-collections-and-missing-customer-fields
+    expectedBehavior: >-
+      Transform an empty collection and missing optional customer fields into the expected empty output
+      structures and values.
     scope: Short
     driver:
       provider: routeSelector
       sourceElementId: 85718c16-bb01-47d6-8eeb-f3046ff0a318
     invocations:
       - id: transforms-an-empty-customer-collection
+        expectedBehavior: "Return the expected empty result structure when the source contains no customers."
         body: <customerData/>
         expectedBody:
           $match: xml
           value: <clients/>
       - id: emits-empty-values-for-absent-optional-fields
+        expectedBehavior: >-
+          Emit the configured empty values for absent optional customer fields.
         body: <customerData><customer/></customerData>
         expectedBody:
           $match: xml
           value: <clients><client client-id=""><full-name><given-name/><family-name/></full-name><contacts><email-address/></contacts><purchases/></client></clients>
   - id: preserves-unicode-and-xml-special-characters
+    expectedBehavior: >-
+      Preserve Unicode and decoded text/attribute values while escaping XML special characters in the
+      transformed result.
     scope: Short
     driver:
       provider: routeSelector
       sourceElementId: 85718c16-bb01-47d6-8eeb-f3046ff0a318
     invocations:
       - id: escapes-text-and-attributes-without-changing-their-values
+        expectedBehavior: >-
+          Preserve Unicode and decoded text/attribute values while escaping XML special characters in the
+          transformed result.
         body: |-
           <customerData><customer id="C&amp;200">
             <firstName>José</firstName><lastName>A&amp;B</lastName><email>cafe@example.com</email>
@@ -178,12 +197,18 @@ scenarios:
               </purchase></purchases>
             </client></clients>
   - id: transforms-namespaced-input-and-isolates-xslt-parameters
+    expectedBehavior: >-
+      Transform namespaced input with header-over-property parameter precedence and restore defaults when later
+      requests omit parameters.
     scope: Short
     driver:
       provider: routeSelector
       sourceElementId: e3bbe9ff-7292-5f07-983c-6b53ad59266d
     invocations:
       - id: uses-headers-before-properties-and-preserves-the-message-context
+        expectedBehavior: >-
+          Use header parameters in preference to properties when both are supplied and preserve the surrounding
+          message context.
         body: <customerData xmlns="urn:qip:customer"><customer id="N-1"><name>Ada</name></customer></customerData>
         headers:
           region: header-region
@@ -201,6 +226,7 @@ scenarios:
           region: property-region
           label: property-label
       - id: restores-one-default-and-uses-a-fresh-header-parameter
+        expectedBehavior: "Restore the omitted parameter's default and use the other parameter's fresh header value."
         body: <c:customerData xmlns:c="urn:qip:customer"><c:customer id="N-2"><c:name>Grace</c:name></c:customer></c:customerData>
         headers:
           label: header-label
@@ -210,6 +236,9 @@ scenarios:
         expectedHeaders:
           label: header-label
       - id: uses-both-defaults-without-parameters-from-prior-invocations
+        expectedBehavior: >-
+          Use both stylesheet defaults when neither parameter is supplied, without leaking previous request
+          values.
         body: <customerData xmlns="urn:qip:customer"><customer id="N-3"><name>José</name></customer></customerData>
         expectedBody:
           $match: xml
@@ -218,25 +247,36 @@ scenarios:
           - region
           - label
   - id: renders-utf8-text-with-a-relative-stylesheet-include
+    expectedBehavior: >-
+      Resolve the relative stylesheet include and return exact UTF-8 text, including empty text for an empty
+      collection.
     scope: Short
     driver:
       provider: routeSelector
       sourceElementId: 55b9f1e6-ca18-5483-b0ca-6792d0dd7290
     invocations:
       - id: loads-the-included-template-relative-to-the-main-stylesheet
+        expectedBehavior: "Load the shared template relative to the main stylesheet and return the exact expected UTF-8 text."
         body: <customerData><customer id="C-1"><firstName>Ada</firstName><lastName>Lovelace</lastName></customer><customer
           id="C-2"><firstName>José</firstName><lastName>Café</lastName></customer></customerData>
         expectedBody: 'C-1: Ada Lovelace;C-2: José Café'
       - id: returns-empty-text-for-an-empty-collection
+        expectedBehavior: "Return an empty text body for a customer collection with no entries."
         body: <customerData/>
         expectedBody: ''
   - id: reports-malformed-source-xml-and-recovers-on-the-same-route
+    expectedBehavior: >-
+      Report the declared parser failure for malformed XML and transform the next valid input through the same
+      route.
     scope: Short
     driver:
       provider: routeSelector
       sourceElementId: 85718c16-bb01-47d6-8eeb-f3046ff0a318
     invocations:
       - id: rejects-mismatched-xml-tags
+        expectedBehavior: >-
+          Report the exact expected parser exception chain for mismatched XML tags while retaining unrelated
+          metadata.
         body: <customerData><customer></customerData>
         expectedBody: <customerData><customer></customerData>
         expectedFailure:
@@ -250,6 +290,7 @@ scenarios:
               message: The end-tag for element type "customer" must end with a '>' delimiter.
               cause: null
       - id: transforms-valid-input-after-failure
+        expectedBehavior: "Transform a fresh valid customer through the existing route after the malformed-source failure."
         body: <customerData/>
         headers:
           X-Trace-Id: fresh
@@ -263,12 +304,16 @@ scenarios:
         expectedProperties:
           marker: fresh
   - id: reports-empty-source-xml-and-recovers-on-the-same-route
+    expectedBehavior: >-
+      Report the declared failure for an empty XML document and transform a fresh valid request through the same
+      route.
     scope: Short
     driver:
       provider: routeSelector
       sourceElementId: 85718c16-bb01-47d6-8eeb-f3046ff0a318
     invocations:
       - id: rejects-an-empty-xml-document
+        expectedBehavior: "Report the exact expected exception chain for an empty XML input without losing unrelated metadata."
         body: ''
         expectedBody: ''
         expectedFailure:
@@ -282,6 +327,7 @@ scenarios:
               message: Premature end of file.
               cause: null
       - id: transforms-valid-input-after-failure
+        expectedBehavior: "Transform a fresh valid customer through the existing route after the empty-source failure."
         body: <customerData/>
         headers:
           X-Trace-Id: fresh
@@ -295,12 +341,16 @@ scenarios:
         expectedProperties:
           marker: fresh
   - id: reports-missing-stylesheet-and-keeps-valid-route-available
+    expectedBehavior: >-
+      Report the missing stylesheet file while leaving the independently configured valid transformation route
+      usable.
     scope: Short
     driver:
       provider: routeSelector
       sourceElementId: d9a69e12-9dce-5b10-99a2-0eb1525fdcd0
     invocations:
       - id: reports-the-missing-template-file
+        expectedBehavior: "Report the expected missing-file exception chain for the configured stylesheet path."
         body: <customerData/>
         expectedBody: <customerData/>
         expectedFailure:
@@ -317,6 +367,7 @@ scenarios:
                 message: /tmp/chain_tmp/xslt/missing-component-stylesheet.xslt does not exist
                 cause: null
       - id: transforms-valid-input-after-failure
+        expectedBehavior: "Transform valid input through the separate valid route despite the other route's missing stylesheet."
         body: <customerData/>
         headers:
           X-Trace-Id: fresh
@@ -333,12 +384,18 @@ scenarios:
           provider: routeSelector
           sourceElementId: 85718c16-bb01-47d6-8eeb-f3046ff0a318
   - id: reports-invalid-stylesheet-and-keeps-valid-route-available
+    expectedBehavior: >-
+      Report stylesheet compilation failure while leaving the independently configured valid transformation
+      route usable.
     scope: Short
     driver:
       provider: routeSelector
       sourceElementId: fa30fc3b-b97a-54c7-a1d3-ae3aded27cf2
     invocations:
       - id: rejects-well-formed-xml-that-is-not-valid-xslt
+        expectedBehavior: >-
+          Report the expected compilation exception chain for well-formed XML that is not a valid XSLT
+          stylesheet.
         body: <customerData/>
         expectedBody: <customerData/>
         expectedFailure:
@@ -353,6 +410,9 @@ scenarios:
                 missing.'
               cause: null
       - id: transforms-valid-input-after-failure
+        expectedBehavior: >-
+          Transform valid input through the separate valid route despite the other route's stylesheet
+          compilation failure.
         body: <customerData/>
         headers:
           X-Trace-Id: fresh
@@ -369,12 +429,18 @@ scenarios:
           provider: routeSelector
           sourceElementId: 85718c16-bb01-47d6-8eeb-f3046ff0a318
   - id: reports-terminating-xslt-message-and-recovers-on-the-same-route
+    expectedBehavior: >-
+      Propagate the terminating XSLT message for rejected data and transform fresh accepted data with the same
+      stylesheet.
     scope: Short
     driver:
       provider: routeSelector
       sourceElementId: 77b80a5b-968a-5ae5-ba09-56da563e19b4
     invocations:
       - id: rejects-data-through-the-stylesheet-termination-branch
+        expectedBehavior: >-
+          Propagate the declared terminating-message exception for the rejected customer and preserve unrelated
+          metadata.
         body: <customerData reject="true"><customer id="R-1"/></customerData>
         expectedBody: <customerData reject="true"><customer id="R-1"/></customerData>
         expectedFailure:
@@ -385,6 +451,9 @@ scenarios:
             message: Termination forced by an xsl:message instruction
             cause: null
       - id: transforms-fresh-accepted-data-with-the-existing-stylesheet
+        expectedBehavior: >-
+          Transform a fresh accepted customer using the same stylesheet after its terminating-message branch has
+          failed.
         body: <customerData><customer id="R-2"/></customerData>
         expectedBody:
           $match: xml

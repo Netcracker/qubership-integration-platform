@@ -5,6 +5,7 @@ fixtures:
 
 scenarios:
   - id: "writes-message-body-to-file"
+    expectedBehavior: "Write the message body to the expected local output file and preserve the body in the result."
     scope: Short
     endpointUri: "cip-chain:fd62b92f-160c-4c43-93e3-d5fe6d86d009"
     body: |-
@@ -20,6 +21,7 @@ scenarios:
             {"message":"written to file","sequence":1}
 
   - id: "writes-empty-file-for-null-body"
+    expectedBehavior: "Create the expected output file with zero bytes when the input body is null."
     scope: Short
     endpointUri: "cip-chain:fd62b92f-160c-4c43-93e3-d5fe6d86d009"
     interactions:
