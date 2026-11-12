@@ -31,12 +31,12 @@ describe("isHttpFieldName", () => {
   });
 
   it("should refuse a name outside the ASCII token set", () => {
-    expect(isHttpFieldName("заголовок")).toBe(false);
+    expect(isHttpFieldName("\u05d0")).toBe(false);
   });
 });
 
 describe("isHttpFieldValue", () => {
-  it.each(["", "text/plain", "a b", "a\tb", "ключ"])(
+  it.each(["", "text/plain", "a b", "a\tb", "\u05d0"])(
     "should accept %j as a field value",
     (value) => {
       expect(isHttpFieldValue(value)).toBe(true);
