@@ -49,7 +49,6 @@ class CompilerGeneratorPolicyBuilderTest {
     List<String> signals = policy.readinessSignalsFor("cip-service-call-generator");
 
     assertTrue(signals.contains("incomplete_service_call_bindings"));
-    assertTrue(signals.contains("incomplete_service_call_error_throwing"));
   }
 
   @Test

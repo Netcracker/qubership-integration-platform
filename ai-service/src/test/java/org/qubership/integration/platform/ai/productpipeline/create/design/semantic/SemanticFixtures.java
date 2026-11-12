@@ -103,10 +103,7 @@ public final class SemanticFixtures {
         List.of());
   }
 
-  /**
-   * Skipped mapping hop with an approved constant-response script. {@code mappingIntents} stay
-   * empty; the script is behavior-owned through positive BEHAVIOR provenance.
-   */
+  /** Script shell with BEHAVIOR provenance and no mapping authority. */
   public static ChainSemanticRevision linearOrdersWithCompleteTask() {
     return new ChainSemanticRevision(
         CONTRACT.semanticSchemaVersion(),
@@ -352,7 +349,7 @@ public final class SemanticFixtures {
                     new SemanticBranch.Condition(
                         "true-branch",
                         ConditionBranchRole.IF,
-                        "status == 'ok'",
+                        "${header.status} == 'ok'",
                         1,
                         "script-true",
                         List.of("script-true")),

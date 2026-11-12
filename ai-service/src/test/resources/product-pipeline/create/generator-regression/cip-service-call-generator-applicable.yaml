@@ -63,11 +63,6 @@ capturedPatch:
       property:
         key: propagateContext
         value: "true"
-    - operation: ADD
-      targetNodeId: call-1
-      property:
-        key: errorThrowing
-        value: "true"
   chainPatches: []
   usedKnowledgeRefs: []
   rationale: call-1 already contains its catalog binding. Set the service-call execution defaults.
@@ -104,7 +99,5 @@ expectedGraph:
         - key: integrationOperationPath
           value: "/users"
         - key: propagateContext
-          value: "true"
-        - key: errorThrowing
           value: "true"
   edges: []

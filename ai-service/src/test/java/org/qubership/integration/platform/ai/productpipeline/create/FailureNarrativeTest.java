@@ -2,14 +2,25 @@ package org.qubership.integration.platform.ai.productpipeline.create;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.langchain4j.data.message.UserMessage;
+import dev.langchain4j.exception.RateLimitException;
+import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.chat.request.ChatRequest;
+import dev.langchain4j.model.chat.request.ChatRequestParameters;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
+import org.qubership.integration.platform.ai.llm.ratelimit.RateLimitAwareChatModel;
+import org.qubership.integration.platform.ai.llm.ratelimit.RateLimitErrorClassifier;
+import org.qubership.integration.platform.ai.llm.ratelimit.RateLimitWaitPolicy;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationResult;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
@@ -20,6 +31,7 @@ import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryAc
 import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryCauseClass;
 import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryContext;
 import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryDecision;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryDecisionValidator;
 import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryEvidence;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationIssue;
@@ -920,6 +932,45 @@ class FailureNarrativeTest {
   }
 
   @Test
+  void diagnosisDefersKnownRateLimitWaitOutsideItsUnchangedWallDeadline() {
+    var delegate = org.mockito.Mockito.mock(ChatModel.class);
+    org.mockito.Mockito.when(delegate.chat(org.mockito.ArgumentMatchers.any(ChatRequest.class)))
+        .thenThrow(new RateLimitException("Rate limit reached. Please try again in 60 s"));
+    var wrapped = new RateLimitAwareChatModel(delegate, new RateLimitErrorClassifier(), new RateLimitWaitPolicy(),
+        seconds -> { throw new AssertionError("The known wait must leave the bounded diagnosis before sleeping"); },
+        true, 3, event -> {});
+    var agent = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent.class);
+    org.mockito.Mockito.when(agent.recover(org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(ChatRequestParameters.class)))
+        .thenAnswer(call -> {
+          wrapped.chat(ChatRequest.builder().messages(UserMessage.from("Diagnose the saved failure")).build());
+          return sampleRecoveryDecision();
+        });
+    Instant before = Instant.now();
+
+    var result = new FailureNarrative(agent, 12, Duration.ofSeconds(20))
+        .diagnoseRecovery("run", sampleRecoveryContext());
+
+    assertEquals(FailureNarrative.RecoveryStatus.TRANSIENT_PROVIDER_FAILURE, result.status());
+    assertNull(result.decision());
+    assertNotNull(result.retryAt());
+    assertTrue(result.retryAt().isAfter(before.plusSeconds(20)));
+    org.mockito.Mockito.verify(delegate).chat(org.mockito.ArgumentMatchers.any(ChatRequest.class));
+  }
+
+  @Test
+  void ordinaryDiagnosisWallTimeoutStillHasUnknownTransportAndNoRetryDeadline() {
+    var result = new FailureNarrative(
+        FakeFailureNarrativeAgent.slow("Too late.", Duration.ofSeconds(30)), 12, Duration.ofMillis(50))
+        .diagnoseRecovery("run", sampleRecoveryContext());
+
+    assertEquals(FailureNarrative.RecoveryStatus.TIMED_OUT, result.status());
+    assertNull(result.decision());
+    assertNull(result.retryAt());
+    assertTrue(result.detail().contains("transport outcome is unknown"));
+  }
+
+  @Test
   void structuredDiagnosisRetainsTheFailureStatus() {
     var agent = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent.class);
     var narrative = new FailureNarrative(agent);
@@ -932,13 +983,36 @@ class FailureNarrativeTest {
     assertEquals(FailureNarrative.RecoveryStatus.INVALID_REPLY,
         narrative.diagnoseRecovery("run", sampleRecoveryContext()).status());
     org.mockito.Mockito.when(agent.recover(org.mockito.ArgumentMatchers.anyString(),
-        org.mockito.ArgumentMatchers.anyString())).thenThrow(new dev.langchain4j.exception.AuthenticationException("Invalid credential"));
+        org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class))).thenThrow(new dev.langchain4j.exception.AuthenticationException("Invalid credential"));
     assertEquals(FailureNarrative.RecoveryStatus.PERMANENT_PROVIDER_FAILURE,
         narrative.diagnoseRecovery("run", sampleRecoveryContext()).status());
     org.mockito.Mockito.doThrow(new org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget.Exhausted("No request credit"))
-        .when(agent).recover(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+        .when(agent).recover(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class));
     assertEquals(FailureNarrative.RecoveryStatus.RESOURCE_REFUSAL,
         narrative.diagnoseRecovery("run", sampleRecoveryContext()).status());
+  }
+
+  @Test
+  void incompleteParsedDecisionsReachNativeValidationWithoutLosingTheirContent() {
+    var original = sampleRecoveryDecision();
+    var missingCause = new RecoveryDecision(null, original.faultArtifactRef(), original.evidenceRefs(),
+        original.action(), original.proposedBriefChanges(), original.question(), original.userSummary());
+    var missingAction = new RecoveryDecision(original.causeClass(), original.faultArtifactRef(), original.evidenceRefs(),
+        null, original.proposedBriefChanges(), original.question(), original.userSummary());
+    for (var incomplete : List.of(missingCause, missingAction)) {
+      var agent = FakeFailureNarrativeAgent.narrates("unused").recoverReturns(incomplete);
+      var result = new FailureNarrative(agent).diagnoseRecovery("incomplete-decision", sampleRecoveryContext());
+
+      assertEquals(FailureNarrative.RecoveryStatus.READY, result.status());
+      assertEquals(incomplete, result.decision());
+      var validation = RecoveryDecisionValidator.validate(result.decision(), sampleRecoveryContext());
+      assertFalse(validation.accepted());
+      assertEquals(List.of(incomplete.causeClass() == null ? "Missing cause class." : "Missing recovery action."),
+          validation.findings());
+      assertEquals(1, agent.calls.get());
+    }
   }
 
   @Test
@@ -947,7 +1021,8 @@ class FailureNarrativeTest {
     var handshake = new javax.net.ssl.SSLHandshakeException("Handshake interrupted");
     handshake.initCause(new java.net.SocketTimeoutException("Connection timed out"));
     org.mockito.Mockito.when(agent.recover(org.mockito.ArgumentMatchers.anyString(),
-        org.mockito.ArgumentMatchers.anyString())).thenThrow(new IllegalStateException(handshake));
+        org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class))).thenThrow(new IllegalStateException(handshake));
     assertEquals(FailureNarrative.RecoveryStatus.TRANSIENT_PROVIDER_FAILURE,
         new FailureNarrative(agent).diagnoseRecovery("run", sampleRecoveryContext()).status());
   }
@@ -957,7 +1032,8 @@ class FailureNarrativeTest {
     var agent = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent.class);
     String reason = "Tool call belongs to an obsolete reset generation.";
     org.mockito.Mockito.when(agent.recover(org.mockito.ArgumentMatchers.anyString(),
-        org.mockito.ArgumentMatchers.anyString())).thenThrow(new IllegalStateException(
+        org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class))).thenThrow(new IllegalStateException(
             new org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException(reason)));
     var result = new FailureNarrative(agent).diagnoseRecovery("run", sampleRecoveryContext());
     assertEquals("INTERNAL_FAILURE", result.status().name());

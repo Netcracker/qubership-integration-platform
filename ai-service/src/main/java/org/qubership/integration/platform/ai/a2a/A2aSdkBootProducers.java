@@ -8,6 +8,7 @@ import org.a2aproject.sdk.server.agentexecution.AgentExecutor;
 import org.a2aproject.sdk.compat03.spec.AgentCard_v0_3;
 import org.a2aproject.sdk.spec.AgentCard;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.qubership.integration.platform.ai.skills.RockySkills;
 import org.qubership.integration.platform.ai.a2a.access.CallerContextProvider;
 import org.qubership.integration.platform.ai.a2a.access.TaskAccessPolicy;
 import org.qubership.integration.platform.ai.a2a.persistence.A2aMessageReceiptRepository;
@@ -19,6 +20,7 @@ import org.qubership.integration.platform.ai.a2a.transport.CreateChainA2aAgentEx
 import org.qubership.integration.platform.ai.a2a.transport.CipA2aAgentExecutor;
 import org.qubership.integration.platform.ai.a2a.transport.CipAssistA2aAgentExecutor;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
+import org.qubership.integration.platform.ai.chat.service.ChatDecisionService;
 import org.qubership.integration.platform.ai.configuration.AppConfig;
 import org.qubership.integration.platform.ai.llm.routing.ScenarioRouter;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
@@ -32,6 +34,9 @@ import org.qubership.integration.platform.ai.productpipeline.create.facade.Creat
 @ApplicationScoped
 public class A2aSdkBootProducers {
 
+  @jakarta.inject.Inject
+  RockySkills rockySkills = new RockySkills();
+
   @Inject CreateChainApplicationFacade facade;
   @Inject A2aTaskSnapshotPersister persister;
   @Inject A2aMessageReceiptRepository receiptRepository;
@@ -43,6 +48,7 @@ public class A2aSdkBootProducers {
   @Inject AppConfig appConfig;
   @Inject ScenarioRouter scenarioRouter;
   @Inject ConversationService conversationService;
+  @Inject ChatDecisionService chatDecisionService;
 
   @ConfigProperty(name = "quarkus.http.port", defaultValue = "3001")
   int httpPort;
@@ -50,7 +56,7 @@ public class A2aSdkBootProducers {
   @Produces
   @PublicAgentCard
   public AgentCard agentCard() {
-    return A2aAgentCardFactory.createChainMvpCard(resolvePublicBaseUrl());
+    return A2aAgentCardFactory.createChainMvpCard(resolvePublicBaseUrl(), rockySkills.available());
   }
 
   /** Same card in the 0.3 shape, required by the compatibility JSON-RPC handler. */
@@ -72,7 +78,9 @@ public class A2aSdkBootProducers {
             accessPolicy,
             featureGate,
             crashGate,
-            leaseHeartbeat),
+            leaseHeartbeat,
+            conversationService.archive(),
+            chatDecisionService),
         new CipAssistA2aAgentExecutor(
             scenarioRouter,
             conversationService,

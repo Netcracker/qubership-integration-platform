@@ -8,10 +8,8 @@ import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequiremen
 /**
  * Holds an edit that stopped to ask whether a specification may be imported.
  *
- * <p>What is held is the resolved intent, not the reader's words. By the time an import is
- * approved, the conversation has moved on, and re-reading the original sentence would resolve a
- * target again with a model that may answer differently. The edit that resumes is the one the
- * reader was shown.
+ * <p>The resolved intent fixes the target when the edit resumes. The author source preserves
+ * any Script body supplied before the import decision.
  */
 @ApplicationScoped
 public class ChainEditEscalationStore {

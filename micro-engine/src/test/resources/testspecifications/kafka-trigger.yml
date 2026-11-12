@@ -29,6 +29,30 @@ deployments:
   route: kafka-trigger-idempotency-throw
 - id: idempotency-subchain
   route: kafka-trigger-idempotency-subchain
+- id: maas
+  route: kafka-trigger-maas
+- id: typed-buffer
+  route: kafka-trigger-typed-buffer
+- id: typed-kafka-bytes
+  route: kafka-trigger-typed-kafka-bytes
+- id: typed-short
+  route: kafka-trigger-typed-short
+- id: typed-float
+  route: kafka-trigger-typed-float
+- id: typed-double
+  route: kafka-trigger-typed-double
+- id: typed-uuid
+  route: kafka-trigger-typed-uuid
+- id: typed-void
+  route: kafka-trigger-typed-void
+- id: ssl-only
+  route: kafka-trigger-ssl-only
+- id: scram-256
+  route: kafka-trigger-scram-256
+- id: scram-512
+  route: kafka-trigger-scram-512
+- id: poll-limit
+  route: kafka-trigger-poll-limit
 fixtures:
 - id: kafka-broker
   provider: kafka-trigger
@@ -106,8 +130,57 @@ fixtures:
   provider: idempotency-postgres
   deployment: idempotency-subchain
   sourceElementId: 91681d2d-fd70-5aad-a65f-54b6e7d38e08
+- id: kafka-maas
+  provider: kafka-trigger
+  deployment: maas
+  sourceElementId: db5eca54-5c20-5a4f-8b5f-52e04f01bacc
+- id: kafka-typed-buffer
+  provider: kafka-trigger
+  deployment: typed-buffer
+  sourceElementId: 89d0bf77-9604-5ad5-8d98-b22afb83683d
+- id: kafka-typed-kafka-bytes
+  provider: kafka-trigger
+  deployment: typed-kafka-bytes
+  sourceElementId: efac1410-5244-59b3-9f9c-b54677a7ed45
+- id: kafka-typed-short
+  provider: kafka-trigger
+  deployment: typed-short
+  sourceElementId: 7b4ff18a-285b-5995-973a-58ea36d44a6c
+- id: kafka-typed-float
+  provider: kafka-trigger
+  deployment: typed-float
+  sourceElementId: c803a573-ce0f-52f6-ac02-623f053d39eb
+- id: kafka-typed-double
+  provider: kafka-trigger
+  deployment: typed-double
+  sourceElementId: 80f5c8d3-a734-508e-97d9-c65ce6fc82cb
+- id: kafka-typed-uuid
+  provider: kafka-trigger
+  deployment: typed-uuid
+  sourceElementId: 5e70aaa7-aab6-5ef7-844c-436652cc1b5e
+- id: kafka-typed-void
+  provider: kafka-trigger
+  deployment: typed-void
+  sourceElementId: f8db1192-30fa-515c-83d0-48bf010ea891
+- id: kafka-ssl-only
+  provider: kafka-trigger
+  deployment: ssl-only
+  sourceElementId: 3c9232ec-bd88-5c80-8626-84e3320de4a7
+- id: kafka-scram-256
+  provider: kafka-trigger
+  deployment: scram-256
+  sourceElementId: cb6e1b47-0ed7-5924-b51b-3b1b208add2d
+- id: kafka-scram-512
+  provider: kafka-trigger
+  deployment: scram-512
+  sourceElementId: be4769f5-9ef4-5153-81f5-cfbb814679e0
+- id: kafka-poll-limit
+  provider: kafka-trigger
+  deployment: poll-limit
+  sourceElementId: bc501bcb-65cf-5037-a30d-69499871244d
 scenarios:
 - id: consumes-values-keys-headers-and-isolates-exchanges
+  reuseBroker: true
   scope: Short
   driver:
     provider: kafka-trigger
@@ -572,6 +645,7 @@ scenarios:
           - X-Snapshot-Previous
   deployment: basic
 - id: consumes-beyond-poll-limit-from-two-topics-in-partition-order
+  reuseBroker: true
   scope: Long
   driver:
     provider: kafka-trigger
@@ -719,6 +793,7 @@ scenarios:
           awaitCommit: true
   deployment: basic
 - id: starts-at-latest-and-skips-existing-records
+  reuseBroker: true
   scope: Short
   driver:
     provider: kafka-trigger
@@ -802,6 +877,7 @@ scenarios:
             internalProperty_elementFailed: null
   deployment: basic
 - id: resumes-from-committed-offsets-after-consumer-restart
+  reuseBroker: true
   scope: Long
   driver:
     provider: kafka-trigger
@@ -956,6 +1032,7 @@ scenarios:
           awaitCommit: true
   deployment: basic
 - id: continues-after-script-failure-and-commits-offsets
+  reuseBroker: true
   scope: Long
   driver:
     provider: kafka-trigger
@@ -1070,6 +1147,7 @@ scenarios:
           - snapshotFail
   deployment: basic
 - id: continues-and-commits-after-script-failure-in-one-partition-batch
+  reuseBroker: true
   scope: Long
   deployment: basic
   driver:
@@ -1215,6 +1293,7 @@ scenarios:
             internalProperty_sessionFailed: null
             internalProperty_elementFailed: null
 - id: consumes-existing-records-from-earliest-and-resumes-after-restart
+  reuseBroker: true
   scope: Long
   deployment: offsets
   driver:
@@ -1347,6 +1426,7 @@ scenarios:
       expectedRequest:
         count: 0
 - id: resumes-none-from-existing-committed-offsets
+  reuseBroker: true
   scope: Long
   deployment: offsets
   driver:
@@ -1496,6 +1576,7 @@ scenarios:
       expectedRequest:
         count: 0
 - id: rejects-none-when-the-group-has-no-committed-offsets
+  reuseBroker: true
   scope: Long
   deployment: offsets
   driver:
@@ -1542,6 +1623,7 @@ scenarios:
       expectedRequest:
         count: 0
 - id: rejects-none-when-only-some-partitions-have-committed-offsets
+  reuseBroker: true
   scope: Long
   deployment: offsets
   driver:
@@ -1592,6 +1674,7 @@ scenarios:
       expectedRequest:
         count: 0
 - id: rejects-none-when-a-committed-offset-is-beyond-the-log-end
+  reuseBroker: true
   scope: Long
   deployment: offsets
   driver:
@@ -1916,6 +1999,7 @@ scenarios:
       parameters:
         partition: 0
 - id: consumes-exact-binary-types-and-values
+  reuseBroker: true
   scope: Short
   deployment: typed-binary
   driver:
@@ -1986,6 +2070,7 @@ scenarios:
           awaitCommit: true
           expectedCompletionBody: bytes:null|key:null
 - id: consumes-exact-integer-types-and-values
+  reuseBroker: true
   scope: Short
   deployment: typed-integer
   driver:
@@ -2048,6 +2133,7 @@ scenarios:
           awaitCommit: true
           expectedCompletionBody: null|key:null
 - id: consumes-exact-long-types-and-values
+  reuseBroker: true
   scope: Short
   deployment: typed-long
   driver:
@@ -2110,6 +2196,7 @@ scenarios:
           awaitCommit: true
           expectedCompletionBody: null|key:null
 - id: reports-malformed-integer-value-and-blocks-following-records
+  reuseBroker: true
   scope: Long
   deployment: typed-integer
   driver:
@@ -2196,6 +2283,7 @@ scenarios:
               cause: null
           resetConsumerFailure: true
 - id: reports-malformed-long-key-and-blocks-following-records
+  reuseBroker: true
   scope: Long
   deployment: typed-long
   driver:
@@ -2632,6 +2720,7 @@ scenarios:
           awaitCommit: true
           expectedCompletionBody: Triggered
 - id: deduplicates-kafka-business-keys-with-ignore
+  reuseBroker: true
   scope: Long
   deployment: idempotency-ignore
   driver:
@@ -3058,6 +3147,7 @@ scenarios:
             keyExpiry: 600
             active: true
 - id: deduplicates-kafka-business-keys-with-throw-exception
+  reuseBroker: true
   scope: Long
   deployment: idempotency-throw
   driver:
@@ -3541,6 +3631,7 @@ scenarios:
       message: Duplicated idempotency key
       cause: null
 - id: deduplicates-kafka-business-keys-with-execute-subchain
+  reuseBroker: true
   scope: Long
   deployment: idempotency-subchain
   driver:
@@ -3987,3 +4078,2313 @@ scenarios:
     - fixture: kafka-idempotency-handler-subchain
       expectedRequest:
         count: 1
+- id: recovers-after-live-topic-read-revocation
+  scope: Long
+  deployment: sasl-ssl
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 0ef888ea-3a58-5a72-aa31-61181e7b3634
+    parameters:
+      partition: 0
+  invocations:
+  - id: commits-before-live-revocation
+    body: before-live-revocation
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-sasl-ssl
+      expectedRequest:
+        count: 1
+        body: before-live-revocation
+      response:
+        properties:
+          awaitCommit: true
+          expectedCompletionBody: Triggered
+  - id: rejects-live-read-revocation
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 0ef888ea-3a58-5a72-aa31-61181e7b3634
+      parameters:
+        awaitConsumerFailure: true
+    expectedFailure:
+      type: org.apache.kafka.common.errors.TopicAuthorizationException
+      ignoreMessage: true
+      cause: null
+    interactions:
+    - fixture: kafka-sasl-ssl
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          consumerAccess: topic-denied
+          backlogRecords:
+          - topic: snapshot.kafka.trigger.sasl-ssl
+            partition: 0
+            body: protected-after-live-revoke-0
+            key: protected-0
+          - topic: snapshot.kafka.trigger.sasl-ssl
+            partition: 1
+            body: protected-after-live-revoke-1
+            key: protected-1
+          - topic: snapshot.kafka.trigger.sasl-ssl
+            partition: 2
+            body: protected-after-live-revoke-2
+            key: protected-2
+          expectedConsumerFailure:
+            type: org.apache.kafka.common.errors.TopicAuthorizationException
+            ignoreMessage: true
+            cause: null
+          minSuccessfulAuthentications: 1
+  - id: consumes-queued-records-after-restoring-access
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 0ef888ea-3a58-5a72-aa31-61181e7b3634
+      parameters:
+        consumeStartup: true
+    expectedBody:
+    - Triggered
+    - Triggered
+    - Triggered
+    interactions:
+    - fixture: kafka-sasl-ssl
+      expectedRequest:
+        count: 3
+      response:
+        properties:
+          consumerAccess: allow
+          awaitCommit: true
+          expectedCompletionBody: Triggered
+  - id: commits-new-record-after-access-recovery
+    body: after-live-revocation
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-sasl-ssl
+      expectedRequest:
+        count: 1
+        body: after-live-revocation
+      response:
+        properties:
+          awaitCommit: true
+          expectedCompletionBody: Triggered
+- id: recovers-after-live-group-read-revocation
+  scope: Long
+  deployment: sasl-ssl
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 0ef888ea-3a58-5a72-aa31-61181e7b3634
+    parameters:
+      partition: 0
+  invocations:
+  - id: commits-before-live-revocation
+    body: before-live-revocation
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-sasl-ssl
+      expectedRequest:
+        count: 1
+        body: before-live-revocation
+      response:
+        properties:
+          awaitCommit: true
+          expectedCompletionBody: Triggered
+  - id: consumes-without-committing-while-group-read-is-revoked
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 0ef888ea-3a58-5a72-aa31-61181e7b3634
+      parameters:
+        messages:
+        - topic: snapshot.kafka.trigger.sasl-ssl
+          partition: 0
+          body: protected-after-live-revoke-0
+          key: protected-0
+        - topic: snapshot.kafka.trigger.sasl-ssl
+          partition: 1
+          body: protected-after-live-revoke-1
+          key: protected-1
+        - topic: snapshot.kafka.trigger.sasl-ssl
+          partition: 2
+          body: protected-after-live-revoke-2
+          key: protected-2
+    expectedBody:
+    - Triggered
+    - Triggered
+    - Triggered
+    interactions:
+    - fixture: kafka-sasl-ssl
+      expectedRequest:
+        count: 3
+      response:
+        properties:
+          consumerAccess: group-denied
+          expectedCommitAuthorizationFailure: true
+          expectedCompletionBody: Triggered
+          minSuccessfulAuthentications: 1
+  - id: commits-progress-after-restoring-group-access
+    body: after-live-revocation
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-sasl-ssl
+      expectedRequest:
+        count: 1
+        body: after-live-revocation
+      response:
+        properties:
+          consumerAccess: allow
+          awaitCommit: true
+          expectedCompletionBody: Triggered
+  - id: excludes-committed-records-after-restart
+    body: after-recovery-restart
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-sasl-ssl
+      expectedRequest:
+        count: 1
+        body: after-recovery-restart
+      response:
+        properties:
+          consumerAction: stop-until-published
+          awaitCommit: true
+          expectedCompletionBody: Triggered
+- id: rejects-invalid-consumer-tls-and-recovers-on-the-existing-route
+  scope: Long
+  deployment: sasl-ssl
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 0ef888ea-3a58-5a72-aa31-61181e7b3634
+    parameters:
+      partition: 0
+  invocations:
+  - id: consumes-before-certificate-rotation
+    body: before-certificate-rotation
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-sasl-ssl
+      expectedRequest:
+        count: 1
+        body: before-certificate-rotation
+      response:
+        properties:
+          awaitCommit: true
+          minSuccessfulTlsHandshakes: 1
+  - id: rejects-untrusted-certificate
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 0ef888ea-3a58-5a72-aa31-61181e7b3634
+      parameters:
+        awaitConsumerFailure: true
+    expectedFailure:
+      type: org.apache.kafka.common.errors.SslAuthenticationException
+      message: SSL handshake failed
+      cause:
+        type: javax.net.ssl.SSLHandshakeException
+        message: '(certificate_unknown) PKIX path building failed: sun.security.provider.certpath.SunCertPathBuilderException:
+          unable to find valid certification path to requested target'
+        cause:
+          type: sun.security.validator.ValidatorException
+          message: 'PKIX path building failed: sun.security.provider.certpath.SunCertPathBuilderException: unable
+            to find valid certification path to requested target'
+          cause:
+            type: sun.security.provider.certpath.SunCertPathBuilderException
+            message: unable to find valid certification path to requested target
+            cause: null
+    interactions:
+    - fixture: kafka-sasl-ssl
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          tlsCertificate: untrusted
+          expectedConsumerFailure:
+            type: org.apache.kafka.common.errors.SslAuthenticationException
+            message: SSL handshake failed
+            cause:
+              type: javax.net.ssl.SSLHandshakeException
+              message: '(certificate_unknown) PKIX path building failed: sun.security.provider.certpath.SunCertPathBuilderException:
+                unable to find valid certification path to requested target'
+              cause:
+                type: sun.security.validator.ValidatorException
+                message: 'PKIX path building failed: sun.security.provider.certpath.SunCertPathBuilderException:
+                  unable to find valid certification path to requested target'
+                cause:
+                  type: sun.security.provider.certpath.SunCertPathBuilderException
+                  message: unable to find valid certification path to requested target
+                  cause: null
+          backlogRecords:
+          - topic: snapshot.kafka.trigger.sasl-ssl
+            partition: 0
+            body: queued-during-untrusted
+            key: untrusted
+          minFailedTlsHandshakes: 1
+  - id: consumes-backlog-after-untrusted
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 0ef888ea-3a58-5a72-aa31-61181e7b3634
+      parameters:
+        consumeStartup: true
+    expectedBody:
+    - Triggered
+    interactions:
+    - fixture: kafka-sasl-ssl
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          tlsCertificate: valid
+          awaitCommit: true
+          expectedCompletionBody: Triggered
+          minSuccessfulTlsHandshakes: 2
+  - id: rejects-expired-certificate
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 0ef888ea-3a58-5a72-aa31-61181e7b3634
+      parameters:
+        awaitConsumerFailure: true
+    expectedFailure:
+      type: org.apache.kafka.common.errors.SslAuthenticationException
+      message: SSL handshake failed
+      cause:
+        type: javax.net.ssl.SSLHandshakeException
+        message: '(certificate_expired) PKIX path validation failed: java.security.cert.CertPathValidatorException:
+          validity check failed'
+        cause:
+          type: sun.security.validator.ValidatorException
+          message: 'PKIX path validation failed: java.security.cert.CertPathValidatorException: validity check failed'
+          cause:
+            type: java.security.cert.CertPathValidatorException
+            message: validity check failed
+            cause:
+              type: java.security.cert.CertificateExpiredException
+              message: 'NotAfter: <certificate-expiry:2019-01-01T00:00:00Z>'
+              cause: null
+    interactions:
+    - fixture: kafka-sasl-ssl
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          tlsCertificate: expired
+          expectedConsumerFailure:
+            type: org.apache.kafka.common.errors.SslAuthenticationException
+            message: SSL handshake failed
+            cause:
+              type: javax.net.ssl.SSLHandshakeException
+              message: '(certificate_expired) PKIX path validation failed: java.security.cert.CertPathValidatorException:
+                validity check failed'
+              cause:
+                type: sun.security.validator.ValidatorException
+                message: 'PKIX path validation failed: java.security.cert.CertPathValidatorException: validity check
+                  failed'
+                cause:
+                  type: java.security.cert.CertPathValidatorException
+                  message: validity check failed
+                  cause:
+                    type: java.security.cert.CertificateExpiredException
+                    message: 'NotAfter: <certificate-expiry:2019-01-01T00:00:00Z>'
+                    cause: null
+          backlogRecords:
+          - topic: snapshot.kafka.trigger.sasl-ssl
+            partition: 0
+            body: queued-during-expired
+            key: expired
+          minFailedTlsHandshakes: 1
+  - id: consumes-backlog-after-expired
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 0ef888ea-3a58-5a72-aa31-61181e7b3634
+      parameters:
+        consumeStartup: true
+    expectedBody:
+    - Triggered
+    interactions:
+    - fixture: kafka-sasl-ssl
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          tlsCertificate: valid
+          awaitCommit: true
+          expectedCompletionBody: Triggered
+          minSuccessfulTlsHandshakes: 2
+  - id: rejects-wrong-hostname-certificate
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 0ef888ea-3a58-5a72-aa31-61181e7b3634
+      parameters:
+        awaitConsumerFailure: true
+    expectedFailure:
+      type: org.apache.kafka.common.errors.SslAuthenticationException
+      message: SSL handshake failed
+      cause:
+        type: javax.net.ssl.SSLHandshakeException
+        message: (certificate_unknown) No subject alternative names matching IP address 127.0.0.1 found
+        cause:
+          type: java.security.cert.CertificateException
+          message: No subject alternative names matching IP address 127.0.0.1 found
+          cause: null
+    interactions:
+    - fixture: kafka-sasl-ssl
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          tlsCertificate: wrong-hostname
+          expectedConsumerFailure:
+            type: org.apache.kafka.common.errors.SslAuthenticationException
+            message: SSL handshake failed
+            cause:
+              type: javax.net.ssl.SSLHandshakeException
+              message: (certificate_unknown) No subject alternative names matching IP address 127.0.0.1 found
+              cause:
+                type: java.security.cert.CertificateException
+                message: No subject alternative names matching IP address 127.0.0.1 found
+                cause: null
+          backlogRecords:
+          - topic: snapshot.kafka.trigger.sasl-ssl
+            partition: 0
+            body: queued-during-wrong-hostname
+            key: wrong-hostname
+          minFailedTlsHandshakes: 1
+  - id: consumes-backlog-after-wrong-hostname
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 0ef888ea-3a58-5a72-aa31-61181e7b3634
+      parameters:
+        consumeStartup: true
+    expectedBody:
+    - Triggered
+    interactions:
+    - fixture: kafka-sasl-ssl
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          tlsCertificate: valid
+          awaitCommit: true
+          expectedCompletionBody: Triggered
+          minSuccessfulTlsHandshakes: 2
+  - id: consumes-after-trusted-certificate-renewal
+    body: after-certificate-renewal
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-sasl-ssl
+      expectedRequest:
+        count: 1
+        body: after-certificate-renewal
+      response:
+        properties:
+          tlsCertificate: rotated
+          awaitCommit: true
+          minSuccessfulTlsHandshakes: 2
+          expectedCompletionBody: Triggered
+- id: discovers-expanded-partitions-without-losing-existing-partitions
+  reuseBroker: true
+  scope: Long
+  deployment: basic
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599
+    parameters:
+      partition: 0
+  invocations:
+  - id: commits-before-topic-expansion
+    body: before-expansion
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-broker
+      expectedRequest:
+        count: 1
+        body: before-expansion
+      response:
+        properties:
+          awaitCommit: true
+          metadataRefreshMillis: 1000
+  - id: consumes-from-new-partitions-on-both-topics
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599
+      parameters:
+        messages:
+        - topic: snapshot.kafka.trigger.one
+          partition: 3
+          body: expanded-3
+          key: partition-3
+        - topic: snapshot.kafka.trigger.one
+          partition: 4
+          body: expanded-4
+          key: partition-4
+        - topic: snapshot.kafka.trigger.two
+          partition: 3
+          body: expanded-3
+          key: partition-3
+        - topic: snapshot.kafka.trigger.two
+          partition: 4
+          body: expanded-4
+          key: partition-4
+    expectedBody:
+    - Triggered
+    - Triggered
+    - Triggered
+    - Triggered
+    interactions:
+    - fixture: kafka-broker
+      expectedRequest:
+        count: 4
+      response:
+        properties:
+          partitionCount: 5
+          expectedMembers: 1
+          awaitCommit: true
+          expectedCompletionBody: Triggered
+  - id: continues-on-existing-partition-after-rebalance
+    body: after-expansion
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-broker
+      expectedRequest:
+        count: 1
+        body: after-expansion
+      response:
+        properties:
+          awaitCommit: true
+          expectedMembers: 1
+- id: handles-real-log-truncation-with-earliest-offset-reset
+  scope: Long
+  deployment: offsets
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 0134675f-6446-5dc6-af1b-5dfaa484f56b
+    parameters:
+      topic: snapshot.kafka.trigger.offsets.earliest
+      partition: 0
+  invocations:
+  - id: commits-before-log-truncation
+    body: before-log-truncation
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-offsets-earliest
+      expectedRequest:
+        count: 1
+        body: before-log-truncation
+      response:
+        properties:
+          awaitCommit: true
+    - fixture: kafka-offsets-none
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          committedOffsets:
+          - topic: snapshot.kafka.trigger.offsets.none
+            partition: 0
+            offset: 0
+          - topic: snapshot.kafka.trigger.offsets.none
+            partition: 1
+            offset: 0
+          - topic: snapshot.kafka.trigger.offsets.none
+            partition: 2
+            offset: 0
+  - id: handles-committed-offset-below-new-log-start
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 0134675f-6446-5dc6-af1b-5dfaa484f56b
+      parameters:
+        consumeStartup: true
+    expectedBody:
+    - Triggered
+    - Triggered
+    interactions:
+    - fixture: kafka-offsets-earliest
+      expectedRequest:
+        count: 2
+      response:
+        properties:
+          consumerAction: truncate-before-restart
+          ignoredRecords:
+          - topic: snapshot.kafka.trigger.offsets.earliest
+            partition: 0
+            body: deleted-prefix-1
+          - topic: snapshot.kafka.trigger.offsets.earliest
+            partition: 0
+            body: deleted-prefix-2
+          truncateBeforeOffsets:
+          - topic: snapshot.kafka.trigger.offsets.earliest
+            partition: 0
+            offset: 3
+          backlogRecords:
+          - topic: snapshot.kafka.trigger.offsets.earliest
+            partition: 0
+            body: retained-earliest-3
+          - topic: snapshot.kafka.trigger.offsets.earliest
+            partition: 0
+            body: retained-earliest-4
+          awaitCommit: true
+          expectedCompletionBody: Triggered
+    - fixture: kafka-offsets-none
+      expectedRequest:
+        count: 0
+  - id: consumes-fresh-record-after-log-recovery
+    body: after-log-recovery
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-offsets-earliest
+      expectedRequest:
+        count: 1
+        body: after-log-recovery
+      response:
+        properties:
+          awaitCommit: true
+          expectedCompletionBody: Triggered
+    - fixture: kafka-offsets-none
+      expectedRequest:
+        count: 0
+- id: handles-real-log-truncation-with-latest-offset-reset
+  scope: Long
+  deployment: basic
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 6bc40d46-ffcd-45d6-b1f3-9f32c5bf4599
+    parameters:
+      topic: snapshot.kafka.trigger.one
+      partition: 0
+  invocations:
+  - id: commits-before-log-truncation
+    body: before-log-truncation
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-broker
+      expectedRequest:
+        count: 1
+        body: before-log-truncation
+      response:
+        properties:
+          awaitCommit: true
+  - id: handles-committed-offset-below-new-log-start
+    body: fresh-after-latest-reset
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-broker
+      expectedRequest:
+        count: 1
+        body: fresh-after-latest-reset
+      response:
+        properties:
+          consumerAction: truncate-before-restart
+          ignoredRecords:
+          - topic: snapshot.kafka.trigger.one
+            partition: 0
+            body: deleted-prefix-1
+          - topic: snapshot.kafka.trigger.one
+            partition: 0
+            body: deleted-prefix-2
+          - topic: snapshot.kafka.trigger.one
+            partition: 0
+            body: retained-but-skipped-3
+          - topic: snapshot.kafka.trigger.one
+            partition: 0
+            body: retained-but-skipped-4
+          truncateBeforeOffsets:
+          - topic: snapshot.kafka.trigger.one
+            partition: 0
+            offset: 3
+          expectedFetchOffsets:
+          - topic: snapshot.kafka.trigger.one
+            partition: 0
+            offset: 5
+          awaitCommit: true
+          expectedCompletionBody: Triggered
+  - id: consumes-fresh-record-after-log-recovery
+    body: after-log-recovery
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-broker
+      expectedRequest:
+        count: 1
+        body: after-log-recovery
+      response:
+        properties:
+          awaitCommit: true
+          expectedCompletionBody: Triggered
+- id: handles-real-log-truncation-with-none-offset-reset
+  scope: Long
+  deployment: offsets
+  driver:
+    provider: kafka-trigger
+    sourceElementId: baebf805-71c9-5e68-ad3e-944fd2d33f06
+    parameters:
+      topic: snapshot.kafka.trigger.offsets.none
+      partition: 0
+  invocations:
+  - id: commits-before-log-truncation
+    body: before-log-truncation
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-offsets-none
+      expectedRequest:
+        count: 1
+        body: before-log-truncation
+      response:
+        properties:
+          awaitCommit: true
+          committedOffsets:
+          - topic: snapshot.kafka.trigger.offsets.none
+            partition: 0
+            offset: 0
+          - topic: snapshot.kafka.trigger.offsets.none
+            partition: 1
+            offset: 0
+          - topic: snapshot.kafka.trigger.offsets.none
+            partition: 2
+            offset: 0
+    - fixture: kafka-offsets-earliest
+      expectedRequest:
+        count: 0
+  - id: handles-committed-offset-below-new-log-start
+    driver:
+      provider: kafka-trigger
+      sourceElementId: baebf805-71c9-5e68-ad3e-944fd2d33f06
+      parameters:
+        awaitConsumerFailure: true
+    expectedFailure:
+      type: org.apache.kafka.clients.consumer.OffsetOutOfRangeException
+      ignoreMessage: true
+      cause: null
+    interactions:
+    - fixture: kafka-offsets-none
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          consumerAction: truncate-before-restart
+          ignoredRecords:
+          - topic: snapshot.kafka.trigger.offsets.none
+            partition: 0
+            body: deleted-prefix-1
+          - topic: snapshot.kafka.trigger.offsets.none
+            partition: 0
+            body: deleted-prefix-2
+          truncateBeforeOffsets:
+          - topic: snapshot.kafka.trigger.offsets.none
+            partition: 0
+            offset: 3
+          expectedConsumerFailure:
+            type: org.apache.kafka.clients.consumer.OffsetOutOfRangeException
+            ignoreMessage: true
+            cause: null
+    - fixture: kafka-offsets-earliest
+      expectedRequest:
+        count: 0
+  - id: consumes-fresh-record-after-log-recovery
+    body: after-log-recovery
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-offsets-none
+      expectedRequest:
+        count: 1
+        body: after-log-recovery
+      response:
+        properties:
+          awaitCommit: true
+          expectedCompletionBody: Triggered
+          consumerAction: reset-committed-before-restart
+          resetCommittedOffsets:
+          - topic: snapshot.kafka.trigger.offsets.none
+            partition: 0
+            offset: 3
+    - fixture: kafka-offsets-earliest
+      expectedRequest:
+        count: 0
+- id: rejects-a-missing-maas-topic-before-starting-the-consumer
+  scope: Short
+  deployment: maas
+  driver:
+    provider: kafka-trigger
+    sourceElementId: db5eca54-5c20-5a4f-8b5f-52e04f01bacc
+    parameters:
+      partition: 0
+  expectedStartupFailure:
+    type: org.qubership.integration.platform.engine.maas.MaasException
+    message: 'Failed to get classifier snapshot-trigger-classifier from MaaS. '
+    cause:
+      type: org.qubership.integration.platform.engine.maas.TopicNotFoundException
+      message: 'Failed to get classifier snapshot-trigger-classifier from MaaS. '
+      cause: null
+  invocations:
+  - id: missing-classifier-resolution
+    body: must-not-be-published
+    interactions:
+    - fixture: kafka-maas
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          maasClassifier: snapshot-trigger-classifier
+          maasNamespace: snapshot-maas
+          maasTopic: snapshot.kafka.trigger.maas
+          maasMissingTopic: true
+- id: resolves-maas-topic-and-consumes-after-successful-deployment
+  scope: Short
+  deployment: maas
+  driver:
+    provider: kafka-trigger
+    sourceElementId: db5eca54-5c20-5a4f-8b5f-52e04f01bacc
+    parameters:
+      partition: 0
+  invocations:
+  - id: consumes-from-resolved-topic
+    body: maas-resolved
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-maas
+      expectedRequest:
+        count: 1
+        body: maas-resolved
+      response:
+        properties:
+          maasClassifier: snapshot-trigger-classifier
+          maasNamespace: snapshot-maas
+          maasTopic: snapshot.kafka.trigger.maas
+          awaitCommit: true
+          expectedCompletionBody: Triggered
+  - id: continues-after-maas-bootstrap
+    body: maas-following
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-maas
+      expectedRequest:
+        count: 1
+        body: maas-following
+      response:
+        properties:
+          awaitCommit: true
+          expectedCompletionBody: Triggered
+- id: filters-versioned-records-through-sibling-promotion-and-rollback
+  scope: Long
+  deployment: lifecycle
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 1f4eeefa-b208-59d6-b0ba-d7ce727868d7
+    parameters:
+      partition: 0
+  invocations:
+  - id: active-rejects-candidate-version
+    body: active-rejects-candidate-version
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-lifecycle
+      expectedRequest:
+        count: 1
+        body: active-rejects-candidate-version
+      response:
+        properties:
+          initialBlueGreenState:
+            state: ACTIVE
+            version: 1
+            siblingState: CANDIDATE
+            siblingVersion: 2
+            updateSeconds: 1
+          filteredRecords:
+          - topic: snapshot.kafka.trigger.lifecycle
+            partition: 0
+            body: candidate-version-not-for-active
+            headers:
+              X-Version: v2
+          awaitCommit: true
+          expectedCompletionBody: Triggered
+    headers:
+      X-Version: v1
+  - id: legacy-retains-only-its-own-version
+    body: legacy-retains-only-its-own-version
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-lifecycle
+      expectedRequest:
+        count: 1
+        body: legacy-retains-only-its-own-version
+      response:
+        properties:
+          blueGreenState:
+            state: LEGACY
+            version: 1
+            siblingState: ACTIVE
+            siblingVersion: 2
+            updateSeconds: 2
+          filteredRecords:
+          - topic: snapshot.kafka.trigger.lifecycle
+            partition: 0
+            body: promoted-sibling-version
+            headers:
+              X-Version: v2
+          - topic: snapshot.kafka.trigger.lifecycle
+            partition: 0
+            body: unversioned-not-for-legacy
+          awaitCommit: true
+          expectedCompletionBody: Triggered
+    headers:
+      X-Version: v1
+  - id: rollback-restores-unversioned-active-delivery
+    body: rollback-restores-unversioned-active-delivery
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-lifecycle
+      expectedRequest:
+        count: 1
+        body: rollback-restores-unversioned-active-delivery
+      response:
+        properties:
+          blueGreenState:
+            state: ACTIVE
+            version: 1
+            siblingState: LEGACY
+            siblingVersion: 2
+            updateSeconds: 3
+          filteredRecords:
+          - topic: snapshot.kafka.trigger.lifecycle
+            partition: 0
+            body: old-sibling-after-rollback
+            headers:
+              X-Version: v2
+          awaitCommit: true
+          expectedCompletionBody: Triggered
+- id: promotes-a-candidate-with-real-versioned-group-offsets
+  scope: Long
+  deployment: lifecycle
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 1f4eeefa-b208-59d6-b0ba-d7ce727868d7
+    parameters:
+      partition: 0
+  invocations:
+  - id: candidate-accepts-only-candidate-version
+    body: candidate-accepts-only-candidate-version
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-lifecycle
+      expectedRequest:
+        count: 1
+        body: candidate-accepts-only-candidate-version
+      response:
+        properties:
+          initialBlueGreenState:
+            state: CANDIDATE
+            version: 2
+            siblingState: ACTIVE
+            siblingVersion: 1
+            updateSeconds: 1
+          filteredRecords:
+          - topic: snapshot.kafka.trigger.lifecycle
+            partition: 0
+            body: active-version-not-for-candidate
+            headers:
+              X-Version: v1
+          - topic: snapshot.kafka.trigger.lifecycle
+            partition: 0
+            body: unversioned-not-for-candidate
+          awaitCommit: true
+          expectedCompletionBody: Triggered
+    headers:
+      X-Version: v2
+  - id: promoted-candidate-accepts-unversioned-records
+    body: promoted-candidate-accepts-unversioned-records
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-lifecycle
+      expectedRequest:
+        count: 1
+        body: promoted-candidate-accepts-unversioned-records
+      response:
+        properties:
+          blueGreenState:
+            state: ACTIVE
+            version: 2
+            siblingState: LEGACY
+            siblingVersion: 1
+            updateSeconds: 2
+          filteredRecords:
+          - topic: snapshot.kafka.trigger.lifecycle
+            partition: 0
+            body: legacy-version-not-for-promoted-active
+            headers:
+              X-Version: v1
+          awaitCommit: true
+          expectedCompletionBody: Triggered
+  - id: promoted-active-retains-versioned-delivery
+    body: promoted-active-retains-versioned-delivery
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-lifecycle
+      expectedRequest:
+        count: 1
+        body: promoted-active-retains-versioned-delivery
+      response:
+        properties:
+          awaitCommit: true
+          expectedCompletionBody: Triggered
+    headers:
+      X-Version: v2
+- id: consumes-exact-buffer-types-and-values
+  reuseBroker: true
+  scope: Long
+  deployment: typed-buffer
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 89d0bf77-9604-5ad5-8d98-b22afb83683d
+    parameters:
+      topic: snapshot.kafka.trigger.typed.buffer
+      partition: 0
+      valueEncoding: buffer
+      keyEncoding: buffer
+  invocations:
+  - id: typed-value-1
+    body:
+    - 0
+    - 127
+    - 128
+    - 255
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 89d0bf77-9604-5ad5-8d98-b22afb83683d
+      parameters:
+        topic: snapshot.kafka.trigger.typed.buffer
+        partition: 0
+        valueEncoding: buffer
+        keyEncoding: buffer
+        key: null
+    expectedBody: java.nio.ByteBuffer:0,127,128,255|key:null
+    interactions:
+    - fixture: kafka-typed-buffer
+      expectedRequest:
+        count: 1
+      response:
+        properties: {}
+  - id: typed-value-2
+    body: []
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 89d0bf77-9604-5ad5-8d98-b22afb83683d
+      parameters:
+        topic: snapshot.kafka.trigger.typed.buffer
+        partition: 1
+        valueEncoding: buffer
+        keyEncoding: buffer
+        key:
+        - 1
+        - 2
+        - 3
+    expectedBody: java.nio.ByteBuffer:|key:java.nio.ByteBuffer:1,2,3
+    interactions:
+    - fixture: kafka-typed-buffer
+      expectedRequest:
+        count: 1
+      response:
+        properties: {}
+  - id: typed-value-3
+    body:
+    - 1
+    - 2
+    - 3
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 89d0bf77-9604-5ad5-8d98-b22afb83683d
+      parameters:
+        topic: snapshot.kafka.trigger.typed.buffer
+        partition: 2
+        valueEncoding: buffer
+        keyEncoding: buffer
+        key: []
+    expectedBody: 'java.nio.ByteBuffer:1,2,3|key:java.nio.ByteBuffer:'
+    interactions:
+    - fixture: kafka-typed-buffer
+      expectedRequest:
+        count: 1
+      response:
+        properties: {}
+  - id: typed-value-4
+    body: null
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 89d0bf77-9604-5ad5-8d98-b22afb83683d
+      parameters:
+        topic: snapshot.kafka.trigger.typed.buffer
+        partition: 0
+        valueEncoding: buffer
+        keyEncoding: buffer
+        key:
+        - 0
+        - 127
+        - 128
+        - 255
+    expectedBody: null|key:java.nio.ByteBuffer:0,127,128,255
+    interactions:
+    - fixture: kafka-typed-buffer
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          awaitCommit: true
+- id: consumes-exact-kafka-bytes-types-and-values
+  reuseBroker: true
+  scope: Long
+  deployment: typed-kafka-bytes
+  driver:
+    provider: kafka-trigger
+    sourceElementId: efac1410-5244-59b3-9f9c-b54677a7ed45
+    parameters:
+      topic: snapshot.kafka.trigger.typed.kafka-bytes
+      partition: 0
+      valueEncoding: kafka-bytes
+      keyEncoding: kafka-bytes
+  invocations:
+  - id: typed-value-1
+    body:
+    - 0
+    - 127
+    - 128
+    - 255
+    driver:
+      provider: kafka-trigger
+      sourceElementId: efac1410-5244-59b3-9f9c-b54677a7ed45
+      parameters:
+        topic: snapshot.kafka.trigger.typed.kafka-bytes
+        partition: 0
+        valueEncoding: kafka-bytes
+        keyEncoding: kafka-bytes
+        key: null
+    expectedBody: org.apache.kafka.common.utils.Bytes:0,127,128,255|key:null
+    interactions:
+    - fixture: kafka-typed-kafka-bytes
+      expectedRequest:
+        count: 1
+      response:
+        properties: {}
+  - id: typed-value-2
+    body: []
+    driver:
+      provider: kafka-trigger
+      sourceElementId: efac1410-5244-59b3-9f9c-b54677a7ed45
+      parameters:
+        topic: snapshot.kafka.trigger.typed.kafka-bytes
+        partition: 1
+        valueEncoding: kafka-bytes
+        keyEncoding: kafka-bytes
+        key:
+        - 1
+        - 2
+        - 3
+    expectedBody: org.apache.kafka.common.utils.Bytes:|key:org.apache.kafka.common.utils.Bytes:1,2,3
+    interactions:
+    - fixture: kafka-typed-kafka-bytes
+      expectedRequest:
+        count: 1
+      response:
+        properties: {}
+  - id: typed-value-3
+    body:
+    - 1
+    - 2
+    - 3
+    driver:
+      provider: kafka-trigger
+      sourceElementId: efac1410-5244-59b3-9f9c-b54677a7ed45
+      parameters:
+        topic: snapshot.kafka.trigger.typed.kafka-bytes
+        partition: 2
+        valueEncoding: kafka-bytes
+        keyEncoding: kafka-bytes
+        key: []
+    expectedBody: 'org.apache.kafka.common.utils.Bytes:1,2,3|key:org.apache.kafka.common.utils.Bytes:'
+    interactions:
+    - fixture: kafka-typed-kafka-bytes
+      expectedRequest:
+        count: 1
+      response:
+        properties: {}
+  - id: typed-value-4
+    body: null
+    driver:
+      provider: kafka-trigger
+      sourceElementId: efac1410-5244-59b3-9f9c-b54677a7ed45
+      parameters:
+        topic: snapshot.kafka.trigger.typed.kafka-bytes
+        partition: 0
+        valueEncoding: kafka-bytes
+        keyEncoding: kafka-bytes
+        key:
+        - 0
+        - 127
+        - 128
+        - 255
+    expectedBody: null|key:org.apache.kafka.common.utils.Bytes:0,127,128,255
+    interactions:
+    - fixture: kafka-typed-kafka-bytes
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          awaitCommit: true
+- id: consumes-exact-short-types-and-values
+  reuseBroker: true
+  scope: Long
+  deployment: typed-short
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 7b4ff18a-285b-5995-973a-58ea36d44a6c
+    parameters:
+      topic: snapshot.kafka.trigger.typed.short
+      partition: 0
+      valueEncoding: short
+      keyEncoding: short
+  invocations:
+  - id: typed-value-1
+    body: -32768
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 7b4ff18a-285b-5995-973a-58ea36d44a6c
+      parameters:
+        topic: snapshot.kafka.trigger.typed.short
+        partition: 0
+        valueEncoding: short
+        keyEncoding: short
+        key: null
+    expectedBody: java.lang.Short:-32768|key:null
+    interactions:
+    - fixture: kafka-typed-short
+      expectedRequest:
+        count: 1
+      response:
+        properties: {}
+  - id: typed-value-2
+    body: 32767
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 7b4ff18a-285b-5995-973a-58ea36d44a6c
+      parameters:
+        topic: snapshot.kafka.trigger.typed.short
+        partition: 1
+        valueEncoding: short
+        keyEncoding: short
+        key: 0
+    expectedBody: java.lang.Short:32767|key:java.lang.Short:0
+    interactions:
+    - fixture: kafka-typed-short
+      expectedRequest:
+        count: 1
+      response:
+        properties: {}
+  - id: typed-value-3
+    body: 0
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 7b4ff18a-285b-5995-973a-58ea36d44a6c
+      parameters:
+        topic: snapshot.kafka.trigger.typed.short
+        partition: 2
+        valueEncoding: short
+        keyEncoding: short
+        key: 32767
+    expectedBody: java.lang.Short:0|key:java.lang.Short:32767
+    interactions:
+    - fixture: kafka-typed-short
+      expectedRequest:
+        count: 1
+      response:
+        properties: {}
+  - id: typed-value-4
+    body: null
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 7b4ff18a-285b-5995-973a-58ea36d44a6c
+      parameters:
+        topic: snapshot.kafka.trigger.typed.short
+        partition: 0
+        valueEncoding: short
+        keyEncoding: short
+        key: -32768
+    expectedBody: null|key:java.lang.Short:-32768
+    interactions:
+    - fixture: kafka-typed-short
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          awaitCommit: true
+- id: rejects-malformed-short-without-advancing-offsets
+  reuseBroker: true
+  scope: Long
+  deployment: typed-short
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 7b4ff18a-285b-5995-973a-58ea36d44a6c
+    parameters:
+      awaitConsumerFailure: true
+  invocations:
+  - id: blocks-on-invalid-value
+    expectedFailure:
+      type: org.apache.kafka.common.errors.RecordDeserializationException
+      message: Error deserializing VALUE for partition snapshot.kafka.trigger.typed.short-0 at offset 0. If needed,
+        please seek past the record to continue consumption.
+      cause:
+        type: org.apache.kafka.common.errors.SerializationException
+        message: Size of data received by ShortDeserializer is not 2
+        cause: null
+    interactions:
+    - fixture: kafka-typed-short
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          committedOffsets:
+          - topic: snapshot.kafka.trigger.typed.short
+            partition: 0
+            offset: 0
+          - topic: snapshot.kafka.trigger.typed.short
+            partition: 1
+            offset: 0
+          - topic: snapshot.kafka.trigger.typed.short
+            partition: 2
+            offset: 0
+          ignoredRecords:
+          - partition: 0
+            body:
+            - 0
+            valueEncoding: bytes
+          - partition: 0
+            body: -32768
+            valueEncoding: short
+          expectedConsumerFailure:
+            type: org.apache.kafka.common.errors.RecordDeserializationException
+            message: Error deserializing VALUE for partition snapshot.kafka.trigger.typed.short-0 at offset 0. If
+              needed, please seek past the record to continue consumption.
+            cause:
+              type: org.apache.kafka.common.errors.SerializationException
+              message: Size of data received by ShortDeserializer is not 2
+              cause: null
+- id: consumes-exact-float-types-and-values
+  reuseBroker: true
+  scope: Long
+  deployment: typed-float
+  driver:
+    provider: kafka-trigger
+    sourceElementId: c803a573-ce0f-52f6-ac02-623f053d39eb
+    parameters:
+      topic: snapshot.kafka.trigger.typed.float
+      partition: 0
+      valueEncoding: float
+      keyEncoding: float
+  invocations:
+  - id: typed-value-1
+    body: 3.4028235E38
+    driver:
+      provider: kafka-trigger
+      sourceElementId: c803a573-ce0f-52f6-ac02-623f053d39eb
+      parameters:
+        topic: snapshot.kafka.trigger.typed.float
+        partition: 0
+        valueEncoding: float
+        keyEncoding: float
+        key: null
+    expectedBody: java.lang.Float:3.4028235E38|key:null
+    interactions:
+    - fixture: kafka-typed-float
+      expectedRequest:
+        count: 1
+      response:
+        properties: {}
+  - id: typed-value-2
+    body: '1.4E-45'
+    driver:
+      provider: kafka-trigger
+      sourceElementId: c803a573-ce0f-52f6-ac02-623f053d39eb
+      parameters:
+        topic: snapshot.kafka.trigger.typed.float
+        partition: 1
+        valueEncoding: float
+        keyEncoding: float
+        key: -Infinity
+    expectedBody: java.lang.Float:1.4E-45|key:java.lang.Float:-Infinity
+    interactions:
+    - fixture: kafka-typed-float
+      expectedRequest:
+        count: 1
+      response:
+        properties: {}
+  - id: typed-value-3
+    body: '-0.0'
+    driver:
+      provider: kafka-trigger
+      sourceElementId: c803a573-ce0f-52f6-ac02-623f053d39eb
+      parameters:
+        topic: snapshot.kafka.trigger.typed.float
+        partition: 2
+        valueEncoding: float
+        keyEncoding: float
+        key: Infinity
+    expectedBody: java.lang.Float:-0.0|key:java.lang.Float:Infinity
+    interactions:
+    - fixture: kafka-typed-float
+      expectedRequest:
+        count: 1
+      response:
+        properties: {}
+  - id: typed-value-4
+    body: NaN
+    driver:
+      provider: kafka-trigger
+      sourceElementId: c803a573-ce0f-52f6-ac02-623f053d39eb
+      parameters:
+        topic: snapshot.kafka.trigger.typed.float
+        partition: 0
+        valueEncoding: float
+        keyEncoding: float
+        key: NaN
+    expectedBody: java.lang.Float:NaN|key:java.lang.Float:NaN
+    interactions:
+    - fixture: kafka-typed-float
+      expectedRequest:
+        count: 1
+      response:
+        properties: {}
+  - id: typed-value-5
+    body: Infinity
+    driver:
+      provider: kafka-trigger
+      sourceElementId: c803a573-ce0f-52f6-ac02-623f053d39eb
+      parameters:
+        topic: snapshot.kafka.trigger.typed.float
+        partition: 1
+        valueEncoding: float
+        keyEncoding: float
+        key: '-0.0'
+    expectedBody: java.lang.Float:Infinity|key:java.lang.Float:-0.0
+    interactions:
+    - fixture: kafka-typed-float
+      expectedRequest:
+        count: 1
+      response:
+        properties: {}
+  - id: typed-value-6
+    body: -Infinity
+    driver:
+      provider: kafka-trigger
+      sourceElementId: c803a573-ce0f-52f6-ac02-623f053d39eb
+      parameters:
+        topic: snapshot.kafka.trigger.typed.float
+        partition: 2
+        valueEncoding: float
+        keyEncoding: float
+        key: '1.4E-45'
+    expectedBody: java.lang.Float:-Infinity|key:java.lang.Float:1.4E-45
+    interactions:
+    - fixture: kafka-typed-float
+      expectedRequest:
+        count: 1
+      response:
+        properties: {}
+  - id: typed-value-7
+    body: null
+    driver:
+      provider: kafka-trigger
+      sourceElementId: c803a573-ce0f-52f6-ac02-623f053d39eb
+      parameters:
+        topic: snapshot.kafka.trigger.typed.float
+        partition: 0
+        valueEncoding: float
+        keyEncoding: float
+        key: 3.4028235E38
+    expectedBody: null|key:java.lang.Float:3.4028235E38
+    interactions:
+    - fixture: kafka-typed-float
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          awaitCommit: true
+- id: rejects-malformed-float-without-advancing-offsets
+  reuseBroker: true
+  scope: Long
+  deployment: typed-float
+  driver:
+    provider: kafka-trigger
+    sourceElementId: c803a573-ce0f-52f6-ac02-623f053d39eb
+    parameters:
+      awaitConsumerFailure: true
+  invocations:
+  - id: blocks-on-invalid-value
+    expectedFailure:
+      type: org.apache.kafka.common.errors.RecordDeserializationException
+      message: Error deserializing VALUE for partition snapshot.kafka.trigger.typed.float-0 at offset 0. If needed,
+        please seek past the record to continue consumption.
+      cause:
+        type: org.apache.kafka.common.errors.SerializationException
+        message: Size of data received by Deserializer is not 4
+        cause: null
+    interactions:
+    - fixture: kafka-typed-float
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          committedOffsets:
+          - topic: snapshot.kafka.trigger.typed.float
+            partition: 0
+            offset: 0
+          - topic: snapshot.kafka.trigger.typed.float
+            partition: 1
+            offset: 0
+          - topic: snapshot.kafka.trigger.typed.float
+            partition: 2
+            offset: 0
+          ignoredRecords:
+          - partition: 0
+            body:
+            - 0
+            valueEncoding: bytes
+          - partition: 0
+            body: 3.4028235E38
+            valueEncoding: float
+          expectedConsumerFailure:
+            type: org.apache.kafka.common.errors.RecordDeserializationException
+            message: Error deserializing VALUE for partition snapshot.kafka.trigger.typed.float-0 at offset 0. If
+              needed, please seek past the record to continue consumption.
+            cause:
+              type: org.apache.kafka.common.errors.SerializationException
+              message: Size of data received by Deserializer is not 4
+              cause: null
+- id: consumes-exact-double-types-and-values
+  reuseBroker: true
+  scope: Long
+  deployment: typed-double
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 80f5c8d3-a734-508e-97d9-c65ce6fc82cb
+    parameters:
+      topic: snapshot.kafka.trigger.typed.double
+      partition: 0
+      valueEncoding: double
+      keyEncoding: double
+  invocations:
+  - id: typed-value-1
+    body: 1.7976931348623157E308
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 80f5c8d3-a734-508e-97d9-c65ce6fc82cb
+      parameters:
+        topic: snapshot.kafka.trigger.typed.double
+        partition: 0
+        valueEncoding: double
+        keyEncoding: double
+        key: null
+    expectedBody: java.lang.Double:1.7976931348623157E308|key:null
+    interactions:
+    - fixture: kafka-typed-double
+      expectedRequest:
+        count: 1
+      response:
+        properties: {}
+  - id: typed-value-2
+    body: '4.9E-324'
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 80f5c8d3-a734-508e-97d9-c65ce6fc82cb
+      parameters:
+        topic: snapshot.kafka.trigger.typed.double
+        partition: 1
+        valueEncoding: double
+        keyEncoding: double
+        key: -Infinity
+    expectedBody: java.lang.Double:4.9E-324|key:java.lang.Double:-Infinity
+    interactions:
+    - fixture: kafka-typed-double
+      expectedRequest:
+        count: 1
+      response:
+        properties: {}
+  - id: typed-value-3
+    body: '-0.0'
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 80f5c8d3-a734-508e-97d9-c65ce6fc82cb
+      parameters:
+        topic: snapshot.kafka.trigger.typed.double
+        partition: 2
+        valueEncoding: double
+        keyEncoding: double
+        key: Infinity
+    expectedBody: java.lang.Double:-0.0|key:java.lang.Double:Infinity
+    interactions:
+    - fixture: kafka-typed-double
+      expectedRequest:
+        count: 1
+      response:
+        properties: {}
+  - id: typed-value-4
+    body: NaN
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 80f5c8d3-a734-508e-97d9-c65ce6fc82cb
+      parameters:
+        topic: snapshot.kafka.trigger.typed.double
+        partition: 0
+        valueEncoding: double
+        keyEncoding: double
+        key: NaN
+    expectedBody: java.lang.Double:NaN|key:java.lang.Double:NaN
+    interactions:
+    - fixture: kafka-typed-double
+      expectedRequest:
+        count: 1
+      response:
+        properties: {}
+  - id: typed-value-5
+    body: Infinity
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 80f5c8d3-a734-508e-97d9-c65ce6fc82cb
+      parameters:
+        topic: snapshot.kafka.trigger.typed.double
+        partition: 1
+        valueEncoding: double
+        keyEncoding: double
+        key: '-0.0'
+    expectedBody: java.lang.Double:Infinity|key:java.lang.Double:-0.0
+    interactions:
+    - fixture: kafka-typed-double
+      expectedRequest:
+        count: 1
+      response:
+        properties: {}
+  - id: typed-value-6
+    body: -Infinity
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 80f5c8d3-a734-508e-97d9-c65ce6fc82cb
+      parameters:
+        topic: snapshot.kafka.trigger.typed.double
+        partition: 2
+        valueEncoding: double
+        keyEncoding: double
+        key: '4.9E-324'
+    expectedBody: java.lang.Double:-Infinity|key:java.lang.Double:4.9E-324
+    interactions:
+    - fixture: kafka-typed-double
+      expectedRequest:
+        count: 1
+      response:
+        properties: {}
+  - id: typed-value-7
+    body: null
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 80f5c8d3-a734-508e-97d9-c65ce6fc82cb
+      parameters:
+        topic: snapshot.kafka.trigger.typed.double
+        partition: 0
+        valueEncoding: double
+        keyEncoding: double
+        key: 1.7976931348623157E308
+    expectedBody: null|key:java.lang.Double:1.7976931348623157E308
+    interactions:
+    - fixture: kafka-typed-double
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          awaitCommit: true
+- id: rejects-malformed-double-without-advancing-offsets
+  reuseBroker: true
+  scope: Long
+  deployment: typed-double
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 80f5c8d3-a734-508e-97d9-c65ce6fc82cb
+    parameters:
+      awaitConsumerFailure: true
+  invocations:
+  - id: blocks-on-invalid-value
+    expectedFailure:
+      type: org.apache.kafka.common.errors.RecordDeserializationException
+      message: Error deserializing VALUE for partition snapshot.kafka.trigger.typed.double-0 at offset 0. If needed,
+        please seek past the record to continue consumption.
+      cause:
+        type: org.apache.kafka.common.errors.SerializationException
+        message: Size of data received by DoubleDeserializer is not 8
+        cause: null
+    interactions:
+    - fixture: kafka-typed-double
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          committedOffsets:
+          - topic: snapshot.kafka.trigger.typed.double
+            partition: 0
+            offset: 0
+          - topic: snapshot.kafka.trigger.typed.double
+            partition: 1
+            offset: 0
+          - topic: snapshot.kafka.trigger.typed.double
+            partition: 2
+            offset: 0
+          ignoredRecords:
+          - partition: 0
+            body:
+            - 0
+            valueEncoding: bytes
+          - partition: 0
+            body: 1.7976931348623157E308
+            valueEncoding: double
+          expectedConsumerFailure:
+            type: org.apache.kafka.common.errors.RecordDeserializationException
+            message: Error deserializing VALUE for partition snapshot.kafka.trigger.typed.double-0 at offset 0.
+              If needed, please seek past the record to continue consumption.
+            cause:
+              type: org.apache.kafka.common.errors.SerializationException
+              message: Size of data received by DoubleDeserializer is not 8
+              cause: null
+- id: consumes-exact-uuid-types-and-values
+  reuseBroker: true
+  scope: Long
+  deployment: typed-uuid
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 5e70aaa7-aab6-5ef7-844c-436652cc1b5e
+    parameters:
+      topic: snapshot.kafka.trigger.typed.uuid
+      partition: 0
+      valueEncoding: uuid
+      keyEncoding: uuid
+  invocations:
+  - id: typed-value-1
+    body: 00000000-0000-0000-0000-000000000000
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 5e70aaa7-aab6-5ef7-844c-436652cc1b5e
+      parameters:
+        topic: snapshot.kafka.trigger.typed.uuid
+        partition: 0
+        valueEncoding: uuid
+        keyEncoding: uuid
+        key: null
+    expectedBody: java.util.UUID:00000000-0000-0000-0000-000000000000|key:null
+    interactions:
+    - fixture: kafka-typed-uuid
+      expectedRequest:
+        count: 1
+      response:
+        properties: {}
+  - id: typed-value-2
+    body: ffffffff-ffff-ffff-ffff-ffffffffffff
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 5e70aaa7-aab6-5ef7-844c-436652cc1b5e
+      parameters:
+        topic: snapshot.kafka.trigger.typed.uuid
+        partition: 1
+        valueEncoding: uuid
+        keyEncoding: uuid
+        key: ffffffff-ffff-ffff-ffff-ffffffffffff
+    expectedBody: java.util.UUID:ffffffff-ffff-ffff-ffff-ffffffffffff|key:java.util.UUID:ffffffff-ffff-ffff-ffff-ffffffffffff
+    interactions:
+    - fixture: kafka-typed-uuid
+      expectedRequest:
+        count: 1
+      response:
+        properties: {}
+  - id: typed-value-3
+    body: null
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 5e70aaa7-aab6-5ef7-844c-436652cc1b5e
+      parameters:
+        topic: snapshot.kafka.trigger.typed.uuid
+        partition: 2
+        valueEncoding: uuid
+        keyEncoding: uuid
+        key: 00000000-0000-0000-0000-000000000000
+    expectedBody: null|key:java.util.UUID:00000000-0000-0000-0000-000000000000
+    interactions:
+    - fixture: kafka-typed-uuid
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          awaitCommit: true
+- id: rejects-malformed-uuid-without-advancing-offsets
+  reuseBroker: true
+  scope: Long
+  deployment: typed-uuid
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 5e70aaa7-aab6-5ef7-844c-436652cc1b5e
+    parameters:
+      awaitConsumerFailure: true
+  invocations:
+  - id: blocks-on-invalid-value
+    expectedFailure:
+      type: org.apache.kafka.common.errors.RecordDeserializationException
+      message: Error deserializing VALUE for partition snapshot.kafka.trigger.typed.uuid-0 at offset 0. If needed,
+        please seek past the record to continue consumption.
+      cause:
+        type: org.apache.kafka.common.errors.SerializationException
+        message: Error parsing data into UUID
+        cause:
+          type: java.lang.IllegalArgumentException
+          message: 'Invalid UUID string: invalid-uuid'
+          cause: null
+    interactions:
+    - fixture: kafka-typed-uuid
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          committedOffsets:
+          - topic: snapshot.kafka.trigger.typed.uuid
+            partition: 0
+            offset: 0
+          - topic: snapshot.kafka.trigger.typed.uuid
+            partition: 1
+            offset: 0
+          - topic: snapshot.kafka.trigger.typed.uuid
+            partition: 2
+            offset: 0
+          ignoredRecords:
+          - partition: 0
+            body: invalid-uuid
+            valueEncoding: string
+          - partition: 0
+            body: 00000000-0000-0000-0000-000000000000
+            valueEncoding: uuid
+          expectedConsumerFailure:
+            type: org.apache.kafka.common.errors.RecordDeserializationException
+            message: Error deserializing VALUE for partition snapshot.kafka.trigger.typed.uuid-0 at offset 0. If
+              needed, please seek past the record to continue consumption.
+            cause:
+              type: org.apache.kafka.common.errors.SerializationException
+              message: Error parsing data into UUID
+              cause:
+                type: java.lang.IllegalArgumentException
+                message: 'Invalid UUID string: invalid-uuid'
+                cause: null
+- id: consumes-exact-void-types-and-values
+  reuseBroker: true
+  scope: Long
+  deployment: typed-void
+  driver:
+    provider: kafka-trigger
+    sourceElementId: f8db1192-30fa-515c-83d0-48bf010ea891
+    parameters:
+      topic: snapshot.kafka.trigger.typed.void
+      partition: 0
+      valueEncoding: void
+      keyEncoding: void
+  invocations:
+  - id: typed-value-1
+    body: null
+    driver:
+      provider: kafka-trigger
+      sourceElementId: f8db1192-30fa-515c-83d0-48bf010ea891
+      parameters:
+        topic: snapshot.kafka.trigger.typed.void
+        partition: 0
+        valueEncoding: void
+        keyEncoding: void
+        key: null
+    expectedBody: null|key:null
+    interactions:
+    - fixture: kafka-typed-void
+      expectedRequest:
+        count: 1
+      response:
+        properties: {}
+  - id: typed-value-2
+    body: null
+    driver:
+      provider: kafka-trigger
+      sourceElementId: f8db1192-30fa-515c-83d0-48bf010ea891
+      parameters:
+        topic: snapshot.kafka.trigger.typed.void
+        partition: 1
+        valueEncoding: void
+        keyEncoding: void
+        key: null
+    expectedBody: null|key:null
+    interactions:
+    - fixture: kafka-typed-void
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          awaitCommit: true
+- id: rejects-malformed-void-without-advancing-offsets
+  reuseBroker: true
+  scope: Long
+  deployment: typed-void
+  driver:
+    provider: kafka-trigger
+    sourceElementId: f8db1192-30fa-515c-83d0-48bf010ea891
+    parameters:
+      awaitConsumerFailure: true
+  invocations:
+  - id: blocks-on-invalid-value
+    expectedFailure:
+      type: org.apache.kafka.common.errors.RecordDeserializationException
+      message: Error deserializing VALUE for partition snapshot.kafka.trigger.typed.void-0 at offset 0. If needed,
+        please seek past the record to continue consumption.
+      cause:
+        type: java.lang.IllegalArgumentException
+        message: Data should be null for a VoidDeserializer.
+        cause: null
+    interactions:
+    - fixture: kafka-typed-void
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          committedOffsets:
+          - topic: snapshot.kafka.trigger.typed.void
+            partition: 0
+            offset: 0
+          - topic: snapshot.kafka.trigger.typed.void
+            partition: 1
+            offset: 0
+          - topic: snapshot.kafka.trigger.typed.void
+            partition: 2
+            offset: 0
+          ignoredRecords:
+          - partition: 0
+            body:
+            - 0
+            valueEncoding: bytes
+          - partition: 0
+            body: null
+            valueEncoding: void
+          expectedConsumerFailure:
+            type: org.apache.kafka.common.errors.RecordDeserializationException
+            message: Error deserializing VALUE for partition snapshot.kafka.trigger.typed.void-0 at offset 0. If
+              needed, please seek past the record to continue consumption.
+            cause:
+              type: java.lang.IllegalArgumentException
+              message: Data should be null for a VoidDeserializer.
+              cause: null
+- id: authenticates-and-recovers-over-ssl-only
+  scope: Long
+  deployment: ssl-only
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 3c9232ec-bd88-5c80-8626-84e3320de4a7
+    parameters:
+      topic: snapshot.kafka.trigger.ssl-only
+      partition: 0
+  invocations:
+  - id: initial-secure-record
+    body: initial-secure-record
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-ssl-only
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          awaitCommit: true
+          minSuccessfulTlsHandshakes: 1
+  - id: backlog-during-connection-outage
+    body: after-ssl-disconnect
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-ssl-only
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          consumerAction: disconnect-until-published
+          awaitCommit: true
+          minSuccessfulTlsHandshakes: 2
+- id: authenticates-and-recovers-over-scram-256
+  scope: Long
+  deployment: scram-256
+  driver:
+    provider: kafka-trigger
+    sourceElementId: cb6e1b47-0ed7-5924-b51b-3b1b208add2d
+    parameters:
+      topic: snapshot.kafka.trigger.scram-256
+      partition: 0
+  invocations:
+  - id: initial-secure-record
+    body: initial-secure-record
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-scram-256
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          awaitCommit: true
+          minSuccessfulTlsHandshakes: 1
+  - id: denies-revoked-scram-credential
+    driver:
+      provider: kafka-trigger
+      sourceElementId: cb6e1b47-0ed7-5924-b51b-3b1b208add2d
+      parameters:
+        awaitConsumerFailure: true
+    expectedFailure:
+      type: org.apache.kafka.common.errors.SaslAuthenticationException
+      message: Authentication failed during authentication due to invalid credentials with SASL mechanism SCRAM-SHA-256
+      cause: null
+    interactions:
+    - fixture: kafka-scram-256
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          scramPassword: reader-revoked-password
+          backlogRecords:
+          - topic: snapshot.kafka.trigger.scram-256
+            partition: 0
+            body: scram-backlog
+          expectedConsumerFailure:
+            type: org.apache.kafka.common.errors.SaslAuthenticationException
+            message: Authentication failed during authentication due to invalid credentials with SASL mechanism
+              SCRAM-SHA-256
+            cause: null
+          minFailedAuthentications: 1
+  - id: consumes-backlog-after-restoring-scram-credential
+    driver:
+      provider: kafka-trigger
+      sourceElementId: cb6e1b47-0ed7-5924-b51b-3b1b208add2d
+      parameters:
+        consumeStartup: true
+    expectedBody:
+    - Triggered
+    interactions:
+    - fixture: kafka-scram-256
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          scramPassword: reader-password
+          awaitCommit: true
+          minSuccessfulAuthentications: 2
+- id: authenticates-and-recovers-over-scram-512
+  scope: Long
+  deployment: scram-512
+  driver:
+    provider: kafka-trigger
+    sourceElementId: be4769f5-9ef4-5153-81f5-cfbb814679e0
+    parameters:
+      topic: snapshot.kafka.trigger.scram-512
+      partition: 0
+  invocations:
+  - id: initial-secure-record
+    body: initial-secure-record
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-scram-512
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          awaitCommit: true
+          minSuccessfulTlsHandshakes: 1
+  - id: denies-revoked-scram-credential
+    driver:
+      provider: kafka-trigger
+      sourceElementId: be4769f5-9ef4-5153-81f5-cfbb814679e0
+      parameters:
+        awaitConsumerFailure: true
+    expectedFailure:
+      type: org.apache.kafka.common.errors.SaslAuthenticationException
+      message: Authentication failed during authentication due to invalid credentials with SASL mechanism SCRAM-SHA-512
+      cause: null
+    interactions:
+    - fixture: kafka-scram-512
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          scramPassword: reader-revoked-password
+          backlogRecords:
+          - topic: snapshot.kafka.trigger.scram-512
+            partition: 0
+            body: scram-backlog
+          expectedConsumerFailure:
+            type: org.apache.kafka.common.errors.SaslAuthenticationException
+            message: Authentication failed during authentication due to invalid credentials with SASL mechanism
+              SCRAM-SHA-512
+            cause: null
+          minFailedAuthentications: 1
+  - id: consumes-backlog-after-restoring-scram-credential
+    driver:
+      provider: kafka-trigger
+      sourceElementId: be4769f5-9ef4-5153-81f5-cfbb814679e0
+      parameters:
+        consumeStartup: true
+    expectedBody:
+    - Triggered
+    interactions:
+    - fixture: kafka-scram-512
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          scramPassword: reader-password
+          awaitCommit: true
+          minSuccessfulAuthentications: 2
+- id: limits-each-native-poll-to-exported-max-poll-records
+  reuseBroker: true
+  scope: Long
+  deployment: poll-limit
+  driver:
+    provider: kafka-trigger
+    sourceElementId: bc501bcb-65cf-5037-a30d-69499871244d
+    parameters:
+      consumeStartup: true
+  invocations:
+  - id: drains-seven-records-in-bounded-batches
+    expectedBody:
+    - Triggered
+    - Triggered
+    - Triggered
+    - Triggered
+    - Triggered
+    - Triggered
+    - Triggered
+    interactions:
+    - fixture: kafka-poll-limit
+      expectedRequest:
+        count: 7
+      response:
+        properties:
+          expectedStartupRecords:
+          - topic: snapshot.kafka.trigger.poll-limit
+            partition: 0
+            body: poll-limit-0
+          - topic: snapshot.kafka.trigger.poll-limit
+            partition: 0
+            body: poll-limit-1
+          - topic: snapshot.kafka.trigger.poll-limit
+            partition: 0
+            body: poll-limit-2
+          - topic: snapshot.kafka.trigger.poll-limit
+            partition: 0
+            body: poll-limit-3
+          - topic: snapshot.kafka.trigger.poll-limit
+            partition: 0
+            body: poll-limit-4
+          - topic: snapshot.kafka.trigger.poll-limit
+            partition: 0
+            body: poll-limit-5
+          - topic: snapshot.kafka.trigger.poll-limit
+            partition: 0
+            body: poll-limit-6
+          expectedMaxPollRecords: 2
+          awaitCommit: true
+- scope: Long
+  deployment: lifecycle
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 1f4eeefa-b208-59d6-b0ba-d7ce727868d7
+    parameters:
+      partition: 0
+  id: promotes-a-candidate-with-divergent-offsets-and-unread-backlog
+  invocations:
+  - id: candidate-progress-ahead-of-active
+    body: candidate-already-processed
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-lifecycle
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          initialBlueGreenState:
+            state: CANDIDATE
+            version: 2
+            siblingState: ACTIVE
+            siblingVersion: 1
+            updateSeconds: 1
+          filteredRecords:
+          - partition: 0
+            body: active-processed-prefix
+            headers:
+              X-Version: v1
+          - partition: 0
+            body: unread-unversioned-backlog
+          awaitCommit: true
+          siblingOffsets:
+          - topic: snapshot.kafka.trigger.lifecycle
+            partition: 0
+            offset: 1
+          - topic: snapshot.kafka.trigger.lifecycle
+            partition: 1
+            offset: 0
+          - topic: snapshot.kafka.trigger.lifecycle
+            partition: 2
+            offset: 0
+    headers:
+      X-Version: v2
+  - id: promotes-from-active-offset-and-replays-retained-suffix
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 1f4eeefa-b208-59d6-b0ba-d7ce727868d7
+      parameters:
+        consumeStartup: true
+    expectedBody:
+    - Triggered
+    - Triggered
+    - Triggered
+    interactions:
+    - fixture: kafka-lifecycle
+      expectedRequest:
+        count: 3
+      response:
+        properties:
+          consumerAction: transition-with-backlog
+          blueGreenState:
+            state: ACTIVE
+            version: 2
+            siblingState: LEGACY
+            siblingVersion: 1
+            updateSeconds: 2
+          expectedReplayRecords:
+          - partition: 0
+            offset: 1
+          - partition: 0
+            offset: 2
+          backlogRecords:
+          - partition: 0
+            body: new-record-published-during-transition
+          awaitCommit: true
+  - id: new-record-after-promotion
+    body: after-promotion
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-lifecycle
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          awaitCommit: true
+- scope: Long
+  deployment: lifecycle
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 1f4eeefa-b208-59d6-b0ba-d7ce727868d7
+    parameters:
+      partition: 0
+  id: rolls-back-with-divergent-offsets-and-unread-backlog
+  invocations:
+  - id: legacy-progress-ahead-of-active
+    body: legacy-already-processed
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-lifecycle
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          initialBlueGreenState:
+            state: LEGACY
+            version: 1
+            siblingState: ACTIVE
+            siblingVersion: 2
+            updateSeconds: 1
+          filteredRecords:
+          - partition: 0
+            body: active-processed-prefix
+          - partition: 0
+            body: new-version-not-for-legacy
+            headers:
+              X-Version: v2
+          awaitCommit: true
+          siblingOffsets:
+          - topic: snapshot.kafka.trigger.lifecycle
+            partition: 0
+            offset: 1
+          - topic: snapshot.kafka.trigger.lifecycle
+            partition: 1
+            offset: 0
+          - topic: snapshot.kafka.trigger.lifecycle
+            partition: 2
+            offset: 0
+    headers:
+      X-Version: v1
+  - id: rollback-inherits-active-offset-and-processes-unread-suffix
+    driver:
+      provider: kafka-trigger
+      sourceElementId: 1f4eeefa-b208-59d6-b0ba-d7ce727868d7
+      parameters:
+        consumeStartup: true
+    expectedBody:
+    - Triggered
+    - Triggered
+    interactions:
+    - fixture: kafka-lifecycle
+      expectedRequest:
+        count: 2
+      response:
+        properties:
+          consumerAction: transition-with-backlog
+          blueGreenState:
+            state: ACTIVE
+            version: 1
+            siblingState: LEGACY
+            siblingVersion: 2
+            updateSeconds: 2
+          expectedReplayRecords:
+          - partition: 0
+            offset: 2
+          backlogRecords:
+          - partition: 0
+            body: unversioned-backlog-after-rollback
+          awaitCommit: true
+  - id: new-record-after-rollback
+    body: after-rollback
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-lifecycle
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          awaitCommit: true
+- scope: Long
+  deployment: lifecycle
+  driver:
+    provider: kafka-trigger
+    sourceElementId: 1f4eeefa-b208-59d6-b0ba-d7ce727868d7
+    parameters:
+      partition: 0
+  id: preserves-in-flight-record-and-commits-after-broker-process-loss
+  invocations:
+  - id: establishes-committed-progress
+    body: before-crash
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-lifecycle
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          awaitCommit: true
+  - id: kills-broker-before-processing-completes
+    body: held-during-crash
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-lifecycle
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          consumerAction: lose-broker-during-processing
+          awaitCommit: true
+          allowRedelivery: true
+    timeoutSeconds: 180
+  - id: excludes-committed-record-after-consumer-restart
+    body: after-crash-restart
+    expectedBody: Triggered
+    interactions:
+    - fixture: kafka-lifecycle
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          consumerAction: stop-until-published
+          awaitCommit: true

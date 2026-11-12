@@ -410,6 +410,47 @@ class ChainImportServiceTest {
         verify(bulkDeploymentService, never()).deploySnapshots(any(), any(), any(), any(), any());
     }
 
+    private static List<String> resultDomains(ImportChainResult chain) {
+        return chain.getDeployments().stream().map(DeploymentExternalEntity::getDomain).toList();
+    }
+
+    @Test
+    void deployWithDomainsReportsTheRequestedActionAndDomains() {
+        snapshotIsBuilt("c1", "s1");
+        deploysSucceed();
+        ImportChainResult chain = importedChain("c1");
+        chain.setDeployAction(ChainCommitRequestAction.SNAPSHOT);
+
+        makeDeployActions(List.of(chain), List.of(commitRequest("c1", ChainCommitRequestAction.DEPLOY, "picked-domain")));
+
+        assertEquals(ChainCommitRequestAction.DEPLOY, chain.getDeployAction());
+        assertEquals(List.of("picked-domain"), resultDomains(chain));
+    }
+
+    @Test
+    void noneActionReportsNoneWithoutDomains() {
+        ImportChainResult chain = importedChain("c1", "archive-domain");
+        chain.setDeployAction(ChainCommitRequestAction.DEPLOY);
+
+        makeDeployActions(List.of(chain), List.of(commitRequest("c1", ChainCommitRequestAction.NONE)));
+
+        assertEquals(ChainCommitRequestAction.NONE, chain.getDeployAction());
+        assertEquals(List.of(), resultDomains(chain));
+    }
+
+    @Test
+    void requestWithoutActionKeepsTheArchiveActionAndDomains() {
+        snapshotIsBuilt("c1", "s1");
+        deploysSucceed();
+        ImportChainResult chain = importedChain("c1", "archive-domain");
+        chain.setDeployAction(ChainCommitRequestAction.DEPLOY);
+
+        makeDeployActions(List.of(chain), List.of(commitRequest("c1", null, "ignored-domain")));
+
+        assertEquals(ChainCommitRequestAction.DEPLOY, chain.getDeployAction());
+        assertEquals(List.of("archive-domain"), resultDomains(chain));
+    }
+
     @Test
     void chainsThatFailedOrWereSkippedOrIgnoredGetNoSnapshot() {
         List<ImportChainResult> chains = List.of(

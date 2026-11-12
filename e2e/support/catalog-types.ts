@@ -409,8 +409,7 @@ export interface BulkDeploymentRow {
   domain: { name: string; replicas: number; type: string };
 }
 
-/** `REWRITE` replaces the chains a micro domain runs; `APPEND` adds to them. */
-export type CustomResourceMode = "REWRITE" | "APPEND";
+export type DomainType = "CLASSIC" | "MICRO";
 
 /** One service `POST /v1/systems/discovery` created, as `GET /v1/systems/discovery` lists it. */
 export interface DiscoveredServiceView {
@@ -453,6 +452,8 @@ export interface ImportChainResult {
   status: string;
   errorMessage?: string;
   deployAction?: string;
+  /** The domains the import deploys the chain to. Absent unless the action is `DEPLOY`. */
+  deployments?: Array<{ domain: string }>;
 }
 
 /** `POST /v1/catalog/import`. 200, or **207** as soon as one row carries `ERROR`. */
@@ -819,8 +820,8 @@ export interface LoggingPropertiesSet {
  * only one path leaves the other three unreached whatever it asserts.
  */
 export const CHAIN_ROLES_PATHS = [
-  "/v1/catalog/chains/roles",
   "/v1/catalog/chains/access-control",
+  "/v1/catalog/chains/roles",
 ] as const;
 
 export type ChainRolesPath = (typeof CHAIN_ROLES_PATHS)[number];
@@ -839,7 +840,7 @@ export interface ChainElementFilter {
   value: string;
 }
 
-/** The body `POST /v1/catalog/chains/roles` takes. Every field has a server-side default. */
+/** The access-control search body. Every field has a server-side default. */
 export interface ChainElementSearch {
   offset?: number;
   limit?: number;

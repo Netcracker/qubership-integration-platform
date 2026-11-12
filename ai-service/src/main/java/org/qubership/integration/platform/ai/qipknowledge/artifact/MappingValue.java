@@ -54,8 +54,9 @@ public sealed interface MappingValue {
   static String describe(MappingValue value) {
     return switch (value) {
       case Copy copy -> switch (copy.source()) {
-        case MappingSource.Message message -> message.path();
-        case MappingSource.Context ignored -> "retained context value";
+        case MappingSource.Message message -> message.interactionId() == null || message.interactionId().isBlank()
+            ? message.path() : message.interactionId() + "/" + message.port() + ":" + message.path();
+        case MappingSource.Context context -> "retained context " + context.contextId();
         case MappingSource.Constant constant -> "constant " + constant.value();
         case MappingSource.Outcome outcome -> "service " + outcome.field().name()
             .toLowerCase(java.util.Locale.ROOT).replace('_', ' ');
@@ -65,8 +66,10 @@ public sealed interface MappingValue {
       case Lookup lookup -> describe(lookup.value()) + ": " + lookup.entries().stream()
           .map(entry -> entry.key() + " → " + describe(entry.value()))
           .collect(java.util.stream.Collectors.joining(", ")) + "; default " + describe(lookup.defaultValue());
-      case Interpolate interpolation -> "text " + interpolation.template();
-      case JsonSerialize json -> "JSON with " + json.fields().stream().map(NamedValue::name)
+      case Interpolate interpolation -> "text " + interpolation.template() + " with " + interpolation.values().stream()
+          .map(field -> field.name() + "=" + describe(field.value()))
+          .collect(java.util.stream.Collectors.joining(", "));
+      case JsonSerialize json -> "JSON with " + json.fields().stream().map(field -> field.name() + "=" + describe(field.value()))
           .collect(java.util.stream.Collectors.joining(", "));
       case CurrentDate date -> "today in " + date.zoneId() + " (" + date.format() + ")";
       case Custom custom -> custom.description();

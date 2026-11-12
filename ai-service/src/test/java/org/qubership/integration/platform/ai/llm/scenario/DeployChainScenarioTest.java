@@ -16,6 +16,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.helpers.test.AssertSubscriber;
 import jakarta.ws.rs.ProcessingException;
@@ -279,13 +281,57 @@ class DeployChainScenarioTest {
 
     verify(catalogRestClient, never()).createSnapshot(any());
     verify(catalogRestClient)
-        .createDeployment(CHAIN_ID, new CreateDeploymentRequest("default", SNAPSHOT_ID));
+        .createDeployment(CHAIN_ID, new CreateDeploymentRequest("default", SNAPSHOT_ID, "CLASSIC"));
     assertTrue(token.text().contains("V1"));
     assertTrue(token.text().contains(SNAPSHOT_ID));
     assertTrue(token.text().contains("default"));
     assertTrue(token.text().contains("DEPLOYED"));
     assertTrue(pendingRedeployStore.openDecision(CONVERSATION_ID).isEmpty());
     assertFalse(token.text().contains("WARNING"));
+  }
+
+  @Test
+  void staleDomainRowDoesNotConfirmReplacementDeployment() {
+    when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
+        .thenReturn(Optional.of(CHAIN_ID));
+    when(catalogRestClient.getChain(CHAIN_ID))
+        .thenReturn(
+            new ChainDto(
+                CHAIN_ID, "demo", "Demo", new CurrentSnapshotDto(SNAPSHOT_ID, "V1"), false));
+    when(catalogRestClient.createDeployment(
+            CHAIN_ID, new CreateDeploymentRequest("default", SNAPSHOT_ID, "CLASSIC")))
+        .thenReturn(replacementDeployment(NEW_SNAPSHOT_ID));
+    when(catalogRestClient.listDeployments(CHAIN_ID))
+        .thenReturn(List.of())
+        .thenReturn(List.of(deployment("default-" + SNAPSHOT_ID, "default", SNAPSHOT_ID, "DEPLOYED")));
+
+    ChatEvent.Token token = tokenAfterSessionLogging("deploy this chain");
+
+    assertFalse(token.text().contains("DEPLOYED"));
+    assertTrue(token.text().contains("PROCESSING"));
+  }
+
+  @Test
+  void replacementRowWithMatchingIdConfirmsDeployment() {
+    when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
+        .thenReturn(Optional.of(CHAIN_ID));
+    when(catalogRestClient.getChain(CHAIN_ID))
+        .thenReturn(
+            new ChainDto(
+                CHAIN_ID, "demo", "Demo", new CurrentSnapshotDto(SNAPSHOT_ID, "V1"), false));
+    when(catalogRestClient.createDeployment(
+            CHAIN_ID, new CreateDeploymentRequest("default", SNAPSHOT_ID, "CLASSIC")))
+        .thenReturn(replacementDeployment(NEW_SNAPSHOT_ID));
+    when(catalogRestClient.listDeployments(CHAIN_ID))
+        .thenReturn(List.of())
+        .thenReturn(
+            List.of(
+                deployment(
+                    "default-" + NEW_SNAPSHOT_ID, "default", NEW_SNAPSHOT_ID, "DEPLOYED")));
+
+    ChatEvent.Token token = tokenAfterSessionLogging("deploy this chain");
+
+    assertTrue(token.text().contains("DEPLOYED"));
   }
 
   @Test
@@ -306,7 +352,7 @@ class DeployChainScenarioTest {
 
     verify(catalogRestClient).createSnapshot(CHAIN_ID);
     verify(catalogRestClient)
-        .createDeployment(CHAIN_ID, new CreateDeploymentRequest("default", NEW_SNAPSHOT_ID));
+        .createDeployment(CHAIN_ID, new CreateDeploymentRequest("default", NEW_SNAPSHOT_ID, "CLASSIC"));
     assertTrue(token.text().contains("V2"));
     assertTrue(token.text().contains(NEW_SNAPSHOT_ID));
     assertTrue(token.text().contains("DEPLOYED"));
@@ -329,7 +375,7 @@ class DeployChainScenarioTest {
 
     verify(catalogRestClient).createSnapshot(CHAIN_ID);
     verify(catalogRestClient)
-        .createDeployment(CHAIN_ID, new CreateDeploymentRequest("default", NEW_SNAPSHOT_ID));
+        .createDeployment(CHAIN_ID, new CreateDeploymentRequest("default", NEW_SNAPSHOT_ID, "CLASSIC"));
     assertTrue(token.text().contains(NEW_SNAPSHOT_ID));
     assertTrue(token.text().contains("DEPLOYED"));
   }
@@ -351,7 +397,7 @@ class DeployChainScenarioTest {
 
     verify(catalogRestClient, never()).createSnapshot(any());
     verify(catalogRestClient)
-        .createDeployment(CHAIN_ID, new CreateDeploymentRequest("default", NEW_SNAPSHOT_ID));
+        .createDeployment(CHAIN_ID, new CreateDeploymentRequest("default", NEW_SNAPSHOT_ID, "CLASSIC"));
     assertTrue(token.text().contains("V2"));
     assertTrue(token.text().contains(NEW_SNAPSHOT_ID));
     assertTrue(token.text().contains("DEPLOYED"));
@@ -499,7 +545,7 @@ class DeployChainScenarioTest {
     ChatEvent.Token token = tokenAfterSessionLogging(deployRequest(card.artifactHash()));
 
     verify(catalogRestClient)
-        .createDeployment(CHAIN_ID, new CreateDeploymentRequest("default", SNAPSHOT_ID));
+        .createDeployment(CHAIN_ID, new CreateDeploymentRequest("default", SNAPSHOT_ID, "CLASSIC"));
     verify(catalogRestClient, never()).deleteDeployment(any(), any());
     assertTrue(token.text().contains("DEPLOYED"));
     assertTrue(token.text().contains("default"));
@@ -634,11 +680,63 @@ class DeployChainScenarioTest {
     order.verify(catalogRestClient).updateLoggingProperties(eq(CHAIN_ID), any());
     order.verify(catalogRestClient).deleteDeployment(CHAIN_ID, "dep-1");
     order.verify(catalogRestClient)
-        .createDeployment(CHAIN_ID, new CreateDeploymentRequest("default", SNAPSHOT_ID));
+        .createDeployment(CHAIN_ID, new CreateDeploymentRequest("default", SNAPSHOT_ID, "CLASSIC"));
     verify(catalogRestClient, never()).createSnapshot(any());
     assertTrue(token.text().contains("DEPLOYED"));
     assertTrue(token.text().contains("default"));
     assertTrue(token.text().contains("V1"));
+  }
+
+  @Test
+  void sameSnapshotRedeployReportsFailureInsteadOfStaleDeployedRow() {
+    scenario = multiPollScenario(5_000L);
+    stubOpenChain();
+    String deploymentId = "default-" + SNAPSHOT_ID;
+    when(catalogRestClient.createDeployment(
+            CHAIN_ID, new CreateDeploymentRequest("default", SNAPSHOT_ID, "CLASSIC")))
+        .thenReturn(replacementDeployment(SNAPSHOT_ID));
+    when(catalogRestClient.listDeployments(CHAIN_ID))
+        .thenReturn(List.of(deployment(deploymentId, "default", SNAPSHOT_ID, "DEPLOYED")))
+        .thenReturn(List.of(deployment(deploymentId, "default", SNAPSHOT_ID, "DEPLOYED")))
+        .thenReturn(List.of())
+        .thenReturn(List.of(deployment(deploymentId, "default", SNAPSHOT_ID, "FAILED")));
+
+    ChatEvent.Decision card = onlyDecision(eventsFrom("deploy this chain"));
+    ChatEvent.Token token = tokenAfterSessionLogging(redeployRequest(card.artifactHash()));
+
+    assertTrue(token.text().contains("FAILED"), token.text());
+    assertFalse(token.text().contains("DEPLOYED"), token.text());
+  }
+
+  @Test
+  void sameSnapshotRedeployNeverConfirmsWhileTheRemovalIsUnobserved() {
+    scenario = multiPollScenario(100L);
+    stubOpenChain();
+    String deploymentId = "default-" + SNAPSHOT_ID;
+    when(catalogRestClient.createDeployment(
+            CHAIN_ID, new CreateDeploymentRequest("default", SNAPSHOT_ID, "CLASSIC")))
+        .thenReturn(replacementDeployment(SNAPSHOT_ID));
+    when(catalogRestClient.listDeployments(CHAIN_ID))
+        .thenReturn(List.of(deployment(deploymentId, "default", SNAPSHOT_ID, "DEPLOYED")))
+        .thenReturn(List.of(deployment(deploymentId, "default", SNAPSHOT_ID, "DEPLOYED")));
+
+    ChatEvent.Decision card = onlyDecision(eventsFrom("deploy this chain"));
+    ChatEvent.Token token = tokenAfterSessionLogging(redeployRequest(card.artifactHash()));
+
+    assertTrue(token.text().contains("PROCESSING"), token.text());
+    assertFalse(token.text().contains("DEPLOYED"), token.text());
+  }
+
+  private DeployChainScenario multiPollScenario(long pollTimeoutMillis) {
+    return new DeployChainScenario(
+        chainContextExtractor,
+        catalogRestClient,
+        pendingRedeployStore,
+        maasTopicsCreatedStore,
+        new KnownFailureMapper(),
+        pinnedFailureStore,
+        pollTimeoutMillis,
+        1L);
   }
 
   @Test
@@ -734,7 +832,7 @@ class DeployChainScenarioTest {
 
     verify(catalogRestClient, never()).createSnapshot(any());
     verify(catalogRestClient)
-        .createDeployment(CHAIN_ID, new CreateDeploymentRequest("default", NEW_SNAPSHOT_ID));
+        .createDeployment(CHAIN_ID, new CreateDeploymentRequest("default", NEW_SNAPSHOT_ID, "CLASSIC"));
     assertTrue(token.text().contains("V2"));
     assertTrue(token.text().contains(NEW_SNAPSHOT_ID));
     assertTrue(token.text().contains("DEPLOYED"));
@@ -775,9 +873,37 @@ class DeployChainScenarioTest {
 
     verify(catalogRestClient, never()).createSnapshot(any());
     verify(catalogRestClient)
-        .createDeployment(CHAIN_ID, new CreateDeploymentRequest("prod", SNAPSHOT_ID));
+        .createDeployment(CHAIN_ID, new CreateDeploymentRequest("prod", SNAPSHOT_ID, "CLASSIC"));
     assertTrue(token.text().contains("prod"));
     assertTrue(token.text().contains("DEPLOYED"));
+  }
+
+  @Test
+  void deployToSelectedMicroDomainCarriesItsType() {
+    when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
+        .thenReturn(Optional.of(CHAIN_ID));
+    when(catalogRestClient.listDomains())
+        .thenReturn(List.of(domain("default"), new DomainDto("orders", "MICRO")));
+    when(catalogRestClient.getChain(CHAIN_ID))
+        .thenReturn(
+            new ChainDto(
+                CHAIN_ID, "demo", "Demo", new CurrentSnapshotDto(SNAPSHOT_ID, "V1"), false));
+    when(catalogRestClient.createDeployment(
+            CHAIN_ID, new CreateDeploymentRequest("orders", SNAPSHOT_ID, "MICRO")))
+        .thenReturn(replacementDeployment(SNAPSHOT_ID));
+    when(catalogRestClient.listDeployments(CHAIN_ID))
+        .thenReturn(List.of())
+        .thenReturn(
+            List.of(deployment("orders-" + SNAPSHOT_ID, "orders", SNAPSHOT_ID, "DEPLOYED")));
+
+    tokenAfterSessionLogging("deploy this chain to orders");
+
+    ArgumentCaptor<CreateDeploymentRequest> captor =
+        ArgumentCaptor.forClass(CreateDeploymentRequest.class);
+    verify(catalogRestClient).createDeployment(eq(CHAIN_ID), captor.capture());
+    JsonNode sent = new ObjectMapper().valueToTree(captor.getValue());
+    assertEquals("orders", sent.path("domain").asText());
+    assertEquals("MICRO", sent.path("domainType").asText());
   }
 
   @Test
@@ -837,7 +963,7 @@ class DeployChainScenarioTest {
     assertTrue(listed.contains("prod"), listed);
     verify(catalogRestClient, never()).createSnapshot(any());
     verify(catalogRestClient)
-        .createDeployment(CHAIN_ID, new CreateDeploymentRequest("prod", SNAPSHOT_ID));
+        .createDeployment(CHAIN_ID, new CreateDeploymentRequest("prod", SNAPSHOT_ID, "CLASSIC"));
     assertTrue(token.text().contains("prod"));
     assertTrue(token.text().contains("DEPLOYED"));
   }
@@ -865,7 +991,7 @@ class DeployChainScenarioTest {
 
     verify(catalogRestClient, never()).createSnapshot(any());
     verify(catalogRestClient)
-        .createDeployment(CHAIN_ID, new CreateDeploymentRequest("prod", NEW_SNAPSHOT_ID));
+        .createDeployment(CHAIN_ID, new CreateDeploymentRequest("prod", NEW_SNAPSHOT_ID, "CLASSIC"));
     assertTrue(token.text().contains("V2"));
     assertTrue(token.text().contains(NEW_SNAPSHOT_ID));
   }
@@ -935,7 +1061,7 @@ class DeployChainScenarioTest {
     order.verify(catalogRestClient).updateLoggingProperties(eq(CHAIN_ID), any());
     order.verify(catalogRestClient).deleteDeployment(CHAIN_ID, "dep-1");
     order.verify(catalogRestClient)
-        .createDeployment(CHAIN_ID, new CreateDeploymentRequest("default", NEW_SNAPSHOT_ID));
+        .createDeployment(CHAIN_ID, new CreateDeploymentRequest("default", NEW_SNAPSHOT_ID, "CLASSIC"));
     verify(catalogRestClient, never()).createSnapshot(any());
     assertTrue(token.text().contains("V2"));
     assertTrue(token.text().contains(NEW_SNAPSHOT_ID));
@@ -1223,7 +1349,7 @@ class DeployChainScenarioTest {
     ChatEvent.Token token = tokenAfterSessionLogging("deploy it");
 
     verify(catalogRestClient)
-        .createDeployment(CHAIN_ID, new CreateDeploymentRequest("default", SNAPSHOT_ID));
+        .createDeployment(CHAIN_ID, new CreateDeploymentRequest("default", SNAPSHOT_ID, "CLASSIC"));
     assertTrue(token.text().contains("PROCESSING"));
     assertTrue(token.text().contains("default"));
     assertTrue(token.text().contains("V1"));
@@ -1309,7 +1435,7 @@ class DeployChainScenarioTest {
     assertTrue(posted.getValue().dptEventsEnabled());
     assertFalse(posted.getValue().maskingEnabled());
     verify(catalogRestClient)
-        .createDeployment(CHAIN_ID, new CreateDeploymentRequest("default", SNAPSHOT_ID));
+        .createDeployment(CHAIN_ID, new CreateDeploymentRequest("default", SNAPSHOT_ID, "CLASSIC"));
     assertTrue(token.text().contains("DEPLOYED"));
     assertTrue(pendingRedeployStore.openDecision(CONVERSATION_ID).isEmpty());
   }
@@ -2566,6 +2692,11 @@ class DeployChainScenarioTest {
 
   private static DeploymentDto deploymentOnDefault(String snapshotId, String status) {
     return deployment("dep-1", "default", snapshotId, status);
+  }
+
+  private static DeploymentDto replacementDeployment(String snapshotId) {
+    return new DeploymentDto(
+        "default-" + snapshotId, CHAIN_ID, snapshotId, "V2", "default", null);
   }
 
   private static DeploymentDto deployment(String domain, String snapshotId, String status) {

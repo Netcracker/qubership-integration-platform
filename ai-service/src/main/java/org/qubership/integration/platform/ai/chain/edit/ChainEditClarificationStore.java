@@ -7,11 +7,8 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Holds an edit that stopped to ask which element or aspect the reader meant.
  *
- * <p>What is held is the partly resolved intent and the question the reader was shown, not the
- * reader's original words. The next turn feeds both back to the classifier alongside whatever the
- * reader says next, so answering the question continues this same edit instead of resolving the
- * reply with no record of having asked. This mirrors {@link ChainEditEscalationStore}, which holds
- * an edit the same way while it waits on an import decision.
+ * <p>The intent and question provide context for classifying the next reply. The author source
+ * preserves supplied Script bodies across target clarification.
  */
 @ApplicationScoped
 public class ChainEditClarificationStore {
@@ -36,7 +33,13 @@ public class ChainEditClarificationStore {
       String chainId,
       ChainEditIntent heldIntent,
       String question,
-      StructuralBindingContinuation continuation) {
+      StructuralBindingContinuation continuation,
+      String scriptAuthorSource) {
+    public PendingClarification(String chainId, ChainEditIntent heldIntent, String question,
+        StructuralBindingContinuation continuation) {
+      this(chainId, heldIntent, question, continuation, "");
+    }
+
     public PendingClarification(String chainId, ChainEditIntent heldIntent, String question) {
       this(chainId, heldIntent, question, null);
     }

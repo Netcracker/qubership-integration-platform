@@ -21,6 +21,11 @@ public final class RecordingCatalogRestClient implements CatalogRestClient {
     this.schemasByOperation = schemasByOperation;
   }
 
+  public static RecordingCatalogRestClient withSchemas(
+      Map<String, CatalogRestClient.OperationSchemaMapsDto> schemas) {
+    return new RecordingCatalogRestClient(schemas);
+  }
+
   public static RecordingCatalogRestClient withJsonMaps() {
     try {
       ObjectMapper mapper = new ObjectMapper();

@@ -149,7 +149,7 @@ export const TestRuns: React.FC = () => {
   const columnDefinitions = useMemo<ColumnsTypeWithSettings<TestsRunView>>(
     () => [
       {
-        title: "Id",
+        title: "ID",
         dataIndex: "id",
         key: "id",
         sorter: true,

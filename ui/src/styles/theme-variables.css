@@ -8,7 +8,7 @@
 
   /* Panel Colors */
   --vscode-panel-background: #fafafa;
-  --vscode-sideBar-background: #fff;
+  --vscode-sideBar-background: #fafafa;
   --vscode-editorGroupHeader-tabsBackground: #fafafa;
   --vscode-editorGroupHeader-foreground: rgb(0 0 0 / 88%);
 
@@ -96,7 +96,7 @@
 :root:not(.vscode-webview)[data-theme="dark"] {
   --vscode-editor-background: #1f1f1f;
   --vscode-editor-foreground: rgb(255 255 255 / 85%);
-  --vscode-panel-background: #141414;
+  --vscode-panel-background: #1f1f1f;
   --vscode-sideBar-background: #1f1f1f;
   --vscode-editorGroupHeader-tabsBackground: #1f1f1f;
   --vscode-editorGroupHeader-foreground: rgb(255 255 255 / 85%);

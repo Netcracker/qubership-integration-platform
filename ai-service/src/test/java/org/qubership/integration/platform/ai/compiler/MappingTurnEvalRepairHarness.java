@@ -46,8 +46,8 @@ import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwners
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 
 /**
- * Scores compiler mapping repair through {@link CaptureRepairRunner}, {@link ScriptBodyRepairTool},
- * and {@link ProducerOwnedRecovery} on the existing repair budget.
+ * Scores native COPY admission through {@link CaptureRepairRunner}, {@link ScriptBodyRepairTool},
+ * and {@link ProducerOwnedRecovery} without a second semantic repair loop.
  */
 public final class MappingTurnEvalRepairHarness {
 
@@ -64,22 +64,18 @@ public final class MappingTurnEvalRepairHarness {
   private MappingTurnEvalRepairHarness() {}
 
   public static List<RepairScore> run() {
-    return List.of(acceptValidReplacement(), exhaustWithIntentAndFindings());
+    return List.of(nativeCopyOverridesModel(), legacyCopyRequiresRecapture());
   }
 
-  private static RepairScore acceptValidReplacement() {
-    RepairSession session = new RepairSession();
+  private static RepairScore nativeCopyOverridesModel() {
+    RepairSession session = new RepairSession(true);
     AtomicInteger calls = new AtomicInteger();
     AtomicBoolean captured = new AtomicBoolean(false);
-    AtomicReference<String> repairPrompt = new AtomicReference<>("");
     try {
       session.runner
           .runWithRepair(
               message -> {
                 int call = calls.incrementAndGet();
-                if (call > 1) {
-                  repairPrompt.set(message);
-                }
                 ScriptBodyRepairCapture capture =
                     call == 1 ? unexpectedCoverage("script-map-bad") : validCoverage("script-map-ok");
                 try {
@@ -111,44 +107,46 @@ public final class MappingTurnEvalRepairHarness {
                       CaptureSlot.SCRIPT_BODY_REPAIR, CONVERSATION_ID, CAPABILITY_ID),
                   GraphPatch.class)
               .isPresent();
-      boolean secondLoop = calls.get() > 2;
+      boolean secondLoop = calls.get() > 1;
       boolean passed =
           captured.get()
               && capturedPatch
-              && calls.get() == 2
+              && calls.get() == 1
               && !secondLoop
-              && repairPrompt.get().contains(MAPPING_INTENT_ID)
-              && repairPrompt.get().contains("Do not change mappingIntents")
+              && session.captureSession.get(CaptureKey.capability(CaptureSlot.SCRIPT_BODY_REPAIR,
+                  CONVERSATION_ID, CAPABILITY_ID), GraphPatch.class).orElseThrow().propertyPatches()
+                  .stream().anyMatch(patch -> String.valueOf(patch.property().value()).contains("Missing COPY source: orderId")
+                      && !String.valueOf(patch.property().value()).contains("target['orderId']"))
               && insideBudget.action() == ProducerOwnedRecovery.Action.REPAIR_CURRENT
               && MAPPING_INTENT_ID.equals(
                   MappingExecutionSite.mappingIntentId(
                       session.planStore.get(CONVERSATION_ID).orElseThrow().nodes().getFirst()));
       return new RepairScore(
-          "repair-accept-valid",
+          "native-copy-overrides-model",
           passed,
           calls.get(),
           secondLoop,
           passed
-              ? "accepted valid replacement inside CaptureRepairRunner budget"
+              ? "verified COPY used its frozen lowering and ignored model body and coverage in one call"
               : "did not accept a valid replacement calls=" + calls.get());
     } finally {
       session.close();
     }
   }
 
-  private static RepairScore exhaustWithIntentAndFindings() {
-    RepairSession session = new RepairSession();
+  private static RepairScore legacyCopyRequiresRecapture() {
+    RepairSession session = new RepairSession(false);
     AtomicInteger calls = new AtomicInteger();
     AtomicBoolean captured = new AtomicBoolean(false);
+    AtomicReference<String> admissionFinding = new AtomicReference<>("");
     try {
       session.runner
           .runWithRepair(
               message -> {
                 calls.incrementAndGet();
                 try {
-                  session.tool.repairScriptBodies(unexpectedCoverage("script-map-extra-" + calls.get()));
+                  admissionFinding.set(session.tool.repairScriptBodies(unexpectedCoverage("script-map-extra-" + calls.get())));
                 } catch (CaptureValidationException ignored) {
-                  // Repeated identical coverage can terminate the tool call; the runner must stop.
                 }
                 return Multi.createFrom().empty();
               },
@@ -165,36 +163,29 @@ public final class MappingTurnEvalRepairHarness {
           .asList()
           .await()
           .indefinitely();
-      String findings =
-          session
-              .feedbackStore
-              .lastPatchFailure(CONVERSATION_ID, CAPABILITY_ID)
-              .map(CaptureAttemptFeedback::summary)
-              .orElse("");
-      String exhausted =
-          CaptureRepairMessageBuilder.mappingCaptureExhaustedMessage(MAPPING_INTENT_ID, findings);
+      String findings = admissionFinding.get();
       ProducerOwnedRecovery.Route afterBudget = recovery(1);
-      boolean secondLoop = calls.get() > 2;
+      boolean secondLoop = calls.get() > 1;
       boolean passed =
           !captured.get()
-              && calls.get() == 2
+              && calls.get() == 1
               && !secondLoop
-              && exhausted.contains(MAPPING_INTENT_ID)
-              && exhausted.contains("repair budget was exhausted")
-              && findings.contains("unexpected")
+              && session.captureSession.get(CaptureKey.capability(CaptureSlot.SCRIPT_BODY_REPAIR,
+                  CONVERSATION_ID, CAPABILITY_ID), GraphPatch.class).isEmpty()
+              && findings.contains("verified origin plan")
               && afterBudget.action() == ProducerOwnedRecovery.Action.PARK
               && "design-execution".equals(afterBudget.producerStageId())
               && MAPPING_INTENT_ID.equals(
                   MappingExecutionSite.mappingIntentId(
                       session.planStore.get(CONVERSATION_ID).orElseThrow().nodes().getFirst()));
       return new RepairScore(
-          "repair-exhaust-findings",
+          "legacy-copy-requires-recapture",
           passed,
           calls.get(),
           secondLoop,
           passed
-              ? "failed with mapping intent id and findings after the repair budget"
-              : "exhaust path missed intent or findings calls=" + calls.get());
+              ? "unverified COPY stopped before model repair with its mapping intent and recapture finding"
+              : "legacy COPY was retried or accepted without verified origins; calls=" + calls.get());
     } finally {
       session.close();
     }
@@ -246,7 +237,7 @@ public final class MappingTurnEvalRepairHarness {
     private final CaptureRepairRunner runner;
     private final ScriptBodyRepairTool tool;
 
-    private RepairSession() {
+    private RepairSession(boolean verified) {
       AppConfig.CaptureConfig captureConfig = mock(AppConfig.CaptureConfig.class);
       when(captureConfig.maxRepairAttempts()).thenReturn(1);
       AppConfig appConfig = mock(AppConfig.class);
@@ -255,6 +246,32 @@ public final class MappingTurnEvalRepairHarness {
       CaptureRouter captureRouter = mock(CaptureRouter.class);
       when(captureRouter.routeFor(CAPABILITY_ID))
           .thenReturn(new CaptureRoute(CAPABILITY_ID, CaptureTool.REPAIR_SCRIPT_BODIES));
+      var mapper = new com.fasterxml.jackson.databind.ObjectMapper()
+          .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
+      var artifacts = new org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts(
+          new org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore(), mapper, java.time.Clock.fixed(java.time.Instant.parse("2026-11-04T00:00:00Z"), java.time.ZoneOffset.UTC));
+      List<org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference> refs = List.of();
+      if (verified) {
+        var origin = new org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource.Message(
+            "trigger-http", MappingPort.OUTPUT, "$.orderId");
+        var plan = new org.qubership.integration.platform.ai.plan.mapping.CopyMappingPlan(
+            List.of(new org.qubership.integration.platform.ai.plan.mapping.CopyMappingPlan.Read(
+                "order-id", "orderId", origin, "source-hash", "target-hash", null, false)), List.of());
+        var body = mapper.valueToTree(java.util.Map.of("type", "object", "properties",
+            java.util.Map.of("orderId", java.util.Map.of("type", "string"))));
+        var envelope = new org.qubership.integration.platform.ai.plan.mapping.envelope.JsonSchemaMessageSchemaFactory(mapper)
+            .fromSides(
+                new org.qubership.integration.platform.ai.plan.mapping.schema.MappingSchemaSide(
+                    "1", "trigger-http", "op", MappingPort.OUTPUT, "application/json", null,
+                    "source-hash", "test", body),
+                new org.qubership.integration.platform.ai.plan.mapping.schema.MappingSchemaSide(
+                    "1", "call-1", "op", MappingPort.REQUEST, "application/json", null,
+                    "target-hash", "test", body))
+            .withMappingIntentId(MAPPING_INTENT_ID).withVerifiedCopyPlan(plan);
+        refs = List.of(artifacts.append(new org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand(
+            CONVERSATION_ID, org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind.MAPPING_ENVELOPE,
+            "1", "test", "1", envelope, List.of(), null)).reference());
+      }
       tool =
           new ScriptBodyRepairTool(
               captureRouter,
@@ -264,7 +281,7 @@ public final class MappingTurnEvalRepairHarness {
               new GraphPatchApplier(),
               feedbackStore,
               executionContextStore,
-              mock(org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.class));
+              artifacts);
       ChainPlanGraph graph = mappingGraph();
       planStore.put(CONVERSATION_ID, graph);
       executionContextStore.set(
@@ -277,8 +294,8 @@ public final class MappingTurnEvalRepairHarness {
                   null,
                   null,
                   null,
-                  identityBrief(),
-                  List.of(),
+                  verified ? verifiedBrief() : identityBrief(),
+                  refs,
                   graph,
                   GraphPatchOwnershipPolicy.denyAll(),
                   "attempt-1")
@@ -291,6 +308,17 @@ public final class MappingTurnEvalRepairHarness {
       MDC.remove(ChatMdc.CONVERSATION_ID);
       MDC.remove(CompilerSkillMdc.CAPABILITY_ID);
     }
+  }
+
+  private static RequirementBrief verifiedBrief() {
+    var origin = new org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource.Message(
+        "trigger-http", MappingPort.OUTPUT, "$.orderId");
+    var rule = new MappingIntentRule("order-id", List.of("fact-order"), "$.orderId",
+        new org.qubership.integration.platform.ai.qipknowledge.artifact.MappingValue.Copy(origin),
+        org.qubership.integration.platform.ai.qipknowledge.artifact.MappingCondition.always(), MappingRuleStatus.USER_DEFINED)
+        .withMissingSourcePolicy("ERROR").withSchemaPins(java.util.Map.of("source", "source-hash", "target", "target-hash"));
+    return identityBrief().withMappingIntents(List.of(new MappingIntent(MAPPING_INTENT_ID, "trigger-http",
+        MappingPort.OUTPUT, "call-1", MappingPort.REQUEST, List.of(rule), "SCRIPT")));
   }
 
   private static RequirementBrief identityBrief() {

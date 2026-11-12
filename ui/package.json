@@ -1,6 +1,6 @@
 {
   "name": "@netcracker/qip-ui",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "license": "Apache-2.0",
   "description": "Qubership Integration Platform - UI",
   "module": "./dist-lib/index.es.js",
@@ -27,6 +27,8 @@
     "dist-lib",
     "scripts/fetch-documentation.mjs",
     "scripts/build-doc-index.mjs",
+    "scripts/element-documentation-mapping.mjs",
+    "scripts/element-documentation-mapping.d.mts",
     ".documentation-config.json.example"
   ],
   "scripts": {
@@ -46,7 +48,7 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,css,scss,json,md}\"",
     "preview": "vite preview",
     "test": "jest",
-    "test:scripts": "node --test scripts/fetch-documentation.test.mjs",
+    "test:scripts": "node --test scripts/*.test.mjs",
     "prepublishOnly": "rimraf dist-lib && npm run build:lib:all",
     "postpublish": "rimraf dist-lib"
   },
@@ -136,8 +138,8 @@
     "ts-node": "^10.9.2",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.26.1",
-    "vite": "^6.2.6",
+    "vite": "^7.3.7",
     "vite-plugin-monaco-editor-esm": "^2.0.2",
-    "vite-plugin-sass-dts": "^1.3.31"
+    "vite-plugin-sass-dts": "^1.3.39"
   }
 }

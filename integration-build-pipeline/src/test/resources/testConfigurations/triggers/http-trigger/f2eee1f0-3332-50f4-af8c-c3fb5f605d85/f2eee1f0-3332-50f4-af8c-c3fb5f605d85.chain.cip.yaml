@@ -1,0 +1,43 @@
+---
+id: f2eee1f0-3332-50f4-af8c-c3fb5f605d85
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+name: http-trigger-duplicate-throw
+content:
+  labels: []
+  elements:
+  - id: 963c6730-3635-5f50-8435-d2e7717f11b6
+    name: HTTP Trigger
+    type: http-trigger
+    properties:
+      accessControlType: NONE
+      allowedContentTypes: []
+      chunked: true
+      connectTimeout: 120000
+      contextPath: duplicate-throw
+      externalRoute: false
+      handleChainFailureAction: default
+      handleValidationAction: default
+      httpBinding: handlingHttpBinding
+      httpMethodRestrict: POST
+      idempotency:
+        enabled: true
+        keyExpiry: 600
+        keyExpression: ${jsonpath('$.id')}
+        contextExpression: http-duplicate-throw
+        actionOnDuplicate: throw-exception
+      killSessionOnTimeout: false
+      privateRoute: false
+      receiveCorrelationId: false
+      rejectRequestIfNonNullBodyGetDelete: true
+  - id: ed12cb20-426d-5ec1-b000-21168cd8e476
+    name: Process HTTP request
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: ed12cb20-426d-5ec1-b000-21168cd8e476.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: 963c6730-3635-5f50-8435-d2e7717f11b6
+    to: ed12cb20-426d-5ec1-b000-21168cd8e476
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

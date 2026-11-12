@@ -223,3 +223,55 @@ test.each([
     expect(group?.systemId).toBe("svc-1");
   },
 );
+
+describe("chains that use a specification", () => {
+  const operations = ["op-1", "op-2", "op-3"].map((id) => ({ id, name: id }));
+  const chainWithOperation = (id: string, operationId: string) => ({
+    id,
+    name: id,
+    content: {
+      elements: [
+        {
+          properties: {
+            integrationSystemId: "svc-1",
+            integrationSpecificationGroupId: "grp-1",
+            integrationSpecificationId: "spec-1",
+            integrationOperationId: operationId,
+          },
+        },
+      ],
+    },
+  });
+
+  beforeEach(() => {
+    files["spec-1.qip-spec.yaml"].content.operations = operations;
+  });
+
+  afterEach(() => {
+    files["spec-1.qip-spec.yaml"].content.operations = [];
+  });
+
+  test("scans the chains once, however many operations the specification has", async () => {
+    const chains = [chainWithOperation("c-1", "op-2")];
+    (fileApi.findAndBuildChainsRecursively as jest.Mock).mockImplementation(
+      async (_root: unknown, _build: unknown, out: unknown[]) => {
+        out.push(...chains);
+      },
+    );
+
+    const [group] = await getApiSpecifications(serviceFileUri, "svc-1");
+    const [spec] = group.specifications;
+
+    expect(
+      (spec.operations ?? []).map((o) => [o.id, o.chains.map((c) => c.id)]),
+    ).toEqual([
+      ["op-1", []],
+      ["op-2", ["c-1"]],
+      ["op-3", []],
+    ]);
+    expect((spec.chains ?? []).map((c) => c.id)).toEqual(["c-1"]);
+    // One scan each for the group, the specification and its operations, not one per operation.
+    expect(fileApi.findAndBuildChainsRecursively).toHaveBeenCalledTimes(3);
+  });
+
+});

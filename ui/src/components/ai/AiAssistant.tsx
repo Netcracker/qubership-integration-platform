@@ -125,8 +125,8 @@ interface ResponseResult {
 // ---------------------------------------------------------------------------
 
 const UI_REFRESH_THROTTLE_MS = 150;
-const DRAWER_Z_INDEX = 2000;
-const SESSION_SELECT_DROPDOWN_Z_INDEX = DRAWER_Z_INDEX + 100;
+export const AI_ASSISTANT_Z_INDEX = 2000;
+const SESSION_SELECT_DROPDOWN_Z_INDEX = AI_ASSISTANT_Z_INDEX + 100;
 const SESSION_SELECT_DROPDOWN_MIN_WIDTH = 320;
 /** First line of the user message, capped so session labels stay readable. */
 const SESSION_TITLE_MAX_LENGTH = 100;
@@ -754,7 +754,6 @@ export const AiAssistant: React.FC = () => {
       sessionStore,
       activityStore,
       refreshSessions,
-      scrollToBottom,
       handleResponseComplete,
       refreshAfterInterruption,
     ],
@@ -773,6 +772,7 @@ export const AiAssistant: React.FC = () => {
       attachmentObjectKeys?: string[],
       scenarioHint?: string,
       decision?: ChatRequest["decision"],
+      clarificationOfferId?: string,
     ) => {
       if (sendInProgressRef.current) {
         console.warn(
@@ -865,6 +865,7 @@ export const AiAssistant: React.FC = () => {
           temperature: 1,
           scenarioHint: scenarioHint?.trim() || undefined,
           decision,
+          clarificationOfferId,
         };
 
         if (chainContext) {
@@ -1186,6 +1187,9 @@ export const AiAssistant: React.FC = () => {
         session.lastAttachmentUrls,
         [userMessage],
         session.lastAttachmentObjectKeys,
+        undefined,
+        undefined,
+        decision.id,
       );
     },
     [
@@ -1636,7 +1640,7 @@ export const AiAssistant: React.FC = () => {
         }
         placement="right"
         open={open}
-        closable
+        closable={{ placement: 'end' }}
         onClose={onClose}
         // The panel slides in over a CSS transition the scroll-to-bottom effect cannot see;
         // this fires once that transition genuinely finishes, so a restored session lands on its
@@ -1645,8 +1649,10 @@ export const AiAssistant: React.FC = () => {
           if (nowOpen) scrollToBottom();
         }}
         width={drawerWidth}
-        zIndex={DRAWER_Z_INDEX}
+        zIndex={AI_ASSISTANT_Z_INDEX}
         rootClassName="ai-assistant-drawer"
+        rootStyle={{ position: "absolute" }}
+        getContainer={".page-content"}
       >
         <div
           className={`ai-drawer-resize-handle ${isResizing ? "resizing" : ""}`}

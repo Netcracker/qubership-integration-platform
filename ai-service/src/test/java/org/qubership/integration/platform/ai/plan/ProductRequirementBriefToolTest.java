@@ -1,5 +1,17 @@
 package org.qubership.integration.platform.ai.plan;
 
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureProposal;
+import org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore;
+import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingValue;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
+import org.qubership.integration.platform.ai.plan.mapping.schema.MappingSchemaSide;
+import org.qubership.integration.platform.ai.plan.mapping.schema.OperationSchemaLoader;
+import org.qubership.integration.platform.ai.plan.mapping.schema.OperationSchemaMaps;
+import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -37,6 +49,118 @@ class ProductRequirementBriefToolTest {
   private ProductRequirementBriefTool tool;
   private AtomicReference<Object> candidate;
 
+  @ParameterizedTest
+  @ValueSource(strings = {"generated", "generated-restored", "supplied", "unproven"})
+  void briefHandoffSeparatesGeneratedCandidateBytesFromAuthorBodies(String authority) {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    boolean generated = authority.startsWith("generated");
+    var base = approvedWithTypedMapping().authoredDraft();
+    var binding = "unproven".equals(authority) ? null : new RequirementBodyBinding(
+        generated ? RequirementBodyBinding.Authority.GENERATED_CANDIDATE
+            : RequirementBodyBinding.Authority.VERBATIM_SOURCE_BODY,
+        "guard", "script", RequirementBodyBinding.NativeBodyKind.GROOVY_SCRIPT, "generation", "turn",
+        "supplied".equals(authority) ? 0 : null, "supplied".equals(authority) ? 8 : null,
+        "supplied".equals(authority) ? RequirementBodyBinding.Encoding.RAW : null);
+    var intent = new RequirementElementIntent("guard", "script", RequirementElementIntent.Placement.LOCAL_NODE,
+        "entry", null, null, null, "Default guard",
+        List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty("script", "return 1")),
+        List.of(), binding);
+    var fact = new RequirementCaptureInput.FactInput("default", List.of("entry"),
+        RequirementCaptureInput.FactKind.BEHAVIOR, RequirementCaptureInput.Polarity.POSITIVE,
+        "Default the maximum iteration count to three.", null, null, intent);
+    var input = new RequirementCaptureInput.DraftInput(new RequirementCaptureInput.FlowInput(List.of(
+        new RequirementCaptureInput.InteractionInput("entry", Direction.INBOUND, "Caller", "GET /pages",
+            null, null, null)), List.of()), List.of(fact), List.of(
+        new RequirementCaptureInput.CapabilityInput("entry", "http-trigger", RequirementCaptureInput.HttpMode.CUSTOM,
+            RequirementCaptureInput.HttpMethod.GET, "/pages", null, null, null)), List.of(), base.settings());
+    var projected = RequirementCaptureProjection.toDraft(input, null, List.of(), "1", "hash", java.util.Map.of());
+    com.fasterxml.jackson.databind.node.ObjectNode stored = mapper.valueToTree(projected);
+    if ("generated-restored".equals(authority)) {
+      ((com.fasterxml.jackson.databind.node.ObjectNode) stored.withArray("facts").get(0))
+          .set("elementIntent", mapper.valueToTree(intent));
+    }
+    var approved = mapper.convertValue(stored, RequirementDraft.class);
+    ProductCapabilityCaptureContext.bindAnalysis("run", CONVERSATION, approved, candidate::set);
+    var result = tool.capture(new RequirementAnalysisCapture("Page loop", List.of("Page request"), List.of(),
+        "Apply the requested defaults.", List.of(), List.of()), CONVERSATION);
+    assertTrue(result.accepted(), result::toString);
+    var brief = (RequirementBrief) candidate.get();
+    var classic = RequirementBriefTool.pinApprovedDraft(brief, approved);
+    org.junit.jupiter.api.Assertions.assertAll(
+        () -> assertEquals(generated,
+            org.qubership.integration.platform.ai.plan.mapping.ScriptExecutionAuthority
+                .declaredGeneratedBehavior(brief, "guard").isPresent()),
+        () -> assertEquals(generated ? List.of() : intent.requestedProperties(),
+            brief.facts().getFirst().elementIntent().requestedProperties()),
+        () -> assertEquals(brief.facts(), classic.facts()),
+        () -> assertEquals(List.of(fact), approved.authoredDraft().facts()));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"valid", "wrong-quote", "protected-name", "wrong-previous-value"})
+  void interpretationReportRequiresTheSavedFactQuoteAndTechnicalField(String variant) {
+    String quote = "Receive HTTP GET /pets.";
+    var intent = new RequirementElementIntent("entry", "chain-trigger-2",
+        RequirementElementIntent.Placement.ANCHOR, "entry", null, null, null, "Entry",
+        List.of(), List.of());
+    var fact = new RequirementCaptureInput.FactInput("entry-fact", List.of("entry"),
+        RequirementCaptureInput.FactKind.BEHAVIOR, RequirementCaptureInput.Polarity.POSITIVE, quote,
+        null, null, intent, new RequirementCaptureInput.ClaimEvidenceInput("author-turn", quote));
+    var draft = new RequirementCaptureInput.DraftInput(new RequirementCaptureInput.FlowInput(
+        List.of(new RequirementCaptureInput.InteractionInput("entry", Direction.INBOUND, "Caller", "GET /pets", null,
+            null, null)), List.of()), List.of(fact), List.of(), List.of(),
+        new RequirementCaptureInput.DraftSettings(false, null));
+    var input = new AuthorSourceEvidence.Input("author-turn", quote);
+    var source = new AuthorSourceEvidence.Packet("generation", List.of(input));
+    var report = new RequirementAnalysisCapture.SourceOmission("author-turn",
+        variant.equals("wrong-quote") ? "Receive HTTP GET" : quote,
+        "The selected trigger does not implement the HTTP endpoint.",
+        RequirementAnalysisCapture.SourceDiscrepancyKind.INTERPRETATION_CONFLICT, "entry-fact",
+        "/facts/entry-fact/elementIntent/" + (variant.equals("protected-name") ? "requestedName" : "elementType"),
+        variant.equals("wrong-previous-value") ? "\"http-trigger\"" : "\"chain-trigger-2\"", "\"http-trigger\"");
+
+    assertEquals(variant.equals("valid"), ProductRequirementBriefTool.validInterpretationReport(draft, source, report));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"createTask", "POST /tasks"})
+  void restoredUploadedOperationKeepsItsAuthorIdentityInBothBriefCaptures(String operation) {
+    var base = approvedWithTypedMapping().authoredDraft();
+    var intent = new RequirementElementIntent("http-out", "service-call", RequirementElementIntent.Placement.ANCHOR,
+        "http-out", null, null, null, null, List.of(), List.of(operation));
+    var fact = new RequirementCaptureInput.FactInput("invoke-task", List.of("http-out"),
+        RequirementCaptureInput.FactKind.BEHAVIOR, RequirementCaptureInput.Polarity.POSITIVE,
+        "Invoke " + operation + ".", null, null, intent);
+    var input = new RequirementCaptureInput.DraftInput(new RequirementCaptureInput.FlowInput(List.of(
+        base.flow().interactions().getFirst(), new RequirementCaptureInput.InteractionInput("http-out",
+            Direction.OUTBOUND, "Tasks", operation, null, null, null)), base.flow().transitions()), List.of(fact),
+        List.of(base.capabilities().getFirst()), List.of(), base.settings());
+    var approved = RequirementCaptureProjection.toDraft(input, null, List.of(copyBinding("http-out")),
+        "1", "sha", java.util.Map.of(), java.util.Map.of("http-out",
+            new UploadedSpecOperations.Binding("uploads/tasks.yaml", "POST", "/tasks")));
+    var artifacts = new CompilationArtifacts(new InMemoryArtifactBlobStore(),
+        new ObjectMapper().findAndRegisterModules(), java.time.Clock.systemUTC());
+    var revision = artifacts.append(new CompilationArtifacts.AppendCommand("restored-run",
+        CompilationArtifacts.Kind.REQUIREMENT_DRAFT, "1", "requirement-discovery", "1", approved, List.of(), null));
+    var restored = artifacts.payload(revision, RequirementDraft.class);
+    ProductCapabilityCaptureContext.bindAnalysis("run", CONVERSATION, restored, candidate::set);
+
+    var result = tool.capture(new RequirementAnalysisCapture("Invoke task", List.of("Task request"), List.of(),
+        "Invoke the uploaded task operation.", List.of(), List.of()), CONVERSATION);
+    assertTrue(result.accepted(), result::toString);
+    var productBrief = (RequirementBrief) candidate.get();
+    var classicBrief = RequirementBriefTool.pinApprovedDraft(productBrief, restored);
+    org.junit.jupiter.api.Assertions.assertAll("restored uploaded operation " + operation,
+        () -> assertEquals(operation, productBrief.flow().interaction("http-out").orElseThrow().operation()),
+        () -> assertEquals(operation, classicBrief.flow().interaction("http-out").orElseThrow().operation()),
+        () -> assertEquals(List.of(),
+            org.qubership.integration.platform.ai.qipknowledge.validation.RequiredLiteralBindings.unbound(
+                productBrief.facts().getFirst(), productBrief.facts(), productBrief.flow().interactions())),
+        () -> assertEquals(List.of(copyBinding("http-out")), productBrief.catalogBindings()),
+        () -> assertEquals("POST /tasks", artifacts.payload(revision, RequirementDraft.class).flow()
+            .interaction("http-out").orElseThrow().operation()));
+  }
+
   @BeforeEach
   void setUp() {
     session = new CaptureSession();
@@ -49,6 +173,188 @@ class ProductRequirementBriefToolTest {
   @AfterEach
   void clearBinding() {
     ProductCapabilityCaptureContext.unbind(CONVERSATION);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"Subject", "$.Subject"})
+  void qualifiedCopyNormalizesItsTargetBeforeApproval(String target) throws Exception {
+    var brief = captureTypedBrief("$.title", typedSourceSchema(false),
+        new RequirementCaptureInput.DraftSettings(null, null), target);
+    var rule = brief.mappingIntents().getFirst().rules().getFirst();
+    assertEquals("$.Subject", rule.targetPath());
+    assertEquals(new MappingValue.Copy(new MappingSource.Message("http-in", MappingPort.OUTPUT, "$.title")), rule.value());
+    assertEquals("ERROR", rule.missingSourcePolicy());
+    assertEquals(java.util.Set.of("source", "target"), rule.schemaPins().keySet());
+  }
+
+  @Test
+  void typedCapturePinsOriginsAndPolicyInTheStoredBrief() throws Exception {
+    var brief = captureTypedBrief("$.title", typedSourceSchema(false));
+    var blobs = new InMemoryArtifactBlobStore();
+    var mapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    var artifacts = new CompilationArtifacts(
+        blobs, mapper, java.time.Clock.systemUTC());
+    var revision = artifacts.append(new CompilationArtifacts.AppendCommand(
+        CONVERSATION, CompilationArtifacts.Kind.REQUIREMENT_BRIEF,
+        "1", "requirement-analysis", "1", brief, List.of(), null));
+    var reader = new CompilationArtifacts(
+        blobs, mapper, java.time.Clock.systemUTC());
+    var restored = reader.payload(reader.get(CONVERSATION, revision.reference()).orElseThrow(), RequirementBrief.class);
+    var rule = restored.mappingIntents().getFirst().rules().getFirst();
+    assertEquals(new MappingValue.Copy(
+        new MappingSource.Message(
+            "http-in", MappingPort.OUTPUT, "$.title")), rule.value());
+    assertEquals("ERROR", rule.missingSourcePolicy());
+    assertEquals(java.util.Map.of("source", "ac551e2eb8fd112dbcb1a219cbed57416ec4dcb6cba18cbe5260e3577fb54fe9",
+        "target", "3565b4f04b97097afcde659760002894f32d1b00116b40b17672f49d887a6591"), rule.schemaPins());
+    assertTrue(restored.approvedDraftText().contains("missing=ERROR"), restored.approvedDraftText());
+    assertTrue(restored.approvedDraftText().contains("http-in/OUTPUT:$.title"), restored.approvedDraftText());
+  }
+
+  @Test
+  void changedPinnedSchemaNeedsNewApprovalAndStalesTheDependentPlan() throws Exception {
+    var first = captureTypedBrief("$.title", typedSourceSchema(false));
+    var changed = captureTypedBrief("$.title", typedSourceSchema(true));
+    var mapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    var artifacts = new CompilationArtifacts(
+        new InMemoryArtifactBlobStore(), mapper, java.time.Clock.systemUTC());
+    var original = artifacts.append(new CompilationArtifacts.AppendCommand(
+        CONVERSATION, CompilationArtifacts.Kind.REQUIREMENT_BRIEF,
+        "1", "requirement-analysis", "1", first, List.of(), null));
+    artifacts.recordDecision(new CompilationArtifacts.DecisionCommand(
+        CONVERSATION, original.reference(), CompilationArtifacts.Decision.APPROVED,
+        "author", "Confirmed the pinned copy"));
+    var plan = artifacts.append(new CompilationArtifacts.AppendCommand(
+        CONVERSATION, CompilationArtifacts.Kind.IMPLEMENTATION_PLAN,
+        "1", "design-planner", "1", java.util.Map.of("copy", "approved-copy"), List.of(original.reference()), null));
+    var replacement = artifacts.append(new CompilationArtifacts.AppendCommand(
+        CONVERSATION, CompilationArtifacts.Kind.REQUIREMENT_BRIEF,
+        "1", "requirement-analysis", "1", changed, List.of(), original.artifactId()));
+    org.junit.jupiter.api.Assertions.assertNotEquals(original.contentHash(), replacement.contentHash());
+    assertTrue(artifacts.isApproved(CONVERSATION, original.reference()), original.toString());
+    assertFalse(artifacts.isApproved(CONVERSATION, replacement.reference()), replacement.toString());
+    assertEquals(List.of(plan.reference()), artifacts.changeImpact(CONVERSATION, replacement.reference())
+        .staleDescendants().stream().map(CompilationArtifacts.Revision::reference).toList());
+    assertEquals(original.contentHash(), artifacts.get(CONVERSATION, original.reference()).orElseThrow().contentHash());
+  }
+
+  @Test
+  void changingTypedOriginChangesTheBriefIdentity() throws Exception {
+    var first = captureTypedBrief("$.title", typedSourceSchema(false));
+    var changed = captureTypedBrief("$.alternateTitle", typedSourceSchema(false));
+    org.junit.jupiter.api.Assertions.assertNotEquals(
+        CaptureProposal.digest(first),
+        CaptureProposal.digest(changed));
+    assertEquals("$.alternateTitle", changed.mappingIntents().getFirst().rules().getFirst().sourcePath());
+  }
+
+  @Test
+  void typedCaptureWithoutSchemaValidationCannotPublishABrief() {
+    ProductCapabilityCaptureContext.bindAnalysis("run", CONVERSATION, approvedWithExplicitOrigin("$.title"), candidate::set);
+    var result = tool.capture(new RequirementAnalysisCapture("Forward task", List.of("Task input"), List.of(),
+        "Copy the original title", List.of(), List.of()), CONVERSATION);
+    assertEquals("MAPPING_SCHEMA_REQUIRED", result.issues().getFirst().code());
+    assertFalse(result.accepted(), result.toString());
+    assertEquals(null, candidate.get());
+    assertEquals(java.util.Optional.empty(), session.get(CaptureKey.conversation(CaptureSlot.REQUIREMENT_BRIEF, CONVERSATION),
+        RequirementBrief.class));
+  }
+
+  private RequirementBrief captureTypedBrief(String path, String sourceSchema) throws Exception {
+    return captureTypedBrief(path, sourceSchema, new RequirementCaptureInput.DraftSettings(null, null));
+  }
+
+  private RequirementBrief captureTypedBrief(String path, String sourceSchema,
+      RequirementCaptureInput.DraftSettings settings) throws Exception {
+    return captureTypedBrief(path, sourceSchema, settings, "$.Subject");
+  }
+
+  private RequirementBrief captureTypedBrief(String path, String sourceSchema,
+      RequirementCaptureInput.DraftSettings settings, String targetPath) throws Exception {
+    var mapper = new ObjectMapper();
+    var schemaMaps = java.util.Map.of(
+        "op-http-in", new OperationSchemaMaps("op-http-in",
+            java.util.Map.of("application/json", mapper.readTree(sourceSchema)), java.util.Map.of()),
+        "op-http-out", new OperationSchemaMaps("op-http-out",
+            java.util.Map.of("application/json", mapper.readTree("""
+                {"type":"object","properties":{"Subject":{"type":"string"}}}
+                """)), java.util.Map.of()));
+    var localSession = new CaptureSession();
+    var localFeedback = new CaptureAttemptFeedbackStore();
+    var gateway = new CaptureToolOutcomeGateway(
+        new ToolCallFingerprintStore(mapper), localFeedback);
+    var pinnedTool = new ProductRequirementBriefTool(localSession, localFeedback, mapper,
+        new E2eRecoveryFaultInjector("", ""), gateway, null,
+        new BriefCopyMappingValidator(new ReadOnlyCopySchemas(schemaMaps), mapper));
+    candidate.set(null);
+    ProductCapabilityCaptureContext.unbind(CONVERSATION);
+    ProductCapabilityCaptureContext.bindAnalysis("run", CONVERSATION, approvedWithExplicitOrigin(path, settings, targetPath), candidate::set);
+    var result = pinnedTool.capture(new RequirementAnalysisCapture("Forward task", List.of("Task input"), List.of(),
+        "Copy the original title", List.of(), List.of()), CONVERSATION);
+    assertTrue(result.accepted(), result.toString());
+    var captured = localSession.get(CaptureKey.conversation(CaptureSlot.REQUIREMENT_BRIEF, CONVERSATION),
+        RequirementBrief.class).orElseThrow();
+    assertEquals(candidate.get(), captured);
+    return captured;
+  }
+
+  private static String typedSourceSchema(boolean constrained) {
+    return constrained
+        ? "{\"type\":\"object\",\"properties\":{\"title\":{\"type\":\"string\",\"maxLength\":50},\"alternateTitle\":{\"type\":\"string\"}}}"
+        : "{\"type\":\"object\",\"properties\":{\"title\":{\"type\":\"string\"},\"alternateTitle\":{\"type\":\"string\"}}}";
+  }
+
+  private static RequirementDraft approvedWithExplicitOrigin(String sourcePath) {
+    return approvedWithExplicitOrigin(sourcePath, new RequirementCaptureInput.DraftSettings(null, null));
+  }
+
+  private static RequirementDraft approvedWithExplicitOrigin(String sourcePath,
+      RequirementCaptureInput.DraftSettings settings) {
+    return approvedWithExplicitOrigin(sourcePath, settings, "$.Subject");
+  }
+
+  private static RequirementDraft approvedWithExplicitOrigin(String sourcePath,
+      RequirementCaptureInput.DraftSettings settings, String targetPath) {
+    var base = approvedWithTypedMapping(settings).authoredDraft();
+    var facts = base.facts().stream().map(fact -> fact.fieldMapping() == null ? fact
+        : new RequirementCaptureInput.FactInput(fact.sourceFactId(), fact.interactionIds(), fact.kind(), fact.polarity(),
+            fact.text(), new RequirementCaptureInput.FieldMappingInput("http-in", null, "http-out", targetPath, null,
+                new MappingValue.Copy(
+                    new MappingSource.Message(
+                        "http-in", MappingPort.OUTPUT, sourcePath))))).toList();
+    var flow = new RequirementCaptureInput.FlowInput(List.of(
+        new RequirementCaptureInput.InteractionInput("http-in", Direction.INBOUND, "OM", "onTaskStart", null, null, null),
+        new RequirementCaptureInput.InteractionInput("http-out", Direction.OUTBOUND, "Tasks", "POST /tasks", null, null, null)),
+        base.flow().transitions());
+    var input = new RequirementCaptureInput.DraftInput(flow, facts,
+        List.of(new RequirementCaptureInput.CapabilityInput("http-in", "async-api-trigger",
+            null, null, null, null, null, null)), List.of(), base.settings());
+    var bindings = List.of(copyBinding("http-in"), copyBinding("http-out"));
+    return RequirementCaptureProjection.toDraft(RequirementCaptureProjection.withCopyPolicies(input), null,
+        bindings, "1", "source-hash", java.util.Map.of());
+  }
+
+  private static CatalogBindingHint copyBinding(String id) {
+    return new CatalogBindingHint("3",
+        id, id, "http-in".equals(id) ? "onTaskStart" : "POST /tasks", "system", "group", "spec", "op-" + id,
+        "http-in".equals(id) ? "kafka" : "HTTP", "http-in".equals(id) ? "subscribe" : "POST", "/tasks", "1",
+        java.time.Instant.EPOCH, "catalog-evidence");
+  }
+
+  private record ReadOnlyCopySchemas(java.util.Map<String,
+      OperationSchemaMaps> maps)
+      implements OperationSchemaLoader {
+    @Override public OperationSchemaMaps load(String operationId) {
+      return maps.get(operationId);
+    }
+    @Override public MappingSchemaSide persistRequest(
+        String compilationId, String serviceCallId, String operationId, String contentType) {
+      throw new UnsupportedOperationException("This fixture only reads catalog schemas");
+    }
+    @Override public MappingSchemaSide persistResponse(
+        String compilationId, String serviceCallId, String operationId, String contentType, String responseCode) {
+      throw new UnsupportedOperationException("This fixture only reads catalog schemas");
+    }
   }
 
   @Test
@@ -97,6 +403,25 @@ class ProductRequirementBriefToolTest {
   }
 
   @Test
+  void sourceOmissionWithoutBoundAuthorEvidenceCannotCreateBriefOrRepairAuthority() {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    ProductCapabilityCaptureContext.bindAnalysis("run", CONVERSATION, approved, candidate::set);
+
+    var result = tool.capture(new RequirementAnalysisCapture("Greetings", List.of("GET /greetings"),
+        List.of(), "Return Hello world!", List.of(), List.of(), List.of(
+            new RequirementAnalysisCapture.SourceOmission("invented-source", "Invented requirement",
+                "An unsupported omission."))), CONVERSATION);
+
+    assertFalse(result.accepted());
+    assertEquals("SOURCE_REVIEW_NOT_BOUND", result.issues().getFirst().code());
+    assertEquals("REPAIR_CAPTURE", result.nextAction());
+    assertTrue(candidate.get() == null);
+    assertEquals(approved, ProductCapabilityCaptureContext.binding(CONVERSATION).orElseThrow().approvedDraft());
+    assertTrue(session.get(CaptureKey.conversation(CaptureSlot.REQUIREMENT_BRIEF, CONVERSATION),
+        RequirementBrief.class).isEmpty());
+  }
+
+  @Test
   void rejectsUnknownFieldBeforeBindingWithoutPublishingCandidate() {
     ProductCapabilityCaptureContext.bindAnalysis("run", CONVERSATION,
         RequirementFactFixtures.greetingsApprovedDraft(), candidate::set);
@@ -126,7 +451,7 @@ class ProductRequirementBriefToolTest {
   }
 
   @Test
-  void assignsMappingIdentityAndPortsFromApprovedFlow() {
+  void legacyAnalysisCopyCannotPublishAnApprovalCandidate() {
     RequirementFlow flow = new RequirementFlow(
         List.of(new Interaction("http-in", Direction.INBOUND, "Caller", "POST /tasks", ""),
             new Interaction("http-out", Direction.OUTBOUND, "Tasks", "POST /tasks", "")),
@@ -148,13 +473,35 @@ class ProductRequirementBriefToolTest {
                     List.of(new RequirementAnalysisCapture.Rule("name", "title", null)), null))),
         CONVERSATION);
 
-    assertTrue(result.accepted(), result.toString());
-    RequirementBrief brief = (RequirementBrief) candidate.get();
-    assertEquals("draft-artifact-1", brief.approvedDraftReference());
-    assertEquals(1, brief.mappingIntents().size());
-    assertFalse(brief.mappingIntents().getFirst().mappingIntentId().isBlank());
-    assertEquals(MappingPort.OUTPUT, brief.mappingIntents().getFirst().sourcePort());
-    assertEquals(MappingPort.REQUEST, brief.mappingIntents().getFirst().targetPort());
+    assertFalse(result.accepted(), result.toString());
+    assertEquals("MAPPING_ORIGIN_REQUIRED", result.issues().getFirst().code());
+    assertEquals(null, candidate.get());
+    assertEquals(java.util.Optional.empty(), session.get(CaptureKey.conversation(CaptureSlot.REQUIREMENT_BRIEF, CONVERSATION),
+        RequirementBrief.class));
+    assertEquals(approved, ProductCapabilityCaptureContext.binding(CONVERSATION).orElseThrow().approvedDraft());
+  }
+
+  @Test
+  void legacyRetainedExpressionCannotPublishAnApprovalCandidate() {
+    var base = approvedWithTypedMapping().authoredDraft();
+    String expression = "Read the saved original onTaskStart processId.";
+    var facts = base.facts().stream().map(fact -> fact.fieldMapping() == null ? fact
+        : new RequirementCaptureInput.FactInput(fact.sourceFactId(), fact.interactionIds(), fact.kind(), fact.polarity(),
+            fact.text(), new RequirementCaptureInput.FieldMappingInput("http-in", null, "http-out", "$.processId", expression)))
+        .toList();
+    var input = new RequirementCaptureInput.DraftInput(base.flow(), facts, base.capabilities(), base.openQuestions(), base.settings());
+    var approved = RequirementCaptureProjection.toDraft(input, null, List.of(), "1", null);
+    ProductCapabilityCaptureContext.bindAnalysis("run", CONVERSATION, approved, candidate::set);
+    var result = tool.capture(new RequirementAnalysisCapture("Forward task", List.of("POST task input"), List.of(),
+        "Return the original process identifier", List.of(), List.of()), CONVERSATION);
+    assertFalse(result.accepted(), result.toString());
+    assertEquals("MAPPING_VALUE_UNSUPPORTED", result.issues().getFirst().code());
+    assertEquals(null, candidate.get());
+    assertEquals(java.util.Optional.empty(), session.get(CaptureKey.conversation(CaptureSlot.REQUIREMENT_BRIEF, CONVERSATION),
+        RequirementBrief.class));
+    assertEquals(expression, ProductCapabilityCaptureContext.binding(CONVERSATION).orElseThrow().approvedDraft()
+        .authoredDraft().facts().stream().filter(fact -> fact.fieldMapping() != null)
+        .findFirst().orElseThrow().fieldMapping().expression());
   }
 
   @Test
@@ -227,7 +574,7 @@ class ProductRequirementBriefToolTest {
 
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
-  void projectsApprovedFieldMapping(boolean modelIncludesMapping) {
+  void legacyAuthoredCopyRequiresRecaptureWhetherAnalysisEchoesIt(boolean modelIncludesMapping) {
     ProductCapabilityCaptureContext.bindAnalysis("run", CONVERSATION,
         approvedWithTypedMapping(), candidate::set);
 
@@ -238,22 +585,23 @@ class ProductRequirementBriefToolTest {
                     List.of(new RequirementAnalysisCapture.Rule("title", "Subject", null)), null))
                 : List.of()), CONVERSATION);
 
-    assertTrue(result.accepted(), result.toString());
-    RequirementBrief brief = (RequirementBrief) candidate.get();
-    assertEquals(1, brief.mappingIntents().size());
-    assertEquals("$.title", brief.mappingIntents().getFirst().rules().getFirst().sourcePath());
-    assertEquals("Subject", brief.mappingIntents().getFirst().rules().getFirst().targetPath());
-    assertEquals(MappingPort.OUTPUT, brief.mappingIntents().getFirst().sourcePort());
-    assertEquals(MappingPort.REQUEST, brief.mappingIntents().getFirst().targetPort());
+    assertFalse(result.accepted(), result.toString());
+    assertEquals("MAPPING_ORIGIN_REQUIRED", result.issues().getFirst().code());
+    assertEquals(null, candidate.get());
+    assertEquals(java.util.Optional.empty(), session.get(CaptureKey.conversation(CaptureSlot.REQUIREMENT_BRIEF, CONVERSATION),
+        RequirementBrief.class));
+    assertEquals(null, ProductCapabilityCaptureContext.binding(CONVERSATION).orElseThrow()
+        .approvedDraft().authoredDraft().facts().stream().filter(fact -> fact.fieldMapping() != null)
+        .findFirst().orElseThrow().fieldMapping().value());
   }
 
   @Test
-  void authoredMappingKeepsCoverageThroughCanonicalEditsAndExplicitRename() {
+  void historicalLegacyMappingKeepsCoverageThroughCanonicalEditsAndExplicitRename() {
     RequirementDraft approved = approvedWithTypedMapping();
-    ProductCapabilityCaptureContext.bindAnalysis("run", CONVERSATION, approved, candidate::set);
-    assertTrue(tool.capture(new RequirementAnalysisCapture("Forward task", List.of("POST task input"),
-        List.of(), "Copy title to Subject", List.of(), List.of()), CONVERSATION).accepted());
-    RequirementBrief brief = (RequirementBrief) candidate.get();
+    RequirementBrief brief = RequirementBriefProjector.project(new RequirementBrief("Forward task",
+        List.of("POST task input"), List.of(), List.of(), List.of(), "Copy title to Subject")
+        .withFacts(approved.facts()).withFlow(approved.flow())
+        .withMappingIntents(RequirementBriefProjector.authoredMappings(approved)));
     var intent = brief.mappingIntents().getFirst();
     var validator = new RequirementBriefCoverageValidator();
 
@@ -286,19 +634,10 @@ class ProductRequirementBriefToolTest {
   }
 
   @Test
-  void pinsTheTargetFolderTheAuthorApproved() {
-    ProductCapabilityCaptureContext.bindAnalysis("run", CONVERSATION,
-        approvedWithTypedMapping(
-            new RequirementCaptureInput.DraftSettings(null, null, "Integrations/Salesforce")),
-        candidate::set);
-
-    ProductRequirementBriefTool.Result result = tool.capture(
-        new RequirementAnalysisCapture("Forward task", List.of("POST task input"), List.of(),
-            "Copy title to Subject", List.of(), List.of()), CONVERSATION);
-
-    assertTrue(result.accepted(), result.toString());
-    assertEquals("Integrations/Salesforce",
-        ((RequirementBrief) candidate.get()).targetFolderPath());
+  void pinsTheTargetFolderTheAuthorApproved() throws Exception {
+    var brief = captureTypedBrief("$.title", typedSourceSchema(false),
+        new RequirementCaptureInput.DraftSettings(null, null, "Integrations/Salesforce"));
+    assertEquals("Integrations/Salesforce", brief.targetFolderPath());
   }
 
   private static RequirementDraft approvedWithTypedMapping() {

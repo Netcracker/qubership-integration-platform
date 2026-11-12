@@ -1,0 +1,197 @@
+{
+  "id" : "80be9ebb-b528-48e1-8803-e355c1f109c1-Salesforce WFM Specification-1.0.0-createTask",
+  "name" : "createTask",
+  "method" : "POST",
+  "path" : "/sobjects/Task",
+  "requestSchema" : {
+    "application/json" : {
+      "$id" : "http://system.catalog/schemas/#/components/schemas/TaskCreateRequest",
+      "type" : "object",
+      "$schema" : "http://json-schema.org/draft-07/schema#",
+      "required" : [ "Subject" ],
+      "properties" : {
+        "WhoId" : {
+          "type" : "string",
+          "example" : "003xx00000ABCDEF",
+          "description" : "Related Lead or Contact Id (who the task is for).\n"
+        },
+        "Status" : {
+          "type" : "string",
+          "example" : "Not Started",
+          "description" : "Task status (org-specific picklist)."
+        },
+        "WhatId" : {
+          "type" : "string",
+          "example" : "a0Bxx0000008ABC",
+          "description" : "Related object Id (Case, WorkOrder, custom object, etc.)\nOften used to link to the WFM entity (e.g. Work Order).\n"
+        },
+        "OwnerId" : {
+          "type" : "string",
+          "example" : "005xx000001Sv6TAAS",
+          "description" : "Id of the User who owns this task."
+        },
+        "Subject" : {
+          "type" : "string",
+          "example" : "Call customer about schedule",
+          "description" : "Short description of the task."
+        },
+        "Priority" : {
+          "type" : "string",
+          "example" : "Normal",
+          "description" : "Task priority (org-specific picklist)."
+        },
+        "Description" : {
+          "type" : "string",
+          "description" : "Detailed description of the task."
+        },
+        "ActivityDate" : {
+          "type" : "string",
+          "format" : "date",
+          "example" : "2026-08-27",
+          "description" : "Due date of the task (YYYY-MM-DD)."
+        }
+      },
+      "definitions" : { },
+      "description" : "Fields for creating a Salesforce Task.\nOnly a subset of fields is shown here; extend as needed.\n"
+    }
+  },
+  "responseSchemas" : {
+    "201" : {
+      "application/json" : {
+        "$id" : "http://system.catalog/schemas/#/components/schemas/TaskCreateResponse",
+        "type" : "object",
+        "$schema" : "http://json-schema.org/draft-07/schema#",
+        "required" : [ "errors", "id", "success" ],
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "example" : "00Txx00001ABCDE",
+            "description" : "Id of the created Task."
+          },
+          "errors" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/definitions/SalesforceError"
+            }
+          },
+          "success" : {
+            "type" : "boolean",
+            "example" : true
+          }
+        },
+        "definitions" : {
+          "SalesforceError" : {
+            "type" : "object",
+            "required" : [ "errorCode", "message" ],
+            "properties" : {
+              "fields" : {
+                "type" : "array",
+                "items" : {
+                  "type" : "string"
+                },
+                "description" : "Fields related to the error, if any."
+              },
+              "message" : {
+                "type" : "string",
+                "description" : "Human-readable error message."
+              },
+              "errorCode" : {
+                "type" : "string",
+                "description" : "Salesforce error code."
+              }
+            }
+          }
+        },
+        "description" : "Standard Salesforce sObject create response."
+      }
+    },
+    "400" : {
+      "application/json" : {
+        "$id" : "http://system.catalog/schemas/#/components/schemas/SalesforceErrorResponse",
+        "$ref" : "#/definitions/SalesforceError",
+        "type" : "array",
+        "items" : {
+          "$ref" : "#/definitions/SalesforceError"
+        },
+        "$schema" : "http://json-schema.org/draft-07/schema#",
+        "definitions" : {
+          "SalesforceError" : {
+            "$ref" : "#/definitions/SalesforceError",
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/definitions/SalesforceError"
+            },
+            "description" : "Salesforce REST API error response. Typically an array of error objects.\n"
+          }
+        },
+        "description" : "Salesforce REST API error response. Typically an array of error objects.\n"
+      }
+    },
+    "401" : {
+      "application/json" : {
+        "$id" : "http://system.catalog/schemas/#/components/schemas/SalesforceErrorResponse",
+        "$ref" : "#/definitions/SalesforceError",
+        "type" : "array",
+        "items" : {
+          "$ref" : "#/definitions/SalesforceError"
+        },
+        "$schema" : "http://json-schema.org/draft-07/schema#",
+        "definitions" : {
+          "SalesforceError" : {
+            "$ref" : "#/definitions/SalesforceError",
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/definitions/SalesforceError"
+            },
+            "description" : "Salesforce REST API error response. Typically an array of error objects.\n"
+          }
+        },
+        "description" : "Salesforce REST API error response. Typically an array of error objects.\n"
+      }
+    },
+    "403" : {
+      "application/json" : {
+        "$id" : "http://system.catalog/schemas/#/components/schemas/SalesforceErrorResponse",
+        "$ref" : "#/definitions/SalesforceError",
+        "type" : "array",
+        "items" : {
+          "$ref" : "#/definitions/SalesforceError"
+        },
+        "$schema" : "http://json-schema.org/draft-07/schema#",
+        "definitions" : {
+          "SalesforceError" : {
+            "$ref" : "#/definitions/SalesforceError",
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/definitions/SalesforceError"
+            },
+            "description" : "Salesforce REST API error response. Typically an array of error objects.\n"
+          }
+        },
+        "description" : "Salesforce REST API error response. Typically an array of error objects.\n"
+      }
+    },
+    "404" : {
+      "application/json" : {
+        "$id" : "http://system.catalog/schemas/#/components/schemas/SalesforceErrorResponse",
+        "$ref" : "#/definitions/SalesforceError",
+        "type" : "array",
+        "items" : {
+          "$ref" : "#/definitions/SalesforceError"
+        },
+        "$schema" : "http://json-schema.org/draft-07/schema#",
+        "definitions" : {
+          "SalesforceError" : {
+            "$ref" : "#/definitions/SalesforceError",
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/definitions/SalesforceError"
+            },
+            "description" : "Salesforce REST API error response. Typically an array of error objects.\n"
+          }
+        },
+        "description" : "Salesforce REST API error response. Typically an array of error objects.\n"
+      }
+    }
+  }
+}

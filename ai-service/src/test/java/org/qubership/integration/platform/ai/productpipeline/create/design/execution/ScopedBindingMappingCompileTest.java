@@ -12,6 +12,7 @@ import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCall
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
+import org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
@@ -49,7 +50,7 @@ class ScopedBindingMappingCompileTest {
   void compilesMappingsAndDistinctBindingsInsideScopedTopologies() {
     for (Scenario scenario : scenarios()) {
       ChainPlanGraph graph =
-          compiler.compile(scenario.revision(), CONTRACT, bindings(false), brief(TWO_MAPPINGS));
+          compiler.compile(suppliedRevision(scenario), CONTRACT, bindings(false), suppliedBrief(scenario));
 
       assertEquals(
           "map-a",
@@ -72,7 +73,7 @@ class ScopedBindingMappingCompileTest {
               IllegalArgumentException.class,
               () ->
                   compiler.compile(
-                      scenario.revision(), CONTRACT, bindings(true), brief(TWO_MAPPINGS)),
+                      suppliedRevision(scenario), CONTRACT, bindings(true), suppliedBrief(scenario)),
               scenario.id());
 
       assertTrue(error.getMessage().contains("semantic owner is call-a"), error.getMessage());
@@ -110,6 +111,23 @@ class ScopedBindingMappingCompileTest {
     }
   }
 
+  private static ChainSemanticRevision suppliedRevision(Scenario scenario) {
+    return ScriptAuthorityTestFixtures.attachSuppliedFacts(scenario.revision(), suppliedBrief(scenario));
+  }
+
+  private static RequirementBrief suppliedBrief(Scenario scenario) {
+    List<String> scriptIds = switch (scenario.id()) {
+      case "condition" -> List.of("after-condition");
+      case "try-catch-finally-2" -> List.of("finally-script");
+      default -> List.of();
+    };
+    return brief(TWO_MAPPINGS)
+        .withApprovedDraftText("exchange.message.body = 'accepted'")
+        .withFacts(scriptIds.stream()
+            .map(id -> ScriptAuthorityTestFixtures.suppliedFact(id, "exchange.message.body = 'accepted'"))
+            .toList());
+  }
+
   private static List<Scenario> scenarios() {
     return List.of(
         new Scenario("condition", conditionRevision()),
@@ -136,7 +154,7 @@ class ScopedBindingMappingCompileTest {
                     new SemanticBranch.Condition(
                         "accepted",
                         ConditionBranchRole.IF,
-                        "approved == true",
+                        "${header.approved} == true",
                         1,
                         "map-a-shell",
                         List.of("call-a")),

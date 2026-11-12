@@ -48,6 +48,7 @@
 import { randomUUID } from "node:crypto";
 import { test, expect, secretsCarryingRunToken } from "../../support/fixtures.js";
 import { tokenized, SECRET_FIXTURE_NAME } from "../../support/run.js";
+import { DEFAULT_DOMAIN } from "../../support/catalog.js";
 import { ABSENT_UUID } from "../../support/absent.js";
 import { ensureSecretFixture } from "../../support/secret-fixture.js";
 import type {
@@ -558,6 +559,41 @@ test.describe("v2 and v3 controllers", { tag: ["@catalog"] }, () => {
       expect((await catalog.importSessionV3(ABSENT_UUID)).status(), "a session id nothing held").toBe(404);
     });
 
+    // Both chains are exported with no deployment, so the archive marks both SNAPSHOT. The status
+    // used to report that archive value whatever the request asked for (#1282).
+    test("v3 reports the deploy action the request chose", { tag: ["@v3"] }, async ({ catalog, folder, run }) => {
+      const deployed = await catalog.createChain(tokenized(run, "v3act-deploy"), folder.id);
+      const parked = await catalog.createChain(tokenized(run, "v3act-none"), folder.id);
+      const archive = await catalog.exportChains([deployed.id, parked.id]);
+      await catalog.deleteChain(deployed.id);
+      await catalog.deleteChain(parked.id);
+
+      try {
+        const started = await catalog.importV3(archive, {
+          importRequest: {
+            chainCommitRequests: [
+              { id: deployed.id, deployAction: "DEPLOY", domains: [{ name: DEFAULT_DOMAIN }] },
+              { id: parked.id, deployAction: "NONE" },
+            ],
+          },
+        });
+        expect(started.status()).toBe(202);
+        const { importId } = (await started.json()) as ImportCommitResponseV3;
+
+        const session = await awaitImportV3(catalog, importId);
+        const row = (id: string) => session.result?.chains?.find((each) => each.id === id);
+        expect(row(deployed.id)).toMatchObject({ status: "CREATED", deployAction: "DEPLOY", deployments: [{ domain: DEFAULT_DOMAIN }] });
+        expect(row(parked.id)).toMatchObject({ status: "CREATED", deployAction: "NONE" });
+        expect(row(parked.id)?.deployments).toBeUndefined();
+
+        // The status has to match what the import did, not only what the request asked for.
+        expect((await catalog.listDeployments(deployed.id)).map((each) => each.domain)).toEqual([DEFAULT_DOMAIN]);
+        expect(await catalog.listDeployments(parked.id)).toEqual([]);
+      } finally {
+        await catalog.undeployAll(deployed.id).catch(() => undefined);
+      }
+    });
+
     test("deprecated v2 redirects to its result and shares v3 sessions", { tag: ["@v2"] }, async ({ catalog, folder, run }) => {
       const chainName = tokenized(run, "v2imp-chain");
       const chain = await catalog.createChain(chainName, folder.id);
@@ -752,7 +788,7 @@ test.describe("v2 and v3 controllers", { tag: ["@catalog"] }, () => {
         // The resource is decoded and folded back into the property the document pointed at it with,
         // and `propertiesFilename` itself does not survive into the stored element.
         expect(elements[0].properties?.script, "the base64 resource became the element's script").toBe(
-          script.trim(),
+          script,
         );
         expect(elements[0].properties).not.toHaveProperty("propertiesFilename");
       } finally {

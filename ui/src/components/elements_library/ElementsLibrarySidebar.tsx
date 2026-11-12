@@ -13,7 +13,6 @@ import styles from "./ElementsLibrarySidebar.module.css";
 import { useNotificationService } from "../../hooks/useNotificationService.tsx";
 import { useLibraryContext } from "../LibraryContext.tsx";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
-import { getElementColor } from "../../misc/chain-graph-utils.ts";
 import { SidebarSearch } from "./SidebarSearch.tsx";
 
 const { Sider } = Layout;
@@ -71,10 +70,7 @@ export const ElementsLibrarySidebar = ({
               label: name,
               name: name,
               icon: (
-                <OverridableIcon
-                  name="folderOpenFilled"
-                  style={{ fontSize: 18, color: getElementColor(element) }}
-                />
+                <OverridableIcon name="folderOpen" className={"folder-icon"} />
               ),
               children: [],
             });
@@ -89,9 +85,7 @@ export const ElementsLibrarySidebar = ({
                 />
               ),
               name: libraryData.childElements[child.name]?.title ?? child.name,
-              icon: (
-                <OverridableIcon name={child.name} style={{ fontSize: 18 }} />
-              ),
+              icon: <OverridableIcon name={child.name} />,
             };
             childrenMenuItems.push(childMenuItem);
           });
@@ -99,9 +93,7 @@ export const ElementsLibrarySidebar = ({
             key: element.name,
             label: <DraggableElement element={element} />,
             name: element.title,
-            icon: (
-              <OverridableIcon name={element.name} style={{ fontSize: 18 }} />
-            ),
+            icon: <OverridableIcon name={element.name} />,
           };
           if (childrenMenuItems.length !== 0) {
             childrenMenuItems.sort(compareChildren);
@@ -149,15 +141,19 @@ export const ElementsLibrarySidebar = ({
   };
 
   return (
-    <Sider width={width} className={styles.sideMenu}>
+    <Sider
+      width={width}
+      className={styles.sideMenu}
+      classNames={{ body: styles.sideMenuContent }}
+    >
       {isLibraryLoading && loading ? (
         <Spin />
       ) : (
-        <Flex vertical style={{ flex: 1, minHeight: 0, width: "100%" }}>
-          <div className={styles.sidebarSearchArea}>
+        <Flex vertical className={styles["left-panel-content"]}>
+          <div className={styles["searchbar-wrapper"]}>
             <SidebarSearch
               items={allItems.current}
-              placeholder="Search elements..."
+              placeholder="Search"
               onSearch={handleSearch}
               onClear={() => {
                 setItems(allItems.current);

@@ -546,7 +546,7 @@ public interface CatalogRestClient {
   record SnapshotDto(String id, String name) {}
 
   @JsonIgnoreProperties(ignoreUnknown = true)
-  record CreateDeploymentRequest(String domain, String snapshotId) {}
+  record CreateDeploymentRequest(String domain, String snapshotId, String domainType) {}
 
   @JsonIgnoreProperties(ignoreUnknown = true)
   record RuntimeStateDto(String status, String error) {}

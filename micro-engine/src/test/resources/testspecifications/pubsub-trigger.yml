@@ -50,6 +50,7 @@ fixtures:
   deployment: idempotency-subchain
 scenarios:
 - id: consumes-values-attributes-and-metadata-with-auto-ack
+  reuseBroker: true
   scope: Short
   deployment: auto
   driver:
@@ -184,6 +185,7 @@ scenarios:
           - X-Request-Id
           - snapshotPrevious
 - id: consumes-repeated-publications-with-auto-ack
+  reuseBroker: true
   scope: Short
   deployment: auto
   driver:
@@ -216,6 +218,7 @@ scenarios:
             headers:
               snapshotDeliveryAttempt: 1
 - id: redelivers-each-repeated-publication-after-script-failure
+  reuseBroker: true
   scope: Long
   deployment: auto
   driver:
@@ -284,6 +287,7 @@ scenarios:
             headers:
               snapshotDeliveryAttempt: 1
 - id: deduplicates-repeated-publications-with-unequal-delivery-counts
+  reuseBroker: true
   scope: Long
   deployment: idempotency-ignore
   driver:
@@ -534,6 +538,7 @@ scenarios:
         properties:
           subscriptionAction: recreate-after-failures
 - id: acknowledges-and-redelivers-with-manual-ack
+  reuseBroker: true
   scope: Long
   deployment: manual
   driver:
@@ -751,6 +756,7 @@ scenarios:
         properties:
           subscriptionAction: create
 - id: deduplicates-pubsub-business-keys-with-ignore
+  reuseBroker: true
   scope: Long
   deployment: idempotency-ignore
   driver:
@@ -1149,6 +1155,7 @@ scenarios:
             keyExpiry: 600
             active: true
 - id: deduplicates-pubsub-business-keys-with-throw-exception
+  reuseBroker: true
   scope: Long
   deployment: idempotency-throw
   driver:
@@ -1577,6 +1584,7 @@ scenarios:
       message: Duplicated idempotency key
       cause: null
 - id: deduplicates-pubsub-business-keys-with-execute-subchain
+  reuseBroker: true
   scope: Long
   deployment: idempotency-subchain
   driver:
@@ -1992,3 +2000,370 @@ scenarios:
     - fixture: pubsub-idempotency-handler-subchain
       expectedRequest:
         count: 1
+- id: stops-during-transport-outage-and-resumes-delivery
+  scope: Long
+  deployment: auto
+  driver:
+    provider: pubsub-trigger
+    sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
+  invocations:
+  - id: healthy-before-unavailable-stop
+    body: before-stop
+    headers: {}
+    expectedBody: Triggered
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 1
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-auto
+      response:
+        properties: {}
+  - id: stops-unavailable-subscriber
+    driver:
+      provider: pubsub-trigger
+      sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
+      parameters:
+        observeOnly: true
+    expectedBody: Observed
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedAcknowledgments: 0
+          consumerAction: stop-while-unavailable
+  - id: fresh-message-after-restart
+    body: after-stop
+    headers: {}
+    expectedBody: Triggered
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 1
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-auto
+      response:
+        properties: {}
+- id: redelivers-unacknowledged-failed-manual-message-after-restart
+  scope: Long
+  deployment: manual
+  driver:
+    provider: pubsub-trigger
+    sourceElementId: f4993db3-60da-5429-96c0-116344123146
+  invocations:
+  - id: script-fails-before-manual-ack
+    body: manual-failure
+    headers:
+      snapshotFailOnce: 'true'
+      snapshotAckAction: ack
+    expectedBody: Triggered
+    expectedHeaders:
+      snapshotDeliveryAttempt: 2
+    interactions:
+    - fixture: pubsub-manual
+      expectedRequest:
+        count: 2
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-manual
+      response:
+        properties:
+          redeliverAfterFailureRestart: true
+          expectedAcknowledgments: 1
+          expectedNegativeAcknowledgments: 0
+          expectedCompletions:
+          - body: manual-failure
+            headers:
+              snapshotDeliveryAttempt: 1
+            expectedFailure:
+              type: java.lang.IllegalStateException
+              message: Pub/Sub snapshot script failure
+              cause: null
+          - body: Triggered
+            headers:
+              snapshotDeliveryAttempt: 2
+  - id: acknowledged-message-stays-excluded
+    body: after-manual-recovery
+    expectedBody: Triggered
+    expectedHeaders:
+      snapshotDeliveryAttempt: 1
+    interactions:
+    - fixture: pubsub-manual
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          consumerAction: restart
+          expectedAcknowledgments: 1
+          expectedNegativeAcknowledgments: 0
+- id: authenticates-subscriber-refreshes-token-and-recovers-after-oauth-denial
+  scope: Long
+  deployment: auto
+  driver:
+    provider: pubsub-trigger
+    sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
+  invocations:
+  - id: authenticates-exported-service-account
+    body: authenticated
+    headers: {}
+    expectedBody: Triggered
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 1
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-auto
+      response:
+        properties:
+          subscriberAuthentication: true
+          shortLivedAccessToken: true
+          minimumTokenRequests: 1
+  - id: refreshes-expired-token-after-reconnect
+    body: refreshed
+    headers: {}
+    expectedBody: Triggered
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 1
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-auto
+      response:
+        properties:
+          expireAccessToken: true
+          consumerAction: disconnect-until-published
+          minimumTokenRequests: 2
+  - id: rejects-token-before-delivery
+    driver:
+      provider: pubsub-trigger
+      sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
+      parameters:
+        observeOnly: true
+    expectedBody: Observed
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          expectedAcknowledgments: 0
+          oauthError: invalid_grant
+          consumerAction: restart
+          awaitOAuthFailure: true
+          minimumTokenRequests: 3
+  - id: recovers-with-valid-token
+    body: recovered
+    headers: {}
+    expectedBody: Triggered
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 1
+        destination: projects/sandbox-messaging/subscriptions/snapshot-pubsub-trigger-auto
+      response:
+        properties:
+          consumerAction: restart
+          minimumTokenRequests: 4
+- id: recovers-streaming-pull-after-quota-and-deadline-errors
+  scope: Long
+  deployment: auto
+  driver:
+    provider: pubsub-trigger
+    sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
+  invocations:
+  - id: healthy-before-stream-errors
+    body: healthy-before-stream-errors
+    expectedBody: Triggered
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 1
+      response:
+        properties: {}
+  - id: queued-during-resource-exhaustion
+    driver:
+      provider: pubsub-trigger
+      sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
+      parameters:
+        messages:
+        - body: quota-first
+        - body: quota-second
+    expectedBody:
+    - Triggered
+    - Triggered
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 2
+      response:
+        properties:
+          streamingFailure: RESOURCE_EXHAUSTED
+          expectedAcknowledgments: 2
+          expectedNegativeAcknowledgments: 0
+  - id: healthy-after-resource-exhaustion
+    body: after-quota
+    expectedBody: Triggered
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 1
+      response:
+        properties: {}
+  - id: queued-during-stream-deadline-failure
+    driver:
+      provider: pubsub-trigger
+      sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
+      parameters:
+        messages:
+        - body: deadline-first
+        - body: deadline-second
+    expectedBody:
+    - Triggered
+    - Triggered
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 2
+      response:
+        properties:
+          streamingFailure: DEADLINE_EXCEEDED
+          expectedAcknowledgments: 2
+          expectedNegativeAcknowledgments: 0
+  - id: healthy-after-stream-deadline-failure
+    body: after-deadline
+    expectedBody: Triggered
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 1
+      response:
+        properties: {}
+- id: renews-lease-through-long-processing-without-redelivery
+  scope: Long
+  deployment: auto
+  driver:
+    provider: pubsub-trigger
+    sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
+  invocations:
+  - id: holds-processing-past-original-ack-deadline
+    timeoutSeconds: 180
+    body: lease-held
+    expectedBody: Triggered
+    expectedHeaders:
+      snapshotDeliveryAttempt: 1
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          verifyLeaseExtension: true
+          expectedAcknowledgments: 1
+          expectedNegativeAcknowledgments: 0
+  - id: completed-lease-message-stays-excluded-after-restart
+    driver:
+      provider: pubsub-trigger
+      sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
+      parameters:
+        observeOnly: true
+    expectedBody: Observed
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          consumerAction: restart
+          expectedAcknowledgments: 0
+          expectedNegativeAcknowledgments: 0
+  - id: next-message-has-an-independent-lease
+    body: fresh-after-lease
+    expectedBody: Triggered
+    expectedHeaders:
+      snapshotDeliveryAttempt: 1
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 1
+      response:
+        properties: {}
+- id: retains-queued-messages-during-oauth-denial
+  scope: Long
+  deployment: auto
+  driver:
+    provider: pubsub-trigger
+    sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
+  invocations:
+  - id: healthy-before-queued-oauth-denial
+    body: healthy-before-denial
+    expectedBody: Triggered
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          subscriberAuthentication: true
+          shortLivedAccessToken: true
+          minimumTokenRequests: 1
+  - id: publishes-backlog-while-oauth-remains-rejected
+    driver:
+      provider: pubsub-trigger
+      sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
+      parameters:
+        observeOnly: true
+    expectedBody: Observed
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 0
+      response:
+        properties:
+          oauthError: invalid_grant
+          expireAccessToken: true
+          consumerAction: restart
+          awaitOAuthFailure: true
+          minimumTokenRequests: 3
+          expectedAcknowledgments: 0
+          expectedNegativeAcknowledgments: 0
+          backlogMessages:
+          - body: queued-first
+            attributes:
+              queuedDuring: oauth-denial
+          - body: queued-second
+            attributes:
+              queuedDuring: oauth-denial
+  - id: recovers-and-acknowledges-original-backlog-message-ids
+    driver:
+      provider: pubsub-trigger
+      sourceElementId: d9d4b792-23bd-4438-ae92-58f840fe84f6
+      parameters:
+        consumeBacklog: true
+    expectedBody:
+    - Triggered
+    - Triggered
+    expectedHeaders:
+      snapshotDeliveryAttempt: 1
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 2
+        headers:
+          CamelGooglePubsubAttributes:
+            queuedDuring: oauth-denial
+      response:
+        properties:
+          resumeBacklog: true
+          consumerAction: restart
+          minimumTokenRequests: 4
+          expectedAcknowledgments: 2
+          expectedNegativeAcknowledgments: 0
+  - id: fresh-message-after-acknowledged-backlog-and-restart
+    body: fresh-after-backlog
+    expectedBody: Triggered
+    expectedHeaders:
+      snapshotDeliveryAttempt: 1
+    interactions:
+    - fixture: pubsub-auto
+      expectedRequest:
+        count: 1
+      response:
+        properties:
+          consumerAction: restart
+          minimumTokenRequests: 5

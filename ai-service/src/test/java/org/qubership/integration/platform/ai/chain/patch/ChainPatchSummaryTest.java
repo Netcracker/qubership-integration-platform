@@ -142,6 +142,29 @@ class ChainPatchSummaryTest {
         assertEquals(script, proposed.propertyPatches().getFirst().property().value());
     }
 
+    @Test
+    void showsTheCompleteScriptWithAnUnambiguousMarkdownFence() {
+        String script = "  // " + "x".repeat(430) + "\nreturn '```'\n";
+        GraphPatch proposed = patch(List.of(), List.of(), List.of(changeProperty("enrich", "script", script)));
+
+        String text = ChainPatchSummary.describe(graph(), proposed);
+
+        assertTrue(text.contains("after:\n````\n" + script + "\n````"), text);
+    }
+
+    @Test
+    void showsTheBodyOfAnAddedScriptOnTheCard() {
+        String body = "// " + "x".repeat(430) + "\nreturn 'new script'";
+        var node = new ChainPlanNode("new-script", "script", "New Script", null, null,
+                List.of(new PlanProperty("script", body)));
+        var proposed = patch(List.of(new NodePatch(GraphPatchOperation.ADD, node, null)), List.of(), List.of());
+
+        String text = ChainPatchSummary.describe(graph(), proposed);
+
+        assertTrue(text.contains("**Adds** **New Script**"), text);
+        assertTrue(text.contains("after:\n```\n" + body + "\n```"), text);
+    }
+
     /** A patch may name an element the chain no longer has; the card still has to render. */
     @Test
     void fallsBackToTheIdWhenTheElementIsUnknown() {

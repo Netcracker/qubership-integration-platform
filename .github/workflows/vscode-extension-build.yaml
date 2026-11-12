@@ -45,7 +45,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies (root workspaces)
-        run: npm ci --legacy-peer-deps
+        run: npm ci
 
       - name: Build workspace dependencies
         working-directory: vscode-extension
@@ -82,7 +82,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies (root workspaces)
-        run: npm ci --legacy-peer-deps
+        run: npm ci
 
       - name: Build workspace dependencies
         working-directory: vscode-extension

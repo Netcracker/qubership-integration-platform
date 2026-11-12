@@ -67,14 +67,18 @@ public class SkillHarnessService {
     message.append("## Skill harness run\n\n");
     message.append("chainId=").append(request.chainId().trim()).append('\n');
     message.append("skillId=").append(request.skillId().trim()).append('\n');
-    message.append("sourcePath=").append(document.sourcePath()).append("\n\n");
+    if (!addonRepository.hasStandaloneSkills()) {
+      message.append("sourcePath=").append(document.sourcePath()).append("\n\n");
+    }
     message.append("## Harness prompt\n\n");
     message.append(request.prompt().trim()).append("\n\n");
     message.append("## Skill instructions\n\n");
     message.append(skillBody(document.markdown()));
     appendSkillAddon(message, document);
-    message.append("\n\nConfigure the chain using catalog tools only. ");
-    message.append("Do not create or modify a ChainPlanGraph.");
+    if (!addonRepository.hasStandaloneSkills()) {
+      message.append("\n\nConfigure the chain using catalog tools only. ");
+      message.append("Do not create or modify a ChainPlanGraph.");
+    }
     return QuteUserMessageEscaping.escapeForAiServiceUserMessage(message.toString());
   }
 
@@ -91,9 +95,21 @@ public class SkillHarnessService {
         message.append(promptMaterial);
       }
     }
+    boolean standalone = addonRepository.hasStandaloneSkills();
+    if (standalone && !addon.examples().isEmpty()) {
+      message.append("\n\nRuntime examples are reference cases, not additional author requirements. "
+          + "Follow current catalog tool schemas, approved requirements, and ownership constraints. "
+          + "Preserve current catalog UUIDs. Counterexamples must not be applied. Do not emit GraphPatch.\n\n");
+    }
     for (CompilerSkillAddonDocument example : addon.examples()) {
-      message.append("\n\n## Addon example (").append(example.relativePath()).append(")\n\n");
-      message.append("Property contract. Apply with catalog element tools; do not emit GraphPatch.\n\n");
+      if (standalone) {
+        String name = example.relativePath().substring(example.relativePath().lastIndexOf('/') + 1);
+        message.append(name.startsWith("invalid-") ? "\n\n## Counterexample (must be rejected; " : "\n\n## Runtime example (")
+            .append(example.relativePath()).append(")\n\n");
+      } else {
+        message.append("\n\n## Addon example (").append(example.relativePath()).append(")\n\n");
+        message.append("Property contract. Apply with catalog element tools; do not emit GraphPatch.\n\n");
+      }
       message.append(example.content());
     }
   }

@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.catalog.binding;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -14,12 +15,39 @@ import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 class ServiceCallCatalogIdentityTest {
 
   @Test
+  void httpTriggerBindingAndRebindingUseNativeEndpointProperties() {
+    var original = new ChainPlanGraph("1.0", new ChainSection("n", "n"), List.of(
+        new ChainPlanNode("entry", "http-trigger", "Entry", null, null, List.of(
+            new PlanProperty("contextPath", "/custom"), new PlanProperty("httpMethodRestrict", "DELETE"),
+            new PlanProperty("integrationOperationProtocolType", "http"),
+            new PlanProperty("integrationOperationMethod", "DELETE"),
+            new PlanProperty("externalRoute", "false")))), List.of());
+    var binding = httpBinding("entry", "entry");
+    var bound = ServiceCallCatalogIdentity.upsert(original, binding);
+    var rebound = ServiceCallCatalogIdentity.upsert(bound, binding);
+    assertEquals(bound, rebound);
+    var entry = node(bound, "entry");
+    var keys = entry.properties().stream().map(PlanProperty::key).toList();
+    var schema = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+        .createForUnitTests(new com.fasterxml.jackson.databind.ObjectMapper());
+    var allowed = schema.allowedPatchPropertyKeys("http-trigger");
+    assertTrue(allowed.containsAll(keys), () -> "allowed=" + allowed + "; actual=" + keys);
+    assertEquals(keys.size(), keys.stream().distinct().count());
+    assertEquals("IMPLEMENTED", property(entry, "systemType"));
+    assertEquals("GET", property(entry, "httpMethodRestrict"));
+    assertEquals("/x", property(entry, "integrationOperationPath"));
+    assertEquals("op-1", property(entry, "integrationOperationId"));
+    assertEquals("false", property(entry, "externalRoute"));
+    assertNull(property(entry, "contextPath"));
+  }
+
+  @Test
   void asyncRebindingPreservesExplicitConsumerGroup() throws Exception {
     ChainPlanGraph graph = new ChainPlanGraph("1.0", new ChainSection("n", "n"), List.of(
         new ChainPlanNode("trigger-async", "async-api-trigger", "Consume", null, null,
             List.of(new PlanProperty("integrationOperationAsyncProperties", "{\"groupId\":\"CIP\"}")))), List.of());
     ResolvedServiceCallBinding binding = new ResolvedServiceCallBinding("trigger-async", "consume-om",
-        "INTERNAL", "sys-om", "sg-om", "spec-om", "op-om", "kafka", "subscribe", "task.start",
+        "INTERNAL", "sys-om", "sg-om", "spec-om", "op-om", "kafka", "receive", "task.start",
         "onTaskStart", ResolvedServiceCallBinding.Source.EXISTING_CATALOG, "catalog", "ev", "", "wfms", "");
     ChainPlanGraph out = ServiceCallCatalogIdentity.upsert(graph, binding);
     var options = new com.fasterxml.jackson.databind.ObjectMapper().readTree(
@@ -112,7 +140,7 @@ class ServiceCallCatalogIdentityTest {
             "spec-om",
             "op-om",
             "kafka",
-            "subscribe",
+            "receive",
             "task.start",
             "onTaskStart",
             ResolvedServiceCallBinding.Source.EXISTING_CATALOG,
@@ -155,7 +183,7 @@ class ServiceCallCatalogIdentityTest {
             "spec-om",
             "op-om",
             "kafka",
-            "subscribe",
+            "receive",
             "task.start",
             "onTaskStart",
             ResolvedServiceCallBinding.Source.EXISTING_CATALOG,
@@ -198,7 +226,7 @@ class ServiceCallCatalogIdentityTest {
             "spec-om",
             "op-om",
             "kafka",
-            "subscribe",
+            "receive",
             "task.start",
             "onTaskStart",
             ResolvedServiceCallBinding.Source.EXISTING_CATALOG,

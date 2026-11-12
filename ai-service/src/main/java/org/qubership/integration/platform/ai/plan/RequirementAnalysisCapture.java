@@ -14,13 +14,57 @@ public record RequirementAnalysisCapture(
     @Description("Readable summary for review") String summary,
     @Description("Knowledge references used during analysis") List<CipKnowledgeCitation> citations,
     @Description("Field adaptations on selected flow transitions; omit for pass-through")
-        List<Mapping> mappingIntents) {
+        List<Mapping> mappingIntents,
+    @Description("Source discrepancies in the selected draft, supported by exact saved author quotes; "
+        + "use an empty list after reviewing all source requirements. A report does not authorize changes.")
+        List<SourceOmission> sourceOmissions) {
+
+  public RequirementAnalysisCapture(String goal, List<String> inputs, List<String> assumptions,
+      String summary, List<CipKnowledgeCitation> citations, List<Mapping> mappingIntents) {
+    this(goal, inputs, assumptions, summary, citations, mappingIntents, List.of());
+  }
 
   public RequirementAnalysisCapture {
     inputs = inputs == null ? List.of() : List.copyOf(inputs);
     assumptions = assumptions == null ? List.of() : List.copyOf(assumptions);
     citations = citations == null ? List.of() : List.copyOf(citations);
     mappingIntents = mappingIntents == null ? List.of() : List.copyOf(mappingIntents);
+    sourceOmissions = sourceOmissions == null ? List.of() : List.copyOf(sourceOmissions);
+  }
+
+  public enum SourceDiscrepancyKind { OMITTED_REQUIREMENT, UNSUPPORTED_ADDITION, INTERPRETATION_CONFLICT }
+
+  public record SourceOmission(
+      @Description("The sourceTurnId in the saved author evidence") String sourceTurnId,
+      @Description("Exact saved author quote supporting this report") String quote,
+      @Description("How the draft differs from the source, accounting for later amendments and choices")
+          String explanation,
+      @Description("OMITTED_REQUIREMENT for absent author content; UNSUPPORTED_ADDITION"
+          + " for an unsupported extra claim; INTERPRETATION_CONFLICT for source-backed technical wiring correction.")
+          SourceDiscrepancyKind kind,
+      @Description("Stable sourceFactId of the affected selected draft fact; empty for an omission.")
+          String sourceFactId,
+      @com.fasterxml.jackson.annotation.JsonProperty(required = false)
+      @NullableCaptureValue(description = "For INTERPRETATION_CONFLICT: exact stable path to model-selected wiring or capability.")
+          String path,
+      @com.fasterxml.jackson.annotation.JsonProperty(required = false)
+      @NullableCaptureValue(description = "For INTERPRETATION_CONFLICT: current field value encoded as JSON text.")
+          String previousValue,
+      @com.fasterxml.jackson.annotation.JsonProperty(required = false)
+      @NullableCaptureValue(description = "For INTERPRETATION_CONFLICT: corrected value encoded as JSON text; null JSON removes a capability.")
+          String proposedValue) {
+    public SourceOmission(String sourceTurnId, String quote, String explanation,
+        SourceDiscrepancyKind kind, String sourceFactId) {
+      this(sourceTurnId, quote, explanation, kind, sourceFactId, null, null, null);
+    }
+    public SourceOmission(String sourceTurnId, String quote, String explanation) {
+      this(sourceTurnId, quote, explanation, SourceDiscrepancyKind.OMITTED_REQUIREMENT, "");
+    }
+
+    public SourceOmission {
+      kind = kind == null ? SourceDiscrepancyKind.OMITTED_REQUIREMENT : kind;
+      sourceFactId = sourceFactId == null ? "" : sourceFactId;
+    }
   }
 
   public record Mapping(

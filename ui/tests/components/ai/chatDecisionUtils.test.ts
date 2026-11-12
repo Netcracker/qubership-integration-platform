@@ -445,6 +445,25 @@ describe("recoveryCardActions", () => {
       ),
     ).toEqual(["retry-creation", "stop-with-report"]);
   });
+
+  it("should default a design defect to Retry creation and End run", () => {
+    expect(
+      recoveryCardActions(
+        buildDecision({
+          kind: "clarify",
+          question: "design cannot be used",
+          actions: [],
+          recovery: {
+            category: "design-artifact-defect",
+            title: "The design cannot be used",
+            summary: "The design was rejected.",
+            preservedWork: "Saved.",
+            technicalDetails: "",
+          },
+        }),
+      ),
+    ).toEqual(["retry-creation", "stop-with-report"]);
+  });
 });
 
 describe("openingUserAssignment", () => {

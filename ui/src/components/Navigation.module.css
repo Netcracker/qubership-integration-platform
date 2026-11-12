@@ -20,6 +20,16 @@
   min-width: 40px;
   min-height: 40px;
   height: 40px;
+  font-size: 16px;
+  font-weight: 600;
+  gap: 0;
+
+  :global(.logo-icon) {
+    width: 20px;
+    height: 20px;
+    position: relative;
+    top: 1px;
+  }
 }
 
 /* Icon-only home: 1em drives SVG size; same for config.icons.logo overrides */

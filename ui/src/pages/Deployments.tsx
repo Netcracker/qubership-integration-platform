@@ -11,9 +11,7 @@ import { TableProps } from "antd/lib/table";
 import {
   CreateDeploymentRequest,
   Deployment,
-  DeployMode,
   DomainType,
-  MicroDomainDeployRequest,
   Snapshot,
 } from "../api/apiTypes.ts";
 import { useSnapshots } from "../hooks/useSnapshots.tsx";
@@ -77,14 +75,7 @@ export const Deployments: React.FC = () => {
   const deleteDeployment = useCallback(
     async (deployment: Deployment) => {
       try {
-        if (deployment.domainType === DomainType.MICRO) {
-          await api.deleteSnapshotFromMicroDomain(
-            deployment.domain,
-            deployment.snapshotId,
-          );
-        } else {
-          await api.deleteDeployment(deployment.id);
-        }
+        await api.deleteDeployment(deployment.id);
         removeDeployment(deployment);
       } catch (error) {
         notificationService.requestFailed("Failed to delete deployment", error);
@@ -208,7 +199,12 @@ export const Deployments: React.FC = () => {
 
   const onDeploymentCreated = useCallback(
     (deployment: Deployment) => {
-      setDeployments((prev) => [...(prev ?? []), deployment]);
+      setDeployments((prev) => {
+        const list = prev ?? [];
+        return list.some((row) => row.id === deployment.id)
+          ? list
+          : [...list, deployment];
+      });
     },
     [setDeployments],
   );
@@ -219,22 +215,14 @@ export const Deployments: React.FC = () => {
       try {
         await Promise.all(
           options.domains.map(async (domain) => {
-            if (domain.type === DomainType.MICRO) {
-              const request: MicroDomainDeployRequest = {
-                name: domain.name,
-                snapshotIds: [options.snapshotId],
-                mode: DeployMode.APPEND,
-              };
-              await api.deploySnapshotsToMicroDomain(request);
-            } else {
-              const request: CreateDeploymentRequest = {
-                domain: domain.name,
-                snapshotId: options.snapshotId,
-                suspended: false,
-              };
-              const deployment = await api.createDeployment(chainId, request);
-              onDeploymentCreated(deployment);
-            }
+            const request: CreateDeploymentRequest = {
+              domain: domain.name,
+              domainType: domain.type,
+              snapshotId: options.snapshotId,
+              suspended: false,
+            };
+            const deployment = await api.createDeployment(chainId, request);
+            onDeploymentCreated(deployment);
           }),
         );
       } catch (error) {

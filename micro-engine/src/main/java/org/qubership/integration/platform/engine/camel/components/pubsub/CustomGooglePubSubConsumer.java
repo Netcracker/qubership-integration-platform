@@ -152,8 +152,14 @@ public class CustomGooglePubSubConsumer extends DefaultConsumer {
                 Subscriber subscriber = null;
                 try {
                     subscriber = endpoint.getComponent().getSubscriber(subscriptionName, messageReceiver, endpoint);
-                    subscribers.add(subscriber);
-                    subscriber.startAsync().awaitRunning();
+                    synchronized (subscribers) {
+                        if (!isRunAllowed() || isSuspendingOrSuspended()) {
+                            continue;
+                        }
+                        subscribers.add(subscriber);
+                        subscriber.startAsync();
+                    }
+                    subscriber.awaitRunning();
                     subscriber.awaitTerminated();
                 } catch (Exception e) {
                     localLog.error("Failure getting messages from PubSub", e);

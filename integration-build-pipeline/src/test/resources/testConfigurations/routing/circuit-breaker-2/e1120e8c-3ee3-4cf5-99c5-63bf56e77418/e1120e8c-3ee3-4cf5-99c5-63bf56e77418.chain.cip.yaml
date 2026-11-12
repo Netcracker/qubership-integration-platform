@@ -28,7 +28,6 @@ content:
             type: "inherit"
           before:
             type: "none"
-          errorThrowing: true
           handleValidationAction: "default"
           integrationOperationId: "1acc68e3-fa98-4b67-95a5-60e3e26ba744-petstore-1.0.7-getPetById"
           integrationOperationMethod: "GET"
@@ -72,4 +71,4 @@ content:
   deployments:
   - domain: "default"
   deployAction: "DEPLOY"
-  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108, 109]"

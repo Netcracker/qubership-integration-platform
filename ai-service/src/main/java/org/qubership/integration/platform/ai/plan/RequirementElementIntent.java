@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonAlias;
 import java.util.List;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 
-/** Author-supplied element placement and values, separate from business interactions. */
+/** Element realization and requested values attached to an author fact. */
 public record RequirementElementIntent(
     String elementRef,
     String elementType,
@@ -18,9 +18,25 @@ public record RequirementElementIntent(
         + " predecessorElementRef B, the required order is B -> A. Null when unspecified or when the elements belong to alternative branches.") String predecessorElementRef,
     @NullableCaptureValue(description = "The containing elementRef when this element is explicitly nested inside a container."
         + " This is structural membership, not execution order. Null when unspecified.") String parentElementRef,
-    @NullableCaptureValue String requestedName,
+    @NullableCaptureValue(description = "Exact display name explicitly supplied for this element, including an entry trigger or call"
+        + " with ANCHOR placement. The interaction participant names the other party, not this element."
+        + " Keep the name here even when no properties are requested. Null when the author supplied no element name.") String requestedName,
     List<PlanProperty> requestedProperties,
-    List<String> exactValues) {
+    List<String> exactValues,
+    @NullableCaptureValue(description = "Authority for a requested native script body. Generated code and language hints are"
+        + " implementation candidates, not exact author code. The server derives and saves this metadata from retained"
+        + " author source; use null on new captures. Submitted metadata cannot override source classification."
+        + " VERBATIM_SOURCE_BODY binds the complete original code value, its owner, native key, generation,"
+        + " turn, UTF-16 offsets, and encoding; preserve every body character. Never downgrade an author body to generated.")
+    RequirementBodyBinding bodyBinding) {
+
+  public RequirementElementIntent(
+      String elementRef, String elementType, Placement placement, String ownerInteractionId,
+      String successorElementRef, String predecessorElementRef, String parentElementRef, String requestedName,
+      List<PlanProperty> requestedProperties, List<String> exactValues) {
+    this(elementRef, elementType, placement, ownerInteractionId, successorElementRef, predecessorElementRef,
+        parentElementRef, requestedName, requestedProperties, exactValues, null);
+  }
 
   public RequirementElementIntent(
       String elementRef,

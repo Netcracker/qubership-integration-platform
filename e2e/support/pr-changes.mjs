@@ -85,7 +85,6 @@ export const KIND_RULES = [
   { paths: ["help/docs/**"], jobs: ["ui"] },
   {
     paths: [
-      "docs/**",
       "help/**",
       "*.md",
       "**/*.md",

@@ -196,7 +196,8 @@
 }
 
 /* Node highlighting for selection and hover - flat design */
-[class~="react-flow__node"]:not(.highlight) > div:not([data-unsupported="true"]) {
+[class~="react-flow__node"]:not(.highlight)
+  > div:not([data-unsupported="true"]) {
   background: unset;
   border: 1.5px solid transparent;
   box-shadow: none;
@@ -624,7 +625,7 @@
 
 /* Background patterns - dots with theme support */
 .react-flow__background {
-  background-color: var(--vscode-panel-background) !important;
+  background-color: var(--vscode-editor-background) !important;
 }
 
 /* ReactFlow background pattern */

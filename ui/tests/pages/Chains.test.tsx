@@ -9,6 +9,7 @@ import {
   screen,
   waitFor,
   fireEvent,
+  within,
 } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import {
@@ -16,9 +17,17 @@ import {
   CatalogItemType,
   FolderItem,
   ChainItem,
+  ChainCreationRequest,
+  DomainType,
+  BulkDeploymentSnapshotAction,
+  DeployMode,
 } from "../../src/api/apiTypes";
 
-// --------------- Mock data ---------------
+type ConfirmOptions = {
+  title: string;
+  content: string;
+  onOk: () => void | Promise<void>;
+};
 
 const mockNavigate = jest.fn();
 let mockSearchParams = new URLSearchParams();
@@ -85,6 +94,27 @@ const mockNestedChain: ChainItem = {
   parentId: "folder-1",
 };
 
+const makeFolder = (
+  id: string,
+  name: string,
+  parentId?: string,
+): FolderItem => ({
+  id,
+  name,
+  description: "",
+  itemType: CatalogItemType.FOLDER,
+  ...(parentId ? { parentId } : {}),
+});
+
+const makeChain = (id: string, name: string, parentId?: string): ChainItem => ({
+  id,
+  name,
+  description: "",
+  itemType: CatalogItemType.CHAIN,
+  labels: [],
+  ...(parentId ? { parentId } : {}),
+});
+
 // --------------- Mocks ---------------
 
 jest.mock("antd", () =>
@@ -104,10 +134,23 @@ jest.mock("../../src/Modals", () => ({
   }),
 }));
 
+const mockShowGenerateDdsModal = jest.fn();
 jest.mock("../../src/hooks/useGenerateDds.tsx", () => ({
   useGenerateDds: () => ({
-    showGenerateDdsModal: jest.fn(),
+    showGenerateDdsModal: mockShowGenerateDdsModal,
   }),
+}));
+
+const mockConfirmAndRun = jest.fn<void, [ConfirmOptions]>();
+jest.mock("../../src/misc/confirm-utils", () => ({
+  confirmAndRun: (options: ConfirmOptions) => mockConfirmAndRun(options),
+}));
+
+const mockMessageInfo = jest.fn<void, [string]>();
+const mockModalError = jest.fn<void, [unknown]>();
+jest.mock("../../src/misc/antd-app", () => ({
+  message: { info: (...args: [string]) => mockMessageInfo(...args) },
+  modal: { error: (...args: [unknown]) => mockModalError(...args) },
 }));
 
 const mockRequestFailed = jest.fn();
@@ -266,8 +309,9 @@ jest.mock("../../src/misc/format-utils", () => ({
   formatTimestamp: (ts: number) => new Date(ts).toISOString(),
 }));
 
+const mockCopyToClipboard = jest.fn<Promise<void>, [string]>();
 jest.mock("../../src/misc/clipboard-util", () => ({
-  copyToClipboard: jest.fn().mockResolvedValue(undefined),
+  copyToClipboard: (...args: [string]) => mockCopyToClipboard(...args),
 }));
 
 jest.mock("../../src/misc/selection-utils", () => ({
@@ -278,9 +322,11 @@ jest.mock("../../src/misc/tree-utils", () => ({
   traverseElementsDepthFirst: jest.fn(),
 }));
 
+const mockDownloadFile = jest.fn<void, [File]>();
+const mockMergeZipArchives = jest.fn<Promise<ArrayBuffer>, [Blob[]]>();
 jest.mock("../../src/misc/download-utils", () => ({
-  downloadFile: jest.fn(),
-  mergeZipArchives: jest.fn().mockResolvedValue(new ArrayBuffer(0)),
+  downloadFile: (...args: [File]) => mockDownloadFile(...args),
+  mergeZipArchives: (...args: [Blob[]]) => mockMergeZipArchives(...args),
 }));
 
 jest.mock("../../src/misc/export-additions", () => ({
@@ -313,6 +359,8 @@ const mockApi = {
   deleteFolder: jest.fn(),
   deleteFolders: jest.fn(),
   createChain: jest.fn(),
+  updateChain: jest.fn(),
+  getChain: jest.fn(),
   deleteChain: jest.fn(),
   deleteChains: jest.fn(),
   bulkDeploy: jest.fn(),
@@ -341,6 +389,8 @@ describe("Chains page", () => {
     mockCapturedEnsureChainLoaded = undefined;
     mockApi.listFolder.mockResolvedValue([]);
     mockApi.getPathToFolder.mockResolvedValue([]);
+    mockCopyToClipboard.mockResolvedValue(undefined);
+    mockMergeZipArchives.mockResolvedValue(new ArrayBuffer(0));
   });
 
   it("refreshes after a catalog write while preserving the current folder", async () => {
@@ -381,6 +431,66 @@ describe("Chains page", () => {
     );
     await waitFor(() => expect(mockRequestFailed).toHaveBeenCalled());
     expect(screen.getByText("Test Chain")).toBeInTheDocument();
+  });
+
+  it("invalidates a pending subtree load when a catalog refresh commits", async () => {
+    const obsoleteChain = makeChain(
+      "obsolete-chain",
+      "Obsolete Chain",
+      "folder-1",
+    );
+    const currentChain = makeChain(
+      "current-chain",
+      "Current Chain",
+      "folder-1",
+    );
+    let resolveObsolete: (items: (FolderItem | ChainItem)[]) => void = () => {};
+    let folderRequests = 0;
+    let rootRequests = 0;
+    mockApi.listFolder.mockImplementation((req: { folderId?: string }) => {
+      if (req.folderId === "folder-1") {
+        folderRequests += 1;
+        if (folderRequests === 1) {
+          return new Promise((resolve) => {
+            resolveObsolete = resolve;
+          });
+        }
+        return Promise.resolve([currentChain]);
+      }
+      rootRequests += 1;
+      return Promise.resolve([mockFolder, mockChain]);
+    });
+    render(<Chains />);
+    await screen.findByText("Test Folder");
+    fireEvent.click(
+      document.querySelector<HTMLInputElement>(
+        '[data-row-key="folder-1"] input[type="checkbox"]',
+      )!,
+    );
+    await waitFor(() => expect(folderRequests).toBe(1));
+
+    await act(async () =>
+      window.dispatchEvent(
+        new CustomEvent("qip-catalog-changed", {
+          detail: { chainIds: null, chainsListChanged: true },
+        }),
+      ),
+    );
+    await waitFor(() => expect(rootRequests).toBe(2));
+    await act(async () => resolveObsolete([obsoleteChain]));
+
+    fireEvent.click(
+      document.querySelector<HTMLInputElement>(
+        '[data-row-key="folder-1"] input[type="checkbox"]',
+      )!,
+    );
+    await waitFor(() => expect(folderRequests).toBe(2));
+    const deploy = screen.getByTestId("protected-btn-deploy-selected-chains");
+    await waitFor(() => expect(deploy).toBeEnabled());
+    fireEvent.click(deploy);
+    expect(
+      mockShowModal.mock.calls.at(-1)?.[0].component.props.chainIds,
+    ).toEqual(["current-chain"]);
   });
 
   it("leaves a deleted folder and preserves the other query parameters", async () => {
@@ -916,32 +1026,520 @@ describe("Chains page", () => {
     );
   });
 
+  it("handles chain context menu actions", async () => {
+    mockApi.listFolder.mockResolvedValue([mockChain]);
+    mockApi.updateChain.mockResolvedValue({
+      ...mockChain,
+      name: "Renamed Chain",
+    });
+    mockApi.duplicateChain.mockResolvedValue({
+      ...mockChain,
+      id: "chain-dup",
+      name: "Duplicated Chain",
+    });
+    mockApi.deleteChain.mockResolvedValue(undefined);
+    render(<Chains />);
+    await screen.findByText("Test Chain");
+
+    fireEvent.click(screen.getByTestId("menu-item-copyChainLink"));
+    await waitFor(() =>
+      expect(mockCopyToClipboard).toHaveBeenCalledWith(
+        `${window.location.origin}/chains/chain-1`,
+      ),
+    );
+    await waitFor(() =>
+      expect(mockMessageInfo).toHaveBeenCalledWith(
+        "Link to a chain was copied to the clipboard",
+      ),
+    );
+
+    fireEvent.click(screen.getByTestId("menu-item-generateDDS"));
+    expect(mockShowGenerateDdsModal).toHaveBeenCalledWith("chain-1");
+
+    fireEvent.click(screen.getByTestId("menu-item-editChain"));
+    const editProps = mockShowModal.mock.calls.at(-1)![0].component.props as {
+      variant: string;
+      chainId: string;
+      onUpdateMetadata: (
+        id: string,
+        update: { name: string; labels: [] },
+        open: boolean,
+        tab: boolean,
+      ) => Promise<void>;
+    };
+    expect(editProps.variant).toBe("editChainMetaData");
+    expect(editProps.chainId).toBe("chain-1");
+
+    const update = { name: "Renamed Chain", labels: [] as [] };
+    await act(async () => {
+      await editProps.onUpdateMetadata("chain-1", update, true, false);
+    });
+    expect(mockApi.updateChain).toHaveBeenCalledWith("chain-1", update);
+    await waitFor(() =>
+      expect(mockNavigate).toHaveBeenCalledWith("/chains/chain-1"),
+    );
+    await screen.findByText("Renamed Chain");
+
+    mockApi.updateChain.mockRejectedValueOnce(new Error("offline"));
+    await act(async () => {
+      await editProps.onUpdateMetadata("chain-1", update, false, false);
+    });
+    expect(mockRequestFailed).toHaveBeenCalledWith(
+      "Failed to update chain",
+      expect.any(Error),
+    );
+
+    fireEvent.click(screen.getByTestId("menu-item-duplicateChain"));
+    await screen.findByText("Duplicated Chain");
+
+    const originalRow = document.querySelector<HTMLElement>(
+      'tr[data-row-key="chain-1"]',
+    )!;
+    fireEvent.click(within(originalRow).getByTestId("menu-item-deleteChain"));
+    const confirm = mockConfirmAndRun.mock.calls.at(-1)![0];
+    expect(confirm.title).toBe("Delete Chain");
+    expect(confirm.content).toContain("Renamed Chain");
+    await act(async () => {
+      await confirm.onOk();
+    });
+    expect(mockApi.deleteChain).toHaveBeenCalledWith("chain-1");
+    await waitFor(() =>
+      expect(screen.queryByText("Renamed Chain")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("copies a folder link and deletes the folder after confirmation", async () => {
+    mockApi.listFolder.mockResolvedValue([mockFolder]);
+    const error = new Error("offline");
+    mockApi.deleteFolder
+      .mockRejectedValueOnce(error)
+      .mockResolvedValueOnce(undefined);
+    render(<Chains />);
+    await screen.findByText("Test Folder");
+
+    fireEvent.click(screen.getByTestId("menu-item-copyFolderLink"));
+    await waitFor(() =>
+      expect(mockCopyToClipboard).toHaveBeenCalledWith(
+        `${window.location.origin}/chains?folder=folder-1`,
+      ),
+    );
+    await waitFor(() =>
+      expect(mockMessageInfo).toHaveBeenCalledWith(
+        "Link to a folder was copied to the clipboard",
+      ),
+    );
+
+    fireEvent.click(screen.getByTestId("menu-item-deleteFolder"));
+    const firstConfirm = mockConfirmAndRun.mock.calls.at(-1)![0];
+    expect(firstConfirm.title).toBe("Delete Folder");
+    await act(async () => {
+      await firstConfirm.onOk();
+    });
+    await waitFor(() =>
+      expect(mockRequestFailed).toHaveBeenCalledWith(
+        "Failed to delete folder",
+        error,
+      ),
+    );
+    expect(screen.getByText("Test Folder")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("menu-item-deleteFolder"));
+    await act(async () => {
+      await mockConfirmAndRun.mock.calls.at(-1)![0].onOk();
+    });
+    await waitFor(() =>
+      expect(mockApi.deleteFolder).toHaveBeenCalledWith("folder-1"),
+    );
+    await waitFor(() =>
+      expect(screen.queryByText("Test Folder")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("moves or copies a chain when pasted from the toolbar", async () => {
+    mockApi.listFolder.mockResolvedValue([mockChain]);
+    mockApi.moveChain.mockResolvedValue({ ...mockChain, parentId: "folder-2" });
+    mockApi.copyChain.mockResolvedValue({
+      ...mockChain,
+      id: "chain-copy",
+      name: "Copied Chain",
+    });
+    render(<Chains />);
+    await screen.findByText("Test Chain");
+
+    fireEvent.click(screen.getByTestId("menu-item-cut"));
+    fireEvent.click(screen.getByTestId("protected-btn-paste"));
+    await waitFor(() =>
+      expect(mockApi.moveChain).toHaveBeenCalledWith("chain-1", undefined),
+    );
+    expect(mockApi.copyChain).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("menu-item-copy"));
+    fireEvent.click(screen.getByTestId("protected-btn-paste"));
+    await waitFor(() =>
+      expect(mockApi.copyChain).toHaveBeenCalledWith("chain-1", undefined),
+    );
+    await screen.findByText("Copied Chain");
+
+    fireEvent.click(screen.getByTestId("protected-btn-paste"));
+    expect(mockApi.moveChain).toHaveBeenCalledTimes(1);
+    expect(mockApi.copyChain).toHaveBeenCalledTimes(1);
+  });
+
+  it("compares and deploys the selected chains", async () => {
+    mockApi.listFolder.mockResolvedValue([mockChain, mockChain2]);
+    mockApi.bulkDeploy.mockResolvedValue([]);
+    render(<Chains />);
+    await screen.findByText("Test Chain");
+    await screen.findByText("Another Chain");
+
+    const compare = () =>
+      screen.getByTestId("protected-btn-compare-selected-chains");
+    const deploy = () =>
+      screen.getByTestId("protected-btn-deploy-selected-chains");
+    const checkboxes = () =>
+      document.querySelectorAll<HTMLInputElement>(
+        'tbody input[type="checkbox"]',
+      );
+
+    expect(compare()).toBeDisabled();
+    expect(deploy()).toBeDisabled();
+
+    fireEvent.click(checkboxes()[0]);
+    expect(deploy()).not.toBeDisabled();
+    expect(compare()).toBeDisabled();
+
+    fireEvent.click(checkboxes()[1]);
+    expect(compare()).not.toBeDisabled();
+
+    fireEvent.click(compare());
+    const diffProps = mockShowModal.mock.calls.at(-1)![0].component.props as {
+      item1: { kind: string; id: string };
+      item2: { kind: string; id: string };
+    };
+    expect(diffProps.item1).toEqual({ kind: "chain", id: "chain-1" });
+    expect(diffProps.item2).toEqual({ kind: "chain", id: "chain-2" });
+
+    fireEvent.click(deploy());
+    const deployProps = mockShowModal.mock.calls.at(-1)![0].component.props as {
+      chainCount: number;
+      chainIds: string[];
+      onSubmit: (request: {
+        domains: { name: string; type: DomainType }[];
+        snapshotAction: BulkDeploymentSnapshotAction;
+      }) => Promise<unknown>;
+    };
+    expect(deployProps.chainCount).toBe(2);
+    expect(deployProps.chainIds).toEqual(["chain-1", "chain-2"]);
+
+    const request = {
+      domains: [{ name: "domain-a", type: DomainType.CLASSIC }],
+      snapshotAction: BulkDeploymentSnapshotAction.LAST_CREATED,
+    };
+    await act(async () => {
+      await deployProps.onSubmit(request);
+    });
+    expect(mockApi.bulkDeploy).toHaveBeenCalledWith({
+      domains: ["domain-a"],
+      chainIds: ["chain-1", "chain-2"],
+      snapshotAction: BulkDeploymentSnapshotAction.LAST_CREATED,
+      mode: DeployMode.APPEND,
+    });
+
+    const error = new Error("deploy failed");
+    mockApi.bulkDeploy.mockRejectedValueOnce(error);
+    let failure: unknown;
+    await act(async () => {
+      try {
+        await deployProps.onSubmit(request);
+      } catch (caught) {
+        failure = caught;
+      }
+    });
+    expect(failure).toBe(error);
+    expect(mockRequestFailed).toHaveBeenCalledWith(
+      "Failed to deploy chains",
+      error,
+    );
+  });
+
+  it("deletes selected folders and chains through the toolbar after confirmation", async () => {
+    mockApi.listFolder.mockResolvedValue([mockFolder, mockChain]);
+    mockApi.deleteFolders.mockResolvedValue(undefined);
+    mockApi.deleteChains.mockResolvedValue(undefined);
+    render(<Chains />);
+    await screen.findByText("Test Folder");
+    await screen.findByText("Test Chain");
+
+    fireEvent.click(
+      screen.getByTestId("protected-btn-delete-selected-chains-and-folders"),
+    );
+    expect(mockConfirmAndRun).not.toHaveBeenCalled();
+
+    const checkboxes = document.querySelectorAll<HTMLInputElement>(
+      'tbody input[type="checkbox"]',
+    );
+    fireEvent.click(checkboxes[0]);
+    fireEvent.click(checkboxes[1]);
+    fireEvent.click(
+      screen.getByTestId("protected-btn-delete-selected-chains-and-folders"),
+    );
+
+    const confirm = mockConfirmAndRun.mock.calls.at(-1)![0];
+    expect(confirm.title).toBe("Delete selected");
+    expect(confirm.content).toContain("folders and chains");
+    await act(async () => {
+      await confirm.onOk();
+    });
+
+    await waitFor(() =>
+      expect(mockApi.deleteFolders).toHaveBeenCalledWith(["folder-1"]),
+    );
+    expect(mockApi.deleteChains).toHaveBeenCalledWith(["chain-1"]);
+    expect(mockApi.deleteFolder).not.toHaveBeenCalled();
+    expect(mockApi.deleteChain).not.toHaveBeenCalled();
+  });
+
+  it("exports all chains or the selected chain through the export modal", async () => {
+    mockApi.listFolder.mockResolvedValue([mockChain]);
+    mockApi.exportAllChains.mockResolvedValue({
+      size: 1,
+      name: "all-chains.zip",
+    });
+    mockApi.exportChains.mockResolvedValue({
+      size: 1,
+      name: "selected-chain.zip",
+    });
+    render(<Chains />);
+    await screen.findByText("Test Chain");
+
+    const submitExport = () => {
+      const props = mockShowModal.mock.calls.at(-1)![0].component.props as {
+        multiple: boolean;
+        onSubmit: (options: {
+          exportSubchains: boolean;
+          exportServices: boolean;
+          exportVariables: boolean;
+        }) => void;
+      };
+      const options = {
+        exportSubchains: true,
+        exportServices: false,
+        exportVariables: false,
+      };
+      return { props, options };
+    };
+
+    fireEvent.click(screen.getByTestId("protected-btn-export-selected-chains"));
+    let { props, options } = submitExport();
+    expect(props.multiple).toBe(true);
+    props.onSubmit(options);
+    await waitFor(() =>
+      expect(mockApi.exportAllChains).toHaveBeenCalledTimes(1),
+    );
+    await waitFor(() =>
+      expect(mockDownloadFile).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "all-chains.zip" }),
+      ),
+    );
+
+    fireEvent.click(document.querySelector('tbody input[type="checkbox"]')!);
+    fireEvent.click(screen.getByTestId("protected-btn-export-selected-chains"));
+    ({ props, options } = submitExport());
+    expect(props.multiple).toBe(false);
+    props.onSubmit(options);
+    await waitFor(() =>
+      expect(mockApi.exportChains).toHaveBeenCalledWith(["chain-1"], true),
+    );
+    await waitFor(() =>
+      expect(mockDownloadFile).toHaveBeenLastCalledWith(
+        expect.objectContaining({ name: "selected-chain.zip" }),
+      ),
+    );
+  });
+
+  it("loads folder children on expand and reuses them afterwards", async () => {
+    mockApi.listFolder.mockImplementation(
+      async (request: { folderId?: string }) => {
+        if (request.folderId === "folder-1") {
+          return [mockNestedChain];
+        }
+        return [mockFolder];
+      },
+    );
+    render(<Chains />);
+    await screen.findByText("Test Folder");
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand row" }));
+    await screen.findByText("Nested Chain");
+    expect(mockApi.listFolder).toHaveBeenCalledWith({
+      folderId: "folder-1",
+      filters: [],
+      searchString: "",
+    });
+    const folderLoads = () =>
+      mockApi.listFolder.mock.calls.filter(
+        ([request]: [{ folderId?: string }]) => request.folderId === "folder-1",
+      ).length;
+    expect(folderLoads()).toBe(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Collapse row" }));
+    await waitFor(() =>
+      expect(screen.queryByText("Nested Chain")).not.toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand row" }));
+    await screen.findByText("Nested Chain");
+    expect(folderLoads()).toBe(1);
+  });
+
+  it("creates a folder and opens it in the current or a new tab", async () => {
+    mockApi.createFolder.mockResolvedValue({
+      id: "folder-new",
+      name: "New Folder",
+    });
+    render(<Chains />);
+    await waitFor(() => expect(mockApi.listFolder).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByTestId("menu-item-folder"));
+    const onSubmit = mockShowModal.mock.calls.at(-1)![0].component.props
+      .onSubmit as (name: string, open: boolean, tab: boolean) => Promise<void>;
+
+    await act(async () => {
+      await onSubmit("New Folder", true, false);
+    });
+    await waitFor(() =>
+      expect(mockNavigate).toHaveBeenCalledWith("/chains?folder=folder-new"),
+    );
+
+    const openSpy = jest.spyOn(window, "open").mockImplementation(() => null);
+    await act(async () => {
+      await onSubmit("Another Folder", true, true);
+    });
+    expect(openSpy).toHaveBeenCalledWith(
+      "/chains?folder=folder-new",
+      "_blank",
+      "noreferrer",
+    );
+    openSpy.mockRestore();
+
+    const error = new Error("offline");
+    mockApi.createFolder.mockRejectedValueOnce(error);
+    await act(async () => {
+      await onSubmit("Broken Folder", false, false);
+    });
+    expect(mockRequestFailed).toHaveBeenCalledWith(
+      "Failed to create folder",
+      error,
+    );
+  });
+
+  it("creates a chain and opens it in the current or a new tab", async () => {
+    mockApi.createChain.mockResolvedValue({
+      ...mockChain,
+      id: "chain-new",
+      name: "New Chain",
+    });
+    render(<Chains />);
+    await waitFor(() => expect(mockApi.listFolder).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByTestId("menu-item-chain"));
+    const onSubmit = mockShowModal.mock.calls.at(-1)![0].component.props
+      .onSubmit as (
+      request: ChainCreationRequest,
+      open: boolean,
+      tab: boolean,
+    ) => Promise<void>;
+
+    await act(async () => {
+      await onSubmit({ name: "New Chain" }, true, false);
+    });
+    expect(mockApi.createChain).toHaveBeenCalledWith({
+      name: "New Chain",
+      parentId: undefined,
+    });
+    await waitFor(() =>
+      expect(mockNavigate).toHaveBeenCalledWith("/chains/chain-new"),
+    );
+    await waitFor(() =>
+      expect(
+        document.querySelector('tr[data-row-key="chain-new"]'),
+      ).toBeInTheDocument(),
+    );
+
+    const openSpy = jest.spyOn(window, "open").mockImplementation(() => null);
+    await act(async () => {
+      await onSubmit({ name: "Another Chain" }, true, true);
+    });
+    expect(openSpy).toHaveBeenCalledWith(
+      "/chains/chain-new",
+      "_blank",
+      "noreferrer",
+    );
+    openSpy.mockRestore();
+
+    const error = new Error("offline");
+    mockApi.createChain.mockRejectedValueOnce(error);
+    await act(async () => {
+      await onSubmit({ name: "Broken Chain" }, false, false);
+    });
+    expect(mockRequestFailed).toHaveBeenCalledWith(
+      "Failed to create chain",
+      error,
+    );
+  });
+
+  it("keeps the open details drawer in sync during catalog refreshes", async () => {
+    const dispatchCatalogChange = () =>
+      act(async () =>
+        window.dispatchEvent(
+          new CustomEvent("qip-catalog-changed", {
+            detail: { chainIds: [mockChain.id], chainsListChanged: true },
+          }),
+        ),
+      );
+
+    mockApi.listFolder.mockResolvedValue([mockChain]);
+    render(<Chains />);
+    await screen.findByText("Test Chain");
+    fireEvent.click(screen.getByText("A test chain"));
+    expect(screen.getByTestId("drawer-chain-id")).toHaveTextContent("chain-1");
+
+    mockApi.listFolder.mockResolvedValue([
+      { ...mockChain, name: "Updated In List" },
+    ]);
+    await dispatchCatalogChange();
+    await waitFor(() =>
+      expect(screen.getByTestId("drawer-chain-name")).toHaveTextContent(
+        "Updated In List",
+      ),
+    );
+
+    mockApi.listFolder.mockResolvedValue([]);
+    mockApi.getChain.mockResolvedValue({
+      ...mockChain,
+      name: "Updated From Details",
+    });
+    await dispatchCatalogChange();
+    await waitFor(() =>
+      expect(screen.getByTestId("drawer-chain-name")).toHaveTextContent(
+        "Updated From Details",
+      ),
+    );
+
+    mockApi.getChain.mockRejectedValueOnce(new RestApiError("gone", 404));
+    await dispatchCatalogChange();
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId("chain-details-drawer"),
+      ).not.toBeInTheDocument(),
+    );
+    expect(mockNotificationService.info).toHaveBeenCalledWith(
+      "Chain deleted",
+      expect.stringContaining("no longer exists"),
+    );
+  });
+
   describe("ensureChainSubtreeLoaded", () => {
-    const makeFolder = (
-      id: string,
-      name: string,
-      parentId?: string,
-    ): FolderItem => ({
-      id,
-      name,
-      description: "",
-      itemType: CatalogItemType.FOLDER,
-      ...(parentId ? { parentId } : {}),
-    });
-
-    const makeChain = (
-      id: string,
-      name: string,
-      parentId?: string,
-    ): ChainItem => ({
-      id,
-      name,
-      description: "",
-      itemType: CatalogItemType.CHAIN,
-      labels: [],
-      ...(parentId ? { parentId } : {}),
-    });
-
     const renderAndCaptureEnsureLoaded = async (
       rootItems: (FolderItem | ChainItem)[] = [],
     ) => {
@@ -1004,7 +1602,7 @@ describe("Chains page", () => {
       expect(result).not.toContain("chain-child");
     });
 
-    it("should reuse cached child folders when the folder is expanded again", async () => {
+    it("should reuse the whole cached subtree when the folder is expanded again", async () => {
       const childFolder = makeFolder("folder-1-1", "Child", "folder-1");
       mockApi.listFolder.mockImplementation(
         async (req: { folderId?: string }) => {
@@ -1034,11 +1632,8 @@ describe("Chains page", () => {
 
       const result = await freshEnsure(mockFolder);
 
-      // The already-loaded child folder is reused without another fetch.
-      expect(mockApi.listFolder).toHaveBeenCalledTimes(1);
-      expect(mockApi.listFolder).toHaveBeenCalledWith(
-        expect.objectContaining({ folderId: "folder-1" }),
-      );
+      // The first walk cached the whole subtree, so the second fetches nothing.
+      expect(mockApi.listFolder).not.toHaveBeenCalled();
       expect(result).toEqual(
         expect.arrayContaining(["folder-1", "folder-1-1"]),
       );
@@ -1056,6 +1651,66 @@ describe("Chains page", () => {
         expect.any(Error),
       );
       expect(result).toEqual(["folder-1"]);
+    });
+
+    it("should fetch a folder again after its content failed to load", async () => {
+      const ensureLoaded = await renderAndCaptureEnsureLoaded([mockFolder]);
+      mockApi.listFolder.mockRejectedValueOnce(new Error("boom"));
+
+      await ensureLoaded(mockFolder);
+      mockApi.listFolder.mockClear();
+
+      await ensureLoaded(mockFolder);
+
+      expect(mockApi.listFolder).toHaveBeenCalledWith(
+        expect.objectContaining({ folderId: "folder-1" }),
+      );
+    });
+
+    it("should keep both folders when two subtree walks finish out of order", async () => {
+      const folderA = makeFolder("folder-a", "A");
+      const folderB = makeFolder("folder-b", "B");
+      let resolveA: (items: (FolderItem | ChainItem)[]) => void = () => {};
+      let resolveB: (items: (FolderItem | ChainItem)[]) => void = () => {};
+      mockApi.listFolder.mockImplementation(
+        (req: { folderId?: string }): Promise<(FolderItem | ChainItem)[]> => {
+          if (req.folderId === "folder-a") {
+            return new Promise((resolve) => {
+              resolveA = resolve;
+            });
+          }
+          if (req.folderId === "folder-b") {
+            return new Promise((resolve) => {
+              resolveB = resolve;
+            });
+          }
+          return Promise.resolve([folderA, folderB]);
+        },
+      );
+      render(<Chains />);
+      await waitFor(() => expect(mockCapturedEnsureChainLoaded).toBeDefined());
+      const firstEnsure = mockCapturedEnsureChainLoaded!;
+
+      const walkA = firstEnsure(folderA);
+      const walkB = firstEnsure(folderB);
+      await act(async () => {
+        resolveA([]);
+        await walkA;
+      });
+      await act(async () => {
+        resolveB([]);
+        await walkB;
+      });
+
+      await waitFor(() =>
+        expect(mockCapturedEnsureChainLoaded).not.toBe(firstEnsure),
+      );
+      const freshEnsure = mockCapturedEnsureChainLoaded!;
+      mockApi.listFolder.mockClear();
+
+      await freshEnsure(folderA);
+
+      expect(mockApi.listFolder).not.toHaveBeenCalled();
     });
 
     it("should load nested folders recursively", async () => {
@@ -1123,6 +1778,485 @@ describe("Chains page", () => {
       await waitFor(() =>
         expect(screen.getByText("Nested Chain")).toBeInTheDocument(),
       );
+    });
+  });
+
+  describe("folder selection cascades to nested chains", () => {
+    const deployButton = () =>
+      screen.getByTestId("protected-btn-deploy-selected-chains");
+
+    const folderCheckbox = (folderId: string) =>
+      document.querySelector<HTMLInputElement>(
+        `[data-row-key="${folderId}"] input[type="checkbox"]`,
+      )!;
+
+    it("enables Deploy when a folder is ticked without expanding it", async () => {
+      mockApi.listFolder.mockImplementation(
+        async (req: { folderId?: string }) => {
+          if (req.folderId === "folder-1") {
+            return [mockNestedChain];
+          }
+          return [mockFolder];
+        },
+      );
+      render(<Chains />);
+      await screen.findByText("Test Folder");
+      expect(deployButton()).toBeDisabled();
+
+      fireEvent.click(folderCheckbox("folder-1"));
+
+      await waitFor(() => expect(deployButton()).toBeEnabled());
+    });
+
+    it("keeps Deploy disabled for a folder without chains", async () => {
+      mockApi.listFolder.mockImplementation(
+        async (req: { folderId?: string }) => {
+          if (req.folderId === "folder-1") {
+            return [];
+          }
+          return [mockFolder];
+        },
+      );
+      render(<Chains />);
+      await screen.findByText("Test Folder");
+
+      fireEvent.click(folderCheckbox("folder-1"));
+
+      await waitFor(() =>
+        expect(mockApi.listFolder).toHaveBeenCalledWith(
+          expect.objectContaining({ folderId: "folder-1" }),
+        ),
+      );
+      expect(deployButton()).toBeDisabled();
+    });
+
+    it("selects chains nested inside uncached subfolders on tick", async () => {
+      const subFolder = makeFolder("folder-1-1", "Sub Folder", "folder-1");
+      const deepChain = makeChain("chain-deep", "Deep Chain", "folder-1-1");
+      mockApi.listFolder.mockImplementation(
+        async (req: { folderId?: string }) => {
+          if (req.folderId === "folder-1") {
+            return [subFolder];
+          }
+          if (req.folderId === "folder-1-1") {
+            return [deepChain];
+          }
+          return [mockFolder];
+        },
+      );
+      render(<Chains />);
+      await screen.findByText("Test Folder");
+
+      fireEvent.click(folderCheckbox("folder-1"));
+
+      await waitFor(() =>
+        expect(mockApi.listFolder).toHaveBeenCalledWith(
+          expect.objectContaining({ folderId: "folder-1" }),
+        ),
+      );
+      await waitFor(() =>
+        expect(mockApi.listFolder).toHaveBeenCalledWith(
+          expect.objectContaining({ folderId: "folder-1-1" }),
+        ),
+      );
+      await waitFor(() => expect(deployButton()).toBeEnabled());
+    });
+
+    it("keeps Deploy disabled when a nested folder in a selected subtree fails to load", async () => {
+      const childFolder = makeFolder("folder-1-1", "Sub Folder", "folder-1");
+      const directChain = makeChain("chain-direct", "Direct Chain", "folder-1");
+      const nestedChain = makeChain(
+        "chain-nested",
+        "Nested Chain",
+        "folder-1-1",
+      );
+      let nestedRequests = 0;
+      mockApi.listFolder.mockImplementation(
+        async (req: { folderId?: string }) => {
+          if (req.folderId === "folder-1") return [childFolder, directChain];
+          if (req.folderId === "folder-1-1") {
+            nestedRequests += 1;
+            if (nestedRequests === 1) {
+              throw new Error("nested folder unavailable");
+            }
+            return [nestedChain];
+          }
+          return [mockFolder];
+        },
+      );
+      render(<Chains />);
+      await screen.findByText("Test Folder");
+
+      const checkbox = folderCheckbox("folder-1");
+      fireEvent.click(checkbox);
+
+      await waitFor(() =>
+        expect(mockApi.listFolder).toHaveBeenCalledWith(
+          expect.objectContaining({ folderId: "folder-1-1" }),
+        ),
+      );
+      await waitFor(() => expect(deployButton()).toBeDisabled());
+
+      fireEvent.click(checkbox);
+      fireEvent.click(checkbox);
+
+      await waitFor(() => expect(deployButton()).toBeEnabled());
+    });
+
+    it("disables Deploy immediately while a newly selected folder is loading", async () => {
+      let resolveFolder: (items: (FolderItem | ChainItem)[]) => void = () => {};
+      mockApi.listFolder.mockImplementation(
+        (req: { folderId?: string }): Promise<(FolderItem | ChainItem)[]> => {
+          if (req.folderId === "folder-1") {
+            return new Promise((resolve) => {
+              resolveFolder = resolve;
+            });
+          }
+          return Promise.resolve([mockFolder, mockChain]);
+        },
+      );
+      render(<Chains />);
+      await screen.findByText("Test Folder");
+
+      fireEvent.click(
+        document.querySelector<HTMLInputElement>(
+          '[data-row-key="chain-1"] input[type="checkbox"]',
+        )!,
+      );
+      await waitFor(() => expect(deployButton()).toBeEnabled());
+
+      fireEvent.click(folderCheckbox("folder-1"));
+      await waitFor(() =>
+        expect(mockApi.listFolder).toHaveBeenCalledWith(
+          expect.objectContaining({ folderId: "folder-1" }),
+        ),
+      );
+
+      expect(deployButton()).toBeDisabled();
+      fireEvent.click(deployButton());
+      expect(mockShowModal).not.toHaveBeenCalled();
+
+      await act(async () => resolveFolder([mockNestedChain]));
+
+      await waitFor(() => expect(deployButton()).toBeEnabled());
+    });
+
+    it("keeps Deploy disabled when an earlier folder load finishes before a retick load", async () => {
+      const pendingResponses: Array<
+        (items: (FolderItem | ChainItem)[]) => void
+      > = [];
+      mockApi.listFolder.mockImplementation(
+        (req: { folderId?: string }): Promise<(FolderItem | ChainItem)[]> => {
+          if (req.folderId === "folder-1") {
+            return new Promise((resolve) => pendingResponses.push(resolve));
+          }
+          return Promise.resolve([mockFolder]);
+        },
+      );
+      render(<Chains />);
+      await screen.findByText("Test Folder");
+      const checkbox = folderCheckbox("folder-1");
+
+      fireEvent.click(checkbox);
+      await waitFor(() => expect(pendingResponses).toHaveLength(1));
+      fireEvent.click(checkbox);
+      fireEvent.click(checkbox);
+      await waitFor(() => expect(pendingResponses).toHaveLength(2));
+
+      await act(async () => pendingResponses[0]([mockNestedChain]));
+      expect(deployButton()).toBeDisabled();
+
+      await act(async () => pendingResponses[1]([mockNestedChain]));
+      await waitFor(() => expect(deployButton()).toBeEnabled());
+    });
+
+    it("ignores an older failure after the current folder selection succeeds", async () => {
+      const responses: Array<{
+        resolve: (items: (FolderItem | ChainItem)[]) => void;
+        reject: (error: Error) => void;
+      }> = [];
+      mockApi.listFolder.mockImplementation((req: { folderId?: string }) => {
+        if (req.folderId === "folder-1") {
+          return new Promise((resolve, reject) =>
+            responses.push({ resolve, reject }),
+          );
+        }
+        return Promise.resolve([mockFolder, mockChain]);
+      });
+      render(<Chains />);
+      await screen.findByText("Test Folder");
+      fireEvent.click(
+        document.querySelector<HTMLInputElement>(
+          '[data-row-key="chain-1"] input[type="checkbox"]',
+        )!,
+      );
+      fireEvent.click(folderCheckbox("folder-1"));
+      await waitFor(() => expect(responses).toHaveLength(1));
+      fireEvent.click(folderCheckbox("folder-1"));
+      fireEvent.click(folderCheckbox("folder-1"));
+      await waitFor(() => expect(responses).toHaveLength(2));
+
+      await act(async () => responses[1].resolve([mockNestedChain]));
+      await waitFor(() => expect(deployButton()).toBeEnabled());
+      await act(async () =>
+        responses[0].reject(new Error("old request failed")),
+      );
+
+      expect(deployButton()).toBeEnabled();
+    });
+
+    it("keeps the current folder selection incomplete after an older success", async () => {
+      const responses: Array<{
+        resolve: (items: (FolderItem | ChainItem)[]) => void;
+        reject: (error: Error) => void;
+      }> = [];
+      mockApi.listFolder.mockImplementation((req: { folderId?: string }) => {
+        if (req.folderId === "folder-1") {
+          return new Promise((resolve, reject) =>
+            responses.push({ resolve, reject }),
+          );
+        }
+        return Promise.resolve([mockFolder, mockChain]);
+      });
+      render(<Chains />);
+      await screen.findByText("Test Folder");
+      fireEvent.click(
+        document.querySelector<HTMLInputElement>(
+          '[data-row-key="chain-1"] input[type="checkbox"]',
+        )!,
+      );
+      fireEvent.click(folderCheckbox("folder-1"));
+      await waitFor(() => expect(responses).toHaveLength(1));
+      fireEvent.click(folderCheckbox("folder-1"));
+      fireEvent.click(folderCheckbox("folder-1"));
+      await waitFor(() => expect(responses).toHaveLength(2));
+
+      await act(async () =>
+        responses[1].reject(new Error("current request failed")),
+      );
+      expect(deployButton()).toBeDisabled();
+      await act(async () => responses[0].resolve([mockNestedChain]));
+
+      expect(deployButton()).toBeDisabled();
+    });
+
+    it("does not select chains from a folder unticked while its content is loading", async () => {
+      let resolveChildren: (
+        items: (FolderItem | ChainItem)[],
+      ) => void = () => {};
+      mockApi.listFolder.mockImplementation(
+        (req: { folderId?: string }): Promise<(FolderItem | ChainItem)[]> => {
+          if (req.folderId === "folder-1") {
+            return new Promise((resolve) => {
+              resolveChildren = resolve;
+            });
+          }
+          return Promise.resolve([mockFolder]);
+        },
+      );
+      render(<Chains />);
+      await screen.findByText("Test Folder");
+      const checkbox = folderCheckbox("folder-1");
+      fireEvent.click(checkbox);
+      fireEvent.click(checkbox);
+      await act(async () => {
+        resolveChildren([mockNestedChain]);
+      });
+      expect(deployButton()).toBeDisabled();
+    });
+
+    it("discards a subtree response started before the search view changed", async () => {
+      const staleChain = makeChain("stale-chain", "Stale Chain", "folder-1");
+      let resolveSubtree: (
+        items: (FolderItem | ChainItem)[],
+      ) => void = () => {};
+      let subtreeRequests = 0;
+      mockApi.listFolder.mockImplementation(
+        (req: { folderId?: string; searchString?: string }) => {
+          if (req.folderId === "folder-1") {
+            subtreeRequests += 1;
+            if (subtreeRequests === 1) {
+              return new Promise((resolve) => {
+                resolveSubtree = resolve;
+              });
+            }
+          }
+          return Promise.resolve([mockFolder]);
+        },
+      );
+      render(<Chains />);
+      await screen.findByText("Test Folder");
+
+      fireEvent.click(folderCheckbox("folder-1"));
+      await waitFor(() =>
+        expect(mockApi.listFolder).toHaveBeenCalledWith(
+          expect.objectContaining({ folderId: "folder-1" }),
+        ),
+      );
+      fireEvent.change(screen.getByTestId("search-input"), {
+        target: { value: "changed" },
+      });
+      await waitFor(() =>
+        expect(mockApi.listFolder).toHaveBeenCalledWith(
+          expect.objectContaining({ searchString: "changed" }),
+        ),
+      );
+
+      await act(async () => resolveSubtree([staleChain]));
+
+      expect(screen.queryByText("Stale Chain")).not.toBeInTheDocument();
+      await mockCapturedEnsureChainLoaded!(mockFolder);
+      expect(subtreeRequests).toBe(2);
+    });
+
+    it("clears a pending folder selection when the changed view fails to load", async () => {
+      let resolveSubtree: (
+        items: (FolderItem | ChainItem)[],
+      ) => void = () => {};
+      mockApi.listFolder.mockImplementation(
+        (req: { folderId?: string; searchString?: string }) => {
+          if (req.folderId === "folder-1") {
+            return new Promise((resolve) => {
+              resolveSubtree = resolve;
+            });
+          }
+          if (req.searchString === "changed") {
+            return Promise.reject(new Error("offline"));
+          }
+          return Promise.resolve([mockFolder, mockChain]);
+        },
+      );
+      render(<Chains />);
+      await screen.findByText("Test Folder");
+      const folderCheckboxInput = folderCheckbox("folder-1");
+
+      fireEvent.click(
+        document.querySelector<HTMLInputElement>(
+          '[data-row-key="chain-1"] input[type="checkbox"]',
+        )!,
+      );
+      fireEvent.click(folderCheckboxInput);
+      await waitFor(() => expect(folderCheckbox("folder-1")).toBeChecked());
+      fireEvent.change(screen.getByTestId("search-input"), {
+        target: { value: "changed" },
+      });
+      await waitFor(() =>
+        expect(mockRequestFailed).toHaveBeenCalledWith(
+          "Failed to refresh chains; the previous list is preserved",
+          expect.any(Error),
+          expect.any(Function),
+        ),
+      );
+
+      await waitFor(() => expect(folderCheckbox("folder-1")).not.toBeChecked());
+      await waitFor(() => expect(deployButton()).toBeEnabled());
+      await act(async () => resolveSubtree([mockNestedChain]));
+
+      expect(screen.queryByText("Nested Chain")).not.toBeInTheDocument();
+      expect(folderCheckbox("folder-1")).not.toBeChecked();
+    });
+
+    it("does not separately delete chains covered by a selected folder", async () => {
+      const childChain = makeChain("chain-child", "Child Chain", "folder-1");
+      mockApi.listFolder.mockImplementation(
+        async (req: { folderId?: string }) =>
+          req.folderId === "folder-1" ? [childChain] : [mockFolder],
+      );
+      render(<Chains />);
+      await screen.findByText("Test Folder");
+      fireEvent.click(folderCheckbox("folder-1"));
+      await waitFor(() => expect(deployButton()).toBeEnabled());
+
+      fireEvent.click(
+        screen.getByTestId("protected-btn-delete-selected-chains-and-folders"),
+      );
+      await act(async () => {
+        await mockConfirmAndRun.mock.calls.at(-1)![0].onOk();
+      });
+
+      await waitFor(() =>
+        expect(mockApi.deleteFolders).toHaveBeenCalledWith(["folder-1"]),
+      );
+      expect(mockApi.deleteChains).not.toHaveBeenCalled();
+    });
+
+    it("does not delete covered chains separately when folder deletion fails", async () => {
+      const childChain = makeChain("chain-child", "Child Chain", "folder-1");
+      mockApi.listFolder.mockImplementation(
+        async (req: { folderId?: string }) =>
+          req.folderId === "folder-1" ? [childChain] : [mockFolder],
+      );
+      mockApi.deleteFolders.mockRejectedValueOnce(new Error("delete failed"));
+      render(<Chains />);
+      await screen.findByText("Test Folder");
+      fireEvent.click(folderCheckbox("folder-1"));
+      await waitFor(() => expect(deployButton()).toBeEnabled());
+
+      fireEvent.click(
+        screen.getByTestId("protected-btn-delete-selected-chains-and-folders"),
+      );
+      await act(async () => {
+        await mockConfirmAndRun.mock.calls.at(-1)![0].onOk();
+      });
+
+      await waitFor(() =>
+        expect(mockApi.deleteFolders).toHaveBeenCalledWith(["folder-1"]),
+      );
+      expect(mockRequestFailed).toHaveBeenCalledWith(
+        "Failed to delete folders",
+        expect.any(Error),
+      );
+      expect(mockApi.deleteChains).not.toHaveBeenCalled();
+    });
+
+    it("does not reload a folder's content when it is re-selected", async () => {
+      mockApi.listFolder.mockImplementation(
+        async (req: { folderId?: string }) => {
+          if (req.folderId === "folder-1") {
+            return [mockNestedChain];
+          }
+          return [mockFolder];
+        },
+      );
+      render(<Chains />);
+      await screen.findByText("Test Folder");
+
+      fireEvent.click(folderCheckbox("folder-1"));
+      await waitFor(() => expect(deployButton()).toBeEnabled());
+      mockApi.listFolder.mockClear();
+
+      fireEvent.click(folderCheckbox("folder-1"));
+      await waitFor(() => expect(folderCheckbox("folder-1")).not.toBeChecked());
+      fireEvent.click(folderCheckbox("folder-1"));
+      await waitFor(() => expect(folderCheckbox("folder-1")).toBeChecked());
+      await act(async () => undefined);
+
+      expect(mockApi.listFolder).not.toHaveBeenCalled();
+    });
+
+    it("does not reload a folder's content when it is expanded after a tick", async () => {
+      mockApi.listFolder.mockImplementation(
+        async (req: { folderId?: string }) => {
+          if (req.folderId === "folder-1") {
+            return [mockNestedChain];
+          }
+          return [mockFolder];
+        },
+      );
+      render(<Chains />);
+      await screen.findByText("Test Folder");
+
+      fireEvent.click(folderCheckbox("folder-1"));
+      await waitFor(() => expect(deployButton()).toBeEnabled());
+      mockApi.listFolder.mockClear();
+
+      const folderRow = folderCheckbox("folder-1").closest("tr")!;
+      fireEvent.click(
+        folderRow.querySelector('button[aria-label="Expand row"]')!,
+      );
+
+      expect(await screen.findByText("Nested Chain")).toBeInTheDocument();
+      expect(mockApi.listFolder).not.toHaveBeenCalled();
     });
   });
 });

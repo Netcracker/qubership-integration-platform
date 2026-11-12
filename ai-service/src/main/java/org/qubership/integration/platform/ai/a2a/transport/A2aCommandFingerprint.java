@@ -67,6 +67,9 @@ public final class A2aCommandFingerprint {
     if (command instanceof InboundCommand.Approve) {
       return "approve";
     }
+    if (command instanceof InboundCommand.PolicyChoice) {
+      return "policy-choice";
+    }
     throw new IllegalArgumentException("Unsupported command: " + command.getClass().getName());
   }
 
@@ -81,6 +84,13 @@ public final class A2aCommandFingerprint {
       normalized.put("artifactHash", approve.artifactHash());
       normalized.put("revision", approve.revision());
       normalized.put("comment", approve.comment() == null ? "" : approve.comment().strip());
+      return normalized;
+    }
+    if (command instanceof InboundCommand.PolicyChoice choice) {
+      normalized.put("action", choice.action());
+      normalized.put("artifactType", choice.artifactType());
+      normalized.put("artifactHash", choice.artifactHash());
+      normalized.put("revision", choice.revision());
       return normalized;
     }
     throw new IllegalArgumentException("Unsupported command: " + command.getClass().getName());

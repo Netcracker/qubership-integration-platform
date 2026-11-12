@@ -3,11 +3,13 @@ package org.qubership.integration.platform.ai.productpipeline.create.design.inpu
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import dev.langchain4j.model.chat.request.ChatRequestParameters;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.smallrye.mutiny.Multi;
@@ -19,6 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
@@ -149,7 +152,8 @@ class DesignInputRecoveryTest {
         new TerminalPolicy("design-input", "PLAN_APPROVED"), List.of("analysis-cap", design.capabilityId()));
     var agent = mock(FailureNarrativeAgent.class);
     AtomicInteger diagnosisCalls = new AtomicInteger();
-    when(agent.recover(anyString(), anyString())).thenAnswer(invocation -> {
+    when(agent.recover(anyString(), anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class))).thenAnswer(invocation -> {
       diagnosisCalls.incrementAndGet();
       var context = mapper.readTree((String) invocation.getArgument(1));
       var briefRef = mapper.treeToValue(context.path("evidence").path("approvedBriefRef"),
@@ -212,6 +216,134 @@ class DesignInputRecoveryTest {
   }
 
   @ParameterizedTest
+  @ValueSource(strings = {"disabled-mapper", "chain-parent", "explicit-disabled-mapper"})
+  void savedInvalidElementConstraintReturnsToTheDraftOwner(String defect) throws Exception {
+    Clock clock = Clock.fixed(Instant.EPOCH, ZoneOffset.UTC);
+    ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    InMemoryArtifactBlobStore blobs = new InMemoryArtifactBlobStore();
+    var artifacts = new ProductPipelineArtifactStore(new CompilationArtifacts(blobs, mapper, clock));
+    var runs = new ProductPipelineRunStore(blobs, mapper, clock);
+    var correct = ChainSemanticCaptureFixtures.approvedBrief();
+    var payload = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.valueToTree(correct);
+    var facts = payload.withArray("facts");
+    var behavior = (com.fasterxml.jackson.databind.node.ObjectNode) facts.get(0);
+    behavior.putArray("interactionIds").add("http-in");
+    boolean chainParent = defect.equals("chain-parent");
+    boolean explicit = defect.equals("explicit-disabled-mapper");
+    var intent = behavior.putObject("elementIntent").put("elementRef", "reply").put("placement", "LOCAL_NODE")
+        .put("elementType", chainParent ? "condition" : "mapper-2").put("ownerInteractionId", "http-in");
+    intent.putArray("requestedProperties");
+    intent.putArray("exactValues");
+    if (chainParent) {
+      intent.put("parentElementRef", "root");
+      var chain = facts.addObject().put("sourceFactId", "chain-name").put("text", "Name this chain")
+          .put("kind", "GOAL").put("polarity", "POSITIVE");
+      var root = chain.putObject("elementIntent").put("elementRef", "root").put("elementType", "chain")
+          .put("placement", "CHAIN");
+      root.putArray("requestedProperties");
+      root.putArray("exactValues");
+    }
+    var draftJson = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.valueToTree(
+        new org.qubership.integration.platform.ai.plan.RequirementDraft(true, "Orders",
+            org.qubership.integration.platform.ai.plan.DraftDecision.READY_FOR_PLAN, List.of(), "gather", "1", "sha",
+            null, false, mapper.treeToValue(payload, RequirementBrief.class).facts(), false, null, false, correct.flow()));
+    var authored = draftJson.putObject("authoredDraft").putArray("facts");
+    for (var fact : facts) {
+      var entry = authored.addObject().put("sourceFactId", fact.path("sourceFactId").asText())
+          .put("text", fact.path("text").asText()).put("kind", "BEHAVIOR").put("polarity", "POSITIVE");
+      entry.set("elementIntent", fact.path("elementIntent").deepCopy());
+      if (explicit) entry.putObject("evidence").put("sourceTurnId", "source").put("quote", "Use mapper-2.");
+    }
+    var archived = mapper.treeToValue(draftJson, org.qubership.integration.platform.ai.plan.RequirementDraft.class);
+    AtomicInteger discoveryCalls = new AtomicInteger();
+    StageCapability discovery = new StageCapability() {
+      public String capabilityId() { return "requirement-discovery"; }
+      public Multi<CapabilitySignal> execute(StageExecutionContext context) {
+        if (context.attributeAsString("userText") == null && discoveryCalls.get() == 0) {
+          return Multi.createFrom().item(new CapabilitySignal.Completed(
+              StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "Requirements")));
+        }
+        return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(StageOutcomeClass.SUCCEEDED,
+            List.of(new ArtifactCandidate(Kind.REQUIREMENT_DRAFT,
+                discoveryCalls.incrementAndGet() == 1 ? archived : archived.withFacts(correct.facts()), List.of())),
+            "draft", null)));
+      }
+    };
+    StageCapability analysis = new StageCapability() {
+      public String capabilityId() { return "requirement-analysis"; }
+      public Multi<CapabilitySignal> execute(StageExecutionContext context) {
+        var draftRef = context.inputRefs().stream().filter(ref -> ref.kind() == Kind.REQUIREMENT_DRAFT)
+            .findFirst().orElseThrow();
+        payload.put("approvedDraftReference", draftRef.artifactId());
+        RequirementBrief candidate;
+        try {
+          candidate = discoveryCalls.get() == 1 ? mapper.treeToValue(payload, RequirementBrief.class) : correct;
+        } catch (com.fasterxml.jackson.core.JsonProcessingException failure) {
+          throw new IllegalArgumentException(failure);
+        }
+        return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(StageOutcomeClass.CANDIDATE,
+            List.of(new ArtifactCandidate(Kind.REQUIREMENT_BRIEF, candidate, List.of(draftRef))), "brief", null)));
+      }
+    };
+    AtomicInteger designCalls = new AtomicInteger();
+    var tool = captureTool();
+    var design = new DesignInputCapability((conversation, prompt) -> {
+      designCalls.incrementAndGet();
+      return Multi.createFrom().item(tool.captureChainSemanticRevision(ChainSemanticCaptureFixtures.linearCapture()));
+    }, new DefaultChainSemanticIdsRenderer());
+    var draftType = new ArtifactTypeRef("requirement-draft", 2);
+    var briefType = new ArtifactTypeRef("requirement-brief", 1);
+    var inputType = new ArtifactTypeRef("user-input", 1);
+    var profile = new ProductPipelineProfile(1, "element-recovery", "1", List.of(inputType), List.of(
+        new ProfileStage("requirement-discovery", discovery.capabilityId(), List.of(inputType), List.of(draftType),
+            null, null, new RetryPolicy(0, 0)),
+        new ProfileStage("requirement-analysis", analysis.capabilityId(), List.of(draftType), List.of(briefType),
+            new ApprovalPolicy(briefType), null, new RetryPolicy(0, 0)),
+        new ProfileStage("design-input", design.capabilityId(), List.of(briefType),
+            List.of(new ArtifactTypeRef("chain-semantic-revision", 1), new ArtifactTypeRef("ids-document", 1)),
+            null, null, new RetryPolicy(0, 0))),
+        new TerminalPolicy("design-input", "PLAN_APPROVED"), List.of("requirement-analysis", design.capabilityId()));
+    var support = CreateChainTestOrchestrator.supportBuilder(runs, artifacts,
+        new StageCapabilityRegistry(List.of(discovery, analysis, design)), clock).build();
+    var runtime = new CreateChainTestOrchestrator(support, runs);
+    var manifest = new RunManifest(RUN, null, List.of(), "product", profile.profileId(), "1", "sha",
+        "baseline", "sha", List.of(), "sha", null, "24.4", List.of(), null);
+    runtime.startOrResume(new StartOrResumeCommand("upstream-conversation", RUN, profile, manifest))
+        .collect().asList().await().indefinitely();
+    runtime.recordInput(new AcceptInputCommand(RUN, explicit ? "Use mapper-2." : "Return the response as JSON.",
+        "source", "source-hash")).collect().asList().await().indefinitely();
+    var gathered = support.stageExecutor().execute(RUN, "requirement-discovery").await().indefinitely();
+    support.applyStageLifecycle(RUN, gathered).collect().asList().await().indefinitely();
+    var approval = assertInstanceOf(StageDecision.WaitForApproval.class,
+        support.stageExecutor().execute(RUN, "requirement-analysis").await().indefinitely().decision());
+    runtime.recordApprove(new ApproveCommand(RUN, approval.candidate(), runs.load(RUN).orElseThrow().run().runRevision()))
+        .collect().asList().await().indefinitely();
+
+    var rejected = support.stageExecutor().execute(RUN, "design-input").await().indefinitely();
+    assertEquals(0, designCalls.get());
+    if (explicit) {
+      var wait = assertInstanceOf(StageDecision.WaitForInput.class, rejected.decision());
+      assertEquals(PipelineGates.RECOVERY_REVISE_BRIEF, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+      assertEquals(1, discoveryCalls.get());
+      return;
+    }
+    var reopen = assertInstanceOf(StageDecision.ReopenProducer.class, rejected.decision(),
+        runs.load(RUN).orElseThrow().attempts().getLast().failureEvidence());
+    assertEquals("requirement-discovery", reopen.producerStageId());
+    support.applyStageLifecycle(RUN, rejected).collect().asList().await().indefinitely();
+    var regathered = support.stageExecutor().execute(RUN, "requirement-discovery").await().indefinitely();
+    support.applyStageLifecycle(RUN, regathered).collect().asList().await().indefinitely();
+    var replacement = assertInstanceOf(StageDecision.WaitForApproval.class,
+        support.stageExecutor().execute(RUN, "requirement-analysis").await().indefinitely().decision());
+    runtime.recordApprove(new ApproveCommand(RUN, replacement.candidate(), runs.load(RUN).orElseThrow().run().runRevision()))
+        .collect().asList().await().indefinitely();
+    support.stageExecutor().execute(RUN, "design-input").await().indefinitely();
+    assertEquals(1, designCalls.get());
+    assertEquals(1, artifacts.history(RUN, Kind.USER_INPUT).size());
+    assertTrue(artifacts.latest(RUN, Kind.CHAIN_SEMANTIC_REVISION).isPresent());
+  }
+
+  @ParameterizedTest
   @ValueSource(strings = {"regenerate", "missing", "ask", "invalid", "zero-budget"})
   void rejectedTopologyReachesPlanningAfterRestartWithoutChangingTheBrief(String decisionMode) {
     verifyRecovery(decisionMode, false);
@@ -219,7 +351,7 @@ class DesignInputRecoveryTest {
 
   @ParameterizedTest
   @ValueSource(strings = {"regenerate", "missing"})
-  void repeatedTopologyRejectionOffersRepairAllowanceWithoutBlamingTheBrief(String decisionMode) {
+  void repeatedTopologyRejectionGrantsAnotherCorrectionWithoutBlamingTheBrief(String decisionMode) {
     verifyRecovery(decisionMode, true);
   }
 
@@ -282,14 +414,17 @@ class DesignInputRecoveryTest {
                 assertTrue(prompt.contains("Raw rejected output is retained in the halt evidence and is excluded"), prompt);
                 assertTrue(prompt.contains("Allowed operation elementType values:"), prompt);
               }
-              String result =
-                  tool.captureChainSemanticRevision(
-                      call == 1 || repeatFailure ? rejected : repaired);
+              if (call > 1 && !repeatFailure) {
+                // An accepted capture ends the turn; the exception leaves the runner as it leaves the agent.
+                var accepted = assertThrows(CaptureValidationException.class,
+                    () -> tool.captureChainSemanticRevision(repaired));
+                assertTrue(accepted.getMessage().contains("revision captured"), accepted.getMessage());
+                throw accepted;
+              }
+              String result = tool.captureChainSemanticRevision(rejected);
               if (call == 1) {
                 assertTrue(result.contains("is missing a region"), result);
                 assertTrue(result.contains("generic-barrier"), result);
-              } else if (!repeatFailure) {
-                assertTrue(result.contains("revision captured"), result);
               }
               return Multi.createFrom().item(result);
             },
@@ -367,13 +502,14 @@ class DesignInputRecoveryTest {
     var agent = mock(FailureNarrativeAgent.class);
     var fake = FakeFailureNarrativeAgent.narrates("unused");
     fake.recoverRegenerates(Kind.CHAIN_SEMANTIC_REVISION, "Repair the generated topology.");
-    when(agent.recover(anyString(), anyString()))
+    when(agent.recover(anyString(), anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class)))
         .thenAnswer(
             invocation -> {
               if (decisionMode.equals("missing")) {
                 return null;
               }
-              var decision = fake.recover(invocation.getArgument(0), invocation.getArgument(1));
+              var decision = fake.recover(invocation.getArgument(0), invocation.getArgument(1), invocation.getArgument(2));
               if (decisionMode.equals("regenerate") || decisionMode.equals("zero-budget")) {
                 return decision;
               }
@@ -486,10 +622,9 @@ class DesignInputRecoveryTest {
       assertInstanceOf(StageDecision.Retry.class, second.decision());
       support.applyStageLifecycle(RUN, second).collect().asList().await().indefinitely();
       var third = support.stageExecutor().execute(RUN, "design-input").await().indefinitely();
-      var wait = assertInstanceOf(StageDecision.WaitForInput.class, third.decision());
-      assertEquals(
-          PipelineGates.RECOVERY_REPAIR_ALLOWANCE,
-          PipelineGates.gateOf(wait.prompt()).orElseThrow());
+      assertInstanceOf(StageDecision.Retry.class, third.decision());
+      String grant = runs.load(RUN).orElseThrow().transitions().getLast().reason();
+      assertTrue(grant.startsWith(RecoveryAttemptLedger.GRANT_TARGETED_REASON_PREFIX), grant);
       assertTrue(artifacts.latest(RUN, Kind.CHAIN_SEMANTIC_REVISION).isEmpty());
     } else {
       assertInstanceOf(StageDecision.Continue.class, second.decision());
@@ -507,7 +642,136 @@ class DesignInputRecoveryTest {
     assertTrue(artifacts.latest(RUN, Kind.MATERIALIZATION_RESULT).isEmpty());
   }
 
+  /**
+   * A design the model keeps resubmitting with the same rejection is corrected and rebuilt without a card until the
+   * run's recovery ceiling is spent, and only then shows the Rebuild design card. The capture tool and the capability
+   * share one feedback store, as they do in production, so every rejection reaches the executor as a capture failure.
+   * The run used to stop on the capture-validator card after the second model turn, one ceiling unit into the run.
+   */
+  @org.junit.jupiter.api.Test
+  void aCaptureTheModelKeepsRepeatingIsCorrectedWithoutACardUntilTheRecoveryCeiling() {
+    var run = repeatedRejectionRun();
+
+    var wait = run.executeUntilWait();
+
+    assertTrue(new RecoveryAttemptLedger().perRunCeilingReached(run.runs().load(RUN).orElseThrow().transitions()),
+        wait.prompt());
+    assertEquals(PipelineGates.RECOVERY_REBUILD_DESIGN, PipelineGates.gateOf(wait.prompt()).orElseThrow(),
+        wait.prompt());
+    // The first turn, then one turn for each of the twelve corrections the ceiling counts.
+    assertEquals(RecoveryAttemptLedger.DEFAULT_PER_RUN_CEILING + 1, run.calls().get());
+  }
+
+  /**
+   * A trusted Retry on the Rebuild design card shown at the recovery ceiling resumes the run and grants the design a
+   * fresh budget of two targeted corrections and two clean regenerations: four more turns before the card returns.
+   * Retry is that card's only rebuild action, because it is the one that grants the budget. A Retry on the earlier
+   * capture-validator card bought a single turn.
+   */
+  @org.junit.jupiter.api.Test
+  void aRetryOnTheCardAtTheRecoveryCeilingGrantsTheDesignAFreshBudget() {
+    var run = repeatedRejectionRun();
+    run.executeUntilWait();
+    int callsAtTheCard = run.calls().get();
+
+    run.runtime().recordInput(new AcceptInputCommand(RUN, PipelineGates.RETRY_ACTION, "retry-click", "retry-hash",
+        org.qubership.integration.platform.ai.productpipeline.runtime.InputOrigin.TRUSTED))
+        .collect().asList().await().indefinitely();
+    assertEquals(org.qubership.integration.platform.ai.productpipeline.store.RunStatus.RUNNING,
+        run.runs().load(RUN).orElseThrow().run().status());
+    var wait = run.executeUntilWait();
+
+    assertEquals(PipelineGates.RECOVERY_REBUILD_DESIGN, PipelineGates.gateOf(wait.prompt()).orElseThrow(),
+        wait.prompt());
+    assertEquals(callsAtTheCard + 2 * RecoveryAttemptLedger.ADDITIONAL_ATTEMPTS_PER_STRATEGY, run.calls().get());
+  }
+
+  private record RepeatedRejectionRun(ProductPipelineRunStore runs, ProductPipelineRunSupport support,
+      CreateChainTestOrchestrator runtime, AtomicInteger calls) {
+    /** Executes design-input, applying each automatic retry, until the stage waits for the author. */
+    StageDecision.WaitForInput executeUntilWait() {
+      for (int execution = 0; execution < 40; execution++) {
+        var result = support.stageExecutor().execute(RUN, "design-input").await().indefinitely();
+        if (!(result.decision() instanceof StageDecision.Retry)) {
+          return assertInstanceOf(StageDecision.WaitForInput.class, result.decision(),
+              () -> result.decision().toString());
+        }
+        support.applyStageLifecycle(RUN, result).collect().asList().await().indefinitely();
+      }
+      throw new AssertionError("design-input retried 40 times without waiting for the author");
+    }
+  }
+
+  /** Starts a run whose design model resubmits the same rejected topology on every turn. */
+  private RepeatedRejectionRun repeatedRejectionRun() {
+    Clock clock = Clock.fixed(Instant.EPOCH, ZoneOffset.UTC);
+    ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    InMemoryArtifactBlobStore blobs = new InMemoryArtifactBlobStore();
+    ProductPipelineArtifactStore artifacts =
+        new ProductPipelineArtifactStore(new CompilationArtifacts(blobs, mapper, clock));
+    ProductPipelineRunStore runs = new ProductPipelineRunStore(blobs, mapper, clock);
+    RequirementBrief brief =
+        MappingGapCoverage.skipUncovered(ChainSemanticCaptureFixtures.rockyBriefWithMapping());
+    ChainSemanticCapture valid = ChainSemanticCaptureFixtures.rockyCapture();
+    List<ChainSemanticCapture.CapturedEdge> edges = new ArrayList<>(valid.edges());
+    edges.add(new ChainSemanticCapture.CapturedEdge(
+        "create-task", "task-result", null, SemanticRouteKind.CATCH_PATH, null, null, "catch-all", null));
+    ChainSemanticCapture rejected = ChainSemanticCaptureFixtures.rockyCapture(valid.operations(), edges);
+    var feedback = new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore();
+    ChainSemanticCaptureTool tool = captureTool(feedback);
+    AtomicInteger calls = new AtomicInteger();
+    DesignInputCapability design = new DesignInputCapability((conversation, prompt) -> {
+      calls.incrementAndGet();
+      return Multi.createFrom().item(tool.captureChainSemanticRevision(rejected));
+    }, new DefaultChainSemanticIdsRenderer());
+    design.captureFeedback = feedback;
+    StageCapability analysis = new StageCapability() {
+      public String capabilityId() { return "analysis-cap"; }
+      public Multi<CapabilitySignal> execute(StageExecutionContext context) {
+        return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(StageOutcomeClass.CANDIDATE,
+            List.of(new ArtifactCandidate(Kind.REQUIREMENT_BRIEF, brief, List.of())), "brief ready", null)));
+      }
+    };
+    ArtifactTypeRef briefType = new ArtifactTypeRef("requirement-brief", 1);
+    ArtifactTypeRef flowType = new ArtifactTypeRef("chain-semantic-revision", 1);
+    ProductPipelineProfile profile = new ProductPipelineProfile(1, "capture-recovery", "1",
+        List.of(new ArtifactTypeRef("user-input", 1)),
+        List.of(
+            new ProfileStage("requirement-analysis", "analysis-cap", List.of(new ArtifactTypeRef("user-input", 1)),
+                List.of(briefType), new ApprovalPolicy(briefType), null, new RetryPolicy(0, 0)),
+            new ProfileStage("design-input", design.capabilityId(), List.of(briefType),
+                List.of(flowType, new ArtifactTypeRef("ids-document", 1)), null, null, new RetryPolicy(0, 0)),
+            new ProfileStage("design-planning", "planning-cap", List.of(flowType), List.of(), null, null,
+                new RetryPolicy(0, 0))),
+        new TerminalPolicy("design-planning", "PLAN_APPROVED"),
+        List.of("analysis-cap", design.capabilityId(), "planning-cap"));
+    RunManifest manifest = new RunManifest(RUN, null, List.of(), "product", profile.profileId(), "1", "sha",
+        "baseline", "sha", List.of(), "sha", null, "24.4", List.of(), null);
+    var agent = FakeFailureNarrativeAgent.narrates("unused")
+        .recoverRegenerates(Kind.CHAIN_SEMANTIC_REVISION, "Repair the generated topology.");
+    ProductPipelineRunSupport support = CreateChainTestOrchestrator.supportBuilder(runs, artifacts,
+            new StageCapabilityRegistry(List.of(analysis, design)), clock)
+        .failureNarrative(new FailureNarrative(agent))
+        .recoveryLedger(new RecoveryAttemptLedger())
+        .build();
+    CreateChainTestOrchestrator runtime = new CreateChainTestOrchestrator(support, runs);
+    runtime.startOrResume(new StartOrResumeCommand("capture-recovery-conversation", RUN, profile, manifest))
+        .collect().asList().await().indefinitely();
+    runtime.recordInput(new AcceptInputCommand(RUN, "approved Rocky request"))
+        .collect().asList().await().indefinitely();
+    var approval = assertInstanceOf(StageDecision.WaitForApproval.class,
+        support.stageExecutor().execute(RUN, "requirement-analysis").await().indefinitely().decision());
+    runtime.recordApprove(new ApproveCommand(RUN, approval.candidate(), runs.load(RUN).orElseThrow().run().runRevision()))
+        .collect().asList().await().indefinitely();
+    return new RepeatedRejectionRun(runs, support, runtime, calls);
+  }
+
   private static ChainSemanticCaptureTool captureTool() {
+    return captureTool(new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore());
+  }
+
+  private static ChainSemanticCaptureTool captureTool(
+      org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore feedback) {
     CatalogElementDescriptorLoader descriptors = mock(CatalogElementDescriptorLoader.class);
     CatalogElementDescriptorTestSupport.stubPermissive(descriptors);
     CipKnowledgePackRepository pack = mock(CipKnowledgePackRepository.class);
@@ -537,6 +801,8 @@ class DesignInputRecoveryTest {
         new DefaultChainSemanticRevisionValidator(),
         new ClasspathCompilerContractRepository(),
         pack,
-        descriptors);
+        descriptors,
+        new org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryFaultInjector("", ""),
+        feedback);
   }
 }

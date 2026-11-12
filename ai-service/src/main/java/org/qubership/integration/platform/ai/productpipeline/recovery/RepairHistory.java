@@ -61,7 +61,9 @@ public final class RepairHistory {
       String id = java.util.UUID.randomUUID().toString();
       history.put("projectionId", id);
       String ending = END
-          + "\nThese attempts were rejected. Change the proposal; preserve current authority and approved values.\n";
+          + "\nThese are prior rejected proposals, not current requirements. "
+          + "Use the current validation result to identify remaining errors; "
+          + "preserve current authority and approved values.\n";
       String full = "\n" + START + history + ending;
       String reduced = "\n" + START + omitted(id) + ending;
       RENDERINGS.put(id, new Rendering(full, reduced));
@@ -134,6 +136,14 @@ public final class RepairHistory {
     result.path("findings").forEach(finding -> {
       if (finding instanceof ObjectNode item) { item.remove("rawValidatorJson"); }
     });
+    if (result.get("feedback") instanceof ObjectNode feedback) {
+      feedback.path("issues").forEach(issue -> {
+        if (issue instanceof ObjectNode item && item.has("details")) {
+          item.remove("details");
+          feedback.put("issueDetailsOmitted", true);
+        }
+      });
+    }
     if (result.get("feedback") instanceof ObjectNode feedback
         && feedback.path("summary").asText().length() > 2000) {
       feedback.put("summary", feedback.path("summary").asText().substring(0, 2000));

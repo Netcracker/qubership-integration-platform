@@ -11,6 +11,8 @@ import org.qubership.integration.platform.ai.chain.imports.ImportedChainPlan;
  *
  * <p>{@code transcriptWindow} and {@code pinnedFailureSafeText} come from the open-chain turn.
  * Both are empty when that context is missing or the pin is absent.
+ * {@code scriptAuthorSource} carries the reader's words when {@code userRequest} includes
+ * compiler context such as a previous proposal.
  */
 public record ChainEditRequest(
     String conversationId,
@@ -20,7 +22,8 @@ public record ChainEditRequest(
     String userRequest,
     String languageVersion,
     String transcriptWindow,
-    String pinnedFailureSafeText) {
+    String pinnedFailureSafeText,
+    String scriptAuthorSource) {
 
   public ChainEditRequest {
     Objects.requireNonNull(conversationId, "conversationId");
@@ -30,8 +33,21 @@ public record ChainEditRequest(
     userRequest = userRequest == null ? "" : userRequest;
     languageVersion =
         languageVersion == null || languageVersion.isBlank() ? "2026.1" : languageVersion.trim();
+    scriptAuthorSource = scriptAuthorSource == null ? userRequest : scriptAuthorSource;
     transcriptWindow = transcriptWindow == null ? "" : transcriptWindow;
     pinnedFailureSafeText = pinnedFailureSafeText == null ? "" : pinnedFailureSafeText;
+  }
+
+  public ChainEditRequest(
+      String conversationId, String chainId, String editRunId, ImportedChainPlan imported,
+      String userRequest, String languageVersion, String transcriptWindow, String pinnedFailureSafeText) {
+    this(conversationId, chainId, editRunId, imported, userRequest, languageVersion,
+        transcriptWindow, pinnedFailureSafeText, null);
+  }
+
+  public ChainEditRequest withScriptAuthorSource(String source) {
+    return new ChainEditRequest(conversationId, chainId, editRunId, imported, userRequest,
+        languageVersion, transcriptWindow, pinnedFailureSafeText, source);
   }
 
   public ChainEditRequest(

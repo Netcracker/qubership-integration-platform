@@ -56,6 +56,8 @@ public class CreateChainCancelRejectingRequestHandler extends DefaultRequestHand
   private static final org.jboss.logging.Logger LOG =
       org.jboss.logging.Logger.getLogger(CreateChainCancelRejectingRequestHandler.class);
 
+  @Inject org.qubership.integration.platform.ai.chat.service.ChatDecisionService decisionService;
+
   private final A2aTaskSnapshotPersister snapshotPersister;
   private final CallerContextProvider callerContextProvider;
   private final TaskAccessPolicy accessPolicy;
@@ -353,6 +355,10 @@ public class CreateChainCancelRejectingRequestHandler extends DefaultRequestHand
       String commandId = A2aCommandId.derive(caller.tenantId(), caller.subjectId(), message.messageId());
       boolean applied = command instanceof InboundCommand.ClarifyText clarify
           ? facade.inputAlreadyApplied(receipt.get().taskId(), commandId, clarify.text())
+          : command instanceof InboundCommand.PolicyChoice choice
+              ? decisionService.policyChoiceContinuation(receipt.get().taskId(), choice.decision(), commandId)
+                  .filter(input -> facade.inputAlreadyApplied(input.taskId(), input.commandId(), input.clarificationText()))
+                  .isPresent()
           : command instanceof InboundCommand.Approve approve && facade.approvalAlreadyApplied(
               new org.qubership.integration.platform.ai.productpipeline.create.facade.ApproveCreateChainArtifactCommand(
                   receipt.get().taskId(), approve.artifactType(), approve.artifactHash(), approve.revision(), commandId));

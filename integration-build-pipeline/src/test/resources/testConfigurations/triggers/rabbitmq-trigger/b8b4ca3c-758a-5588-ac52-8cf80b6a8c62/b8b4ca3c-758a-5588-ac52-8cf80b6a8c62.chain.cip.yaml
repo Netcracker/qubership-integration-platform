@@ -1,0 +1,110 @@
+---
+id: b8b4ca3c-758a-5588-ac52-8cf80b6a8c62
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+name: rabbitmq-trigger-competing-idempotency
+content:
+  labels: []
+  elements:
+  - id: 756bc711-0ff1-5adc-8ec4-76dfafe3dfdc
+    name: RabbitMQ Trigger first
+    type: rabbitmq-trigger-2
+    properties:
+      acknowledgeMode: AUTO
+      connectionSourceType: manual
+      addresses: localhost:5672
+      username: snapshot
+      password: snapshot
+      vhost: /
+      deadLetterExchange: snapshot.rabbitmq.trigger.competing.dlx
+      deadLetterExchangeType: direct
+      deadLetterQueue: snapshot.rabbitmq.trigger.competing.dlq
+      deadLetterRoutingKey: snapshot.rabbitmq.trigger.competing.dead
+      exchange: snapshot.rabbitmq.trigger.competing
+      exchangeType: direct
+      queues: snapshot.rabbitmq.trigger.competing.queue
+      routingKey: snapshot.rabbitmq.trigger.competing
+      idempotency:
+        enabled: true
+        keyExpiry: 600
+        keyExpression: ${header.businessKey}
+        contextExpression: ${header.businessContext}
+        actionOnDuplicate: ignore
+  - id: f08fb431-1df4-53c2-b6c9-9f1216113c05
+    name: Process first message
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: f08fb431-1df4-53c2-b6c9-9f1216113c05.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  - id: 967eb4b7-b433-5371-aa3a-9ae126d7786d
+    name: RabbitMQ Trigger second
+    type: rabbitmq-trigger-2
+    properties:
+      acknowledgeMode: AUTO
+      connectionSourceType: manual
+      addresses: localhost:5672
+      username: snapshot
+      password: snapshot
+      vhost: /
+      deadLetterExchange: snapshot.rabbitmq.trigger.competing.dlx
+      deadLetterExchangeType: direct
+      deadLetterQueue: snapshot.rabbitmq.trigger.competing.dlq
+      deadLetterRoutingKey: snapshot.rabbitmq.trigger.competing.dead
+      exchange: snapshot.rabbitmq.trigger.competing
+      exchangeType: direct
+      queues: snapshot.rabbitmq.trigger.competing.queue
+      routingKey: snapshot.rabbitmq.trigger.competing
+      idempotency:
+        enabled: true
+        keyExpiry: 600
+        keyExpression: ${header.businessKey}
+        contextExpression: ${header.businessContext}
+        actionOnDuplicate: ignore
+  - id: 75c401ee-a169-5048-82d7-c846551d89ba
+    name: Process second message
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 75c401ee-a169-5048-82d7-c846551d89ba.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  - id: 0b4143d8-0465-55d9-b10d-ab9a9d3b74d9
+    name: Call shared business work first
+    type: chain-call-2
+    properties:
+      block: true
+      elementId: 9d64b3b2-439c-50d1-8483-b90e95d97ef4
+      failIfNoConsumers: false
+      timeout: 30000
+  - id: 98cd8d62-fbb5-5b9e-863e-e3e230134f77
+    name: Call shared business work second
+    type: chain-call-2
+    properties:
+      block: true
+      elementId: 9d64b3b2-439c-50d1-8483-b90e95d97ef4
+      failIfNoConsumers: false
+      timeout: 30000
+  - id: 9d64b3b2-439c-50d1-8483-b90e95d97ef4
+    name: Shared business work
+    type: chain-trigger-2
+    properties:
+      elementId: 9d64b3b2-439c-50d1-8483-b90e95d97ef4
+  - id: 5dc95d6e-2016-5711-8281-6871ec1c6b77
+    name: Complete shared business work
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 5dc95d6e-2016-5711-8281-6871ec1c6b77.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: 756bc711-0ff1-5adc-8ec4-76dfafe3dfdc
+    to: f08fb431-1df4-53c2-b6c9-9f1216113c05
+  - from: 967eb4b7-b433-5371-aa3a-9ae126d7786d
+    to: 75c401ee-a169-5048-82d7-c846551d89ba
+  - from: f08fb431-1df4-53c2-b6c9-9f1216113c05
+    to: 0b4143d8-0465-55d9-b10d-ab9a9d3b74d9
+  - from: 75c401ee-a169-5048-82d7-c846551d89ba
+    to: 98cd8d62-fbb5-5b9e-863e-e3e230134f77
+  - from: 9d64b3b2-439c-50d1-8483-b90e95d97ef4
+    to: 5dc95d6e-2016-5711-8281-6871ec1c6b77
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

@@ -17,7 +17,7 @@ class PubSubTriggerSnapshotScenarioDriverProvider implements SnapshotScenarioDri
     private static final Set<String> MESSAGE_PARAMETERS = Set.of(
             "body", "dataEncoding", "attributes", "orderingKey", "messageCount");
     private static final Set<String> PARAMETERS = Set.of(
-            "nodeId", "dataEncoding", "attributes", "orderingKey", "messageCount", "messages", "observeOnly");
+            "nodeId", "dataEncoding", "attributes", "orderingKey", "messageCount", "messages", "observeOnly", "consumeBacklog");
 
     @Override
     public String getId() {
@@ -43,10 +43,11 @@ class PubSubTriggerSnapshotScenarioDriverProvider implements SnapshotScenarioDri
                     ? scenario.getDriver() : invocation.getDriver();
             Map<String, Object> options = invocationDriver.getParameters();
             validateParameters(options);
-            if (Boolean.TRUE.equals(options.get("observeOnly"))) {
+            if (Boolean.TRUE.equals(options.get("observeOnly")) || Boolean.TRUE.equals(options.get("consumeBacklog"))) {
                 if (invocation.getBody() != null || !invocation.getHeaders().isEmpty()
-                        || !Set.of("nodeId", "observeOnly").containsAll(options.keySet())) {
-                    throw new IllegalArgumentException("Pub/Sub observation cannot define a body, headers, or publication options.");
+                        || !Set.of("nodeId", "observeOnly", "consumeBacklog").containsAll(options.keySet())
+                        || Boolean.TRUE.equals(options.get("observeOnly")) && Boolean.TRUE.equals(options.get("consumeBacklog"))) {
+                    throw new IllegalArgumentException("Pub/Sub observation and backlog consumption cannot define publication options.");
                 }
             } else {
                 PubSubTriggerSnapshotRuntime.messages(invocation.getBody(), invocation.getHeaders(), options);
@@ -88,6 +89,9 @@ class PubSubTriggerSnapshotScenarioDriverProvider implements SnapshotScenarioDri
         validateMessageOptions(parameters);
         if (parameters.containsKey("observeOnly") && !(parameters.get("observeOnly") instanceof Boolean)) {
             throw new IllegalArgumentException("Pub/Sub observeOnly must be a boolean.");
+        }
+        if (parameters.containsKey("consumeBacklog") && !(parameters.get("consumeBacklog") instanceof Boolean)) {
+            throw new IllegalArgumentException("Pub/Sub consumeBacklog must be a boolean.");
         }
         if (parameters.containsKey("messages")) {
             if (!(parameters.get("messages") instanceof List<?> messages) || messages.isEmpty()) {

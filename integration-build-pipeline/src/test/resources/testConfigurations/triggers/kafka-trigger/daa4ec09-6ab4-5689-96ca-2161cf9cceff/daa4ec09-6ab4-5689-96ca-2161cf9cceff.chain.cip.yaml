@@ -1,0 +1,38 @@
+---
+id: daa4ec09-6ab4-5689-96ca-2161cf9cceff
+$schema: http://qubership.org/schemas/product/qip/chain
+name: kafka-trigger-typed-uuid
+content:
+  labels: []
+  elements:
+  - id: 5e70aaa7-aab6-5ef7-844c-436652cc1b5e
+    name: Kafka Trigger long
+    type: kafka-trigger-2
+    properties:
+      autoOffsetReset: latest
+      brokers: localhost:9092
+      connectionSourceType: manual
+      consumersCount: 1
+      groupId: snapshot-kafka-trigger-typed-uuid
+      keyDeserializer: org.apache.kafka.common.serialization.UUIDDeserializer
+      maxPollIntervalMs: 300000
+      maxPollRecords: 500
+      reconnectBackoffMaxMs: 30000
+      saslMechanism: GSSAPI
+      securityProtocol: PLAINTEXT
+      sslProtocol: TLS
+      topics: snapshot.kafka.trigger.typed.uuid
+      valueDeserializer: org.apache.kafka.common.serialization.UUIDDeserializer
+      consumerConsistencyMode: EVENTUAL
+  - id: 5f032dff-e854-5dc3-983c-4ae231dd76a6
+    name: Describe typed records
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: 5f032dff-e854-5dc3-983c-4ae231dd76a6.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: 5e70aaa7-aab6-5ef7-844c-436652cc1b5e
+    to: 5f032dff-e854-5dc3-983c-4ae231dd76a6
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

@@ -13,6 +13,9 @@ import com.google.cloud.pubsub.v1.TopicAdminSettings;
 import com.google.pubsub.v1.AcknowledgeRequest;
 import com.google.pubsub.v1.DeleteSubscriptionRequest;
 import com.google.pubsub.v1.DeleteTopicRequest;
+import com.google.pubsub.v1.ListSubscriptionsRequest;
+import com.google.pubsub.v1.ListTopicsRequest;
+import com.google.pubsub.v1.ProjectName;
 import com.google.pubsub.v1.PublishRequest;
 import com.google.pubsub.v1.PublishResponse;
 import com.google.pubsub.v1.PubsubMessage;
@@ -44,7 +47,7 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-final class PubSubEmulator implements AutoCloseable {
+final class PubSubEmulator implements SnapshotWorkerBrokerPool.Resource {
     private static final String EMULATOR_IMAGE =
             "gcr.io/google.com/cloudsdktool/google-cloud-cli:583.0.0-emulators";
     private static final int EMULATOR_PORT = 8085;
@@ -55,6 +58,7 @@ final class PubSubEmulator implements AutoCloseable {
     private static final int MAX_PULL_MESSAGES = 100;
 
     private final Map<String, String> subscriptionsByTopic = new HashMap<>();
+    private final Set<String> projects = new HashSet<>();
     private GenericContainer<?> container;
     private ManagedChannel channel;
     private TopicAdminClient topicClient;
@@ -101,6 +105,7 @@ final class PubSubEmulator implements AutoCloseable {
 
     void createTopicWithoutSubscription(String topic) {
         topicClient.createTopicCallable().call(Topic.newBuilder().setName(topic).build(), callContext(RPC_TIMEOUT));
+        projects.add(TopicName.parse(topic).getProject());
     }
 
     void createSubscription(String topic, String subscriptionName) {
@@ -184,6 +189,38 @@ final class PubSubEmulator implements AutoCloseable {
         return GrpcCallContext.createDefault()
                 .withRetryableCodes(Set.of())
                 .withCallOptions(CallOptions.DEFAULT.withDeadlineAfter(timeout.toNanos(), TimeUnit.NANOSECONDS));
+    }
+
+    @Override
+    public void resetAfterScenario() {
+        for (String project : projects) {
+            for (String subscription : subscriptions(project)) {
+                deleteSubscription(subscription);
+            }
+            for (String topic : topics(project)) {
+                deleteTopic(topic);
+            }
+            assertEquals(List.of(), subscriptions(project), "Pub/Sub subscriptions and their backlogs must be removed before reuse.");
+            assertEquals(List.of(), topics(project), "Pub/Sub topics must be removed before reuse.");
+        }
+        subscriptionsByTopic.clear();
+        projects.clear();
+    }
+
+    private List<String> subscriptions(String project) {
+        List<String> names = new ArrayList<>();
+        subscriptionClient.listSubscriptionsPagedCallable().call(ListSubscriptionsRequest.newBuilder()
+                .setProject(ProjectName.of(project).toString()).build(), callContext(RPC_TIMEOUT))
+                .iterateAll().forEach(subscription -> names.add(subscription.getName()));
+        return names;
+    }
+
+    private List<String> topics(String project) {
+        List<String> names = new ArrayList<>();
+        topicClient.listTopicsPagedCallable().call(ListTopicsRequest.newBuilder()
+                .setProject(ProjectName.of(project).toString()).build(), callContext(RPC_TIMEOUT))
+                .iterateAll().forEach(topic -> names.add(topic.getName()));
+        return names;
     }
 
     @Override

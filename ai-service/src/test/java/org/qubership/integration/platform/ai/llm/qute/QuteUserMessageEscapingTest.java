@@ -8,20 +8,40 @@ import io.quarkus.qute.Engine;
 import io.quarkiverse.langchain4j.QuarkusPromptTemplateFactory;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class QuteUserMessageEscapingTest {
 
   @Test
-  void escapesBracesAndPreservesBackslashesForQute() {
+  void leavesTextWithoutDelimitersUnchanged() {
     assertEquals("plain", QuteUserMessageEscaping.escapeForAiServiceUserMessage("plain"));
-    assertEquals("\\{id}", QuteUserMessageEscaping.escapeForAiServiceUserMessage("{id}"));
-    assertEquals(
-        "\\".repeat(2) + "{", QuteUserMessageEscaping.escapeForAiServiceUserMessage("\\" + "{"));
+    assertEquals("path\\value\\n", QuteUserMessageEscaping.escapeForAiServiceUserMessage("path\\value\\n"));
   }
 
   @Test
   void preservesScriptTextAfterProductionTemplateRendering() {
     String text = "{\"script\":\"exchange.in.body = 'Hello'\\nreturn exchange.in.body\"}";
+    var engine = Engine.builder().addDefaults()
+        .addParserHook(new QuarkusPromptTemplateFactory.MustacheTemplateVariableStyleParserHook())
+        .build();
+
+    assertEquals(text, engine.parse(QuteUserMessageEscaping.escapeForAiServiceUserMessage(text)).render());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {
+      "{\"outer\":{\"inner\":\"text\"}}",
+      "[{\"outer\":{\"inner\":{}}}]",
+      "{{token}}",
+      "{id}",
+      "{|literal|}",
+      "if (ready) { values.each { value -> print(value) }}",
+      "\\{literal\\}\\}",
+      "\\{",
+      "before\n}}}\nafter"
+  })
+  void preservesNestedTextAfterProductionTemplateRendering(String text) {
     var engine = Engine.builder().addDefaults()
         .addParserHook(new QuarkusPromptTemplateFactory.MustacheTemplateVariableStyleParserHook())
         .build();

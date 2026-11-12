@@ -17,9 +17,9 @@ import org.qubership.integration.platform.ai.configuration.AppConfig;
 public final class LlmRequestBudget {
   private static final Logger LOG = Logger.getLogger(LlmRequestBudget.class);
   private static final com.fasterxml.jackson.databind.ObjectMapper JSON = new com.fasterxml.jackson.databind.ObjectMapper();
-  private static final Set<String> REPLACEABLE_READS = Set.of("readRequirementDraft",
-      "searchCatalogSystems", "getApiSpecifications", "listCatalogOperations", "describeBoundOperation",
-      "describeElementPatchSchema", "describeElementProperty");
+  static final Set<String> REPLACEABLE_READS = Set.of("readRequirementDraft",
+      "searchRequirementKnowledge", "searchCatalogSystems", "getApiSpecifications", "listCatalogOperations", "describeBoundOperation",
+      "describeElementPatchSchema", "describeElementProperty", "searchDocumentation", "readDocumentation");
   public static final class Overflow extends IllegalArgumentException {
     public Overflow(String message) { super(message); }
   }
@@ -42,13 +42,19 @@ public final class LlmRequestBudget {
     return false;
   }
 
+  private final ProviderBoundaryEvidence evidence;
   private final AppConfig.LlmConfig config;
   private final CipJtokkitTokenCountEstimator estimator;
 
   LlmRequestBudget(AppConfig config) {
+    this.evidence = new ProviderBoundaryEvidence(config.e2e() == null ? null
+        : config.e2e().recoveryControlDirectory().map(java.nio.file.Path::of).orElse(null));
     this.config = config.llm();
     this.estimator = new CipJtokkitTokenCountEstimator(this.config.modelName());
   }
+
+  String recordProviderRequest(ChatRequest request, String runId) { return evidence.request(request, runId); }
+  void recordProviderOutcome(String id, String kind, Object value) { evidence.outcome(id, kind, value); }
 
   ChatRequest prepare(ChatRequest request) {
     request.messages().forEach(message -> {
@@ -112,7 +118,7 @@ public final class LlmRequestBudget {
         + "\n" + request.parameters().responseFormat();
   }
 
-  /** Retains the latest successful read for the same tool and exact arguments. Sources stay intact. */
+  /** Retains the latest successful read for matching arguments or identical knowledge content. */
   ChatRequest rebuild(ChatRequest request) {
     Map<String, String> keysByCall = new HashMap<>();
     Map<String, ToolExecutionResultMessage> latest = new HashMap<>();
@@ -125,7 +131,10 @@ public final class LlmRequestBudget {
         }
       } else if (message instanceof ToolExecutionResultMessage result
           && keysByCall.containsKey(result.id()) && successfulRead(result)) {
-        latest.put(keysByCall.get(result.id()), result);
+        String key = "searchRequirementKnowledge".equals(result.toolName())
+            ? result.toolName() + "\u0000" + result.text() : keysByCall.get(result.id());
+        keysByCall.put(result.id(), key);
+        latest.put(key, result);
       }
     }
     var messages = new ArrayList<ChatMessage>(request.messages());
@@ -157,13 +166,18 @@ public final class LlmRequestBudget {
   }
 
   private static boolean successfulRead(ToolExecutionResultMessage result) {
-    if (Boolean.TRUE.equals(result.isError())) { return false; }
     try {
-      var value = JSON.readTree(result.text());
-      return value == null || !value.path("ok").isBoolean() || value.path("ok").asBoolean();
+      return successfulRead(result, JSON.readTree(result.text()));
     } catch (com.fasterxml.jackson.core.JsonProcessingException ignored) {
-      return true;
+      return successfulRead(result, null);
     }
+  }
+
+  static boolean successfulRead(ToolExecutionResultMessage result, com.fasterxml.jackson.databind.JsonNode data) {
+    return !Boolean.TRUE.equals(result.isError())
+        && !("searchRequirementKnowledge".equals(result.toolName())
+            && result.text().startsWith("QIP knowledge lookup unavailable"))
+        && (data == null || !data.path("ok").isBoolean() || data.path("ok").asBoolean());
   }
 
   static String hash(String packet) {

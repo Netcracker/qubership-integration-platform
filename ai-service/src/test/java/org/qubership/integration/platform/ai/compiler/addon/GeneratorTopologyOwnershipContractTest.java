@@ -9,6 +9,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import java.nio.file.Files;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -89,6 +94,42 @@ class GeneratorTopologyOwnershipContractTest {
         applier.apply(context(graphWithServiceCall(), ownership), patch);
 
     assertFalse(result.validationResult().valid());
+  }
+
+  @ParameterizedTest
+  @Tag("certified-pack")
+  @ValueSource(strings = {"integrationOperationQueryParameters", "integrationOperationPathParameters",
+      "integrationAdditionalParameters", "integrationOperationAsyncProperties", "bodyMimeType", "bodyFormData"})
+  void serviceCallTransportConfigurationCanBeCaptured(String key) throws Exception {
+    Path runtime = CipKnowledgePackFixturePaths.addonRoot();
+    GraphPatchOwnershipPolicy policy = parser.parseAddonFile(
+        runtime.resolve("skills/cip-service-call-generator.json")).ownership();
+    var envelope = new ObjectMapper(new YAMLFactory()).readTree(
+        Files.readString(runtime.resolve("generator-packages.yaml")));
+    boolean allowedByEnvelope = false;
+    for (var entry : envelope.path("ownership-envelopes")) {
+      if (entry.path("skill").asText().equals("cip-service-call-generator")) {
+        for (var property : entry.path("properties").path("service-call")) {
+          allowedByEnvelope |= key.equals(property.asText());
+        }
+      }
+    }
+    assertTrue(allowedByEnvelope, "Transport property missing from ownership envelope: " + key);
+    Object value = key.equals("bodyMimeType") ? "application/json"
+        : key.equals("bodyFormData") ? List.of(Map.of("name", "status", "value", "${header.status}", "mimeType", "text/plain"))
+        : Map.of("status", "${header.status}");
+    GraphPatch patch = new GraphPatch("transport", "cip-service-call-generator", List.of(), List.of(),
+        List.of(new PropertyPatch(GraphPatchOperation.ADD, "call-1", new PlanProperty(key, value instanceof String text ? text : new ObjectMapper().writeValueAsString(value)))),
+        List.of(), List.of(), "Forward the requested transport parameter");
+    var result = applier.apply(context(graphWithServiceCall(), policy), patch);
+    assertTrue(result.validationResult().valid(), result.validationResult().summary());
+    assertEquals(patch.propertyPatches().getFirst().property(), result.graph().nodes().stream()
+        .filter(node -> node.nodeId().equals("call-1")).findFirst().orElseThrow().properties().getFirst());
+    GraphPatch identity = new GraphPatch("identity", "cip-service-call-generator", List.of(), List.of(),
+        List.of(new PropertyPatch(GraphPatchOperation.ADD, "call-1", new PlanProperty("integrationSystemId", "invented"))),
+        List.of(), List.of(), "Attempt to replace server-owned identity");
+    assertFalse(applier.apply(context(graphWithServiceCall(), policy), identity).validationResult().valid(),
+        "Catalog identity remains server-owned");
   }
 
   @Test

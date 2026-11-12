@@ -109,7 +109,7 @@ const RootLayoutInner = () => {
             <Navigation />
           </Header>
         )}
-        <Content className={styles.content}>
+        <Content className={styles.content + " page-content"}>
           <Outlet />
         </Content>
       </Layout>

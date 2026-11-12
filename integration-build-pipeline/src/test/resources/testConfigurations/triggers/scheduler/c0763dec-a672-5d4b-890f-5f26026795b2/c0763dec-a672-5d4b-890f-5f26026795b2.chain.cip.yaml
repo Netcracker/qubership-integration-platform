@@ -1,0 +1,25 @@
+---
+id: c0763dec-a672-5d4b-890f-5f26026795b2
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+name: scheduler-delete-job
+content:
+  labels: []
+  elements:
+  - id: 37ce42de-ad22-5e04-b4ca-a46abcfd113c
+    name: Scheduler
+    type: quartz-scheduler
+    properties:
+      cron: 0/1 * * ? * *
+      deleteJob: true
+  - id: bbb26179-76ab-5c51-a3a7-d7e38bab3b80
+    name: Script
+    type: script
+    properties:
+      exportFileExtension: groovy
+      propertiesFilename: bbb26179-76ab-5c51-a3a7-d7e38bab3b80.element.script.cip.groovy
+      propertiesToExportInSeparateFile: script
+  dependencies:
+  - from: 37ce42de-ad22-5e04-b4ca-a46abcfd113c
+    to: bbb26179-76ab-5c51-a3a7-d7e38bab3b80
+  deployAction: SNAPSHOT
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

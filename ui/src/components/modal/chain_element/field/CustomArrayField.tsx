@@ -4,7 +4,10 @@ import type { FieldProps, RJSFSchema } from "@rjsf/utils";
 import type { MappingDescription } from "../../../../mapper/model/model.ts";
 import { MappingUtil } from "../../../../mapper/util/mapping.ts";
 import { Mapping } from "../../../mapper/Mapping.tsx";
-import { isHttpProtocol } from "../../../../misc/protocol-utils.ts";
+import {
+  isGraphqlProtocol,
+  isHttpProtocol,
+} from "../../../../misc/protocol-utils.ts";
 import { Script } from "../../../Script.tsx";
 import type { FormContext } from "../ChainElementModificationContext.ts";
 import styles from "./CustomArrayField.module.css";
@@ -133,9 +136,9 @@ const CustomArrayField: FC<
     [name, elementType],
   );
 
+  const protocol = formContext?.integrationOperationProtocolType as string;
   const [availableCodes, setAvailableCodes] = useState<{ value: string }[]>(
-    readOnlyMode ||
-      !isHttpProtocol(formContext?.integrationOperationProtocolType as string)
+    readOnlyMode || !(isHttpProtocol(protocol) || isGraphqlProtocol(protocol))
       ? []
       : defaultCodeOptions,
   );
@@ -182,9 +185,14 @@ const CustomArrayField: FC<
             schema: JSON.stringify(schema, null, 2),
           };
         } else {
+          // Legacy UI: successful responses and JSON content only.
+          if (!code.startsWith("2") || schema == null) continue;
           for (const [contentType, validationSchema] of Object.entries(
             schema as Record<string, object>,
           )) {
+            if (!contentType.includes("json") && contentType !== "*/*") {
+              continue;
+            }
             const id = `${code}-${contentType}`;
             schemas[id] = {
               id,
@@ -260,12 +268,6 @@ const CustomArrayField: FC<
       };
     }
 
-    if (responseCodeValue === DEFAULT_CODE) {
-      formContext.updateContext?.({
-        errorThrowing: false,
-      });
-    }
-
     const newArray = [...formData, newItem];
     onChange(newArray, fieldPathId.path);
     setSelectedIndex(newArray.length - 1);
@@ -282,12 +284,6 @@ const CustomArrayField: FC<
     if (!readOnlyMode) {
       const handler = item as ResponseHandler;
       autoFilledHandlerIdsRef.current.delete(`${handler.id}::${handler.code}`);
-    }
-
-    if (item.code === DEFAULT_CODE) {
-      formContext.updateContext?.({
-        errorThrowing: true,
-      });
     }
 
     const newArray = [...formData];

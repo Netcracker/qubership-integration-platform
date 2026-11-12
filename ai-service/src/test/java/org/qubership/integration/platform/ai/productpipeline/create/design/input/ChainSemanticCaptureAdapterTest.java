@@ -73,14 +73,16 @@ class ChainSemanticCaptureAdapterTest {
     wrong.set(0, new SemanticNode.Trigger(trigger.nodeId(), trigger.capabilityKey(),
         new org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticProvenance(
             List.of("trigger-1", "checkpoint-config"))));
-    assertFalse(elementIntentErrors(brief, wrong, revision.executionEdges()).isEmpty());
+    var localErrors = elementIntentErrors(brief, wrong, revision.executionEdges());
+    assertTrue(localErrors.stream().anyMatch(error -> error.startsWith(
+        "ELEMENT_INTENT_REALIZATION: fact=checkpoint-config ")), localErrors::toString);
     List<SemanticNode> valid = new ArrayList<>(revision.nodes());
     valid.add(new SemanticNode.Operation("checkpoint", "checkpoint",
         new org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticProvenance(List.of("checkpoint-config"))));
     List<SemanticExecutionEdge> edges = List.of(
         new SemanticExecutionEdge("e1", "http-in", "checkpoint", null, null, null),
         new SemanticExecutionEdge("e2", "checkpoint", "op-shared", null, null, null));
-    assertTrue(elementIntentErrors(brief, valid, edges).isEmpty());
+    assertEquals(List.of(), elementIntentErrors(brief, valid, edges));
 
     var hook = new org.qubership.integration.platform.ai.plan.RequirementElementIntent(
         "before-call", "script", org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.BEFORE_HOOK,
@@ -92,10 +94,16 @@ class ChainSemanticCaptureAdapterTest {
     brief = mapper.treeToValue(body, RequirementBrief.class);
     var call = new SemanticNode.ServiceCall("call-1", "call-1", "getOrder",
         new org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticProvenance(List.of("before-script")));
-    assertTrue(elementIntentErrors(brief, List.of(call), List.of()).isEmpty());
+    List<SemanticNode> hookNodes = new ArrayList<>(revision.nodes());
+    hookNodes.removeIf(node -> "call-1".equals(node.nodeId()));
+    hookNodes.add(call);
+    assertEquals(List.of(), elementIntentErrors(brief, hookNodes, revision.executionEdges()));
     var duplicate = new SemanticNode.Operation("set-body", "script",
         new org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticProvenance(List.of("before-script")));
-    assertFalse(elementIntentErrors(brief, List.of(call, duplicate), List.of()).isEmpty());
+    hookNodes.add(duplicate);
+    var hookErrors = elementIntentErrors(brief, hookNodes, revision.executionEdges());
+    assertTrue(hookErrors.stream().anyMatch(error -> error.startsWith(
+        "ELEMENT_INTENT_REALIZATION: fact=before-script ")), hookErrors::toString);
   }
 
   private static List<String> elementIntentErrors(RequirementBrief brief, List<SemanticNode> nodes,
@@ -135,7 +143,7 @@ class ChainSemanticCaptureAdapterTest {
       assertTrue(edge.edgeId().startsWith("edge-"), edge.edgeId());
       assertEquals(SemanticRouteKind.SEQUENCE, edge.route().kind());
     }
-    new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT);
+    new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT, ChainSemanticCaptureFixtures.approvedBrief());
   }
 
   @Test
@@ -503,16 +511,11 @@ class ChainSemanticCaptureAdapterTest {
                 "",
                 "GET",
                 ""),
-            new RequirementFact(
-                "fact-script",
-                RequirementFactPolarity.POSITIVE,
-                RequirementFactKind.BEHAVIOR,
-                "",
-                "Prepare the response"));
+            ChainSemanticCaptureFixtures.suppliedScriptFact("op-script", "exchange.message.body = [result: 'ok']"));
     RequirementBrief brief =
         new RequirementBrief(
             "GeoSite",
-            List.of(),
+            List.of("exchange.message.body = [result: 'ok']"),
             List.of(),
             List.of(),
             List.of(),
@@ -698,6 +701,43 @@ class ChainSemanticCaptureAdapterTest {
   }
 
   @Test
+  void localResponseMappingKeepsItsDeclaredTargetAcrossSemanticCapture() {
+    var base = ChainSemanticCaptureFixtures.approvedBrief();
+    var declaration = new org.qubership.integration.platform.ai.plan.RequirementElementIntent("response", "script",
+        org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.LOCAL_NODE,
+        "http-in", null, "call-1", null, List.of(), List.of());
+    var localFact = new org.qubership.integration.platform.ai.plan.RequirementFact("return-field",
+        org.qubership.integration.platform.ai.plan.RequirementFactPolarity.POSITIVE,
+        org.qubership.integration.platform.ai.plan.RequirementFactKind.FIELD_MAPPING, "", "Return the order id.",
+        null, null, null, null, null, null, List.of("http-in"), null, declaration);
+    var facts = new java.util.ArrayList<>(base.facts());
+    facts.add(localFact);
+    var flow = new org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow(List.of(
+        new org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction("http-in",
+            org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction.INBOUND, "Caller", "POST /", ""),
+        new org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction("call-1",
+            org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction.OUTBOUND, "Orders", "GET /", "")),
+        List.of(new org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition("http-in", "call-1")));
+    var mapping = new MappingIntent("return-map", "call-1", MappingPort.RESPONSE, "response", MappingPort.OUTPUT,
+        List.of(new MappingIntentRule("id", "orderId", null)));
+    var brief = base.withFacts(facts).withFlow(flow).withMappingIntents(List.of(mapping));
+    var original = ChainSemanticCaptureFixtures.linearCapture();
+    var operations = new java.util.ArrayList<>(original.operations());
+    operations.add(new CapturedOperation("response", "script", List.of("return-field")));
+    var edges = new java.util.ArrayList<>(original.edges());
+    edges.add(new CapturedEdge("call-1", "response", null, null, null, null, null, "return-map"));
+    var capture = new ChainSemanticCapture(original.chainIdentity(), operations, original.sequenceRegions(), original.conditionRegions(), original.splitRegions(), original.loopRegions(),
+        original.retryRegions(), original.errorScopeRegions(), edges, original.containment());
+
+    var revision = adapt(capture, brief);
+
+    assertEquals("response", revision.executionEdges().stream().filter(edge -> "return-map".equals(edge.mappingId()))
+        .findFirst().orElseThrow().targetNodeId());
+    assertEquals(mapping, revision.mappingBodies(brief).getFirst());
+    new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT, brief);
+  }
+
+  @Test
   void foldedPlaceholderDoesNotNeedItsOwnEdge() {
     MappingIntent approved = ChainSemanticCaptureFixtures.briefWithMapping().mappingIntents().getFirst();
     MappingIntent placeholder =
@@ -827,8 +867,8 @@ class ChainSemanticCaptureAdapterTest {
   @NullAndEmptySource
   @ValueSource(strings = "  ")
   void buildsTerminalConditionBranchesWithoutAReconvergenceNode(String reconvergenceNodeId) {
-    ChainSemanticRevision revision =
-        adapt(conditionCapture(reconvergenceNodeId), ChainSemanticCaptureFixtures.approvedBrief());
+    RequirementBrief brief = ChainSemanticCaptureFixtures.approvedBrief("op-else");
+    ChainSemanticRevision revision = adapt(conditionCapture(reconvergenceNodeId), brief);
 
     assertEquals(
         SemanticRegionKind.CONDITION, revision.regions().getFirst().kind());
@@ -842,7 +882,7 @@ class ChainSemanticCaptureAdapterTest {
             .map(edge -> edge.route().kind())
             .sorted()
             .toList());
-    new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT);
+    new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT, brief);
   }
 
   @ParameterizedTest
@@ -866,14 +906,15 @@ class ChainSemanticCaptureAdapterTest {
             new CapturedEdge("work", ChainSemanticCaptureFixtures.SERVICE_CALL_NODE_ID,
                 "repeat-region", SemanticRouteKind.LOOP_EXIT, null, null, null, null)),
         List.of());
+    RequirementBrief brief = ChainSemanticCaptureFixtures.approvedBrief("work");
     if (cap < 0) {
-      assertThrows(IllegalArgumentException.class, () -> adapt(capture));
+      assertThrows(IllegalArgumentException.class, () -> adapt(capture, brief));
       return;
     }
-    ChainSemanticRevision revision = adapt(capture);
+    ChainSemanticRevision revision = adapt(capture, brief);
     SemanticRegion.Loop loop = (SemanticRegion.Loop) revision.regions().getFirst();
     assertEquals(cap == 0 ? null : Integer.valueOf(cap), loop.policy().safetyBound());
-    new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT);
+    new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT, brief);
   }
 
   @Test
@@ -889,7 +930,7 @@ class ChainSemanticCaptureAdapterTest {
     assertEquals("op-shared", revision.entryPoints().getFirst().initialTargetNodeId());
     SemanticNode.Trigger trigger = node(revision, SemanticNode.Trigger.class);
     assertEquals("http-trigger", trigger.capabilityKey());
-    new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT);
+    new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT, ChainSemanticCaptureFixtures.approvedBrief());
   }
 
   @Test
@@ -1308,7 +1349,7 @@ class ChainSemanticCaptureAdapterTest {
     assertEquals(
         Set.of("task-start -> create-task", "create-task -> task-result"),
         contracted(revision, Set.of("task-start", "create-task", "task-result")));
-    new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT);
+    new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT, ChainSemanticCaptureFixtures.rockyBrief());
   }
 
   @Test

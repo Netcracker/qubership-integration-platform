@@ -9,11 +9,23 @@ import static org.mockito.Mockito.when;
 
 import io.smallrye.mutiny.Multi;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.GregorianCalendar;
+import java.util.Optional;
+import java.util.regex.Pattern;
+import java.util.stream.IntStream;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.camel.impl.DefaultCamelContext;
+import org.apache.camel.support.DefaultExchange;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
+import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass;
+import org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryFaultInjector;
+import org.qubership.integration.platform.ai.schema.CamelSimplePredicateValidator;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
@@ -51,6 +63,42 @@ import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackR
 import org.qubership.integration.platform.ai.qipknowledge.pack.CipKnowledgePackVersion;
 
 class DesignInputCapabilityTest {
+
+  @Test
+  void minutePredicateExamplePreservesParityAcrossTheWholeMinuteDomain() throws Exception {
+    String prompt = DesignInputCapability.authoringPrompt(
+        ChainSemanticCaptureFixtures.approvedBrief(), CONTRACT);
+    var example = Pattern.compile(
+        Pattern.quote("${date:now:mm}") + " regex '[^']+'").matcher(prompt);
+    assertTrue(example.find(), prompt);
+    String predicateText = example.group();
+    assertEquals(Optional.empty(),
+        CamelSimplePredicateValidator.validate(predicateText));
+    try (var camel = new DefaultCamelContext()) {
+      // Use a header clock to exercise the unchanged pattern and operator for every minute.
+      var predicate = camel.resolveLanguage("simple").createPredicate(
+          predicateText.replace("date:now:", "date:header.testTimestamp:"));
+      var weakened = camel.resolveLanguage("simple")
+          .createPredicate("${date:header.testTimestamp:mm} == 0");
+      var exchange = new DefaultExchange(camel);
+      List<Integer> matched = new ArrayList<>();
+      List<Integer> zeroOnly = new ArrayList<>();
+      for (int minute = 0; minute < 60; minute++) {
+        exchange.getIn().setHeader("testTimestamp", new GregorianCalendar(
+            2026, Calendar.OCTOBER, 30, 12, minute, 0).getTime());
+        if (predicate.matches(exchange)) {
+          matched.add(minute);
+        }
+        if (weakened.matches(exchange)) {
+          zeroOnly.add(minute);
+        }
+      }
+      List<Integer> expected = IntStream.range(0, 60)
+          .filter(minute -> minute % 2 == 0).boxed().toList();
+      assertEquals(expected, matched, predicateText);
+      assertNotEquals(expected, zeroOnly);
+    }
+  }
 
   private static final CompilerContract CONTRACT =
       new ClasspathCompilerContractRepository().require(CompilerContract.V1);
@@ -127,7 +175,7 @@ class DesignInputCapabilityTest {
                     "ignored agent prose after the tool call",
                     "requirementBrief",
                     ChainSemanticCaptureFixtures.approvedBrief())));
-    assertEquals(StageOutcomeClass.SUCCEEDED, prepared.outcomeClass());
+    assertEquals(StageOutcomeClass.SUCCEEDED, prepared.outcomeClass(), prepared.message());
     assertEquals(Set.of(Kind.CHAIN_SEMANTIC_REVISION, Kind.IDS_DOCUMENT), kinds(prepared));
     ChainSemanticRevision revision = semanticPayload(prepared);
     IdsDocument ids = idsPayload(prepared);
@@ -198,7 +246,7 @@ class DesignInputCapabilityTest {
         outcome(
             capturingCapability(),
             context("design-input", Map.of("requirementBrief", brief)));
-    assertEquals(StageOutcomeClass.SUCCEEDED, prepared.outcomeClass());
+    assertEquals(StageOutcomeClass.SUCCEEDED, prepared.outcomeClass(), prepared.message());
     assertEquals(
         Set.of(Kind.CHAIN_SEMANTIC_REVISION, Kind.IDS_DOCUMENT), kinds(prepared));
     String markdown = idsPayload(prepared).markdown();
@@ -259,6 +307,15 @@ class DesignInputCapabilityTest {
     assertTrue(prompt.contains("nodeId=http-in"), prompt);
     assertTrue(prompt.contains("nodeId=call-1"), prompt);
     assertTrue(prompt.contains("commandType=completeTask"), prompt);
+    org.junit.jupiter.api.Assertions.assertAll("script authority in rendered design instructions",
+        () -> assertTrue(prompt.contains("A generated processing Script can implement an approved positive BEHAVIOR"), prompt),
+        () -> assertTrue(prompt.contains("by binding its sourceFactId on that operation"), prompt),
+        () -> assertTrue(prompt.contains("Explicit author Script bodies and element intents remain binding"), prompt),
+        () -> assertTrue(prompt.contains("Native COPY sites implement only their admitted mapping"), prompt),
+        () -> assertTrue(prompt.contains("Keep supplied bodies exact and preserve their approved execution placement"), prompt),
+        () -> assertTrue(prompt.contains("native compiler derives context retention"), prompt),
+        () -> assertFalse(prompt.contains("or an ErrorScope requires a script"), prompt),
+        () -> assertFalse(prompt.contains("is a behavior-owned script"), prompt));
     assertTrue(prompt.contains("Do not mint a mapping id"), prompt);
     assertTrue(prompt.contains("reuse container is a standalone subtree"), prompt);
     assertTrue(prompt.contains("role=body"), prompt);
@@ -343,6 +400,15 @@ class DesignInputCapabilityTest {
   }
 
   @Test
+  void designPromptReturnsTheServiceResponseWhenTheContractAlreadyMatches() {
+    var prompt = DesignInputCapability.authoringPrompt(ChainSemanticCaptureFixtures.approvedBrief(), CONTRACT);
+    assertTrue(prompt.contains("When a service response already satisfies the response requirement, return it directly."),
+        () -> prompt);
+    assertTrue(prompt.contains("Add processing only if the required response differs from that contract."),
+        () -> prompt);
+  }
+
+  @Test
   void authoringPromptIncludesMappingIntentIdTokenFromTheBrief() {
     String prompt =
         DesignInputCapability.authoringPrompt(
@@ -384,6 +450,7 @@ class DesignInputCapabilityTest {
                 Map.of(
                     "requirementBrief",
                     ChainSemanticCaptureFixtures.approvedBrief())));
+    assertEquals(StageOutcomeClass.SUCCEEDED, prepared.outcomeClass(), prepared.message());
     ChainSemanticRevision stored = semanticPayload(prepared);
     IdsDocument ids = idsPayload(prepared);
     String digest = CanonicalPayloadHash.sha256Hex(stored);
@@ -412,6 +479,7 @@ class DesignInputCapabilityTest {
                 Map.of(
                     "requirementBrief",
                     ChainSemanticCaptureFixtures.approvedBrief())));
+    assertEquals(StageOutcomeClass.SUCCEEDED, prepared.outcomeClass(), prepared.message());
     ChainSemanticRevision stored = semanticPayload(prepared);
     String digest = CanonicalPayloadHash.sha256Hex(stored);
     IdsDocument edited =
@@ -493,6 +561,36 @@ class DesignInputCapabilityTest {
   }
 
   @Test
+  void aProposalTheModelRepeatsIsAContractFailureCarryingTheLastFeedback() {
+    CaptureAttemptFeedbackStore feedbackStore = new CaptureAttemptFeedbackStore();
+    ChainSemanticCaptureTool captureTool = captureTool(feedbackStore);
+    DesignInputCapability capability =
+        new DesignInputCapability(
+            (conversationId, prompt) -> {
+              for (int attempt = 0; attempt < 3; attempt++) {
+                captureTool.captureChainSemanticRevision(
+                    ChainSemanticCaptureFixtures.foreignSourceFactCapture());
+              }
+              return Multi.createFrom().item("ignored agent text after the tool calls");
+            },
+            new DefaultChainSemanticIdsRenderer());
+    capability.captureFeedback = feedbackStore;
+
+    StageOutcome prepared =
+        outcome(
+            capability,
+            context(
+                "design-input",
+                Map.of("requirementBrief", ChainSemanticCaptureFixtures.approvedBrief())));
+
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, prepared.outcomeClass());
+    assertEquals(
+        CaptureFailureClass.IDENTICAL_SPAM,
+        prepared.recoveryCause().captureFailure().feedback().failureClass());
+    assertFalse(prepared.recoveryCause().captureFailure().feedback().outerAllowed());
+  }
+
+  @Test
   void missingRuntimeAddonStopsDesignRegeneration() {
     Map<String, String> addons = ChainSemanticCaptureToolTest.completeAddons();
     addons.remove("cip-design-executor");
@@ -543,6 +641,10 @@ class DesignInputCapabilityTest {
     assertTrue(prompt.contains("Treat onTaskResult as a Kafka produce, not a trigger"));
     assertTrue(prompt.contains("Rebuild the topology so this rejection cannot recur"));
     assertTrue(prompt.contains("Preserve the approved element placements"));
+    assertTrue(prompt.contains(
+        "If it returns REPAIR_CAPTURE, correct the listed issues and call it again."), prompt);
+    assertFalse(prompt.contains("Call captureChainSemanticRevision once."), prompt);
+    assertTrue(prompt.contains("Preserve every approved branch decision and outcome"), prompt);
     assertFalse(prompt.contains("OM to Salesforce WFM original request"));
   }
 
@@ -583,7 +685,7 @@ class DesignInputCapabilityTest {
   }
 
   @Test
-  void designAgentPromptEscapesQuteBracesFromTheBrief() {
+  void designAgentPromptPreservesPathBracesAfterTemplateRendering() {
     java.util.concurrent.atomic.AtomicReference<String> seenPrompt =
         new java.util.concurrent.atomic.AtomicReference<>();
     DesignInputCapability capability =
@@ -598,9 +700,11 @@ class DesignInputCapabilityTest {
         context(
             "design-input",
             Map.of("requirementBrief", ChainSemanticCaptureFixtures.approvedBrief())));
-    String prompt = seenPrompt.get();
-    assertTrue(prompt.contains("path=/orders/\\{id}"), prompt);
-    assertFalse(prompt.contains("path=/orders/{id}"), prompt);
+    var renderer = io.quarkus.qute.Engine.builder().addDefaults()
+        .addParserHook(new io.quarkiverse.langchain4j.QuarkusPromptTemplateFactory
+            .MustacheTemplateVariableStyleParserHook()).build();
+    String prompt = renderer.parse(seenPrompt.get()).render();
+    assertTrue(prompt.contains("path=/orders/{id}"), prompt);
   }
 
   private static DesignInputCapability capturingCapability() {
@@ -618,6 +722,10 @@ class DesignInputCapabilityTest {
   }
 
   private static ChainSemanticCaptureTool captureTool() {
+    return captureTool(new CaptureAttemptFeedbackStore());
+  }
+
+  private static ChainSemanticCaptureTool captureTool(CaptureAttemptFeedbackStore feedbackStore) {
     CatalogElementDescriptorLoader descriptors = mock(CatalogElementDescriptorLoader.class);
     CatalogElementDescriptorTestSupport.stubPermissive(descriptors);
     CipKnowledgePackRepository pack = mock(CipKnowledgePackRepository.class);
@@ -647,7 +755,9 @@ class DesignInputCapabilityTest {
         new DefaultChainSemanticRevisionValidator(),
         new ClasspathCompilerContractRepository(),
         pack,
-        descriptors);
+        descriptors,
+        new E2eRecoveryFaultInjector("", ""),
+        feedbackStore);
   }
 
   private static StageExecutionContext context(String stageId, Map<String, Object> attributes) {

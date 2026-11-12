@@ -136,10 +136,10 @@ jobs:
           set -eu
           mkdir -p "$TOOLS_DIR"
           cd "$TOOLS_DIR"
-          curl --retry 3 --retry-delay 2 -fsSL -o kind "https://github.com/kubernetes-sigs/kind/releases/download/${KIND_VERSION}/kind-linux-amd64"
+          curl --retry 3 --retry-delay 30 -fsSL -o kind "https://github.com/kubernetes-sigs/kind/releases/download/${KIND_VERSION}/kind-linux-amd64"
           echo "${KIND_SHA256}  kind" | sha256sum -c -
           chmod +x kind
-          curl --retry 3 --retry-delay 2 -fsSL -o istioctl.tar.gz "https://github.com/istio/istio/releases/download/${ISTIO_VERSION}/istioctl-${ISTIO_VERSION}-linux-amd64.tar.gz"
+          curl --retry 3 --retry-delay 30 -fsSL -o istioctl.tar.gz "https://github.com/istio/istio/releases/download/${ISTIO_VERSION}/istioctl-${ISTIO_VERSION}-linux-amd64.tar.gz"
           echo "${ISTIOCTL_SHA256}  istioctl.tar.gz" | sha256sum -c -
           tar -xzf istioctl.tar.gz istioctl
           rm istioctl.tar.gz
@@ -168,7 +168,7 @@ jobs:
 
       - name: Install root dependencies
         id: root-deps
-        run: npm ci --legacy-peer-deps
+        run: npm ci
 
       - name: Install e2e dependencies
         id: e2e-deps

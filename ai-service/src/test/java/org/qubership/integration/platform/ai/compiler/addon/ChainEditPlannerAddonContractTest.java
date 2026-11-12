@@ -11,25 +11,30 @@ import org.qubership.integration.platform.ai.qipknowledge.CipKnowledgePackFixtur
 class ChainEditPlannerAddonContractTest {
 
   @Test
-  void structureAndScriptAddonsMustFollowTheValidatedPlan() throws Exception {
+  void standaloneStructureAndScriptsFollowTheValidatedPlan() throws Exception {
     String structure =
         Files.readString(
-            CipKnowledgePackFixturePaths.addonRoot()
-                .resolve("skills/cip-structure-generator.addon.md"));
+            CipKnowledgePackFixturePaths.packRoot()
+                .resolve("skills/cip-structure-generator/SKILL.md"));
     String script =
         Files.readString(
-            CipKnowledgePackFixturePaths.addonRoot()
-                .resolve("skills/cip-script-generator.addon.md"));
+            CipKnowledgePackFixturePaths.packRoot()
+                .resolve("skills/cip-script-generator/SKILL.md"));
     String planner =
         Files.readString(
-            CipKnowledgePackFixturePaths.addonRoot()
-                .resolve("skills/cip-chain-edit-planner.addon.md"));
+            CipKnowledgePackFixturePaths.packRoot()
+                .resolve("skills/cip-chain-edit-planner/SKILL.md"));
 
-    assertTrue(planner.contains("CHAIN_EDIT_STRUCTURAL_PLAN"), planner);
+    assertTrue(planner.contains("failureDelivery"), planner);
+    assertTrue(planner.contains("originalTargetNodeIds"), planner);
     assertTrue(structure.contains("validated structural plan"), structure);
-    assertTrue(structure.contains("valid-om-gp02-wrap-subgraph.json"), structure);
+    assertTrue(structure.contains("tryMoveExisting"), structure);
+    assertTrue(structure.contains("finallyMoveExisting"), structure);
+    assertTrue(structure.contains("catchScriptLabel"), structure);
     assertTrue(script.contains("OM_TASK_RESULT"), script);
-    assertTrue(script.contains("valid-patch-catch-om-task-failed.json"), script);
+    assertTrue(script.contains("reporterSchemaVariant"), script);
+    assertTrue(script.contains("executionId"), script);
+    assertTrue(script.contains("executionNumber"), script);
     assertFalse(script.contains("Always use CamelHttpResponseCode"), script);
   }
 }

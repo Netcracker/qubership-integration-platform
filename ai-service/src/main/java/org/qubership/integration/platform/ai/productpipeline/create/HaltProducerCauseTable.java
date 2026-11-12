@@ -141,6 +141,7 @@ public final class HaltProducerCauseTable {
           "Rebuild the topology in " + role + " so every container meets its child count.";
       case POLICY_FAILURE -> "Adjust the policy this stage rejected.";
       case TECHNICAL_RETRY_EXHAUSTED -> "Change the inputs this stage consumed, then retry.";
+      case PROVIDER_QUOTA_EXHAUSTED -> "Retry after the model provider has API credits.";
       case DOMAIN_FAILURE -> "Correct the domain error in " + role + ".";
       case VALIDATION_BLOCKER -> "Correct the validation error in " + role + ".";
       case INTERNAL -> "Reopen " + role + " to route around this defect.";
@@ -183,6 +184,7 @@ public final class HaltProducerCauseTable {
               GRAPH_STRUCTURE,
               POLICY_FAILURE,
               TECHNICAL_RETRY_EXHAUSTED,
+              PROVIDER_QUOTA_EXHAUSTED,
               CATALOG_RESOLUTION,
               VALIDATION_BLOCKER,
               MISSING_MANDATORY_INPUT,

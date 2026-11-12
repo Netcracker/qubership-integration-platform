@@ -18,10 +18,6 @@ package org.qubership.integration.platform.runtime.catalog.util;
 
 import org.mapstruct.Mapper;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 import static java.util.Objects.isNull;
 
 @Mapper(
@@ -30,29 +26,5 @@ import static java.util.Objects.isNull;
 public class StringTrimmer {
     public String trimString(String value) {
         return isNull(value) ? null : value.trim();
-    }
-
-    public Map<String, Object> trimMapValue(Map<String, Object> property) {
-        return trimStringValuesInMap(property);
-    }
-
-    private Object trimStringValuesInObject(Object object) {
-        if (object instanceof String s) {
-            return s.trim();
-        } else if (object instanceof Map<?, ?> map) {
-            return trimStringValuesInMap(map);
-        } else if (object instanceof List<?> list) {
-            return list.stream().map(this::trimStringValuesInObject).toList();
-        } else {
-            return object;
-        }
-    }
-
-    private <T, V> Map<T, Object> trimStringValuesInMap(Map<T, V> map) {
-        return map.entrySet().stream().collect(
-                HashMap::new,
-                (m, entry) -> m.put(entry.getKey(), trimStringValuesInObject(entry.getValue())),
-                HashMap::putAll
-        );
     }
 }
