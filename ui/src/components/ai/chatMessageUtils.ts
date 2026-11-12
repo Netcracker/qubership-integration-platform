@@ -1,8 +1,4 @@
-import type {
-  ChatFailureClass,
-  ChatMessage,
-  ChatUsage,
-} from "../../ai/modelProviders/types.ts";
+import type { ChatMessage, ChatUsage } from "../../ai/modelProviders/types.ts";
 
 export type ChatMeta = {
   durationMs: number;
@@ -236,36 +232,11 @@ export function upsertAssistantMessage(
 export const TURN_FAILURE_SUMMARY =
   "The AI service failed to complete this reply.";
 
-export const ACCESS_DENIED_FAILURE_SUMMARY =
-  "You don't have permission to perform this action.";
-
-export const SESSION_EXPIRED_FAILURE_SUMMARY =
-  "Your session has expired. Sign in again to continue.";
-
-const CATALOG_ACCESS_DENIED_MESSAGE =
-  "You don't have permission to perform this action in the catalog";
-
 export function isErrorVariantMessage(message: ChatMessage): boolean {
   return message.variant === "error";
 }
 
-/** The failure class carried by the chunk, or one the fixed server copy names. */
-export function classifyChatFailure(
-  detail: string,
-  failureClass?: ChatFailureClass,
-): ChatFailureClass | undefined {
-  if (failureClass) return failureClass;
-  if (detail.trim() === CATALOG_ACCESS_DENIED_MESSAGE) return "access-denied";
-  return undefined;
-}
-
-export function turnFailureContent(
-  decisionCard?: "valid" | "stale",
-  failureClass?: ChatFailureClass,
-): string {
-  if (failureClass === "access-denied") return ACCESS_DENIED_FAILURE_SUMMARY;
-  if (failureClass === "session-expired")
-    return SESSION_EXPIRED_FAILURE_SUMMARY;
+export function turnFailureContent(decisionCard?: "valid" | "stale"): string {
   if (decisionCard === "valid") {
     return `${TURN_FAILURE_SUMMARY} The decision card above is still valid.`;
   }
@@ -278,17 +249,12 @@ export function turnFailureContent(
 export function buildTurnFailureMessage(
   detail: string,
   decisionCard?: "valid" | "stale",
-  failureClass?: ChatFailureClass,
 ): ChatMessage {
   const trimmed = detail.trim();
-  const classified = classifyChatFailure(trimmed, failureClass);
   return {
     role: "assistant",
     variant: "error",
-    content: turnFailureContent(
-      classified ? undefined : decisionCard,
-      classified,
-    ),
+    content: turnFailureContent(decisionCard),
     ...(trimmed ? { detail: trimmed } : {}),
   };
 }
@@ -308,7 +274,6 @@ export function appendTurnFailure(
   detail: string,
   partialAssistantContent?: string,
   decisionCard?: "valid" | "stale",
-  failureClass?: ChatFailureClass,
 ): ChatMessage[] {
   let next = [...messages];
   const partial = partialAssistantContent?.trim();
@@ -324,7 +289,7 @@ export function appendTurnFailure(
       next = next.slice(0, -1);
     }
   }
-  return [...next, buildTurnFailureMessage(detail, decisionCard, failureClass)];
+  return [...next, buildTurnFailureMessage(detail, decisionCard)];
 }
 
 export type StreamingDoneOptions = {

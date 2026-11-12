@@ -32,15 +32,6 @@ function parseCatalogSystemType(value: unknown): CatalogSystemType | undefined {
   return value === "EXTERNAL" || value === "INTERNAL" ? value : undefined;
 }
 
-function isTokenExpiredStep(payload: string): boolean {
-  try {
-    const parsed = JSON.parse(payload) as Record<string, unknown>;
-    return parsed.kind === "auth" && parsed.status === "token_expired";
-  } catch {
-    return false;
-  }
-}
-
 function parseStepPayload(payload: string): ActivityStepPayload | null {
   try {
     const parsed = JSON.parse(payload) as Record<string, unknown>;
@@ -353,7 +344,6 @@ export function parseCipSseBlock(block: string): StreamingChunk[] {
     }
 
     case "step": {
-      if (isTokenExpiredStep(payload)) return [{ type: "token-expired" }];
       const step = parseStepPayload(payload);
       return step ? [{ type: "step", step }] : [];
     }

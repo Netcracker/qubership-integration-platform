@@ -23,12 +23,6 @@ public enum RecoveryCauseCode {
   /** Catalog binding did not resolve to one service or operation. */
   CATALOG_RESOLUTION,
 
-  /**
-   * The catalog rejected the turn bearer with HTTP 401. Another create attempt can succeed once the
-   * browser holds a bearer the catalog accepts.
-   */
-  CATALOG_AUTHENTICATION,
-
   /** Mapping rules failed the contract of a known source or target schema. */
   MAPPING_CONTRACT,
 

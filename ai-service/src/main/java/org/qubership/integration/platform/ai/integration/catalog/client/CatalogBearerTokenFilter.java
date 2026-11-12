@@ -6,7 +6,6 @@ import jakarta.ws.rs.client.ClientRequestFilter;
 import jakarta.ws.rs.core.HttpHeaders;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.qubership.integration.platform.ai.chat.AuthPolicy;
-import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.UserTokenStore;
 
 
@@ -29,28 +28,15 @@ public class CatalogBearerTokenFilter implements ClientRequestFilter {
     if (requestContext.getHeaders().containsKey(HttpHeaders.AUTHORIZATION)) {
       return;
     }
-    // The renewal wait happens in AwaitUsableTurnBearerInterceptor, before the timed HTTP call.
-    if (AuthPolicy.required()) {
-      requestContext
-          .getHeaders()
-          .putSingle(HttpHeaders.AUTHORIZATION, "Bearer " + usableTurnBearer());
-      return;
+    String bearer = UserTokenStore.current().orElse(null);
+    if (bearer == null && AuthPolicy.required()) {
+      throw new NotAuthorizedException("Bearer");
     }
-    // Auth off: a turn that carries a bearer still uses it; otherwise the service identity serves
-    // the local stack.
-    if (ToolSession.resolveConversationId() != null && UserTokenStore.current().isPresent()) {
-      requestContext
-          .getHeaders()
-          .putSingle(HttpHeaders.AUTHORIZATION, "Bearer " + usableTurnBearer());
-      return;
+    if (bearer == null) {
+      bearer = token;
     }
-    if (token == null) {
-      return;
+    if (bearer != null) {
+      requestContext.getHeaders().putSingle(HttpHeaders.AUTHORIZATION, "Bearer " + bearer);
     }
-    requestContext.getHeaders().putSingle(HttpHeaders.AUTHORIZATION, "Bearer " + token);
-  }
-
-  private static String usableTurnBearer() {
-    return UserTokenStore.currentUsable(0).orElseThrow(() -> new NotAuthorizedException("Bearer"));
   }
 }

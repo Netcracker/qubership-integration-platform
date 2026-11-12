@@ -169,12 +169,8 @@ export type StreamingChunkType =
   | "step"
   | "decision"
   | "catalog-changed"
-  | "token-expired"
   | "done"
   | "error";
-
-/** Failures whose copy the user must see instead of the generic AI-service wording. */
-export type ChatFailureClass = "access-denied" | "session-expired";
 
 export interface CatalogChangePayload {
   chainIds: string[] | null;
@@ -187,8 +183,6 @@ export interface StreamingChunk {
   usage?: ChatUsage;
   finishReason?: string;
   errorMessage?: string;
-  /** Set when the failure has its own user-facing copy. */
-  failureClass?: ChatFailureClass;
   transportError?: boolean;
   contentDelta?: string;
   conversationId?: string;

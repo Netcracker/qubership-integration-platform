@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.a2a.transport;
 
+import static io.restassured.RestAssured.given;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
@@ -132,9 +133,9 @@ class A2aPolicyChoiceTest {
     int turns = conversations.archive().read(task).turns().size();
     post(body).then().statusCode(200).body("task.status.state", org.hamcrest.Matchers.equalTo(expectedState));
     post(answer(task, UUID.randomUUID().toString(), "keep-requested", card)).then().statusCode(400);
-    A2aTestAuth.givenA2a().get(URI.create("/tasks/" + task))
+    given().urlEncodingEnabled(false).header("A2A-Version", "1.0").get(URI.create("/tasks/" + task))
         .then().statusCode(200).body("status.state", org.hamcrest.Matchers.equalTo(expectedState));
-    if (status.equals("FAILED")) A2aTestAuth.givenA2a()
+    if (status.equals("FAILED")) given().urlEncodingEnabled(false).header("A2A-Version", "1.0")
         .get(URI.create("/tasks/" + task)).then().statusCode(200)
         .body("status.message.parts[0].text", org.hamcrest.Matchers.equalTo("Original execution failure"));
     assertEquals(1, continuations.get());
@@ -222,7 +223,7 @@ class A2aPolicyChoiceTest {
 
   @SuppressWarnings("unchecked")
   private Map<String, Object> card(String task) {
-    return A2aTestAuth.givenA2a()
+    return given().urlEncodingEnabled(false).header("A2A-Version", "1.0")
         .get(URI.create("/tasks/" + task)).then().statusCode(200).extract()
         .path("status.message.parts.find { it.data != null }.data");
   }
@@ -240,7 +241,7 @@ class A2aPolicyChoiceTest {
   }
 
   private static io.restassured.response.Response post(String body) {
-    return A2aTestAuth.givenA2a().contentType(ContentType.JSON)
+    return given().urlEncodingEnabled(false).header("A2A-Version", "1.0").contentType(ContentType.JSON)
         .body(body).post(URI.create("/message:send"));
   }
 

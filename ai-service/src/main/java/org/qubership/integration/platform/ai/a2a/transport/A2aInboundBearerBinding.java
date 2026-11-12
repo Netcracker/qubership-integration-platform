@@ -1,14 +1,12 @@
 package org.qubership.integration.platform.ai.a2a.transport;
 
-import io.quarkus.security.UnauthorizedException;
 import java.util.Map;
 import org.a2aproject.sdk.server.ServerCallContext;
 import org.a2aproject.sdk.server.agentexecution.RequestContext;
 import org.a2aproject.sdk.transport.rest.context.RestContextKeys;
-import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.UserTokenStore;
 
-/** Reads the inbound HTTP {@code Authorization} header and binds it to a turn's conversation id. */
+/** Reads the bearer token from the inbound HTTP {@code Authorization} header. */
 public final class A2aInboundBearerBinding {
 
   private A2aInboundBearerBinding() {}
@@ -34,28 +32,5 @@ public final class A2aInboundBearerBinding {
       }
     }
     return null;
-  }
-
-  public static String requireBearer(RequestContext context) {
-    return requireBearer(context == null ? null : context.getCallContext());
-  }
-
-  public static String requireBearer(ServerCallContext context) {
-    String token = bearerFrom(context);
-    if (token == null) {
-      throw new UnauthorizedException("Bearer");
-    }
-    return token;
-  }
-
-  /** Stores the caller token for catalog calls keyed by {@code conversationId}. */
-  public static void bind(String conversationId, String token) {
-    UserTokenStore.put(conversationId, token);
-    ToolSession.bind(conversationId);
-  }
-
-  public static void unbind(String conversationId, String token) {
-    UserTokenStore.remove(conversationId, token);
-    ToolSession.clear();
   }
 }

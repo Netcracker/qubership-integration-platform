@@ -28,7 +28,6 @@ import org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecover
 import org.qubership.integration.platform.ai.schema.CamelSimplePredicateValidator;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.UserTokenStore;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
@@ -710,15 +709,12 @@ class DesignInputCapabilityTest {
   }
 
   @Test
-  void cleanRebuildAuthenticatesAsTheOwningConversation() {
-    java.util.concurrent.atomic.AtomicReference<String> seenOwner =
-        new java.util.concurrent.atomic.AtomicReference<>();
+  void cleanRebuildCarriesTheTurnBearer() {
     java.util.concurrent.atomic.AtomicReference<String> seenToken =
         new java.util.concurrent.atomic.AtomicReference<>();
     DesignInputCapability capability =
         new DesignInputCapability(
             (conversationId, prompt) -> {
-              seenOwner.set(ToolSession.resolveOwningConversationId());
               seenToken.set(UserTokenStore.current().orElse(null));
               return Multi.createFrom().item("prose without a tool call");
             },
@@ -735,7 +731,6 @@ class DesignInputCapabilityTest {
     try {
       outcome(capability, context("design-input", attributes));
 
-      assertEquals("conv-1", seenOwner.get());
       assertEquals("caller-token", seenToken.get());
     } finally {
       UserTokenStore.remove("conv-1", "caller-token");

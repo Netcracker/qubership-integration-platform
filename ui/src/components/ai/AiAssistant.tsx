@@ -46,7 +46,6 @@ import {
   appendTurnFailure,
   applyStreamingDoneMessages,
   buildMetaMessage,
-  classifyChatFailure,
   discardEmptyAssistantPlaceholder,
   ensureAssistantPlaceholder,
   getResponseTail,
@@ -459,7 +458,6 @@ export const AiAssistant: React.FC = () => {
       let turnFailed = false;
       let turnEnded = false;
       let receivedDone = false;
-      let classifiedFailure = false;
       let supportsCatalogChangeEvents = false;
       const interruptionState = interruptionRefreshRef.current;
       let streamOps: Promise<void> = Promise.resolve();
@@ -593,10 +591,8 @@ export const AiAssistant: React.FC = () => {
 
         if (chunk.type === "error" && chunk.errorMessage) {
           if (chunk.transportError) refreshAfterInterruption(interruptionState);
-          const errorMessage = chunk.errorMessage;
-          if (classifyChatFailure(errorMessage, chunk.failureClass))
-            classifiedFailure = true;
           turnEnded = true;
+          const errorMessage = chunk.errorMessage;
           turnFailed = true;
           enqueueOp(() => {
             // The turn ended without a "done" event: check whether the server still has
@@ -612,7 +608,6 @@ export const AiAssistant: React.FC = () => {
               errorMessage,
               accumulatedContent,
               hasUnansweredDecision(currentMessages) ? "valid" : "stale",
-              chunk.failureClass,
             );
             currentMessages = attachActivityToLastAssistant(
               currentMessages,
@@ -627,8 +622,7 @@ export const AiAssistant: React.FC = () => {
           });
         }
       });
-      if (!receivedDone && !classifiedFailure)
-        refreshAfterInterruption(interruptionState);
+      if (!receivedDone) refreshAfterInterruption(interruptionState);
       await streamOps;
     },
     [

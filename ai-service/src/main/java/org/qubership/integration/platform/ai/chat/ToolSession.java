@@ -4,6 +4,7 @@ import io.smallrye.mutiny.Context;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import org.jboss.logmanager.MDC;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext;
 
@@ -18,49 +19,25 @@ import org.qubership.integration.platform.ai.productpipeline.create.ProductCapab
 public final class ToolSession {
 
   static final String CONTEXT_KEY = "tool-session-conversation-id";
-  static final String CONTEXT_OWNER_KEY = "tool-session-owning-conversation-id";
 
   private static final ThreadLocal<String> THREAD_CONVERSATION_ID = new ThreadLocal<>();
-  private static final ThreadLocal<String> THREAD_OWNER_CONVERSATION_ID = new ThreadLocal<>();
   private static final ThreadLocal<Context> THREAD_CONTEXT = new ThreadLocal<>();
   private static final ThreadLocal<Context> SUBSCRIBE_PATH_CONTEXT = new ThreadLocal<>();
 
   private ToolSession() {}
 
-  /**
-   * Binds {@code conversationId} for a nested scope and restores any previous binding on
-   * {@link Handle#close()}. Prefer this over {@link #bind}/{@link #clear} when catalog/auth work
-   * may continue on the same thread after the nested scope ends.
-   */
+  /** Binds {@code conversationId} until {@link Handle#close()}, which restores the previous binding. */
   public static Handle open(String conversationId) {
-    return open(conversationId, null);
-  }
-
-  /**
-   * Binds {@code conversationId} for a nested scope and restores any previous binding and owning
-   * conversation on {@link Handle#close()}. The owning conversation is where the turn bearer lives
-   * when the bound id is an isolated capture scope, such as a clean design-input rebuild.
-   */
-  public static Handle open(String conversationId, String owningConversationId) {
     ThreadState previous = captureThreadState();
-    bind(conversationId, owningConversationId);
+    bind(conversationId);
     return new Handle(previous);
   }
 
   public static void bind(String conversationId) {
-    bind(conversationId, null);
-  }
-
-  public static void bind(String conversationId, String owningConversationId) {
     String id = requireConversationId(conversationId);
-    String owner = normalizeOptional(owningConversationId);
     MDC.put(ChatMdc.CONVERSATION_ID, id);
     THREAD_CONVERSATION_ID.set(id);
-    setOwnerConversationId(owner);
-    Context context =
-        owner == null
-            ? Context.of(CONTEXT_KEY, id)
-            : Context.of(CONTEXT_KEY, id, CONTEXT_OWNER_KEY, owner);
+    Context context = Context.of(CONTEXT_KEY, id);
     THREAD_CONTEXT.set(context);
     SUBSCRIBE_PATH_CONTEXT.set(context);
   }
@@ -68,7 +45,6 @@ public final class ToolSession {
   public static void clear() {
     MDC.remove(ChatMdc.CONVERSATION_ID);
     THREAD_CONVERSATION_ID.remove();
-    THREAD_OWNER_CONVERSATION_ID.remove();
     THREAD_CONTEXT.remove();
     SUBSCRIBE_PATH_CONTEXT.remove();
   }
@@ -94,18 +70,6 @@ public final class ToolSession {
         .orElse(null);
   }
 
-  /**
-   * The conversation whose turn bearer and event stream this work belongs to. Equals the bound id
-   * unless an isolated capture scope set a separate owner.
-   */
-  public static String resolveOwningConversationId() {
-    String owner = THREAD_OWNER_CONVERSATION_ID.get();
-    if (owner != null && !owner.isBlank()) {
-      return owner.trim();
-    }
-    return resolveConversationId();
-  }
-
   public static Context attachedContext() {
     Context context = THREAD_CONTEXT.get();
     return context != null ? context : Context.empty();
@@ -118,8 +82,8 @@ public final class ToolSession {
     return Uni.createFrom()
         .deferred(
             () -> {
-              java.util.concurrent.atomic.AtomicReference<ThreadState> previous =
-                  new java.util.concurrent.atomic.AtomicReference<>();
+              AtomicReference<ThreadState> previous =
+                  new AtomicReference<>();
               return upstream
                   .onSubscription()
                   .invoke(
@@ -139,8 +103,8 @@ public final class ToolSession {
     return Multi.createFrom()
         .deferred(
             () -> {
-              java.util.concurrent.atomic.AtomicReference<ThreadState> previous =
-                  new java.util.concurrent.atomic.AtomicReference<>();
+              AtomicReference<ThreadState> previous =
+                  new AtomicReference<>();
               return upstream
                   .onSubscription()
                   .invoke(
@@ -154,7 +118,7 @@ public final class ToolSession {
   }
 
   private static void restoreIfCaptured(
-      java.util.concurrent.atomic.AtomicReference<ThreadState> previous) {
+      AtomicReference<ThreadState> previous) {
     ThreadState state = previous.getAndSet(null);
     if (state != null) {
       restoreThreadState(state);
@@ -201,23 +165,16 @@ public final class ToolSession {
     String conversationId = context.get(CONTEXT_KEY);
     MDC.put(ChatMdc.CONVERSATION_ID, conversationId);
     THREAD_CONVERSATION_ID.set(conversationId);
-    setOwnerConversationId(
-        context.contains(CONTEXT_OWNER_KEY) ? context.get(CONTEXT_OWNER_KEY) : null);
     THREAD_CONTEXT.set(context);
     SUBSCRIBE_PATH_CONTEXT.set(context);
   }
 
   private record ThreadState(
-      String conversationId,
-      String ownerConversationId,
-      Context subscribeContext,
-      Context threadContext,
-      Object mdc) {}
+      String conversationId, Context subscribeContext, Context threadContext, Object mdc) {}
 
   private static ThreadState captureThreadState() {
     return new ThreadState(
         THREAD_CONVERSATION_ID.get(),
-        THREAD_OWNER_CONVERSATION_ID.get(),
         SUBSCRIBE_PATH_CONTEXT.get(),
         THREAD_CONTEXT.get(),
         MDC.get(ChatMdc.CONVERSATION_ID));
@@ -229,7 +186,6 @@ public final class ToolSession {
     } else {
       THREAD_CONVERSATION_ID.remove();
     }
-    setOwnerConversationId(state.ownerConversationId());
     if (state.mdc() != null) {
       MDC.put(ChatMdc.CONVERSATION_ID, state.mdc().toString());
     } else {
@@ -245,22 +201,6 @@ public final class ToolSession {
     } else {
       THREAD_CONTEXT.remove();
     }
-  }
-
-  private static void setOwnerConversationId(String owningConversationId) {
-    String owner = normalizeOptional(owningConversationId);
-    if (owner == null) {
-      THREAD_OWNER_CONVERSATION_ID.remove();
-    } else {
-      THREAD_OWNER_CONVERSATION_ID.set(owner);
-    }
-  }
-
-  private static String normalizeOptional(String conversationId) {
-    if (conversationId == null || conversationId.isBlank()) {
-      return null;
-    }
-    return conversationId.trim();
   }
 
   private static String readMdcConversationId() {

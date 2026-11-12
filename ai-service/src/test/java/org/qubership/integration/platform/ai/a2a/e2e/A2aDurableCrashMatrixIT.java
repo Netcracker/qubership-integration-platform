@@ -29,7 +29,6 @@ import org.qubership.integration.platform.ai.a2a.transport.A2aDispatchCrashGate;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
 import org.qubership.integration.platform.ai.productpipeline.store.RunTransition;
-import org.qubership.integration.platform.ai.a2a.transport.A2aTestAuth;
 
 /**
  * Crash matrix over the real facade, runtime, and run store.
@@ -240,7 +239,9 @@ class A2aDurableCrashMatrixIT {
   }
 
   private static io.restassured.response.Response sendMessage(String body) {
-    return A2aTestAuth.givenA2a()
+    return given()
+        .urlEncodingEnabled(false)
+        .header("A2A-Version", "1.0")
         .contentType(ContentType.JSON)
         .body(body)
         .when()

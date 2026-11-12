@@ -35,7 +35,6 @@ import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
 import org.qubership.integration.platform.ai.llm.routing.ScenarioRouter;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
-import org.qubership.integration.platform.ai.a2a.transport.A2aTestAuth;
 
 @QuarkusTest
 @TestProfile(TestArtifactBlobStoreProducer.Profile.class)
@@ -69,7 +68,7 @@ class A2aFeatureFlagIT {
         .thenReturn(Multi.createFrom().item(ChatEvent.token("browser-ok")));
 
     given()
-            .header("Authorization", "Bearer test-token")
+        .header("Authorization", "Bearer test-token")
         .contentType(ContentType.JSON)
         .body("{\"message\":\"hello\"}")
         .when()
@@ -117,7 +116,8 @@ class A2aFeatureFlagIT {
     assertEquals(beforeDisable.publicSnapshotJson(), afterToggleSimulation.publicSnapshotJson());
     assertEquals(beforeDisable.revision(), afterToggleSimulation.revision());
 
-    A2aTestAuth.givenA2a()
+    given()
+        .header("A2A-Version", "1.0")
         .when()
         .get("/tasks/" + taskId)
         .then()

@@ -15,7 +15,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.ws.rs.core.Response;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.smallrye.mutiny.Multi;
 import java.time.Clock;
@@ -25,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
@@ -61,8 +59,6 @@ import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
 import org.qubership.integration.platform.ai.compiler.capture.ChatMemorySanitizer;
 import org.qubership.integration.platform.ai.configuration.AppConfig;
-import org.qubership.integration.platform.ai.integration.catalog.client.CatalogAccessDeniedFailures;
-import org.qubership.integration.platform.ai.integration.catalog.client.CatalogNonRetryableResponseException;
 import org.qubership.integration.platform.ai.llm.routing.ScenarioRouter;
 import org.qubership.integration.platform.ai.model.ScenarioType;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
@@ -807,128 +803,6 @@ class ChatExecutionServiceTest {
     assertTrue(frames.get(0).contains("dangling tool_call"));
     assertEquals(
         "event: done\ndata: e648092b-45b0-4249-b3d8-88a991127fd3\n\n", frames.get(1));
-  }
-
-  @Test
-  void catalog403OnTheTurnEndsWithTheFriendlyCatalogMessageAndDone() {
-    ScenarioRouter router = mock(ScenarioRouter.class);
-    when(router.route(any(), anyString()))
-        .thenReturn(
-            Multi.createFrom()
-                .deferred(
-                    () -> {
-                      CatalogAccessDeniedFailures.record(
-                          CONVERSATION_ID, 403, "{\"errorMessage\":\"forbidden\"}");
-                      return Multi.createFrom().item(ChatEvent.token("Catalog said no."));
-                    }));
-    ChatDecisionService decisions = mock(ChatDecisionService.class);
-    when(decisions.openDecision(anyString())).thenReturn(Optional.empty());
-    ChatRequest request = new ChatRequest();
-    request.setConversationId(CONVERSATION_ID);
-    request.setMessage("Deploy this chain");
-
-    List<String> frames =
-        service(router, decisions).streamV1Sse(request).collect().asList().await().indefinitely();
-
-    assertFalse(
-        frames.stream().anyMatch(frame -> frame.startsWith("event: token\n")),
-        () -> "a denied turn must not deliver model prose, got: " + frames);
-    assertEquals(
-        List.of(
-            "event: error\ndata: " + CatalogAccessDeniedFailures.ACCESS_DENIED_MESSAGE + "\n\n",
-            "event: done\ndata: " + CONVERSATION_ID + "\n\n"),
-        frames.subList(Math.max(0, frames.size() - 2), frames.size()));
-  }
-
-  @Test
-  void accessDeniedDoesNotLeakIntoTheNextTurnOfTheSameConversation() {
-    AtomicInteger turn = new AtomicInteger();
-    ScenarioRouter router = mock(ScenarioRouter.class);
-    when(router.route(any(), anyString()))
-        .thenAnswer(
-            invocation ->
-                turn.getAndIncrement() == 0
-                    ? Multi.createFrom()
-                        .deferred(
-                            () -> {
-                              CatalogAccessDeniedFailures.record(
-                                  CONVERSATION_ID, 403, "forbidden");
-                              return Multi.createFrom().item(ChatEvent.token("denied"));
-                            })
-                    : Multi.createFrom().item(ChatEvent.token("allowed")));
-    ChatDecisionService decisions = mock(ChatDecisionService.class);
-    when(decisions.openDecision(anyString())).thenReturn(Optional.empty());
-    ChatRequest request = new ChatRequest();
-    request.setConversationId(CONVERSATION_ID);
-    request.setMessage("hello");
-    ChatExecutionService execution = service(router, decisions);
-
-    execution.streamV1Sse(request).collect().asList().await().indefinitely();
-    List<String> second =
-        execution.streamV1Sse(request).collect().asList().await().indefinitely();
-
-    assertTrue(
-        second.stream().anyMatch(frame -> frame.equals("event: token\ndata: allowed\n\n")),
-        () -> "the next turn must run normally, got: " + second);
-    assertFalse(second.stream().anyMatch(frame -> frame.startsWith("event: error\n")));
-  }
-
-  @Test
-  void aCatalog403InsideTheFailureCauseChainUsesTheFriendlyMessage() {
-    Response response = Response.status(403).entity("forbidden").build();
-    try {
-      List<String> frames =
-          ChatExecutionService.recoverFailedSse(
-                  CONVERSATION_ID,
-                  new RuntimeException(
-                      "outer",
-                      new CatalogNonRetryableResponseException(response, "forbidden", true)))
-              .collect()
-              .asList()
-              .await()
-              .indefinitely();
-
-      assertEquals(
-          "event: error\ndata: " + CatalogAccessDeniedFailures.ACCESS_DENIED_MESSAGE + "\n\n",
-          frames.get(0));
-      assertEquals("event: done\ndata: " + CONVERSATION_ID + "\n\n", frames.get(1));
-    } finally {
-      response.close();
-    }
-  }
-
-  @Test
-  void catalog401AndOther4xxKeepTheirCurrentFailureText() {
-    Response unauthorized = Response.status(401).entity("unauthorized").build();
-    Response missing = Response.status(404).entity("missing").build();
-    try {
-      String unauthorizedFrame =
-          ChatExecutionService.recoverFailedSse(
-                  CONVERSATION_ID,
-                  new CatalogNonRetryableResponseException(unauthorized, "unauthorized", true))
-              .collect()
-              .asList()
-              .await()
-              .indefinitely()
-              .get(0);
-      String missingFrame =
-          ChatExecutionService.recoverFailedSse(
-                  CONVERSATION_ID,
-                  new CatalogNonRetryableResponseException(missing, "missing", true))
-              .collect()
-              .asList()
-              .await()
-              .indefinitely()
-              .get(0);
-
-      assertFalse(unauthorizedFrame.contains(CatalogAccessDeniedFailures.ACCESS_DENIED_MESSAGE));
-      assertFalse(missingFrame.contains(CatalogAccessDeniedFailures.ACCESS_DENIED_MESSAGE));
-      assertTrue(unauthorizedFrame.contains("401"), unauthorizedFrame);
-      assertTrue(missingFrame.contains("404"), missingFrame);
-    } finally {
-      unauthorized.close();
-      missing.close();
-    }
   }
 
   @Test

@@ -80,14 +80,6 @@ describe("parseCipSseBlock", () => {
     expect(chunks).toEqual([{ type: "delta", contentDelta: "Hello" }]);
   });
 
-  it("should report an expired token when the server sends an auth step", () => {
-    expect(
-      parseCipSseBlock(
-        'event: step\ndata: {"id":"auth-token","kind":"auth","status":"token_expired","label":"Session token expired"}\n',
-      ),
-    ).toEqual([{ type: "token-expired" }]);
-  });
-
   it("parses step replace-by-id payload", () => {
     const chunks = parseCipSseBlock(
       'event: step\ndata: {"id":"pipeline:validate","kind":"pipeline","status":"running","label":"validate"}\n',

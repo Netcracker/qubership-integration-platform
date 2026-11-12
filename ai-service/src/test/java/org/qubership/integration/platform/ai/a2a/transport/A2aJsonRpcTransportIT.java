@@ -245,18 +245,6 @@ class A2aJsonRpcTransportIT {
     }
   }
 
-  @Test
-  void rootJsonRpcWithoutABearerIsRejected() throws Exception {
-    given()
-        .contentType(ContentType.JSON)
-        .body(sendMessageWithSkill("No bearer"))
-        .header("A2A-Version", "1.0")
-        .when()
-        .post(URI.create("/"))
-        .then()
-        .statusCode(401);
-    assertEquals(0, startCalls.get());
-  }
 
   /**
    * The wire method and the absent version header together are the whole DCA outbound profile: the

@@ -37,7 +37,6 @@ import org.qubership.integration.platform.ai.productpipeline.create.facade.Creat
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainExecutionStatus;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.StartCreateChainCommand;
-import org.qubership.integration.platform.ai.a2a.transport.A2aTestAuth;
 
 /**
  * Package 02 crash windows: fail after claim / dispatching / first persist / completed, then retry
@@ -132,7 +131,9 @@ class A2aCrashWindowIT {
 
     crashGate.arm(point);
     int firstStatus =
-        A2aTestAuth.givenA2a()
+        given()
+            .urlEncodingEnabled(false)
+            .header("A2A-Version", "1.0")
             .contentType(ContentType.JSON)
             .body(body)
             .when()
@@ -169,7 +170,9 @@ class A2aCrashWindowIT {
 
     crashGate.clear();
     String recovered =
-        A2aTestAuth.givenA2a()
+        given()
+            .urlEncodingEnabled(false)
+            .header("A2A-Version", "1.0")
             .contentType(ContentType.JSON)
             .body(body)
             .when()

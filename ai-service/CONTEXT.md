@@ -233,34 +233,6 @@ The AI service's own catalog credential (`CATALOG_TOKEN`), carrying its service 
 permissions rather than any person's. Never used for work a caller started while auth is required.
 _Avoid_: system user, technical token, M2M token
 
-**Owning conversation**:
-The conversation whose turn bearer and event stream a piece of work belongs to. Usually the bound
-conversation itself; it differs when work runs under an isolated capture scope, such as a clean
-design-input rebuild (`<conversationId>-clean-design-<attempt>`), which keeps its own capture
-history but authenticates as its owning conversation.
-_Avoid_: owning turn, parent conversation, history owner (that name is for capture feedback only)
-
-**Catalog authentication failure**:
-A catalog HTTP 401 on a call made with the turn bearer. The run stops at once on the
-temporary-technical card (Retry creation and Stop with report). It is not a repair attempt. Retry
-creation is a new chat request, so it carries that request's bearer. A permanent environment
-failure remains the case another create attempt cannot lift.
-_Avoid_: repair allowance, permanent environment failure, waiting in the turn for a new access token
-
-**Session expired**:
-A catalog HTTP 401 on a call made with the turn bearer. The UI renews the token silently: the
-stream carries the token-expired step, the client posts a fresh token, and the user sees nothing.
-It is never shown as an error and never opens a permission message.
-_Avoid_: permission denied, access denied, a visible session error
-
-**Access denied**:
-A catalog HTTP 403 on a call made with the turn bearer. The turn ends at once with the fixed
-message "You don't have permission to perform this action in the catalog" and the usual terminal
-frame; the model does not continue or paraphrase it. No renew is triggered. The raw catalog
-response stays in the diagnostic detail. The chat request itself rejected with HTTP 403 before the
-stream starts gets the shorter generic message without naming the catalog.
-_Avoid_: authentication failure, session expired, role names in user-facing text
-
 **Causal reopen window** (decided):
 Causal reopen runs only before any materializer has written to the catalog. A failure at or after
 materialization is outside this feature: the model does not reopen the plan and write again on its
@@ -401,10 +373,9 @@ _Avoid_: taking a snapshot around every patch, recreating a deleted element unde
 
 **Auth required** (`qip.ai.auth.required`, env `QIP_AI_AUTH_REQUIRED`):
 On by default: every chat turn, A2A invocation, and harness run must carry a turn bearer, and every
-catalog call uses only the turn bearer of its owning conversation. A call with no owning
-conversation bound, or with no usable bearer, fails as unauthenticated; it never falls back to the
-service identity (ADR 0007). Local stacks without an identity provider turn it off: work without a
-bearer is then served with the service identity, as before caller tokens were propagated. A bearer
-that does arrive is always honoured. The token renewal endpoint stays strict.
+catalog call uses only the turn bearer of its conversation. A call with no conversation bound, or
+with no bearer, fails as unauthenticated; it never falls back to the service identity. Local stacks
+without an identity provider turn it off: work without a bearer is then served with the service
+identity, as before caller tokens were propagated. A bearer that does arrive is always honoured.
 _Avoid_: "local mode" (the flag, not the environment, is what matters)
 

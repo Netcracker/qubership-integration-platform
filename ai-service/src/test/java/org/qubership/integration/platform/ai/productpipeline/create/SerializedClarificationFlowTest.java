@@ -745,8 +745,7 @@ class SerializedClarificationFlowTest {
   }
 
   private io.restassured.response.Response postA2a(String body) {
-    return org.qubership.integration.platform.ai.a2a.transport.A2aTestAuth.givenA2a()
-        .contentType(ContentType.JSON).body(body)
+    return given().urlEncodingEnabled(false).header("A2A-Version", "1.0").contentType(ContentType.JSON).body(body)
         .post(java.net.URI.create("/message:send"));
   }
 

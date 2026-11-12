@@ -396,32 +396,6 @@ describe("AiAssistant", () => {
     expect(mockNotify.warning).toHaveBeenCalledTimes(1);
   });
 
-  it("should render an access-denied stream failure without the generic wording or a reload hint", async () => {
-    stream.mockImplementation(async (_request, emit) => {
-      emit({
-        type: "error",
-        errorMessage: "HTTP 403",
-        failureClass: "access-denied",
-      });
-    });
-    await open();
-    await send();
-
-    expect(
-      await screen.findByText(
-        "You don't have permission to perform this action.",
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByText("The AI service failed to complete this reply."),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Reload this conversation" }),
-    ).not.toBeInTheDocument();
-    expect(screen.getByText("HTTP 403")).toBeInTheDocument();
-    expect(mockNotify.warning).not.toHaveBeenCalled();
-  });
-
   it("shows provider initialization errors without calling the network", async () => {
     jest.mocked(getDefaultAiProvider).mockImplementation(() => {
       throw new Error("Missing provider configuration");

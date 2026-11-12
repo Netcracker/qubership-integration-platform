@@ -174,7 +174,9 @@ class A2aSubscriptionIT {
     // Mutate durable snapshot while no subscriber is attached.
     persistState(taskId, A2aTaskState.INPUT_REQUIRED);
 
-    A2aTestAuth.givenA2a()
+    given()
+        .urlEncodingEnabled(false)
+        .header("A2A-Version", "1.0")
         .when()
         .get(URI.create("/tasks/" + taskId))
         .then()
@@ -259,7 +261,9 @@ class A2aSubscriptionIT {
 
   @Test
   void unknownAndTerminalSubscribeAreRejected() throws Exception {
-    A2aTestAuth.givenA2a()
+    given()
+        .urlEncodingEnabled(false)
+        .header("A2A-Version", "1.0")
         .contentType(ContentType.JSON)
         .body("{}")
         .when()
@@ -282,7 +286,9 @@ class A2aSubscriptionIT {
   @Test
   void transportDisconnectDoesNotCancelPipeline() throws Exception {
     String taskId =
-        A2aTestAuth.givenA2a()
+        given()
+            .urlEncodingEnabled(false)
+            .header("A2A-Version", "1.0")
             .contentType(ContentType.JSON)
             .body(
                 A2aSseTestSupport.textMessageBody(

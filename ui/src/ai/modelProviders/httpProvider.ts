@@ -1,6 +1,5 @@
 import { AiModelProvider } from "./AiModelProvider.ts";
 import {
-  ChatFailureClass,
   ChatRequest,
   ChatResponse,
   ChatMessage,
@@ -62,14 +61,6 @@ function getApiErrorMessage(data: unknown): string | undefined {
   return typeof maybe.error === "string" ? maybe.error : undefined;
 }
 
-function classifyStreamStartFailure(
-  status: number,
-): ChatFailureClass | undefined {
-  if (status === 403) return "access-denied";
-  if (status === 401) return "session-expired";
-  return undefined;
-}
-
 function getBearerHeader(
   serviceUrl: string,
   path: string,
@@ -103,17 +94,8 @@ export class HttpAiModelProvider implements AiModelProvider {
     const controller = new AbortController();
     const signal = request.abortSignal ?? controller.signal;
     let receivedDone = false;
-    let conversationId = request.conversationId;
     const receive = (chunk: StreamingChunk) => {
       if (chunk.type === "done") receivedDone = true;
-      if (chunk.type === "meta" && chunk.conversationId) {
-        conversationId = chunk.conversationId;
-      }
-      if (chunk.type === "token-expired") {
-        // The server waits for a new token; the panel has nothing to show.
-        if (conversationId) void this.renewToken(conversationId);
-        return;
-      }
       onChunk(chunk);
     };
 
@@ -146,15 +128,6 @@ export class HttpAiModelProvider implements AiModelProvider {
 
       if (!response.ok || !response.body) {
         const text = await response.text().catch(() => "");
-        const failureClass = classifyStreamStartFailure(response.status);
-        if (failureClass) {
-          onChunk({
-            type: "error",
-            errorMessage: text.trim() || `HTTP ${response.status}`,
-            failureClass,
-          });
-          return;
-        }
         throw new Error(
           text || `Streaming request failed with status ${response.status}`,
         );
@@ -210,27 +183,6 @@ export class HttpAiModelProvider implements AiModelProvider {
       if (!request.abortSignal) {
         controller.abort();
       }
-    }
-  }
-
-  /** Sends the user's current token to the turn that is waiting for one. */
-  private async renewToken(conversationId: string): Promise<void> {
-    const path = `/api/v1/chat/${encodeURIComponent(conversationId)}/token`;
-    try {
-      const response = await fetch(
-        `${this.serviceUrl.replace(/\/$/, "")}${path}`,
-        {
-          method: "POST",
-          headers: getBearerHeader(this.serviceUrl, path),
-        },
-      );
-      if (!response.ok) {
-        console.warn(
-          `[AI] Token renewal failed with status ${response.status}`,
-        );
-      }
-    } catch (error) {
-      console.warn("[AI] Token renewal failed", error);
     }
   }
 

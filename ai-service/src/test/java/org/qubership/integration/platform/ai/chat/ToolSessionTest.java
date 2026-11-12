@@ -63,31 +63,6 @@ class ToolSessionTest {
   }
 
   @Test
-  void openWithAnOwnerRestoresBothBindingsOnClose() {
-    ToolSession.bind("conv-outer");
-    try (ToolSession.Handle ignored = ToolSession.open("conv-clean", "conv-owner")) {
-      assertEquals("conv-clean", ToolSession.resolveConversationId());
-      assertEquals("conv-owner", ToolSession.resolveOwningConversationId());
-    }
-    assertEquals("conv-outer", ToolSession.resolveConversationId());
-    assertEquals("conv-outer", ToolSession.resolveOwningConversationId());
-  }
-
-  @Test
-  void attachedContextCarriesTheOwningConversation() {
-    ToolSession.bind("conv-clean", "conv-owner");
-    Context context = ToolSession.attachedContext();
-    ToolSession.clear();
-    ToolSession.callInBoundContext(
-        context,
-        () -> {
-          assertEquals("conv-clean", ToolSession.resolveConversationId());
-          assertEquals("conv-owner", ToolSession.resolveOwningConversationId());
-          return null;
-        });
-  }
-
-  @Test
   void resolveConversationIdFallsBackToProductCapabilityCaptureContext() {
     ProductCapabilityCaptureContext.bindDiscovery("run-fallback", "conv-fallback", payload -> {});
     assertEquals("conv-fallback", ToolSession.resolveConversationId());

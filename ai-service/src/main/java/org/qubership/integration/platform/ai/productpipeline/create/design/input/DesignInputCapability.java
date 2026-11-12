@@ -15,6 +15,7 @@ import java.util.function.BiFunction;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.skills.RockySkills;
 import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.chat.UserTokenStore;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
@@ -233,36 +234,46 @@ public class DesignInputCapability implements StageCapability {
     if (chatMemorySanitizer != null) {
       chatMemorySanitizer.clear(captureConversationId);
     }
-    CompilerContract contract = contractRepository.require(CompilerContract.V1);
-    String agentText;
-    try (ToolSession.Handle ignored =
-        ToolSession.open(captureConversationId, context.conversationId())) {
-      ProductCapabilityCaptureContext.bindDesign(
-          context.runId(),
-          captureConversationId,
-          brief,
-          payload -> {
-            if (payload instanceof ChainSemanticRevision revision) {
-              captured.set(revision);
-            }
-          });
-      captureFeedback.beginScope(captureConversationId, CAPABILITY_ID, java.util.Map.of(
-          "runId", context.runId(), "inputs", context.inputRefs(), "brief", brief, "contract", contract),
-          context.conversationId());
-      captureFeedback.resetPlan(captureConversationId);
-      String history = captureFeedback.repairHistory(captureConversationId, CAPABILITY_ID);
-      try {
-        agentText =
-            runDesignAgent(captureConversationId, authoringPrompt(brief, contract, context)
-                + org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.block(history)
-                + (documentation == null ? "" : documentation.context(context.conversationId(),
-                    brief.goal() + " " + brief.summary() + " " + brief.approvedDraftText(), List.of())));
-        ProductCapabilityCaptureContext.designBinding(captureConversationId).ifPresent(binding -> {
-          rejection.set(binding.captureRejection().get());
-          terminalRejection.set(binding.captureTerminal().get());
+    // A clean rebuild runs under its own id, so the turn bearer must be visible under it too.
+    String copiedToken =
+        captureConversationId.equals(context.conversationId())
+            ? null
+            : UserTokenStore.get(context.conversationId()).orElse(null);
+    if (copiedToken != null) {
+      UserTokenStore.put(captureConversationId, copiedToken);
+    }
+    ToolSession.Handle session = ToolSession.open(captureConversationId);
+    ProductCapabilityCaptureContext.bindDesign(
+        context.runId(),
+        captureConversationId,
+        brief,
+        payload -> {
+          if (payload instanceof ChainSemanticRevision revision) {
+            captured.set(revision);
+          }
         });
-      } finally {
-        ProductCapabilityCaptureContext.unbind(captureConversationId);
+    CompilerContract contract = contractRepository.require(CompilerContract.V1);
+    captureFeedback.beginScope(captureConversationId, CAPABILITY_ID, java.util.Map.of(
+        "runId", context.runId(), "inputs", context.inputRefs(), "brief", brief, "contract", contract),
+        context.conversationId());
+    captureFeedback.resetPlan(captureConversationId);
+    String history = captureFeedback.repairHistory(captureConversationId, CAPABILITY_ID);
+    String agentText;
+    try {
+      agentText =
+          runDesignAgent(captureConversationId, authoringPrompt(brief, contract, context)
+              + org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.block(history)
+              + (documentation == null ? "" : documentation.context(context.conversationId(),
+                  brief.goal() + " " + brief.summary() + " " + brief.approvedDraftText(), List.of())));
+      ProductCapabilityCaptureContext.designBinding(captureConversationId).ifPresent(binding -> {
+        rejection.set(binding.captureRejection().get());
+        terminalRejection.set(binding.captureTerminal().get());
+      });
+    } finally {
+      ProductCapabilityCaptureContext.unbind(captureConversationId);
+      session.close();
+      if (copiedToken != null) {
+        UserTokenStore.remove(captureConversationId, copiedToken);
       }
     }
     ChainSemanticRevision revision = captured.get();

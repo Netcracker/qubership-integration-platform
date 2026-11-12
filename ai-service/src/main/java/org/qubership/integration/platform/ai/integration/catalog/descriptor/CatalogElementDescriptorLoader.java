@@ -5,7 +5,6 @@ import jakarta.inject.Inject;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
-import org.qubership.integration.platform.ai.integration.catalog.client.CatalogAuthenticationFailures;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogRestSupport;
 import org.qubership.integration.platform.ai.schema.ChainElementFamilies;
@@ -50,9 +49,6 @@ public class CatalogElementDescriptorLoader {
   /**
    * Fetches the live descriptor for {@code type}. Always calls the catalog; does not cache.
    *
-   * <p>A catalog HTTP 401 answered for the turn bearer is rethrown as the typed catalog failure,
-   * not wrapped as a missing descriptor, so the stage can stop on the raw status.
-   *
    * @throws CatalogElementDescriptorException if the type is unknown or the catalog cannot be read
    */
   public CatalogElementDescriptor load(String type) {
@@ -60,9 +56,6 @@ public class CatalogElementDescriptorLoader {
     try {
       dto = catalogRestClient.getLibraryElement(type);
     } catch (RuntimeException e) {
-      if (CatalogAuthenticationFailures.isTurnBearerUnauthorized(e)) {
-        throw e;
-      }
       throw unloadable(type, e);
     }
     if (dto == null) {

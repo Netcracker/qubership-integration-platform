@@ -14,7 +14,6 @@ import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.a2a.protocol.A2aProtocolConstants;
-import org.qubership.integration.platform.ai.a2a.transport.A2aTestAuth;
 
 /**
  * Proves default/production-ish boot keeps A2A discovery and invocation unavailable.
@@ -42,7 +41,9 @@ class A2aSdkBootDisabledCompatibilityTest {
         .body(containsString(A2aFeatureGate.DISABLED_MESSAGE))
         .body(not(containsString(A2aProtocolConstants.AGENT_NAME)));
 
-    A2aTestAuth.givenA2a()
+    given()
+        .urlEncodingEnabled(false)
+        .header("A2A-Version", "1.0")
         .contentType("application/json")
         .body("{}")
         .when()

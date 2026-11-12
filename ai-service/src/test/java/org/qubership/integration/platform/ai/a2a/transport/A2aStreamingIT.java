@@ -255,7 +255,9 @@ class A2aStreamingIT {
     assertTrue(taskRepository.findByTaskId(taskId).isPresent());
     assertEquals(
         "TASK_STATE_WORKING",
-        A2aTestAuth.givenA2a()
+        given()
+            .urlEncodingEnabled(false)
+            .header("A2A-Version", "1.0")
             .when()
             .get(URI.create("/tasks/" + taskId))
             .then()

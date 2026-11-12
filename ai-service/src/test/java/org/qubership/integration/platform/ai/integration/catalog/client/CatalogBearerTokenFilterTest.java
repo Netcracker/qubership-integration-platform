@@ -134,55 +134,8 @@ class CatalogBearerTokenFilterTest {
     }
   }
 
-  @Test
-  void expiredUserTokenIsNotSentWhenNobodyRenews() {
-    long exp = java.time.Instant.now().getEpochSecond() - 60;
-    String expired =
-        java.util.Base64.getUrlEncoder().withoutPadding()
-                .encodeToString("{}".getBytes(java.nio.charset.StandardCharsets.UTF_8))
-            + "."
-            + java.util.Base64.getUrlEncoder().withoutPadding()
-                .encodeToString(("{\"exp\":" + exp + "}").getBytes(java.nio.charset.StandardCharsets.UTF_8))
-            + ".sig";
-    ToolSession.bind("conv-1");
-    UserTokenStore.put("conv-1", expired);
-    MultivaluedMap<String, Object> headers = new MultivaluedHashMap<>();
 
-    assertThrows(
-        NotAuthorizedException.class,
-        () -> new CatalogBearerTokenFilter("secret").filter(request(headers)));
-    assertFalse(headers.containsKey(HttpHeaders.AUTHORIZATION));
-  }
 
-  @Test
-  void renewedTokenIsUsedByLaterCalls() {
-    long exp = java.time.Instant.now().getEpochSecond() + 600;
-    String old = jwt(exp, "alice");
-    String renewed = jwt(exp + 60, "alice");
-    ToolSession.bind("conv-1");
-    UserTokenStore.put("conv-1", old);
-    assertTrue(UserTokenStore.renew("conv-1", renewed));
-    MultivaluedMap<String, Object> headers = new MultivaluedHashMap<>();
-
-    new CatalogBearerTokenFilter("secret").filter(request(headers));
-
-    assertEquals("Bearer " + renewed, headers.getFirst(HttpHeaders.AUTHORIZATION));
-  }
-
-  @Test
-  void filterDoesNotBlockWaitingForARenewal() {
-    long exp = java.time.Instant.now().getEpochSecond() + 3;
-    ToolSession.bind("conv-1");
-    UserTokenStore.put("conv-1", jwt(exp, "alice"));
-    MultivaluedMap<String, Object> headers = new MultivaluedHashMap<>();
-    long started = System.nanoTime();
-
-    assertThrows(
-        NotAuthorizedException.class,
-        () -> new CatalogBearerTokenFilter("secret").filter(request(headers)));
-
-    assertTrue(System.nanoTime() - started < 2_000_000_000L);
-  }
 
   @Test
   void nestedSkillCloseKeepsTurnTokenForCatalogCalls() {

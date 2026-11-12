@@ -30,8 +30,6 @@ import org.qubership.integration.platform.ai.chain.deploy.PendingRedeploy;
 import org.qubership.integration.platform.ai.chain.deploy.PendingRedeployStore;
 import org.qubership.integration.platform.ai.compiler.capture.ChatMemorySanitizer;
 import org.qubership.integration.platform.ai.configuration.AppConfig;
-import org.qubership.integration.platform.ai.integration.catalog.client.CatalogAccessDeniedFailures;
-import org.qubership.integration.platform.ai.integration.catalog.client.CatalogAuthenticationFailures;
 import org.qubership.integration.platform.ai.llm.routing.ScenarioRouter;
 import org.qubership.integration.platform.ai.model.ScenarioType;
 import org.qubership.integration.platform.ai.logging.AiTraceLog;
@@ -408,25 +406,9 @@ public class ChatExecutionService {
         org.qubership.integration.platform.ai.chat.ToolSession.clear();
       }
     });
-    Multi<ChatEvent> guardedWork =
-        routedWork
-            .onItem()
-            .transformToMultiAndConcatenate(
-                event ->
-                    CatalogAccessDeniedFailures.recordedFor(finalConversationId).isPresent()
-                        ? Multi.createFrom()
-                            .failure(new CatalogAccessDeniedFailures.AccessDeniedException())
-                        : Multi.createFrom().item(event))
-            .onCompletion()
-            .switchTo(
-                () ->
-                    CatalogAccessDeniedFailures.recordedFor(finalConversationId).isPresent()
-                        ? Multi.createFrom()
-                            .failure(new CatalogAccessDeniedFailures.AccessDeniedException())
-                        : Multi.createFrom().empty());
     Multi<ChatEvent> routed =
         bindBackoffSinkForTurn(
-            guardedWork,
+            routedWork,
             routedCancellation,
             appConfig.llm().rateLimit().maxTurnBackoffs(),
             conversationId)
@@ -475,11 +457,6 @@ public class ChatExecutionService {
               if (request.getUserToken() != null) {
                 UserTokenStore.remove(finalConversationId, request.getUserToken());
               }
-              CatalogAuthenticationFailures.clear(finalConversationId);
-              if (failure == null) {
-                // On failure recoverFailedSse reads the denial and clears it.
-                CatalogAccessDeniedFailures.clear(finalConversationId);
-              }
               {
                 logAssistantResultIfEnabled(finalConversationId, responseBuffer.toString());
                 boolean current = conversationService.archive().saveAssistant(finalConversationId,
@@ -523,21 +500,7 @@ public class ChatExecutionService {
    * can fail closed without reusing a prior conversationId.
    */
   static Multi<String> recoverFailedSse(String conversationId, Throwable err) {
-    var accessDenied = CatalogAccessDeniedFailures.fromFailure(err);
-    if (accessDenied.isEmpty()) {
-      accessDenied = CatalogAccessDeniedFailures.recordedFor(conversationId);
-    }
-    accessDenied.ifPresent(
-        rejection ->
-            LOG.warnf(
-                "Catalog access denied for conversationId=%s: %s",
-                conversationId,
-                rejection.technicalDetails()));
-    CatalogAccessDeniedFailures.clear(conversationId);
-    String message =
-        accessDenied.isPresent()
-            ? CatalogAccessDeniedFailures.ACCESS_DENIED_MESSAGE
-            : err == null || err.getMessage() == null ? "chat stream failed" : err.getMessage();
+    String message = err == null || err.getMessage() == null ? "chat stream failed" : err.getMessage();
     return Multi.createFrom()
         .items(
             "event: error\ndata: " + dataEscape(message) + "\n\n",

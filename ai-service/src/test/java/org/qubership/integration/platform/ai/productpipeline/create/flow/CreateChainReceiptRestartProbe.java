@@ -59,7 +59,6 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipe
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
-import org.qubership.integration.platform.ai.a2a.transport.A2aTestAuth;
 
 /** Child-only HTTP receipt probe with real Flow, facade, transport, and JDBC persistence. */
 @QuarkusTest
@@ -181,7 +180,7 @@ public class CreateChainReceiptRestartProbe {
   }
 
   private static io.restassured.response.Response post(String body) {
-    return A2aTestAuth.givenA2a().contentType(ContentType.JSON).body(body)
+    return given().urlEncodingEnabled(false).header("A2A-Version", "1.0").contentType(ContentType.JSON).body(body)
         .post(java.net.URI.create("/message:send"));
   }
 

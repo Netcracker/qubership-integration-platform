@@ -145,8 +145,6 @@ public final class HaltProducerCauseTable {
       case DOMAIN_FAILURE -> "Correct the domain error in " + role + ".";
       case VALIDATION_BLOCKER -> "Correct the validation error in " + role + ".";
       case INTERNAL -> "Reopen " + role + " to route around this defect.";
-      // Never routed here: a catalog auth failure halts before owner diagnosis.
-      case CATALOG_AUTHENTICATION -> "Sign in again, then retry creation.";
     };
   }
 
@@ -188,8 +186,6 @@ public final class HaltProducerCauseTable {
               TECHNICAL_RETRY_EXHAUSTED,
               PROVIDER_QUOTA_EXHAUSTED,
               CATALOG_RESOLUTION,
-              // Present only for exhaustiveness; auth never reaches owner diagnosis.
-              CATALOG_AUTHENTICATION,
               VALIDATION_BLOCKER,
               MISSING_MANDATORY_INPUT,
               DOMAIN_FAILURE,

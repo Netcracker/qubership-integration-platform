@@ -27,7 +27,6 @@ import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
 import org.qubership.integration.platform.ai.llm.routing.ScenarioRouter;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
-import org.qubership.integration.platform.ai.a2a.transport.A2aTestAuth;
 
 /**
  * When A2A is disabled, discovery and invocation are unavailable while browser chat and readiness
@@ -61,7 +60,9 @@ class A2aFeatureFlagDisabledIT {
         .statusCode(equalTo(503))
         .body(containsString(A2aFeatureGate.DISABLED_MESSAGE));
 
-    A2aTestAuth.givenA2a()
+    given()
+        .urlEncodingEnabled(false)
+        .header("A2A-Version", "1.0")
         .contentType(ContentType.JSON)
         .body("{}")
         .when()
@@ -74,7 +75,7 @@ class A2aFeatureFlagDisabledIT {
         .thenReturn(Multi.createFrom().item(ChatEvent.token("browser still works")));
 
     given()
-            .header("Authorization", "Bearer test-token")
+        .header("Authorization", "Bearer test-token")
         .contentType(ContentType.JSON)
         .body("{\"message\":\"hello from browser\"}")
         .when()
@@ -112,7 +113,9 @@ class A2aFeatureFlagDisabledIT {
     A2aPersistedTask persisted = taskRepository.findByTaskId(taskId).orElseThrow();
     assertEquals(A2aTaskState.INPUT_REQUIRED, persisted.state());
 
-    A2aTestAuth.givenA2a()
+    given()
+        .urlEncodingEnabled(false)
+        .header("A2A-Version", "1.0")
         .when()
         .get("/tasks/" + taskId)
         .then()

@@ -26,8 +26,6 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.capture.ToolArgumentsFailures;
 import org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprints;
 import org.qubership.integration.platform.ai.compiler.capture.TransientFailures;
-import org.qubership.integration.platform.ai.integration.catalog.client.CatalogAuthenticationFailures;
-import org.qubership.integration.platform.ai.integration.catalog.client.CatalogNonRetryableResponseException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.core.JsonPointer;
@@ -189,8 +187,6 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       "Creation is paused because no safe correction could be established. Your inputs and completed work are saved.";
   static final String MISSING_GRAPH_PATCH_SUMMARY =
       "The service has not produced a validated chain graph. Your inputs and completed work are saved.";
-  static final String CATALOG_AUTHENTICATION_SUMMARY =
-      "The catalog rejected the sign-in for this creation. Retry creation after signing in again, or stop and keep the report.";
   private static final String PROGRESS_HALTED = "halted";
   private static final String PROGRESS_NONE = "none";
 
@@ -433,7 +429,6 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
 
   private Uni<StageExecutionResult> executeRunningStage(
       String runId, ProductPipelineRunDocument doc) {
-    CatalogAuthenticationFailures.clear(doc.run().conversationId());
     if (llmBudget != null) { llmBudget.linkConversation(runId, doc.run().conversationId()); }
     ProductPipelineProfile profile = profilesByRun.get(runId);
     ProfileStage stage = currentStage(doc);
@@ -537,9 +532,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
               return List.<CapabilitySignal>of(new CapabilitySignal.Completed(outcome));
             })
         .map(signals -> {
-          boolean catalogAuthentication =
-              catalogAuthenticationEvidence(runId, requireSingleCompleted(signals)).isPresent();
-          settlePendingRecoveryAttempt(runId, stage, requestsBefore, catalogAuthentication);
+          settlePendingRecoveryAttempt(runId, stage, requestsBefore);
           var budgetAfter = llmBudget == null ? null : llmBudget.state(runId);
           boolean resourceFailure = budgetAfter != null && budgetAfter.refusal() != null
               && (budgetBefore.refusal() == null || budgetAfter.requests() != requestsBefore || refused.get());
@@ -570,7 +563,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     Objects.requireNonNull(runId, "runId");
     ProductPipelineRunDocument doc = requireRun(runId);
     recordNonRetryableEscapedFailure(doc, failure);
-    return enforceResourcePause(runId, handleOutcome(runId, currentStage(doc), outcomeOf(runId, failure), List.of()));
+    return enforceResourcePause(runId, handleOutcome(runId, currentStage(doc), outcomeOf(failure), List.of()));
   }
 
   /**
@@ -579,12 +572,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
    * requirements makes it go away. A capability that recognizes its own failure completes with a
    * better message instead of reaching here.
    */
-  private StageOutcome outcomeOf(String runId, Throwable failure) {
-    Optional<CatalogAuthenticationFailures.RecordedRejection> auth =
-        catalogAuthenticationFailure(runId, failure);
-    if (auth.isPresent()) {
-      return catalogAuthenticationOutcome(auth.get());
-    }
+  private static StageOutcome outcomeOf(Throwable failure) {
     if (org.qubership.integration.platform.ai.llm.ratelimit.RateLimitErrorClassifier.isQuotaExhausted(failure)) {
       return StageOutcome.technicalFailure(failure);
     }
@@ -627,11 +615,10 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
    * twice.
    */
   private StageOutcome retryableOrInternalOutcomeOf(String runId, String stageId, Throwable failure) {
-    StageOutcome outcome = outcomeOf(runId, failure);
+    StageOutcome outcome = outcomeOf(failure);
     if (outcome.outcomeClass() != StageOutcomeClass.INTERNAL_FAILURE
         || StageOutcome.captureFailure(failure).isPresent()
-        || catalogHasBeenWritten(runId)
-        || isCatalogClientRejection(failure)) {
+        || catalogHasBeenWritten(runId)) {
       return outcome;
     }
     ProductPipelineRunDocument doc = requireRun(runId);
@@ -648,19 +635,6 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             List.of(new PlanValidationFinding(UNCLASSIFIED_EXCEPTION_FINDING, outcome.message(), true)), ""));
   }
 
-  /**
-   * A catalog HTTP rejection is already classified. It must not spend the one automatic retry that
-   * exists for an exception nothing else recognized.
-   */
-  private static boolean isCatalogClientRejection(Throwable failure) {
-    for (Throwable current = failure; current != null; current = current.getCause()) {
-      if (current instanceof CatalogNonRetryableResponseException) {
-        return true;
-      }
-    }
-    return false;
-  }
-
   private static boolean isUnclassifiedExceptionRetry(StageOutcome outcome) {
     return outcome.recoveryCause() != null
         && outcome.recoveryCause().findings().stream()
@@ -670,58 +644,6 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
   private static String failureMessage(Throwable failure) {
     String message = failure == null ? null : failure.getMessage();
     return message == null || message.isBlank() ? String.valueOf(failure) : message;
-  }
-
-  /**
-   * The turn-bearer 401 carried by the failure, or one the catalog recorded for this conversation
-   * before a later layer rewrote or swallowed its message.
-   */
-  private Optional<CatalogAuthenticationFailures.RecordedRejection> catalogAuthenticationFailure(
-      String runId, Throwable failure) {
-    Optional<CatalogAuthenticationFailures.RecordedRejection> thrown =
-        CatalogAuthenticationFailures.fromFailure(failure);
-    if (thrown.isPresent()) {
-      return thrown;
-    }
-    return CatalogAuthenticationFailures.recordedFor(requireRun(runId).run().conversationId());
-  }
-
-  private static RecoveryCause catalogAuthenticationCause(String detail) {
-    return new RecoveryCause(
-        RecoveryCauseCode.CATALOG_AUTHENTICATION,
-        List.of(new PlanValidationFinding("CATALOG_HTTP_401", detail, true)),
-        "");
-  }
-
-  private static StageOutcome catalogAuthenticationOutcome(
-      CatalogAuthenticationFailures.RecordedRejection rejection) {
-    String detail = rejection.technicalDetails();
-    return new StageOutcome(
-        StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE,
-        List.of(),
-        detail,
-        null,
-        catalogAuthenticationCause(detail));
-  }
-
-  private Optional<String> catalogAuthenticationEvidence(String runId, StageOutcome outcome) {
-    if (outcome.recoveryCause() != null
-        && outcome.recoveryCause().causeCode() == RecoveryCauseCode.CATALOG_AUTHENTICATION) {
-      return Optional.of(catalogAuthenticationText(runId, outcome.message()));
-    }
-    return CatalogAuthenticationFailures.recordedFor(requireRun(runId).run().conversationId())
-        .map(rejection -> catalogAuthenticationText(runId, rejection.technicalDetails()));
-  }
-
-  private static String catalogAuthenticationText(String runId, String detail) {
-    String text =
-        detail == null || detail.isBlank()
-            ? "Catalog HTTP 401 on the turn bearer"
-            : detail.trim();
-    if (runId != null && !runId.isBlank() && !text.contains("runId=")) {
-      return text + " (runId=" + runId + ")";
-    }
-    return text;
   }
 
   /**
@@ -857,10 +779,6 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       List<PipelineSignal> live) {
     ProductPipelineRunDocument doc = requireRun(runId);
     List<PipelineSignal> emitted = new ArrayList<>(live);
-    Optional<String> catalogAuthentication = catalogAuthenticationEvidence(runId, outcome);
-    if (catalogAuthentication.isPresent()) {
-      return haltCatalogAuthentication(doc, stage, catalogAuthentication.get(), emitted);
-    }
     return switch (outcome.outcomeClass()) {
       case NEEDS_INPUT -> {
         if (outcome.recoveryCause() != null && java.util.Set.of(
@@ -2682,41 +2600,6 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     }
   }
 
-  private StageExecutionResult haltCatalogAuthentication(
-      ProductPipelineRunDocument doc,
-      ProfileStage stage,
-      String evidence,
-      List<PipelineSignal> emitted) {
-    String runId = doc.run().runId();
-    RecoveryCause cause = catalogAuthenticationCause(evidence);
-    putRunAttribute(runId, ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR, evidence);
-    putRunAttribute(
-        runId,
-        ProductPipelineRunSupport.STAGE_ERROR_OUTCOME_ATTR,
-        StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE.name());
-    putRunAttribute(runId, ProductPipelineRunSupport.STAGE_ERROR_FAILED_STAGE_ATTR, stage.stageId());
-    putRunAttribute(
-        runId, ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR, cause.formattedFindings());
-    putRunAttribute(
-        runId, ProductPipelineRunSupport.STAGE_ERROR_CAUSE_CODE_ATTR, cause.causeCode().name());
-    putRunAttribute(
-        runId,
-        ProductPipelineRunSupport.STAGE_ERROR_CAUSE_JSON_ATTR,
-        ProductPipelineRunSupport.recoveryCauseJson(cause));
-    putRunAttribute(runId, ProductPipelineRunSupport.STAGE_ERROR_REQUESTED_FACT_ATTR, "");
-    putRunAttribute(runId, ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR, "");
-    List<Reference> preserved = currentStageSnapshot(doc, stage.stageId()).outputRefs();
-    return waitContextualRecovery(
-        doc,
-        stage,
-        preserved == null ? List.of() : preserved,
-        PipelineGates.RECOVERY_RETRY_TECHNICAL,
-        CATALOG_AUTHENTICATION_SUMMARY,
-        evidence,
-        null,
-        emitted);
-  }
-
   private StageExecutionResult resourcePause(ProductPipelineRunDocument doc, ProfileStage stage,
       List<Reference> refs, String reason, List<PipelineSignal> emitted) {
     return waitContextualRecovery(doc, stage, refs, PipelineGates.RECOVERY_RETRY_TECHNICAL,
@@ -3449,8 +3332,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
 
   private record PendingRecoveryAttempt(String stageId, long revision) {}
 
-  private void settlePendingRecoveryAttempt(
-      String runId, ProfileStage stage, long requestsBefore, boolean catalogAuthentication) {
+  private void settlePendingRecoveryAttempt(String runId, ProfileStage stage, long requestsBefore) {
     var attributes = attributesByRun.get(runId);
     Object saved = attributes == null ? null : attributes.get(ProductPipelineRunSupport.RECOVERY_PENDING_ATTEMPT_ATTR);
     var pending = saved instanceof String json && !json.isBlank()
@@ -3462,11 +3344,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     if (doc.transitions().stream().anyMatch(transition ->
         (RecoveryAttemptLedger.SETTLED_ATTEMPT_REASON_PREFIX + revision).equals(transition.reason())
             || (RecoveryAttemptLedger.UNSENT_ATTEMPT_REASON_PREFIX + revision).equals(transition.reason()))) { return; }
-    boolean unsent =
-        catalogAuthentication
-            || (llmBudget != null
-                && llmBudget.state(runId).refusal() != null
-                && llmBudget.state(runId).requests() == requestsBefore);
+    boolean unsent = llmBudget != null && llmBudget.state(runId).refusal() != null
+        && llmBudget.state(runId).requests() == requestsBefore;
     commitStatus(doc, RunStatus.RUNNING, StageStatus.RUNNING, doc.run().stages(),
         (unsent ? RecoveryAttemptLedger.UNSENT_ATTEMPT_REASON_PREFIX
             : RecoveryAttemptLedger.SETTLED_ATTEMPT_REASON_PREFIX) + revision,
