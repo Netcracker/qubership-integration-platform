@@ -15,7 +15,7 @@ export class ServicesPage {
     this.createService = page.getByTestId("services-create");
     this.createDialog = page.getByRole("dialog", { name: "Create service" });
     this.addSpecificationGroup = page.getByTestId("api-specs-add-group");
-    this.importGroupDialog = page.getByRole("dialog", { name: "Import Specification Group" });
+    this.importGroupDialog = page.getByRole("dialog", { name: "Add Specification Group" });
   }
 
   /** The list keeps its tab in the hash, so each tab is its own URL. */
@@ -27,7 +27,7 @@ export class ServicesPage {
     await this.page.goto(`/services/systems/${systemId}/specificationGroups`);
   }
 
-  /** Picks `file` in the import dialog's upload area through the browser's file chooser. */
+  /** Picks `file` in the add-specification dialog's upload area through the browser's file chooser. */
   async chooseSpecificationFile(file: string): Promise<void> {
     const chooser = this.page.waitForEvent("filechooser");
     await this.importGroupDialog.getByText("Drag one or more specification files or click to choose").click();
