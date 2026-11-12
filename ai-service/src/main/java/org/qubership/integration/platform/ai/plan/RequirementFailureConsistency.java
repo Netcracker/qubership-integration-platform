@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.ai.plan;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -12,6 +14,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFa
 
 /** Checks HTTP response continuation without changing authored call properties. */
 public final class RequirementFailureConsistency {
+  private static final ObjectMapper MAPPER = new ObjectMapper();
   private RequirementFailureConsistency() {}
 
   static List<Issue> issues(DraftInput input, List<CatalogBindingHint> bindings) {
@@ -95,7 +98,8 @@ public final class RequirementFailureConsistency {
     String modeName = mode == null ? "null" : mode.name();
     return new Issue(finding.code(), finding.path(), finding.entityId(),
         "HTTP error responses continue from '" + finding.entityId()
-            + "' to its requested normal response step because errorThrowing=false. The failure mode is "
+            + "' to its requested normal response step because its Default response handler accepts every HTTP status."
+            + " The failure mode is "
             + modeName + ". Set failureMode to INLINE_RESPONSE. Transport exceptions still propagate;"
             + " this finding concerns HTTP responses.");
   }
@@ -127,18 +131,31 @@ public final class RequirementFailureConsistency {
       if (fact.polarity() != RequirementFactPolarity.POSITIVE || !fact.interactionIds().equals(List.of(id))
           || !id.equals(anchor.ownerInteractionId()) || !"service-call".equals(anchor.elementType())
           || anchor.requestedProperties() == null) continue;
-      var flags = anchor.requestedProperties().stream().filter(Objects::nonNull)
-          .filter(property -> "errorThrowing".equals(property.key())).toList();
-      if (flags.size() != 1 || flags.getFirst().value() == null
-          || !"false".equalsIgnoreCase(flags.getFirst().value().trim())) continue;
+      var handlers = anchor.requestedProperties().stream().filter(Objects::nonNull)
+          .filter(property -> "after".equals(property.key())).toList();
+      if (handlers.size() != 1 || handlers.getFirst().value() == null
+          || !hasDefaultHandler(handlers.getFirst().value())) continue;
       if (facts.stream().anyMatch(response -> normalResponse(flow, facts, id, anchor, response))) {
         findings.add(new Issue("FAILURE_MODE_CONFLICT", "/draft/flow/interactions/" + id + "/failureMode", id,
             "HTTP error responses continue from '" + id + "' to its requested normal response step because"
-                + " errorThrowing=false. Set failureMode to INLINE_RESPONSE."
+                + " its Default response handler accepts every HTTP status. Set failureMode to INLINE_RESPONSE."
                 + " Transport exceptions still propagate; this finding concerns HTTP responses."));
       }
     }
     return List.copyOf(findings);
+  }
+
+  private static boolean hasDefaultHandler(String value) {
+    try {
+      var handlers = MAPPER.readTree(value);
+      if (handlers == null || !handlers.isArray()) return false;
+      for (var handler : handlers) {
+        if ("default".equals(handler.path("code").asText())) return true;
+      }
+      return false;
+    } catch (JsonProcessingException e) {
+      return false;
+    }
   }
 
   private static boolean normalResponse(RequirementFlow flow, List<RequirementFact> facts, String call,

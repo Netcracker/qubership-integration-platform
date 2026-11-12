@@ -21,11 +21,13 @@ import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationArchive;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
@@ -40,28 +42,52 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFa
 class RequirementFailureConsistencyAdmissionTest {
   private final ObjectMapper json = new ObjectMapper().findAndRegisterModules();
   private static final String SOURCE = "Receive POST /work. Name the service call Remote request and the local script Render result. "
-      + "Use errorThrowing=false. Return every HTTP response to that script and deliver success or failure fields. No IDS.";
+      + "Use a Default response handler of type none. Return every HTTP response to that script and deliver success or failure fields. No IDS.";
 
   @ParameterizedTest
-  @ValueSource(strings = {"false", "FALSE", " false "})
-  void nativeBooleanFalseEncodingsStayLiteralAndHaveTheSameConsistencyMeaning(String value) {
+  @ValueSource(strings = {
+      "[{\"code\":\"default\",\"type\":\"none\"}]",
+      " [ { \"code\": \"default\", \"type\": \"none\" } ] ",
+      "[{\"code\":\"200\",\"type\":\"none\"},{\"code\":\"default\",\"type\":\"none\"}]",
+      "[{\"code\":\"default\",\"type\":\"script\",\"script\":\"log.info(\'response\')\"}]"})
+  void defaultHandlerEncodingsStayLiteralAndHaveTheSameConsistencyMeaning(String value) {
     var tree = (ObjectNode) json.valueToTree(input());
     ((ObjectNode) tree.at("/facts/1/elementIntent/requestedProperties/0")).put("value", value);
     var input = json.convertValue(tree, RequirementCaptureInput.DraftInput.class);
     var schemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService.createForUnitTests(json);
-    assertEquals(Boolean.FALSE, schemas.coercePatchPropertyValue("service-call", "errorThrowing", value));
+    assertEquals(Optional.empty(), schemas.validateCapturePropertyValue("service-call", "after",
+        json.valueToTree(schemas.coercePatchPropertyValue("service-call", "after", value))), value);
     assertEquals(1, RequirementFailureConsistency.issues(input, bindings()).size());
     assertEquals(value, input.facts().get(1).elementIntent().requestedProperties().getFirst().value());
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"not-a-boolean", "false-extra", "\u2003false\u2003"})
-  void unknownBooleanEncodingsCannotCreateNativeCorrectionAuthority(String value) {
+  @NullAndEmptySource
+  @ValueSource(strings = {"[]", " ", "[null]", "[\"default\"]", "[{\"code\":\"200\",\"type\":\"none\"}]", "not-json", "null",
+      "{\"code\":\"default\",\"type\":\"none\"}", "[{}]", "[{\"code\":\"DEFAULT\",\"type\":\"none\"}]"})
+  void absentOrInvalidDefaultHandlersCannotCreateNativeCorrectionAuthority(String value) {
     var tree = (ObjectNode) json.valueToTree(input());
     ((ObjectNode) tree.at("/facts/1/elementIntent/requestedProperties/0")).put("value", value);
-    var schemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService.createForUnitTests(json);
-    assertFalse(Boolean.FALSE.equals(schemas.coercePatchPropertyValue("service-call", "errorThrowing", value)));
-    assertTrue(RequirementFailureConsistency.issues(json.convertValue(tree, RequirementCaptureInput.DraftInput.class), bindings()).isEmpty());
+    assertEquals(List.of(), RequirementFailureConsistency.issues(
+        json.convertValue(tree, RequirementCaptureInput.DraftInput.class), bindings()), value);
+  }
+
+  @Test
+  void retiredErrorThrowingPropertyIsRejectedByNativeCapture() throws Exception {
+    var h = new Harness();
+    h.begin();
+    try {
+      var tree = (ObjectNode) json.valueToTree(input());
+      var property = (ObjectNode) tree.at("/facts/1/elementIntent/requestedProperties/0");
+      property.put("key", "errorThrowing");
+      property.put("value", "false");
+      var result = h.call("captureRequirementDraft", Map.of("draft", tree));
+      assertFalse(result.path("accepted").asBoolean(), result.toString());
+      assertEquals("INVALID_REQUESTED_PROPERTY", result.at("/issues/0/code").asText(), result.toString());
+      assertTrue(h.store.latestRevision(h.chat).isEmpty(), result.toString());
+    } finally {
+      ProductCapabilityCaptureContext.unbind();
+    }
   }
 
   @ParameterizedTest
@@ -170,7 +196,7 @@ class RequirementFailureConsistencyAdmissionTest {
     var finding = findings.getFirst();
     assertEquals("FAILURE_MODE_CONFLICT", finding.code());
     String message = finding.message();
-    assertTrue(message.contains("errorThrowing=false"), message);
+    assertTrue(message.contains("Default response handler"), message);
     assertTrue(message.contains("INLINE_RESPONSE"), message);
     assertFalse(message.toLowerCase().contains("preserve"), message);
     assertFalse(message.contains("all facts"), message);
@@ -279,7 +305,7 @@ class RequirementFailureConsistencyAdmissionTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"error-scope", "null", "flag", "text", "neighbor", "binding", "no-context", "stale-source", "stale-base",
+  @ValueSource(strings = {"error-scope", "null", "handler", "text", "neighbor", "binding", "no-context", "stale-source", "stale-base",
       "context-error-scope", "context-null", "context-neighbor"})
   void theNativeModeAllowanceCannotAuthorizeCollateralOrStaleChanges(String variant) throws Exception {
     var h = new Harness(); h.begin();
@@ -300,9 +326,9 @@ class RequirementFailureConsistencyAdmissionTest {
     switch (variant.startsWith("context-") ? variant.substring("context-".length()) : variant) {
       case "error-scope" -> ((ObjectNode) tree.at("/updateInteractions/0")).put("failureMode", "ERROR_SCOPE");
       case "null" -> ((ObjectNode) tree.at("/updateInteractions/0")).putNull("failureMode");
-      case "flag", "text" -> {
-        var fact = (ObjectNode) json.valueToTree(input().facts().get(variant.equals("flag") ? 1 : 2));
-        if (variant.equals("flag")) ((ObjectNode) fact.at("/elementIntent/requestedProperties/0")).put("value", "true");
+      case "handler", "text" -> {
+        var fact = (ObjectNode) json.valueToTree(input().facts().get(variant.equals("handler") ? 1 : 2));
+        if (variant.equals("handler")) ((ObjectNode) fact.at("/elementIntent/requestedProperties/0")).put("value", "[]");
         else fact.put("text", "Replace the requested behavior.");
         ((com.fasterxml.jackson.databind.node.ArrayNode) tree.path("updateFacts")).add(fact);
       }
