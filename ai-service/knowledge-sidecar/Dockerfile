@@ -2,7 +2,6 @@ FROM node:22-slim AS documentation
 
 WORKDIR /workspace
 COPY package.json package-lock.json ./
-COPY .npmrc .npmrc
 COPY schemas/package.json schemas/package.json
 COPY ui/package.json ui/package.json
 COPY vscode-extension/package.json vscode-extension/package.json
