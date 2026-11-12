@@ -67,13 +67,9 @@ specification version. A changed version or API definition is handled as a diffe
 When several files are submitted, the result identifies each imported, reused, or failed file.
 A partial import reports the failures and keeps the successfully imported specifications in the catalog.
 
-For chain creation, Rocky uses the same import pipeline for attached specifications that are needed
-and binds operations to their catalog IDs before planning. Operations from other services remain
-available through catalog search. If a required import fails, chain creation pauses for correction.
-
 ## Data Storage
 
 ---
 
 - In CIP UI: during the process of services creation, all the services will be stored in CIP catalog database and are available for export from UI.
-- In VS Code Extension: service based configurations in VS Code are saved locally under a project folder or workspace directory configured by the user on file system of that machine.
+- In VS Code Extension: service based configurations in VS Code are saved locally under a project folder or workspace directory configured by the user on file system of that machine. A service is a `*.service.cip.yaml`, `*.context-service.cip.yaml`, or `*.mcp-service.cip.yaml` file, and the extension opens only files with the `.cip.yaml` extension.

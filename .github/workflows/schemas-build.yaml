@@ -62,7 +62,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies (root workspaces)
-        run: npm ci --legacy-peer-deps
+        run: npm ci
 
       - name: Build schemas
         run: npm -w @netcracker/qip-schemas run build

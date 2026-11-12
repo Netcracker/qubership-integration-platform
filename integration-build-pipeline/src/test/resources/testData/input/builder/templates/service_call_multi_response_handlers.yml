@@ -50,7 +50,6 @@ elements:
       handlerContainer:
         type: "script"
         script: "exchange.setProperty(\"validationFailed\", true)"
-      errorThrowing: false
       retryCount: 0
       retryDelay: 5000
       systemType: "EXTERNAL"

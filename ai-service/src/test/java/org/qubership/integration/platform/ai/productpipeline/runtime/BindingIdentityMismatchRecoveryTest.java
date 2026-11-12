@@ -86,6 +86,7 @@ class BindingIdentityMismatchRecoveryTest {
   private BindingAwareExecution execution;
   private AtomicInteger designInputCalls;
   private AtomicInteger planningCalls;
+  private boolean planningRejectsItsFirstReply;
   private ProductPipelineProfile profile;
   private Clock clock;
 
@@ -236,12 +237,99 @@ class BindingIdentityMismatchRecoveryTest {
     assertTrue(
         PipelineGates.strip(prompt).contains(HaltRecoveryGuard.MAX_CAUSAL_REOPENS.cardSentence()),
         prompt);
+    assertEquals(List.of(PipelineGates.STOP_WITH_REPORT_ACTION),
+        org.qubership.integration.platform.ai.chat.ChatEvent.actionsForClarify(
+            new org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction.Clarify(
+                PipelineGates.strip(prompt), List.of(), PipelineGates.gateOf(prompt).orElseThrow(), "", null, "", "",
+                "", PipelineGates.guardOf(prompt).orElse(""))));
     assertEquals(designCallsBefore, designInputCalls.get());
     assertEquals(1, execution.calls.get());
     assertFalse(execution.compilerInvoked.get());
     assertTrue(
         signals.stream().noneMatch(PipelineSignal.Completed.class::isInstance),
         signals.toString());
+  }
+
+  /**
+   * A mismatch the run cannot send back to design-input because its recovery ceiling is spent keeps Retry creation, and
+   * a trusted Retry raises the ceiling so the run reopens design-input. The card used to offer End run only.
+   */
+  @Test
+  void aSpentRecoveryCeilingKeepsRetryCreationAndARetryReopensTheDesign() {
+    planningRejectsItsFirstReply = true;
+    useLedger(new RecoveryAttemptLedger.Limits(1, 2, 1));
+    startUntilPlanApproval();
+
+    approveCurrentPlan();
+
+    String prompt = latestWaitingPrompt();
+    assertEquals(HaltRecoveryGuard.RUN_RECOVERY_CEILING.name(), PipelineGates.guardOf(prompt).orElse(""), prompt);
+    assertEquals(List.of(org.qubership.integration.platform.ai.chat.ChatEvent.RETRY_CREATION_ACTION,
+        PipelineGates.STOP_WITH_REPORT_ACTION), cardActions(prompt));
+    assertEquals(1, designInputCalls.get());
+
+    runtime.acceptInput(new AcceptInputCommand(RUN_ID, PipelineGates.RETRY_ACTION, "retry-click", "retry-hash",
+        InputOrigin.TRUSTED)).collect().asList().await().indefinitely();
+
+    assertEquals(2, designInputCalls.get());
+    assertEquals(RunStatus.WAITING_FOR_APPROVAL, run().run().status());
+    assertEquals("planning", run().run().currentStageId());
+  }
+
+  /** A mismatch whose automatic reopens are spent offers End run only: an author grant does not renew reopens. */
+  @Test
+  void spentAutomaticReopensOfferOnlyEndRun() {
+    useLedger(new RecoveryAttemptLedger.Limits(1, 0, 12));
+    waitAtFirstPlanApproval();
+
+    approveCurrentPlan();
+
+    String prompt = latestWaitingPrompt();
+    assertEquals(HaltRecoveryGuard.MAX_CAUSAL_REOPENS.name(), PipelineGates.guardOf(prompt).orElse(""), prompt);
+    assertEquals(List.of(PipelineGates.STOP_WITH_REPORT_ACTION), cardActions(prompt));
+  }
+
+  private void useLedger(RecoveryAttemptLedger.Limits limits) {
+    support =
+        CreateChainTestOrchestrator.supportBuilder(
+                runStore,
+                artifactStore,
+                new StageCapabilityRegistry(
+                    List.of(
+                        discoveryCapability(),
+                        designInputCapability(),
+                        planningCapability(),
+                        execution)),
+                clock)
+            .recoveryLedger(new RecoveryAttemptLedger(limits))
+            .build();
+    runtime = new CreateChainTestOrchestrator(support, runStore);
+  }
+
+  private static List<String> cardActions(String prompt) {
+    return org.qubership.integration.platform.ai.chat.ChatEvent.actionsForClarify(
+        new org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction.Clarify(
+            PipelineGates.strip(prompt), List.of(), PipelineGates.gateOf(prompt).orElseThrow(), "", null, "", "", "",
+            PipelineGates.guardOf(prompt).orElse("")));
+  }
+
+  private void startUntilPlanApproval() {
+    runtime
+        .startOrResume(new StartOrResumeCommand(CONV_ID, RUN_ID, profile, manifest()))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+    if (run().run().status() == RunStatus.WAITING_FOR_INPUT) {
+      runtime
+          .acceptInput(new AcceptInputCommand(RUN_ID, "create a WFMS work order chain"))
+          .collect()
+          .asList()
+          .await()
+          .indefinitely();
+    }
+    assertEquals(RunStatus.WAITING_FOR_APPROVAL, run().run().status());
+    assertEquals("planning", run().run().currentStageId());
   }
 
   private void waitAtFirstPlanApproval() {
@@ -351,6 +439,10 @@ class BindingIdentityMismatchRecoveryTest {
       @Override
       public Multi<CapabilitySignal> execute(StageExecutionContext context) {
         int call = planningCalls.incrementAndGet();
+        if (planningRejectsItsFirstReply && call == 1) {
+          return Multi.createFrom().item(new CapabilitySignal.Completed(
+              StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE, "plan reply is missing a field")));
+        }
         return Multi.createFrom()
             .item(
                 new CapabilitySignal.Completed(

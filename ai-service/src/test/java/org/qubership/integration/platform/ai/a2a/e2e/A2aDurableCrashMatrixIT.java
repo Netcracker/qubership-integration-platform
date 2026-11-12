@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.quarkus.test.junit.QuarkusMock;
 import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.junit.TestProfile;
+import org.qubership.integration.platform.ai.compiler.artifact.TestArtifactBlobStoreProducer;
 import io.restassured.http.ContentType;
 import jakarta.inject.Inject;
 import java.net.URI;
@@ -42,6 +44,7 @@ import org.qubership.integration.platform.ai.a2a.transport.A2aTestAuth;
  * {@link A2aInitialResponseRecoveryE2EIT}.
  */
 @QuarkusTest
+@TestProfile(TestArtifactBlobStoreProducer.Profile.class)
 class A2aDurableCrashMatrixIT {
 
   private static final Duration STREAM_TIMEOUT = Duration.ofSeconds(60);

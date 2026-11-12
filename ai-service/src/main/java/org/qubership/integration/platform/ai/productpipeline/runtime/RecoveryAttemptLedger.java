@@ -8,11 +8,13 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.TreeMap;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
+import org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceDiscrepancyKind;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
 import org.qubership.integration.platform.ai.productpipeline.stage.ProductPipelineStageExecutor;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
+import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
 import org.qubership.integration.platform.ai.productpipeline.store.RunTransition;
 import org.qubership.integration.platform.ai.productpipeline.store.StageSnapshot;
 
@@ -143,11 +145,38 @@ public final class RecoveryAttemptLedger {
   public static String evidenceIdentity(RecoveryCause cause) {
     RecoveryCause typed = cause == null ? RecoveryCause.of(RecoveryCauseCode.VALIDATION_BLOCKER) : cause;
     StringBuilder canonical = new StringBuilder();
-    for (String identity : typed.findings().stream().map(RecoveryAttemptLedger::findingIdentity).sorted().toList()) {
+    for (String identity : budgetFindings(typed).stream().map(RecoveryAttemptLedger::findingIdentity).sorted().toList()) {
       canonical.append(identity).append('\n');
     }
     canonical.append(FIELD).append(nvl(typed.requestedFact()));
     return sha256Hex(canonical.toString());
+  }
+
+  private static List<PlanValidationFinding> budgetFindings(RecoveryCause cause) {
+    var stalledReads = new TreeMap<String, PlanValidationFinding>();
+    cause.findings().stream()
+        .filter(finding -> "TOOL_READ_NO_PROGRESS".equals(finding.code())
+            && !finding.originRecordId().isBlank() && !finding.fieldPointer().isBlank())
+        .forEach(finding -> stalledReads.putIfAbsent(findingIdentity(finding), finding));
+    if (!stalledReads.isEmpty()) return List.copyOf(stalledReads.values());
+    var review = cause.sourceReview();
+    if (review == null || cause.findings().stream().noneMatch(RecoveryAttemptLedger::isSourceOmission)) {
+      return cause.findings();
+    }
+    var omissions = review.omissions().stream()
+        .filter(report -> report.kind() == SourceDiscrepancyKind.OMITTED_REQUIREMENT)
+        .map(report -> new PlanValidationFinding("MISSING_BRIEF_FACTS", "", true, null,
+            report.sourceTurnId(), "/sourceQuote/" + sha256Hex(report.quote())))
+        .distinct().toList();
+    if (omissions.isEmpty()) return cause.findings();
+    List<PlanValidationFinding> findings = new ArrayList<>(omissions);
+    cause.findings().stream().filter(finding -> !isSourceOmission(finding)).forEach(findings::add);
+    return findings;
+  }
+
+  private static boolean isSourceOmission(PlanValidationFinding finding) {
+    return finding.blocker() && "MISSING_BRIEF_FACTS".equals(finding.code())
+        && finding.originRecordId().isBlank() && finding.fieldPointer().isBlank();
   }
 
   private static String findingIdentity(PlanValidationFinding finding) {
@@ -204,9 +233,10 @@ public final class RecoveryAttemptLedger {
         correctionEpoch(
             transitions, ownerStageId, typed.causeCode(), evidenceId, inputArtifactIdentity);
     var findingKeys = new TreeMap<String, RecoveryAttemptKey>();
-    if (!typed.findings().isEmpty()) {
-      List<PlanValidationFinding> blockers = typed.findings().stream().filter(PlanValidationFinding::blocker).toList();
-      for (PlanValidationFinding finding : blockers.isEmpty() ? typed.findings() : blockers) {
+    List<PlanValidationFinding> findings = budgetFindings(typed);
+    if (!findings.isEmpty()) {
+      List<PlanValidationFinding> blockers = findings.stream().filter(PlanValidationFinding::blocker).toList();
+      for (PlanValidationFinding finding : blockers.isEmpty() ? findings : blockers) {
         String identity = FINDING_ID_PREFIX
             + evidenceIdentity(new RecoveryCause(typed.causeCode(), List.of(finding), typed.requestedFact()));
         RecoveryCauseCode memberCause = RecoveryCauseCode.VALIDATION_BLOCKER;
@@ -363,14 +393,20 @@ public final class RecoveryAttemptLedger {
   }
 
   /**
-   * True when this is a chain author's correction of a known brief defect. Automatic replay of the
-   * same defect stays blocked by {@link #ownerAlreadyReopened}.
+   * True when this is a chain author's correction of a known brief defect, which an owner that already saw the
+   * defect still accepts.
    */
   public static boolean isAuthorMissingBriefFactsCorrection(
       ReopenInitiator initiator, RecoveryCauseCode causeCode) {
     return initiator == ReopenInitiator.AUTHOR && RecoveryCause.isKnownBriefDefect(causeCode);
   }
 
+  /**
+   * True when {@code key}'s owner may be reopened, below the run's recovery ceiling. An automatic reopen repeats for
+   * the same defect up to {@link Limits#maxCausalReopens}, except for a known brief defect, which the owner sees once
+   * before the author corrects the brief. An author's reopen is refused once the owner was reopened for the defect,
+   * except for a correction of a known brief defect.
+   */
   public boolean mayReopen(
       List<RunTransition> transitions,
       RecoveryAttemptKey key,
@@ -380,13 +416,22 @@ public final class RecoveryAttemptLedger {
     if (key == null || ceilingReached(transitions)) {
       return false;
     }
-    if (ownerAlreadyReopened(transitions, key, legacyFailureSignature)
-        && !isAuthorMissingBriefFactsCorrection(initiator, key.causeCode())) {
+    if (initiator == ReopenInitiator.AUTOMATIC && !RecoveryCause.isKnownBriefDefect(key.causeCode())) {
+      return automaticReopensRemain(transitions, key, origin);
+    }
+    if (initiator == ReopenInitiator.AUTOMATIC && ownerAlreadyReopened(transitions, key, legacyFailureSignature)) {
       return false;
     }
-    if (initiator != ReopenInitiator.AUTOMATIC) {
-      return true;
+    if (initiator == ReopenInitiator.AUTOMATIC) {
+      return automaticReopensRemain(transitions, key, origin);
     }
+    return !ownerAlreadyReopened(transitions, key, legacyFailureSignature)
+        || isAuthorMissingBriefFactsCorrection(initiator, key.causeCode());
+  }
+
+  /** True while {@code key} has used fewer automatic reopens than {@link Limits#maxCausalReopens}. */
+  public boolean automaticReopensRemain(
+      List<RunTransition> transitions, RecoveryAttemptKey key, InputOrigin origin) {
     return automaticReopensUsed(transitions, key, origin) < limits.maxCausalReopens();
   }
 
@@ -562,7 +607,13 @@ public final class RecoveryAttemptLedger {
     return Math.max(used, memberMinimum);
   }
 
-  /** True when the absolute per-run recovery ceiling is spent. */
+  /**
+   * True when the per-run recovery ceiling is spent.
+   *
+   * <p>The ceiling is the configured one raised by a full fresh budget, two targeted corrections and two clean
+   * regenerations, for every grant the author accepted from a waiting card. A grant the stage executor records while
+   * the stage runs does not raise it.
+   */
   public boolean perRunCeilingReached(List<RunTransition> transitions) {
     return ceilingReached(transitions);
   }
@@ -572,10 +623,15 @@ public final class RecoveryAttemptLedger {
       return true;
     }
     int spent = 0;
+    int authorGrants = 0;
     for (RunTransition transition : dispatchedTransitions(transitions)) {
       String reason = transition == null ? null : transition.reason();
       if (reason == null) {
         continue;
+      }
+      if (reason.startsWith(GRANT_TARGETED_REASON_PREFIX)
+          && transition.fromStatus() == RunStatus.WAITING_FOR_INPUT) {
+        authorGrants++;
       }
       if (reason.startsWith(ProductPipelineStageExecutor.PRODUCER_REPAIR_REASON_PREFIX)
           || reason.startsWith(GRANT_TARGETED_REASON_PREFIX)
@@ -585,7 +641,7 @@ public final class RecoveryAttemptLedger {
         spent++;
       }
     }
-    return spent >= limits.perRunCeiling();
+    return spent >= limits.perRunCeiling() + authorGrants * 2 * ADDITIONAL_ATTEMPTS_PER_STRATEGY;
   }
 
   private int correctionEpoch(

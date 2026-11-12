@@ -7,6 +7,22 @@ what failed, and a person decides what to do about it.
 This page covers running the suite and reading its result. The rules for writing or changing a spec
 are in [`AGENTS.md`](AGENTS.md), generated from `.apm/instructions/e2e.instructions.md`.
 
+The `ai-tests` project checks the [local AI test UI](../ai-service/e2e/test-system.md) with temporary
+synthetic test commands. It needs Python and Chromium, and starts no product stack:
+`npx playwright test --project=ai-tests --no-deps`.
+
+The AI recovery lifecycle case is excluded from the default suite. On Compose, inspect its explicit selection
+without starting the stack:
+
+```bash
+E2E_AI_RECOVERY=1 npx playwright test --project=env --no-deps specs/env/ai-recovery-lifecycle.spec.ts --list
+```
+
+Executing the listed case requires the normal Compose stack and a running `qip-ai-service` from the optional `ai` profile.
+The suite provisioner does not start that profile. The lifecycle check uses the running AI image by default;
+`CIP_RECOVERY_AI_IMAGE` selects another existing image. It creates isolated recovery stores and checks that the shared
+stack stays unchanged, without model requests. Kubernetes excludes this Compose-specific case even when the flag is set.
+
 - [Prerequisites](#prerequisites)
 - [What a run changes on the stack](#what-a-run-changes-on-the-stack)
 - [Targets](#targets)
@@ -196,7 +212,7 @@ of the `e2e-spec-authoring` skill) and its issue.
 | Full run, against a stack already up | 12.4 min | 12.8 min |
 | Full run, installing the release first | | 15.5 min |
 | Installing the release, images already built | | 75.6 s |
-| Micro readiness, `deploy-chains` until all 48 micro routes answer | | 62.7 to 75.9 s over nine runs |
+| Micro readiness, `v2 /bulk` until all 48 micro routes answer | | 62.7 to 75.9 s over nine runs |
 
 The case counts date the table. `npx playwright test --list` starts nothing and prints the current
 total and the projects it is spread over; give it the target, as in
@@ -356,7 +372,7 @@ holds a micro domain's pod only because a failed micro case keeps the run's micr
 every tag comes from a closed list:
 
 - a component: `@catalog`, `@engine`, `@sessions`, `@testing-service`, or `@infra`. The cases of
-  the `ui`, `vscode`, `schema`, and `harness` projects carry none: the project is their component,
+  the `ai-tests`, `ui`, `vscode`, `schema`, and `harness` projects carry none: the project is their component,
   and the HTML report already names it;
 - `@slow`, for a case that needs more than 60 s;
 - `@classic-only`, for a case the micro projects leave out;
@@ -633,6 +649,7 @@ defaults below are the Compose ports; on `k8s` they are the fixed host ports fro
 | `E2E_BROKERS`             | unset, meaning `1`                   | `0` drops `brokers-seed`, `brokers`, and `brokers-restart` from the run, and `brokers-micro-seed` and `brokers-micro` on `k8s`, for a faster local pass: Compose starts no broker overlay, and on `k8s` the release is installed without the brokers. |
 | `E2E_BUILD`               | unset, meaning `all`                 | On `k8s`, the images built from the checkout: a comma list of `runtime-catalog`, `engine`, `sessions-management`, `testing-service`, and `micro-engine`, or `all`, or `none`. Every other image runs as its published `:latest` from GHCR, and the run header names each by the digest its pod runs. `all` beside other names is still `all`, `none` beside them adds nothing, and an unknown name fails the run. A run that selects a micro project fails unless the list builds `micro-engine`: the published micro image is a `prod` build the chart cannot start. On Docker Desktop, `docker pull` those `:latest` images first, because the node runs whatever copy the host already holds. The nightly and the pull request jobs build every image their projects run. |
 | `E2E_BOOTSTRAP_LOG`       | unset                                | On `k8s`, the log of a cluster bootstrap still running in the background, which `_e2e-kind.yaml` starts before it installs the dependencies. The run builds the images first, then waits for the exit code the workflow writes to `<log>.exit`, and checks the cluster only after that. A non-zero code fails the run with the log. Unset, the run checks the cluster before it builds the images. |
+| `E2E_AI_RECOVERY`         | unset                                | `1` includes the Compose AI recovery lifecycle case in `env`; requires a running `qip-ai-service`. Ignored on `k8s`. |
 | `CIP_TARGET`              | `compose`                            | `k8s` runs the suite against the local cluster in the current kube-context (see [Targets](#targets)). Any other value fails the run at config load. |
 | `CIP_REPO_ROOT`           | the parent directory                 | The repository root everything else is resolved against.                             |
 | `CIP_COMPOSE_FILE`        | `infrastructure/docker/docker-compose.yml`  | The compose file provisioning drives on the Compose target.                          |

@@ -5,6 +5,7 @@ import dev.langchain4j.service.UserMessage;
 import io.quarkiverse.langchain4j.RegisterAiService;
 import io.smallrye.mutiny.Multi;
 import jakarta.enterprise.context.ApplicationScoped;
+import org.qubership.integration.platform.ai.chat.memory.TaskPreservingChatMemory;
 import org.qubership.integration.platform.ai.integration.catalog.tool.ElementSchemaTools;
 import org.qubership.integration.platform.ai.plan.ValidationResultTool;
 
@@ -14,6 +15,8 @@ import org.qubership.integration.platform.ai.plan.ValidationResultTool;
  * System prompt: qip-base-system.md + roles/plan-validator.md.
  */
 @RegisterAiService(
+    toolHallucinationStrategy = org.qubership.integration.platform.ai.llm.tool.RecoverableToolNameStrategy.class,
+    chatMemoryProviderSupplier = TaskPreservingChatMemory.Provider.class,
     tools = {ValidationResultTool.class, ElementSchemaTools.class})
 @ApplicationScoped
 public interface ValidationAgent {

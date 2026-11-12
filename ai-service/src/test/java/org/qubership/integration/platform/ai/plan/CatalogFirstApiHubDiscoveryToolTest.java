@@ -38,6 +38,54 @@ import org.qubership.integration.platform.ai.schema.ChainElementFamilies;
 
 class CatalogFirstApiHubDiscoveryToolTest {
 
+  @Test
+  void pinnedUploadBypassesBothLookupsEvenWithConflictingToolHints() throws Exception {
+    var lookup = mock(CatalogOperationLookup.class);
+    var apiHub = mock(ApiHubMcpTools.class);
+    var store = new RequirementDraftStore();
+    var input = new RequirementCaptureInput.DraftInput(new RequirementCaptureInput.FlowInput(List.of(
+        new RequirementCaptureInput.InteractionInput("orders", RequirementFlow.Direction.OUTBOUND,
+            "Orders API", "Create an order", null, null, null)), List.of()),
+        List.of(), List.of(), List.of(), new RequirementCaptureInput.DraftSettings(null, null));
+    store.put("uploaded-chat", RequirementCaptureProjection.toDraft(input, null, List.of(), "1", "sha",
+        java.util.Map.of(), java.util.Map.of("orders",
+            new UploadedSpecOperations.Binding("uploads/orders.yaml", "POST", "/orders"))));
+
+    try (var ignored = ToolSession.open("uploaded-chat")) {
+      var response = new ObjectMapper().readTree(tool(lookup, apiHub, store)
+          .resolveApiOperation("orders", "DELETE", "/orders", "", "http", ""));
+      assertEquals("UPLOADED_SPEC_IMPORT_REQUIRED", response.path("status").asText());
+      assertEquals("RUN_IMPORT", response.path("nextAction").asText());
+    }
+    verifyNoInteractions(lookup, apiHub);
+  }
+
+  @Test
+  void ambiguousUploadAsksForTheSourceWithoutSearchingEitherCatalog() throws Exception {
+    var lookup = mock(CatalogOperationLookup.class);
+    var apiHub = mock(ApiHubMcpTools.class);
+    var drafts = new RequirementDraftStore();
+    var conversations = new org.qubership.integration.platform.ai.chat.conversation.ConversationService();
+    conversations.archive().beginInput("uploaded-chat", "Call POST /orders in the uploaded Orders API.", null);
+    conversations.registerAllowedAttachmentKeys("uploaded-chat", List.of("uploads/v1.yaml", "uploads/v2.yaml"));
+    var s3 = mock(org.qubership.integration.platform.ai.storage.S3Service.class);
+    when(s3.readObjectBytes(any())).thenReturn("""
+        {"openapi":"3.0.3","info":{"title":"Orders API"},"paths":{"/orders":{"post":{"operationId":"createOrder"}}}}
+        """.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    storeCatalogBackedFlow(drafts, "uploaded-chat",
+        interaction("orders", "Orders API", "Create an order", ""));
+    var discovery = tool(lookup, apiHub, drafts);
+    discovery.uploadedSpecs = new UploadedSpecOperations(conversations, s3);
+
+    try (var ignored = ToolSession.open("uploaded-chat")) {
+      var response = new ObjectMapper().readTree(discovery.resolveApiOperation("orders", "", "", "", "http", ""));
+      assertEquals("AMBIGUOUS", response.path("status").asText());
+      assertEquals(List.of("uploads/v1.yaml", "uploads/v2.yaml"),
+          response.path("uploadedOperations").findValuesAsText("attachmentKey"));
+    }
+    verifyNoInteractions(lookup, apiHub);
+  }
+
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
   void proposesTheNewestVersionAndRespectsTheConfirmedOrExplicitSelection(boolean explicitVersion) throws Exception {
@@ -242,6 +290,40 @@ class CatalogFirstApiHubDiscoveryToolTest {
     assertTrue(result.contains("CATALOG_BOUND"), result);
     assertTrue(result.contains("operation-1"), result);
     verify(apiHub, never()).searchApiOperations(any(), any(), any(), any(), any(), any());
+  }
+
+  @Test
+  void catalogOnlyRequestKeepsTheMissLocalUntilTheUserAllowsApiHub() throws Exception {
+    var lookup = mock(CatalogOperationLookup.class);
+    when(lookup.resolve(any())).thenReturn(new CatalogLookupResult.None());
+    var apiHub = mock(ApiHubMcpTools.class);
+    var store = new RequirementDraftStore();
+    storeFlow(store, "conv-local", interaction("orders", "Orders", "POST /orders", ""));
+    var conversations = new org.qubership.integration.platform.ai.chat.conversation.ConversationService();
+    var authorizations = new ApiHubSearchAuthorizations(conversations);
+    authorizations.issue("conv-local", "orders", "POST /orders", "earlier miss");
+    conversations.archive().beginInput("conv-local", "Call POST /orders. No APIHub.", null);
+    conversations.archive().beginInput("conv-local", "Proceed with the saved requirements.", null);
+    conversations.archive().beginInput("conv-local", "Do not assume you may use APIHub.", null);
+    var resolver = new CatalogFirstApiHubDiscoveryTool(lookup, mock(CatalogSystemReadTool.class),
+        mock(ConversationCatalogCache.class), apiHub, new ConversationApiResolutions(),
+        authorizations, new ObjectMapper(), store, mock(OperationSchemaLoader.class));
+
+    try (var ignored = ToolSession.open("conv-local")) {
+      var result = new ObjectMapper().readTree(
+          resolver.resolveApiOperation("orders", "POST", "/orders", null, "http", null));
+      assertEquals("CATALOG_MISS", result.path("status").asText());
+      assertEquals(ApiHubSearchAuthorizations.DISABLED_MESSAGE, result.path("message").asText());
+    }
+    assertEquals(java.util.Optional.empty(), authorizations.active("conv-local"));
+    verifyNoInteractions(apiHub);
+
+    conversations.archive().beginInput("conv-local", "You may use API Hub for this lookup.", null);
+    when(apiHub.searchApiOperations(any(), any(), any(), any(), any(), any())).thenReturn("api-hub-result");
+    try (var ignored = ToolSession.open("conv-local")) {
+      assertEquals("api-hub-result",
+          resolver.resolveApiOperation("orders", "POST", "/orders", null, "http", null));
+    }
   }
 
   @Test

@@ -64,3 +64,4 @@ rules:
 ignore: |
   **/cip-dev/charts/*/templates/*.yaml
   **/cip-dev/templates/*.yaml
+  **/dbaas/templates/*.yaml

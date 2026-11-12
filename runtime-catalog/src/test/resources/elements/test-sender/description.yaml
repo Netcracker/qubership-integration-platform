@@ -37,16 +37,6 @@ properties:
       type: string
       mandatory: false
       query: true
-    - name: integrationGqlQueryHeader
-      title: Query header
-      type: string
-      query: false
-      default: CamelGraphQLQuery
-    - name: integrationGqlVariablesHeader
-      title: Variables header
-      type: string
-      query: false
-      default: CamelGraphQLVariables
     - name: integrationOperationProtocolType
       title: Integration Operation Protocol Type
       description: Specifies which type Protocol use the operation

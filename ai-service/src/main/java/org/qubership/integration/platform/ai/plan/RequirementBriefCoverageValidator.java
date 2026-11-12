@@ -34,9 +34,12 @@ public final class RequirementBriefCoverageValidator {
     Objects.requireNonNull(approvedDraft, "approvedDraft");
     Objects.requireNonNull(brief, "brief");
 
-    List<RequirementFact> draftFacts = approvedDraft.facts();
+    var consistency = RequirementFailureConsistency.issues(approvedDraft);
+    if (!consistency.isEmpty()) return Optional.of(consistency.getFirst().message());
+
+    List<RequirementFact> draftFacts = RequirementCaptureProjection.factsForBrief(approvedDraft);
     List<RequirementFact> briefFacts = brief.facts();
-    if (!approvedDraft.flow().equals(brief.flow())) {
+    if (!RequirementCaptureProjection.flowForBrief(approvedDraft).equals(brief.flow())) {
       return Optional.of("requirement brief flow does not match the approved draft");
     }
     Optional<String> mappingRoleError = validateMappingRoles(brief);
@@ -111,7 +114,7 @@ public final class RequirementBriefCoverageValidator {
         && !brief.approvedDraftText().equals(approvedDraft.planningText())) {
       return Optional.of("requirement brief approvedDraftText does not match approved draft");
     }
-    if (!approvedDraft.flow().equals(brief.flow())) {
+    if (!RequirementCaptureProjection.flowForBrief(approvedDraft).equals(brief.flow())) {
       return Optional.of("requirement brief flow does not match the approved draft");
     }
     Optional<String> serviceCallError = validateServiceCalls(brief);
@@ -171,8 +174,7 @@ public final class RequirementBriefCoverageValidator {
   }
 
   /**
-   * Structural mapping checks: occurrences exist on the approved flow, the pair is a transition,
-   * and ports match inbound versus outbound roles.
+   * Checks mapping references, transitions, and ports against the approved flow and declared local targets.
    */
   public static Optional<String> validateMappingStructure(RequirementBrief brief) {
     Objects.requireNonNull(brief, "brief");
@@ -187,7 +189,8 @@ public final class RequirementBriefCoverageValidator {
     for (var fact : draft.authoredDraft().facts()) {
       var mapping = fact.fieldMapping();
       if (fact.kind() != RequirementCaptureInput.FactKind.FIELD_MAPPING
-          || fact.polarity() != RequirementCaptureInput.Polarity.POSITIVE || mapping == null) {
+          || fact.polarity() != RequirementCaptureInput.Polarity.POSITIVE || mapping == null
+          || RequirementMappingCapture.confirmedBodyPassthrough(draft.authoredDraft(), fact)) {
         continue;
       }
       if (brief.skippedTransitions().stream().anyMatch(transition ->
@@ -203,10 +206,16 @@ public final class RequirementBriefCoverageValidator {
           intent.sourceRef().equals(mapping.sourceInteractionId())
               && intent.targetRef().equals(mapping.targetInteractionId())
               && intent.rules().stream().anyMatch(rule ->
-                  MappingContract.canonicalPath(rule.targetPath()).equals(
-                      MappingContract.canonicalPath(mapping.targetPath()))
-                      || rule.status() == MappingRuleStatus.USER_DEFINED
-                          && rule.requirementIds().contains(fact.sourceFactId())));
+                  mapping.value() != null
+                      ? MappingContract.canonicalPath(rule.targetPath()).equals(
+                          MappingContract.canonicalPath(mapping.targetPath()))
+                          && Objects.equals(RequirementBriefProjector.resolveCopyOrigin(
+                              mapping.value(), brief.flow(), mapping.sourceInteractionId()), rule.value())
+                          && Objects.equals(mapping.missingSourcePolicy(), rule.missingSourcePolicy())
+                      : MappingContract.canonicalPath(rule.targetPath()).equals(
+                          MappingContract.canonicalPath(mapping.targetPath()))
+                          || rule.status() == MappingRuleStatus.USER_DEFINED
+                              && rule.requirementIds().contains(fact.sourceFactId())));
       if (!realized) {
         return Optional.of("Requirement brief omitted the supplied mapping for sourceFactId="
             + fact.sourceFactId() + ", targetPath=" + mapping.targetPath());
@@ -215,15 +224,6 @@ public final class RequirementBriefCoverageValidator {
     return Optional.empty();
   }
 
-  /**
-   * Empty brief service-call lists stay a coverage no-op so v1 briefs that only pin facts still
-   * pass. A non-empty list must cover every draft {@code serviceCallId}, and every call must carry
-   * a catalog binding that names it. Native direct outbound elements are projected as service
-   * calls for topology purposes, but do not require catalog bindings.
-   *
-   * <p>Requiring the binding here is what keeps an unbound call from reaching design execution,
-   * where nothing upstream can still resolve it and the run can only ask the author again.
-   */
   private static Optional<String> validateMappingRoles(RequirementBrief brief) {
     RequirementFlow flow = brief.flow();
     if (flow.interactions().isEmpty()) {
@@ -241,11 +241,16 @@ public final class RequirementBriefCoverageValidator {
       if (sourceError.isPresent()) {
         return sourceError;
       }
-      Optional<String> targetError = validateMappingRef(byId, intent.targetRef(), intent.targetPort());
+      boolean local = org.qubership.integration.platform.ai.plan.mapping.LocalMappingTarget.resolve(
+          brief.facts(), flow, intent.targetRef())
+          .filter(target -> target.predecessorElementRef().equals(intent.sourceRef())
+              && intent.targetPort() == MappingPort.OUTPUT).isPresent();
+      Optional<String> targetError = local ? Optional.empty()
+          : validateMappingRef(byId, intent.targetRef(), intent.targetPort());
       if (targetError.isPresent()) {
         return targetError;
       }
-      Optional<String> transitionError = validateMappingTransition(flow, intent);
+      Optional<String> transitionError = local ? Optional.empty() : validateMappingTransition(flow, intent);
       if (transitionError.isPresent()) {
         return transitionError;
       }
@@ -347,6 +352,7 @@ public final class RequirementBriefCoverageValidator {
     return byId;
   }
 
+  /** Checks service-call IDs and catalog bindings, allowing unbound native direct calls. */
   private static Optional<String> validateServiceCalls(RequirementBrief brief) {
     if (brief.serviceCalls().isEmpty()) {
       return Optional.empty();

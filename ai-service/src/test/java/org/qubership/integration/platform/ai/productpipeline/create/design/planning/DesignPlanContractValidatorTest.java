@@ -54,8 +54,7 @@ class DesignPlanContractValidatorTest {
           Map.entry("error", "cip-error-handling-generator"),
           Map.entry("reuse-block", "cip-composition-generator"),
           Map.entry("reuse-ref", "cip-composition-generator"),
-          Map.entry("send-kafka", "cip-service-call-generator"),
-          Map.entry("script-behavior", "cip-script-generator"));
+          Map.entry("send-kafka", "cip-service-call-generator"));
 
   @Test
   void fileTransferOwnerIsFileOperationsGenerator() {
@@ -73,10 +72,82 @@ class DesignPlanContractValidatorTest {
   void validatesEverySupportedSemanticTargetKindWithItsExactOwner() {
     Fixture fixture = completeFixture();
 
-    assertTrue(
-        validator
-            .findings(fixture.contract(), fixture.revision(), fixture.brief(), fixture.pin())
-            .isEmpty());
+    assertEquals(List.of(), validator.findings(
+        fixture.contract(), fixture.revision(), fixture.brief(), fixture.pin()));
+  }
+
+  @Test
+  void requiresTheScriptGeneratorForApprovedBehavior() {
+    var fixture = completeFixture();
+    var generated = org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures
+        .generatedBehavior("script-behavior", "Return Hello world");
+    var nodes = fixture.revision().nodes().stream().map(node -> "script-behavior".equals(node.nodeId())
+        ? new SemanticNode.Operation(node.nodeId(), "script", new SemanticProvenance(List.of(generated.sourceFactId())))
+        : node).toList();
+    var original = fixture.revision();
+    var revision = new ChainSemanticRevision(original.schemaVersion(), original.revisionId(), original.chainIdentity(),
+        original.compilerContractVersion(), original.entryPoints(), nodes, original.regions(),
+        original.executionEdges(), original.containment(), original.mappingIntents(), original.constraints(),
+        original.assumptions(), original.citations());
+    var facts = new ArrayList<>(fixture.brief().facts());
+    facts.removeIf(fact -> fact.elementIntent() != null && "script-behavior".equals(fact.elementIntent().elementRef()));
+    facts.add(generated);
+    var brief = fixture.brief().withFacts(facts);
+    var steps = new ArrayList<>(fixture.contract().steps());
+    steps.add(step("generate-behavior", "cip-script-generator", TargetKind.ELEMENT_NODE, "script-behavior"));
+    var contract = contract(revision, steps);
+    var report = new DesignPlanReportRenderer().render(contract);
+    var plan = new DesignPlanProjector().project(contract, report, revision, fixture.pin(), brief);
+
+    assertEquals(List.of("cip-script-generator"), plan.steps().stream()
+        .filter(step -> "generate-behavior".equals(step.stepId())).findFirst().orElseThrow().owningSkillIds());
+  }
+
+  @Test
+  void behaviorBeforeLocalMappingStillNeedsItsOwnProducer() {
+    var previous = new SemanticNode.Operation("previous", "script", new SemanticProvenance(List.of("behavior")));
+    var output = new SemanticNode.Operation("response", "script", new SemanticProvenance(List.of("return")));
+    var edge = new org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge(
+        "mapping-edge", "previous", "response", null, null, "return-map");
+    var revision = new ChainSemanticRevision(ChainSemanticRevision.CURRENT_SCHEMA_VERSION,
+        "revision", "chain", "1", List.of(), List.of(previous, output), List.of(), List.of(edge),
+        List.of(), List.of(), List.of(), List.of(), List.of());
+    var local = new org.qubership.integration.platform.ai.plan.RequirementElementIntent("response", "script",
+        org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.LOCAL_NODE,
+        "entry", null, "call", null, List.of(), List.of());
+    var declaration = new RequirementFact("return", RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.FIELD_MAPPING, "", "Return the order.", null, null, null, null, null, null,
+        List.of("entry"), null, local);
+    var behavior = new RequirementFact("behavior", RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.BEHAVIOR, "", "Retain the request identifier.", null, null, null, null, null, null,
+        List.of("entry"));
+    var flow = new RequirementFlow(List.of(new Interaction("entry", Direction.INBOUND, "Caller", "POST /", ""),
+        new Interaction("call", Direction.OUTBOUND, "Orders", "POST /", "")),
+        List.of(new RequirementFlow.Transition("entry", "call")));
+    var mapping = new org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent("return-map",
+        "call", org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort.RESPONSE,
+        "response", org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort.OUTPUT, List.of());
+    var brief = new RequirementBrief("Return", List.of(), List.of(), List.of(), List.of(), "Return")
+        .withFacts(List.of(declaration, behavior)).withFlow(flow).withMappingIntents(List.of(mapping));
+    var pin = DesignPlanTestFixtures.pinWithSkills(revision, "cip-script-generator");
+    var withProducer = contract(revision, List.of(step("previous-script", "cip-script-generator",
+        TargetKind.ELEMENT_NODE, "previous")));
+    var withFindings = validator.findings(withProducer, revision, brief, pin);
+    var withoutFindings = validator.findings(contract(revision, List.of(step("mapping", "cip-script-generator",
+        TargetKind.MAPPING_INTENT, "return-map"))), revision, brief, pin);
+    assertTrue(withFindings.stream().noneMatch(finding -> finding.code() == DesignPlanContractFinding.Code.UNKNOWN_TARGET
+        && "previous".equals(finding.targetId())), withFindings.toString());
+    assertTrue(withoutFindings.stream().anyMatch(finding -> finding.code() == DesignPlanContractFinding.Code.MISSING_TARGET_PRODUCER
+        && "previous".equals(finding.targetId())), withoutFindings.toString());
+  }
+
+  @Test
+  void suppliedScriptDoesNotBecomeAGeneratorTarget() {
+    var fixture = completeFixture();
+    var steps = new ArrayList<>(fixture.contract().steps());
+    steps.add(step("supplied-script-generator", "cip-script-generator", TargetKind.BEHAVIOR_NODE, "script-behavior"));
+    assertFinding(contract(fixture.revision(), steps), fixture,
+        DesignPlanContractFinding.Code.UNKNOWN_TARGET, TargetKind.BEHAVIOR_NODE, "script-behavior");
   }
 
   @Test
@@ -476,7 +547,7 @@ class DesignPlanContractValidatorTest {
     List<SemanticNode> nodes = new ArrayList<>(base.nodes());
     nodes.add(
         new SemanticNode.Operation(
-            "script-behavior", "script", new SemanticProvenance(List.of("fact-behavior"))));
+            "script-behavior", "script", new SemanticProvenance(List.of("supplied-script-behavior"))));
     nodes.add(
         new SemanticNode.Operation(
             "reuse-block", "reuse", new SemanticProvenance(List.of())));
@@ -522,7 +593,11 @@ class DesignPlanContractValidatorTest {
             base.constraints(),
             base.assumptions(),
             base.citations());
-    RequirementBrief brief = DesignPlanTestFixtures.brief().withMappingIntents(base.mappingIntents());
+    var baseBrief = DesignPlanTestFixtures.brief().withMappingIntents(base.mappingIntents());
+    var facts = new ArrayList<>(baseBrief.facts());
+    facts.add(org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures
+        .suppliedFact("script-behavior", "return null"));
+    RequirementBrief brief = baseBrief.withFacts(facts);
     CompilerRunPin pin =
         DesignPlanTestFixtures.pinWithSkills(
             revision,
@@ -557,9 +632,6 @@ class DesignPlanContractValidatorTest {
     }
     if ("map-init".equals(targetId)) {
       return TargetKind.MAPPING_INTENT;
-    }
-    if ("script-behavior".equals(targetId)) {
-      return TargetKind.BEHAVIOR_NODE;
     }
     if ("reuse-block".equals(targetId) || "reuse-ref".equals(targetId)) {
       return TargetKind.ELEMENT_NODE;

@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.productpipeline.stage;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -9,9 +10,11 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.langchain4j.model.chat.request.ChatRequestParameters;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import dev.langchain4j.exception.ToolArgumentsException;
+import dev.langchain4j.exception.RateLimitException;
 import io.smallrye.mutiny.Multi;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
@@ -50,6 +53,7 @@ import org.qubership.integration.platform.ai.integration.catalog.client.CatalogN
 import org.qubership.integration.platform.ai.plan.MappingTurnAdapter;
 import org.qubership.integration.platform.ai.plan.MappingTurnResult;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
+import org.qubership.integration.platform.ai.llm.ratelimit.RateLimitRetryDeferredException;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
@@ -174,8 +178,7 @@ class ProductPipelineStageExecutorTest {
       assertInstanceOf(StageDecision.Retry.class, correction.decision());
       applyLifecycle(runtime, correction);
     }
-    var wait = assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, stageId).decision());
-    assertEquals(PipelineGates.RECOVERY_REPAIR_ALLOWANCE, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertGrantsAnotherCorrection(execute(runtime, stageId));
     assertEquals(5, calls.get());
     assertEquals(RUN_ID, requireRun().run().runId());
   }
@@ -223,43 +226,505 @@ class ProductPipelineStageExecutorTest {
         && transition.reason().startsWith(RecoveryAttemptLedger.GRANT_REASON_PREFIX)));
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {"Invalid property.", "Missing required field."})
+  void repeatedCaptureCanRegenerateCleanly(String finding) {
+    var fixture = nativeCaptureFixture(finding, true, repeatClass(), 1, 12);
+    var first = execute(fixture.runtime(), "design-execution");
+    assertInstanceOf(StageDecision.Retry.class, first.decision());
+    applyLifecycle(fixture.runtime(), first);
+    var complete = assertInstanceOf(StageDecision.Complete.class,
+        execute(fixture.runtime(), "design-execution").decision());
+    assertEquals(RunStatus.PLAN_APPROVED, complete.status());
+    assertEquals(List.of(false, true), fixture.clean());
+    assertEquals(1, cleanAttempts());
+  }
+
   @Test
-  void typedCaptureNoProgressChangesStrategyWithoutCreatingNewCredit() {
+  void repeatedCaptureWithoutAnOutputCanRegenerateCleanly() {
+    var fixture = nativeCaptureFixture("Invalid property.", true, repeatClass(), 1, 12, false);
+    var first = execute(fixture.runtime(), "design-execution");
+    assertInstanceOf(StageDecision.Retry.class, first.decision());
+    applyLifecycle(fixture.runtime(), first);
+    var complete = assertInstanceOf(StageDecision.Complete.class,
+        execute(fixture.runtime(), "design-execution").decision());
+    assertEquals(RunStatus.PLAN_APPROVED, complete.status());
+    assertEquals(List.of(false, true), fixture.clean());
+    assertEquals(1, cleanAttempts());
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void repeatedDiscoveryCaptureWithoutCandidateRegeneratesFromSavedInput(boolean validDiagnosis) {
+    var input = new ArtifactTypeRef("user-input", 1);
+    var profile = new ProductPipelineProfile(1, "discovery-repeat", "1", List.of(input), List.of(
+        new ProfileStage("preparation", "preparation-cap", List.of(input), List.of(), null, null, new RetryPolicy(0, 0L)),
+        new ProfileStage("requirement-discovery", "discovery-cap", List.of(input),
+            List.of(new ArtifactTypeRef("requirement-draft", 1)), null, null,
+            new RetryPolicy(0, 0L))), new TerminalPolicy("requirement-discovery", "PLAN_APPROVED"),
+        List.of("preparation-cap", "discovery-cap"));
+    var preparation = capability("preparation-cap", context -> Multi.createFrom().item(
+        new CapabilitySignal.Completed(context.attributeAsString("userText") == null
+            ? StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "Provide requirements.")
+            : StageOutcome.of(StageOutcomeClass.SUCCEEDED, "Prepared."))));
     var clean = new ArrayList<Boolean>();
+    var discovery = capability("discovery-cap", context -> {
+      boolean cleanTurn = !context.attributeAsString(ProductPipelineRunSupport.PRODUCER_CLEAN_REBUILD_EVIDENCE_REF_ATTR).isBlank();
+      clean.add(cleanTurn);
+      assertTrue(artifactStore.latest(RUN_ID, Kind.USER_INPUT).isPresent());
+      if (cleanTurn) return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(
+          StageOutcomeClass.SUCCEEDED,
+          List.of(new ArtifactCandidate(Kind.REQUIREMENT_DRAFT, new RequirementDraft(true, "draft"), List.of())),
+          "Captured requirements.", null, null)));
+      var fingerprints = new org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore(mapper);
+      var store = new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore(fingerprints);
+      var gateway = new org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway(fingerprints, store);
+      var channel = org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFeedbackChannel.PLAN;
+      var kind = org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind.VALIDATION;
+      var classification = org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass.CORRECTABLE;
+      gateway.onFailure(channel, CONVERSATION, "discovery-cap", kind, classification, "captureRequirements", null, "Missing field.");
+      assertThrows(org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException.class,
+          () -> gateway.onFailure(channel, CONVERSATION, "discovery-cap", kind, classification,
+              "captureRequirements", null, "Missing field."));
+      return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
+          "Missing field.", RecoveryCause.captureFailure(store.lastPlanFailure(CONVERSATION).orElseThrow(),
+              List.of(new PlanValidationFinding("CONTRACT_SHAPE", "Missing field.", true)), null))));
+    });
+    var agent = FakeFailureNarrativeAgent.narrates("Missing field.");
+    if (validDiagnosis) agent.recoverRegenerates(Kind.REQUIREMENT_DRAFT, "Regenerate the requirements.");
+    var runtime = newRuntime(new FailureNarrative(agent), profile, preparation, discovery);
+    runtime.startOrResume(new StartOrResumeCommand(CONVERSATION, RUN_ID, profile, manifest(profile)))
+        .collect().asList().await().indefinitely();
+    runtime.recordInput(new AcceptInputCommand(RUN_ID, "provided input", "source-1", "source-hash", InputOrigin.TRUSTED))
+        .collect().asList().await().indefinitely();
+    applyLifecycle(runtime, execute(runtime, "preparation"));
+    var first = execute(runtime, "requirement-discovery");
+    assertInstanceOf(StageDecision.Retry.class, first.decision(), () -> first.decision().toString());
+    assertTrue(agent.lastRecoveryContextJson.get().contains("provided input"));
+    applyLifecycle(runtime, first);
+    assertInstanceOf(StageDecision.Complete.class, execute(runtime, "requirement-discovery").decision());
+    assertEquals(List.of(false, true), clean);
+    assertEquals(1, cleanAttempts());
+  }
+
+  @ParameterizedTest
+  @org.junit.jupiter.params.provider.CsvSource({"matching,true", "code,false", "origin,false", "pointer,false"})
+  void partialDiscoveryContinuesWithoutDiagnosisOnlyForItsSavedPendingWork(
+      String changedField, boolean matchesSavedWork) {
+    var store = new org.qubership.integration.platform.ai.plan.RequirementDraftStore();
+    var authored = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput(
+        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FlowInput(List.of(
+            new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.InteractionInput("call",
+                org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction.OUTBOUND,
+                "Inventory", "getInventory", null, null, null)), List.of()),
+        List.of(new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput("goal", List.of("call"),
+            org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactKind.GOAL,
+            org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polarity.POSITIVE, "Read inventory.")),
+        List.of(), List.of(), new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftSettings(false, null));
+    var partial = org.qubership.integration.platform.ai.plan.RequirementCaptureProjection.toDraft(
+        authored, null, List.of(), "1", "hash");
+    var calls = new AtomicInteger();
+    var discovery = new org.qubership.integration.platform.ai.productpipeline.create.RequirementDiscoveryCapability(
+        null, store, (chat, text) -> {
+          if (calls.incrementAndGet() == 1) store.put(chat, partial);
+          assertEquals(partial, store.get(chat).orElseThrow());
+          store.markCaptured(chat);
+          store.finishTurn(chat, org.qubership.integration.platform.ai.plan.RequirementDiscoveryDirective.CONTINUE);
+          return Multi.createFrom().empty();
+        }, null);
+    var observed = capability("requirement-discovery", context -> discovery.execute(context).onItem().transform(signal -> {
+      if (signal instanceof CapabilitySignal.Completed completed) {
+        var findings = completed.outcome().recoveryCause().findings().stream().map(finding ->
+            new PlanValidationFinding("code".equals(changedField) ? "OTHER_PENDING_WORK" : finding.code(),
+                finding.message(), finding.blocker(), finding.mappingDetails(),
+                "origin".equals(changedField) ? "other" : finding.originRecordId(),
+                "pointer".equals(changedField) ? "/interactions/other" : finding.fieldPointer())).toList();
+        return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
+            completed.outcome().message(), new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, findings, "")));
+      }
+      return signal;
+    }));
+    var input = new ArtifactTypeRef("user-input", 1);
+    var profile = new ProductPipelineProfile(1, "partial-discovery", "2", List.of(input), List.of(
+        new ProfileStage("requirement-discovery", "requirement-discovery", List.of(input),
+            List.of(new ArtifactTypeRef("requirement-draft", 1)), null, null, new RetryPolicy(0, 0L))),
+        new TerminalPolicy("requirement-discovery", "PLAN_APPROVED"), List.of("requirement-discovery"));
+    var agent = FakeFailureNarrativeAgent.narrates("Continue saved work.");
+    var runtime = newRuntime(new FailureNarrative(agent), profile, observed);
+    runtime.support().withNativeRequirementCapture(store, null);
+    startAndRecordInput(runtime, profile);
+
+    var first = execute(runtime, "requirement-discovery");
+    assertInstanceOf(StageDecision.Retry.class, first.decision());
+    applyLifecycle(runtime, first);
+    var second = execute(runtime, "requirement-discovery");
+    assertInstanceOf(StageDecision.Retry.class, second.decision());
+    applyLifecycle(runtime, second);
+    assertInstanceOf(StageDecision.Retry.class, execute(runtime, "requirement-discovery").decision());
+    assertEquals(3, calls.get());
+    assertEquals(partial, store.get(CONVERSATION).orElseThrow());
+    assertEquals(matchesSavedWork, agent.lastRecoveryContextJson.get() == null);
+    assertEquals(2, requireRun().transitions().stream().filter(transition -> transition.reason() != null
+        && transition.reason().startsWith(RecoveryAttemptLedger.SETTLED_ATTEMPT_REASON_PREFIX)).count());
+  }
+
+  /**
+   * A requirement capture the model keeps rejecting, with the capture tools sharing one feedback store as in
+   * production, is corrected without a card until the run's recovery ceiling is spent, and the card then offers Retry
+   * creation.
+   */
+  @Test
+  void aRepeatedRequirementCaptureIsCorrectedWithoutACardUntilTheRecoveryCeiling() {
+    var input = new ArtifactTypeRef("user-input", 1);
+    var profile = new ProductPipelineProfile(1, "discovery-repeat", "1", List.of(input), List.of(
+        new ProfileStage("preparation", "preparation-cap", List.of(input), List.of(), null, null, new RetryPolicy(0, 0L)),
+        new ProfileStage("requirement-discovery", "discovery-cap", List.of(input),
+            List.of(new ArtifactTypeRef("requirement-draft", 1)), null, null,
+            new RetryPolicy(0, 0L))), new TerminalPolicy("requirement-discovery", "PLAN_APPROVED"),
+        List.of("preparation-cap", "discovery-cap"));
+    var preparation = capability("preparation-cap", context -> Multi.createFrom().item(
+        new CapabilitySignal.Completed(context.attributeAsString("userText") == null
+            ? StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "Provide requirements.")
+            : StageOutcome.of(StageOutcomeClass.SUCCEEDED, "Prepared."))));
+    var fingerprints = new org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore(mapper);
+    var store = new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore(fingerprints);
+    var gateway = new org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway(fingerprints, store);
+    var calls = new AtomicInteger();
+    var discovery = capability("discovery-cap", context -> {
+      calls.incrementAndGet();
+      var channel = org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFeedbackChannel.PLAN;
+      var kind = org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind.VALIDATION;
+      var classification = org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass.CORRECTABLE;
+      try {
+        gateway.onFailure(channel, CONVERSATION, "discovery-cap", kind, classification, "captureRequirements", null,
+            "Missing field.");
+      } catch (org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException repeated) {
+        // A repeat ends the turn, as it does in the capture tool.
+      }
+      return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
+          "Missing field.", RecoveryCause.captureFailure(store.lastPlanFailure(CONVERSATION).orElseThrow(),
+              List.of(new PlanValidationFinding("CONTRACT_SHAPE", "Missing field.", true)), null))));
+    });
+    var agent = FakeFailureNarrativeAgent.narrates("Missing field.");
+    agent.recoverRegenerates(Kind.REQUIREMENT_DRAFT, "Regenerate the requirements.");
+    var runtime = newRuntime(new FailureNarrative(agent), new RecoveryAttemptLedger(), null, preparation, discovery);
+    runtime.startOrResume(new StartOrResumeCommand(CONVERSATION, RUN_ID, profile, manifest(profile)))
+        .collect().asList().await().indefinitely();
+    runtime.recordInput(new AcceptInputCommand(RUN_ID, "provided input", "source-1", "source-hash", InputOrigin.TRUSTED))
+        .collect().asList().await().indefinitely();
+    applyLifecycle(runtime, execute(runtime, "preparation"));
+
+    StageDecision.WaitForInput wait = executeUntilWait(runtime, "requirement-discovery");
+
+    assertTrue(new RecoveryAttemptLedger().perRunCeilingReached(requireRun().transitions()), wait.prompt());
+    // The first attempt, then one attempt for each of the twelve corrections the ceiling counts.
+    assertEquals(RecoveryAttemptLedger.DEFAULT_PER_RUN_CEILING + 1, calls.get());
+    assertEquals(List.of(ChatEvent.RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
+        cardActions(wait.prompt()));
+  }
+
+  private StageDecision.WaitForInput executeUntilWait(CreateChainTestOrchestrator runtime, String stageId) {
+    var result = execute(runtime, stageId);
+    for (int retries = 0; retries < 40 && result.decision() instanceof StageDecision.Retry; retries++) {
+      applyLifecycle(runtime, result);
+      result = execute(runtime, stageId);
+    }
+    var decision = result.decision();
+    return assertInstanceOf(StageDecision.WaitForInput.class, decision, decision::toString);
+  }
+
+  /** A repeated capture whose clean regeneration was rejected again is granted another correction. */
+  @Test
+  void aRepeatedCaptureWhoseCleanRegenerationFailedIsGrantedAnotherCorrection() {
+    var fixture = nativeCaptureFixture("Invalid property.", false, repeatClass(), 1, 12);
+    var first = execute(fixture.runtime(), "design-execution");
+    assertInstanceOf(StageDecision.Retry.class, first.decision());
+    applyLifecycle(fixture.runtime(), first);
+    assertGrantsAnotherCorrection(execute(fixture.runtime(), "design-execution"));
+    assertEquals(List.of(false, true), fixture.clean());
+    assertEquals(1, cleanAttempts());
+  }
+
+  /**
+   * A trusted Retry on the card a repeated capture shows at the run's recovery ceiling regenerates the stage in a
+   * clean turn, so the author's click reaches the model although the ceiling is spent.
+   */
+  @Test
+  void aRetryAfterARepeatedCaptureSpentTheRecoveryCeilingRegeneratesCleanly() {
+    var fixture = nativeCaptureFixture("Invalid property.", 1, repeatClass(), 1, 1, true);
+    var first = execute(fixture.runtime(), "design-execution");
+    assertInstanceOf(StageDecision.Retry.class, first.decision());
+    applyLifecycle(fixture.runtime(), first);
+    var wait = assertInstanceOf(StageDecision.WaitForInput.class,
+        execute(fixture.runtime(), "design-execution").decision());
+    assertEquals(PipelineGates.RECOVERY_REPEATED, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+
+    fixture.runtime().recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.RETRY_ACTION, "retry-click",
+        "retry-hash", InputOrigin.TRUSTED)).collect().asList().await().indefinitely();
+
+    var complete = assertInstanceOf(StageDecision.Complete.class,
+        execute(fixture.runtime(), "design-execution").decision());
+    assertEquals(RunStatus.PLAN_APPROVED, complete.status());
+    assertEquals(List.of(false, true, true), fixture.clean());
+  }
+
+  @Test
+  void aRetryOnARepeatedFailureCardAfterACatalogWriteIsRefused() {
+    var fixture = nativeCaptureFixture("Invalid property.", 1, repeatClass(), 1, 1, true);
+    var first = execute(fixture.runtime(), "design-execution");
+    applyLifecycle(fixture.runtime(), first);
+    var wait = assertInstanceOf(StageDecision.WaitForInput.class,
+        execute(fixture.runtime(), "design-execution").decision());
+    assertEquals(PipelineGates.RECOVERY_REPEATED, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    artifactStore.append(new CompilationArtifacts.AppendCommand(RUN_ID, Kind.CATALOG_CHAIN_SNAPSHOT, "1",
+        "test-materializer", "1", new ChainCatalogFacts("written-chain", "Orders", "", 0, 0, "", List.of(),
+            List.of(), "catalog"), List.of(), null,
+        new org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactProvenance(
+            RUN_ID, "catalog-materialization", "profile", "1", "sha", "test-materializer", "1", "sha")));
+    long grantsBefore = grantTransitions();
+
+    fixture.runtime().recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.RETRY_ACTION, "retry-click",
+        "retry-hash", InputOrigin.TRUSTED)).collect().asList().await().indefinitely();
+
+    assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
+    assertEquals(HaltRecoveryGuard.CATALOG_ALREADY_WRITTEN.name(),
+        PipelineGates.guardOf(requireRun().transitions().getLast().reason()).orElseThrow());
+    assertEquals(grantsBefore, grantTransitions());
+  }
+
+  private long grantTransitions() {
+    return requireRun().transitions().stream().filter(t -> t.reason() != null
+        && t.reason().startsWith(RecoveryAttemptLedger.GRANT_REASON_PREFIX)).count();
+  }
+
+  @ParameterizedTest
+  @org.junit.jupiter.params.provider.EnumSource(value = org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass.class,
+      names = {"PERMANENT", "TOOL_ARGUMENTS", "ACCEPTED", "DUPLICATE"})
+  void closedCaptureClassificationsDoNotRegenerate(
+      org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass classification) {
+    var fixture = nativeCaptureFixture("Invalid property.", true, classification, 1, 12);
+    assertInstanceOf(StageDecision.WaitForInput.class, execute(fixture.runtime(), "design-execution").decision());
+    assertEquals(List.of(false), fixture.clean());
+    assertEquals(0, cleanAttempts());
+  }
+
+  @Test
+  void aSpentRecoveryCeilingDoesNotRegenerate() {
+    var fixture = nativeCaptureFixture("Invalid property.", true, repeatClass(), 1, 0);
+    assertInstanceOf(StageDecision.WaitForInput.class, execute(fixture.runtime(), "design-execution").decision());
+    assertEquals(List.of(false), fixture.clean());
+    assertEquals(0, cleanAttempts());
+  }
+
+  /** A repeated capture on a stage allowed no clean regeneration is granted another correction instead. */
+  @Test
+  void aRepeatedCaptureWithNoCleanRegenerationAllowedIsGrantedAnotherCorrection() {
+    var fixture = nativeCaptureFixture("Invalid property.", true, repeatClass(), 0, 12);
+    assertGrantsAnotherCorrection(execute(fixture.runtime(), "design-execution"));
+    assertEquals(List.of(false), fixture.clean());
+    assertEquals(0, cleanAttempts());
+  }
+
+  private record NativeCaptureFixture(CreateChainTestOrchestrator runtime, List<Boolean> clean) { }
+
+  private static org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass repeatClass() {
+    return org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass.IDENTICAL_SPAM;
+  }
+
+  private long cleanAttempts() {
+    return requireRun().transitions().stream().filter(t -> t.reason() != null
+        && t.reason().startsWith(RecoveryAttemptLedger.CLEAN_REBUILD_REASON_PREFIX)).count();
+  }
+
+  private NativeCaptureFixture nativeCaptureFixture(String finding, boolean succeeds,
+      org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass classification,
+      int cleanLimit, int runCeiling) {
+    return nativeCaptureFixture(finding, succeeds, classification, cleanLimit, runCeiling, true);
+  }
+
+  private NativeCaptureFixture nativeCaptureFixture(String finding, boolean succeeds,
+      org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass classification,
+      int cleanLimit, int runCeiling, boolean output) {
+    return nativeCaptureFixture(finding, succeeds ? 0 : Integer.MAX_VALUE, classification, cleanLimit, runCeiling,
+        output);
+  }
+
+  /**
+   * Starts a design-execution stage whose every capture is refused with {@code finding}, except that a clean turn
+   * succeeds once {@code failedCleanTurns} earlier clean turns have been refused.
+   */
+  private NativeCaptureFixture nativeCaptureFixture(String finding, int failedCleanTurns,
+      org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass classification,
+      int cleanLimit, int runCeiling, boolean output) {
+    var original = analysisThenPlanningThenExecutionProfile();
+    var stages = original.stages().stream().map(stage -> "design-execution".equals(stage.stageId())
+        ? new ProfileStage(stage.stageId(), stage.capabilityId(), stage.consumes(),
+            List.of(new ArtifactTypeRef("chain-plan-graph", 1)), null, null, stage.retry()) : stage).toList();
+    var profile = new ProductPipelineProfile(1, original.profileId(), "1", original.runInputs(), stages,
+        original.terminal(), original.dependencyRoots());
+    var clean = new ArrayList<Boolean>();
+    var graph = new ChainPlanGraph("1.0", new ChainSection("c1", "Graph"),
+        List.of(failingServiceCallNode()), List.of());
+    var execution = capability("execution-cap", context -> {
+      boolean cleanTurn = StageRepairEvidence.isCleanExecutionRebuild(context, StageRepairEvidence.from(context));
+      long earlierCleanTurns = clean.stream().filter(Boolean::booleanValue).count();
+      clean.add(cleanTurn);
+      if (cleanTurn && earlierCleanTurns >= failedCleanTurns) {
+        return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(
+            StageOutcomeClass.SUCCEEDED, List.of(new ArtifactCandidate(Kind.CHAIN_PLAN_GRAPH, graph, List.of())),
+            "Generated graph.", null, null)));
+      }
+      var fingerprints = new org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore(mapper);
+      var feedbackStore = new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore(fingerprints);
+      var gateway = new org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway(
+          fingerprints, feedbackStore);
+      var channel = org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFeedbackChannel.PLAN;
+      var kind = org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind.VALIDATION;
+      var failure = org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass.CORRECTABLE;
+      gateway.onFailure(channel, CONVERSATION, "execution-cap", kind, failure, "captureGraphPatch", null, finding);
+      assertThrows(org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException.class,
+          () -> gateway.onFailure(channel, CONVERSATION, "execution-cap", kind, failure, "captureGraphPatch", null, finding));
+      var feedback = feedbackStore.lastPlanFailure(CONVERSATION).orElseThrow();
+      if (classification != org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass.IDENTICAL_SPAM) {
+        feedback = new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedback(
+            kind, finding, classification, false, List.of());
+      }
+      return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(
+          StageOutcomeClass.CONTRACT_FAILURE, output ? List.of(new ArtifactCandidate(Kind.CHAIN_PLAN_GRAPH, graph, List.of())) : List.of(),
+          finding, null, RecoveryCause.captureFailure(feedback,
+              List.of(new PlanValidationFinding("CONTRACT_SHAPE", finding, true,
+                  MappingValidationDetails.empty(), "call-1", "/properties")), null))));
+    });
+    var agent = FakeFailureNarrativeAgent.narrates(finding).recoverRegenerates(Kind.CHAIN_PLAN_GRAPH, finding);
+    var runtime = new CreateChainTestOrchestrator(CreateChainTestOrchestrator.supportBuilder(runStore, artifactStore,
+        new StageCapabilityRegistry(List.of(analysisCandidate(), planningAlwaysCandidate(), execution)),
+        Clock.fixed(FIXED, ZoneOffset.UTC)).failureNarrative(new FailureNarrative(agent))
+        .recoveryLedger(new RecoveryAttemptLedger(new RecoveryAttemptLedger.Limits(1, 2, runCeiling, cleanLimit)))
+        .build(), runStore);
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+    approveStage(runtime, "design-planning");
+    return new NativeCaptureFixture(runtime, clean);
+  }
+
+  @ParameterizedTest
+  @org.junit.jupiter.params.provider.EnumSource(value = org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass.class,
+      names = {"PERMANENT", "TOOL_ARGUMENTS", "ACCEPTED", "DUPLICATE"})
+  void closedNativeCaptureWithoutValidDiagnosisParks(
+      org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass failureClass) {
+    var clean = new ArrayList<Boolean>();
+    var pinnedInputs = new AtomicReference<List<Reference>>();
     var execution = capability("execution-cap", context -> {
       clean.add(StageRepairEvidence.isCleanExecutionRebuild(context, StageRepairEvidence.from(context)));
+      if (pinnedInputs.get() == null) pinnedInputs.set(context.inputRefs());
+      assertEquals(pinnedInputs.get(), context.inputRefs());
+      if (clean.size() > 1) {
+        var repair = StageRepairEvidence.from(context);
+        assertNotNull(repair);
+        assertTrue(repair.diagnosticText().contains("repair-history"));
+        assertTrue(repair.diagnosticText().contains("call-1"));
+        assertTrue(repair.diagnosticText().contains("Invalid property."));
+      }
       var feedback = new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedback(
           org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind.VALIDATION, "Invalid property.",
-          org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass.IDENTICAL_SPAM,
-          false, List.of(), "", clean.size() > 1);
+          failureClass, false, List.of(), "", true);
       return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
           "Invalid property.", RecoveryCause.captureFailure(feedback,
               List.of(new PlanValidationFinding("CONTRACT_SHAPE", "Invalid property.", true,
                   MappingValidationDetails.empty(), "call-1", "/properties")), null))));
     });
     var profile = analysisThenPlanningThenExecutionProfile();
-    var runtime = newRuntime(2, new RecoveryAttemptLedger(), profile, analysisCandidate(), planningAlwaysCandidate(), execution);
+    var runtime = newRuntime(2,
+        new RecoveryAttemptLedger(new RecoveryAttemptLedger.Limits(2, 2, 12, 1)),
+        profile, analysisCandidate(), planningAlwaysCandidate(), execution);
     startAndRecordInput(runtime, profile);
     approveStage(runtime, "requirement-analysis");
     approveStage(runtime, "design-planning");
-    for (int i = 0; i < 2; i++) {
-      var result = execute(runtime, "design-execution");
-      assertInstanceOf(StageDecision.Retry.class, result.decision());
-      applyLifecycle(runtime, result);
-    }
-    assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "design-execution").decision());
-    assertEquals(List.of(false, false, true), clean);
+    var acceptedBrief = snapshot(requireRun(), "requirement-analysis");
+    var acceptedPlan = snapshot(requireRun(), "design-planning");
+    var authorInputs = artifactStore.history(RUN_ID, Kind.USER_INPUT).stream().map(Revision::reference).toList();
+    var wait = assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "design-execution").decision());
+    assertEquals(PipelineGates.RECOVERY_REPEATED, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertEquals(List.of(false), clean);
+    assertEquals(RUN_ID, requireRun().run().runId());
+    assertEquals(acceptedBrief, snapshot(requireRun(), "requirement-analysis"));
+    assertEquals(acceptedPlan, snapshot(requireRun(), "design-planning"));
+    assertEquals(authorInputs, artifactStore.history(RUN_ID, Kind.USER_INPUT).stream().map(Revision::reference).toList());
     var evidence = artifactStore.payload(artifactStore.latest(RUN_ID, Kind.RECOVERY_EVIDENCE).orElseThrow(),
         RecoveryEvidence.class);
     assertTrue(evidence.captureFailure().feedback().noProgress());
     assertFalse(evidence.captureFailure().feedback().outerAllowed());
     assertEquals("call-1", evidence.findings().getFirst().nodeId());
+    assertEquals(0, requireRun().transitions().stream().filter(t -> t.reason() != null
+        && t.reason().startsWith(ProductPipelineStageExecutor.PRODUCER_REPAIR_REASON_PREFIX)).count());
+    assertEquals(0, requireRun().transitions().stream().filter(t -> t.reason() != null
+        && t.reason().startsWith(RecoveryAttemptLedger.CLEAN_REBUILD_REASON_PREFIX)).count());
+    assertTrue(requireRun().transitions().stream().noneMatch(t -> t.reason() != null
+        && t.reason().startsWith(RecoveryAttemptLedger.GRANT_REASON_PREFIX)));
+  }
+
+  @ParameterizedTest
+  @org.junit.jupiter.params.provider.CsvSource({"0,0,1", "1,1,0", "2,1,0"})
+  void permittedNativeCaptureSwitchesStrategyAfterItsOuterCorrection(
+      int cleanLimit, int expectedCleanReservations, int expectedGrantReservations) {
+    var original = analysisThenPlanningThenExecutionProfile();
+    var stages = original.stages().stream().map(stage -> "design-execution".equals(stage.stageId())
+        ? new ProfileStage(stage.stageId(), stage.capabilityId(), stage.consumes(),
+            List.of(new ArtifactTypeRef("chain-plan-graph", 1)), null, null, stage.retry()) : stage).toList();
+    var profile = new ProductPipelineProfile(1, original.profileId(), "1", original.runInputs(), stages,
+        original.terminal(), original.dependencyRoots());
+    var clean = new ArrayList<Boolean>();
+    var graph = new ChainPlanGraph("1.0", new ChainSection("c1", "Rejected graph"),
+        List.of(failingServiceCallNode()), List.of());
+    var fingerprints = new org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore(mapper);
+    var feedbackStore = new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore(fingerprints);
+    var gateway = new org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway(fingerprints, feedbackStore);
+    var execution = capability("execution-cap", context -> {
+      clean.add(StageRepairEvidence.isCleanExecutionRebuild(context, StageRepairEvidence.from(context)));
+      var channel = org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFeedbackChannel.PLAN;
+      var kind = org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind.VALIDATION;
+      var classification = org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass.CORRECTABLE;
+      if (clean.size() == 1) {
+        gateway.onFailure(channel, CONVERSATION, "execution-cap", kind, classification,
+            "captureGraphPatch", null, "Invalid property.");
+      } else {
+        assertThrows(org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException.class,
+            () -> gateway.onFailure(channel, CONVERSATION, "execution-cap", kind, classification,
+                "captureGraphPatch", null, "Invalid property."));
+      }
+      var nativeFeedback = feedbackStore.lastPlanFailure(CONVERSATION).orElseThrow();
+      return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(
+          StageOutcomeClass.CONTRACT_FAILURE,
+          List.of(new ArtifactCandidate(Kind.CHAIN_PLAN_GRAPH, graph, List.of())), "Invalid property.", null,
+          RecoveryCause.captureFailure(nativeFeedback,
+              List.of(new PlanValidationFinding("CONTRACT_SHAPE", "Invalid property.", true,
+                  MappingValidationDetails.empty(), "call-1", "/properties")), null))));
+    });
+    var runtime = newRuntime(2,
+        new RecoveryAttemptLedger(new RecoveryAttemptLedger.Limits(2, 2, 12, cleanLimit)), profile,
+        analysisCandidate(), planningAlwaysCandidate(), execution);
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+    approveStage(runtime, "design-planning");
+    var first = execute(runtime, "design-execution");
+    assertInstanceOf(StageDecision.Retry.class, first.decision());
+    applyLifecycle(runtime, first);
+    var second = execute(runtime, "design-execution");
+    assertInstanceOf(StageDecision.Retry.class, second.decision());
+    assertEquals(List.of(false, false), clean);
+    var evidence = artifactStore.payload(artifactStore.latest(RUN_ID, Kind.RECOVERY_EVIDENCE).orElseThrow(),
+        RecoveryEvidence.class);
+    assertEquals(repeatClass(), evidence.captureFailure().feedback().failureClass());
+    assertFalse(evidence.captureFailure().feedback().outerAllowed());
     assertEquals(1, requireRun().transitions().stream().filter(t -> t.reason() != null
         && t.reason().startsWith(ProductPipelineStageExecutor.PRODUCER_REPAIR_REASON_PREFIX)).count());
+    assertEquals(expectedCleanReservations, cleanAttempts());
+    assertEquals(expectedGrantReservations, requireRun().transitions().stream().filter(t -> t.reason() != null
+        && t.reason().startsWith(RecoveryAttemptLedger.GRANT_REASON_PREFIX)).count());
   }
 
   @Test
-  void repeatedValidatedOutputSwitchesToCleanEarlyAndStopsRecurringCleanOutput() {
+  void repeatedValidatedOutputUsesExistingCleanAndTargetedCreditsBeforeAGrant() {
     var original = analysisThenPlanningThenExecutionProfile();
     var stages = original.stages().stream().map(stage -> "design-execution".equals(stage.stageId())
         ? new ProfileStage(stage.stageId(), stage.capabilityId(), stage.consumes(),
@@ -283,16 +748,16 @@ class ProductPipelineStageExecutorTest {
     startAndRecordInput(runtime, profile);
     approveStage(runtime, "requirement-analysis");
     approveStage(runtime, "design-planning");
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < 4; i++) {
       var result = execute(runtime, "design-execution");
       assertInstanceOf(StageDecision.Retry.class, result.decision());
       applyLifecycle(runtime, result);
     }
-    assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "design-execution").decision());
-    assertEquals(List.of(false, false, true), clean);
-    assertEquals(1, requireRun().transitions().stream().filter(t -> t.reason() != null
+    assertGrantsAnotherCorrection(execute(runtime, "design-execution"));
+    assertEquals(List.of(false, false, true, true, false), clean);
+    assertEquals(2, requireRun().transitions().stream().filter(t -> t.reason() != null
         && t.reason().startsWith(ProductPipelineStageExecutor.PRODUCER_REPAIR_REASON_PREFIX)).count());
-    assertEquals(1, requireRun().transitions().stream().filter(t -> t.reason() != null
+    assertEquals(2, requireRun().transitions().stream().filter(t -> t.reason() != null
         && t.reason().startsWith(RecoveryAttemptLedger.CLEAN_REBUILD_REASON_PREFIX)).count());
   }
 
@@ -384,7 +849,16 @@ class ProductPipelineStageExecutorTest {
       assertInstanceOf(StageDecision.Retry.class, clean.decision());
       applyLifecycle(runtime, clean);
     }
-    assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "design-execution").decision());
+    // A resumed run spends the remaining run ceiling on grants before the explicit execution.
+    StageDecision last = execute(runtime, "design-execution").decision();
+    if (restart) {
+      var wait = assertInstanceOf(StageDecision.WaitForInput.class, last);
+      assertEquals(PipelineGates.RECOVERY_REPEATED, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+      assertEquals(HaltRecoveryGuard.MAX_SEMANTIC_REPAIRS.name(), PipelineGates.guardOf(wait.prompt()).orElseThrow());
+    } else {
+      String grant = requireRun().transitions().getLast().reason();
+      assertTrue(grant.startsWith(RecoveryAttemptLedger.GRANT_TARGETED_REASON_PREFIX), grant);
+    }
     assertEquals(StageStatus.SUCCEEDED, snapshot(requireRun(), "requirement-analysis").status());
     assertEquals(StageStatus.SUCCEEDED, snapshot(requireRun(), "design-planning").status());
   }
@@ -674,6 +1148,303 @@ class ProductPipelineStageExecutorTest {
     assertEquals(1, repairPrompts.size());
     assertTrue(repairPrompts.getFirst().contains("before.script"));
     assertTrue(repairPrompts.getFirst().contains("preserving the approved requirements"));
+  }
+
+  @Test
+  void acceptedNativeCaptureDoesNotReturnInAnotherOwnersStageRepair() throws Exception {
+    assertNativeCaptureStageHistory(true);
+  }
+
+  @Test
+  void unresolvedNativeCaptureRemainsInAnotherOwnersStageRepair() throws Exception {
+    assertNativeCaptureStageHistory(false);
+  }
+
+  @Test
+  void nullTypedCauseKeepsTheOpaqueCurrentHaltWhenCaptureFeedbackIsConfigured() throws Exception {
+    assertOpaqueTypedCausePreserved("null");
+  }
+
+  @Test
+  void malformedTypedCauseKeepsTheOpaqueCurrentHaltWhenCaptureFeedbackIsConfigured() throws Exception {
+    assertOpaqueTypedCausePreserved("{\"causeCode\":");
+  }
+
+  private void assertOpaqueTypedCausePreserved(String typedCause) throws Exception {
+    var clock = Clock.fixed(FIXED, ZoneOffset.UTC);
+    var artifacts = new CompilationArtifacts(blobStore, mapper, clock);
+    var sessions = new org.qubership.integration.platform.ai.compiler.artifact.CompilationSessions(
+        blobStore, mapper, clock);
+    var feedback = new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore(
+        new org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore(
+            mapper, artifacts, sessions), artifacts, sessions);
+    var observed = new AtomicReference<StageRepairEvidence>();
+    var cap = capability("legacy-cap", context -> {
+      observed.set(StageRepairEvidence.from(context));
+      return Multi.createFrom().item(new CapabilitySignal.Completed(
+          StageOutcome.of(StageOutcomeClass.SUCCEEDED, "Completed.")));
+    });
+    var profile = retryProfile("design-execution", "legacy-cap", new RetryPolicy(0, 1L));
+    var runtime = newRuntime(profile, cap);
+    runtime.support().withNativeRequirementCapture(
+        new org.qubership.integration.platform.ai.plan.RequirementDraftStore(artifacts, sessions), feedback);
+    startAndRecordInput(runtime, profile);
+    var doc = requireRun();
+    long revision = doc.run().runRevision();
+    String opaqueError = "Legacy halt without a typed cause.";
+    String evidence = mapper.writeValueAsString(Map.of(
+        ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR, opaqueError,
+        ProductPipelineRunSupport.STAGE_ERROR_FAILED_STAGE_ATTR, "design-execution",
+        ProductPipelineRunSupport.STAGE_ERROR_CAUSE_JSON_ATTR, typedCause));
+    runStore.commit(revision, org.qubership.integration.platform.ai.productpipeline.store.LogicalCommit.statusChange(
+        doc.run(), StageStatus.RUNNING, doc.run().stages(),
+        new StageAttempt("legacy-halt", "design-execution", revision + 1, StageStatus.FAILED, FIXED, FIXED,
+            List.of(), evidence),
+        new org.qubership.integration.platform.ai.productpipeline.store.RunTransition(revision, revision + 1,
+            RunStatus.RUNNING, RunStatus.RUNNING, "design-execution", FIXED, "Restore saved halt metadata", null, null)));
+
+    assertDoesNotThrow(() -> execute(runtime, "design-execution"));
+
+    assertNotNull(observed.get());
+    assertEquals(opaqueError, observed.get().errorEvidence());
+    assertEquals(typedCause, observed.get().typedCauseJson());
+    assertTrue(requireRun().attempts().stream().anyMatch(attempt -> evidence.equals(attempt.failureEvidence())),
+        () -> requireRun().attempts().toString());
+  }
+
+  @Test
+  void acceptedNativeHaltRetiresItsStoredObserverWhenAnotherProducerExecutes() throws Exception {
+    var clock = Clock.fixed(FIXED, ZoneOffset.UTC);
+    var artifacts = new CompilationArtifacts(blobStore, mapper, clock);
+    var sessions = new org.qubership.integration.platform.ai.compiler.artifact.CompilationSessions(
+        blobStore, mapper, clock);
+    var feedback = new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore(
+        new org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore(
+            mapper, artifacts, sessions), artifacts, sessions);
+    var observed = new AtomicReference<StageExecutionContext>();
+    var planning = capability("planning-cap", context -> {
+      observed.set(context);
+      return Multi.createFrom().item(new CapabilitySignal.Completed(
+          StageOutcome.of(StageOutcomeClass.SUCCEEDED, "Completed.")));
+    });
+    var profile = analysisThenPlanningThenExecutionProfile();
+    var runtime = newRuntime(profile, analysisCandidate(), planning);
+    runtime.support().withNativeRequirementCapture(
+        new org.qubership.integration.platform.ai.plan.RequirementDraftStore(artifacts, sessions), feedback);
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+    String nativeOwner = "cip-service-call-generator";
+    String nativeError = "Native capture requires an owned correction.";
+    feedback.beginScope(CONVERSATION, nativeOwner, Map.of("source", "approved-plan"));
+    feedback.beginProposal(CONVERSATION, nativeOwner, "captureGraphPatch", Map.of("patchId", "native-observer"));
+    feedback.recordClassifiedPatchFailure(CONVERSATION, nativeOwner,
+        org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind.VALIDATION,
+        org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass.CORRECTABLE,
+        true, nativeError);
+    var rejected = feedback.lastPatchFailure(CONVERSATION, nativeOwner).orElseThrow();
+    var cause = RecoveryCause.captureFailure(rejected,
+        List.of(new PlanValidationFinding("CONTRACT_SHAPE", nativeError, true)),
+        feedback.failureEvidence(CONVERSATION, nativeOwner, rejected));
+    feedback.clearPatch(CONVERSATION, nativeOwner);
+    assertTrue(feedback.isResolved(CONVERSATION, rejected.evidenceReference()),
+        () -> String.valueOf(rejected.evidenceReference()));
+    var nativeAudit = artifacts.history(sessions.active(CONVERSATION), Kind.CAPTURE_ATTEMPT_FEEDBACK);
+    var observerBefore = snapshot(requireRun(), "design-execution");
+    var doc = requireRun();
+    long revision = doc.run().runRevision();
+    String evidence = mapper.writeValueAsString(Map.of(
+        ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR, nativeError,
+        ProductPipelineRunSupport.STAGE_ERROR_FAILED_STAGE_ATTR, "design-execution",
+        ProductPipelineRunSupport.STAGE_ERROR_FAILED_SKILL_ATTR, nativeOwner,
+        ProductPipelineRunSupport.STAGE_ERROR_CAUSE_JSON_ATTR, ProductPipelineRunSupport.recoveryCauseJson(cause)));
+    runStore.commit(revision, org.qubership.integration.platform.ai.productpipeline.store.LogicalCommit.statusChange(
+        doc.run(), StageStatus.RUNNING, doc.run().stages(),
+        new StageAttempt("reopened-producer", "design-planning", revision + 1, StageStatus.FAILED, FIXED, FIXED,
+            List.of(), evidence),
+        new org.qubership.integration.platform.ai.productpipeline.store.RunTransition(revision, revision + 1,
+            RunStatus.RUNNING, RunStatus.RUNNING, "design-planning", FIXED, "Restore observer halt for producer", null, null)));
+
+    assertDoesNotThrow(() -> execute(runtime, "design-planning"));
+
+    assertNotNull(observed.get());
+    assertEquals("design-planning", observed.get().stageId());
+    assertNull(StageRepairEvidence.from(observed.get()), () -> observed.get().attributes().toString());
+    assertFalse(observed.get().attributes().containsKey(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR),
+        () -> observed.get().attributes().toString());
+    assertEquals(observerBefore, snapshot(requireRun(), "design-execution"));
+    assertEquals(nativeAudit, artifacts.history(sessions.active(CONVERSATION), Kind.CAPTURE_ATTEMPT_FEEDBACK));
+    assertTrue(requireRun().attempts().stream().anyMatch(attempt -> evidence.equals(attempt.failureEvidence())),
+        () -> requireRun().attempts().toString());
+  }
+
+  @Test
+  void acceptedNativeCaptureDoesNotReturnAsCurrentRepairAfterAuthorizedResourceRetry() throws Exception {
+    assertNativeCaptureStageHistory(true, true, false);
+  }
+
+  @Test
+  void unresolvedNativeCaptureRemainsCurrentAfterAuthorizedResourceRetry() throws Exception {
+    assertNativeCaptureStageHistory(false, true, false);
+  }
+
+  @Test
+  void acceptedNativeCaptureDoesNotReturnAsCurrentRepairAfterRestartAndAuthorizedResourceRetry() throws Exception {
+    assertNativeCaptureStageHistory(true, true, true);
+  }
+
+  @Test
+  void unresolvedNativeCaptureRemainsCurrentAfterRestartAndAuthorizedResourceRetry() throws Exception {
+    assertNativeCaptureStageHistory(false, true, true);
+  }
+
+  private void assertNativeCaptureStageHistory(boolean accepted) throws Exception {
+    assertNativeCaptureStageHistory(accepted, false, false);
+  }
+
+  private void assertNativeCaptureStageHistory(boolean accepted, boolean resourcePause, boolean restart) throws Exception {
+    var clock = Clock.fixed(FIXED, ZoneOffset.UTC);
+    var artifacts = new CompilationArtifacts(blobStore, mapper, clock);
+    var sessions = new org.qubership.integration.platform.ai.compiler.artifact.CompilationSessions(
+        blobStore, mapper, clock);
+    var fingerprints = new org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore(
+        mapper, artifacts, sessions);
+    var feedback = new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore(
+        fingerprints, artifacts, sessions);
+    var config = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.configuration.AppConfig.class,
+        org.mockito.Mockito.RETURNS_DEEP_STUBS);
+    org.mockito.Mockito.when(config.llm().maxRequestsPerRun()).thenReturn(1);
+    var budget = new org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget(blobStore, mapper, config);
+    var calls = new AtomicInteger();
+    var inputs = new ArrayList<List<Reference>>();
+    var prompts = new ArrayList<String>();
+    var repairPackets = new ArrayList<StageRepairEvidence>();
+    var histories = new ArrayList<String>();
+    String nativeOwner = "cip-service-call-generator";
+    String laterOwner = "cip-quality-validator";
+    String nativeFinding = "Native A requires its owned property.";
+    String laterFinding = "Validator B requires its own correction.";
+    var graph = new ChainPlanGraph("1.0", new ChainSection("c1", "Native capture repair"),
+        List.of(failingServiceCallNode()), List.of());
+    StageCapability cap = capability("execution-cap", context -> {
+      inputs.add(context.inputRefs());
+      int call = calls.incrementAndGet();
+      if (call == 1) {
+        feedback.beginScope(CONVERSATION, nativeOwner, context.inputRefs());
+        feedback.beginProposal(CONVERSATION, nativeOwner, "captureGraphPatch", Map.of("patchId", "native-a"));
+        feedback.recordClassifiedPatchFailure(CONVERSATION, nativeOwner,
+            org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind.VALIDATION,
+            org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass.CORRECTABLE,
+            true, nativeFinding);
+        var rejected = feedback.lastPatchFailure(CONVERSATION, nativeOwner).orElseThrow();
+        assertNotNull(rejected.evidenceReference());
+        var packet = feedback.failureEvidence(CONVERSATION, nativeOwner, rejected);
+        assertNotNull(packet.nativeObservation());
+        return Multi.createFrom().items(
+            new CapabilitySignal.SkillProgress(nativeOwner, "running"),
+            new CapabilitySignal.SkillProgress(nativeOwner, "error"),
+            new CapabilitySignal.Completed(new StageOutcome(StageOutcomeClass.CONTRACT_FAILURE,
+                List.of(new ArtifactCandidate(Kind.CHAIN_PLAN_GRAPH, graph, List.of())), nativeFinding, null,
+                RecoveryCause.captureFailure(rejected,
+                    List.of(new PlanValidationFinding("CONTRACT_SHAPE", nativeFinding, true)), packet))));
+      }
+      if (call == 2) {
+        assertTrue(StageRepairEvidence.from(context).repairTextForSkill(nativeOwner).contains(nativeFinding),
+            () -> StageRepairEvidence.from(context).repairTextForSkill(nativeOwner));
+        if (accepted) {
+          feedback.clearPatch(CONVERSATION, nativeOwner);
+          assertEquals("", feedback.repairHistory(CONVERSATION, nativeOwner));
+        } else {
+          assertTrue(feedback.repairHistory(CONVERSATION, nativeOwner).contains(nativeFinding),
+              () -> feedback.repairHistory(CONVERSATION, nativeOwner));
+        }
+        if (resourcePause) {
+          budget.reserve(context.runId(), 10, 10);
+          budget.reserve(context.runId(), 10, 10);
+        }
+        return Multi.createFrom().items(
+            new CapabilitySignal.SkillProgress(laterOwner, "running"),
+            new CapabilitySignal.SkillProgress(laterOwner, "error"),
+            new CapabilitySignal.Completed(new StageOutcome(StageOutcomeClass.VALIDATION_FAILURE,
+                List.of(new ArtifactCandidate(Kind.CHAIN_PLAN_GRAPH, graph, List.of())), laterFinding, null,
+                new RecoveryCause(RecoveryCauseCode.MISSING_REQUIRED_PROPERTY,
+                    List.of(new PlanValidationFinding("MISSING_REQUIRED_PROPERTY", laterFinding, true)), ""))));
+      }
+      var repair = StageRepairEvidence.from(context);
+      repairPackets.add(repair);
+      prompts.add(repair == null ? "" : repair.repairTextForSkill(resourcePause ? nativeOwner : laterOwner));
+      histories.add(repair == null ? "" : repair.repairHistoryJson());
+      return Multi.createFrom().item(new CapabilitySignal.Completed(
+          StageOutcome.of(StageOutcomeClass.SUCCEEDED, "Repaired.")));
+    });
+    var original = analysisThenPlanningThenExecutionProfile();
+    var stages = original.stages().stream().map(stage -> "design-execution".equals(stage.stageId())
+        ? new ProfileStage(stage.stageId(), stage.capabilityId(), stage.consumes(),
+            List.of(new ArtifactTypeRef("chain-plan-graph", 1)), null, null, stage.retry()) : stage).toList();
+    var profile = new ProductPipelineProfile(1, original.profileId(), "1", original.runInputs(), stages,
+        original.terminal(), original.dependencyRoots());
+    var agent = FakeFailureNarrativeAgent.narrates("unused").recoverRegenerates(Kind.CHAIN_PLAN_GRAPH, "Repair the graph.");
+    var runtime = newRuntime(new FailureNarrative(agent), profile, analysisCandidate(), planningAlwaysCandidate(), cap);
+    runtime.support().withNativeRequirementCapture(
+        new org.qubership.integration.platform.ai.plan.RequirementDraftStore(artifacts, sessions), feedback);
+    if (resourcePause) runtime.support().withLlmBudget(budget);
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+    approveStage(runtime, "design-planning");
+    var firstFailure = execute(runtime, "design-execution");
+    assertInstanceOf(StageDecision.Retry.class, firstFailure.decision());
+    applyLifecycle(runtime, firstFailure);
+    var secondAttempt = execute(runtime, "design-execution");
+    if (resourcePause) {
+      var waiting = assertInstanceOf(StageDecision.WaitForInput.class, secondAttempt.decision());
+      assertEquals(PipelineGates.RECOVERY_RETRY_TECHNICAL, PipelineGates.gateOf(waiting.prompt()).orElseThrow());
+      assertTrue(waiting.prompt().contains("additional model allowance"), waiting.prompt());
+      assertEquals(0, budget.state(RUN_ID).grants());
+      if (restart) {
+        runtime = newRuntime(new FailureNarrative(agent), profile, analysisCandidate(), planningAlwaysCandidate(), cap);
+        runtime.support().withNativeRequirementCapture(
+            new org.qubership.integration.platform.ai.plan.RequirementDraftStore(artifacts, sessions),
+            new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore(
+                new org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore(
+                    mapper, artifacts, sessions), artifacts, sessions));
+        runtime.support().withLlmBudget(budget);
+        runtime.startOrResume(new StartOrResumeCommand(CONVERSATION, RUN_ID, profile, manifest(profile)))
+            .collect().asList().await().indefinitely();
+      }
+      runtime.recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.RETRY_ACTION, "resource-grant", "grant-payload",
+          InputOrigin.TRUSTED)).collect().asList().await().indefinitely();
+      assertEquals(1, budget.state(RUN_ID).grants());
+      assertEquals(1, budget.state(RUN_ID).requests());
+      assertEquals(RunStatus.RUNNING, requireRun().run().status());
+    } else {
+      assertInstanceOf(StageDecision.Retry.class, secondAttempt.decision());
+      applyLifecycle(runtime, secondAttempt);
+    }
+    var evidence = artifactStore.history(RUN_ID, Kind.RECOVERY_EVIDENCE).stream()
+        .map(revision -> artifactStore.payload(revision, RecoveryEvidence.class)).toList();
+    assertEquals(1, evidence.size());
+    assertEquals(inputs.getFirst(), evidence.getFirst().producerInputs());
+    var authorInputsBeforeRepair = artifactStore.history(RUN_ID, Kind.USER_INPUT);
+    assertTrue(requireRun().attempts().stream().filter(attempt -> "design-execution".equals(attempt.stageId()))
+        .noneMatch(attempt -> attempt.outcome() == StageStatus.SUCCEEDED), () -> requireRun().attempts().toString());
+
+    execute(runtime, "design-execution");
+
+    assertEquals(inputs.getFirst(), inputs.get(1));
+    assertEquals(inputs.getFirst(), inputs.getLast());
+    assertEquals(1, prompts.size());
+    if (!resourcePause) {
+      assertTrue(prompts.getFirst().contains(laterFinding), prompts.getFirst());
+      assertEquals(artifactStore.history(RUN_ID, Kind.RECOVERY_EVIDENCE).getFirst().contentHash(),
+          repairPackets.getFirst().recoveryEvidenceRef());
+    }
+    if (resourcePause && accepted) {
+      assertNull(repairPackets.getFirst(), () -> String.valueOf(repairPackets.getFirst()));
+    }
+    assertEquals(!accepted, prompts.getFirst().contains(nativeFinding), prompts.getFirst());
+    assertEquals(accepted ? 0 : 1, histories.getFirst().isBlank() ? 0
+        : mapper.readTree(histories.getFirst()).path("attempts").size(), histories.getFirst());
+    assertEquals(1, artifactStore.history(RUN_ID, Kind.RECOVERY_EVIDENCE).size());
+    assertEquals(authorInputsBeforeRepair, artifactStore.history(RUN_ID, Kind.USER_INPUT));
   }
 
   @Test
@@ -1603,9 +2374,12 @@ class ProductPipelineStageExecutorTest {
     }
   }
 
-  /** Nothing classified the throwable, so it is an internal defect the author cannot repair. */
+  /**
+   * The second unclassified exception on a stage is an internal defect the author cannot repair.
+   * The first one is retried automatically and shows no card.
+   */
   @Test
-  void aCapabilityThatFailsItsStreamHaltsAsAnInternalFailureInsteadOfThrowing() {
+  void aCapabilityThatFailsItsStreamTwiceHaltsAsAnInternalFailureInsteadOfThrowing() {
     StageCapability failing =
         capability(
             "fail-cap",
@@ -1614,6 +2388,7 @@ class ProductPipelineStageExecutorTest {
     CreateChainTestOrchestrator runtime = newRuntime(profile, failing);
     startAndRecordInput(runtime, profile);
 
+    assertInstanceOf(StageDecision.Retry.class, execute(runtime, "work").decision());
     StageExecutionResult result = execute(runtime, "work");
 
     StageDecision.WaitForInput wait =
@@ -1644,8 +2419,34 @@ class ProductPipelineStageExecutorTest {
     assertEquals("work", latest.stageId());
     assertEquals(StageStatus.WAITING_FOR_INPUT, latest.outcome());
     assertEquals(
-        1,
+        2,
         doc.attempts().stream().filter(attempt -> attempt.outcome() == StageStatus.FAILED).count());
+  }
+
+  @Test
+  void aCapabilityThatFailsItsStreamOnceRetriesTheStageAndCompletesWithoutACard() {
+    AtomicInteger calls = new AtomicInteger();
+    StageCapability flaky =
+        capability(
+            "flaky-cap",
+            context ->
+                calls.incrementAndGet() == 1
+                    ? Multi.createFrom().failure(new IllegalStateException("catalog lookup broke"))
+                    : Multi.createFrom().item(
+                        new CapabilitySignal.Completed(
+                            StageOutcome.of(StageOutcomeClass.SUCCEEDED, "recovered"))));
+    ProductPipelineProfile profile = retryProfile("work", "flaky-cap", new RetryPolicy(0, 5_000L));
+    CreateChainTestOrchestrator runtime = newRuntime(profile, flaky);
+    startAndRecordInput(runtime, profile);
+
+    StageDecision.Retry retry =
+        assertInstanceOf(StageDecision.Retry.class, execute(runtime, "work").decision());
+    applyLifecycle(runtime, execute(runtime, "work"));
+
+    assertEquals("work", retry.stageId());
+    assertTrue(retry.technicalRetry());
+    assertEquals(2, calls.get());
+    assertEquals(StageStatus.SUCCEEDED, snapshot(requireRun(), "work").status());
   }
 
   /** Retry re-enters the same defect, so the internal-failure card offers no Retry. */
@@ -1708,6 +2509,7 @@ class ProductPipelineStageExecutorTest {
     CreateChainTestOrchestrator runtime = newRuntime(profile, failing);
     startAndRecordInput(runtime, profile);
 
+    assertInstanceOf(StageDecision.Retry.class, execute(runtime, "work").decision());
     StageDecision.WaitForInput wait =
         assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "work").decision());
 
@@ -1752,6 +2554,7 @@ class ProductPipelineStageExecutorTest {
     startAndRecordInput(runtime, profile);
     approveAnalysis(runtime);
 
+    assertInstanceOf(StageDecision.Retry.class, execute(runtime, "planning").decision());
     StageDecision.WaitForInput wait =
         assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "planning").decision());
 
@@ -1786,6 +2589,7 @@ class ProductPipelineStageExecutorTest {
     approveStage(runtime, "analysis");
     approveStage(runtime, "design");
 
+    assertInstanceOf(StageDecision.Retry.class, execute(runtime, "planning").decision());
     StageDecision.WaitForInput wait =
         assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "planning").decision());
 
@@ -1797,28 +2601,35 @@ class ProductPipelineStageExecutorTest {
   }
 
   /**
-   * A contract rejection still diagnoses the current owner. After the automatic semantic repair
-   * spends the budget, Retry is no longer offered.
+   * A contract rejection still diagnoses the current owner. The stage is repaired without a card until the run's
+   * recovery ceiling is spent, and the card then offers Retry creation rather than the stage's own Retry.
    */
   @Test
-  void aContractRejectionKeepsItsClassAndDropsRetryWhenRepairsAreSpent() {
+  void aContractRejectionKeepsItsClassAndOffersRetryCreationAtTheRecoveryCeiling() {
     FakeFailureNarrativeAgent agent =
         FakeFailureNarrativeAgent.owner("The reply did not match the contract.", "work");
+    AtomicInteger calls = new AtomicInteger();
     StageCapability rejecting =
         capability(
             "fail-cap",
-            context ->
-                Multi.createFrom()
-                    .item(
-                        new CapabilitySignal.Completed(
-                            StageOutcome.of(
-                                StageOutcomeClass.CONTRACT_FAILURE, "reply is missing a field"))));
+            context -> {
+              calls.incrementAndGet();
+              return Multi.createFrom()
+                  .item(
+                      new CapabilitySignal.Completed(
+                          StageOutcome.of(
+                              StageOutcomeClass.CONTRACT_FAILURE, "reply is missing a field")));
+            });
     ProductPipelineProfile profile = retryProfile("work", "fail-cap", new RetryPolicy(1, 25L));
     CreateChainTestOrchestrator runtime =
         newRuntime(new FailureNarrative(agent), profile, rejecting);
     startAndRecordInput(runtime, profile);
 
-    StageDecision.WaitForInput wait = waitAfterOptionalSemanticRepair(runtime, "work");
+    StageDecision.WaitForInput wait =
+        waitAfterOptionalSemanticRepair(runtime, "work", RecoveryAttemptLedger.DEFAULT_PER_RUN_CEILING);
+
+    // The first attempt, then one attempt for each of the twelve corrections the ceiling counts.
+    assertEquals(RecoveryAttemptLedger.DEFAULT_PER_RUN_CEILING + 1, calls.get());
 
     assertEquals(PipelineGates.RECOVERY_REPEATED, PipelineGates.gateOf(wait.prompt()).orElseThrow());
     assertEquals(ProductPipelineStageExecutor.REPEATED_RECOVERY_SUMMARY, PipelineGates.strip(wait.prompt()));
@@ -1827,7 +2638,7 @@ class ProductPipelineStageExecutorTest {
     assertFalse(
         ChatEvent.actionsForGate(PipelineGates.RECOVERY_REPEATED)
             .contains(PipelineGates.RETRY_ACTION));
-    assertFalse(
+    assertTrue(
         ChatEvent.actionsForGate(PipelineGates.RECOVERY_REPEATED)
             .contains(ChatEvent.RETRY_CREATION_ACTION));
   }
@@ -1885,7 +2696,7 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
-  void exhaustedBudgetStopsTheNextCapabilityBeforeAnyCatalogEffect() {
+  void persistedRefusalAllowsLocalStageCompletion() {
     var config = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.configuration.AppConfig.class,
         org.mockito.Mockito.RETURNS_DEEP_STUBS);
     org.mockito.Mockito.when(config.llm().maxRequestsPerRun()).thenReturn(1);
@@ -1905,10 +2716,65 @@ class ProductPipelineStageExecutorTest {
     budget.reserve(RUN_ID, 10, 10);
     assertThrows(org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget.Exhausted.class,
         () -> budget.reserve(RUN_ID, 10, 10));
-    var wait = assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "work").decision());
-    assertEquals(0, effects.get());
-    assertEquals(PipelineGates.RECOVERY_RETRY_TECHNICAL, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertInstanceOf(StageDecision.Complete.class, execute(runtime, "work").decision());
+    assertEquals(1, effects.get());
+    assertEquals(1, budget.state(RUN_ID).requests());
     assertEquals(1, artifactStore.history(RUN_ID, Kind.USER_INPUT).size());
+  }
+
+  @Test
+  void cancelledStageReleasesItsBudgetWatchBeforeRetry() {
+    var config = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.configuration.AppConfig.class,
+        org.mockito.Mockito.RETURNS_DEEP_STUBS);
+    var budget = new org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget(blobStore, mapper, config);
+    var attempts = new AtomicInteger();
+    var capability = capability("budget-cap", context -> {
+      if (context.attributeAsString("userText") == null) {
+        return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "")));
+      }
+      if (attempts.incrementAndGet() == 1) return Multi.createFrom().nothing();
+      return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.SUCCEEDED, "")));
+    });
+    var profile = retryProfile("work", "budget-cap", new RetryPolicy(2, 1L));
+    var runtime = newRuntime(profile, capability);
+    runtime.support().withLlmBudget(budget);
+    startAndRecordInput(runtime, profile);
+    var cancelled = runtime.stageExecutor().execute(RUN_ID, "work").subscribe().with(ignored -> {}, failure -> {
+      throw new AssertionError(failure);
+    });
+    assertEquals(1, attempts.get());
+    cancelled.cancel();
+    assertInstanceOf(StageDecision.Complete.class, execute(runtime, "work").decision());
+    assertEquals(2, attempts.get());
+  }
+
+  @Test
+  void aRejectedRequestCannotBecomeASuccessEvenWhenTheCapabilityCatchesIt() {
+    var config = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.configuration.AppConfig.class,
+        org.mockito.Mockito.RETURNS_DEEP_STUBS);
+    org.mockito.Mockito.when(config.llm().maxRequestsPerRun()).thenReturn(1);
+    var budget = new org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget(blobStore, mapper, config);
+    var attempts = new AtomicInteger();
+    var capability = capability("budget-cap", context -> {
+      if (context.attributeAsString("userText") == null) {
+        return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "")));
+      }
+      attempts.incrementAndGet();
+      try { budget.reserve(context.runId(), 10, 10); }
+      catch (org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget.Exhausted ignored) { }
+      return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.SUCCEEDED, "")));
+    });
+    var profile = retryProfile("work", "budget-cap", new RetryPolicy(2, 1L));
+    var runtime = newRuntime(profile, capability);
+    runtime.support().withLlmBudget(budget);
+    startAndRecordInput(runtime, profile);
+    budget.reserve(RUN_ID, 10, 10);
+    assertThrows(org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget.Exhausted.class,
+        () -> budget.reserve(RUN_ID, 10, 10));
+    var wait = assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "work").decision());
+    assertEquals(PipelineGates.RECOVERY_RETRY_TECHNICAL, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertEquals(1, attempts.get());
+    assertEquals(1, budget.state(RUN_ID).requests());
   }
 
   @Test
@@ -1919,7 +2785,8 @@ class ProductPipelineStageExecutorTest {
     var budget = new org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget(blobStore, mapper, config);
     var agent = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent.class);
     org.mockito.Mockito.when(agent.recover(org.mockito.ArgumentMatchers.anyString(),
-        org.mockito.ArgumentMatchers.anyString())).thenAnswer(call -> {
+        org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class))).thenAnswer(call -> {
           budget.reserve(RUN_ID, 1, 1);
           budget.reserve(RUN_ID, 1, 1);
           return null;
@@ -1938,7 +2805,8 @@ class ProductPipelineStageExecutorTest {
     assertEquals(PipelineGates.RECOVERY_RETRY_TECHNICAL, PipelineGates.gateOf(wait.prompt()).orElseThrow());
     assertTrue(wait.prompt().contains("additional model allowance"));
     org.mockito.Mockito.verify(agent, org.mockito.Mockito.atLeastOnce()).recover(
-        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class));
     assertEquals(1, artifactStore.history(RUN_ID, Kind.USER_INPUT).size());
     var halt = ProductPipelineRunSupport.readHaltEvidence(requireRun().attempts().getLast().failureEvidence());
     String currentReason = PipelineGates.recoveryTechnicalDetailsOf(wait.prompt()).orElseThrow();
@@ -1985,6 +2853,44 @@ class ProductPipelineStageExecutorTest {
     assertEquals(approval, artifactStore.latest(RUN_ID, Kind.APPROVAL_RECORD).orElseThrow());
     assertEquals(candidate, artifactStore.latest(RUN_ID, Kind.IMPLEMENTATION_PLAN).orElseThrow());
     assertEquals(1, budget.state(RUN_ID).grants());
+  }
+
+  @Test
+  void providerQuotaParksTheSameStageWithoutAutomaticRetriesOrNarration() {
+    var profile = retryProfile("requirement-discovery", "gather", new RetryPolicy(2, 1000));
+    var narrative = org.mockito.Mockito.mock(FailureNarrative.class);
+    var calls = new AtomicInteger();
+    var quota = new RateLimitException("{\"error\":{\"code\":\"insufficient_quota\"}}");
+    var failing = capability("gather", context -> {
+      if (context.attributeAsString("userText") == null) {
+        return Multi.createFrom().item(new CapabilitySignal.Completed(
+            StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "")));
+      }
+      return calls.incrementAndGet() == 1 ? Multi.createFrom().failure(quota)
+          : Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.SUCCEEDED, "")));
+    });
+    var runtime = newRuntime(narrative, profile, failing);
+    startAndRecordInput(runtime, profile);
+
+    var wait = assertInstanceOf(StageDecision.WaitForInput.class,
+        execute(runtime, "requirement-discovery").decision());
+
+    assertEquals(1, calls.get());
+    assertEquals(PipelineGates.RECOVERY_RETRY_TECHNICAL, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
+    assertEquals("requirement-discovery", requireRun().run().currentStageId());
+    assertTrue(requireRun().attempts().getLast().failureEvidence().contains("PROVIDER_QUOTA_EXHAUSTED"));
+    org.mockito.Mockito.verifyNoInteractions(narrative);
+
+    var restored = newRuntime(narrative, profile, failing);
+    restored.startOrResume(new StartOrResumeCommand(CONVERSATION, RUN_ID, profile, manifest(profile)))
+        .collect().asList().await().indefinitely();
+    assertEquals(1, calls.get());
+    restored.recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.RETRY_ACTION))
+        .collect().asList().await().indefinitely();
+    assertEquals(RunStatus.RUNNING, requireRun().run().status());
+    assertInstanceOf(StageDecision.Complete.class, execute(restored, "requirement-discovery").decision());
+    assertEquals(2, calls.get());
   }
 
   @Test
@@ -2262,6 +3168,27 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
+  void aStreamFailedWithBadToolArgumentsRetriesOnceEvenWhenTheStageAllowsNoTechnicalRetry() {
+    StageCapability failing =
+        capability(
+            "fail-cap",
+            context ->
+                Multi.createFrom()
+                    .failure(
+                        new ToolArgumentsException("cannot parse tool arguments", (Throwable) null)));
+    ProductPipelineProfile profile = retryProfile("work", "fail-cap", new RetryPolicy(0, 25L));
+    CreateChainTestOrchestrator runtime = newRuntime(profile, failing);
+    startAndRecordInput(runtime, profile);
+
+    assertInstanceOf(StageDecision.Retry.class, execute(runtime, "work").decision());
+    StageDecision.WaitForInput wait =
+        assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "work").decision());
+
+    assertEquals(
+        PipelineGates.RECOVERY_RETRY_TECHNICAL, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+  }
+
+  @Test
   void aStreamFailedWithConnectionRefusedRetriesThenWaitsWhenTheBudgetIsSpent() {
     StageCapability failing =
         capability(
@@ -2281,6 +3208,141 @@ class ProductPipelineStageExecutorTest {
         PipelineGates.gateOf(wait.prompt()).orElseThrow());
     assertEquals("Connection refused", PipelineGates.strip(wait.prompt()));
     assertEquals(25L, PipelineGates.recoveryRetryDelayMsOf(wait.prompt()).orElseThrow());
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void nestedProviderGatewayFailureUsesTheExistingSameRunRetryAllowance(boolean recovers) throws Exception {
+    ProductPipelineProfile production;
+    try (var input = getClass().getResourceAsStream("/product-pipelines/profiles/create-chain-v2.yaml")) {
+      production = ProductPipelineProfileParser.parse(input);
+    }
+    var stage = production.stages().stream().filter(candidate -> "design-input".equals(candidate.stageId()))
+        .findFirst().orElseThrow();
+    var profile = retryProfile(stage.stageId(), stage.capabilityId(), stage.retry());
+    var calls = new AtomicInteger();
+    var failing = capability(stage.capabilityId(), context -> {
+      if (context.attributeAsString("userText") == null) {
+        return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "")));
+      }
+      assertEquals(RUN_ID, context.runId());
+      assertEquals("provided input", context.attributeAsString("userText"));
+      if (calls.incrementAndGet() == 1 || !recovers) {
+        return Multi.createFrom().failure(providerGatewayFailure());
+      }
+      return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.SUCCEEDED, "Recovered.")));
+    });
+    var runtime = newRuntime(profile, failing);
+    startAndRecordInput(runtime, profile);
+
+    runtime.startOrResume(new StartOrResumeCommand(CONVERSATION, RUN_ID, profile, manifest(profile)))
+        .collect().asList().await().indefinitely();
+
+    var doc = requireRun();
+    assertEquals(recovers ? 2 : stage.retry().maxTechnicalRetries() + 1, calls.get());
+    assertEquals(recovers ? RunStatus.PLAN_APPROVED : RunStatus.WAITING_FOR_INPUT, doc.run().status());
+    var failures = doc.attempts().stream().filter(attempt -> attempt.outcome() == StageStatus.FAILED).toList();
+    assertEquals(recovers ? 1 : stage.retry().maxTechnicalRetries() + 1, failures.size());
+    assertTrue(failures.stream().allMatch(attempt -> "Provider gateway failed".equals(attempt.failureEvidence())));
+    assertEquals(1, artifactStore.history(RUN_ID, Kind.USER_INPUT).size());
+    if (!recovers) {
+      assertEquals(PipelineGates.RECOVERY_RETRY_TECHNICAL,
+          PipelineGates.gateOf(doc.transitions().getLast().reason()).orElseThrow());
+    }
+  }
+
+  @Test
+  void nestedProviderGatewayFailureCannotResetTheModelRequestBudget() {
+    var config = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.configuration.AppConfig.class,
+        org.mockito.Mockito.RETURNS_DEEP_STUBS);
+    org.mockito.Mockito.when(config.llm().maxRequestsPerRun()).thenReturn(1);
+    var budget = new org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget(blobStore, mapper, config);
+    var calls = new AtomicInteger();
+    var failing = capability("provider-cap", context -> {
+      if (context.attributeAsString("userText") == null) {
+        return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "")));
+      }
+      budget.reserve(context.runId(), 10, 10);
+      calls.incrementAndGet();
+      return Multi.createFrom().failure(providerGatewayFailure());
+    });
+    var profile = retryProfile("work", "provider-cap", new RetryPolicy(2, 1L));
+    var runtime = newRuntime(profile, failing);
+    runtime.support().withLlmBudget(budget);
+    startAndRecordInput(runtime, profile);
+
+    runtime.startOrResume(new StartOrResumeCommand(CONVERSATION, RUN_ID, profile, manifest(profile)))
+        .collect().asList().await().indefinitely();
+
+    assertEquals(1, calls.get());
+    assertEquals(1, budget.state(RUN_ID).requests());
+    assertEquals(20, budget.state(RUN_ID).tokens());
+    assertEquals(0, budget.state(RUN_ID).grants());
+    assertNotNull(budget.state(RUN_ID).refusal());
+    assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
+    assertEquals(PipelineGates.RECOVERY_RETRY_TECHNICAL,
+        PipelineGates.gateOf(requireRun().transitions().getLast().reason()).orElseThrow());
+  }
+
+  private static Throwable providerGatewayFailure() {
+    return new dev.langchain4j.exception.InternalServerException("Provider gateway failed",
+        new dev.langchain4j.exception.HttpException(502, "{\"error\":{\"code\":502,\"message\":\"upstream failed\"}}"));
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {400, 401, 403, 404, 422, 500})
+  void nonTransientProviderStatusRetriesOnceBeforeTheInternalCard(int status) {
+    var calls = new AtomicInteger();
+    var failing = capability("provider-cap", context -> {
+      if (context.attributeAsString("userText") == null) {
+        return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "")));
+      }
+      calls.incrementAndGet();
+      return Multi.createFrom().failure(new dev.langchain4j.exception.InternalServerException("Provider rejected request",
+          new dev.langchain4j.exception.HttpException(status, "{\"error\":{\"code\":502}}")));
+    });
+    var profile = retryProfile("work", "provider-cap", new RetryPolicy(2, 1L));
+    var runtime = newRuntime(profile, failing);
+    startAndRecordInput(runtime, profile);
+
+    runtime.startOrResume(new StartOrResumeCommand(CONVERSATION, RUN_ID, profile, manifest(profile)))
+        .collect().asList().await().indefinitely();
+
+    assertEquals(2, calls.get());
+    assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
+    assertEquals(PipelineGates.RECOVERY_INTERNAL,
+        PipelineGates.gateOf(requireRun().transitions().getLast().reason()).orElseThrow());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"contract", "http", "tls", "tls-provider"})
+  void quotedConnectionTextCannotTurnNonTransientStageFailuresIntoTransientRetries(String kind) {
+    Throwable failure = switch (kind) {
+      case "contract" -> new IllegalStateException("The contract quotes connection reset.");
+      case "http" -> new dev.langchain4j.exception.InternalServerException("Provider rejected request",
+          new dev.langchain4j.exception.HttpException(400, "connection reset"));
+      case "tls" -> new SSLHandshakeException("connection reset");
+      case "tls-provider" -> new dev.langchain4j.exception.InternalServerException("connection reset",
+          new SSLHandshakeException("PKIX path building failed"));
+      default -> throw new AssertionError(kind);
+    };
+    var calls = new AtomicInteger();
+    var failing = capability("provider-cap", context -> {
+      if (context.attributeAsString("userText") == null) {
+        return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "")));
+      }
+      calls.incrementAndGet();
+      return Multi.createFrom().failure(failure);
+    });
+    var profile = retryProfile("work", "provider-cap", new RetryPolicy(2, 1L));
+    var runtime = newRuntime(profile, failing);
+    startAndRecordInput(runtime, profile);
+    runtime.startOrResume(new StartOrResumeCommand(CONVERSATION, RUN_ID, profile, manifest(profile)))
+        .collect().asList().await().indefinitely();
+
+    assertEquals(kind.startsWith("tls") ? 1 : 2, calls.get());
+    assertEquals(kind.startsWith("tls") ? PipelineGates.RECOVERY_ENVIRONMENT : PipelineGates.RECOVERY_INTERNAL,
+        PipelineGates.gateOf(requireRun().transitions().getLast().reason()).orElseThrow());
   }
 
   @Test
@@ -2733,7 +3795,7 @@ class ProductPipelineStageExecutorTest {
       assertInstanceOf(StageDecision.Retry.class, result.decision());
       applyLifecycle(runtime, result);
     }
-    assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "design-execution").decision());
+    presentSavedRepairOffer();
     var before = requireRun();
     if ("written".equals(guard)) {
       artifactStore.append(new CompilationArtifacts.AppendCommand(RUN_ID, Kind.CATALOG_CHAIN_SNAPSHOT, "1",
@@ -2749,9 +3811,10 @@ class ProductPipelineStageExecutorTest {
     runtime.support().recordInput(new AcceptInputCommand(RUN_ID, binding, "click", "request",
         "untrusted".equals(guard) ? InputOrigin.UNTRUSTED : InputOrigin.TRUSTED))
         .collect().asList().await().indefinitely();
-    if ("written".equals(guard)) {
+    if ("written".equals(guard) || "ceiling".equals(guard)) {
       assertEquals(before.transitions().size() + 1, requireRun().transitions().size());
-      assertEquals(HaltRecoveryGuard.CATALOG_ALREADY_WRITTEN.name(),
+      assertEquals("written".equals(guard) ? HaltRecoveryGuard.CATALOG_ALREADY_WRITTEN.name()
+              : HaltRecoveryGuard.RUN_RECOVERY_CEILING.name(),
           PipelineGates.guardOf(requireRun().transitions().getLast().reason()).orElseThrow());
       assertFalse(ChatEvent.actionsForGate(PipelineGates.gateOf(requireRun().transitions().getLast().reason()).orElseThrow())
           .contains(PipelineGates.CONTINUE_REPAIR_ACTION));
@@ -2781,7 +3844,7 @@ class ProductPipelineStageExecutorTest {
       assertInstanceOf(StageDecision.Retry.class, result.decision());
       applyLifecycle(runtime, result);
     }
-    execute(runtime, "design-execution");
+    presentSavedRepairOffer();
     String offer = ProductPipelineRunSupport.repairOfferCommand(requireRun());
     var config = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.configuration.AppConfig.class,
         org.mockito.Mockito.RETURNS_DEEP_STUBS);
@@ -2816,7 +3879,7 @@ class ProductPipelineStageExecutorTest {
     assertEquals("presented", telemetry.events().getLast().kind());
     assertEquals(producerIdentity, PipelineGates.haltIdentityOf(
         requireRun().transitions().getLast().reason()).orElseThrow());
-    assertEquals(5, calls.get());
+    assertEquals(4, calls.get());
     assertEquals(0, requireRun().transitions().stream().filter(t -> t.reason().startsWith(RecoveryAttemptLedger.GRANT_REASON_PREFIX)).count());
     assertEquals(1, budget.state(RUN_ID).grants());
 
@@ -2825,7 +3888,7 @@ class ProductPipelineStageExecutorTest {
     assertEquals(RunStatus.RUNNING, requireRun().run().status());
     assertEquals(1, requireRun().transitions().stream().filter(t -> t.reason().startsWith(RecoveryAttemptLedger.GRANT_REASON_PREFIX)).count());
     assertInstanceOf(StageDecision.Retry.class, execute(runtime, "design-execution").decision());
-    assertEquals(6, calls.get());
+    assertEquals(5, calls.get());
   }
 
   @Test
@@ -2845,15 +3908,7 @@ class ProductPipelineStageExecutorTest {
       assertInstanceOf(StageDecision.Retry.class, result.decision());
       applyLifecycle(runtime, result);
     }
-    StageDecision.WaitForInput offer = assertInstanceOf(StageDecision.WaitForInput.class,
-        execute(runtime, "design-execution").decision());
-    assertEquals("recovery-repair-allowance", PipelineGates.gateOf(offer.prompt()).orElseThrow());
-    assertTrue(PipelineGates.strip(offer.prompt()).contains("two targeted corrections"));
-    assertTrue(PipelineGates.strip(offer.prompt()).contains("two clean regenerations"));
-    String details = PipelineGates.recoveryTechnicalDetailsOf(offer.prompt()).orElseThrow();
-    assertTrue(details.contains("Targeted corrections spent: 2."), details);
-    assertTrue(details.contains("Clean regenerations spent: 2."), details);
-    assertFalse(offer.prompt().contains("will not help"));
+    presentSavedRepairOffer();
     String binding = ProductPipelineRunSupport.repairOfferCommand(requireRun());
     int history = requireRun().transitions().size();
     for (String transportId : List.of("click-one", "click-two")) {
@@ -2863,16 +3918,16 @@ class ProductPipelineStageExecutorTest {
     assertEquals(history + 1, requireRun().transitions().size());
     assertEquals(1, requireRun().transitions().stream()
         .filter(t -> t.reason() != null && t.reason().startsWith("repair-grant:")) .count());
-    assertEquals(5, calls.get());
+    assertEquals(4, calls.get());
     assertInstanceOf(StageDecision.Retry.class, execute(runtime, "design-execution").decision());
-    assertEquals(6, calls.get());
+    assertEquals(5, calls.get());
     assertEquals(0, ledger.key("design-execution", RecoveryCause.of(RecoveryCauseCode.CONTRACT_SHAPE),
         RecoveryAttemptLedger.inputArtifactIdentity(requireRun(), "design-execution"),
         requireRun().transitions()).correctionEpoch());
   }
 
   @Test
-  void executionDispatchesTwoTargetedAndTwoCleanCorrectionsBeforePausing() {
+  void executionDispatchesTwoTargetedAndTwoCleanCorrectionsBeforeAGrant() {
     AtomicInteger calls = new AtomicInteger();
     List<Boolean> cleanTurns = new ArrayList<>();
     StageCapability execution = capability("execution-cap", context -> {
@@ -2895,7 +3950,7 @@ class ProductPipelineStageExecutorTest {
       assertInstanceOf(StageDecision.Retry.class, correction.decision(), "Correction " + (attempt + 1));
       applyLifecycle(runtime, correction);
     }
-    assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "design-execution").decision());
+    assertGrantsAnotherCorrection(execute(runtime, "design-execution"));
     assertEquals(5, calls.get());
     assertEquals(List.of(false, false, false, true, true), cleanTurns);
     assertEquals(2, requireRun().transitions().stream()
@@ -2907,47 +3962,298 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
-  void aRepeatedDesignInputFailureUsesOneCleanRebuildBeforeOfferingManualRecovery() {
-    StageCapability designInput =
-        capability(
-            "design-input-cap",
-            context ->
-                Multi.createFrom()
-                    .item(
-                        new CapabilitySignal.Completed(
-                            StageOutcome.of(
-                                StageOutcomeClass.CONTRACT_FAILURE,
-                                "Unknown contract element: quartz-trigger"))));
+  void aSpentDefectAllowanceIsRegrantedWithoutACard() {
+    CreateChainTestOrchestrator runtime = designInputWithSpentCorrections(12);
+
+    StageExecutionResult regrant = execute(runtime, "design-input");
+
+    assertInstanceOf(StageDecision.Retry.class, regrant.decision());
+    assertEquals(List.of(), regrant.signals().stream()
+        .filter(PipelineSignal.WaitingForInput.class::isInstance).toList());
+    assertEquals(List.of("Granting another automatic correction for this defect"), regrant.signals().stream()
+        .filter(PipelineSignal.Progress.class::isInstance).map(PipelineSignal.Progress.class::cast)
+        .map(PipelineSignal.Progress::label).toList());
+    assertEquals(1, requireRun().transitions().stream()
+        .filter(t -> t.reason() != null && t.reason().startsWith(RecoveryAttemptLedger.GRANT_TARGETED_REASON_PREFIX))
+        .count());
+  }
+
+  @Test
+  void aGrantMaySpendTheLastUnitOfTheRecoveryCeiling() {
+    CreateChainTestOrchestrator runtime = designInputWithSpentCorrections(3);
+
+    assertGrantsAnotherCorrection(execute(runtime, "design-input"));
+  }
+
+  @Test
+  void aRunAtItsRecoveryCeilingStillShowsTheCard() {
+    CreateChainTestOrchestrator runtime = designInputWithSpentCorrections(2);
+
+    StageDecision.WaitForInput wait = assertInstanceOf(StageDecision.WaitForInput.class,
+        execute(runtime, "design-input").decision());
+
+    assertEquals(PipelineGates.RECOVERY_REBUILD_DESIGN, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertEquals(0, requireRun().transitions().stream()
+        .filter(t -> t.reason() != null && t.reason().startsWith(RecoveryAttemptLedger.GRANT_REASON_PREFIX))
+        .count());
+  }
+
+  /**
+   * Starts a design-input stage whose one targeted correction and one clean regeneration are spent on the same
+   * rejection, so the next execution meets a defect with no automatic correction left.
+   */
+  private CreateChainTestOrchestrator designInputWithSpentCorrections(int perRunCeiling) {
+    StageCapability designInput = capability("design-input-cap", context -> Multi.createFrom().item(
+        new CapabilitySignal.Completed(StageOutcome.of(
+            StageOutcomeClass.CONTRACT_FAILURE, "Unknown contract element: quartz-trigger"))));
     ProductPipelineProfile profile = analysisThenDesignInputProfile();
-    CreateChainTestOrchestrator runtime =
-        newRuntime(profile, analysisCandidate(), designInput);
+    CreateChainTestOrchestrator runtime = newRuntime(2,
+        new RecoveryAttemptLedger(new RecoveryAttemptLedger.Limits(1, 2, perRunCeiling, 1)),
+        profile, analysisCandidate(), designInput);
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+    for (int correction = 0; correction < 2; correction++) {
+      StageExecutionResult result = execute(runtime, "design-input");
+      assertInstanceOf(StageDecision.Retry.class, result.decision());
+      applyLifecycle(runtime, result);
+    }
+    return runtime;
+  }
+
+  @Test
+  void aDesignThatMakesNoProgressIsRebuiltWithoutACard() {
+    ProductPipelineProfile profile = analysisThenDesignInputProfile();
+    CreateChainTestOrchestrator runtime = newRuntime(profile, analysisCandidate(),
+        rejectsItsBriefWithoutProgress("design-input-cap", new AtomicInteger()));
     startAndRecordInput(runtime, profile);
     approveStage(runtime, "requirement-analysis");
 
-    StageExecutionResult localRepair = execute(runtime, "design-input");
-    assertInstanceOf(StageDecision.Retry.class, localRepair.decision());
-    applyLifecycle(runtime, localRepair);
+    StageExecutionResult rebuild = execute(runtime, "design-input");
 
-    StageExecutionResult cleanRebuild = execute(runtime, "design-input");
-    assertInstanceOf(StageDecision.Retry.class, cleanRebuild.decision());
-    assertTrue(
-        cleanRebuild.signals().stream()
-            .filter(PipelineSignal.Progress.class::isInstance)
-            .map(PipelineSignal.Progress.class::cast)
-            .anyMatch(progress -> progress.label().contains("clean model turn")));
-    applyLifecycle(runtime, cleanRebuild);
+    assertRebuildsWithoutACard(rebuild, "design-input", "Rebuilding the design from the approved requirements");
+  }
 
-    StageDecision.WaitForInput wait =
-        assertInstanceOf(
-            StageDecision.WaitForInput.class,
-            execute(runtime, "design-input").decision());
+  @Test
+  void anAmbiguousDiagnosisOnTheDesignRegeneratesItCleanly() {
+    StageExecutionResult result = execute(designInputWithAmbiguousDiagnosis(1), "design-input");
 
-    assertEquals(
-        PipelineGates.RECOVERY_REPAIR_ALLOWANCE,
-        PipelineGates.gateOf(wait.prompt()).orElseThrow());
-    assertEquals(
-        List.of(PipelineGates.CONTINUE_REPAIR_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
-        ChatEvent.actionsForGate(PipelineGates.RECOVERY_REPAIR_ALLOWANCE));
+    assertInstanceOf(StageDecision.Retry.class, result.decision(), () -> result.decision().toString());
+    assertEquals(1, requireRun().transitions().stream()
+        .filter(t -> t.reason() != null && t.reason().startsWith(RecoveryAttemptLedger.CLEAN_REBUILD_REASON_PREFIX))
+        .count());
+  }
+
+  @Test
+  void anAmbiguousDiagnosisOnTheDesignWithNoCleanRegenerationLeftShowsTheUnclassifiedCard() {
+    StageExecutionResult result = execute(designInputWithAmbiguousDiagnosis(0), "design-input");
+
+    StageDecision.WaitForInput wait = assertInstanceOf(StageDecision.WaitForInput.class, result.decision());
+    assertEquals(PipelineGates.RECOVERY_UNCLASSIFIED, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+  }
+
+  @Test
+  void aRetryOnTheUnclassifiedCardRunsTheDesignAgain() {
+    CreateChainTestOrchestrator runtime = designInputWithAmbiguousDiagnosis(0);
+    execute(runtime, "design-input");
+    assertEquals(PipelineGates.RECOVERY_UNCLASSIFIED,
+        PipelineGates.gateOf(requireRun().transitions().getLast().reason()).orElseThrow());
+
+    runtime.recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.RETRY_ACTION, "retry-click",
+        "retry-hash", InputOrigin.TRUSTED)).collect().asList().await().indefinitely();
+
+    assertEquals(RunStatus.RUNNING, requireRun().run().status());
+    assertEquals("design-input", requireRun().run().currentStageId());
+    assertTrue(requireRun().transitions().getLast().reason()
+        .startsWith(RecoveryAttemptLedger.GRANT_TARGETED_REASON_PREFIX), requireRun().transitions().getLast().reason());
+  }
+
+  /**
+   * Starts a design-input stage that fails with a domain failure whose owner the diagnosis cannot name, under a ledger
+   * that allows {@code cleanRebuilds} clean regenerations per defect.
+   */
+  private CreateChainTestOrchestrator designInputWithAmbiguousDiagnosis(int cleanRebuilds) {
+    StageCapability designInput = capability("design-input-cap", context -> Multi.createFrom().item(
+        new CapabilitySignal.Completed(StageOutcome.of(
+            StageOutcomeClass.DOMAIN_FAILURE, "The flow has no trigger."))));
+    ProductPipelineProfile profile = analysisThenDesignInputProfile();
+    CreateChainTestOrchestrator runtime = newRuntime(
+        new FailureNarrative(FakeFailureNarrativeAgent.ask("Either the brief or the design could be wrong.")),
+        new RecoveryAttemptLedger(new RecoveryAttemptLedger.Limits(2, 2, 12, cleanRebuilds)),
+        null, analysisCandidate(), designInput);
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+    return runtime;
+  }
+
+  @Test
+  void aPlanThatMakesNoProgressIsRebuiltWithoutACard() {
+    ProductPipelineProfile profile = analysisThenPlanningThenExecutionProfile();
+    CreateChainTestOrchestrator runtime = newRuntime(
+        new FailureNarrative(FakeFailureNarrativeAgent.narrates("unused")), profile, analysisCandidate(),
+        rejectsItsBriefWithoutProgress("planning-cap", new AtomicInteger()));
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+
+    StageExecutionResult rebuild = execute(runtime, "design-planning");
+
+    assertRebuildsWithoutACard(rebuild, "design-planning", "Rebuilding the plan from the approved design");
+  }
+
+  /**
+   * Every automatic rebuild and every grant between them commits a reason the run's recovery ceiling counts, so a
+   * design that never improves shows the Rebuild design card on the rejection after the twelfth such reason.
+   */
+  @Test
+  void automaticDesignRebuildsEndOnTheCardAtTheRecoveryCeiling() {
+    AtomicInteger calls = new AtomicInteger();
+    ProductPipelineProfile profile = analysisThenDesignInputProfile();
+    CreateChainTestOrchestrator runtime = newRuntime(profile, analysisCandidate(),
+        rejectsItsBriefWithoutProgress("design-input-cap", calls));
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+
+    StageExecutionResult result = execute(runtime, "design-input");
+    for (int retries = 0; retries < 12 && result.decision() instanceof StageDecision.Retry; retries++) {
+      applyLifecycle(runtime, result);
+      result = execute(runtime, "design-input");
+    }
+
+    StageDecision.WaitForInput wait = assertInstanceOf(StageDecision.WaitForInput.class, result.decision());
+    assertEquals(PipelineGates.RECOVERY_REBUILD_DESIGN, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertEquals(13, calls.get());
+    assertEquals(8, requireRun().transitions().stream()
+        .filter(t -> t.reason() != null && t.reason().startsWith(RecoveryAttemptLedger.CLEAN_REBUILD_REASON_PREFIX))
+        .count());
+    assertEquals(4, requireRun().transitions().stream()
+        .filter(t -> t.reason() != null && t.reason().startsWith(RecoveryAttemptLedger.GRANT_TARGETED_REASON_PREFIX))
+        .count());
+  }
+
+  @Test
+  void automaticPlanRebuildsEndOnTheCardAtTheRecoveryCeiling() {
+    AtomicInteger calls = new AtomicInteger();
+    ProductPipelineProfile profile = analysisThenPlanningThenExecutionProfile();
+    CreateChainTestOrchestrator runtime = newRuntime(
+        new FailureNarrative(FakeFailureNarrativeAgent.narrates("unused")), profile, analysisCandidate(),
+        rejectsItsBriefWithoutProgress("planning-cap", calls));
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+
+    StageExecutionResult result = execute(runtime, "design-planning");
+    for (int retries = 0; retries < 12 && result.decision() instanceof StageDecision.Retry; retries++) {
+      applyLifecycle(runtime, result);
+      result = execute(runtime, "design-planning");
+    }
+
+    StageDecision.WaitForInput wait = assertInstanceOf(StageDecision.WaitForInput.class, result.decision());
+    assertEquals(PipelineGates.RECOVERY_REBUILD_PLAN, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertEquals(13, calls.get());
+    // At the ceiling a Rebuild plan click reruns the plan without the fresh budget Retry creation grants.
+    assertEquals(List.of(ChatEvent.RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
+        cardActions(wait.prompt()));
+  }
+
+  /**
+   * A plan defect found downstream once the run's recovery ceiling is spent shows the repeated-failure card, not the
+   * Rebuild plan card, and its Retry creation resumes the run.
+   */
+  @Test
+  void aPlanDefectFoundAtTheRecoveryCeilingOffersRetryCreation() {
+    FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("unused");
+    AtomicInteger planningCalls = new AtomicInteger();
+    StageCapability planning = capability("planning-cap", context -> Multi.createFrom().item(
+        new CapabilitySignal.Completed(planningCalls.incrementAndGet() == 1
+            ? StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE, "plan reply is missing a field")
+            : new StageOutcome(StageOutcomeClass.CANDIDATE,
+                List.of(new ArtifactCandidate(Kind.IMPLEMENTATION_PLAN, Map.of("plan", "ok"), List.of())),
+                "plan ready", null))));
+    ProductPipelineProfile profile = analysisThenPlanningThenExecutionProfile();
+    CreateChainTestOrchestrator runtime = newRuntime(new FailureNarrative(agent),
+        new RecoveryAttemptLedger(new RecoveryAttemptLedger.Limits(1, 2, 1, 1)), null, analysisCandidate(), planning,
+        executionRejectedPlanFailure(new AtomicInteger()));
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+    var corrected = execute(runtime, "design-planning");
+    assertInstanceOf(StageDecision.Retry.class, corrected.decision(), () -> corrected.decision().toString());
+    applyLifecycle(runtime, corrected);
+    approveStage(runtime, "design-planning");
+    agent.recoverRegenerates(
+        Kind.IMPLEMENTATION_PLAN, "The plan is missing information required to create the chain.");
+
+    var wait = assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "design-execution").decision());
+
+    assertEquals(PipelineGates.RECOVERY_REPEATED, PipelineGates.gateOf(wait.prompt()).orElseThrow(), wait.prompt());
+    assertEquals(List.of(ChatEvent.RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
+        cardActions(wait.prompt()));
+    runtime.recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.RETRY_ACTION, "retry-click", "retry-hash",
+        InputOrigin.TRUSTED)).collect().asList().await().indefinitely();
+    assertEquals(RunStatus.RUNNING, requireRun().run().status());
+  }
+
+  private static List<String> cardActions(String prompt) {
+    return ChatEvent.actionsForClarify(
+        new org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction.Clarify(
+            PipelineGates.strip(prompt), List.of(), PipelineGates.gateOf(prompt).orElseThrow(), "", null, "", "", "",
+            PipelineGates.guardOf(prompt).orElse("")));
+  }
+
+  @Test
+  void aRejectedApprovedPlanIsRebuiltWithoutACard() {
+    FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("unused");
+    ProductPipelineProfile profile = analysisThenPlanningThenExecutionProfile();
+    CreateChainTestOrchestrator runtime = newRuntime(new FailureNarrative(agent), profile, analysisCandidate(),
+        planningAlwaysCandidate(), executionRejectedPlanFailure(new AtomicInteger()));
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+    approveStage(runtime, "design-planning");
+    agent.recoverRegenerates(
+        Kind.IMPLEMENTATION_PLAN, "The plan is missing information required to create the chain.");
+
+    StageExecutionResult rebuild = execute(runtime, "design-execution");
+    applyLifecycle(runtime, rebuild);
+
+    StageDecision.ReopenProducer reopen = assertInstanceOf(StageDecision.ReopenProducer.class, rebuild.decision());
+    assertEquals("design-planning", reopen.producerStageId());
+    assertEquals(List.of(), rebuild.signals().stream()
+        .filter(PipelineSignal.WaitingForInput.class::isInstance).toList());
+    assertEquals(List.of("Rebuilding the plan from the approved design"), progressLabels(rebuild));
+    assertEquals("design-planning", requireRun().run().currentStageId());
+    String reason = requireRun().transitions().getLast().reason();
+    assertTrue(reason.startsWith(RecoveryAttemptLedger.AUTOMATIC_REOPEN_REASON_PREFIX), reason);
+  }
+
+  /**
+   * Returns a producer that fails every call with a contract finding against the approved brief it consumed and
+   * reports no progress, so no targeted correction of its own output applies.
+   */
+  private StageCapability rejectsItsBriefWithoutProgress(String capabilityId, AtomicInteger calls) {
+    return capability(capabilityId, context -> {
+      calls.incrementAndGet();
+      Reference brief = context.inputRefs().stream().filter(ref -> ref.kind() == Kind.REQUIREMENT_BRIEF)
+          .findFirst().orElseThrow();
+      return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(
+          StageOutcomeClass.CONTRACT_FAILURE, "The brief names an unknown element.",
+          new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, List.of(new PlanValidationFinding(
+              "CONTRACT_SHAPE", "The brief names an unknown element.", true, MappingValidationDetails.empty(),
+              brief.artifactId(), "/facts")), "", true))));
+    });
+  }
+
+  /** Asserts that the execution rebuilds {@code stageId} in a clean model turn and shows no card. */
+  private void assertRebuildsWithoutACard(StageExecutionResult result, String stageId, String progressLabel) {
+    StageDecision.Retry retry = assertInstanceOf(StageDecision.Retry.class, result.decision());
+    assertEquals(stageId, retry.stageId());
+    assertEquals(List.of(), result.signals().stream()
+        .filter(PipelineSignal.WaitingForInput.class::isInstance).toList());
+    assertEquals(List.of(progressLabel), progressLabels(result));
+    assertEquals(RunStatus.RUNNING, requireRun().run().status());
+    String reason = requireRun().transitions().getLast().reason();
+    assertTrue(reason.startsWith(RecoveryAttemptLedger.CLEAN_REBUILD_REASON_PREFIX), reason);
+  }
+
+  private static List<String> progressLabels(StageExecutionResult result) {
+    return result.signals().stream().filter(PipelineSignal.Progress.class::isInstance)
+        .map(PipelineSignal.Progress.class::cast).map(PipelineSignal.Progress::label).toList();
   }
 
   @Test
@@ -2977,9 +4283,7 @@ class ProductPipelineStageExecutorTest {
     assertTrue(cleanRebuild.signals().stream().filter(PipelineSignal.Progress.class::isInstance)
         .map(PipelineSignal.Progress.class::cast).anyMatch(progress -> progress.label().contains("clean model turn")));
     applyLifecycle(runtime, cleanRebuild);
-    StageDecision.WaitForInput wait = assertInstanceOf(StageDecision.WaitForInput.class,
-        execute(runtime, "design-input").decision());
-    assertEquals(PipelineGates.RECOVERY_REPAIR_ALLOWANCE, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertGrantsAnotherCorrection(execute(runtime, "design-input"));
     assertEquals(approved, snapshot(requireRun(), "requirement-analysis").approvedArtifactId());
     assertEquals(3, calls.get());
   }
@@ -3011,13 +4315,129 @@ class ProductPipelineStageExecutorTest {
     var repair = execute(runtime, "design-planning");
     assertInstanceOf(StageDecision.Retry.class, repair.decision());
     org.mockito.Mockito.verify(agent, org.mockito.Mockito.never()).recover(
-        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class));
     applyLifecycle(runtime, repair);
     assertInstanceOf(StageDecision.WaitForApproval.class, execute(runtime, "design-planning").decision());
     assertEquals(approved, snapshot(requireRun(), "requirement-analysis").approvedArtifactId());
     assertEquals(brief, artifactStore.payload(
         artifactStore.latest(RUN_ID, Kind.REQUIREMENT_BRIEF).orElseThrow(), RequirementBrief.class));
     assertEquals(2, calls.get());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"ready", "interrupted", "exhausted"})
+  void knownProviderWaitUsesOnlyTheRemainingDiagnosisAndPreservesInterruptedProgress(String outcome) throws Exception {
+    boolean interruptWait = "interrupted".equals(outcome);
+    boolean exhausted = "exhausted".equals(outcome);
+    var now = new AtomicReference<>(FIXED);
+    Clock clock = org.mockito.Mockito.mock(Clock.class);
+    org.mockito.Mockito.when(clock.instant()).thenAnswer(call -> now.get());
+    org.mockito.Mockito.when(clock.getZone()).thenReturn(ZoneOffset.UTC);
+    runStore = new ProductPipelineRunStore(blobStore, mapper, clock);
+    artifactStore = new ProductPipelineArtifactStore(new CompilationArtifacts(blobStore, mapper, clock));
+    Instant retryAt = FIXED.plusSeconds(60);
+    var observed = new AtomicReference<RecoveryContext>();
+    var diagnosisContexts = new CopyOnWriteArrayList<RecoveryContext>();
+    var calls = new AtomicInteger();
+    var agent = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent.class);
+    FailureNarrative narrative = org.mockito.Mockito.spy(new FailureNarrative(agent, 12, Duration.ofSeconds(20)));
+    org.mockito.Mockito.doAnswer(call -> {
+      observed.set(call.getArgument(1));
+      diagnosisContexts.add(call.getArgument(1));
+      return call.callRealMethod();
+    }).when(narrative).diagnoseRecovery(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
+    org.mockito.Mockito.when(agent.recover(org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(ChatRequestParameters.class)))
+        .thenAnswer(call -> {
+          if (calls.incrementAndGet() == 1) {
+            throw new RateLimitRetryDeferredException(retryAt, new RateLimitException("Known provider reset"));
+          }
+          assertFalse(now.get().isBefore(retryAt), "The second diagnosis must wait for the existing provider reset");
+          if (exhausted) {
+            throw new RateLimitRetryDeferredException(retryAt.plusSeconds(60),
+                new RateLimitException("The second diagnosis also has a known provider reset"));
+          }
+          RecoveryContext context = observed.get();
+          return new RecoveryDecision(RecoveryCauseClass.DERIVATION_DEFECT,
+              context.evidence().rejectedArtifactRefs().getFirst(), List.of(context.evidence().failureId()),
+              RecoveryAction.REGENERATE_ARTIFACT, List.of(), "", "Regenerate the rejected planner report.");
+        });
+    var planningCalls = new AtomicInteger();
+    StageCapability planning = capability("planning-cap", context -> planningCalls.incrementAndGet() == 1
+        ? Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(
+            StageOutcomeClass.CONTRACT_FAILURE, "Planner report has an invalid output shape.")))
+        : planningAlwaysCandidate().execute(context));
+    var profile = analysisThenPlanningThenExecutionProfile();
+    var runtime = new CreateChainTestOrchestrator(CreateChainTestOrchestrator.supportBuilder(runStore, artifactStore,
+        new StageCapabilityRegistry(List.of(analysisCandidate(), planning, succeeding("execution-cap", new AtomicInteger()))),
+        clock).failureNarrative(narrative)
+        .recoveryLedger(new RecoveryAttemptLedger(new RecoveryAttemptLedger.Limits(1, 2, 12, 1))).build(), runStore);
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+    String approved = snapshot(requireRun(), "requirement-analysis").approvedArtifactId();
+    var authorInputs = artifactStore.history(RUN_ID, Kind.USER_INPUT);
+    var sleeps = new AtomicInteger();
+    var executor = (ProductPipelineStageExecutor) runtime.stageExecutor();
+    executor.withProviderRetrySleeper(duration -> {
+      assertEquals(Duration.ofSeconds(60), duration);
+      assertEquals(1, calls.get());
+      assertEquals(1, planningCalls.get());
+      var pending = assertDoesNotThrow(() -> mapper.readTree(String.valueOf(runtime.support().runAttributes(RUN_ID)
+          .get(ProductPipelineRunSupport.RECOVERY_DIAGNOSIS_ATTR))));
+      assertEquals(1, pending.path("calls").asInt());
+      assertEquals(retryAt, mapper.convertValue(pending.path("result").path("retryAt"), Instant.class));
+      sleeps.incrementAndGet();
+      if (interruptWait) throw new InterruptedException("Stop waiting without dispatching another diagnosis");
+      now.updateAndGet(value -> value.plus(duration));
+    });
+    var interruptedAtSettlement = new AtomicBoolean();
+    StageExecutionResult result;
+    try {
+      result = executor.execute(RUN_ID, "design-planning").invoke(settled -> {
+        interruptedAtSettlement.set(Thread.currentThread().isInterrupted());
+        Thread.interrupted();
+      }).await().indefinitely();
+    } finally {
+      Thread.interrupted();
+    }
+
+    assertEquals(1, sleeps.get());
+    assertEquals(interruptWait, interruptedAtSettlement.get());
+    if (!interruptWait) assertEquals(diagnosisContexts.getFirst(), diagnosisContexts.getLast());
+    assertEquals(approved, snapshot(requireRun(), "requirement-analysis").approvedArtifactId());
+    assertEquals(authorInputs, artifactStore.history(RUN_ID, Kind.USER_INPUT));
+    assertTrue(requireRun().transitions().stream().noneMatch(transition -> transition.reason() != null
+        && transition.reason().startsWith(RecoveryAttemptLedger.GRANT_REASON_PREFIX)));
+    if (interruptWait || exhausted) {
+      var wait = assertInstanceOf(StageDecision.WaitForInput.class, result.decision());
+      assertEquals(PipelineGates.RECOVERY_RETRY_TECHNICAL, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+      int expectedCalls = exhausted ? 2 : 1;
+      assertEquals(expectedCalls, calls.get());
+      var reloaded = new ProductPipelineRunStore(blobStore, mapper, clock).load(RUN_ID).orElseThrow();
+      var halt = ProductPipelineRunSupport.readHaltEvidence(reloaded.attempts().getLast().failureEvidence());
+      var retained = mapper.readTree(String.valueOf(halt.get(ProductPipelineRunSupport.RECOVERY_DIAGNOSIS_ATTR)));
+      assertEquals(expectedCalls, retained.path("calls").asInt());
+      assertEquals("TRANSIENT_PROVIDER_FAILURE", retained.path("result").path("diagnosisStatus").asText());
+      assertEquals(exhausted ? retryAt.plusSeconds(60) : retryAt,
+          mapper.convertValue(retained.path("result").path("retryAt"), Instant.class));
+      assertTrue(reloaded.transitions().stream().noneMatch(transition -> transition.reason() != null
+          && transition.reason().startsWith(ProductPipelineStageExecutor.PRODUCER_REPAIR_REASON_PREFIX)));
+      if (exhausted) {
+        assertEquals(FailureNarrative.RecoveryStatus.TRANSIENT_PROVIDER_FAILURE,
+            executor.acceptedRecoveryDecision(RUN_ID, observed.get()).diagnosisStatus());
+        assertEquals(2, calls.get());
+        assertEquals(1, sleeps.get());
+      }
+    } else {
+      assertInstanceOf(StageDecision.Retry.class, result.decision());
+      assertEquals(2, calls.get());
+      applyLifecycle(runtime, result);
+      assertInstanceOf(StageDecision.WaitForApproval.class, execute(runtime, "design-planning").decision());
+      assertEquals(2, planningCalls.get());
+      assertEquals(2, calls.get());
+      assertEquals(approved, snapshot(requireRun(), "requirement-analysis").approvedArtifactId());
+    }
   }
 
   @ParameterizedTest
@@ -3100,7 +4520,7 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
-  void aRepeatedPlanningContractFailureUsesOneCleanRebuildBeforeOfferingManualRecovery() {
+  void aRepeatedPlanningContractFailureUsesOneCleanRebuildBeforeAGrant() {
     StageCapability planning =
         capability(
             "planning-cap",
@@ -3134,17 +4554,7 @@ class ProductPipelineStageExecutorTest {
             .anyMatch(progress -> progress.label().contains("clean model turn")));
     applyLifecycle(runtime, cleanRebuild);
 
-    StageDecision.WaitForInput wait =
-        assertInstanceOf(
-            StageDecision.WaitForInput.class,
-            execute(runtime, "design-planning").decision());
-
-    assertEquals(
-        PipelineGates.RECOVERY_REPAIR_ALLOWANCE,
-        PipelineGates.gateOf(wait.prompt()).orElseThrow());
-    assertEquals(
-        List.of(PipelineGates.CONTINUE_REPAIR_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
-        ChatEvent.actionsForGate(PipelineGates.RECOVERY_REPAIR_ALLOWANCE));
+    assertGrantsAnotherCorrection(execute(runtime, "design-planning"));
   }
 
   @Test
@@ -3320,7 +4730,7 @@ class ProductPipelineStageExecutorTest {
         PipelineGates.RECOVERY_REPEATED, PipelineGates.gateOf(escalated.prompt()).orElseThrow());
     assertFalse(PipelineGates.dropElementAllowed(escalated.prompt()));
     assertEquals(
-        List.of(PipelineGates.STOP_WITH_REPORT_ACTION),
+        List.of(ChatEvent.RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
         ChatEvent.actionsForGate(PipelineGates.RECOVERY_REPEATED));
   }
 
@@ -3467,7 +4877,8 @@ class ProductPipelineStageExecutorTest {
 
     assertEquals(
         PipelineGates.RECOVERY_REVISE_BRIEF, PipelineGates.gateOf(wait.prompt()).orElseThrow());
-    assertEquals("The approved requirements need correction.", PipelineGates.strip(wait.prompt()));
+    assertEquals("The requirements need reconciliation with the saved messages. Confirmed choices will be preserved.",
+        PipelineGates.strip(wait.prompt()));
     assertEquals(
         List.of(ChatEvent.EDIT_REQUIREMENTS_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
         ChatEvent.actionsForGate(PipelineGates.RECOVERY_REVISE_BRIEF));
@@ -3606,14 +5017,13 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
-  void planDefectOffersRebuildPlanWithoutStageChoices() {
+  void planDefectWithAutomaticReopensSpentOffersRebuildPlanWithoutStageChoices() {
     FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("unused");
     AtomicInteger executionCalls = new AtomicInteger();
     ProductPipelineProfile profile = analysisThenPlanningThenExecutionProfile();
     CreateChainTestOrchestrator runtime =
-        newRuntime(
+        newRuntimeWithoutAutomaticReopens(
             new FailureNarrative(agent),
-            profile,
             analysisCandidate(),
             planningAlwaysCandidate(),
             executionRejectedPlanFailure(executionCalls));
@@ -3630,7 +5040,7 @@ class ProductPipelineStageExecutorTest {
     assertEquals(
         PipelineGates.RECOVERY_REBUILD_PLAN, PipelineGates.gateOf(wait.prompt()).orElseThrow());
     assertEquals(
-        List.of(ChatEvent.REBUILD_PLAN_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
+        List.of(ChatEvent.REBUILD_PLAN_ACTION, ChatEvent.RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
         ChatEvent.actionsForGate(PipelineGates.RECOVERY_REBUILD_PLAN));
     assertEquals("design-planning", runtime.support().diagnosedOwnerStageId(RUN_ID).orElseThrow());
     assertFalse(wait.prompt().contains("design-planning"), wait.prompt());
@@ -3664,8 +5074,8 @@ class ProductPipelineStageExecutorTest {
     if (namesConsumedInput) {
       assertEquals(mapper.valueToTree(planRef), context.at("/evidence/rejectedArtifactRefs/0"));
       assertEquals("ok", context.at("/rejectedArtifact/plan").asText());
-      var wait = assertInstanceOf(StageDecision.WaitForInput.class, result.decision());
-      assertEquals(PipelineGates.RECOVERY_REBUILD_PLAN, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+      var reopen = assertInstanceOf(StageDecision.ReopenProducer.class, result.decision());
+      assertEquals("design-planning", reopen.producerStageId());
       assertEquals("design-planning", runtime.support().diagnosedOwnerStageId(RUN_ID).orElseThrow());
     } else {
       assertEquals("CHAIN_PLAN_GRAPH", context.at("/evidence/rejectedArtifactRefs/0/kind").asText());
@@ -3732,9 +5142,8 @@ class ProductPipelineStageExecutorTest {
           "plan ready", null)));
     });
     CreateChainTestOrchestrator runtime =
-        newRuntime(
+        newRuntimeWithoutAutomaticReopens(
             new FailureNarrative(agent),
-            profile,
             analysisCandidate(),
             subsetPlanner,
             executionRejectedPlanFailure(executionCalls));
@@ -3779,14 +5188,82 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
+  void shouldRetireAcceptedPlanningFailuresWhenReopenedInTheActiveExecutor() throws Exception {
+    assertAcceptedPlanningFailuresRetired(false);
+  }
+
+  @Test
+  void shouldRetireAcceptedPlanningFailuresWhenReopenedInTheReconstructedExecutor() throws Exception {
+    assertAcceptedPlanningFailuresRetired(true);
+  }
+
+  private void assertAcceptedPlanningFailuresRetired(boolean restart) throws Exception {
+    var agent = FakeFailureNarrativeAgent.narrates("unused");
+    var calls = new AtomicInteger();
+    var histories = new ArrayList<String>();
+    var observingStages = new ArrayList<String>();
+    var planning = capability("planning-cap", context -> {
+      histories.add(context.attributeAsString(StageRepairEvidence.REPAIR_HISTORY_ATTR));
+      observingStages.add(context.attributeAsString(ProductPipelineRunSupport.STAGE_ERROR_FAILED_STAGE_ATTR));
+      return Multi.createFrom().item(new CapabilitySignal.Completed(calls.incrementAndGet() == 1
+          ? new StageOutcome(StageOutcomeClass.CONTRACT_FAILURE,
+              List.of(new ArtifactCandidate(Kind.IMPLEMENTATION_PLAN, Map.of("plan", "invalid"), List.of())),
+              "The generated plan has an invalid shape.", null,
+              new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE,
+                  List.of(new PlanValidationFinding("CONTRACT_SHAPE", "The generated plan has an invalid shape.", true)), ""))
+          : new StageOutcome(StageOutcomeClass.CANDIDATE,
+              List.of(new ArtifactCandidate(Kind.IMPLEMENTATION_PLAN, Map.of("plan", "ok"), List.of())),
+              "plan ready", null)));
+    });
+    var execution = executionRejectedPlanFailure(new AtomicInteger());
+    var original = analysisThenPlanningThenExecutionProfile();
+    var stages = new ArrayList<>(original.stages());
+    var planner = stages.get(1);
+    stages.set(1, new ProfileStage(planner.stageId(), planner.capabilityId(),
+        List.of(new ArtifactTypeRef("requirement-brief", 1), new ArtifactTypeRef("run-manifest", 1)),
+        planner.produces(), planner.approval(), planner.bypass(), planner.retry()));
+    var profile = new ProductPipelineProfile(original.schemaVersion(), original.profileId(), "2",
+        original.runInputs(), stages, original.terminal(), original.dependencyRoots());
+    var runtime = newRuntime(new FailureNarrative(agent), profile, analysisCandidate(), planning, execution);
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+    var correction = execute(runtime, "design-planning");
+    assertInstanceOf(StageDecision.Retry.class, correction.decision());
+    applyLifecycle(runtime, correction);
+    approveStage(runtime, "design-planning");
+    agent.recoverRegenerates(Kind.IMPLEMENTATION_PLAN, "The approved plan needs another correction.");
+    var reopened = execute(runtime, "design-execution");
+    assertInstanceOf(StageDecision.ReopenProducer.class, reopened.decision());
+    applyLifecycle(runtime, reopened);
+    var rejectedAttempts = artifactStore.history(RUN_ID, Kind.RECOVERY_EVIDENCE).stream()
+        .map(revision -> artifactStore.payload(revision, RecoveryEvidence.class)).toList();
+    assertEquals(rejectedAttempts.getLast().producerInputs(), rejectedAttempts.getFirst().producerInputs());
+    assertEquals(rejectedAttempts.getLast().authorInputIds(), rejectedAttempts.getFirst().authorInputIds());
+
+    if (restart) {
+      runtime = newRuntime(new FailureNarrative(agent), profile, analysisCandidate(), planning, execution);
+      runtime.startOrResume(new StartOrResumeCommand(CONVERSATION, RUN_ID, profile, manifest(profile)))
+          .collect().asList().await().indefinitely();
+    } else {
+      assertInstanceOf(StageDecision.WaitForApproval.class, execute(runtime, "design-planning").decision());
+    }
+    var history = mapper.readTree(histories.getLast());
+
+    assertEquals(RunStatus.WAITING_FOR_APPROVAL, requireRun().run().status());
+    assertEquals(1, history.path("attempts").size());
+    assertEquals("design-planning", history.at("/attempts/0/producerStageId").asText());
+    assertEquals(2, artifactStore.history(RUN_ID, Kind.RECOVERY_EVIDENCE).size());
+    assertEquals("design-execution", observingStages.getLast());
+  }
+
+  @Test
   void planDefectEndWithReportKeepsTheFailureRecord() {
     FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("unused");
     AtomicInteger executionCalls = new AtomicInteger();
     ProductPipelineProfile profile = analysisThenPlanningThenExecutionProfile();
     CreateChainTestOrchestrator runtime =
-        newRuntime(
+        newRuntimeWithoutAutomaticReopens(
             new FailureNarrative(agent),
-            profile,
             analysisCandidate(),
             planningAlwaysCandidate(),
             executionRejectedPlanFailure(executionCalls));
@@ -3918,7 +5395,7 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
-  void invalidRecoveryDecisionGetsOneCorrectionThenRepairsItsProducer() {
+  void invalidRecoveryDecisionGetsOneCorrectionThenRepairsItsProducer() throws Exception {
     FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("unused");
     ArtifactTypeRef brief = new ArtifactTypeRef("requirement-brief", 1);
     ArtifactTypeRef validation = new ArtifactTypeRef("plan-validation-result", 1);
@@ -3957,6 +5434,22 @@ class ProductPipelineStageExecutorTest {
             .filter(finding -> "INVALID_RECOVERY_DECISION".equals(finding.code()))
             .count();
     assertEquals(2, invalidDecisionFindings);
+    for (SemanticFinding finding : parkedEvidence.findings()) {
+      if (!"INVALID_RECOVERY_DECISION".equals(finding.code())) continue;
+      var rejectedReply = mapper.readTree(finding.rawValidatorJson());
+      assertEquals("REJECTED", rejectedReply.path("status").asText());
+      assertEquals(mapper.valueToTree(invalid), rejectedReply.path("rejectedDecision"));
+      assertFalse(rejectedReply.path("validationFindings").isEmpty());
+    }
+    var saved = requireRun();
+    var restarted = newRuntime(new FailureNarrative(agent), profile, analysisCandidate(), planningValidationFailure());
+    var executor = (ProductPipelineStageExecutor) restarted.stageExecutor();
+    var retained = executor.acceptedRecoveryDecision(RUN_ID, new RecoveryContext(parkedEvidence, null, null, "en"));
+    assertNull(retained.decision(), "A rejected decision remains evidence after restart, never an executable action.");
+    assertEquals(FailureNarrative.RecoveryStatus.INVALID_REPLY, retained.diagnosisStatus());
+    assertEquals(parkedEvidence, retained.evidence());
+    assertEquals(saved, requireRun(), "Reentry must preserve accepted work, source inputs, and failure progress.");
+    assertEquals(2, agent.calls.get(), "Restart must not grant another diagnosis call for the same failure.");
   }
 
   @Test
@@ -4206,7 +5699,7 @@ class ProductPipelineStageExecutorTest {
         PipelineGates.RECOVERY_UNCLASSIFIED, PipelineGates.gateOf(wait.prompt()).orElseThrow());
     assertTrue(PipelineGates.ownerCandidatesOf(wait.prompt()).isEmpty());
     assertEquals(
-        List.of(PipelineGates.STOP_WITH_REPORT_ACTION),
+        List.of(ChatEvent.RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
         ChatEvent.actionsForGate(PipelineGates.RECOVERY_UNCLASSIFIED));
     assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
     assertEquals("planning", requireRun().run().currentStageId());
@@ -4286,6 +5779,142 @@ class ProductPipelineStageExecutorTest {
     assertEquals("design-input", reopen.producerStageId());
   }
 
+  /**
+   * The same graph-structure defect found again after design-execution reopened design-input once reopens it a second
+   * time, and the second design turn reads both downstream rejections in its repair history. The live lang-router
+   * run used to stop on the unclassified card after the first reopen, because an owner was reopened at most once per
+   * defect.
+   */
+  @Test
+  void aGraphStructureDefectThatReturnsAfterAReopenReopensTheDesignAgainWithItsHistory() {
+    List<String> histories = new ArrayList<>();
+    CreateChainTestOrchestrator runtime = graphStructureRun(histories);
+    var first = execute(runtime, "design-execution");
+    assertEquals("design-input", assertInstanceOf(StageDecision.ReopenProducer.class, first.decision(),
+        () -> first.decision().toString()).producerStageId());
+    applyLifecycle(runtime, first);
+    applyLifecycle(runtime, execute(runtime, "design-input"));
+
+    var second = execute(runtime, "design-execution");
+
+    assertEquals("design-input", assertInstanceOf(StageDecision.ReopenProducer.class, second.decision(),
+        () -> second.decision().toString()).producerStageId());
+    applyLifecycle(runtime, second);
+    assertEquals(RunStatus.RUNNING, requireRun().run().status());
+    assertEquals("design-input", requireRun().run().currentStageId());
+    assertEquals(2, requireRun().transitions().stream().filter(t -> t.reason() != null
+        && t.reason().startsWith(RecoveryAttemptLedger.AUTOMATIC_REOPEN_REASON_PREFIX + "design-input")).count());
+    execute(runtime, "design-input");
+    String history = histories.getLast();
+    assertEquals(2, history.split("has 0 child", -1).length - 1, history);
+  }
+
+  @ParameterizedTest
+  @org.junit.jupiter.params.provider.CsvSource({
+      "approve,false,'',2",
+      "approve-and-create,false,'',2",
+      "approve,true,'',1",
+      "approve,false,Change the path to /orders-v2,1"
+  })
+  void planApprovalsPreserveReopenHistoryUnlessTheAuthorChangesRequirements(
+      String action, boolean newAuthorInput, String comment, int expectedRejections) {
+    List<String> histories = new ArrayList<>();
+    var runtime = graphStructureRun(histories, true);
+    var archive = attachAuthorSources(runtime, "Create the orders integration");
+    var mapper = new ObjectMapper();
+    var approval = archive.beginInput(CONVERSATION, "Approve", null);
+    archive.resolveInput(CONVERSATION, approval, "Approve", mapper.valueToTree(
+        Map.of("action", action, "comment", "")));
+    approveStage(runtime, "design-planning");
+    var first = execute(runtime, "design-execution");
+    assertEquals("design-input", assertInstanceOf(StageDecision.ReopenProducer.class, first.decision(),
+        () -> first.decision().toString()).producerStageId());
+    applyLifecycle(runtime, first);
+    applyLifecycle(runtime, execute(runtime, "design-input"));
+
+    var nextApproval = archive.beginInput(CONVERSATION, "Approve", null);
+    archive.resolveInput(CONVERSATION, nextApproval, "Approve", mapper.valueToTree(
+        Map.of("action", action, "comment", comment)));
+    approveStage(runtime, "design-planning");
+    if (newAuthorInput) {
+      var correction = archive.beginInput(CONVERSATION, "Change the path to /orders-v2", null);
+      archive.resolveInput(CONVERSATION, correction, "Change the path to /orders-v2");
+    }
+    var second = execute(runtime, "design-execution");
+    assertEquals("design-input", assertInstanceOf(StageDecision.ReopenProducer.class, second.decision(),
+        () -> second.decision().toString()).producerStageId());
+    applyLifecycle(runtime, second);
+    execute(runtime, "design-input");
+
+    String history = histories.getLast();
+    assertEquals(expectedRejections, history.split("has 0 child", -1).length - 1, history);
+  }
+
+  /**
+   * Once the defect has used both automatic reopens of design-input, the run stops on a card that still offers
+   * Retry creation.
+   */
+  @Test
+  void aGraphStructureDefectThatSpentItsAutomaticReopensShowsACardWithRetry() {
+    CreateChainTestOrchestrator runtime = graphStructureRun(new ArrayList<>());
+    StageDecision.WaitForInput card = null;
+    for (int executions = 0; executions < 40 && card == null; executions++) {
+      var result = execute(runtime, requireRun().run().currentStageId());
+      if (result.decision() instanceof StageDecision.WaitForInput wait) {
+        card = wait;
+      } else {
+        applyLifecycle(runtime, result);
+      }
+    }
+
+    assertNotNull(card, "the run never stopped on a card");
+    assertEquals(2, requireRun().transitions().stream().filter(t -> t.reason() != null
+        && t.reason().startsWith(RecoveryAttemptLedger.AUTOMATIC_REOPEN_REASON_PREFIX + "design-input")).count());
+    assertTrue(cardActions(card.prompt()).contains(ChatEvent.RETRY_CREATION_ACTION), card.prompt());
+  }
+
+  /**
+   * Starts a run whose design-input succeeds, adding the repair history it was given to {@code histories} on every
+   * turn, and whose design-execution always rejects the design with the same graph-structure finding. Returns the
+   * runtime once design-input has run.
+   */
+  private CreateChainTestOrchestrator graphStructureRun(List<String> histories) {
+    return graphStructureRun(histories, false);
+  }
+
+  private CreateChainTestOrchestrator graphStructureRun(List<String> histories, boolean planApproval) {
+    ArtifactTypeRef revision = new ArtifactTypeRef("chain-semantic-revision", 1);
+    StageCapability designInput = capability("design-input-cap", context -> {
+      histories.add(context.attributeAsString(StageRepairEvidence.REPAIR_HISTORY_ATTR));
+      return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(StageOutcomeClass.SUCCEEDED,
+          List.of(new ArtifactCandidate(Kind.CHAIN_SEMANTIC_REVISION, SemanticFixtures.linearOrders(), List.of())),
+          "semantic revision ready", null)));
+    });
+    StageCapability execution = capability("execution-cap", context -> Multi.createFrom().item(
+        new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
+            "condition role if has 0 child; the contract requires at least 1 (cardinality)",
+            RecoveryCause.of(RecoveryCauseCode.GRAPH_STRUCTURE)))));
+    var plan = new ArtifactTypeRef("implementation-plan", 1);
+    List<ProfileStage> stages = new ArrayList<>();
+    stages.add(new ProfileStage("design-input", "design-input-cap", List.of(new ArtifactTypeRef("user-input", 1)),
+        List.of(revision), null, null, new RetryPolicy(0, 1L)));
+    if (planApproval) {
+      stages.add(new ProfileStage("design-planning", "planning-cap", List.of(revision), List.of(plan),
+          new ApprovalPolicy(plan), null, new RetryPolicy(0, 1L)));
+    }
+    stages.add(new ProfileStage("design-execution", "execution-cap",
+        planApproval ? List.of(revision, plan) : List.of(revision),
+        List.of(new ArtifactTypeRef("chain-plan-graph", 1)), null, null, new RetryPolicy(0, 1L)));
+    ProductPipelineProfile profile = new ProductPipelineProfile(1, "graph-structure-recovery", "2",
+        List.of(new ArtifactTypeRef("user-input", 1)), stages,
+        new TerminalPolicy("design-execution", "CHAIN_MATERIALIZED"),
+        stages.stream().map(ProfileStage::stageId).toList());
+    CreateChainTestOrchestrator runtime = newRuntime(profile, designInput, planningAlwaysCandidate(), execution);
+    startAndRecordInput(runtime, profile);
+    applyLifecycle(runtime, execute(runtime, "design-input"));
+    return runtime;
+  }
+
   @ParameterizedTest
   @org.junit.jupiter.params.provider.CsvSource({"1,false", "2,false", "2,true", "8,false"})
   void preWriteMaterializationContractShapeReopensSucceededDesignExecution(int failures, boolean typedFinding) {
@@ -4329,41 +5958,45 @@ class ProductPipelineStageExecutorTest {
     assertInstanceOf(StageDecision.Continue.class, executionResult.decision());
     applyLifecycle(runtime, executionResult);
 
-    StageExecutionResult failed = execute(runtime, "materialization");
-    StageDecision.ReopenProducer reopen =
-        assertInstanceOf(
-            StageDecision.ReopenProducer.class, failed.decision());
-
-    assertEquals("design-execution", reopen.producerStageId());
-    applyLifecycle(runtime, failed);
-    assertEquals("design-execution", requireRun().run().currentStageId());
-    var repaired = execute(runtime, "design-execution");
-    assertInstanceOf(StageDecision.Continue.class, repaired.decision());
-    applyLifecycle(runtime, repaired);
+    // The defect reopens design-execution automatically up to maxCausalReopens times, then regenerates it.
+    int reopens = Math.min(failures, ProductPipelineRunSupport.MAX_CAUSAL_REOPENS);
     var result = execute(runtime, "materialization");
-    int manualRepairs = Math.min(failures - 1, 2);
-    for (int attempt = 0; attempt < manualRepairs; attempt++) {
-      var wait = assertInstanceOf(StageDecision.WaitForInput.class, result.decision());
-      assertEquals(PipelineGates.RECOVERY_REGENERATE_EXECUTION, PipelineGates.gateOf(wait.prompt()).orElseThrow());
-      assertFalse(ChatEvent.actionsForGate(PipelineGates.gateOf(wait.prompt()).orElseThrow()).isEmpty());
-      assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
-      assertEquals(1, requireRun().transitions().stream().filter(transition ->
-          transition.reason().startsWith(RecoveryAttemptLedger.AUTOMATIC_REOPEN_REASON_PREFIX)).count());
-      runtime.recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.RETRY_ACTION))
-          .collect().asList().await().indefinitely();
+    for (int attempt = 0; attempt < reopens; attempt++) {
+      var decision = result.decision();
+      StageDecision.ReopenProducer reopen =
+          assertInstanceOf(StageDecision.ReopenProducer.class, decision, decision::toString);
+      assertEquals("design-execution", reopen.producerStageId());
+      applyLifecycle(runtime, result);
+      assertEquals("design-execution", requireRun().run().currentStageId());
+      var repaired = execute(runtime, "design-execution");
+      assertInstanceOf(StageDecision.Continue.class, repaired.decision());
+      applyLifecycle(runtime, repaired);
+      result = execute(runtime, "materialization");
+    }
+    int regenerations = Math.max(0, Math.min(failures - reopens, 2));
+    for (int attempt = 0; attempt < regenerations; attempt++) {
+      var regenerate = assertInstanceOf(StageDecision.Retry.class, result.decision());
+      assertEquals("design-execution", regenerate.stageId());
+      assertEquals(List.of(), result.signals().stream()
+          .filter(PipelineSignal.WaitingForInput.class::isInstance).toList());
       assertEquals(RunStatus.RUNNING, requireRun().run().status());
       assertEquals("design-execution", requireRun().run().currentStageId());
+      assertEquals(StageStatus.PENDING, snapshot(requireRun(), "materialization").status());
+      assertEquals(List.of("Regenerating the chain from the approved plan"), progressLabels(result));
+      assertEquals(reopens, requireRun().transitions().stream().filter(transition ->
+          transition.reason().startsWith(RecoveryAttemptLedger.AUTOMATIC_REOPEN_REASON_PREFIX)).count());
+      applyLifecycle(runtime, result);
       applyLifecycle(runtime, execute(runtime, "design-execution"));
       result = execute(runtime, "materialization");
     }
-    assertEquals(manualRepairs, requireRun().transitions().stream().filter(transition ->
+    assertEquals(regenerations, requireRun().transitions().stream().filter(transition ->
         transition.reason().startsWith(ProductPipelineStageExecutor.PRODUCER_REPAIR_REASON_PREFIX)).count());
-    if (failures > 3) {
+    if (failures > reopens + regenerations) {
       var exhausted = assertInstanceOf(StageDecision.WaitForInput.class, result.decision());
-      assertFalse(ChatEvent.actionsForGate(PipelineGates.gateOf(exhausted.prompt()).orElseThrow())
+      assertTrue(ChatEvent.actionsForGate(PipelineGates.gateOf(exhausted.prompt()).orElseThrow())
           .contains(ChatEvent.RETRY_CREATION_ACTION));
       assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
-      assertEquals(4, materializationCalls.get());
+      assertEquals(reopens + regenerations + 1, materializationCalls.get());
       return;
     }
     var complete = assertInstanceOf(StageDecision.Complete.class, result.decision());
@@ -4434,6 +6067,44 @@ class ProductPipelineStageExecutorTest {
     assertEquals(RunStatus.CHAIN_MATERIALIZED, requireRun().run().status());
     assertEquals(2, materializationCalls.get());
     assertTrue(runtime.support().latestCatalogChainSnapshot(RUN_ID).isPresent());
+  }
+
+  @Test
+  void shouldRetryOnlyReadBackAfterCatalogVerificationFails() {
+    var calls = new AtomicInteger();
+    var brief = new ArtifactTypeRef("requirement-brief", 1);
+    var materialization = capability("materialization-cap", context -> {
+      if (calls.getAndIncrement() == 0) {
+        var checkpoint = new org.qubership.integration.platform.ai.productpipeline.materialization.MaterializationCheckpoint(
+            1, RUN_ID, "catalog-chain-1",
+            org.qubership.integration.platform.ai.productpipeline.materialization.MaterializationPhase.RECONCILE,
+            new org.qubership.integration.platform.ai.integration.catalog.materialize.MaterializationMap(
+                "catalog-chain-1", Map.of("trigger", "el-1"), Map.of(), Map.of()), null, Map.of());
+        artifactStore.append(new CompilationArtifacts.AppendCommand(RUN_ID, Kind.MATERIALIZATION_CHECKPOINT,
+            "1", "materialization-cap", "1", checkpoint, List.of(), null,
+            artifactStore.latest(RUN_ID, Kind.REQUIREMENT_BRIEF).orElseThrow().provenance()));
+        return Multi.createFrom().item(new CapabilitySignal.Completed(
+            StageOutcome.of(StageOutcomeClass.VALIDATION_FAILURE, "Catalog read-back differs from the approved graph.")));
+      }
+      assertEquals(true, context.attributes().get(ProductPipelineRunSupport.CATALOG_RECHECK_ATTR));
+      return Multi.createFrom().item(new CapabilitySignal.Completed(
+          StageOutcome.of(StageOutcomeClass.VALIDATION_FAILURE, "Catalog read-back still differs from the approved graph.")));
+    });
+    var profile = analysisThenMaterializationProfile(brief);
+    var runtime = newRuntime(new FailureNarrative(FakeFailureNarrativeAgent.owner("The brief is wrong.", "analysis")),
+        profile, analysisCandidate(), materialization);
+    startAndRecordInput(runtime, profile);
+    approveCurrentStage(runtime, "analysis");
+
+    var wait = assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "materialization").decision());
+    assertEquals(PipelineGates.RECOVERY_CATALOG_RECHECK, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    runtime.recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.RETRY_ACTION, "read-back-retry", "read-back-hash",
+        InputOrigin.TRUSTED)).collect().asList().await().indefinitely();
+
+    var secondWait = assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "materialization").decision());
+    assertEquals(PipelineGates.RECOVERY_CATALOG_RECHECK, PipelineGates.gateOf(secondWait.prompt()).orElseThrow());
+    assertEquals(2, calls.get());
+    assertEquals("materialization", requireRun().run().currentStageId());
   }
 
   @ParameterizedTest
@@ -5091,11 +6762,11 @@ class ProductPipelineStageExecutorTest {
             "historical-producer", "1", "sha")));
     approveCurrentStage(runtime, "requirement-analysis");
 
-    StageDecision.WaitForInput wait = waitAfterOptionalSemanticRepair(runtime, "design-input");
+    StageDecision.WaitForInput wait = waitAfterOptionalSemanticRepair(runtime, "design-input", 12);
 
-    assertEquals(3, captureCalls.get());
+    assertEquals(13, captureCalls.get());
     assertEquals(
-        PipelineGates.RECOVERY_REPAIR_ALLOWANCE,
+        PipelineGates.RECOVERY_REBUILD_DESIGN,
         PipelineGates.gateOf(wait.prompt()).orElseThrow());
     assertFalse(
         ChatEvent.actionsForGate(PipelineGates.gateOf(wait.prompt()).orElseThrow())
@@ -5237,11 +6908,11 @@ class ProductPipelineStageExecutorTest {
     startAndRecordInput(runtime, profile);
     approveCurrentStage(runtime, "requirement-analysis");
 
-    StageDecision.WaitForInput wait = waitAfterOptionalSemanticRepair(runtime, "design-input");
+    StageDecision.WaitForInput wait = waitAfterOptionalSemanticRepair(runtime, "design-input", 12);
 
-    assertEquals(3, captureCalls.get());
+    assertEquals(13, captureCalls.get());
     assertEquals(
-        PipelineGates.RECOVERY_REPAIR_ALLOWANCE,
+        PipelineGates.RECOVERY_REBUILD_DESIGN,
         PipelineGates.gateOf(wait.prompt()).orElseThrow());
     assertTrue(PipelineGates.ownerCandidatesOf(wait.prompt()).isEmpty());
     assertFalse(PipelineGates.strip(wait.prompt()).contains("requirement-analysis"));
@@ -5280,8 +6951,12 @@ class ProductPipelineStageExecutorTest {
         newRuntime(new FailureNarrative(agent), profile, analysisCandidate(), designInput);
     startAndRecordInput(runtime, profile);
     approveCurrentStage(runtime, "requirement-analysis");
-    StageDecision.WaitForInput first = waitAfterOptionalSemanticRepair(runtime, "design-input");
-    applyLifecycle(runtime, new StageExecutionResult(first, List.of()));
+    for (int correction = 0; correction < 2; correction++) {
+      StageExecutionResult result = execute(runtime, "design-input");
+      assertInstanceOf(StageDecision.Retry.class, result.decision());
+      applyLifecycle(runtime, result);
+    }
+    presentSavedRepairOffer();
 
     runtime
         .recordInput(new AcceptInputCommand(RUN_ID, ProductPipelineRunSupport.repairOfferCommand(requireRun()),
@@ -5294,7 +6969,7 @@ class ProductPipelineStageExecutorTest {
     assertEquals("design-input", requireRun().run().currentStageId());
     assertEquals(RunStatus.RUNNING, requireRun().run().status());
     assertEquals(StageStatus.RUNNING, snapshot(requireRun(), "design-input").status());
-    assertEquals(3, captureCalls.get());
+    assertEquals(2, captureCalls.get());
   }
 
   @ParameterizedTest
@@ -5469,6 +7144,644 @@ class ProductPipelineStageExecutorTest {
   }
 
   @ParameterizedTest
+  @org.junit.jupiter.params.provider.CsvSource({"next-stage,false", "terminal,false", "implementation-gate,false",
+      "next-stage,true", "terminal,true", "implementation-gate,true"})
+  void sourceRestorationIsPromotedOnlyAfterTheBriefApprovalCommits(String boundary, boolean interrupted) {
+    var briefType = new ArtifactTypeRef("requirement-brief", 1);
+    var planType = new ArtifactTypeRef("implementation-plan", 1);
+    var analysis = new ProfileStage("requirement-analysis", "analysis-cap",
+        List.of(new ArtifactTypeRef("user-input", 1)), List.of(briefType),
+        new ApprovalPolicy(briefType), null, new RetryPolicy(0, 1L));
+    var planning = new ProfileStage("design-planning", "planning-cap", List.of(briefType), List.of(planType),
+        new ApprovalPolicy(planType), null, new RetryPolicy(0, 1L));
+    var profile = new ProductPipelineProfile(1, "source-approval", "2", analysis.consumes(),
+        "terminal".equals(boundary) ? List.of(analysis) : List.of(analysis, planning),
+        new TerminalPolicy("terminal".equals(boundary) ? analysis.stageId() : planning.stageId(), "PLAN_APPROVED"),
+        List.of("analysis-cap", "planning-cap"), null,
+        "implementation-gate".equals(boundary)
+            ? new org.qubership.integration.platform.ai.productpipeline.profile.ImplementationGatePolicy(
+                analysis.stageId(), briefType, "WAITING_FOR_IMPLEMENT") : null);
+    var runtime = newRuntime(profile, analysisWithBrief(
+        new RequirementBrief("Use a QIP script.", List.of(), List.of(), List.of(), List.of(), "")),
+        planningAlwaysCandidate());
+    var drafts = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.plan.RequirementDraftStore.class);
+    runtime.support().withNativeRequirementCapture(drafts, null);
+    var promotions = new AtomicInteger();
+    org.mockito.Mockito.doAnswer(call -> {
+      assertEquals(StageStatus.SUCCEEDED, snapshot(requireRun(), analysis.stageId()).status());
+      assertEquals(call.getArgument(1, Reference.class).artifactId(),
+          snapshot(requireRun(), analysis.stageId()).approvedArtifactId());
+      if (promotions.incrementAndGet() == 1 && interrupted) throw new IllegalStateException("Interrupted promotion");
+      return null;
+    }).when(drafts).promoteSourceRestoration(org.mockito.ArgumentMatchers.eq(CONVERSATION),
+        org.mockito.ArgumentMatchers.any(Reference.class));
+    startAndRecordInput(runtime, profile);
+    var waiting = assertInstanceOf(StageDecision.WaitForApproval.class,
+        execute(runtime, analysis.stageId()).decision());
+    assertEquals(0, promotions.get());
+    long revision = requireRun().run().runRevision();
+    assertThrows(StaleApprovalException.class, () -> runtime.recordApprove(new ApproveCommand(
+        RUN_ID, waiting.candidate(), revision - 1)).collect().asList().await().indefinitely());
+    assertThrows(StaleApprovalException.class, () -> runtime.recordApprove(new ApproveCommand(
+        RUN_ID, new Reference(Kind.REQUIREMENT_BRIEF, "foreign", "foreign"), revision))
+        .collect().asList().await().indefinitely());
+    assertEquals(0, promotions.get());
+
+    var approval = new ApproveCommand(RUN_ID, waiting.candidate(), revision, "approve-source", "approve-source-hash");
+    if (interrupted) {
+      assertThrows(IllegalStateException.class,
+          () -> runtime.recordApprove(approval).collect().asList().await().indefinitely());
+    } else {
+      runtime.recordApprove(approval).collect().asList().await().indefinitely();
+    }
+    assertEquals(1, promotions.get());
+    runtime.recordApprove(approval).collect().asList().await().indefinitely();
+    assertEquals(2, promotions.get(), "A replay must finish a promotion interrupted after the approval commit.");
+    if ("next-stage".equals(boundary)) {
+      assertEquals(planning.stageId(), requireRun().run().currentStageId());
+      approveStage(runtime, planning.stageId());
+      assertEquals(2, promotions.get(), "An implementation plan approval cannot promote source wording.");
+    }
+  }
+
+  @Test
+  void rejectedSourceApprovalPreflightLeavesTheReviewAndStoreUncommitted() {
+    var profile = analysisThenPlanningThenExecutionProfile();
+    var runtime = newRuntime(profile, analysisWithBrief(
+        new RequirementBrief("Use a QIP script.", List.of(), List.of(), List.of(), List.of(), "")),
+        planningAlwaysCandidate());
+    var drafts = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.plan.RequirementDraftStore.class);
+    runtime.support().withNativeRequirementCapture(drafts, null);
+    startAndRecordInput(runtime, profile);
+    var waiting = assertInstanceOf(StageDecision.WaitForApproval.class, execute(runtime, "requirement-analysis").decision());
+    long revision = requireRun().run().runRevision();
+    org.mockito.Mockito.doAnswer(call -> {
+      assertEquals(RunStatus.WAITING_FOR_APPROVAL, requireRun().run().status());
+      assertEquals(revision, requireRun().run().runRevision());
+      throw new IllegalStateException("Source correction has a newer author input");
+    }).when(drafts).validateSourceRestorationApproval(org.mockito.ArgumentMatchers.eq(CONVERSATION),
+        org.mockito.ArgumentMatchers.eq(waiting.candidate()), org.mockito.ArgumentMatchers.isNull());
+
+    assertThrows(IllegalStateException.class, () -> runtime.recordApprove(new ApproveCommand(
+        RUN_ID, waiting.candidate(), revision)).collect().asList().await().indefinitely());
+
+    assertEquals(revision, requireRun().run().runRevision());
+    assertEquals(RunStatus.WAITING_FOR_APPROVAL, requireRun().run().status());
+    assertEquals(StageStatus.WAITING_FOR_APPROVAL, snapshot(requireRun(), "requirement-analysis").status());
+    assertEquals(List.of(), artifactStore.history(RUN_ID, Kind.APPROVAL_RECORD));
+    org.mockito.Mockito.verify(drafts, org.mockito.Mockito.never()).promoteSourceRestoration(
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(Reference.class));
+  }
+
+  @Test
+  void briefReviewShowsTheExactSourceWordingCorrectionBeforeApproval() {
+    var evidence = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.ClaimEvidenceInput(
+        "source-turn", "Use a QIP script.");
+    var original = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput(
+        "script", List.of(), org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactKind.BEHAVIOR,
+        org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polarity.POSITIVE,
+        "Use a Groovy QIP script.", null, null, null, evidence);
+    var corrected = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput(
+        original.sourceFactId(), original.interactionIds(), original.kind(), original.polarity(), evidence.quote(),
+        original.fieldMapping(), original.policyConflict(), original.elementIntent(), evidence);
+    var input = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput(
+        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FlowInput(List.of(), List.of()),
+        List.of(original), List.of(), List.of(),
+        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftSettings(false, null));
+    var accepted = org.qubership.integration.platform.ai.plan.RequirementCaptureProjection.toDraft(
+        input, null, List.of(), "1", "hash");
+    var replacement = org.qubership.integration.platform.ai.plan.RequirementCaptureProjection.toDraft(
+        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput(input.flow(), List.of(corrected),
+            input.capabilities(), input.openQuestions(), input.settings()), accepted, List.of(), "1", "hash");
+    var draftRevision = artifactStore.append(new CompilationArtifacts.AppendCommand(RUN_ID, Kind.REQUIREMENT_DRAFT,
+        "1", "requirement-discovery", "1", replacement, List.of(), null,
+        new org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactProvenance(
+            RUN_ID, "requirement-discovery", "source-review", "2", "profile-hash", "requirement-discovery", "1", "closure")));
+    var brief = new RequirementBrief("Use a QIP script.", List.of(), List.of(), List.of(), List.of(), "",
+        draftRevision.artifactId(), replacement.planningText(), replacement.facts());
+    var profile = analysisThenPlanningThenExecutionProfile();
+    var runtime = newRuntime(profile, analysisWithBrief(brief), planningAlwaysCandidate(),
+        capability("execution-cap", context -> Multi.createFrom().item(
+            new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.SUCCEEDED, "ready")))));
+    var drafts = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.plan.RequirementDraftStore.class);
+    org.mockito.Mockito.when(drafts.get(CONVERSATION)).thenReturn(java.util.Optional.of(accepted));
+    runtime.support().withNativeRequirementCapture(drafts, null);
+    startAndRecordInput(runtime, profile);
+    var result = execute(runtime, "requirement-analysis");
+    var messages = runtime.support().applyStageLifecycle(RUN_ID, result).collect().asList().await().indefinitely();
+    String review = messages.stream().filter(PipelineSignal.Message.class::isInstance)
+        .map(PipelineSignal.Message.class::cast).map(PipelineSignal.Message::text)
+        .collect(Collectors.joining("\n"));
+    assertTrue(review.contains("**Previous wording:**\n> Use a Groovy QIP script."), review);
+    assertTrue(review.contains("**Proposed source wording:**\n> Use a QIP script."), review);
+    org.mockito.Mockito.verify(drafts, org.mockito.Mockito.never()).promoteSourceRestoration(
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(Reference.class));
+  }
+
+  @Test
+  void sourceOmissionReopensTheDiscoveryStageThatProducedTheReviewedDraft() {
+    var draft = sourceWordingDraft(false, false);
+    var importedDraft = draft.withImportIntent(true);
+    var review = new org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool.SourceReview(
+        "generation", "source-hash", org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(importedDraft),
+        List.of(new org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceOmission(
+            "source-turn", "Do not retry.", "The draft omits the retry limit.")));
+    var profile = discoveryAndAnalysisThenPlanningProfile(new ArtifactTypeRef("requirement-draft", 1),
+        new ArtifactTypeRef("requirement-brief", 1), new ArtifactTypeRef("plan-validation-result", 1));
+    var stages = new ArrayList<>(profile.stages());
+    var originalOwner = stages.getFirst();
+    stages.set(0, new ProfileStage(originalOwner.stageId(), "requirement-discovery", originalOwner.consumes(),
+        originalOwner.produces(), null, originalOwner.bypass(), originalOwner.retry(), originalOwner.skip()));
+    var draftType = new ArtifactTypeRef("requirement-draft", 1);
+    stages.add(1, new ProfileStage("uploaded-spec-import", "import-cap", List.of(draftType), List.of(draftType),
+        null, null, new RetryPolicy(0, 1L)));
+    profile = new ProductPipelineProfile(profile.schemaVersion(), profile.profileId(), profile.profileVersion(),
+        profile.runInputs(), stages, profile.terminal(),
+        List.of("requirement-discovery", "import-cap", "analysis-cap", "planning-cap"));
+    var discovery = capability("requirement-discovery", context -> {
+      if (context.attributeAsString("userText") == null && !StageRepairEvidence.isRepairTurn(context)) {
+        return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "Requirements needed.")));
+      }
+      return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(StageOutcomeClass.SUCCEEDED,
+          List.of(new ArtifactCandidate(Kind.REQUIREMENT_DRAFT, draft, List.of())), "ready", null)));
+    });
+    var importStage = capability("import-cap", context -> Multi.createFrom().item(new CapabilitySignal.Completed(
+        new StageOutcome(StageOutcomeClass.SUCCEEDED,
+            List.of(new ArtifactCandidate(Kind.REQUIREMENT_DRAFT, importedDraft, context.inputRefs())), "imported", null))));
+    var analysisCalls = new AtomicInteger();
+    var analysis = capability("analysis-cap", context -> {
+      analysisCalls.incrementAndGet();
+      return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
+          "The draft omits the retry limit.", new RecoveryCause(RecoveryCauseCode.MISSING_BRIEF_FACTS,
+              List.of(new PlanValidationFinding("MISSING_BRIEF_FACTS", "The draft omits the retry limit.", true)),
+              "", false, null, review))));
+    });
+    var narrative = org.mockito.Mockito.mock(FailureNarrative.class);
+    org.mockito.Mockito.when(narrative.diagnoseRecovery(org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(RecoveryContext.class))).thenAnswer(call -> {
+      RecoveryContext context = call.getArgument(1);
+      return FailureNarrative.RecoveryResult.reply(new RecoveryDecision(RecoveryCauseClass.UNCLASSIFIED, null,
+          List.of(context.evidence().failureId()), RecoveryAction.PARK, List.of(), "", "Review the rejected input."));
+    });
+    var runtime = newRuntime(narrative, profile, discovery, importStage, analysis, planningAlwaysCandidate());
+    runtime.support().withNativeRequirementCapture(
+        org.mockito.Mockito.mock(org.qubership.integration.platform.ai.plan.RequirementDraftStore.class), null);
+    startAndRecordInput(runtime, profile);
+    applyLifecycle(runtime, execute(runtime, originalOwner.stageId()));
+    applyLifecycle(runtime, execute(runtime, "uploaded-spec-import"));
+
+    var result = execute(runtime, "requirement-analysis");
+
+    assertEquals(originalOwner.stageId(), assertInstanceOf(StageDecision.ReopenProducer.class,
+        result.decision()).producerStageId());
+    assertEquals(1, analysisCalls.get());
+    org.mockito.Mockito.verify(narrative, org.mockito.Mockito.never()).diagnoseRecovery(
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(RecoveryContext.class));
+  }
+
+  @Test
+  void discoveryInterpretationReportStagesTheDraftUntilBriefApproval() {
+    var draft = sourceWordingDraft(false, false);
+    var review = new org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool.SourceReview(
+        "generation", "source-hash", org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(draft),
+        List.of(new org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceOmission(
+            "source-turn", "Use a QIP script.", "Correct the projection.",
+            org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceDiscrepancyKind.INTERPRETATION_CONFLICT,
+            "script", "/importIntent", "false", "true")));
+    var profile = discoveryAndAnalysisThenPlanningProfile(new ArtifactTypeRef("requirement-draft", 1),
+        new ArtifactTypeRef("requirement-brief", 1), new ArtifactTypeRef("plan-validation-result", 1));
+    var stages = new ArrayList<>(profile.stages());
+    var originalOwner = stages.getFirst();
+    stages.set(0, new ProfileStage(originalOwner.stageId(), "requirement-discovery", originalOwner.consumes(),
+        originalOwner.produces(), null, originalOwner.bypass(), originalOwner.retry(), originalOwner.skip()));
+    stages.set(2, new ProfileStage("design-input", "ids-cap", List.of(new ArtifactTypeRef("requirement-brief", 1)),
+        List.of(new ArtifactTypeRef("ids-document", 1)), null, null, new RetryPolicy(0, 1L)));
+    profile = new ProductPipelineProfile(profile.schemaVersion(), profile.profileId(), profile.profileVersion(),
+        profile.runInputs(), stages, new TerminalPolicy("design-input", "PLAN_APPROVED"),
+        List.of("requirement-discovery", "analysis-cap", "ids-cap"));
+    var discoveryCalls = new AtomicInteger();
+    var discovery = capability("requirement-discovery", context -> {
+      if (context.attributeAsString("userText") == null && !StageRepairEvidence.isRepairTurn(context)) {
+        return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "Requirements needed.")));
+      }
+      if (discoveryCalls.incrementAndGet() > 1) {
+        assertEquals(review, context.attributes().get("sourceRestorationReview"));
+        return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(StageOutcomeClass.SUCCEEDED,
+            List.of(new ArtifactCandidate(Kind.REQUIREMENT_DRAFT, draft.withImportIntent(true), List.of())), "repaired", null)));
+      }
+      var cause = new RecoveryCause(RecoveryCauseCode.MISSING_BRIEF_FACTS,
+          List.of(new PlanValidationFinding("SOURCE_INTERPRETATION_CONFLICT", "Correct the projection.", true)),
+          "", false, null, review);
+      return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(StageOutcomeClass.CONTRACT_FAILURE,
+          List.of(new ArtifactCandidate(Kind.REQUIREMENT_DRAFT, draft, List.of())), "Correct the projection.", null, cause)));
+    });
+    var correctedRef = new AtomicReference<Reference>();
+    var analysis = capability("analysis-cap", context -> {
+      var ref = context.inputRefs().stream().filter(value -> value.kind() == Kind.REQUIREMENT_DRAFT).findFirst().orElseThrow();
+      assertEquals(draft.withImportIntent(true), artifactStore.payload(artifactStore.get(RUN_ID, ref).orElseThrow(),
+          RequirementDraft.class));
+      correctedRef.set(ref);
+      var brief = new RequirementBrief("Brief", List.of(), List.of(), List.of(), List.of(), "",
+          ref.artifactId(), "", List.of());
+      return analysisWithBrief(brief).execute(context);
+    });
+    var briefRef = new AtomicReference<Reference>();
+    var ids = capability("ids-cap", context -> {
+      var brief = (RequirementBrief) context.attributes().get("requirementBrief");
+      assertEquals(correctedRef.get().artifactId(), brief.approvedDraftReference());
+      briefRef.set(context.inputRefs().stream().filter(value -> value.kind() == Kind.REQUIREMENT_BRIEF)
+          .findFirst().orElseThrow());
+      var document = new org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument(
+          "1", org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument.Mode.DERIVED,
+          briefRef.get().artifactId(), briefRef.get().contentHash(), "flow-hash", "renderer", "# IDS");
+      return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(StageOutcomeClass.SUCCEEDED,
+          List.of(new ArtifactCandidate(Kind.IDS_DOCUMENT, document, context.inputRefs())), "IDS ready", null)));
+    });
+    var runtime = newRuntime(profile, discovery, analysis, ids);
+    runtime.support().withNativeRequirementCapture(
+        org.mockito.Mockito.mock(org.qubership.integration.platform.ai.plan.RequirementDraftStore.class), null);
+    startAndRecordInput(runtime, profile);
+
+    var result = execute(runtime, originalOwner.stageId());
+
+    assertInstanceOf(StageDecision.Retry.class, result.decision());
+    var owner = snapshot(requireRun(), originalOwner.stageId());
+    assertEquals(List.of(), owner.outputRefs());
+    assertEquals(1, owner.candidateReferences().size());
+    assertEquals(draft, artifactStore.payload(artifactStore.get(RUN_ID, owner.candidateReferences().getFirst()).orElseThrow(),
+        RequirementDraft.class));
+    assertEquals(List.of(), artifactStore.history(RUN_ID, Kind.APPROVAL_RECORD));
+    applyLifecycle(runtime, result);
+    var repaired = execute(runtime, originalOwner.stageId());
+    assertInstanceOf(StageDecision.Continue.class, repaired.decision());
+    applyLifecycle(runtime, repaired);
+    var approval = assertInstanceOf(StageDecision.WaitForApproval.class, execute(runtime, "requirement-analysis").decision());
+    assertEquals(2, discoveryCalls.get());
+    assertEquals(List.of(), artifactStore.history(RUN_ID, Kind.APPROVAL_RECORD));
+    runtime.recordApprove(new ApproveCommand(RUN_ID, approval.candidate(), requireRun().run().runRevision()))
+        .collect().asList().await().indefinitely();
+    assertInstanceOf(StageDecision.Complete.class, execute(runtime, "design-input").decision());
+    var document = artifactStore.payload(artifactStore.latest(RUN_ID, Kind.IDS_DOCUMENT).orElseThrow(),
+        org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument.class);
+    assertEquals(briefRef.get().artifactId(), document.sourceReference());
+    assertEquals(briefRef.get().contentHash(), document.sourceHash());
+  }
+
+  @ParameterizedTest
+  @org.junit.jupiter.params.provider.CsvSource({"false,false,false", "true,false,false", "false,true,false", "false,true,true"})
+  void sourceRestorationRequiresTheFirstUpcomingApprovalToReviewTheBrief(
+      boolean interveningApproval, boolean priorBrief, boolean interpretation) {
+    var draftType = new ArtifactTypeRef("requirement-draft", 1);
+    var briefType = new ArtifactTypeRef("requirement-brief", 1);
+    var reviewType = new ArtifactTypeRef("implementation-plan", 1);
+    var base = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput(
+        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FlowInput(List.of(), List.of()),
+        List.of(new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput("script", List.of(),
+            org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactKind.BEHAVIOR,
+            org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polarity.POSITIVE,
+            "Use a Groovy QIP script.")), List.of(), List.of(),
+        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftSettings(false, null));
+    var draft = org.qubership.integration.platform.ai.plan.RequirementCaptureProjection.toDraft(
+        base, null, List.of(), "1", "hash");
+    var review = new org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool.SourceReview(
+        "generation", "source-hash", org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(draft),
+        List.of(new org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceOmission(
+            "source-turn", "Use a QIP script.", "Groovy is an unsupported addition.",
+            interpretation
+                ? org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceDiscrepancyKind.INTERPRETATION_CONFLICT
+                : org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceDiscrepancyKind.UNSUPPORTED_ADDITION,
+            "script", interpretation ? "/capabilities/entry/type" : null,
+            interpretation ? "\"http-trigger\"" : null, interpretation ? "null" : null)));
+    var stages = new ArrayList<ProfileStage>();
+    stages.add(new ProfileStage("requirement-discovery", "requirement-discovery",
+        List.of(new ArtifactTypeRef("user-input", 1)), List.of(draftType), null, null, new RetryPolicy(0, 1L)));
+    if (interveningApproval) stages.add(new ProfileStage("intervening-review", "review-cap", List.of(draftType),
+        List.of(reviewType), new ApprovalPolicy(reviewType), null, new RetryPolicy(0, 1L)));
+    stages.add(new ProfileStage("requirement-analysis", "analysis-cap", List.of(draftType), List.of(briefType),
+        new ApprovalPolicy(briefType), null, new RetryPolicy(0, 1L)));
+    var profile = new ProductPipelineProfile(1, "source-first-approval", "2", stages.getFirst().consumes(), stages,
+        new TerminalPolicy("requirement-analysis", "PLAN_APPROVED"),
+        List.of("requirement-discovery", "review-cap", "analysis-cap"));
+    var discoveryCalls = new AtomicInteger();
+    var granted = new AtomicReference<Boolean>();
+    var discovery = capability("requirement-discovery", context -> {
+      if (context.attributeAsString("userText") == null && !StageRepairEvidence.isRepairTurn(context)) {
+        return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "Requirements needed.")));
+      }
+      if (discoveryCalls.incrementAndGet() > 1) {
+        granted.set(context.attributes().get("sourceRestorationReview") == review
+            || review.equals(context.attributes().get("sourceRestorationReview")));
+      }
+      return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(StageOutcomeClass.SUCCEEDED,
+          List.of(new ArtifactCandidate(Kind.REQUIREMENT_DRAFT, draft, List.of())), "ready", null)));
+    });
+    var analysis = capability("analysis-cap", context -> Multi.createFrom().item(new CapabilitySignal.Completed(
+        StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE, "Reconcile source wording.", new RecoveryCause(
+            RecoveryCauseCode.MISSING_BRIEF_FACTS, List.of(new PlanValidationFinding("SOURCE_UNSUPPORTED_ADDITION",
+                "Reconcile source wording.", true, MappingValidationDetails.empty(), "script", "/facts/script/text")),
+            "", false, null, review)))));
+    var intermediate = capability("review-cap", context -> Multi.createFrom().item(new CapabilitySignal.Completed(
+        new StageOutcome(StageOutcomeClass.CANDIDATE, List.of(new ArtifactCandidate(Kind.IMPLEMENTATION_PLAN,
+            Map.of("plan", "review"), List.of())), "review", null))));
+    var runtime = newRuntime(profile, discovery, intermediate, analysis);
+    var drafts = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.plan.RequirementDraftStore.class);
+    runtime.support().withNativeRequirementCapture(drafts, null);
+    startAndRecordInput(runtime, profile);
+    if (priorBrief) {
+      artifactStore.append(new CompilationArtifacts.AppendCommand(RUN_ID, Kind.REQUIREMENT_BRIEF,
+          "1", "prior-review", "1", new RequirementBrief("Earlier brief", List.of(), List.of(), List.of(), List.of(), ""),
+          List.of(), null, new org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactProvenance(
+              RUN_ID, "requirement-analysis", "prior-review", "2", "profile-hash", "analysis-cap", "1", "closure")));
+    }
+    applyLifecycle(runtime, execute(runtime, "requirement-discovery"));
+    if (interveningApproval) approveStage(runtime, "intervening-review");
+    var repair = execute(runtime, "requirement-analysis");
+    if (interveningApproval || (priorBrief && !interpretation)) {
+      assertInstanceOf(StageDecision.WaitForInput.class, repair.decision());
+      assertEquals(1, discoveryCalls.get());
+      return;
+    }
+    assertEquals("requirement-discovery",
+        assertInstanceOf(StageDecision.ReopenProducer.class, repair.decision()).producerStageId());
+    applyLifecycle(runtime, repair);
+
+    execute(runtime, "requirement-discovery");
+
+    assertEquals(true, granted.get());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"approve", "repeat", "wrapper", "sequential", "projection"})
+  void sourceReconciliationPreservesPublishedRequirementsThroughTheExistingLifecycle(String scenario) {
+    var original = sourceWordingDraft(false, false);
+    var corrected = "projection".equals(scenario) ? original.withImportIntent(true)
+        : sourceWordingDraft(true, !"sequential".equals(scenario));
+    var draftType = new ArtifactTypeRef("requirement-draft", 1);
+    var briefType = new ArtifactTypeRef("requirement-brief", 1);
+    var profile = discoveryAndAnalysisThenPlanningProfile(draftType, briefType,
+        new ArtifactTypeRef("plan-validation-result", 1));
+    var stages = new ArrayList<>(profile.stages());
+    var previousOwner = stages.getFirst();
+    var owner = new ProfileStage(previousOwner.stageId(), "requirement-discovery", previousOwner.consumes(),
+        previousOwner.produces(), null, previousOwner.bypass(), previousOwner.retry(), previousOwner.skip());
+    stages.set(0, owner);
+    profile = new ProductPipelineProfile(profile.schemaVersion(), profile.profileId(), profile.profileVersion(),
+        profile.runInputs(), stages, profile.terminal(), List.of("requirement-discovery", "analysis-cap", "planning-cap"));
+    var stored = new AtomicReference<>(original);
+    var discoveryCalls = new AtomicInteger();
+    var analysisCalls = new AtomicInteger();
+    var supplied = new AtomicReference<>(original);
+    var initialReview = "projection".equals(scenario)
+        ? new org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool.SourceReview(
+            "generation", "source-hash",
+            org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(original),
+            List.of(new org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceOmission(
+                "source-turn", "Use a QIP script.", "Correct the selected projection.",
+                org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceDiscrepancyKind.INTERPRETATION_CONFLICT,
+                "script", "/importIntent", "false", "true")))
+        : sourceWordingReview(original, "generation", "Initial source comparison.",
+            "sequential".equals(scenario) ? List.of("script") : List.of("script", "ids"));
+    var discovery = capability(owner.capabilityId(), context -> {
+      if (context.attributeAsString("userText") == null && !StageRepairEvidence.isRepairTurn(context)) {
+        return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "Requirements needed.")));
+      }
+      if (discoveryCalls.incrementAndGet() > 1) {
+        assertEquals(StageStatus.RUNNING, snapshot(requireRun(), owner.stageId()).status());
+        assertEquals(owner.stageId(), context.attributes().get(ProductPipelineRunSupport.RECOVERY_PREPARING_OWNER_ATTR));
+        assertEquals(initialReview, context.attributes().get("sourceRestorationReview"));
+        assertEquals(original, stored.get());
+        supplied.set("repeat".equals(scenario) ? original
+            : "wrapper".equals(scenario) ? original.withImportIntent(true) : corrected);
+      }
+      return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(StageOutcomeClass.SUCCEEDED,
+          List.of(new ArtifactCandidate(Kind.REQUIREMENT_DRAFT, supplied.get(), List.of())), "ready", null)));
+    });
+    var analysis = capability("analysis-cap", context -> {
+      if (analysisCalls.incrementAndGet() == 1) return sourceWordingFailure(initialReview);
+      if (!"approve".equals(scenario) && !"projection".equals(scenario)) {
+        var repeated = sourceWordingReview(supplied.get(), "different-generation", "Different explanation and attempt.",
+            "sequential".equals(scenario) ? List.of("ids") : List.of("script", "ids"));
+        return sourceWordingFailure(repeated);
+      }
+      Reference pinned = context.inputRefs().stream().filter(ref -> ref.kind() == Kind.REQUIREMENT_DRAFT)
+          .findFirst().orElseThrow();
+      var brief = new RequirementBrief("Use a QIP script.", List.of(), List.of(), List.of(), List.of(), "",
+          pinned.artifactId(), corrected.planningText(), corrected.facts());
+      return analysisWithBrief(brief).execute(context);
+    });
+    var runtime = newRuntime(profile, discovery, analysis, planningAlwaysCandidate());
+    var drafts = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.plan.RequirementDraftStore.class);
+    org.mockito.Mockito.when(drafts.get(CONVERSATION)).thenAnswer(ignored -> java.util.Optional.of(stored.get()));
+    org.mockito.Mockito.when(drafts.hasSourceRestorationCandidate(org.mockito.ArgumentMatchers.eq(CONVERSATION),
+        org.mockito.ArgumentMatchers.any(Reference.class))).thenReturn(true);
+    org.mockito.Mockito.when(drafts.sourceRestorationApprovalSource(org.mockito.ArgumentMatchers.eq(CONVERSATION),
+        org.mockito.ArgumentMatchers.any(Reference.class), org.mockito.ArgumentMatchers.anyLong())).thenReturn("approval-control");
+    var promotions = new AtomicInteger();
+    org.mockito.Mockito.doAnswer(call -> {
+      assertEquals(StageStatus.WAITING_FOR_APPROVAL, snapshot(requireRun(), "requirement-analysis").status());
+      assertEquals(original, stored.get());
+      assertEquals("approval-control", call.getArgument(2));
+      return null;
+    }).when(drafts).validateSourceRestorationApproval(org.mockito.ArgumentMatchers.eq(CONVERSATION),
+        org.mockito.ArgumentMatchers.any(Reference.class), org.mockito.ArgumentMatchers.anyString());
+    org.mockito.Mockito.doAnswer(call -> {
+      assertEquals(StageStatus.SUCCEEDED, snapshot(requireRun(), "requirement-analysis").status());
+      if (promotions.incrementAndGet() == 1) throw new IllegalStateException("Interrupted source promotion");
+      stored.set(corrected);
+      return null;
+    }).when(drafts).promoteSourceRestoration(org.mockito.ArgumentMatchers.eq(CONVERSATION),
+        org.mockito.ArgumentMatchers.any(Reference.class));
+    runtime.support().withNativeRequirementCapture(drafts, null);
+    startAndRecordInput(runtime, profile);
+    if ("projection".equals(scenario)) {
+      artifactStore.append(new CompilationArtifacts.AppendCommand(RUN_ID, Kind.REQUIREMENT_BRIEF,
+          "1", "prior-review", "1", new RequirementBrief("Earlier brief", List.of(), List.of(), List.of(), List.of(), ""),
+          List.of(), null, new org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactProvenance(
+              RUN_ID, "requirement-analysis", "prior-review", "2", "profile-hash", "analysis-cap", "1", "closure")));
+    }
+    int inputs = artifactStore.history(RUN_ID, Kind.USER_INPUT).size();
+    applyLifecycle(runtime, execute(runtime, owner.stageId()));
+    var acceptedRefs = snapshot(requireRun(), owner.stageId()).outputRefs();
+    var failure = execute(runtime, "requirement-analysis");
+    assertEquals(owner.stageId(), assertInstanceOf(StageDecision.ReopenProducer.class, failure.decision()).producerStageId());
+    applyLifecycle(runtime, failure);
+    applyLifecycle(runtime, execute(runtime, owner.stageId()));
+    var candidateRefs = snapshot(requireRun(), owner.stageId()).candidateReferences();
+    assertEquals(acceptedRefs, snapshot(requireRun(), owner.stageId()).outputRefs());
+    assertEquals(original, stored.get());
+    var result = execute(runtime, "requirement-analysis");
+    if (!"approve".equals(scenario) && !"projection".equals(scenario)) {
+      assertInstanceOf(StageDecision.WaitForInput.class, result.decision());
+      assertEquals(2, discoveryCalls.get());
+      assertEquals(candidateRefs, snapshot(requireRun(), owner.stageId()).candidateReferences());
+      assertEquals(acceptedRefs, snapshot(requireRun(), owner.stageId()).outputRefs());
+      assertEquals(original, stored.get());
+    } else {
+      var waiting = assertInstanceOf(StageDecision.WaitForApproval.class, result.decision());
+      var reviewSignals = runtime.support().applyStageLifecycle(RUN_ID, result).collect().asList().await().indefinitely();
+      String review = reviewSignals.stream().filter(PipelineSignal.Message.class::isInstance)
+          .map(PipelineSignal.Message.class::cast).map(PipelineSignal.Message::text).collect(Collectors.joining("\n"));
+      if (!"projection".equals(scenario)) {
+      assertTrue(review.contains("**Previous wording:**\n> Use a Groovy QIP script."), review);
+      assertTrue(review.contains("**Proposed source wording:**\n> Use a QIP script."), review);
+      assertTrue(review.contains("**Previous wording:**\n> Do not generate IDS. Keep a manual document."), review);
+      assertTrue(review.contains("**Proposed source wording:**\n> Keep a manual document."), review);
+      }
+      var approval = new ApproveCommand(RUN_ID, waiting.candidate(), requireRun().run().runRevision());
+      assertThrows(IllegalStateException.class,
+          () -> runtime.recordApprove(approval).collect().asList().await().indefinitely());
+      assertEquals(original, stored.get());
+      runtime.recordApprove(approval).collect().asList().await().indefinitely();
+      assertEquals(corrected, stored.get());
+      assertEquals(candidateRefs, snapshot(requireRun(), owner.stageId()).outputRefs());
+      assertEquals("planning", requireRun().run().currentStageId());
+      assertThrows(IllegalStateException.class, () -> runtime.recordApprove(new ApproveCommand(
+          RUN_ID, waiting.candidate(), approval.expectedRunRevision() - 1)).collect().asList().await().indefinitely());
+      assertEquals(2, promotions.get());
+      var approved = snapshot(requireRun(), "requirement-analysis").outputRefs().stream()
+          .filter(ref -> ref.kind() == Kind.APPROVAL_RECORD).findFirst().orElseThrow();
+      assertEquals("approval-control", artifactStore.payload(artifactStore.get(RUN_ID, approved).orElseThrow(),
+          com.fasterxml.jackson.databind.JsonNode.class).path("sourceTurnId").asText());
+    }
+    assertEquals(inputs, artifactStore.history(RUN_ID, Kind.USER_INPUT).size());
+  }
+
+  /**
+   * A source defect the analysis keeps reporting after its draft owner returned the same draft shows Edit
+   * requirements, and the click reopens the stage that produced the committed draft. The card used to offer a Retry
+   * that reran the analysis into the same card.
+   */
+  @Test
+  void aRepeatedSourceDefectWithNoSafeCorrectionOffersEditRequirementsThatReopensTheDraftOwner() {
+    var source = repeatedSourceDefect(new RecoveryAttemptLedger(new RecoveryAttemptLedger.Limits(1, 2, 12, 1)));
+    assertEquals(PipelineGates.RECOVERY_REVISE_BRIEF, PipelineGates.gateOf(source.card().prompt()).orElseThrow(),
+        source.card().prompt());
+    assertEquals(List.of(ChatEvent.EDIT_REQUIREMENTS_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
+        cardActions(source.card().prompt()));
+
+    source.runtime().recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.REVISE_ACTION, "edit-click", "edit-hash",
+        InputOrigin.TRUSTED)).collect().asList().await().indefinitely();
+
+    String reason = requireRun().transitions().getLast().reason();
+    assertTrue(reason.startsWith(RecoveryAttemptLedger.AUTHOR_REOPEN_REASON_PREFIX + source.draftOwner()), reason);
+    assertEquals(RunStatus.RUNNING, requireRun().run().status());
+    assertEquals(source.draftOwner(), requireRun().run().currentStageId());
+  }
+
+  /**
+   * At the run's recovery ceiling, which the automatic reopen of the draft owner spends here, the same source defect
+   * shows the repeated-failure card with Retry creation, because the ledger refuses the author's reopen at the
+   * ceiling. A trusted Retry raises the ceiling and runs the analysis again. The run used to show Edit requirements,
+   * whose click the ledger refused.
+   */
+  @Test
+  void aRepeatedSourceDefectAtTheRecoveryCeilingOffersRetryCreationThatResumesTheAnalysis() {
+    var source = repeatedSourceDefect(new RecoveryAttemptLedger(new RecoveryAttemptLedger.Limits(1, 2, 1, 1)));
+    assertEquals(PipelineGates.RECOVERY_REPEATED, PipelineGates.gateOf(source.card().prompt()).orElseThrow(),
+        source.card().prompt());
+    assertEquals(HaltRecoveryGuard.RUN_RECOVERY_CEILING.name(),
+        PipelineGates.guardOf(source.card().prompt()).orElse(""), source.card().prompt());
+    assertEquals(List.of(ChatEvent.RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
+        cardActions(source.card().prompt()));
+
+    source.runtime().recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.RETRY_ACTION, "retry-click",
+        "retry-hash", InputOrigin.TRUSTED)).collect().asList().await().indefinitely();
+
+    assertEquals(RunStatus.RUNNING, requireRun().run().status());
+    assertEquals("requirement-analysis", requireRun().run().currentStageId());
+    String reason = requireRun().transitions().getLast().reason();
+    assertTrue(reason.startsWith(RecoveryAttemptLedger.GRANT_TARGETED_REASON_PREFIX), reason);
+  }
+
+  private record RepeatedSourceDefect(CreateChainTestOrchestrator runtime, String draftOwner,
+      StageDecision.WaitForInput card) { }
+
+  /**
+   * Runs a draft owner and an analysis that reports the same source defect twice: the first report reopens the draft
+   * owner, which returns the same draft, and the second leaves the analysis waiting on its card.
+   */
+  private RepeatedSourceDefect repeatedSourceDefect(RecoveryAttemptLedger ledger) {
+    var original = sourceWordingDraft(false, false);
+    var draftType = new ArtifactTypeRef("requirement-draft", 1);
+    var briefType = new ArtifactTypeRef("requirement-brief", 1);
+    var profile = discoveryAndAnalysisThenPlanningProfile(draftType, briefType,
+        new ArtifactTypeRef("plan-validation-result", 1));
+    var stages = new ArrayList<>(profile.stages());
+    var previousOwner = stages.getFirst();
+    var owner = new ProfileStage(previousOwner.stageId(), "requirement-discovery", previousOwner.consumes(),
+        previousOwner.produces(), null, previousOwner.bypass(), previousOwner.retry(), previousOwner.skip());
+    stages.set(0, owner);
+    profile = new ProductPipelineProfile(profile.schemaVersion(), profile.profileId(), profile.profileVersion(),
+        profile.runInputs(), stages, profile.terminal(), List.of("requirement-discovery", "analysis-cap", "planning-cap"));
+    var analysisCalls = new AtomicInteger();
+    var discovery = capability(owner.capabilityId(), context -> {
+      if (context.attributeAsString("userText") == null && !StageRepairEvidence.isRepairTurn(context)) {
+        return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "Requirements needed.")));
+      }
+      return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(StageOutcomeClass.SUCCEEDED,
+          List.of(new ArtifactCandidate(Kind.REQUIREMENT_DRAFT, original, List.of())), "ready", null)));
+    });
+    var analysis = capability("analysis-cap", context -> sourceWordingFailure(analysisCalls.incrementAndGet() == 1
+        ? sourceWordingReview(original, "generation", "Initial source comparison.", List.of("script", "ids"))
+        : sourceWordingReview(original, "different-generation", "Different explanation and attempt.",
+            List.of("script", "ids"))));
+    var runtime = newRuntime(new FailureNarrative(), ledger, null, discovery, analysis, planningAlwaysCandidate());
+    var drafts = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.plan.RequirementDraftStore.class);
+    org.mockito.Mockito.when(drafts.get(CONVERSATION)).thenReturn(java.util.Optional.of(original));
+    org.mockito.Mockito.when(drafts.hasSourceRestorationCandidate(org.mockito.ArgumentMatchers.eq(CONVERSATION),
+        org.mockito.ArgumentMatchers.any(Reference.class))).thenReturn(true);
+    runtime.support().withNativeRequirementCapture(drafts, null);
+    startAndRecordInput(runtime, profile);
+    applyLifecycle(runtime, execute(runtime, owner.stageId()));
+    var reopen = execute(runtime, "requirement-analysis");
+    assertInstanceOf(StageDecision.ReopenProducer.class, reopen.decision(), () -> reopen.decision().toString());
+    applyLifecycle(runtime, reopen);
+    applyLifecycle(runtime, execute(runtime, owner.stageId()));
+    var decision = execute(runtime, "requirement-analysis").decision();
+    return new RepeatedSourceDefect(runtime, owner.stageId(),
+        assertInstanceOf(StageDecision.WaitForInput.class, decision, decision::toString));
+  }
+
+  private static RequirementDraft sourceWordingDraft(boolean scriptRestored, boolean idsRestored) {
+    var input = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput(
+        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FlowInput(List.of(), List.of()),
+        List.of(sourceWordingFact("script", scriptRestored ? "Use a QIP script." : "Use a Groovy QIP script.",
+                "Use a QIP script."),
+            sourceWordingFact("ids", idsRestored ? "Keep a manual document." : "Do not generate IDS. Keep a manual document.",
+                "Keep a manual document.")), List.of(), List.of(),
+        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftSettings(true, null));
+    return org.qubership.integration.platform.ai.plan.RequirementCaptureProjection.toDraft(input, null, List.of(), "1", "hash");
+  }
+
+  private static org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput sourceWordingFact(
+      String id, String text, String quote) {
+    return new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput(id, List.of(),
+        org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactKind.BEHAVIOR,
+        org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polarity.POSITIVE, text, null, null, null,
+        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.ClaimEvidenceInput("source-turn", quote));
+  }
+
+  private static org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool.SourceReview sourceWordingReview(
+      RequirementDraft draft, String generation, String explanation, List<String> facts) {
+    return new org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool.SourceReview(generation, "source-hash",
+        org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(draft), facts.stream().map(id -> {
+          var fact = draft.authoredDraft().facts().stream().filter(value -> value.sourceFactId().equals(id)).findFirst().orElseThrow();
+          return new org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceOmission(
+              fact.evidence().sourceTurnId(), fact.evidence().quote(), explanation,
+              org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture.SourceDiscrepancyKind.UNSUPPORTED_ADDITION, id);
+        }).toList());
+  }
+
+  private static Multi<CapabilitySignal> sourceWordingFailure(
+      org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool.SourceReview review) {
+    return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
+        "Reconcile source wording.", new RecoveryCause(RecoveryCauseCode.MISSING_BRIEF_FACTS,
+            review.omissions().stream().map(report -> new PlanValidationFinding("SOURCE_UNSUPPORTED_ADDITION",
+                report.explanation(), true, MappingValidationDetails.empty(), report.sourceFactId(),
+                "/facts/" + report.sourceFactId() + "/text")).toList(), "", false, null, review))));
+  }
+
+  @ParameterizedTest
   @ValueSource(strings = {"REGENERATE_ARTIFACT", "PARK", "MISSING", "INVALID_REFERENCE"})
   void executionFailureBeforeCaptureDoesNotLabelTheApprovedPlanAsRejectedOutput(String diagnosis) {
     var observed = new AtomicReference<RecoveryContext>();
@@ -5529,7 +7842,8 @@ class ProductPipelineStageExecutorTest {
     var projected = new AtomicReference<com.fasterxml.jackson.databind.JsonNode>();
     var agent = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent.class);
     org.mockito.Mockito.when(agent.recover(org.mockito.ArgumentMatchers.anyString(),
-        org.mockito.ArgumentMatchers.anyString())).thenAnswer(call -> {
+        org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class))).thenAnswer(call -> {
       var json = mapper.readTree((String) call.getArgument(1));
       projected.set(json);
       return new RecoveryDecision(RecoveryCauseClass.UNCLASSIFIED, null,
@@ -5571,7 +7885,8 @@ class ProductPipelineStageExecutorTest {
       default -> new IllegalStateException(new javax.net.ssl.SSLHandshakeException("Trust validation failed"));
     };
     org.mockito.Mockito.when(agent.recover(org.mockito.ArgumentMatchers.anyString(),
-        org.mockito.ArgumentMatchers.anyString())).thenThrow(failure);
+        org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class))).thenThrow(failure);
     var calls = new AtomicInteger();
     var runtime = executionRecoveryRuntime(new FailureNarrative(agent), calls,
         RecoveryCause.of(RecoveryCauseCode.SECURITY_POLICY));
@@ -5580,7 +7895,8 @@ class ProductPipelineStageExecutorTest {
     var wait = assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "design-execution").decision());
     assertEquals(PipelineGates.RECOVERY_ENVIRONMENT, PipelineGates.gateOf(wait.prompt()).orElseThrow());
     org.mockito.Mockito.verify(agent, org.mockito.Mockito.times(1)).recover(
-        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class));
     execute(runtime, "design-execution");
     assertEquals(1, calls.get());
     assertEquals(priorPlan, snapshot(requireRun(), "design-planning"));
@@ -5596,7 +7912,8 @@ class ProductPipelineStageExecutorTest {
     var agent = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent.class);
     var diagnoses = new AtomicInteger();
     org.mockito.Mockito.when(agent.recover(org.mockito.ArgumentMatchers.anyString(),
-        org.mockito.ArgumentMatchers.anyString())).thenAnswer(call -> {
+        org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class))).thenAnswer(call -> {
       if (diagnoses.incrementAndGet() == 1 || !recover) {
         throw new dev.langchain4j.exception.HttpException(503, "Provider unavailable");
       }
@@ -5626,7 +7943,8 @@ class ProductPipelineStageExecutorTest {
   void diagnosticParsingFailureGetsOneCorrectionThenSafeProducerFallback() {
     var agent = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent.class);
     org.mockito.Mockito.when(agent.recover(org.mockito.ArgumentMatchers.anyString(),
-        org.mockito.ArgumentMatchers.anyString())).thenThrow(
+        org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class))).thenThrow(
             new dev.langchain4j.service.output.OutputParsingException("Invalid diagnostic JSON", null));
     var calls = new AtomicInteger();
     var runtime = executionRecoveryRuntime(new FailureNarrative(agent), calls,
@@ -5634,7 +7952,8 @@ class ProductPipelineStageExecutorTest {
     var priorPlan = snapshot(requireRun(), "design-planning");
     assertInstanceOf(StageDecision.Retry.class, execute(runtime, "design-execution").decision());
     org.mockito.Mockito.verify(agent, org.mockito.Mockito.times(2)).recover(
-        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class));
     assertEquals(1, calls.get());
     assertEquals(priorPlan, snapshot(requireRun(), "design-planning"));
   }
@@ -5643,7 +7962,8 @@ class ProductPipelineStageExecutorTest {
   void localDiagnosisFailureKeepsTheCauseAndAllowsGuardedProducerRepair() {
     var agent = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent.class);
     org.mockito.Mockito.when(agent.recover(org.mockito.ArgumentMatchers.anyString(),
-        org.mockito.ArgumentMatchers.anyString())).thenThrow(
+        org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class))).thenThrow(
             new org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException(
                 "Tool call belongs to an obsolete reset generation."));
     var calls = new AtomicInteger();
@@ -5663,7 +7983,8 @@ class ProductPipelineStageExecutorTest {
     var repair = execute(runtime, "design-execution");
     assertInstanceOf(StageDecision.Retry.class, repair.decision());
     org.mockito.Mockito.verify(agent).recover(org.mockito.ArgumentMatchers.anyString(),
-        org.mockito.ArgumentMatchers.anyString());
+        org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class));
     assertEquals(1, calls.get());
     assertEquals(priorPlan, snapshot(requireRun(), "design-planning"));
     applyLifecycle(runtime, repair);
@@ -5672,12 +7993,86 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
+  void unsafeDiagnosisPresentationDoesNotSpendCorrectionCreditOrLoseAcceptedWork() throws Exception {
+    var agent = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent.class);
+    var rawReply = new AtomicReference<RecoveryDecision>();
+    var requestContext = new AtomicReference<RecoveryContext>();
+    var narrative = org.mockito.Mockito.spy(new FailureNarrative(agent));
+    org.mockito.Mockito.doAnswer(call -> {
+      requestContext.set(call.getArgument(1));
+      return call.callRealMethod();
+    }).when(narrative).diagnoseRecovery(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
+    org.mockito.Mockito.when(agent.recover(org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(ChatRequestParameters.class)))
+        .thenAnswer(call -> {
+          var projected = mapper.readTree((String) call.getArgument(1));
+          var ref = mapper.treeToValue(projected.path("evidence").path("rejectedArtifactRefs").get(0), Reference.class);
+          var reply = new RecoveryDecision(RecoveryCauseClass.DERIVATION_DEFECT, ref,
+              List.of(projected.path("evidence").path("failureId").asText()), RecoveryAction.REGENERATE_ARTIFACT,
+              List.of(), "", "Repair design-execution using private-source-literal and internal-ref-123.");
+          rawReply.set(reply);
+          assertEquals(List.of("userSummary must not contain stage identifiers."),
+              org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryDecisionValidator
+                  .validate(reply, requestContext.get()).findings());
+          return reply;
+        });
+    var calls = new AtomicInteger();
+    var execution = capability("execution-cap", context -> Multi.createFrom().item(new CapabilitySignal.Completed(
+        calls.incrementAndGet() == 1
+            ? StageOutcome.of(StageOutcomeClass.VALIDATION_FAILURE, "Generated output was rejected.",
+                RecoveryCause.of(RecoveryCauseCode.SECURITY_POLICY))
+            : StageOutcome.of(StageOutcomeClass.SUCCEEDED, "ready"))));
+    var profile = analysisThenPlanningThenExecutionProfile();
+    var runtime = newRuntime(narrative, profile, analysisWithBrief(accessPolicyBrief(
+        org.qubership.integration.platform.ai.plan.RequirementPolicyConflict.Decision.USE_RECOMMENDED)),
+        planningAlwaysCandidate(), execution);
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+    approveStage(runtime, "design-planning");
+    var priorPlan = snapshot(requireRun(), "design-planning");
+    var priorBrief = snapshot(requireRun(), "requirement-analysis");
+    var repair = execute(runtime, "design-execution");
+    assertInstanceOf(StageDecision.Retry.class, repair.decision());
+    org.mockito.Mockito.verify(agent, org.mockito.Mockito.times(1)).recover(org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(ChatRequestParameters.class));
+    var executor = (ProductPipelineStageExecutor) runtime.stageExecutor();
+    var accepted = executor.acceptedRecoveryDecision(RUN_ID, requestContext.get());
+    assertEquals(FailureNarrative.RecoveryStatus.READY, accepted.diagnosisStatus());
+    assertEquals(rawReply.get().faultArtifactRef(), accepted.decision().faultArtifactRef());
+    assertEquals(rawReply.get().evidenceRefs(), accepted.decision().evidenceRefs());
+    assertEquals(rawReply.get().action(), accepted.decision().action());
+    assertEquals("The generated result needs correction. Recovery will continue with the saved requirements.",
+        accepted.decision().userSummary());
+    assertTrue(org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryDecisionValidator
+        .validate(accepted.decision(), requestContext.get()).accepted());
+    var evidence = artifactStore.payload(artifactStore.latest(RUN_ID, Kind.RECOVERY_EVIDENCE).orElseThrow(), RecoveryEvidence.class);
+    var audit = mapper.readTree(evidence.findings().stream()
+        .filter(finding -> "RECOVERY_PRESENTATION".equals(finding.code())).findFirst().orElseThrow().rawValidatorJson());
+    assertEquals("PRESENTATION_ONLY", audit.path("status").asText());
+    assertEquals(mapper.valueToTree(rawReply.get()), audit.path("rawDecision"));
+    assertEquals(mapper.valueToTree(accepted.decision()), audit.path("presentedDecision"));
+    var saved = requireRun();
+    var restored = newRuntime(narrative, profile, execution);
+    assertEquals(accepted, ((ProductPipelineStageExecutor) restored.stageExecutor())
+        .acceptedRecoveryDecision(RUN_ID, requestContext.get()));
+    assertEquals(saved, requireRun());
+    assertEquals(priorPlan, snapshot(requireRun(), "design-planning"));
+    assertEquals(priorBrief, snapshot(requireRun(), "requirement-analysis"));
+    applyLifecycle(runtime, repair);
+    assertInstanceOf(StageDecision.Complete.class, execute(runtime, "design-execution").decision());
+    assertEquals(2, calls.get());
+    org.mockito.Mockito.verify(agent, org.mockito.Mockito.times(1)).recover(org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(ChatRequestParameters.class));
+  }
+
+  @Test
   void timedOutDiagnosisCannotPromoteALateReplyOrStartOverlappingRecovery() throws InterruptedException {
     var release = new java.util.concurrent.CountDownLatch(1);
     var finished = new java.util.concurrent.CountDownLatch(1);
     var agent = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent.class);
     org.mockito.Mockito.when(agent.recover(org.mockito.ArgumentMatchers.anyString(),
-        org.mockito.ArgumentMatchers.anyString())).thenAnswer(call -> {
+        org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class))).thenAnswer(call -> {
       try {
         while (release.getCount() > 0) {
           try { release.await(); }
@@ -5706,7 +8101,8 @@ class ProductPipelineStageExecutorTest {
     assertEquals(priorPlan, snapshot(requireRun(), "design-planning"));
     assertEquals(1, calls.get());
     org.mockito.Mockito.verify(agent, org.mockito.Mockito.times(1)).recover(
-        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class));
   }
 
   @ParameterizedTest
@@ -5714,7 +8110,8 @@ class ProductPipelineStageExecutorTest {
   void syntheticOutputMarkerCannotAuthorizeRepairOfAKnownNonOutputFailure(String causeName) {
     var agent = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent.class);
     org.mockito.Mockito.when(agent.recover(org.mockito.ArgumentMatchers.anyString(),
-        org.mockito.ArgumentMatchers.anyString())).thenAnswer(call -> {
+        org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class))).thenAnswer(call -> {
       var json = mapper.readTree((String) call.getArgument(1));
       return new RecoveryDecision(RecoveryCauseClass.UNCLASSIFIED, null,
           List.of(json.path("evidence").path("failureId").asText()), RecoveryAction.PARK, List.of(), "", "No output defect is established.");
@@ -5735,7 +8132,8 @@ class ProductPipelineStageExecutorTest {
     var agent = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent.class);
     var diagnoses = new AtomicInteger();
     org.mockito.Mockito.when(agent.recover(org.mockito.ArgumentMatchers.anyString(),
-        org.mockito.ArgumentMatchers.anyString())).thenAnswer(call -> {
+        org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class))).thenAnswer(call -> {
       diagnoses.incrementAndGet();
       var json = mapper.readTree((String) call.getArgument(1));
       return new RecoveryDecision("PARK".equals(mode) ? RecoveryCauseClass.UNCLASSIFIED : RecoveryCauseClass.DERIVATION_DEFECT,
@@ -5777,7 +8175,8 @@ class ProductPipelineStageExecutorTest {
     var budget = new org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget(blobStore, mapper, config);
     var agent = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent.class);
     org.mockito.Mockito.when(agent.recover(org.mockito.ArgumentMatchers.anyString(),
-        org.mockito.ArgumentMatchers.anyString())).thenAnswer(call -> {
+        org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class))).thenAnswer(call -> {
       budget.reserve(RUN_ID, 1, 1);
       assertNull(budget.state(RUN_ID).refusal());
       if (transientFailure) { throw new dev.langchain4j.exception.HttpException(503, "Provider unavailable"); }
@@ -5791,7 +8190,8 @@ class ProductPipelineStageExecutorTest {
     var wait = assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "design-execution").decision());
     assertEquals(PipelineGates.RECOVERY_RETRY_TECHNICAL, PipelineGates.gateOf(wait.prompt()).orElseThrow());
     org.mockito.Mockito.verify(agent, org.mockito.Mockito.times(1)).recover(
-        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class));
     assertEquals(1, calls.get());
     assertEquals(1, budget.state(RUN_ID).requests());
     assertTrue(requireRun().transitions().stream().noneMatch(transition ->
@@ -5807,7 +8207,8 @@ class ProductPipelineStageExecutorTest {
         RecoveryCause.of(RecoveryCauseCode.SECURITY_POLICY));
     assertInstanceOf(StageDecision.Retry.class, execute(runtime, "design-execution").decision());
     org.mockito.Mockito.verify(agent, org.mockito.Mockito.never()).recover(
-        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(ChatRequestParameters.class));
   }
 
   @ParameterizedTest
@@ -5862,6 +8263,243 @@ class ProductPipelineStageExecutorTest {
     assertEquals(1, ledger.repairsUsed(requireRun().transitions(), key,
         org.qubership.integration.platform.ai.productpipeline.runtime.InputOrigin.TRUSTED),
         "Resuming an unsent correction must restore its intent without granting new defect credit");
+  }
+
+  @Test
+  void scriptLiteralRefusalCanDiagnoseTheSourceInsteadOfOnlyRegeneratingTheScript() {
+    var narrative = org.mockito.Mockito.spy(new FailureNarrative());
+    var diagnoses = new AtomicInteger();
+    org.mockito.Mockito.when(narrative.diagnoseRecovery(org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(RecoveryContext.class))).thenAnswer(call -> {
+      diagnoses.incrementAndGet();
+      RecoveryContext context = call.getArgument(1);
+      return FailureNarrative.RecoveryResult.reply(new RecoveryDecision(RecoveryCauseClass.BRIEF_DEFECT,
+          context.evidence().approvedBriefRef(), List.of(context.evidence().failureId(),
+              context.authorInputs().getFirst().inputId()), RecoveryAction.REVISE_BRIEF,
+          List.of(new ProposedBriefChange("access", "elementIntent.exactValues", "incorrect", "supplied",
+              "SOURCE_VALUE_MISRECORDED", false)), "", "Recheck the captured value against the saved source."));
+    });
+    var cause = new RecoveryCause(RecoveryCauseCode.MISSING_REQUIRED_PROPERTY,
+        List.of(new PlanValidationFinding("MISSING_REQUIRED_SCRIPT_LITERAL", "The script lacks the recorded literal.",
+            true, MappingValidationDetails.empty(), "access", "/elementIntent/exactValues")), "");
+    var intent = new org.qubership.integration.platform.ai.plan.RequirementElementIntent("work-script", "script",
+        org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.LOCAL_NODE,
+        "entry", null, null, null, List.of(), List.of("incorrect"));
+    var fact = new org.qubership.integration.platform.ai.plan.RequirementFact("access",
+        org.qubership.integration.platform.ai.plan.RequirementFactPolarity.POSITIVE,
+        org.qubership.integration.platform.ai.plan.RequirementFactKind.BEHAVIOR, "", "Use the supplied value.",
+        "", "", "", "", "", "", List.of("entry"), null, intent);
+    var brief = new RequirementBrief("Process work", List.of(), List.of(), List.of(), List.of(), "")
+        .withFacts(List.of(fact));
+    var profile = analysisThenPlanningThenExecutionProfile();
+    var execution = capability("execution-cap", context -> Multi.createFrom().item(new CapabilitySignal.Completed(
+        StageOutcome.of(StageOutcomeClass.VALIDATION_FAILURE, "The script lacks the recorded literal.", cause))));
+    var runtime = newRuntime(narrative, profile, analysisWithBrief(brief), planningAlwaysCandidate(), execution);
+    attachAuthorSources(runtime, "Use the supplied value in the script.");
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+    approveStage(runtime, "design-planning");
+
+    var result = execute(runtime, "design-execution");
+
+    assertEquals("requirement-analysis",
+        assertInstanceOf(StageDecision.ReopenProducer.class, result.decision()).producerStageId());
+    assertEquals(1, diagnoses.get());
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void sourceCandidateMustPassTheActiveMappingGateBeforeHandoff(boolean approval) {
+    var validator = org.mockito.Mockito.mock(
+        org.qubership.integration.platform.ai.productpipeline.create.MappingRepairCaptureValidator.class);
+    var finding = new PlanValidationFinding("MAPPING_MISSING_REQUIRED_TARGET", "Required target $.reference is unresolved.", true);
+    org.mockito.Mockito.when(validator.validate(org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(RequirementBrief.class))).thenReturn(
+            new org.qubership.integration.platform.ai.productpipeline.create.MappingRepairCaptureValidator.Result(
+                org.qubership.integration.platform.ai.productpipeline.create.MappingRepairCaptureValidator.Result.Status.BLOCKED,
+                List.of(finding), finding.message()));
+    var draftType = new ArtifactTypeRef("requirement-draft", 1);
+    var profile = discoveryAndAnalysisThenPlanningProfile(draftType, new ArtifactTypeRef("requirement-brief", 1),
+        new ArtifactTypeRef("plan-validation-result", 1));
+    var stage = profile.stages().getFirst();
+    if (approval) {
+      stage = new ProfileStage(stage.stageId(), stage.capabilityId(), stage.consumes(), stage.produces(),
+          new ApprovalPolicy(draftType), null, stage.retry());
+      var stages = new ArrayList<>(profile.stages());
+      stages.set(0, stage);
+      profile = new ProductPipelineProfile(profile.schemaVersion(), profile.profileId(), profile.profileVersion(),
+          profile.runInputs(), stages, profile.terminal(), profile.dependencyRoots());
+    }
+    var discovery = capability(stage.capabilityId(), context -> Multi.createFrom().item(new CapabilitySignal.Completed(
+        context.attributeAsString("userText") == null ? StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "")
+            : new StageOutcome(approval ? StageOutcomeClass.CANDIDATE : StageOutcomeClass.SUCCEEDED,
+                List.of(new ArtifactCandidate(Kind.REQUIREMENT_DRAFT, new RequirementDraft(true, "candidate"), List.of())),
+                "ready", null))));
+    var runtime = new CreateChainTestOrchestrator(CreateChainTestOrchestrator.supportBuilder(runStore, artifactStore,
+        new StageCapabilityRegistry(List.of(discovery, analysisAlwaysCandidate(), planningAlwaysCandidate())),
+        Clock.fixed(FIXED, ZoneOffset.UTC)).mappingRepairCaptureValidator(validator).build(), runStore);
+    startAndRecordInput(runtime, profile);
+
+    var result = execute(runtime, stage.stageId());
+
+    assertFalse(result.decision() instanceof StageDecision.WaitForApproval, result.toString());
+    assertFalse(result.decision() instanceof StageDecision.Continue, result.toString());
+    org.mockito.Mockito.verify(validator).validate(org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(RequirementBrief.class));
+  }
+
+  @Test
+  void aSourceCitedLiteralCorrectionReopensItsCommittedDraftAndRequiresBriefApproval() {
+    var intent = new org.qubership.integration.platform.ai.plan.RequirementElementIntent("work-script", "script",
+        org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.LOCAL_NODE,
+        "entry", null, null, null, List.of(), List.of("\"supplied-value\""));
+    var inputFact = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput("behavior",
+        List.of("entry"), org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactKind.BEHAVIOR,
+        org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polarity.POSITIVE,
+        "Use \"supplied-value\" as the body.", null, null, intent);
+    var input = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput(
+        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FlowInput(List.of(
+            new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.InteractionInput("entry",
+                org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction.INBOUND,
+                "Caller", "POST /work", null, null, null)), List.of()), List.of(inputFact), List.of(), List.of(),
+        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftSettings(false, null));
+    var source = org.qubership.integration.platform.ai.plan.RequirementCaptureProjection.toDraft(input, null, List.of(), null, null);
+    var graph = new ChainPlanGraph("1.0", new ChainSection("work", "Work"), List.of(
+        new ChainPlanNode("work-script", "script", "Work", null, null,
+            List.of(new PlanProperty("script", "exchange.in.body = 'supplied-value'")))), List.of());
+    var base = discoveryAndAnalysisThenPlanningProfile(new ArtifactTypeRef("requirement-draft", 1),
+        new ArtifactTypeRef("requirement-brief", 1), new ArtifactTypeRef("plan-validation-result", 1));
+    var profile = new ProductPipelineProfile(1, "literal-source", "1", base.runInputs(), List.of(
+        new ProfileStage("requirement-discovery", "requirement-discovery", base.runInputs(),
+            List.of(new ArtifactTypeRef("requirement-draft", 1)), null, null, new RetryPolicy(0, 1L)),
+        base.stages().get(1), new ProfileStage("design-execution", "execution-cap",
+            List.of(new ArtifactTypeRef("requirement-brief", 1)), List.of(), null, null, new RetryPolicy(0, 1L))),
+        new TerminalPolicy("design-execution", "PLAN_APPROVED"), List.of("requirement-discovery", "analysis-cap", "execution-cap"));
+    var discoveryCalls = new AtomicInteger();
+    var discovery = capability("requirement-discovery", context -> {
+      if (context.attributeAsString("userText") == null && !StageRepairEvidence.isRepairTurn(context))
+        return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "")));
+      var candidate = source;
+      if (discoveryCalls.incrementAndGet() > 1) {
+        assertEquals("BRIEF_CONTRACT", StageRepairEvidence.from(context).causeCode());
+        assertTrue(StageRepairEvidence.from(context).typedCauseJson().contains("/elementIntent/exactValues"));
+        var tree = mapper.valueToTree(source);
+        ((com.fasterxml.jackson.databind.node.ObjectNode) tree.at("/authoredDraft/facts/0/elementIntent"))
+            .putArray("exactValues").add("supplied-value");
+        var corrected = mapper.convertValue(tree.path("authoredDraft"),
+            org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput.class);
+        candidate = org.qubership.integration.platform.ai.plan.RequirementCaptureProjection.toDraft(corrected, source,
+            List.of(), null, null);
+      }
+      return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(StageOutcomeClass.SUCCEEDED,
+          List.of(new ArtifactCandidate(Kind.REQUIREMENT_DRAFT, candidate, context.inputRefs())), "ready", null)));
+    });
+    var analysis = capability(base.stages().get(1).capabilityId(), context -> {
+      var revision = context.inputRefs().stream().filter(ref -> ref.kind() == Kind.REQUIREMENT_DRAFT)
+          .map(ref -> artifactStore.get(RUN_ID, ref).orElseThrow()).findFirst().orElseThrow();
+      var draft = artifactStore.payload(revision, RequirementDraft.class);
+      return analysisWithBrief(new RequirementBrief("Work", List.of(), List.of(), List.of(), List.of(), "",
+          revision.artifactId(), draft.planningText(), draft.facts()).withFlow(draft.flow())).execute(context);
+    });
+    var execution = capability("execution-cap", context -> {
+      var brief = context.inputRefs().stream().filter(ref -> ref.kind() == Kind.REQUIREMENT_BRIEF)
+          .map(ref -> artifactStore.payload(artifactStore.get(RUN_ID, ref).orElseThrow(), RequirementBrief.class))
+          .findFirst().orElseThrow();
+      var issues = org.qubership.integration.platform.ai.qipknowledge.validation.CompilerQualityValidator
+          .validateApprovedValues(graph, brief);
+      return Multi.createFrom().item(new CapabilitySignal.Completed(issues.isEmpty()
+          ? StageOutcome.of(StageOutcomeClass.SUCCEEDED, "ready")
+          : StageOutcome.of(StageOutcomeClass.VALIDATION_FAILURE, "Literal mismatch", new RecoveryCause(
+              RecoveryCauseCode.MISSING_REQUIRED_PROPERTY, issues.stream().map(issue -> new PlanValidationFinding(
+                  issue.findingCode(), issue.message(), true, MappingValidationDetails.empty(),
+                  issue.originRecordId(), issue.fieldPointer())).toList(), ""))));
+    });
+    var narrative = org.mockito.Mockito.spy(new FailureNarrative());
+    org.mockito.Mockito.when(narrative.diagnoseRecovery(org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(RecoveryContext.class))).thenAnswer(call -> {
+      RecoveryContext context = call.getArgument(1);
+      return FailureNarrative.RecoveryResult.reply(new RecoveryDecision(RecoveryCauseClass.BRIEF_DEFECT,
+          context.evidence().approvedBriefRef(), List.of(context.evidence().failureId(), context.authorInputs().getFirst().inputId()),
+          RecoveryAction.REVISE_BRIEF, List.of(new ProposedBriefChange("behavior", "elementIntent.exactValues",
+              "\"supplied-value\"", "supplied-value", "SOURCE_VALUE_MISRECORDED", false)), "", "Restore the supplied value."));
+    });
+    var runtime = newRuntime(narrative, profile, discovery, analysis, execution);
+    attachAuthorSources(runtime, "Use \"supplied-value\" as the body. The quotation marks delimit the value.");
+    startAndRecordInput(runtime, profile);
+    applyLifecycle(runtime, execute(runtime, "requirement-discovery"));
+    approveStage(runtime, "requirement-analysis");
+    var before = snapshot(requireRun(), "requirement-discovery").outputRefs();
+    var repair = execute(runtime, "design-execution");
+    assertEquals("requirement-discovery", assertInstanceOf(StageDecision.ReopenProducer.class, repair.decision()).producerStageId());
+    applyLifecycle(runtime, repair);
+    applyLifecycle(runtime, execute(runtime, "requirement-discovery"));
+    assertEquals(before, snapshot(requireRun(), "requirement-discovery").outputRefs());
+    approveStage(runtime, "requirement-analysis");
+    assertInstanceOf(StageDecision.Complete.class, execute(runtime, "design-execution").decision());
+    assertEquals(2, discoveryCalls.get());
+  }
+
+  @Test
+  void aCaptureRefusalCannotHideTheMappingContractFromTheNextSourceHandoff() {
+    var originalHash = new AtomicReference<String>();
+    var seenHash = new AtomicReference<String>();
+    var finding = new PlanValidationFinding("MAPPING_MISSING_REQUIRED_TARGET", "Required $.reference is unresolved.", true);
+    var validator = org.mockito.Mockito.mock(
+        org.qubership.integration.platform.ai.productpipeline.create.MappingRepairCaptureValidator.class);
+    org.mockito.Mockito.when(validator.validate(org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any(RequirementBrief.class))).thenAnswer(call -> {
+      String hash = call.getArgument(2);
+      seenHash.set(hash);
+      return new org.qubership.integration.platform.ai.productpipeline.create.MappingRepairCaptureValidator.Result(
+          hash.equals(originalHash.get())
+              ? org.qubership.integration.platform.ai.productpipeline.create.MappingRepairCaptureValidator.Result.Status.BLOCKED
+              : org.qubership.integration.platform.ai.productpipeline.create.MappingRepairCaptureValidator.Result.Status.NOT_APPLICABLE,
+          List.of(finding), finding.message());
+    });
+    var calls = new AtomicInteger();
+    var discovery = capability("discovery-cap", context -> {
+      if (context.attributeAsString("userText") == null && !StageRepairEvidence.isRepairTurn(context))
+        return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "")));
+      if (calls.incrementAndGet() == 1) {
+        var authorIds = artifactStore.history(RUN_ID, Kind.USER_INPUT).stream()
+            .map(revision -> artifactStore.payload(revision, org.qubership.integration.platform.ai.productpipeline.artifact.UserInput.class))
+            .filter(input -> requireRun().transitions().stream().anyMatch(transition -> transition.commandId() != null
+                && input.inputId().equals("user-input-" + transition.commandId())))
+            .map(org.qubership.integration.platform.ai.productpipeline.artifact.UserInput::inputId).toList();
+        var evidence = new RecoveryEvidence(1, "mapping-before-capture", "MAPPING_CONTRACT", "design-execution",
+            "requirement-discovery", null, null, List.of(), List.of(), null, List.of(), List.of(),
+            context.inputRefs(), authorIds, false);
+        originalHash.set(artifactStore.append(new CompilationArtifacts.AppendCommand(RUN_ID, Kind.RECOVERY_EVIDENCE,
+            "1", "native-mapping", "1", evidence, context.inputRefs(), null,
+            new org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactProvenance(
+                RUN_ID, "requirement-discovery", "test", "1", "test", "native-mapping", "1", "closure"))).contentHash());
+        return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
+            "Rejected capture", new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE,
+                List.of(new PlanValidationFinding("REPAIR_FACT_LOSS", "Preserve accepted facts.", true)), ""))));
+      }
+      return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(StageOutcomeClass.SUCCEEDED,
+          List.of(new ArtifactCandidate(Kind.REQUIREMENT_DRAFT, new RequirementDraft(true, "unchanged"), List.of())), "ready", null)));
+    });
+    var profile = discoveryAndAnalysisThenPlanningProfile(new ArtifactTypeRef("requirement-draft", 1),
+        new ArtifactTypeRef("requirement-brief", 1), new ArtifactTypeRef("plan-validation-result", 1));
+    var runtime = new CreateChainTestOrchestrator(CreateChainTestOrchestrator.supportBuilder(runStore, artifactStore,
+        new StageCapabilityRegistry(List.of(discovery, analysisAlwaysCandidate(), planningAlwaysCandidate())),
+        Clock.fixed(FIXED, ZoneOffset.UTC)).mappingRepairCaptureValidator(validator).build(), runStore);
+    startAndRecordInput(runtime, profile);
+    var retry = execute(runtime, "requirement-discovery");
+    assertInstanceOf(StageDecision.Retry.class, retry.decision());
+    applyLifecycle(runtime, retry);
+    var current = artifactStore.payload(artifactStore.latest(RUN_ID, Kind.RECOVERY_EVIDENCE).orElseThrow(), RecoveryEvidence.class);
+    assertTrue(current.priorAttemptRefs().stream().anyMatch(ref -> originalHash.get().equals(ref.contentHash())));
+
+    var result = execute(runtime, "requirement-discovery");
+
+    assertEquals(originalHash.get(), seenHash.get());
+    assertFalse(result.decision() instanceof StageDecision.Continue, result.toString());
+    assertFalse(result.decision() instanceof StageDecision.WaitForApproval, result.toString());
   }
 
   private CreateChainTestOrchestrator executionRecoveryRuntime(FailureNarrative narrative,
@@ -6030,7 +8668,8 @@ class ProductPipelineStageExecutorTest {
     return narrative;
   }
 
-  private static void attachAuthorSources(CreateChainTestOrchestrator runtime, String... texts) {
+  private static org.qubership.integration.platform.ai.chat.conversation.ConversationArchive attachAuthorSources(
+      CreateChainTestOrchestrator runtime, String... texts) {
     var archive = new org.qubership.integration.platform.ai.chat.conversation.ConversationArchive(
         new InMemoryArtifactBlobStore(), new ObjectMapper().findAndRegisterModules());
     for (String text : texts) {
@@ -6040,6 +8679,7 @@ class ProductPipelineStageExecutorTest {
     var conversations = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.chat.conversation.ConversationService.class);
     org.mockito.Mockito.when(conversations.archive()).thenReturn(archive);
     ((ProductPipelineStageExecutor) runtime.stageExecutor()).withConversations(conversations);
+    return archive;
   }
 
   @Test
@@ -6202,7 +8842,7 @@ class ProductPipelineStageExecutorTest {
         approvedBriefId, snapshot(requireRun(), "requirement-analysis").approvedArtifactId());
     assertEquals(StageStatus.SUCCEEDED, snapshot(requireRun(), "design-planning").status());
     assertEquals(approvedPlanId, snapshot(requireRun(), "design-planning").approvedArtifactId());
-    assertEquals(3, executionCalls.get());
+    assertEquals(13, executionCalls.get());
   }
 
   @ParameterizedTest
@@ -6269,15 +8909,15 @@ class ProductPipelineStageExecutorTest {
     } else {
       StageDecision.WaitForInput wait = assertInstanceOf(StageDecision.WaitForInput.class, repaired);
       assertEquals(
-          PipelineGates.RECOVERY_REPAIR_ALLOWANCE, PipelineGates.gateOf(wait.prompt()).orElseThrow());
-      assertTrue(PipelineGates.guardOf(wait.prompt()).isEmpty());
+          PipelineGates.RECOVERY_REPEATED, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+      assertEquals(HaltRecoveryGuard.MAX_SEMANTIC_REPAIRS.name(), PipelineGates.guardOf(wait.prompt()).orElseThrow());
       assertTrue(
           PipelineGates.recoveryTechnicalDetailsOf(wait.prompt())
               .orElseThrow()
               .contains("unknown property key 'topic'"));
       assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
     }
-    assertEquals(repairSucceeds ? 2 : 3, executionCalls.get());
+    assertEquals(repairSucceeds ? 2 : 13, executionCalls.get());
     assertTrue(repairError.get().contains("unknown property key 'topic'"));
     assertEquals(StageStatus.SUCCEEDED, snapshot(requireRun(), "requirement-analysis").status());
     assertEquals(approvedBriefId, snapshot(requireRun(), "requirement-analysis").approvedArtifactId());
@@ -6286,7 +8926,7 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
-  void aCaptureContractFailureWithoutFindingsReachesCleanCorrectionBeforePausing() {
+  void aCaptureContractFailureWithoutFindingsReachesCleanCorrectionBeforeAGrant() {
     FakeFailureNarrativeAgent agent =
         FakeFailureNarrativeAgent.owner("", "requirement-analysis");
     AtomicInteger executionCalls = new AtomicInteger();
@@ -6310,19 +8950,9 @@ class ProductPipelineStageExecutorTest {
     assertInstanceOf(StageDecision.Retry.class, clean.decision());
     applyLifecycle(runtime, clean);
 
-    StageDecision.WaitForInput wait =
-        assertInstanceOf(
-            StageDecision.WaitForInput.class, execute(runtime, "design-execution").decision());
-
-    assertEquals(
-        PipelineGates.RECOVERY_REPAIR_ALLOWANCE, PipelineGates.gateOf(wait.prompt()).orElseThrow());
-    assertTrue(PipelineGates.guardOf(wait.prompt()).isEmpty());
-    assertTrue(
-        PipelineGates.recoveryTechnicalDetailsOf(wait.prompt())
-            .orElseThrow()
-            .contains("Cannot deserialize"));
+    assertGrantsAnotherCorrection(execute(runtime, "design-execution"));
     assertEquals("design-execution", requireRun().run().currentStageId());
-    assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
+    assertEquals(RunStatus.RUNNING, requireRun().run().status());
     assertEquals(3, executionCalls.get());
   }
 
@@ -6383,7 +9013,7 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
-  void approvedDraftTextMismatchHaltsWithRetryAndReviseWithoutOverwritingRequirements() {
+  void approvedDraftTextMismatchHaltsAtTheRecoveryCeilingWithoutOverwritingRequirements() {
     FakeFailureNarrativeAgent agent =
         FakeFailureNarrativeAgent.owner("Capture did not match the approved draft.", "work");
     AtomicReference<String> seenUserText = new AtomicReference<>();
@@ -6405,7 +9035,7 @@ class ProductPipelineStageExecutorTest {
         newRuntime(new FailureNarrative(agent), profile, failing);
     startAndRecordInput(runtime, profile);
 
-    StageDecision.WaitForInput wait = waitAfterOptionalSemanticRepair(runtime, "work");
+    StageDecision.WaitForInput wait = waitAfterOptionalSemanticRepair(runtime, "work", RecoveryAttemptLedger.DEFAULT_PER_RUN_CEILING);
     assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
     assertEquals(PipelineGates.RECOVERY_REPEATED, PipelineGates.gateOf(wait.prompt()).orElseThrow());
     assertFalse(
@@ -6446,7 +9076,7 @@ class ProductPipelineStageExecutorTest {
     CreateChainTestOrchestrator runtime =
         newRuntime(new FailureNarrative(agent), profile, failing);
     startAndRecordInput(runtime, profile);
-    waitAfterOptionalSemanticRepair(runtime, "work");
+    waitAfterOptionalSemanticRepair(runtime, "work", RecoveryAttemptLedger.DEFAULT_PER_RUN_CEILING);
     int afterHalt = calls.get();
     SemanticRecoveryState before = runtime.captureSemanticRecoveryState(RUN_ID);
 
@@ -6847,7 +9477,8 @@ class ProductPipelineStageExecutorTest {
     CreateChainTestOrchestrator runtime =
         newRuntime(
             new FailureNarrative(agent),
-            profile,
+            new RecoveryAttemptLedger(new RecoveryAttemptLedger.Limits(1, 2, 12, 0)),
+            null,
             analysisCandidate(),
             planningAlwaysCandidate(),
             executionUnspecifiedDomainFailure(executionCalls));
@@ -7084,6 +9715,11 @@ class ProductPipelineStageExecutorTest {
    */
   private StageDecision.WaitForInput waitAfterOptionalSemanticRepair(
       CreateChainTestOrchestrator runtime, String stageId) {
+    return waitAfterOptionalSemanticRepair(runtime, stageId, 2);
+  }
+
+  private StageDecision.WaitForInput waitAfterOptionalSemanticRepair(
+      CreateChainTestOrchestrator runtime, String stageId, int maxRetries) {
     StageExecutionResult result = execute(runtime, stageId);
     int retries = 0;
     while (result.decision() instanceof StageDecision.Retry retry) {
@@ -7092,9 +9728,37 @@ class ProductPipelineStageExecutorTest {
       }
       applyLifecycle(runtime, result);
       result = execute(runtime, stageId);
-      assertTrue(++retries <= 2, "recovery exceeded its bounded automatic retries");
+      assertTrue(++retries <= maxRetries, "recovery exceeded its bounded automatic retries");
     }
     return assertInstanceOf(StageDecision.WaitForInput.class, result.decision());
+  }
+
+  /**
+   * Commits a Continue repair offer for the current stage, in the shape a saved run that waits on one holds. The
+   * offer carries the halt evidence of the stage's latest failed attempt, so its binding names that attempt's defect.
+   */
+  private void presentSavedRepairOffer() {
+    ProductPipelineRunDocument doc = requireRun();
+    String stageId = doc.run().currentStageId();
+    String evidence = doc.attempts().stream()
+        .filter(attempt -> stageId.equals(attempt.stageId()) && attempt.failureEvidence() != null)
+        .map(StageAttempt::failureEvidence).reduce((first, second) -> second).orElseThrow();
+    long revision = doc.run().runRevision();
+    runStore.commit(revision, org.qubership.integration.platform.ai.productpipeline.store.LogicalCommit.statusChange(
+        doc.run(), StageStatus.WAITING_FOR_INPUT, doc.run().stages(),
+        new StageAttempt("saved-offer", stageId, revision + 1, StageStatus.WAITING_FOR_INPUT, FIXED, FIXED,
+            List.of(), evidence),
+        new org.qubership.integration.platform.ai.productpipeline.store.RunTransition(revision, revision + 1,
+            doc.run().status(), RunStatus.WAITING_FOR_INPUT, stageId, FIXED,
+            PipelineGates.tag(PipelineGates.RECOVERY_REPAIR_ALLOWANCE,
+                "Automatic corrections for this defect are spent."), null, null)));
+  }
+
+  /** Asserts that the execution grants its spent defect another repair allowance and retries the stage. */
+  private void assertGrantsAnotherCorrection(StageExecutionResult result) {
+    assertInstanceOf(StageDecision.Retry.class, result.decision());
+    String reason = requireRun().transitions().getLast().reason();
+    assertTrue(reason.startsWith(RecoveryAttemptLedger.GRANT_TARGETED_REASON_PREFIX), reason);
   }
 
   private void applyLifecycle(
@@ -7160,6 +9824,22 @@ class ProductPipelineStageExecutorTest {
       ProductPipelineProfile ignoredProfile,
       MappingTurnAdapter mappingTurnAdapter,
       StageCapability... capabilities) {
+    return newRuntime(narrative, new RecoveryAttemptLedger(new RecoveryAttemptLedger.Limits(1, 2, 12, 1)),
+        mappingTurnAdapter, capabilities);
+  }
+
+  /** Builds a runtime whose automatic reopens are spent from the start, so a reopen waits for the author. */
+  private CreateChainTestOrchestrator newRuntimeWithoutAutomaticReopens(
+      FailureNarrative narrative, StageCapability... capabilities) {
+    return newRuntime(narrative, new RecoveryAttemptLedger(new RecoveryAttemptLedger.Limits(1, 0, 12, 1)),
+        null, capabilities);
+  }
+
+  private CreateChainTestOrchestrator newRuntime(
+      FailureNarrative narrative,
+      RecoveryAttemptLedger ledger,
+      MappingTurnAdapter mappingTurnAdapter,
+      StageCapability... capabilities) {
     ProductPipelineRunSupport.Builder builder =
         CreateChainTestOrchestrator.supportBuilder(
                 runStore,
@@ -7167,7 +9847,7 @@ class ProductPipelineStageExecutorTest {
                 new StageCapabilityRegistry(List.of(capabilities)),
                 Clock.fixed(FIXED, ZoneOffset.UTC))
             .failureNarrative(narrative)
-            .recoveryLedger(new RecoveryAttemptLedger(new RecoveryAttemptLedger.Limits(1, 2, 12, 1)));
+            .recoveryLedger(ledger);
     if (mappingTurnAdapter != null) {
       builder.mappingTurnAdapter(mappingTurnAdapter);
     }

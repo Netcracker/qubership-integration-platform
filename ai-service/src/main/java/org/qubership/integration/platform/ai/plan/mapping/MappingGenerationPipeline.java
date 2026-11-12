@@ -31,7 +31,6 @@ import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
-import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.DefaultChainSemanticRevisionValidator;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContract;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecutionContext;
@@ -80,6 +79,15 @@ public class MappingGenerationPipeline {
     if (!isMappingGenerator(skillId) || revision == null || compilationId == null) {
       return Result.ready(context, List.of(), "");
     }
+    if (context != null) context = context.withBehaviorTasks(ScriptExecutionAuthority.behaviorSites(revision, context.requirementBrief()));
+    try {
+      ScriptExecutionAuthority.requireMappingBehaviorSites(context == null ? null : context.requirementBrief(), revision);
+      ScriptExecutionAuthority.requireSupported(context == null ? null : context.requirementBrief(), graphOf(context),
+          context == null ? Map.of() : context.behaviorTasks());
+    } catch (IllegalArgumentException failure) {
+      return Result.blocked(failure.getMessage(), context,
+          List.of(new PlanValidationFinding("SCRIPT_AUTHORITY_UNSUPPORTED", failure.getMessage(), true)));
+    }
     List<MappingIntent> intents = orderedIntents(intentsFor(skillId, revision, context), context);
     String behaviorContext = "";
     List<String> requiredBlanks = requiredBlankScriptNodeIds(skillId, revision, graphOf(context), context);
@@ -92,10 +100,17 @@ public class MappingGenerationPipeline {
               revision);
     }
     if (intents.isEmpty()) {
+      try {
+        ScriptExecutionAuthority.requireRetentionOwners(graphOf(context), Map.of());
+      } catch (IllegalArgumentException failure) {
+        return Result.blocked(failure.getMessage(), context,
+            List.of(new PlanValidationFinding("SCRIPT_AUTHORITY_UNSUPPORTED", failure.getMessage(), true)));
+      }
       return readyWithScriptContext(context, behaviorContext, requiredBlanks);
     }
     DefaultMappingBoundarySchemaResolver resolver =
-        new DefaultMappingBoundarySchemaResolver(artifacts, compilationId);
+        new DefaultMappingBoundarySchemaResolver(artifacts, compilationId, Map.of(),
+            context == null ? null : context.requirementBrief());
     JsonSchemaMessageSchemaFactory envelopeFactory =
         new JsonSchemaMessageSchemaFactory(objectMapper);
     Map<String, MappingSchemaSide> outputSchemasByTransformNodeId = new LinkedHashMap<>();
@@ -103,10 +118,31 @@ public class MappingGenerationPipeline {
     List<Reference> consumed =
         new ArrayList<>(context == null ? List.of() : context.consumedArtifacts());
     List<FrozenHop> hops = new ArrayList<>();
+    Map<String, CopyMappingPlan> copyPlans;
+    try {
+      for (MappingIntent intent : intents) {
+        MappingBoundarySchemas schemas = resolver.resolve(revision, bindings, intent, outputSchemasByTransformNodeId);
+        MappingContractEvaluation evaluated = MappingContractGate.evaluate(intent,
+            MappingContract.unknown(), JsonSchemaMappingContractFactory.from(schemas.target().schema()));
+        if (evaluated.blocked()) {
+          Reference brief = consumedBrief(context);
+          return Result.blocked(evaluated.blockedMessage(), context,
+              MappingContractGate.toPlanFindings(evaluated, schemas.source(), schemas.target(),
+                  brief == null ? "" : brief.artifactId(), brief == null ? "" : brief.contentHash()));
+        }
+        indexOutputSchema(outputSchemasByTransformNodeId, intent, schemas.target(), context);
+      }
+      copyPlans = CopyMappingPlanner.prepare(revision, intents, resolver, bindings, outputSchemasByTransformNodeId, graphOf(context));
+      ScriptExecutionAuthority.requireRetentionOwners(graphOf(context), copyPlans);
+    } catch (IllegalArgumentException | IllegalStateException failure) {
+      return Result.blocked(failure.getMessage(), context,
+          List.of(new PlanValidationFinding("MAPPING_UNRESOLVED_SOURCE", failure.getMessage(), true)));
+    }
     for (MappingIntent intent : intents) {
       MappingBoundarySchemas schemas =
           resolver.resolve(revision, bindings, intent, outputSchemasByTransformNodeId);
-      MappingContractEvaluation evaluated = MappingContractGate.evaluate(intent, schemas);
+      MappingContractEvaluation evaluated = MappingContractGate.evaluate(intent,
+          MappingContract.unknown(), JsonSchemaMappingContractFactory.from(schemas.target().schema()));
       if (evaluated.blocked()) {
         Reference brief = consumedBrief(context);
         List<PlanValidationFinding> findings =
@@ -126,7 +162,8 @@ public class MappingGenerationPipeline {
       MappingEnvelope envelope =
           envelopeFactory
               .fromSides(schemas.source(), schemas.target())
-              .withMappingIntentId(intent.mappingIntentId());
+              .withMappingIntentId(intent.mappingIntentId())
+              .withVerifiedCopyPlan(copyPlans.get(intent.mappingIntentId()));
       Revision stored =
           artifacts.append(
               new AppendCommand(
@@ -142,6 +179,15 @@ public class MappingGenerationPipeline {
       consumed.add(stored.reference());
       indexOutputSchema(outputSchemasByTransformNodeId, intent, schemas.target(), context);
       hops.add(new FrozenHop(intent, schemas, envelope));
+    }
+    for (Map.Entry<String, CopyMappingPlan> entry : copyPlans.entrySet()) {
+      if (!entry.getValue().reads().isEmpty()) continue;
+      MappingEnvelope saveEnvelope = hops.getFirst().envelope().withMappingIntentId(entry.getKey())
+          .withVerifiedCopyPlan(entry.getValue());
+      Revision stored = artifacts.append(new AppendCommand(compilationId, Kind.MAPPING_ENVELOPE,
+          SCHEMA_VERSION, skillId, PRODUCER_VERSION, saveEnvelope, List.of(), null));
+      envelopeRefs.add(stored.reference());
+      consumed.add(stored.reference());
     }
     Map<String, MappingContract> sourceContracts = new LinkedHashMap<>();
     for (FrozenHop hop : hops) {
@@ -184,8 +230,7 @@ public class MappingGenerationPipeline {
   }
 
   /**
-   * Blank script shells this skill must fill: mapping-owned sites for its intents, plus ticket-01
-   * behavior-owned scripts. Empty mapping intents do not skip the behavior-owned set.
+   * Finds blank shells for typed mappings, compiler-derived retention, and approved script behavior.
    */
   public List<String> requiredBlankScriptNodeIds(
       String skillId, ChainSemanticRevision revision, ChainPlanGraph graph) {
@@ -206,15 +251,16 @@ public class MappingGenerationPipeline {
       for (MappingIntent intent : intentsFor(skillId, revision, context)) {
         mappingIntentIds.add(intent.mappingIntentId());
       }
-      for (String nodeId :
-          DefaultChainSemanticRevisionValidator.behaviorOwnedScriptNodeIds(revision)) {
-        if (isBlankScriptNode(graph, nodeId)) {
-          blanks.add(nodeId);
-        }
-      }
     }
     for (ChainPlanNode node : graph.nodes()) {
       if (node == null || !"script".equals(node.type())) {
+        continue;
+      }
+      if ((CopyMappingPlanner.nativeRetentionSite(node)
+          || context != null && ScriptExecutionAuthority.declaredGeneratedBehavior(
+              context.requirementBrief(), node.nodeId(), context.behaviorTasks()).isPresent())
+          && isBlankScriptNode(graph, node.nodeId())) {
+        blanks.add(node.nodeId());
         continue;
       }
       String intentId = MappingExecutionSite.mappingIntentId(node);
@@ -286,7 +332,12 @@ public class MappingGenerationPipeline {
     List<MappingIntent> matched = new ArrayList<>();
     for (MappingIntent intent :
         revision.mappingBodies(context == null ? null : context.requirementBrief())) {
-      if (belongsToSkill(intent, skillId)) {
+      List<ChainPlanNode> sites = context == null || context.inputGraph() == null ? List.of()
+          : context.inputGraph().nodes().stream().filter(node ->
+              intent.mappingIntentId().equals(MappingExecutionSite.mappingIntentId(node))).toList();
+      boolean verbatim = sites.size() == 1
+          && CopyMappingPlanner.hasVerbatimBody(context.requirementBrief(), sites.getFirst());
+      if (belongsToSkill(intent, skillId) && !verbatim) {
         matched.add(intent);
       }
     }

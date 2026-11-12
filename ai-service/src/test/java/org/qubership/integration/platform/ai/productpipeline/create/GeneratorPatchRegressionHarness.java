@@ -527,7 +527,6 @@ public final class GeneratorPatchRegressionHarness {
                         "integrationOperationMethod",
                         "integrationOperationPath",
                         "propagateContext",
-                        "errorThrowing",
                         "before",
                         "after")),
                 entry(

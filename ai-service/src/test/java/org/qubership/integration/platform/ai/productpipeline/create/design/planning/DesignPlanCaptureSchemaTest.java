@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.productpipeline.create.design.plan
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
@@ -16,6 +17,7 @@ import io.quarkiverse.langchain4j.runtime.tool.QuarkusToolExecutorFactory;
 import io.quarkiverse.langchain4j.runtime.tool.ToolMethodCreateInfo;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.InjectMock;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.qubership.integration.platform.ai.compiler.artifact.ArtifactBlobStore;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
@@ -105,9 +107,9 @@ class DesignPlanCaptureSchemaTest {
     assertTrue(DesignPlanCaptureSession.binding(CONVERSATION)
         .orElseThrow().candidate().get() == null);
 
-    String accepted = execute("""
+    String accepted = assertThrows(CaptureValidationException.class, () -> execute("""
         {"capture":{"notes":[]}}
-        """);
+        """)).getMessage();
     assertTrue(accepted.contains("HANDOFF"), accepted);
     assertNotNull(DesignPlanCaptureSession.binding(CONVERSATION)
         .orElseThrow().candidate().get());

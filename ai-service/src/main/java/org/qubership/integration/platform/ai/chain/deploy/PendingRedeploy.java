@@ -14,6 +14,7 @@ import java.util.List;
 public record PendingRedeploy(
     String chainId,
     String domain,
+    String domainType,
     String existingDeploymentId,
     String operationId,
     String snapshotId,
@@ -30,12 +31,14 @@ public record PendingRedeploy(
   public PendingRedeploy(
       String chainId,
       String domain,
+      String domainType,
       String existingDeploymentId,
       String operationId,
       String snapshotId) {
     this(
         chainId,
         domain,
+        domainType,
         existingDeploymentId,
         operationId,
         snapshotId,
@@ -49,6 +52,7 @@ public record PendingRedeploy(
   public PendingRedeploy(
       String chainId,
       String domain,
+      String domainType,
       String existingDeploymentId,
       String operationId,
       String snapshotId,
@@ -56,6 +60,7 @@ public record PendingRedeploy(
     this(
         chainId,
         domain,
+        domainType,
         existingDeploymentId,
         operationId,
         snapshotId,
@@ -69,6 +74,7 @@ public record PendingRedeploy(
   public PendingRedeploy(
       String chainId,
       String domain,
+      String domainType,
       String existingDeploymentId,
       String operationId,
       String snapshotId,
@@ -77,6 +83,7 @@ public record PendingRedeploy(
     this(
         chainId,
         domain,
+        domainType,
         existingDeploymentId,
         operationId,
         snapshotId,
@@ -90,6 +97,7 @@ public record PendingRedeploy(
   public PendingRedeploy(
       String chainId,
       String domain,
+      String domainType,
       String existingDeploymentId,
       String operationId,
       String snapshotId,
@@ -99,6 +107,7 @@ public record PendingRedeploy(
     this(
         chainId,
         domain,
+        domainType,
         existingDeploymentId,
         operationId,
         snapshotId,
@@ -112,18 +121,19 @@ public record PendingRedeploy(
   /** A token wait for the reader to name an engine domain on the next turn. */
   public static PendingRedeploy domainWait(
       String chainId, String snapshotId, boolean confirmFirstDeploy) {
-    return new PendingRedeploy(chainId, null, null, null, snapshotId, confirmFirstDeploy, false);
+    return new PendingRedeploy(
+        chainId, null, null, null, null, snapshotId, confirmFirstDeploy, false);
   }
 
   /** A token wait for the reader to name which live domain to undeploy. */
   public static PendingRedeploy undeployDomainWait(String chainId) {
-    return new PendingRedeploy(chainId, null, null, null, null, false, true);
+    return new PendingRedeploy(chainId, null, null, null, null, null, false, true);
   }
 
   public static PendingRedeploy pendingUndeploy(
       String chainId, String domain, String existingDeploymentId, String operationId) {
     return new PendingRedeploy(
-        chainId, domain, existingDeploymentId, operationId, null, false, true);
+        chainId, domain, null, existingDeploymentId, operationId, null, false, true);
   }
 
   /**
@@ -132,11 +142,20 @@ public record PendingRedeploy(
   public static PendingRedeploy loggingWait(
       String chainId,
       String domain,
+      String domainType,
       String existingDeploymentId,
       String operationId,
       String snapshotId) {
     return new PendingRedeploy(
-        chainId, domain, existingDeploymentId, operationId, snapshotId, false, false, true);
+        chainId,
+        domain,
+        domainType,
+        existingDeploymentId,
+        operationId,
+        snapshotId,
+        false,
+        false,
+        true);
   }
 
   /**
@@ -152,6 +171,7 @@ public record PendingRedeploy(
     return new PendingRedeploy(
         chainId,
         domain,
+        null,
         null,
         operationId,
         snapshotId,

@@ -20,7 +20,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBr
 
 /**
  * Evaluation gate for the mapping conversation seam. Deterministic capture fixtures drive
- * {@link MappingTurnInterpreter} and {@link MappingTurnProcessor}. Compiler repair is scored
+ * {@link MappingTurnInterpreter} and {@link MappingTurnProcessor}. Native COPY admission is scored
  * through {@code CaptureRepairRunner}, {@code ScriptBodyRepairTool}, and
  * {@code ProducerOwnedRecovery}.
  */

@@ -11,7 +11,7 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureToolProvider
 class GatherRequirementsAgentTest {
 
   @Test
-  void systemPromptKeepsMissingMethodsAndNativeTargetSelectionExplicit() throws Exception {
+  void systemPromptUsesTheSuppliedInstructionsAndAuthoritativeDraft() throws Exception {
     String resource = GatherRequirementsAgent.class.getMethod("chat", String.class, String.class,
         dev.langchain4j.invocation.InvocationParameters.class).getAnnotation(dev.langchain4j.service.SystemMessage.class)
         .fromResource();
@@ -19,12 +19,23 @@ class GatherRequirementsAgentTest {
       assertNotNull(stream);
       String prompt = new String(stream.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)
           .replaceAll("\\s+", " ");
-      assertTrue(prompt.contains("Leave httpMethod null"));
-      assertTrue(prompt.contains("do not guess GET or POST"));
-      assertTrue(prompt.contains("targetReference"));
-      assertTrue(prompt.contains("chain-trigger element ID only"));
-      assertTrue(prompt.contains("remove its answered target question"));
+      assertTrue(prompt.contains("supplied skill instructions"), prompt);
+      assertTrue(prompt.contains("Tool schemas define argument shapes"), prompt);
+      assertTrue(prompt.contains("tool results define accepted state"), prompt);
+      assertTrue(prompt.contains("current draft and source turns"), prompt);
+      assertTrue(prompt.contains("Do not run implementation or mutate the catalog"), prompt);
     }
+  }
+
+  @Test
+  void nativeRepairOverloadUsesTheSamePromptAndExplicitRequestParameters() throws Exception {
+    var ordinary = GatherRequirementsAgent.class.getMethod("chat", String.class, String.class,
+        dev.langchain4j.invocation.InvocationParameters.class);
+    var repair = GatherRequirementsAgent.class.getMethod("chat", String.class, String.class,
+        dev.langchain4j.invocation.InvocationParameters.class,
+        dev.langchain4j.model.chat.request.ChatRequestParameters.class);
+    assertEquals(ordinary.getAnnotation(dev.langchain4j.service.SystemMessage.class),
+        repair.getAnnotation(dev.langchain4j.service.SystemMessage.class));
   }
 
   @Test

@@ -386,7 +386,7 @@ export async function deployToDomain(
   );
 }
 
-/** Deletes the domain with `DELETE /v1/cr/{name}`, then its record. */
+/** Deletes the domain with `DELETE /v1/catalog/domains/{domainName}`, then its record. */
 export async function deleteDomain(catalog: Catalog, target: TokenedDomain): Promise<void> {
   await catalog.deleteCustomResource(target.domain);
   if (target.record) fs.rmSync(target.record, { force: true });

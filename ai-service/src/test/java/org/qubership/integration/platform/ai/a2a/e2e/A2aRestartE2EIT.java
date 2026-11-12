@@ -9,6 +9,8 @@ import static org.mockito.Mockito.when;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.junit.TestProfile;
+import org.qubership.integration.platform.ai.compiler.artifact.TestArtifactBlobStoreProducer;
 import io.smallrye.mutiny.Multi;
 import jakarta.inject.Inject;
 import java.time.Duration;
@@ -40,6 +42,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.facade.Start
  * then GetTask, resubscribe, continue, and complete.
  */
 @QuarkusTest
+@TestProfile(TestArtifactBlobStoreProducer.Profile.class)
 class A2aRestartE2EIT {
 
   private static final String DESIGN_HASH = "d".repeat(64);

@@ -11,10 +11,16 @@ public record MappingEnvelope(
     MessageSchema target,
     Map<String, String> idToPath,
     String digest,
-    String mappingIntentId) {
+    String mappingIntentId,
+    org.qubership.integration.platform.ai.plan.mapping.CopyMappingPlan verifiedCopyPlan) {
 
   public MappingEnvelope {
     idToPath = idToPath == null ? Map.of() : Map.copyOf(idToPath);
+  }
+
+  public MappingEnvelope(MessageSchema source, MessageSchema target, Map<String, String> idToPath,
+      String digest, String mappingIntentId) {
+    this(source, target, idToPath, digest, mappingIntentId, null);
   }
 
   public MappingEnvelope(
@@ -22,11 +28,16 @@ public record MappingEnvelope(
     this(source, target, idToPath, digest, null);
   }
 
+  public MappingEnvelope withVerifiedCopyPlan(
+      org.qubership.integration.platform.ai.plan.mapping.CopyMappingPlan plan) {
+    return new MappingEnvelope(source, target, idToPath, digest, mappingIntentId, plan);
+  }
+
   public MappingEnvelope withSource(MessageSchema source) {
-    return new MappingEnvelope(source, target, idToPath, digest, mappingIntentId);
+    return new MappingEnvelope(source, target, idToPath, digest, mappingIntentId, verifiedCopyPlan);
   }
 
   public MappingEnvelope withMappingIntentId(String mappingIntentId) {
-    return new MappingEnvelope(source, target, idToPath, digest, mappingIntentId);
+    return new MappingEnvelope(source, target, idToPath, digest, mappingIntentId, verifiedCopyPlan);
   }
 }

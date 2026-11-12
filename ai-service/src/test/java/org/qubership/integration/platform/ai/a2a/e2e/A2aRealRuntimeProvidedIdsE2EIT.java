@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.quarkus.test.junit.QuarkusMock;
 import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.junit.TestProfile;
+import org.qubership.integration.platform.ai.compiler.artifact.TestArtifactBlobStoreProducer;
 import jakarta.inject.Inject;
 import java.time.Duration;
 import java.util.List;
@@ -27,6 +29,7 @@ import org.qubership.integration.platform.ai.a2a.transport.A2aTestAuth;
  * {@link CreateChainTestOrchestrator} (deterministic capability adapters; no Mockito facade mock).
  */
 @QuarkusTest
+@TestProfile(TestArtifactBlobStoreProducer.Profile.class)
 class A2aRealRuntimeProvidedIdsE2EIT {
 
   @Inject A2aTaskRepository taskRepository;

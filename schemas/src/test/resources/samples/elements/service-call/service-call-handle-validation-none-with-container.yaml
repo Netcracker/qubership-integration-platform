@@ -8,7 +8,6 @@ properties:
     type: "m2m"
   bodyFormData: []
   bodyMimeType: "None"
-  errorThrowing: true
 #  handleValidationAction: "default"
   handlerContainer: {}
   integrationOperationId: "integrationOperationId"

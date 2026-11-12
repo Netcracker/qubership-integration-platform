@@ -34,15 +34,10 @@ class RequirementAnalysisKnowledgeContractTest {
         "skill must not declare direct Markdown knowledge paths");
     assertFalse(markdown.contains("knowledge/corporate/pattern-standards.md"));
     assertFalse(markdown.contains("knowledge/corporate/element-standards.md"));
-    assertTrue(
-        markdown.contains("KnowledgeContextPackage"),
-        "skill must pin the Runtime Context Package contract");
-    assertTrue(markdown.contains("Runtime Context Package"));
-    assertTrue(
-        markdown.contains("Do not read `knowledge/**`"),
-        "skill must forbid reading knowledge files from the git tree");
-    assertTrue(markdown.contains("cip-standards"));
-    assertTrue(markdown.contains("element-standards"));
+    assertTrue(markdown.contains("relevant knowledge"));
+    assertTrue(markdown.contains("they do not add requirements"));
+    assertTrue(markdown.contains("Do not repeat prompt instructions, tool rules, knowledge package metadata"));
+    assertTrue(markdown.contains("KNOWLEDGE_OBJECT"));
   }
 
   @Test
@@ -51,13 +46,14 @@ class RequirementAnalysisKnowledgeContractTest {
     String skill = Files.readString(resolveSkillMarkdown());
     String prompt =
         Files.readString(
-            resolveModule().resolve("src/main/resources/prompts/roles/gather-requirements.md"));
+            resolveModule().getParent().resolve(".private/rocky-skills/skills/brainstorming/SKILL.md"));
 
-    assertTrue(skill.contains("Failure fields on the same response interaction are inline response"));
+    prompt = prompt.replaceAll("\\s+", " ");
+    assertTrue(skill.contains("The server carries selected facts, constraints, flow, catalog bindings, and draft text"));
     assertTrue(prompt.contains("Choose `INLINE_RESPONSE` when the same response interaction carries"));
     assertTrue(prompt.contains("including requests phrased \"on failure, set ...\""));
-    assertTrue(prompt.contains("A terminal delivery call stays `PROPAGATE`"));
-    assertTrue(skill.contains("terminal delivery call stays propagate"));
+    assertTrue(prompt.contains("A terminal delivery call stays PROPAGATE"));
+    assertTrue(skill.contains("Use the selected draft as the source of requirements"));
     assertTrue(prompt.contains("Choose `ERROR_SCOPE` only when the user requests a distinct catch path"));
   }
 
@@ -118,9 +114,9 @@ class RequirementAnalysisKnowledgeContractTest {
     Path skill =
         module
             .getParent()
-            .resolve("integration-platform-skills/.apm/skills/cip-requirement-analyzer/SKILL.md");
+            .resolve(".private/rocky-skills/skills/cip-conf-requirement-analysis/SKILL.md");
     if (!Files.isRegularFile(skill)) {
-      throw new IllegalStateException("cip-requirement-analyzer SKILL.md not found at " + skill);
+      throw new IllegalStateException("cip-conf-requirement-analysis SKILL.md not found at " + skill);
     }
     return skill;
   }

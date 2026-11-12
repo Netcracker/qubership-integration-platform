@@ -24,6 +24,8 @@ import org.qubership.integration.platform.ai.configuration.AppConfig;
 @ApplicationScoped
 public class LlmRunBudget {
   private static final ThreadLocal<String> RUN = new ThreadLocal<>();
+  private final Map<String, java.util.concurrent.atomic.AtomicBoolean> invocationRefusals =
+      new java.util.concurrent.ConcurrentHashMap<>();
   private final ArtifactBlobStore blobs;
   private final ObjectMapper mapper;
   private final AppConfig.LlmConfig config;
@@ -88,6 +90,18 @@ public class LlmRunBudget {
         .map(bytes -> new String(bytes, StandardCharsets.UTF_8)).orElse(null);
   }
 
+  public java.util.concurrent.atomic.AtomicBoolean watchRefusals(String runId) {
+    var refused = new java.util.concurrent.atomic.AtomicBoolean();
+    if (invocationRefusals.putIfAbsent(runId, refused) != null) {
+      throw new IllegalStateException("A model budget invocation is already active for this run");
+    }
+    return refused;
+  }
+
+  public void stopWatchingRefusals(String runId, java.util.concurrent.atomic.AtomicBoolean refused) {
+    invocationRefusals.remove(runId, refused);
+  }
+
   public Ticket reserve(String runId, long inputTokens, long outputTokens) {
     if (runId == null) { return null; }
     if (inputTokens < 0 || outputTokens < 0) { throw new IllegalArgumentException("Negative token reservation"); }
@@ -104,7 +118,11 @@ public class LlmRunBudget {
       return new State(state.requests() + 1, Math.addExact(state.tokens(), tokens), state.activeMillis(),
           state.grants(), state.grantCommands(), active, null);
     });
-    if (result.refusal() != null) { throw new Exhausted(result.refusal()); }
+    if (result.refusal() != null) {
+      var refused = invocationRefusals.get(runId);
+      if (refused != null) refused.set(true);
+      throw new Exhausted(result.refusal());
+    }
     return new Ticket(runId, id);
   }
 

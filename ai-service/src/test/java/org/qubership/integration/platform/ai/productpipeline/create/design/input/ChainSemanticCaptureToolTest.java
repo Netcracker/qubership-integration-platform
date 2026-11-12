@@ -56,7 +56,8 @@ class ChainSemanticCaptureToolTest {
 
   @Test
   void selfContainingConditionIsRejectedAndItsCorrectionCanBeCaptured() throws Exception {
-    var tool = tool(completePack());
+    var feedback = new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore();
+    var tool = tool(completePack(), new E2eRecoveryFaultInjector("", ""), feedback);
     bindDesign(ChainSemanticCaptureFixtures.approvedBrief());
     var base = ChainSemanticCaptureFixtures.linearCapture();
     var region = new ChainSemanticCapture.CapturedConditionRegion("header-check", "op-shared", List.of(
@@ -73,7 +74,12 @@ class ChainSemanticCaptureToolTest {
     assertEquals("REPAIR_CAPTURE", rejected.path("nextAction").asText());
     assertTrue(rejected.toString().contains("cannot contain its owner"), rejected.toString());
     assertTrue(ProductCapabilityCaptureContext.semanticCandidate().isEmpty());
-    assertTrue(MAPPER.readTree(tool.captureChainSemanticRevision(base)).path("accepted").asBoolean());
+    assertTrue(feedback.repairHistory("conv-1", "design-input").contains("cannot contain its owner"),
+        () -> feedback.repairHistory("conv-1", "design-input"));
+    String accepted = endedTurn(() -> tool.captureChainSemanticRevision(base));
+    assertTrue(MAPPER.readTree(accepted).path("accepted").asBoolean(), accepted);
+    assertEquals("", feedback.repairHistory("conv-1", "design-input"));
+    assertEquals(java.util.Optional.empty(), feedback.lastPlanFailure("conv-1"));
   }
 
   @Test
@@ -85,17 +91,25 @@ class ChainSemanticCaptureToolTest {
         List.of(new CapturedOperation("op-shared", "script", List.of("foreign-fact"))),
         capture.sequenceRegions(), capture.conditionRegions(), capture.splitRegions(), capture.loopRegions(),
         capture.retryRegions(), capture.errorScopeRegions(), capture.edges(), capture.containment());
+    // The first submission is the violation; REPAIR_NO_PROGRESS comes on the third repeat.
     assertTrue(tool.captureChainSemanticRevision(invalid).contains("DESIGN_CONTRACT_VIOLATION"));
-    assertTrue(tool.captureChainSemanticRevision(invalid).contains("REPAIR_NO_PROGRESS"));
+    String noticed = tool.captureChainSemanticRevision(invalid);
+    assertTrue(noticed.contains("UNCHANGED_PROPOSAL"), noticed);
+    assertTrue(noticed.contains("REPAIR_CAPTURE"), noticed);
+    String stillNoticed = tool.captureChainSemanticRevision(invalid);
+    assertTrue(stillNoticed.contains("UNCHANGED_PROPOSAL"), stillNoticed);
+    String ended = endedTurn(() -> tool.captureChainSemanticRevision(invalid));
+    assertTrue(ended.contains("REPAIR_NO_PROGRESS"), ended);
     assertTrue(ProductCapabilityCaptureContext.semanticCandidate().isEmpty());
-    assertTrue(tool.captureChainSemanticRevision(capture).contains("HANDOFF"));
+    String accepted = endedTurn(() -> tool.captureChainSemanticRevision(capture));
+    assertTrue(accepted.contains("HANDOFF"), accepted);
   }
 
   @Test
   void captureStoresOneCandidate() throws Exception {
     ChainSemanticCaptureTool tool = tool(completePack());
     bindDesign(ChainSemanticCaptureFixtures.approvedBrief());
-    String result = tool.captureChainSemanticRevision(ChainSemanticCaptureFixtures.linearCapture());
+    String result = endedTurn(() -> tool.captureChainSemanticRevision(ChainSemanticCaptureFixtures.linearCapture()));
     JsonNode outcome = MAPPER.readTree(result);
     assertTrue(outcome.get("accepted").asBoolean(), result);
     assertTrue(outcome.get("changed").asBoolean(), result);
@@ -108,10 +122,30 @@ class ChainSemanticCaptureToolTest {
   }
 
   @Test
+  void captureAcceptsCompactRuntimeMetadata() throws Exception {
+    var files = Map.of("runtime/generator-contracts.json", "contracts",
+        "runtime/validation-rules.yaml", "validation");
+    var tool = tool(pack(completeAddons(), files));
+    bindDesign(ChainSemanticCaptureFixtures.approvedBrief());
+    var outcome = MAPPER.readTree(endedTurn(() -> tool.captureChainSemanticRevision(ChainSemanticCaptureFixtures.linearCapture())));
+    assertTrue(outcome.path("accepted").asBoolean(), outcome.toString());
+    assertEquals("HANDOFF", outcome.path("nextAction").asText());
+  }
+
+  @Test
+  void captureRejectsMissingCompactValidationRules() {
+    var tool = tool(pack(completeAddons(), Map.of("runtime/generator-contracts.json", "contracts")));
+    bindDesign(ChainSemanticCaptureFixtures.approvedBrief());
+    String result = endedTurn(() -> tool.captureChainSemanticRevision(ChainSemanticCaptureFixtures.linearCapture()));
+    assertTrue(result.contains("Required knowledge fragment is missing: validation-rules"), result);
+    assertTrue(ProductCapabilityCaptureContext.semanticCandidate().isEmpty());
+  }
+
+  @Test
   void captureFillsCatalogValuesTheModelNeverSends() {
     ChainSemanticCaptureTool tool = tool(completePack());
     bindDesign(ChainSemanticCaptureFixtures.approvedBrief());
-    tool.captureChainSemanticRevision(ChainSemanticCaptureFixtures.linearCapture());
+    endedTurn(() -> tool.captureChainSemanticRevision(ChainSemanticCaptureFixtures.linearCapture()));
     ChainSemanticRevision stored =
         ProductCapabilityCaptureContext.semanticCandidate().orElseThrow();
     assertEquals("http-trigger", node(stored, SemanticNode.Trigger.class).capabilityKey());
@@ -145,8 +179,8 @@ class ChainSemanticCaptureToolTest {
                   () -> {
                     ToolSession.bind("conv-1");
                     try {
-                      return tool.captureChainSemanticRevision(
-                          ChainSemanticCaptureFixtures.linearCapture());
+                      return endedTurn(() -> tool.captureChainSemanticRevision(
+                          ChainSemanticCaptureFixtures.linearCapture()));
                     } finally {
                       ToolSession.clear();
                     }
@@ -173,8 +207,8 @@ class ChainSemanticCaptureToolTest {
           worker
               .submit(
                   () ->
-                      tool.captureChainSemanticRevision(
-                          ChainSemanticCaptureFixtures.linearCapture()))
+                      endedTurn(() -> tool.captureChainSemanticRevision(
+                          ChainSemanticCaptureFixtures.linearCapture())))
               .get();
       assertTrue(result.contains("captured"), result);
     } finally {
@@ -196,8 +230,8 @@ class ChainSemanticCaptureToolTest {
           worker
               .submit(
                   () ->
-                      tool.captureChainSemanticRevision(
-                          ChainSemanticCaptureFixtures.linearCapture()))
+                      endedTurn(() -> tool.captureChainSemanticRevision(
+                          ChainSemanticCaptureFixtures.linearCapture())))
               .get();
       assertTrue(result.contains("not bound"), result);
     } finally {
@@ -231,8 +265,8 @@ class ChainSemanticCaptureToolTest {
                   () -> {
                     ToolSession.bind("conv-1");
                     try {
-                      return tool.captureChainSemanticRevision(
-                          ChainSemanticCaptureFixtures.linearCapture());
+                      return endedTurn(() -> tool.captureChainSemanticRevision(
+                          ChainSemanticCaptureFixtures.linearCapture()));
                     } finally {
                       ToolSession.clear();
                     }
@@ -267,8 +301,8 @@ class ChainSemanticCaptureToolTest {
                   () -> {
                     ToolSession.bind("conv-1");
                     try {
-                      return tool.captureChainSemanticRevision(
-                          ChainSemanticCaptureFixtures.linearCapture());
+                      return endedTurn(() -> tool.captureChainSemanticRevision(
+                          ChainSemanticCaptureFixtures.linearCapture()));
                     } finally {
                       ToolSession.clear();
                     }
@@ -289,7 +323,7 @@ class ChainSemanticCaptureToolTest {
     assertFalse(files.containsKey("generator-contracts"));
     ChainSemanticCaptureTool tool = tool(pack(completeAddons(), files));
     bindDesign(ChainSemanticCaptureFixtures.approvedBrief());
-    String result = tool.captureChainSemanticRevision(ChainSemanticCaptureFixtures.linearCapture());
+    String result = endedTurn(() -> tool.captureChainSemanticRevision(ChainSemanticCaptureFixtures.linearCapture()));
     assertTrue(result.contains("captured"), result);
     assertTrue(ProductCapabilityCaptureContext.semanticCandidate().isPresent());
   }
@@ -300,7 +334,7 @@ class ChainSemanticCaptureToolTest {
     files.remove("knowledge/ai/GENERATOR_CONTRACTS.md");
     ChainSemanticCaptureTool tool = tool(pack(completeAddons(), files));
     bindDesign(ChainSemanticCaptureFixtures.approvedBrief());
-    String result = tool.captureChainSemanticRevision(ChainSemanticCaptureFixtures.linearCapture());
+    String result = endedTurn(() -> tool.captureChainSemanticRevision(ChainSemanticCaptureFixtures.linearCapture()));
     JsonNode outcome = MAPPER.readTree(result);
     assertFalse(outcome.get("accepted").asBoolean(), result);
     assertEquals("STOP", outcome.get("nextAction").asText());
@@ -350,7 +384,7 @@ class ChainSemanticCaptureToolTest {
     assertEquals("INJECTED_DESIGN_REJECTION", MAPPER.readTree(first).at("/issues/0/code").asText());
     assertTrue(ProductCapabilityCaptureContext.semanticCandidate().isEmpty());
 
-    String second = tool.captureChainSemanticRevision(ChainSemanticCaptureFixtures.linearCapture());
+    String second = endedTurn(() -> tool.captureChainSemanticRevision(ChainSemanticCaptureFixtures.linearCapture()));
     assertTrue(MAPPER.readTree(second).get("accepted").asBoolean(), second);
     assertTrue(ProductCapabilityCaptureContext.semanticCandidate().isPresent());
   }
@@ -359,9 +393,10 @@ class ChainSemanticCaptureToolTest {
   void duplicateCaptureFailsAndKeepsTheFirstCandidate() {
     ChainSemanticCaptureTool tool = tool(completePack());
     bindDesign(ChainSemanticCaptureFixtures.approvedBrief());
-    tool.captureChainSemanticRevision(ChainSemanticCaptureFixtures.linearCapture());
+    String first = endedTurn(() -> tool.captureChainSemanticRevision(ChainSemanticCaptureFixtures.linearCapture()));
+    assertTrue(first.contains("HANDOFF"), first);
     String duplicate =
-        tool.captureChainSemanticRevision(ChainSemanticCaptureFixtures.linearCapture());
+        endedTurn(() -> tool.captureChainSemanticRevision(ChainSemanticCaptureFixtures.linearCapture()));
     assertTrue(duplicate.contains("already captured"), duplicate);
     assertEquals(1, ProductCapabilityCaptureContext.semanticCandidate().stream().count());
   }
@@ -370,7 +405,7 @@ class ChainSemanticCaptureToolTest {
   void missingAddonFailsClosedWithoutACandidate() throws Exception {
     ChainSemanticCaptureTool tool = tool(packMissingExecutor());
     bindDesign(ChainSemanticCaptureFixtures.approvedBrief());
-    String result = tool.captureChainSemanticRevision(ChainSemanticCaptureFixtures.linearCapture());
+    String result = endedTurn(() -> tool.captureChainSemanticRevision(ChainSemanticCaptureFixtures.linearCapture()));
     JsonNode outcome = MAPPER.readTree(result);
     assertFalse(outcome.get("accepted").asBoolean(), result);
     assertEquals("STOP", outcome.get("nextAction").asText());
@@ -387,7 +422,7 @@ class ChainSemanticCaptureToolTest {
     bindDesign(ChainSemanticCaptureFixtures.approvedBrief());
     ChainSemanticCapture mutated =
         withEntryPoints(ChainSemanticCaptureFixtures.linearCapture(), List.of());
-    String result = tool.captureChainSemanticRevision(mutated);
+    String result = endedTurn(() -> tool.captureChainSemanticRevision(mutated));
     assertTrue(result.contains("captured"), result);
     assertTrue(ProductCapabilityCaptureContext.semanticCandidate().isPresent());
   }
@@ -480,6 +515,11 @@ class ChainSemanticCaptureToolTest {
 
   private static ChainSemanticCaptureTool tool(
       CipKnowledgePackRepository pack, E2eRecoveryFaultInjector injector) {
+    return tool(pack, injector, new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore());
+  }
+
+  private static ChainSemanticCaptureTool tool(CipKnowledgePackRepository pack, E2eRecoveryFaultInjector injector,
+      org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore feedback) {
     CatalogElementDescriptorLoader descriptors = mock(CatalogElementDescriptorLoader.class);
     CatalogElementDescriptorTestSupport.stubPermissive(descriptors);
     return new ChainSemanticCaptureTool(
@@ -488,7 +528,8 @@ class ChainSemanticCaptureToolTest {
         new ClasspathCompilerContractRepository(),
         pack,
         descriptors,
-        injector);
+        injector,
+        feedback);
   }
 
   static CipKnowledgePackRepository completePack() {
@@ -538,5 +579,14 @@ class ChainSemanticCaptureToolTest {
     when(repository.loadManifest()).thenReturn(manifest);
     when(repository.activeVersion()).thenReturn(manifest.version());
     return repository;
+  }
+
+  /** Runs a call that must end the model's tool loop and returns the capture result it ended with. */
+  private static String endedTurn(java.util.function.Supplier<String> call) {
+    AtomicReference<String> result = new AtomicReference<>();
+    return assertThrows(
+        org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException.class,
+        () -> result.set(call.get()), () -> "Capture result: " + result.get())
+        .getMessage();
   }
 }

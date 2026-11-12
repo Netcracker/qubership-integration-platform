@@ -117,6 +117,8 @@ export interface ChatRequest {
     comment?: string;
     specSystemTypes?: Record<string, CatalogSystemType>;
   };
+  /** Offer id of the requirement clarification this message answers. */
+  clarificationOfferId?: string;
   context?: {
     type: "chain" | "service" | "operation";
     chainId?: string;

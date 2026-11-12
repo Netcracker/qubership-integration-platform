@@ -3,6 +3,7 @@
 set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${DIR}/../testing-paths.sh"
 SCRIPTS_DIR="$(cd "${DIR}/scripts" && pwd)"
 
 SCENARIO_ID=""
@@ -11,13 +12,17 @@ BASE_URL=""
 EVALUATOR_URL=""
 REPORT_PATH=""
 TRANSPORT="chat"
+SCENARIOS_FILE="${QIP_SKILLS_TESTING_ROOT}/product-pipeline/scenarios.json"
+INITIAL_CONVERSATION_ID="-"
+STRICT_RECOVERY=0
 
 usage() {
     cat >&2 << 'EOF'
 Usage: run-product-scenario.sh \
   --scenario <id> --rep <n> \
   --base-url <url> --evaluator-url <url> \
-  --report <path> [--transport chat|a2a]
+  --report <path> [--transport chat|a2a] [--scenarios-file <path>] \
+  [--conversation-id <id>] [--strict-recovery]
 
 --transport picks how turns are sent. Both transports drive the same scenario to the same
 durable terminal state and assert the same evidence, so a divergence names the transport.
@@ -27,6 +32,18 @@ EOF
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --scenarios-file)
+            SCENARIOS_FILE="${2:?}"
+            shift 2
+            ;;
+        --conversation-id)
+            INITIAL_CONVERSATION_ID="${2:?}"
+            shift 2
+            ;;
+        --strict-recovery)
+            STRICT_RECOVERY=1
+            shift
+            ;;
         --scenario)
             SCENARIO_ID="${2:?}"
             shift 2
@@ -68,7 +85,6 @@ case "${TRANSPORT}" in
         exit 2
         ;;
 esac
-SCENARIOS_FILE="${DIR}/scenarios.json"
 [[ -f "${SCENARIOS_FILE}" ]] || {
     echo "FAIL: missing scenarios.json" >&2
     exit 1
@@ -79,7 +95,9 @@ jq -e --arg s "${SCENARIO_ID}" '.[$s]' "${SCENARIOS_FILE}" > /dev/null ||
         exit 1
     }
 
-prompt="$(jq -r --arg s "${SCENARIO_ID}" '.[$s].prompt // empty' "${SCENARIOS_FILE}")"
+# A sentinel keeps command substitution from removing the prompt's final newlines.
+prompt="$(jq -j --arg s "${SCENARIO_ID}" '.[$s].prompt // empty' "${SCENARIOS_FILE}" && printf '.')"
+prompt="${prompt%.}"
 expected_state="$(jq -r --arg s "${SCENARIO_ID}" '.[$s].terminalState // empty' "${SCENARIOS_FILE}")"
 expects_approval="$(jq -r --arg s "${SCENARIO_ID}" '.[$s].expectsApproval // true' "${SCENARIOS_FILE}")"
 expects_implement="$(jq -r --arg s "${SCENARIO_ID}" '.[$s].expectsImplement // false' "${SCENARIOS_FILE}")"
@@ -108,12 +126,27 @@ recovery_owner_stage="$(jq -r --arg s "${SCENARIO_ID}" '.[$s].recovery.ownerStag
 recovery_follow_up="$(jq -r --arg s "${SCENARIO_ID}" '.[$s].recovery.followUp // empty' "${SCENARIOS_FILE}")"
 recovery_exhaust_halt="$(jq -r --arg s "${SCENARIO_ID}" '.[$s].recovery.exhaustHalt // false' "${SCENARIOS_FILE}")"
 recovery_automatic_only="$(jq -r --arg s "${SCENARIO_ID}" '.[$s].recovery.automaticOnly // false' "${SCENARIOS_FILE}")"
+recovery_minimum_faults="$(jq -r --arg s "${SCENARIO_ID}" '.[$s].recovery.minimumFaults // 1' "${SCENARIOS_FILE}")"
 recovery_fault_stages_json="$(jq -c --arg s "${SCENARIO_ID}" \
     '.[$s].recovery.faultStages // (if .[$s].recovery.faultStage then [.[$s].recovery.faultStage] else [] end)' \
     "${SCENARIOS_FILE}")"
 recovery_owner_stages_json="$(jq -c --arg s "${SCENARIO_ID}" \
     '.[$s].recovery.ownerStages // (if .[$s].recovery.ownerStage then [.[$s].recovery.ownerStage] else [] end)' \
     "${SCENARIOS_FILE}")"
+if [[ "${STRICT_RECOVERY}" == "1" ]]; then
+    [[ "${TRANSPORT}" == "chat" && "${INITIAL_CONVERSATION_ID}" != "-" ]] || {
+        echo "FAIL: strict recovery requires chat and an owned conversation ID" >&2
+        exit 2
+    }
+    jq -e --arg s "${SCENARIO_ID}" '
+      (.[$s].discoveryAnswers // [] | length) == 0
+      and (.[$s].designInputAnswers // [] | length) == 0
+      and (.[$s].recovery // {} | length) == 0
+    ' "${SCENARIOS_FILE}" > /dev/null || {
+        echo "FAIL: strict recovery refuses scripted repair assistance" >&2
+        exit 2
+    }
+fi
 catalog_url="${E2E_CATALOG_URL:-http://localhost:8091}"
 pipeline="$(jq -r --arg s "${SCENARIO_ID}" '.[$s].pipeline // empty' "${SCENARIOS_FILE}")"
 [[ "${pipeline}" == "create-chain-v1" ]] ||
@@ -331,7 +364,8 @@ command -v jq > /dev/null
 source "${SCRIPTS_DIR}/lib.sh"
 
 export E2E_BASE_URL="${BASE_URL}"
-conversation_id="-"
+conversation_id="${INITIAL_CONVERSATION_ID}"
+printf '%s\n' "${conversation_id}" > "${run_dir}/conversation-id.txt"
 sse_dir="${run_dir}/sse"
 mkdir -p "${sse_dir}"
 implement_sent=0
@@ -343,12 +377,39 @@ recovery_pre_materialization_clean=0
 uploaded_spec_object_keys_json='[]'
 uploaded_spec_system_types_json='{}'
 uploaded_spec_uploads_json='[]'
+control_answer_sent=0
+control_question=""
+answered_offer=""
+imported_offer=""
 
 send_turn() {
     local label="$1"
     local text="$2"
     local structured="${3:-}"
     local decision="${4:-}"
+    local offer_id="${5:-}"
+    if [[ "${STRICT_RECOVERY}" == "1" ]]; then
+        python3 - "${run_dir}/interactions.jsonl" "${label}" "${text}" "${decision}" "${control_question}" \
+            "${latest_wait_reason:-}" "${stage_id:-}" "${chat_card:-}" << 'PY'
+import json
+import sys
+path, label, text, decision, question, gate, stage, card_json = sys.argv[1:]
+entry = {"kind": "initial" if label == "01-prompt" else "clarification", "text": text}
+if decision:
+    data = json.loads(decision)
+    if data.get("action") not in {"approve", "approve-and-create", "create-chain", "yes", "no", "continue-to-planning"}:
+        raise SystemExit("Forbidden recovery action")
+    entry = {"kind": "decision", "gate": gate, **data}
+elif label != "01-prompt":
+    if not label.startswith("control-answer-") or not question:
+        raise SystemExit("Undeclared repair assistance")
+    entry["question"] = question
+    entry["stageId"] = stage
+    entry["questionRevision"] = json.loads(card_json)["revision"]
+with open(path, "a") as stream:
+    stream.write(json.dumps(entry) + "\n")
+PY
+    fi
     if [[ "${TRANSPORT}" == "a2a" ]]; then
         local out_json="${sse_dir}/${label}.json"
         conversation_id="$(
@@ -359,7 +420,7 @@ send_turn() {
         local out_sse="${sse_dir}/${label}.sse"
         conversation_id="$(
             bash "${SCRIPTS_DIR}/chat-turn.sh" \
-                "${BASE_URL}" "${conversation_id}" "${text}" "${out_sse}" "" "${decision}"
+                "${BASE_URL}" "${conversation_id}" "${text}" "${out_sse}" "" "${decision}" "${offer_id}"
         )"
         if [[ "${recovery_exhaust_halt}" == "true" ]]; then
             e2e_assert_observable_sse_output "${out_sse}" "${label}"
@@ -413,7 +474,7 @@ while IFS= read -r uploaded_spec; do
             echo "FAIL: uploaded specification fixture must be non-blank" >&2
             exit 1
         }
-    uploaded_spec_path="${DIR}/${uploaded_spec_fixture}"
+    uploaded_spec_path="$(dirname "${SCENARIOS_FILE}")/${uploaded_spec_fixture}"
     [[ -f "${uploaded_spec_path}" ]] ||
         {
             echo "FAIL: uploaded specification fixture not found: ${uploaded_spec_path}" >&2
@@ -451,23 +512,6 @@ fi
 
 send_turn "01-prompt" "${prompt}"
 unset E2E_CHAT_ATTACHMENT_KEYS_JSON || true
-
-if [[ "$(jq 'length' <<< "${uploaded_spec_object_keys_json}")" -gt 0 ]]; then
-    upload_decision="$(
-        e2e_extract_uploaded_spec_import_decision \
-            "${sse_dir}/01-prompt.sse" "${uploaded_spec_system_types_json}"
-    )" || {
-        echo "FAIL: uploaded specification import decision card not found" >&2
-        exit 1
-    }
-    jq -n \
-        --argjson uploads "${uploaded_spec_uploads_json}" \
-        --argjson specSystemTypes "${uploaded_spec_system_types_json}" \
-        --argjson decision "${upload_decision}" \
-        '{uploads: $uploads, specSystemTypes: $specSystemTypes, decision: $decision}' \
-        > "${run_dir}/uploaded-spec.json"
-    send_turn "02-import-specification" "" "" "${upload_decision}"
-fi
 
 # Overall poll cap (was hard-coded 600s). Stuck planning without plan artifacts
 # aborts earlier via PRODUCT_PIPELINE_PLANNING_STALL_SEC.
@@ -513,7 +557,7 @@ while ((SECONDS < deadline)); do
     ((.committedArtifactKinds // []) | map(select(. == "IMPLEMENTATION_PLAN" or . == "PLAN_VALIDATION_RESULT")) | length) as $n
     | if $n > 0 then "1" else "0" end
   ' <<< "${evidence}")"
-    if [[ "${current_state}" == "RUNNING" &&
+    if [[ "${STRICT_RECOVERY}" != "1" && "${current_state}" == "RUNNING" &&
         ("${stage_id}" == "planning" || "${stage_id}" == "design-planning") &&
         "${attempt_outcome}" == "RUNNING" &&
         "${has_plan_kind}" == "0" ]]; then
@@ -543,6 +587,37 @@ while ((SECONDS < deadline)); do
       | select($action != null)
       | {action:$action, artifactType, artifactHash, revision}
     ' <<< "${chat_card}")"
+    fi
+
+    upload_decision="$(jq -c --argjson types "${uploaded_spec_system_types_json}" '
+      select(($types | length) > 0 and .artifactType == "uploaded-specs-import-proposal"
+        and .artifactHash and ((.actions // []) | index("import-specification")))
+      | {action:"import-specification", artifactType, artifactHash, revision, specSystemTypes:$types}
+    ' <<< "${chat_card}")"
+    if [[ -n "${upload_decision}" ]]; then
+        if [[ "${upload_decision}" == "${imported_offer}" ]]; then
+            echo "FAIL: uploaded specification import card did not advance" >&2
+            break
+        fi
+        jq -n --argjson uploads "${uploaded_spec_uploads_json}" \
+            --argjson specSystemTypes "${uploaded_spec_system_types_json}" --argjson decision "${upload_decision}" \
+            '{uploads:$uploads, specSystemTypes:$specSystemTypes, decision:$decision}' > "${run_dir}/uploaded-spec.json"
+        send_turn "import-specification-$(date +%s)" "" "" "${upload_decision}"
+        imported_offer="${upload_decision}"
+        continue
+    fi
+    clarification_offer="$(jq -r '
+      select(.kind=="clarify" and (.artifactType // "")=="") | .id // ""
+      | select(length>0 and (startswith("clarify:") | not))
+    ' <<< "${chat_card}")"
+    if [[ "${TRANSPORT}" == "chat" && "${latest_wait_reason}" == "__GATE:stage-clarification__"* &&
+        -z "${clarification_offer}" ]]; then
+        sleep 2
+        continue
+    fi
+    if [[ -n "${clarification_offer}" && "${clarification_offer}" == "${answered_offer}" ]]; then
+        echo "FAIL: requirement clarification did not advance" >&2
+        break
     fi
 
     if [[ "${current_state}" == "WAITING_FOR_APPROVAL" && "${expects_approval}" == "true" ]]; then
@@ -613,6 +688,13 @@ while ((SECONDS < deadline)); do
                 echo "FAIL: recovery fault occurred after materialization had already started" >&2
                 break
             fi
+            if [[ "${recovery_exhaust_halt}" == "true" ]] && ! jq -e '
+        [.transitions[]? | select(.toStatus == "WAITING_FOR_INPUT") | .reason // ""] | last
+        | test("__GUARD__(MAX_SEMANTIC_REPAIRS|MAX_CAUSAL_REOPENS|RUN_RECOVERY_CEILING)")
+      ' <<< "${evidence}" > /dev/null; then
+                echo "FAIL: recovery halt does not identify an exhausted budget" >&2
+                break
+            fi
             recovery_pre_materialization_clean=1
             send_turn "recovery-follow-up-$(date +%s)" "${recovery_follow_up}"
             recovery_follow_up_sent=1
@@ -644,6 +726,13 @@ while ((SECONDS < deadline)); do
             send_turn "approve-$(date +%s)" "" "" "${chat_approve_decision}"
             continue
         fi
+        if [[ "${stage_id}" == "requirement-discovery" &&
+            "${latest_wait_reason}" == "__GATE:requirement-draft-ready__"* ]] &&
+            jq -e '.actions | index("continue-to-planning") != null' <<< "${chat_card}" > /dev/null; then
+            continue_decision="$(jq -c '{action:"continue-to-planning", revision}' <<< "${chat_card}")"
+            send_turn "continue-to-planning-$(date +%s)" "" "" "${continue_decision}"
+            continue
+        fi
         if [[ "${latest_wait_reason}" == *"__GATE:ids-path-choice__"* && "${TRANSPORT}" == "chat" ]]; then
             case "${design_input_choice}" in
                 "Generate full IDS") ids_action="yes" ;;
@@ -664,7 +753,35 @@ while ((SECONDS < deadline)); do
             design_input_sent=1
             continue
         fi
+        if [[ "${latest_wait_reason}" == *"__GATE:recovery-"* ]] ||
+            jq -e '.recovery != null' <<< "${chat_card}" > /dev/null; then
+            echo "FAIL: recovery requires an explicit action; preserving pending card for ${SCENARIO_ID}" >&2
+            break
+        fi
         # The IDS choice can arrive during discovery, before design-input starts.
+        if [[ "${STRICT_RECOVERY}" == "1" ]]; then
+            control_question="$(jq -r '.question // empty' <<< "${chat_card}")"
+            control_answer="$(
+                python3 - "${SCENARIOS_FILE}" "${SCENARIO_ID}" "${control_question}" "${control_answer_sent}" \
+                    "${run_dir}/strict-failure.json" "$(jq -r '.kind // empty' <<< "${chat_card}")" << 'PY'
+import json
+import re
+import sys
+path, identity, question, sent, failure_path, kind = sys.argv[1:]
+control = json.load(open(path))[identity].get("clarification")
+if kind != "clarify" or sent != "0" or not control or not re.search(control["questionPattern"], question, re.I):
+    reason = "Unexpected question in a strict recovery case: " + question
+    with open(failure_path, "w") as stream:
+        json.dump({"reason": reason, "question": question, "kind": kind}, stream)
+    raise SystemExit(reason)
+print(control["answer"])
+PY
+            )" || exit 1
+            send_turn "control-answer-$(date +%s)" "${control_answer}" "" "" "${clarification_offer}"
+            answered_offer="${clarification_offer}"
+            control_answer_sent=1
+            continue
+        fi
         if [[ "${stage_id}" == "design-input" || "${latest_wait_reason}" == *"__GATE:ids-path-choice__"* ]]; then
             # design-input asks the IDS question first and can follow up, for example for data-mapping
             # intents. Answer the follow-ups from designInputAnswers rather than calling a second
@@ -691,7 +808,8 @@ while ((SECONDS < deadline)); do
                     echo "FAIL: design-input asked again and designInputAnswers is exhausted for ${SCENARIO_ID}" >&2
                     break
                 fi
-                send_turn "design-input-$(date +%s)" "${follow_up}"
+                send_turn "design-input-$(date +%s)" "${follow_up}" "" "" "${clarification_offer}"
+                answered_offer="${clarification_offer}"
                 design_input_sent=$((design_input_sent + 1))
             fi
         else
@@ -702,7 +820,8 @@ while ((SECONDS < deadline)); do
                 break
             fi
             discovery_continues=$((discovery_continues + 1))
-            send_turn "continue-${discovery_continues}" "${discovery_answer}"
+            send_turn "continue-${discovery_continues}" "${discovery_answer}" "" "" "${clarification_offer}"
+            answered_offer="${clarification_offer}"
         fi
     fi
     sleep 2
@@ -716,21 +835,41 @@ if [[ "$(jq 'length' <<< "${recovery_fault_stages_json}")" -gt 0 ]]; then
         jq -e \
             --argjson faults "${recovery_fault_stages_json}" \
             --argjson owners "${recovery_owner_stages_json}" \
-            --argjson rebuilt "${recovery_revise_sent}" '
+            --argjson rebuilt "${recovery_revise_sent}" \
+            --argjson minimumFaults "${recovery_minimum_faults}" '
+      def injected: ((.failureEvidence // "") | contains("E2E recovery fault"));
+      def details: try ((.failureEvidence // "") | fromjson) catch {};
       . as $doc
-      | all($faults[]; . as $fault
-          | any($doc.attempts[]?;
-              ((.failureEvidence // "") | contains("E2E recovery fault"))
-              and (
-                .stageId == $fault
-                or (try ((.failureEvidence // "") | fromjson | .stageErrorFailedStageId == $fault)
-                    catch false))))
-      and all($owners[]; . as $owner
-          | any($doc.transitions[]?;
+      | ([.attempts[]? | select(.outcome == "FAILED" and injected)
+            | {id: (.attemptId // ([.stageId, .runRevision] | tojson)), stage: .stageId}]
+          + [$doc.transitions[]? | select(.toRevision != null)
+            | select(((.reason // "") | startswith("automatic-reopen:"))
+                or ($rebuilt == 1 and ((.reason // "") | startswith("author-reopen:design-planning\u0000")))
+                or ((.reason // "") | startswith("causal reopen of "))) as $reopen
+            | $doc.attempts[]? | select(.runRevision == $reopen.toRevision and injected)
+            | details as $cause
+            | (try ($cause.recoveryProducerInvocation | fromjson | .attemptId) catch null) as $origin
+            | select($origin != null and $origin != "")
+            | {id: $origin,
+               stage: ($cause.stageErrorFailedStageId // .stageId)}]
+          | unique_by(.id)) as $injections
+      | ($injections | length) >= $minimumFaults
+      and all($faults[]; . as $fault
+          | any($injections[]; .stage == $fault))
+      and all($owners | to_entries[]; .key as $index | .value as $owner
+          | (if $faults[$index] == $owner then
+              ($rebuilt == 0)
+              and ([$doc.transitions[]? | select((.reason // "") | startswith("author-reopen:"))] | length == 0)
+              and (([$doc.attempts | to_entries[] | select(.value.stageId == $owner
+                    and .value.outcome == "FAILED"
+                    and ((.value.failureEvidence // "") | contains("E2E recovery fault"))) | .key] | max // -1) as $lastFailure
+                | $lastFailure >= 0 and any($doc.attempts | to_entries[];
+                    .key > $lastFailure and .value.stageId == $owner and .value.outcome == "SUCCEEDED"))
+            else any($doc.transitions[]?;
               ((.reason // "") | startswith("automatic-reopen:" + $owner + "\u0000"))
               or ($rebuilt == 1 and $owner == "design-planning"
                 and ((.reason // "") | startswith("author-reopen:" + $owner + "\u0000")))
-              or ((.reason // "") | startswith("causal reopen of " + $owner))))
+              or ((.reason // "") | startswith("causal reopen of " + $owner))) end))
       and (if ($owners | index("design-planning")) != null then
         ([$doc.attempts[]?.outputs[]? | select(.kind == "IMPLEMENTATION_PLAN") | .contentHash]
           | unique | length >= 2) else true end)
@@ -759,6 +898,17 @@ if [[ "$(jq 'length' <<< "${recovery_fault_stages_json}")" -gt 0 ]]; then
     elif [[ "${recovery_exhaust_halt}" == "true" ]]; then
         [[ "${recovery_follow_up_sent}" -eq 1 && "${recovery_pre_materialization_clean}" -eq 1 ]] || {
             echo "FAIL: exhausted-halt recovery did not send the follow-up before materialization" >&2
+            exit 1
+        }
+        python3 - "${DIR}/build-report-from-evidence.py" "${run_dir}/evidence.json" << 'PY_CHECK' || {
+import json
+import runpy
+import sys
+check = runpy.run_path(sys.argv[1])["_exhausted_halt"]
+with open(sys.argv[2], encoding="utf-8") as stream:
+    sys.exit(0 if check(json.load(stream).get("transitions", [])) else 1)
+PY_CHECK
+            echo "FAIL: recovery exhaustion was not observed before the invalid-stage guard" >&2
             exit 1
         }
         jq -e '
@@ -824,6 +974,7 @@ fi
 
 python3 "${DIR}/build-report-from-evidence.py" \
     --evidence "${run_dir}/evidence.json" \
+    --sse-dir "${sse_dir}" \
     --scenario-id "${SCENARIO_ID}" \
     --rep "${REP}" \
     --required-facts "${required_json}" \

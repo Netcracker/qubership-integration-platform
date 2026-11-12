@@ -18,6 +18,50 @@ import org.qubership.integration.platform.ai.plan.model.ChainSection;
 
 class ChainEditIntentResolverTest {
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(ints = {2, 3})
+  void repairsAnIncompleteWrapFromTheSameRequestAndExecutionGraph(int correctOnAttempt) {
+    var graph = new ChainPlanGraph("1.0", new ChainSection("tasks", "Tasks"), List.of(
+        new ChainPlanNode("call", "service-call", "Create task", null, null, List.of()),
+        new ChainPlanNode("success", "script", "Prepare success payload", null, null, List.of()),
+        new ChainPlanNode("report", "service-call", "Task result", null, null, List.of())), List.of(
+        new ChainPlanEdge("call-success", "call", "success", null),
+        new ChainPlanEdge("success-report", "success", "report", null)));
+    String request = "Wrap create-task in error handling; keep the success script on the happy path"
+        + " and move the reporter to finally.";
+    var requests = new ArrayList<String>();
+    var listings = new ArrayList<String>();
+    ChainEditIntentAgent agent = (elements, transcript, failure, input) -> {
+      listings.add(elements);
+      requests.add(input);
+      return new ChainEditCapture(ChainEditAction.ADD_ELEMENTS,
+          requests.size() < correctOnAttempt ? List.of("call", "report") : List.of("call", "success", "report"),
+          request, null, "try-catch-finally-2", null, List.of(), List.of(), ChainEditDisposition.NEST);
+    };
+    var result = new ChainEditIntentResolver(agent).resolve(graph, request);
+    org.junit.jupiter.api.Assertions.assertAll(
+        () -> assertTrue(result.resolved(), result.unresolvedAmbiguities().toString()),
+        () -> assertEquals(List.of("call", "success", "report"), result.targetNodeIds()),
+        () -> assertEquals(correctOnAttempt, requests.size()),
+        () -> assertTrue(requests.getLast().contains(request), () -> "Repair request: " + requests.getLast()),
+        () -> assertTrue(requests.getLast().contains("Prepare success payload"), () -> "Repair request: " + requests.getLast()),
+        () -> assertTrue(listings.getFirst().contains("call -> success"), () -> "Graph listing: " + listings.getFirst()),
+        () -> assertTrue(listings.getFirst().contains("success -> report"), () -> "Graph listing: " + listings.getFirst()));
+  }
+
+  @Test
+  void repeatedInvalidCapturesKeepTheQuestionAndStopInternalRepair() {
+    var calls = new java.util.concurrent.atomic.AtomicInteger();
+    var result = new ChainEditIntentResolver((elements, transcript, failure, input) -> {
+      calls.incrementAndGet();
+      return capture(ChainEditAction.CONFIGURE, List.of(), "Change the timeout");
+    }).resolve(graph(), "Change the timeout");
+    org.junit.jupiter.api.Assertions.assertAll(
+        () -> assertFalse(result.resolved()),
+        () -> assertEquals(List.of("Say which element to change."), result.unresolvedAmbiguities()),
+        () -> assertEquals(3, calls.get()));
+  }
+
   @Test
   void deletionPreservesAnExplicitConnectionPolicyAcrossCopiesAndClarification() throws Exception {
     ChainEditCapture capture = new ObjectMapper().readValue("""
@@ -137,7 +181,7 @@ class ChainEditIntentResolverTest {
   }
 
   @Test
-  void aParserFailureIsNoChangeRatherThanThrown() {
+  void anUnreadableCaptureRemainsUnresolvedAfterRepair() {
     ChainEditIntent intent =
         new ChainEditIntentResolver(
                 (elements, transcriptWindow, pinnedFailure, userRequest) -> {
@@ -149,8 +193,8 @@ class ChainEditIntentResolverTest {
                 })
             .resolve(graph(), "ok");
 
-    assertEquals(ChainEditAction.NO_CHANGE, intent.action());
-    assertTrue(intent.resolved());
+    assertEquals(ChainEditAction.UNRESOLVED, intent.action());
+    assertFalse(intent.resolved());
   }
 
   @Test
@@ -512,7 +556,7 @@ class ChainEditIntentResolverTest {
   }
 
   @Test
-  void aParserFailureDuringResumeIsNoChangeRatherThanThrown() {
+  void anUnreadableResumedCaptureRemainsUnresolvedAfterRepair() {
     ChainEditIntent held =
         new ChainEditIntent(
             ChainEditAction.REBIND_SERVICE_CALL,
@@ -531,8 +575,8 @@ class ChainEditIntentResolverTest {
                 })
             .resume(graph(), held, "Which one do you mean?", "the second one");
 
-    assertEquals(ChainEditAction.NO_CHANGE, intent.action());
-    assertTrue(intent.resolved());
+    assertEquals(ChainEditAction.UNRESOLVED, intent.action());
+    assertFalse(intent.resolved());
   }
 
   @Test

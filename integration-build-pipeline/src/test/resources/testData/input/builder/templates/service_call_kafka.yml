@@ -17,18 +17,15 @@ elements:
       retryCount: "2"
       retryDelay: "5000"
       systemType: "INTERNAL"
-      errorThrowing: true
       connectionTimeout: "120000"
       correlationIdName: "test_correlation_id"
       integrationSystemId: "8b3663ff-7dc5-45d1-afd4-0de909ffdc65"
       correlationIdPosition: "Header"
       integrationOperationId: "820cf456-d96e-4848-af34-e197668ed7e4"
       integrationOperationPath: "{ENV}.order.command.queue"
-      integrationGqlQueryHeader: "CamelGraphQLQuery"
       integrationOperationMethod: "publish"
       integrationSpecificationId: "94e7cb44-3b34-43d1-8b43-41d7c813c589"
       createRelatedEntitiesViaMaas: "false"
-      integrationGqlVariablesHeader: "CamelGraphQLVariables"
       integrationSpecificationGroupId: "4f40b794-f3e2-49b4-99fb-6bb7ee0d20df"
       integrationOperationProtocolType: "kafka"
       integrationOperationPathParameters: {}

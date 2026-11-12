@@ -331,7 +331,8 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
       try (ToolSession.Handle ignored = ToolSession.open(conversationId)) {
         graphValidator.validate(graph, contract, semantic);
       }
-      return CompilerQualityValidator.validateApprovedValues(graph, brief).isEmpty();
+      var issues = CompilerQualityValidator.validateApprovedValues(graph, brief);
+      return issues.isEmpty() || CompilerQualityValidator.onlyMissingScriptLiterals(issues);
     } catch (IllegalArgumentException | IllegalStateException rejected) {
       return false;
     }

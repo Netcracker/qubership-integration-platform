@@ -366,6 +366,9 @@ public class ApiHubMcpTools {
   }
 
   private JsonNode postJsonRpcWithSessionRetry(JsonNode request) throws JsonProcessingException {
+    if (searchAuthorizations != null && searchAuthorizations.prohibitsApiHub(resolveConversationId())) {
+      throw new IllegalStateException(ApiHubSearchAuthorizations.DISABLED_MESSAGE);
+    }
     ensureSession();
     ApiHubResult first = post(sessionId, request);
     if (isInvalidSession(first.status, first.body)) {

@@ -29,9 +29,9 @@ class PendingRedeployStoreTest {
   void replacingAnOperationInvalidatesItsOldCardAndAnswer() {
     PendingRedeployStore store = new PendingRedeployStore();
     ChatEvent.Decision oldCard = (ChatEvent.Decision) ChatEvent.sessionLoggingDecision("old", "Old question");
-    store.put("conversation", PendingRedeploy.loggingWait("chain", "default", null, "old", null));
+    store.put("conversation", PendingRedeploy.loggingWait("chain", "default", null, null, "old", null));
     store.rememberDecision("conversation", oldCard);
-    PendingRedeploy replacement = PendingRedeploy.loggingWait("chain", "default", null, "new", null);
+    PendingRedeploy replacement = PendingRedeploy.loggingWait("chain", "default", null, null, "new", null);
 
     store.put("conversation", replacement);
     assertTrue(store.openDecision("conversation").isEmpty());
@@ -59,7 +59,7 @@ class PendingRedeployStoreTest {
   @Test
   void clearingTheConversationRemovesBothTheOperationAndItsCard() {
     PendingRedeployStore store = new PendingRedeployStore();
-    store.put("conversation", PendingRedeploy.loggingWait("chain", "default", null, "operation", null));
+    store.put("conversation", PendingRedeploy.loggingWait("chain", "default", null, null, "operation", null));
     store.rememberDecision("conversation", (ChatEvent.Decision) ChatEvent.sessionLoggingDecision("operation", "Level?"));
 
     store.clear("conversation");

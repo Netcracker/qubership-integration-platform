@@ -1,5 +1,8 @@
 package org.qubership.integration.platform.ai.productpipeline.create;
 
+import static org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures.withNativeAnchors;
+import static org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures.nativeAnchorFact;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -26,6 +29,7 @@ import org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFin
 import org.qubership.integration.platform.ai.integration.catalog.materialize.UploadedSpecImportOutcome;
 import org.qubership.integration.platform.ai.integration.catalog.pipeline.CatalogMutationGateway;
 import org.qubership.integration.platform.ai.plan.*;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.ClaimEvidenceInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.*;
 import org.qubership.integration.platform.ai.productpipeline.artifact.*;
 import org.qubership.integration.platform.ai.productpipeline.capability.*;
@@ -47,6 +51,12 @@ class UploadedSpecRequirementRecoveryTest {
   private static final String RESULT_QUESTION = "result-delivery";
   private static final String ANSWER = "Send results by POST to https://om.example/results. Preserve executionId. Proceed without IDS.";
   private static final String CATALOG_ANSWER = "Use OM onTaskResult as a catalog operation. Salesforce WFM createTask is imported. Preserve executionId. Proceed without IDS.";
+
+  @org.junit.jupiter.api.AfterEach
+  void releaseConversationBinding() {
+    org.qubership.integration.platform.ai.chat.ToolSession.clear();
+    ProductCapabilityCaptureContext.unbind(CHAT);
+  }
 
   @Test
   void importedSalesforceDoesNotSendAnUnboundOmOperationBackToImportAfterReload() throws Exception {
@@ -187,7 +197,9 @@ class UploadedSpecRequirementRecoveryTest {
     h.step();
     var ready = h.drafts.get(CHAT).orElseThrow();
     assertTrue(ready.readyForPlan());
-    assertEquals(partial.authoredDraft().facts(), ready.authoredDraft().facts());
+    var completedFacts = new java.util.ArrayList<>(partial.authoredDraft().facts());
+    completedFacts.add(resultAnchor(input.turnId()));
+    assertEquals(completedFacts, ready.authoredDraft().facts());
     assertEquals(partial.flow(), ready.flow());
     assertTrue(ready.openQuestions().isEmpty());
     assertNotNull(h.archive.read(CHAT).turns().stream().filter(turn -> turn.id().equals(input.turnId()))
@@ -205,6 +217,13 @@ class UploadedSpecRequirementRecoveryTest {
         .collect().asList().await().indefinitely();
     assertEquals(RunStatus.PLAN_APPROVED, h.run().run().status());
     verify(h.gateway, times(1)).importUploadedSpec(any(), any(), any());
+  }
+
+  private static FactInput resultAnchor(String turnId) {
+    var fact = nativeAnchorFact("result", "http-sender");
+    return new FactInput(fact.sourceFactId(), fact.interactionIds(), fact.kind(),
+        fact.polarity(), fact.text(), fact.fieldMapping(), fact.policyConflict(), fact.elementIntent(),
+        new ClaimEvidenceInput(turnId, "Send results by POST to https://om.example/results."));
   }
 
   private static final class Harness {
@@ -283,15 +302,20 @@ class UploadedSpecRequirementRecoveryTest {
                     Polarity.POSITIVE, "Preserve executionId in task results.")),
                 List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.POST,
                     "/tasks", null, null, null)), List.of(), new DraftSettings(null, null));
-            var captured = tools.captureRequirementDraft(new DraftInput(waiting.flow(), waiting.facts(),
+            var captured = tools.captureRequirementDraft(withNativeAnchors(new DraftInput(waiting.flow(), waiting.facts(),
                 waiting.capabilities(), List.of(new QuestionInput(RESULT_QUESTION, List.of("result"),
-                    "How should task results be returned to OM?")), waiting.settings()));
+                    "How should task results be returned to OM?",
+                    new org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence(
+                        "result", "path", org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.MISSING_VALUE,
+                        conversations.archive().read(chat).activeTurns().stream().filter(turn ->
+                            turn.message().role() == org.qubership.integration.platform.ai.chat.conversation.ConversationMessage.Role.USER
+                                && "READY".equals(turn.status())).map(ConversationArchive.Turn::id).toList()))), waiting.settings())));
             assertTrue(mapper.readTree(captured).path("accepted").asBoolean(), captured);
             assertTrue(mapper.readTree(tools.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY))
                 .path("accepted").asBoolean());
           } else {
             var captured = tools.updateRequirementDraft(new DraftUpdate(List.of(), List.of(), List.of(),
-                List.of(), List.of(), List.of(), List.of(), List.of(),
+                List.of(), List.of(), List.of(resultAnchor(drafts.writeAuthority(chat).sourceTurnId())), List.of(), List.of(),
                 List.of(new CapabilityInput("result", "http-sender", null,
                     HttpMethod.POST, "https://om.example/results", null, null, null)), List.of(),
                 List.of(), List.of(), List.of(RESULT_QUESTION), new DraftSettings(false, null)));

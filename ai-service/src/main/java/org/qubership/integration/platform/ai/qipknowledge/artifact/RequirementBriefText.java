@@ -156,9 +156,12 @@ public final class RequirementBriefText {
             .append("  - ")
             .append(rule.status())
             .append(' ')
-            .append(rule.sourcePath())
+            .append(rule.value() == null ? rule.sourcePath() : MappingValue.describe(rule.value()))
             .append(" -> ")
             .append(rule.targetPath());
+        if (rule.missingSourcePolicy() != null) {
+          body.append(" | missing=").append(rule.missingSourcePolicy());
+        }
         if (rule.expression() != null) {
           body.append(" | expression: ").append(rule.expression());
         }

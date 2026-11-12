@@ -10,6 +10,7 @@ import org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool;
 
 /** Analyzes a selected product draft through the restricted brief capture tool. */
 @RegisterAiService(
+    toolHallucinationStrategy = org.qubership.integration.platform.ai.llm.tool.RecoverableToolNameStrategy.class,
     toolProviderSupplier = ProductRequirementBriefTool.ProviderSupplier.class,
     chatMemoryProviderSupplier = RegisterAiService.NoChatMemoryProviderSupplier.class,
     maxSequentialToolInvocations = 6)

@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.plan;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import dev.langchain4j.model.output.structured.Description;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -50,7 +51,21 @@ public record RequirementFact(
     @Description("Copy the approved policy conflict and user decision unchanged; null for ordinary facts.")
         RequirementPolicyConflict policyConflict,
     @Description("Copy the approved element intent and exact author values unchanged.")
-        RequirementElementIntent elementIntent) {
+        RequirementElementIntent elementIntent,
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @com.fasterxml.jackson.annotation.JsonProperty(required = false)
+    @NullableCaptureValue(description = "HTTP trigger mode from the saved capability; null when no mode is selected.")
+    @Description("HTTP trigger mode projected from the saved capability; null when no mode is selected.")
+        RequirementCaptureInput.HttpMode httpMode) {
+
+  public RequirementFact(
+      String sourceFactId, RequirementFactPolarity polarity, RequirementFactKind kind,
+      String capabilityKey, String text, String participant, String operation, String topic,
+      String httpMethod, String path, String serviceCallId, List<String> interactionIds,
+      RequirementPolicyConflict policyConflict, RequirementElementIntent elementIntent) {
+    this(sourceFactId, polarity, kind, capabilityKey, text, participant, operation, topic,
+        httpMethod, path, serviceCallId, interactionIds, policyConflict, elementIntent, null);
+  }
 
   public RequirementFact(
       String sourceFactId, RequirementFactPolarity polarity, RequirementFactKind kind,
@@ -219,7 +234,7 @@ public record RequirementFact(
         path,
         serviceCallId,
         interactionIds,
-        policyConflict, elementIntent);
+        policyConflict, elementIntent, httpMode);
   }
 
   public static String deriveSourceFactId(RequirementFactPolarity polarity, String text) {

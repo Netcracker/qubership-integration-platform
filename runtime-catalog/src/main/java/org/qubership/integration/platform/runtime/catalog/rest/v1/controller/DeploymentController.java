@@ -19,17 +19,28 @@ package org.qubership.integration.platform.runtime.catalog.rest.v1.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.configuration.DomainProperties;
+import org.qubership.integration.platform.runtime.catalog.cr.BulkDeploymentService;
+import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainService;
+import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.DeployMode;
+import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceDeployRequest;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DeploymentProcessingException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DomainTypeDisabledException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiException;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.RuntimeDeployment;
 import org.qubership.integration.platform.runtime.catalog.model.domains.DomainType;
 import org.qubership.integration.platform.runtime.catalog.model.dto.deployment.DeploymentResponse;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Deployment;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.DeploymentRequest;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.DeploymentMapper;
 import org.qubership.integration.platform.runtime.catalog.service.DeploymentService;
 import org.qubership.integration.platform.runtime.catalog.service.RuntimeDeploymentService;
+import org.qubership.integration.platform.runtime.catalog.service.SnapshotService;
+import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -37,7 +48,10 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import javax.validation.Valid;
 
 @Slf4j
@@ -49,22 +63,37 @@ import javax.validation.Valid;
 @Tag(name = "deployment-controller", description = "Deployment Controller")
 public class DeploymentController {
 
+    private static final String UUID_REGEX = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+    private static final Pattern DEPLOYMENT_ID = Pattern.compile("^(?:(.+)-)?(" + UUID_REGEX + ")$");
+
     private final DeploymentService deploymentService;
     private final DeploymentMapper deploymentMapper;
     private final RuntimeDeploymentService runtimeDeploymentService;
     private final DomainProperties domainProperties;
+    private final BulkDeploymentService bulkDeploymentService;
+    private final SnapshotService snapshotService;
+    private final ChainFinderService chainFinderService;
+    private final MicroDomainService microDomainService;
 
     @Autowired
     public DeploymentController(
             DeploymentService deploymentService,
             DeploymentMapper deploymentMapper,
             RuntimeDeploymentService runtimeDeploymentService,
-            DomainProperties domainProperties
+            DomainProperties domainProperties,
+            BulkDeploymentService bulkDeploymentService,
+            SnapshotService snapshotService,
+            ChainFinderService chainFinderService,
+            MicroDomainService microDomainService
     ) {
         this.deploymentService = deploymentService;
         this.deploymentMapper = deploymentMapper;
         this.runtimeDeploymentService = runtimeDeploymentService;
         this.domainProperties = domainProperties;
+        this.bulkDeploymentService = bulkDeploymentService;
+        this.snapshotService = snapshotService;
+        this.chainFinderService = chainFinderService;
+        this.microDomainService = microDomainService;
     }
 
     @GetMapping
@@ -92,6 +121,16 @@ public class DeploymentController {
     public ResponseEntity<DeploymentResponse> findById(@PathVariable @Parameter(description = "Chain id") String chainId,
                                                        @PathVariable @Parameter(description = "Deployment id") String deploymentId) {
         log.debug("Request to find required deployment {} state in chain {}", chainId, deploymentId);
+        Matcher matcher = DEPLOYMENT_ID.matcher(deploymentId);
+        if (matcher.matches() && matcher.group(1) != null) {
+            return microDomainService.verifyMicroDomainEnabled(() -> runtimeDeploymentService
+                    .getMicroEngineDeployments(chainId).stream()
+                    .filter(deployment -> deployment.getId().equals(deploymentId))
+                    .findFirst()
+                    .map(ResponseEntity::ok)
+                    .orElseThrow(() -> new EntityNotFoundException(
+                            "Deployment with id " + deploymentId + " not found")));
+        }
         return verifyClassicDomainEnabled(() -> {
             Deployment deployment = deploymentService.findById(deploymentId);
             RuntimeDeployment runtimeState = runtimeDeploymentService.getRuntimeDeployment(deploymentId);
@@ -105,6 +144,37 @@ public class DeploymentController {
     public ResponseEntity<DeploymentResponse> create(@PathVariable @Parameter(description = "Chain id") String chainId,
                                                      @RequestBody @Valid @Parameter(description = "Deployment request object") DeploymentRequest request) {
         log.info("Request to create new deployment in chain: {}", chainId);
+        Optional<DomainType> discovered;
+        try {
+            discovered = bulkDeploymentService.discoverDomainType(request.getDomain());
+        } catch (KubeApiException discoveryFailure) {
+            log.warn("Domain discovery failed for {}; routing by declaration {} alone",
+                    request.getDomain(), request.getDomainType());
+            discovered = Optional.empty();
+        }
+        DomainType declared = request.getDomainType();
+        if (discovered.isPresent() && declared != null && discovered.get() != declared) {
+            throw new DeploymentProcessingException(String.format(
+                    "Domain %s is discovered as %s, the request declares %s",
+                    request.getDomain(), discovered.get(), declared));
+        }
+        DomainType target = declared != null ? declared : discovered.orElse(DomainType.CLASSIC);
+        if (target == DomainType.MICRO) {
+            return microDomainService.verifyMicroDomainEnabled(() -> {
+                Chain chain = chainFinderService.findById(chainId);
+                Snapshot snapshot = snapshotService.findById(request.getSnapshotId());
+                if (!chain.getId().equals(snapshot.getChain().getId())) {
+                    throw new EntityNotFoundException(
+                            "Snapshot with id " + snapshot.getId() + " not found in chain " + chain.getId());
+                }
+                bulkDeploymentService.deployResource(ResourceDeployRequest.builder()
+                        .name(request.getDomain())
+                        .snapshotIds(List.of(snapshot.getId()))
+                        .mode(DeployMode.APPEND)
+                        .build());
+                return ResponseEntity.ok(deploymentMapper.asMicroResponse(chain.getId(), request.getDomain(), snapshot));
+            });
+        }
         return verifyClassicDomainEnabled(() -> {
             String snapshotId = request.getSnapshotId();
             Deployment deployment = deploymentMapper.asEntity(request);
@@ -140,11 +210,22 @@ public class DeploymentController {
     public ResponseEntity<Void> deleteById(@PathVariable @Parameter(description = "Chain id") String chainId,
                                         @PathVariable @Parameter(description = "Deployment id") String deploymentId) {
         log.info("Request to delete deployment {} from chain {}", deploymentId, chainId);
-        return verifyClassicDomainEnabled(() -> {
-            deploymentService.deleteById(deploymentId);
+        Matcher matcher = DEPLOYMENT_ID.matcher(deploymentId);
+        if (!matcher.matches()) {
+            throw new IllegalArgumentException("Invalid deployment id format: " + deploymentId);
+        }
+        if (matcher.group(1) == null) {
+            return verifyClassicDomainEnabled(() -> {
+                deploymentService.deleteById(deploymentId);
+                return ResponseEntity.noContent().build();
+            });
+        }
+        String domain = matcher.group(1);
+        String snapshotId = matcher.group(2);
+        return microDomainService.verifyMicroDomainEnabled(() -> {
+            microDomainService.deleteChainSnapshot(domain, snapshotId);
             return ResponseEntity.noContent().build();
         });
-
     }
 
     private <T> T verifyClassicDomainEnabled(Supplier<T> supplier) {

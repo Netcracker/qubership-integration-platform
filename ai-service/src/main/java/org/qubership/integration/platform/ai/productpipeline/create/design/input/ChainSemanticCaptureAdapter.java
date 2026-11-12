@@ -418,8 +418,9 @@ public class ChainSemanticCaptureAdapter {
             || !reachableWithinTransition(intent.parentElementRef(), nodeId, children, Set.of())) {
           errors.add("ELEMENT_INTENT_PARENT: elementRef=" + intent.elementRef()
               + " parent=" + intent.parentElementRef()
-              + ". Place the element inside its approved container using containment or the container region."
-              + " Preserve execution order separately; a parent reference does not require an execution edge.");
+              + ". Place the child inside the container. Add a containment entry whose parentNodeId is the container,"
+              + " whose childNodeId is this element, and whose role is body, or add the child to that container's region."
+              + " A parent reference does not place the element inside the container.");
         }
       }
       if (intent.successorElementRef() != null
@@ -787,16 +788,19 @@ public class ChainSemanticCaptureAdapter {
         continue;
       }
       String targetNodeId = mappingTargetNodeId(intent, brief);
+      boolean local = org.qubership.integration.platform.ai.plan.mapping.LocalMappingTarget
+          .resolve(brief.facts(), brief.flow(), intent.targetRef()).isPresent();
       List<Integer> sites = new ArrayList<>();
       for (int index = 0; index < resolved.size(); index++) {
         SemanticExecutionEdge edge = resolved.get(index);
         if (edge.mappingId() != null
             || !targetNodeId.equals(edge.targetNodeId())
-            || !isTransform(nodesById.get(edge.sourceNodeId()))) {
+            || !(isTransform(nodesById.get(edge.sourceNodeId()))
+                || local && isTransform(nodesById.get(edge.targetNodeId())))) {
           continue;
         }
         try {
-          requireApprovedMappingTransition(intent, edge, brief.flow(), resolved);
+          requireApprovedMappingTransition(intent, edge, brief.flow(), resolved, local);
           sites.add(index);
         } catch (IllegalArgumentException ignored) {
           // An edge on a different approved transition cannot carry this mapping.
@@ -894,8 +898,10 @@ public class ChainSemanticCaptureAdapter {
                 + site.targetNodeId()
                 + "' has more than one incoming edge. Mapping needs a single-incoming site.");
       }
-      requireApprovedMappingTransition(intent, site, brief.flow(), edges);
-      projected.add(projectOntoCarryingEdge(intent, site));
+      boolean local = org.qubership.integration.platform.ai.plan.mapping.LocalMappingTarget
+          .resolve(brief.facts(), brief.flow(), intent.targetRef()).isPresent();
+      requireApprovedMappingTransition(intent, site, brief.flow(), edges, local);
+      projected.add(local ? intent : projectOntoCarryingEdge(intent, site));
     }
     return List.copyOf(projected);
   }
@@ -942,7 +948,17 @@ public class ChainSemanticCaptureAdapter {
       MappingIntent intent,
       SemanticExecutionEdge site,
       RequirementFlow flow,
-      List<SemanticExecutionEdge> edges) {
+      List<SemanticExecutionEdge> edges,
+      boolean local) {
+    if (local) {
+      Set<String> anchors = new LinkedHashSet<>();
+      flow.interactions().forEach(interaction -> anchors.add(interaction.interactionId()));
+      if (!intent.targetRef().equals(site.targetNodeId())
+          || !reachableWithinTransition(intent.sourceRef(), site.sourceNodeId(), adjacency(edges), anchors)) {
+        throw new IllegalArgumentException("Local mapping site must enter its declared Script after the approved source");
+      }
+      return;
+    }
     if (flow.transitions().isEmpty()) {
       return;
     }

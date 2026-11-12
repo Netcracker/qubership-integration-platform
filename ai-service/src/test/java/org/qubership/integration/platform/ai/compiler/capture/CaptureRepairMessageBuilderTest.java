@@ -176,20 +176,10 @@ class CaptureRepairMessageBuilderTest {
             "synchronousGrpcCall",
             "integrationGqlQuery",
             "integrationGqlOperationName",
-            "integrationGqlQueryHeader",
-            "integrationGqlVariablesHeader",
             "integrationGqlVariablesJSON");
     for (String key : catalogIdentityKeys) {
       assertFalse(message.contains(key), () -> "instruction must not mention " + key + ": " + message);
     }
-  }
-
-  @Test
-  void serviceCallErrorThrowingCompletenessAsksForTheProperty() {
-    String message =
-        builder.completenessSummary(List.of("incomplete_service_call_error_throwing"));
-
-    assertTrue(message.contains("errorThrowing"), message);
   }
 
   @Test
@@ -204,7 +194,7 @@ class CaptureRepairMessageBuilderTest {
   }
 
   @Test
-  void validationMessageTruncatesManyErrors() {
+  void validationMessageRetainsEveryError() {
     String summary =
         "Plan validation failed:\n"
             + "error one\nerror two\nerror three\nerror four\nerror five";
@@ -214,7 +204,8 @@ class CaptureRepairMessageBuilderTest {
     assertTrue(message.contains("error one"));
     assertTrue(message.contains("error two"));
     assertTrue(message.contains("error three"));
-    assertTrue(!message.contains("error four"));
+    assertTrue(message.contains("error four"));
+    assertTrue(message.contains("error five"));
   }
 
   @Test

@@ -19,8 +19,10 @@ import org.qubership.integration.platform.ai.chat.OpenChainTurnContextFactory;
 import org.qubership.integration.platform.ai.chat.UserTokenStore;
 import org.qubership.integration.platform.ai.chat.activity.LlmRateLimitBackoffSink;
 import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationArchive;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationMessage;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
+import org.qubership.integration.platform.ai.chat.decision.PolicyChoiceSelection;
 import org.qubership.integration.platform.ai.chat.decision.UploadedSpecsApprovalHandler;
 import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
@@ -88,6 +90,99 @@ public class ChatExecutionService {
     this.artifactStore = artifactStore;
     this.objectMapper = objectMapper;
     this.chatMemorySanitizer = chatMemorySanitizer;
+  }
+
+  /**
+   * A matched requirement answer carries {@code offerId}. A missing or stale offer carries the
+   * decision to emit again. A closed offer is a requirement id whose decision is already gone.
+   * {@code null} means this message is not answering a requirement offer.
+   */
+  private record RequirementAnswer(String offerId, ChatEvent.Decision rebound, boolean closedOffer) {}
+
+  private RequirementAnswer requirementAnswer(String conversationId, ChatRequest request) {
+    if (request.getDecision() != null) {
+      return null;
+    }
+    if (decisionService.withholdsRequirementOffer(conversationId)) {
+      // A policy card accepts only its actions. Free text shows that card again.
+      java.util.Optional<ChatEvent.Decision> opened = decisionService.openDecision(conversationId);
+      if (opened != null) {
+        var policy = opened.filter(decision ->
+            PolicyChoiceSelection.ARTIFACT_TYPE.equals(decision.artifactType()));
+        if (policy.isPresent()) {
+          return new RequirementAnswer(null, policy.get(), false);
+        }
+      }
+      return null;
+    }
+    java.util.Optional<ChatEvent.Decision> opened = decisionService.openDecision(conversationId);
+    if (opened == null || opened.isEmpty()) {
+      if (carriesRequirementOffer(request.getClarificationOfferId())) {
+        return new RequirementAnswer(request.getClarificationOfferId(), null, true);
+      }
+      return null;
+    }
+    if (!isRequirementClarificationOffer(opened.get())) {
+      return null;
+    }
+    ChatEvent.Decision current = opened.get();
+    String offer = request.getClarificationOfferId();
+    if (offer == null || offer.isBlank() || !offer.equals(current.id())) {
+      return new RequirementAnswer(null, current, false);
+    }
+    return new RequirementAnswer(offer, null, false);
+  }
+
+  private static boolean isRequirementClarificationOffer(ChatEvent.Decision decision) {
+    if (!"clarify".equals(decision.kind())) {
+      return false;
+    }
+    if (decision.artifactType() != null && !decision.artifactType().isBlank()) {
+      return false;
+    }
+    return carriesRequirementOffer(decision.id());
+  }
+
+  private static boolean carriesRequirementOffer(String offerId) {
+    return offerId != null && !offerId.isBlank() && !offerId.startsWith("clarify:");
+  }
+
+  /**
+   * SSE for a requirement offer whose decision is already closed.
+   *
+   * <p>A stored answer for this offer and canonical text is replayed as that turn. An offer with
+   * no stored answer is refused. Both results leave the archive unchanged and do not select a
+   * scenario.
+   */
+  private Multi<String> closedRequirementOffer(String conversationId, ChatRequest request) {
+    String offer = request.getClarificationOfferId();
+    String turnId = ConversationArchive.deterministicAnswerTurnId(offer, request.getMessage());
+    ConversationArchive.Document document = conversationService.archive().read(conversationId);
+    ConversationArchive.Turn archived = document.turns().stream()
+        .filter(turn -> turnId.equals(turn.id()))
+        .findFirst()
+        .orElse(null);
+    ChatEvent event;
+    if (archived == null) {
+      event = ChatEvent.error("That offer is not current.");
+    } else {
+      int index = document.activeTurnIds().indexOf(archived.id());
+      event = new ChatEvent.Meta(conversationId, true, index < 0 ? null : index);
+    }
+    return Multi.createFrom()
+        .item(event)
+        .map(this::toSse)
+        .onCompletion()
+        .continueWith("event: done\ndata: " + conversationId + "\n\n");
+  }
+
+  private Multi<String> reemitOpenDecision(String conversationId, ChatEvent.Decision decision) {
+    ChatEvent meta = new ChatEvent.Meta(conversationId, true, null);
+    return Multi.createFrom()
+        .items(meta, decision)
+        .map(this::toSse)
+        .onCompletion()
+        .continueWith("event: done\ndata: " + conversationId + "\n\n");
   }
 
   /** True when the request answers a card with a command the facade runs rather than a scenario. */
@@ -187,12 +282,23 @@ public class ChatExecutionService {
     String conversationId =
         request.getConversationId() != null ? request.getConversationId() : UUID.randomUUID().toString();
 
+    RequirementAnswer requirementAnswer = requirementAnswer(conversationId, request);
+    if (requirementAnswer != null && requirementAnswer.rebound() != null) {
+      return reemitOpenDecision(conversationId, requirementAnswer.rebound());
+    }
+    if (requirementAnswer != null && requirementAnswer.closedOffer()) {
+      return closedRequirementOffer(conversationId, request);
+    }
+    String matchedOffer = requirementAnswer == null ? null : requirementAnswer.offerId();
+    // The coordinator reads this field. Only a matched requirement offer may remain set.
+    request.setClarificationOfferId(matchedOffer);
+
     MDC.put(ChatMdc.CONVERSATION_ID, conversationId);
     if (request.getUserToken() != null) {
       UserTokenStore.put(conversationId, request.getUserToken());
     }
     try {
-      return startTurn(request, conversationId);
+      return startTurn(request, conversationId, matchedOffer);
     } catch (RuntimeException setupFailure) {
       // onTermination never runs when setup throws, so the token is dropped here.
       if (request.getUserToken() != null) {
@@ -202,21 +308,33 @@ public class ChatExecutionService {
     }
   }
 
-  private Multi<String> startTurn(ChatRequest request, String conversationId) {
-    var sourceInput = conversationService.archive().beginInput(conversationId,
-        request.getMessage(), objectMapper.valueToTree(java.util.Map.of(
-            "attachment", request.getAttachment() == null ? "" : request.getAttachment(),
-            "attachmentObjectKeys", request.getAttachmentObjectKeys() == null ? java.util.List.of() : request.getAttachmentObjectKeys(),
-            "decision", request.getDecision() == null ? objectMapper.nullNode() : objectMapper.valueToTree(request.getDecision()))));
+  private Multi<String> startTurn(ChatRequest request, String conversationId, String matchedOffer) {
+    Map<String, Object> submitted = new LinkedHashMap<>();
+    submitted.put("attachment", request.getAttachment() == null ? "" : request.getAttachment());
+    submitted.put(
+        "attachmentObjectKeys",
+        request.getAttachmentObjectKeys() == null ? java.util.List.of() : request.getAttachmentObjectKeys());
+    submitted.put(
+        "decision",
+        request.getDecision() == null ? objectMapper.nullNode() : objectMapper.valueToTree(request.getDecision()));
+    if (matchedOffer != null) {
+      submitted.put("clarificationOfferId", matchedOffer);
+    }
+    String turnId = matchedOffer == null
+        ? null
+        : ConversationArchive.deterministicAnswerTurnId(matchedOffer, request.getMessage());
+    var sourceInput = conversationService.archive().beginInput(
+        conversationId, turnId, request.getMessage(), objectMapper.valueToTree(submitted));
     conversationService.getOrCreate(conversationId);
     // Repair dangling tool_calls left by prior ToolArgumentsException / aborted tool turns so the
     // next OpenAI request is well-formed (invalid_request_error otherwise).
     chatMemorySanitizer.repairDanglingToolCalls(conversationId);
     if (request.getDecision() == null) {
       request.setResolvedEffectiveUserText(effectiveUserTextService.resolve(request, conversationId));
-      decisionService
-          .restartCommandForMessage(conversationId, request.getEffectiveUserText())
-          .ifPresent(request::setDecision);
+      if (matchedOffer == null) {
+        decisionService.restartCommandForMessage(conversationId, request.getEffectiveUserText())
+            .ifPresent(request::setDecision);
+      }
     }
     if (request.getDecision() != null) {
       // A typed answer needs no attachment or memory resolution: the marker is what the model reads.

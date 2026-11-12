@@ -124,29 +124,22 @@ class ElementSchemaContractTest {
         .anyMatch("properties.idempotency.keyExpiry"::equals), result.toString());
   }
 
-  @Test
-  void keepsHttpMethodRestrictAsCommaSeparatedMethodString() throws Exception {
-    // Custom vs Implemented branches still surface as titled anyOf variants; the shared
-    // conf-model value itself is a comma-separated method string (not {httpMethods:[...]}).
+  @ParameterizedTest(name = "methods={0}")
+  @ValueSource(strings = {"GET", "GET,POST", ""})
+  void keepsHttpMethodStringPatternAndValues(String methods) throws Exception {
     var hint = mapper.readTree(schemas.describeElementProperty("http-trigger", "httpMethodRestrict"))
         .path("schema");
-    assertEquals("anyOf", hint.path("type").asText(), hint.toString());
-    assertEquals(2, hint.path("variants").size(), hint.toString());
-    assertEquals("HTTP Methods", hint.path("variants").path(0).path("title").asText(), hint.toString());
-    assertEquals(
-        "Operation method", hint.path("variants").path(1).path("title").asText(), hint.toString());
-    Object value = schemas.coercePatchPropertyValue("http-trigger", "httpMethodRestrict", "GET");
-    assertEquals("GET", value);
-    assertTrue(schemas.validateCapturePropertyValue(
-        "http-trigger", "httpMethodRestrict", mapper.valueToTree(value)).isEmpty());
-    assertTrue(
-        schemas
-            .validateCapturePropertyValue(
-                "http-trigger",
-                "httpMethodRestrict",
-                mapper.readTree("{\"httpMethods\":[\"GET\"]}"))
-            .isPresent(),
-        "legacy catalog object shape is not a capture value; flatten on write instead");
+    assertEquals(2, hint.path("anyOf").size(), hint.toString());
+    for (var variant : hint.path("anyOf")) {
+      var methodSchema = variant.path("$refTarget").path("schema");
+      assertEquals("string", methodSchema.path("type").asText(), variant.toString());
+      assertEquals("^$|^(POST|GET|PUT|DELETE|PATCH|HEAD|OPTIONS)(,(POST|GET|PUT|DELETE|PATCH|HEAD|OPTIONS))*$",
+          methodSchema.path("pattern").asText(), variant.toString());
+    }
+    Object value = schemas.coercePatchPropertyValue("http-trigger", "httpMethodRestrict", methods);
+    assertEquals(methods, value);
+    assertEquals(java.util.Optional.empty(), schemas.validateCapturePropertyValue(
+        "http-trigger", "httpMethodRestrict", mapper.valueToTree(value)), "methods=" + methods);
   }
 
   @ParameterizedTest

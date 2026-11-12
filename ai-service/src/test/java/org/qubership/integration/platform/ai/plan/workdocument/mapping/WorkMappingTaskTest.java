@@ -441,7 +441,7 @@ class WorkMappingTaskTest {
     JsonNode root =
         JSON.readTree(
             Files.readString(
-                Path.of("e2e/product-pipeline/fixtures/work-checkpoints/g2-cases.json")));
+                Path.of("src/test/resources/work-checkpoint-contract/g2-cases.json")));
     List<String> ids = new ArrayList<>();
     for (JsonNode item : root.path("cases")) {
       assertEquals("G2", item.path("gate").asText());

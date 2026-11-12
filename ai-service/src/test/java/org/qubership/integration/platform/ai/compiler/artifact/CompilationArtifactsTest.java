@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.compiler.artifact;
 
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -7,19 +8,28 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Base64;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.ArtifactDecision;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Decision;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.DecisionCommand;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
+import org.qubership.integration.platform.ai.productpipeline.artifact.UserInput;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures;
 
@@ -38,6 +48,52 @@ class CompilationArtifactsTest {
             mapper,
             Clock.fixed(Instant.parse("2026-07-15T10:00:00Z"), ZoneOffset.UTC));
   }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"2026-10-29T10:36:24.123456789Z", "2026-10-29T10:36:24.123456Z",
+      "2026-10-29T10:36:24.123Z", "2026-10-29T10:36:24Z"})
+  void preservesUserInputTimestampPrecisionAfterReload(String timestamp) {
+    var receivedAt = Instant.parse(timestamp);
+    var input = new UserInput(
+        "turn-1", "policy-choice", "Keep NONE", receivedAt);
+    var revision = artifacts.append(new AppendCommand(
+        COMPILATION_ID, Kind.USER_INPUT, "1", "test", "1", input, List.of(), null));
+
+    var reloaded = artifacts.get(COMPILATION_ID, revision.reference()).orElseThrow();
+    var actual = artifacts.payload(reloaded, UserInput.class);
+
+    assertEquals(input, actual);
+  }
+
+  @Test
+  void preservesPreviouslyStoredNumericPayloadAndApproval() throws Exception {
+    var legacyMapper = new ObjectMapper().registerModule(new JavaTimeModule())
+        .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
+    var expected = new TimestampedAmount(1.0, Instant.parse("2026-10-29T10:36:24.123456789Z"));
+    var payload = legacyMapper.valueToTree(expected);
+    String hash = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+        .digest(legacyMapper.writeValueAsBytes(payload)));
+    var revision = new Revision("legacy-artifact", COMPILATION_ID, Kind.IMPLEMENTATION_PLAN, "legacy-lineage",
+        1L, "1", expected.receivedAt(), "previous-writer", "1", hash, List.of(), null, payload, null);
+    var decision = new ArtifactDecision("legacy-approval", COMPILATION_ID, 1L,
+        revision.reference(), Decision.APPROVED, "user-1", expected.receivedAt(), null);
+    var blobs = new InMemoryArtifactBlobStore();
+    String prefix = "compiler-artifacts/" + Base64.getUrlEncoder().withoutPadding()
+        .encodeToString(COMPILATION_ID.getBytes(StandardCharsets.UTF_8)) + "/";
+    blobs.put(prefix + "artifacts/implementation_plan/legacy.json", legacyMapper.writeValueAsBytes(revision));
+    blobs.put(prefix + "decisions/legacy.json", legacyMapper.writeValueAsBytes(decision));
+    var reader = new CompilationArtifacts(blobs, legacyMapper, Clock.systemUTC());
+
+    var actual = reader.get(COMPILATION_ID, revision.reference()).orElseThrow();
+
+    assertAll(
+        () -> assertEquals(expected, reader.payload(actual, TimestampedAmount.class)),
+        () -> assertEquals(hash, actual.contentHash()),
+        () -> assertEquals(revision.reference(), actual.reference()),
+        () -> assertTrue(reader.isApproved(COMPILATION_ID, revision.reference()), "Existing approval remains valid."));
+  }
+
+  private record TimestampedAmount(double amount, Instant receivedAt) {}
 
   @Test
   void preservesImmutableRevisionHistory() {

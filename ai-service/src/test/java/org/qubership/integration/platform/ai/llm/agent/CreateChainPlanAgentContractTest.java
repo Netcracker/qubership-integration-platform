@@ -20,9 +20,10 @@ class CreateChainPlanAgentContractTest {
                 .readAllBytes(),
             StandardCharsets.UTF_8);
 
-    assertTrue(role.contains("For `cip-chain-generator`, call\n  **captureChainPlan**"));
-    assertTrue(role.contains("For `cip-structure-generator`, call **captureChainStructure**"));
-    assertTrue(role.contains("Never substitute one\n  graph capture tool for another"));
+    assertTrue(role.contains("Execute the supplied skill instructions"));
+    assertTrue(role.contains("CREATE or EDIT"));
+    assertFalse(role.contains("instantiate that skeleton"));
+    assertFalse(role.contains("downstream generators resolve catalog bindings"));
   }
 
   @Test

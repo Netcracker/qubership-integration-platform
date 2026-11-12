@@ -408,11 +408,11 @@ class ChainPatchScenarioTest {
   }
 
   @Test
-  void feedbackReceivesTheFullPatchEvenWhenTheCardTruncatesAScript() {
+  void feedbackReceivesTheFullPatchShownOnTheCard() {
     String script = "// preserve this line\n".repeat(40) + "return 201";
     compiles(propertyPatch("element-script", "script", script));
     ChatEvent.Decision card = decision(run(request("fix the script in Normalize payload")));
-    assertFalse(card.question().contains("return 201"));
+    assertTrue(card.question().contains(script), card.question());
     ChatRequest feedback = answer(card.artifactHash());
     feedback.getDecision().setAction(ChatEvent.REQUEST_CHANGES_ACTION);
     feedback.getDecision().setComment("Change the proposed return value to 202");
@@ -422,6 +422,7 @@ class ChainPatchScenarioTest {
     ArgumentCaptor<ChainEditRequest> captured = ArgumentCaptor.forClass(ChainEditRequest.class);
     verify(editCompiler, times(2)).compile(captured.capture(), any());
     assertTrue(captured.getAllValues().get(1).userRequest().contains("return 201"));
+    assertEquals("Change the proposed return value to 202", captured.getAllValues().get(1).scriptAuthorSource());
     verify(writer, never()).write(any(), any());
   }
 
@@ -503,14 +504,16 @@ class ChainPatchScenarioTest {
     run(request("change the operation on the order call"));
 
     when(editCompiler.resumeAfterClarification(
-            any(), eq(clarification.heldIntent()), eq(clarification.question()), any()))
+            any(), eq(clarification.heldIntent()), eq(clarification.question()), any(), any(),
+            eq("change the operation on the order call")))
         .thenReturn(new ChainEditOutcome.ResolutionFailure("resumed the clarified edit"));
 
     List<ChatEvent> events = run(request("the second one"));
 
     verify(editCompiler)
         .resumeAfterClarification(
-            any(), eq(clarification.heldIntent()), eq(clarification.question()), any());
+            any(), eq(clarification.heldIntent()), eq(clarification.question()), any(), any(),
+            eq("change the operation on the order call"));
     verify(editCompiler, times(1)).compile(any(), any());
     assertTrue(text(events).contains("resumed the clarified edit"), text(events));
   }
@@ -521,7 +524,7 @@ class ChainPatchScenarioTest {
     when(editCompiler.compile(any(), any())).thenReturn(clarification);
     run(request("change the operation on the order call"));
 
-    when(editCompiler.resumeAfterClarification(any(), any(), any(), any()))
+    when(editCompiler.resumeAfterClarification(any(), any(), any(), any(), any(), any()))
         .thenReturn(new ChainEditOutcome.Unsupported(ChainEditAction.UNRESOLVED));
     run(request("actually, never mind, shuffle the branches"));
 
@@ -532,7 +535,7 @@ class ChainPatchScenarioTest {
     List<ChatEvent> events = run(request("fix the script in Normalize payload"));
 
     verify(editCompiler, times(1))
-        .resumeAfterClarification(any(), any(), any(), any());
+        .resumeAfterClarification(any(), any(), any(), any(), any(), any());
     assertTrue(text(events).contains("compiled fresh"), text(events));
   }
 
@@ -595,6 +598,28 @@ class ChainPatchScenarioTest {
     verify(editCompiler)
         .resumeAfterImport(any(), eq(escalation.intent()), eq(escalation.refs()), any());
     assertTrue(text(events).contains("resumed"), text(events));
+  }
+
+  @Test
+  void sourceSurvivesAClarificationFollowedByAnImportDecision() {
+    String original = "Use this Script body:\n```groovy\n  return 42\n```";
+    var escalation = escalation();
+    var held = new ChainEditIntent(ChainEditAction.UNRESOLVED, List.of(), "prepare an edit", null,
+        List.of("Select the target"));
+    when(editCompiler.compile(any(), any()))
+        .thenReturn(new ChainEditOutcome.Clarification("Which target?", List.of("Orders"), held));
+    run(request(original));
+    when(editCompiler.resumeAfterClarification(any(), eq(held), eq("Which target?"), any(), any(), eq(original)))
+        .thenReturn(escalation);
+    run(request("Orders"));
+    when(editCompiler.resumeAfterImport(any(), eq(escalation.intent()), eq(escalation.refs()), any()))
+        .thenReturn(new ChainEditOutcome.ResolutionFailure("resumed"));
+
+    run(approveImport(ChatEvent.IMPORT_ACTION));
+
+    var captured = ArgumentCaptor.forClass(ChainEditRequest.class);
+    verify(editCompiler).resumeAfterImport(captured.capture(), eq(escalation.intent()), eq(escalation.refs()), any());
+    assertEquals(original, captured.getValue().scriptAuthorSource());
   }
 
   @Test

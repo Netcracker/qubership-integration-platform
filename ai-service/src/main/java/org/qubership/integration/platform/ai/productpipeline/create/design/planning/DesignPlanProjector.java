@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import org.qubership.integration.platform.ai.plan.mapping.ScriptExecutionAuthority;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.plan.mapping.MappingMechanism;
 import org.qubership.integration.platform.ai.plan.mapping.MappingMechanismSelector;
@@ -24,7 +25,6 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanReport;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
-import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.DefaultChainSemanticRevisionValidator;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticRegion;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
@@ -95,7 +95,6 @@ public final class DesignPlanProjector {
     validateNoCatalogCycles(nodesBySkill, selectedSkills(parsed));
     validateTriggerCoverage(parsed);
     validateScriptMappingCoverage(parsed, revision, brief);
-    validateBehaviorScriptCoverage(parsed, revision);
 
     List<DesignExecutionPlan.Step> steps = new ArrayList<>();
     Map<String, List<String>> stepsByOwner = new LinkedHashMap<>();
@@ -458,18 +457,10 @@ public final class DesignPlanProjector {
     return false;
   }
 
-  /**
-   * Classifies each {@code cip-script-generator} step as mapping work or behavior work from the
-   * approved semantic graph, then binds or drops it in one pass. Unnamed steps bind to remaining
-   * mapping intents first. A leftover unnamed script-generator is kept only when a behavior-owned
-   * script requires an owner. It is not a post-drop retention pass.
-   */
+  /** Binds unnamed mapping generators to approved mapping intents and drops unowned generators. */
   private static ParsedPlannerReport projectScriptGeneratorSteps(
       ParsedPlannerReport parsed, ChainSemanticRevision revision, RequirementBrief brief) {
-    List<String> behaviorOwned =
-        DefaultChainSemanticRevisionValidator.behaviorOwnedScriptNodeIds(revision);
-    boolean needsBehaviorOwner = !behaviorOwned.isEmpty();
-    List<MappingIntent> remaining = new ArrayList<>(revision.mappingBodies(brief));
+    List<MappingIntent> remaining = new ArrayList<>(ScriptExecutionAuthority.mappingsRequiringGeneration(revision, brief));
     for (ParsedPlannerReport.Step step : parsed.steps()) {
       if (!hasMappingGeneratorSkill(step) || step.mappingIntentId().isBlank()) {
         continue;
@@ -477,11 +468,10 @@ public final class DesignPlanProjector {
       remaining.removeIf(intent -> intent.mappingIntentId().equals(step.mappingIntentId()));
     }
     Set<String> knownIds = new HashSet<>();
-    for (MappingIntent intent : revision.mappingBodies(brief)) {
+    for (MappingIntent intent : ScriptExecutionAuthority.mappingsRequiringGeneration(revision, brief)) {
       knownIds.add(intent.mappingIntentId());
     }
     boolean changed = false;
-    boolean keptBehaviorOwner = false;
     List<ParsedPlannerReport.Step> steps = new ArrayList<>();
     for (ParsedPlannerReport.Step step : parsed.steps()) {
       if (!hasMappingGeneratorSkill(step)) {
@@ -515,30 +505,6 @@ public final class DesignPlanProjector {
           continue;
         }
       }
-      if (unnamed
-          && remaining.isEmpty()
-          && needsBehaviorOwner
-          && !keptBehaviorOwner
-          && step.owningSkillIds().contains(SCRIPT_GENERATOR_SKILL_ID)) {
-        LinkedHashSet<String> owners = new LinkedHashSet<>(step.owningSkillIds());
-        owners.remove(TRANSFORMATION_GENERATOR_SKILL_ID);
-        keptBehaviorOwner = true;
-        changed = true;
-        steps.add(
-            new ParsedPlannerReport.Step(
-                step.reportOrdinal(),
-                step.reportText(),
-                step.ownerKind(),
-                List.copyOf(owners),
-                step.toolOperationRefs(),
-                step.participantRefs(),
-                step.operationQueryRefs(),
-                "",
-                step.serviceCallId(),
-                step.serviceCallRole(),
-                step.regionId()));
-        continue;
-      }
       LinkedHashSet<String> owners = new LinkedHashSet<>(step.owningSkillIds());
       owners.remove(SCRIPT_GENERATOR_SKILL_ID);
       owners.remove(TRANSFORMATION_GENERATOR_SKILL_ID);
@@ -562,8 +528,13 @@ public final class DesignPlanProjector {
               step.serviceCallRole(),
               step.regionId()));
     }
-    if (!changed || steps.isEmpty()) {
+    if (!changed) {
       return parsed;
+    }
+    if (steps.isEmpty()) {
+      throw new PlannerContractException(
+          "Planner report has no executable steps after removing unowned script generators."
+              + " Capture a supported typed COPY or supply an exact script body with source evidence.");
     }
     return new ParsedPlannerReport(steps, parsed.apiRelease());
   }
@@ -847,7 +818,7 @@ public final class DesignPlanProjector {
   private static void validateScriptMappingCoverage(
       ParsedPlannerReport parsed, ChainSemanticRevision revision, RequirementBrief brief) {
     List<ParsedPlannerReport.Step> mappingSteps = collectMappingGeneratorSteps(parsed);
-    List<MappingIntent> intents = revision.mappingBodies(brief);
+    List<MappingIntent> intents = ScriptExecutionAuthority.mappingsRequiringGeneration(revision, brief);
     if (intents.isEmpty()) {
       rejectUnexpectedMappingSteps(mappingSteps);
       return;
@@ -861,24 +832,6 @@ public final class DesignPlanProjector {
       coverMappingStep(step, intentsById, seen);
     }
     requireAllIntentsCovered(intents, seen);
-  }
-
-  private static void validateBehaviorScriptCoverage(
-      ParsedPlannerReport parsed, ChainSemanticRevision revision) {
-    List<String> behaviorOwned =
-        DefaultChainSemanticRevisionValidator.behaviorOwnedScriptNodeIds(revision);
-    if (behaviorOwned.isEmpty()) {
-      return;
-    }
-    boolean hasScriptGenerator =
-        parsed.steps().stream()
-            .anyMatch(step -> step.owningSkillIds().contains(SCRIPT_GENERATOR_SKILL_ID));
-    if (!hasScriptGenerator) {
-      throw new PlannerContractException(
-          "planner report missing script coverage for behavior-owned node "
-              + String.join(", ", behaviorOwned)
-              + " (cip-script-generator)");
-    }
   }
 
   private static List<ParsedPlannerReport.Step> collectMappingGeneratorSteps(

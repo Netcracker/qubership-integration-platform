@@ -16,6 +16,7 @@ public class ChatRequest {
   private List<String> attachmentObjectKeys;
   private String resolvedEffectiveUserText;
   private ChatDecisionCommand decision;
+  private String clarificationOfferId;
   private OpenChainTurnContext openChainTurnContext;
   private OpenChainTurnPlan openChainTurnPlan;
   private String userToken;
@@ -40,6 +41,12 @@ public class ChatRequest {
   /** Typed answer to an open decision card; null for an ordinary message. */
   public ChatDecisionCommand getDecision() { return decision; }
   public void setDecision(ChatDecisionCommand decision) { this.decision = decision; }
+
+  /** Offer id of the requirement clarification this message answers, or null. */
+  public String getClarificationOfferId() { return clarificationOfferId; }
+  public void setClarificationOfferId(String clarificationOfferId) {
+    this.clarificationOfferId = clarificationOfferId;
+  }
 
   public String getEffectiveUserText() {
     return resolvedEffectiveUserText != null ? resolvedEffectiveUserText : message;

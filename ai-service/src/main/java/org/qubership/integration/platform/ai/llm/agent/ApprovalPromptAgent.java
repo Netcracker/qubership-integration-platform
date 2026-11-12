@@ -9,6 +9,7 @@ import jakarta.enterprise.context.ApplicationScoped;
  * system instructions only; the reader answers from the decision card, not by typing a token.
  */
 @RegisterAiService(
+    toolHallucinationStrategy = org.qubership.integration.platform.ai.llm.tool.RecoverableToolNameStrategy.class,
     chatMemoryProviderSupplier = RegisterAiService.NoChatMemoryProviderSupplier.class)
 @ApplicationScoped
 public interface ApprovalPromptAgent {

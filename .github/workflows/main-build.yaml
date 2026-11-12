@@ -90,7 +90,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies (root workspaces)
-        run: npm ci --legacy-peer-deps
+        run: npm ci
 
       - name: Build workspace chain
         run: npm run build  # schemas, the ui app, then vscode-extension (prepare-deps + compile-web)

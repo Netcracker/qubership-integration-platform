@@ -17,6 +17,9 @@ element answers to:
 - `set:` — keys that already carry a value, with the value. Long values are cut short with `…`.
 - `other keys:` — the remaining keys the element's schema accepts.
 
+`parent:` identifies the enclosing element. `Execution edges` lists directed connections as
+`fromId -> toId`. Use both when selecting elements that move into a new structure.
+
 Take every id and every property key from these lines. A key that appears under neither `set:` nor
 `other keys:` for the target element is not a key that element has.
 
@@ -80,6 +83,9 @@ Where the new subgraph sits is `targetNodeIds`, not a separate placement field.
   Set `disposition=KEEP` (or leave it `UNSET`; Java infers `KEEP` from a named address).
 - A wrap or a move: set `disposition=NEST`. `targetNodeIds` is required whenever the request wraps,
   moves, or reparents an existing element — name every element the new structure will enclose.
+  This includes existing elements that stay on the happy path and elements moved to other branches.
+  Check the execution edges for an omitted element between selected targets. If its placement is
+  already specified by the request, include it rather than asking the author again.
 - A new branch on a container the chain already has (another `if` on a `condition`, another `catch`
   on a `try-catch-finally-2`): set `disposition=ATTACH`. `targetNodeIds` is exactly one id, the
   container itself — never the branches beside it, and never the elements the new branch will hold.
@@ -185,6 +191,10 @@ For a scheduler add, the cron (or an equivalent schedule) when the request names
 otherwise.
 
 ## Resuming a clarification
+
+`CAPTURE VALIDATION FEEDBACK` describes a rejected technical interpretation of the same request.
+Correct it from the original request and complete graph before asking for more information. The feedback
+does not add author requirements or authorize moving elements whose placement is genuinely unspecified.
 
 Some requests begin with `PENDING CAPTURE`, followed by the capture already established,
 `QUESTION ASKED`, optionally `OPTIONS OFFERED`, and `READER'S REPLY`. This marks one edit already in

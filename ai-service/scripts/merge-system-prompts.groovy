@@ -53,3 +53,9 @@ if (localBlocksDir.isDirectory()) {
         log.info("[merge-system-prompts] blocks/${relative} (local)")
     }
 }
+
+// Public builds preserve saved CREATE runs without automatically resuming them.
+def appProperties = new File(project.build.outputDirectory, 'application.properties')
+def privateSkills = !Boolean.parseBoolean(project.properties.getProperty('qip.ai.qipknowledge.build.skip', 'true'))
+appProperties.text = appProperties.text.replaceAll(
+    /(?m)^((?:%prod\.)?quarkus.flow.persistence.auto-restore)=.*$/, '$1=' + privateSkills)

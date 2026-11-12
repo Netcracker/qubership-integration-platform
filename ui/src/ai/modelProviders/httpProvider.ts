@@ -24,6 +24,7 @@ interface CipChatRequestBody {
   attachmentObjectKeys?: string[];
   scenarioHint?: string | null;
   decision?: ChatRequest["decision"];
+  clarificationOfferId?: string;
 }
 
 const CREATE_OWNED_HINTS = new Set([
@@ -127,6 +128,7 @@ export class HttpAiModelProvider implements AiModelProvider {
         ),
         scenarioHint: hint ?? null,
         decision: request.decision,
+        clarificationOfferId: request.clarificationOfferId,
       };
 
       const headers: Record<string, string> = {
@@ -292,6 +294,7 @@ export class HttpAiModelProvider implements AiModelProvider {
         ),
         scenarioHint: hint ?? null,
         decision: request.decision,
+        clarificationOfferId: request.clarificationOfferId,
       };
       const response = await axios.post<ChatResponse>(url, requestBody, {
         headers: {
