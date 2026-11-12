@@ -11,6 +11,7 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureToolProvider
  * Gathers requirements from an explicit draft and source packet for each author turn.
  */
 @RegisterAiService(
+    toolHallucinationStrategy = org.qubership.integration.platform.ai.llm.tool.RecoverableToolNameStrategy.class,
     toolProviderSupplier = RequirementCaptureToolProvider.ProviderSupplier.class,
     chatMemoryProviderSupplier = RegisterAiService.NoChatMemoryProviderSupplier.class,
     maxSequentialToolInvocations = 10)
@@ -20,4 +21,9 @@ public interface GatherRequirementsAgent {
   @dev.langchain4j.service.SystemMessage(fromResource = "prompts/gather-requirements-system.md")
   Multi<String> chat(@MemoryId String conversationId, @UserMessage String userMessage,
       dev.langchain4j.invocation.InvocationParameters invocationParameters);
+
+  @dev.langchain4j.service.SystemMessage(fromResource = "prompts/gather-requirements-system.md")
+  Multi<String> chat(@MemoryId String conversationId, @UserMessage String userMessage,
+      dev.langchain4j.invocation.InvocationParameters invocationParameters,
+      dev.langchain4j.model.chat.request.ChatRequestParameters requestParameters);
 }

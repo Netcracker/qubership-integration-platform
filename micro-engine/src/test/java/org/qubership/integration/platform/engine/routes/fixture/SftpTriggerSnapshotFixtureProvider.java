@@ -493,6 +493,8 @@ class SftpTriggerSnapshotFixtureProvider implements SnapshotFixtureProvider {
                     assertTrue(nativeConnectionsBeforeContextStop > 0, "Context-close verification must begin with a native SSH connection.");
                     assertTrue(context.isStopped(), "SFTP context must stop before fixture cleanup.");
                     assertTrue(nativeConsumer.isStopped(), "SFTP native consumer must stop when its context closes.");
+                    SftpTriggerSnapshotRuntime.await(() -> server.activeConnections() == 0,
+                            "SFTP native SSH connections to close after context stop");
                     assertEquals(0, server.activeConnections(), "SFTP native SSH connections must close with the context.");
                     runtime.verifyFinal(binding.interaction(lastInvocation.getId()), lastInvocation.getId());
                 }

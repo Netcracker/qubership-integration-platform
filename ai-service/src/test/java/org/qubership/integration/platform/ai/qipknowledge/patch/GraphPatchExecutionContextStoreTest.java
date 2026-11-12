@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.qipknowledge.patch;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.List;
 import java.util.Optional;
@@ -26,6 +27,31 @@ class GraphPatchExecutionContextStoreTest {
     store.clear("conv-1", "cip-routing-generator");
     MDC.remove(ChatMdc.CONVERSATION_ID);
     MDC.remove(CompilerSkillMdc.CAPABILITY_ID);
+  }
+
+  @Test
+  void shouldKeepServerBehaviorProvenanceAcrossContextCopies() {
+    var tasks = java.util.Map.of("generated-node", List.of("approved-behavior"));
+    var base = sampleContext("cip-script-generator").withBehaviorTasks(tasks);
+    var variants = List.of(base.withExistingScriptBodyEdit(true), base.withScriptEditDrafts(java.util.Map.of()),
+        base.withEditTargetNodeIds(List.of("generated-node")), base.withConsumedArtifacts(List.of()),
+        base.withMappingGenerationContext("Native script tasks"));
+
+    for (var variant : variants) assertEquals(tasks, variant.behaviorTasks());
+  }
+
+  @Test
+  void shouldFreezeBehaviorProvenanceBeforeBindingTheGeneratorContext() {
+    var ids = new java.util.ArrayList<>(List.of("approved-behavior"));
+    var source = new java.util.HashMap<String, List<String>>();
+    source.put("generated-node", ids);
+    var context = sampleContext("cip-script-generator").withBehaviorTasks(source);
+    ids.clear();
+    source.clear();
+
+    assertEquals(java.util.Map.of("generated-node", List.of("approved-behavior")), context.behaviorTasks());
+    assertThrows(UnsupportedOperationException.class, () -> context.behaviorTasks().clear());
+    assertThrows(UnsupportedOperationException.class, () -> context.behaviorTasks().get("generated-node").clear());
   }
 
   @Test

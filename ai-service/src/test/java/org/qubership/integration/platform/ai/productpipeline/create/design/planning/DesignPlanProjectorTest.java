@@ -1055,7 +1055,7 @@ class DesignPlanProjectorTest {
   }
 
   @Test
-  void retainsUnnamedScriptGeneratorForBehaviorOwnedCompleteTask() {
+  void unqualifiedBehaviorDoesNotBecomeScriptGenerationWork() {
     ChainSemanticRevision revision = SemanticFixtures.linearOrdersWithCompleteTask();
     String report =
         """
@@ -1068,20 +1068,13 @@ class DesignPlanProjectorTest {
         If you agree, reply **Agree** or **Execute plan** to proceed.
         """
             .trim();
-    DesignExecutionPlan projected =
-        projector.project(new DesignPlanReport("1", report), revision, pin(revision), briefFrom(revision));
-    List<DesignExecutionPlan.Step> scriptSteps =
-        projected.steps().stream()
-            .filter(step -> step.owningSkillIds().contains("cip-script-generator"))
-            .toList();
-    assertEquals(1, scriptSteps.size());
-    assertTrue(scriptSteps.getFirst().mappingIntentId() == null
-        || scriptSteps.getFirst().mappingIntentId().isBlank());
-    assertTrue(revision.mappingIntents().isEmpty());
+    var projected = projector.project(new DesignPlanReport("1", report), revision, pin(revision), briefFrom(revision));
+    assertEquals(List.of(), projected.steps().stream()
+        .filter(step -> step.owningSkillIds().contains("cip-script-generator")).toList());
   }
 
   @Test
-  void rejectsMissingScriptGeneratorWhenBehaviorOwnedShellExists() {
+  void suppliedOnlyScriptDoesNotRequireAScriptGenerator() {
     ChainSemanticRevision revision = SemanticFixtures.linearOrdersWithCompleteTask();
     String report =
         """
@@ -1093,12 +1086,31 @@ class DesignPlanProjectorTest {
         If you agree, reply **Agree** or **Execute plan** to proceed.
         """
             .trim();
-    PlannerContractException ex =
-        assertThrows(
-            PlannerContractException.class,
-            () -> projector.project(new DesignPlanReport("1", report), revision, pin(revision), briefFrom(revision)));
-    assertTrue(ex.getMessage().contains("cip-script-generator"), ex.getMessage());
-    assertTrue(ex.getMessage().contains(SemanticFixtures.COMPLETE_TASK_NODE_ID), ex.getMessage());
+    var brief = briefFrom(revision).withFacts(List.of(
+        org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures.suppliedFact(
+            SemanticFixtures.COMPLETE_TASK_NODE_ID, "  return 1\n")));
+    var projected = projector.project(new DesignPlanReport("1", report), revision, pin(revision), brief);
+    assertEquals(List.of(), projected.steps().stream()
+        .filter(step -> step.owningSkillIds().contains("cip-script-generator")).toList());
+  }
+
+  @Test
+  void suppliedScriptOwningAMappingSiteDoesNotRequireAGenerator() {
+    var revision = SemanticFixtures.revision(List.of(SemanticFixtures.entry("http-in", "trigger-http")));
+    var brief = briefFrom(revision).withFacts(List.of(
+        org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures
+            .suppliedFact("op-shared", "  return 1\n")));
+    String report = """
+        1. Generate HTTP Trigger element (cip-trigger-generator)
+        2. Generate Service Call element (cip-service-call-generator)
+        3. Generate execution structure (cip-structure-generator)
+        4. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
+        5. Validate the assembled chain (cip-chain-validator)
+        If you agree, reply **Agree** or **Execute plan** to proceed.
+        """;
+    var projected = projector.project(new DesignPlanReport("1", report), revision, pin(revision), brief);
+    assertEquals(List.of(), projected.steps().stream()
+        .filter(step -> step.owningSkillIds().contains("cip-script-generator")).toList());
   }
 
   @Test

@@ -1,7 +1,10 @@
 package org.qubership.integration.platform.ai.productpipeline.create.design.input;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -17,8 +20,7 @@ import jakarta.inject.Inject;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException;
 import org.qubership.integration.platform.ai.llm.agent.ChainSemanticDesignAgent;
 import org.qubership.integration.platform.ai.llm.agent.DesignPlanCaptureAgent;
 import org.qubership.integration.platform.ai.productpipeline.create.design.planning.DesignPlanCaptureTool;
@@ -34,42 +36,77 @@ class ChainSemanticDesignAgentTest {
   @Inject DesignPlanCaptureAgent planAgent;
   @InjectMock DesignPlanCaptureTool planCaptureTool;
 
-  @ParameterizedTest
-  @ValueSource(strings = {"Chain semantic revision captured.", "Invalid revision: missing region"})
-  void captureReturnsToTheRuntimeWithoutAnotherModelCall(String captureResult) throws Exception {
-    var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-    var capture = mapper.valueToTree(ChainSemanticCaptureFixtures.rockyCapture());
-    for (var edge : capture.path("edges")) {
-      ((com.fasterxml.jackson.databind.node.ObjectNode) edge).put("routeKind", "SEQUENCE");
-    }
-    String arguments = mapper.writeValueAsString(java.util.Map.of("capture", capture));
+  @Test
+  void anAcceptedCaptureEndsTheTurnWithoutAnotherModelCall() throws Exception {
+    String arguments = captureArguments();
+    when(model.supportedCapabilities()).thenReturn(Set.of(
+        dev.langchain4j.model.chat.Capability.RESPONSE_FORMAT_JSON_SCHEMA));
+    when(model.chat(any(ChatRequest.class)))
+        .thenAnswer(
+            invocation -> {
+              ChatRequest request = invocation.getArgument(0);
+              assertEquals("captureChainSemanticRevision", request.toolSpecifications().getFirst().name());
+              String toolInstructions = request.toolSpecifications().getFirst().description();
+              org.junit.jupiter.api.Assertions.assertAll("generated semantic tool authority instructions",
+                  () -> assertTrue(toolInstructions.contains(
+                      "Generated processing scripts may implement approved positive BEHAVIOR"), toolInstructions),
+                  () -> assertTrue(toolInstructions.contains(
+                      "Explicit author script bodies and element intents remain binding"), toolInstructions),
+                  () -> assertTrue(toolInstructions.contains("extra behavior needs a separate operation"), toolInstructions),
+                  () -> assertTrue(toolInstructions.contains("native compiler derives mapping retention"), toolInstructions));
+              assertNull(request.responseFormat(), "a tool capture must not request a Result JSON envelope");
+              return toolCall("capture-1", arguments);
+            });
+    when(captureTool.captureChainSemanticRevision(any()))
+        .thenThrow(new CaptureValidationException("Chain semantic revision captured."));
+
+    var ended = assertThrows(CaptureValidationException.class,
+        () -> agent.chat("direct-capture-accepted", "Capture the topology."));
+
+    assertEquals("Chain semantic revision captured.", ended.getMessage());
+    verify(model, times(1)).chat(any(ChatRequest.class));
+    verify(captureTool, times(1)).captureChainSemanticRevision(any());
+  }
+
+  /** The rejection is the tool result of the same turn, so the next model request carries it. */
+  @Test
+  void aRejectedCaptureGoesBackToTheModelInTheSameTurn() throws Exception {
+    String arguments = captureArguments();
     AtomicInteger calls = new AtomicInteger();
     when(model.supportedCapabilities()).thenReturn(Set.of(
         dev.langchain4j.model.chat.Capability.RESPONSE_FORMAT_JSON_SCHEMA));
     when(model.chat(any(ChatRequest.class)))
         .thenAnswer(
             invocation -> {
-              assertEquals(1, calls.incrementAndGet(), "capture must finish this model attempt");
+              if (calls.incrementAndGet() == 1) {
+                return toolCall("capture-1", arguments);
+              }
               ChatRequest request = invocation.getArgument(0);
-              assertEquals("captureChainSemanticRevision", request.toolSpecifications().getFirst().name());
-              assertNull(request.responseFormat(), "a tool capture must not request a Result JSON envelope");
-              return ChatResponse.builder()
-                  .aiMessage(
-                      AiMessage.from(
-                          ToolExecutionRequest.builder()
-                              .id("capture-1")
-                              .name("captureChainSemanticRevision")
-                              .arguments(arguments)
-                              .build()))
-                  .build();
+              var last = assertInstanceOf(dev.langchain4j.data.message.ToolExecutionResultMessage.class,
+                  request.messages().getLast());
+              assertTrue(last.text().contains("Invalid revision: missing region"), last.text());
+              return ChatResponse.builder().aiMessage(AiMessage.from("Stopped.")).build();
             });
-    when(captureTool.captureChainSemanticRevision(any())).thenReturn(captureResult);
+    when(captureTool.captureChainSemanticRevision(any())).thenReturn("Invalid revision: missing region");
 
-    var result = agent.chat("direct-capture-" + captureResult.hashCode(), "Capture the topology.");
+    assertEquals("Stopped.", agent.chat("direct-capture-rejected", "Capture the topology."));
+    verify(model, times(2)).chat(any(ChatRequest.class));
+  }
 
-    assertEquals(captureResult, result);
-    verify(model, times(1)).chat(any(ChatRequest.class));
-    verify(captureTool, times(1)).captureChainSemanticRevision(any());
+  private static String captureArguments() throws Exception {
+    var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+    var capture = mapper.valueToTree(ChainSemanticCaptureFixtures.rockyCapture());
+    for (var edge : capture.path("edges")) {
+      ((com.fasterxml.jackson.databind.node.ObjectNode) edge).put("routeKind", "SEQUENCE");
+    }
+    return mapper.writeValueAsString(java.util.Map.of("capture", capture));
+  }
+
+  private static ChatResponse toolCall(String id, String arguments) {
+    return ChatResponse.builder()
+        .aiMessage(AiMessage.from(ToolExecutionRequest.builder()
+            .id(id).name("captureChainSemanticRevision").arguments(arguments).build()))
+        .build();
   }
 
   @Test
@@ -85,9 +122,11 @@ class ChainSemanticDesignAgentTest {
               ToolExecutionRequest.builder().id("plan-1").name("captureDesignPlan")
                   .arguments("{\"capture\":{}}").build())).build();
         });
-    when(planCaptureTool.captureDesignPlan(any())).thenReturn("Design plan captured.");
+    when(planCaptureTool.captureDesignPlan(any()))
+        .thenThrow(new CaptureValidationException("Design plan captured."));
 
-    assertEquals("Design plan captured.", planAgent.chat("direct-plan-capture", "Capture the plan."));
+    assertThrows(CaptureValidationException.class,
+        () -> planAgent.chat("direct-plan-capture", "Capture the plan."));
     verify(model, times(1)).chat(any(ChatRequest.class));
     verify(planCaptureTool, times(1)).captureDesignPlan(any());
   }

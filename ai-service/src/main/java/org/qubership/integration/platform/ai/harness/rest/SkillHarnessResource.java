@@ -12,6 +12,7 @@ import jakarta.ws.rs.core.Response;
 import java.util.Map;
 import org.jboss.logging.Logger;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.qubership.integration.platform.ai.skills.RockySkills;
 import org.qubership.integration.platform.ai.harness.ChainPatchHarnessRequest;
 import org.qubership.integration.platform.ai.harness.ChainPatchHarnessResponse;
 import org.qubership.integration.platform.ai.harness.ChainPatchHarnessService;
@@ -36,6 +37,8 @@ public class SkillHarnessResource {
   private final ChainPatchHarnessService chainPatchHarnessService;
   private final PlannerHarnessService plannerHarnessService;
   private final ExecutorHarnessService executorHarnessService;
+  @Inject
+  RockySkills rockySkills = new RockySkills();
   private final boolean enabled;
 
   @Inject
@@ -148,6 +151,10 @@ public class SkillHarnessResource {
   private void requireEnabled() {
     if (!enabled) {
       throw new NotFoundException();
+    }
+    if (!rockySkills.available()) {
+      throw new jakarta.ws.rs.ForbiddenException(
+          RockySkills.UNAVAILABLE);
     }
   }
 

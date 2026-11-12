@@ -14,6 +14,7 @@ import java.util.function.BiFunction;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.capture.ToolArgumentsFailures;
 import org.qubership.integration.platform.ai.compiler.capture.TransientFailures;
+import org.qubership.integration.platform.ai.llm.ratelimit.RateLimitErrorClassifier;
 import org.qubership.integration.platform.ai.plan.ImplementationPlan;
 import org.qubership.integration.platform.ai.plan.ImplementationPlanRenderer;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
@@ -86,6 +87,9 @@ public class CompilerDerivedPlanningRunner {
               } catch (PlanningSkillArtifactUnavailableException failure) {
                 return missingArtifactOutcome(failure);
               } catch (RuntimeException ex) {
+                if (RateLimitErrorClassifier.isQuotaExhausted(ex)) {
+                  return StageOutcome.technicalFailure(ex);
+                }
                 if (TransientFailures.isTransient(ex)) {
                   return transientOutcome(ex);
                 }
@@ -123,7 +127,10 @@ public class CompilerDerivedPlanningRunner {
                         missingArtifactOutcome(failure)));
                 emitter.complete();
               } catch (RuntimeException ex) {
-                if (TransientFailures.isTransient(ex)) {
+                if (RateLimitErrorClassifier.isQuotaExhausted(ex)) {
+                  emitter.emit(new CapabilitySignal.Completed(StageOutcome.technicalFailure(ex)));
+                  emitter.complete();
+                } else if (TransientFailures.isTransient(ex)) {
                   emitter.emit(new CapabilitySignal.Completed(transientOutcome(ex)));
                   emitter.complete();
                 } else if (ToolArgumentsFailures.isToolArgumentsFailure(ex)) {

@@ -57,9 +57,7 @@ public class CompilerSecurityValidator {
     }
     if (brief != null && brief.facts().stream().anyMatch(fact -> {
       var conflict = fact.policyConflict();
-      return conflict != null && conflict.decision() != null
-          && EXTERNAL_RBAC_POLICY.equals(conflict.policyId())
-          && "accessControlType".equals(conflict.propertyKey())
+      return matchesExternalRbacPolicy(conflict) && conflict.decision() != null
           && fact.interactionIds().equals(List.of(node.nodeId()))
           && !conflict.selectedValue().equals(propertyValue(node, "accessControlType"));
     })) {
@@ -105,16 +103,21 @@ public class CompilerSecurityValidator {
     return counter;
   }
 
+  /** Matches the conflict defined by the external-route rule, not only its policy identifier. */
+  public static boolean matchesExternalRbacPolicy(RequirementPolicyConflict conflict) {
+    return conflict != null && EXTERNAL_RBAC_POLICY.equals(conflict.policyId())
+        && "accessControlType".equals(conflict.propertyKey())
+        && "RBAC".equals(conflict.recommendedValue())
+        && ("NONE".equals(conflict.requestedValue()) || "ABAC".equals(conflict.requestedValue()));
+  }
+
   private static boolean hasConfirmedAccessControlChoice(ChainPlanNode node, RequirementBrief brief) {
     if (brief == null || node.nodeId() == null) {
       return false;
     }
     return brief.facts().stream().anyMatch(fact -> {
       var conflict = fact.policyConflict();
-      return conflict != null && EXTERNAL_RBAC_POLICY.equals(conflict.policyId())
-          && "accessControlType".equals(conflict.propertyKey())
-          && "RBAC".equals(conflict.recommendedValue())
-          && ("NONE".equals(conflict.requestedValue()) || "ABAC".equals(conflict.requestedValue()))
+      return matchesExternalRbacPolicy(conflict)
           && conflict.decision() == RequirementPolicyConflict.Decision.KEEP_REQUESTED
           && fact.interactionIds().equals(List.of(node.nodeId()))
           && conflict.selectedValue().equals(propertyValue(node, "accessControlType"));

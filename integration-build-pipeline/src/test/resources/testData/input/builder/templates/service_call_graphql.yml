@@ -14,7 +14,6 @@ elements:
       retryCount: "1"
       retryDelay: "5000"
       systemType: "INTERNAL"
-      errorThrowing: true
       connectionTimeout: "120000"
       integrationSystemId: "55c27865-37bd-4a1f-bac0-29d5abf24595"
       integrationOperationId: "092029c9-f82e-41cd-bda8-6b3b96fd4601"

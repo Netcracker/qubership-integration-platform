@@ -299,7 +299,7 @@ alone.
 
     `@infra` is for the stack's own infrastructure: the nginx proxy, Kubernetes resources,
     restarts, metrics, and the setups that build and serve what the browser projects use, which
-    are `schemas-build`, `ui-server`, and `vscode-server`. The `ui`, `vscode`, `schema`, and
+    are `schemas-build`, `ui-server`, and `vscode-server`. The `ai-tests`, `ui`, `vscode`, `schema`, and
     `harness` projects are components of their own, `PROJECT_COMPONENTS` in
     `registry/elements.ts`, so their cases carry no component tag, which would only repeat the
     project name in the HTML report. Only the

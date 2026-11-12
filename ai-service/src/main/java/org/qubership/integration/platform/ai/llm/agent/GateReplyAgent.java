@@ -21,7 +21,9 @@ import org.qubership.integration.platform.ai.productpipeline.create.ApproveCandi
  * <p>Tool calling requires chat memory, so the caller passes a memory id of its own rather than
  * sharing the one the conversation agents use.
  */
-@RegisterAiService(tools = ApproveCandidateTool.class, maxSequentialToolInvocations = 2)
+@RegisterAiService(
+    toolHallucinationStrategy = org.qubership.integration.platform.ai.llm.tool.RecoverableToolNameStrategy.class,
+    tools = ApproveCandidateTool.class, maxSequentialToolInvocations = 2)
 @ApplicationScoped
 public interface GateReplyAgent {
 

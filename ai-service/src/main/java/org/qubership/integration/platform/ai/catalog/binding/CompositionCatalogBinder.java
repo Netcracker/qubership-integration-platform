@@ -352,7 +352,7 @@ public class CompositionCatalogBinder {
         path,
         fact.serviceCallId(),
         fact.interactionIds(),
-        fact.policyConflict(), fact.elementIntent());
+        fact.policyConflict(), fact.elementIntent(), fact.httpMode());
   }
 
   public static String pickerQuestion(String interactionId) {

@@ -66,6 +66,34 @@ class OperationSchemaLoaderTest {
   }
 
   @Test
+  void freshVerificationReloadsTheCatalogWithoutDisablingOrdinaryCaching() throws Exception {
+    var mapper = new ObjectMapper();
+    var original = mapper.readTree("""
+        {"type":"object","properties":{"value":{"type":"string"}}}
+        """);
+    var changed = mapper.readTree("""
+        {"type":"object","properties":{"value":{"type":"integer"}}}
+        """);
+    var remote = new java.util.HashMap<String,
+        org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.OperationSchemaMapsDto>();
+    remote.put("operation", new org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient
+        .OperationSchemaMapsDto("operation", java.util.Map.of("application/json", original), java.util.Map.of()));
+    var catalog = RecordingCatalogRestClient.withSchemas(remote);
+    var loader = new CatalogOperationSchemaLoader(catalog, artifacts, mapper);
+    loader.load("operation");
+    remote.put("operation", new org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient
+        .OperationSchemaMapsDto("operation", java.util.Map.of("application/json", changed), java.util.Map.of()));
+    var cached = loader.load("operation");
+    var refreshed = loader.loadFresh("operation");
+    var following = loader.load("operation");
+    org.junit.jupiter.api.Assertions.assertAll(
+        () -> assertEquals(original, cached.requestByContentType().get("application/json")),
+        () -> assertEquals(changed, refreshed.requestByContentType().get("application/json")),
+        () -> assertEquals(changed, following.requestByContentType().get("application/json")),
+        () -> assertEquals(List.of("getOperationSchemas:operation:full", "getOperationSchemas:operation:full"), catalog.calls()));
+  }
+
+  @Test
   void persistRequestWritesSha256AndProvenance() {
     MappingSchemaSide side =
         loader.persistRequest("comp-1", "call-1", "op-1", "application/json");

@@ -1,0 +1,148 @@
+{
+  "scope": "Excerpt of retained Kimi SDK tool pairs; no claim of completed chain recovery",
+  "sourceSha256": "dd06a61343c1bc66aee289a488602db85d0ba3b38783ad20f1f954947e62f9dc",
+  "reads": [
+    {
+      "call": {
+        "id": "functions.describeElementProperty:1",
+        "name": "describeElementProperty",
+        "arguments": "{\"elementType\":\"service-call\",\"propertyPath\":\"before\"}"
+      },
+      "result": {
+        "ok": true,
+        "tool": "describeElementProperty",
+        "data": {
+          "elementType": "service-call",
+          "propertyPath": "before",
+          "schema": {
+            "type": "oneOf",
+            "detailsAvailable": true,
+            "variants": [
+              {
+                "title": "None"
+              },
+              {
+                "title": "Mapper",
+                "constDiscriminators": {
+                  "type": "mapper-2"
+                },
+                "required": [
+                  "type"
+                ]
+              },
+              {
+                "title": "Scripting",
+                "constDiscriminators": {
+                  "type": "script"
+                },
+                "required": [
+                  "type"
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "call": {
+        "id": "functions.describeElementProperty:2",
+        "name": "describeElementProperty",
+        "arguments": "{\"elementType\":\"service-call\",\"propertyPath\":\"after\"}"
+      },
+      "result": {
+        "ok": true,
+        "tool": "describeElementProperty",
+        "data": {
+          "elementType": "service-call",
+          "propertyPath": "after",
+          "schema": {
+            "type": "array",
+            "title": "Response Handlers",
+            "detailsAvailable": true,
+            "items": {
+              "type": "object",
+              "detailsAvailable": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "call": {
+        "id": "functions.describeElementProperty:3",
+        "name": "describeElementProperty",
+        "arguments": "{\"elementType\":\"service-call\",\"propertyPath\":\"after.items\"}"
+      },
+      "result": {
+        "ok": true,
+        "tool": "describeElementProperty",
+        "data": {
+          "error": "Path not found at segment: items"
+        }
+      }
+    },
+    {
+      "call": {
+        "id": "functions.describeElementProperty:4",
+        "name": "describeElementProperty",
+        "arguments": "{\"elementType\":\"service-call\",\"propertyPath\":\"after\"}"
+      },
+      "result": {
+        "ok": true,
+        "tool": "describeElementProperty",
+        "data": {
+          "elementType": "service-call",
+          "propertyPath": "after",
+          "schema": {
+            "type": "array",
+            "title": "Response Handlers",
+            "detailsAvailable": true,
+            "items": {
+              "type": "object",
+              "detailsAvailable": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "call": {
+        "id": "functions.describeElementProperty:5",
+        "name": "describeElementProperty",
+        "arguments": "{\"elementType\":\"service-call\",\"propertyPath\":\"after[0]\"}"
+      },
+      "result": {
+        "ok": true,
+        "tool": "describeElementProperty",
+        "data": {
+          "error": "Unknown property: after[0]"
+        }
+      }
+    },
+    {
+      "call": {
+        "id": "functions.describeElementProperty:6",
+        "name": "describeElementProperty",
+        "arguments": "{\"elementType\":\"service-call\",\"propertyPath\":\"after\"}"
+      },
+      "result": {
+        "ok": true,
+        "tool": "describeElementProperty",
+        "data": {
+          "elementType": "service-call",
+          "propertyPath": "after",
+          "schema": {
+            "type": "array",
+            "title": "Response Handlers",
+            "detailsAvailable": true,
+            "items": {
+              "type": "object",
+              "detailsAvailable": true
+            }
+          }
+        }
+      }
+    }
+  ]
+}

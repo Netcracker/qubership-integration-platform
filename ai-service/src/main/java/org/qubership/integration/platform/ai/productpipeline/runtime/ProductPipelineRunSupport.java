@@ -9,6 +9,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -42,6 +43,7 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.UserInput;
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageCapabilityRegistry;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.create.ApprovalPrompts;
 import org.qubership.integration.platform.ai.productpipeline.create.FailureNarrative;
@@ -49,6 +51,10 @@ import org.qubership.integration.platform.ai.productpipeline.create.MappingRepai
 import org.qubership.integration.platform.ai.productpipeline.create.OwnerCandidate;
 import org.qubership.integration.platform.ai.productpipeline.create.OwnerCandidateSet;
 import org.qubership.integration.platform.ai.productpipeline.create.PauseQuestionResult;
+import org.qubership.integration.platform.ai.plan.RequirementClarificationCoordinator;
+import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
+import org.qubership.integration.platform.ai.plan.RequirementDraft;
+import org.qubership.integration.platform.ai.productpipeline.clarification.ClarificationTransition;
 import org.qubership.integration.platform.ai.productpipeline.create.RequirementDiscoveryCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerRunPinResolver;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.MappingGapCoverage;
@@ -104,7 +110,15 @@ import org.qubership.integration.platform.ai.storage.S3Service;
 public final class ProductPipelineRunSupport {
 
   public static final String ADMITTED_INPUT_GATE_ATTR = "admittedInputGate";
+  public static final String CATALOG_RECHECK_REASON = "recheck catalog read-back";
+  public static final String CATALOG_RECHECK_ATTR = "catalogRecheckOnly";
+  public static final String CATALOG_RECHECK_PROMPT =
+      "The chain has been saved. Resolve the Catalog issue, then retry verification of the existing chain.";
   public static final String ADMITTED_INPUT_REVISION_ATTR = "admittedInputRevision";
+  /** Offer id the accepted requirement answer returned. Chain-call admission may write only that offer. */
+  public static final String ADMITTED_CLARIFICATION_OFFER_ATTR = "admittedClarificationOfferId";
+  /** Tagged target-folder question the accepted answer replied to. An unknown answer repeats it verbatim. */
+  public static final String ADMITTED_CLARIFICATION_PROMPT_ATTR = "admittedClarificationPrompt";
 
   private static final Logger LOG = Logger.getLogger(ProductPipelineRunSupport.class);
 
@@ -242,11 +256,21 @@ public final class ProductPipelineRunSupport {
   private final MappingTurnAdapter mappingTurnAdapter;
   private final MappingTurnTelemetry mappingTurnTelemetry;
   private org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations;
+  private RequirementDraftStore requirementDrafts;
 
   ProductPipelineRunSupport withConversations(
       org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations) {
     this.conversations = conversations;
     this.stageExecutor.withConversations(conversations);
+    return this;
+  }
+
+  public ProductPipelineRunSupport withNativeRequirementCapture(
+      RequirementDraftStore drafts,
+      org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore feedback) {
+    this.requirementDrafts = drafts;
+    drafts.useRunJournal(runStore);
+    this.stageExecutor.withNativeRequirementCapture(drafts, feedback);
     return this;
   }
 
@@ -256,6 +280,12 @@ public final class ProductPipelineRunSupport {
       org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget budget) {
     this.llmBudget = budget;
     this.stageExecutor.withLlmBudget(budget);
+    return this;
+  }
+
+  ProductPipelineRunSupport withRecoveryControl(
+      org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryTestControl control) {
+    this.stageExecutor.withRecoveryControl(control);
     return this;
   }
 
@@ -459,6 +489,7 @@ public final class ProductPipelineRunSupport {
             schemaResourceLoader,
             schemaRefResolver,
             schemaService);
+    this.stageExecutor.bindClarificationSource(this);
   }
 
   /** Single-stage execution seam used by Flow. */
@@ -1212,12 +1243,8 @@ public final class ProductPipelineRunSupport {
       return Multi.createFrom().item(new PipelineSignal.WaitingForInput(doc.run().currentStageId(), paused));
     }
     String owner = doc.run().currentStageId();
-    String artifact = RecoveryAttemptLedger.inputArtifactIdentity(doc, owner);
-    RecoveryAttemptKey key = recoveryLedger.key(owner, repairOfferCause(doc), artifact, doc.transitions());
     Map<String, Object> attributes = attributesByRun.get(command.runId());
-    attributes.remove(DESIGN_INPUT_CLEAN_REBUILD_EVIDENCE_REF_ATTR);
-    attributes.remove(DESIGN_PLAN_CLEAN_REBUILD_EVIDENCE_REF_ATTR);
-    attributes.remove(PRODUCER_CLEAN_REBUILD_EVIDENCE_REF_ATTR);
+    String grant = repairAllowanceGrant(recoveryLedger, doc, owner, repairOfferCause(doc), attributes);
     try {
       attributes.put(RECOVERY_PENDING_ATTEMPT_ATTR, HALT_EVIDENCE_JSON.writeValueAsString(
           Map.of("stageId", owner, "revision", doc.run().runRevision() + 1)));
@@ -1225,9 +1252,30 @@ public final class ProductPipelineRunSupport {
       throw new IllegalStateException("Cannot persist the granted correction intent", e);
     }
     commitStatus(doc, RunStatus.RUNNING, StageStatus.RUNNING, doc.run().stages(),
-        recoveryLedger.recordGrantWithTargetedAttempt(key, artifact), haltEvidence(attributes, null),
+        grant, haltEvidence(attributes, null),
         command.commandId(), command.commandPayloadHash());
     return Multi.createFrom().item(new PipelineSignal.Progress(owner, "Additional repair allowance accepted"));
+  }
+
+  /**
+   * Returns the journal reason that grants a defect two more targeted corrections and two more clean regenerations,
+   * with the first targeted correction dispatched under the same reason.
+   *
+   * <p>The reason counts toward the run's recovery ceiling once it is committed, so the caller commits it as the
+   * transition that resumes {@code ownerStageId}. The clean-rebuild evidence references are removed from
+   * {@code attributes}, so the resumed stage runs the granted targeted correction rather than a clean regeneration.
+   *
+   * @param cause the defect the grant is keyed to, as the stage's recovery budget identifies it
+   * @param attributes the run's mutable attributes, edited in place
+   */
+  public static String repairAllowanceGrant(RecoveryAttemptLedger ledger, ProductPipelineRunDocument doc,
+      String ownerStageId, RecoveryCause cause, Map<String, Object> attributes) {
+    String artifact = RecoveryAttemptLedger.inputArtifactIdentity(doc, ownerStageId);
+    RecoveryAttemptKey key = ledger.key(ownerStageId, cause, artifact, doc.transitions());
+    attributes.remove(DESIGN_INPUT_CLEAN_REBUILD_EVIDENCE_REF_ATTR);
+    attributes.remove(DESIGN_PLAN_CLEAN_REBUILD_EVIDENCE_REF_ATTR);
+    attributes.remove(PRODUCER_CLEAN_REBUILD_EVIDENCE_REF_ATTR);
+    return ledger.recordGrantWithTargetedAttempt(key, artifact);
   }
 
   /**
@@ -1716,6 +1764,19 @@ public final class ProductPipelineRunSupport {
     return false;
   }
 
+  public static String catalogRecheckPrompt(ProductPipelineArtifactStore artifacts, ProductPipelineRunDocument doc,
+      String prompt) {
+    if ("materialization".equals(doc.run().currentStageId())
+        && PipelineGates.RECOVERY_REPEATED.equals(PipelineGates.gateOf(prompt).orElse(""))
+        && HaltRecoveryGuard.CATALOG_ALREADY_WRITTEN.name().equals(PipelineGates.guardOf(prompt).orElse(""))
+        && artifacts.materializationCheckpoint(doc.run().runId()).filter(checkpoint -> checkpoint.canReadBack()).isPresent()) {
+      return PipelineGates.tagRecoveryDetails(
+          PipelineGates.tag(PipelineGates.RECOVERY_CATALOG_RECHECK, CATALOG_RECHECK_PROMPT),
+          PipelineGates.recoveryTechnicalDetailsOf(prompt).orElse(""), null);
+    }
+    return prompt;
+  }
+
   /** Applies author input to the existing waiting stage. */
   private Multi<PipelineSignal> acceptTypedInput(
       ProductPipelineRunDocument doc, AcceptInputCommand command) {
@@ -1727,6 +1788,19 @@ public final class ProductPipelineRunSupport {
               boolean reviseClick = PipelineGates.REVISE_ACTION.equals(haltAction);
               boolean haltCardClick = retryClick || reviseClick;
               String haltGate = PipelineGates.gateOf(latestWaitingForInputPrompt(doc)).orElse("");
+              String recheckPrompt = catalogRecheckPrompt(artifactStore, doc, latestWaitingForInputPrompt(doc));
+              if (PipelineGates.RECOVERY_CATALOG_RECHECK.equals(PipelineGates.gateOf(recheckPrompt).orElse(""))) {
+                if (!retryClick || command.origin() != InputOrigin.TRUSTED
+                    || !"materialization".equals(doc.run().currentStageId())
+                    || artifactStore.materializationCheckpoint(doc.run().runId())
+                        .filter(checkpoint -> checkpoint.canReadBack()).isEmpty()) {
+                  return Multi.createFrom().item(new PipelineSignal.WaitingForInput(doc.run().currentStageId(), recheckPrompt));
+                }
+                recordRecoverySelection(command.runId(), PipelineGates.RECOVERY_CATALOG_RECHECK, command.text());
+                commitStatus(doc, RunStatus.RUNNING, StageStatus.RUNNING, doc.run().stages(), CATALOG_RECHECK_REASON,
+                    null, command.commandId(), command.commandPayloadHash());
+                return Multi.createFrom().empty();
+              }
               boolean resourceGrant = retryClick && llmBudget != null
                   && llmBudget.state(command.runId()).refusal() != null
                   && PipelineGates.RECOVERY_RETRY_TECHNICAL.equals(haltGate);
@@ -1734,6 +1808,9 @@ public final class ProductPipelineRunSupport {
                 return reemitHaltCard(doc);
               }
               recordRecoverySelection(command.runId(), haltGate, command.text());
+              if (retryClick && grantsFreshBudgetOnRetry(haltGate)) {
+                return retryWithFreshBudget(doc, command, haltGate);
+              }
               if (haltCardClick
                   && PipelineGates.isTerminalRecoveryGate(haltGate)) {
                 return reemitHaltCard(doc);
@@ -1782,10 +1859,25 @@ public final class ProductPipelineRunSupport {
                 attributes.put("userText", command.text());
                 attributes.remove(ADMITTED_INPUT_GATE_ATTR);
                 attributes.remove(ADMITTED_INPUT_REVISION_ATTR);
-                if (PipelineGates.IDS_PATH_CHOICE.equals(haltGate) && command.text() != null
+                attributes.remove(ADMITTED_CLARIFICATION_OFFER_ATTR);
+                attributes.remove(ADMITTED_CLARIFICATION_PROMPT_ATTR);
+                if (PipelineGates.admitsAuthoredClarification(haltGate)
+                    || PipelineGates.IDS_PATH_CHOICE.equals(haltGate) && command.text() != null
                     && ChatEvent.IDS_PATH_CHOICE_ACTIONS.contains(command.text().strip())) {
                   attributes.put(ADMITTED_INPUT_GATE_ATTR, haltGate);
                   attributes.put(ADMITTED_INPUT_REVISION_ATTR, doc.run().runRevision());
+                  if (PipelineGates.TARGET_FOLDER_CHOICE.equals(haltGate)) {
+                    String prompt = latestWaitingForInputPrompt(doc);
+                    if (prompt != null && !PipelineGates.strip(prompt).isBlank()) {
+                      attributes.put(ADMITTED_CLARIFICATION_PROMPT_ATTR, prompt);
+                    }
+                  }
+                  if (PipelineGates.STAGE_CLARIFICATION.equals(haltGate)) {
+                    var offer = openOffer(doc);
+                    if (offer != null && offer.offerId() != null && !offer.offerId().isBlank()) {
+                      attributes.put(ADMITTED_CLARIFICATION_OFFER_ATTR, offer.offerId());
+                    }
+                  }
                 }
                 if (isClarificationWait(doc)) {
                   attributes.put(HALT_FOLLOW_UP_TEXT_ATTR, command.text() == null ? "" : command.text());
@@ -1829,14 +1921,8 @@ public final class ProductPipelineRunSupport {
                 }
               } else if (retryClick) {
                 reason = recordAttempt(doc, command);
-              } else if (isClarificationWait(doc)) {
-                // The clarification card is the ask after repair budget. Retry the stage with the
-                // author's text; do not escalate to owner-stage buttons when repairs are spent.
-                if (diagnoseAttemptRefusal(doc, command) == null) {
-                  reason = recordAttempt(doc, command);
-                } else {
-                  reason = "accepted clarification";
-                }
+              } else if (PipelineGates.admitsAuthoredClarification(haltGate)) {
+                reason = "accepted clarification";
               }
               commitStatus(
                   doc,
@@ -1849,6 +1935,75 @@ public final class ProductPipelineRunSupport {
                   command.commandPayloadHash());
               return Multi.createFrom().empty();
             });
+  }
+
+  private static boolean grantsFreshBudgetOnRetry(String gate) {
+    return PipelineGates.RECOVERY_REPEATED.equals(gate)
+        || PipelineGates.RECOVERY_UNCLASSIFIED.equals(gate)
+        || PipelineGates.RECOVERY_REBUILD_DESIGN.equals(gate)
+        || PipelineGates.RECOVERY_REBUILD_PLAN.equals(gate);
+  }
+
+  /**
+   * Records the grant a trusted Continue repair records and runs the failing stage again, which is what a trusted
+   * Retry creation click on a card left by a model error does, even when the run's recovery ceiling is spent: the
+   * click is the author's new budget. A Rebuild plan card raised downstream of design-planning moves the run back to
+   * the plan it diagnosed and resets the stages after it. A capture failure is retried in a clean turn, because the
+   * capture validator refuses another targeted correction of the same rejection.
+   *
+   * <p>An untrusted click re-emits the card, and a run whose chain the catalog already holds is refused with
+   * {@link HaltRecoveryGuard#CATALOG_ALREADY_WRITTEN}.
+   */
+  private Multi<PipelineSignal> retryWithFreshBudget(
+      ProductPipelineRunDocument doc, AcceptInputCommand command, String gate) {
+    if (command.origin() != InputOrigin.TRUSTED) {
+      return reemitHaltCard(doc);
+    }
+    if (catalogHasBeenWritten(command.runId())) {
+      return refuseWithGuard(doc, command, HaltRecoveryGuard.CATALOG_ALREADY_WRITTEN);
+    }
+    String current = doc.run().currentStageId();
+    String diagnosed = diagnosedOwnerOf(command.runId());
+    String owner = PipelineGates.RECOVERY_REBUILD_PLAN.equals(gate) && !diagnosed.isBlank()
+        && isEarlierStage(profilesByRun.get(command.runId()), diagnosed, current) ? diagnosed : current;
+    Map<String, Object> attributes =
+        attributesByRun.computeIfAbsent(command.runId(), ignored -> new ConcurrentHashMap<>());
+    RecoveryCause cause = currentRecoveryCause(command.runId());
+    String grant = repairAllowanceGrant(recoveryLedger, doc, owner, cause, attributes);
+    String cleanAttribute = cleanRebuildEvidenceAttribute(owner);
+    Object evidence = attributes.get(RECOVERY_EVIDENCE_REF_ATTR);
+    if (cause.captureFailure() != null && cleanAttribute != null
+        && evidence instanceof String ref && !ref.isBlank()) {
+      // The turn is clean, yet the journal records the grant's targeted attempt: a transition carries one reason,
+      // and only the grant reason gives the defect its fresh budget.
+      attributes.put(cleanAttribute, ref);
+    }
+    try {
+      attributes.put(RECOVERY_PENDING_ATTEMPT_ATTR, HALT_EVIDENCE_JSON.writeValueAsString(
+          Map.of("stageId", owner, "revision", doc.run().runRevision() + 1)));
+    } catch (Exception e) {
+      throw new IllegalStateException("Cannot persist the granted correction intent", e);
+    }
+    if (!owner.equals(current)) {
+      return resetDownstreamAndMoveTo(doc, owner, grant, command);
+    }
+    commitStatus(doc, RunStatus.RUNNING, StageStatus.RUNNING, doc.run().stages(),
+        grant, haltEvidence(attributes, null), command.commandId(), command.commandPayloadHash());
+    return Multi.createFrom().item(new PipelineSignal.Progress(owner, "Retrying with a fresh repair allowance"));
+  }
+
+  /**
+   * Returns the run attribute that selects a clean regeneration of {@code stageId} from saved inputs, or {@code null}
+   * when the stage has no clean regeneration.
+   */
+  public static String cleanRebuildEvidenceAttribute(String stageId) {
+    return switch (stageId == null ? "" : stageId) {
+      case "design-execution", "requirement-discovery", "requirement-analysis" ->
+          PRODUCER_CLEAN_REBUILD_EVIDENCE_REF_ATTR;
+      case "design-input" -> DESIGN_INPUT_CLEAN_REBUILD_EVIDENCE_REF_ATTR;
+      case "design-planning" -> DESIGN_PLAN_CLEAN_REBUILD_EVIDENCE_REF_ATTR;
+      default -> null;
+    };
   }
 
   /**
@@ -2992,13 +3147,28 @@ public final class ProductPipelineRunSupport {
       String ownerStageId,
       String reason,
       AcceptInputCommand command) {
-    ProductPipelineProfile profile = profilesByRun.get(doc.run().runId());
+    List<StageSnapshot> updated =
+        downstreamReset(profilesByRun.get(doc.run().runId()), doc.run().stages(), ownerStageId);
+    commitMove(
+        doc, ownerStageId, updated, reason, haltEvidence(attributesByRun.get(command.runId()), null),
+        command.commandId(), command.commandPayloadHash());
+    return Multi.createFrom().empty();
+  }
+
+  /**
+   * Returns {@code stages} with {@code ownerStageId} running again without its approval and every stage after it
+   * pending with no outputs, candidates, or approval. Other stages are returned unchanged.
+   *
+   * @throws IllegalStateException when {@code profile} is null
+   */
+  public static List<StageSnapshot> downstreamReset(
+      ProductPipelineProfile profile, List<StageSnapshot> stages, String ownerStageId) {
     if (profile == null) {
       throw new IllegalStateException("cannot reset downstream: profile is missing");
     }
     Set<String> afterOwner = stageIdsAfter(profile, ownerStageId);
     List<StageSnapshot> updated = new ArrayList<>();
-    for (StageSnapshot snapshot : doc.run().stages()) {
+    for (StageSnapshot snapshot : stages) {
       if (ownerStageId.equals(snapshot.stageId())) {
         updated.add(
             new StageSnapshot(
@@ -3023,10 +3193,7 @@ public final class ProductPipelineRunSupport {
         updated.add(snapshot);
       }
     }
-    commitMove(
-        doc, ownerStageId, updated, reason, haltEvidence(attributesByRun.get(command.runId()), null),
-        command.commandId(), command.commandPayloadHash());
-    return Multi.createFrom().empty();
+    return updated;
   }
 
   private Multi<PipelineSignal> recordOwnerChoice(
@@ -3207,7 +3374,7 @@ public final class ProductPipelineRunSupport {
       case CONTRACT_FAILURE, INTERNAL_FAILURE -> FailureClass.CONTRACT;
       case POLICY_FAILURE -> FailureClass.POLICY;
       case MISSING_MANDATORY_INPUT -> FailureClass.MISSING_MANDATORY_INPUT;
-      case RETRYABLE_TECHNICAL_FAILURE -> FailureClass.TECHNICAL;
+      case RETRYABLE_TECHNICAL_FAILURE, PROVIDER_QUOTA_EXHAUSTED -> FailureClass.TECHNICAL;
       default -> FailureClass.DOMAIN;
     };
   }
@@ -3240,6 +3407,10 @@ public final class ProductPipelineRunSupport {
       return false;
     }
     String gate = PipelineGates.gateOf(latestWaitingForInputPrompt(doc)).orElse("");
+    if (PipelineGates.TARGET_FOLDER_CHOICE.equals(gate)
+        || PipelineGates.REQUIREMENT_RECOVERY_CLARIFICATION.equals(gate)) {
+      return false;
+    }
     if (PipelineGates.STAGE_CLARIFICATION.equals(gate)) {
       if (OwnerCandidateSet.requestsNamedStage(text)) {
         return true;
@@ -3293,7 +3464,7 @@ public final class ProductPipelineRunSupport {
     return Optional.empty();
   }
 
-  /** Records approval without selecting or running the next stage. */
+  /** Records approval and promotes its source correction before advancing. */
   public Multi<PipelineSignal> recordApprove(ApproveCommand command) {
     Objects.requireNonNull(command, "command");
     return Multi.createFrom()
@@ -3301,8 +3472,36 @@ public final class ProductPipelineRunSupport {
             () -> {
               ProductPipelineRunDocument doc = requireRun(command.runId());
               ensureDurablePinsLoaded(command.runId());
-              if (doc.appliedCommand(command.commandId(), command.commandPayloadHash())
-                  .isPresent()) {
+              var applied = doc.appliedCommand(command.commandId(), command.commandPayloadHash());
+              var sourceReplay = requirementDrafts != null
+                  && (command.commandId() == null || command.commandId().isBlank())
+                  && requirementDrafts.hasSourceRestorationCandidate(doc.run().conversationId(), command.target())
+                      ? committedBriefApproval(doc, command.target(), command.expectedRunRevision(), artifactStore)
+                      : Optional.<StageSnapshot>empty();
+              if (applied.isPresent() || sourceReplay.isPresent()) {
+                promoteSourceRestoration(doc, command.target());
+                if (command.target() != null && command.target().kind() == Kind.REQUIREMENT_BRIEF) {
+                  StageSnapshot approved = sourceReplay.orElseGet(() -> doc.run().stages().stream()
+                      .filter(snapshot -> snapshot.stageId().equals(applied.orElseThrow().stageId()))
+                      .findFirst().orElseThrow());
+                  if (approved.status() == StageStatus.SUCCEEDED
+                      && command.target().artifactId().equals(approved.approvedArtifactId())
+                      && approved.outputRefs().contains(command.target())) {
+                    var attributes = attributesByRun.get(command.runId());
+                    var profile = profilesByRun.get(command.runId());
+                    if (approved.stageId().equals(replacementApprovalStage(profile, attributes))) {
+                      attributes.remove(RECOVERY_PREPARING_OWNER_ATTR);
+                    }
+                    if ("requirement-analysis".equals(approved.stageId())) {
+                      attributes.remove(ACCEPTED_SOURCE_BRIEF_REF_ATTR);
+                    }
+                    if (doc.run().status() == RunStatus.RUNNING
+                        && approved.stageId().equals(doc.run().currentStageId())) {
+                      String next = nextStageId(profile, approved.stageId());
+                      commitMove(doc, next, markStageRunning(doc, next), "advance after approval");
+                    }
+                  }
+                }
                 return Multi.createFrom().empty();
               }
               if (isTerminalRunStatus(doc.run().status())) {
@@ -3345,6 +3544,12 @@ public final class ProductPipelineRunSupport {
                         new StaleApprovalException(
                             "approval target is not the current approvable candidate"));
               }
+              String approvalSourceTurnId = requirementDrafts == null ? null
+                  : requirementDrafts.sourceRestorationApprovalSource(doc.run().conversationId(), target,
+                      command.expectedRunRevision());
+              if (requirementDrafts != null) {
+                requirementDrafts.validateSourceRestorationApproval(doc.run().conversationId(), target, approvalSourceTurnId);
+              }
               boolean holdUnchangedBrief =
                   shouldHoldUnchangedExhaustedBrief(doc, stage, target);
               if (!holdUnchangedBrief) {
@@ -3363,7 +3568,7 @@ public final class ProductPipelineRunSupport {
                         command.runId(),
                         target,
                         approvedCandidates,
-                        approvalPolicy);
+                        approvalPolicy, approvalSourceTurnId);
                 approvalRevision =
                     artifactStore.append(
                         new AppendCommand(
@@ -3389,7 +3594,7 @@ public final class ProductPipelineRunSupport {
                             "product-pipeline-runtime",
                             "1",
                             new ApprovalRecord(
-                                target, target.contentHash(), "user", null, clock.instant()),
+                                target, target.contentHash(), "user", null, clock.instant(), approvalSourceTurnId),
                             List.of(target),
                             null,
                             provenance(
@@ -3445,6 +3650,7 @@ public final class ProductPipelineRunSupport {
                     promotionEvidence,
                     command.commandId(),
                     command.commandPayloadHash());
+                promoteSourceRestoration(doc, target);
                 if (promotesReplacement) { attributesByRun.get(command.runId()).remove(RECOVERY_PREPARING_OWNER_ATTR); }
               if (promotesSource) { attributesByRun.get(command.runId()).remove(ACCEPTED_SOURCE_BRIEF_REF_ATTR); }
                 return Multi.createFrom()
@@ -3464,6 +3670,7 @@ public final class ProductPipelineRunSupport {
                     promotionEvidence,
                     command.commandId(),
                     command.commandPayloadHash());
+                promoteSourceRestoration(doc, target);
                 if (promotesReplacement) { attributesByRun.get(command.runId()).remove(RECOVERY_PREPARING_OWNER_ATTR); }
               if (promotesSource) { attributesByRun.get(command.runId()).remove(ACCEPTED_SOURCE_BRIEF_REF_ATTR); }
                 return Multi.createFrom().item(new PipelineSignal.Completed(terminalStatus));
@@ -3482,12 +3689,39 @@ public final class ProductPipelineRunSupport {
                   promotionEvidence,
                   command.commandId(),
                   command.commandPayloadHash());
+              promoteSourceRestoration(doc, target);
               if (promotesReplacement) { attributesByRun.get(command.runId()).remove(RECOVERY_PREPARING_OWNER_ATTR); }
               if (promotesSource) { attributesByRun.get(command.runId()).remove(ACCEPTED_SOURCE_BRIEF_REF_ATTR); }
               ProductPipelineRunDocument after = requireRun(command.runId());
               commitMove(after, nextStageId, markStageRunning(after, nextStageId), "advance after approval");
               return Multi.createFrom().empty();
             });
+  }
+
+  private void promoteSourceRestoration(ProductPipelineRunDocument doc, Reference target) {
+    if (requirementDrafts != null && target != null && target.kind() == Kind.REQUIREMENT_BRIEF) {
+      requirementDrafts.promoteSourceRestoration(doc.run().conversationId(), target);
+    }
+  }
+
+  /** Finds the journal-selected brief approval committed from the caller's original revision. */
+  public static Optional<StageSnapshot> committedBriefApproval(ProductPipelineRunDocument doc, Reference target,
+      long expectedRunRevision, ProductPipelineArtifactStore artifacts) {
+    if (target == null || target.kind() != Kind.REQUIREMENT_BRIEF) return Optional.empty();
+    return doc.run().stages().stream().filter(stage -> stage.status() == StageStatus.SUCCEEDED
+        && target.artifactId().equals(stage.approvedArtifactId()) && stage.outputRefs().contains(target)
+        && stage.candidateReferences().contains(target)
+        && doc.attempts().stream().anyMatch(attempt -> attempt.runRevision() == expectedRunRevision + 1
+            && attempt.stageId().equals(stage.stageId()) && attempt.outcome() == StageStatus.SUCCEEDED
+            && attempt.outputs().contains(target))
+        && doc.transitions().stream().anyMatch(transition -> transition.fromRevision() == expectedRunRevision
+            && transition.toRevision() == expectedRunRevision + 1 && transition.stageId().equals(stage.stageId())))
+        .filter(stage -> stage.outputRefs().stream().filter(ref -> ref.kind() == Kind.APPROVAL_RECORD)
+            .map(ref -> artifacts.get(doc.run().runId(), ref).orElse(null)).filter(Objects::nonNull)
+            .map(revision -> artifacts.payload(revision, com.fasterxml.jackson.databind.JsonNode.class))
+            .anyMatch(record -> record.path("target").equals(HALT_EVIDENCE_JSON.valueToTree(target))
+                && target.contentHash().equals(record.path("targetContentHash").asText())))
+        .findFirst();
   }
 
   /**
@@ -3774,7 +4008,8 @@ public final class ProductPipelineRunSupport {
                 clock.instant(),
                 reason,
                 commandId,
-                commandPayloadHash)));
+                commandPayloadHash,
+                waitingClarification(doc, nextStatus, expected + 1L, reason))));
     if (stageStatus == StageStatus.SUCCEEDED) {
       settleActiveRepair(doc.run().currentStageId(), attributesByRun.get(doc.run().runId()));
     }
@@ -3810,34 +4045,54 @@ public final class ProductPipelineRunSupport {
       String failureEvidence,
       String commandId,
       String commandPayloadHash) {
-    long expected = doc.run().runRevision();
     runStore.commit(
+        doc.run().runRevision(),
+        moveCommit(doc, nextStageId, stages, reason, failureEvidence, commandId, commandPayloadHash,
+            clock.instant(), pendingAnswer(doc)));
+  }
+
+  /**
+   * Returns the commit that moves the run to {@code nextStageId} as RUNNING with {@code stages}, journaled under
+   * {@code reason}. The commit expects the run at its current revision. {@code commandId}, {@code commandPayloadHash},
+   * and {@code pendingAnswer} may be null.
+   */
+  public static LogicalCommit moveCommit(
+      ProductPipelineRunDocument doc,
+      String nextStageId,
+      List<StageSnapshot> stages,
+      String reason,
+      String failureEvidence,
+      String commandId,
+      String commandPayloadHash,
+      Instant at,
+      ClarificationTransition pendingAnswer) {
+    long expected = doc.run().runRevision();
+    return new LogicalCommit(
+        doc.run().runId(),
         expected,
-        new LogicalCommit(
-            doc.run().runId(),
+        RunStatus.RUNNING,
+        nextStageId,
+        stages,
+        new StageAttempt(
+            UUID.randomUUID().toString(),
+            nextStageId,
+            expected + 1L,
+            StageStatus.RUNNING,
+            at,
+            at,
+            List.of(),
+            failureEvidence),
+        new RunTransition(
             expected,
+            expected + 1L,
+            doc.run().status(),
             RunStatus.RUNNING,
             nextStageId,
-            stages,
-            new StageAttempt(
-                UUID.randomUUID().toString(),
-                nextStageId,
-                expected + 1L,
-                StageStatus.RUNNING,
-                clock.instant(),
-                clock.instant(),
-                List.of(),
-                failureEvidence),
-            new RunTransition(
-                expected,
-                expected + 1L,
-                doc.run().status(),
-                RunStatus.RUNNING,
-                nextStageId,
-                clock.instant(),
-                reason,
-                commandId,
-                commandPayloadHash)));
+            at,
+            reason,
+            commandId,
+            commandPayloadHash,
+            pendingAnswer));
   }
 
   /**
@@ -3879,7 +4134,97 @@ public final class ProductPipelineRunSupport {
                 clock.instant(),
                 reason,
                 commandId,
-                commandPayloadHash)));
+                commandPayloadHash,
+                requirementClarification(doc, expected + 1L, reason, stageId))));
+  }
+
+  /**
+   * Offer for a requirement question wait, written in the same compare-and-set as that wait.
+   * When this wait consumes the open offer, the same envelope also carries that answer.
+   */
+  public ClarificationTransition requirementClarification(
+      ProductPipelineRunDocument doc, long targetRevision, String reason) {
+    return requirementClarification(doc, targetRevision, reason, doc.run().currentStageId());
+  }
+
+  private ClarificationTransition waitingClarification(
+      ProductPipelineRunDocument doc, RunStatus nextStatus, long targetRevision, String reason) {
+    if (nextStatus != RunStatus.WAITING_FOR_INPUT) {
+      return pendingAnswer(doc);
+    }
+    return requirementClarification(doc, targetRevision, reason, doc.run().currentStageId());
+  }
+
+  private ClarificationTransition requirementClarification(
+      ProductPipelineRunDocument doc, long targetRevision, String reason, String stageId) {
+    var answer = pendingAnswer(doc);
+    if (requirementDrafts == null
+        || PipelineGates.gateOf(reason).filter(PipelineGates.STAGE_CLARIFICATION::equals).isEmpty()
+        || !RequirementDiscoveryCapability.CAPABILITY_ID.equals(capabilityId(doc, stageId))) {
+      return answer;
+    }
+    var accepted = requirementDrafts.latestRevision(doc.run().conversationId()).orElse(null);
+    var draft = requirementDrafts.get(doc.run().conversationId()).orElse(null);
+    if (accepted == null || draft == null) {
+      return answer;
+    }
+    String generation = "";
+    if (conversations != null) {
+      String archived = conversations.archive().read(doc.run().conversationId()).generation();
+      generation = archived == null ? "" : archived;
+    }
+    var coordinator = new RequirementClarificationCoordinator();
+    var active = coordinator.activeQuestion(accepted, draft, generation).orElse(null);
+    if (active == null) {
+      return answer;
+    }
+    return new ClarificationTransition(coordinator.createOffer(active, targetRevision),
+        answer == null ? null : answer.answer());
+  }
+
+  /**
+   * The accepted answer for the offer that is still open. A later commit does not attach it again.
+   */
+  private ClarificationTransition pendingAnswer(ProductPipelineRunDocument doc) {
+    if (requirementDrafts == null || doc == null || doc.run() == null) {
+      return null;
+    }
+    var answer = requirementDrafts.latestClarificationAnswer(doc.run().conversationId()).orElse(null);
+    var open = openOffer(doc);
+    if (answer == null || open == null || !open.offerId().equals(answer.offerId())) {
+      return null;
+    }
+    return new ClarificationTransition(null, answer);
+  }
+
+  private static ClarificationTransition.Offer openOffer(ProductPipelineRunDocument doc) {
+    ClarificationTransition.Offer open = null;
+    for (var transition : doc.transitions()) {
+      var clarification = transition.clarification();
+      if (clarification == null) {
+        continue;
+      }
+      if (clarification.answer() != null && open != null
+          && clarification.answer().offerId().equals(open.offerId())) {
+        open = null;
+      }
+      if (clarification.offer() != null) {
+        open = clarification.offer();
+      }
+    }
+    return open;
+  }
+
+  private String capabilityId(ProductPipelineRunDocument doc, String stageId) {
+    ProductPipelineProfile profile = profilesByRun.get(doc.run().runId());
+    if (profile != null) {
+      for (ProfileStage stage : profile.stages()) {
+        if (stage.stageId().equals(stageId) && stage.capabilityId() != null && !stage.capabilityId().isBlank()) {
+          return stage.capabilityId();
+        }
+      }
+    }
+    return stageId == null ? "" : stageId;
   }
 
   private static List<StageSnapshot> markStageRunning(
@@ -4110,11 +4455,33 @@ public final class ProductPipelineRunSupport {
     return pending;
   }
 
-  /** Retires an observing stage's active error only after that stage succeeds or its output is approved. */
+  /**
+   * Retires the named observing stage's active error after stage success, output approval,
+   * ready-draft validation, or authoritative native feedback resolution.
+   */
   public static void settleActiveRepair(String stageId, Map<String, Object> attributes) {
     if (attributes != null && stageId.equals(attributes.get(STAGE_ERROR_FAILED_STAGE_ATTR))) {
       clearActiveRepair(attributes);
     }
+  }
+
+  /** Retires a discovery defect after native validation reaches the normal ready-draft gate. */
+  public static boolean settleReadyDiscoveryRepair(
+      String stageId, StageOutcome outcome, Map<String, Object> attributes) {
+    if (attributes == null || !stageId.equals(attributes.get(STAGE_ERROR_FAILED_STAGE_ATTR))
+        || outcome.outcomeClass() != StageOutcomeClass.NEEDS_INPUT || outcome.recoveryCause() != null
+        || !PipelineGates.REQUIREMENT_DRAFT_READY.equals(PipelineGates.gateOf(outcome.message()).orElse(""))) {
+      return false;
+    }
+    settleActiveRepair(stageId, attributes);
+    Object preparing = attributes.get(RECOVERY_PREPARING_OWNER_ATTR);
+    if (preparing == null || preparing instanceof String owner && (owner.isBlank() || stageId.equals(owner))) {
+      for (String key : List.of(RECOVERY_PREPARING_OWNER_ATTR, ACCEPTED_SOURCE_BRIEF_REF_ATTR,
+          "mappingRepairAutomatic", "mappingRepairPaths", "requirementCorrectionDraft", "missingMappingTargets")) {
+        attributes.remove(key);
+      }
+    }
+    return true;
   }
 
   private static void clearActiveRepair(Map<String, Object> attributes) {
@@ -4125,7 +4492,9 @@ public final class ProductPipelineRunSupport {
         RECOVERY_EVIDENCE_REF_ATTR, RECOVERY_INVOCATION_ATTR, RECOVERY_PENDING_ATTEMPT_ATTR,
         RECOVERY_DIAGNOSIS_ATTR, DESIGN_INPUT_CLEAN_REBUILD_EVIDENCE_REF_ATTR,
         DESIGN_PLAN_CLEAN_REBUILD_EVIDENCE_REF_ATTR, PRODUCER_CLEAN_REBUILD_EVIDENCE_REF_ATTR,
-        PRIOR_CANDIDATE_ATTR)) {
+        PRIOR_CANDIDATE_ATTR,
+        org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence.REPAIR_HISTORY_ATTR,
+        org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence.PRIOR_OUTPUT_REFS_ATTR)) {
       attributes.remove(key);
     }
   }
@@ -4211,8 +4580,12 @@ public final class ProductPipelineRunSupport {
 
   public static String recoveryCauseJson(RecoveryCause cause) {
     try {
-      return HALT_EVIDENCE_JSON.writeValueAsString(Map.of(
-          "causeCode", cause.causeCode(), "findings", cause.findings(), "requestedFact", cause.requestedFact()));
+      var value = new LinkedHashMap<String, Object>(Map.of(
+          "causeCode", cause.causeCode(), "findings", cause.findings(), "requestedFact", cause.requestedFact(),
+          "noProgress", cause.noProgress()));
+      value.put("captureFailure", cause.captureFailure());
+      if (cause.sourceReview() != null) value.put("sourceReview", cause.sourceReview());
+      return HALT_EVIDENCE_JSON.writeValueAsString(value);
     } catch (Exception e) {
       throw new IllegalStateException("Cannot persist the recovery cause", e);
     }
@@ -4265,7 +4638,7 @@ public final class ProductPipelineRunSupport {
       String runId,
       Reference target,
       List<Reference> approvedCandidates,
-      ApprovalPolicy approvalPolicy) {
+      ApprovalPolicy approvalPolicy, String sourceTurnId) {
     String subjectKind = null;
     String subjectSchemaVersion = null;
     String subjectRevisionId = null;
@@ -4307,7 +4680,7 @@ public final class ProductPipelineRunSupport {
         subjectRevisionId,
         subjectSha256,
         compilerContractVersion,
-        compilerContractSha256);
+        compilerContractSha256, List.of(), Map.of(), sourceTurnId);
   }
 
   /**
@@ -4514,6 +4887,8 @@ public final class ProductPipelineRunSupport {
     attributes.remove("userText");
     attributes.remove(ADMITTED_INPUT_GATE_ATTR);
     attributes.remove(ADMITTED_INPUT_REVISION_ATTR);
+    attributes.remove(ADMITTED_CLARIFICATION_OFFER_ATTR);
+    attributes.remove(ADMITTED_CLARIFICATION_PROMPT_ATTR);
   }
 
   private String approvalPromptFor(String runId, String stageId) {
@@ -4726,6 +5101,8 @@ public final class ProductPipelineRunSupport {
     try {
       RequirementBrief brief = artifactStore.payload(revision.get(), RequirementBrief.class);
       String body = requirementBriefChatReview(brief);
+      String correction = sourceRestorationChatReview(runId, brief);
+      if (!correction.isBlank()) body = correction + "\n\n" + body;
       if (body.isBlank()) {
         return;
       }
@@ -4733,6 +5110,40 @@ public final class ProductPipelineRunSupport {
     } catch (RuntimeException ex) {
       LOG.warnf(ex, "Failed to surface REQUIREMENT_BRIEF for approval review (runId=%s)", runId);
     }
+  }
+
+  private String sourceRestorationChatReview(String runId, RequirementBrief brief) {
+    if (requirementDrafts == null || brief.approvedDraftReference() == null) return "";
+    RequirementDraft accepted = requirementDrafts.get(requireRun(runId).run().conversationId()).orElse(null);
+    RequirementDraft candidate = artifactStore.history(runId, Kind.REQUIREMENT_DRAFT).stream()
+        .filter(revision -> brief.approvedDraftReference().equals(revision.artifactId()))
+        .findFirst().map(revision -> artifactStore.payload(revision, RequirementDraft.class)).orElse(null);
+    if (accepted == null || candidate == null || accepted.authoredDraft() == null || candidate.authoredDraft() == null
+        || !accepted.catalogBindings().equals(candidate.catalogBindings())) return "";
+    var before = accepted.authoredDraft();
+    var after = candidate.authoredDraft();
+    var restoredFacts = new ArrayList<org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput>();
+    var corrections = new ArrayList<String>();
+    for (var original : before.facts()) {
+      var proposed = after.facts().stream().filter(fact -> original.sourceFactId().equals(fact.sourceFactId()))
+          .findFirst().orElse(null);
+      if (proposed == null) return "";
+      if (Objects.equals(original.text(), proposed.text())) {
+        restoredFacts.add(original);
+        continue;
+      }
+      if (original.evidence() == null || !Objects.equals(original.evidence().quote(), proposed.text())) return "";
+      var restored = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput(
+          original.sourceFactId(), original.interactionIds(), original.kind(), original.polarity(), proposed.text(),
+          original.fieldMapping(), original.policyConflict(), original.elementIntent(), original.evidence());
+      restoredFacts.add(restored);
+      corrections.add("**Previous wording:**\n> " + original.text().replace("\n", "\n> ")
+          + "\n\n**Proposed source wording:**\n> " + proposed.text().replace("\n", "\n> "));
+    }
+    var expected = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput(
+        before.flow(), restoredFacts, before.capabilities(), before.openQuestions(), before.settings());
+    return !corrections.isEmpty() && expected.equals(after)
+        ? "**Source wording corrections awaiting approval**\n\n" + String.join("\n\n", corrections) : "";
   }
 
   /** Compact markdown for the approval card's preceding narrative. */

@@ -330,7 +330,6 @@ class CompilerValidationPipelineTest {
                     new PlanProperty("authorizationConfiguration", "{\"type\":\"inherit\"}"),
                     new PlanProperty("propagateContext", "true"),
                     new PlanProperty("systemType", "EXTERNAL"),
-                    new PlanProperty("errorThrowing", "true"),
                     new PlanProperty("integrationOperationMethod", "GET"),
                     new PlanProperty("handleValidationAction", "default"),
                     new PlanProperty("integrationOperationProtocolType", "http"),

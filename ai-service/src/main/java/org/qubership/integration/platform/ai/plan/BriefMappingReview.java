@@ -41,9 +41,15 @@ public final class BriefMappingReview {
       for (MappingIntentRule rule : intent.rules()) {
         if (rule.targetPath().equals(targetPath == null ? "" : targetPath.trim())) {
           found = true;
-          rules.add(
-              new MappingIntentRule(
-                  sourcePath, targetPath, expression, MappingRuleStatus.USER_DEFINED));
+          if (rule.value() instanceof org.qubership.integration.platform.ai.qipknowledge.artifact.MappingValue.Copy copy
+              && copy.source() instanceof org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource.Message origin
+              && origin.interactionId() != null && !origin.interactionId().isBlank()) {
+            var replacement = expression == null || expression.isBlank()
+                ? rule.withMessageSourcePath(sourcePath) : rule.withLegacyMessageBehavior(sourcePath, expression);
+            rules.add(replacement.withStatus(MappingRuleStatus.USER_DEFINED));
+          } else {
+            rules.add(new MappingIntentRule(sourcePath, targetPath, expression, MappingRuleStatus.USER_DEFINED));
+          }
         } else {
           rules.add(rule);
         }

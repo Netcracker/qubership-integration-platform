@@ -74,13 +74,10 @@ docker compose -f infrastructure/docker/docker-compose.yml -f infrastructure/doc
 
 Available overlays: `docker-compose.kafka.yml`, `docker-compose.rabbitmq.yml`, `docker-compose.redis.yml`, `docker-compose.pubsub.yml`, `docker-compose.sftp.yml`.
 
-Optional AI service (requires LLM keys in `infrastructure/docker/ai-service-dev.env`):
-
-```bash
-docker compose -f infrastructure/docker/docker-compose.yml --profile ai up -d --build
-```
-
-AI Service (profile `ai`): `http://localhost:8094` (direct), health `GET /q/health`. Nginx proxy routes `/api/chat/`, `/api/v1/storage/`, and `/q/health` when profile `ai` is up.
+To add Rocky to the local stack, build the AI service and start the Compose `ai` profile. Rocky answers platform
+questions, explains existing chains, manages catalog entries, imports specifications, and deploys existing chains.
+See the [AI service build guide](ai-service/README.md#build-the-service) and
+[local Rocky quickstart](ai-service/docs/quickstart.md).
 
 ### Step 5 — Start the UI dev server
 

@@ -10,6 +10,22 @@ class RepairHistoryTest {
   private final ObjectMapper mapper = new ObjectMapper();
 
   @Test
+  void historyGuidanceUsesCurrentValidationInFullAndCompactedRequests() {
+    String guidance = "These are prior rejected proposals, not current requirements. "
+        + "Use the current validation result to identify remaining errors; "
+        + "preserve current authority and approved values.";
+    String history = RepairHistory.projectValues(
+        List.of(mapper.createObjectNode().put("proposal", "Rejected value")), mapper, 5000).toString();
+    String rendered = RepairHistory.block(history);
+    String compacted = RepairHistory.omit(rendered);
+
+    assertEquals(guidance, rendered.substring(rendered.indexOf(RepairHistory.END)
+        + RepairHistory.END.length()).strip());
+    assertEquals(guidance, compacted.substring(compacted.indexOf(RepairHistory.END)
+        + RepairHistory.END.length()).strip());
+  }
+
+  @Test
   void projectionIsBoundedRedactedAndDoesNotChangeSavedEvidence() {
     var raw = mapper.createObjectNode();
     raw.putObject("proposal").put("password", "secret").put("body", "large body ".repeat(2000));
@@ -20,6 +36,24 @@ class RepairHistoryTest {
     assertTrue(projection.toString().length() <= 5000);
     assertFalse(projection.toString().contains("secret"));
     assertTrue(projection.path("attempts").get(0).path("proposalOmitted").asBoolean());
+    assertEquals(saved, raw);
+  }
+
+  @Test
+  void compactHistoryRetainsIssueIdentityWithoutDuplicatingCurrentSchemaDetails() {
+    var raw = mapper.createObjectNode();
+    var feedback = raw.putObject("feedback");
+    feedback.put("summary", "One field still needs repair");
+    var issue = feedback.putArray("issues").addObject().put("code", "enum")
+        .put("entityId", "element").put("path", "/properties/mode");
+    issue.putObject("details").put("schema", "full constraint ".repeat(1000));
+    var saved = raw.deepCopy();
+    var projected = RepairHistory.projectValues(List.of(raw), mapper, 5000);
+    var projectedFeedback = projected.path("attempts").get(0).path("feedback");
+    assertTrue(projectedFeedback.path("issueDetailsOmitted").asBoolean());
+    assertEquals("/properties/mode", projectedFeedback.path("issues").get(0).path("path").asText());
+    assertEquals("enum", projectedFeedback.path("issues").get(0).path("code").asText());
+    assertFalse(projectedFeedback.path("issues").get(0).has("details"));
     assertEquals(saved, raw);
   }
 

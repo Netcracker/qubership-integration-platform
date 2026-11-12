@@ -9,6 +9,7 @@ import jakarta.enterprise.context.ApplicationScoped;
  * language of the reference text so multilingual CREATE conversations stay consistent.
  */
 @RegisterAiService(
+    toolHallucinationStrategy = org.qubership.integration.platform.ai.llm.tool.RecoverableToolNameStrategy.class,
     chatMemoryProviderSupplier = RegisterAiService.NoChatMemoryProviderSupplier.class)
 @ApplicationScoped
 public interface PlanningKickoffAgent {

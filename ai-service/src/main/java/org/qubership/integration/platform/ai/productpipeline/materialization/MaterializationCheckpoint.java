@@ -25,4 +25,15 @@ public record MaterializationCheckpoint(
     externalRequestKeys =
         externalRequestKeys == null ? Map.of() : Map.copyOf(externalRequestKeys);
   }
+
+  public boolean canReadBack() {
+    if (chainId == null || chainId.isBlank() || !chainId.equals(materializationMap.chainId())
+        || materializationMap.nodeIdToElementId().isEmpty() || pendingNodeId != null || completedPhase == null) {
+      return false;
+    }
+    return switch (completedPhase) {
+      case ELEMENTS, READ_BACK, RECONCILE, COMPLETE -> true;
+      default -> false;
+    };
+  }
 }

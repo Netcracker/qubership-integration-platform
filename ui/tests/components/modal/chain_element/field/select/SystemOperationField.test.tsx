@@ -179,6 +179,8 @@ describe("SystemOperationField (handleChange publishes operation identifiers)", 
       // query params from the operation specification afterwards.
       expect(call?.integrationOperationPathParameters).toBeUndefined();
       expect(call?.integrationOperationQueryParameters).toBeUndefined();
+      expect(call?.after).toEqual([]);
+      expect(call).not.toHaveProperty("errorThrowing");
     });
   });
 

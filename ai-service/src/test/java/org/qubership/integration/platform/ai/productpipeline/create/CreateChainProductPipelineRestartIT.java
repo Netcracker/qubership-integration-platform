@@ -39,6 +39,15 @@ import org.qubership.integration.platform.ai.integration.catalog.materialize.Cat
 import org.qubership.integration.platform.ai.integration.catalog.materialize.MaterializationMap;
 import org.qubership.integration.platform.ai.integration.catalog.pipeline.CatalogMutationGateway;
 import org.qubership.integration.platform.ai.plan.ImplementationPlan;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.ExecutorValidationBundle;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.MaterializationRequest;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.OrderedGraphPatches;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.ValidatedExecutionBundle;
+import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CipDesignExecutorJavaAdapter;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.productpipeline.create.design.execution.DesignExecutionCheckpoint;
+import org.qubership.integration.platform.ai.productpipeline.create.design.execution.DesignExecutionPhase;
+import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPolicy;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
@@ -124,21 +133,19 @@ class CreateChainProductPipelineRestartIT {
   }
 
   @Test
-  void completeRunRequiresSuccessfulReadBack() {
+  void successfulMaterializationRequiresSuccessfulReadBack() {
     stubCatalogHappyPath();
-    CreateChainTestOrchestrator runtime = runtimeWith(materializationCapability());
-    String planHash = runToWaitingForImplement(runtime);
+    PreparedInputs prepared = appendHappyPathInputs();
+    var outcome = completed(materializationCapability().execute(materializationContext(prepared))).outcome();
 
-    runtime
-        .implement(new ImplementCommand(RUN_ID, planHash, loadRun().run().runRevision()))
-        .collect()
-        .asList()
-        .await()
-        .indefinitely();
-
-    assertEquals(RunStatus.CHAIN_MATERIALIZED, loadRun().run().status());
+    assertEquals(StageOutcomeClass.SUCCEEDED, outcome.outcomeClass(), outcome.message());
     assertTrue(latestReconcileResult().matches());
     assertEquals(MaterializationPhase.COMPLETE, latestMaterializationResult().completedPhase());
+    var checkpoint = artifactStore.payload(artifactStore.latest(RUN_ID, Kind.DESIGN_EXECUTION_CHECKPOINT)
+        .orElseThrow(), DesignExecutionCheckpoint.class);
+    assertEquals(DesignExecutionPhase.COMPLETE, checkpoint.phase());
+    assertEquals(1, chainCreates.get());
+    assertEquals(1, elementCreates.get());
   }
 
   @Test
@@ -366,8 +373,15 @@ class CreateChainProductPipelineRestartIT {
         new ChainPlanGraphImporter(objectMapper, new CanonicalGraphDigest(objectMapper));
     ProductChainMaterializer materializer =
         new ProductChainMaterializer(catalog, artifactStore, factsService, graphImporter);
-    return new MaterializationCapability(
-        artifactStore, materializer, factsService, new ChainReconcileService());
+    return org.qubership.integration.platform.ai.productpipeline.materialization.MaterializationTestWiring.withCopyValidation(
+        new MaterializationCapability(
+        artifactStore, materializer, factsService, new ChainReconcileService(),
+        new CipDesignExecutorJavaAdapter(
+            mock(org.qubership.integration.platform.ai.productpipeline.create.design.execution.ApprovedCompilerExecutionRunner.class),
+            mock(org.qubership.integration.platform.ai.productpipeline.create.design.execution.ExecutorCatalogBindingAdapter.class),
+            artifactStore,
+            mock(org.qubership.integration.platform.ai.qipknowledge.validation.CompilerPlanValidator.class))),
+        new CompilationArtifacts(blobStore, mapper, clock));
   }
 
   private CreateChainTestOrchestrator runtimeWith(StageCapability materialization) {
@@ -519,8 +533,20 @@ class CreateChainProductPipelineRestartIT {
   }
 
   private PreparedInputs appendHappyPathInputs() {
+    RequirementBrief brief = new RequirementBrief("Supplied script", List.of(), List.of(), List.of(), List.of(), "Return 200")
+        .withFacts(List.of(org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures
+            .suppliedFact("script-1", "return 200")));
+    ChainSemanticRevision semantic = new ChainSemanticRevision(
+        "chain-semantic-revision/v1", "semantic", "demo-chain", "1",
+        List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
     ChainPlanGraph graph = graph();
-    String graphDigest = new CanonicalGraphDigest(mapper).sha256(graph);
+    Reference briefRef = append(Kind.REQUIREMENT_BRIEF, "1", brief, List.of());
+    Reference semanticRef = append(Kind.CHAIN_SEMANTIC_REVISION, semantic.schemaVersion(), semantic, List.of(briefRef));
+    String graphDigest =
+        new org.qubership.integration.platform.ai.qipknowledge.patch.CanonicalGraphDigest(
+                new ObjectMapper())
+            .sha256(graph);
+    String orderedPatchDigest = sha256Hex("[]");
     GraphAssemblyResult assembly =
         new GraphAssemblyResult(1, graph, graphDigest, List.of(), List.of(), List.of());
     CompilerValidationBundle compilerBundle =
@@ -528,6 +554,7 @@ class CreateChainProductPipelineRestartIT {
             1,
             graphDigest,
             List.of(new CompilerValidationPass("validator", new ValidationResult(true, List.of(), "ok"))));
+    PlanValidationResult validationResult = new PlanValidationResult(List.of());
     ImplementationPlan implementationPlan =
         ImplementationPlan.schemaVersion2(
             "Plan",
@@ -541,62 +568,128 @@ class CreateChainProductPipelineRestartIT {
             List.of(),
             List.of(),
             List.of());
-    Reference implementationPlanRef = append(Kind.IMPLEMENTATION_PLAN, "2", implementationPlan);
-    Reference graphRef = append(Kind.CHAIN_PLAN_GRAPH, "1", graph);
-    Reference assemblyRef = append(Kind.GRAPH_ASSEMBLY_RESULT, "1", assembly);
-    Reference bundleRef = append(Kind.COMPILER_VALIDATION_BUNDLE, "1", compilerBundle);
+
+    Reference implementationPlanRef = append(Kind.IMPLEMENTATION_PLAN, "2", implementationPlan, List.of(semanticRef));
+    Reference reportRef =
+        append(Kind.DESIGN_PLAN_REPORT, "1", Map.of("markdown", "# plan"), List.of());
+    Reference planRef =
+        append(Kind.DESIGN_EXECUTION_PLAN, "1", Map.of("flowId", "flow-1"), List.of());
+    Reference graphRef = append(Kind.CHAIN_PLAN_GRAPH, "1", graph, List.of(semanticRef));
+    Reference assemblyRef = append(Kind.GRAPH_ASSEMBLY_RESULT, "1", assembly, List.of(graphRef));
+    Reference orderedPatchesRef =
+        append(Kind.ORDERED_GRAPH_PATCHES, "1", new OrderedGraphPatches("1", List.of()), List.of());
+    Reference compilerBundleRef =
+        append(Kind.COMPILER_VALIDATION_BUNDLE, "1", compilerBundle, List.of(graphRef));
     Reference validationRef =
-        append(Kind.PLAN_VALIDATION_RESULT, "1", new PlanValidationResult(List.of()));
-    Reference runManifestRef = append(Kind.RUN_MANIFEST, "1", runManifest());
-    List<Reference> approved =
-        List.of(implementationPlanRef, validationRef, graphRef, assemblyRef, bundleRef);
-    Reference approvalRef =
-        append(
-            Kind.APPROVAL_RECORD,
-            "2",
-            new ApprovalRecordV2(
-                implementationPlanRef,
-                implementationPlanRef.contentHash(),
-                approved,
-                "user",
-                null,
-                FIXED,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null));
-    return new PreparedInputs(
-        graphRef,
-        assemblyRef,
-        bundleRef,
-        validationRef,
-        implementationPlanRef,
-        runManifestRef,
-        approvalRef);
+        append(Kind.PLAN_VALIDATION_RESULT, "1", validationResult, List.of(implementationPlanRef));
+    Reference runManifestRef = append(Kind.RUN_MANIFEST, "1", runManifestV2(), List.of());
+    List<Reference> approvedCandidates =
+        List.of(implementationPlanRef, reportRef, planRef);
+    ApprovalRecordV2 approval =
+        new ApprovalRecordV2(
+            implementationPlanRef,
+            implementationPlanRef.contentHash(),
+            approvedCandidates,
+            "user",
+            null,
+            FIXED,
+            ApprovalPolicy.CATALOG_FIRST_V1,
+            ApprovalPolicy.CATALOG_FIRST_V1_HASH,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
+    Reference approvalRef = append(Kind.APPROVAL_RECORD, "2", approval, approvedCandidates);
+    ExecutorValidationBundle executorValidation =
+        new ExecutorValidationBundle(
+            "1",
+            graphDigest,
+            reportRef,
+            reportRef.contentHash(),
+            planRef,
+            planRef.contentHash(),
+            true,
+            List.of());
+    Reference executorValidationRef =
+        append(Kind.EXECUTOR_VALIDATION_BUNDLE, "1", executorValidation, List.of());
+    ValidatedExecutionBundle bundle =
+        new ValidatedExecutionBundle(
+            "1",
+            approvalRef,
+            reportRef,
+            reportRef.contentHash(),
+            planRef,
+            planRef.contentHash(),
+            runManifestRef,
+            graphRef,
+            graphDigest,
+            orderedPatchesRef,
+            orderedPatchDigest,
+            validationRef,
+            validationRef,
+            compilerBundleRef,
+            executorValidationRef);
+    Reference bundleRef = append(Kind.VALIDATED_EXECUTION_BUNDLE, "1", bundle, List.of());
+    MaterializationRequest request =
+        new MaterializationRequest(
+            "1",
+            approvalRef,
+            reportRef,
+            planRef,
+            graphDigest,
+            orderedPatchDigest,
+            bundleRef);
+    Reference requestRef = append(Kind.MATERIALIZATION_REQUEST, "1", request, List.of());
+    PreparedInputs prepared = new PreparedInputs(request, requestRef, bundleRef, runManifestRef, approvalRef);
+    appendWaitingCheckpoint(approvalRef, prepared);
+    return prepared;
+  }
+
+  private void appendWaitingCheckpoint(Reference approvalRef, PreparedInputs prepared) {
+    DesignExecutionCheckpoint checkpoint =
+        new DesignExecutionCheckpoint(
+            "1",
+            approvalRef,
+            prepared.request().designPlanReportRef().contentHash(),
+            prepared.request().designExecutionPlanRef().contentHash(),
+            "manifest-hash",
+            DesignExecutionPhase.WAITING_FOR_MATERIALIZATION,
+            List.of(
+                new DesignExecutionCheckpoint.CompletedStep(
+                    "phase-5",
+                    List.of(
+                        prepared.request().designPlanReportRef().contentHash(),
+                        prepared.request().designExecutionPlanRef().contentHash()),
+                    List.of(prepared.bundleRef()),
+                    List.of(prepared.bundleRef().contentHash()),
+                    new ArtifactProvenance(
+                        RUN_ID,
+                        "design-execution",
+                        "create-chain",
+                        "2",
+                        "profile-sha",
+                        "design-execution",
+                        "1",
+                        "closure"),
+                    "WAITING_FOR_MATERIALIZATION")));
+    append(Kind.DESIGN_EXECUTION_CHECKPOINT, "1", checkpoint, List.of());
   }
 
   private StageExecutionContext materializationContext(PreparedInputs prepared) {
-    return new StageExecutionContext(
-        RUN_ID,
-        CONVERSATION_ID,
-        "materialization",
-        RUN_ID,
-        "attempt-1",
-        null,
-        runManifest(),
-        List.of(
-            prepared.implementationPlanRef(),
-            prepared.validationRef(),
-            prepared.graphRef(),
-            prepared.assemblyRef(),
-            prepared.bundleRef(),
-            prepared.approvalRef(),
-            prepared.runManifestRef()),
-        Map.of());
+    return new StageExecutionContext(RUN_ID, CONVERSATION_ID, "materialization", RUN_ID,
+        "attempt-1", null, runManifestV2(),
+        List.of(prepared.requestRef(), prepared.bundleRef(), prepared.runManifestRef()), Map.of());
+  }
+
+  private static String sha256Hex(String value) {
+    try {
+      return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+          .digest(value.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+    } catch (java.security.NoSuchAlgorithmException ex) {
+      throw new IllegalStateException(ex);
+    }
   }
 
   private ReconcileResult latestReconcileResult() {
@@ -615,10 +708,14 @@ class CreateChainProductPipelineRestartIT {
   }
 
   private Reference append(Kind kind, String schemaVersion, Object payload) {
+    return append(kind, schemaVersion, payload, List.of());
+  }
+
+  private Reference append(Kind kind, String schemaVersion, Object payload, List<Reference> inputs) {
     return artifactStore
         .append(
             new AppendCommand(
-                RUN_ID, kind, schemaVersion, "test-producer", "1", payload, List.of(), null, provenance()))
+                RUN_ID, kind, schemaVersion, "test-producer", "1", payload, inputs, null, provenance()))
         .reference();
   }
 
@@ -856,11 +953,6 @@ class CreateChainProductPipelineRestartIT {
   }
 
   private record PreparedInputs(
-      Reference graphRef,
-      Reference assemblyRef,
-      Reference bundleRef,
-      Reference validationRef,
-      Reference implementationPlanRef,
-      Reference runManifestRef,
-      Reference approvalRef) {}
+      MaterializationRequest request, Reference requestRef, Reference bundleRef,
+      Reference runManifestRef, Reference approvalRef) {}
 }

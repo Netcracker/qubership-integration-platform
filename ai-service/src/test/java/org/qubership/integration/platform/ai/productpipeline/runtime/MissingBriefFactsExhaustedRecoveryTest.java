@@ -148,7 +148,7 @@ class MissingBriefFactsExhaustedRecoveryTest {
   }
 
   @Test
-  void unclassifiedFailureDoesNotGainEditOrRetry() {
+  void unclassifiedFailureOffersRetryCreationButNotEdit() {
     FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("unused");
     support = supportFor(new FailureNarrative(agent), unclassifiedWork());
     CreateChainTestOrchestrator runtime = new CreateChainTestOrchestrator(support, runStore);
@@ -176,7 +176,7 @@ class MissingBriefFactsExhaustedRecoveryTest {
         prompt);
     List<String> actions = ChatEvent.actionsForGate(gate);
     assertFalse(actions.contains(ChatEvent.EDIT_REQUIREMENTS_ACTION), actions.toString());
-    assertFalse(actions.contains(ChatEvent.RETRY_CREATION_ACTION), actions.toString());
+    assertTrue(actions.contains(ChatEvent.RETRY_CREATION_ACTION), actions.toString());
     assertFalse(actions.contains(PipelineGates.RETRY_ACTION), actions.toString());
     assertTrue(actions.contains(PipelineGates.STOP_WITH_REPORT_ACTION), actions.toString());
     assertNotEquals(

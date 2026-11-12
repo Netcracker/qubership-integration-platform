@@ -183,7 +183,6 @@ elements:
       retryDelay: 5000
       systemType: "EXTERNAL"
       bodyFormData: []
-      errorThrowing: true
       connectionTimeout: 120000
       correlationIdName: "test_correlation_id"
       integrationSystemId: "0842c42f-9c40-4372-8101-ce1cd0fdb52b"

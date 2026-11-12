@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.chat.conversation;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -127,5 +128,59 @@ class ConversationArchiveTest {
     doThrow(new IllegalStateException("storage unavailable")).when(broken).putIfVersion(any(), any(), any());
     assertThrows(IllegalStateException.class,
         () -> new ConversationArchive(broken, mapper).beginInput("chat", "persist first", null));
+  }
+
+  @Test
+  void absentDeterministicTurnIdAppendsANewTurn() {
+    var archive = new ConversationArchive(new InMemoryArtifactBlobStore(), mapper);
+
+    var first = archive.beginInput("chat", null, "one", null);
+    var second = archive.beginInput("chat", "  ", "two", null);
+
+    assertNotEquals(first.turnId(), second.turnId());
+    assertEquals(List.of("one", "two"), archive.read("chat").turns().stream()
+        .map(ConversationArchive.Turn::rawText).toList());
+  }
+
+  @Test
+  void matchingOfferAndCanonicalPayloadReturnsTheOriginalTurn() {
+    var archive = new ConversationArchive(new InMemoryArtifactBlobStore(), mapper);
+    String turnId = ConversationArchive.deterministicAnswerTurnId("offer-1", "  hello  ");
+    var metadata = mapper.createObjectNode().put("clarificationOfferId", "offer-1");
+
+    var first = archive.beginInput("chat", turnId, "  hello  ", metadata);
+    String generation = archive.read("chat").generation();
+    var retry = archive.beginInput("chat", turnId, "hello", metadata);
+
+    assertEquals(turnId, first.turnId());
+    assertEquals(first.turnId(), retry.turnId());
+    assertEquals(generation, retry.generation());
+    assertEquals(generation, archive.read("chat").generation());
+    assertEquals(List.of("  hello  "), archive.read("chat").turns().stream()
+        .map(ConversationArchive.Turn::rawText).toList());
+  }
+
+  @Test
+  void deterministicTurnIdRejectsADifferentPayload() {
+    var archive = new ConversationArchive(new InMemoryArtifactBlobStore(), mapper);
+    var metadata = mapper.createObjectNode().put("clarificationOfferId", "offer-1");
+    archive.beginInput("chat", "answer-1", "hello", metadata);
+
+    assertThrows(IllegalStateException.class,
+        () -> archive.beginInput("chat", "answer-1", "goodbye", metadata));
+    assertEquals(List.of("hello"), archive.read("chat").turns().stream()
+        .map(ConversationArchive.Turn::rawText).toList());
+  }
+
+  @Test
+  void deterministicTurnIdRejectsADifferentOffer() {
+    var archive = new ConversationArchive(new InMemoryArtifactBlobStore(), mapper);
+    archive.beginInput("chat", "answer-1", "hello",
+        mapper.createObjectNode().put("clarificationOfferId", "offer-1"));
+
+    assertThrows(IllegalStateException.class, () -> archive.beginInput("chat", "answer-1", "hello",
+        mapper.createObjectNode().put("clarificationOfferId", "offer-2")));
+    assertEquals("offer-1", archive.read("chat").turns().getFirst().metadata()
+        .get("clarificationOfferId").asText());
   }
 }

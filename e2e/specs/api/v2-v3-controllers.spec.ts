@@ -788,7 +788,7 @@ test.describe("v2 and v3 controllers", { tag: ["@catalog"] }, () => {
         // The resource is decoded and folded back into the property the document pointed at it with,
         // and `propertiesFilename` itself does not survive into the stored element.
         expect(elements[0].properties?.script, "the base64 resource became the element's script").toBe(
-          script.trim(),
+          script,
         );
         expect(elements[0].properties).not.toHaveProperty("propertiesFilename");
       } finally {

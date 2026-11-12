@@ -6,7 +6,8 @@ set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SERVICE_ROOT="$(cd "${DIR}/../.." && pwd)"
-FIXTURES="${DIR}/fixtures/work-checkpoints"
+source "${DIR}/../testing-paths.sh"
+FIXTURES="${QIP_SKILLS_TESTING_ROOT}/product-pipeline/fixtures/work-checkpoints"
 
 usage() {
     echo "Usage: bash ai-service/e2e/product-pipeline/run-work-document-checkpoint.sh --checkpoint <logical|binding|mapping|recovery|filling> --case <case-id> --report <report-path>"

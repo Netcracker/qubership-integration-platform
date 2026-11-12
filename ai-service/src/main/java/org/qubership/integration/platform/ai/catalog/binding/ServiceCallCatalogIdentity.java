@@ -25,6 +25,8 @@ public final class ServiceCallCatalogIdentity {
           "integrationOperationId",
           "integrationOperationMethod",
           "integrationOperationPath",
+          "httpMethodRestrict",
+          "contextPath",
           "synchronousGrpcCall",
           "integrationGqlQuery",
           "integrationGqlOperationName",
@@ -98,11 +100,13 @@ public final class ServiceCallCatalogIdentity {
     if ("service-call".equals(node.type())) {
       properties.add(new PlanProperty("serviceCallId", binding.serviceCallId()));
     }
-    properties.add(new PlanProperty("systemType", binding.systemType()));
+    properties.add(new PlanProperty("systemType", "http-trigger".equals(node.type()) ? "IMPLEMENTED" : binding.systemType()));
     properties.add(new PlanProperty("integrationSystemId", binding.systemId()));
     properties.add(new PlanProperty("integrationSpecificationGroupId", binding.specificationGroupId()));
     properties.add(new PlanProperty("integrationSpecificationId", binding.specificationId()));
-    properties.add(new PlanProperty("integrationOperationProtocolType", binding.protocolType()));
+    if (!"http-trigger".equals(node.type())) {
+      properties.add(new PlanProperty("integrationOperationProtocolType", binding.protocolType()));
+    }
     properties.add(new PlanProperty("integrationOperationId", binding.operationId()));
     appendProtocolProperties(properties, node, binding);
     return properties;
@@ -110,6 +114,11 @@ public final class ServiceCallCatalogIdentity {
 
   private static void appendProtocolProperties(
       List<PlanProperty> properties, ChainPlanNode node, ResolvedServiceCallBinding binding) {
+    if ("http-trigger".equals(node.type())) {
+      properties.add(new PlanProperty("httpMethodRestrict", binding.method()));
+      properties.add(new PlanProperty("integrationOperationPath", binding.path()));
+      return;
+    }
     String protocol = binding.protocolType().toLowerCase(Locale.ROOT);
     properties.add(new PlanProperty("integrationOperationMethod", binding.method()));
     boolean optionalAsyncPath =

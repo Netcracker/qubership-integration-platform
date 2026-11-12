@@ -155,7 +155,7 @@ class BusinessFirstRequirementFlowPipelineTest {
   }
 
   private static CatalogMatch omStartMatch() {
-    return match("sys-om", "op-start", "OM", "kafka", "publish", "task.start", "onTaskStart");
+    return match("sys-om", "op-start", "OM", "kafka", "send", "task.start", "onTaskStart");
   }
 
   private static CatalogMatch salesforceMatch() {
@@ -170,7 +170,7 @@ class BusinessFirstRequirementFlowPipelineTest {
   }
 
   private static CatalogMatch omResultMatch() {
-    return match("sys-om", "op-result", "OM", "kafka", "subscribe", "task.result", "onTaskResult");
+    return match("sys-om", "op-result", "OM", "kafka", "receive", "task.result", "onTaskResult");
   }
 
   private static CatalogMatch match(

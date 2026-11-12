@@ -11,9 +11,9 @@ import { FROZEN_ARCHIVES, currentMigrationVersions, floorKey, sampleFloors } fro
 
 test.describe("frozen corpus floors against migrations and samples", () => {
   test("each document kind has its own migration list", () => {
-    // The lists are read off the class names, so a `V109` landing in the tree shows up here rather
+    // The lists are read off the class names, so a `V110` landing in the tree shows up here rather
     // than in a runtime failure months later.
-    expect(currentMigrationVersions("chain")).toEqual([100, 101, 102, 103, 104, 105, 106, 107, 108]);
+    expect(currentMigrationVersions("chain")).toEqual([100, 101, 102, 103, 104, 105, 106, 107, 108, 109]);
     expect(currentMigrationVersions("service")).toEqual([100, 101, 102]);
     expect(currentMigrationVersions("mcp")).toEqual([100]);
   });

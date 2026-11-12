@@ -13,6 +13,7 @@ import jakarta.enterprise.context.ApplicationScoped;
  * <p>Follows the supplied skill body and returns only the skill output.
  */
 @RegisterAiService(
+    toolHallucinationStrategy = org.qubership.integration.platform.ai.llm.tool.RecoverableToolNameStrategy.class,
     chatMemoryProviderSupplier = RegisterAiService.NoChatMemoryProviderSupplier.class)
 @ApplicationScoped
 public interface DesignProcessSkillAgent {

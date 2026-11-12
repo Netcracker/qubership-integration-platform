@@ -79,6 +79,7 @@ public class RateLimitChatModel implements ChatModel {
 
   @Override
   public ChatResponse chat(ChatRequest chatRequest) {
+    chatRequest = org.qubership.integration.platform.ai.compiler.capture.ChatMemorySanitizer.repairRejectedArguments(chatRequest);
     ChatRequest guarded = requestBudget.prepare(chatRequest.toBuilder()
         .parameters(delegate.defaultRequestParameters().overrideWith(chatRequest.parameters()))
         .build());

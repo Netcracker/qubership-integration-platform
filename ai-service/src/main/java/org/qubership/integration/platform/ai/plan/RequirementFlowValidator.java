@@ -70,6 +70,10 @@ public final class RequirementFlowValidator {
   }
 
   public static Optional<String> validateStructure(RequirementFlow flow) {
+    return validateStructure(flow, List.of());
+  }
+
+  public static Optional<String> validateStructure(RequirementFlow flow, List<RequirementFact> facts) {
     RequirementFlow checked = flow == null ? RequirementFlow.EMPTY : flow;
     List<Interaction> interactions = checked.interactions();
     if (interactions.isEmpty()) {
@@ -140,7 +144,8 @@ public final class RequirementFlowValidator {
     for (Interaction interaction : interactions) {
       if (interaction.direction() == Direction.OUTBOUND
           && interaction.failureMode() == ServiceCallFailureMode.INLINE_RESPONSE
-          && adjacency.getOrDefault(interaction.interactionId(), List.of()).isEmpty()) {
+          && adjacency.getOrDefault(interaction.interactionId(), List.of()).isEmpty()
+          && !hasLocalResponseSuccessor(interaction.interactionId(), facts)) {
         return Optional.of(
             "requirement flow interaction "
                 + interaction.interactionId()
@@ -182,11 +187,24 @@ public final class RequirementFlowValidator {
     return Optional.empty();
   }
 
+  static boolean hasLocalResponseSuccessor(String interactionId, List<RequirementFact> facts) {
+    if (facts == null) return false;
+    var intents = facts.stream().filter(fact -> fact.polarity() == RequirementFactPolarity.POSITIVE)
+        .map(RequirementFact::elementIntent).filter(java.util.Objects::nonNull).toList();
+    return intents.stream().anyMatch(intent -> intent.placement() == RequirementElementIntent.Placement.LOCAL_NODE
+        && intent.elementRef() != null && !intent.elementRef().isBlank() && !interactionId.equals(intent.elementRef())
+        && interactionId.equals(intent.ownerInteractionId())
+        && (interactionId.equals(intent.predecessorElementRef()) || intents.stream().anyMatch(anchor ->
+            anchor.placement() == RequirementElementIntent.Placement.ANCHOR
+                && interactionId.equals(anchor.elementRef())
+                && intent.elementRef().equals(anchor.successorElementRef()))));
+  }
+
   public static Optional<String> validateBindings(
       RequirementFlow flow,
       List<RequirementFact> facts,
       List<CatalogBindingHint> bindings) {
-    Optional<String> structure = validateStructure(flow);
+    Optional<String> structure = validateStructure(flow, facts);
     if (structure.isPresent()) {
       return structure;
     }

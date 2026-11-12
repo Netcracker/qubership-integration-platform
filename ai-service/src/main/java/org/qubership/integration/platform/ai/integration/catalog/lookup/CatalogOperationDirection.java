@@ -6,8 +6,8 @@ import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStr
 
 /**
  * Catalog operation direction from the specification owner's point of view. HTTP operations are
- * consumed by the catalog system. Async publish/send are produced by it; subscribe/receive are
- * consumed by it.
+ * consumed by the catalog system. AsyncAPI 2.x subscribe and 3.x send are produced by it;
+ * 2.x publish and 3.x receive are consumed by it.
  */
 public enum CatalogOperationDirection {
   PRODUCED_BY_SYSTEM,
@@ -42,11 +42,11 @@ public enum CatalogOperationDirection {
   }
 
   private static boolean isProduced(String method) {
-    return "publish".equals(method) || "send".equals(method);
+    return "subscribe".equals(method) || "send".equals(method);
   }
 
   private static boolean isConsumed(String method) {
-    return "subscribe".equals(method) || "receive".equals(method);
+    return "publish".equals(method) || "receive".equals(method);
   }
 
   private static String normalize(String value) {

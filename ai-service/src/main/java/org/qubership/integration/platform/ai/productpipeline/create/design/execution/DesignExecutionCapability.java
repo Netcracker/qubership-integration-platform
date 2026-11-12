@@ -18,6 +18,7 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedback;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
 import org.qubership.integration.platform.ai.compiler.capture.ToolArgumentsFailures;
+import org.qubership.integration.platform.ai.llm.ratelimit.RateLimitErrorClassifier;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.compiler.capture.TransientFailures;
 import org.qubership.integration.platform.ai.plan.ChainPlanGraphValidator;
@@ -216,6 +217,9 @@ public class DesignExecutionCapability implements StageCapability {
               null,
               result.recoveryCause()));
     } catch (RuntimeException ex) {
+      if (RateLimitErrorClassifier.isQuotaExhausted(ex)) {
+        return completedSignal(StageOutcome.technicalFailure(ex));
+      }
       for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
         if (cause instanceof io.quarkus.qute.TemplateException) {
           return completedSignal(StageOutcome.technicalFailure(cause));

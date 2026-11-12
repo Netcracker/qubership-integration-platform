@@ -26,7 +26,7 @@ There are 2 options to configure the Implemented Service:
 Table with Implemented services is accessible by navigating to **Services** → **Implemented** tab. Next columns and elements are available for the table:
 
 - **Name** - clickable name of the service or specification group. When clicked, system navigates to respective entity.
-- **Protocol** - service's integration protocol.Possible values: **_http, soap, graphql_**, . Value for this parameter will be propagated from the firstly imported API specification. There is no ability to upload API specifications with another protocol after that.
+- **Protocol** - service's integration protocol.Possible values: **_http, soap, `graphql`_**, . Value for this parameter will be propagated from the firstly imported API specification. There is no ability to upload API specifications with another protocol after that.
 - **Status** - API Specification status. Possible values:
   - 🔵 _**New**_ - initial state of API specification, uploaded manually or imported by service discovery.
   - 🟢 _**In Use**_ - status indicates that API Specification is utilized within at least one chain.

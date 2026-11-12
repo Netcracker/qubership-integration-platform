@@ -43,28 +43,34 @@ test.describe("Maven workflow selection", () => {
     }
   });
 
-  test("requires the build to regenerate OpenAPI", () => {
-    const workflow = workflows().find(({ name }) => name === "_maven-module-build.yaml")!.workflow;
-    const command = workflow.jobs?.build.steps?.find((step) => step.name === "Build and verify (no publish)")?.run;
-    expect(command).toBeTruthy();
-    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "maven-openapi-"));
-    try {
-      fs.mkdirSync(path.join(directory, "bin"));
-      fs.mkdirSync(path.join(directory, "service/api-spec"), { recursive: true });
-      const output = path.join(directory, "service/api-spec/openapi.yaml");
-      fs.writeFileSync(output, "committed specification");
-      fs.writeFileSync(path.join(directory, "bin/mvn"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
-      const result = spawnSync("bash", ["-eu", "-c", command!], {
-        cwd: directory,
-        env: { ...process.env, PATH: `${path.join(directory, "bin")}:${process.env.PATH}`, GITHUB_WORKSPACE: directory, MODULE_NAME: "service", FORCE_UPDATE: "false", OPENAPI_CHECK: "true" },
-        encoding: "utf-8",
-      });
-      expect(result.status, result.stderr).toBe(0);
-      expect(fs.existsSync(output), "an unchanged checkout file cannot substitute for generator output").toBe(false);
-    } finally {
-      fs.rmSync(directory, { recursive: true, force: true });
-    }
-  });
+  for (const forceUpdate of ["false", "true"]) {
+    test(`regenerates OpenAPI with force-update=${forceUpdate}`, () => {
+      const workflow = workflows().find(({ name }) => name === "_maven-module-build.yaml")!.workflow;
+      const command = workflow.jobs?.build.steps?.find((step) => step.name === "Build and verify (no publish)")?.run;
+      expect(command).toBeTruthy();
+      const directory = fs.mkdtempSync(path.join(os.tmpdir(), "maven-openapi-"));
+      try {
+        fs.mkdirSync(path.join(directory, "bin"));
+        fs.mkdirSync(path.join(directory, "service/api-spec"), { recursive: true });
+        const output = path.join(directory, "service/api-spec/openapi.yaml");
+        fs.writeFileSync(output, "committed specification");
+        fs.writeFileSync(path.join(directory, "bin/mvn"), "#!/bin/sh\nprintf '%s\\n' \"$@\" > maven-args.txt\n", { mode: 0o755 });
+        const result = spawnSync("bash", ["-eu", "-c", command!], {
+          cwd: directory,
+          env: { ...process.env, PATH: `${path.join(directory, "bin")}:${process.env.PATH}`, GITHUB_WORKSPACE: directory, MODULE_NAME: "service", FORCE_UPDATE: forceUpdate, OPENAPI_CHECK: "true" },
+          encoding: "utf-8",
+        });
+        expect(result.status, result.stderr).toBe(0);
+        expect(fs.existsSync(output), "an unchanged checkout file cannot substitute for generator output").toBe(false);
+        expect(fs.readFileSync(path.join(directory, "maven-args.txt"), "utf-8").trim().split("\n")).toEqual([
+          "--batch-mode", "-s", `${directory}/.github/maven-settings.xml`, "verify",
+          ...(forceUpdate === "true" ? ["-U"] : []), "-pl", "service", "-am", "-Dgpg.skip=true",
+        ]);
+      } finally {
+        fs.rmSync(directory, { recursive: true, force: true });
+      }
+    });
+  }
 
   test("module source changes retain selective Maven builds", () => {
     const byName = new Map(workflows().map(({ name, workflow }) => [name, workflow]));

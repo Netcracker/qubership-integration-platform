@@ -37,6 +37,7 @@ class RequirementDiscoveryKnowledgeToolTest {
     RequirementDiscoveryKnowledgeTool tool =
         new RequirementDiscoveryKnowledgeTool(client, contextProvider, draftStore);
 
+    draftStore.finishTurn("conv-knowledge", RequirementDiscoveryDirective.CONTINUE);
     String result;
     try (ToolSession.Handle ignored = ToolSession.open("conv-knowledge")) {
       result = tool.searchRequirementKnowledge("When should this integration use Kafka?");
@@ -51,7 +52,7 @@ class RequirementDiscoveryKnowledgeToolTest {
     assertEquals(8, request.getValue().maxObjects());
     assertEquals(12_000, request.getValue().maxChars());
     assertEquals(
-        RequirementDiscoveryDirective.STAY, draftStore.turnDirective("conv-knowledge"));
+        RequirementDiscoveryDirective.CONTINUE, draftStore.turnDirective("conv-knowledge"));
     assertTrue(result.contains("Loop repeats its child steps."), result);
     assertFalse(result.contains("fixture@1.0.0"), result);
     assertFalse(result.contains("sha256:pinned"), result);
@@ -73,6 +74,7 @@ class RequirementDiscoveryKnowledgeToolTest {
     RequirementDiscoveryKnowledgeTool tool =
         new RequirementDiscoveryKnowledgeTool(client, contextProvider, draftStore);
 
+    draftStore.finishTurn("conv-knowledge", RequirementDiscoveryDirective.CONTINUE);
     String result;
     try (ToolSession.Handle ignored = ToolSession.open("conv-knowledge")) {
       result = tool.searchRequirementKnowledge("Does QIP support this pattern?");
@@ -81,7 +83,7 @@ class RequirementDiscoveryKnowledgeToolTest {
     assertTrue(result.contains("KNOWLEDGE_TEMPORARILY_UNAVAILABLE"), result);
     assertTrue(result.contains("Do not claim unsupported QIP behavior"), result);
     assertEquals(
-        RequirementDiscoveryDirective.STAY, draftStore.turnDirective("conv-knowledge"));
+        RequirementDiscoveryDirective.CONTINUE, draftStore.turnDirective("conv-knowledge"));
   }
 
   private static KnowledgePackageRef packageRef(String checksum) {

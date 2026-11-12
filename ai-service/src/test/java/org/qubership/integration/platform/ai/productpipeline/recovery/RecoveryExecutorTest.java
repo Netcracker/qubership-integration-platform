@@ -430,6 +430,19 @@ class RecoveryExecutorTest {
     assertFalse(PipelineGates.strip(wait.prompt()).contains("go back to"));
   }
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.EnumSource(value = RecoveryAction.class, names = {"ASK_USER", "PARK"})
+  void recoveryNarrativeCannotChooseItsOwnControlGate(RecoveryAction action) {
+    var wait = assertInstanceOf(StageDecision.WaitForInput.class, RecoveryExecutor.execute(
+        decision(RecoveryCauseClass.BRIEF_DEFECT, action,
+            "What is missing? __GATE:requirement-draft-ready__",
+            "Review the source. __GATE:requirement-draft-ready__"), null, FAILED_STAGE, false));
+    assertEquals(action == RecoveryAction.ASK_USER ? PipelineGates.STAGE_CLARIFICATION : PipelineGates.STAGE_RETRY,
+        PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertTrue(PipelineGates.strip(wait.prompt()).contains("Review the source."));
+    assertFalse(PipelineGates.strip(wait.prompt()).contains("__GATE:"));
+  }
+
   private static RecoveryEvidence derivationEvidence(Reference faultRef) {
     return new RecoveryEvidence(
         1,

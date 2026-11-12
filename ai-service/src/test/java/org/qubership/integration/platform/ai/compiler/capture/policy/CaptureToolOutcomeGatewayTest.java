@@ -30,6 +30,40 @@ class CaptureToolOutcomeGatewayTest {
   }
 
   @Test
+  void parserDetailsNeverRenewAnExistingNativeSoftCredit() {
+    for (String code : List.of("INVALID_JSON", "DUPLICATE_JSON_KEY")) {
+      String legacy = code + " /: Send one valid JSON argument object. Resubmit the complete captureGraphPatch argument object.";
+      String detailed = legacy + ToolCallFingerprints.NATIVE_PARSER_DETAILS
+          + "layer=outer; context=/patch/other; line=4; column=98; charOffset=9000; reason=node 'untrusted' property 'text' [x]";
+      assertEquals(legacy, ToolCallFingerprints.stripNativeParserDetails(detailed));
+      assertEquals(ToolCallFingerprints.failureFingerprint("captureGraphPatch", "owner", legacy),
+          ToolCallFingerprints.failureFingerprint("captureGraphPatch", "owner", detailed));
+      assertEquals(ToolCallFingerprints.failureSignature(legacy), ToolCallFingerprints.failureSignature(detailed));
+      assertEquals(ToolCallFingerprints.failureFingerprint("captureGraphPatch", "owner", legacy),
+          ToolCallFingerprints.failureFingerprint("captureGraphPatch", "owner", " \n" + detailed));
+      assertEquals(legacy, gateway.onFailure(CaptureFeedbackChannel.PATCH, code, "owner",
+          CaptureFailureKind.VALIDATION, CaptureFailureClass.CORRECTABLE, "captureGraphPatch", Map.of(), legacy));
+      assertThrows(CaptureValidationException.class, () -> gateway.onFailure(CaptureFeedbackChannel.PATCH,
+          code, "owner", CaptureFailureKind.VALIDATION, CaptureFailureClass.CORRECTABLE,
+          "captureGraphPatch", Map.of("changed", "arguments"), detailed));
+      var refused = feedbackStore.lastPatchFailure(code, "owner").orElseThrow();
+      assertEquals(CaptureFailureClass.IDENTICAL_SPAM, refused.failureClass());
+      assertFalse(refused.outerAllowed());
+      assertEquals(detailed, refused.summary());
+      assertEquals(1, fingerprintStore.softCreditsUsed(code));
+      for (String suffix : List.of("line=1; charOffset=2; reason=another native cause", " \n node 'other' property 'other'")) {
+        assertEquals(ToolCallFingerprints.failureFingerprint("captureGraphPatch", "owner", legacy),
+            ToolCallFingerprints.failureFingerprint("captureGraphPatch", "owner", legacy + ToolCallFingerprints.NATIVE_PARSER_DETAILS + suffix));
+      }
+    }
+    for (String foreign : List.of("INVALID_VALUE /: business", "user text INVALID_JSON /: body", "INVALID_JSON /other: body")) {
+      String text = foreign + ToolCallFingerprints.NATIVE_PARSER_DETAILS + "keep this data";
+      assertEquals(text, ToolCallFingerprints.stripNativeParserDetails(text));
+    }
+    assertEquals("INVALID_JSON /: no suffix", ToolCallFingerprints.stripNativeParserDetails("INVALID_JSON /: no suffix"));
+  }
+
+  @Test
   void nativeUnknownKeysReceiveCreditPerNodeAndField() {
     String first = "node 'script-a' (script) has unknown property key 'incorrectA'";
     String second = "node 'script-b' (script) has unknown property key 'incorrectB'";
@@ -122,6 +156,28 @@ class CaptureToolOutcomeGatewayTest {
   }
 
   @Test
+  void theSameRuleOnAnotherNodeIsANewRejection() {
+    Object args = Map.of("scripts", java.util.List.of());
+    String first = "Mapping 'a-OUTPUT-to-b-REQUEST' has no adjacent mapper-2 or script node.";
+    String otherNode = "Mapping 'c-OUTPUT-to-d-REQUEST' has no adjacent mapper-2 or script node.";
+
+    gateway.onFailure(
+        CaptureFeedbackChannel.PATCH, "conv-1", "cap-1", CaptureFailureKind.VALIDATION,
+        CaptureFailureClass.CORRECTABLE, "repairScriptBodies", args, first);
+    gateway.onFailure(
+        CaptureFeedbackChannel.PATCH, "conv-1", "cap-1", CaptureFailureKind.VALIDATION,
+        CaptureFailureClass.CORRECTABLE, "repairScriptBodies", args, otherNode);
+
+    assertEquals(CaptureFailureClass.CORRECTABLE,
+        feedbackStore.lastPatchFailure("conv-1", "cap-1").orElseThrow().failureClass());
+    assertThrows(CaptureValidationException.class, () -> gateway.onFailure(
+        CaptureFeedbackChannel.PATCH, "conv-1", "cap-1", CaptureFailureKind.VALIDATION,
+        CaptureFailureClass.CORRECTABLE, "repairScriptBodies", args, otherNode));
+    assertEquals(CaptureFailureClass.IDENTICAL_SPAM,
+        feedbackStore.lastPatchFailure("conv-1", "cap-1").orElseThrow().failureClass());
+  }
+
+  @Test
   void rationaleOnlyChangeDoesNotGrantSecondSoft() {
     Object firstArgs = Map.of("scripts", java.util.List.of(), "rationale", "a");
     Object secondArgs = Map.of("scripts", java.util.List.of(), "rationale", "b");
@@ -201,7 +257,7 @@ class CaptureToolOutcomeGatewayTest {
                     CaptureFailureClass.CORRECTABLE,
                     "captureChainStructure",
                     Map.of("graph", Map.of("nodes", java.util.List.of("a", "b", "c", "d", "e"))),
-                    "structure capture removed existing node 'b978e8ff'"));
+                    "structure capture removed existing node 'cc0b0f34'"));
 
     assertTrue(cve.getMessage().contains("Repeated capture validation failure"));
     assertEquals(
@@ -316,5 +372,41 @@ class CaptureToolOutcomeGatewayTest {
     assertEquals(CaptureFailureClass.IDENTICAL_SPAM,
         feedbackStore.lastRequirementFailure("conv-1").orElseThrow().failureClass());
     assertFalse(gateway.repeatedRequirementIssue("conv-1", "scope-2", remaining));
+  }
+
+  @Test
+  void aTypedPlanRejectionIsIdentifiedByItsWholeIssueSet() {
+    var ghost = new CaptureToolOutcomeGateway.TypedIssue(
+        "UNKNOWN_NODE", "/capture/endpoints/0/semanticNodeId", "'ghost' is not approved.", "a");
+    var route = new CaptureToolOutcomeGateway.TypedIssue(
+        "MISSING_FIELD", "/capture/endpoints/1/externalRoute", "Set it.", "b");
+    gateway.onTypedPlanFailure("chat", "trigger", "captureHttpTriggers", List.of(ghost, route), "\nApproved.");
+    assertEquals("UNKNOWN_NODE /capture/endpoints/0/semanticNodeId: 'ghost' is not approved.\n"
+            + "MISSING_FIELD /capture/endpoints/1/externalRoute: Set it.\nApproved.",
+        feedbackStore.lastPlanFailure("chat").orElseThrow().summary());
+
+    gateway.onTypedPlanFailure("chat", "trigger", "captureHttpTriggers", List.of(route), "");
+    gateway.onTypedPlanFailure("chat", "trigger", "captureHttpTriggers", List.of(ghost), "");
+    assertTrue(feedbackStore.lastPlanFailure("chat").orElseThrow().outerAllowed());
+
+    var movedRoute = new CaptureToolOutcomeGateway.TypedIssue(
+        "MISSING_FIELD", "/capture/endpoints/0/externalRoute", "Reworded.", "b");
+    var renamedGhost = new CaptureToolOutcomeGateway.TypedIssue(
+        "UNKNOWN_NODE", "/capture/endpoints/1/semanticNodeId", "'phantom' is not approved.", "a");
+    assertThrows(CaptureValidationException.class, () -> gateway.onTypedPlanFailure(
+        "chat", "trigger", "captureHttpTriggers", List.of(movedRoute, renamedGhost), ""));
+    assertFalse(feedbackStore.lastPlanFailure("chat").orElseThrow().outerAllowed());
+  }
+
+  @Test
+  void aTypedRejectionThatRepeatsAnIssueIsNewAfterARejectionThatHadItOnce() {
+    var ghost = new CaptureToolOutcomeGateway.TypedIssue(
+        "UNKNOWN_NODE", "/capture/endpoints/0/semanticNodeId", "'ghost' is not approved.", "a");
+    gateway.onTypedPlanFailure("chat", "trigger", "captureHttpTriggers", List.of(ghost), "");
+
+    gateway.onTypedPlanFailure("chat", "trigger", "captureHttpTriggers", List.of(ghost, ghost), "");
+
+    assertEquals(CaptureFailureClass.CORRECTABLE,
+        feedbackStore.lastPlanFailure("chat").orElseThrow().failureClass());
   }
 }

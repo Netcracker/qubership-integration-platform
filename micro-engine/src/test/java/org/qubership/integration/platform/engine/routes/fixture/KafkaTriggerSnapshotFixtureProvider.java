@@ -784,7 +784,9 @@ class KafkaTriggerSnapshotFixtureProvider implements SnapshotFixtureProvider {
                 }
                 consumer.runtime().verifyInvocation(interaction, invocation.getId());
                 if (("allow".equals(controls(interaction).get("consumerAccess"))
-                        || Set.of("valid", "rotated").contains(controls(interaction).getOrDefault("tlsCertificate", "")))
+                        || Set.of("valid", "rotated").contains(controls(interaction).getOrDefault("tlsCertificate", ""))
+                        || controls(interaction).containsKey("scramPassword")
+                            && !controls(interaction).containsKey("expectedConsumerFailure"))
                         && consumer.runtime().hasConsumerFailure()) {
                     SnapshotFailureExpectation previousFailure = previousFailures.get(groupId(consumer));
                     SnapshotFailureAssertions.assertMatches(previousFailure, consumer.runtime().getConsumerFailure(),

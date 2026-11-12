@@ -19,6 +19,24 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBr
 class BriefMappingReviewTest {
 
   @Test
+  void reviewingTypedSourceKeepsTheConfirmedMessageOrigin() {
+    var value = new org.qubership.integration.platform.ai.qipknowledge.artifact.MappingValue.Copy(
+        new org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource.Message(
+            "trigger-1", MappingPort.OUTPUT, "$.userId"));
+    var rule = new MappingIntentRule("typed", List.of("author-rule"), "$.personId", value, null, null)
+        .withMissingSourcePolicy("ERROR").withSchemaPins(Map.of("source", "before", "target", "target"));
+    var brief = briefWith(new MappingIntent("map-init", "trigger-1", MappingPort.OUTPUT,
+        "call-1", MappingPort.REQUEST, List.of(rule)));
+    var edited = BriefMappingReview.editRule(brief, "map-init", "$.personId", "$.accountId", null);
+    var changed = edited.mappingIntents().getFirst().rules().getFirst();
+    assertEquals(new org.qubership.integration.platform.ai.qipknowledge.artifact.MappingValue.Copy(
+        new org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource.Message(
+            "trigger-1", MappingPort.OUTPUT, "$.accountId")), changed.value());
+    assertEquals("ERROR", changed.missingSourcePolicy());
+    assertEquals(null, changed.schemaPins());
+  }
+
+  @Test
   void editingProposedRuleMakesItUserDefinedAndApprovalConfirmsRemainingProposed() {
     RequirementBrief brief =
         briefWith(

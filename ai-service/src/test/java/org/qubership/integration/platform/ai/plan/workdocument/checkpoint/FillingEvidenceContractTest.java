@@ -242,7 +242,7 @@ class FillingEvidenceContractTest {
   private static Path fixtureRoot() {
     Path cursor = Path.of("").toAbsolutePath();
     Path root = cursor.getFileName().toString().equals("ai-service") ? cursor.getParent() : cursor;
-    return root.resolve("ai-service/e2e/product-pipeline/fixtures/work-checkpoints");
+    return root.resolve("ai-service/src/test/resources/work-checkpoint-contract");
   }
 
   private static JsonNode latestDocument(ArtifactBlobStore store) {

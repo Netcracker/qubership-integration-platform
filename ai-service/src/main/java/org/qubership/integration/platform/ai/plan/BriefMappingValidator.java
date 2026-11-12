@@ -460,8 +460,8 @@ public final class BriefMappingValidator {
   }
 
   /**
-   * One captured rule may echo several fields as a comma-separated list. Equal-arity lists become
-   * one rule per target so required coverage matches JSON Schema field paths.
+   * Expands equal-arity comma-separated fields in legacy rules into one rule per target.
+   * Preserves qualified MESSAGE copies unchanged so expansion cannot discard their origin.
    */
   private static List<MappingIntentRule> expandCommaSeparatedRules(
       List<MappingIntentRule> candidates) {
@@ -469,6 +469,12 @@ public final class BriefMappingValidator {
     List<MappingIntentRule> expanded = new ArrayList<>();
     for (MappingIntentRule candidate : input) {
       if (candidate == null) {
+        continue;
+      }
+      if (candidate.value() instanceof org.qubership.integration.platform.ai.qipknowledge.artifact.MappingValue.Copy copy
+          && copy.source() instanceof org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource.Message source
+          && source.interactionId() != null && !source.interactionId().isBlank()) {
+        expanded.add(candidate);
         continue;
       }
       List<String> sources = MappingContract.commaSeparatedFieldNames(candidate.sourcePath());

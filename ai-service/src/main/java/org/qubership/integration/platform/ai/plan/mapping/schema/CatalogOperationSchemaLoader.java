@@ -52,6 +52,12 @@ class CatalogOperationSchemaLoader implements OperationSchemaLoader {
   }
 
   @Override
+  public OperationSchemaMaps loadFresh(String operationId) {
+    String opId = requireText(operationId, "operationId");
+    return cache.compute(opId, (id, prior) -> fetchSchemas(id));
+  }
+
+  @Override
   public MappingSchemaSide persistRequest(
       String compilationId, String serviceCallId, String operationId, String contentType) {
     return persist(

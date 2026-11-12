@@ -13,6 +13,7 @@ import jakarta.enterprise.context.ApplicationScoped;
  * as a comma-separated list, or an empty reply when none apply.
  */
 @RegisterAiService(
+    toolHallucinationStrategy = org.qubership.integration.platform.ai.llm.tool.RecoverableToolNameStrategy.class,
     chatMemoryProviderSupplier = RegisterAiService.NoChatMemoryProviderSupplier.class)
 @ApplicationScoped
 public interface ReadinessIntentClassifierAgent {

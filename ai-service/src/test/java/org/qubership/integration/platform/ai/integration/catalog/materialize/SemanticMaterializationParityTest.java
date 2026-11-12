@@ -17,6 +17,7 @@ import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompiler
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorDto;
 import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
+import org.qubership.integration.platform.ai.plan.mapping.ScriptAuthorityTestFixtures;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
@@ -109,7 +110,8 @@ class SemanticMaterializationParityTest {
 
   @Test
   void materializesConditionReconvergenceWithOwners() {
-    ChainPlanGraph graph = compiler.compile(conditionRevision(), CONTRACT, List.of());
+    ChainPlanGraph graph =
+        compileSupplied(conditionRevision(), List.of(), "script-true", "script-false", "script-common");
     CatalogGraphMaterializeResult result = harness.create(graph);
     assertTrue(result.succeeded(), result.error());
     CatalogGraphParityAssertions.assertOwnership(graph, result.materializationMap());
@@ -117,7 +119,7 @@ class SemanticMaterializationParityTest {
 
   @Test
   void materializesLoopScopeWithOwners() {
-    ChainPlanGraph graph = compiler.compile(loopRevision(), CONTRACT, List.of());
+    ChainPlanGraph graph = compileSupplied(loopRevision(), List.of(), "body-script", "after-loop");
     CatalogGraphMaterializeResult result = harness.create(graph);
     assertTrue(result.succeeded(), result.error());
     CatalogGraphParityAssertions.assertOwnership(graph, result.materializationMap());
@@ -126,7 +128,7 @@ class SemanticMaterializationParityTest {
   @Test
   void materializesRetryWithOwners() {
     ChainPlanGraph graph =
-        compiler.compile(retryRevision(), CONTRACT, List.of(binding("call-1", "op-shared")));
+        compileSupplied(retryRevision(), List.of(binding("call-1", "op-shared")), "after-retry");
     CatalogGraphMaterializeResult result = harness.create(graph);
     assertTrue(result.succeeded(), result.error());
     CatalogGraphParityAssertions.assertOwnership(graph, result.materializationMap());
@@ -174,6 +176,21 @@ class SemanticMaterializationParityTest {
     assertEquals(
         "op-shared",
         result.materializationMap().mappingIntentExecutionNodeIds().get("map-body"));
+  }
+
+  private ChainPlanGraph compileSupplied(
+      ChainSemanticRevision revision, List<ResolvedServiceCallBinding> bindings, String... scriptIds) {
+    RequirementBrief brief =
+        new RequirementBrief("Parity", List.of(), List.of(), List.of(), List.of(), "summary")
+            .withApprovedDraftText("exchange.message.body = 'accepted'")
+            .withFacts(
+                java.util.Arrays.stream(scriptIds)
+                    .map(id -> ScriptAuthorityTestFixtures.suppliedFact(
+                        id, "exchange.message.body = 'accepted'"))
+                    .toList());
+    return compiler.compile(
+        ScriptAuthorityTestFixtures.attachSuppliedFacts(revision, brief),
+        CONTRACT, bindings, brief);
   }
 
   private static ChainPlanGraph graphWithUnsupportedOwnedNode(String nodeId) {
@@ -276,7 +293,7 @@ class SemanticMaterializationParityTest {
                     new SemanticBranch.Condition(
                         "true-branch",
                         ConditionBranchRole.IF,
-                        "status == 'ok'",
+                        "${header.status} == 'ok'",
                         1,
                         "script-true",
                         List.of("script-true")),

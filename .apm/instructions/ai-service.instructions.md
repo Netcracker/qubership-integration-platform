@@ -1,0 +1,18 @@
+---
+description: "ai-service: run local server-restart checks before pushing recovery changes."
+applyTo: "ai-service/**"
+---
+
+When changing ai-service crash recovery, A2A message receipts, command replay, or the Flow and JDBC
+persistence they rely on, run `CreateChainServerRestartIT` locally before pushing. Keep it out of CI.
+The default build skips it (JUnit tag `server-restart`, listed in `qip.test.excluded-groups` in
+`ai-service/pom.xml`).
+
+```bash
+cd ai-service && ./mvnw test -Dtest=CreateChainServerRestartIT -Dqip.test.excluded-groups=certified-pack
+```
+
+The test needs a running Docker daemon and takes about ten minutes. Each restart scenario starts
+its own PostgreSQL container and two Quarkus processes, kills the first one mid-flight, and checks
+that the second resumes the work without losing or repeating it. Keep the scenarios sequential:
+parallel children race on `target/test-classes/test-classes.idx`, which Quarkus deletes on shutdown.

@@ -13,6 +13,7 @@ import org.qubership.integration.platform.ai.chain.folder.ChainListCommand;
  * decides what needs the author's confirmation.
  */
 @RegisterAiService(
+    toolHallucinationStrategy = org.qubership.integration.platform.ai.llm.tool.RecoverableToolNameStrategy.class,
     chatMemoryProviderSupplier = RegisterAiService.NoChatMemoryProviderSupplier.class)
 @ApplicationScoped
 public interface ChainListIntentAgent {

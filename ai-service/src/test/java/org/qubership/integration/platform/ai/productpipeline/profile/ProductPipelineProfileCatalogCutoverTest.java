@@ -159,7 +159,7 @@ class ProductPipelineProfileCatalogCutoverTest {
             Path.of("src/test/resources/product-pipelines/profiles/create-chain-v2.yaml"));
     byte[] skills =
         Files.readAllBytes(
-            Path.of("../integration-platform-skills/product-pipelines/profiles/create-chain-v2.yaml"));
+            Path.of("../.private/rocky-skills/runtime/product-pipelines/profiles/create-chain-v2.yaml"));
     assertEquals(new String(main), new String(test));
     assertEquals(new String(main), new String(skills));
   }
