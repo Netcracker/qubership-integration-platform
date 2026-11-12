@@ -801,7 +801,9 @@ public class RequirementCaptureTools {
           String propertyPath = path + "/requestedProperties"
               + (property == null || property.key() == null ? ""
                   : "/" + property.key().replace("~", "~0").replace("/", "~1"));
-          if (property == null || !keys.contains(property.key()) || !used.add(property.key())) {
+          if (property == null
+              || !acceptsRequestedProperty(intent.elementType(), keys, property.key())
+              || !used.add(property.key())) {
             issues.add(new Issue("INVALID_REQUESTED_PROPERTY", propertyPath, fact.sourceFactId(),
                 "Use unique runtime property keys: " + String.join(", ", new java.util.TreeSet<>(keys))
                     + ". Catalog identity belongs to the resolver. Correct the key or encoding without dropping"
@@ -915,6 +917,13 @@ public class RequirementCaptureTools {
     }
     }
     return issues;
+  }
+
+  private static boolean acceptsRequestedProperty(
+      String elementType, java.util.Set<String> schemaKeys, String propertyKey) {
+    return schemaKeys.contains(propertyKey)
+        || org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+            .isCaptureOnlyProperty(elementType, propertyKey);
   }
 
   private java.util.SortedSet<String> writablePropertyKeys(String elementType) {

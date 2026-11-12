@@ -739,12 +739,14 @@ class SerializedClarificationFlowTest {
     if (offer != null) {
       body.put("clarificationOfferId", offer);
     }
-    return given().contentType(ContentType.JSON).body(json.writeValueAsString(body))
+    return org.qubership.integration.platform.ai.a2a.transport.A2aTestAuth.givenAuthorized()
+        .contentType(ContentType.JSON).body(json.writeValueAsString(body))
         .post("/api/v1/chat").then().statusCode(200).extract().asString();
   }
 
   private io.restassured.response.Response postA2a(String body) {
-    return given().urlEncodingEnabled(false).header("A2A-Version", "1.0").contentType(ContentType.JSON).body(body)
+    return org.qubership.integration.platform.ai.a2a.transport.A2aTestAuth.givenA2a()
+        .contentType(ContentType.JSON).body(body)
         .post(java.net.URI.create("/message:send"));
   }
 

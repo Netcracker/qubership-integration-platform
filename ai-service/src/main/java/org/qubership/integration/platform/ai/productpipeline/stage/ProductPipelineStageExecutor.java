@@ -27,6 +27,7 @@ import org.qubership.integration.platform.ai.compiler.capture.ToolArgumentsFailu
 import org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprints;
 import org.qubership.integration.platform.ai.compiler.capture.TransientFailures;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogAuthenticationFailures;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogNonRetryableResponseException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.core.JsonPointer;
@@ -629,7 +630,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     StageOutcome outcome = outcomeOf(runId, failure);
     if (outcome.outcomeClass() != StageOutcomeClass.INTERNAL_FAILURE
         || StageOutcome.captureFailure(failure).isPresent()
-        || catalogHasBeenWritten(runId)) {
+        || catalogHasBeenWritten(runId)
+        || isCatalogClientRejection(failure)) {
       return outcome;
     }
     ProductPipelineRunDocument doc = requireRun(runId);
@@ -644,6 +646,19 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         outcome.message(),
         new RecoveryCause(RecoveryCauseCode.TECHNICAL_RETRY_EXHAUSTED,
             List.of(new PlanValidationFinding(UNCLASSIFIED_EXCEPTION_FINDING, outcome.message(), true)), ""));
+  }
+
+  /**
+   * A catalog HTTP rejection is already classified. It must not spend the one automatic retry that
+   * exists for an exception nothing else recognized.
+   */
+  private static boolean isCatalogClientRejection(Throwable failure) {
+    for (Throwable current = failure; current != null; current = current.getCause()) {
+      if (current instanceof CatalogNonRetryableResponseException) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private static boolean isUnclassifiedExceptionRetry(StageOutcome outcome) {

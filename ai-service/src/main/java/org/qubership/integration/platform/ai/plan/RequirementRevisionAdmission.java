@@ -479,7 +479,12 @@ final class RequirementRevisionAdmission {
       for (int index = 0; index < intent.requestedProperties().size(); index++) {
         var property = intent.requestedProperties().get(index);
         String propertyPath = path + "/requestedProperties/" + index;
-        if (property == null || property.key() == null || !keys.contains(property.key()) || !used.add(property.key())) {
+        if (property == null
+            || property.key() == null
+            || !(keys.contains(property.key())
+                || DeterministicElementSchemaService.isCaptureOnlyProperty(
+                    intent.elementType(), property.key()))
+            || !used.add(property.key())) {
           String message = "The native schema requires a unique declared property key.";
           nativeFindings.add(new Issue("INVALID_REQUESTED_PROPERTY", propertyPath, fact.sourceFactId(), message));
           findings.add(finding(propertyPath, fact.interactionIds(), "native-schema", refs, "element-schema",

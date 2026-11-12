@@ -2187,16 +2187,17 @@ class ProductPipelineStageExecutorTest {
       applyLifecycle(runtime, result);
     }
 
-    StageDecision.WaitForInput wait =
-        assertInstanceOf(
-            StageDecision.WaitForInput.class, execute(runtime, "design-execution").decision());
+    StageExecutionResult granted = execute(runtime, "design-execution");
+    assertGrantsAnotherCorrection(granted);
+    String reason = requireRun().transitions().getLast().reason();
+    assertFalse(
+        reason.contains("Catalog HTTP 401"),
+        "a genuine contract defect spends repair attempts, not the catalog sign-in card: " + reason);
 
     assertEquals(
         List.of(false, false, false, false),
         technicalRetries,
         "a genuine contract defect spends targeted and clean repair attempts, not an auth stop");
-    assertEquals(
-        PipelineGates.RECOVERY_REPAIR_ALLOWANCE, PipelineGates.gateOf(wait.prompt()).orElseThrow());
     assertEquals(5, calls.get(), "two targeted and two clean attempts were spent as today");
   }
 
