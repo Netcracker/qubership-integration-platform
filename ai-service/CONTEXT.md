@@ -225,8 +225,23 @@ _Avoid_: contract failure for a service defect, a Retry that cannot work, termin
 
 **Turn bearer**:
 The access token taken from the request that started the work (the chat request that opened the
-current turn, or the A2A request that started a task) and sent on that work's catalog calls.
-_Avoid_: the access token currently held in the browser, a token refresh, user token, caller token
+current turn, or the A2A request that started a task) and sent on that work's catalog calls. Only a
+token renewal replaces it.
+_Avoid_: the access token currently held in the browser, user token, caller token
+
+**Token renewal**:
+While a chat turn streams, the UI posts each token the host app renews to
+`POST /api/v1/chat/{conversationId}/token`. The turn takes it only when its `sub` matches the turn
+bearer's. The service never waits for a renewal: a call made after the bearer expired gets a
+catalog rejection.
+_Avoid_: token refresh (the host app refreshes; the AI service only receives the result)
+
+**Catalog rejection**:
+A catalog HTTP 401 or 403 on a call made with the turn bearer. The chat turn ends at once with fixed
+copy: "Your session has expired. Sign in again to continue." for a 401, "You don't have permission to
+perform this action." for a 403. The UI shows the same copy when the chat request itself gets 401
+or 403.
+_Avoid_: access denied for a 401, a model-written explanation of the failure
 
 **Service identity**:
 The AI service's own catalog credential (`CATALOG_TOKEN`), carrying its service account's

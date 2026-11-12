@@ -234,14 +234,11 @@ public class DesignInputCapability implements StageCapability {
     if (chatMemorySanitizer != null) {
       chatMemorySanitizer.clear(captureConversationId);
     }
-    // A clean rebuild runs under its own id, so the turn bearer must be visible under it too.
-    String copiedToken =
+    // A clean rebuild runs under its own id, so it shares the turn bearer, renewals included.
+    String sharedToken =
         captureConversationId.equals(context.conversationId())
             ? null
-            : UserTokenStore.get(context.conversationId()).orElse(null);
-    if (copiedToken != null) {
-      UserTokenStore.put(captureConversationId, copiedToken);
-    }
+            : UserTokenStore.share(context.conversationId(), captureConversationId);
     ToolSession.Handle session = ToolSession.open(captureConversationId);
     ProductCapabilityCaptureContext.bindDesign(
         context.runId(),
@@ -272,8 +269,8 @@ public class DesignInputCapability implements StageCapability {
     } finally {
       ProductCapabilityCaptureContext.unbind(captureConversationId);
       session.close();
-      if (copiedToken != null) {
-        UserTokenStore.remove(captureConversationId, copiedToken);
+      if (sharedToken != null) {
+        UserTokenStore.remove(captureConversationId, sharedToken);
       }
     }
     ChainSemanticRevision revision = captured.get();

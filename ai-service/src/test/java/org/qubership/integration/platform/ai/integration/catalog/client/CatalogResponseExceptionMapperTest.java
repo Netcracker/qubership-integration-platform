@@ -13,6 +13,8 @@ import org.eclipse.microprofile.faulttolerance.Timeout;
 import org.eclipse.microprofile.faulttolerance.exceptions.TimeoutException;
 import org.eclipse.microprofile.rest.client.annotation.RegisterProvider;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.chat.UserTokenStore;
 
 class CatalogResponseExceptionMapperTest {
 
@@ -25,6 +27,21 @@ class CatalogResponseExceptionMapperTest {
     assertInstanceOf(WebApplicationException.class, map(429));
     assertTrue(!(map(429) instanceof CatalogNonRetryableResponseException));
     assertTrue(!(map(503) instanceof CatalogNonRetryableResponseException));
+  }
+
+  @Test
+  void recordsAuthRejectionsForTheBoundTurn() {
+    UserTokenStore.put("conv-denied", "token");
+    ToolSession.bind("conv-denied");
+    try {
+      map(404);
+      assertEquals(0, UserTokenStore.rejection("conv-denied"));
+      map(403);
+      assertEquals(403, UserTokenStore.rejection("conv-denied"));
+    } finally {
+      ToolSession.clear();
+      UserTokenStore.remove("conv-denied", "token");
+    }
   }
 
   @Test

@@ -1,4 +1,9 @@
-import type { ChatMessage, ChatUsage } from "../../ai/modelProviders/types.ts";
+import {
+  ACCESS_DENIED_MESSAGE,
+  SESSION_EXPIRED_MESSAGE,
+  type ChatMessage,
+  type ChatUsage,
+} from "../../ai/modelProviders/types.ts";
 
 export type ChatMeta = {
   durationMs: number;
@@ -251,6 +256,12 @@ export function buildTurnFailureMessage(
   decisionCard?: "valid" | "stale",
 ): ChatMessage {
   const trimmed = detail.trim();
+  if (
+    trimmed === SESSION_EXPIRED_MESSAGE ||
+    trimmed === ACCESS_DENIED_MESSAGE
+  ) {
+    return { role: "assistant", variant: "error", content: trimmed };
+  }
   return {
     role: "assistant",
     variant: "error",

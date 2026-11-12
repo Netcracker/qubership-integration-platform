@@ -1,5 +1,9 @@
 import { describe, it, expect } from "@jest/globals";
-import type { ChatMessage } from "../../../src/ai/modelProviders/types.ts";
+import {
+  ACCESS_DENIED_MESSAGE,
+  SESSION_EXPIRED_MESSAGE,
+  type ChatMessage,
+} from "../../../src/ai/modelProviders/types.ts";
 import {
   TURN_FAILURE_SUMMARY,
   appendTurnFailure,
@@ -24,6 +28,17 @@ describe("buildTurnFailureMessage", () => {
     });
     expect(isErrorVariantMessage(message)).toBe(true);
   });
+
+  it.each([SESSION_EXPIRED_MESSAGE, ACCESS_DENIED_MESSAGE])(
+    "shows the auth copy %s as the summary, even with a valid decision card",
+    (copy) => {
+      expect(buildTurnFailureMessage(copy, "valid")).toEqual({
+        role: "assistant",
+        variant: "error",
+        content: copy,
+      });
+    },
+  );
 
   it("omits empty detail", () => {
     const message = buildTurnFailureMessage("   ");

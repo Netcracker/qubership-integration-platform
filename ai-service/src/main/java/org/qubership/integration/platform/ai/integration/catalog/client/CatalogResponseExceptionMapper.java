@@ -4,6 +4,7 @@ import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 import org.eclipse.microprofile.rest.client.ext.ResponseExceptionMapper;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.chat.UserTokenStore;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogRestSupport;
 
 /** Maps only non-rate-limited client responses to the fault-tolerance abort type. */
@@ -18,6 +19,10 @@ public final class CatalogResponseExceptionMapper implements ResponseExceptionMa
       String bodySnippet = CatalogRestSupport.readResponseBodySnippet(response);
       if (bodySnippet != null && !bodySnippet.isBlank()) {
         LOG.warnf("Catalog client error HTTP %d body=%s", status, bodySnippet);
+      }
+      if (status == 401 || status == 403) {
+        // A tool may turn the error into a normal result, so the chat turn reads it from the store.
+        UserTokenStore.rejectCurrent(status);
       }
       return new CatalogNonRetryableResponseException(response, bodySnippet);
     }

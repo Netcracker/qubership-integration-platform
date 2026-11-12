@@ -38,6 +38,8 @@ import org.qubership.integration.platform.ai.chain.deploy.PendingRedeployStore;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.OpenChainTurnContext;
 import org.qubership.integration.platform.ai.chat.OpenChainTurnContextFactory;
+import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.chat.UserTokenStore;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.productpipeline.create.CreateProductPipelineCoordinator;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ContinueCreateChainCommand;
@@ -785,6 +787,54 @@ class ChatExecutionServiceTest {
     assertEquals(1L, frames.stream().filter(frame -> frame.startsWith("event: catalog-changed")).count());
     assertTrue(frames.stream().anyMatch(frame -> frame.contains("\"chainIds\":[\"chain-a\",\"chain-b\"]")));
     assertTrue(frames.getLast().startsWith("event: done"));
+  }
+
+  @Test
+  void aCatalog403OnTheTurnBearerEndsTheTurnWithTheFixedMessage() {
+    ScenarioRouter router = mock(ScenarioRouter.class);
+    when(router.route(any(), anyString()))
+        .thenReturn(
+            Multi.createFrom()
+                .deferred(
+                    () -> {
+                      ToolSession.bind(CONVERSATION_ID);
+                      UserTokenStore.rejectCurrent(403);
+                      return Multi.createFrom().item(ChatEvent.token("Catalog said no."));
+                    }));
+    ChatDecisionService decisions = mock(ChatDecisionService.class);
+    when(decisions.openDecision(anyString())).thenReturn(Optional.empty());
+    ChatRequest request = new ChatRequest();
+    request.setConversationId(CONVERSATION_ID);
+    request.setMessage("Deploy this chain");
+    request.setUserToken("token");
+
+    List<String> frames =
+        service(router, decisions).streamV1Sse(request).collect().asList().await().indefinitely();
+
+    assertFalse(frames.stream().anyMatch(frame -> frame.startsWith("event: token\n")), frames::toString);
+    assertEquals(
+        List.of(
+            "event: error\ndata: " + ChatExecutionService.ACCESS_DENIED_MESSAGE + "\n\n",
+            "event: done\ndata: " + CONVERSATION_ID + "\n\n"),
+        frames.subList(Math.max(0, frames.size() - 2), frames.size()));
+    assertEquals(0, UserTokenStore.rejection(CONVERSATION_ID));
+  }
+
+  @Test
+  void aCatalog401MapsToTheSessionExpiredMessage() {
+    UserTokenStore.put("conv-401", "token");
+    ToolSession.bind("conv-401");
+    try {
+      UserTokenStore.rejectCurrent(401);
+      IllegalStateException failure =
+          org.junit.jupiter.api.Assertions.assertThrows(
+              IllegalStateException.class,
+              () -> ChatExecutionService.failOnCatalogRejection("conv-401"));
+      assertEquals(ChatExecutionService.SESSION_EXPIRED_MESSAGE, failure.getMessage());
+    } finally {
+      ToolSession.clear();
+      UserTokenStore.remove("conv-401", "token");
+    }
   }
 
   @Test

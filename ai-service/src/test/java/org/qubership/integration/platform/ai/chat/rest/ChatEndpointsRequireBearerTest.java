@@ -19,6 +19,12 @@ class ChatEndpointsRequireBearerTest {
   }
 
   @Test
+  void renewWithoutBearerIsRejected() {
+    assertThrows(
+        NotAuthorizedException.class, () -> new ChatController(null, null).renewToken("c1", null));
+  }
+
+  @Test
   void chatWithoutBearerIsAcceptedWhenAuthNotRequired() {
     System.setProperty("qip.ai.auth.required", "false");
     try {

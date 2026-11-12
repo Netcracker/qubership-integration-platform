@@ -1,14 +1,19 @@
 import { AiModelProvider } from "./AiModelProvider.ts";
 import {
+  ACCESS_DENIED_MESSAGE,
   ChatRequest,
   ChatResponse,
   ChatMessage,
   ProviderCapabilities,
+  SESSION_EXPIRED_MESSAGE,
   StreamingChunk,
 } from "./types.ts";
 import { parseCipSseBlock, splitSseFrames } from "./sseParsing.ts";
 import axios, { AxiosError } from "axios";
 import { getHeadersForContext } from "../../api/rest/requestHeadersInterceptor.ts";
+
+/** How often a streaming turn checks whether the host app renewed the user's token. */
+const TOKEN_RENEW_CHECK_MS = 15_000;
 
 const capabilities: ProviderCapabilities = {
   supportsStreaming: true,
@@ -94,8 +99,13 @@ export class HttpAiModelProvider implements AiModelProvider {
     const controller = new AbortController();
     const signal = request.abortSignal ?? controller.signal;
     let receivedDone = false;
+    let conversationId = request.conversationId;
+    let renewTimer: ReturnType<typeof setInterval> | undefined;
     const receive = (chunk: StreamingChunk) => {
       if (chunk.type === "done") receivedDone = true;
+      if (chunk.type === "meta" && chunk.conversationId) {
+        conversationId = chunk.conversationId;
+      }
       onChunk(chunk);
     };
 
@@ -126,12 +136,39 @@ export class HttpAiModelProvider implements AiModelProvider {
         signal,
       });
 
+      if (response.status === 401 || response.status === 403) {
+        onChunk({
+          type: "error",
+          errorMessage:
+            response.status === 401
+              ? SESSION_EXPIRED_MESSAGE
+              : ACCESS_DENIED_MESSAGE,
+        });
+        return;
+      }
       if (!response.ok || !response.body) {
         const text = await response.text().catch(() => "");
         throw new Error(
           text || `Streaming request failed with status ${response.status}`,
         );
       }
+
+      // The turn keeps the token it started with; hand it each token the host app renews.
+      let sentAuthorization = headers.Authorization;
+      renewTimer = setInterval(() => {
+        if (!conversationId) return;
+        const path = `/api/v1/chat/${encodeURIComponent(conversationId)}/token`;
+        const renewed = getBearerHeader(this.serviceUrl, path);
+        if (
+          !renewed.Authorization ||
+          renewed.Authorization === sentAuthorization
+        )
+          return;
+        sentAuthorization = renewed.Authorization;
+        fetch(`${base}${path}`, { method: "POST", headers: renewed }).catch(
+          (error) => console.warn("[AI] Token renewal failed", error),
+        );
+      }, TOKEN_RENEW_CHECK_MS);
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder("utf-8");
@@ -180,6 +217,7 @@ export class HttpAiModelProvider implements AiModelProvider {
           : "Failed to receive streaming response";
       onChunk({ type: "error", errorMessage: message, transportError: true });
     } finally {
+      clearInterval(renewTimer);
       if (!request.abortSignal) {
         controller.abort();
       }

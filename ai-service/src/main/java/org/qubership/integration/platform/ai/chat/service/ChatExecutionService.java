@@ -49,6 +49,8 @@ public class ChatExecutionService {
   private static final Logger LOG = Logger.getLogger(ChatExecutionService.class);
   private static final String TOKEN_EVENT_PREFIX = "event: token\ndata: ";
   private static final String PATH_LABEL = "v1-sse";
+  static final String SESSION_EXPIRED_MESSAGE = "Your session has expired. Sign in again to continue.";
+  static final String ACCESS_DENIED_MESSAGE = "You don't have permission to perform this action.";
 
   private final ScenarioRouter router;
   private final ConversationService conversationService;
@@ -420,6 +422,7 @@ public class ChatExecutionService {
             Multi.createFrom().item(new ChatEvent.Meta(conversationId, true, sourceInput.messageIndex())), routed)
         .onItem()
         .invoke(event -> {
+          failOnCatalogRejection(finalConversationId);
           if (event instanceof ChatEvent.Token token && token.text() != null) {
             responseBuffer.append(token.text());
             if (token.turnKind() != LastAssistantTurn.Kind.OTHER) {
@@ -442,6 +445,8 @@ public class ChatExecutionService {
                 .append(decision.question());
           }
         })
+        .onCompletion()
+        .invoke(() -> failOnCatalogRejection(finalConversationId))
         .map(this::toSse)
         .onCancellation()
         .invoke(
@@ -493,6 +498,17 @@ public class ChatExecutionService {
               MDC.remove(ChatMdc.CONVERSATION_ID);
               return recoverFailedSse(finalConversationId, err);
             });
+  }
+
+  /** Ends the turn with fixed copy once the catalog rejected the turn bearer; the UI matches it. */
+  static void failOnCatalogRejection(String conversationId) {
+    int status = UserTokenStore.rejection(conversationId);
+    if (status == 401) {
+      throw new IllegalStateException(SESSION_EXPIRED_MESSAGE);
+    }
+    if (status == 403) {
+      throw new IllegalStateException(ACCESS_DENIED_MESSAGE);
+    }
   }
 
   /**
