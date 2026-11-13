@@ -435,7 +435,7 @@ test.describe("chain and service export and import", { tag: ["@catalog"] }, () =
 
   // An export with minimized quotes writes `plain text` unquoted and quotes every string that YAML
   // would read back as a number (#963).
-  // Shown failing on the catalog of 1bc09893a: `plain text` is exported quoted, and the variable
+  // Shown failing: on the catalog of 1bc09893a, `plain text` is exported quoted, and the variable
   // import answers 500 `Unable to convert file to variables`.
   test("number-like strings survive a minimized-quote round trip", async ({ catalog, folder, run }) => {
     const headers = {
