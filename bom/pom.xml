@@ -17,7 +17,7 @@
   <description>QIP External BOM</description>
 
   <properties>
-    <revision>1.7.1</revision>
+    <revision>1.8.0</revision>
     <changelist>-SNAPSHOT</changelist>
   </properties>
 
