@@ -21,14 +21,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.engine.configuration.datasource.FlywayInitializer;
 import org.qubership.integration.platform.engine.opensearch.ism.converters.StringToTimeValueConverter;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.client.RestTestClient;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -87,8 +87,8 @@ class OpenApiSpecGeneratorTest {
     @MockitoBean
     private FlywayInitializer flywayInitializer;
 
-    @Autowired
-    private TestRestTemplate restTemplate;
+    @LocalServerPort
+    private int port;
 
     static class ConverterInitializer implements ApplicationContextInitializer<ConfigurableApplicationContext> {
         @Override
@@ -116,7 +116,16 @@ class OpenApiSpecGeneratorTest {
     @DisplayName("generate OpenAPI specification")
     void generateOpenApiSpecFile() throws IOException {
         Files.createDirectories(OUTPUT_DIR);
-        String rawYaml = restTemplate.getForObject("/v3/api-docs.yaml", String.class);
+        String rawYaml = RestTestClient.bindToServer()
+                .baseUrl("http://localhost:" + port)
+                .build()
+                .get()
+                .uri("/v3/api-docs.yaml")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class)
+                .returnResult()
+                .getResponseBody();
         Files.writeString(OUTPUT_DIR.resolve("openapi.yaml"), rawYaml);
     }
 }
