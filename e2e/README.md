@@ -428,7 +428,7 @@ A spec's path in place of `-g "<title>"` runs every case in the file.
 
 | Project | `<seeds>` |
 | --- | --- |
-| `api`, `tooling`, `runtime`, `ui`, `env`, `global`, `k8s` | `--project=seed` |
+| `api`, `tooling`, `runtime`, `ui`, `process-snapshot`, `env`, `global`, `k8s` | `--project=seed` |
 | `brokers`, `brokers-restart` | `--project=brokers-seed`, which runs `seed` first |
 | `runtime-micro`, `global-micro`, `env-micro` | `--project=seed --project=seed-micro` |
 | `runtime-micro-redeploy` | `--project=seed-micro` |
@@ -1017,7 +1017,13 @@ The split into projects is about scheduling rather than subject. `schema` and `h
 off disk and finish in seconds, so a broken registry costs nothing to discover. `harness` is the one
 split by subject: its tests check the suite rather than the product, so the run summary and the
 email count it, with `schema`, among the suite checks. `env` restarts services, which
-disturbs every spec in flight, so it runs after `api`, `runtime`, and `ui`. `global` runs one worker
+disturbs every spec in flight, so it runs after `process-snapshot`, which saves service identities
+and resource usage after `api`, `runtime`, and `ui`. Its `process-envelope` teardown checks the saved
+readings after the dependent projects finish, so resource assertion failures leave independent
+restart and global tests running. To rerun these checks alone, run `--project=process-snapshot`
+with its dependencies, or reuse the captured run token on the same target with
+`E2E_RUN=<run> npm test -- --project=process-envelope --no-deps`.
+`global` runs one worker
 after `api`, `runtime`, `env`, and `ui`, because its reads cover every worker's data and four of its
 endpoints change state the others read. Both are `dependencies`, so a failed `ui` case skips `env`
 and `global`. The broker projects are not dependencies of `env` or `global`: the teardown ordering

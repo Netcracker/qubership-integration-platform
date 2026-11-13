@@ -125,6 +125,22 @@ const suite: SuiteProject[] = [
     dependencies: ["seed", "tooling"],
   },
   {
+    name: "process-snapshot",
+    metadata: { group: "setup" },
+    testDir: "./specs/process-snapshot",
+    testMatch: /.*\.setup\.ts$/,
+    workers: 1,
+    dependencies: ["api", "runtime", "ui"],
+    teardown: "process-envelope",
+  },
+  {
+    name: "process-envelope",
+    metadata: { group: "setup" },
+    testDir: "./specs/env",
+    testMatch: /process-envelope\.spec\.ts$/,
+    workers: 1,
+  },
+  {
     // Specs here restart a service to change how it runs. A restart costs about 30 s against
     // 0.15 s for an API assertion, and it disturbs every other spec in flight, so the project runs
     // only after `api` and `runtime` have finished. Placement is decided by that scheduling need,
@@ -137,6 +153,7 @@ const suite: SuiteProject[] = [
     // can name.
     name: "env",
     testDir: "./specs/env",
+    testIgnore: ["**/process-envelope.spec.ts"],
     workers: 1,
     // No broker project is named here, though this project recreates the engine and the catalog
     // (`specs/env/restart-resilience.spec.ts`, `service-type-roundtrip.spec.ts`), and a recreate
@@ -155,10 +172,8 @@ const suite: SuiteProject[] = [
     // overlap with this project stays reasoned, never measured: only Playwright's scheduling, which
     // starts a project once every project of a lower dependency depth has finished, keeps them apart.
     //
-    // `ui` is named, unlike the broker projects: a restart here mid-scenario fails a browser case
-    // for a reason that has nothing to do with the UI. The cost is the one described above: a red
-    // `ui` case skips this project.
-    dependencies: ["api", "runtime", "ui"],
+    // Capture process state before restarts; its assertions run afterward without gating this project.
+    dependencies: ["process-snapshot"],
   },
   {
     // Builds `schemas/` when its inputs change, and `ui-server` bundles what it

@@ -67,6 +67,12 @@ echo "Istio: installing from infrastructure/helm/cip-dev/istio.yaml"
 istioctl install -y -f "$repo_root/infrastructure/helm/cip-dev/istio.yaml"
 echo # istioctl leaves its last line unterminated
 
+if [[ -n "${E2E_ZTUNNEL_ORIG_SRC:-}" ]]; then
+    echo "Istio: setting ENABLE_ORIG_SRC=$E2E_ZTUNNEL_ORIG_SRC"
+    kubectl -n istio-system set env daemonset/ztunnel "ENABLE_ORIG_SRC=$E2E_ZTUNNEL_ORIG_SRC"
+    kubectl -n istio-system rollout status daemonset/ztunnel --timeout=180s
+fi
+
 echo "camel-k: installing chart $camel_k_chart_version"
 helm repo add --force-update camel-k https://apache.github.io/camel-k/charts/ > /dev/null
 helm upgrade --install --wait camel-k camel-k/camel-k --version "$camel_k_chart_version" \
