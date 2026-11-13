@@ -165,7 +165,6 @@ test.describe("reporting layer", () => {
           revision: 7,
           status: "deployed",
           chart: "cip-k8s-dev-0.0.1",
-          istioMode: "sidecar",
         },
         provision: {
           ...HEADER.provision,
@@ -192,7 +191,6 @@ test.describe("reporting layer", () => {
       expect(catalog).toContain(
         "- Helm release: cip in cip-e2e, revision 7, deployed, chart cip-k8s-dev-0.0.1, kube-context docker-desktop",
       );
-      expect(catalog).toContain("- Istio mode: sidecar");
       expect(catalog).toContain("| qubership-integration-engine:e2e-0123456789ab |");
       // Compose has no release, and its line is left out rather than printed empty.
       expect(renderCatalog(REPORT, HEADER, COMPONENT_TAGS)).not.toContain("Helm release");

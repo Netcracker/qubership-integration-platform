@@ -167,10 +167,6 @@ npm run test:compose   # the Docker Compose stack from infrastructure/docker/doc
 npm run test:k8s       # a local Kubernetes cluster, namespace cip-e2e
 ```
 
-The Kubernetes target supports both Docker Desktop provisioners. It uses Istio sidecars on kubeadm
-and ambient on kind with containerd. `CIP_ISTIO_MODE=ambient` or `sidecar`
-overrides the automatic selection. The [Istio setup](k8s/README.md#istio) describes both profiles.
-
 `npm test` runs the Compose target when `CIP_TARGET` is unset. Every command below takes the variable
 the same way. The portable form is `npm run test:k8s -- --project=runtime`.
 
@@ -687,7 +683,6 @@ defaults below are the Compose ports; on `k8s` they are the fixed host ports fro
 | `E2E_BOOTSTRAP_LOG`       | unset                                | On `k8s`, the log of a cluster bootstrap still running in the background, which `_e2e-kind.yaml` starts before it installs the dependencies. The run builds the images first, then waits for the exit code the workflow writes to `<log>.exit`, and checks the cluster only after that. A non-zero code fails the run with the log. Unset, the run checks the cluster before it builds the images. |
 | `E2E_AI_RECOVERY`         | unset                                | `1` includes the Compose AI recovery lifecycle case in `env`; requires a running `qip-ai-service`. Ignored on `k8s`. |
 | `CIP_TARGET`              | `compose`                            | `k8s` runs the suite against the local cluster in the current kube-context (see [Targets](#targets)). Any other value fails the run at config load. |
-| `CIP_ISTIO_MODE`          | `auto`                               | Kubernetes only: `auto` selects sidecars for Docker Desktop kubeadm and ambient otherwise. `ambient` and `sidecar` select a mode explicitly. Use the same mode for bootstrap and runner. |
 | `CIP_REPO_ROOT`           | the parent directory                 | The repository root everything else is resolved against.                             |
 | `CIP_COMPOSE_FILE`        | `infrastructure/docker/docker-compose.yml`  | The compose file provisioning drives on the Compose target.                          |
 | `CIP_PROXY_URL`           | `http://localhost:8080`              | The nginx front door, and the whole `/api/` surface.                                 |

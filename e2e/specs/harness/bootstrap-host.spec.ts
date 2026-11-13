@@ -7,7 +7,7 @@ import { bashExecutable, repoRoot } from "../../env/host.js";
 
 const made: string[] = [];
 
-function bootstrap(args: string[], failCni = false, existing = false, runtime = "desktop-control-plane=containerd://2.3.4", istioMode = "auto") {
+function bootstrap(args: string[], failCni = false, existing = false) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "e2e-bootstrap-"));
   made.push(dir);
   const log = path.join(dir, "commands.jsonl");
@@ -19,7 +19,6 @@ const args = process.argv.slice(2);
 fs.appendFileSync(process.env.HOST_BOOTSTRAP_LOG, JSON.stringify([tool, ...args]) + '\\n');
 if (tool === 'kind' && args[0] === 'get' && process.env.HOST_EXISTING_KIND) console.log('qip');
 if (tool === 'kubectl' && args.join(' ') === 'config current-context') console.log('docker-desktop');
-if (tool === 'kubectl' && args[0] === 'get' && args[1] === 'nodes') console.log(process.env.HOST_CONTAINER_RUNTIME);
 if (tool === 'kubectl' && args.includes('get') && args.includes('metrics-server')) console.log('v0.9.0 --kubelet-insecure-tls');
 if (process.env.HOST_FAIL_CNI && (args.includes('daemonset/istio-cni-node') || args.includes('daemonset/ztunnel'))) process.exit(19);
 `;
@@ -33,8 +32,6 @@ if (process.env.HOST_FAIL_CNI && (args.includes('daemonset/istio-cni-node') || a
       HOST_BOOTSTRAP_LOG: log,
       HOST_FAIL_CNI: failCni ? "1" : "",
       HOST_EXISTING_KIND: existing ? "1" : "",
-      HOST_CONTAINER_RUNTIME: runtime,
-      CIP_ISTIO_MODE: istioMode,
       E2E_ZTUNNEL_ORIG_SRC: "false",
     },
     encoding: "utf8",
@@ -66,19 +63,4 @@ test.describe("cluster bootstrap host", () => {
     expect(result.commands.some((args) => args[0] === "helm")).toBe(false);
   });
 
-  test("Docker Desktop kubeadm installs sidecars without CNI", () => {
-    const result = bootstrap([], true, false, "docker-desktop=docker://28.5.0");
-    expect(result.status, result.stderr).toBe(0);
-    const install = result.commands.find((args) => args[0] === "istioctl")!;
-    expect(install).toEqual(expect.arrayContaining(["profile=default", "components.cni.enabled=false", "components.ztunnel.enabled=false"]));
-    expect(result.commands.some((args) => args.includes("daemonset/istio-cni-node") || args.includes("daemonset/ztunnel"))).toBe(false);
-    expect(result.commands).toContainEqual(["kubectl", "get", "mutatingwebhookconfiguration", "istio-sidecar-injector"]);
-  });
-
-  test("an explicit sidecar mode also applies to kind", () => {
-    const result = bootstrap(["--kind"], true, false, "containerd://2.3.4", "sidecar");
-    expect(result.status, result.stderr).toBe(0);
-    expect(result.commands.some((args) => args[0] === "kind" && args[1] === "create")).toBe(true);
-    expect(result.commands.find((args) => args[0] === "istioctl")).toContain("profile=default");
-  });
 });

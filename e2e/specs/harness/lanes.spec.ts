@@ -86,8 +86,7 @@ test.describe("lanes", () => {
       job.with && "lane" in job.with ? [{ job: name, lane: job.with.lane }] : [],
     );
     expect(called.filter(({ lane }) => !lanes().includes(String(lane)))).toEqual([]);
-    expect(called.filter(({ job, lane }) => job !== lane)).toEqual([{ job: "sidecar", lane: "micro" }]);
-    expect(jobs.sidecar.with?.["istio-mode"]).toBe("sidecar");
+    expect(called.filter(({ job, lane }) => job !== lane)).toEqual([]);
     for (const lane of lanes()) expect(jobs[lane]?.with?.lane, lane).toBe(lane);
   });
 });

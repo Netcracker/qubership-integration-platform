@@ -82,11 +82,6 @@ async function releaseFacts(): Promise<ReleaseFacts> {
   const context = await kubectl(["config", "current-context"])
     .then((out) => out.trim())
     .catch(() => null);
-  const labels = await kubectl(["get", "namespace", NAMESPACE, "-o", "json"])
-    .then((raw) => (JSON.parse(raw) as { metadata: { labels?: Record<string, string> } }).metadata.labels ?? {})
-    .catch(() => ({} as Record<string, string>));
-  const istioMode = labels["istio.io/dataplane-mode"] === "ambient"
-    ? "ambient" : labels["istio-injection"] === "enabled" ? "sidecar" : null;
   // `helm list` rather than `helm status`: Helm 4 leaves the chart out of the status document.
   let listed: { name: string; revision?: string; status?: string; chart?: string }[] = [];
   try {
@@ -102,7 +97,6 @@ async function releaseFacts(): Promise<ReleaseFacts> {
     revision: release?.revision ? Number(release.revision) : null,
     status: release?.status ?? null,
     chart: release?.chart ?? null,
-    istioMode,
   };
 }
 

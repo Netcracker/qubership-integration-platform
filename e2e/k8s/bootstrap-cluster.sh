@@ -26,15 +26,6 @@ require() {
 
 require kubectl helm istioctl
 
-istio_mode="${CIP_ISTIO_MODE-auto}"
-case "$istio_mode" in
-    auto | ambient | sidecar) ;;
-    *)
-        echo 'CIP_ISTIO_MODE must be auto, ambient, or sidecar' >&2
-        exit 1
-        ;;
-esac
-
 context="$(kubectl config current-context 2> /dev/null || true)"
 if [[ "${1:-}" == "--kind" && "$#" == 1 ]]; then
     require kind
@@ -80,44 +71,17 @@ EOF
         ;;
 esac
 
-case "$istio_mode" in
-    auto)
-        istio_mode=ambient
-        if [[ "$context" == docker-desktop ]]; then
-            nodes="$(kubectl get nodes -o 'jsonpath={range .items[*]}{.metadata.name}={.status.nodeInfo.containerRuntimeVersion}{" "}{end}')"
-            read -r -a node_info <<< "$nodes"
-            for node in "${node_info[@]}"; do
-                if [[ "$node" == docker-desktop=* || "$node" == *'=docker://'* ]]; then
-                    istio_mode=sidecar
-                    break
-                fi
-            done
-        fi
-        ;;
-    ambient | sidecar) ;;
-esac
-echo "Istio mode: $istio_mode"
-
 echo "Gateway API: applying the standard channel $gateway_api_version"
 kubectl apply --server-side --force-conflicts \
     -f "https://github.com/kubernetes-sigs/gateway-api/releases/download/$gateway_api_version/standard-install.yaml"
 
 echo "Istio: installing from infrastructure/helm/cip-dev/istio.yaml"
-istio_args=(-y -f "$repo_root/infrastructure/helm/cip-dev/istio.yaml")
-if [[ "$istio_mode" == sidecar ]]; then
-    istio_args+=(--set profile=default --set components.cni.enabled=false --set components.ztunnel.enabled=false)
-fi
-istioctl install "${istio_args[@]}"
+istioctl install -y -f "$repo_root/infrastructure/helm/cip-dev/istio.yaml"
 echo # istioctl leaves its last line unterminated
-if [[ "$istio_mode" == ambient ]]; then
-    kubectl -n istio-system rollout status daemonset/istio-cni-node --timeout=180s
-    kubectl -n istio-system rollout status daemonset/ztunnel --timeout=180s
-else
-    kubectl -n istio-system rollout status deployment/istiod --timeout=180s
-    kubectl get mutatingwebhookconfiguration istio-sidecar-injector
-fi
+kubectl -n istio-system rollout status daemonset/istio-cni-node --timeout=180s
+kubectl -n istio-system rollout status daemonset/ztunnel --timeout=180s
 
-if [[ "$istio_mode" == ambient && -n "${E2E_ZTUNNEL_ORIG_SRC:-}" ]]; then
+if [[ -n "${E2E_ZTUNNEL_ORIG_SRC:-}" ]]; then
     echo "Istio: setting ENABLE_ORIG_SRC=$E2E_ZTUNNEL_ORIG_SRC"
     kubectl -n istio-system set env daemonset/ztunnel "ENABLE_ORIG_SRC=$E2E_ZTUNNEL_ORIG_SRC"
     kubectl -n istio-system rollout status daemonset/ztunnel --timeout=180s

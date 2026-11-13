@@ -89,7 +89,6 @@ export interface ReleaseFacts {
   revision: number | null;
   status: string | null;
   chart: string | null;
-  istioMode?: string | null;
 }
 
 /**
@@ -306,7 +305,6 @@ function headerSection(header: StackHeader | null, report: JsonReport): string[]
               `${header.release.revision ?? "unknown"}, ${header.release.status ?? "status unknown"}, ` +
               `chart ${header.release.chart ?? "unknown"}, kube-context ` +
               `${header.release.context ?? "unknown"}`,
-            ...(header.release.istioMode ? [`- Istio mode: ${header.release.istioMode}`] : []),
           ]
         : []),
       `- Provisioning: mode=${header.provision.mode}, ` +
