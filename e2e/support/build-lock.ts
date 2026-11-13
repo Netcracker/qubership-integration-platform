@@ -47,9 +47,13 @@ export class BuildLock {
       fs.renameSync(staging, this.file);
       return true;
     } catch (error) {
-      if (["EEXIST", "ENOTEMPTY"].includes((error as NodeJS.ErrnoException).code ?? "")) return false;
-      // Windows reports an existing destination directory as EPERM.
-      if ((error as NodeJS.ErrnoException).code === "EPERM" && fs.statSync(this.file, { throwIfNoEntry: false })?.isDirectory()) return false;
+      const code = (error as NodeJS.ErrnoException).code;
+      if (["EEXIST", "ENOTEMPTY"].includes(code ?? "")) return false;
+      // Windows also reports EPERM while the destination directory is being removed.
+      if (code === "EPERM") {
+        const destination = fs.statSync(this.file, { throwIfNoEntry: false });
+        if (!destination || destination.isDirectory()) return false;
+      }
       throw error;
     }
   }
@@ -111,7 +115,10 @@ export class BuildLock {
       for (;;) {
         if (this.create(holder, entry)) return entry;
         const record = this.read();
-        if (!record) continue;
+        if (!record) {
+          await new Promise((resolve) => setTimeout(resolve, this.pollMs));
+          continue;
+        }
         if (record.holder === holder && record.pid === this.runner) {
           try {
             fs.renameSync(path.join(this.file, record.entry), path.join(this.file, entry));

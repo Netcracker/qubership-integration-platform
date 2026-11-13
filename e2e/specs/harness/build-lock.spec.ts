@@ -87,6 +87,28 @@ test.describe("build lock", () => {
     }
   });
 
+  test("an EPERM destination removed during rename is retried", async () => {
+    const original = fs.renameSync;
+    let blocked = true;
+    fs.renameSync = (from, to) => {
+      if (String(to) === file && blocked) {
+        blocked = false;
+        throw Object.assign(new Error("destination removal is pending"), { code: "EPERM" });
+      }
+      original(from, to);
+    };
+    try {
+      const body = test.info().outputPath("built");
+      await new BuildLock(file, process.pid, NO_RUNNER, POLL_MS).run("ui-server", async () => {
+        fs.writeFileSync(body, "built");
+      });
+      expect(fs.readFileSync(body, "utf8")).toBe("built");
+      expect(fs.existsSync(file)).toBe(false);
+    } finally {
+      fs.renameSync = original;
+    }
+  });
+
   test("a lock left by an exited process is reclaimed", async () => {
     const exited = spawnSync(process.execPath, ["-e", ""]).pid;
     expect(new BuildLock(file, exited, NO_RUNNER, POLL_MS).reserve("vscode-server")).toBe(true);

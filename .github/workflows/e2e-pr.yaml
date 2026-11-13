@@ -104,6 +104,12 @@ jobs:
         run: >-
           npm run test:${{ matrix.target }} -- --project=schema --project=harness --project=ai-tests --workers=2
 
+      - name: Exercise Windows build-lock contention
+        if: runner.os == 'Windows'
+        run: >-
+          npm run test:${{ matrix.target }} -- --project=harness --no-deps --workers=2
+          specs/harness/build-lock.spec.ts --repeat-each=10
+
   changes:
     name: Changed paths
     runs-on: ubuntu-latest
