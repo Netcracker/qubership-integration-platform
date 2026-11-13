@@ -7,7 +7,7 @@ import com.netcracker.cloud.maas.client.api.rabbit.RabbitMaaSClient;
 import com.netcracker.cloud.maas.client.impl.MaaSAPIClientImpl;
 import com.netcracker.cloud.maas.client.impl.http.HttpClient;
 import com.netcracker.cloud.security.core.auth.M2MManager;
-import com.netcracker.cloud.security.core.utils.k8s.M2MClientFactory;
+import com.netcracker.cloud.security.core.utils.k8s.M2MClient;
 import com.netcracker.cloud.security.core.utils.tls.TlsUtils;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.OkHttpClient;
@@ -16,6 +16,7 @@ import org.apache.commons.lang3.reflect.FieldUtils;
 import org.qubership.integration.platform.runtime.catalog.cloudcore.maas.localdev.LocalDevMaaSAPIClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -29,6 +30,12 @@ public class MaasClientConfiguration {
 
 
     public MaasClientConfiguration() {
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    M2MManager m2mManager() {
+        return M2MManager.loadPreferred();
     }
 
     @Bean
@@ -55,9 +62,14 @@ public class MaasClientConfiguration {
     ) throws Exception {
         String token = HttpHeaders.encodeBasicAuth(username, password, null);
         Supplier<String> tokenSupplier = () -> token;
-        HttpClient httpClient = new HttpClient(tokenSupplier);
+        HttpClient httpClient = HttpClient.getM2mClient(tokenSupplier);
         try {
-            OkHttpClient client = M2MClientFactory.getMaasOkHttpClient(tokenSupplier).newBuilder()
+            OkHttpClient client = M2MClient.builder()
+                    .audience("maas")
+                    .agentUrl(System.getProperty("com.netcracker.cloud.maas.agent.url", "http://maas-agent:8080"))
+                    .keycloakTokenSupplier(tokenSupplier)
+                    .build()
+                    .newBuilder()
                     .sslSocketFactory(TlsUtils.getSslContext().getSocketFactory(), TlsUtils.getTrustManager())
                     .addInterceptor(chain -> {
                         Request.Builder reqBuilder = chain.request().newBuilder();
