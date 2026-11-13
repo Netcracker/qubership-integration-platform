@@ -17,7 +17,7 @@
 
     <properties>
         <revision>1.6.1</revision>
-        <changelist>-token-ref-2-SNAPSHOT</changelist>
+        <changelist>-SNAPSHOT</changelist>
 
         <maven.compiler.release>21</maven.compiler.release>
         <quarkus.platform.version>3.33.3</quarkus.platform.version>
