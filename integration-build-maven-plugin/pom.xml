@@ -22,7 +22,7 @@
     <revision>1.7.1</revision>
     <changelist>-SNAPSHOT</changelist>
 
-    <qip.integration-build-pipeline.revision>1.7.1</qip.integration-build-pipeline.revision>
+    <qip.integration-build-pipeline.revision>1.8.0</qip.integration-build-pipeline.revision>
   </properties>
 
   <dependencyManagement>
