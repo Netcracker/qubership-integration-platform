@@ -46,6 +46,7 @@ Application parameters can be set by environment variables.
 | CIP_REGISTER_INGRESS_CHAIN_ROUTES | true                                                 | Marks integration endpoints to be registered in ingress.                                                                               |
 | CIP_REGISTER_EGRESS_CHAIN_ROUTES  | true                                                 | Marks outcoming routes to be registered in egress.                                                                                     |  
 | CIP_EXPORT_LEGACY_FORMAT          | false                                                | Export configuration in "old" format.                                                                                                  |  
+| CIP_EXPORT_MINIMIZE_QUOTES        | true                                                 | Exports of chains, services, common variables, and import instructions quote only the strings that need quotes. `false` quotes every string.|
 | CHAIN_JSON_SCHEMA_URI             | `http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain` | `$schema` that export writes on chains. |
 | SERVICE_JSON_SCHEMA_URI           | `http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/service` | `$schema` that export writes on services. |
 | CONTEXT_SERVICE_JSON_SCHEMA_URI   | `http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/context-service` | `$schema` that export writes on context services. |
