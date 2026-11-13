@@ -58,6 +58,14 @@ Each scenario gets a fresh CDI container and Camel context. Its invocations shar
 the loaded deployments, fixture state, and clients. An unexpected invocation
 failure stops the remaining sequence.
 
+Describe the intended assertions in `expectedBehavior` for each scenario and
+explicit invocation. The invocation description overrides the scenario text in
+the failure report. Name the expected result, rejection, recovery, or absence of
+an effect; explain the distinction between successive calls. Derive the text
+from assertions and fixture controls rather than expanding the ID into a sentence.
+Update it when the expectations change. The field describes behavior; assertions
+remain in `expectedBody`, `expectedFailure`, and the other expectation fields.
+
 Every scenario declares `scope: Short` or `scope: Long`. Use `Short` for basic
 element behavior or a case that normally takes at most one second. Basic broker
 checks can be `Short` despite container startup. Use `Long` for the remaining
