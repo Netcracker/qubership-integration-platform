@@ -261,6 +261,13 @@
     <dependency>
       <groupId>com.netcracker.cloud</groupId>
       <artifactId>dbaas-client-resttemplate</artifactId>
+      <exclusions>
+        <!-- The library needs no Spring Security classes; its starter would secure every endpoint. -->
+        <exclusion>
+          <groupId>org.springframework.boot</groupId>
+          <artifactId>spring-boot-starter-security</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
 
     <!--    MaaS dependencies    -->

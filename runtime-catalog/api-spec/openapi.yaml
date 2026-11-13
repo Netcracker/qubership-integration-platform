@@ -6779,11 +6779,15 @@ components:
       description: Chain logging deployment properties
       properties:
         consulDefault:
-          $ref: "#/components/schemas/DeploymentRuntimeProperties"
           description: Consul default logging deployment properties
+          oneOf:
+          - $ref: "#/components/schemas/DeploymentRuntimeProperties"
+          - type: "null"
         custom:
-          $ref: "#/components/schemas/DeploymentRuntimeProperties"
           description: Custom logging deployment properties
+          oneOf:
+          - $ref: "#/components/schemas/DeploymentRuntimeProperties"
+          - type: "null"
         fallbackDefault:
           $ref: "#/components/schemas/DeploymentRuntimeProperties"
           description: Default logging deployment properties
@@ -7160,7 +7164,9 @@ components:
         builtIn:
           type: boolean
         content:
-          type: string
+          type:
+          - string
+          - "null"
           description: Detailed design template file content
         createdWhen:
           type: integer
@@ -7334,7 +7340,9 @@ components:
       description: Information about particular deployment applied on engine pod
       properties:
         chainId:
-          type: string
+          type:
+          - string
+          - "null"
           description: Chain id
         chainName:
           type: string
@@ -7472,7 +7480,9 @@ components:
           format: int64
           description: Connection timeout
         gatewayPrefix:
-          type: string
+          type:
+          - string
+          - "null"
           description: gateway prefix for senders and service-calls
         path:
           type: string
@@ -7490,7 +7500,9 @@ components:
           - INTERNAL_SERVICE
           - IMPLEMENTED_SERVICE
         variableName:
-          type: string
+          type:
+          - string
+          - "null"
           description: Variable name in xml to substitute with resolved path
     DeploymentRuntime:
       type: object
@@ -7580,7 +7592,9 @@ components:
           format: int64
           description: Validation alerts count
         chainEntities:
-          type: array
+          type:
+          - array
+          - "null"
           description: Entities related to this validation in which problems were
             found as a result of diagnostics
           items:
@@ -8481,7 +8495,9 @@ components:
           format: int64
           description: Timestamp
         userId:
-          type: string
+          type:
+          - string
+          - "null"
           description: User id
     EventsUpdate:
       type: object
