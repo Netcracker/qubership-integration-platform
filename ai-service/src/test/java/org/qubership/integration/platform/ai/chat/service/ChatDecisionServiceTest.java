@@ -12,6 +12,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.never;
@@ -1324,6 +1325,48 @@ class ChatDecisionServiceTest {
             ChatEvent.REQUEST_CHANGES_ACTION,
             ChatEvent.RESTART_FROM_BEGINNING_ACTION),
         decision.actions());
+  }
+
+  @Test
+  void openDecisionKeepsUnrelatedPatchWhenRetiredCreateBindingExists() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.pendingCreationHash("conv-patch"))
+        .thenThrow(new org.qubership.integration.platform.ai.productpipeline.create.UnsupportedCreateRunBindingException());
+    ChatDecisionService service =
+        new ChatDecisionService(facade, questionStore(), new RequirementDraftStore());
+    service.patchStore = new ChainPatchStore();
+    ProposedChainPatch proposal = mock(ProposedChainPatch.class);
+    when(proposal.patchHash()).thenReturn("sha256:patch");
+    when(proposal.summary()).thenReturn("Insert a delay script.");
+    service.patchStore.putProposal("conv-patch", proposal);
+
+    assertEquals(ChatEvent.chainPatchDecision(proposal.patchHash(), proposal.summary()),
+        service.openDecision("conv-patch").orElseThrow());
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void openDecisionRejectsRetiredPendingRunAndKeepsCurrentCard(boolean approval) {
+    var pending = approval
+        ? new CreateChainPendingAction.Approve("requirement-brief", "brief-hash", 4L, "Approve?")
+        : new CreateChainPendingAction.Clarify("Which system?", List.of(), "");
+    var snapshot = new CreateChainExecutionSnapshot("conv-1", "run-1",
+        CreateChainExecutionStatus.INPUT_REQUIRED, 4L, pending, "");
+    var retired = mock(CreateChainApplicationFacade.class);
+    when(retired.snapshot("conv-1")).thenReturn(Optional.of(snapshot));
+    doThrow(new org.qubership.integration.platform.ai.productpipeline.create.UnsupportedCreateRunBindingException())
+        .when(retired).ensureSupportedBinding("conv-1");
+    var retiredService = new ChatDecisionService(retired, questionStore(), new RequirementDraftStore());
+    var error = assertThrows(
+        org.qubership.integration.platform.ai.productpipeline.create.UnsupportedCreateRunBindingException.class,
+        () -> retiredService.openDecision("conv-1"));
+    assertEquals("CREATE_RUN_UNSUPPORTED_AFTER_CUTOVER", error.errorId());
+
+    var current = mock(CreateChainApplicationFacade.class);
+    when(current.snapshot("conv-1")).thenReturn(Optional.of(snapshot));
+    var currentService = new ChatDecisionService(current, questionStore(), new RequirementDraftStore());
+    assertEquals(approval ? "approve" : "clarify",
+        currentService.openDecision("conv-1").orElseThrow().kind());
   }
 
   @Test

@@ -734,9 +734,9 @@ class CompilerDagExecutionEngineTest {
         null,
         List.of(),
         "product",
-        "create-chain-v1",
+        "compiler-fixture",
         "1",
-        "create-chain-v1@1",
+        "compiler-fixture@1",
         "reference-baseline-v1",
         "reference-baseline-v1",
         List.of(),
@@ -1288,13 +1288,6 @@ class CompilerDagExecutionEngineTest {
                 "structural-validation")),
         List.of(),
         "dag-naming");
-  }
-
-  private CompilerDagExecutionResult executeCompleteTaskDag(
-      DefaultCompilerDagExecutionEngine mapped,
-      String conversationId,
-      ResolvedCompilerDag dag) {
-    return executeCompleteTaskDag(mapped, conversationId, dag, completeTaskBrief());
   }
 
   private CompilerDagExecutionResult executeCompleteTaskDag(

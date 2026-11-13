@@ -237,8 +237,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
   }
 
   /**
-   * create-chain@1 seam entry: preserves planning-request languageVersion and attemptId for patch
-   * invocation keys while using the shared engine request shape.
+   * Executes with an explicit language version and attempt id for patch invocation keys.
    */
   Uni<CompilerDagExecutionResult> execute(
       CompilerDagExecutionRequest request,

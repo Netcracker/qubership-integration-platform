@@ -73,7 +73,7 @@ class CreateRunBindingStoreTest {
     CreateRunBinding second =
         new CreateRunBinding(
             "conv-race",
-            "conv-race-create-chain-1-other",
+            "conv-race-create-chain-2-other",
             first.runManifest(),
             Instant.parse("2026-07-22T12:00:01Z"));
     CountDownLatch start = new CountDownLatch(1);
@@ -110,22 +110,37 @@ class CreateRunBindingStoreTest {
                 "conv-bad", null, null, Instant.parse("2026-07-22T12:00:00Z")));
   }
 
-  @Test
-  void readsHistoricalProductCreateChainBindingWithoutRewrite() throws Exception {
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+  void rejectsHistoricalCreateChainV1BindingWithoutRewrite(boolean retiredProfileRegistered) throws Exception {
+    if (retiredProfileRegistered) {
+      var profiles = List.of("1", "2").stream()
+          .map(version -> new org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile(
+              1, "create-chain", version, List.of(), List.of(),
+              new org.qubership.integration.platform.ai.productpipeline.profile.TerminalPolicy("finish", "PLAN_APPROVED"),
+              List.of()))
+          .toList();
+      store = new CreateRunBindingStore(blobs, mapper,
+          new org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileCatalog(profiles));
+    }
     String conversationId = "conv-historical-product";
     String key = key(conversationId);
     byte[] historical = historicalProductJson(conversationId).getBytes(StandardCharsets.UTF_8);
     blobs.put(key, historical);
     VersionedBlob before = blobs.getVersioned(key).orElseThrow();
 
-    CreateRunBinding loaded = store.load(conversationId).orElseThrow();
-
-    assertEquals(conversationId + "-create-chain-1", loaded.productRunId());
-    assertEquals("create-chain", loaded.runManifest().profileId());
-    assertEquals("1", loaded.runManifest().profileVersion());
+    UnsupportedCreateRunBindingException failure = assertThrows(
+        UnsupportedCreateRunBindingException.class, () -> store.load(conversationId));
+    assertEquals(UnsupportedCreateRunBindingException.ERROR_ID, failure.errorId());
+    assertThrows(UnsupportedCreateRunBindingException.class,
+        () -> store.plannedRunId(conversationId, conversationId + "-create-chain-2"));
+    assertThrows(UnsupportedCreateRunBindingException.class,
+        () -> store.create(productBinding(conversationId)));
     VersionedBlob after = blobs.getVersioned(key).orElseThrow();
     assertEquals(before.version(), after.version());
     assertArrayEquals(before.content(), after.content());
+    CreateRunBinding current = store.create(productBinding("conv-current-profile"));
+    assertEquals(current, store.load("conv-current-profile").orElseThrow());
   }
 
   @Test
@@ -244,53 +259,25 @@ class CreateRunBindingStoreTest {
     return PREFIX + conversationId + ".json";
   }
 
-  private static String historicalProductJson(String conversationId) {
+  private static String historicalProductJson(String conversationId) throws java.io.IOException {
     String runId = conversationId + "-create-chain-1";
-    return """
-        {
-          "conversationId":"%s",
-          "mode":"PRODUCT",
-          "productRunId":"%s",
-          "runManifest":{
-            "runId":"%s",
-            "parentRunId":null,
-            "sourceReferences":[],
-            "runtimeSelection":"product",
-            "profileId":"create-chain",
-            "profileVersion":"1",
-            "profileDigest":"create-chain@1",
-            "referenceBaselineId":"reference-baseline-v1",
-            "referenceBaselineDigest":"reference-baseline-v1",
-            "dependencyClosure":[],
-            "dependencyClosureDigest":"closure",
-            "knowledgePackage":{
-              "packageKey":"knart-test@1.0.0",
-              "knowledgeVersion":"1.0.0",
-              "schemaVersion":"1.0.0",
-              "packageChecksum":"sha256:pinned",
-              "certificationStatus":"CERTIFIED",
-              "certificationDigest":"sha256:certificate"
-            },
-            "languageVersion":"2026.1",
-            "artifactSchemaVersions":[]
-          },
-          "createdAt":"2026-07-22T12:00:00Z"
-        }
-        """
-        .formatted(conversationId, runId, runId);
+    try (var in = CreateRunBindingStoreTest.class.getResourceAsStream(
+        "/product-pipelines/historical-create-chain-v1-binding.json")) {
+      return new String(in.readAllBytes(), StandardCharsets.UTF_8).formatted(conversationId, runId, runId);
+    }
   }
 
   private static CreateRunBinding productBinding(String conversationId) {
     FakeKnowledgeClient knowledge = FakeKnowledgeClient.defaultFixture();
     RunManifest manifest =
         new RunManifest(
-            conversationId + "-create-chain-1",
+            conversationId + "-create-chain-2",
             null,
             List.of(),
             "product",
             "create-chain",
-            "1",
-            "create-chain@1",
+            "2",
+            "create-chain@2",
             "reference-baseline-v1",
             "reference-baseline-v1",
             List.of(),
@@ -301,7 +288,7 @@ class CreateRunBindingStoreTest {
             null);
     return new CreateRunBinding(
         conversationId,
-        conversationId + "-create-chain-1",
+        conversationId + "-create-chain-2",
         manifest,
         Instant.parse("2026-07-22T12:00:00Z"));
   }

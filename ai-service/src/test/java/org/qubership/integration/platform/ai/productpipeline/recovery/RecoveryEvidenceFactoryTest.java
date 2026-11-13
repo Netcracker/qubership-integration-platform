@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.productpipeline.recovery;
 
+import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationResult;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -15,7 +16,6 @@ import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
-import org.qubership.integration.platform.ai.productpipeline.create.CompilerPlanningRunner;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerValidationPipeline;
 import org.qubership.integration.platform.ai.qipknowledge.validation.MaterializationRequirementsValidator;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationIssue;
@@ -111,7 +111,7 @@ class RecoveryEvidenceFactoryTest {
     assertEquals(expectedSummary, blocker.message());
 
     var planValidation =
-        CompilerPlanningRunner.buildValidationResult(elementResult, List.of());
+        PlanValidationResult.fromCompiler(elementResult, List.of());
     assertFalse(planValidation.findings().isEmpty());
     assertTrue(
         planValidation.findings().get(0).message().contains(blocker.message()));

@@ -28,7 +28,7 @@ class CompilerPipelineCompatibilityAnalyzerTest {
   void classifiesContentOnlyChangeWithoutProfileBump() {
     PipelineCompatibilityReport report = analyzer.compare(previous, withChangedSkillHash(previous));
     assertEquals(PipelineChangeClass.CONTENT_ONLY, report.changeClass());
-    assertTrue(report.compatibleProfileVersions().contains("create-chain@1"));
+    assertEquals(List.of("create-chain@2"), report.compatibleProfileVersions());
     assertTrue(report.compatibleProfileVersions().contains("create-chain@2"));
     assertTrue(report.activationAllowed());
   }

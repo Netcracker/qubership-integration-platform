@@ -13,11 +13,6 @@ import org.junit.jupiter.api.Test;
 class CreateChainImportStageProfileTest {
 
   @Test
-  void importStageSitsBetweenDiscoveryAndAnalysisOnV1() throws Exception {
-    assertImportStageOrder(loadCreateChain("create-chain-v1.yaml"));
-  }
-
-  @Test
   void importStagesSitBetweenDiscoveryAndAnalysisOnV2() throws Exception {
     ProductPipelineProfile profile = loadCreateChain("create-chain-v2.yaml");
     List<String> stageIds = profile.stages().stream().map(ProfileStage::stageId).toList();
@@ -37,27 +32,8 @@ class CreateChainImportStageProfileTest {
   }
 
   @Test
-  void importStageMutatesRequirementDraftInPlaceWithSkipAndConfirmGateOnV1() throws Exception {
-    assertImportStageContract(loadCreateChain("create-chain-v1.yaml"));
-  }
-
-  @Test
   void importStageMutatesRequirementDraftInPlaceWithSkipAndConfirmGateOnV2() throws Exception {
     assertImportStageContract(loadCreateChain("create-chain-v2.yaml"));
-  }
-
-  private static void assertImportStageOrder(ProductPipelineProfile profile) {
-    List<String> stageIds = profile.stages().stream().map(ProfileStage::stageId).toList();
-
-    int discovery = stageIds.indexOf("requirement-discovery");
-    int importStage = stageIds.indexOf("import-stage");
-    int analysis = stageIds.indexOf("requirement-analysis");
-
-    assertTrue(discovery >= 0, "requirement-discovery missing");
-    assertTrue(importStage >= 0, "import-stage missing");
-    assertTrue(analysis >= 0, "requirement-analysis missing");
-    assertEquals(discovery + 1, importStage);
-    assertEquals(importStage + 1, analysis);
   }
 
   private static void assertImportStageContract(ProductPipelineProfile profile) {
