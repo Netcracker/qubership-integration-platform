@@ -51,7 +51,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.CONTENT;
@@ -318,8 +317,8 @@ public class IntegrationSystemReader {
         Stream.concat(
                         getFilesDataDeprecated(files, SPECIFICATION_GROUP_FILE_PREFIX),
                         getFilesData(files, SPECIFICATION_GROUP_FILE_POSTFIX))
-                .forEach(node -> {
-                    ImportSpecificationGroup group = buildGroup(node, migrations);
+                .forEach(file -> {
+                    ImportSpecificationGroup group = buildGroup(file, migrations);
                     if (Objects.equals(group.getParentId(), systemId)) {
                         groups.add(group);
                     }
@@ -328,8 +327,8 @@ public class IntegrationSystemReader {
         Stream.concat(
                         getFilesDataDeprecated(files, SPECIFICATION_FILE_PREFIX),
                         getFilesData(files, SPECIFICATION_FILE_POSTFIX))
-                .forEach(node -> {
-                    ImportSystemModel systemModel = buildModel(node, migrations, archiveDirectory);
+                .forEach(file -> {
+                    ImportSystemModel systemModel = buildModel(file, migrations, archiveDirectory);
                     groups.stream()
                             .filter(group -> Objects.equals(group.getId(), systemModel.getParentId()))
                             .findFirst()
@@ -338,10 +337,28 @@ public class IntegrationSystemReader {
         return groups;
     }
 
-    private ImportSpecificationGroup buildGroup(ObjectNode node, String migrations) {
+    private ImportSpecificationGroup buildGroup(File file, String migrations) {
         try {
-            ObjectNode migratedNode = node.has(CONTENT) ? node : migrate(node, migrations);
-            SpecificationGroupDto dto = yamlMapper.treeToValue(migratedNode, SpecificationGroupDto.class);
+            return buildGroup(readObjectNode(file), file, migrations);
+        } catch (IOException exception) {
+            throw new RuntimeException("Failed to construct specification group from YAML", exception);
+        }
+    }
+
+    private ImportSpecificationGroup buildGroup(ObjectNode node, String migrations) {
+        return buildGroup(node, null, migrations);
+    }
+
+    /**
+     * {@code file} is the group's own file, or {@code null} for a group inlined in the system file.
+     * Binding a current-format file from text keeps unquoted number-like strings; a tree would turn
+     * {@code 1.10} into {@code 1.1}.
+     */
+    private ImportSpecificationGroup buildGroup(ObjectNode node, File file, String migrations) {
+        try {
+            SpecificationGroupDto dto = file != null && node.has(CONTENT)
+                    ? yamlMapper.readValue(file, SpecificationGroupDto.class)
+                    : yamlMapper.treeToValue(node.has(CONTENT) ? node : migrate(node, migrations), SpecificationGroupDto.class);
             return SystemImportModelMapper.toModel(dto);
         } catch (MigrationException exception) {
             throw new RuntimeException("Failed to migrate specification group data", exception);
@@ -350,10 +367,24 @@ public class IntegrationSystemReader {
         }
     }
 
-    private ImportSystemModel buildModel(ObjectNode node, String migrations, File archiveDirectory) {
+    private ImportSystemModel buildModel(File file, String migrations, File archiveDirectory) {
         try {
-            ObjectNode migratedNode = node.has(CONTENT) ? node : migrate(node, migrations);
-            SystemModelDto dto = yamlMapper.treeToValue(migratedNode, SystemModelDto.class);
+            return buildModel(readObjectNode(file), file, migrations, archiveDirectory);
+        } catch (IOException exception) {
+            throw new RuntimeException("Failed to construct specification from YAML", exception);
+        }
+    }
+
+    private ImportSystemModel buildModel(ObjectNode node, String migrations, File archiveDirectory) {
+        return buildModel(node, null, migrations, archiveDirectory);
+    }
+
+    /** {@code file} is the model's own file, or {@code null} for a model inlined in the system file. */
+    private ImportSystemModel buildModel(ObjectNode node, File file, String migrations, File archiveDirectory) {
+        try {
+            SystemModelDto dto = file != null && node.has(CONTENT)
+                    ? yamlMapper.readValue(file, SystemModelDto.class)
+                    : yamlMapper.treeToValue(node.has(CONTENT) ? node : migrate(node, migrations), SystemModelDto.class);
             ImportSystemModel systemModel = SystemImportModelMapper.toModel(dto);
             for (ImportSpecificationSource source : systemModel.getSpecificationSources()) {
                 ((ImportSpecificationSourceImpl) source)
@@ -415,31 +446,22 @@ public class IntegrationSystemReader {
     }
 
     @Deprecated
-    private Stream<ObjectNode> getFilesDataDeprecated(Collection<File> files, String namePrefix) {
-        return files.stream()
-                .filter(file -> file.getName().startsWith(namePrefix))
-                .map(getFileObjectNode());
+    private Stream<File> getFilesDataDeprecated(Collection<File> files, String namePrefix) {
+        return files.stream().filter(file -> file.getName().startsWith(namePrefix));
     }
 
-    private Stream<ObjectNode> getFilesData(Collection<File> files, String nameInfix) {
+    private Stream<File> getFilesData(Collection<File> files, String nameInfix) {
         return files.stream()
                 .filter(file -> file.getName().contains(nameInfix)
-                        && (file.getName().endsWith(".yaml") || file.getName().endsWith(".yml")))
-                .map(getFileObjectNode());
+                        && (file.getName().endsWith(".yaml") || file.getName().endsWith(".yml")));
     }
 
-    private Function<File, ObjectNode> getFileObjectNode() {
-        return file -> {
-            try {
-                JsonNode node = yamlMapper.readTree(file);
-                if (!node.isObject()) {
-                    throw new RuntimeException("Expected object node but got " + node.getNodeType().name());
-                }
-                return (ObjectNode) node;
-            } catch (IOException exception) {
-                throw new RuntimeException(exception);
-            }
-        };
+    private ObjectNode readObjectNode(File file) throws IOException {
+        JsonNode node = yamlMapper.readTree(file);
+        if (!node.isObject()) {
+            throw new RuntimeException("Expected object node but got " + node.getNodeType().name());
+        }
+        return (ObjectNode) node;
     }
 
     private String migrateToCurrentFileVersion(String systemYaml) throws MigrationException {
