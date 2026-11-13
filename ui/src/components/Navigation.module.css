@@ -21,7 +21,7 @@
   min-height: 40px;
   height: 40px;
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 500;
   gap: 0;
 
   :global(.logo-icon) {
