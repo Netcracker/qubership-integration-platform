@@ -83,9 +83,6 @@ public class CreateRunSelectionService {
                 prompt -> ResponseLocaleResolver.DEFAULT_LOCALE));
   }
 
-  /**
-   * Test constructor that pins new runs to an explicit profile version.
-   */
   public CreateRunSelectionService(
       String languageVersion,
       KnowledgeContextProvider knowledgeContextProvider,
@@ -125,7 +122,8 @@ public class CreateRunSelectionService {
         Objects.requireNonNull(compilerRunPinResolver, "compilerRunPinResolver");
     this.clock = Objects.requireNonNull(clock, "clock");
     this.createProfileVersion =
-        Objects.requireNonNull(createProfileVersion, "createProfileVersion");
+        "1".equals(Objects.requireNonNull(createProfileVersion, "createProfileVersion"))
+            ? CREATE_PROFILE_VERSION : createProfileVersion;
     this.responseLocaleResolver =
         Objects.requireNonNull(responseLocaleResolver, "responseLocaleResolver");
   }

@@ -45,6 +45,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.facade.Creat
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPublicArtifactTypes;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ImplementationBlockedRecovery;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.StartCreateChainCommand;
+import org.qubership.integration.platform.ai.productpipeline.create.UnsupportedCreateRunBindingException;
 
 /**
  * Protocol-level exact approval coverage: pending-action advertisement, success, rejection matrix,
@@ -238,6 +239,20 @@ class A2aApprovalTest {
     assertEquals(1, approveCalls.get());
     assertEquals(0, continueCalls.get());
     assertEquals(CreateChainExecutionStatus.WORKING, snapshot.get().status());
+  }
+
+  @Test
+  void retiredBindingApprovalReturnsCutoverIdentifier() {
+    String taskId = createWaitingTask();
+    when(facade.approvalAlreadyApplied(any(ApproveCreateChainArtifactCommand.class)))
+        .thenThrow(new UnsupportedCreateRunBindingException());
+
+    var response = post(approveBody(taskId, EXPECTED_TYPE, EXPECTED_HASH, EXPECTED_REVISION));
+
+    assertEquals(400, response.statusCode());
+    assertTrue(response.asString().contains(UnsupportedCreateRunBindingException.ERROR_ID),
+        response.asString());
+    assertEquals(0, approveCalls.get());
   }
 
   @Test
@@ -568,6 +583,14 @@ class A2aApprovalTest {
     assertEquals(422, post(body.replace(taskId, "another-task")).statusCode(), "the receipt cannot move to another task");
     assertEquals(422, post(body.replace(APPROVAL_TOKEN, "0".repeat(APPROVAL_TOKEN.length()))).statusCode(),
         "a changed approval cannot reuse the message id");
+    when(facade.approvalAlreadyApplied(any()))
+        .thenThrow(new UnsupportedCreateRunBindingException());
+    var retired = post(body);
+    assertEquals(400, retired.statusCode(), retired.asString());
+    assertTrue(retired.asString().contains(UnsupportedCreateRunBindingException.ERROR_ID),
+        retired.asString());
+    assertEquals(1, approveCalls.get());
+    assertTrue(receiptRepository.findCallerReceipt("local", "local-user", messageId).orElseThrow().completed());
   }
 
   @ParameterizedTest
@@ -626,7 +649,7 @@ class A2aApprovalTest {
 
   @ParameterizedTest
   @ValueSource(strings = {"structured", "text"})
-  void terminalApprovalReplayRequiresAppliedCommandEvidence(String format) throws Exception {
+  void terminalApprovalReplayRequiresAppliedEvidenceAndRejectsRetiredBinding(String format) throws Exception {
     String taskId = createWaitingTask();
     String body = "text".equals(format) ? textBody(taskId, "approve " + APPROVAL_TOKEN)
         : approveBody(taskId, EXPECTED_TYPE, EXPECTED_HASH, EXPECTED_REVISION);
@@ -647,6 +670,14 @@ class A2aApprovalTest {
     assertEquals(0, continueCalls.get());
     String messageId = new com.fasterxml.jackson.databind.ObjectMapper().readTree(body).path("message").path("messageId").asText();
     assertTrue(receiptRepository.findCallerReceipt("local", "local-user", messageId).orElseThrow().incomplete());
+    when(facade.approvalAlreadyApplied(any()))
+        .thenThrow(new UnsupportedCreateRunBindingException());
+    var rejected = post(body);
+    assertEquals(400, rejected.statusCode(), rejected.asString());
+    assertTrue(rejected.asString().contains(UnsupportedCreateRunBindingException.ERROR_ID),
+        rejected.asString());
+    assertTrue(receiptRepository.findCallerReceipt("local", "local-user", messageId).orElseThrow().incomplete());
+    assertEquals(0, approveCalls.get());
   }
 
   private static io.restassured.response.Response post(String body) {

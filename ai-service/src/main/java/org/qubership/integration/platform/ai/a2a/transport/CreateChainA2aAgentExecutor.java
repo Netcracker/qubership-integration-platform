@@ -21,6 +21,7 @@ import org.a2aproject.sdk.spec.Task;
 import org.a2aproject.sdk.spec.TaskNotCancelableError;
 import org.a2aproject.sdk.spec.TaskStatus;
 import org.a2aproject.sdk.spec.TextPart;
+import org.a2aproject.sdk.spec.UnsupportedOperationError;
 import org.qubership.integration.platform.ai.a2a.A2aFeatureDisabledException;
 import org.qubership.integration.platform.ai.a2a.A2aFeatureGate;
 import org.qubership.integration.platform.ai.a2a.access.CallerContext;
@@ -54,6 +55,7 @@ import org.qubership.integration.platform.ai.chat.conversation.ConversationArchi
 import org.qubership.integration.platform.ai.chat.decision.PolicyChoiceSelection;
 import org.qubership.integration.platform.ai.chat.service.ChatDecisionService;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.StartCreateChainCommand;
+import org.qubership.integration.platform.ai.productpipeline.create.UnsupportedCreateRunBindingException;
 
 /**
  * A2A {@link AgentExecutor} for create-chain@2. Calls only {@link CreateChainApplicationFacade}.
@@ -318,6 +320,15 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
         throw A2aProtocolErrorMapper.fromAccessDenied(denied);
       }
     }
+    if (command instanceof InboundCommand.Approve approve) {
+      try {
+        facade.approvalAlreadyApplied(
+            new ApproveCreateChainArtifactCommand(taskId, approve.artifactType(),
+                approve.artifactHash(), approve.revision()));
+      } catch (UnsupportedCreateRunBindingException unsupported) {
+        throw new UnsupportedOperationError(null, unsupported.sseMessage(), null);
+      }
+    }
 
     A2aClientCorrelationCarrier.Holder clientIds =
         A2aClientCorrelationCarrier.lookup(requestCorrelationId(context));
@@ -445,6 +456,9 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
               caller.subjectId(),
               message.messageId(),
               acquisition.ownerToken());
+        }
+        if (ex instanceof UnsupportedCreateRunBindingException unsupported) {
+          throw new UnsupportedOperationError(null, unsupported.sseMessage(), null);
         }
         if (ex instanceof A2AError a2aError) {
           throw a2aError;

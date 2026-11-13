@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.productpipeline.create;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -85,6 +86,51 @@ class CreateRunSelectionServiceTest {
     assertEquals(stubPin, selection.runManifest().compilerRunPin());
     assertEquals(
         knowledge.context().packageRef(), selection.runManifest().knowledgePackage());
+  }
+
+  @Test
+  void retiredProfileOverrideCreatesV2Run() {
+    var service = new CreateRunSelectionService(
+        "2026.1", knowledge, new CreateRunBindingStore(blobs, mapper),
+        catalogWithCreateChain(), pinResolver, CLOCK, "1");
+
+    var selection = service.selectOrCreate("conv-retired-override");
+
+    assertEquals("2", service.createProfileVersion());
+    assertEquals("2", selection.runManifest().profileVersion());
+    assertEquals("conv-retired-override-create-chain-2", selection.productRunId());
+    assertEquals(selection.productRunId(), service.plannedRunId("conv-retired-override"));
+  }
+
+  @Test
+  void unknownProfileOverrideStillFailsClosed() {
+    var service = new CreateRunSelectionService(
+        "2026.1", knowledge, new CreateRunBindingStore(blobs, mapper),
+        catalogWithCreateChain(), pinResolver, CLOCK, "3");
+
+    assertThrows(IllegalArgumentException.class, () -> service.selectOrCreate("conv-unknown-override"));
+  }
+
+  @Test
+  void retiredProfileOverrideDoesNotReinterpretPersistedV1Run() throws Exception {
+    String conversationId = "conv-retired-binding";
+    String runId = conversationId + "-create-chain-1";
+    String key = "product-pipeline-create-bindings/" + conversationId + ".json";
+    byte[] historical;
+    try (var in = getClass().getResourceAsStream(
+        "/product-pipelines/historical-create-chain-v1-binding.json")) {
+      String binding = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)
+          .formatted(conversationId, runId, runId);
+      historical = binding.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+      blobs.put(key, historical);
+    }
+    var service = new CreateRunSelectionService(
+        "2026.1", knowledge, new CreateRunBindingStore(blobs, mapper),
+        catalogWithCreateChain(), pinResolver, CLOCK, "1");
+
+    assertThrows(UnsupportedCreateRunBindingException.class,
+        () -> service.selectOrCreate(conversationId));
+    assertArrayEquals(historical, blobs.get(key).orElseThrow());
   }
 
   @Test
