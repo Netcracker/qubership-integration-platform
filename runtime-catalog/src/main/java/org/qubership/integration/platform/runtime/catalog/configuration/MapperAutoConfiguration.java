@@ -144,10 +144,7 @@ public class MapperAutoConfiguration {
     }
 
     @Bean("variablesYamlMapper")
-    public YAMLMapper variablesYamlMapper(
-            KubeSecretSerializer kubeSecretSerializer,
-            @Value("${cip.export.minimize-quotes}") boolean minimizeQuotes
-    ) {
+    public YAMLMapper variablesYamlMapper(KubeSecretSerializer kubeSecretSerializer) {
         YAMLMapper yamlMapper = new YAMLMapper(createCustomYamlFactory());
         SimpleModule serializeModule = new SimpleModule();
         serializeModule.addSerializer(V1Secret.class, kubeSecretSerializer);
@@ -155,7 +152,7 @@ public class MapperAutoConfiguration {
         yamlMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
         yamlMapper.registerModule(serializeModule);
         yamlMapper.setFilterProvider(new SimpleFilterProvider().setFailOnUnknownId(false));
-        yamlMapper.configure(YAMLGenerator.Feature.MINIMIZE_QUOTES, minimizeQuotes);
+        yamlMapper.enable(YAMLGenerator.Feature.MINIMIZE_QUOTES);
         yamlMapper.enable(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES);
 
         return yamlMapper;

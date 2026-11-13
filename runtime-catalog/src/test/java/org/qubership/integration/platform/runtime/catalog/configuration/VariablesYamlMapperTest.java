@@ -13,8 +13,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
 class VariablesYamlMapperTest {
-    private static YAMLMapper mapper(boolean minimizeQuotes) {
-        return new MapperAutoConfiguration().variablesYamlMapper(mock(KubeSecretSerializer.class), minimizeQuotes);
+    private static YAMLMapper mapper() {
+        return new MapperAutoConfiguration().variablesYamlMapper(mock(KubeSecretSerializer.class));
     }
 
     private static Map<String, String> values() {
@@ -28,18 +28,13 @@ class VariablesYamlMapperTest {
 
     @Test
     void roundTripsNumberLikeValues() throws Exception {
-        YAMLMapper mapper = mapper(true);
+        YAMLMapper mapper = mapper();
         String text = mapper.writeValueAsString(values());
         assertEquals(values(), mapper.readValue(text, new TypeReference<Map<String, String>>() {}));
     }
 
     @Test
-    void minimizesQuotesWhenSettingIsOn() throws Exception {
-        assertTrue(mapper(true).writeValueAsString(values()).contains("d: plain"));
-    }
-
-    @Test
-    void quotesEveryValueWhenSettingIsOff() throws Exception {
-        assertTrue(mapper(false).writeValueAsString(values()).contains("d: \"plain\""));
+    void minimizesQuotes() throws Exception {
+        assertTrue(mapper().writeValueAsString(values()).contains("d: plain"));
     }
 }
