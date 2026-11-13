@@ -20,45 +20,52 @@ import org.apache.camel.Exchange;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
 import org.qubership.integration.platform.engine.util.DevModeUtil;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.access.AccessDecisionVoter;
-import org.springframework.security.access.ConfigAttribute;
-import org.springframework.security.access.vote.RoleVoter;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.authorization.AuthorizationDecision;
+import org.springframework.security.authorization.AuthorizationManager;
+import org.springframework.security.authorization.AuthorizationResult;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Component;
 
-import java.util.Collection;
+import java.util.List;
+import java.util.Set;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.Objects.isNull;
 import static java.util.Objects.nonNull;
 
 @Component
-public class ExchangeRolesVoter implements AccessDecisionVoter<Exchange> {
+public class ExchangeRolesVoter implements AuthorizationManager<Exchange> {
 
-    private final RoleVoter roleVoter;
     private final DevModeUtil devModeUtil;
+    private final String rolePrefix;
 
     @Autowired
-    public ExchangeRolesVoter(RoleVoter roleVoter, DevModeUtil devModeUtil) {
-        this.roleVoter = roleVoter;
+    public ExchangeRolesVoter(DevModeUtil devModeUtil, @Value("${security.rolePrefix:}") String rolePrefix) {
         this.devModeUtil = devModeUtil;
+        this.rolePrefix = rolePrefix;
     }
 
     @Override
-    public boolean supports(ConfigAttribute attribute) {
-        return true;
-    }
+    public AuthorizationResult authorize(Supplier<? extends Authentication> authentication, Exchange exchange) {
+        CipSecurityAccessPolicy accessPolicy = extractSecurityPolicy(exchange);
+        if (isNull(accessPolicy) || devModeUtil.isDevMode()) {
+            return new AuthorizationDecision(true);
+        }
 
-    @Override
-    public boolean supports(Class<?> clazz) {
-        return Exchange.class.isAssignableFrom(clazz);
-    }
+        List<String> applicableRoles = accessPolicy.getRoles().stream()
+            .filter(role -> role.startsWith(rolePrefix))
+            .toList();
+        if (applicableRoles.isEmpty()) {
+            return new AuthorizationDecision(true);
+        }
 
-    @Override
-    public int vote(Authentication authentication, Exchange object, Collection<ConfigAttribute> attributes) {
-        CipSecurityAccessPolicy accessPolicy = extractSecurityPolicy(object);
-        return isNull(accessPolicy) || devModeUtil.isDevMode()
-                ? ACCESS_GRANTED
-                : roleVoter.vote(authentication, object, accessPolicy.getConfigAttributes());
+        Set<String> authorities = authentication.get().getAuthorities().stream()
+            .map(GrantedAuthority::getAuthority)
+            .collect(Collectors.toSet());
+        return new AuthorizationDecision(applicableRoles.stream().anyMatch(authorities::contains));
     }
 
     private CipSecurityAccessPolicy extractSecurityPolicy(Exchange exchange) {

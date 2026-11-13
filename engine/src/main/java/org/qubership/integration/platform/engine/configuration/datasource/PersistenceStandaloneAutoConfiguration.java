@@ -4,14 +4,17 @@ import com.zaxxer.hikari.HikariDataSource;
 import org.qubership.integration.platform.engine.configuration.datasource.properties.HikariConfigProperties;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.AutoConfigureBefore;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 
 import javax.sql.DataSource;
 
 @AutoConfiguration
+@AutoConfigureBefore(DataSourceAutoConfiguration.class)
 @ConditionalOnProperty(name = "cip.standalone", havingValue = "true")
 @EnableConfigurationProperties(HikariConfigProperties.class)
 public class PersistenceStandaloneAutoConfiguration {

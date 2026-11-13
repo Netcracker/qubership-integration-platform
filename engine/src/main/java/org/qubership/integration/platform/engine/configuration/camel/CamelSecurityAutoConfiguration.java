@@ -20,18 +20,9 @@ import org.apache.camel.NamedNode;
 import org.apache.camel.Processor;
 import org.apache.camel.Route;
 import org.apache.camel.spi.Policy;
-import org.qubership.integration.platform.engine.security.ExchangeRolesVoter;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
-import org.springframework.security.access.AccessDecisionManager;
-import org.springframework.security.access.AccessDecisionVoter;
-import org.springframework.security.access.vote.AffirmativeBased;
-import org.springframework.security.access.vote.RoleVoter;
-
-import java.util.Collections;
-import java.util.List;
 
 @AutoConfiguration
 public class CamelSecurityAutoConfiguration {
@@ -62,22 +53,5 @@ public class CamelSecurityAutoConfiguration {
     @ConditionalOnMissingBean(name = "rbacPolicy")
     public Policy rbacPolicy() {
         return buildNoOpPolicy();
-    }
-
-    @Bean
-    public RoleVoter roleVoter(
-        @Value("${security.rolePrefix:}") String rolePrefix
-    ) {
-        RoleVoter voter = new RoleVoter();
-        voter.setRolePrefix(rolePrefix);
-        return voter;
-    }
-
-    @Bean
-    public AccessDecisionManager exchangeRbacAccessDecisionManager(ExchangeRolesVoter exchangeRolesVoter) {
-        List<AccessDecisionVoter<?>> decisionVoters = Collections.singletonList(exchangeRolesVoter);
-        AffirmativeBased accessDecisionManager = new AffirmativeBased(decisionVoters);
-        accessDecisionManager.setAllowIfAllAbstainDecisions(true);
-        return accessDecisionManager;
     }
 }
