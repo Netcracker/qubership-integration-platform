@@ -51,6 +51,10 @@ def main():
     command = sub.add_parser("serve")
     command.add_argument("--port", type=int, default=8110)
     args = parser.parse_args()
+    if args.action == "serve" and os.environ.get("E2E_DEBUG_SERVER") == "1":
+        import faulthandler
+
+        faulthandler.dump_traceback_later(8)
     store = RunStore(args.store)
     if args.action == "_worker":
         try:

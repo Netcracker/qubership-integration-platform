@@ -54,7 +54,15 @@ containers. Install Node, Java, Maven, Docker, and the Kubernetes CLIs in the en
 the suite. PowerShell and Git Bash use Windows tools; a WSL terminal uses Linux tools.
 
 On Windows, run `npm run test:compose` or `npm run test:k8s` from PowerShell, cmd, or Git Bash.
-These commands set `CIP_TARGET` on each platform. The inline environment assignments in the Bash
+These commands set `CIP_TARGET` on each platform. Git needs long paths enabled because some
+component fixtures exceed 260 characters below a typical checkout directory. For an existing
+clone, run `git config core.longpaths true`. For a new clone, use a short destination:
+
+```powershell
+git clone -c core.longpaths=true https://github.com/Netcracker/qubership-integration-platform.git C:\qip
+```
+
+The inline environment assignments in the Bash
 examples below use different syntax in PowerShell:
 
 ```powershell
