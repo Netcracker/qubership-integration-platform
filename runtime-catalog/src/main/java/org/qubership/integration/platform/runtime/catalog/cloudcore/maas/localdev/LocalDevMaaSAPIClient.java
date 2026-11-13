@@ -66,6 +66,11 @@ public class LocalDevMaaSAPIClient implements MaaSAPIClient {
         return new RabbitMaaSClientImpl(restClient, apiUrlProvider);
     }
 
+    @Override
+    public void close() throws Exception {
+        tenantManagerConnector.close();
+    }
+
     public List<? extends ConfigureResponse> loadConfiguration(String config) throws IOException {
         return restClient.request(agentUrl + "/api/v1/config")
                 .post(config, "plain/text")
