@@ -1,13 +1,15 @@
 import { AiModelProvider } from "./AiModelProvider.ts";
 import {
-  ACCESS_DENIED_MESSAGE,
   ChatRequest,
   ChatResponse,
   ChatMessage,
   ProviderCapabilities,
-  SESSION_EXPIRED_MESSAGE,
   StreamingChunk,
 } from "./types.ts";
+import {
+  ACCESS_DENIED_MESSAGE,
+  SESSION_EXPIRED_MESSAGE,
+} from "../../components/ai/chatMessageUtils.ts";
 import { parseCipSseBlock, splitSseFrames } from "./sseParsing.ts";
 import axios, { AxiosError } from "axios";
 import { getHeadersForContext } from "../../api/rest/requestHeadersInterceptor.ts";

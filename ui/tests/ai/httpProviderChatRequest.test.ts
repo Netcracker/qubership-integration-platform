@@ -25,11 +25,13 @@ jest.mock("axios", () => ({
 
 import { HttpAiModelProvider } from "../../src/ai/modelProviders/httpProvider.ts";
 import {
-  ACCESS_DENIED_MESSAGE,
-  SESSION_EXPIRED_MESSAGE,
   type ChatMessage,
   type StreamingChunk,
 } from "../../src/ai/modelProviders/types.ts";
+import {
+  ACCESS_DENIED_MESSAGE,
+  SESSION_EXPIRED_MESSAGE,
+} from "../../src/components/ai/chatMessageUtils.ts";
 import { installBearerAuth } from "../../src/api/rest/requestHeadersInterceptor.ts";
 
 function buildMessages(): ChatMessage[] {

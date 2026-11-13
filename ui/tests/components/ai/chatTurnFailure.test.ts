@@ -1,10 +1,8 @@
 import { describe, it, expect } from "@jest/globals";
+import type { ChatMessage } from "../../../src/ai/modelProviders/types.ts";
 import {
   ACCESS_DENIED_MESSAGE,
   SESSION_EXPIRED_MESSAGE,
-  type ChatMessage,
-} from "../../../src/ai/modelProviders/types.ts";
-import {
   TURN_FAILURE_SUMMARY,
   appendTurnFailure,
   applyStreamingDoneMessages,

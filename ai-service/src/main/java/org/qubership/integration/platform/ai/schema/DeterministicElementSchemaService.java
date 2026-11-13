@@ -213,17 +213,6 @@ public class DeterministicElementSchemaService {
     }
   }
 
-  /**
-   * A service-call failure flag the requirement draft may record. The catalog schema no longer
-   * declares it, so it is not a patch key and is never written onto the element.
-   */
-  public static boolean isCaptureOnlyProperty(String elementType, String propertyKey) {
-    return elementType != null
-        && propertyKey != null
-        && "service-call".equals(elementType.trim())
-        && "errorThrowing".equals(propertyKey.trim());
-  }
-
   /** Keys allowed under {@code properties} by embedded JSON Schema. */
   public java.util.Set<String> allowedPatchPropertyKeys(String elementType) {
     if (elementType == null || elementType.isBlank()) {
@@ -485,13 +474,6 @@ public class DeterministicElementSchemaService {
     }
     try {
       String trimmed = elementType.trim();
-      if (isCaptureOnlyProperty(trimmed, propertyKey)) {
-        String normalized = rawValue == null ? "" : rawValue.trim();
-        if ("true".equalsIgnoreCase(normalized) || "false".equalsIgnoreCase(normalized)) {
-          return Boolean.valueOf(normalized);
-        }
-        return rawValue;
-      }
       if (!schemaResourceLoader.existsElementSchema(trimmed)) {
         return rawValue;
       }
