@@ -8,6 +8,7 @@ on:
       - '.github/workflows/_maven-module-build.yaml'
       - '.github/maven-settings.xml'
       - 'ai-service/**'
+      - 'parents/**'
       - 'help/docs/**'
       - 'ui/scripts/**'
       - 'ui/src/services/documentation/**'

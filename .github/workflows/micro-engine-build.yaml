@@ -8,6 +8,7 @@ on:
       - '.github/workflows/_maven-module-build.yaml'
       - '.github/maven-settings.xml'
       - 'micro-engine/**'
+      - 'parents/**'
       - 'pom.xml'
 
 permissions: {}

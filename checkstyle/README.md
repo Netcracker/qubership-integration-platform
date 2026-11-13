@@ -22,7 +22,7 @@ To enable rule checking, one needs to add the corresponding dependency to Checks
         <dependency>
             <groupId>org.qubership</groupId>
             <artifactId>qip-checkstyle</artifactId>
-            <version>${qip-checkstyle-revision}</version>
+            <version>${qip.checkstyle.version}</version>
         </dependency>
     </dependencies>
     <configuration>

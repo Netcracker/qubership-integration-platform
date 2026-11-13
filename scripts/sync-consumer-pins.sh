@@ -10,7 +10,7 @@
 #
 # Usage: scripts/sync-consumer-pins.sh <property> <version> <pom>...
 #
-#   scripts/sync-consumer-pins.sh qip-integration-build-pipeline.version 1.3.0 runtime-catalog/pom.xml
+#   scripts/sync-consumer-pins.sh qip.integration-build-pipeline.revision 1.3.0 runtime-catalog/pom.xml
 
 set -euo pipefail
 

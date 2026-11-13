@@ -52,13 +52,13 @@ class RejectedLiteralValidationStagingTest {
   private static final String SOURCE = """
       Consume only OM onTaskStart. Call createTask with POST /sobjects/Task, then publish onTaskResult.
       Use display names onTaskStart, createTask, and onTaskResult for the bound catalog elements.
-      Return createTask errors inline with errorThrowing=false.
+      Return createTask errors inline. Set integrationOperationSkipEmptyQueryParameters=false.
       After createTask and before onTaskResult, run the script named Build outcome.
       Its outgoing commandType is exactly completeTask; retain the original processInstanceId as processId.
       Proceed without IDS.
       """;
   private static final String CALL_TEXT = "Use display name createTask for the bound catalog call."
-      + " Call createTask with POST /sobjects/Task. Return errors inline with errorThrowing=false.";
+      + " Call createTask with POST /sobjects/Task. Return errors inline. Set integrationOperationSkipEmptyQueryParameters=false.";
   private static final String SCRIPT_TEXT = "After createTask and before onTaskResult, run the script named Build outcome."
       + " Its outgoing commandType is exactly completeTask; retain the original processInstanceId as processId.";
 
@@ -152,7 +152,7 @@ class RejectedLiteralValidationStagingTest {
             return replace(fact, fact.text(), new RequirementElementIntent(intent.elementRef(), intent.elementType(),
                 intent.placement(), intent.ownerInteractionId(), intent.successorElementRef(), intent.predecessorElementRef(),
                 intent.parentElementRef(), intent.requestedName(), intent.requestedProperties().stream()
-                    .filter(property -> !property.key().equals("errorThrowing")).toList(), List.of()));
+                    .filter(property -> !property.key().equals("integrationOperationSkipEmptyQueryParameters")).toList(), List.of()));
           }
           if (removed.equals("text") && fact.sourceFactId().equals("result-context")) {
             return replace(fact, "Retain processId.", fact.elementIntent());
@@ -228,9 +228,9 @@ class RejectedLiteralValidationStagingTest {
             ServiceCallFailureMode.INLINE_RESPONSE, null),
         new InteractionInput("onTaskResult", Direction.OUTBOUND, "OM", "onTaskResult", null, null, null)),
         List.of(new TransitionInput("onTaskStart", "createTask"), new TransitionInput("createTask", "onTaskResult")));
-    var properties = correctRepresentation ? List.of(new PlanProperty("errorThrowing", "false"),
+    var properties = correctRepresentation ? List.of(new PlanProperty("integrationOperationSkipEmptyQueryParameters", "false"),
         new PlanProperty("integrationOperationMethod", "POST"), new PlanProperty("integrationOperationPath", "/sobjects/Task"))
-        : List.of(new PlanProperty("errorThrowing", "false"));
+        : List.of(new PlanProperty("integrationOperationSkipEmptyQueryParameters", "false"));
     return new DraftInput(flow, List.of(
         behavior("start-anchor", List.of("onTaskStart"), "Use display name onTaskStart for the bound catalog entry.",
             new RequirementElementIntent("onTaskStart", "async-api-trigger", Placement.ANCHOR, "onTaskStart",

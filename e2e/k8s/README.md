@@ -194,8 +194,9 @@ is missing or runs another version.
 ## What a run does in `cip-e2e`
 
 1. Builds the four platform images and the micro-engine image, each tagged `e2e-` and a hash over
-   its sources: the module's `src/`, `pom.xml`, and `Dockerfile`, and `parent/pom.xml` for the
-   Spring services. The runtime-catalog hash also covers `integration-build-pipeline/src` and its
+   its sources: the module's `src/`, `pom.xml`, and `Dockerfile`, and `parents/spring/pom.xml` for the
+   Spring services. The micro-engine hash also covers `parents/quarkus/pom.xml` and
+   `parents/base/pom.xml`. The runtime-catalog hash also covers `integration-build-pipeline/src` and its
    `pom.xml`, the library linked into its jar, and the testing service's covers its whole directory.
    These are the sources the Compose provisioner compares. An image whose tag exists is not rebuilt, and one
    `mvn install -T 1C` runs for the modules whose image is missing. `E2E_BUILD` narrows the images

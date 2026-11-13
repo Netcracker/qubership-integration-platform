@@ -1,6 +1,6 @@
 ---
 name: maven-verifier
-description: Verify changes in any Maven module of the monorepo (engine, micro-engine, runtime-catalog, sessions-management, integration-build-pipeline, integration-build-maven-plugin, schemas, ai-service, parent, checkstyle) by compiling and testing only the affected module. Use after editing Java sources, POMs, or resources under those modules, or when asked whether backend changes still build. Returns a verdict with the failing output; it does not fix anything.
+description: Verify changes in any Maven module of the monorepo (engine, micro-engine, runtime-catalog, sessions-management, integration-build-pipeline, integration-build-maven-plugin, schemas, ai-service, parents, bom, checkstyle) by compiling and testing only the affected module. Use after editing Java sources, POMs, or resources under those modules, or when asked whether backend changes still build. Returns a verdict with the failing output; it does not fix anything.
 tools: Bash, Read, Grep, Glob
 ---
 
@@ -9,8 +9,7 @@ tools: Bash, Read, Grep, Glob
 Verify a change in one Maven module and report what breaks. Build the smallest reactor
 that can still catch the failure.
 
-All commands run from the repository root.
-
+t
 Give Maven room: use a Bash `timeout` of at least 600000 ms. Test runs here have hit the
 two-minute default repeatedly.
 
@@ -34,22 +33,22 @@ Map each path to its module — the top-level directory is the module name:
 | `integration-build-maven-plugin/` | integration-build-maven-plugin | depends on integration-build-pipeline |
 | `schemas/` | schemas | JUnit schema conformance; the npm side belongs to npm-verifier |
 | `ai-service/` | ai-service | Quarkus; copies `schemas/src/main/resources/conf-model` at build time |
-| `parent/` | parent | shared config; affects every module that declares it as `<parent>` |
+| `parents/` | parents | parent POMs; affect every module that declares one as `<parent>` |
+| `bom/` | bom | lists module versions; no module depends on it |
 | `checkstyle/` | checkstyle | shared rules; affects every module |
 
 Decide how much to build:
 
 - **No Maven module touched** — report "nothing to verify" and stop.
 - **Only `*.md` under a module** — stop the same way.
-- **One module touched** — build that module alone, and add `-am` when Maven cannot resolve an
-  in-repo snapshot (section 4).
+- **One module touched** — build that module alone, without `-am`. Its dependencies are
+  already installed in `~/.m2`.
 - **`integration-build-pipeline/` touched** — verify it together with its consumer:
   `-pl integration-build-pipeline,runtime-catalog`. Without it in the reactor, runtime-catalog
   compiles against the library version in `~/.m2`, not against the change.
-- **`parent/` or `checkstyle/` touched** — these change every downstream module. Verify the
-  modules that matter to the caller with `-am`, which builds `parent` and `checkstyle` from
-  the checkout. Micro-engine, schemas, and ai-service have no `<parent>`, so a `parent/`
-  change does not reach them; they pin `qip-checkstyle-revision` themselves.
+- **`parents/` or `checkstyle/` touched** — these change every downstream module. Verify the
+  modules that matter to the caller with `-am`, which builds the parent POMs and `checkstyle`
+  from the checkout.
 - **Several modules touched** — pass them together: `-pl engine,runtime-catalog`.
 
 ## 2. Run the check
@@ -62,7 +61,7 @@ mvn -q -pl runtime-catalog test -nsu
 
 Two things make this enough:
 
-- **Checkstyle already runs.** `parent/pom.xml` binds `checkstyle:check` to the `compile`
+- **Checkstyle already runs.** The parent POMs bind `checkstyle:check` to the `compile`
   phase with `failOnViolation=true` and `maxAllowedViolations=0`. A separate
   `mvn checkstyle:check` run repeats work that `test` has already done.
 - **`-nsu` skips snapshot update checks**, which saves a remote round-trip per dependency
@@ -111,8 +110,8 @@ run on Quarkus and dominate the wall-clock time of any full-module run.
   session then builds against your branch without knowing it.
 - The whole aggregator (`mvn clean install` at the root) — minutes of work to check one
   module.
-- `-am` when the module alone resolves and only its own sources changed. It pulls the
-  upstream modules into the reactor for nothing.
+- `-am` when only the module's own sources changed. It pulls the parent POMs and
+  `checkstyle` into the reactor for nothing.
 
 ## 4. Read failures correctly
 
@@ -124,11 +123,12 @@ Not every red build is a code problem:
   This is a missing PAT in `~/.m2/settings.xml`, not a defect in the change. Report it as a
   credential problem and stop.
 - **Checkstyle violations** — these fail at `compile`, before any test runs. Report the
-  rule and the file.
-- **`Could not resolve` an in-repo `-SNAPSHOT` artifact** (`qip-integration-build-pipeline`)
-  — `~/.m2` is behind the checkout: `main` bumped that module, and a fresh worktree has
-  never built it. Retry once with `-am`, which
-  builds it in the reactor; never install to make it resolve.
+  rule and the file; the module's own `checkstyle-suppressions.xml` covers local
+  exceptions if one is genuinely warranted.
+- **`Could not resolve` an in-repo `-SNAPSHOT` artifact** (`qip-integration-build-pipeline`,
+  a `qip-parent-*` POM) — `~/.m2` is behind the checkout: `main` bumped that module, and a fresh
+  worktree has never built it. Retry once with `-am`, which builds it in the reactor; never
+  install to make it resolve.
 
 ## 5. Report
 
