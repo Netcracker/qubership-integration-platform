@@ -91,7 +91,7 @@ class ServiceDeserializerTest {
 
     @BeforeEach
     void setUp() {
-        yamlMapper = new MapperAutoConfiguration().yamlExportImportMapper();
+        yamlMapper = new MapperAutoConfiguration().yamlExportImportMapper(true);
 
         VersionsGetterService versionsGetterService = buildVersionsGetterService();
         FileMigrationService fileMigrationService =
