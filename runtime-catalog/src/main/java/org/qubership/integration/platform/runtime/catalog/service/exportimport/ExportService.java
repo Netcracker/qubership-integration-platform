@@ -35,6 +35,7 @@ import org.qubership.integration.platform.runtime.catalog.service.exportimport.m
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
 import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.util.Pair;
 import org.springframework.stereotype.Service;
@@ -68,7 +69,7 @@ public class ExportService {
 
     @Autowired
     public ExportService(
-            YAMLMapper yamlMapper,
+            @Qualifier("yamlExportImportMapper") YAMLMapper yamlMapper,
             ChainService chainService,
             ActionsLogService actionLogger,
             ChainFinderService chainFinderService,
