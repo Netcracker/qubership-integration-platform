@@ -109,6 +109,28 @@ test.describe("build lock", () => {
     }
   });
 
+  test("an owner disappearing during read is retried", async () => {
+    const original = fs.readFileSync;
+    let unavailable = true;
+    fs.readFileSync = ((name: fs.PathOrFileDescriptor, ...args: unknown[]) => {
+      if (String(name).startsWith(`${file}${path.sep}`) && unavailable) {
+        unavailable = false;
+        throw Object.assign(new Error("owner deletion is pending"), { code: "EPERM" });
+      }
+      return Reflect.apply(original, fs, [name, ...args]);
+    }) as typeof fs.readFileSync;
+    try {
+      const events: string[] = [];
+      const first = new BuildLock(file, process.pid, NO_RUNNER, POLL_MS);
+      const second = new BuildLock(file, process.ppid, NO_RUNNER, POLL_MS);
+      await Promise.all([first.run("ui-server", build(events, "first")), second.run("vscode-server", build(events, "second"))]);
+      expect(unavailable).toBe(false);
+      expect(events).toEqual(["first start", "first end", "second start", "second end"]);
+    } finally {
+      fs.readFileSync = original;
+    }
+  });
+
   test("a lock left by an exited process is reclaimed", async () => {
     const exited = spawnSync(process.execPath, ["-e", ""]).pid;
     expect(new BuildLock(file, exited, NO_RUNNER, POLL_MS).reserve("vscode-server")).toBe(true);

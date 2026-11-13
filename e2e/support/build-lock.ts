@@ -66,12 +66,13 @@ export class BuildLock {
           // Renaming the entry transfers a reservation to its worker atomically.
           return { holder: record.holder, pid: Number(entry.split(".")[0]), entry };
         } catch (error) {
-          if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+          // Windows can report a deletion in progress as EPERM instead of ENOENT.
+          if (!["ENOENT", "EPERM"].includes((error as NodeJS.ErrnoException).code ?? "")) throw error;
         }
       }
       return null;
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+      if (["ENOENT", "EPERM"].includes((error as NodeJS.ErrnoException).code ?? "")) return null;
       throw error;
     }
   }
