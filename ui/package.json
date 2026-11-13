@@ -54,6 +54,7 @@
   },
   "dependencies": {
     "@ant-design/icons": "^6.3.1",
+    "@fontsource/roboto": "^5.3.0",
     "@lightenna/react-mermaid-diagram": "^1.0.21",
     "@monaco-editor/react": "^4.7.0",
     "@netcracker/qip-schemas": "^1.0.0",

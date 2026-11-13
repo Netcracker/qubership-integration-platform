@@ -51,7 +51,7 @@
   --modal-shadow: 0 12px 32px rgb(0 0 0 / 12%);
 
   /* Font Settings */
-  --vscode-font-family: "Segoe UI", tahoma, geneva, verdana, sans-serif;
+  --vscode-font-family: Roboto, "Segoe UI", tahoma, geneva, verdana, sans-serif;
   --vscode-font-size: 14px;
   --vscode-font-weight: normal;
   --vscode-line-height: 1.5;
