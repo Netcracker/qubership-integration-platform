@@ -16,8 +16,6 @@
 
 package org.qubership.integration.platform.sessions.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.netcracker.cloud.dbaas.client.opensearch.DbaasOpensearchClient;
 import lombok.extern.slf4j.Slf4j;
 import org.opensearch.client.opensearch.core.BulkRequest;
@@ -36,6 +34,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.util.*;
@@ -128,7 +128,7 @@ public class ImportService {
             SessionElementElastic element = iterator.next();
             try {
                 payload = objectMapper.writeValueAsBytes(element);
-            } catch (JsonProcessingException error) {
+            } catch (JacksonException error) {
                 log.error("Failed to parse sessions write request. Element skipped");
                 throw new ImportException("Failed to parse sessions write request on element "
                         + element.getElementName() + " in chain "

@@ -1,10 +1,10 @@
 package org.qubership.integration.platform.sessions.mapper;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.sessions.dto.Session;
 import org.qubership.integration.platform.sessions.dto.SessionElement;
 import org.qubership.integration.platform.sessions.dto.opensearch.SessionElementElastic;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.util.List;
 
@@ -16,7 +16,7 @@ class SessionElementMapperTest {
     @Test
     void importedElementsKeepExternalSessionIdOfTheirSession() {
         SessionElementMapper mapper = new SessionElementMapperImpl();
-        mapper.setObjectMapper(new ObjectMapper());
+        mapper.setObjectMapper(new JsonMapper());
         SessionElement child = SessionElement.builder().elementId("child").build();
         SessionElement parent = SessionElement.builder().elementId("parent").children(List.of(child)).build();
         Session session = Session.builder()
