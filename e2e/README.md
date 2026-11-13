@@ -167,6 +167,9 @@ npm run test:compose   # the Docker Compose stack from infrastructure/docker/doc
 npm run test:k8s       # a local Kubernetes cluster, namespace cip-e2e
 ```
 
+Every Kubernetes target uses Istio ambient. Docker Desktop kubeadm can need the one-time
+[netns mount preparation](k8s/README.md#docker-desktop-kubeadm) before the normal bootstrap.
+
 `npm test` runs the Compose target when `CIP_TARGET` is unset. Every command below takes the variable
 the same way. The portable form is `npm run test:k8s -- --project=runtime`.
 

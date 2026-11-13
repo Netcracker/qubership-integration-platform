@@ -39,7 +39,7 @@ Windows, run it in Git Bash with the Windows CLIs on `PATH`. Then run `npm run t
 Every Kubernetes target uses Istio ambient. Docker Desktop kubeadm needs the node's network
 namespace directory to support host-to-container mount propagation. Without it, Istio CNI fails with
 `/var/run/netns is mounted on /run but it is not a shared or slave mount`. Both Istio CNI and ztunnel
-must be ready before the suite runs; the bootstrap never substitutes sidecars.
+must be ready before the suite runs. See [Docker Desktop kubeadm](#docker-desktop-kubeadm) for node preparation.
 
 On the `docker-desktop` context, or on any `k3d-<name>` or `kind-<name>` context, the default command uses the
 current cluster. On any other context, or with no kubeconfig at all, it creates the kind cluster
@@ -113,6 +113,39 @@ through the name in the last column of the first table. Docker Desktop uses `hos
 for kind too, because the bridge gateway is inside its VM. On kind and k3d, that address has to reach
 port 4200, so a firewall that drops traffic from the Docker bridge takes the UI routes down, while
 every `/api/` route keeps working.
+
+## Docker Desktop kubeadm
+
+The legacy Docker Desktop kubeadm node uses the Docker runtime and may mount `/run` privately.
+Istio CNI needs host-to-container propagation for `/var/run/netns`. Prepare that directory before
+installing ambient. In Git Bash on Windows, or Bash on Linux/macOS, run from the repository root:
+
+```bash
+kubectl config use-context docker-desktop
+bash e2e/k8s/bootstrap-cluster.sh --prepare-node
+npm --prefix e2e run test:k8s
+```
+
+`--prepare-node` creates a temporary privileged, host-PID job on the node named `docker-desktop`.
+It enters the Docker daemon's mount namespace and, when needed, creates a recursive bind mount of
+`/var/run/netns` onto itself, then marks that directory shared. Recursive bind preserves namespace
+mounts already below it. The helper changes neither the root mount nor the parent `/run` mount.
+It then deletes its job. The bootstrap continues with the same ambient profile, CNI, and ztunnel
+used on kind.
+
+The helper checks the context, node name, and Docker runtime before creating its job. It refuses
+standalone kind and Docker Desktop's kind nodes. A check without changing mounts is available as:
+
+```bash
+node e2e/k8s/prepare-docker-desktop-ambient.mjs --check
+```
+
+Mount state belongs to the Docker Desktop VM, so repeat preparation after a Docker Desktop or VM
+restart. Repeating it on an already shared or slave source makes no further mount. Node preparation
+has been tested in an isolated Docker daemon: the original OCI mount error fails before preparation
+and succeeds afterward; existing namespace inodes, propagation of later mounts, and the parent
+mounts are checked. A full ambient run on the colleague's Windows Docker Desktop kubeadm node still
+needs verification.
 
 ## Gateway API
 

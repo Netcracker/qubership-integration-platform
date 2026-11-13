@@ -4,7 +4,7 @@
 # and metrics-server (k3s ships its own). Creates the kind cluster kind-qip when the current context
 # is not Docker Desktop, k3d, or kind. Safe to run again on a prepared cluster.
 #
-# Usage: bash e2e/k8s/bootstrap-cluster.sh [--kind]
+# Usage: bash e2e/k8s/bootstrap-cluster.sh [--kind|--prepare-node]
 
 set -euo pipefail
 
@@ -35,8 +35,11 @@ if [[ "${1:-}" == "--kind" && "$#" == 1 ]]; then
     else
         context=""
     fi
+elif [[ "${1:-}" == "--prepare-node" && "$#" == 1 ]]; then
+    require node
+    node "$repo_root/e2e/k8s/prepare-docker-desktop-ambient.mjs" --prepare
 elif [[ "$#" != 0 ]]; then
-    echo "Usage: bash e2e/k8s/bootstrap-cluster.sh [--kind]" >&2
+    echo "Usage: bash e2e/k8s/bootstrap-cluster.sh [--kind|--prepare-node]" >&2
     exit 1
 fi
 case "$context" in

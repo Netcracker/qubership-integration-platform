@@ -156,6 +156,10 @@ jobs:
           helm version
           mvn -v
 
+      - name: Check ambient netns preparation
+        if: ${{ inputs.name == 'micro' }}
+        run: node --test e2e/k8s/prepare-ambient-netns.test.mjs
+
       # Runs alongside the next steps and the suite's image builds. The exit code is written to a file
       # after the log is complete, and the provisioner waits for that file before its first cluster call.
       - name: Start the cluster bootstrap
