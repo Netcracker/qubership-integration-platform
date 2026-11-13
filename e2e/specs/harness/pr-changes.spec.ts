@@ -262,7 +262,7 @@ test.describe("pr-changes", () => {
     const jobs = (yaml.load(fs.readFileSync(WORKFLOW, "utf-8")) as { jobs: Record<string, Job> }).jobs;
     const result = jobs["kind-result"];
     // A failed `changes` skips every kind job, and a skipped job passes.
-    expect(result?.needs).toEqual(["changes", "host-platforms", ...KIND_JOBS]);
+    expect(result?.needs).toEqual(["changes", "host-platforms", ...KIND_JOBS, "sidecar"]);
     expect(result?.if).toBe("always()");
     const [check] = result?.steps ?? [];
     expect(check?.env?.RESULTS).toBe("${{ join(needs.*.result, ' ') }}");

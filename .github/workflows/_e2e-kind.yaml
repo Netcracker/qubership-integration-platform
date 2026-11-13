@@ -28,6 +28,11 @@ on:
         required: false
         type: boolean
         default: true
+      istio-mode:
+        description: Istio dataplane mode (ambient or sidecar)
+        required: false
+        type: string
+        default: ambient
       workers:
         description: Playwright workers (E2E_WORKERS); empty uses 4
         required: false
@@ -68,6 +73,7 @@ jobs:
       contents: read
       packages: read
     env:
+      CIP_ISTIO_MODE: ${{ inputs.istio-mode }}
       # Pull request jobs share the caller's run, so each one names its artifacts apart. The nightly
       # keeps the bare names, which its history fetch downloads by.
       ARTIFACT_SUFFIX: ${{ inputs.pull-request && format('-{0}', inputs.name) || '' }}

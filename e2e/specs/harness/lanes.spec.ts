@@ -80,13 +80,14 @@ test.describe("lanes", () => {
     }
   });
 
-  test("the workflow calls each lane by the job of its name", () => {
+  test("the workflow maps each job to its declared lane", () => {
     const jobs = (yaml.load(fs.readFileSync(WORKFLOW, "utf-8")) as { jobs: Record<string, Job> }).jobs;
     const called = Object.entries(jobs).flatMap(([name, job]) =>
       job.with && "lane" in job.with ? [{ job: name, lane: job.with.lane }] : [],
     );
     expect(called.filter(({ lane }) => !lanes().includes(String(lane)))).toEqual([]);
-    expect(called.filter(({ job, lane }) => job !== lane)).toEqual([]);
+    expect(called.filter(({ job, lane }) => job !== lane)).toEqual([{ job: "sidecar", lane: "micro" }]);
+    expect(jobs.sidecar.with?.["istio-mode"]).toBe("sidecar");
     for (const lane of lanes()) expect(jobs[lane]?.with?.lane, lane).toBe(lane);
   });
 });

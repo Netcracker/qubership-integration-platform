@@ -35,6 +35,22 @@ import { provisionedSources } from "./compose.js";
 
 const README = "e2e/k8s/README.md";
 
+export type IstioMode = "ambient" | "sidecar";
+
+export async function resolveIstioMode(
+  run: Kubectl = kubectl,
+  requested = process.env.CIP_ISTIO_MODE ?? "auto",
+): Promise<IstioMode> {
+  if (requested === "ambient" || requested === "sidecar") return requested;
+  if (requested !== "auto") throw new Error(`CIP_ISTIO_MODE must be "auto", "ambient", or "sidecar", got ${JSON.stringify(requested)}.`);
+  const context = await run(["config", "current-context"]).then((out) => out.trim()).catch(() => "");
+  if (context === "docker-desktop") {
+    const nodes = await run(["get", "nodes", "-o", 'jsonpath={range .items[*]}{.metadata.name}={.status.nodeInfo.containerRuntimeVersion}{" "}{end}']);
+    if (nodes.split(/\s+/).some((node) => node.startsWith("docker-desktop=") || node.includes("=docker://"))) return "sidecar";
+  }
+  return "ambient";
+}
+
 // ---------------------------------------------------------------------------
 // Prerequisites
 // ---------------------------------------------------------------------------
@@ -43,6 +59,7 @@ const README = "e2e/k8s/README.md";
 export interface Prerequisite {
   name: string;
   section: string;
+  istioMode?: IstioMode;
   /** `null` when the prerequisite is in place, otherwise what is wrong. */
   check(kubectl: Kubectl): Promise<string | null>;
 }
@@ -100,6 +117,7 @@ const PREREQUISITES: Prerequisite[] = [
   {
     name: "Istio ambient",
     section: "istio",
+    istioMode: "ambient",
     async check(kubectl) {
       for (const name of ["istio-cni-node", "ztunnel"]) {
         const raw = await kubectl(["get", "ds", name, "-n", "istio-system", "-o", "json"]).catch(() => null);
@@ -113,6 +131,16 @@ const PREREQUISITES: Prerequisite[] = [
         }
       }
       return null;
+    },
+  },
+  {
+    name: "Istio sidecar injection",
+    section: "istio",
+    istioMode: "sidecar",
+    async check(kubectl) {
+      return (await answers(kubectl, ["get", "mutatingwebhookconfiguration", "istio-sidecar-injector"]))
+        ? null
+        : "the default istio-sidecar-injector webhook is not installed";
     },
   },
   {
@@ -151,8 +179,9 @@ function prerequisiteError(prerequisite: Prerequisite, problem: string): string 
 }
 
 /** Checks every prerequisite in order and throws on the first one missing. */
-export async function checkPrerequisites(run: Kubectl = kubectl): Promise<void> {
+export async function checkPrerequisites(run: Kubectl = kubectl, istioMode: IstioMode = "ambient"): Promise<void> {
   for (const prerequisite of PREREQUISITES) {
+    if (prerequisite.istioMode && prerequisite.istioMode !== istioMode) continue;
     const problem = await prerequisite.check(run);
     if (problem !== null) throw new Error(prerequisiteError(prerequisite, problem));
   }
@@ -276,6 +305,7 @@ export async function awaitBootstrap(log: string, intervalMs = 2_000): Promise<v
 export interface ReadyCluster {
   choice: ClusterChoice;
   devServerHost: string;
+  istioMode: IstioMode;
 }
 
 /**
@@ -284,11 +314,13 @@ export interface ReadyCluster {
  */
 export async function readyCluster(bootstrapLog: string | null, run: Kubectl = kubectl): Promise<ReadyCluster> {
   if (bootstrapLog) await awaitBootstrap(bootstrapLog);
-  await checkPrerequisites(run);
+  const istioMode = await resolveIstioMode(run);
+  await checkPrerequisites(run, istioMode);
   const choice = clusterChoice((await run(["config", "current-context"])).trim());
   const devServerHost = choice.devServerHost ?? (await kindDevServerHost());
   console.log(describeChoice(choice, devServerHost));
-  return { choice, devServerHost };
+  console.log(`[provision] Istio mode: ${istioMode}`);
+  return { choice, devServerHost, istioMode };
 }
 
 // ---------------------------------------------------------------------------
@@ -438,6 +470,7 @@ export function helmArguments(options: {
   choice: ClusterChoice;
   devServerHost: string;
   tags: Record<SuiteImageName, string>;
+  istioMode?: IstioMode;
 }): string[] {
   const { root, choice, devServerHost, tags } = options;
   const filePath = (relative: string) => path.join(root, relative).split(path.sep).join("/");
@@ -452,7 +485,11 @@ export function helmArguments(options: {
     // pod template with the tag, so Helm restarts it.
     "--set-string", `cip-runtime-catalog.podAnnotations.e2e-micro-engine-tag=${tags["micro-engine"]}`,
   ];
-  for (const role of ROLES) args.push("--set-string", `cip-${role}.image.tag=${tags[role]}`);
+  if (options.istioMode === "sidecar") args.push("--set", "gateways.waypoint.enabled=false");
+  for (const role of ROLES) {
+    args.push("--set-string", `cip-${role}.image.tag=${tags[role]}`);
+    args.push("--set-string", `cip-${role}.podAnnotations.e2e-istio-mode=${options.istioMode ?? "ambient"}`);
+  }
   // The host ports the suite addresses, from the table its URLs are built from.
   for (const role of ROLES) args.push("--set", `cip-${role}.nodePort=${hostPort(role, "k8s")}`);
   args.push("--set", `global.qip.ui.port=${proxyPort("k8s")}`);
@@ -528,14 +565,24 @@ async function deploymentGenerations(): Promise<Partial<Record<ServiceRole, stri
   return generations;
 }
 
-async function ensureNamespace(): Promise<void> {
-  if (!(await answers(kubectl, ["get", "namespace", NAMESPACE]))) {
-    await kubectl(["create", "namespace", NAMESPACE]);
+export async function ensureNamespace(istioMode: IstioMode, run: Kubectl = kubectl): Promise<void> {
+  if (!(await answers(run, ["get", "namespace", NAMESPACE]))) {
+    await run(["create", "namespace", NAMESPACE]);
   }
-  await kubectl([
+  await run([
     "label", "--overwrite", "namespace", NAMESPACE,
-    "istio-injection-", "istio.io/dataplane-mode=ambient", "istio.io/use-waypoint=waypoint",
+    ...(istioMode === "ambient"
+      ? ["istio-injection-", "istio.io/dataplane-mode=ambient", "istio.io/use-waypoint=waypoint"]
+      : ["istio.io/dataplane-mode-", "istio.io/use-waypoint-", "istio-injection=enabled"]),
   ]);
+}
+
+export async function waitForWaypoint(istioMode: IstioMode, run: typeof stream = stream): Promise<void> {
+  if (istioMode === "ambient") {
+    await run("kubectl", [
+      "wait", "--for=condition=Programmed", "gateway/waypoint", "-n", NAMESPACE, "--timeout=180s",
+    ], repoRoot());
+  }
 }
 
 /**
@@ -608,11 +655,11 @@ export async function provisionK8s(
     report.rebuilt.push(image.name);
   }
   cluster ??= await readyCluster(bootstrapLog);
-  const { choice, devServerHost } = cluster;
+  const { choice, devServerHost, istioMode } = cluster;
   // kind skips an image the node already holds; k3d imports it again, which costs seconds.
   for (const image of built) await loadImage(choice, `${image.repository}:${tags[image.name]}`, root);
 
-  await ensureNamespace();
+  await ensureNamespace(istioMode);
   // Before the upgrade. Helm applies server-side and merges its entry into a patched one, so over a
   // `replace` of TRACING_ENABLED the upgrade failed with "may not be specified when `value` is not
   // empty".
@@ -623,10 +670,8 @@ export async function provisionK8s(
   }
   const before = await deploymentGenerations();
   console.log(`[provision] helm upgrade --install ${RELEASE} -n ${NAMESPACE}`);
-  await stream("helm", helmArguments({ root, choice, devServerHost, tags }), root);
-  await stream("kubectl", [
-    "wait", "--for=condition=Programmed", "gateway/waypoint", "-n", NAMESPACE, "--timeout=180s",
-  ], root);
+  await stream("helm", helmArguments({ root, choice, devServerHost, tags, istioMode }), root);
+  await waitForWaypoint(istioMode);
   // Helm returns once the objects are written. Under Recreate the old pod may still answer the
   // health poll, so the rollout is awaited first.
   for (const role of ROLES) {

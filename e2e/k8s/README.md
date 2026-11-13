@@ -36,17 +36,18 @@ cluster keeps its Istio installation. Linux, macOS, and Windows use the same com
 Windows, run it in Git Bash with the Windows CLIs on `PATH`. Then run `npm run test:k8s` from
 `e2e/` in the same host environment, with `kind-qip` selected.
 
-A Docker Desktop kubeadm cluster can fail to start Istio CNI with
-`/var/run/netns is mounted on /run but it is not a shared or slave mount`. Use the separate kind
-cluster for this case. The bootstrap waits for both ambient DaemonSets and fails if either rollout
-fails. Switching the test runner to WSL does not change the mounts of an existing cluster.
+Docker Desktop supports both kubeadm and kind. The bootstrap and runner select the mesh from the
+node identity and runtime on the `docker-desktop` context: the kubeadm node `docker-desktop` or a
+Docker runtime selects sidecars; kind nodes with containerd select ambient. The kubeadm path uses the existing cluster and needs no Istio CNI or ztunnel. This avoids
+`/var/run/netns is mounted on /run but it is not a shared or slave mount` without changing VM mounts.
+Run the default bootstrap with `docker-desktop` selected to prepare that cluster; use `--kind` when
+you want a separate cluster.
 
 On the `docker-desktop` context, or on any `k3d-<name>` or `kind-<name>` context, the default command uses the
 current cluster. On any other context, or with no kubeconfig at all, it creates the kind cluster
 `kind-qip` from `kindest/node:v1.37.0` with the nine ports below mapped, and kind switches the
 current context to it. Then it installs the Gateway API CRDs, Istio, the camel-k operator, and,
-except on k3d, metrics-server, which the sections below install by hand. A second run on a cluster
-the script has prepared restarts nothing.
+except on k3d, metrics-server, which the sections below install by hand. A second run with the same mode on a prepared cluster restarts nothing.
 
 The suite reads the cluster kind from the current kube-context and supports three:
 
@@ -124,6 +125,16 @@ kubectl apply --server-side --force-conflicts -f https://github.com/kubernetes-s
 
 ## Istio
 
+`CIP_ISTIO_MODE` accepts `auto` (the default), `ambient`, or `sidecar`. Both the bootstrap and the
+runner use it. Auto selects sidecars for Docker Desktop kubeadm and ambient for
+Docker Desktop kind, standalone kind, and k3d. The run header records the namespace's actual mode.
+
+The bootstrap installs Istio cluster-wide. On an existing cluster, it can upgrade the control plane;
+the runner provisions only `cip-e2e`. Both modes use Istio 1.31 or later for the chart's Gateway API
+routes.
+
+### Ambient mode
+
 From the repository root:
 
 ```bash
@@ -171,6 +182,35 @@ kubectl get pods -n cip-e2e
 kubectl get gateway waypoint -n cip-e2e
 istioctl ztunnel-config workloads -n istio-system
 ```
+
+### Sidecar mode
+
+On Docker Desktop kubeadm, the default bootstrap installs the sidecar profile. To install it by hand
+from the repository root:
+
+```bash
+istioctl install -f infrastructure/helm/cip-dev/istio.yaml --set profile=default --set components.cni.enabled=false --set components.ztunnel.enabled=false
+```
+
+This profile includes istiod, the injector, and the default ingress gateway. It leaves Istio CNI and
+ztunnel disabled. The suite labels `cip-e2e` with `istio-injection=enabled`, removes ambient and
+waypoint enrollment, disables the chart's namespace waypoint, and waits for the application rollouts.
+Application pods have an injected `istio-proxy`; the resource sampler counts the application
+container. A mode annotation restarts the platform services when the selected mode changes.
+
+To select sidecars explicitly, set the same mode for bootstrap and runner. In PowerShell, with the
+repository root as the working directory:
+
+```powershell
+$env:CIP_ISTIO_MODE = "sidecar"
+bash e2e/k8s/bootstrap-cluster.sh
+cd e2e
+npm run test:k8s
+```
+
+On a normal Docker Desktop kubeadm cluster, the automatic selection needs no environment variable.
+The CI sidecar job runs the micro lane on kind with the sidecar profile, alongside the ambient jobs.
+It checks the mesh behavior without requiring a Docker Desktop VM in CI.
 
 ## camel-k
 
