@@ -21,7 +21,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.format.FormatterRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
-import org.springframework.web.servlet.config.annotation.PathMatchConfigurer;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @AutoConfiguration
@@ -44,10 +43,5 @@ public class WebAutoConfiguration implements WebMvcConfigurer {
     public void addFormatters(FormatterRegistry registry) {
         WebMvcConfigurer.super.addFormatters(registry);
         registry.addConverter(stringToFolderContentFilterConverter);
-    }
-
-    @Override
-    public void configurePathMatch(PathMatchConfigurer configurer) {
-        configurer.setUseTrailingSlashMatch(true);
     }
 }
