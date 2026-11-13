@@ -305,6 +305,20 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
       command = resolveTextApproval(command, priorSnapshot);
     }
     command = bindClarificationOffer(command, message, savedReceipt, isNew, taskId);
+    if (command instanceof InboundCommand.Approve && operation != TaskOperation.APPROVE && !isNew) {
+      try {
+        accessPolicy.check(caller, TaskOperation.APPROVE, new TaskIdentity(taskId, contextId));
+      } catch (TaskAccessDeniedException denied) {
+        throw A2aProtocolErrorMapper.fromAccessDenied(denied);
+      }
+    }
+    if (!isNew) {
+      try {
+        facade.ensureSupportedBinding(taskId);
+      } catch (UnsupportedCreateRunBindingException unsupported) {
+        throw new UnsupportedOperationError(null, unsupported.sseMessage(), null);
+      }
+    }
     if (!isNew
         && command instanceof InboundCommand.ClarifyText clarify
         && clarify.clarificationOfferId().isBlank()
@@ -313,23 +327,6 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
       emitDurableSnapshot(taskId, contextId, emitter, isNew);
       return;
     }
-    if (command instanceof InboundCommand.Approve && operation != TaskOperation.APPROVE && !isNew) {
-      try {
-        accessPolicy.check(caller, TaskOperation.APPROVE, new TaskIdentity(taskId, contextId));
-      } catch (TaskAccessDeniedException denied) {
-        throw A2aProtocolErrorMapper.fromAccessDenied(denied);
-      }
-    }
-    if (command instanceof InboundCommand.Approve approve) {
-      try {
-        facade.approvalAlreadyApplied(
-            new ApproveCreateChainArtifactCommand(taskId, approve.artifactType(),
-                approve.artifactHash(), approve.revision()));
-      } catch (UnsupportedCreateRunBindingException unsupported) {
-        throw new UnsupportedOperationError(null, unsupported.sseMessage(), null);
-      }
-    }
-
     A2aClientCorrelationCarrier.Holder clientIds =
         A2aClientCorrelationCarrier.lookup(requestCorrelationId(context));
     String requestCorrelationId = requestCorrelationId(context);

@@ -177,7 +177,6 @@ public class CreateChainCancelRejectingRequestHandler extends DefaultRequestHand
     } catch (TaskAccessDeniedException denied) {
       throw A2aProtocolErrorMapper.fromAccessDenied(denied);
     }
-
     Task task =
         snapshotPersister
             .loadSdkTask(params.id())
@@ -348,6 +347,11 @@ public class CreateChainCancelRejectingRequestHandler extends DefaultRequestHand
     } catch (TaskAccessDeniedException denied) {
       throw A2aProtocolErrorMapper.fromAccessDenied(denied);
     }
+    try {
+      facade.ensureSupportedBinding(receipt.get().taskId());
+    } catch (UnsupportedCreateRunBindingException unsupported) {
+      throw new UnsupportedOperationError(null, unsupported.sseMessage(), null);
+    }
     if (receipt.get().incomplete()) {
       var durable = snapshotPersister.loadDurable(receipt.get().taskId());
       if (durable.isEmpty() || !isTerminal(durable.get().task())) {
@@ -382,16 +386,6 @@ public class CreateChainCancelRejectingRequestHandler extends DefaultRequestHand
         }
       }
       return Optional.of(durable.get().task());
-    }
-    if (command instanceof InboundCommand.Approve approve) {
-      String commandId = A2aCommandId.derive(caller.tenantId(), caller.subjectId(), message.messageId());
-      try {
-        facade.approvalAlreadyApplied(
-            new org.qubership.integration.platform.ai.productpipeline.create.facade.ApproveCreateChainArtifactCommand(
-                receipt.get().taskId(), approve.artifactType(), approve.artifactHash(), approve.revision(), commandId));
-      } catch (UnsupportedCreateRunBindingException unsupported) {
-        throw new UnsupportedOperationError(null, unsupported.sseMessage(), null);
-      }
     }
     return snapshotPersister.loadSdkTask(receipt.get().taskId());
   }

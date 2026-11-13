@@ -823,6 +823,23 @@ class ChatExecutionServiceTest {
   }
 
   @Test
+  void retiredBindingDuringChatPreflightReturnsSseError() {
+    ChatDecisionService decisions = mock(ChatDecisionService.class);
+    when(decisions.openDecision("retired-conversation"))
+        .thenThrow(new UnsupportedCreateRunBindingException());
+    ChatRequest request = new ChatRequest();
+    request.setConversationId("retired-conversation");
+    request.setMessage("Continue");
+
+    List<String> frames = commandPathService(decisions).streamV1Sse(request)
+        .collect().asList().await().indefinitely();
+
+    assertEquals("event: error\ndata: " + new UnsupportedCreateRunBindingException().sseMessage()
+        + "\n\n", frames.getFirst());
+    assertEquals("event: done\ndata: retired-conversation\n\n", frames.getLast());
+  }
+
+  @Test
   void successfulTurnDoesNotLoadRunForTrace() {
     ProductPipelineRunStore isolated = mock(ProductPipelineRunStore.class);
     ProductPipelineRunStore previous = runStore;

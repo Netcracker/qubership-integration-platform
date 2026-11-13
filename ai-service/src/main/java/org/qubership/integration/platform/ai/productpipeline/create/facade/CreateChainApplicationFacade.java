@@ -788,6 +788,10 @@ public class CreateChainApplicationFacade {
     return runStore.loadByConversation(taskId).map(doc -> snapshotOf(taskId, doc));
   }
 
+  public void ensureSupportedBinding(String taskId) {
+    bindingStore.load(Objects.requireNonNull(taskId, "taskId"));
+  }
+
   /** Offer on the latest requirement wait, or empty when that wait has no offer. */
   public Optional<ClarificationTransition.Offer> activeClarificationOffer(String taskId) {
     Objects.requireNonNull(taskId, "taskId");
