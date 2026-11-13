@@ -85,14 +85,6 @@ public class PlanPresentationFactsService {
     return formatPlanBody(facts) + IMPLEMENT_CTA;
   }
 
-  /**
-   * Deterministic English summary while the implementation plan awaits user approval. Omits the
-   * post-approval Implement CTA used by {@link #formatFallbackSummary}.
-   */
-  public String formatPlanReviewSummary(PlanPresentationFacts facts) {
-    return formatPlanBody(facts);
-  }
-
   private static String formatPlanBody(PlanPresentationFacts facts) {
     Objects.requireNonNull(facts, "facts");
 

@@ -5,8 +5,7 @@ import java.util.Objects;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
 
 /**
- * Immutable CREATE runtime ownership for one conversation (product create-chain@1 or
- * create-chain@2).
+ * Immutable CREATE runtime ownership for one conversation.
  */
 public record CreateRunBinding(
     String conversationId, String productRunId, RunManifest runManifest, Instant createdAt) {

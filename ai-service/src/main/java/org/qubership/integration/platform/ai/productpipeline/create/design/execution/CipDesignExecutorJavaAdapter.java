@@ -39,7 +39,6 @@ import org.qubership.integration.platform.ai.qipknowledge.validation.RequestedEl
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerDagExecutionResult;
-import org.qubership.integration.platform.ai.productpipeline.create.CompilerPlanningRunner;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.ApiOperationBindings;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
@@ -620,7 +619,7 @@ public class CipDesignExecutorJavaAdapter {
     }
     PlanValidationResult planValidation =
         mergeCompilerBundleFindings(
-            CompilerPlanningRunner.buildValidationResult(freshPlanValidation, List.of()),
+            PlanValidationResult.fromCompiler(freshPlanValidation, List.of()),
             compilerBundle);
     if (!compilerBundle.approvalEligible() || !planValidation.approvalEligible()) {
       List<ValidationIssue> issues = new ArrayList<>(freshPlanValidation.issues());
@@ -869,7 +868,7 @@ public class CipDesignExecutorJavaAdapter {
           continue;
         }
         findings.addAll(
-            CompilerPlanningRunner.buildValidationResult(pass.result(), List.of()).findings());
+            PlanValidationResult.fromCompiler(pass.result(), List.of()).findings());
       }
     }
     return new PlanValidationResult(findings);

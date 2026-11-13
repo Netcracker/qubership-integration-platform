@@ -114,6 +114,9 @@ fixtures:
   sourceElementId: 5dc95d6e-2016-5711-8281-6871ec1c6b77
 scenarios:
 - id: consumes-basic-payloads-headers-and-routing
+  expectedBehavior: >-
+    Preserve RabbitMQ payload bytes, content types, AMQP metadata, and typed headers while respecting direct
+    routing bindings.
   reuseBroker: true
   scope: Short
   deployment: auto
@@ -122,6 +125,8 @@ scenarios:
     sourceElementId: 94164c82-e1a7-493c-877b-46f00f286c08
   invocations:
   - id: consumes-text-json-utf8-and-empty-payloads
+    expectedBehavior: >-
+      Consume the plain-text delivery once with its declared headers and no failure or redelivery.
     body: RabbitMQ text
     expectedBody: Triggered
     interactions:
@@ -135,6 +140,8 @@ scenarios:
           expectedFailureCompletions: 0
           expectedRedeliveryCount: 0
   - id: consumes-json-text
+    expectedBehavior: >-
+      Consume the JSON payload as the expected raw content with no redelivery.
     body: '{"order":7,"active":true}'
     expectedBody: Triggered
     interactions:
@@ -148,6 +155,8 @@ scenarios:
           expectedFailureCompletions: 0
           expectedRedeliveryCount: 0
   - id: consumes-utf8-text
+    expectedBehavior: >-
+      Preserve the UTF-8 payload content while completing one business invocation.
     body: café
     expectedBody: Triggered
     interactions:
@@ -161,6 +170,8 @@ scenarios:
           expectedFailureCompletions: 0
           expectedRedeliveryCount: 0
   - id: consumes-empty-bytes
+    expectedBehavior: >-
+      Consume an empty byte payload with exact zero length and no failed completion.
     body: ''
     expectedBody: Triggered
     interactions:
@@ -175,6 +186,8 @@ scenarios:
           expectedRedeliveryCount: 0
           expectedBodyLength: 0
   - id: preserves-binary-payloads-and-content-types
+    expectedBehavior: >-
+      Preserve the exact binary payload bytes and application content-type metadata.
     driver:
       provider: rabbitmq-trigger
       sourceElementId: 94164c82-e1a7-493c-877b-46f00f286c08
@@ -199,6 +212,8 @@ scenarios:
           expectedRedeliveryCount: 0
           expectedBodyBase64: AAECf4D+/wA=
   - id: defaults-missing-content-type-and-preserves-explicit-values
+    expectedBehavior: >-
+      Apply the configured default when the published message has no content type.
     body: missing-content-type
     expectedBody: Triggered
     interactions:
@@ -214,6 +229,8 @@ scenarios:
           expectedFailureCompletions: 0
           expectedRedeliveryCount: 0
   - id: preserves-explicit-text-content-type
+    expectedBehavior: >-
+      Preserve the explicitly supplied text content type on the consumed message.
     body: explicit-text
     headers:
       Content-Type: text/plain
@@ -231,6 +248,8 @@ scenarios:
           expectedFailureCompletions: 0
           expectedRedeliveryCount: 0
   - id: preserves-explicit-binary-content-type
+    expectedBehavior: >-
+      Preserve the explicitly supplied binary content type on the consumed message.
     body: explicit-binary
     headers:
       Content-Type: application/octet-stream
@@ -248,6 +267,8 @@ scenarios:
           expectedFailureCompletions: 0
           expectedRedeliveryCount: 0
   - id: maps-amqp-properties-and-typed-headers
+    expectedBehavior: >-
+      Map the published AMQP properties and typed user headers without changing their expected values.
     driver:
       provider: rabbitmq-trigger
       sourceElementId: 94164c82-e1a7-493c-877b-46f00f286c08
@@ -319,6 +340,8 @@ scenarios:
           expectedFailureCompletions: 0
           expectedRedeliveryCount: 0
   - id: filters-routing-through-direct-bindings
+    expectedBehavior: >-
+      Consume the message delivered through a matching direct-exchange routing binding.
     body: routed
     expectedBody: Triggered
     interactions:
@@ -334,6 +357,8 @@ scenarios:
           expectedFailureCompletions: 0
           expectedRedeliveryCount: 0
   - id: does-not-consume-an-unbound-routing-key
+    expectedBehavior: >-
+      Produce no completion or business execution for a routing key without a matching direct binding.
     driver:
       provider: rabbitmq-trigger
       sourceElementId: 94164c82-e1a7-493c-877b-46f00f286c08
@@ -352,6 +377,9 @@ scenarios:
           expectedFailureCompletions: 0
           expectedRedeliveryCount: 0
 - id: recovers-through-consumer-and-broker-lifecycle
+  expectedBehavior: >-
+    Preserve per-message isolation and acknowledgment semantics through route, connection, queue, broker, and
+    deployment changes.
   scope: Long
   deployment: auto
   driver:
@@ -359,6 +387,8 @@ scenarios:
     sourceElementId: 94164c82-e1a7-493c-877b-46f00f286c08
   invocations:
   - id: isolates-message-headers-and-exchanges
+    expectedBehavior: >-
+      Consume the first message with its own application headers and Camel exchange.
     body: first
     headers:
       firstOnly: first
@@ -378,6 +408,8 @@ scenarios:
           expectedFailureCompletions: 0
           expectedRedeliveryCount: 0
   - id: does-not-retain-previous-application-headers
+    expectedBehavior: >-
+      Consume the next message without leaking application headers from the previous exchange.
     body: second
     headers:
       X-Request-Id: request-two
@@ -397,6 +429,8 @@ scenarios:
           expectedAbsentHeaders:
           - firstOnly
   - id: consumes-large-payloads-with-exact-length-and-digest
+    expectedBehavior: >-
+      Consume the full large payload with the expected byte length and SHA-256 digest.
     driver:
       provider: rabbitmq-trigger
       sourceElementId: 94164c82-e1a7-493c-877b-46f00f286c08
@@ -416,6 +450,8 @@ scenarios:
           expectedBodyLength: 262144
           expectedBodySha256: 45392302e4a0844d5162e25bce073a22832e7939b77eecc052bd0b8dd614d1dc
   - id: acknowledges-successful-auto-deliveries-before-route-restart
+    expectedBehavior: >-
+      Complete and acknowledge the AUTO-mode delivery before restarting the route.
     body: before-route-restart
     expectedBody: Triggered
     interactions:
@@ -429,6 +465,8 @@ scenarios:
           expectedFailureCompletions: 0
           expectedRedeliveryCount: 0
   - id: does-not-replay-acknowledged-messages-after-route-restart
+    expectedBehavior: >-
+      Consume a fresh message after route restart without replaying acknowledged deliveries.
     body: after-route-restart
     expectedBody: Triggered
     interactions:
@@ -444,6 +482,8 @@ scenarios:
           consumerAction: restart-route
     timeoutSeconds: 90
   - id: resumes-backlog-after-consumer-stop-and-start
+    expectedBehavior: >-
+      Consume the queued message after the stopped consumer route starts again.
     body: queued-during-stop
     expectedBody: Triggered
     interactions:
@@ -459,6 +499,8 @@ scenarios:
           consumerAction: stop-until-published
     timeoutSeconds: 90
   - id: completes-in-flight-processing-during-graceful-stop
+    expectedBehavior: >-
+      Finish the in-flight delivery while the consumer route stops gracefully.
     body: held-during-stop
     expectedBody: Triggered
     interactions:
@@ -474,6 +516,8 @@ scenarios:
           consumerAction: stop-during-processing
     timeoutSeconds: 90
   - id: recovers-durable-backlog-after-broker-restart
+    expectedBehavior: >-
+      Consume the durable message retained across a RabbitMQ broker restart.
     body: persistent-backlog
     expectedBody: Triggered
     interactions:
@@ -489,6 +533,8 @@ scenarios:
           consumerAction: restart-broker-with-backlog
     timeoutSeconds: 90
   - id: recovers-after-queue-deletion-and-recreation
+    expectedBehavior: >-
+      Resume consumption after deleting and recreating the input queue.
     body: after-queue-recreation
     expectedBody: Triggered
     interactions:
@@ -504,6 +550,8 @@ scenarios:
           consumerAction: delete-recreate-queue
     timeoutSeconds: 90
   - id: recreates-consumer-state-after-redeployment
+    expectedBehavior: >-
+      Replace the old deployed consumer and consume a fresh message successfully.
     body: after-redeployment
     expectedBody: Triggered
     interactions:
@@ -519,6 +567,9 @@ scenarios:
           consumerAction: redeploy
     timeoutSeconds: 90
   - id: redelivers-unacknowledged-auto-messages-after-connection-loss
+    expectedBehavior: >-
+      Redeliver the unacknowledged AUTO-mode message after connection loss and observe two business
+      completions.
     body: interrupted-delivery
     expectedBody: Triggered
     interactions:
@@ -534,6 +585,8 @@ scenarios:
           consumerAction: close-during-processing
     timeoutSeconds: 90
   - id: continues-after-transport-redelivery
+    expectedBehavior: >-
+      Consume the next fresh message once after recovering from transport redelivery.
     body: fresh-after-redelivery
     expectedBody: Triggered
     interactions:
@@ -547,6 +600,8 @@ scenarios:
           expectedFailureCompletions: 0
           expectedRedeliveryCount: 0
 - id: consumes-preexisting-queue-without-resource-declaration
+  expectedBehavior: >-
+    Consume from the existing queue without declaring the exchange, queue, or dead-letter policy.
   reuseBroker: true
   scope: Long
   deployment: auto
@@ -555,6 +610,8 @@ scenarios:
     sourceElementId: 94164c82-e1a7-493c-877b-46f00f286c08
   invocations:
   - id: consumes-existing-queues-without-declaring-resources
+    expectedBehavior: >-
+      Consume from the existing queue without creating exchange or dead-letter resources.
     driver:
       provider: rabbitmq-trigger
       sourceElementId: 94164c82-e1a7-493c-877b-46f00f286c08
@@ -579,6 +636,8 @@ scenarios:
           topology: queue-only
           deadLetterPolicy: false
 - id: consumes-from-both-configured-queues
+  expectedBehavior: >-
+    Consume direct messages and queued backlog from each configured input queue.
   reuseBroker: true
   scope: Long
   deployment: multiple-queues
@@ -587,6 +646,8 @@ scenarios:
     sourceElementId: fb2d1b81-5979-5c12-8c1a-96947ed0106c
   invocations:
   - id: consumes-from-every-configured-queue
+    expectedBehavior: >-
+      Consume the delivery from the first configured input queue.
     driver:
       provider: rabbitmq-trigger
       sourceElementId: fb2d1b81-5979-5c12-8c1a-96947ed0106c
@@ -607,6 +668,8 @@ scenarios:
           expectedFailureCompletions: 0
           expectedRedeliveryCount: 0
   - id: consumes-second-configured-queue
+    expectedBehavior: >-
+      Consume the delivery from the second configured input queue.
     driver:
       provider: rabbitmq-trigger
       sourceElementId: fb2d1b81-5979-5c12-8c1a-96947ed0106c
@@ -627,6 +690,8 @@ scenarios:
           expectedFailureCompletions: 0
           expectedRedeliveryCount: 0
   - id: drains-backlog-from-first-configured-queue
+    expectedBehavior: >-
+      Drain the first queue after its consumer resumes from a stopped route.
     driver:
       provider: rabbitmq-trigger
       sourceElementId: fb2d1b81-5979-5c12-8c1a-96947ed0106c
@@ -648,6 +713,8 @@ scenarios:
           consumerAction: stop-until-published
     timeoutSeconds: 90
   - id: drains-backlog-from-second-configured-queue
+    expectedBehavior: >-
+      Drain the second queue after its consumer resumes from a stopped route.
     driver:
       provider: rabbitmq-trigger
       sourceElementId: fb2d1b81-5979-5c12-8c1a-96947ed0106c
@@ -669,6 +736,8 @@ scenarios:
           consumerAction: stop-until-published
     timeoutSeconds: 90
 - id: consumes-fanout-topology
+  expectedBehavior: >-
+    Consume deliveries from the preconfigured fanout exchange independently of the publication routing key.
   reuseBroker: true
   scope: Long
   deployment: fanout
@@ -677,6 +746,8 @@ scenarios:
     sourceElementId: 6dad34b2-5b6c-570c-87f2-da1ffd1682dd
   invocations:
   - id: consumes-fanout-delivery-from-preconfigured-bindings
+    expectedBehavior: >-
+      Consume the fanout delivery and observe publication on the preconfigured fanout binding.
     driver:
       provider: rabbitmq-trigger
       sourceElementId: 6dad34b2-5b6c-570c-87f2-da1ffd1682dd
@@ -696,6 +767,8 @@ scenarios:
           expectedRedeliveryCount: 0
           observeFanout: true
   - id: consumes-fanout-with-another-key
+    expectedBehavior: >-
+      Consume a second fanout publication even though its routing key differs.
     driver:
       provider: rabbitmq-trigger
       sourceElementId: 6dad34b2-5b6c-570c-87f2-da1ffd1682dd
@@ -715,6 +788,8 @@ scenarios:
           expectedRedeliveryCount: 0
           observeFanout: true
 - id: consumes-topic-topology
+  expectedBehavior: >-
+    Consume only routing keys matching the configured topic binding patterns.
   reuseBroker: true
   scope: Long
   deployment: topic
@@ -723,6 +798,8 @@ scenarios:
     sourceElementId: 61f91466-aa34-5eaf-920e-25b985f787bd
   invocations:
   - id: matches-topic-binding-patterns
+    expectedBehavior: >-
+      Consume a routing key matching the configured topic patterns.
     driver:
       provider: rabbitmq-trigger
       sourceElementId: 61f91466-aa34-5eaf-920e-25b985f787bd
@@ -744,6 +821,8 @@ scenarios:
           - routingKey: snapshot.*
           - routingKey: snapshot.#
   - id: topic-key-1
+    expectedBehavior: >-
+      Consume the multi-level routing key matching the configured hash-wildcard topic binding.
     driver:
       provider: rabbitmq-trigger
       sourceElementId: 61f91466-aa34-5eaf-920e-25b985f787bd
@@ -765,6 +844,8 @@ scenarios:
           - routingKey: snapshot.*
           - routingKey: snapshot.#
   - id: topic-key-2
+    expectedBehavior: >-
+      Produce no business completion for a routing key outside the configured topic patterns.
     driver:
       provider: rabbitmq-trigger
       sourceElementId: 61f91466-aa34-5eaf-920e-25b985f787bd
@@ -786,6 +867,8 @@ scenarios:
           - routingKey: snapshot.*
           - routingKey: snapshot.#
 - id: consumes-headers-topology
+  expectedBehavior: >-
+    Consume only messages satisfying all configured headers-exchange binding arguments.
   reuseBroker: true
   scope: Long
   deployment: headers
@@ -794,6 +877,8 @@ scenarios:
     sourceElementId: 74e337c9-f31f-5393-a06e-c1d64d54ce30
   invocations:
   - id: matches-headers-exchange-bindings
+    expectedBehavior: >-
+      Consume the message whose headers satisfy both required binding arguments.
     body: headers-0
     headers:
       region: east
@@ -814,6 +899,8 @@ scenarios:
             region: east
             kind: order
   - id: headers-combination-1
+    expectedBehavior: >-
+      Produce no business completion when the region header does not match its required binding value.
     driver:
       provider: rabbitmq-trigger
       sourceElementId: 74e337c9-f31f-5393-a06e-c1d64d54ce30
@@ -838,6 +925,8 @@ scenarios:
             region: east
             kind: order
   - id: headers-combination-2
+    expectedBehavior: >-
+      Produce no business completion when the required region binding header is absent.
     driver:
       provider: rabbitmq-trigger
       sourceElementId: 74e337c9-f31f-5393-a06e-c1d64d54ce30
@@ -861,6 +950,8 @@ scenarios:
             region: east
             kind: order
 - id: rejects-unhandled-auto-failures-to-configured-dead-letter-queue
+  expectedBehavior: >-
+    Reject an unhandled AUTO-mode failure into the dead-letter queue and continue with a successful message.
   scope: Long
   deployment: auto
   driver:
@@ -868,6 +959,9 @@ scenarios:
     sourceElementId: 94164c82-e1a7-493c-877b-46f00f286c08
   invocations:
   - id: dead-letters-unhandled-auto-failures-and-recovers
+    expectedBehavior: >-
+      Capture the downstream exception and route the rejected AUTO-mode message to the configured dead-letter
+      queue.
     body: failed-auto
     headers:
       snapshotFail: true
@@ -888,6 +982,8 @@ scenarios:
           expectedRedeliveryCount: 0
           expectedDeadLetterCount: 1
   - id: consumes-after-auto-rejection
+    expectedBehavior: >-
+      Consume a fresh message successfully after the AUTO-mode delivery was rejected.
     body: after-auto-rejection
     expectedBody: Triggered
     interactions:
@@ -901,6 +997,8 @@ scenarios:
           expectedFailureCompletions: 0
           expectedRedeliveryCount: 0
 - id: rejects-auto-failures-without-dead-letter-policy
+  expectedBehavior: >-
+    Reject an unhandled AUTO-mode failure without a dead-letter policy, then continue consuming successfully.
   scope: Long
   deployment: auto
   driver:
@@ -908,6 +1006,8 @@ scenarios:
     sourceElementId: 94164c82-e1a7-493c-877b-46f00f286c08
   invocations:
   - id: drops-unhandled-auto-failures-without-dead-letter-policy
+    expectedBehavior: >-
+      Capture the downstream exception and reject the AUTO-mode message without a dead-letter policy.
     body: failed-no-policy
     headers:
       snapshotFail: true
@@ -928,6 +1028,8 @@ scenarios:
           expectedRedeliveryCount: 0
           deadLetterPolicy: false
   - id: consumes-after-rejection-without-policy
+    expectedBehavior: >-
+      Consume a fresh message after rejecting the failed delivery without a dead-letter policy.
     body: after-no-policy
     expectedBody: Triggered
     interactions:
@@ -942,6 +1044,9 @@ scenarios:
           expectedRedeliveryCount: 0
           deadLetterPolicy: false
 - id: acknowledges-manual-deliveries-before-downstream-work
+  expectedBehavior: >-
+    Acknowledge MANUAL-mode deliveries before downstream completion and avoid redelivery after downstream
+    failure.
   reuseBroker: true
   scope: Long
   deployment: manual
@@ -950,6 +1055,8 @@ scenarios:
     sourceElementId: 67cf068e-8e09-5ac8-bf31-c84f26941e6a
   invocations:
   - id: acknowledges-manual-deliveries-before-downstream-completion
+    expectedBehavior: >-
+      Observe acknowledgment while MANUAL-mode downstream processing is still in flight.
     body: held-manual
     expectedBody: Triggered
     interactions:
@@ -965,6 +1072,8 @@ scenarios:
           consumerAction: observe-during-processing
     timeoutSeconds: 90
   - id: keeps-manual-failures-out-of-redelivery-and-dlq
+    expectedBehavior: >-
+      Capture the MANUAL-mode downstream failure without redelivery or dead-letter delivery.
     body: failed-manual
     headers:
       snapshotFail: true
@@ -984,6 +1093,8 @@ scenarios:
           expectedFailureCompletions: 1
           expectedRedeliveryCount: 0
   - id: consumes-after-manual-failure-and-reconnect
+    expectedBehavior: >-
+      Restart the consumer after a MANUAL-mode failure and consume only the fresh message.
     body: after-manual-failure
     expectedBody: Triggered
     interactions:
@@ -999,6 +1110,8 @@ scenarios:
           consumerAction: restart-route
     timeoutSeconds: 90
 - id: uses-native-auto-acknowledgment-in-none-mode
+  expectedBehavior: >-
+    Use native automatic acknowledgment in NONE mode so downstream failures are not redelivered.
   reuseBroker: true
   scope: Long
   deployment: none
@@ -1007,6 +1120,8 @@ scenarios:
     sourceElementId: 0c249797-17ae-5d1c-a3c8-3cca40f54c04
   invocations:
   - id: uses-native-auto-ack-with-none-mode
+    expectedBehavior: >-
+      Observe native automatic acknowledgment before NONE-mode downstream processing finishes.
     body: held-none
     expectedBody: Triggered
     interactions:
@@ -1022,6 +1137,8 @@ scenarios:
           consumerAction: observe-during-processing
     timeoutSeconds: 90
   - id: does-not-redeliver-failed-none-mode-message
+    expectedBehavior: >-
+      Capture the NONE-mode downstream failure without redelivering the acknowledged message.
     body: failed-none
     headers:
       snapshotFail: true
@@ -1041,6 +1158,8 @@ scenarios:
           expectedFailureCompletions: 1
           expectedRedeliveryCount: 0
   - id: consumes-after-none-mode-failure
+    expectedBehavior: >-
+      Restart after the NONE-mode failure and consume a fresh message once.
     body: after-none-failure
     expectedBody: Triggered
     interactions:
@@ -1056,6 +1175,8 @@ scenarios:
           consumerAction: restart-route
     timeoutSeconds: 90
 - id: recovers-after-broker-access-denials
+  expectedBehavior: >-
+    Resume consumption after credentials, read permissions, and virtual-host access are restored.
   scope: Long
   deployment: broker-faults
   driver:
@@ -1063,6 +1184,8 @@ scenarios:
     sourceElementId: 494fcc2a-3d1d-5bb1-acf5-2514f7943133
   invocations:
   - id: rejects-invalid-credentials-and-recovers
+    expectedBehavior: >-
+      Prevent consumption while credentials are denied, then consume after valid credentials are restored.
     body: after-deny-credentials-until-published
     expectedBody: Triggered
     interactions:
@@ -1078,6 +1201,8 @@ scenarios:
           consumerAction: deny-credentials-until-published
     timeoutSeconds: 90
   - id: continues-after-deny-credentials-until-published
+    expectedBehavior: >-
+      Consume a fresh message on the recovered authenticated consumer.
     body: healthy-after-deny-credentials-until-published
     expectedBody: Triggered
     interactions:
@@ -1091,6 +1216,8 @@ scenarios:
           expectedFailureCompletions: 0
           expectedRedeliveryCount: 0
   - id: rejects-read-permissions-and-recovers
+    expectedBehavior: >-
+      Observe channel close code 403 for denied read permission, then consume after permission is restored.
     body: after-deny-read-until-published
     expectedBody: Triggered
     interactions:
@@ -1107,6 +1234,8 @@ scenarios:
           expectedChannelCloseCode: 403
     timeoutSeconds: 90
   - id: continues-after-deny-read-until-published
+    expectedBehavior: >-
+      Consume a fresh message after recovering from denied queue read permission.
     body: healthy-after-deny-read-until-published
     expectedBody: Triggered
     interactions:
@@ -1120,6 +1249,8 @@ scenarios:
           expectedFailureCompletions: 0
           expectedRedeliveryCount: 0
   - id: recovers-after-vhost-removal-and-restoration
+    expectedBehavior: >-
+      Resume consumption after the inaccessible virtual host becomes available again.
     body: after-deny-vhost-until-published
     expectedBody: Triggered
     interactions:
@@ -1135,6 +1266,8 @@ scenarios:
           consumerAction: deny-vhost-until-published
     timeoutSeconds: 90
   - id: continues-after-deny-vhost-until-published
+    expectedBehavior: >-
+      Consume a fresh message after virtual-host access recovery.
     body: healthy-after-deny-vhost-until-published
     expectedBody: Triggered
     interactions:
@@ -1148,6 +1281,8 @@ scenarios:
           expectedFailureCompletions: 0
           expectedRedeliveryCount: 0
 - id: negotiates-tls-and-recovers-after-handshake-failure
+  expectedBehavior: >-
+    Use the exported TLS protocol and resume consumption after a TLS handshake failure.
   scope: Long
   deployment: tls
   driver:
@@ -1155,6 +1290,8 @@ scenarios:
     sourceElementId: c96e5983-163f-57c0-8349-47fd4f825d77
   invocations:
   - id: negotiates-the-exported-tls-protocol
+    expectedBehavior: >-
+      Consume through the exported TLS configuration and observe the negotiated protocol.
     body: tls-first
     expectedBody: Triggered
     interactions:
@@ -1169,6 +1306,8 @@ scenarios:
           expectedRedeliveryCount: 0
           tls: true
   - id: recovers-after-tls-handshake-failure
+    expectedBehavior: >-
+      Wait through the injected TLS handshake failure and consume after the TLS connection recovers.
     body: tls-recovery
     expectedBody: Triggered
     interactions:
@@ -1185,6 +1324,8 @@ scenarios:
           consumerAction: tls-until-published
     timeoutSeconds: 90
   - id: continues-with-the-existing-tls-consumer
+    expectedBehavior: >-
+      Consume another message through the existing recovered TLS consumer.
     body: tls-final
     expectedBody: Triggered
     interactions:
@@ -1199,6 +1340,8 @@ scenarios:
           expectedRedeliveryCount: 0
           tls: true
 - id: resolves-maas-and-consumes
+  expectedBehavior: >-
+    Resolve the exported MaaS classifier and namespace, then consume from the returned virtual host.
   scope: Long
   deployment: maas
   driver:
@@ -1206,6 +1349,9 @@ scenarios:
     sourceElementId: b1dc7ea9-38a7-572c-af62-defb99704d7e
   invocations:
   - id: resolves-maas-classifiers-and-consumes-from-returned-vhosts
+    expectedBehavior: >-
+      Resolve the exported classifier in its configured MaaS namespace and consume from the returned virtual
+      host.
     body: resolved-maas
     expectedBody: Triggered
     interactions:
@@ -1221,6 +1367,8 @@ scenarios:
           maasClassifier: snapshot-trigger-classifier
           maasNamespace: snapshot-rabbitmq
 - id: resolves-maas-default-and-consumes
+  expectedBehavior: >-
+    Resolve the MaaS classifier with the default namespace and consume from the returned virtual host.
   scope: Long
   deployment: maas-default
   driver:
@@ -1228,6 +1376,8 @@ scenarios:
     sourceElementId: e21bcf61-0479-546f-b206-8d69a9bbac40
   invocations:
   - id: resolves-default-maas-namespace
+    expectedBehavior: >-
+      Resolve the exported classifier with the default MaaS namespace and consume its message.
     body: resolved-maas-default
     expectedBody: Triggered
     interactions:
@@ -1243,6 +1393,8 @@ scenarios:
           maasClassifier: snapshot-trigger-classifier
           maasNamespace: snapshot-tests
 - id: reports-maas-lookup-failure-and-recovers-on-redeployment
+  expectedBehavior: >-
+    Fail startup when MaaS cannot resolve the requested virtual host, without executing business work.
   scope: Long
   deployment: maas
   driver:
@@ -1250,6 +1402,8 @@ scenarios:
     sourceElementId: b1dc7ea9-38a7-572c-af62-defb99704d7e
   invocations:
   - id: reports-maas-lookup-failure-and-recovers-on-redeployment
+    expectedBehavior: >-
+      Reject startup when MaaS reports a missing virtual host, with no business execution.
     driver:
       provider: rabbitmq-trigger
       sourceElementId: b1dc7ea9-38a7-572c-af62-defb99704d7e
@@ -1277,6 +1431,8 @@ scenarios:
       message: vHost not found
       cause: null
 - id: consumes-after-successful-maas-redeployment
+  expectedBehavior: >-
+    Consume successfully when the previously missing MaaS virtual-host lookup succeeds on deployment.
   scope: Long
   deployment: maas
   driver:
@@ -1284,6 +1440,8 @@ scenarios:
     sourceElementId: b1dc7ea9-38a7-572c-af62-defb99704d7e
   invocations:
   - id: consumes-after-maas-lookup-recovery
+    expectedBehavior: >-
+      Consume successfully after the requested MaaS virtual host becomes resolvable.
     body: maas-recovered
     expectedBody: Triggered
     interactions:
@@ -1299,6 +1457,8 @@ scenarios:
           maasClassifier: snapshot-trigger-classifier
           maasNamespace: snapshot-rabbitmq
 - id: reports-a-missing-input-queue-without-declaration
+  expectedBehavior: >-
+    Fail startup for a missing input queue without silently declaring the queue or consuming messages.
   scope: Long
   deployment: auto
   driver:
@@ -1306,6 +1466,8 @@ scenarios:
     sourceElementId: 94164c82-e1a7-493c-877b-46f00f286c08
   invocations:
   - id: reports-missing-input-queues-without-creating-them
+    expectedBehavior: >-
+      Reject startup because the input queue is absent and resource declaration is disabled.
     driver:
       provider: rabbitmq-trigger
       sourceElementId: 94164c82-e1a7-493c-877b-46f00f286c08
@@ -1338,6 +1500,8 @@ scenarios:
             - no queue ''snapshot.rabbitmq.trigger.queue'' in vhost ''/'', class-id=50, method-id=10)'
           cause: null
 - id: consumes-after-provisioning-the-missing-queue
+  expectedBehavior: >-
+    Consume successfully after the required input queue has been provisioned.
   scope: Long
   deployment: auto
   driver:
@@ -1345,6 +1509,8 @@ scenarios:
     sourceElementId: 94164c82-e1a7-493c-877b-46f00f286c08
   invocations:
   - id: consumes-after-missing-queue-correction
+    expectedBehavior: >-
+      Consume successfully after provisioning the previously missing queue.
     body: corrected-queue
     expectedBody: Triggered
     interactions:
@@ -1358,6 +1524,9 @@ scenarios:
           expectedFailureCompletions: 0
           expectedRedeliveryCount: 0
 - id: applies-idempotency-to-business-keys-and-broker-redelivery
+  expectedBehavior: >-
+    Deduplicate business keys across contexts, expiry, duplicate actions, processing failures, and broker
+    redelivery.
   scope: Long
   deployment: idempotency
   driver:
@@ -1365,6 +1534,8 @@ scenarios:
     sourceElementId: 8efe42ba-50eb-588f-a961-88673fca22be
   invocations:
   - id: deduplicates-business-keys-and-reacquires-expired-keys
+    expectedBehavior: >-
+      Process the first business key and reserve it in the configured idempotency context.
     driver:
       provider: rabbitmq-trigger
       sourceElementId: 8efe42ba-50eb-588f-a961-88673fca22be
@@ -1417,6 +1588,8 @@ scenarios:
       expectedRequest:
         count: 0
   - id: suppresses-duplicate-key
+    expectedBehavior: >-
+      Mark the repeated business key as a duplicate without executing business processing again.
     driver:
       provider: rabbitmq-trigger
       sourceElementId: 8efe42ba-50eb-588f-a961-88673fca22be
@@ -1471,6 +1644,8 @@ scenarios:
       expectedRequest:
         count: 0
   - id: isolates-idempotency-contexts
+    expectedBehavior: >-
+      Process the same business key independently in a different idempotency context.
     driver:
       provider: rabbitmq-trigger
       sourceElementId: 8efe42ba-50eb-588f-a961-88673fca22be
@@ -1523,6 +1698,8 @@ scenarios:
       expectedRequest:
         count: 0
   - id: reacquires-expired-business-key
+    expectedBehavior: >-
+      Process the business key again after its stored idempotency entry expires.
     driver:
       provider: rabbitmq-trigger
       sourceElementId: 8efe42ba-50eb-588f-a961-88673fca22be
@@ -1578,6 +1755,8 @@ scenarios:
       expectedRequest:
         count: 0
   - id: applies-each-configured-duplicate-action
+    expectedBehavior: >-
+      Accept the original key for the duplicate-ignore route and execute business work once.
     driver:
       provider: rabbitmq-trigger
       sourceElementId: 8efe42ba-50eb-588f-a961-88673fca22be
@@ -1630,6 +1809,8 @@ scenarios:
       expectedRequest:
         count: 0
   - id: ignores-configured-duplicate
+    expectedBehavior: >-
+      Ignore the duplicate key while preserving its payload and duplicate marker.
     driver:
       provider: rabbitmq-trigger
       sourceElementId: 8efe42ba-50eb-588f-a961-88673fca22be
@@ -1684,6 +1865,8 @@ scenarios:
       expectedRequest:
         count: 0
   - id: accepts-original-before-throw-action
+    expectedBehavior: >-
+      Accept and process the original business key before testing the throw-on-duplicate route.
     driver:
       provider: rabbitmq-trigger
       sourceElementId: 8073273c-0118-52cc-8961-72cfc7fd3b07
@@ -1736,6 +1919,8 @@ scenarios:
       expectedRequest:
         count: 0
   - id: throws-for-configured-duplicate
+    expectedBehavior: >-
+      Raise DuplicateException for the repeated key, skip business work, and dead-letter the rejected message.
     driver:
       provider: rabbitmq-trigger
       sourceElementId: 8073273c-0118-52cc-8961-72cfc7fd3b07
@@ -1795,6 +1980,8 @@ scenarios:
       expectedRequest:
         count: 0
   - id: accepts-original-before-subchain-action
+    expectedBehavior: >-
+      Process the original key once without invoking the duplicate-handler subchain.
     driver:
       provider: rabbitmq-trigger
       sourceElementId: 371b0ba7-10eb-5f3c-a7ae-b03e00d5a908
@@ -1847,6 +2034,9 @@ scenarios:
       expectedRequest:
         count: 0
   - id: invokes-exported-duplicate-handler
+    expectedBehavior: >-
+      Invoke only the exported duplicate-handler subchain for the repeated key and mark the exchange as
+      duplicate.
     driver:
       provider: rabbitmq-trigger
       sourceElementId: 371b0ba7-10eb-5f3c-a7ae-b03e00d5a908
@@ -1903,6 +2093,8 @@ scenarios:
       expectedRequest:
         count: 1
   - id: retains-idempotency-keys-after-failed-processing
+    expectedBehavior: >-
+      Capture the downstream failure and retain its business key while dead-lettering the rejected message.
     driver:
       provider: rabbitmq-trigger
       sourceElementId: 8efe42ba-50eb-588f-a961-88673fca22be
@@ -1960,6 +2152,8 @@ scenarios:
       expectedRequest:
         count: 0
   - id: does-not-reacquire-retained-key-after-failure
+    expectedBehavior: >-
+      Suppress business processing for the key retained after the previous downstream failure.
     driver:
       provider: rabbitmq-trigger
       sourceElementId: 8efe42ba-50eb-588f-a961-88673fca22be
@@ -2014,6 +2208,8 @@ scenarios:
       expectedRequest:
         count: 0
   - id: suppresses-business-reexecution-during-broker-redelivery
+    expectedBehavior: >-
+      Mark broker redelivery as duplicate and avoid repeating business work completed before connection loss.
     driver:
       provider: rabbitmq-trigger
       sourceElementId: 8efe42ba-50eb-588f-a961-88673fca22be
@@ -2082,6 +2278,8 @@ scenarios:
       expectedRequest:
         count: 0
 - id: handles-missing-and-empty-idempotency-keys-and-recovers
+  expectedBehavior: >-
+    Treat missing and empty business keys as the same composite key, then accept a distinct valid key.
   scope: Long
   deployment: idempotency
   driver:
@@ -2089,6 +2287,8 @@ scenarios:
     sourceElementId: 8efe42ba-50eb-588f-a961-88673fca22be
   invocations:
   - id: handles-missing-and-empty-idempotency-keys-and-recovers
+    expectedBehavior: >-
+      Process the message with the missing key and reserve its resulting composite idempotency key.
     driver:
       provider: rabbitmq-trigger
       sourceElementId: 8efe42ba-50eb-588f-a961-88673fca22be
@@ -2154,6 +2354,8 @@ scenarios:
       CamelDuplicateMessage: null
       systemProperty_idempotencyContext: orders
   - id: treats-empty-key-as-the-same-composite-key
+    expectedBehavior: >-
+      Treat the empty business key as a duplicate of the composite key reserved for the missing value.
     driver:
       provider: rabbitmq-trigger
       sourceElementId: 8efe42ba-50eb-588f-a961-88673fca22be
@@ -2219,6 +2421,8 @@ scenarios:
       CamelDuplicateMessage: true
       systemProperty_idempotencyContext: orders
   - id: accepts-a-distinct-valid-key-after-the-collision
+    expectedBehavior: >-
+      Process a distinct valid key after the missing and empty key collision.
     driver:
       provider: rabbitmq-trigger
       sourceElementId: 8efe42ba-50eb-588f-a961-88673fca22be
@@ -2276,6 +2480,8 @@ scenarios:
       expectedRequest:
         count: 0
 - id: acquires-a-single-business-key-under-competing-consumers
+  expectedBehavior: >-
+    Allow only one business execution when two consumers compete for the same shared-queue idempotency key.
   scope: Long
   deployment: competing
   driver:
@@ -2283,6 +2489,9 @@ scenarios:
     sourceElementId: 756bc711-0ff1-5adc-8ec4-76dfafe3dfdc
   invocations:
   - id: acquires-one-key-under-competing-trigger-consumers
+    expectedBehavior: >-
+      Observe two competing consumers but only one business execution and one duplicate completion for their
+      shared key.
     driver:
       provider: rabbitmq-trigger
       sourceElementId: 756bc711-0ff1-5adc-8ec4-76dfafe3dfdc

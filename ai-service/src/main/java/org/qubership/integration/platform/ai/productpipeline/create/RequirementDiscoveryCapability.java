@@ -935,8 +935,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
         new ArtifactCandidate(
             CompilationArtifacts.Kind.REQUIREMENT_DRAFT, draft, context.inputRefs()));
     // Read-only exact catalog hits only — never APIHub or import. Emit hints only when the active
-    // stage declares catalog-binding-hint (optionalProduces or produces). create-chain@1 does not,
-    // so it stays on REQUIREMENT_DRAFT alone and avoids unknown-candidate CONTRACT_FAILURE.
+    // stage declares catalog-binding-hint (optionalProduces or produces).
     if (stageDeclaresCatalogBindingHint(context)) {
       candidates.addAll(exactCatalogBindingHints(draft));
     }
@@ -950,8 +949,6 @@ public class RequirementDiscoveryCapability implements StageCapability {
                   context.profile().profileVersion()),
               List.of()));
     }
-    // create-chain@1 gates on draft approval (CANDIDATE). create-chain@2 has no discovery
-    // approval, so SUCCEEDED advances to requirement-analysis without WAITING_FOR_APPROVAL.
     StageOutcomeClass outcomeClass =
         stageRequiresApproval(context)
             ? StageOutcomeClass.CANDIDATE

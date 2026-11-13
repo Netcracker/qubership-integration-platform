@@ -11,6 +11,7 @@ import { CARDS_LIMIT, HTML_BYTES, HTML_FILE, PREHEADER_CHARS, TEXT_FILE, emailHt
 import { ERROR_LINES, LINE_CHARS, escapeHtml } from "../../support/run-report.mjs";
 import { pointLabel, runOf as emailOf } from "../../support/run-model.mjs";
 import { OUTCOMES_FILE, testKey } from "../../support/run-history.mjs";
+import { EXAMPLE_RUN_TOKEN } from "../../support/run.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const RED_RUN = path.resolve(HERE, "../../fixtures/run-summary/red");
@@ -87,6 +88,17 @@ test.describe("run email", () => {
   const retryOf = (command: string) => new RegExp(command.match(/-g "(.*)"$/)![1]);
 
   test.describe("retry command", () => {
+    test("reuses the captured run for process checks only", () => {
+      const report = reportOf({ "process-envelope": [], api: [] }, [
+        file("env/process-envelope.spec.ts", [failing("process-envelope", "checks readings", "Error: over budget")]),
+        file("api/case.spec.ts", [failing("api", "answers", "Error: no")]),
+      ]);
+      const [processCheck, api] = emailOf({ report, stack: { run: EXAMPLE_RUN_TOKEN }, env: ENV }).failed;
+      expect(processCheck.retry).toMatch(/^E2E_RUN='ab12cd' npm run test:k8s/);
+      expect(api.retry).toMatch(/^npm run test:k8s/);
+      expect(emailOf({ report, env: ENV }).failed[0].retry).toMatch(/^E2E_RUN='<run>' /);
+    });
+
     // The health form: one case title on one line, under a describe per role.
     const roles = (title: string, line: number) => [
       file("engine", [failing("api", title, "Error: down", line)]),

@@ -1905,7 +1905,6 @@ class RequirementDiscoveryCapabilityTest {
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
   void automaticMappingRepairUsesEvidenceWhileManualChangesKeepAuthorText(boolean automatic) throws Exception {
-    var mapper = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
     var authored = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput(
         new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FlowInput(List.of(), List.of()),
         List.of(new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput("goal", List.of(),
@@ -2695,7 +2694,7 @@ class RequirementDiscoveryCapabilityTest {
     RequirementDraft approved = petstoreServiceCallDraft();
     RequirementDiscoveryCapability capability = discovery(store, approved);
 
-    // create-chain@1 shape: produces requirement-draft only — no catalog-binding-hint declaration.
+    // This profile declares only requirement-draft, so catalog hints must stay out of candidates.
     ProductPipelineProfile v1Like =
         discoveryProfile(
             List.of(new ArtifactTypeRef("requirement-draft", 2)), List.of());

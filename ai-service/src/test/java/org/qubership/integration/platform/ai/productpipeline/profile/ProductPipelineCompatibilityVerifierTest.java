@@ -80,7 +80,7 @@ class ProductPipelineCompatibilityVerifierTest {
         new ProductPipelineProfile(
             1,
             "create-chain",
-            "1",
+            "2",
             List.of(),
             List.of(),
             new TerminalPolicy("finish", "PLAN_APPROVED"),
@@ -171,7 +171,7 @@ class ProductPipelineCompatibilityVerifierTest {
         List.of(),
         List.of(),
         List.of(),
-        List.of("create-chain@1"),
+        List.of("create-chain@2"),
         List.of(),
         true,
         List.of());
@@ -213,7 +213,7 @@ class ProductPipelineCompatibilityVerifierTest {
         List.of(),
         List.of(),
         List.of(),
-        List.of("create-chain@1", "create-chain@2"),
+        List.of("create-chain@2"),
         List.of(),
         true,
         List.of());

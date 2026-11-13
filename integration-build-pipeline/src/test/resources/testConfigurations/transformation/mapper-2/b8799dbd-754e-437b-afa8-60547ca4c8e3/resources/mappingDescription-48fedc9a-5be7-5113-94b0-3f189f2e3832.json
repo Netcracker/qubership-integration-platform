@@ -1,0 +1,173 @@
+{
+  "mappingDescription": {
+    "source": {
+      "body": {
+        "name": "object",
+        "schema": {
+          "id": "fdddeddaf7c85d49b34b853030841d0c",
+          "attributes": [
+            {
+              "id": "a53fec8854745ffeb2b94bb95348ec19",
+              "name": "c:customer",
+              "type": {
+                "name": "object",
+                "schema": {
+                  "id": "48eebc7f2f785639b17eb349aef81129",
+                  "attributes": [
+                    {
+                      "id": "b990f19228705597b5c8411f79f6e729",
+                      "name": "@id",
+                      "type": {
+                        "name": "string"
+                      },
+                      "required": false
+                    },
+                    {
+                      "id": "56c65bbe9413594ca09bae5c099a777e",
+                      "name": "c:active",
+                      "type": {
+                        "name": "boolean"
+                      },
+                      "required": false
+                    },
+                    {
+                      "id": "a8ecc1753b5959b58344d5d10ff79400",
+                      "name": "c:name",
+                      "type": {
+                        "name": "string"
+                      },
+                      "required": false
+                    }
+                  ]
+                },
+                "definitions": [],
+                "metadata": {
+                  "xmlNamespaces": [
+                    {
+                      "alias": "c",
+                      "uri": "urn:qip:customer"
+                    }
+                  ]
+                }
+              },
+              "required": false
+            }
+          ]
+        },
+        "definitions": [],
+        "metadata": {
+          "dataFormat": "XML",
+          "sourceType": "sample",
+          "sourceFormat": "XML"
+        }
+      },
+      "headers": [],
+      "properties": []
+    },
+    "target": {
+      "body": {
+        "name": "object",
+        "schema": {
+          "id": "c112ab5674cf5a40affe66c75327aaab",
+          "attributes": [
+            {
+              "id": "6906ec31af9f5500831e8bc16ea0796f",
+              "name": "customerId",
+              "type": {
+                "name": "string"
+              },
+              "required": false
+            },
+            {
+              "id": "b675ca66c5ec5bea99b324263dc203d2",
+              "name": "displayName",
+              "type": {
+                "name": "string"
+              },
+              "required": false
+            },
+            {
+              "id": "a21704f7dc1e55579cfe8b2310113032",
+              "name": "enabled",
+              "type": {
+                "name": "boolean"
+              },
+              "required": false
+            }
+          ]
+        },
+        "definitions": [],
+        "metadata": {
+          "dataFormat": "JSON",
+          "sourceType": "sample",
+          "sourceFormat": "JSON"
+        }
+      },
+      "headers": [],
+      "properties": []
+    },
+    "actions": [
+      {
+        "id": "ae19a44639ef512f97363d3dbb8f4140",
+        "target": {
+          "kind": "body",
+          "path": [
+            "6906ec31af9f5500831e8bc16ea0796f"
+          ],
+          "type": "attribute"
+        },
+        "sources": [
+          {
+            "kind": "body",
+            "path": [
+              "a53fec8854745ffeb2b94bb95348ec19",
+              "b990f19228705597b5c8411f79f6e729"
+            ],
+            "type": "attribute"
+          }
+        ]
+      },
+      {
+        "id": "0562138bc58551c4a1ce5c0f5493cf36",
+        "target": {
+          "kind": "body",
+          "path": [
+            "b675ca66c5ec5bea99b324263dc203d2"
+          ],
+          "type": "attribute"
+        },
+        "sources": [
+          {
+            "kind": "body",
+            "path": [
+              "a53fec8854745ffeb2b94bb95348ec19",
+              "a8ecc1753b5959b58344d5d10ff79400"
+            ],
+            "type": "attribute"
+          }
+        ]
+      },
+      {
+        "id": "90c4fc38ccac55ec8a3b17b5407b394f",
+        "target": {
+          "kind": "body",
+          "path": [
+            "a21704f7dc1e55579cfe8b2310113032"
+          ],
+          "type": "attribute"
+        },
+        "sources": [
+          {
+            "kind": "body",
+            "path": [
+              "a53fec8854745ffeb2b94bb95348ec19",
+              "56c65bbe9413594ca09bae5c099a777e"
+            ],
+            "type": "attribute"
+          }
+        ]
+      }
+    ],
+    "constants": []
+  }
+}

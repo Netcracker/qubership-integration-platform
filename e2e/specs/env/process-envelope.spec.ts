@@ -7,21 +7,13 @@
  * than through any API. A catalog killed by an import surfaces today as dozens of unrelated red
  * specs across four files; this turns it into one named failure that says which service and when.
  *
- * **This file runs first inside the `env` project, and that is load-bearing.** The project's whole
- * purpose is restarting services, so the identity reading has to be taken before any spec here has
- * restarted one. Playwright collects files in sorted order and `process-envelope` sorts before
- * `quote-minimization-roundtrip`, `restart-resilience`, and `service-type-roundtrip`. The first case asserts that ordering off the
- * directory listing before it reads anything, so a rename or a new sibling ahead of it fails here,
- * naming the ordering, instead of turning the identity reading into a report about a service that
- * a neighbor restarted on purpose.
+ * `process-snapshot` records the readings after api, runtime, and ui, before `env` restarts a
+ * service. This teardown project checks that saved state after the dependent projects finish.
  *
  * Nothing here names `docker` or `jcmd`. The reading comes through `Env.processEnvelope`, because
  * "did the services survive the run" is exactly the question that has to be answerable against a
  * cluster too, and a cluster has neither command.
  */
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { test, expect } from "../../support/fixtures.js";
 import { ROLES } from "../../env/containers.js";
 import {
@@ -29,52 +21,20 @@ import {
   formatPeaks,
   metaspaceOutsideBand,
   outsideBand,
-  readRunResources,
 } from "../../env/resources.js";
+import { capturedValue, readProcessSnapshot } from "../../env/process-snapshot.js";
 import { METASPACE_ATTACHMENT, PEAKS_ATTACHMENT } from "../../support/run-summary.mjs";
-import type { Env, ProcessEnvelope } from "../../env/index.js";
-
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-
-/** This file's own name, asserted against the collection order rather than trusted. */
-const THIS_SPEC = path.basename(fileURLToPath(import.meta.url));
+import type { ProcessEnvelope } from "../../env/index.js";
 
 /** `role startedAt restarts`, which is the whole of the identity and reads as a diff. */
 function identity(envelope: ProcessEnvelope): string {
   return `${envelope.role} started ${envelope.startedAt}, ${envelope.restarts} restarts`;
 }
 
-/**
- * One reading of every role, shared by the two cases that need it.
- *
- * An envelope costs a `docker inspect` and a `docker exec jcmd` per role, and the identity and the
- * Metaspace case ask the same question of the same four containers seconds apart. Nothing between
- * them restarts anything, so a second reading would be the same numbers at twice the price.
- */
-let reading: Promise<ProcessEnvelope[]> | undefined;
-
-function envelopes(env: Env): Promise<ProcessEnvelope[]> {
-  reading ??= (async () => {
-    const found: ProcessEnvelope[] = [];
-    for (const role of ROLES) found.push(await env.processEnvelope(role));
-    return found;
-  })();
-  return reading;
-}
-
 test.describe("process envelope", { tag: ["@infra"] }, () => {
-  test("every service is still the process the run started", async ({ env }) => {
-    // The ordering the reading below rests on, asserted rather than commented. Playwright collects a
-    // project's files in sorted order, so what keeps this file ahead of the `env` specs that
-    // restart a service is its name — and a rename, or a sibling added ahead of it, would change what
-    // the assertion at the end of this test means without changing a line of it.
-    expect(
-      fs.readdirSync(HERE).filter((name) => name.endsWith(".spec.ts")).sort()[0],
-      "another env spec now sorts ahead of this one. The env project restarts services on purpose, " +
-        "so the identity reading below would be taken after whatever that spec did to them",
-    ).toBe(THIS_SPEC);
-
-    const baseline = readRunResources()?.baseline ?? [];
+  test("every service is still the process the run started", async ({ run }) => {
+    const snapshot = readProcessSnapshot(run);
+    const baseline = snapshot.baseline;
     expect(
       baseline.map((each) => each.role).sort(),
       "globalSetup records the envelope of every service before any project runs; without it there " +
@@ -84,15 +44,13 @@ test.describe("process envelope", { tag: ["@infra"] }, () => {
     // Both halves in one assertion: a container that crashed and was restarted in place keeps its
     // name and its image and changes exactly these two numbers.
     expect(
-      (await envelopes(env)).map(identity),
-      "a service that is not the process the run started took the whole run down with it, and every " +
-        "red spec above this one is a consequence rather than a finding — unless an `env` spec that " +
-        "restarts a service ran before this file, in which case the ordering is the finding",
+      capturedValue(snapshot.envelopes).map(identity),
+      "service identities changed between globalSetup and the pre-restart snapshot",
     ).toEqual(baseline.map(identity));
   });
 
-  test("no service ended the run against its Metaspace ceiling", async ({ env }, testInfo) => {
-    const reported = (await envelopes(env)).filter((each) => each.metaspace !== null);
+  test("no service ended the run against its Metaspace ceiling", async ({ run }, testInfo) => {
+    const reported = capturedValue(readProcessSnapshot(run).envelopes).filter((each) => each.metaspace !== null);
     // For the CI step summary, which reads the report rather than the console.
     const readings = reported.map((each) => ({ role: each.role, ...each.metaspace, band: BANDS[each.role].metaspaceShare }));
     await testInfo.attach(METASPACE_ATTACHMENT, { body: JSON.stringify(readings), contentType: "application/json" });
@@ -112,8 +70,8 @@ test.describe("process envelope", { tag: ["@infra"] }, () => {
     expect(metaspaceOutsideBand(reported), "a JVM this close to its ceiling is one import from OOM").toEqual([]);
   });
 
-  test("no service left its stated resource band", async ({ env }, testInfo) => {
-    const peaks = await env.resourcePeaks();
+  test("no service left its stated resource band", async ({ run }, testInfo) => {
+    const peaks = capturedValue(readProcessSnapshot(run).peaks);
     const readings = peaks.map((each) => ({ ...each, band: { memoryBytes: BANDS[each.role].memoryBytes, cpuPercent: BANDS[each.role].cpuPercent } }));
     await testInfo.attach(PEAKS_ATTACHMENT, { body: JSON.stringify(readings), contentType: "application/json" });
     expect(

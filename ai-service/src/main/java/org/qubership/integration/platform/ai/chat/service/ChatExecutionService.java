@@ -35,6 +35,7 @@ import org.qubership.integration.platform.ai.logging.AiTraceLog;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
+import org.qubership.integration.platform.ai.productpipeline.create.UnsupportedCreateRunBindingException;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 
 /**
@@ -276,6 +277,14 @@ public class ChatExecutionService {
   }
 
   private Multi<String> streamSse(ChatRequest request) {
+    try {
+      return prepareStreamSse(request);
+    } catch (UnsupportedCreateRunBindingException error) {
+      return recoverFailedSse(request.getConversationId(), error);
+    }
+  }
+
+  private Multi<String> prepareStreamSse(ChatRequest request) {
     String conversationId =
         request.getConversationId() != null ? request.getConversationId() : UUID.randomUUID().toString();
 
