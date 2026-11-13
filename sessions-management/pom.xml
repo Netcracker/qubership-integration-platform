@@ -16,7 +16,7 @@
   <description>Managing recorded sessions of integration flows execution stored in OpenSearch index</description>
 
   <properties>
-    <revision>1.7.1</revision>
+    <revision>1.8.0</revision>
     <changelist>-SNAPSHOT</changelist>
   </properties>
 
