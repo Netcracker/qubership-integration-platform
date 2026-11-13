@@ -16,7 +16,8 @@ class YamlExportImportMapperTest {
             "1.10", "1_000", "0x1F", "1e3", "1234e56", "007", ".inf", "-.Inf", ".NaN", "0o17",
             "2024-01-01", "12:30", "y", "off", "Yes", "~", "null", "",
             "- x", "@x", "key: value", "a #b", "{x}", "[x]", " lead", "trail ",
-            "Grüße, 世界", "a\tb", "line1\nline2\n");
+            "Grüße, 世界", "a\tb", "line1\nline2\n",
+            "x" + (char) 0x85 + "y", "x" + (char) 0x2028 + "y", "x" + (char) 0x2029 + "y");
 
     private final YAMLMapper writer = new MapperAutoConfiguration().yamlExportImportMapper(true);
     private final YAMLMapper reader = new YAMLMapper();

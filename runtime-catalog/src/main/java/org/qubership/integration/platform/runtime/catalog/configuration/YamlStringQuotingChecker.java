@@ -16,6 +16,9 @@ public class YamlStringQuotingChecker extends StringQuotingChecker.Default {
         return super.needToQuoteValue(value)
                 || !Tag.STR.equals(RESOLVER.resolve(NodeId.scalar, value, true))
                 // The VS Code extension reads exports with js-yaml and yaml, which parse 0o17 as a number.
-                || YAML_1_2_OCTAL.matcher(value).matches();
+                || YAML_1_2_OCTAL.matcher(value).matches()
+                // A string with a line break is written as a literal block and never reaches this check, so these
+                // separators inside a multi-line string are not preserved.
+                || value.chars().anyMatch(c -> c == 0x85 || c == 0x2028 || c == 0x2029);
     }
 }
