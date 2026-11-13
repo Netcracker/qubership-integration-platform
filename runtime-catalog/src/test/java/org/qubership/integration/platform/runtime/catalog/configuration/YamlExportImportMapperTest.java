@@ -86,6 +86,15 @@ class YamlExportImportMapperTest {
     }
 
     @Test
+    void quotesSignedLeadingZeroDecimalsForJsParsers() throws Exception {
+        for (String value : List.of("+08", "-09", "+0708", "-0_8")) {
+            Doc doc = new Doc();
+            doc.name = value;
+            assertTrue(writer.writeValueAsString(doc).contains("name: \"" + value + "\""), value);
+        }
+    }
+
+    @Test
     void quotesEveryStringWhenSettingIsOff() throws Exception {
         Doc doc = new Doc();
         doc.name = "plain text";
