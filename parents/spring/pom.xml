@@ -71,7 +71,7 @@
     <!-- The engine and the micro-engine run the stubs this version generates; keep it no newer than the grpc they run. -->
     <grpc.version>1.75.0</grpc.version>
     <handlebars.version>4.3.1</handlebars.version>
-    <hypersistence-utils-hibernate.version>3.7.4</hypersistence-utils-hibernate.version>
+    <hypersistence-utils-hibernate.version>3.16.0</hypersistence-utils-hibernate.version>
     <jackson.version>2.19.4</jackson.version>
     <jakarta.ws.rs-api.version>4.0.0</jakarta.ws.rs-api.version>
     <jandex.version>3.4.0</jandex.version>
@@ -82,7 +82,7 @@
     <logback-gelf.version>5.0.1</logback-gelf.version>
     <logstash-logback-encoder.version>9.0</logstash-logback-encoder.version>
     <lombok-mapstruct-binding.version>0.2.0</lombok-mapstruct-binding.version>
-    <lombok.version>1.18.46</lombok.version>
+    <lombok.version>1.18.48</lombok.version>
     <lz4-java.version>1.11.4</lz4-java.version>
     <mapstruct.version>1.5.5.Final</mapstruct.version>
     <okio.version>3.16.4</okio.version>
@@ -116,7 +116,7 @@
 
     <!-- Common plugin versions -->
     <flatten-maven-plugin.version>1.5.0</flatten-maven-plugin.version>
-    <hibernate-enhance-maven-plugin.version>${hibernate.version}</hibernate-enhance-maven-plugin.version>
+    <hibernate-maven-plugin.version>${hibernate.version}</hibernate-maven-plugin.version>
     <jacoco.plugin.version>0.8.15</jacoco.plugin.version>
     <maven-checkstyle-plugin.version>3.6.0</maven-checkstyle-plugin.version>
     <maven-gpg-plugin.version>3.2.8</maven-gpg-plugin.version>

@@ -10,6 +10,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.chain.UpdateRolesRequest;
 import org.qubership.integration.platform.runtime.catalog.service.ChainRolesService;
 import org.springframework.http.MediaType;
+import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -41,6 +42,7 @@ class ChainAccessControlControllerTest {
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(new ChainAccessControlController(chainRolesService))
+                .setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
                 .build();
     }
 

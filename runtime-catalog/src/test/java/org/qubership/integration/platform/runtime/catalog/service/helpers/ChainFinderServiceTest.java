@@ -73,7 +73,7 @@ class ChainFinderServiceTest {
     @Test
     void shouldFindChainsInFolderWithFilter() {
         String folderId = "folderId";
-        FolderContentFilter filter = mock(FolderContentFilter.class);
+        FolderContentFilter filter = new FolderContentFilter();
         List<Chain> chains = List.of(new Chain());
         when(chainRepository.findAll(any(Specification.class))).thenReturn(chains);
 
@@ -85,7 +85,7 @@ class ChainFinderServiceTest {
 
     @Test
     void shouldFindChainsInRootWithFilter() {
-        FolderContentFilter filter = mock(FolderContentFilter.class);
+        FolderContentFilter filter = new FolderContentFilter();
         List<Chain> chains = List.of(new Chain());
         when(chainRepository.findAll(any(Specification.class))).thenReturn(chains);
 

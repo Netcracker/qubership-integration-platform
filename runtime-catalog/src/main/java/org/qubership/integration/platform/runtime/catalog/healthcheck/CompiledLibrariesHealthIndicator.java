@@ -18,10 +18,10 @@ package org.qubership.integration.platform.runtime.catalog.healthcheck;
 
 import org.qubership.integration.platform.runtime.catalog.consul.CompiledLibraryEventsProducerService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.actuate.availability.ReadinessStateHealthIndicator;
 import org.springframework.boot.availability.ApplicationAvailability;
 import org.springframework.boot.availability.AvailabilityState;
 import org.springframework.boot.availability.ReadinessState;
+import org.springframework.boot.health.application.ReadinessStateHealthIndicator;
 import org.springframework.stereotype.Component;
 
 @Component
