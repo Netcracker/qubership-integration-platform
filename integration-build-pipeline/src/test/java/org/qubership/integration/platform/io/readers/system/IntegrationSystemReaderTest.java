@@ -130,20 +130,20 @@ class IntegrationSystemReaderTest {
     @DisplayName("read binds current-format group and specification files from text, keeping unquoted number-like strings")
     @Test
     void keepsNumberLikeStringsInCurrentFormatSpecificationFiles() throws Exception {
-        Path systemFile = serviceDir.resolve("sys-4.service.qip.yaml");
+        Path systemFile = serviceDir.resolve("sys-4.service.cip.yaml");
         Files.writeString(systemFile, """
                 id: sys-4
                 name: System
                 content:
                   integrationSystemType: EXTERNAL
                 """);
-        Files.writeString(serviceDir.resolve("group-1.specification-group.qip.yaml"), """
+        Files.writeString(serviceDir.resolve("group-1.specification-group.cip.yaml"), """
                 id: group-1
                 name: 1.10
                 content:
                   parentId: sys-4
                 """);
-        Files.writeString(serviceDir.resolve("model-1.specification.qip.yaml"), """
+        Files.writeString(serviceDir.resolve("model-1.specification.cip.yaml"), """
                 id: model-1
                 name: Model
                 content:
