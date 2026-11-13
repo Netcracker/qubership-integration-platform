@@ -14,6 +14,7 @@ import {
   Typography,
   Upload,
 } from "antd";
+import type { TabsProps } from "antd";
 import { message } from "../../../misc/antd-app.ts";
 import type { RcFile } from "antd/es/upload";
 import { useModalContext } from "../../../ModalContextProvider";
@@ -34,6 +35,7 @@ import { validateFiles } from "../utils";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 import { VSCodeExtensionApi } from "../../../api/rest/vscodeExtensionApi.ts";
 import { SourceFlagTag } from "../ui/SourceFlagTag";
+import uploadStyles from "../../modal/ScrollableUpload.module.css";
 
 const POLLING_INTERVAL = 1200;
 const DEFAULT_EXTERNAL_ROUTES_ONLY = true;
@@ -69,7 +71,7 @@ interface Props {
   isImplementedService?: boolean;
 }
 
-const ImportSpecificationsModal: React.FC<Props> = ({
+const AddSpecificationModal: React.FC<Props> = ({
   systemId,
   specificationGroupId,
   groupMode,
@@ -398,11 +400,231 @@ const ImportSpecificationsModal: React.FC<Props> = ({
     }
   };
 
+  const apiTabContent = (
+    <div>
+      {isGroupMode && (
+        <Form.Item
+          label="Name"
+          required
+          validateStatus={!name.trim() && nameTouched ? "error" : ""}
+          help={!name.trim() && nameTouched ? "Name is required" : undefined}
+          className={styles.formItemMargin}
+        >
+          <Input
+            value={name}
+            onChange={(e) => handleNameChange(e.target.value)}
+            placeholder="Enter group name"
+          />
+        </Form.Item>
+      )}
+      {loadingApiFiles ? (
+        <Spin className={styles.spinCenter} />
+      ) : (
+        <div>
+          {specApiFiles.length === 0 ? (
+            <Typography.Text type="secondary">
+              No API contract files found
+            </Typography.Text>
+          ) : (
+            <Form.Item label="API Contract" className={styles.formItemMargin}>
+              <Select
+                showSearch
+                placeholder="Select API contract"
+                optionFilterProp="label"
+                filterOption={(input, option) =>
+                  typeof option?.label === "string" &&
+                  option.label.toLowerCase().startsWith(input.toLowerCase())
+                }
+                value={selectedSpecApiFile?.id}
+                onChange={handleSpecApiSelect}
+                allowClear
+              >
+                {specApiFiles.map((file) => (
+                  <Select.Option
+                    key={file.id}
+                    value={file.id}
+                    label={file.name}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                      }}
+                    >
+                      <span>{file.name}</span>
+                      <SourceFlagTag source={file.protocol} kind="protocol" />
+                    </div>
+                  </Select.Option>
+                ))}
+              </Select>
+            </Form.Item>
+          )}
+        </div>
+      )}
+      {(loading || polling) && (
+        <div className={styles.loadingContainer}>
+          <Spin />
+          <Typography.Text className={styles.loadingText}>
+            {progressText}
+          </Typography.Text>
+        </div>
+      )}
+    </div>
+  );
+
+  const fileTabContent = (
+    <div>
+      {isGroupMode && (
+        <Form.Item
+          label="Name"
+          required
+          validateStatus={!name.trim() && nameTouched ? "error" : ""}
+          help={!name.trim() && nameTouched ? "Name is required" : undefined}
+          className={styles.formItemMargin}
+        >
+          <Input
+            value={name}
+            onChange={(e) => handleNameChange(e.target.value)}
+            placeholder="Enter group name"
+            autoFocus
+          />
+        </Form.Item>
+      )}
+      <div style={{ marginBottom: 16 }}>
+        <Typography.Text type="secondary">
+          Supported file types: {supportedExtensions.join(", ")}
+        </Typography.Text>
+        <br />
+        <Typography.Text type="secondary">
+          Maximum file size: 25MB per file
+        </Typography.Text>
+      </div>
+      <Upload.Dragger
+        className={uploadStyles.scrollableUpload}
+        name="files"
+        multiple
+        accept={supportedExtensions.join(",")}
+        beforeUpload={(_file, fileList) => {
+          handleFilesChange(fileList);
+          return false;
+        }}
+        showUploadList={files.length > 0 ? { showRemoveIcon: true } : false}
+        onRemove={(file) => {
+          setFiles((prev) => prev.filter((f) => f.uid !== file.uid));
+          return true;
+        }}
+        fileList={files}
+      >
+        <p className="ant-upload-drag-icon">
+          <OverridableIcon name="inbox" />
+        </p>
+        <p className="ant-upload-text">
+          Drag one or more specification files or click to choose
+        </p>
+      </Upload.Dragger>
+      {(loading || polling) && (
+        <div className={styles.loadingContainer}>
+          <Spin />
+          <Typography.Text className={styles.loadingText}>
+            {progressText}
+          </Typography.Text>
+        </div>
+      )}
+    </div>
+  );
+
+  const chainsTabContent = (
+    <div>
+      <Form.Item
+        label="Name"
+        required
+        validateStatus={!name.trim() && nameTouched ? "error" : ""}
+        help={!name.trim() && nameTouched ? "Name is required" : undefined}
+        className={styles.formItemMargin}
+      >
+        <Input
+          value={name}
+          onChange={(e) => handleNameChange(e.target.value)}
+          placeholder="Enter group name"
+        />
+      </Form.Item>
+      <Checkbox
+        checked={externalRoutesOnly}
+        onChange={(e) => setExternalRoutesOnly(e.target.checked)}
+        className={styles.checkboxMargin}
+      >
+        External routes only
+      </Checkbox>
+      {loadingChains ? (
+        <Spin className={styles.spinCenter} />
+      ) : (
+        <div className={styles.chainsContainer}>
+          {elements.length === 0 ? (
+            <Typography.Text type="secondary">No chains found</Typography.Text>
+          ) : (
+            elements.map((element: ElementWithChainName) => (
+              <Card
+                key={element.chainId}
+                className={styles.chainCard}
+                size="small"
+                styles={{ body: {} }}
+              >
+                <div className={styles.chainCardBody}>
+                  <Checkbox
+                    checked={selectedChainIds.includes(element.chainId)}
+                    onChange={(e) =>
+                      handleChainSelect(element.chainId, e.target.checked)
+                    }
+                    className={styles.checkboxRightMargin}
+                  />
+                  <div>
+                    <Typography.Text strong>
+                      <a
+                        href={`/chains/${element.chainId}/graph`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={styles.chainNameLink}
+                      >
+                        {element.chainName}
+                      </a>
+                    </Typography.Text>
+                    <Typography.Text className={styles.chainId}>
+                      {element.chainId}
+                    </Typography.Text>
+                    <div>
+                      <a
+                        href={`/chains/${element.chainId}/graph/${element.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={styles.triggerNameLink}
+                      >
+                        {element.name}
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+
+  const tabItems: NonNullable<TabsProps["items"]> = [
+    ...(hasApiTab
+      ? [{ key: "api", label: "From API", children: apiTabContent }]
+      : []),
+    { key: "file", label: "From File", children: fileTabContent },
+    ...(isImplementedService
+      ? [{ key: "chains", label: "From Chain", children: chainsTabContent }]
+      : []),
+  ];
+
   return (
     <Modal
-      title={
-        isGroupMode ? "Import Specification Group" : "Import Specification"
-      }
+      title={isGroupMode ? "Add Specification Group" : "Add Specification"}
       open={true}
       onCancel={handleCancel}
       footer={null}
@@ -410,293 +632,34 @@ const ImportSpecificationsModal: React.FC<Props> = ({
       maskClosable={true}
       destroyOnHidden
     >
-      <Tabs
-        activeKey={activeTabKey}
-        onChange={(key) => setActiveTabKey(key)}
-        items={[
-          ...(hasApiTab
-            ? [
-                {
-                  key: "api",
-                  label: "Import from API",
-                  children: (
-                    <div>
-                      {isGroupMode && (
-                        <Form.Item
-                          label="Name"
-                          required
-                          validateStatus={
-                            !name.trim() && nameTouched ? "error" : ""
-                          }
-                          help={
-                            !name.trim() && nameTouched
-                              ? "Name is required"
-                              : undefined
-                          }
-                          className={styles.formItemMargin}
-                        >
-                          <Input
-                            value={name}
-                            onChange={(e) => handleNameChange(e.target.value)}
-                            placeholder="Enter group name"
-                          />
-                        </Form.Item>
-                      )}
-                      {loadingApiFiles ? (
-                        <Spin className={styles.spinCenter} />
-                      ) : (
-                        <div>
-                          {specApiFiles.length === 0 ? (
-                            <Typography.Text type="secondary">
-                              No API contract files found
-                            </Typography.Text>
-                          ) : (
-                            <Form.Item
-                              label="API Contract"
-                              className={styles.formItemMargin}
-                            >
-                              <Select
-                                showSearch
-                                placeholder="Select API contract"
-                                optionFilterProp="label"
-                                filterOption={(input, option) =>
-                                  typeof option?.label === "string" &&
-                                  option.label
-                                    .toLowerCase()
-                                    .startsWith(input.toLowerCase())
-                                }
-                                value={selectedSpecApiFile?.id}
-                                onChange={handleSpecApiSelect}
-                                allowClear
-                              >
-                                {specApiFiles.map((file) => (
-                                  <Select.Option
-                                    key={file.id}
-                                    value={file.id}
-                                    label={file.name}
-                                  >
-                                    <div
-                                      style={{
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: 8,
-                                      }}
-                                    >
-                                      <span>{file.name}</span>
-                                      <SourceFlagTag
-                                        source={file.protocol}
-                                        kind="protocol"
-                                      />
-                                    </div>
-                                  </Select.Option>
-                                ))}
-                              </Select>
-                            </Form.Item>
-                          )}
-                        </div>
-                      )}
-                      {(loading || polling) && (
-                        <div className={styles.loadingContainer}>
-                          <Spin />
-                          <Typography.Text className={styles.loadingText}>
-                            {progressText}
-                          </Typography.Text>
-                        </div>
-                      )}
-                    </div>
-                  ),
-                },
-              ]
-            : []),
-          {
-            key: "file",
-            label: "Import File",
-            children: (
-              <div>
-                {isGroupMode && (
-                  <Form.Item
-                    label="Name"
-                    required
-                    validateStatus={!name.trim() && nameTouched ? "error" : ""}
-                    help={
-                      !name.trim() && nameTouched
-                        ? "Name is required"
-                        : undefined
-                    }
-                    className={styles.formItemMargin}
-                  >
-                    <Input
-                      value={name}
-                      onChange={(e) => handleNameChange(e.target.value)}
-                      placeholder="Enter group name"
-                      autoFocus
-                    />
-                  </Form.Item>
-                )}
-                <div style={{ marginBottom: 16 }}>
-                  <Typography.Text type="secondary">
-                    Supported file types: {supportedExtensions.join(", ")}
-                  </Typography.Text>
-                  <br />
-                  <Typography.Text type="secondary">
-                    Maximum file size: 25MB per file
-                  </Typography.Text>
-                </div>
-                <Upload.Dragger
-                  name="files"
-                  multiple
-                  accept={supportedExtensions.join(",")}
-                  beforeUpload={(_file, fileList) => {
-                    handleFilesChange(fileList);
-                    return false;
-                  }}
-                  showUploadList={
-                    files.length > 0 ? { showRemoveIcon: true } : false
-                  }
-                  onRemove={(file) => {
-                    setFiles((prev) => prev.filter((f) => f.uid !== file.uid));
-                    return true;
-                  }}
-                  fileList={files}
-                >
-                  <p className="ant-upload-drag-icon">
-                    <OverridableIcon name="inbox" />
-                  </p>
-                  <p className="ant-upload-text">
-                    Drag one or more specification files or click to choose
-                  </p>
-                </Upload.Dragger>
-                {(loading || polling) && (
-                  <div className={styles.loadingContainer}>
-                    <Spin />
-                    <Typography.Text className={styles.loadingText}>
-                      {progressText}
-                    </Typography.Text>
-                  </div>
-                )}
-              </div>
-            ),
-          },
-          ...(isImplementedService
-            ? [
-                {
-                  key: "chains",
-                  label: "Import from Chains",
-                  children: (
-                    <div>
-                      <Form.Item
-                        label="Name"
-                        required
-                        validateStatus={
-                          !name.trim() && nameTouched ? "error" : ""
-                        }
-                        help={
-                          !name.trim() && nameTouched
-                            ? "Name is required"
-                            : undefined
-                        }
-                        className={styles.formItemMargin}
-                      >
-                        <Input
-                          value={name}
-                          onChange={(e) => handleNameChange(e.target.value)}
-                          placeholder="Enter group name"
-                        />
-                      </Form.Item>
-                      <Checkbox
-                        checked={externalRoutesOnly}
-                        onChange={(e) =>
-                          setExternalRoutesOnly(e.target.checked)
-                        }
-                        className={styles.checkboxMargin}
-                      >
-                        External routes only
-                      </Checkbox>
-                      {loadingChains ? (
-                        <Spin className={styles.spinCenter} />
-                      ) : (
-                        <div className={styles.chainsContainer}>
-                          {elements.length === 0 ? (
-                            <Typography.Text type="secondary">
-                              No chains found
-                            </Typography.Text>
-                          ) : (
-                            elements.map((element: ElementWithChainName) => (
-                              <Card
-                                key={element.chainId}
-                                className={styles.chainCard}
-                                size="small"
-                                styles={{ body: {} }}
-                              >
-                                <div className={styles.chainCardBody}>
-                                  <Checkbox
-                                    checked={selectedChainIds.includes(
-                                      element.chainId,
-                                    )}
-                                    onChange={(e) =>
-                                      handleChainSelect(
-                                        element.chainId,
-                                        e.target.checked,
-                                      )
-                                    }
-                                    className={styles.checkboxRightMargin}
-                                  />
-                                  <div>
-                                    <Typography.Text strong>
-                                      <a
-                                        href={`/chains/${element.chainId}/graph`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className={styles.chainNameLink}
-                                      >
-                                        {element.chainName}
-                                      </a>
-                                    </Typography.Text>
-                                    <Typography.Text className={styles.chainId}>
-                                      {element.chainId}
-                                    </Typography.Text>
-                                    <div>
-                                      <a
-                                        href={`/chains/${element.chainId}/graph/${element.id}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className={styles.triggerNameLink}
-                                      >
-                                        {element.name}
-                                      </a>
-                                    </div>
-                                  </div>
-                                </div>
-                              </Card>
-                            ))
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ),
-                },
-              ]
-            : []),
-        ]}
-      />
+      {tabItems.length > 1 ? (
+        <Tabs
+          activeKey={activeTabKey}
+          onChange={(key) => setActiveTabKey(key)}
+          items={tabItems}
+        />
+      ) : (
+        tabItems[0].children
+      )}
       <Space direction="vertical" size="large" style={{ width: "100%" }}>
         <div className={styles.actionsContainer}>
+          <Button onClick={handleCancel}>Cancel</Button>
           {activeTabKey === "chains" && isImplementedService && (
-            <>
-              <Button
-                onClick={() => setSelectedChainIds([])}
-                disabled={selectedChainIds.length === 0}
-              >
-                Clear
-              </Button>
-              <Button
-                type="primary"
-                disabled={selectedChainIds.length === 0}
-                onClick={() => void handleGenerateAndImport()}
-              >
-                Create
-              </Button>
-            </>
+            <Button
+              onClick={() => setSelectedChainIds([])}
+              disabled={selectedChainIds.length === 0}
+            >
+              Clear
+            </Button>
+          )}
+          {activeTabKey === "chains" && isImplementedService && (
+            <Button
+              type="primary"
+              disabled={selectedChainIds.length === 0}
+              onClick={() => void handleGenerateAndImport()}
+            >
+              Add
+            </Button>
           )}
           {activeTabKey === "file" && (
             <Button
@@ -709,7 +672,7 @@ const ImportSpecificationsModal: React.FC<Props> = ({
                 polling
               }
             >
-              Import {files.length > 1 ? `${files.length} Files` : "File"}
+              Add
             </Button>
           )}
           {activeTabKey === "api" && hasApiTab && (
@@ -723,10 +686,9 @@ const ImportSpecificationsModal: React.FC<Props> = ({
                 polling
               }
             >
-              Import
+              Add
             </Button>
           )}
-          <Button onClick={handleCancel}>Cancel</Button>
         </div>
         {validationError && (
           <Alert
@@ -759,4 +721,4 @@ const ImportSpecificationsModal: React.FC<Props> = ({
   );
 };
 
-export { ImportSpecificationsModal };
+export { AddSpecificationModal };

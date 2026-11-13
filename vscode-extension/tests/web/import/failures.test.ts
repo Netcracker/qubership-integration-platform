@@ -164,7 +164,7 @@ describe("a refused specification import", () => {
       // The extension unpacks no archive: `ProtocolDetectorService.extractArchives` passes every
       // file through, where the backend's `MultipartFileUtils.extractArchives` reads a zip's
       // entries. So the import refuses one, and the picker's `SUPPORTED_EXTENSIONS` in
-      // `ui/src/components/services/modals/ImportSpecificationsModal.tsx` drops `".zip"` where the
+      // `ui/src/components/services/modals/AddSpecificationModal.tsx` drops `".zip"` where the
       // api is the extension's, which is what keeps the product from inviting this file. The case
       // stays because the webview is not the only sender: `getApiResponse` takes the message from
       // anything that can post one, including an extension that loads this package as a library.

@@ -156,13 +156,13 @@ test.describe("service editor", () => {
     await webview.getByRole("tab", { name: "API Specifications" }).click();
 
     await webview.getByTestId("api-specs-add-group").click();
-    const groupImport = webview.getByRole("dialog", { name: "Import Specification Group" });
+    const groupImport = webview.getByRole("dialog", { name: "Add Specification Group" });
     // The contract list filters by the start of a name, and Enter picks the one option left.
     const contract = groupImport.getByRole("combobox");
     await contract.fill("vsc-fixture-widgets");
     await contract.press("Enter");
     await expect(groupImport.getByRole("textbox", { name: "Enter group name" })).toHaveValue("vsc-fixture-widgets-api");
-    await groupImport.getByRole("button", { name: "Import", exact: true }).click();
+    await groupImport.getByRole("button", { name: "Add", exact: true }).click();
     await expect(groupImport).toBeHidden();
 
     await table.row("vsc-fixture-widgets-api").getByText("vsc-fixture-widgets-api", { exact: true }).click();
@@ -171,10 +171,10 @@ test.describe("service editor", () => {
     for (const operation of ["listWidgets", "createWidget", "getWidget"]) await expect(table.row(operation)).toBeVisible();
 
     await webview.getByRole("button", { name: "To Specifications" }).click();
-    await webview.getByTestId("api-specs-import-specification").click();
-    const fileImport = webview.getByRole("dialog", { name: "Import Specification" });
+    await webview.getByTestId("api-specs-add-specification").click();
+    const fileImport = webview.getByRole("dialog", { name: "Add Specification" });
     await fileImport.locator("input[type=file]").setInputFiles(WIDGETS_V2);
-    await fileImport.getByRole("button", { name: "Import File" }).click();
+    await fileImport.getByRole("button", { name: "Add", exact: true }).click();
     await expect(fileImport).toBeHidden();
 
     await table.row("2.0.0").getByText("2.0.0", { exact: true }).click();
