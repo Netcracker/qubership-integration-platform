@@ -6,7 +6,7 @@
   <parent>
     <groupId>org.qubership.integration.platform</groupId>
     <artifactId>qip-parent-quarkus</artifactId>
-    <version>1.7.1-SNAPSHOT</version>
+    <version>1.8.0-SNAPSHOT</version>
     <relativePath>../parents/quarkus/pom.xml</relativePath>
   </parent>
 
