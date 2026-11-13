@@ -207,7 +207,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:c68740017887a700393fe19e51afad1bea22319964396e19c71cdef71f4e4452
+  content_hash: sha256:9cf8db57b0672f8dfdc16ddbb1d82f6581a34e2f844116f936376452bf86ce1a
 - kind: project-relative
   target: claude
   value: .claude/rules/engine.md
@@ -252,7 +252,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:353ec36f39ffb01d61919a269bbf840f6f9312db3ea1ff2008f6049a043017be
+  content_hash: sha256:34c9237cdd377ba397a8f5434038dba1a4efd76f22eee106f42ad440075f61c5
 - kind: project-relative
   target: claude
   value: .claude/rules/npm-workspaces.md
@@ -1098,7 +1098,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:e4666f6401c7cbe4080c848b044551a41383d8b75e7cfc10ab40b2a067098954
+  content_hash: sha256:ff6df8514546fe083cf7ff7ef7885c96084834814e5c144ba8cadf7d315caccc
 - kind: project-relative
   target: cursor
   value: .cursor/rules/engine.mdc
@@ -1143,7 +1143,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:e43415f080bb596756ef73a0b34e5e9d251eb749d017d4feeecf685e4523b4f5
+  content_hash: sha256:a17ff5650165bca90bb1b4021e49464bac67ef1961dea6cb89859dba2e4e9f3e
 - kind: project-relative
   target: cursor
   value: .cursor/rules/npm-workspaces.mdc
@@ -1917,11 +1917,11 @@ local_deployed_file_hashes:
   .claude/rules/component-testing.md: sha256:5d1ec6081f988ff39863bf48ed2a4154e08765d3bf18dc62eafcb26409ad70e5
   .claude/rules/docs-authoring.md: sha256:fb65f291a143c58e0b76a52a24d792a6f7a54c35813548e5d378341df89be806
   .claude/rules/e2e-decision.md: sha256:7519843848cf75740a55c80c2c4c27b68a4a467b6bfc9ca1dd9ed2dd64822a3b
-  .claude/rules/e2e.md: sha256:c68740017887a700393fe19e51afad1bea22319964396e19c71cdef71f4e4452
+  .claude/rules/e2e.md: sha256:9cf8db57b0672f8dfdc16ddbb1d82f6581a34e2f844116f936376452bf86ce1a
   .claude/rules/engine.md: sha256:3692f2f72eb760bb2abff2c4fc52d065e197d9381271aa1447220dee898fb09a
   .claude/rules/infrastructure.md: sha256:d73fc1116ebaf3bec00275d2d9335f468314713c468aee2bef4a242bf6e403cf
   .claude/rules/micro-engine.md: sha256:192cc7fe4c07cb167bb317ce67a719ac2f440ca5570c0572f8aaebccf811c465
-  .claude/rules/monorepo.md: sha256:353ec36f39ffb01d61919a269bbf840f6f9312db3ea1ff2008f6049a043017be
+  .claude/rules/monorepo.md: sha256:34c9237cdd377ba397a8f5434038dba1a4efd76f22eee106f42ad440075f61c5
   .claude/rules/npm-workspaces.md: sha256:3f8361e6ca7d8051574472264b59e66fda55fe703af800ffcfc685343248c6b2
   .claude/rules/runtime-catalog.md: sha256:4e11c201176cf1ba2c2b84cbcec1d69681a639f032649331a5716919dfe2cf47
   .claude/rules/schemas.md: sha256:3c7ecfdc30381309f79bef7715f458c838452c8a485db85a2e96b17dd66dc46a
@@ -1982,11 +1982,11 @@ local_deployed_file_hashes:
   .cursor/rules/component-testing.mdc: sha256:ca40907357f1f0f77d0bdf3ba0f28992de54cd7a3e3a7aa4243637935b6a9f4c
   .cursor/rules/docs-authoring.mdc: sha256:04274aa51cc097ea37ababc82b6fe050cbfb15dc4fff8bc37b81e50f2568f52c
   .cursor/rules/e2e-decision.mdc: sha256:28e910847ce12134a93acf565271beef6afcf7ee98800b26b8c9dd8606465a81
-  .cursor/rules/e2e.mdc: sha256:e4666f6401c7cbe4080c848b044551a41383d8b75e7cfc10ab40b2a067098954
+  .cursor/rules/e2e.mdc: sha256:ff6df8514546fe083cf7ff7ef7885c96084834814e5c144ba8cadf7d315caccc
   .cursor/rules/engine.mdc: sha256:ea62cf3608f3fb9bbeb66b7d1a5b32c47a879b9e3ae6da0acbe32b28062fd60f
   .cursor/rules/infrastructure.mdc: sha256:d77869a78d94aafb2aca5a01945cc1f7f87342947125eab4ede87a7ef4620f3b
   .cursor/rules/micro-engine.mdc: sha256:d5acdd196fc6e1d32d77c96f81412a0bc35cf44b674a1cffb4d1de684cdd7d66
-  .cursor/rules/monorepo.mdc: sha256:e43415f080bb596756ef73a0b34e5e9d251eb749d017d4feeecf685e4523b4f5
+  .cursor/rules/monorepo.mdc: sha256:a17ff5650165bca90bb1b4021e49464bac67ef1961dea6cb89859dba2e4e9f3e
   .cursor/rules/npm-workspaces.mdc: sha256:45b6f4193027005bc12cffdd494c0ca9f6467a2ca3816022b88f30806ee95921
   .cursor/rules/runtime-catalog.mdc: sha256:b07c4adc4a788d55ca78861e8dd4fd218a10ea76a02b566d77dbace1c7559d28
   .cursor/rules/schemas.mdc: sha256:ff9b680b2f05673ab0ae512a6fe106fa8ce2ac27cbab39a34ce1d3a91c64db55

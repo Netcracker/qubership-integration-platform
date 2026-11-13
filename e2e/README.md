@@ -23,6 +23,7 @@ The suite provisioner does not start that profile. The lifecycle check uses the 
 `CIP_RECOVERY_AI_IMAGE` selects another existing image. It creates isolated recovery stores and checks that the shared
 stack stays unchanged, without model requests. Kubernetes excludes this Compose-specific case even when the flag is set.
 
+- [Quick start](#quick-start)
 - [Prerequisites](#prerequisites)
 - [What a run changes on the stack](#what-a-run-changes-on-the-stack)
 - [Targets](#targets)
@@ -37,6 +38,77 @@ stack stays unchanged, without model requests. Kubernetes excludes this Compose-
 - [Layout](#layout)
 - [Coverage registries](#coverage-registries)
 - [The extension's integration tests](#the-extensions-integration-tests)
+
+## Quick start
+
+Run these commands from the repository root. Use a stack you own: the full suite changes shared
+data and restarts services, as [What a run changes on the stack](#what-a-run-changes-on-the-stack) describes.
+
+Choose one host environment for the whole run:
+
+| Host | Runner shell and tools | Cluster bootstrap shell |
+| --- | --- | --- |
+| Linux or macOS | Bash with host Node, Java, Maven, and Docker CLIs | Bash |
+| Native Windows | PowerShell, cmd, or Git Bash with Windows tools and Docker Desktop in Linux container mode | Git Bash from Git for Windows |
+| WSL | Linux shell and tools, clone and dependencies inside the distribution, Docker Desktop WSL integration enabled | Bash inside the distribution |
+
+Install the [prerequisites](#prerequisites) first. For a native Windows clone, enable Git long paths
+and use a short checkout path as shown there. The full run also needs Python 3 for `ai-tests`.
+
+Install both sets of locked dependencies and Chromium; the suite is outside the root npm workspaces:
+
+```sh
+npm ci
+npm --prefix e2e ci
+cd e2e
+npx playwright install chromium
+cd ..
+```
+
+Check the host without starting a product stack:
+
+```sh
+npm --prefix e2e run check-types
+npm --prefix e2e test -- --project=schema --project=harness
+docker info
+```
+
+For **Compose**, start the run directly. It builds stale services and provisions the stack:
+
+```sh
+npm --prefix e2e run test:compose
+```
+
+For **Kubernetes**, install the Kubernetes CLIs listed under prerequisites, then choose the cluster:
+
+| Cluster | Preparation from the repository root in Bash or Git Bash |
+| --- | --- |
+| A separate kind cluster | `bash e2e/k8s/bootstrap-cluster.sh --kind` creates or reuses `kind-qip` |
+| Docker Desktop kubeadm | Select `docker-desktop`, then `bash e2e/k8s/bootstrap-cluster.sh --prepare-node`; see [node preparation](k8s/README.md#docker-desktop-kubeadm) |
+| Docker Desktop kind or an existing kind/k3d cluster | Select its context, then `bash e2e/k8s/bootstrap-cluster.sh`; see [cluster setup and port mappings](k8s/README.md#cluster) |
+
+Every option installs Istio ambient. Bootstrap changes cluster-wide components; the test runner
+then provisions namespace `cip-e2e`. Check `kubectl config current-context` before bootstrap and
+before the run. For kubeadm, repeat `--prepare-node` after the Docker Desktop VM restarts.
+
+From PowerShell, invoke Git Bash explicitly for bootstrap. A bare `bash` can start WSL with a
+different set of tools. For Docker Desktop kubeadm:
+
+```powershell
+$gitBash = Join-Path (git --exec-path) "../../../bin/bash.exe"
+kubectl config use-context docker-desktop
+& $gitBash e2e/k8s/bootstrap-cluster.sh --prepare-node
+```
+
+After bootstrap succeeds, run from the same host environment with the selected context:
+
+```sh
+npm --prefix e2e run test:k8s
+```
+
+The `test:compose` and `test:k8s` commands work unchanged in PowerShell, cmd, Git Bash, and Bash.
+To pass extra flags, use, for example, `npm --prefix e2e run test:k8s -- --project=runtime`.
+Other examples on this page use Bash environment assignments; the prerequisites show their PowerShell equivalent.
 
 ## Prerequisites
 
