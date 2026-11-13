@@ -8,8 +8,9 @@
  * export with minimized quotes whatever the setting, and `specs/api/import-export.spec.ts` covers
  * them on the default stack.
  *
- * Shown failing: on the catalog of 1bc09893a, `plain text` is exported quoted. On 3fe825ed3 the
- * same assertion fails with the setting left at its default.
+ * Shown failing: on the catalog of 1bc09893a, `plain text` is exported quoted. Dropping the
+ * `restartWith` call leaves the catalog at the default `false`, and the `X-Plain: plain text`
+ * assertion turns red.
  */
 import { test, expect } from "../../support/fixtures.js";
 import { tokenized } from "../../support/run.js";

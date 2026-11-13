@@ -10,7 +10,7 @@
  * **This file runs first inside the `env` project, and that is load-bearing.** The project's whole
  * purpose is restarting services, so the identity reading has to be taken before any spec here has
  * restarted one. Playwright collects files in sorted order and `process-envelope` sorts before
- * `restart-resilience` and `service-type-roundtrip`. The first case asserts that ordering off the
+ * `quote-minimization-roundtrip`, `restart-resilience`, and `service-type-roundtrip`. The first case asserts that ordering off the
  * directory listing before it reads anything, so a rename or a new sibling ahead of it fails here,
  * naming the ordering, instead of turning the identity reading into a report about a service that
  * a neighbor restarted on purpose.
@@ -65,7 +65,7 @@ function envelopes(env: Env): Promise<ProcessEnvelope[]> {
 test.describe("process envelope", { tag: ["@infra"] }, () => {
   test("every service is still the process the run started", async ({ env }) => {
     // The ordering the reading below rests on, asserted rather than commented. Playwright collects a
-    // project's files in sorted order, so what keeps this file ahead of the two `env` specs that
+    // project's files in sorted order, so what keeps this file ahead of the `env` specs that
     // restart a service is its name — and a rename, or a sibling added ahead of it, would change what
     // the assertion at the end of this test means without changing a line of it.
     expect(

@@ -434,7 +434,7 @@ test.describe("chain and service export and import", { tag: ["@catalog"] }, () =
 
   // Common variables export with minimized quotes whatever `cip.export.minimize-quotes` says, so a
   // value that YAML would read as a number has to stay quoted (#963). The chain and service half of
-  // the round trip needs the setting on and is in `specs/env/minimized-quotes.spec.ts`.
+  // the round trip needs the setting on and is in `specs/env/quote-minimization-roundtrip.spec.ts`.
   // Shown failing: on the catalog of 1bc09893a, the variable import answers 500
   // `Unable to convert file to variables`.
   test("a .inf common variable survives a round trip", async ({ catalog, run }) => {
