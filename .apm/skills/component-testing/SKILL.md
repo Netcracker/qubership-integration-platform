@@ -1,9 +1,10 @@
 ---
 name: component-testing
 description: >-
-  Extend component test coverage for QIP chains through catalog-generated snapshot
-  bundles and micro-engine YAML scenarios. Use when adding scenarios, exported test
-  chains, or fixtures to this flow, or assessing its coverage. Unit and CDI
+  Extend and diagnose component tests for QIP chains through catalog-generated
+  snapshot bundles and micro-engine YAML scenarios. Use when adding scenarios,
+  exported test chains, or fixtures, assessing coverage, or investigating Snapshot
+  Flow Build failures. Unit and CDI
   configuration tests of production Java code belong to java-unit-testing.
 ---
 
@@ -31,6 +32,14 @@ tests that execute component scenarios and the catalog snapshot producer.
 The snapshot consumer belongs to `micro-engine`. Do not assume Spring `engine`,
 sessions-management, UI, or the Go testing service has the same runner. For those
 modules, inspect their local test guidance before choosing an approach.
+
+## Diagnose a failed snapshot run
+
+For a failed Snapshot Flow Build, apply `ci-fix` to retrieve the failing job and
+read [Failure diagnosis](references/troubleshooting.md). It maps the CI stage,
+scenario reports, and observed failure to the sources to inspect. Use
+[Verification](references/verification.md) to reproduce and verify the selected
+correction through the generated component flow.
 
 Apply `english-developer-style` when writing identifiers, YAML descriptions, or
 documentation. A request to extend coverage authorizes the necessary test edits

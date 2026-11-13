@@ -8,6 +8,7 @@ on:
       - '.github/workflows/_maven-module-build.yaml'
       - '.github/maven-settings.xml'
       - 'checkstyle/**'
+      - 'parents/**'
       - 'pom.xml'
 
 permissions: {}

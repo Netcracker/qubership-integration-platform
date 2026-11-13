@@ -18,12 +18,10 @@ import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwners
  */
 public final class CompilerPipelineCompatibilityAnalyzer {
 
-  public static final String PROFILE_CREATE_CHAIN_V1 = "create-chain@1";
-
   public static final String PROFILE_CREATE_CHAIN_V2 = "create-chain@2";
 
   private static final List<String> DEFAULT_COMPATIBLE_PROFILES =
-      List.of(PROFILE_CREATE_CHAIN_V1, PROFILE_CREATE_CHAIN_V2);
+      List.of(PROFILE_CREATE_CHAIN_V2);
 
   public PipelineCompatibilityReport compare(
       CompilerPipelineIndex previous, CompilerPipelineIndex candidate) {

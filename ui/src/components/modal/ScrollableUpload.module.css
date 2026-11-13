@@ -1,0 +1,6 @@
+.scrollableUpload {
+  > :last-child {
+    max-height: 40vh;
+    overflow-y: auto;
+  }
+}

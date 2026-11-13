@@ -59,7 +59,7 @@ class RequirementProtectionAcceptanceTest {
   void persistedNativeConflictReachesRepairProviderAndContinuesWithoutChangingOtherRequirements() throws Exception {
     String chat = "protection-acceptance-" + UUID.randomUUID();
     String run = "run-" + UUID.randomUUID();
-    String source = "Receive POST /work. Use errorThrowing=false on Remote request. "
+    String source = "Receive POST /work. Use a Default response handler of type none on Remote request. "
         + "Pass every HTTP response to Render result and deliver its success and failure fields. No IDS.";
     var archived = conversations.archive().beginInput(chat, source, null);
     conversations.archive().resolveInput(chat, archived, source);

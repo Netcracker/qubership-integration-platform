@@ -9,7 +9,7 @@ on:
       - '.github/maven-settings.xml'
       - 'runtime-catalog/**'
       - 'integration-build-pipeline/**'
-      - 'parent/**'
+      - 'parents/**'
       - 'pom.xml'
 
 permissions: {}

@@ -28,7 +28,7 @@ mvn -pl schemas test      # JUnit 5 + networknt json-schema-validator
 ```
 
 - Maven build emits a `models` ZIP (`zip-pack.xml` assembly) packaging `src/main/resources/conf-model/`.
-- Checkstyle (`qip-checkstyle`, version from `qip-checkstyle-revision` in this POM) is bound to the `compile` phase, zero violations allowed.
+- Checkstyle (`qip-checkstyle`, version from `qip.checkstyle.version` in `parents/base/pom.xml`) is bound to the `compile` phase, zero violations allowed.
 
 ### Project Structure
 

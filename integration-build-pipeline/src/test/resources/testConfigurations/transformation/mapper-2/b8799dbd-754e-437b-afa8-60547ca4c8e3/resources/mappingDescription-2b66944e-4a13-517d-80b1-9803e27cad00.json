@@ -1,0 +1,150 @@
+{
+  "mappingDescription": {
+    "source": {
+      "body": {
+        "name": "object",
+        "schema": {
+          "id": "e06f1b38c8f15b66b44bdcc8b4ad4f10",
+          "attributes": [
+            {
+              "id": "a933258ff8865ef6b772df253aea27de",
+              "name": "customerId",
+              "type": {
+                "name": "string"
+              },
+              "required": false
+            }
+          ]
+        },
+        "metadata": {
+          "dataFormat": "JSON",
+          "sourceType": "sample",
+          "sourceFormat": "JSON"
+        },
+        "definitions": []
+      },
+      "headers": [
+        {
+          "id": "13ef390c282e56acb5042901747c5d7e",
+          "name": "X-Region",
+          "type": {
+            "name": "string"
+          },
+          "required": false
+        }
+      ],
+      "properties": [
+        {
+          "id": "5c2a42ab9bec5a4392ebbca43922b225",
+          "name": "correlationId",
+          "type": {
+            "name": "string"
+          },
+          "required": false
+        }
+      ]
+    },
+    "target": {
+      "body": {
+        "name": "object",
+        "schema": {
+          "id": "cc3c7371967d5e14a491f4b079fedbdf",
+          "attributes": [
+            {
+              "id": "0ea8640aa0a9552cabf133399d98a26d",
+              "name": "id",
+              "type": {
+                "name": "string"
+              },
+              "required": false
+            },
+            {
+              "id": "e74066f9bcf9526d94d4df59e141f532",
+              "name": "region",
+              "type": {
+                "name": "string"
+              },
+              "required": false
+            },
+            {
+              "id": "e8c2e07821135919bbe00614b0ba93a9",
+              "name": "correlationId",
+              "type": {
+                "name": "string"
+              },
+              "required": false
+            }
+          ]
+        },
+        "metadata": {
+          "dataFormat": "JSON",
+          "sourceType": "sample",
+          "sourceFormat": "JSON"
+        },
+        "definitions": []
+      },
+      "headers": [],
+      "properties": []
+    },
+    "actions": [
+      {
+        "id": "cb829a0f35ad56d0990bad9e899a08ce",
+        "target": {
+          "kind": "body",
+          "path": [
+            "0ea8640aa0a9552cabf133399d98a26d"
+          ],
+          "type": "attribute"
+        },
+        "sources": [
+          {
+            "kind": "body",
+            "path": [
+              "a933258ff8865ef6b772df253aea27de"
+            ],
+            "type": "attribute"
+          }
+        ]
+      },
+      {
+        "id": "5f3394c7433a58129d06c57c495794c7",
+        "target": {
+          "kind": "body",
+          "path": [
+            "e74066f9bcf9526d94d4df59e141f532"
+          ],
+          "type": "attribute"
+        },
+        "sources": [
+          {
+            "kind": "header",
+            "path": [
+              "13ef390c282e56acb5042901747c5d7e"
+            ],
+            "type": "attribute"
+          }
+        ]
+      },
+      {
+        "id": "81706022708a582e8037c2ff61fed497",
+        "target": {
+          "kind": "body",
+          "path": [
+            "e8c2e07821135919bbe00614b0ba93a9"
+          ],
+          "type": "attribute"
+        },
+        "sources": [
+          {
+            "kind": "property",
+            "path": [
+              "5c2a42ab9bec5a4392ebbca43922b225"
+            ],
+            "type": "attribute"
+          }
+        ]
+      }
+    ],
+    "constants": []
+  }
+}

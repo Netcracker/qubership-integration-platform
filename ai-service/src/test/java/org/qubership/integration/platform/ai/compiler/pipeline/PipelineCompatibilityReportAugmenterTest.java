@@ -19,7 +19,7 @@ class PipelineCompatibilityReportAugmenterTest {
 
   @Test
   void mergesPackShippedProfileWhenActivationAllowedAndCompilerSupportsTerminals() throws Exception {
-    ProductPipelineProfile createChainV3 = createChainV3FromBundledV2();
+    ProductPipelineProfile createChainV3 = createChainFromBundled("3");
     CompilerPipelineIndex index = indexProducingCreateChainTerminals();
     PipelineCompatibilityReport base =
         new PipelineCompatibilityReport(
@@ -31,7 +31,7 @@ class PipelineCompatibilityReportAugmenterTest {
             List.of(),
             List.of(),
             List.of(),
-            List.of("create-chain@1", "create-chain@2"),
+            List.of("create-chain@2"),
             List.of(),
             true,
             List.of());
@@ -45,7 +45,7 @@ class PipelineCompatibilityReportAugmenterTest {
 
     assertTrue(augmented.compatibleProfileVersions().contains("create-chain@3"));
     assertEquals(
-        List.of("create-chain@1", "create-chain@2", "create-chain@3"),
+        List.of("create-chain@2", "create-chain@3"),
         augmented.compatibleProfileVersions());
   }
 
@@ -76,7 +76,7 @@ class PipelineCompatibilityReportAugmenterTest {
             List.of(),
             List.of(),
             List.of(),
-            List.of("create-chain@1", "create-chain@2"),
+            List.of("create-chain@2"),
             List.of(),
             true,
             List.of());
@@ -86,7 +86,7 @@ class PipelineCompatibilityReportAugmenterTest {
             base, List.of("create-chain@3"), Map.of("create-chain@3", unsupported), index);
 
     assertFalse(augmented.compatibleProfileVersions().contains("create-chain@3"));
-    assertEquals(List.of("create-chain@1", "create-chain@2"), augmented.compatibleProfileVersions());
+    assertEquals(List.of("create-chain@2"), augmented.compatibleProfileVersions());
   }
 
   @Test
@@ -118,7 +118,7 @@ class PipelineCompatibilityReportAugmenterTest {
             List.of(),
             List.of(),
             List.of(),
-            List.of("create-chain@1", "create-chain@2"),
+            List.of("create-chain@2"),
             List.of(),
             true,
             List.of());
@@ -131,7 +131,7 @@ class PipelineCompatibilityReportAugmenterTest {
             index);
 
     assertFalse(augmented.compatibleProfileVersions().contains("create-chain@2"));
-    assertEquals(List.of("create-chain@1"), augmented.compatibleProfileVersions());
+    assertEquals(List.of(), augmented.compatibleProfileVersions());
   }
 
   @Test
@@ -148,7 +148,7 @@ class PipelineCompatibilityReportAugmenterTest {
             List.of(),
             List.of(),
             List.of(),
-            List.of("create-chain@1", "create-chain@2"),
+            List.of("create-chain@2"),
             List.of(),
             true,
             List.of());
@@ -160,12 +160,12 @@ class PipelineCompatibilityReportAugmenterTest {
             Map.of("create-chain@2", bundledV2),
             index);
 
-    assertEquals(List.of("create-chain@1", "create-chain@2"), augmented.compatibleProfileVersions());
+    assertEquals(List.of("create-chain@2"), augmented.compatibleProfileVersions());
   }
 
   @Test
   void skipsPackShippedProfileWhenOnlyOneOfTwoRequiredTerminalsIsProducible() throws Exception {
-    ProductPipelineProfile twoTerminals = createChainV3FromBundledV2();
+    ProductPipelineProfile twoTerminals = createChainFromBundled("3");
     CompilerPipelineIndex assemblerOnly = indexWithAssemblerOnly();
     PipelineCompatibilityReport base =
         new PipelineCompatibilityReport(
@@ -177,7 +177,7 @@ class PipelineCompatibilityReportAugmenterTest {
             List.of(),
             List.of(),
             List.of(),
-            List.of("create-chain@1", "create-chain@2"),
+            List.of("create-chain@2"),
             List.of(),
             true,
             List.of());
@@ -190,7 +190,7 @@ class PipelineCompatibilityReportAugmenterTest {
             assemblerOnly);
 
     assertFalse(augmented.compatibleProfileVersions().contains("create-chain@3"));
-    assertEquals(List.of("create-chain@1", "create-chain@2"), augmented.compatibleProfileVersions());
+    assertEquals(List.of("create-chain@2"), augmented.compatibleProfileVersions());
   }
 
   @Test
@@ -205,7 +205,7 @@ class PipelineCompatibilityReportAugmenterTest {
             List.of(),
             List.of(),
             List.of(),
-            List.of("create-chain@1"),
+            List.of(),
             List.of(),
             false,
             List.of("blocked"));
@@ -221,6 +221,28 @@ class PipelineCompatibilityReportAugmenterTest {
     assertFalse(augmented.compatibleProfileVersions().contains("create-chain@3"));
   }
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.MethodSource("retiredProfileKeys")
+  void shouldExcludeRetiredCertificationWhenPackMetadataListsIt(List<String> packKeys) throws Exception {
+    CompilerPipelineIndex index = indexProducingCreateChainTerminals();
+    PipelineCompatibilityReport old = new PipelineCompatibilityReport(
+        1, "prev", "candidate", PipelineChangeClass.CONTENT_ONLY,
+        List.of(), List.of(), List.of(), List.of(),
+        List.of("create-chain@1", "create-chain@2"), List.of(), true, List.of());
+
+    var result = PipelineCompatibilityReportAugmenter.augmentWithPackShippedProfiles(
+        old, packKeys, Map.of("create-chain@1", createChainFromBundled("1")), index);
+
+    assertEquals(List.of("create-chain@2"), result.compatibleProfileVersions());
+  }
+
+  private static java.util.stream.Stream<org.junit.jupiter.params.provider.Arguments> retiredProfileKeys() {
+    return java.util.stream.Stream.of(
+        org.junit.jupiter.params.provider.Arguments.of((Object) null),
+        org.junit.jupiter.params.provider.Arguments.of(List.of()),
+        org.junit.jupiter.params.provider.Arguments.of(List.of("create-chain@1")));
+  }
+
   private static ProductPipelineProfile createChainV2FromBundled() throws Exception {
     try (InputStream input =
         PipelineCompatibilityReportAugmenterTest.class.getResourceAsStream(
@@ -229,7 +251,7 @@ class PipelineCompatibilityReportAugmenterTest {
     }
   }
 
-  private static ProductPipelineProfile createChainV3FromBundledV2() throws Exception {
+  private static ProductPipelineProfile createChainFromBundled(String version) throws Exception {
     try (InputStream input =
         PipelineCompatibilityReportAugmenterTest.class.getResourceAsStream(
             "/product-pipelines/profiles/create-chain-v2.yaml")) {
@@ -237,7 +259,7 @@ class PipelineCompatibilityReportAugmenterTest {
       return new ProductPipelineProfile(
           v2.schemaVersion(),
           v2.profileId(),
-          "3",
+          version,
           v2.runInputs(),
           v2.stages(),
           v2.terminal(),

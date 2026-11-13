@@ -2,7 +2,7 @@
 // `vscode` and on the harness `tests/web/import/soap.test.ts` uses.
 //
 // `getImportSpecificationResult` is not optional for the product:
-// `ui/src/components/services/modals/ImportSpecificationsModal.tsx` polls it after every import, so
+// `ui/src/components/services/modals/AddSpecificationModal.tsx` polls it after every import, so
 // `ImportProgressTracker.getImportSession` and the `Import session … not found` answer are on the
 // path a person walks. The golden cases drive the tracker's three write methods implicitly and read
 // no session back, which left the poll answering for every import with nothing to catch it.

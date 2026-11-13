@@ -24,7 +24,7 @@ import type {
 } from "../../api/apiTypes";
 import { downloadFile } from "../../misc/download-utils";
 import { invalidateServiceCache, prepareFile } from "./utils.tsx";
-import { ImportSpecificationsModal } from "./modals/ImportSpecificationsModal";
+import { AddSpecificationModal } from "./modals/AddSpecificationModal";
 import { useModalsContext } from "../../Modals";
 import { getErrorMessage } from "../../misc/error-utils";
 import { useAsyncRequest } from "./useAsyncRequest";
@@ -269,7 +269,7 @@ export const ServicesList: React.FC<ServicesListProps> = ({ tab }) => {
       if (!isIntegrationSystem(record)) return;
       showModal({
         component: (
-          <ImportSpecificationsModal
+          <AddSpecificationModal
             systemId={record.id}
             groupMode={true}
             isImplementedService={

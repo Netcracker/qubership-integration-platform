@@ -7,12 +7,12 @@ globs: micro-engine/**
 
 `qip-micro-engine` is the Quarkus variant of the QIP execution engine: it receives chain deployments from Runtime Catalog (via Consul), dynamically builds Apache Camel contexts/routes, runs integration chains, and records session traces to OpenSearch — same domain and API contracts as the Spring Boot `engine`, but on Quarkus for faster startup and lower memory in cloud-native deployments.
 
-Stack: Java 21, Quarkus (`quarkus-bom` + `quarkus-camel-bom`), Apache Camel (via `camel-quarkus-*` extensions), Camel K runtime, Hibernate ORM Panache + Flyway on PostgreSQL, OpenSearch (`opensearch-java`), Vert.x Consul client, SmallRye (REST/OpenAPI/Health), Micrometer + OpenTelemetry, MapStruct + Lombok. `micro-engine/pom.xml` and `parent/pom.xml` pin the versions.
+Stack: Java 21, Quarkus (`quarkus-bom` + `quarkus-camel-bom`), Apache Camel (via `camel-quarkus-*` extensions), Camel K runtime, Hibernate ORM Panache + Flyway on PostgreSQL, OpenSearch (`opensearch-java`), Vert.x Consul client, SmallRye (REST/OpenAPI/Health), Micrometer + OpenTelemetry, MapStruct + Lombok. `micro-engine/pom.xml`, `parents/quarkus/pom.xml`, and `parents/base/pom.xml` pin the versions.
 
 ### Build and test commands
 
 ```bash
-# Single-module build from repo root (no <parent>, so -am pulls only qip-checkstyle)
+# Single-module build from repo root (-am pulls the parent POMs + checkstyle)
 mvn -pl micro-engine -am package
 
 # The private com.netcracker.cloud.* deps (cloud-core, maas-client, dbaas, blue-green) come from
@@ -37,7 +37,7 @@ mvn -pl micro-engine checkstyle:check
 
 Java unit tests here follow the `java-unit-testing` skill.
 
-The `quarkus-maven-plugin` `build`/`generate-code` goals and `camel-component-maven-plugin` (generates custom-component sources into `target/generated-sources`) are wired into the build lifecycle. The `flatten-maven-plugin` produces `.flattened-pom.xml`. Released to GitHub Packages with the `github` Maven profile (`mvn deploy -P github`); micro-engine and ai-service are the two modules that do not publish to Maven Central, and their release workflows fix the profile to `github`.
+The `quarkus-maven-plugin` `build`/`generate-code` goals and `camel-component-maven-plugin` (generates custom-component sources into `target/generated-sources`) are wired into the build lifecycle. The `flatten-maven-plugin` produces `.flattened-pom.xml`. Signed and released to GitHub Packages like every other Maven module; no Maven profile selects the target.
 
 ### Architecture
 

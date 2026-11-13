@@ -42,7 +42,6 @@ import org.qubership.integration.platform.ai.productpipeline.create.AutoUploaded
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerRunPinResolver;
 import org.qubership.integration.platform.ai.productpipeline.create.FailureNarrative;
 import org.qubership.integration.platform.ai.productpipeline.create.MappingRepairCaptureValidator;
-import org.qubership.integration.platform.ai.productpipeline.create.PlanningCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.RequirementAnalysisCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.RequirementDiscoveryCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.SpecificationImportCapability;
@@ -83,7 +82,6 @@ public class ProductPipelineRuntimeProducers {
           SpecificationImportCapability.CAPABILITY_ID,
           AutoUploadedSpecImportCapability.CAPABILITY_ID,
           RequirementAnalysisCapability.CAPABILITY_ID,
-          PlanningCapability.CAPABILITY_ID,
           DesignInputCapability.CAPABILITY_ID,
           DesignPlanningCapability.CAPABILITY_ID,
           DesignExecutionCapability.CAPABILITY_ID,
@@ -121,13 +119,17 @@ public class ProductPipelineRuntimeProducers {
   ProductPipelineProfileCatalog profileCatalog(CipKnowledgePackRepository packRepository) {
     ArtifactSchemaRegistry schemas = loadArtifactSchemas(packRepository);
     Map<String, ProductPipelineProfile> merged = new LinkedHashMap<>();
-    for (String fileName : List.of("create-chain-v1.yaml", "create-chain-v2.yaml")) {
+    for (String fileName : List.of("create-chain-v2.yaml")) {
       ProductPipelineProfile bundled = loadBundledProfile(fileName);
       merged.put(profileKey(bundled), bundled);
     }
     for (String relativePath : packRepository.loadProductPipelineProfileResources()) {
       ProductPipelineProfile packProfile = loadPackProfile(packRepository, relativePath);
-      merged.put(profileKey(packProfile), packProfile);
+      String key = profileKey(packProfile);
+      if ("create-chain@1".equals(key)) {
+        continue;
+      }
+      merged.put(key, packProfile);
     }
     CompilerPipelineIndex activeIndex = packRepository.loadCompilerPipelineIndex();
     PipelineCompatibilityReport compatibilityReport =

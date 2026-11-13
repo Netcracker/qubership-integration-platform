@@ -42,6 +42,7 @@ import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.UserTokenStore;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.productpipeline.create.CreateProductPipelineCoordinator;
+import org.qubership.integration.platform.ai.productpipeline.create.UnsupportedCreateRunBindingException;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ContinueCreateChainCommand;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.StartCreateChainCommand;
@@ -853,6 +854,39 @@ class ChatExecutionServiceTest {
     assertTrue(frames.get(0).contains("dangling tool_call"));
     assertEquals(
         "event: done\ndata: e648092b-45b0-4249-b3d8-88a991127fd3\n\n", frames.get(1));
+  }
+
+  @Test
+  void retiredBindingDecisionReturnsCutoverIdentifierAsSseError() {
+    List<String> frames =
+        ChatExecutionService.recoverFailedSse(
+                "conversation",
+                new UnsupportedCreateRunBindingException())
+            .collect().asList().await().indefinitely();
+
+    assertEquals(
+        "event: error\ndata: "
+            + new UnsupportedCreateRunBindingException().sseMessage()
+            + "\n\n",
+        frames.getFirst());
+    assertEquals("event: done\ndata: conversation\n\n", frames.getLast());
+  }
+
+  @Test
+  void retiredBindingDuringChatPreflightReturnsSseError() {
+    ChatDecisionService decisions = mock(ChatDecisionService.class);
+    when(decisions.openDecision("retired-conversation"))
+        .thenThrow(new UnsupportedCreateRunBindingException());
+    ChatRequest request = new ChatRequest();
+    request.setConversationId("retired-conversation");
+    request.setMessage("Continue");
+
+    List<String> frames = commandPathService(decisions).streamV1Sse(request)
+        .collect().asList().await().indefinitely();
+
+    assertEquals("event: error\ndata: " + new UnsupportedCreateRunBindingException().sseMessage()
+        + "\n\n", frames.getFirst());
+    assertEquals("event: done\ndata: retired-conversation\n\n", frames.getLast());
   }
 
   @Test

@@ -62,7 +62,6 @@ import org.qubership.integration.platform.ai.qipknowledge.patch.CanonicalGraphDi
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOperation;
 import org.qubership.integration.platform.ai.qipknowledge.patch.NodePatch;
-import org.qubership.integration.platform.ai.qipknowledge.patch.PropertyPatch;
 
 @ExtendWith(MockitoExtension.class)
 class CatalogGraphMaterializerTest {
@@ -817,7 +816,7 @@ class CatalogGraphMaterializerTest {
         List.of(),
         "product",
         "create-chain",
-        "1",
+        "2",
         "profile-sha",
         "baseline",
         "baseline-sha",

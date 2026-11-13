@@ -70,6 +70,7 @@ abstract class SnapshotRouteExecutionTest {
     private static final SnapshotScenarioDriverRegistry DRIVER_REGISTRY =
             SnapshotScenarioDriverRegistry.withDefaultProviders();
     private static Locale originalFormatLocale;
+    private volatile SnapshotFailureContext failureContext;
 
     static {
         ProcessorReifier.registerReifier(StepDefinition.class, CustomStepReifier::new);
@@ -94,6 +95,7 @@ abstract class SnapshotRouteExecutionTest {
             SnapshotExecutionTarget target,
             SnapshotExecutionScenario scenario
     ) throws Exception {
+        updateFailureContext(scenario, null, null, "startup");
         SnapshotExecutionTarget scenarioTarget = target.forScenario(scenario);
         String progressName = target.getId() + "/" + scenario.getId();
         long startedAt = System.nanoTime();
@@ -113,15 +115,18 @@ abstract class SnapshotRouteExecutionTest {
                     } catch (Exception failure) {
                         startupFailure = failure;
                     }
+                    updateFailureContext(scenario, null, null, "startup verification");
                     SnapshotFailureAssertions.assertMatches(scenario.getExpectedStartupFailure(), startupFailure,
                             "Snapshot scenario '" + scenario.getId() + "' startup");
                     environment.verifyStartupFailure();
                     LOG.info("Snapshot {}: verified the expected startup failure.", progressName);
+                    updateFailureContext(scenario, null, null, "cleanup");
                     return;
                 }
                 ProducerTemplate producerTemplate = environment.deploy(scenarioTarget, scenario, driver);
                 int invocationIndex = 0;
                 for (SnapshotScenarioInvocation invocation : scenario.getInvocations()) {
+                    updateFailureContext(scenario, invocation, null, "setup");
                     LOG.info("Snapshot {}: invocation {}/{} ({}).", progressName, ++invocationIndex,
                             scenario.getInvocations().size(), invocation.getId());
                     AtomicReference<String> currentExecution = new AtomicReference<>(
@@ -130,23 +135,28 @@ abstract class SnapshotRouteExecutionTest {
                     invocationRunner.execute(invocation.getTimeoutSeconds(), currentExecution::get, () -> {
                         environment.beforeInvocation(invocation);
                         for (int repetition = 1; repetition <= invocation.getRepeat(); repetition++) {
+                            updateFailureContext(scenario, invocation, repetition, "execution");
                             currentExecution.set(executionName(scenario, invocation, repetition));
                             Exchange exchange = driver.execute(producerTemplate, invocation);
+                            updateFailureContext(scenario, invocation, repetition, "result verification");
                             assertScenarioResult(exchange, scenario, invocation, repetition);
                             invocationResults.add(new InvocationResult(exchange, invocation, repetition));
                         }
                         currentExecution.set(invocationStageName(scenario, invocation, "verification"));
+                        updateFailureContext(scenario, invocation, null, "invocation verification");
                         environment.verifyInvocation(invocation);
                         return null;
                     }, environment::timeoutDiagnostics, environment::abort);
                 }
                 LOG.info("Snapshot {}: verifying fixtures.", progressName);
+                updateFailureContext(scenario, null, null, "fixture verification");
                 invocationRunner.execute(
                         null,
                         () -> "Snapshot scenario '" + scenario.getId() + "' fixture verification",
                         () -> {
                             environment.verifyFixtures();
                             for (InvocationResult result : invocationResults) {
+                                updateFailureContext(scenario, result.invocation(), result.repetition(), "fixture verification");
                                 assertExpectedProperties(
                                         result.exchange(),
                                         result.invocation(),
@@ -160,6 +170,7 @@ abstract class SnapshotRouteExecutionTest {
                         environment::abort
                 );
                 LOG.info("Snapshot {}: closing environment.", progressName);
+                updateFailureContext(scenario, null, null, "cleanup");
             }
             brokerScope.commit();
         } catch (Exception | AssertionError failure) {
@@ -169,6 +180,20 @@ abstract class SnapshotRouteExecutionTest {
         }
         LOG.info("Snapshot {}: passed in {} ms.", progressName,
                 TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt));
+    }
+
+    SnapshotFailureContext getFailureContext() {
+        return failureContext;
+    }
+
+    private void updateFailureContext(
+            SnapshotExecutionScenario scenario,
+            SnapshotScenarioInvocation invocation,
+            Integer repetition,
+            String stage
+    ) {
+        failureContext = new SnapshotFailureContext(invocation == null ? null : invocation.getId(), repetition,
+                stage, SnapshotExpectedBehavior.describe(scenario, invocation));
     }
 
     static void assertScenarioResult(

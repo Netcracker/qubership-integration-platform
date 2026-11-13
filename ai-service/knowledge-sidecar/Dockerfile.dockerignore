@@ -1,7 +1,6 @@
 **
 !package.json
 !package-lock.json
-!.npmrc
 !schemas/
 !schemas/package.json
 !ui/

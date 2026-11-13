@@ -1,8 +1,10 @@
 package org.qubership.integration.platform.ai.productpipeline.create.facade;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -47,8 +49,8 @@ import org.qubership.integration.platform.ai.productpipeline.capability.SkillAct
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerRunPinResolver;
 import org.qubership.integration.platform.ai.productpipeline.create.CreateRunBindingStore;
 import org.qubership.integration.platform.ai.productpipeline.create.CreateRunSelectionService;
+import org.qubership.integration.platform.ai.productpipeline.create.UnsupportedCreateRunBindingException;
 import org.qubership.integration.platform.ai.productpipeline.create.orchestration.CreateChainOrchestrator;
-import org.qubership.integration.platform.ai.productpipeline.create.PlanningCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.RequirementAnalysisCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.RequirementDiscoveryCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures;
@@ -80,6 +82,36 @@ class CreateChainApplicationFacadeTest {
   @BeforeEach
   void setUp() throws Exception {
     fixture = Fixture.create();
+  }
+
+  @Test
+  void retiredBindingRejectsApprovalAndImplementationCommandsWithoutChangingTheBinding()
+      throws Exception {
+    String taskId = "retired-command-task";
+    String runId = taskId + "-create-chain-1";
+    String key = "product-pipeline-create-bindings/" + taskId + ".json";
+    byte[] original;
+    try (InputStream input = getClass().getResourceAsStream(
+        "/product-pipelines/historical-create-chain-v1-binding.json")) {
+      original = new String(input.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)
+          .formatted(taskId, runId, runId)
+          .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+    }
+    fixture.blobs.put(key, original);
+    CreateChainApplicationFacade facade = fixture.facade();
+    var command = new ApproveCreateChainArtifactCommand(taskId, "plan", "hash", 1L);
+
+    var actions = java.util.Map.<String, org.junit.jupiter.api.function.Executable>of(
+        "approve", () -> facade.approve(command),
+        "validate approval", () -> facade.validateApprove(command),
+        "stream approval", () -> facade.streamApprove(command),
+        "stream browser approval", () -> facade.streamApproveOnly(command),
+        "replayed approval", () -> facade.approvalAlreadyApplied(command),
+        "pending creation", () -> facade.pendingCreationHash(taskId),
+        "create chain", () -> facade.streamCreateChain(taskId, "hash", 1L));
+    actions.forEach((name, action) ->
+        assertThrows(UnsupportedCreateRunBindingException.class, action, name));
+    assertArrayEquals(original, fixture.blobs.get(key).orElseThrow());
   }
 
   @Test
@@ -448,7 +480,7 @@ class CreateChainApplicationFacadeTest {
     facade = fixture.facade();
 
     facade
-        .start(new StartCreateChainCommand(taskId, ""))
+        .start(new StartCreateChainCommand(taskId, "Create a greetings API"))
         .collect()
         .asList()
         .await()
@@ -459,7 +491,7 @@ class CreateChainApplicationFacadeTest {
     String runId = waiting.runId();
 
     facade
-        .continueWithInput(new ContinueCreateChainCommand(taskId, "create greetings API"))
+        .continueWithInput(new ContinueCreateChainCommand(taskId, "Use GET /greetings"))
         .collect()
         .asList()
         .await()
@@ -1228,21 +1260,16 @@ class CreateChainApplicationFacadeTest {
 
     private static Fixture create(boolean needInputFirst, boolean materialize) throws Exception {
       ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
-      ProductPipelineProfile profileV1;
-      ProductPipelineProfile profileV2;
+      ProductPipelineProfile approvalProfile;
       try (InputStream in =
-          Fixture.class.getResourceAsStream("/product-pipelines/profiles/create-chain-v1.yaml")) {
-        profileV1 = ProductPipelineProfileParser.parse(in);
-      }
-      try (InputStream in =
-          Fixture.class.getResourceAsStream("/product-pipelines/profiles/create-chain-v2.yaml")) {
-        profileV2 = ProductPipelineProfileParser.parse(in);
+          Fixture.class.getResourceAsStream("/product-pipelines/profiles/approval-gates.yaml")) {
+        approvalProfile = ProductPipelineProfileParser.parse(in);
       }
       return new Fixture(
           new InMemoryArtifactBlobStore(),
           mapper,
           FakeKnowledgeClient.defaultFixture(),
-          new ProductPipelineProfileCatalog(List.of(profileV1, profileV2)),
+          new ProductPipelineProfileCatalog(List.of(approvalProfile)),
           needInputFirst,
           materialize);
     }
@@ -1299,7 +1326,7 @@ class CreateChainApplicationFacadeTest {
       bindingStore = new CreateRunBindingStore(blobs, mapper);
       selectionService =
           new CreateRunSelectionService(
-              "2026.1", knowledge, bindingStore, catalog, stubPinResolver(), clock, "1");
+              "2026.1", knowledge, bindingStore, catalog, stubPinResolver(), clock, "2");
       CompilationArtifacts artifacts = new CompilationArtifacts(blobs, mapper, clock);
       ProductPipelineArtifactStore storeFacade = new ProductPipelineArtifactStore(artifacts);
       runStore = new ProductPipelineRunStore(blobs, mapper, clock);
@@ -1469,7 +1496,7 @@ class CreateChainApplicationFacadeTest {
       return new StageCapability() {
         @Override
         public String capabilityId() {
-          return PlanningCapability.CAPABILITY_ID;
+          return "test-planning";
         }
 
         @Override

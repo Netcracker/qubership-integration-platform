@@ -136,8 +136,8 @@ class ScenarioRouterTest {
     var events =
         productRouter.route(request, CONVERSATION_ID).collect().asList().await().indefinitely();
     assertEquals(
-        UnsupportedCreateRunBindingException.DISPLAY_MESSAGE,
-        ((org.qubership.integration.platform.ai.chat.ChatEvent.Token) events.get(0)).text());
+        new UnsupportedCreateRunBindingException().sseMessage(),
+        ((org.qubership.integration.platform.ai.chat.ChatEvent.Error) events.get(0)).message());
   }
 
   @Test

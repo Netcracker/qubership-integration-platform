@@ -5,6 +5,9 @@ fixtures:
     sourceElementId: "ae97ad83-4030-4287-a855-dfa4ba1b4fa8"
 scenarios:
   - id: "returns-pet"
+    expectedBehavior: >-
+      Send the configured GET request with its query and headers, then return the exact pet response and
+      response headers.
     scope: Short
     endpointUri: "cip-chain:50e02ff9-e6fe-477f-9d11-ac139cfa7b60"
     body: |-
@@ -34,6 +37,7 @@ scenarios:
           headers:
             X-Test-Request: "request-value"
   - id: "retries-server-error-and-maps-response"
+    expectedBehavior: "Make two attempts for the upstream server error and return its mapped error body, status, and headers."
     scope: Short
     endpointUri: "cip-chain:50e02ff9-e6fe-477f-9d11-ac139cfa7b60"
     body: |-

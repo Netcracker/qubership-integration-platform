@@ -9,7 +9,7 @@ import (
 
 func TestIsNameAcceptsATokenAndRejectsAnythingElse(t *testing.T) {
 	valid := []string{"Accept", "content-type", "X-Mocked", "x_mocked!", "X-Trace.1", "a`b|c~d", "0"}
-	invalid := []string{"", " ", "X Mocked", "X\tMocked", "X:Mocked", "Accept(json)", "X-Mocked\n", "заголовок"}
+	invalid := []string{"", " ", "X Mocked", "X\tMocked", "X:Mocked", "Accept(json)", "X-Mocked\n", "\u05d0"}
 	for _, name := range valid {
 		t.Run("valid/"+strconv.Quote(name), func(t *testing.T) {
 			assert.True(t, IsName(name))
@@ -23,7 +23,7 @@ func TestIsNameAcceptsATokenAndRejectsAnythingElse(t *testing.T) {
 }
 
 func TestIsValueRejectsTheControlCharactersThatBreakAHeaderLine(t *testing.T) {
-	valid := []string{"", "text/plain", "a b", "a\tb", "ключ"}
+	valid := []string{"", "text/plain", "a b", "a\tb", "\u05d0"}
 	invalid := []string{"a\nb", "a\rb", "a\x00b", "a\x7fb"}
 	for _, value := range valid {
 		t.Run("valid/"+strconv.Quote(value), func(t *testing.T) {

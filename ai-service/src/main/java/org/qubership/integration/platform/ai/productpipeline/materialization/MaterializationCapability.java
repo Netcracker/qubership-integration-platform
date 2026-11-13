@@ -22,7 +22,6 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
-import org.qubership.integration.platform.ai.plan.ImplementationPlan;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactProvenance;
@@ -41,7 +40,6 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageCap
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
-import org.qubership.integration.platform.ai.productpipeline.create.CompilerPlanningRunner;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CipDesignExecutorJavaAdapter.ExecutionResult;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CipDesignExecutorJavaAdapter;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.ExecutorValidationBundle;
@@ -99,7 +97,7 @@ public class MaterializationCapability implements StageCapability {
         Objects.requireNonNull(recoveryFaultInjector, "recoveryFaultInjector");
   }
 
-  /** Test helper for create-chain@1 paths that do not invoke Phase 6. */
+  /** Test helper for input validation without a Phase 6 adapter. */
   public MaterializationCapability(
       ProductPipelineArtifactStore artifactStore,
       ProductChainMaterializer materializer,
@@ -165,12 +163,6 @@ public class MaterializationCapability implements StageCapability {
               new CapabilitySignal.Completed(
                   StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE, resolved.error())));
     }
-    if (!resolved.v2()) {
-      return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(
-          StageOutcomeClass.CONTRACT_FAILURE,
-          "Legacy create-chain@1 materialization is unsupported. Recapture the requirements and approve a new create-chain@2 plan before catalog writes.",
-          RecoveryCause.of(RecoveryCauseCode.CONTRACT_SHAPE))));
-    }
     MaterializationCheckpoint checkpoint = artifactStore.materializationCheckpoint(context.runId()).orElse(null);
     boolean readBack = checkpoint != null && checkpoint.canReadBack()
         && resolved.graph().nodes().stream().allMatch(node ->
@@ -208,8 +200,8 @@ public class MaterializationCapability implements StageCapability {
         }
         var issues = ApprovedHttpEndpointValidator.validate(resolved.graph(), brief, semantic);
         if (!issues.isEmpty()) {
-          var validation = CompilerPlanningRunner
-              .buildValidationResult(new ValidationResult(
+          var validation = PlanValidationResult
+              .fromCompiler(new ValidationResult(
                   false, issues, "Generated HTTP endpoint differs from approved requirements."), List.of());
           return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(
               StageOutcomeClass.CONTRACT_FAILURE, validation.findings().stream()
@@ -237,7 +229,7 @@ public class MaterializationCapability implements StageCapability {
                       RecoveryCause.of(causeCode))));
     }
 
-    if (resolved.v2() && recoveryControl != null
+    if (recoveryControl != null
         && recoveryControl.materializationInputsAccepted(context, resolved.graphRef(), materializationInputs(resolved))) {
       return Multi.createFrom().emitter(ignored -> {});
     }
@@ -290,50 +282,8 @@ public class MaterializationCapability implements StageCapability {
             resolved.graph(), reconciledCore.materializationMap(), facts);
 
     List<Reference> evidenceInputs = materializationInputs(resolved);
-    if (resolved.v2()) {
-      return completePhase6Materialization(
-          context, resolved, inputs, reconciledCore, facts, reconcile, evidenceInputs);
-    }
-
-    ArtifactCandidate snapshotCandidate =
-        new ArtifactCandidate(Kind.CATALOG_CHAIN_SNAPSHOT, facts, evidenceInputs);
-    ArtifactCandidate reconcileCandidate =
-        new ArtifactCandidate(Kind.RECONCILE_RESULT, reconcile, evidenceInputs);
-
-    if (!reconcile.matches()) {
-      return List.of(
-          new CapabilitySignal.Completed(
-              new StageOutcome(
-                  StageOutcomeClass.VALIDATION_FAILURE,
-                  List.of(snapshotCandidate, reconcileCandidate),
-                  reconcile.summary(),
-                  null)));
-    }
-
-    MaterializationResult complete = materializer.markComplete(inputs, reconciledCore);
-    if (complete.completedPhase() != MaterializationPhase.COMPLETE) {
-      return List.of(
-          new CapabilitySignal.Completed(
-              StageOutcome.of(
-                  StageOutcomeClass.CONTRACT_FAILURE,
-                  "materialization result must reach COMPLETE")));
-    }
-    ArtifactCandidate materializationCandidate =
-        new ArtifactCandidate(Kind.MATERIALIZATION_RESULT, complete, evidenceInputs);
-    ArtifactCandidate mapCandidate =
-        new ArtifactCandidate(Kind.MATERIALIZATION_MAP, complete.materializationMap(), evidenceInputs);
-    return List.of(
-        new CapabilitySignal.Message(ChainMaterializedSummary.format(facts)),
-        new CapabilitySignal.Completed(
-            new StageOutcome(
-                StageOutcomeClass.SUCCEEDED,
-                List.of(
-                    materializationCandidate,
-                    mapCandidate,
-                    snapshotCandidate,
-                    reconcileCandidate),
-                "chain materialized and reconciled",
-                null)));
+    return completePhase6Materialization(
+        context, resolved, inputs, reconciledCore, facts, reconcile, evidenceInputs);
   }
 
   private List<CapabilitySignal> completePhase6Materialization(
@@ -417,128 +367,6 @@ public class MaterializationCapability implements StageCapability {
   }
 
   private ResolvedInputs resolveInputs(StageExecutionContext context) {
-    if (usesDesignExecutionMaterialization(context)) {
-      return resolveV2Inputs(context);
-    }
-    return resolveV1Inputs(context);
-  }
-
-  private static boolean usesDesignExecutionMaterialization(StageExecutionContext context) {
-    if (context.profile() != null) {
-      return context.profile().usesDesignExecutionMaterializationContract();
-    }
-    RunManifest manifest = context.runManifest();
-    return manifest != null && "2".equals(manifest.profileVersion());
-  }
-
-  private ResolvedInputs resolveV1Inputs(StageExecutionContext context) {
-    Optional<Reference> graphRef = findSingle(context.inputRefs(), Kind.CHAIN_PLAN_GRAPH);
-    Optional<Reference> graphAssemblyRef = findSingle(context.inputRefs(), Kind.GRAPH_ASSEMBLY_RESULT);
-    Optional<Reference> bundleRef = findSingle(context.inputRefs(), Kind.COMPILER_VALIDATION_BUNDLE);
-    Optional<Reference> validationRef = findSingle(context.inputRefs(), Kind.PLAN_VALIDATION_RESULT);
-    Optional<Reference> implementationRef = findSingle(context.inputRefs(), Kind.IMPLEMENTATION_PLAN);
-    Optional<Reference> approvalRef = findSchemaV2Approval(context.runId(), context.inputRefs());
-    Optional<Reference> manifestRef = findSingle(context.inputRefs(), Kind.RUN_MANIFEST);
-    if (graphRef.isEmpty()
-        || graphAssemblyRef.isEmpty()
-        || bundleRef.isEmpty()
-        || validationRef.isEmpty()
-        || implementationRef.isEmpty()
-        || approvalRef.isEmpty()
-        || manifestRef.isEmpty()) {
-      return ResolvedInputs.error("materialization inputs are incomplete");
-    }
-
-    Optional<Revision> graphRevision = artifactStore.get(context.runId(), graphRef.get());
-    Optional<Revision> graphAssemblyRevision = artifactStore.get(context.runId(), graphAssemblyRef.get());
-    Optional<Revision> bundleRevision = artifactStore.get(context.runId(), bundleRef.get());
-    Optional<Revision> validationRevision = artifactStore.get(context.runId(), validationRef.get());
-    Optional<Revision> implementationRevision = artifactStore.get(context.runId(), implementationRef.get());
-    Optional<Revision> approvalRevision = artifactStore.get(context.runId(), approvalRef.get());
-    Optional<Revision> manifestRevision = artifactStore.get(context.runId(), manifestRef.get());
-    if (graphRevision.isEmpty()
-        || graphAssemblyRevision.isEmpty()
-        || bundleRevision.isEmpty()
-        || validationRevision.isEmpty()
-        || implementationRevision.isEmpty()
-        || approvalRevision.isEmpty()
-        || manifestRevision.isEmpty()) {
-      return ResolvedInputs.error("materialization inputs must reference existing revisions");
-    }
-    if (!"2".equals(approvalRevision.get().schemaVersion())) {
-      return ResolvedInputs.error("schema-v2 approval record is required");
-    }
-
-    ChainPlanGraph graph = artifactStore.payload(graphRevision.get(), ChainPlanGraph.class);
-    GraphAssemblyResult graphAssembly =
-        artifactStore.payload(graphAssemblyRevision.get(), GraphAssemblyResult.class);
-    CompilerValidationBundle compilerBundle =
-        artifactStore.payload(bundleRevision.get(), CompilerValidationBundle.class);
-    PlanValidationResult planValidation =
-        artifactStore.payload(validationRevision.get(), PlanValidationResult.class);
-    ImplementationPlan implementationPlan =
-        artifactStore.payload(implementationRevision.get(), ImplementationPlan.class);
-    ApprovalRecordV2 approval = artifactStore.payload(approvalRevision.get(), ApprovalRecordV2.class);
-    RunManifest runManifest = artifactStore.payload(manifestRevision.get(), RunManifest.class);
-    if (graph == null
-        || graphAssembly == null
-        || compilerBundle == null
-        || planValidation == null
-        || implementationPlan == null
-        || approval == null
-        || runManifest == null) {
-      return ResolvedInputs.error("materialization payloads are missing");
-    }
-    if (graphAssembly.graph() == null) {
-      return ResolvedInputs.error("graph assembly graph is required");
-    }
-    String planGraphDigest = canonicalGraphDigest.sha256(graph);
-    String assemblyGraphDigest = canonicalGraphDigest.sha256(graphAssembly.graph());
-    if (!Objects.equals(planGraphDigest, assemblyGraphDigest)
-        || !Objects.equals(planGraphDigest, graphAssembly.graphDigest())
-        || !Objects.equals(planGraphDigest, compilerBundle.graphDigest())) {
-      return ResolvedInputs.error("graph digest mismatch across plan, assembly, and compiler bundle");
-    }
-    if (!compilerBundle.approvalEligible()) {
-      return ResolvedInputs.error("compiler validation bundle did not pass");
-    }
-    if (!planValidation.approvalEligible()) {
-      return ResolvedInputs.error("plan validation result is not approval eligible");
-    }
-    if (!implementationRef.get().equals(approval.target())
-        || !Objects.equals(implementationRef.get().contentHash(), approval.targetContentHash())) {
-      return ResolvedInputs.error("approval target does not match implementation plan");
-    }
-    if (!approval.approvedCandidates().contains(implementationRef.get())
-        || !approval.approvedCandidates().contains(validationRef.get())
-        || !approval.approvedCandidates().contains(graphRef.get())
-        || !approval.approvedCandidates().contains(graphAssemblyRef.get())
-        || !approval.approvedCandidates().contains(bundleRef.get())) {
-      return ResolvedInputs.error("required approved candidate set is incomplete");
-    }
-    String patchRefError = validateOrderedPatchReferences(context.runId(), graphAssembly);
-    if (patchRefError != null) {
-      return ResolvedInputs.error(patchRefError);
-    }
-    return new ResolvedInputs(
-        false,
-        null,
-        null,
-        graphRef.get(),
-        graphAssemblyRef.get(),
-        bundleRef.get(),
-        validationRef.get(),
-        implementationRef.get(),
-        approvalRef.get(),
-        manifestRef.get(),
-        graph,
-        graphAssembly,
-        compilerBundle,
-        runManifest,
-        null);
-  }
-
-  private ResolvedInputs resolveV2Inputs(StageExecutionContext context) {
     Optional<Reference> requestRef = findSingle(context.inputRefs(), Kind.MATERIALIZATION_REQUEST);
     Optional<Reference> validatedBundleRef =
         findSingle(context.inputRefs(), Kind.VALIDATED_EXECUTION_BUNDLE);
@@ -694,7 +522,6 @@ public class MaterializationCapability implements StageCapability {
     }
 
     return new ResolvedInputs(
-        true,
         request,
         bundle,
         bundle.graphRef(),
@@ -767,21 +594,6 @@ public class MaterializationCapability implements StageCapability {
     return null;
   }
 
-  private Optional<Reference> findSchemaV2Approval(String runId, List<Reference> refs) {
-    List<Reference> matches =
-        refs == null
-            ? List.of()
-            : refs.stream().filter(ref -> ref != null && ref.kind() == Kind.APPROVAL_RECORD).toList();
-    for (int i = matches.size() - 1; i >= 0; i--) {
-      Reference candidate = matches.get(i);
-      Optional<Revision> revision = artifactStore.get(runId, candidate);
-      if (revision.isPresent() && "2".equals(revision.get().schemaVersion())) {
-        return Optional.of(candidate);
-      }
-    }
-    return Optional.empty();
-  }
-
   private static Optional<Reference> findSingle(List<Reference> refs, Kind kind) {
     List<Reference> matches =
         refs == null ? List.of() : refs.stream().filter(ref -> ref != null && ref.kind() == kind).toList();
@@ -800,28 +612,11 @@ public class MaterializationCapability implements StageCapability {
   }
 
   private static List<Reference> materializationInputs(ResolvedInputs resolved) {
-    List<Reference> refs = new ArrayList<>();
-    if (resolved.v2() && resolved.materializationRequest() != null) {
-      refs.add(resolved.materializationRequest().validatedExecutionBundleRef());
-      refs.add(resolved.approvalRef());
-      refs.add(resolved.runManifestRef());
-      refs.add(resolved.graphRef());
-      return List.copyOf(refs);
-    }
-    if (resolved.implementationPlanRef() != null) {
-      refs.add(resolved.implementationPlanRef());
-    }
-    if (resolved.planValidationRef() != null) {
-      refs.add(resolved.planValidationRef());
-    }
-    refs.add(resolved.graphRef());
-    if (resolved.graphAssemblyRef() != null) {
-      refs.add(resolved.graphAssemblyRef());
-    }
-    refs.add(resolved.compilerBundleRef());
-    refs.add(resolved.approvalRef());
-    refs.add(resolved.runManifestRef());
-    return List.copyOf(refs);
+    return List.of(
+        resolved.materializationRequest().validatedExecutionBundleRef(),
+        resolved.approvalRef(),
+        resolved.runManifestRef(),
+        resolved.graphRef());
   }
 
   private static String sha256(String value) {
@@ -834,7 +629,6 @@ public class MaterializationCapability implements StageCapability {
   }
 
   private record ResolvedInputs(
-      boolean v2,
       MaterializationRequest materializationRequest,
       ValidatedExecutionBundle validatedExecutionBundle,
       Reference graphRef,
@@ -852,7 +646,6 @@ public class MaterializationCapability implements StageCapability {
 
     private static ResolvedInputs error(String message) {
       return new ResolvedInputs(
-          false,
           null,
           null,
           null,

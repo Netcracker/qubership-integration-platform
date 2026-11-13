@@ -29,6 +29,7 @@ public class SnapshotExecutionScenario {
     private final Map<String, Object> expectedProperties;
     private final List<SnapshotFixtureInteraction> interactions;
     private final List<SnapshotScenarioInvocation> invocations;
+    private String expectedBehavior;
     private SnapshotFailureExpectation expectedStartupFailure;
     private boolean reuseBroker;
 
@@ -81,6 +82,15 @@ public class SnapshotExecutionScenario {
 
     public String getId() {
         return id;
+    }
+
+    public String getExpectedBehavior() {
+        return expectedBehavior;
+    }
+
+    @JsonProperty("expectedBehavior")
+    public void setExpectedBehavior(String expectedBehavior) {
+        this.expectedBehavior = optionalNonBlank(expectedBehavior, "expectedBehavior");
     }
 
     public boolean isReuseBroker() {

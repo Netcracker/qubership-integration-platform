@@ -25,7 +25,8 @@ module, scoped by `applyTo` to that module's path:
 The `ui` module's guidance lives in three `ui-*` skills, loaded on demand because it is long; three thin `ui-*`
 instructions of the same names only say when to apply each skill. Two directories carry shared build
 configuration instead of a service: `checkstyle/` (the `qip-checkstyle` artifact) and
-`parent/` (the Maven parent POM `qip-monorepo-parent`).
+`parents/` (the parent POMs `qip-parent-base`, `qip-parent-spring`, and `qip-parent-quarkus`). `bom/` holds `qip-bom`,
+the public BOM that lists every published module at its project version.
 
 Edit these instructions under `.apm/`, never the generated `AGENTS.md` files.
 
@@ -38,8 +39,8 @@ mvn clean install -Dgpg.skip=true   # Build all Java modules (see <modules> in t
 mvn -pl engine -am package          # Single module + its dependencies, nothing written to ~/.m2
 ```
 
-GPG signing binds to the `verify` phase (`parent/pom.xml`, and the POMs of the modules without a parent), so `package`
-needs no flag and anything that reaches `verify` or `install` needs `-Dgpg.skip=true`.
+GPG signing binds to the `verify` phase (`parents/base/pom.xml` and `parents/spring/pom.xml`), so `package` needs no
+flag and anything that reaches `verify` or `install` needs `-Dgpg.skip=true`.
 
 Consolidation did not rename any published artifact; each module's POM still carries its original coordinates.
 
@@ -58,7 +59,7 @@ the profiles, and the ports.
 - `release/1.0` — the maintenance line of the 1.0 release, which still takes fixes and module releases
 - `feature/#173-core-adaptation` (engine), `feature/#109-core-adaptation` (runtime-catalog), `feature/#33` (sessions-management) — single-module feature branches with more private `com.netcracker.cloud` dependencies
 
-`main` needs GitHub Packages credentials too: `parent/pom.xml` imports `com.netcracker.cloud:dbaas-client-bom` and
+`main` needs GitHub Packages credentials too: `parents/spring/pom.xml` imports `com.netcracker.cloud:dbaas-client-bom` and
 `maas-client-bom`, which are not on Maven Central. Building requires `~/.m2/settings.xml` with a `github` server whose PAT has
 `read:packages` on `maven.pkg.github.com/Netcracker/*`; CI passes `.github/maven-settings.xml`. A 401 or 403 on a
 `com.netcracker.cloud` artifact is a credential problem, not a code problem.
@@ -93,6 +94,6 @@ wins, so a `qip.x` in Consul still overrides a `cip.x` default in `application.y
 ### Cross-module change tips
 
 - A Java change rarely needs the full aggregator build; prefer `mvn -pl <module> -am package`. `install` writes the branch's snapshots to the shared `~/.m2`, where every other checkout and worktree builds against them.
-- The `parent/` POM controls Spring Boot, MapStruct, Lombok, Checkstyle, JaCoCo versions for every Spring module — bump dependency versions there, not in module POMs.
-- The `qip-checkstyle` rules version is pinned by `qip-checkstyle-revision` in `parent/pom.xml` and again in the POMs that set it themselves: micro-engine, schemas, sessions-management, and ai-service. Bump them together. Engine and micro-engine carry a `checkstyle-suppressions.xml` that excludes only `target/` and applies only to a build started inside the module directory.
-- MapStruct runs with `-Amapstruct.unmappedTargetPolicy=IGNORE` (`parent/pom.xml`, and micro-engine's own POM), so do not add a per-field `ignore = true`. On a null source collection, `defaultExpression` and `SET_TO_DEFAULT` change nothing; only `@IterableMapping(nullValueMappingStrategy = RETURN_DEFAULT)` on the collection's own mapping method defaults it, and a Lombok `@Builder.Default` loses to an explicit `builder.field(null)` (#805).
+- `parents/spring/pom.xml` controls Spring Boot, MapStruct, Lombok, Checkstyle, and JaCoCo versions for every Spring module. `parents/quarkus/pom.xml` holds the Quarkus platform and Cloud Core versions that micro-engine and ai-service share; ai-service overrides `quarkus.platform.version`, and the BOMs only micro-engine uses stay in its own POM. Bump dependency versions in the parents, not in module POMs. A property both `parents/base` and `parents/spring` declare must keep one value, which `scripts/check-version-invariants.sh` checks.
+- The `qip-checkstyle` rules version is pinned via `qip.checkstyle.version` in `parents/base/pom.xml` and `parents/spring/pom.xml`. Bump them together. Engine and micro-engine carry a `checkstyle-suppressions.xml` that excludes only `target/` and applies only to a build started inside the module directory.
+- MapStruct runs with `-Amapstruct.unmappedTargetPolicy=IGNORE` (`parents/spring/pom.xml`, and micro-engine's own POM), so do not add a per-field `ignore = true`. On a null source collection, `defaultExpression` and `SET_TO_DEFAULT` change nothing; only `@IterableMapping(nullValueMappingStrategy = RETURN_DEFAULT)` on the collection's own mapping method defaults it, and a Lombok `@Builder.Default` loses to an explicit `builder.field(null)` (#805).

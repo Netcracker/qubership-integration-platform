@@ -557,7 +557,7 @@ class ProductChainMaterializerTest {
         List.of(),
         "product",
         "create-chain",
-        "1",
+        "2",
         "profile-sha",
         "baseline",
         "baseline-sha",

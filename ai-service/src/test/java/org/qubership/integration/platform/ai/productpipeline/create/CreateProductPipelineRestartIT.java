@@ -34,7 +34,7 @@ class CreateProductPipelineRestartIT {
     CreateProductPipelineCoordinator restarted = helper.restartCoordinator();
     ProductPipelineRunDocument resumed = restarted.loadRun("conv-restart-it").orElseThrow();
     assertTrue(resumed.transitions().size() >= 2);
-    assertEquals("conv-restart-it-create-chain-1", resumed.run().runId());
+    assertEquals("conv-restart-it-create-chain-2", resumed.run().runId());
     assertNotNull(
         helper
             .selectionService()

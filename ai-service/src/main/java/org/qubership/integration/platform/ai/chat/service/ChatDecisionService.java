@@ -129,6 +129,12 @@ public class ChatDecisionService {
         && specificationImports.standaloneRequest(conversationId).isPresent()) {
       return importScenario.openDecision(conversationId);
     }
+    if (snapshot.isEmpty() || snapshot.get().finished()) {
+      Optional<ChatEvent.Decision> other = nonCreateDecision(conversationId);
+      if (other.isPresent()) return other;
+    } else {
+      facade.ensureSupportedBinding(conversationId);
+    }
     Optional<ChatEvent.Decision> uploaded = snapshot
         .filter(current -> current.pendingAction() instanceof PendingAction.Clarify clarify
             && PipelineGates.UPLOADED_SPECS_IMPORT.equals(clarify.gateId()))
@@ -180,7 +186,11 @@ public class ChatDecisionService {
     if (creation.isPresent()) {
       return creation;
     }
-    uploaded = uploadedSpecsDecision(conversationId);
+    return nonCreateDecision(conversationId);
+  }
+
+  private Optional<ChatEvent.Decision> nonCreateDecision(String conversationId) {
+    Optional<ChatEvent.Decision> uploaded = uploadedSpecsDecision(conversationId);
     Optional<ChatEvent.Decision> imported =
         uploaded.isPresent() ? uploaded : importDecision(conversationId);
     if (imported.isPresent() || patchStore == null) {

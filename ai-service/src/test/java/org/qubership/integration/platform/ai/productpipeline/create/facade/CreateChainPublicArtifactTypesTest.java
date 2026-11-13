@@ -40,7 +40,7 @@ class CreateChainPublicArtifactTypesTest {
 
   @Test
   void everyActiveProfileApprovalRoundTripsToItsExactKind() throws Exception {
-    for (String profileName : List.of("create-chain-v1.yaml", "create-chain-v2.yaml")) {
+    for (String profileName : List.of("create-chain-v2.yaml")) {
       ProductPipelineProfile profile = parseProfile(profileName);
       for (ProfileStage stage : profile.stages()) {
         if (stage.approval() == null || stage.approval().artifact() == null) {
