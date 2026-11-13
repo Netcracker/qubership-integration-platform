@@ -87,6 +87,17 @@ class YamlExportImportMapperTest {
     }
 
     @Test
+    void quotesStringsBeyondTheResolverLimit() throws Exception {
+        for (String value : List.of("1".repeat(1025), "a".repeat(1025))) {
+            Doc doc = new Doc();
+            doc.name = value;
+            String yaml = writer.writeValueAsString(doc);
+            assertTrue(yaml.contains("name: \"" + value + "\""), value.substring(0, 1));
+            assertEquals(value, reader.readValue(yaml, Doc.class).name);
+        }
+    }
+
+    @Test
     void quotesSignedLeadingZeroDecimalsForJsParsers() throws Exception {
         for (String value : List.of("+08", "-09", "+0708", "-0_8")) {
             Doc doc = new Doc();
