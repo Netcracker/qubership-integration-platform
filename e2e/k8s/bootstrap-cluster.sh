@@ -29,7 +29,10 @@ require kubectl helm istioctl
 istio_mode="${CIP_ISTIO_MODE-auto}"
 case "$istio_mode" in
     auto | ambient | sidecar) ;;
-    *) echo 'CIP_ISTIO_MODE must be auto, ambient, or sidecar' >&2; exit 1 ;;
+    *)
+        echo 'CIP_ISTIO_MODE must be auto, ambient, or sidecar' >&2
+        exit 1
+        ;;
 esac
 
 context="$(kubectl config current-context 2> /dev/null || true)"
