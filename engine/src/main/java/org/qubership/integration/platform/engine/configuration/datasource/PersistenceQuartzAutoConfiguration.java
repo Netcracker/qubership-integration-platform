@@ -27,9 +27,11 @@ import org.hibernate.jpa.HibernatePersistenceProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.AutoConfigureBefore;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.autoconfigure.orm.jpa.JpaProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration;
+import org.springframework.boot.jpa.autoconfigure.JpaProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
@@ -46,6 +48,7 @@ import javax.sql.DataSource;
 import static com.netcracker.cloud.dbaas.client.DbaasConst.LOGICAL_DB_NAME;
 
 @AutoConfiguration
+@AutoConfigureBefore(DataSourceAutoConfiguration.class)
 @EnableTransactionManagement
 @EnableConfigurationProperties(JpaProperties.class)
 @EnableJpaRepositories(

@@ -16,31 +16,25 @@
 
 package org.qubership.integration.platform.engine.security;
 
-import org.springframework.security.access.ConfigAttribute;
-import org.springframework.security.access.SecurityConfig;
-
 import java.util.Collection;
 import java.util.List;
-
-import static java.util.stream.Collectors.toList;
 
 /**
     Warning: Class is specified in http trigger template.hbs file by full name (with package).
     Do not move this class.
  */
 public class CipSecurityAccessPolicy {
-    private final List<ConfigAttribute> configAttributes;
+    private final List<String> roles;
 
-    public CipSecurityAccessPolicy(List<ConfigAttribute> configAttributes) {
-        this.configAttributes = configAttributes;
+    public CipSecurityAccessPolicy(List<String> roles) {
+        this.roles = roles;
     }
 
-    public List<ConfigAttribute> getConfigAttributes() {
-        return configAttributes;
+    public List<String> getRoles() {
+        return roles;
     }
 
     public static CipSecurityAccessPolicy fromStrings(Collection<String> strings) {
-        List<ConfigAttribute> attributes = strings.stream().map(SecurityConfig::new).collect(toList());
-        return new CipSecurityAccessPolicy(attributes);
+        return new CipSecurityAccessPolicy(strings.stream().toList());
     }
 }
