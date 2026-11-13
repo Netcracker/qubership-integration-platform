@@ -7,8 +7,8 @@
  * than through any API. A catalog killed by an import surfaces today as dozens of unrelated red
  * specs across four files; this turns it into one named failure that says which service and when.
  *
- * The `process-envelope` project runs this file before the `env` project can restart a service.
- * Its dependency on api, runtime, and ui puts the readings after those projects finish.
+ * `process-snapshot` records the readings after api, runtime, and ui, before `env` restarts a
+ * service. This teardown project checks that saved state after the dependent projects finish.
  *
  * Nothing here names `docker` or `jcmd`. The reading comes through `Env.processEnvelope`, because
  * "did the services survive the run" is exactly the question that has to be answerable against a
@@ -21,37 +21,20 @@ import {
   formatPeaks,
   metaspaceOutsideBand,
   outsideBand,
-  readRunResources,
 } from "../../env/resources.js";
+import { capturedValue, readProcessSnapshot } from "../../env/process-snapshot.js";
 import { METASPACE_ATTACHMENT, PEAKS_ATTACHMENT } from "../../support/run-summary.mjs";
-import type { Env, ProcessEnvelope } from "../../env/index.js";
+import type { ProcessEnvelope } from "../../env/index.js";
 
 /** `role startedAt restarts`, which is the whole of the identity and reads as a diff. */
 function identity(envelope: ProcessEnvelope): string {
   return `${envelope.role} started ${envelope.startedAt}, ${envelope.restarts} restarts`;
 }
 
-/**
- * One reading of every role, shared by the two cases that need it.
- *
- * An envelope costs a `docker inspect` and a `docker exec jcmd` per role, and the identity and the
- * Metaspace case ask the same question of the same four containers seconds apart. Nothing between
- * them restarts anything, so a second reading would be the same numbers at twice the price.
- */
-let reading: Promise<ProcessEnvelope[]> | undefined;
-
-function envelopes(env: Env): Promise<ProcessEnvelope[]> {
-  reading ??= (async () => {
-    const found: ProcessEnvelope[] = [];
-    for (const role of ROLES) found.push(await env.processEnvelope(role));
-    return found;
-  })();
-  return reading;
-}
-
 test.describe("process envelope", { tag: ["@infra"] }, () => {
-  test("every service is still the process the run started", async ({ env }) => {
-    const baseline = readRunResources()?.baseline ?? [];
+  test("every service is still the process the run started", async ({ run }) => {
+    const snapshot = readProcessSnapshot(run);
+    const baseline = snapshot.baseline;
     expect(
       baseline.map((each) => each.role).sort(),
       "globalSetup records the envelope of every service before any project runs; without it there " +
@@ -61,15 +44,13 @@ test.describe("process envelope", { tag: ["@infra"] }, () => {
     // Both halves in one assertion: a container that crashed and was restarted in place keeps its
     // name and its image and changes exactly these two numbers.
     expect(
-      (await envelopes(env)).map(identity),
-      "a service that is not the process the run started took the whole run down with it, and every " +
-        "red spec above this one is a consequence rather than a finding — unless an `env` spec that " +
-        "restarts a service ran before this file, in which case the ordering is the finding",
+      capturedValue(snapshot.envelopes).map(identity),
+      "service identities changed between globalSetup and the pre-restart snapshot",
     ).toEqual(baseline.map(identity));
   });
 
-  test("no service ended the run against its Metaspace ceiling", async ({ env }, testInfo) => {
-    const reported = (await envelopes(env)).filter((each) => each.metaspace !== null);
+  test("no service ended the run against its Metaspace ceiling", async ({ run }, testInfo) => {
+    const reported = capturedValue(readProcessSnapshot(run).envelopes).filter((each) => each.metaspace !== null);
     // For the CI step summary, which reads the report rather than the console.
     const readings = reported.map((each) => ({ role: each.role, ...each.metaspace, band: BANDS[each.role].metaspaceShare }));
     await testInfo.attach(METASPACE_ATTACHMENT, { body: JSON.stringify(readings), contentType: "application/json" });
@@ -89,8 +70,8 @@ test.describe("process envelope", { tag: ["@infra"] }, () => {
     expect(metaspaceOutsideBand(reported), "a JVM this close to its ceiling is one import from OOM").toEqual([]);
   });
 
-  test("no service left its stated resource band", async ({ env }, testInfo) => {
-    const peaks = await env.resourcePeaks();
+  test("no service left its stated resource band", async ({ run }, testInfo) => {
+    const peaks = capturedValue(readProcessSnapshot(run).peaks);
     const readings = peaks.map((each) => ({ ...each, band: { memoryBytes: BANDS[each.role].memoryBytes, cpuPercent: BANDS[each.role].cpuPercent } }));
     await testInfo.attach(PEAKS_ATTACHMENT, { body: JSON.stringify(readings), contentType: "application/json" });
     expect(

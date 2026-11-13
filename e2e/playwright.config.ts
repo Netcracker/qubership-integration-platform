@@ -125,11 +125,20 @@ const suite: SuiteProject[] = [
     dependencies: ["seed", "tooling"],
   },
   {
+    name: "process-snapshot",
+    metadata: { group: "setup" },
+    testDir: "./specs/process-snapshot",
+    testMatch: /.*\.setup\.ts$/,
+    workers: 1,
+    dependencies: ["api", "runtime", "ui"],
+    teardown: "process-envelope",
+  },
+  {
     name: "process-envelope",
+    metadata: { group: "setup" },
     testDir: "./specs/env",
     testMatch: /process-envelope\.spec\.ts$/,
     workers: 1,
-    dependencies: ["api", "runtime", "ui"],
   },
   {
     // Specs here restart a service to change how it runs. A restart costs about 30 s against
@@ -163,8 +172,8 @@ const suite: SuiteProject[] = [
     // overlap with this project stays reasoned, never measured: only Playwright's scheduling, which
     // starts a project once every project of a lower dependency depth has finished, keeps them apart.
     //
-    // Read process identities before any restart, after api, runtime, and ui have finished.
-    dependencies: ["process-envelope"],
+    // Capture process state before restarts; its assertions run afterward without gating this project.
+    dependencies: ["process-snapshot"],
   },
   {
     // Builds `schemas/` when its inputs change, and `ui-server` bundles what it

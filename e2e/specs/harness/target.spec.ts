@@ -45,6 +45,7 @@ const COMPOSE_PROJECTS = [
   "seed-teardown",
   "tooling",
   "runtime",
+  "process-snapshot",
   "process-envelope",
   "env",
   "schemas-build",
@@ -81,8 +82,9 @@ const COMPOSE_SCHEDULE: Record<string, string> = {
   "seed-teardown": "./specs/seed /.*\\.teardown\\.ts$/",
   tooling: "./specs/tooling; after seed",
   runtime: "./specs/runtime; after seed, tooling; parallel",
-  "process-envelope": "./specs/env /process-envelope\\.spec\\.ts$/; after api, runtime, ui; 1 worker",
-  env: "./specs/env except **/process-envelope.spec.ts,**/ai-recovery-lifecycle.spec.ts; after process-envelope; 1 worker",
+  "process-snapshot": "./specs/process-snapshot /.*\\.setup\\.ts$/; after api, runtime, ui; teardown process-envelope; 1 worker",
+  "process-envelope": "./specs/env /process-envelope\\.spec\\.ts$/; 1 worker",
+  env: "./specs/env except **/process-envelope.spec.ts,**/ai-recovery-lifecycle.spec.ts; after process-snapshot; 1 worker",
   "schemas-build": "./specs/schemas-build /.*\\.setup\\.ts$/",
   "ui-server": "./specs/ui-server /.*\\.setup\\.ts$/; after schemas-build; teardown ui-server-teardown",
   "ui-server-teardown": "./specs/ui-server /.*\\.teardown\\.ts$/",
@@ -175,11 +177,14 @@ test.describe("target", () => {
           const projects = withEnv({ E2E_AI_RECOVERY: enabled ? "1" : undefined }, () =>
             suiteProjects(targetSetup(on)),
           );
-          const readings = projects.find((each) => each.name === "process-envelope");
+          const readings = projects.find((each) => each.name === "process-snapshot");
+          const checks = projects.find((each) => each.name === "process-envelope");
           const restarts = projects.find((each) => each.name === "env");
           expect(readings?.dependencies).toEqual(["api", "runtime", "ui"]);
           expect(readings?.workers).toBe(1);
-          expect(restarts?.dependencies).toEqual(["process-envelope"]);
+          expect(readings?.teardown).toBe("process-envelope");
+          expect(checks?.dependencies).toBeUndefined();
+          expect(restarts?.dependencies).toEqual(["process-snapshot"]);
           const collected = (project: string) => {
             const report = JSON.parse(execFileSync(
               path.join(E2E_DIR, "node_modules/.bin/playwright"),
@@ -193,6 +198,7 @@ test.describe("target", () => {
             return report.suites.map((suite) => path.basename(suite.file));
           };
           expect(collected("process-envelope")).toEqual(["process-envelope.spec.ts"]);
+          expect(collected("process-snapshot")).toEqual(["process-snapshot.setup.ts"]);
           const restartFiles = collected("env");
           expect(restartFiles).not.toContain("process-envelope.spec.ts");
           expect(restartFiles).toContain("restart-resilience.spec.ts");
