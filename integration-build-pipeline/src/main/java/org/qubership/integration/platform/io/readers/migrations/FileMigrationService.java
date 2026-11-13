@@ -67,8 +67,11 @@ public class FileMigrationService {
         }
 
         ObjectNode documentNode = (ObjectNode) node;
+        if (getVersionsToMigrate(documentNode, migrations).isEmpty()) {
+            return data;
+        }
         try {
-            return yamlMapper.writeValueAsString(migrate((ObjectNode) node, migrations));
+            return yamlMapper.writeValueAsString(migrate(documentNode, migrations));
         } catch (JsonProcessingException exception) {
             throw new MigrationException("Failed to serialize migrated document",
                     exception, getId(documentNode), getName(documentNode));
@@ -79,21 +82,7 @@ public class FileMigrationService {
         String id = getId(documentNode);
         String name = getName(documentNode);
 
-        Collection<Integer> migrationVersions = getMigrationVersions(migrations);
-        log.trace("Actual versions: {}", migrationVersions);
-
-        Collection<Integer> documentVersions = getDocumentVersions(documentNode, migrationVersions);
-        log.trace("Document versions: {}", documentVersions);
-
-        Collection<Integer> nonexistentVersions = subtract(documentVersions, migrationVersions);
-        if (!nonexistentVersions.isEmpty()) {
-            log.error("Unable to import an entity {} ({}) exported from newer version: nonexistent migrations {} are present",
-                    name, id, nonexistentVersions);
-            throw new MigrationException("Unable to import an entity exported from a newer version", id, name);
-        }
-
-        Collection<Integer> versionsToMigrate = subtract(migrationVersions, documentVersions);
-        log.trace("versions to migrate = {}", versionsToMigrate);
+        Collection<Integer> versionsToMigrate = getVersionsToMigrate(documentNode, migrations);
 
         Iterator<ImportFileMigration> iterator = migrations.stream()
                 .filter(migration -> versionsToMigrate.contains(migration.getVersion()))
@@ -128,6 +117,30 @@ public class FileMigrationService {
         }
 
         return node;
+    }
+
+    private Collection<Integer> getVersionsToMigrate(ObjectNode documentNode,
+                                                     Collection<ImportFileMigration> migrations)
+            throws MigrationException {
+        String id = getId(documentNode);
+        String name = getName(documentNode);
+
+        Collection<Integer> migrationVersions = getMigrationVersions(migrations);
+        log.trace("Actual versions: {}", migrationVersions);
+
+        Collection<Integer> documentVersions = getDocumentVersions(documentNode, migrationVersions);
+        log.trace("Document versions: {}", documentVersions);
+
+        Collection<Integer> nonexistentVersions = subtract(documentVersions, migrationVersions);
+        if (!nonexistentVersions.isEmpty()) {
+            log.error("Unable to import an entity {} ({}) exported from newer version: nonexistent migrations {} are present",
+                    name, id, nonexistentVersions);
+            throw new MigrationException("Unable to import an entity exported from a newer version", id, name);
+        }
+
+        Collection<Integer> versionsToMigrate = subtract(migrationVersions, documentVersions);
+        log.trace("versions to migrate = {}", versionsToMigrate);
+        return versionsToMigrate;
     }
 
     private Collection<Integer> getDocumentVersions(ObjectNode node, Collection<Integer> currentVersions)

@@ -24,6 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import org.qubership.integration.platform.chain.model.ImportEnvironment;
+import org.qubership.integration.platform.chain.model.ImportSpecificationGroup;
 import org.qubership.integration.platform.chain.model.ImportSystem;
 import org.qubership.integration.platform.io.model.exportimport.system.IntegrationSystemDto;
 import org.qubership.integration.platform.io.model.exportimport.system.IntegrationSystemType;
@@ -124,6 +125,37 @@ class IntegrationSystemReaderTest {
         ArgumentCaptor<ObjectNode> migrated = ArgumentCaptor.forClass(ObjectNode.class);
         verify(fileMigrationService).migrate(migrated.capture(), any());
         assertFalse(migrated.getValue().has("migrations"));
+    }
+
+    @DisplayName("read binds current-format group and specification files from text, keeping unquoted number-like strings")
+    @Test
+    void keepsNumberLikeStringsInCurrentFormatSpecificationFiles() throws Exception {
+        Path systemFile = serviceDir.resolve("sys-4.service.cip.yaml");
+        Files.writeString(systemFile, """
+                id: sys-4
+                name: System
+                content:
+                  integrationSystemType: EXTERNAL
+                """);
+        Files.writeString(serviceDir.resolve("group-1.specification-group.cip.yaml"), """
+                id: group-1
+                name: 1.10
+                content:
+                  parentId: sys-4
+                """);
+        Files.writeString(serviceDir.resolve("model-1.specification.cip.yaml"), """
+                id: model-1
+                name: Model
+                content:
+                  parentId: group-1
+                  version: 1.10
+                """);
+
+        ImportSystem result = reader.read(systemFile.toFile());
+
+        ImportSpecificationGroup group = result.getSpecificationGroups().get(0);
+        assertEquals("1.10", group.getName());
+        assertEquals("1.10", group.getSystemModels().get(0).getVersion());
     }
 
     @DisplayName("toModel flattens the export content block onto the model")

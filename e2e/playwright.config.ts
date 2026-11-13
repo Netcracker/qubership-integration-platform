@@ -156,7 +156,8 @@ const suite: SuiteProject[] = [
     testIgnore: ["**/process-envelope.spec.ts"],
     workers: 1,
     // No broker project is named here, though this project recreates the engine and the catalog
-    // (`specs/env/restart-resilience.spec.ts`, `service-type-roundtrip.spec.ts`), and a recreate
+    // (`specs/env/restart-resilience.spec.ts`, `service-type-roundtrip.spec.ts`,
+    // `quote-minimization-roundtrip.spec.ts`), and a recreate
     // drops the broker consumers the engine holds. Playwright's `dependencies` is one mechanism for
     // two different things, ordering a project after another and gating it on that other project's
     // success, and there is no way to ask for only the first: naming a `teardown` project in

@@ -287,6 +287,7 @@ cip:
     legacy-format: ${CIP_EXPORT_LEGACY_FORMAT:false} # Deprecated since 25.3
     legacy-resource-names: ${CIP_EXPORT_LEGACY_RESOURCE_NAMES:false}
     remove-unused-specifications: ${CIP_EXPORT_REMOVE_UNUSED_SPECS:true}
+    minimize-quotes: ${CIP_EXPORT_MINIMIZE_QUOTES:false}
   import:
     session-lifetime-minutes: ${IMPORT_LOG_LIFETIME_MINUTES:10080}
   internal-services:

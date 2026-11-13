@@ -42,6 +42,7 @@ import org.qubership.integration.platform.runtime.catalog.service.variables.secr
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.web.multipart.MultipartFile;
@@ -64,6 +65,7 @@ import static org.mockito.Mockito.*;
         KubeSecretSerializer.class,
         SecuredVariableService.class
 })
+@TestPropertySource(properties = "cip.export.minimize-quotes=true")
 @ExtendWith(SpringExtension.class)
 @ExtendWith(MockitoExtension.class)
 public class SecuredVariablesServiceTest {
