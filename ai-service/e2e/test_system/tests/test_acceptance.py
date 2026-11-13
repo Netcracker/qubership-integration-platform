@@ -19,7 +19,7 @@ class AcceptanceTest(unittest.TestCase):
 
         with patch.object(Path, "relative_to", windows_relative):
             actual, _ = preparation(self.root)
-        self.assertEqual(actual, launcher)
+        self.assertEqual(actual, launcher.resolve())
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
