@@ -27,9 +27,9 @@ import {
 import { withEnv } from "../../support/with-env.js";
 
 /** Each input and output of the two builds, relative to the repository root; `path.join` resolves the `../`. */
-const UI_LIB = UI_LIB_INPUTS.map((each) => path.join("ui", each));
-const EXTENSION = EXTENSION_INPUTS.map((each) => path.join("vscode-extension", each));
-const OUTPUTS = [path.join("ui", UI_LIB_OUTPUT), path.join("vscode-extension", EXTENSION_OUTPUT)];
+const UI_LIB = UI_LIB_INPUTS.map((each) => path.posix.join("ui", each));
+const EXTENSION = EXTENSION_INPUTS.map((each) => path.posix.join("vscode-extension", each));
+const OUTPUTS = [path.posix.join("ui", UI_LIB_OUTPUT), path.posix.join("vscode-extension", EXTENSION_OUTPUT)];
 
 /** The temporary trees a case made, removed after it. */
 const made: string[] = [];
@@ -124,7 +124,7 @@ test.describe("vscode-server", () => {
   });
 
   test("required inputs exist or come from an earlier build", () => {
-    const built = [...SCHEMA_OUTPUTS.map((each) => path.join("schemas", each)), path.join("ui", "dist-lib")];
+    const built = [...SCHEMA_OUTPUTS.map((each) => path.posix.join("schemas", each)), path.posix.join("ui", "dist-lib")];
     const optional = ["ui/.env.local", "ui/.env.production", "ui/.env.production.local"];
     const tracked = [...UI_LIB, ...EXTENSION].filter((each) => !built.includes(each) && !optional.includes(each));
     expect(tracked.filter((each) => !fs.existsSync(path.join(repoRoot(), each)))).toEqual([]);

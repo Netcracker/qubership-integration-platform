@@ -360,6 +360,7 @@ def _execute(catalog: Catalog, store: RunStore, run_id: str, index: int) -> dict
                     subprocess.run(
                         ["taskkill", "/PID", str(process.pid), "/T", "/F"],
                         capture_output=True,
+                        check=False,
                     )
                 else:
                     os.killpg(process.pid, signal.SIGINT)
@@ -379,6 +380,7 @@ def _execute(catalog: Catalog, store: RunStore, run_id: str, index: int) -> dict
                 subprocess.run(
                     ["taskkill", "/PID", str(process.pid), "/T", "/F"],
                     capture_output=True,
+                    check=False,
                 )
             else:
                 os.killpg(process.pid, signal.SIGTERM)

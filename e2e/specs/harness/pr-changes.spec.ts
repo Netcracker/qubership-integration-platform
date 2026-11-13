@@ -86,7 +86,10 @@ function laneFiles(lane: string): string[] {
     const ignore = regExps(project.testIgnore);
     return tracked(E2E, project.testDir ?? "specs")
       .map((file) => path.join(E2E, file))
-      .filter((file) => match.some((each) => each.test(file)) && !ignore.some((each) => each.test(file)));
+      .filter((file) => {
+        const name = file.split(path.sep).join("/");
+        return match.some((each) => each.test(name)) && !ignore.some((each) => each.test(name));
+      });
   });
 }
 

@@ -95,7 +95,7 @@ jobs:
 
       - name: Check local AI test processes
         working-directory: ai-service/e2e
-        run: python -m unittest test_system.tests.test_host test_system.tests.test_runs
+        run: python -m unittest test_system.tests.test_host test_system.tests.test_runs test_system.tests.test_server test_system.tests.test_acceptance
 
       - name: Install Chromium
         run: npx playwright install --with-deps chromium

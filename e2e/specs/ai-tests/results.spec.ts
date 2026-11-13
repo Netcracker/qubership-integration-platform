@@ -143,7 +143,7 @@ else:
     "serve",
     "--port",
     "0",
-  ], { env: { ...process.env, E2E_DEBUG_SERVER: "1" } });
+  ]);
   let output = "";
   server.stderr!.on("data", (chunk) => { output += String(chunk); });
   server.stdout!.on("data", (chunk) => { output += String(chunk); });

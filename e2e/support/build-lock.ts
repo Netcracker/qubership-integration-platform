@@ -48,6 +48,8 @@ export class BuildLock {
       return true;
     } catch (error) {
       if (["EEXIST", "ENOTEMPTY"].includes((error as NodeJS.ErrnoException).code ?? "")) return false;
+      // Windows reports an existing destination directory as EPERM.
+      if ((error as NodeJS.ErrnoException).code === "EPERM" && fs.statSync(this.file, { throwIfNoEntry: false })?.isDirectory()) return false;
       throw error;
     }
   }

@@ -1,7 +1,7 @@
 import json
 import tempfile
 import unittest
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from unittest.mock import patch
 
 from test_system.acceptance import COMPONENTS, main, preparation, summarize
@@ -10,6 +10,17 @@ from test_system.runs import write_json
 
 
 class AcceptanceTest(unittest.TestCase):
+    def test_candidate_inventory_uses_portable_paths(self):
+        launcher, _ = self.prepared()
+        relative_to = Path.relative_to
+
+        def windows_relative(path, *args, **kwargs):
+            return PureWindowsPath(relative_to(path, *args, **kwargs))
+
+        with patch.object(Path, "relative_to", windows_relative):
+            actual, _ = preparation(self.root)
+        self.assertEqual(actual, launcher)
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)

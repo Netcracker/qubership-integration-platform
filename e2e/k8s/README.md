@@ -24,7 +24,7 @@ npm run test:k8s
 e2e/k8s/bootstrap-cluster.sh
 ```
 
-To create or reuse a separate kind cluster for e2e, even when your current context is
+To create or reuse a separate kind cluster for end-to-end tests, even when your current context is
 `docker-desktop`, run this from the repository root:
 
 ```bash

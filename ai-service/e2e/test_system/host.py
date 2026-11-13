@@ -1,19 +1,20 @@
 from __future__ import annotations
 
+import ctypes
+import errno
+import importlib
 import os
 import time
+from ctypes import wintypes
 
 
 def lock_file(file, blocking=True):
     if os.name != "nt":
-        import fcntl
-
+        fcntl = importlib.import_module("fcntl")
         fcntl.flock(file, fcntl.LOCK_EX | (0 if blocking else fcntl.LOCK_NB))
         return
 
-    import errno
-    import msvcrt
-
+    msvcrt = importlib.import_module("msvcrt")
     while True:
         file.seek(0)
         try:
@@ -35,13 +36,13 @@ def process_alive(pid):
         except ProcessLookupError:
             return False
 
-    import ctypes
-    from ctypes import wintypes
-
     kernel = ctypes.WinDLL("kernel32", use_last_error=True)
     kernel.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
     kernel.OpenProcess.restype = wintypes.HANDLE
-    kernel.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+    kernel.GetExitCodeProcess.argtypes = [
+        wintypes.HANDLE,
+        ctypes.POINTER(wintypes.DWORD),
+    ]
     kernel.CloseHandle.argtypes = [wintypes.HANDLE]
     handle = kernel.OpenProcess(0x1000, False, pid)
     if not handle:

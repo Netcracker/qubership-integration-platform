@@ -68,6 +68,25 @@ test.describe("build lock", () => {
     await waiting;
   });
 
+  test("an EPERM collision waits for the lock owner", async () => {
+    const original = fs.renameSync;
+    fs.renameSync = (from, to) => {
+      if (String(to) === file && fs.existsSync(file)) {
+        throw Object.assign(new Error("destination exists"), { code: "EPERM" });
+      }
+      original(from, to);
+    };
+    try {
+      const events: string[] = [];
+      const first = new BuildLock(file, process.pid, NO_RUNNER, POLL_MS);
+      const second = new BuildLock(file, process.ppid, NO_RUNNER, POLL_MS);
+      await Promise.all([first.run("ui-server", build(events, "first")), second.run("vscode-server", build(events, "second"))]);
+      expect(events).toEqual(["first start", "first end", "second start", "second end"]);
+    } finally {
+      fs.renameSync = original;
+    }
+  });
+
   test("a lock left by an exited process is reclaimed", async () => {
     const exited = spawnSync(process.execPath, ["-e", ""]).pid;
     expect(new BuildLock(file, exited, NO_RUNNER, POLL_MS).reserve("vscode-server")).toBe(true);
