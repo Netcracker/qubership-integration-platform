@@ -19,7 +19,7 @@
   <description>Builds QIP integration chains and services into a K8s CRs.</description>
 
   <properties>
-    <revision>1.7.1</revision>
+    <revision>1.8.0</revision>
     <changelist>-SNAPSHOT</changelist>
 
     <qip.integration-build-pipeline.revision>1.8.0</qip.integration-build-pipeline.revision>
