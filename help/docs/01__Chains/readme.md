@@ -331,6 +331,7 @@ Because the two compared versions are fixed by Git, there is no chain/snapshot s
 
 - When chain is being exported with the marked "**Export related services**" checkbox, system reads environment parameter CIP\_EXPORT\_REMOVE\_UNUSED\_SPECS to decide if it shall export every service's specification or only the ones, that are utilized within the chain and sub-chains.
 - While chain is being exported, system reads environment parameter CIP_EXPORT_LEGACY_FORMAT to decide if it shall export the configuration in new export format _(with revised folder structure)_ or legacy export format.
+- While chains, services, common variables, and import instructions are being exported, system reads environment parameter CIP_EXPORT_MINIMIZE_QUOTES (default `true`) to decide if it shall quote only the strings that need quotes or every string. The setting is read at startup, so a change takes effect after a restart.
 
 ## Constraints
 
