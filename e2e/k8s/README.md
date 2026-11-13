@@ -203,7 +203,8 @@ repository root as the working directory:
 
 ```powershell
 $env:CIP_ISTIO_MODE = "sidecar"
-bash e2e/k8s/bootstrap-cluster.sh
+$gitBash = Join-Path (git --exec-path) "../../../bin/bash.exe"
+& $gitBash e2e/k8s/bootstrap-cluster.sh
 cd e2e
 npm run test:k8s
 ```

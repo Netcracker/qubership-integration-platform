@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 import { test, expect } from "@playwright/test";
 import { repoRoot } from "../../env/host.js";
@@ -26,8 +27,8 @@ test.describe("process check scheduling", () => {
         fs.writeFileSync(path.join(folder, "case.spec.ts"), `
           import fs from "node:fs";
           import { test, expect } from "@playwright/test";
-          import { BANDS, outsideBand } from ${JSON.stringify(path.join(E2E, "env/resources.ts"))};
-          import { capturedValue, readProcessSnapshot, saveProcessSnapshot } from ${JSON.stringify(path.join(E2E, "env/process-snapshot.ts"))};
+          import { BANDS, outsideBand } from ${JSON.stringify(pathToFileURL(path.join(E2E, "env/resources.ts")).href)};
+          import { capturedValue, readProcessSnapshot, saveProcessSnapshot } from ${JSON.stringify(pathToFileURL(path.join(E2E, "env/process-snapshot.ts")).href)};
           test("records the project result", async () => {
             fs.appendFileSync(${JSON.stringify(events)}, JSON.stringify(${JSON.stringify(project.name)}) + "\\n");
             if (${JSON.stringify(project.name)} === "process-snapshot") {
@@ -58,7 +59,7 @@ test.describe("process check scheduling", () => {
           ...(project.teardown && names.includes(project.teardown) ? { teardown: project.teardown } : {}),
         })),
       })};`);
-      const result = spawnSync(path.join(E2E, "node_modules/.bin/playwright"), ["test", "--config", config], {
+      const result = spawnSync(process.execPath, [path.join(E2E, "node_modules", "@playwright", "test", "cli.js"), "test", "--config", config], {
         cwd: E2E,
         encoding: "utf8",
       });

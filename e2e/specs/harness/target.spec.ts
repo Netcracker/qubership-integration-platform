@@ -187,8 +187,8 @@ test.describe("target", () => {
           expect(restarts?.dependencies).toEqual(["process-snapshot"]);
           const collected = (project: string) => {
             const report = JSON.parse(execFileSync(
-              path.join(E2E_DIR, "node_modules/.bin/playwright"),
-              ["test", `--project=${project}`, "--no-deps", "--list", "--reporter=json"],
+              process.execPath,
+              [path.join(E2E_DIR, "node_modules", "@playwright", "test", "cli.js"), "test", `--project=${project}`, "--no-deps", "--list", "--reporter=json"],
               {
                 cwd: E2E_DIR,
                 env: { ...process.env, CIP_TARGET: on, E2E_AI_RECOVERY: enabled ? "1" : undefined },
