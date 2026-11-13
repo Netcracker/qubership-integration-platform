@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.sessions.controller;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -33,6 +32,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
+import tools.jackson.core.JacksonException;
 
 import java.util.List;
 
@@ -53,7 +53,7 @@ public class ExportController {
     public ResponseEntity<String> exportSessions(@RequestBody @NotEmpty @Valid @Parameter(description = "List of session Ids to export") List<String> sessionsIds) {
         try {
             return asResponse(exportService.exportSessions(sessionsIds));
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
         }
     }
