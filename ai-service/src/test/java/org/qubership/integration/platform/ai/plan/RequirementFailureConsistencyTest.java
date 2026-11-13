@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.plan;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import java.time.Instant;
 import java.util.List;
@@ -27,10 +28,10 @@ class RequirementFailureConsistencyTest {
   void acceptedHttpResponseContinuationMustNotBeModeledAsPropagation() {
     var input = input(ServiceCallFailureMode.PROPAGATE);
     var pending = RequirementCaptureProjection.pending(input, List.of(binding("remote"), binding("delivery")));
-    assertTrue(pending.stream().anyMatch(item -> "FAILURE_MODE_CONFLICT".equals(item.code())
-        && "remote".equals(item.interactionId())), pending.toString());
-    assertTrue(!RequirementCaptureProjection.toDraft(input, null,
-        List.of(binding("remote"), binding("delivery")), "1", "hash").readyForPlan());
+    assertEquals(List.of("remote"), pending.stream().filter(item -> "FAILURE_MODE_CONFLICT".equals(item.code()))
+        .map(item -> item.interactionId()).toList(), pending.toString());
+    assertFalse(RequirementCaptureProjection.toDraft(input, null,
+        List.of(binding("remote"), binding("delivery")), "1", "hash").readyForPlan(), pending.toString());
   }
 
   static DraftInput input(ServiceCallFailureMode mode) {
@@ -44,7 +45,7 @@ class RequirementFailureConsistencyTest {
                 "Return all HTTP responses to the ordinary response step.", null, null,
                 new RequirementElementIntent("remote", "service-call", RequirementElementIntent.Placement.ANCHOR,
                     "remote", "response", null, "Remote request",
-                    List.of(new PlanProperty("errorThrowing", "false")), List.of())),
+                    List.of(new PlanProperty("after", "[{\"code\":\"default\",\"type\":\"none\"}]")), List.of())),
             new FactInput("render-result", List.of("remote"), FactKind.BEHAVIOR, Polarity.POSITIVE,
                 "Render each response and deliver its success or failure fields.", null, null,
                 new RequirementElementIntent("response", "script", RequirementElementIntent.Placement.LOCAL_NODE,

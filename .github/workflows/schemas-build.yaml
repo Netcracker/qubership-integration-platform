@@ -7,6 +7,7 @@ on:
     types: [opened, synchronize, reopened]
     paths:
       - 'schemas/**'
+      - 'parents/**'
       - 'package.json'
       - 'package-lock.json'
 

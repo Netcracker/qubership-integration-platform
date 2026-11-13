@@ -216,7 +216,7 @@ test.describe("pr-changes", () => {
     expect(decide(["e2e/specs/harness/pr-changes.spec.ts"]), "harness spec").toEqual(none);
     expect(decide(["e2e/specs/schema/frozen-corpus.spec.ts"]), "schema spec").toEqual(none);
     expect(decide(["e2e/support/catalog.ts"]), "e2e only").toEqual(all);
-    expect(decide(["parent/pom.xml"]), "parent").toEqual(all);
+    expect(decide(["parents/spring/pom.xml"]), "parent").toEqual(all);
     expect(decide(["integration-build-pipeline/pom.xml"]), "build pipeline").toEqual(all);
     expect(decide([]), "no change").toEqual(none);
   });

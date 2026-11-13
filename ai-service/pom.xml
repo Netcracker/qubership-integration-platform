@@ -2,60 +2,33 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
-    <groupId>org.qubership.integration.platform</groupId>
+
+    <parent>
+        <groupId>org.qubership.integration.platform</groupId>
+        <artifactId>qip-parent-quarkus</artifactId>
+        <version>1.7.1-SNAPSHOT</version>
+        <relativePath>../parents/quarkus/pom.xml</relativePath>
+    </parent>
+
     <artifactId>qip-ai-service</artifactId>
     <version>${revision}${changelist}</version>
     <name>QIP AI Service</name>
     <description>Quarkus AI service for QIP chain design, planning, and catalog implementation</description>
-    <url>https://github.com/Netcracker/qubership-integration-platform</url>
-
-    <licenses>
-        <license>
-            <name>Apache-2.0</name>
-            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
-            <distribution>repo</distribution>
-        </license>
-    </licenses>
-
-    <developers>
-        <developer>
-            <name>Netcracker</name>
-            <email>opensourcegroup@netcracker.com</email>
-            <organization>Netcracker Technology</organization>
-            <organizationUrl>https://www.netcracker.com</organizationUrl>
-        </developer>
-    </developers>
-
-    <scm>
-        <connection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</connection>
-        <developerConnection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</developerConnection>
-        <url>https://github.com/Netcracker/qubership-integration-platform</url>
-        <tag>HEAD</tag>
-    </scm>
 
     <properties>
         <revision>1.6.1</revision>
         <changelist>-SNAPSHOT</changelist>
 
-        <compiler-plugin.version>3.15.0</compiler-plugin.version>
         <maven.compiler.release>21</maven.compiler.release>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
-        <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
         <quarkus.platform.version>3.33.3</quarkus.platform.version>
         <a2a.version>1.1.0.Final</a2a.version>
         <!-- Flow 0.14.0 and Quarkus LangChain4j 1.12.2 target the Quarkus 3.33 LTS line. -->
         <quarkus-flow.version>0.14.0</quarkus-flow.version>
         <quarkus-langchain4j.version>1.12.2</quarkus-langchain4j.version>
         <skipITs>true</skipITs>
-        <surefire-plugin.version>3.5.4</surefire-plugin.version>
         <wiremock.version>3.10.0</wiremock.version>
         <groovy.version>4.0.30</groovy.version>
         <camel.version>4.18.2</camel.version>
-        <qip-checkstyle-revision>0.0.3</qip-checkstyle-revision>
-        <flatten-maven-plugin.version>1.5.0</flatten-maven-plugin.version>
-        <jacoco.plugin.version>0.8.14</jacoco.plugin.version>
         <sonar.coverage.jacoco.xmlReportPaths>${project.basedir}/target/site/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
         <qip.schemas.sync.skip>false</qip.schemas.sync.skip>
         <qip.schemas.local.dir>${project.basedir}/../schemas/src/main/resources/conf-model</qip.schemas.local.dir>
@@ -71,27 +44,14 @@
         <qip.test.pack-root>${project.build.directory}/public-pack-fixture/integration-platform-skills</qip.test.pack-root>
         <qip.test.excluded-groups>certified-pack,server-restart</qip.test.excluded-groups>
         <qip.test.groups></qip.test.groups>
-        <cloud-core.version>10.1.4</cloud-core.version>
         <qip.ai.dbaas.agent.enabled>false</qip.ai.dbaas.agent.enabled>
     </properties>
 
-    <repositories>
-        <repository>
-            <id>oss.sonatype.org</id>
-            <url>https://central.sonatype.com</url>
-            <releases><enabled>true</enabled></releases>
-            <snapshots><enabled>false</enabled></snapshots>
-        </repository>
-        <repository>
-            <id>github</id>
-            <url>https://maven.pkg.github.com/Netcracker/*</url>
-            <releases><enabled>true</enabled></releases>
-            <snapshots><enabled>true</enabled></snapshots>
-        </repository>
-    </repositories>
-
     <dependencyManagement>
         <dependencies>
+            <!-- The parent imports quarkus-bom too, but a parent's imports follow the ones below, and the a2a SDK
+                 BOM manages Quarkus 3.36.3. The first import of an artifact wins, so this one keeps every Quarkus
+                 artifact on quarkus.platform.version. -->
             <dependency>
                 <groupId>${quarkus.platform.group-id}</groupId>
                 <artifactId>${quarkus.platform.artifact-id}</artifactId>
@@ -117,13 +77,6 @@
                 <groupId>org.a2aproject.sdk</groupId>
                 <artifactId>a2a-java-sdk-bom</artifactId>
                 <version>${a2a.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-            <dependency>
-                <groupId>com.netcracker.cloud.quarkus</groupId>
-                <artifactId>cloud-core-quarkus-bom-publish</artifactId>
-                <version>${cloud-core.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -224,7 +177,6 @@
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
-            <version>1.18.38</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -353,23 +305,6 @@
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>flatten-maven-plugin</artifactId>
-                <version>${flatten-maven-plugin.version}</version>
-                <configuration>
-                    <updatePomFile>true</updatePomFile>
-                    <flattenMode>resolveCiFriendliesOnly</flattenMode>
-                </configuration>
-                <executions>
-                    <execution>
-                        <id>flatten</id>
-                        <phase>process-resources</phase>
-                        <goals><goal>flatten</goal></goals>
-                    </execution>
-                    <execution>
-                        <id>flatten.clean</id>
-                        <phase>clean</phase>
-                        <goals><goal>clean</goal></goals>
-                    </execution>
-                </executions>
             </plugin>
             <plugin>
                 <groupId>${quarkus.platform.group-id}</groupId>
@@ -406,16 +341,8 @@
             </plugin>
             <plugin>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>${compiler-plugin.version}</version>
                 <configuration>
                     <parameters>true</parameters>
-                    <annotationProcessorPaths>
-                        <path>
-                            <groupId>org.projectlombok</groupId>
-                            <artifactId>lombok</artifactId>
-                            <version>1.18.38</version>
-                        </path>
-                    </annotationProcessorPaths>
                 </configuration>
             </plugin>
             <plugin>
@@ -572,7 +499,10 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-dependency-plugin</artifactId>
                 <executions>
+                    <!-- A named execution: the parent's unnamed `list` execution would otherwise absorb this goal
+                         and move it to prepare-package, after surefire reads the Mockito path it sets. -->
                     <execution>
+                        <id>dependency-properties</id>
                         <goals>
                             <goal>properties</goal>
                         </goals>
@@ -581,7 +511,6 @@
             </plugin>
             <plugin>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>${surefire-plugin.version}</version>
                 <configuration>
                     <!-- Attach Mockito as a Java agent so the inline mock maker works on Java 21
                          without local -Dnet.bytebuddy.experimental / self-attach workarounds. -->
@@ -603,65 +532,18 @@
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>${jacoco.plugin.version}</version>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>prepare-agent</goal>
-                            <goal>report</goal>
-                        </goals>
-                    </execution>
-                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-gpg-plugin</artifactId>
-                <version>3.2.8</version>
-                <executions>
-                    <execution>
-                        <id>sign-artifacts</id>
-                        <phase>verify</phase>
-                        <goals>
-                            <goal>sign</goal>
-                        </goals>
-                    </execution>
-                </executions>
-                <configuration>
-                    <gpgArguments>
-                        <arg>--pinentry-mode</arg>
-                        <arg>loopback</arg>
-                    </gpgArguments>
-                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-source-plugin</artifactId>
-                <version>3.3.1</version>
-                <executions>
-                    <execution>
-                        <id>attach-sources</id>
-                        <goals>
-                            <goal>jar-no-fork</goal>
-                        </goals>
-                    </execution>
-                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-javadoc-plugin</artifactId>
-                <version>3.7.0</version>
-                <configuration>
-                    <failOnError>true</failOnError>
-                    <doclint>none</doclint>
-                </configuration>
-                <executions>
-                    <execution>
-                        <id>attach-javadocs</id>
-                        <goals>
-                            <goal>jar</goal>
-                        </goals>
-                    </execution>
-                </executions>
             </plugin>
         </plugins>
     </build>
@@ -733,53 +615,6 @@
                 <skipITs>false</skipITs>
                 <quarkus.native.enabled>true</quarkus.native.enabled>
             </properties>
-        </profile>
-        <!-- mvn deploy -P central -->
-        <profile>
-            <id>central</id>
-            <activation>
-                <activeByDefault>false</activeByDefault>
-            </activation>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.sonatype.central</groupId>
-                        <artifactId>central-publishing-maven-plugin</artifactId>
-                        <version>0.12.0</version>
-                        <extensions>true</extensions>
-                        <configuration>
-                            <publishingServerId>central</publishingServerId>
-                            <autoPublish>true</autoPublish>
-                            <waitUntil>validated</waitUntil>
-                        </configuration>
-                    </plugin>
-                </plugins>
-            </build>
-            <distributionManagement>
-                <repository>
-                    <id>central</id>
-                    <name>Central Maven Repository</name>
-                    <snapshots>
-                        <enabled>true</enabled>
-                    </snapshots>
-                </repository>
-            </distributionManagement>
-        </profile>
-        <!-- mvn deploy -P github -->
-        <profile>
-            <id>github</id>
-            <activation>
-                <activeByDefault>true</activeByDefault>
-            </activation>
-            <distributionManagement>
-                <repository>
-                    <id>github</id>
-                    <name>GitHub Packages</name>
-                    <url>
-                        https://maven.pkg.github.com/Netcracker/qubership-integration-platform
-                    </url>
-                </repository>
-            </distributionManagement>
         </profile>
     </profiles>
 </project>

@@ -60,7 +60,7 @@ class RequirementFailureConsistencyProviderTest {
   @ValueSource(booleans = {false, true})
   void nativeHttpConflictReachesTheNextProviderRequestAndOnlyModeIsCorrected(boolean lateBinding) throws Exception {
     String chat = "http-consistency-provider-" + UUID.randomUUID();
-    String source = "Receive POST /work. Use errorThrowing=false on Remote request, then Render result. "
+    String source = "Receive POST /work. Use a Default response handler of type none on Remote request, then Render result. "
         + "Return every HTTP response through that local script to the result delivery. Preserve all success and failure fields. No IDS.";
     var input = conversations.archive().beginInput(chat, source, null);
     conversations.archive().resolveInput(chat, input, source);

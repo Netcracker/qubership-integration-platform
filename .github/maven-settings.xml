@@ -2,11 +2,11 @@
 <!--
   Shared CI Maven settings, selected with `mvn -s .github/maven-settings.xml`.
 
-  A Central release needs two authenticated servers at once: `github` to resolve
-  the private com.netcracker.cloud BOMs from GitHub Packages, and `central` to
-  deploy the signed artifacts. actions/setup-java configures only one server-id,
-  so the credentials live here instead. Each workflow step sets only the env vars
-  its Maven goal needs; unused servers stay empty and untouched.
+  `github` resolves the private com.netcracker.cloud BOMs from GitHub Packages
+  and takes every deploy; `gpg.passphrase` unlocks the signing key that
+  actions/setup-java imports. setup-java configures only one server-id, so the
+  credentials live here instead. Each workflow step sets only the env vars its
+  Maven goal needs; unused servers stay empty and untouched.
 -->
 <settings xmlns="http://maven.apache.org/SETTINGS/1.2.0"
           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -16,11 +16,6 @@
       <id>github</id>
       <username>${env.MAVEN_GITHUB_USERNAME}</username>
       <password>${env.MAVEN_GITHUB_PASSWORD}</password>
-    </server>
-    <server>
-      <id>central</id>
-      <username>${env.MAVEN_CENTRAL_USERNAME}</username>
-      <password>${env.MAVEN_CENTRAL_PASSWORD}</password>
     </server>
     <server>
       <id>gpg.passphrase</id>

@@ -8,7 +8,7 @@ on:
       - '.github/workflows/_maven-module-build.yaml'
       - '.github/maven-settings.xml'
       - 'sessions-management/**'
-      - 'parent/**'
+      - 'parents/**'
       - 'pom.xml'
 
 permissions: {}

@@ -9,7 +9,7 @@ on:
       - '.github/workflows/_maven-module-build.yaml'
       - '.github/maven-settings.xml'
       - 'integration-build-pipeline/**'
-      - 'parent/**'
+      - 'parents/**'
       - 'pom.xml'
 
 permissions: {}
