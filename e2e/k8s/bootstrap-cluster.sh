@@ -117,7 +117,7 @@ else
     kubectl get mutatingwebhookconfiguration istio-sidecar-injector
 fi
 
-if [[ -n "${E2E_ZTUNNEL_ORIG_SRC:-}" ]]; then
+if [[ "$istio_mode" == ambient && -n "${E2E_ZTUNNEL_ORIG_SRC:-}" ]]; then
     echo "Istio: setting ENABLE_ORIG_SRC=$E2E_ZTUNNEL_ORIG_SRC"
     kubectl -n istio-system set env daemonset/ztunnel "ENABLE_ORIG_SRC=$E2E_ZTUNNEL_ORIG_SRC"
     kubectl -n istio-system rollout status daemonset/ztunnel --timeout=180s

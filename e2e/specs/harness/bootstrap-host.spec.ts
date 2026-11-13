@@ -21,7 +21,7 @@ if (tool === 'kind' && args[0] === 'get' && process.env.HOST_EXISTING_KIND) cons
 if (tool === 'kubectl' && args.join(' ') === 'config current-context') console.log('docker-desktop');
 if (tool === 'kubectl' && args[0] === 'get' && args[1] === 'nodes') console.log(process.env.HOST_CONTAINER_RUNTIME);
 if (tool === 'kubectl' && args.includes('get') && args.includes('metrics-server')) console.log('v0.9.0 --kubelet-insecure-tls');
-if (process.env.HOST_FAIL_CNI && args.includes('daemonset/istio-cni-node')) process.exit(19);
+if (process.env.HOST_FAIL_CNI && (args.includes('daemonset/istio-cni-node') || args.includes('daemonset/ztunnel'))) process.exit(19);
 `;
   for (const tool of ["kubectl", "helm", "kind", "istioctl"]) {
     fs.writeFileSync(path.join(dir, tool), program, { mode: 0o755 });
@@ -35,6 +35,7 @@ if (process.env.HOST_FAIL_CNI && args.includes('daemonset/istio-cni-node')) proc
       HOST_EXISTING_KIND: existing ? "1" : "",
       HOST_CONTAINER_RUNTIME: runtime,
       CIP_ISTIO_MODE: istioMode,
+      E2E_ZTUNNEL_ORIG_SRC: "false",
     },
     encoding: "utf8",
     timeout: 10_000,
@@ -52,6 +53,7 @@ test.describe("cluster bootstrap host", () => {
     const result = bootstrap(["--kind"]);
     expect(result.status, result.stderr).toBe(0);
     expect(result.commands.some((args) => args[0] === "kind" && args[1] === "create")).toBe(true);
+    expect(result.commands).toContainEqual(["kubectl", "-n", "istio-system", "set", "env", "daemonset/ztunnel", "ENABLE_ORIG_SRC=false"]);
     const reused = bootstrap(["--kind"], false, true);
     expect(reused.status, reused.stderr).toBe(0);
     expect(reused.commands).toContainEqual(["kubectl", "config", "use-context", "kind-qip"]);
