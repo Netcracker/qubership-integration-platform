@@ -9,7 +9,7 @@ import os from "node:os";
 import path from "node:path";
 import yaml from "js-yaml";
 import { test, expect } from "@playwright/test";
-import { repoRoot } from "../../env/host.js";
+import { bashExecutable, repoRoot } from "../../env/host.js";
 import { globRegExp } from "../../support/pr-changes.mjs";
 
 type Workflow = {
@@ -55,9 +55,9 @@ test.describe("Maven workflow selection", () => {
         const output = path.join(directory, "service/api-spec/openapi.yaml");
         fs.writeFileSync(output, "committed specification");
         fs.writeFileSync(path.join(directory, "bin/mvn"), "#!/bin/sh\nprintf '%s\\n' \"$@\" > maven-args.txt\n", { mode: 0o755 });
-        const result = spawnSync("bash", ["-eu", "-c", command!], {
+        const result = spawnSync(bashExecutable(), ["-eu", "-c", command!], {
           cwd: directory,
-          env: { ...process.env, PATH: `${path.join(directory, "bin")}:${process.env.PATH}`, GITHUB_WORKSPACE: directory, MODULE_NAME: "service", FORCE_UPDATE: forceUpdate, OPENAPI_CHECK: "true" },
+          env: { ...process.env, PATH: `${path.join(directory, "bin")}${path.delimiter}${process.env.PATH}`, GITHUB_WORKSPACE: directory, MODULE_NAME: "service", FORCE_UPDATE: forceUpdate, OPENAPI_CHECK: "true" },
           encoding: "utf-8",
         });
         expect(result.status, result.stderr).toBe(0);

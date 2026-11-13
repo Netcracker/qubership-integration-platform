@@ -20,7 +20,7 @@ function sources(dir: string): string[] {
   return fs
     .readdirSync(path.join(SPECS, dir), { recursive: true, withFileTypes: true })
     .filter((entry) => entry.isFile() && entry.name.endsWith(".ts"))
-    .map((entry) => path.relative(SPECS, path.join(entry.parentPath, entry.name)));
+    .map((entry) => path.relative(SPECS, path.join(entry.parentPath, entry.name)).split(path.sep).join("/"));
 }
 
 function read(file: string): string {

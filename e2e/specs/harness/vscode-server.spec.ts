@@ -79,7 +79,7 @@ test.describe("vscode-server", () => {
     const root = repoRoot();
     const { command, args, cwd } = withEnv({ E2E_VSCODE_COMMIT: undefined }, () => serverCommand(root));
     // The binary comes from the root `npm ci`, which the stack-free job does not run.
-    expect(command).toBe(path.join(root, "node_modules", ".bin", "vscode-test-web"));
+    expect(command).toBe(path.join(root, "node_modules", ".bin", process.platform === "win32" ? "vscode-test-web.cmd" : "vscode-test-web"));
     const workspace = path.join(root, "e2e", "fixtures", "vscode", "workspace");
     expect(args).toEqual([
       "--browser",

@@ -8,7 +8,7 @@ This page covers running the suite and reading its result. The rules for writing
 are in [`AGENTS.md`](AGENTS.md), generated from `.apm/instructions/e2e.instructions.md`.
 
 The `ai-tests` project checks the [local AI test UI](../ai-service/e2e/test-system.md) with temporary
-synthetic test commands. It needs Python and Chromium, and starts no product stack:
+synthetic test commands. It needs Python 3 and Chromium, and starts no product stack:
 `npx playwright test --project=ai-tests --no-deps`.
 
 The AI recovery lifecycle case is excluded from the default suite. On Compose, inspect its explicit selection
@@ -44,10 +44,34 @@ stack stays unchanged, without model requests. Kubernetes excludes this Compose-
   to Docker; a smaller allocation makes a run longer without anything having regressed.
 - Maven and JDK 21. Provisioning runs `mvn install` for a service whose image is stale, because the
   service Dockerfiles copy a jar the host has already built.
-- Node 22 or newer.
+- Node 22.19 or a later 22.x release.
 - For the Kubernetes target, `kubectl`, `helm`, `istioctl` 1.31 or later, the `kind` or `k3d` CLI
   on those clusters, and a local cluster with Istio, the Gateway API CRDs, the camel-k operator,
   and metrics-server. [The Kubernetes target page](k8s/README.md) installs them.
+
+The runner uses Node on Linux, macOS, and native Windows with either target. Docker must run Linux
+containers. Install Node, Java, Maven, Docker, and the Kubernetes CLIs in the environment that runs
+the suite. PowerShell and Git Bash use Windows tools; a WSL terminal uses Linux tools.
+
+On Windows, run `npm run test:compose` or `npm run test:k8s` from PowerShell, cmd, or Git Bash.
+These commands set `CIP_TARGET` on each platform. The inline environment assignments in the Bash
+examples below use different syntax in PowerShell:
+
+```powershell
+$env:E2E_WORKERS = "4"
+npm run test:k8s -- --project=runtime
+Remove-Item Env:E2E_WORKERS
+```
+
+If you use WSL, enable your distribution in Docker Desktop under **Settings > Resources > WSL
+Integration**. Check `docker info` from that distribution before starting the suite. Keep its clone
+and `node_modules` inside the Linux filesystem, separate from a native Windows installation.
+
+The cluster bootstrap script and the `harness` checks need Bash. On Windows, use Git Bash, supplied by Git for Windows,
+or WSL. The runner starts build commands, UI servers, and the resource sampler from Node;
+on Windows, server teardown uses PowerShell and `taskkill` to inspect and stop child processes.
+The `ai-tests` project uses `python` on Windows and `python3` on other hosts. Set `E2E_PYTHON`
+to select another Python executable.
 
 Install the suite inside `e2e/`, which sits outside the npm workspaces:
 
@@ -136,7 +160,7 @@ npm run test:k8s       # a local Kubernetes cluster, namespace cip-e2e
 ```
 
 `npm test` runs the Compose target when `CIP_TARGET` is unset. Every command below takes the variable
-the same way, for example `CIP_TARGET=k8s npm test -- --project=runtime`.
+the same way. The portable form is `npm run test:k8s -- --project=runtime`.
 
 Both targets run the same spec files, and no spec names its target. `env/target-setup.ts` gives each
 target its `Env`, its provisioner, and the projects only it declares:

@@ -23,7 +23,7 @@ import fs from "node:fs";
 import path from "node:path";
 import yaml from "js-yaml";
 import { test, expect } from "@playwright/test";
-import { repoRoot } from "../../env/host.js";
+import { bashExecutable, repoRoot } from "../../env/host.js";
 import { suiteProjects } from "../../playwright.config.js";
 import { targetSetup, type SuiteProject } from "../../env/target-setup.js";
 import { laneFlags } from "../../support/lanes.mjs";
@@ -55,7 +55,7 @@ function importClosure(seeds: string[]): string[] {
     }
   };
   for (const seed of seeds) visit(seed);
-  return [...seen].map((file) => path.relative(repoRoot(), file)).sort();
+  return [...seen].map((file) => path.relative(repoRoot(), file).split(path.sep).join("/")).sort();
 }
 
 /** The tracked files under `paths`, relative to `cwd`. */
@@ -188,7 +188,7 @@ test.describe("pr-changes", () => {
     expect(inputs).toEqual(expect.arrayContaining(["../help/docs/00__Overview/0__Getting_Started/readme.md", "../package-lock.json"]));
     // The bundle serves the help pages; `ui/src/components/AGENTS.md` only changes its hash.
     const files = inputs
-      .map((file) => path.relative(repoRoot(), path.join(repoRoot(), "ui", file)))
+      .map((file) => path.relative(repoRoot(), path.join(repoRoot(), "ui", file)).split(path.sep).join("/"))
       .filter((file) => file.startsWith("help/docs/") || !file.endsWith(".md"));
     expect(files.filter((file) => !jobsFor([file]).ui)).toEqual([]);
   });
@@ -255,15 +255,15 @@ test.describe("pr-changes", () => {
     expect(jobs["stack-free"]?.needs, "stack-free runs on every pull request").toBeUndefined();
   });
 
-  test("kind-result needs every kind job and fails on a failure", () => {
+  test("the result gate checks host and kind failures", () => {
     const jobs = (yaml.load(fs.readFileSync(WORKFLOW, "utf-8")) as { jobs: Record<string, Job> }).jobs;
     const result = jobs["kind-result"];
     // A failed `changes` skips every kind job, and a skipped job passes.
-    expect(result?.needs).toEqual(["changes", ...KIND_JOBS]);
+    expect(result?.needs).toEqual(["changes", "host-platforms", ...KIND_JOBS]);
     expect(result?.if).toBe("always()");
     const [check] = result?.steps ?? [];
     expect(check?.env?.RESULTS).toBe("${{ join(needs.*.result, ' ') }}");
-    const status = (results: string) => spawnSync("bash", ["-e", "-c", check?.run ?? ""], { env: { ...process.env, RESULTS: results } }).status;
+    const status = (results: string) => spawnSync(bashExecutable(), ["-e", "-c", check?.run ?? ""], { env: { ...process.env, RESULTS: results } }).status;
     expect(status("success success")).toBe(0);
     expect(status("success skipped")).toBe(0);
     expect(status("success failure")).toBe(1);

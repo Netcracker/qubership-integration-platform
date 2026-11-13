@@ -6,7 +6,7 @@
  * the state file records it as a preview this suite started: it may be a developer's dev server,
  * which serves a different artifact than the bundle.
  */
-import { spawn } from "node:child_process";
+import spawn from "cross-spawn";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";

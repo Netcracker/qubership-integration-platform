@@ -2,7 +2,8 @@
  * Helpers both targets and their provisioners share: the checkout root, polling, long commands, and
  * file and HTTP probes. It imports no adapter, so either target can load it without the other.
  */
-import { execFile, spawn } from "node:child_process";
+import { execFile } from "node:child_process";
+import spawn from "cross-spawn";
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import fs from "node:fs/promises";
@@ -12,6 +13,18 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 const HERE = path.dirname(fileURLToPath(import.meta.url));
+
+export function bashExecutable(): string {
+  if (process.platform !== "win32") return "bash";
+  // bash.exe on the Windows PATH can be WSL's launcher instead of Git Bash.
+  const git = spawn.sync("git", ["--exec-path"], { encoding: "utf8" });
+  if (git.status !== 0) throw new Error("Cannot locate Git Bash: git --exec-path failed.");
+  const bash = path.resolve(git.stdout.trim(), "..", "..", "..", "bin", "bash.exe");
+  if (!statSync(bash, { throwIfNoEntry: false })?.isFile()) {
+    throw new Error("Git Bash is missing. Install Git for Windows with Git Bash to run the harness checks.");
+  }
+  return bash;
+}
 
 /**
  * The checkout this file sits in, which is what every provisioned source path is resolved against.
@@ -79,8 +92,8 @@ export function runToCompletion(command: string, args: string[], cwd: string, en
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { cwd, env, stdio: ["ignore", "pipe", "pipe"] });
     const output: string[] = [];
-    child.stdout.on("data", (chunk: Buffer) => output.push(chunk.toString()));
-    child.stderr.on("data", (chunk: Buffer) => output.push(chunk.toString()));
+    child.stdout!.on("data", (chunk: Buffer) => output.push(chunk.toString()));
+    child.stderr!.on("data", (chunk: Buffer) => output.push(chunk.toString()));
     child.on("error", reject);
     child.on("close", (code) => {
       if (code === 0) return resolve();

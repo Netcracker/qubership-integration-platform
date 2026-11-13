@@ -147,8 +147,8 @@ test.describe("target", () => {
       for (const enabled of [false, true]) {
         test(`${on} collects AI recovery (${enabled ? "enabled" : "default"})`, () => {
           const report = JSON.parse(execFileSync(
-            path.join(E2E_DIR, "node_modules/.bin/playwright"),
-            ["test", "--project=env", "--no-deps", "--list", "--reporter=json"],
+            process.execPath,
+            [path.join(E2E_DIR, "node_modules", "@playwright", "test", "cli.js"), "test", "--project=env", "--no-deps", "--list", "--reporter=json"],
             {
               cwd: E2E_DIR,
               env: { ...process.env, CIP_TARGET: on, E2E_AI_RECOVERY: enabled ? "1" : undefined },

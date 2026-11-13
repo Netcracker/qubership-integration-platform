@@ -5,12 +5,12 @@
   "description": "Qubership Integration Platform - end-to-end tests against the local stack",
   "license": "Apache-2.0",
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=22.19.0"
   },
   "scripts": {
     "test": "playwright test",
-    "test:compose": "CIP_TARGET=compose playwright test",
-    "test:k8s": "CIP_TARGET=k8s playwright test",
+    "test:compose": "cross-env CIP_TARGET=compose playwright test",
+    "test:k8s": "cross-env CIP_TARGET=k8s playwright test",
     "release-check": "node support/release-check.mjs",
     "run-summary": "node support/run-summary.mjs",
     "run-email": "node support/run-email.mjs",
@@ -25,11 +25,14 @@
     "@apidevtools/json-schema-ref-parser": "^16.0.2",
     "@playwright/test": "^1.62.0",
     "@types/amqplib": "^0.10.8",
+    "@types/cross-spawn": "^6.0.6",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.10.0",
     "@types/ssh2-sftp-client": "^9.0.6",
     "ajv": "^8.20.0",
     "amqplib": "^2.0.1",
+    "cross-env": "^10.1.0",
+    "cross-spawn": "^7.0.6",
     "js-yaml": "^4.3.2",
     "jszip": "^3.10.1",
     "kafkajs": "^2.2.4",

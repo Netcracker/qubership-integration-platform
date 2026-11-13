@@ -24,7 +24,24 @@ npm run test:k8s
 e2e/k8s/bootstrap-cluster.sh
 ```
 
-On the `docker-desktop` context, or on any `k3d-<name>` or `kind-<name>` context, it uses the
+To create or reuse a separate kind cluster for e2e, even when your current context is
+`docker-desktop`, run this from the repository root:
+
+```bash
+bash e2e/k8s/bootstrap-cluster.sh --kind
+```
+
+This selects `kind-qip` and installs the cluster components there. The existing Docker Desktop
+cluster keeps its Istio installation. Linux, macOS, and Windows use the same command; on native
+Windows, run it in Git Bash with the Windows CLIs on `PATH`. Then run `npm run test:k8s` from
+`e2e/` in the same host environment, with `kind-qip` selected.
+
+A Docker Desktop kubeadm cluster can fail to start Istio CNI with
+`/var/run/netns is mounted on /run but it is not a shared or slave mount`. Use the separate kind
+cluster for this case. The bootstrap waits for both ambient DaemonSets and fails if either rollout
+fails. Switching the test runner to WSL does not change the mounts of an existing cluster.
+
+On the `docker-desktop` context, or on any `k3d-<name>` or `kind-<name>` context, the default command uses the
 current cluster. On any other context, or with no kubeconfig at all, it creates the kind cluster
 `kind-qip` from `kindest/node:v1.37.0` with the nine ports below mapped, and kind switches the
 current context to it. Then it installs the Gateway API CRDs, Istio, the camel-k operator, and,
@@ -36,7 +53,7 @@ The suite reads the cluster kind from the current kube-context and supports thre
 | Context | Cluster | Images reach the node through | Host ports reach the Services through | CoreDNS | UI dev server |
 | --- | --- | --- | --- | --- | --- |
 | `docker-desktop` | Docker Desktop's Kubernetes | the host daemon, nothing to load | LoadBalancer Services | `10.96.0.10` | `host.docker.internal` |
-| `kind-<name>` | kind | `kind load docker-image` | NodePorts mapped at creation | `10.96.0.10` | the gateway of the `kind` Docker network |
+| `kind-<name>` | kind | `kind load docker-image` | NodePorts mapped at creation | `10.96.0.10` | `host.docker.internal` on Docker Desktop, otherwise the `kind` network gateway |
 | `k3d-<name>` | k3d | `k3d image import` | NodePorts mapped at creation | `10.43.0.10` | `host.k3d.internal` |
 
 Every host-side address is a fixed port:
@@ -92,7 +109,8 @@ k3d cluster create qip \
 ```
 
 The UI bundle is served by `vite preview` on port 4200 of your machine, and the proxy reaches it
-through the name in the last column of the first table. On kind and k3d, that address has to reach
+through the name in the last column of the first table. Docker Desktop uses `host.docker.internal`
+for kind too, because the bridge gateway is inside its VM. On kind and k3d, that address has to reach
 port 4200, so a firewall that drops traffic from the Docker bridge takes the UI routes down, while
 every `/api/` route keeps working.
 

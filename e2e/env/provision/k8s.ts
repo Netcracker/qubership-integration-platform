@@ -236,8 +236,10 @@ function describeChoice(choice: ClusterChoice, devServerHost: string): string {
   );
 }
 
-async function kindNetworkGateway(): Promise<string> {
-  const stdout = await capture("docker", [
+export async function kindDevServerHost(run: typeof capture = capture): Promise<string> {
+  const operatingSystem = await run("docker", ["info", "--format", "{{.OperatingSystem}}"]);
+  if (/Docker Desktop/i.test(operatingSystem)) return "host.docker.internal";
+  const stdout = await run("docker", [
     "network", "inspect", "kind", "-f", "{{range .IPAM.Config}}{{.Gateway}} {{end}}",
   ]);
   const gateway = stdout.split(/\s+/).find((each) => /^\d+\.\d+\.\d+\.\d+$/.test(each));
@@ -284,7 +286,7 @@ export async function readyCluster(bootstrapLog: string | null, run: Kubectl = k
   if (bootstrapLog) await awaitBootstrap(bootstrapLog);
   await checkPrerequisites(run);
   const choice = clusterChoice((await run(["config", "current-context"])).trim());
-  const devServerHost = choice.devServerHost ?? (await kindNetworkGateway());
+  const devServerHost = choice.devServerHost ?? (await kindDevServerHost());
   console.log(describeChoice(choice, devServerHost));
   return { choice, devServerHost };
 }

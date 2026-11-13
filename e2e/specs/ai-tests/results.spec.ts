@@ -17,6 +17,7 @@ import { createInterface } from "node:readline";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const entry = resolve(root, "ai-service/e2e/run.py");
+const python = process.env.E2E_PYTHON ?? (process.platform === "win32" ? "python" : "python3");
 let directory: string, server: ChildProcess, url: string;
 
 test.beforeEach(async () => {
@@ -132,7 +133,7 @@ else:
       ],
     }),
   );
-  server = spawn("python3", [
+  server = spawn(python, [
     entry,
     "--package",
     join(directory, "package"),
@@ -198,7 +199,7 @@ test.describe("AI test results", () => {
     async ({ page, request }) => {
       const run = JSON.parse(
         execFileSync(
-          "python3",
+          python,
           [
             entry,
             "--package",
