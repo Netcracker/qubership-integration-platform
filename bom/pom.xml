@@ -5,7 +5,7 @@
   <parent>
     <groupId>org.qubership.integration.platform</groupId>
     <artifactId>qip-parent-base</artifactId>
-    <version>1.7.1-SNAPSHOT</version>
+    <version>1.8.0-SNAPSHOT</version>
     <relativePath>../parents/base/pom.xml</relativePath>
   </parent>
 
@@ -17,7 +17,7 @@
   <description>QIP External BOM</description>
 
   <properties>
-    <revision>1.7.1</revision>
+    <revision>1.8.0</revision>
     <changelist>-SNAPSHOT</changelist>
   </properties>
 
@@ -29,7 +29,7 @@
       <dependency>
         <groupId>org.qubership.integration.platform</groupId>
         <artifactId>qip-schemas</artifactId>
-        <version>1.7.1${changelist}</version>
+        <version>1.8.0${changelist}</version>
       </dependency>
       <dependency>
         <groupId>org.qubership.integration.platform</groupId>
@@ -39,32 +39,32 @@
       <dependency>
         <groupId>org.qubership.integration.platform</groupId>
         <artifactId>qip-micro-engine</artifactId>
-        <version>1.7.1${changelist}</version>
+        <version>1.8.0${changelist}</version>
       </dependency>
       <dependency>
         <groupId>org.qubership.integration.platform</groupId>
         <artifactId>qip-integration-build-pipeline</artifactId>
-        <version>1.7.1${changelist}</version>
+        <version>1.8.0${changelist}</version>
       </dependency>
       <dependency>
         <groupId>org.qubership.integration.platform</groupId>
         <artifactId>qip-integration-build-maven-plugin</artifactId>
-        <version>1.7.1${changelist}</version>
+        <version>1.8.0${changelist}</version>
       </dependency>
       <dependency>
         <groupId>org.qubership.integration.platform</groupId>
         <artifactId>qip-engine</artifactId>
-        <version>1.7.1${changelist}</version>
+        <version>1.8.0${changelist}</version>
       </dependency>
       <dependency>
         <groupId>org.qubership.integration.platform</groupId>
         <artifactId>qip-runtime-catalog</artifactId>
-        <version>1.7.1${changelist}</version>
+        <version>1.8.0${changelist}</version>
       </dependency>
       <dependency>
         <groupId>org.qubership.integration.platform</groupId>
         <artifactId>qip-sessions-management</artifactId>
-        <version>1.7.1${changelist}</version>
+        <version>1.8.0${changelist}</version>
       </dependency>
       <dependency>
         <groupId>org.qubership.integration.platform</groupId>

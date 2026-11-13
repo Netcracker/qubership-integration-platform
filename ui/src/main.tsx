@@ -11,6 +11,8 @@ import AppExtension from "./AppExtension.tsx";
 import { initializeConfig } from "./config/configLoader.ts";
 import { initializeConfiguration } from "./config/initConfig.ts";
 import { configureMonacoLoader } from "./monaco-loader-config";
+import "@fontsource/roboto/400.css";
+import "@fontsource/roboto/500.css";
 
 // Bind the npm monaco-editor so @monaco-editor/react does not load from jsDelivr.
 configureMonacoLoader({ monaco });

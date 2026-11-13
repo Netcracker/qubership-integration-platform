@@ -61,7 +61,8 @@ import static org.mockito.Mockito.any;
 })
 @TestPropertySource(properties = {
         "kubernetes.variables-secret.label=" + K8sSecretServiceTest.SECRET_LABEL_NAME,
-        "kubernetes.variables-secret.name=" + K8sSecretServiceTest.KUBE_SECRET_NAME
+        "kubernetes.variables-secret.name=" + K8sSecretServiceTest.KUBE_SECRET_NAME,
+        "cip.export.minimize-quotes=true"
 })
 @ExtendWith(SpringExtension.class)
 @ExtendWith(MockitoExtension.class)

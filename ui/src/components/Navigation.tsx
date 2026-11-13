@@ -58,14 +58,13 @@ const Navigation = () => {
     <nav className={styles.navigation}>
       <div className={styles["nav-main"]}>
         <Button
-          icon={<OverridableIcon name="logo" />}
           onClick={() => void navigate("/chains")}
           type="text"
           size="middle"
           title="Home"
           className={styles["home-button"]}
         >
-          CIP
+          <OverridableIcon name="logo" />
         </Button>
         <Menu
           style={{ border: "none" }}

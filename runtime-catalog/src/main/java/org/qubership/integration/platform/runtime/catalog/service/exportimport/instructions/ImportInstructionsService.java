@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.instructions;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.Getter;
@@ -24,6 +25,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.io.model.exportimport.chain.ChainCommitRequestAction;
+import org.qubership.integration.platform.runtime.catalog.configuration.MinimizedQuotesYamlFactory;
+import org.qubership.integration.platform.runtime.catalog.configuration.YamlStringQuotingChecker;
 import org.qubership.integration.platform.runtime.catalog.consul.ConsulService;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ImportInstructionsExternalException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ImportInstructionsInternalException;
@@ -101,10 +104,14 @@ public class ImportInstructionsService {
             EntityValidator entityValidator,
             ActionsLogService actionsLogService,
             ImportInstructionFilterSpecificationBuilder importInstructionFilterSpecificationBuilder,
-            ConsulService consulService
+            ConsulService consulService,
+            @Value("${cip.export.minimize-quotes}") boolean minimizeQuotes
     ) {
         this.instructionsFileName = instructionsFileName + ".yaml";
-        this.yamlMapper = new YAMLMapper().disable(YAMLGenerator.Feature.WRITE_DOC_START_MARKER);
+        this.yamlMapper = new YAMLMapper(new MinimizedQuotesYamlFactory(
+                        YAMLFactory.builder().stringQuotingChecker(new YamlStringQuotingChecker())))
+                .disable(YAMLGenerator.Feature.WRITE_DOC_START_MARKER)
+                .configure(YAMLGenerator.Feature.MINIMIZE_QUOTES, minimizeQuotes);
         this.importInstructionsRepository = importInstructionsRepository;
         this.generalInstructionsMapper = generalInstructionsMapper;
         this.serviceInstructionsMapper = serviceInstructionsMapper;

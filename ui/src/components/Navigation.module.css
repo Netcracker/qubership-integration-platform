@@ -21,12 +21,12 @@
   min-height: 40px;
   height: 40px;
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 500;
   gap: 0;
 
   :global(.logo-icon) {
-    width: 20px;
-    height: 20px;
+    width: 55px !important;
+    height: 46px !important;
     position: relative;
     top: 1px;
   }

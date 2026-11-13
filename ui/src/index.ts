@@ -66,3 +66,5 @@ export type {
   Operation,
   UserPermissions,
 } from "./permissions/types";
+import "@fontsource/roboto/400.css";
+import "@fontsource/roboto/500.css";

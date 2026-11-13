@@ -41,6 +41,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import yaml from "js-yaml";
 import { SCHEMA_BASE_URL } from "../../registry/discriminators.js";
 import { test, expect } from "../../support/fixtures.js";
 import { leftBehind } from "../../support/teardown.js";
@@ -151,7 +152,11 @@ test.describe("service round trip", { tag: ["@catalog"] }, () => {
       const exported = await catalog.exportSystems(IDS);
       expect(await entryNames(exported)).toEqual(ENTRIES.map(exportedEntry).sort());
       for (const entry of ENTRIES) {
-        expect(await entryText(exported, exportedEntry(entry)), entry).toBe(exportedText(await entryText(committed, entry)));
+        const actual = await entryText(exported, exportedEntry(entry));
+        const expected = exportedText(await entryText(committed, entry));
+        // The catalog rewrites its own documents and may quote them differently; a specification source is copied as is.
+        if (entry.endsWith(".qip.yaml")) expect(yaml.load(actual), entry).toEqual(yaml.load(expected));
+        else expect(actual, entry).toBe(expected);
       }
     } finally {
       // Deletes every fixed id rather than a listing, so a failed read cannot replace the case's own failure.

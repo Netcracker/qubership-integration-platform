@@ -431,4 +431,32 @@ test.describe("chain and service export and import", { tag: ["@catalog"] }, () =
       await catalog.deleteSystem(bystander.id).catch(() => {});
     }
   });
+
+  // Common variables export with minimized quotes whatever `cip.export.minimize-quotes` says, so a
+  // value that YAML would read as a number has to stay quoted (#963). The chain and service half of
+  // the round trip needs the setting on and is in `specs/env/quote-minimization-roundtrip.spec.ts`.
+  // Shown failing: on the catalog of 1bc09893a, the variable import answers 500
+  // `Unable to convert file to variables`.
+  test("a .inf common variable survives a round trip", async ({ catalog, run }) => {
+    const variable = tokenized(run, "quotes-variable");
+    try {
+      await catalog.addCommonVariables({ [variable]: ".inf" });
+
+      const variables = await test.step("export, then delete", async () => {
+        const exported = await catalog.exportCommonVariables([variable]);
+        expect(exported.status()).toBe(200);
+        const variables = Buffer.from(await exported.body());
+        await catalog.deleteCommonVariables([variable]);
+        return variables;
+      });
+
+      await test.step("the variable imports with its value", async () => {
+        const imported = await catalog.importCommonVariables(variables);
+        expect(imported.map((each) => `${each.name}=${each.status}`)).toEqual([`${variable}=CREATED`]);
+        expect((await catalog.listCommonVariables())[variable]).toBe(".inf");
+      });
+    } finally {
+      await catalog.deleteCommonVariables([variable]).catch(() => {});
+    }
+  });
 });

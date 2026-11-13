@@ -5,7 +5,7 @@
  *
  * The **envelope** is identity: the process behind each role, its restart count, and how close its
  * Metaspace sits to the ceiling it was given. It is taken once in `globalSetup`, before any project
- * runs, and again by `specs/env/process-envelope.spec.ts` once the load is over. A catalog killed
+ * runs, and again by `specs/process-snapshot/process-snapshot.setup.ts` once the load is over. A catalog killed
  * by an import surfaces today as dozens of unrelated red specs; comparing the two readings makes it
  * one named failure. Both Metaspace defects this product has had were found with `jcmd` rather than
  * through an API, and nothing else in the suite watches for either.

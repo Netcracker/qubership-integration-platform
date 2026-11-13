@@ -115,10 +115,11 @@ export function getThemeTokens(isDark: boolean): Partial<AliasToken> {
 
     fontFamily: getCSSVariable(
       "--vscode-font-family",
-      "Segoe UI, Tahoma, Geneva, Verdana, sans-serif",
+      "Roboto, Segoe UI, Tahoma, Geneva, Verdana, sans-serif",
     ),
-    fontSize: 13,
+    fontSize: 14,
     lineHeight: 1.5,
+    fontWeightStrong: 500,
 
     borderRadius: 4,
     controlHeight: 32,
