@@ -36,7 +36,6 @@ import { tokenizedChain } from "../../support/deployable.js";
 import { entryNames, entryText, zipOf } from "../../support/zip.js";
 import { chainEntry, chainExists, importChains } from "../../support/chain-import.js";
 import { readSpecificationFixture } from "../../fixtures/templating.js";
-import { expectImportedServices } from "../../support/service-import.js";
 
 /** The `metaInfo.group` line of an exported chain, which is the folder path and the only copy of it. */
 function groupOf(document: string): string | undefined {
@@ -433,67 +432,22 @@ test.describe("chain and service export and import", { tag: ["@catalog"] }, () =
     }
   });
 
-  // An export with minimized quotes writes `plain text` unquoted and quotes every string that YAML
-  // would read back as a number (#963).
-  // Shown failing: on the catalog of 1bc09893a, `plain text` is exported quoted, and the variable
-  // import answers 500 `Unable to convert file to variables`.
-  test("number-like strings survive a minimized-quote round trip", async ({ catalog, folder, run }) => {
-    const headers = {
-      "X-Decimal": "1.10",
-      "X-Underscored": "1_000",
-      "X-Hex": "0x1F",
-      "X-Infinity": ".inf",
-      "X-Plain": "plain text",
-    };
-    const chain = await tokenizedChain(catalog, run, { prefix: "export", what: "quotes", parentId: folder.id });
-    await catalog.patchElementProperties(chain.id, chain.headerElementId, { headerModificationToAdd: headers });
-
-    const service = await catalog.createSystem(tokenized(run, "quotes-service"), "EXTERNAL");
-    const groupName = tokenized(run, "quotes-group");
-    const modelId = `${service.id}-${groupName}-1.10`;
+  // Common variables export with minimized quotes whatever `cip.export.minimize-quotes` says, so a
+  // value that YAML would read as a number has to stay quoted (#963). The chain and service half of
+  // the round trip needs the setting on and is in `specs/env/minimized-quotes.spec.ts`.
+  // Shown failing: on the catalog of 1bc09893a, the variable import answers 500
+  // `Unable to convert file to variables`.
+  test("a .inf common variable survives a round trip", async ({ catalog, run }) => {
     const variable = tokenized(run, "quotes-variable");
-
     try {
-      await test.step("create the service and the variable", async () => {
-        const fixture = readSpecificationFixture("widgets.openapi.yaml");
-        const source = fixture.buffer.toString("utf-8").replace("version: 1.0.0", 'version: "1.10"');
-        await catalog.awaitSpecificationImport(
-          await catalog.importSpecificationGroup(service.id, groupName, {
-            ...fixture,
-            buffer: Buffer.from(source),
-          }),
-        );
-        expect((await catalog.getModel(modelId)).version).toBe("1.10");
-        await catalog.addCommonVariables({ [variable]: ".inf" });
-      });
+      await catalog.addCommonVariables({ [variable]: ".inf" });
 
-      const { chains, services, variables } = await test.step("export, then delete", async () => {
-        const chains = await catalog.exportChains([chain.id]);
-        // Soft, so that a catalog that quotes everything still runs the imports below.
-        expect.soft(await entryText(chains, chainEntry(chain.id))).toMatch(/^\s*X-Plain: plain text$/m);
-        const services = await catalog.exportSystems([service.id]);
+      const variables = await test.step("export, then delete", async () => {
         const exported = await catalog.exportCommonVariables([variable]);
         expect(exported.status()).toBe(200);
         const variables = Buffer.from(await exported.body());
-
-        await catalog.deleteChain(chain.id);
-        await catalog.deleteSystem(service.id);
         await catalog.deleteCommonVariables([variable]);
-        return { chains, services, variables };
-      });
-
-      await test.step("the chain imports with its header values", async () => {
-        const imported = await importChains(catalog, chains);
-        expect(imported.body.chains).toEqual([expect.objectContaining({ id: chain.id, status: "CREATED" })]);
-        const header = (await catalog.listChainElements(chain.id)).find((each) => each.type === "header-modification");
-        expect(header?.properties?.headerModificationToAdd).toEqual(headers);
-      });
-
-      await test.step("the service imports with its specification version", async () => {
-        await expectImportedServices(await catalog.importArchive("/v1/import/system", services, "services.zip"), [
-          { id: service.id },
-        ]);
-        expect((await catalog.getModel(modelId)).version).toBe("1.10");
+        return variables;
       });
 
       await test.step("the variable imports with its value", async () => {
@@ -502,7 +456,6 @@ test.describe("chain and service export and import", { tag: ["@catalog"] }, () =
         expect((await catalog.listCommonVariables())[variable]).toBe(".inf");
       });
     } finally {
-      await catalog.deleteSystem(service.id).catch(() => {});
       await catalog.deleteCommonVariables([variable]).catch(() => {});
     }
   });
