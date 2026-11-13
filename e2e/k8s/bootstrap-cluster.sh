@@ -4,7 +4,7 @@
 # and metrics-server (k3s ships its own). Creates the kind cluster kind-qip when the current context
 # is not Docker Desktop, k3d, or kind. Safe to run again on a prepared cluster.
 #
-# Usage: e2e/k8s/bootstrap-cluster.sh
+# Usage: bash e2e/k8s/bootstrap-cluster.sh [--kind|--prepare-node]
 
 set -euo pipefail
 
@@ -27,6 +27,21 @@ require() {
 require kubectl helm istioctl
 
 context="$(kubectl config current-context 2> /dev/null || true)"
+if [[ "${1:-}" == "--kind" && "$#" == 1 ]]; then
+    require kind
+    if kind get clusters | grep -qx qip; then
+        kubectl config use-context kind-qip
+        context="kind-qip"
+    else
+        context=""
+    fi
+elif [[ "${1:-}" == "--prepare-node" && "$#" == 1 ]]; then
+    require node
+    node "$repo_root/e2e/k8s/prepare-docker-desktop-ambient.mjs" --prepare
+elif [[ "$#" != 0 ]]; then
+    echo "Usage: bash e2e/k8s/bootstrap-cluster.sh [--kind|--prepare-node]" >&2
+    exit 1
+fi
 case "$context" in
     docker-desktop | k3d-* | kind-*)
         echo "Cluster: using context $context, creation skipped"
@@ -66,6 +81,8 @@ kubectl apply --server-side --force-conflicts \
 echo "Istio: installing from infrastructure/helm/cip-dev/istio.yaml"
 istioctl install -y -f "$repo_root/infrastructure/helm/cip-dev/istio.yaml"
 echo # istioctl leaves its last line unterminated
+kubectl -n istio-system rollout status daemonset/istio-cni-node --timeout=180s
+kubectl -n istio-system rollout status daemonset/ztunnel --timeout=180s
 
 if [[ -n "${E2E_ZTUNNEL_ORIG_SRC:-}" ]]; then
     echo "Istio: setting ENABLE_ORIG_SRC=$E2E_ZTUNNEL_ORIG_SRC"

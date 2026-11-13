@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import contextlib
-import fcntl
 import glob
 import hashlib
 import json
@@ -18,6 +17,7 @@ from pathlib import Path
 from typing import IO, Any, cast
 
 from .catalog import ID, Catalog, digest, inside, read_json, tree_digest
+from .host import lock_file, process_alive
 from .reporting import DIAGNOSES, failure, inspect_reports, redact
 
 TERMINAL = {"PASS", "FAIL", "ERROR", "BLOCKED", "CANCELLED"}
@@ -69,9 +69,7 @@ class RunStore:
         path = self.directory(run_id) / "run.json"
         document = read_json(path)
         if document["status"] not in TERMINAL and document.get("workerPid"):
-            try:
-                os.kill(document["workerPid"], 0)
-            except ProcessLookupError:
+            if not process_alive(document["workerPid"]):
                 with self.edit(run_id) as current:
                     if current["status"] not in TERMINAL:
                         current.update(
@@ -91,8 +89,8 @@ class RunStore:
     @contextlib.contextmanager
     def edit(self, run_id: str):
         folder = self.directory(run_id)
-        with (folder / "run.lock").open("a") as lock:
-            fcntl.flock(lock, fcntl.LOCK_EX)
+        with (folder / "run.lock").open("a+b") as lock:
+            lock_file(lock)
             document = read_json(folder / "run.json")
             yield document
             document["updatedAt"] = now()
@@ -358,17 +356,34 @@ def _execute(catalog: Catalog, store: RunStore, run_id: str, index: int) -> dict
             elif time.monotonic() - started > suite["timeoutSeconds"]:
                 stopped = "ERROR"
             if stopped:
-                os.killpg(process.pid, signal.SIGINT)
+                if os.name == "nt":
+                    subprocess.run(
+                        ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                        capture_output=True,
+                        check=False,
+                    )
+                else:
+                    os.killpg(process.pid, signal.SIGINT)
                 try:
                     process.wait(timeout=30)
                 except subprocess.TimeoutExpired:
-                    os.killpg(process.pid, signal.SIGKILL)
+                    if os.name == "nt":
+                        process.kill()
+                    else:
+                        os.killpg(process.pid, signal.SIGKILL)
                     process.wait()
                 break
             time.sleep(0.15)
     finally:
         if process.poll() is None:
-            os.killpg(process.pid, signal.SIGTERM)
+            if os.name == "nt":
+                subprocess.run(
+                    ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                    capture_output=True,
+                    check=False,
+                )
+            else:
+                os.killpg(process.pid, signal.SIGTERM)
             process.wait(timeout=15)
         reader.join(timeout=5)
         output.close()
@@ -429,10 +444,10 @@ def execute_run(store: RunStore, run_id: str):
     # Native runners share Maven reports and the local stack, so runs execute serially.
     workspace_lock = catalog.root / ".dev/ai-test-execution.lock"
     workspace_lock.parent.mkdir(exist_ok=True)
-    with workspace_lock.open("a") as lock:
+    with workspace_lock.open("a+b") as lock:
         while True:
             try:
-                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                lock_file(lock, blocking=False)
                 break
             except BlockingIOError:
                 if store.read(run_id)["cancelRequested"]:

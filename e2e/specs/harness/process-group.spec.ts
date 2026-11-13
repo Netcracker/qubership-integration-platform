@@ -11,7 +11,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test, expect } from "@playwright/test";
-import { groupAlive, RecordedServer } from "../../support/process-group.js";
+import { groupAlive, RecordedServer, stopGroup } from "../../support/process-group.js";
 import { readUntil } from "../../support/poll.js";
 import { readStateFile } from "../../support/state-file.js";
 
@@ -55,7 +55,7 @@ test.describe("recorded server", () => {
       expect(groupAlive(pid)).toBe(true);
       expect(readStateFile(file)).toEqual({ pid, owner: process.pid });
     } finally {
-      process.kill(-pid, "SIGKILL");
+      await stopGroup(pid);
     }
   });
 
@@ -70,7 +70,7 @@ test.describe("recorded server", () => {
       expect(await readUntil(async () => groupAlive(pid), (alive) => !alive, 5_000, 50)).toBe(false);
       expect(fs.existsSync(file)).toBe(false);
     } finally {
-      if (groupAlive(pid)) process.kill(-pid, "SIGKILL");
+      if (groupAlive(pid)) await stopGroup(pid);
     }
   });
 
@@ -85,7 +85,7 @@ test.describe("recorded server", () => {
       expect(groupAlive(pid)).toBe(true);
       expect(fs.existsSync(file)).toBe(false);
     } finally {
-      process.kill(-pid, "SIGKILL");
+      await stopGroup(pid);
     }
   });
 });

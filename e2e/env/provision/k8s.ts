@@ -236,8 +236,10 @@ function describeChoice(choice: ClusterChoice, devServerHost: string): string {
   );
 }
 
-async function kindNetworkGateway(): Promise<string> {
-  const stdout = await capture("docker", [
+export async function kindDevServerHost(run: typeof capture = capture): Promise<string> {
+  const operatingSystem = await run("docker", ["info", "--format", "{{.OperatingSystem}}"]);
+  if (/Docker Desktop/i.test(operatingSystem)) return "host.docker.internal";
+  const stdout = await run("docker", [
     "network", "inspect", "kind", "-f", "{{range .IPAM.Config}}{{.Gateway}} {{end}}",
   ]);
   const gateway = stdout.split(/\s+/).find((each) => /^\d+\.\d+\.\d+\.\d+$/.test(each));
@@ -284,7 +286,7 @@ export async function readyCluster(bootstrapLog: string | null, run: Kubectl = k
   if (bootstrapLog) await awaitBootstrap(bootstrapLog);
   await checkPrerequisites(run);
   const choice = clusterChoice((await run(["config", "current-context"])).trim());
-  const devServerHost = choice.devServerHost ?? (await kindNetworkGateway());
+  const devServerHost = choice.devServerHost ?? (await kindDevServerHost());
   console.log(describeChoice(choice, devServerHost));
   return { choice, devServerHost };
 }
@@ -438,10 +440,11 @@ export function helmArguments(options: {
   tags: Record<SuiteImageName, string>;
 }): string[] {
   const { root, choice, devServerHost, tags } = options;
+  const filePath = (relative: string) => path.join(root, relative).split(path.sep).join("/");
   const args = [
-    "upgrade", "--install", RELEASE, path.join(root, "infrastructure/helm/cip-dev"),
+    "upgrade", "--install", RELEASE, filePath("infrastructure/helm/cip-dev"),
     "-n", NAMESPACE,
-    "-f", path.join(root, "e2e/k8s/values.e2e.yaml"),
+    "-f", filePath("e2e/k8s/values.e2e.yaml"),
     "--set-string", `global.qip.ui.resolver=${choice.resolver}`,
     "--set-string", `global.qip.ui.devServer.host=${devServerHost}`,
     "--set-string", `global.qip.deploy.micro.image=${REPOSITORY}-micro-engine:${tags["micro-engine"]}`,
@@ -463,12 +466,11 @@ export function helmArguments(options: {
     args.push("--set", `${overlay}.enabled=${brokersEnabled()}`);
     args.push("--set", `${overlay}.${hostPortKey}=${BROKER_PORT[overlay].k8s}`);
   }
-  const certs = path.join(root, "infrastructure/docker/kafka-ssl");
   args.push(
-    "--set-file", `kafka.tls.serverCert=${path.join(certs, "server/kafka.crt")}`,
-    "--set-file", `kafka.tls.serverKey=${path.join(certs, "server/kafka.key")}`,
+    "--set-file", `kafka.tls.serverCert=${filePath("infrastructure/docker/kafka-ssl/server/kafka.crt")}`,
+    "--set-file", `kafka.tls.serverKey=${filePath("infrastructure/docker/kafka-ssl/server/kafka.key")}`,
     // Both engines trust the Kafka CA; a micro domain mounts the classic engine's Secret.
-    "--set-file", `cip-engine.trustedCerts.ca\\.crt=${path.join(certs, "client/ca.crt")}`,
+    "--set-file", `cip-engine.trustedCerts.ca\\.crt=${filePath("infrastructure/docker/kafka-ssl/client/ca.crt")}`,
     "--set", `cip-runtime-catalog.microDomainResources={secret:${RELEASE}-engine-certs@/app/cert/defaultsslcertificate}`,
     // A micro domain's root file system is read-only, and it writes its truststore here.
     "--set", "cip-runtime-catalog.microDomainEmptyDirs={truststore:/app/truststore}",

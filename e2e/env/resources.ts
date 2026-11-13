@@ -32,6 +32,7 @@ import { ROLES } from "./containers.js";
 import { stateFileName } from "./target.js";
 import { capture } from "./host.js";
 import { readStateFile, writeStateFile } from "../support/state-file.js";
+import { terminateGroup } from "../support/process-group.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -323,36 +324,23 @@ export function readPeaks(file: string = SAMPLES_FILE): ResourcePeak[] {
   return foldSamples(fs.readFileSync(file, "utf-8").split("\n"));
 }
 
-/** One `docker stats` reading of the watched containers, as JSON rows. */
-function dockerStatsSample(): string {
-  const containers = ROLES.map((role) => CONTAINER[role]).join(" ");
-  return `docker stats --no-stream --format '{{json .}}' ${containers}`;
+export interface SampleCommand {
+  command: string;
+  args: string[];
 }
 
-/**
- * Starts the sampling loop, as a detached shell loop appending `docker stats` rows to a file.
- *
- * `sample` is the shell command of one reading. The Kubernetes observer passes `kubectl top`, and
- * folds its rows with a parser of its own.
- *
- * A separate process rather than a timer, and that is measured rather than defensive: an interval
- * started in `globalSetup` never fires, because Playwright runs that hook in a process which exits
- * as soon as it returns — the peaks file stayed empty, which is exactly the failure this check
- * exists to prevent, a number nobody is measuring.
- *
- * A shell loop rather than a Node child for a second measured reason: `node
- * --experimental-strip-types` cannot resolve a `.js` specifier that points at a `.ts` file, so a
- * child importing this module fails to start at all. The loop therefore knows nothing but the
- * container names, and every reading is folded on the way out by `readPeaks`.
- *
- * It stops itself after `MAX_SAMPLE_MS`, so a run that never reaches its teardown — a Ctrl-C on a
- * suite that was misbehaving — leaves nothing reading the stack forever, and a later run stops
- * whatever the last one left before starting its own.
- */
+function dockerStatsSample(): SampleCommand {
+  return {
+    command: "docker",
+    args: ["stats", "--no-stream", "--format", "{{json .}}", ...ROLES.map((role) => CONTAINER[role])],
+  };
+}
+
+// globalSetup exits before a timer can sample, so a separate Node process records the readings.
 export function startResourceSampler(
   run: string,
   baseline: readonly ProcessEnvelope[],
-  sample: string = dockerStatsSample(),
+  sample: SampleCommand = dockerStatsSample(),
 ): number | null {
   // No owner: whatever sampler is on this host belongs to a run that is over, and a run that is
   // not over holds the stack anyway.
@@ -360,22 +348,16 @@ export function startResourceSampler(
   fs.mkdirSync(path.dirname(SAMPLES_FILE), { recursive: true });
   fs.writeFileSync(SAMPLES_FILE, "");
 
-  const seconds = Math.max(1, Math.round(SAMPLE_INTERVAL_MS / 1000));
-  const lifetime = Math.round(MAX_SAMPLE_MS / 1000);
-  // `$1` rather than the path inlined into the script: the samples file is caller-supplied through
-  // `E2E_SAMPLES_FILE`, and a quote in it would end the quoting and hand the rest to `sh`.
   const child = spawn(
-    "sh",
+    process.execPath,
     [
-      "-c",
-      `end=$(( $(date +%s) + ${lifetime} )); ` +
-        `while [ "$(date +%s)" -lt "$end" ]; do ` +
-        `${sample} >> "$1" 2>/dev/null; ` +
-        `sleep ${seconds}; done`,
-      "sh",
+      path.join(HERE, "..", "support", "resource-sampler.mjs"),
+      JSON.stringify(sample),
       SAMPLES_FILE,
+      String(SAMPLE_INTERVAL_MS),
+      String(MAX_SAMPLE_MS),
     ],
-    { detached: true, stdio: "ignore" },
+    { detached: true, stdio: "ignore", windowsHide: true },
   );
   child.unref();
 
@@ -444,9 +426,7 @@ export function stopResourceSampler(file: string = RESOURCES_FILE, owner?: strin
     );
   } else {
     try {
-      // The negative pid is the process **group**: the loop is `sh` with a `docker` child, and
-      // killing only the shell leaves the reading it was in the middle of behind.
-      process.kill(-resources.samplerPid);
+      terminateGroup(resources.samplerPid);
     } catch {
       // Already gone, which is the normal case for a file a previous run left behind.
     }

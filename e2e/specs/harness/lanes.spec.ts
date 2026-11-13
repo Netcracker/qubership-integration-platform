@@ -80,7 +80,7 @@ test.describe("lanes", () => {
     }
   });
 
-  test("the workflow calls each lane by the job of its name", () => {
+  test("the workflow maps each job to its declared lane", () => {
     const jobs = (yaml.load(fs.readFileSync(WORKFLOW, "utf-8")) as { jobs: Record<string, Job> }).jobs;
     const called = Object.entries(jobs).flatMap(([name, job]) =>
       job.with && "lane" in job.with ? [{ job: name, lane: job.with.lane }] : [],

@@ -29,15 +29,26 @@ corpus, residue, and frozen fixtures, and its `browser.md` holds the rules for `
 
 ### Commands
 
-```bash
+Before the first run on a host, follow **Quick start** in `e2e/README.md`. It covers Linux, macOS,
+native Windows, and WSL, including dependency installation and Kubernetes bootstrap. Keep the
+checkout, dependencies, and tools in the same host environment. Native Windows uses Windows Node
+and CLIs; bootstrap uses Git Bash. WSL uses Linux tools and its own checkout and `node_modules`.
+
+From the repository root, `npm --prefix e2e run test:compose` and
+`npm --prefix e2e run test:k8s` select the target in every supported shell. The commands below run
+inside `e2e/`; inline environment assignments elsewhere in this file and the README use Bash
+syntax. In PowerShell, set `$env:NAME = "value"` before the command and remove it afterward.
+
+```sh
 npm run check-types          # type-check
 npm test -- --project=schema --project=harness  # the specs that need no stack
-E2E_SWEEP=never npm test -- --project=<name> --no-deps -g "…"  # one case, against a kept corpus (README "Reproducing one case")
 npm test -- --project=vscode # the extension's editors, no stack; never with --no-deps
-npm test; npm run reconcile  # a full run, then the registries checked against it
+npm run test:compose         # a full Compose run; test:k8s selects Kubernetes
+npm run reconcile           # check the registries against the run
 npx playwright test --list   # count the cases and the projects; starts nothing
 ```
 
+For one runtime case against a kept corpus, follow **Reproducing one case** in `e2e/README.md`.
 Put `--no-deps` on every `--grep` and every file path; `e2e/README.md` says why. Every runtime case
 reruns against a kept corpus; a case that cannot is a case to fix, not to document.
 The `vscode` project is the exception: its dependencies need no stack, build what is stale,
@@ -57,9 +68,11 @@ in the suite that writes it.
 ### CI
 
 `.github/workflows/e2e-k8s.yaml` runs the full suite on a kind cluster, nightly on `main` and on
-manual dispatch. `.github/workflows/e2e-pr.yaml` runs `npm run check-types` and
-`npx playwright test --project=schema --project=harness` on every pull request. Both need no stack,
-so run them before pushing a change to `e2e/` or to a tree the two projects read:
+manual dispatch. `.github/workflows/e2e-pr.yaml` runs `schema`, `harness`, and `ai-tests` on Linux,
+Windows, and macOS with both target selections. These host checks start no product stack; they
+do not establish that a full Compose or Kubernetes run passed on each OS. Run `npm run check-types`
+and `npm test -- --project=schema --project=harness` locally before pushing a change to `e2e/`
+or to a tree the two projects read:
 `schemas/src/main/resources/conf-model/`, `schemas/src/test/resources/samples/`, `infrastructure/`,
 and the import-file migration classes under `integration-build-pipeline/`. `harness` also holds
 `specs/harness/title-rules.spec.ts`, which checks the describes, titles, and tags of every spec.
@@ -112,7 +125,11 @@ provisioner keeps the rules below.
   `--project=vscode` could not run on a machine with no Docker.
 
 On `k8s` the suite provisions the namespace, never the cluster; `e2e/k8s/bootstrap-cluster.sh`
-prepares the cluster. The cluster versions are pinned in the script and in `e2e/k8s/README.md`.
+prepares the cluster. Every Kubernetes target uses Istio ambient, with ready Istio CNI and ztunnel.
+For Docker Desktop kubeadm, follow **Docker Desktop kubeadm** in `e2e/k8s/README.md`: bootstrap
+with `--prepare-node` prepares the node's netns mount before installing ambient. Repeat preparation
+after the Docker Desktop VM restarts. `--kind` instead selects a separate `kind-qip` cluster;
+choose the requested target before bootstrap. The cluster versions are pinned in the script and in `e2e/k8s/README.md`.
 `infrastructure/helm/cip-dev/README.md` also pins Gateway API and Istio, and
 `.github/workflows/_e2e-kind.yaml` pins kind and istioctl. Bump them in all four places together.
 `env/provision/k8s.ts` checks the kube-context, the Gateway API CRDs, Istio, the camel-k operator,

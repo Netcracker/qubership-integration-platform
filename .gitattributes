@@ -45,6 +45,7 @@ Dockerfile text
 # Force bash scripts to always use LF line endings so that if a repo is accessed
 # in Unix via a file share from Windows, the scripts will work.
 *.sh text eol=lf
+/e2e/fixtures/archives/frozen/** text eol=lf
 # gofmt defaults to LF for all the platforms: https://github.com/golang/go/issues/16355
 *.go text eol=lf
 

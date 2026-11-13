@@ -107,7 +107,7 @@ export function runOf({ report, lastRun, stack, coverage, history = [], env = {}
       }
       const result = test.results.at(-1);
       const error = result?.errors?.[0];
-      const thrown = error?.location && path.relative(e2eDir, error.location.file);
+      const thrown = error?.location && path.relative(e2eDir, error.location.file).split(path.sep).join("/");
       const past = historyOf(testKey(test.projectName, spec.file, title), history);
       failed.push({
         project: test.projectName,

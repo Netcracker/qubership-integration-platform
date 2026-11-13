@@ -50,6 +50,12 @@ export interface Integration extends KubeObject {
   status?: { phase?: string };
 }
 
+export interface Pod extends KubeObject {
+  metadata: KubeObject["metadata"] & { deletionTimestamp?: string };
+  spec: { containers: { name: string }[]; initContainers?: { name: string; restartPolicy?: string }[] };
+  status?: { phase?: string };
+}
+
 const HTTP_ROUTES = "httproutes.gateway.networking.k8s.io";
 
 async function getOne<T>(kind: string, name: string): Promise<T | null> {
@@ -96,6 +102,15 @@ export async function integrationPods(name: string): Promise<string[]> {
 /** The names of every Service in the namespace. */
 export async function serviceNames(): Promise<string[]> {
   return (await list<KubeObject>("services")).map((each) => each.metadata.name);
+}
+
+export async function namespaceLabels(): Promise<Record<string, string>> {
+  const raw = await kubectl(["get", "namespace", NAMESPACE, "-o", "json"]);
+  return (JSON.parse(raw) as KubeObject).metadata.labels ?? {};
+}
+
+export function pods(): Promise<Pod[]> {
+  return list("pods");
 }
 
 /** The public gateway, through the proxy's `/e2e/gateway/` location. */

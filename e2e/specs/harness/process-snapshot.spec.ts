@@ -11,8 +11,8 @@ import { untaggedSpecs } from "../../registry/elements.js";
 test.describe("process snapshot", () => {
   test("collector metadata passes component reconciliation", () => {
     const directory = path.join(repoRoot(), "e2e");
-    const report = JSON.parse(execFileSync(path.join(directory, "node_modules/.bin/playwright"), [
-      "test", "--project=process-snapshot", "--no-deps", "--list", "--reporter=json",
+    const report = JSON.parse(execFileSync(process.execPath, [
+      path.join(directory, "node_modules", "@playwright", "test", "cli.js"), "test", "--project=process-snapshot", "--no-deps", "--list", "--reporter=json",
     ], { cwd: directory, encoding: "utf8" })) as Parameters<typeof untaggedSpecs>[0];
     expect(untaggedSpecs(report)).toEqual([]);
   });
