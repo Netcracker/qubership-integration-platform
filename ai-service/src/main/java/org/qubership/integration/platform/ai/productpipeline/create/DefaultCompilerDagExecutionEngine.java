@@ -21,6 +21,7 @@ import java.util.function.BiConsumer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 import org.qubership.integration.platform.ai.chat.evidence.EvidenceIds;
 import org.qubership.integration.platform.ai.qipknowledge.patch.CanonicalGraphDigest;
@@ -1446,7 +1447,10 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
             .map(a -> ((SkillArtifactPayload.ChainPlanGraphPayload) a.payload()).graph())
             .orElse(null);
     CompilerContract contract = contractRepository.require(CompilerContract.V1);
-    graphValidator.validate(graph, contract, request.semanticRevision());
+    // Validator loads /v1/library via CatalogBearerTokenFilter; keep the turn conversation bound.
+    try (ToolSession.Handle ignored = ToolSession.open(request.conversationId())) {
+      graphValidator.validate(graph, contract, request.semanticRevision());
+    }
   }
 
   private void pinRuntimeDescriptors() {

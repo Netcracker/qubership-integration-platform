@@ -28,6 +28,7 @@ import org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecover
 import org.qubership.integration.platform.ai.schema.CamelSimplePredicateValidator;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.chat.UserTokenStore;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
@@ -705,6 +706,35 @@ class DesignInputCapabilityTest {
             .MustacheTemplateVariableStyleParserHook()).build();
     String prompt = renderer.parse(seenPrompt.get()).render();
     assertTrue(prompt.contains("path=/orders/{id}"), prompt);
+  }
+
+  @Test
+  void cleanRebuildCarriesTheTurnBearer() {
+    java.util.concurrent.atomic.AtomicReference<String> seenToken =
+        new java.util.concurrent.atomic.AtomicReference<>();
+    DesignInputCapability capability =
+        new DesignInputCapability(
+            (conversationId, prompt) -> {
+              seenToken.set(UserTokenStore.current().orElse(null));
+              return Multi.createFrom().item("prose without a tool call");
+            },
+            new DefaultChainSemanticIdsRenderer());
+    Map<String, Object> attributes = new LinkedHashMap<>();
+    attributes.put("requirementBrief", ChainSemanticCaptureFixtures.approvedBrief());
+    attributes.put(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR, "rejected topology");
+    attributes.put(ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR, "unknown element type");
+    attributes.put(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR, "evidence-design");
+    attributes.put(
+        ProductPipelineRunSupport.DESIGN_INPUT_CLEAN_REBUILD_EVIDENCE_REF_ATTR,
+        "evidence-design");
+    UserTokenStore.put("conv-1", "caller-token");
+    try {
+      outcome(capability, context("design-input", attributes));
+
+      assertEquals("caller-token", seenToken.get());
+    } finally {
+      UserTokenStore.remove("conv-1", "caller-token");
+    }
   }
 
   private static DesignInputCapability capturingCapability() {

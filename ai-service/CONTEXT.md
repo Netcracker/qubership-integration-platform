@@ -223,6 +223,31 @@ card carries the run identifier the author hands to support and offers only End 
 report, because re-entering the stage meets the same defect. Stage IDs stay in technical details.
 _Avoid_: contract failure for a service defect, a Retry that cannot work, terminal FAILED
 
+**Turn bearer**:
+The access token taken from the request that started the work (the chat request that opened the
+current turn, or the A2A request that started a task) and sent on that work's catalog calls. Only a
+token renewal replaces it.
+_Avoid_: the access token currently held in the browser, user token, caller token
+
+**Token renewal**:
+While a chat turn streams, the UI posts each token the host app renews to
+`POST /api/v1/chat/{conversationId}/token`. The turn takes it only when its `sub` matches the turn
+bearer's. The service never waits for a renewal: a call made after the bearer expired gets a
+catalog rejection.
+_Avoid_: token refresh (the host app refreshes; the AI service only receives the result)
+
+**Catalog rejection**:
+A catalog HTTP 401 or 403 on a call made with the turn bearer. The chat turn ends at once with fixed
+copy: "Your session has expired. Sign in again to continue." for a 401, "You don't have permission to
+perform this action." for a 403. The UI shows the same copy when the chat request itself gets 401
+or 403.
+_Avoid_: access denied for a 401, a model-written explanation of the failure
+
+**Service identity**:
+The AI service's own catalog credential (`CATALOG_TOKEN`), carrying its service account's
+permissions rather than any person's. Never used for work a caller started while auth is required.
+_Avoid_: system user, technical token, M2M token
+
 **Causal reopen window** (decided):
 Causal reopen runs only before any materializer has written to the catalog. A failure at or after
 materialization is outside this feature: the model does not reopen the plan and write again on its
@@ -360,3 +385,12 @@ automatic mechanism -- the catalog refuses one on a chain that fails property ve
 exactly the mid-edit state the semantic validator tolerates, and building one overwrites
 `currentSnapshot`.
 _Avoid_: taking a snapshot around every patch, recreating a deleted element under its old name
+
+**Auth required** (`qip.ai.auth.required`, env `QIP_AI_AUTH_REQUIRED`):
+On by default: every chat turn, A2A invocation, and harness run must carry a turn bearer, and every
+catalog call uses only the turn bearer of its conversation. A call with no conversation bound, or
+with no bearer, fails as unauthenticated; it never falls back to the service identity. Local stacks
+without an identity provider turn it off: work without a bearer is then served with the service
+identity, as before caller tokens were propagated. A bearer that does arrive is always honoured.
+_Avoid_: "local mode" (the flag, not the environment, is what matters)
+

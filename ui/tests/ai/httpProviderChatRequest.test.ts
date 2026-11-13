@@ -24,7 +24,15 @@ jest.mock("axios", () => ({
 }));
 
 import { HttpAiModelProvider } from "../../src/ai/modelProviders/httpProvider.ts";
-import type { ChatMessage } from "../../src/ai/modelProviders/types.ts";
+import {
+  type ChatMessage,
+  type StreamingChunk,
+} from "../../src/ai/modelProviders/types.ts";
+import {
+  ACCESS_DENIED_MESSAGE,
+  SESSION_EXPIRED_MESSAGE,
+} from "../../src/components/ai/chatMessageUtils.ts";
+import { installBearerAuth } from "../../src/api/rest/requestHeadersInterceptor.ts";
 
 function buildMessages(): ChatMessage[] {
   return [{ role: "user", content: "hello" }];
@@ -319,5 +327,79 @@ describe("HttpAiModelProvider streamChat() request body", () => {
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     const body = JSON.parse(init.body as string) as Record<string, unknown>;
     expect(body.clarificationOfferId).toBe("offer-42");
+  });
+});
+
+describe("HttpAiModelProvider auth failures and token renewal", () => {
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it.each([
+    [401, SESSION_EXPIRED_MESSAGE],
+    [403, ACCESS_DENIED_MESSAGE],
+  ])(
+    "should end the turn with the fixed copy when the chat request gets %i",
+    async (status, message) => {
+      global.fetch = jest.fn<typeof fetch>().mockResolvedValue({
+        ok: false,
+        status,
+        text: async () => "rejected",
+      } as unknown as Response);
+      const chunks: StreamingChunk[] = [];
+
+      await new HttpAiModelProvider("https://ai.example.com").streamChat(
+        { messages: buildMessages() },
+        (chunk) => chunks.push(chunk),
+      );
+
+      expect(chunks).toEqual([{ type: "error", errorMessage: message }]);
+    },
+  );
+
+  it("should post a renewed token to the running turn once", async () => {
+    jest.useFakeTimers();
+    let token = "t1";
+    const auth = installBearerAuth(() => token);
+    let endStream: (result: { done: boolean }) => void = () => undefined;
+    const fetchMock = jest
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        body: {
+          getReader: () => ({
+            read: () => new Promise((resolve) => (endStream = resolve)),
+          }),
+        },
+      } as unknown as Response)
+      .mockResolvedValue({ ok: true, status: 204 } as Response);
+    global.fetch = fetchMock;
+    try {
+      const streaming = new HttpAiModelProvider(
+        "https://ai.example.com",
+      ).streamChat(
+        { messages: buildMessages(), conversationId: "c-1" },
+        () => undefined,
+      );
+
+      await jest.advanceTimersByTimeAsync(15_000);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      token = "t2";
+      await jest.advanceTimersByTimeAsync(30_000);
+      endStream({ done: true });
+      await streaming;
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      const [url, init] = fetchMock.mock.calls[1];
+      expect(url).toBe("https://ai.example.com/api/v1/chat/c-1/token");
+      expect(init).toEqual({
+        method: "POST",
+        headers: { Authorization: "Bearer t2" },
+      });
+    } finally {
+      auth.eject();
+    }
   });
 });

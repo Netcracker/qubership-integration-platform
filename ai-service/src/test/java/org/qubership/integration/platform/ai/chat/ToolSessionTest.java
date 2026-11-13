@@ -37,6 +37,15 @@ class ToolSessionTest {
   }
 
   @Test
+  void openHandleRestoresPreviousBindingOnClose() {
+    ToolSession.bind("conv-turn");
+    try (ToolSession.Handle ignored = ToolSession.open("conv-skill")) {
+      assertEquals("conv-skill", ToolSession.resolveConversationId());
+    }
+    assertEquals("conv-turn", ToolSession.resolveConversationId());
+  }
+
+  @Test
   void propagateBindingInstallsConversationIdOnMultiSubscription() {
     AtomicReference<String> observed = new AtomicReference<>();
     ToolSession.bind("conv-propagate");

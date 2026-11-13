@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.a2a.transport;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -8,17 +9,25 @@ import static org.mockito.Mockito.when;
 
 import io.smallrye.mutiny.Multi;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import org.a2aproject.sdk.server.ServerCallContext;
 import org.a2aproject.sdk.server.agentexecution.RequestContext;
+import org.a2aproject.sdk.server.auth.UnauthenticatedUser;
 import org.a2aproject.sdk.server.tasks.AgentEmitter;
 import org.a2aproject.sdk.spec.Message;
 import org.a2aproject.sdk.spec.MessageSendParams;
 import org.a2aproject.sdk.spec.TextPart;
+import org.a2aproject.sdk.transport.rest.context.RestContextKeys;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.a2a.access.CallerContext;
 import org.qubership.integration.platform.ai.a2a.access.LocalPermitAllTaskAccessPolicy;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.chat.UserTokenStore;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
 import org.qubership.integration.platform.ai.llm.routing.ScenarioRouter;
@@ -48,6 +57,54 @@ class CipAssistA2aAgentExecutorTest {
     executor.execute(context(UUID.randomUUID().toString(), "Continue with contextId " + conversationId),
         mock(AgentEmitter.class));
     assertEquals(4, conversations.getMessages(conversationId).size());
+  }
+
+  @Test
+  void assistTurnBindsTheInboundBearerForItsConversationAndReleasesIt() throws Exception {
+    ScenarioRouter router = mock(ScenarioRouter.class);
+    ConversationService conversations = new ConversationService();
+    String conversationId = UUID.randomUUID().toString();
+    java.util.concurrent.atomic.AtomicReference<String> seenToken =
+        new java.util.concurrent.atomic.AtomicReference<>();
+    java.util.concurrent.atomic.AtomicReference<String> seenConversation =
+        new java.util.concurrent.atomic.AtomicReference<>();
+    when(router.route(any(ChatRequest.class), anyString()))
+        .thenAnswer(
+            invocation -> {
+              seenToken.set(UserTokenStore.current().orElse(null));
+              seenConversation.set(ToolSession.resolveConversationId());
+              return Multi.createFrom().item(ChatEvent.token("done"));
+            });
+    CipAssistA2aAgentExecutor executor =
+        new CipAssistA2aAgentExecutor(
+            router,
+            conversations,
+            () -> new CallerContext("local", "local-user"),
+            new LocalPermitAllTaskAccessPolicy(),
+            null,
+            Duration.ofSeconds(1));
+
+    executor.execute(contextWithBearer(conversationId, "Hello"), mock(AgentEmitter.class));
+
+    assertEquals(A2aTestAuth.BEARER, seenToken.get());
+    assertEquals(conversationId, seenConversation.get());
+    try (ToolSession.Handle ignored = ToolSession.open(conversationId)) {
+      assertTrue(UserTokenStore.current().isEmpty());
+    }
+  }
+
+  private static RequestContext contextWithBearer(String resolvedId, String text) {
+    Map<String, String> headers = new HashMap<>();
+    headers.put("Authorization", A2aTestAuth.AUTHORIZATION_HEADER);
+    ServerCallContext callContext =
+        new ServerCallContext(
+            UnauthenticatedUser.INSTANCE, Map.of(RestContextKeys.HEADERS_KEY, headers), Set.of());
+    Message message = Message.builder().role(Message.Role.ROLE_USER)
+        .messageId(UUID.randomUUID().toString()).parts(List.of(new TextPart(text))).build();
+    return new RequestContext.Builder().setTaskId(UUID.randomUUID().toString()).setContextId(resolvedId)
+        .setParams(MessageSendParams.builder().message(message).build())
+        .setServerCallContext(callContext)
+        .build();
   }
 
   private static RequestContext context(String resolvedId, String text) {

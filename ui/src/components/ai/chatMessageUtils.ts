@@ -1,5 +1,11 @@
 import type { ChatMessage, ChatUsage } from "../../ai/modelProviders/types.ts";
 
+/** Failure copy the AI service and this client show the user as is; it must match the server. */
+export const SESSION_EXPIRED_MESSAGE =
+  "Your session has expired. Sign in again to continue.";
+export const ACCESS_DENIED_MESSAGE =
+  "You don't have permission to perform this action.";
+
 export type ChatMeta = {
   durationMs: number;
   finishReason?: string;
@@ -251,6 +257,12 @@ export function buildTurnFailureMessage(
   decisionCard?: "valid" | "stale",
 ): ChatMessage {
   const trimmed = detail.trim();
+  if (
+    trimmed === SESSION_EXPIRED_MESSAGE ||
+    trimmed === ACCESS_DENIED_MESSAGE
+  ) {
+    return { role: "assistant", variant: "error", content: trimmed };
+  }
   return {
     role: "assistant",
     variant: "error",

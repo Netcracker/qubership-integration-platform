@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.catalog.binding.CompositionCatalogBinder;
 import org.qubership.integration.platform.ai.catalog.binding.McpSystemCatalogBinder;
 import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
@@ -233,7 +234,15 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
     seed = seed.with(SkillArtifact.of(SkillArtifactType.GENERATOR_PLAN_MANIFEST,
         CompilerExecutionSeed.SEMANTIC_COMPILER_PRODUCER,
         new SkillArtifactPayload.GeneratorPlanManifestPayload(readiness.manifest())));
-    RepairInput repairInput = selectRepairGraph(runManifest.runId(), repairEvidence, priorGraph, contract, revision, storedBrief);
+    RepairInput repairInput =
+        selectRepairGraph(
+            runManifest.runId(),
+            conversationId,
+            repairEvidence,
+            priorGraph,
+            contract,
+            revision,
+            storedBrief);
     CompilerDagExecutionRequest request =
         new CompilerDagExecutionRequest(
             runManifest.runId(),
@@ -251,12 +260,18 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
 
   private record RepairInput(ChainPlanGraph graph, Reference reference) {}
 
-  private RepairInput selectRepairGraph(String runId, StageRepairEvidence repair, ChainPlanGraph current,
-      CompilerContract contract, ChainSemanticRevision semantic, RequirementBrief brief) {
+  private RepairInput selectRepairGraph(
+      String runId,
+      String conversationId,
+      StageRepairEvidence repair,
+      ChainPlanGraph current,
+      CompilerContract contract,
+      ChainSemanticRevision semantic,
+      RequirementBrief brief) {
     if (current == null || repair == null) {
       return new RepairInput(null, null);
     }
-    boolean safe = preservesApprovedInputs(current, contract, semantic, brief);
+    boolean safe = preservesApprovedInputs(conversationId, current, contract, semantic, brief);
     Revision currentRevision = repair.priorOutput(Kind.CHAIN_PLAN_GRAPH)
         .flatMap(ref -> artifactStore.get(runId, ref)).orElse(null);
     if (currentRevision == null) {
@@ -289,7 +304,7 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
         continue;
       }
       ChainPlanGraph graph = artifactStore.payload(prior, ChainPlanGraph.class);
-      if (!preservesApprovedInputs(graph, contract, semantic, brief)) {
+      if (!preservesApprovedInputs(conversationId, graph, contract, semantic, brief)) {
         continue;
       }
       if (selected == null || !graph.equals(selected.graph())
@@ -306,10 +321,16 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
     return new RepairInput(safe ? current : null, safe ? currentRevision.reference() : null);
   }
 
-  private boolean preservesApprovedInputs(ChainPlanGraph graph, CompilerContract contract,
-      ChainSemanticRevision semantic, RequirementBrief brief) {
+  private boolean preservesApprovedInputs(
+      String conversationId,
+      ChainPlanGraph graph,
+      CompilerContract contract,
+      ChainSemanticRevision semantic,
+      RequirementBrief brief) {
     try {
-      graphValidator.validate(graph, contract, semantic);
+      try (ToolSession.Handle ignored = ToolSession.open(conversationId)) {
+        graphValidator.validate(graph, contract, semantic);
+      }
       var issues = CompilerQualityValidator.validateApprovedValues(graph, brief);
       return issues.isEmpty() || CompilerQualityValidator.onlyMissingScriptLiterals(issues);
     } catch (IllegalArgumentException | IllegalStateException rejected) {

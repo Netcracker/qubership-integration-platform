@@ -15,6 +15,7 @@ import java.util.function.BiFunction;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.skills.RockySkills;
 import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.chat.UserTokenStore;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
@@ -233,7 +234,12 @@ public class DesignInputCapability implements StageCapability {
     if (chatMemorySanitizer != null) {
       chatMemorySanitizer.clear(captureConversationId);
     }
-    ToolSession.bind(captureConversationId);
+    // A clean rebuild runs under its own id, so it shares the turn bearer, renewals included.
+    String sharedToken =
+        captureConversationId.equals(context.conversationId())
+            ? null
+            : UserTokenStore.share(context.conversationId(), captureConversationId);
+    ToolSession.Handle session = ToolSession.open(captureConversationId);
     ProductCapabilityCaptureContext.bindDesign(
         context.runId(),
         captureConversationId,
@@ -262,7 +268,10 @@ public class DesignInputCapability implements StageCapability {
       });
     } finally {
       ProductCapabilityCaptureContext.unbind(captureConversationId);
-      ToolSession.clear();
+      session.close();
+      if (sharedToken != null) {
+        UserTokenStore.remove(captureConversationId, sharedToken);
+      }
     }
     ChainSemanticRevision revision = captured.get();
     if (revision == null) {

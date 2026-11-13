@@ -68,6 +68,7 @@ class A2aFeatureFlagIT {
         .thenReturn(Multi.createFrom().item(ChatEvent.token("browser-ok")));
 
     given()
+        .header("Authorization", "Bearer test-token")
         .contentType(ContentType.JSON)
         .body("{\"message\":\"hello\"}")
         .when()
