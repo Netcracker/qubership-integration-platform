@@ -44,7 +44,7 @@ export const TREND_RUNS = 10;
  * @typedef {import("./run-history.mjs").History} History
  * @typedef {{ status: string }} LastRun
  * @typedef {import("./run-summary.mjs").Coverage} Coverage
- * @typedef {{ startedAt?: string, target?: string, commit?: { sha?: string, branch?: string }, absent?: { name: string, reason: string }[] }} Stack
+ * @typedef {{ run?: string, startedAt?: string, target?: string, commit?: { sha?: string, branch?: string }, absent?: { name: string, reason: string }[] }} Stack
  * @typedef {Record<string, string | undefined>} Env
  *
  * @typedef {{ text: string, href?: string }} Link
@@ -116,7 +116,7 @@ export function runOf({ report, lastRun, stack, coverage, history = [], env = {}
         location,
         failedAt: thrown && error?.location ? { text: `${thrown}:${error.location.line}`, href: blob(thrown, error.location.line) } : undefined,
         error: excerpt(error?.message),
-        retry: rerunCommand(target, test.projectName, location.text, title, !stackless.has(test.projectName)),
+        retry: rerunCommand(target, test.projectName, location.text, title, !stackless.has(test.projectName), stack?.run),
         history: past,
         novelty: past?.kind ?? (history.length > 0 ? "new" : "unknown"),
         sameCommit: past && past.kind !== "recurring" ? Boolean(sha) && past.previous.sha === sha : undefined,
