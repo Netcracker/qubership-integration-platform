@@ -1,10 +1,22 @@
 import { test, expect } from "@playwright/test";
+import { execFileSync } from "node:child_process";
+import path from "node:path";
 import { ROLES } from "../../env/containers.js";
+import { repoRoot } from "../../env/host.js";
 import type { Env } from "../../env/index.js";
 import { capturedValue, readProcessSnapshot, saveProcessSnapshot } from "../../env/process-snapshot.js";
 import { EXAMPLE_RUN_TOKEN } from "../../support/run.js";
+import { untaggedSpecs } from "../../registry/elements.js";
 
 test.describe("process snapshot", () => {
+  test("collector metadata passes component reconciliation", () => {
+    const directory = path.join(repoRoot(), "e2e");
+    const report = JSON.parse(execFileSync(path.join(directory, "node_modules/.bin/playwright"), [
+      "test", "--project=process-snapshot", "--no-deps", "--list", "--reporter=json",
+    ], { cwd: directory, encoding: "utf8" })) as Parameters<typeof untaggedSpecs>[0];
+    expect(untaggedSpecs(report)).toEqual([]);
+  });
+
   test("keeps readings from before restarts and later load", async ({}, testInfo) => {
     const file = testInfo.outputPath("snapshot.json");
     let startedAt = "before restarts";
