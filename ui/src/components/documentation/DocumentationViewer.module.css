@@ -29,7 +29,7 @@
 .viewer :is(h1, h2, h3, h4, h5, h6) {
   margin: 0.6em 0 0.2em;
   line-height: 1.25;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: -0.005em;
   scroll-margin-top: 16px;
   color: var(--doc-fg);
