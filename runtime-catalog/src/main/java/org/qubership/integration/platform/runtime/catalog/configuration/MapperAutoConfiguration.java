@@ -179,10 +179,9 @@ public class MapperAutoConfiguration {
     private YAMLFactory createCustomYamlFactory() {
         LoaderOptions loaderOptions = new LoaderOptions();
         loaderOptions.setCodePointLimit(CODE_POINT_LIMIT_MB * 1024 * 1024);
-        return YAMLFactory.builder()
+        return new MinimizedQuotesYamlFactory(YAMLFactory.builder()
                 .loaderOptions(loaderOptions)
-                .stringQuotingChecker(new YamlStringQuotingChecker())
-                .build();
+                .stringQuotingChecker(new YamlStringQuotingChecker()));
     }
 
     @Bean

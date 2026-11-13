@@ -25,6 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.io.model.exportimport.chain.ChainCommitRequestAction;
+import org.qubership.integration.platform.runtime.catalog.configuration.MinimizedQuotesYamlFactory;
 import org.qubership.integration.platform.runtime.catalog.configuration.YamlStringQuotingChecker;
 import org.qubership.integration.platform.runtime.catalog.consul.ConsulService;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ImportInstructionsExternalException;
@@ -107,7 +108,8 @@ public class ImportInstructionsService {
             @Value("${cip.export.minimize-quotes}") boolean minimizeQuotes
     ) {
         this.instructionsFileName = instructionsFileName + ".yaml";
-        this.yamlMapper = new YAMLMapper(YAMLFactory.builder().stringQuotingChecker(new YamlStringQuotingChecker()).build())
+        this.yamlMapper = new YAMLMapper(new MinimizedQuotesYamlFactory(
+                        YAMLFactory.builder().stringQuotingChecker(new YamlStringQuotingChecker())))
                 .disable(YAMLGenerator.Feature.WRITE_DOC_START_MARKER)
                 .configure(YAMLGenerator.Feature.MINIMIZE_QUOTES, minimizeQuotes);
         this.importInstructionsRepository = importInstructionsRepository;
